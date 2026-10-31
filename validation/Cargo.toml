@@ -13,6 +13,9 @@ members = [
     # digest-pinned at build time, and the Rust models generated from the
     # export; and the graph rewrite their build scripts share.
     "onnx/*",
+    # Each model's checkpoints, fetched and digest-pinned at build time, when
+    # its reference is not an ONNX export.
+    "assets/*",
     # Each model's cross-checks: bunsen's kit against the generated reference,
     # and against upstream's own decodes.
     "models/*",
