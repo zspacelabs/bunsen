@@ -162,10 +162,9 @@ jobs:
       # hand, on a GPU (STYLE.md, "Network access").
 
       # An explicit list rather than `--all-features`: `cuda` pulls in an
-      # LLVM-based compiler toolchain, `metal` builds only on macOS, and
-      # `download` is left to the validation runs.
+      # LLVM-based compiler toolchain, and `metal` builds only on macOS.
       - name: Docs
-        run: cargo doc --no-deps --features indicatif,gpu-tests,wgpu,vulkan
+        run: cargo doc --no-deps --features indicatif,wgpu,vulkan
 
       # The step above documents the whole workspace, so Cargo unifies features
       # across members and a link can resolve there that breaks for `bunsen`

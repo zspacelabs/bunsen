@@ -433,7 +433,7 @@ is what separates the two folders:
 | config | command | Pre-Test Group |
 |---|---|---|
 | `Test Workspace` | `cargo test --workspace` | enabled |
-| `Test Workspace (wgpu\|vulkan\|cuda\|metal)` | `cargo test --workspace --features <backend>,download,gpu-tests` | enabled |
+| `Test Workspace (wgpu\|vulkan\|cuda\|metal)` | `cargo test --workspace --features <backend>,indicatif` | enabled |
 | `` Test `bunsen` `` | `cargo test -p bunsen` | attached, **disabled** |
 | `` Test `bunsen` (wgpu) `` | `cargo test -p bunsen --features wgpu` | attached, **disabled** |
 
@@ -467,8 +467,9 @@ config.
   (`Steps`, `Workspace`, `bunsen`, `Exercise`).
 * **Features live on the command line**, not the config: `requiredFeatures`
   is `false` on every test config. Backend and switch names follow the
-  [cargo features](#cargo-features) chapter — `download` for the network,
-  `gpu-tests` for the slow tests, a backend never implied.
+  [cargo features](#cargo-features) chapter, a backend never implied. No
+  config turns on `download` or `gpu-tests`: only the validation workspace
+  offers them, and it runs through `cargo make validate-<model>`.
 * **A test that "fails to start" is a step that failed.** The IDE reports a
   before-launch failure as `Process not started... Probably build process
   failed`, with no diagnostic. Run the steps singly, in chain order, to get
