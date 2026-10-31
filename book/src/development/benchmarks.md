@@ -28,7 +28,7 @@ Outside the benches:
   `benchmark` subcommand reports the sustained steps per second of the 2D or
   3D Game of Life on the device `--device` selects. It measures the tensor
   kernels behind the simulation kits.
-- [`bunsen-asr`](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-asr/README.md#benchmarks)'s
+- [`bunsen-tool`](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md#benchmarks)'s
   `transcribe` logs, at `-v`, each file's audio length, transcription time
   and realtime factor, and the totals over the set. Its README runs it over
   a speech dataset.
@@ -46,7 +46,7 @@ to optimize, and know which one a number is.
   `cold`.
 - `conway benchmark` leaves a warmup fraction of its steps out of the
   timing.
-- `bunsen-asr` sizes every push to the stream driver's grain, so the front
+- `bunsen-tool` sizes every push to the stream driver's grain, so the front
   end and the autotuned kernels behind it see one shape, not a drift of
   remainders.
 - A benchmark whose shapes change every iteration measures the tuner, not
@@ -62,7 +62,7 @@ the CPU. It doesn't fail; it reports CPU numbers
 backend explicitly: `--features wgpu`, or another backend, for bunsen's own
 benches, and `--features bunsen/wgpu` for a binary that reaches
 `performance_device()` through bunsen, such as silero-bench. The examples and
-`bunsen-asr`, `conway` among them, pick their device at run time with
+`bunsen-tool`, `conway` among them, pick their device at run time with
 `--device`; a backend is selectable only when the binary was built with its
 feature, and without one `auto` is the CPU. The examples' READMEs and the
 `whisper_decode` bench's docs give exact commands.

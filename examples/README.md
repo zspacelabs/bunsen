@@ -3,7 +3,7 @@
 Runnable programs, one or more per kit or system. They are not published, and CI builds all of them. The book's
 [Examples](https://zspacelabs.ai/bunsen/book/organization/examples.html) page says what each one shows and how to
 choose a device; each example's own README says how to run it.
-[`bunsen-asr`](../crates/public/bunsen-asr), speech to text across model families, is a published binary rather
+[`bunsen-tool`](../crates/public/bunsen-tool) (`bunsen-tool asr`: speech to text across model families) is a published binary rather
 than an example.
 
 - [`conway`](conway): Conway's Game of Life in 2D and 3D, with `visual` and `benchmark` subcommands.

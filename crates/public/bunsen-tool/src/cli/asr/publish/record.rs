@@ -18,7 +18,7 @@ use super::{
     Statement,
     config::Opts,
 };
-use crate::{
+use crate::cli::asr::{
     diarize::{
         recording_id,
         speaker_name,
@@ -274,7 +274,7 @@ mod tests {
     use std::time::UNIX_EPOCH;
 
     use super::*;
-    use crate::publish::config::EventKind;
+    use crate::cli::asr::publish::config::EventKind;
 
     fn opts(
         times: bool,

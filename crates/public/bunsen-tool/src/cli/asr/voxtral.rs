@@ -24,7 +24,7 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::{
+use crate::cli::asr::{
     stream::{
         self,
         Preset,

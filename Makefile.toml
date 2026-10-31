@@ -160,7 +160,7 @@ dependencies = [
 
 # ── exercise ──────────────────────────────────────────────────────────────────
 #
-# `bunsen-asr`, built in release mode for one GPU backend, over a real clip:
+# `bunsen-tool`, built in release mode for one GPU backend, over a real clip:
 # what a user runs, end to end, rather than a test. For a local machine with an
 # accelerator, never CI: `exercise-all` fetches every model into the weights
 # cache (tens of GB). The backend is required, as the task's argument:

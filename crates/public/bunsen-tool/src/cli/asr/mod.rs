@@ -1,15 +1,11 @@
-//! `bunsen-asr`: speech to text on bunsen. `bunsen-asr <transcribe|live>
-//! [--profile NAME] [FLAGS]` runs a profile, a model chosen by what it is
-//! for, and `bunsen-asr profiles <list|show|fetch>` shows them;
-//! `bunsen-asr family <parakeet|qwen3-asr|voxtral|whisper>
-//! <list|fetch|transcribe|live> [FLAGS]` (and `family whisper
-//! inspect|prefabs`) runs a family's model by name; `bunsen-asr diarize
-//! <list|fetch|run|live>` says who spoke when, and `bunsen-asr cache
-//! <path|list|clear>` manages the weights cache.
+//! `bunsen-tool asr`: speech to text. `asr <transcribe|live> [--profile
+//! NAME] [FLAGS]` runs a profile, a model chosen by what it is for, and `asr
+//! profiles <list|show|fetch>` shows them; `asr family
+//! <parakeet|qwen3-asr|voxtral|whisper> <list|fetch|transcribe|live> [FLAGS]`
+//! (and `family whisper inspect|prefabs`) runs a family's model by name; `asr
+//! diarize <list|fetch|run|live>` says who spoke when.
 
 use bunsen::errors::BunsenResult;
-use clap::Parser;
-
 #[cfg(feature = "live")]
 mod capture;
 mod diarize;
@@ -34,9 +30,9 @@ mod whisper_models;
 
 use family::Family;
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
+/// `bunsen-tool asr`'s commands.
+#[derive(clap::Args, Debug)]
+pub struct AsrCmd {
     #[clap(subcommand)]
     command: Command,
 }
@@ -61,11 +57,6 @@ enum Command {
     /// NVIDIA's Sortformer, who spoke when: `nvidia/nemotron-3-diarization`
     /// by default.
     Diarize(diarize::DiarizeCmd),
-
-    /// The weights cache every family loads through: where it is, what it
-    /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
-    /// `sortformer`, `silero_vad`), and clearing it.
-    Cache(bunsen_app::cache::CacheCommand),
 }
 
 /// The model families' commands.
@@ -181,50 +172,45 @@ impl<F: clap::Args + transcribe_cmd::FamilyFlags> Action<F> {
     }
 }
 
-fn main() -> BunsenResult<()> {
-    bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
-    match &Args::parse().command {
-        Command::Transcribe(cmd) => cmd.run(),
-        #[cfg(feature = "live")]
-        Command::Live(cmd) => cmd.run(),
-        Command::Profiles(cmd) => cmd.run(),
-        Command::Family(cmd) => cmd.run(),
-        Command::Diarize(cmd) => cmd.run(),
-        Command::Cache(cmd) => cmd.run(),
+impl AsrCmd {
+    pub fn run(&self) -> BunsenResult<()> {
+        match &self.command {
+            Command::Transcribe(cmd) => cmd.run(),
+            #[cfg(feature = "live")]
+            Command::Live(cmd) => cmd.run(),
+            Command::Profiles(cmd) => cmd.run(),
+            Command::Family(cmd) => cmd.run(),
+            Command::Diarize(cmd) => cmd.run(),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use clap::CommandFactory;
+    use clap::Parser;
 
     use super::*;
 
-    /// The flags of every subcommand are well formed.
-    #[test]
-    fn test_cli_is_well_formed() {
-        Args::command().debug_assert();
+    /// `asr`'s commands alone, as `bunsen-tool asr` parses them.
+    #[derive(clap::Parser, Debug)]
+    struct Args {
+        #[clap(subcommand)]
+        command: Command,
     }
 
     /// Each family parses its own `list` and `transcribe`.
     #[test]
     fn test_families_parse() {
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
-            Args::try_parse_from(["bunsen-asr", "family", family, "list"]).unwrap();
-            Args::try_parse_from(["bunsen-asr", "family", family, "transcribe", "a.wav"]).unwrap();
+            Args::try_parse_from(["asr", "family", family, "list"]).unwrap();
+            Args::try_parse_from(["asr", "family", family, "transcribe", "a.wav"]).unwrap();
         }
-        assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        assert!(Args::try_parse_from(["asr", "silero", "list"]).is_err());
         // The diarizer: its presets and its outputs, one at a time.
-        Args::try_parse_from(["bunsen-asr", "diarize", "list"]).unwrap();
+        Args::try_parse_from(["asr", "diarize", "list"]).unwrap();
+        Args::try_parse_from(["asr", "diarize", "fetch", "nvidia/nemotron-3-diarization"]).unwrap();
         Args::try_parse_from([
-            "bunsen-asr",
-            "diarize",
-            "fetch",
-            "nvidia/nemotron-3-diarization",
-        ])
-        .unwrap();
-        Args::try_parse_from([
-            "bunsen-asr",
+            "asr",
             "diarize",
             "run",
             "--latency",
@@ -236,28 +222,21 @@ mod tests {
         ])
         .unwrap();
         assert!(
-            Args::try_parse_from(["bunsen-asr", "diarize", "run", "--rttm", "--json", "a.wav"])
-                .is_err()
+            Args::try_parse_from(["asr", "diarize", "run", "--rttm", "--json", "a.wav"]).is_err()
         );
-        assert!(Args::try_parse_from(["bunsen-asr", "diarize", "run"]).is_err());
-        assert!(Args::try_parse_from(["bunsen-asr", "diarize", "transcribe", "a.wav"]).is_err());
+        assert!(Args::try_parse_from(["asr", "diarize", "run"]).is_err());
+        assert!(Args::try_parse_from(["asr", "diarize", "transcribe", "a.wav"]).is_err());
         // Every family diarizes: `--diarize` alone is the default model, and
         // never takes the file that follows it.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
-            let Args { command: parsed } = Args::try_parse_from([
-                "bunsen-asr",
-                "family",
-                family,
-                "transcribe",
-                "--diarize",
-                "a.wav",
-            ])
-            .unwrap();
+            let Args { command: parsed } =
+                Args::try_parse_from(["asr", "family", family, "transcribe", "--diarize", "a.wav"])
+                    .unwrap();
             let debug = format!("{parsed:?}");
             assert!(debug.contains("nvidia/nemotron-3-diarization"), "{debug}");
             assert!(debug.contains("\"a.wav\""), "{debug}");
             Args::try_parse_from([
-                "bunsen-asr",
+                "asr",
                 "family",
                 family,
                 "transcribe",
@@ -269,22 +248,15 @@ mod tests {
             ])
             .unwrap();
             assert!(
-                Args::try_parse_from([
-                    "bunsen-asr",
-                    "family",
-                    family,
-                    "transcribe",
-                    "--rttm",
-                    "a.wav"
-                ])
-                .is_err(),
+                Args::try_parse_from(["asr", "family", family, "transcribe", "--rttm", "a.wav"])
+                    .is_err(),
                 "{family}: --rttm without --diarize"
             );
         }
         // Whisper's own: its decode flags, a checkpoint path, inspect and
         // prefabs.
         Args::try_parse_from([
-            "bunsen-asr",
+            "asr",
             "family",
             "whisper",
             "transcribe",
@@ -304,15 +276,12 @@ mod tests {
             "a.wav",
         ])
         .unwrap();
-        Args::try_parse_from(["bunsen-asr", "family", "whisper", "inspect", "openai/tiny"])
-            .unwrap();
-        Args::try_parse_from(["bunsen-asr", "family", "whisper", "prefabs"]).unwrap();
-        assert!(
-            Args::try_parse_from(["bunsen-asr", "family", "parakeet", "inspect", "x"]).is_err()
-        );
+        Args::try_parse_from(["asr", "family", "whisper", "inspect", "openai/tiny"]).unwrap();
+        Args::try_parse_from(["asr", "family", "whisper", "prefabs"]).unwrap();
+        assert!(Args::try_parse_from(["asr", "family", "parakeet", "inspect", "x"]).is_err());
         assert!(
             Args::try_parse_from([
-                "bunsen-asr",
+                "asr",
                 "family",
                 "parakeet",
                 "transcribe",
@@ -323,33 +292,14 @@ mod tests {
         );
         // Every family fetches, at least one name.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
-            Args::try_parse_from([
-                "bunsen-asr",
-                "family",
-                family,
-                "fetch",
-                "--verify",
-                "a",
-                "b",
-            ])
-            .unwrap();
-            assert!(Args::try_parse_from(["bunsen-asr", "family", family, "fetch"]).is_err());
-        }
-        // The weights cache's commands.
-        for action in [
-            &["path"][..],
-            &["list", "whisper"],
-            &["clear", "qwen3-asr/fermion", "--yes"],
-        ] {
-            let mut argv = vec!["bunsen-asr", "cache", "--cache-dir", "/tmp/c"];
-            argv.extend_from_slice(action);
-            Args::try_parse_from(argv).unwrap();
+            Args::try_parse_from(["asr", "family", family, "fetch", "--verify", "a", "b"]).unwrap();
+            assert!(Args::try_parse_from(["asr", "family", family, "fetch"]).is_err());
         }
         // Every family listens live, under any preset.
         #[cfg(feature = "live")]
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
-                "bunsen-asr",
+                "asr",
                 "family",
                 family,
                 "live",
@@ -365,7 +315,7 @@ mod tests {
         // Every family takes a preset.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
-                "bunsen-asr",
+                "asr",
                 "family",
                 family,
                 "transcribe",
@@ -377,7 +327,7 @@ mod tests {
         }
         // Each family's flags are its own.
         Args::try_parse_from([
-            "bunsen-asr",
+            "asr",
             "family",
             "parakeet",
             "transcribe",
@@ -387,7 +337,7 @@ mod tests {
         ])
         .unwrap();
         Args::try_parse_from([
-            "bunsen-asr",
+            "asr",
             "family",
             "whisper",
             "transcribe",
@@ -398,7 +348,7 @@ mod tests {
         .unwrap();
         assert!(
             Args::try_parse_from([
-                "bunsen-asr",
+                "asr",
                 "family",
                 "parakeet",
                 "transcribe",
@@ -410,7 +360,7 @@ mod tests {
         );
         assert!(
             Args::try_parse_from([
-                "bunsen-asr",
+                "asr",
                 "family",
                 "parakeet",
                 "transcribe",
@@ -424,9 +374,9 @@ mod tests {
     /// The profiles' commands parse; the families are under `family` alone.
     #[test]
     fn test_profiles_parse() {
-        Args::try_parse_from(["bunsen-asr", "transcribe", "a.wav"]).unwrap();
+        Args::try_parse_from(["asr", "transcribe", "a.wav"]).unwrap();
         Args::try_parse_from([
-            "bunsen-asr",
+            "asr",
             "transcribe",
             "--profile",
             "multi",
@@ -446,17 +396,14 @@ mod tests {
             "b.wav",
         ])
         .unwrap();
-        assert!(Args::try_parse_from(["bunsen-asr", "transcribe"]).is_err());
+        assert!(Args::try_parse_from(["asr", "transcribe"]).is_err());
+        assert!(Args::try_parse_from(["asr", "transcribe", "--model", "x", "a.wav"]).is_err());
         assert!(
-            Args::try_parse_from(["bunsen-asr", "transcribe", "--model", "x", "a.wav"]).is_err()
-        );
-        assert!(
-            Args::try_parse_from(["bunsen-asr", "transcribe", "--opt", "klingon.x=1", "a.wav"])
-                .is_err()
+            Args::try_parse_from(["asr", "transcribe", "--opt", "klingon.x=1", "a.wav"]).is_err()
         );
         #[cfg(feature = "live")]
         Args::try_parse_from([
-            "bunsen-asr",
+            "asr",
             "live",
             "--profile",
             "translate-en",
@@ -473,15 +420,15 @@ mod tests {
             &["profiles", "show", "en", "multi"],
             &["profiles", "fetch", "--verify", "en"],
         ] {
-            let mut full = vec!["bunsen-asr"];
+            let mut full = vec!["asr"];
             full.extend_from_slice(argv);
             Args::try_parse_from(full).unwrap();
         }
-        assert!(Args::try_parse_from(["bunsen-asr", "profiles", "fetch"]).is_err());
+        assert!(Args::try_parse_from(["asr", "profiles", "fetch"]).is_err());
         // The families moved under `family`.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             assert!(
-                Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).is_err(),
+                Args::try_parse_from(["asr", family, "transcribe", "a.wav"]).is_err(),
                 "{family}"
             );
         }
@@ -502,9 +449,17 @@ mod tests {
                 if mode == profile::Mode::Offline {
                     line.push("a.wav".into());
                 }
-                let Args { command } = Args::try_parse_from(&line)
+                let crate::Args { command } = crate::Args::try_parse_from(&line)
                     .unwrap_or_else(|e| panic!("{}: {e}", profile::shell_line(&line)));
-                assert!(matches!(command, Command::Family(_)), "{command:?}");
+                assert!(
+                    matches!(
+                        &command,
+                        crate::Command::Asr(AsrCmd {
+                            command: Command::Family(_)
+                        })
+                    ),
+                    "{command:?}"
+                );
             }
         }
     }

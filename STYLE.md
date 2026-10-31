@@ -444,7 +444,7 @@ The `Workspace` configs are the merge bar; the `bunsen` configs are the fast
 loop, and skip the chain so an edit-test cycle is one build. Flip the
 checkbox on the config, not the chain, to change that for a run.
 
-**Exercise** (folder `Exercise`) runs `bunsen-asr` end to end on a local
+**Exercise** (folder `Exercise`) runs `bunsen-tool` end to end on a local
 GPU, through `cargo make` (`tools/exercise_asr.py`): not tests, and not part
 of the merge bar, so they carry no `Pre-Test Group`. One per backend, since the
 backend is required:

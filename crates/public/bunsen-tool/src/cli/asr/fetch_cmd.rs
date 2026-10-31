@@ -1,4 +1,4 @@
-//! `bunsen-asr family <family> fetch` and `bunsen-asr diarize fetch`.
+//! `asr family <family> fetch` and `asr diarize fetch`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
@@ -9,7 +9,7 @@ use bunsen_app::{
     },
 };
 
-use crate::family::Kit;
+use crate::cli::asr::family::Kit;
 
 /// Brings every file of the named models into the weights cache, fetching
 /// what is not local, and prints where each one is: a deployment that

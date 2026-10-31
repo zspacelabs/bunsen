@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Exercise `bunsen-asr` on a local GPU: every kit with its default model, or every model.
+"""Exercise `bunsen-tool asr` on a local GPU: every kit with its default model, or every model.
 
-Builds `bunsen-asr` in release mode for one backend, runs each case of
+Builds `bunsen-tool` in release mode for one backend, runs each case of
 `tools/exercise_asr.toml` over a real clip, and reports what each took and how
 far its transcript is from the reference. Not a test suite and not for CI: it
 fetches every model it runs into the weights cache, many GB for `all`, and is
@@ -11,9 +11,9 @@ Usage: tools/exercise_asr.py {defaults,all} BACKEND [--only TEXT] [--dry-run]
 
   defaults  each family's default model, each profile, Silero's VAD gate, and
             the diarizer (tools/exercise_asr.toml)
-  all       every model `bunsen-asr family <family> list` and `diarize list`
+  all       every model `bunsen-tool asr family <family> list` and `asr diarize list`
             name, at the time of the run
-  BACKEND   wgpu, vulkan, cuda or metal: the feature `bunsen-asr` is built
+  BACKEND   wgpu, vulkan, cuda or metal: the feature `bunsen-tool` is built
             with. Required; there is no CPU default.
 
 `--only` keeps the cases whose name contains TEXT; `--dry-run` prints the
@@ -36,7 +36,9 @@ from pathlib import Path
 
 BACKENDS = ("wgpu", "vulkan", "cuda", "metal")
 CONFIG = Path("tools/exercise_asr.toml")
-BINARY = Path("target/release/bunsen-asr")
+BINARY = Path("target/release/bunsen-tool")
+# The speech-to-text commands: every case's `args` follow these.
+ASR = [str(BINARY), "asr"]
 
 # A model row in `list`: `provider:ref`, optionally `(default)`, at column 0.
 # `hf:org/repo` is a template, not a model, and is skipped.
@@ -82,7 +84,7 @@ def wer(reference: list[str], hypothesis: list[str]) -> float:
 
 def listed_models(command: list[str]) -> list[str]:
     """The model ids a `list` command prints."""
-    out = subprocess.run([str(BINARY), *command, "list"], check=True, capture_output=True, text=True).stdout
+    out = subprocess.run([*ASR, *command, "list"], check=True, capture_output=True, text=True).stdout
     return [m["id"] for line in out.splitlines() if (m := LIST_ROW.match(line))]
 
 
@@ -103,7 +105,7 @@ def all_cases(config: dict) -> list[dict]:
 
 def run_case(case: dict, clip: str, reference: list[str], max_wer: float) -> dict:
     """Runs one case; its outcome, timing and score."""
-    command = [str(BINARY), *case["args"], "--json", "--quiet", clip]
+    command = [*ASR, *case["args"], "--json", "--quiet", clip]
     start = time.monotonic()
     proc = subprocess.run(command, capture_output=True, text=True)
     seconds = time.monotonic() - start
@@ -131,16 +133,16 @@ def run_case(case: dict, clip: str, reference: list[str], max_wer: float) -> dic
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("set", choices=("defaults", "all"))
-    parser.add_argument("backend", choices=BACKENDS, help="the accelerator `bunsen-asr` is built for")
+    parser.add_argument("backend", choices=BACKENDS, help="the accelerator `bunsen-tool` is built for")
     parser.add_argument("--only", help="keep the cases whose name contains this")
     parser.add_argument("--dry-run", action="store_true", help="print the command lines, build and run nothing")
     args = parser.parse_args()
 
     config = tomllib.loads(CONFIG.read_text())
-    build = ["cargo", "build", "--release", "-p", "bunsen-asr", "--features", args.backend]
+    build = ["cargo", "build", "--release", "-p", "bunsen-tool", "--features", args.backend]
     if args.dry_run and args.set == "all" and not BINARY.is_file():
         print(" ".join(build))
-        print(f"then every model `{BINARY} family <family> list` and `diarize list` name")
+        print(f"then every model `{BINARY} asr family <family> list` and `asr diarize list` name")
         return 0
     if not args.dry_run:
         subprocess.run(build, check=True)
@@ -151,7 +153,7 @@ def main() -> int:
     if args.dry_run:
         print(" ".join(build))
         for case in cases:
-            print(" ".join([str(BINARY), *case["args"], "--json", "--quiet", config["clip"]]))
+            print(" ".join([*ASR, *case["args"], "--json", "--quiet", config["clip"]]))
         return 0
 
     reference = words(Path(config["transcript"]).read_text())

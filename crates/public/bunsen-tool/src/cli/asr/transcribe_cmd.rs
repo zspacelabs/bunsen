@@ -1,4 +1,4 @@
-//! `bunsen-asr family <family> transcribe`, and what `transcribe` shares.
+//! `asr family <family> transcribe`, and what `transcribe` shares.
 use std::{
     path::PathBuf,
     time::{
@@ -30,7 +30,7 @@ use bunsen_app::{
 };
 use serde::Serialize;
 
-use crate::{
+use crate::cli::asr::{
     diarize::{
         SpeakerArgs,
         speaker_name,

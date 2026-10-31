@@ -115,7 +115,7 @@ impl MqttSink {
         };
         let id = config
             .client_id
-            .unwrap_or_else(|| format!("bunsen-asr-{}", std::process::id()));
+            .unwrap_or_else(|| format!("bunsen-tool-{}", std::process::id()));
         let mut options = MqttOptions::new(id, &host, port);
         options.set_keep_alive(Duration::from_secs(30));
         if let Some(username) = config.username {

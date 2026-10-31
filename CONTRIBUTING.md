@@ -16,7 +16,7 @@ open an [issue](https://github.com/zspacelabs/bunsen/issues) first. Code and doc
 - **Nightly `rustfmt`.** [`rustfmt.toml`](rustfmt.toml) uses unstable options, so format with `cargo +nightly fmt`.
   Stable `rustfmt` ignores those options and reformats the whole tree.
 - **ALSA headers, on Linux:** `libasound2-dev` on Debian and Ubuntu (`alsa-lib-devel` or `alsa-lib` elsewhere).
-  `bunsen-asr live` captures audio through `cpal`, which links ALSA, and clippy and the tests build every workspace
+  `bunsen-tool asr live` captures audio through `cpal`, which links ALSA, and clippy and the tests build every workspace
   member.
 - **[cargo-make](https://github.com/sagiegurari/cargo-make)**, which runs the tasks in [`Makefile.toml`](Makefile.toml).
 - **The mdbook tools**, for the book: `cargo make setup` installs mdbook and its plugins at the versions CI uses.
@@ -107,8 +107,8 @@ to a directory to keep the assets across `cargo clean` and toolchain updates, or
 
 ### Exercising the ASR kits on a GPU
 
-Before merging a change to a speech kit, run `bunsen-asr` itself over a real clip on your accelerator. This is not a
-test and never runs in CI: it builds `bunsen-asr` in release mode for one backend, runs each case over
+Before merging a change to a speech kit, run `bunsen-tool asr` itself over a real clip on your accelerator. This is not a
+test and never runs in CI: it builds `bunsen-tool` in release mode for one backend, runs each case over
 `bunsen-test-audio`'s `jfk_moon.mp3`, scores each transcript against the clip's reference, and fails a case that errors,
 prints nothing, or scores over a loose word error rate. The backend is required:
 
@@ -121,7 +121,7 @@ cargo make exercise-all wgpu --only whisper     # a subset, by case name
 | Task | Runs | Fetches |
 |---|---|---|
 | `exercise-defaults` | each family's default model, each profile, Silero's VAD gate, a diarized transcript, the diarizer | what those use, ~8 GB cold |
-| `exercise-all` | every model `bunsen-asr family <family> list` and `diarize list` name, read when it runs | every one of them, tens of GB cold |
+| `exercise-all` | every model `bunsen-tool asr family <family> list` and `asr diarize list` name, read when it runs | every one of them, tens of GB cold |
 
 The models land in the weights cache, so a second run fetches nothing. `tools/exercise_asr.toml` holds the default
 cases; add one there when a kit gains a mode worth exercising. The run writes a report to
@@ -168,7 +168,7 @@ The eight published crates, in `crates/public/`, are versioned in **lockstep**: 
 - `bunsen-firehose-image`
 - `bunsen-arrow-dataloaders`
 - `bunsen-app`
-- `bunsen-asr` (a binary: `cargo install bunsen-asr`)
+- `bunsen-tool` (a binary: `cargo install bunsen-tool`)
 
 The `bind-{model}-onnx` crates (`whisper`, `silero`, `parakeet`, `qwen3`, `qwen3-asr`, `sortformer`, `voxtral`), which fetch
 the checkpoints and reference graphs the validation crates check against, live in `validation/onnx/` and are not published

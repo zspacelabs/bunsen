@@ -129,7 +129,7 @@ impl PublishArgs {
 #[cfg(any(not(feature = "webhook"), not(feature = "mqtt")))]
 fn unbuilt(feature: &str) -> bunsen::errors::BunsenError {
     bunsen::errors::BunsenError::unsupported(format!(
-        "a `{feature}` target needs bunsen-asr built with `--features {feature}`"
+        "a `{feature}` target needs bunsen-tool built with `--features {feature}`"
     ))
 }
 
@@ -246,7 +246,7 @@ impl LogLevel {
 }
 
 fn default_log_target() -> String {
-    "bunsen_asr::transcript".to_string()
+    "bunsen_tool::transcript".to_string()
 }
 
 /// An `mqtt` target's fields.
@@ -267,7 +267,7 @@ pub struct MqttConfig {
     #[serde(default)]
     pub retain: bool,
 
-    /// `bunsen-asr-{pid}` by default.
+    /// `bunsen-tool-{pid}` by default.
     pub client_id: Option<String>,
 
     pub username: Option<String>,
@@ -276,7 +276,7 @@ pub struct MqttConfig {
 }
 
 fn default_mqtt_prefix() -> String {
-    "bunsen-asr".to_string()
+    "bunsen-tool".to_string()
 }
 
 fn default_mqtt_qos() -> u8 {
@@ -493,7 +493,7 @@ mod tests {
             Kind::Mqtt(mqtt) => {
                 assert_eq!(
                     (mqtt.prefix.as_str(), mqtt.qos, mqtt.retain),
-                    ("bunsen-asr", 1, false)
+                    ("bunsen-tool", 1, false)
                 );
             }
             kind => panic!("{kind:?}"),

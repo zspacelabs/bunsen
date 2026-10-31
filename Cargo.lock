@@ -1247,26 +1247,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bunsen-asr"
-version = "0.41.0"
-dependencies = [
- "bunsen",
- "bunsen-app",
- "burn",
- "clap",
- "cpal",
- "ctrlc",
- "log",
- "rumqttc",
- "serde",
- "serde-saphyr",
- "serde_json",
- "tempfile",
- "time",
- "ureq 3.4.2",
-]
-
-[[package]]
 name = "bunsen-chat"
 version = "0.41.0"
 dependencies = [
@@ -1342,6 +1322,26 @@ version = "0.41.0"
 dependencies = [
  "bunsen-fetch",
  "sha2 0.11.0",
+]
+
+[[package]]
+name = "bunsen-tool"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "bunsen-app",
+ "burn",
+ "clap",
+ "cpal",
+ "ctrlc",
+ "log",
+ "rumqttc",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+ "tempfile",
+ "time",
+ "ureq 3.4.2",
 ]
 
 [[package]]

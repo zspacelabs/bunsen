@@ -54,7 +54,7 @@
 //!
 //! # Example
 //!
-//! The default pathway, as `bunsen-asr family whisper` walks it, over any
+//! The default pathway, as `bunsen-tool asr family whisper` walks it, over any
 //! backend: a cache, the factory, a bundle by name, a driver over it, and a
 //! context fed a stream. The first run fetches `openai/base` (145 MB,
 //! digest-checked) and its vocabulary into the cache; later runs find them
@@ -159,7 +159,7 @@
 //! hub's file listing is fetched once and kept). A vocabulary of one's own
 //! is an overlay on the resolved model. And the real-time emission presets
 //! decode on speech endpoints, so they want a voice-activity model, which
-//! the Silero kit's factory provides the same way; `bunsen-asr` attaches
+//! the Silero kit's factory provides the same way; `bunsen-tool` attaches
 //! it with [`with_vad`](driver::WhisperStreamDriver::with_vad) as
 //! here.
 //!
