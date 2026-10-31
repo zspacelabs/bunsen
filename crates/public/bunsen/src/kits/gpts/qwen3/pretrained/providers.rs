@@ -623,7 +623,195 @@ static QWEN3_4B_THINKING_2507: StaticPretrained<'static> = StaticPretrained {
     maps: &[&QWEN3_4B_THINKING_2507_FILES],
 };
 
-/// Qwen's dense Qwen3 language models up to 4B.
+/// `Qwen/Qwen3-8B`'s files, at a fixed revision.
+pub static QWEN3_8B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3-8b",
+    description: "Qwen3-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3-8B"),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3-8B/resolve/b968826d9c46dd6066d109eabc6255188de91218",
+    )],
+    resources: &[
+        StaticResource {
+            key: "checkpoint.index",
+            file: "model.safetensors.index.json",
+            sha256: Some("f9fdbcb91c23971c13ec5d5f2573d2349e8f61f2f049371ec699281748fdb1bc"),
+            kind: Some(SAFETENSORS_INDEX),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00001",
+            file: "model-00001-of-00005.safetensors",
+            sha256: Some("31d6a825ae35f11fb85b195b4c42c146c051e446433125a215336abdf95cbf5f"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00002",
+            file: "model-00002-of-00005.safetensors",
+            sha256: Some("5991236cea6fe21f3d43cab0f0e84448734fbbe0789816202989f2ddc9d18282"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00003",
+            file: "model-00003-of-00005.safetensors",
+            sha256: Some("c5185c4794be2d8a9784d5753c9922db38df478ce11f9ed0b415b7304d896836"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00004",
+            file: "model-00004-of-00005.safetensors",
+            sha256: Some("b5ee7de71fbf17db3d5704e0c8f2bc7d005ca9e1d7ca2aeb19827b0cfcaa917a"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00005",
+            file: "model-00005-of-00005.safetensors",
+            sha256: Some("20c2d6366ab85c90786ccdd829cd2b9e7d30ef3b2ebbb998280e7e4014b542ff"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: CONFIG,
+            file: "config.json",
+            sha256: Some("f7c4eadfbbf522470667b797a3c89be2524832d2d599797248dc304fff447c30"),
+            kind: Some(JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER,
+            file: "tokenizer.json",
+            sha256: Some("aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER_CONFIG,
+            file: "tokenizer_config.json",
+            sha256: Some("d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101"),
+            kind: Some(TOKENIZER_CONFIG_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: GENERATION_CONFIG,
+            file: "generation_config.json",
+            sha256: Some("2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"),
+            kind: Some(GENERATION_CONFIG_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3_8B: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3-8b",
+    aliases: &[],
+    description: "Qwen3-8B: thinking and non-thinking chat, bf16, 16.38 GB",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3-8B"),
+    prefab: Some("qwen3-8b"),
+    maps: &[&QWEN3_8B_FILES],
+};
+
+/// `Qwen/Qwen3-8B-Base`'s files, at a fixed revision.
+pub static QWEN3_8B_BASE_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3-8b-base",
+    description: "Qwen3-8B-Base: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3-8B-Base"),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3-8B-Base/resolve/49e3418fbbbca6ecbdf9608b4d22e5a407081db4",
+    )],
+    resources: &[
+        StaticResource {
+            key: "checkpoint.index",
+            file: "model.safetensors.index.json",
+            sha256: Some("cd39d5e44c5aadfd1954b598883aea1c4a98822a2f7723d214ef2278b7fec2e4"),
+            kind: Some(SAFETENSORS_INDEX),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00001",
+            file: "model-00001-of-00005.safetensors",
+            sha256: Some("9983f1b9ef2f60e7c3730d9bc11ada914e6ec630639b5b020a89bd158cd0446b"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00002",
+            file: "model-00002-of-00005.safetensors",
+            sha256: Some("9aa12339835bf7a093d3d0b0a0d2d77f8538301cfc7f8e7ec7a585858ebf7a1f"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00003",
+            file: "model-00003-of-00005.safetensors",
+            sha256: Some("c7dd5a191c8da555def0714550375b3c0117751add408fcdda0c2a79ac0186bc"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00004",
+            file: "model-00004-of-00005.safetensors",
+            sha256: Some("ad8b708792105133e03fe19e2d56c89c709f677f01285f8b3ede8947d59fd9fe"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00005",
+            file: "model-00005-of-00005.safetensors",
+            sha256: Some("fbf24915d47ea030bb68ab0b9488f4515a907185baa6dc26837c9c3f2326a550"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: CONFIG,
+            file: "config.json",
+            sha256: Some("3bd01d7ad7a2e203ecbbe84e24087a51c6d2a108ee4bcc42d0016bf49564983a"),
+            kind: Some(JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER,
+            file: "tokenizer.json",
+            sha256: Some("c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER_CONFIG,
+            file: "tokenizer_config.json",
+            sha256: Some("3c04ed3ca964ea2f6b2b5faf0dc4d31aec1cb1e8b4bcf63f402d295046b422b5"),
+            kind: Some(TOKENIZER_CONFIG_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: GENERATION_CONFIG,
+            file: "generation_config.json",
+            sha256: Some("8c970692323e3ea0e9b8b0a4dca79388d31226e41f83c9fd6014804280ebf6e8"),
+            kind: Some(GENERATION_CONFIG_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3_8B_BASE: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3-8b-base",
+    aliases: &[],
+    description: "Qwen3-8B-Base: the pretrained model, no chat tuning, bf16, 16.38 GB",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3-8B-Base"),
+    prefab: Some("qwen3-8b"),
+    maps: &[&QWEN3_8B_BASE_FILES],
+};
+
+/// Qwen's dense Qwen3 language models up to 8B.
 pub static QWEN: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
     name: "qwen",
     description: "Qwen's dense Qwen3 language models, as transformers ships them",
@@ -638,6 +826,8 @@ pub static QWEN: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
         &QWEN3_4B_BASE,
         &QWEN3_4B_INSTRUCT_2507,
         &QWEN3_4B_THINKING_2507,
+        &QWEN3_8B,
+        &QWEN3_8B_BASE,
     ],
 };
 
@@ -739,6 +929,8 @@ mod tests {
             "qwen3-4b-base",
             "qwen3-4b-instruct-2507",
             "qwen3-4b-thinking-2507",
+            "qwen3-8b",
+            "qwen3-8b-base",
         ];
         assert_eq!(
             factory.ids(),

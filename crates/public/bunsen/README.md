@@ -197,6 +197,12 @@ kits:
     - model:
         name: qwen/qwen3-4b-thinking-2507
         description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context, bf16, 8.04 GB"
+    - model:
+        name: qwen/qwen3-8b
+        description: "Qwen3-8B: thinking and non-thinking chat, bf16, 16.38 GB"
+    - model:
+        name: qwen/qwen3-8b-base
+        description: "Qwen3-8B-Base: the pretrained model, no chat tuning, bf16, 16.38 GB"
     nanochat:
     - provider:
         name: well-known

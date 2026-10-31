@@ -2,7 +2,7 @@
 //!
 //! A test binary of its own: the CUDA device's default float dtype is set to
 //! bf16 here, once per process, and must not reach the float32 suite.
-//! Needs `download`, `gpu-tests` and `cuda`.
+//! Needs `checkpoints`, `gpu-tests` and `cuda`.
 #![cfg(all(feature = "checkpoints", feature = "gpu-tests", feature = "cuda"))]
 
 use std::sync::Arc;

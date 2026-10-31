@@ -7,6 +7,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
     /tmp/pkvenv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
     /tmp/pkvenv/bin/pip install transformers onnxruntime safetensors tokenizers numpy
     /tmp/pkvenv/bin/python validation/tools/gen_qwen3_fixtures.py ONNX_DIR ROW=HF_DIR...
+    /tmp/pkvenv/bin/python validation/tools/gen_qwen3_fixtures.py --bf16 ROW=HF_DIR...
 
 - `ONNX_DIR`: `onnx-community/Qwen3-0.6B-ONNX` at 58ca03a5e7b354b480b1a82b34bde8dc7b854cc0
   (`model.onnx` + `model.onnx_data` from its `onnx/`): the published graph, not the one
@@ -32,6 +33,15 @@ Outputs, under `validation/models/qwen3-model-validation/testdata/`:
     (top-1 minus top-2 logit, so a reader can tell a near-tie from a disagreement), and the
     prefill's last-position logits, `last_logits`. For `qwen3-0.6b`, also how far the
     `lm_head.weight` its checkpoint carries is from `embed_tokens` (`transformers` ties it).
+
+With `--bf16`, for each of `BF16_ROWS` (`qwen3-8b`, which does not fit a 24 GB device in
+float32), one output instead:
+
+`transformers_bf16.json`
+    For each row: the same greedy decode, but in bfloat16 on the CPU (weights and activations
+    as the checkpoint ships them), its `last_logits` read as float32; and
+    `f32_last_logits_max_abs`, how far the float32 model's prefill logits are from those, a
+    bf16 run's own distance from float32 to measure bunsen's bf16 run against.
 """
 
 import json
@@ -53,6 +63,7 @@ ONNX_IDS = [9707, 11, 1879, 0, 151643, 13, 576, 6722, 315, 9625, 374]
 PROMPT = "The lighthouse keeper climbed the stairs every evening, and"
 NEW_TOKENS = 32
 ROWS = ["qwen3-0.6b", "qwen3-1.7b", "qwen3-4b", "qwen3-4b-instruct-2507"]
+BF16_ROWS = ["qwen3-8b"]
 
 
 def record(x) -> dict:
@@ -112,14 +123,14 @@ def head_distance(hf_dir: pathlib.Path) -> float:
     return float((head - embed).abs().max())
 
 
-def greedy(row: str, hf_dir: pathlib.Path) -> dict:
+def greedy(row: str, hf_dir: pathlib.Path, dtype=torch.float32) -> dict:
     tok = AutoTokenizer.from_pretrained(hf_dir)
-    model = AutoModelForCausalLM.from_pretrained(hf_dir, dtype=torch.float32).eval()
+    model = AutoModelForCausalLM.from_pretrained(hf_dir, dtype=dtype).eval()
     prompt_ids = tok(PROMPT, add_special_tokens=False)["input_ids"]
     ids, margins = [], []
     with torch.no_grad():
         out = model(input_ids=torch.tensor([prompt_ids]), use_cache=True)
-        last = out.logits[0, -1]
+        last = out.logits[0, -1].float()
         last_logits = last.numpy()[None]
         past = out.past_key_values
         for _ in range(NEW_TOKENS):
@@ -127,7 +138,7 @@ def greedy(row: str, hf_dir: pathlib.Path) -> dict:
             ids.append(int(top.indices[0]))
             margins.append(float(top.values[0] - top.values[1]))
             out = model(input_ids=torch.tensor([[ids[-1]]]), past_key_values=past, use_cache=True)
-            last, past = out.logits[0, -1], out.past_key_values
+            last, past = out.logits[0, -1].float(), out.past_key_values
     entry = {
         "prompt": PROMPT,
         "prompt_ids": prompt_ids,
@@ -140,7 +151,31 @@ def greedy(row: str, hf_dir: pathlib.Path) -> dict:
     return entry
 
 
+def prefill_logits(hf_dir: pathlib.Path, prompt_ids: list[int], dtype) -> np.ndarray:
+    model = AutoModelForCausalLM.from_pretrained(hf_dir, dtype=dtype).eval()
+    with torch.no_grad():
+        return model(input_ids=torch.tensor([prompt_ids])).logits[0, -1].float().numpy()
+
+
+def bf16_main(args: list[str]) -> None:
+    dirs = dict(arg.split("=", 1) for arg in args)
+    assert sorted(dirs) == sorted(BF16_ROWS), f"need {BF16_ROWS}, got {sorted(dirs)}"
+    fixture = {}
+    for row in BF16_ROWS:
+        hf_dir = pathlib.Path(dirs[row])
+        entry = greedy(row, hf_dir, torch.bfloat16)
+        f32 = prefill_logits(hf_dir, entry["prompt_ids"], torch.float32)
+        b16 = prefill_logits(hf_dir, entry["prompt_ids"], torch.bfloat16)
+        entry["f32_last_logits_max_abs"] = float(np.abs(f32 - b16).max())
+        print(row, "bf16 vs f32 prefill logits, max abs", entry["f32_last_logits_max_abs"])
+        fixture[row] = entry
+    (OUT / "transformers_bf16.json").write_text(json.dumps(fixture) + "\n")
+
+
 def main() -> None:
+    if sys.argv[1:2] == ["--bf16"]:
+        bf16_main(sys.argv[2:])
+        return
     onnx_dir = pathlib.Path(sys.argv[1])
     dirs = dict(arg.split("=", 1) for arg in sys.argv[2:])
     assert sorted(dirs) == sorted(ROWS), f"need {ROWS}, got {sorted(dirs)}"

@@ -12,10 +12,11 @@
 //! and decodes through a
 //! [`KVCache`](crate::ops::transformers::attention::KVCache).
 //!
-//! It is the model of the dense Qwen3 checkpoints up to 4B (`Qwen3-0.6B`,
-//! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds, and `Qwen3-4B`'s `2507`
-//! builds), whose heads are tied; of any dense Qwen3 an `hf:` repo holds,
-//! tied or not; and the text model of
+//! It is the model of the dense Qwen3 checkpoints up to 8B: `Qwen3-0.6B`,
+//! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds and `Qwen3-4B`'s `2507`
+//! builds, whose heads are tied, and `Qwen3-8B` and its `-Base`, whose head is
+//! its own. It is also the model of any dense Qwen3 an `hf:` repo holds, and
+//! the text model of
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //!
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].

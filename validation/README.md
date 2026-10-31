@@ -67,6 +67,7 @@ cargo validate run  --profile my-box.yml --crate qwen3
 cargo validate run  --profile ci --dry-run            # build and list; print the chosen tests
 cargo validate run  --profile medium-core --nextest   # through cargo nextest: a process per test
 cargo validate check                                  # the catalog against the tests
+cargo validate check --cuda                           # with the bf16 binaries, which need cuda
 ```
 
 `cargo validate` is an alias (`.cargo/config.toml`) for
@@ -87,7 +88,7 @@ bunsen's row name:
 | `gb` | what it fetches on a cold cache |
 | `core` | whether it is a representative: the one model for an architecture variation the kit has; the others repeat one |
 | `reference` | whether its tests need the crate's ONNX reference, the crate's `reference` feature |
-| `dtypes` | what it is checked in: `f32`, `bf16` (on `cuda` alone) |
+| `dtypes` | what it is checked in: `f32`, `bf16` (on `cuda` alone); a run chooses a model only in one of them, so an `f32` run skips a `bf16`-only model |
 | `varies` | the variation it stands for (`core`), or repeats |
 
 A crate's entry names its `package`, the `features` always on when it runs,
