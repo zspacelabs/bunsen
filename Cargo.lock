@@ -12144,6 +12144,7 @@ version = "0.41.0"
 dependencies = [
  "bind-voxtral-onnx",
  "bunsen",
+ "bunsen-test-audio",
  "burn",
  "serde",
  "serde_json",

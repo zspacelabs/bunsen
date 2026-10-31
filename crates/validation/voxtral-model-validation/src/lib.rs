@@ -1,15 +1,17 @@
 //! # Voxtral Realtime cross-check against pretrained references.
 //!
-//! The independent implementation [`bunsen`]'s Voxtral Realtime is
-//! validated against, generated from
+//! Validates [`bunsen`]'s Voxtral Realtime (`kits::speech::voxtral`) against
+//! an independent implementation, generated from
 //! `onnx-community/Voxtral-Mini-4B-Realtime-2602-ONNX` (an export of
-//! `mistralai/Voxtral-Mini-4B-Realtime-2602`) by `burn_onnx::ModelGen`.
+//! `mistralai/Voxtral-Mini-4B-Realtime-2602`) by `burn_onnx::ModelGen`, and
+//! against `transformers`' own greedy decodes of real speech.
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
 //! The generated reference comes from `bind-voxtral-onnx`'s `onnx_gen`
-//! feature, which fetches its assets, pins each to a SHA-256, and caches
-//! them, all under the **`download`** feature, off by default so an ordinary
+//! feature, and the checkpoint from its `checkpoint` feature, which fetch
+//! their assets, pin each to a SHA-256, and cache them, all under the
+//! **`download`** feature, off by default so an ordinary
 //! `cargo build --workspace` never reaches the network.
 //!
 //! ```sh
@@ -27,16 +29,19 @@
 //! The export uses onnxruntime-only ops that `burn-onnx` cannot import, so
 //! `bind-voxtral-onnx` rewrites them to standard ONNX first.
 //! `testdata/onnx_reference.json` records what onnxruntime computes for each
-//! *published* graph on deterministic synthetic input
-//! (`tools/gen_voxtral_fixtures.py`), and the generated models are held to
-//! it, so neither a defect in the rewrite nor one in the ONNX import can pass
-//! for a defect in bunsen.
+//! *published* graph on deterministic synthetic input, and
+//! `testdata/jfk_moon.json` what `transformers` decodes for real speech
+//! (`tools/gen_voxtral_fixtures.py` writes both). The generated models are
+//! held to the first, so neither a defect in the rewrite nor one in the ONNX
+//! import can pass for a defect in bunsen; bunsen is held to both.
 //!
 //! ## Memory
 //!
-//! The fp32 decoder graph is 13.8 GB. A test loads one model, frees it
+//! The fp32 decoder graph is 13.8 GB, and bunsen's model 17.6 GB in fp32:
+//! never both on one 24 GB card. A test loads one model, frees it
 //! (`DeviceMemoryGuard`) before the next one loads, and the tests run one at
-//! a time (`#[serial]`).
+//! a time (`#[serial]`); bunsen is compared with the reference through
+//! onnxruntime's recorded run, not side by side.
 
 #![cfg_attr(not(feature = "download"), allow(unused))]
 
@@ -183,6 +188,14 @@ pub fn synthetic_features(
     Tensor::from_data(TensorData::new(data, [1, N_MELS, frames]), device)
 }
 
+/// A deterministic, broadband `[n]` waveform: the integer sawtooth
+/// `tools/gen_voxtral_fixtures.py` uses, exact in `f32`.
+pub fn synthetic_wave(n: usize) -> Vec<f32> {
+    (0..n)
+        .map(|k| ((((k * 7919 + 13) % 2003) as f64 / 1001.5 - 1.0) * 0.25) as f32)
+        .collect()
+}
+
 /// A deterministic `[1, seq, D_TEXT]` stand-in for the decoder's input
 /// embeddings: the formula `tools/gen_voxtral_fixtures.py` uses.
 pub fn synthetic_embeds(
@@ -196,9 +209,130 @@ pub fn synthetic_embeds(
     Tensor::from_data(TensorData::new(data, [1, seq, D_TEXT]), device)
 }
 
+/// The top-1 minus top-2 logit under which a greedy step is a near-tie: two
+/// float32 implementations may pick either token, and their decodes part
+/// there.
+pub const NEAR_TIE: f64 = 0.05;
+
+/// One window's entry in `testdata/jfk_moon.json`: `transformers`' greedy
+/// decode, in float32.
+#[derive(Debug, Deserialize)]
+pub struct WindowDecode {
+    /// The window's first second.
+    pub start: usize,
+    /// One past its last second.
+    pub end: usize,
+    /// The processor's prompt.
+    pub prompt_ids: Vec<i64>,
+    /// The whole sequence, the prompt first.
+    pub ids: Vec<i64>,
+    /// Each generated id's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+    /// The decoded text, special tokens skipped.
+    pub text: String,
+}
+
+/// `testdata/jfk_moon.json`'s `front_end`: the processor and the audio
+/// encoder on [`synthetic_wave`].
+#[derive(Debug, Deserialize)]
+pub struct FrontEndReference {
+    /// The waveform's length.
+    pub samples: usize,
+    /// The processor's `[1, 128, frames]` features of it, padded as an
+    /// utterance.
+    pub input_features: TensorRecord,
+    /// The model's `[1, positions, 3072]` audio embeddings of them.
+    pub audio_embeds: TensorRecord,
+}
+
+/// `testdata/jfk_moon.json`.
+#[derive(Debug, Deserialize)]
+pub struct SpeechReference {
+    /// The clip, in `bunsen-test-audio`.
+    pub clip: String,
+    /// The front end and the audio encoder on a synthetic waveform.
+    pub front_end: FrontEndReference,
+    /// The windows, in order.
+    pub windows: Vec<WindowDecode>,
+}
+
+/// Reads `testdata/jfk_moon.json`.
+pub fn speech_reference() -> SpeechReference {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/jfk_moon.json");
+    let text = std::fs::read_to_string(path).expect("read the speech fixture");
+    serde_json::from_str(&text).expect("parse the speech fixture")
+}
+
+/// A pretrained cache over the bundled checkpoint, offline.
+///
+/// Without `download` there is none: an ordinary cache, which the tests
+/// that need it are not compiled without.
+pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    use bunsen::data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    };
+    #[cfg(feature = "download")]
+    let options = PretrainedCacheOptions::default()
+        .with_disk(
+            bunsen::data::cache::BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(bind_voxtral_onnx::cache_dir().to_path_buf())),
+        )
+        .with_offline(true);
+    #[cfg(not(feature = "download"))]
+    let options = PretrainedCacheOptions::default();
+    PretrainedCache::new(options).expect("open the pretrained cache")
+}
+
+/// The published model, through bunsen's factory and [`weights_cache`].
+pub fn load_bundle(
+    device: &Device
+) -> std::sync::Arc<bunsen::kits::speech::voxtral::VoxtralBundle> {
+    use bunsen::kits::speech::voxtral::pretrained::{
+        DEFAULT_VOXTRAL_MODEL,
+        default_voxtral_factory,
+    };
+    default_voxtral_factory()
+        .expect("the voxtral factory")
+        .load_bundle(DEFAULT_VOXTRAL_MODEL, &weights_cache(), device)
+        .unwrap_or_else(|e| panic!("load {DEFAULT_VOXTRAL_MODEL}: {e}"))
+}
+
+/// A clip from `bunsen-test-audio`, by file name, at 16 kHz.
+pub fn speech_clip(name: &str) -> Vec<f32> {
+    let path = bunsen_test_audio::by_file(name).path();
+    bunsen::support::audio::load_audio_mono_sr(&path, 16000)
+        .unwrap_or_else(|e| panic!("load {}: {e}", path.display()))
+}
+
+/// The ground-truth transcript of a clip from `bunsen-test-audio`, by file
+/// name.
+///
+/// # Panics
+/// If the clip has no transcript.
+pub fn speech_transcript(name: &str) -> String {
+    bunsen_test_audio::by_file(name)
+        .transcript()
+        .unwrap_or_else(|| panic!("{name} has no transcript"))
+}
+
 /// The generated models against onnxruntime's run of the published graphs.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod reference_tests;
+
+/// bunsen's model against onnxruntime's run of the published graphs.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod cross;
+
+/// bunsen's front end, audio embeddings and decodes of real speech against
+/// `transformers`'.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod speech;
+
+/// bunsen's vocabulary and transcript parser on `transformers`' decodes.
+/// Reads the bundled `tekken.json`; loads no model.
+#[cfg(all(test, feature = "download"))]
+mod vocabulary;
 
 #[cfg(test)]
 mod tests {
@@ -272,6 +406,27 @@ mod tests {
         assert_eq!(
             d.step_key_25.shape,
             [1, DECODER_KV_HEADS, d.prefill + 1, DECODER_HEAD_DIM]
+        );
+
+        let speech = speech_reference();
+        assert_eq!(speech.clip, "jfk_moon.mp3");
+        assert!(!speech.windows.is_empty());
+        for (k, w) in speech.windows.iter().enumerate() {
+            assert!(w.ids.starts_with(&w.prompt_ids), "window {k}");
+            assert_eq!(
+                w.prompt_ids.len() + w.margins.len(),
+                w.ids.len(),
+                "window {k}"
+            );
+        }
+        let f = &speech.front_end;
+        for record in [&f.input_features, &f.audio_embeds] {
+            assert_eq!(record.samples.len(), record.expected_samples());
+        }
+        assert_eq!(f.input_features.shape[..2], [1, N_MELS]);
+        assert_eq!(
+            f.audio_embeds.shape[1] * MEL_FRAMES_PER_TOKEN,
+            f.input_features.shape[2]
         );
     }
 }

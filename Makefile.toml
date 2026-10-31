@@ -124,12 +124,12 @@ workspace = false
 script = "cargo test --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-voxtral]
-description = "Voxtral Realtime's whole validation suite (fetches ~19 GB)"
+description = "Voxtral Realtime's whole validation suite (fetches ~28 GB)"
 workspace = false
 script = "cargo test --release -p voxtral-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-all]
-description = "Every model's whole validation suite (fetches ~50 GB on a cold cache)"
+description = "Every model's whole validation suite (fetches ~60 GB on a cold cache)"
 workspace = false
 dependencies = [
     "validate-silero",
