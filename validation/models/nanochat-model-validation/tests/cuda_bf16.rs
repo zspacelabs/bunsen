@@ -9,10 +9,18 @@ use std::sync::Arc;
 
 use bunsen::{
     data::pretrained::read_pytorch_tensors,
-    kits::gpts::nanochat::{
-        CHECKPOINT,
-        NanoChatBundle,
+    kits::{
+        decoding::{
+            GreedySearch,
+            TokenSearch,
+        },
+        gpts::nanochat::{
+            CHECKPOINT,
+            NanoChatBundle,
+            pretrained::DEFAULT_NANOCHAT_MODEL,
+        },
     },
+    ops::transformers::attention::KVCacheStorage,
 };
 use burn::{
     prelude::*,
@@ -131,4 +139,42 @@ fn test_bf16_rows() {
     for row in ROWS {
         check_row(row);
     }
+}
+
+/// Sampling from bf16 logits at a temperature near zero is the argmax: the
+/// sampler's noise reorders nothing a near-zero temperature has spread this
+/// far apart, in every one of many draws over the whole vocabulary.
+#[test]
+fn test_bf16_sampling_near_zero_temperature_is_the_argmax() {
+    const DRAWS: usize = 256;
+    let device = bf16_device();
+    let fixture = upstream_bf16_reference();
+    let record = &fixture.rows[DEFAULT_NANOCHAT_MODEL];
+    let bundle = load_bundle(DEFAULT_NANOCHAT_MODEL, &device);
+    let steps = bunsen_decode(
+        &bundle,
+        &record.prompt_ids,
+        &[],
+        KVCacheStorage::Auto,
+        &device,
+    );
+    let logits = steps[0].clone();
+    assert_eq!(logits.dtype(), DType::BF16, "the logits are bf16");
+    let greedy = argmax(&logits);
+
+    let mut search = GreedySearch::new([], 0).with_temperature(1e-3);
+    let mut tokens = vec![Vec::new(); DRAWS];
+    let mut sums = vec![0.0; DRAWS];
+    let (picked, _) = search.update(
+        &mut tokens,
+        logits.repeat_dim(0, DRAWS),
+        &mut sums,
+        &mut |_| {},
+    );
+    let strays: Vec<i64> = picked.into_iter().filter(|&id| id != greedy).collect();
+    assert!(
+        strays.is_empty(),
+        "{} of {DRAWS} draws are not the argmax {greedy}: {strays:?}",
+        strays.len()
+    );
 }

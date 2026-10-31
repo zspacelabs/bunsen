@@ -4,6 +4,7 @@ use burn::{
     Tensor,
     prelude::Int,
     tensor::{
+        DType,
         Distribution,
         activation::log_softmax,
     },
@@ -109,14 +110,21 @@ impl TokenSearch for GreedySearch {
         let picked: Tensor<2, Int> = if self.temperature > 0.0 {
             // Gumbel-max: argmax(logits / t + g), g = -log(-log u), is a
             // sample from softmax(logits / t). Suppressed ids stay -inf.
+            //
+            // The noise is drawn and added in f32, whatever the logits'
+            // dtype, and `u` stays below 1: a `u` of 1 is noise of +inf,
+            // which outranks every logit. In bf16, a draw within 2^-9 of 1
+            // rounds to 1, so one id in 512 would be picked whatever its
+            // logit.
+            let logits = logits.clone().cast(DType::F32);
             let uniform: Tensor<2> = Tensor::random(
                 logits.dims(),
                 Distribution::Uniform(0.0, 1.0),
-                &logits.device(),
+                (&logits.device(), DType::F32),
             )
-            .clamp(1e-20, 1.0);
+            .clamp(1e-20, 1.0 - f64::from(f32::EPSILON) / 2.0);
             let gumbel = uniform.log().neg().log().neg();
-            (logits.clone() / self.temperature + gumbel).argmax(1)
+            (logits / self.temperature + gumbel).argmax(1)
         } else {
             logits.clone().argmax(1)
         };
