@@ -8,8 +8,9 @@
 //! table of that corpus as a [`data::shards`](crate::data::shards) shard
 //! set.
 //!
-//! - [`nanochat`]: a port of the GPT in karpathy's nanochat, and the corpus it
-//!   trains on. Work in progress.
+//! - [`nanochat`]: the GPT in karpathy's nanochat, upstream's 2025 and 2026
+//!   models: the community checkpoints of both, loaded from upstream's own
+//!   files, and the corpus it trains on.
 //! - [`qwen3`]: the Qwen3 decoder: the dense Qwen3 checkpoints, and the text
 //!   model of [`speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //! - [`driver_support`]: the model-generic parts of a driver that streams a
