@@ -18,7 +18,7 @@ document-features = { workspace = true }
 [build-dependencies]
 bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"] }
 burn-onnx = { workspace = true, optional = true }
-onnx-ir = { workspace = true, optional = true }
+rewrite-genai-onnx = { path = "../../dev/rewrite-genai-onnx", optional = true }
 
 [lints]
 workspace = true
@@ -46,4 +46,4 @@ large_checkpoints = []
 ## This is the *reference implementation*: it exists so
 ## `qwen3-model-validation` has something with independent provenance to
 ## disagree with.
-onnx_gen = ["dep:burn-onnx", "dep:onnx-ir"]
+onnx_gen = ["dep:burn-onnx", "dep:rewrite-genai-onnx"]
