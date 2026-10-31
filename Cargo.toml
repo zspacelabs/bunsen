@@ -44,6 +44,15 @@ overflow-checks = true
 # Keep your `debug_assert!` macros working
 debug-assertions = true
 
+# Build scripts and proc macros, optimized in every profile: the ONNX binding
+# crates' build scripts digest and convert tens of GB of weights, which
+# unoptimized code (cargo's default here) does at a fiftieth of the speed.
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3
+
 [workspace.dependencies]
 log = { version = "0.4.34", default-features = false }
 env_logger = { version = "0.11.11" }
