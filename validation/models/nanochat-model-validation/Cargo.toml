@@ -55,6 +55,7 @@ metal = ["bunsen/metal"]
 [dependencies]
 burn = { workspace = true }
 bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
+bunsen-chat = { path = "../../../crates/dev/bunsen-chat" }
 fetch-nanochat = { path = "../../assets/fetch-nanochat", optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
