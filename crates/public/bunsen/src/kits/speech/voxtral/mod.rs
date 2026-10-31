@@ -25,6 +25,12 @@
 //! - [`VoxtralBundle`]: a model with its front end, vocabulary
 //!   ([`TekkenVocabulary`](crate::kits::tokens::TekkenVocabulary)), layout and
 //!   decoder; [`transcribe`](VoxtralBundle::transcribe) one utterance.
+//! - [`driver`]: [`VoxtralEngine`](driver::VoxtralEngine), a bundle as the
+//!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine, each window
+//!   decoded whole and laid out a segment per timed word; a
+//!   [`VoxtralStreamDriver`](driver::VoxtralStreamDriver) streams audio through
+//!   it, under any
+//!   [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the named
 //!   checkpoint, `mistralai/voxtral-mini-4b-realtime-2602` the default, `hf:`
 //!   repos, and the factory that loads one into a bundle.
@@ -32,6 +38,7 @@
 //!   `model.safetensors` names them, and reading its `config.json`.
 
 pub mod blocks;
+pub mod driver;
 
 mod bundle;
 mod decode;
