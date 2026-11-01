@@ -97,7 +97,7 @@ cargo test --manifest-path validation/Cargo.toml
 description = "The converted validation crates under a profile (VALIDATION_PROFILE, default small-core)"
 workspace = false
 script = '''
-python3 validation/tools/validate.py run --profile "${VALIDATION_PROFILE:-${BUNSEN_VALIDATE_PROFILE:-small-core}}" ${VALIDATION_BACKEND:+--backend "$VALIDATION_BACKEND"}
+python3 validation/tools/validate.py run --profile "${VALIDATION_PROFILE:-${BUNSEN_VALIDATE_PROFILE:-small-core}}" ${VALIDATION_BACKEND:+--backend "$VALIDATION_BACKEND"} ${VALIDATION_DTYPES:+--dtypes "$VALIDATION_DTYPES"}
 '''
 
 [tasks.validate-cpu]
@@ -154,9 +154,9 @@ workspace = false
 script = "cargo test --manifest-path validation/Cargo.toml --release -p voxtral-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-nanochat]
-description = "nanochat's whole validation suite, on VALIDATION_BACKEND in f32 and, on cuda, in bf16 too (fetches ~10 GB)"
+description = "nanochat's whole validation suite, every model, on VALIDATION_BACKEND in f32 and, on cuda, in bf16 too (fetches ~10 GB into the weights cache)"
 workspace = false
-script = "cargo test --manifest-path validation/Cargo.toml --release -p nanochat-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "python3 validation/tools/validate.py run --crate nanochat --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
 
 [tasks.validate-all]
 description = "Every model's whole validation suite (fetches ~70 GB on a cold cache)"

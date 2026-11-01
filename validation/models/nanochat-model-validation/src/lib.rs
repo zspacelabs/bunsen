@@ -10,20 +10,24 @@
 //!
 //! ## This crate hosts nothing
 //!
-//! The checkpoints come from `fetch-nanochat`, which fetches upstream's own
-//! files (`model_<step>.pt`, `meta_<step>.json`, the tokenizer), pins each to
-//! a SHA-256, and caches them, all under the **`download`** feature, off by
-//! default so an ordinary `cargo build` never reaches the network.
+//! The checkpoints are upstream's own files (`model_<step>.pt`,
+//! `meta_<step>.json`, the tokenizer), through bunsen's pinned rows, fetched
+//! at run time into the weights cache by the tests that read them (feature
+//! **`checkpoints`**, off by default, so a plain `cargo test` here reaches no
+//! network and runs the fixture-integrity checks alone).
+//!
+//! `validation/tools/validate.py` runs this crate under a profile, which
+//! chooses the models (`validation/models.yml`). Every test of a model has
+//! the model's id in its path (`greedy::nanochat_d20_rl`,
+//! `chat::nanochat_d18_sft::tokenizer`, `bf16::nanochat_d20_base`):
 //!
 //! ```sh
-//! cargo test --release -p nanochat-model-validation \
-//!   --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile medium-core --crate nanochat
 //! ```
 //!
-//! `gpu-tests` compiles every test that loads a model, `download` fetches
-//! what they compare against, and a backend feature says what they run on.
-//! Without both `download` and `gpu-tests` the suite is the fixture-integrity
-//! checks, which load no model.
+//! `gpu-tests` compiles the tests that run a model on a backend, and a
+//! backend feature says which; the bf16 checks are a test binary of their
+//! own, `cuda_bf16`, which runs on `cuda`.
 //!
 //! ## The reference
 //!
@@ -215,8 +219,8 @@ pub fn chat_replies_reference() -> BTreeMap<String, Vec<Vec<ReplyRecord>>> {
     serde_json::from_str(&text).expect("parse the chat replies fixture")
 }
 
-/// Where `row`'s file under `key` lives in [`weights_cache`], without
-/// loading the row.
+/// `row`'s file under `key`, fetched into [`weights_cache`] alone, without
+/// the rest of the row.
 pub fn row_file(
     row: &str,
     key: &str,
@@ -229,29 +233,26 @@ pub fn row_file(
         .expect("the nanochat factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let resource = found.resources.get(key).expect("the resource");
-    weights_cache().resource_path(NANOCHAT_KIT, resource)
+    let mut map = bunsen::data::pretrained::ResourceMap::new(found.resources.name.clone());
+    map.insert(found.resources.try_get(key).expect("the resource").clone());
+    let loaded = weights_cache()
+        .load(NANOCHAT_KIT, &map)
+        .unwrap_or_else(|e| panic!("{row}: {e}"));
+    loaded.expect(key).expect("the fetched file").to_path_buf()
 }
 
-/// A pretrained cache over the fetched checkpoints, offline.
-///
-/// Without `download` there are none: an ordinary cache, which the tests
-/// that need it are not compiled without.
+/// The weights cache the tests load the checkpoints through: bunsen's own
+/// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
+/// pinned file the first time it is asked for; offline when
+/// `BUNSEN_VALIDATE_OFFLINE` is set.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    #[cfg(feature = "download")]
-    let options = PretrainedCacheOptions::default()
-        .with_disk(
-            bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(fetch_nanochat::cache_dir().to_path_buf())),
-        )
-        .with_offline(true);
-    #[cfg(not(feature = "download"))]
-    let options = PretrainedCacheOptions::default();
-    PretrainedCache::new(options).expect("open the pretrained cache")
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
 }
 
 /// A nanochat pretrained by name, through bunsen's factory and
@@ -300,15 +301,15 @@ pub fn argmax(logits: &Tensor<2>) -> i64 {
 
 /// `bunsen_tool::chat`'s nanochat tokenizer against upstream's. Reads the
 /// fetched tokenizer files; loads no model.
-#[cfg(all(test, feature = "download"))]
+#[cfg(all(test, feature = "checkpoints"))]
 mod chat;
 
 /// `bunsen_tool::chat`'s sessions against upstream's greedy chat replies.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod chat_session;
 
 /// bunsen's greedy decodes against upstream's, for every row, in float32.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod greedy;
 
 #[cfg(test)]

@@ -16,28 +16,22 @@ workspace = true
 [features]
 default = []
 
-## Fetch the checkpoints compared against upstream's decodes:
-## `nanochat-students`' d20 base, mid and RL, and `nitishpandey04`'s d18
-## base and SFT.
+## Compile the tests against the community checkpoints (`nanochat-students`'
+## d20 base, mid and RL, `nitishpandey04`'s d18 base and SFT). Each fetches
+## what it reads at run time, through bunsen's pinned rows, into the weights
+## cache (`BUNSEN_CACHE_DIR`, or the user's cache directory), shared with
+## everything else that loads them through bunsen.
 ##
-## **Off by default.** Enabling this makes `fetch-nanochat`'s build reach the
-## network on a cold cache (~10 GB), which a plain `cargo build` must never
-## do. Every asset is verified against a pinned SHA-256, so a warm build is
-## offline and reproducible.
-download = [
-    "dep:fetch-nanochat",
-    "fetch-nanochat/base_d20",
-    "fetch-nanochat/mid_d20",
-    "fetch-nanochat/rl_d20",
-    "fetch-nanochat/d18_base",
-    "fetch-nanochat/d18_sft",
-]
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `tools/validate.py`); this only compiles them.
+checkpoints = ["bunsen/fetch"]
 
-## Compile every test that loads a model.
+## Compile the `checkpoints` tests that run a model on a backend.
 ##
 ## **Off by default**, and orthogonal to the backend features: this selects
 ## *whether* those tests are built, a backend feature selects *which*
-## accelerator runs them, and both are passed. Needs `download` too.
+## accelerator runs them, and both are passed.
 gpu-tests = []
 
 ## Run the checks on `wgpu`, in f32. The usual choice.
@@ -57,7 +51,6 @@ burn = { workspace = true }
 bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
 # The chat driver, without the binary's audio capture and publish targets.
 bunsen-tool = { path = "../../../crates/public/bunsen-tool", default-features = false }
-fetch-nanochat = { path = "../../assets/fetch-nanochat", optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

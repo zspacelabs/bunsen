@@ -91,13 +91,39 @@ crates:
       qwen/qwen3-asr-0.6b: {size: medium, gb: 5.4, core: true, dtypes: [f32], varies: "Qwen's base weights, the ONNX reference"}
   nanochat:
     package: nanochat-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
     models:
-      nanochat-students/rl-d20: {size: medium, gb: 2.1, core: true, dtypes: [f32, bf16], varies: "upstream's 2025 model, with chat sessions"}
-      nitishpandey04/nanochat-d18-sft: {size: medium, gb: 2.1, core: true, dtypes: [f32, bf16], varies: "upstream's 2026 model, with chat sessions"}
-      nanochat-students/base-d20: {size: medium, gb: 2.1, core: false, dtypes: [f32, bf16], varies: "another stage of the 2025 model"}
-      nanochat-students/mid-d20: {size: medium, gb: 2.1, core: false, dtypes: [f32, bf16], varies: "another stage of the 2025 model"}
-      nitishpandey04/nanochat-d18-base: {size: medium, gb: 2.1, core: false, dtypes: [f32, bf16], varies: "another stage of the 2026 model"}
+      nanochat-d20-rl:
+        size: medium
+        gb: 2.1
+        core: true
+        dtypes: [f32, bf16]
+        varies: upstream's 2025 model (nanochat-students/rl-d20), its tokenizer, chat sessions, bf16 sampling
+      nanochat-d18-sft:
+        size: medium
+        gb: 2.1
+        core: true
+        dtypes: [f32, bf16]
+        varies: upstream's 2026 model (nitishpandey04/nanochat-d18-sft) - smear, value embeddings, windows - its tokenizer, chat sessions
+      nanochat-d20-base:
+        size: medium
+        gb: 2.1
+        core: false
+        dtypes: [f32, bf16]
+        varies: another stage of the 2025 model (nanochat-students/base-d20)
+      nanochat-d20-mid:
+        size: medium
+        gb: 2.1
+        core: false
+        dtypes: [f32, bf16]
+        varies: another stage of the 2025 model (nanochat-students/mid-d20)
+      nanochat-d18-base:
+        size: medium
+        gb: 2.1
+        core: false
+        dtypes: [f32, bf16]
+        varies: another stage of the 2026 model (nitishpandey04/nanochat-d18-base)
   voxtral:
     package: voxtral-model-validation
     runner: features

@@ -3253,14 +3253,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fetch-nanochat"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "document-features",
-]
-
-[[package]]
 name = "filetime"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5388,7 +5380,6 @@ dependencies = [
  "bunsen",
  "bunsen-tool",
  "burn",
- "fetch-nanochat",
  "serde",
  "serde_json",
  "serial_test",

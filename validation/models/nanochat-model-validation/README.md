@@ -16,13 +16,16 @@ files (`validation/tools/gen_nanochat_fixtures.py`):
 ## Running it
 
 ```sh
-cargo make validate-nanochat                          # wgpu, float32
+cargo make validate-nanochat                          # every row: wgpu, float32
 VALIDATION_BACKEND=cuda cargo make validate-nanochat  # cuda: float32, and bf16
+python3 validation/tools/validate.py run --crate nanochat --profile medium-core   # the two representatives
 ```
 
-`download` fetches the checkpoints through `fetch-nanochat` (~10 GB on a cold cache, verified against pinned
-digests), `gpu-tests` compiles the tests that load a model, and a backend feature says what they run on. Without them
-the suite is the fixture-integrity checks.
+The tests fetch the checkpoints they read at run time, through bunsen's pinned rows, into the weights cache (~10 GB
+for every row on a cold cache, verified against pinned digests). `checkpoints` compiles them, `gpu-tests` the ones that
+load a model, and a backend feature says what they run on; without them the suite is the fixture-integrity checks. A
+profile (`validation/README.md`, "Choosing what to validate") says which rows' tests run: each test has its row's id in
+its path (`greedy::nanochat_d20_rl`, `bf16::nanochat_d18_sft`).
 
 On `cuda`, `tests/cuda_bf16.rs` (a test binary of its own, since it sets the device's float dtype to bf16) loads each
 row into a bf16 model, checks that the checkpoint's bf16 tensors are the model's bit for bit, and holds its prefill
