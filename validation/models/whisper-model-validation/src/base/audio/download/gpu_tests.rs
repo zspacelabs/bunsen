@@ -33,8 +33,9 @@ use bunsen::{
         performance_device,
     },
 };
+use burn::Tensor;
+#[cfg(feature = "reference")]
 use burn::{
-    Tensor,
     prelude::{
         Device,
         Int,
@@ -45,8 +46,7 @@ use burn::{
 
 use crate::{
     N_FRAMES,
-    N_MELS,
-    audio::{
+    base::audio::{
         FIXTURES,
         Reference,
         SAMPLE_RATE,
@@ -60,9 +60,14 @@ use crate::{
         transcript,
         vocab,
     },
+};
+#[cfg(feature = "reference")]
+use crate::{
+    N_MELS,
     reference,
 };
 
+#[cfg(feature = "reference")]
 type F = f32;
 
 /// The prompt and stop token, derived from the layout rather than written
@@ -76,6 +81,7 @@ fn decode_config(table: &Vocab) -> GreedyDecodeConfig {
     GreedyDecodeConfig::new(prompt, table.policy.ids().eot)
 }
 
+#[cfg(feature = "reference")]
 /// Splits log-mels into the encoder's fixed windows, zero-padding
 /// the last.
 fn windows_of(
@@ -102,6 +108,7 @@ fn windows_of(
         .collect()
 }
 
+#[cfg(feature = "reference")]
 /// Greedily decodes one window against the reference decoder.
 ///
 /// The export is KV-cache-free, so the whole prefix is re-fed every
@@ -182,6 +189,7 @@ fn test_bunsen_agrees_with_openai_reference() {
     }
 }
 
+#[cfg(feature = "reference")]
 /// The encoder comparison, on **real** log-mels rather than
 /// synthetic ones.
 ///
@@ -210,6 +218,7 @@ fn test_onnx_encoder_matches_bunsen_on_real_audio() {
     }
 }
 
+#[cfg(feature = "reference")]
 /// **The ONNX reference transcribes the clip**, independent of bunsen:
 /// the ONNX encoder feeds the ONNX decoder.
 #[test]
@@ -253,6 +262,7 @@ fn test_onnx_reference_transcribes_real_audio() {
     }
 }
 
+#[cfg(feature = "reference")]
 /// **The agreement gate, end to end.** bunsen and the ONNX reference
 /// must transcribe the same clip to the same words.
 ///

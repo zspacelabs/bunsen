@@ -306,8 +306,8 @@ fn report(
     )
 }
 
-/// Everything that loads weights. `download` is what fetches them.
-#[cfg(feature = "download")]
+/// Everything that loads weights, which the tests fetch (`checkpoints`).
+#[cfg(feature = "checkpoints")]
 mod download;
 #[cfg(feature = "gpu-tests")]
 mod gpu_tests;
@@ -351,7 +351,7 @@ pub fn clip_mels(
 
 /// bunsen's Whisper, from the fetched checkpoint, in f32.
 ///
-/// OpenAI ships fp16; the mel front end produces the backend's default
+/// `OpenAI` ships fp16; the mel front end produces the backend's default
 /// float. Feeding f32 input to an f16 model does not error, it just
 /// returns wrong numbers, so the cast is load-bearing.
 pub fn bunsen_model(device: &Device) -> Whisper {

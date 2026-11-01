@@ -94,10 +94,11 @@ itself, so after a pin changes on `main`, run the workflow once on `main` from t
 
 | Task | Runs | Fetches (cold) |
 |---|---|---|
-| `validate-cpu` | the checks on the checkpoints alone (`weights`), on the CPU | ~150 MB |
+| `validate-cpu` | Silero's and Whisper's checks on the checkpoints alone, on the CPU | ~150 MB |
 | `validate-ci` | what `validation.yml` runs: Silero's and Whisper's whole suites, on the CPU | ~730 MB |
 | `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~28 GB |
-| `validate-all` | every model's whole suite | ~70 GB |
+| `validate` | the models `VALIDATION_PROFILE` chooses (`small-core` by default; `validation/README.md`) | 3 GB (`small-core`) to ~95 GB |
+| `validate-all` | every model's whole suite | ~95 GB |
 
 `<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3`, `sortformer`, `voxtral` or `nanochat`. All but
 Silero's and Whisper's suites are too large for a CI runner; run them on a GPU before merging a change to those kits.

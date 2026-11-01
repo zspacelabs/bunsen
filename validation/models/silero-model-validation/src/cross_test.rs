@@ -6,13 +6,13 @@
 //! through the streaming context at both rates and steps the reference the
 //! way upstream's `OnnxWrapper` does. `test_golden_context` runs a real
 //! recording through the streaming context and pins the per-chunk
-//! probabilities. With `download`,
-//! `test_upstream_safetensors_matches_the_reference` holds the `silero/vad-16k`
+//! probabilities. And
+//! `test_upstream_safetensors_decides_as_the_graph` holds the `silero/vad-16k`
 //! row, upstream's own safetensors, to the reference, to the bundled burnpack,
 //! and to the golden trace.
 
 #[cfg(test)]
-mod tests {
+mod vad_16k {
     use bunsen::{
         errors::*,
         kits::speech::silero_vad::{
@@ -118,7 +118,9 @@ mod tests {
         // comparison needs.
         let wav_16k = load_audio_mono_sr(&wav_path, 16000)?;
         let wav_8k: Vec<f32> = wav_16k
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| (pair[0] + pair[1]) / 2.0)
             .collect();
 

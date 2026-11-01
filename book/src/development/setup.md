@@ -50,8 +50,8 @@ consumer:
 
 - **The workspace, with `indicatif`.** Everything, with the tests and the
   run-time network code. No build script fetches anything
-  ([Assets](./assets.md)): the validation crates' `weights` and `download`
-  stay off, and their suites run when asked
+  ([Assets](./assets.md)): the validation crates' `checkpoints` and
+  `reference` stay off, and their suites run when asked
   ([Validation](./validation.md#running-validation)).
 - **`bunsen` with no default features.** A user who writes
   `default-features = false` and adds back only what they use.

@@ -11,7 +11,7 @@ what a driver or a gate does with speech probabilities need no model.
 (`test_the_kits_recording_is_upstreams`), and rewrites it when run by name:
 
 ```sh
-cargo test -p silero-model-validation --features weights \
+cargo test -p silero-model-validation --features checkpoints \
   -- --ignored write_the_kits_recording
 ```
 
