@@ -1,0 +1,4 @@
+[alias]
+# Runs the validation crates under a profile (`tools/validate`; README.md,
+# "Choosing what to validate").
+validate = "run -q -p validate --"

@@ -24,7 +24,7 @@ default = []
 ##
 ## **Off by default**, so a plain `cargo test` here reaches no network.
 ## Which models' tests run is the profile's (`validation/models.yml`,
-## `tools/validate.py`); this only compiles them.
+## `cargo validate`); this only compiles them.
 checkpoints = ["bunsen/fetch"]
 
 ## Compile the `checkpoints` tests that run a model on a backend.

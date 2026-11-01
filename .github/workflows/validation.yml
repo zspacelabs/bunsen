@@ -48,15 +48,6 @@ jobs:
           cache-targets: false
           save-if: false
 
-      # The profile runs through `cargo nextest` (the validation workspace
-      # alone), chosen by `validate.py`, which reads YAML.
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: nextest
-
-      - name: PyYAML
-        run: sudo apt-get install -y python3-yaml
-
       # The tests fetch the checkpoints themselves, through bunsen's pinned
       # rows, into the weights cache: kept here, keyed by the rows' pins.
       - name: Weights cache directory
@@ -69,4 +60,7 @@ jobs:
           restore-keys: bunsen-weights-v1-
 
       - name: Validate the drivers
-        run: python3 validation/tools/validate.py run --profile ci --backend flex
+        # `cargo validate` (`validation/tools/validate`): the Rust toolchain is
+        # all it needs.
+        working-directory: validation
+        run: cargo validate run --profile ci --backend flex

@@ -1,0 +1,21 @@
+[package]
+name = "validate"
+description = "Runs the validation crates under a profile: the models it chooses from validation/models.yml, their tests alone, through cargo test."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive", "env"] }
+indexmap = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde-saphyr = { workspace = true }

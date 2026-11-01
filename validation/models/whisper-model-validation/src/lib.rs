@@ -17,12 +17,13 @@
 //! default, so a plain `cargo test` here reaches no network and runs the
 //! fixture-integrity checks alone.
 //!
-//! `validation/tools/validate.py` runs this crate under a profile, which
-//! chooses the model (`validation/models.yml`). Every check of it sits under
-//! `base` (`base::staged::...`, `base::audio::...`, `base::bundled::...`):
+//! `cargo validate` (`validation/tools/validate`) runs this crate under a
+//! profile, which chooses the model (`validation/models.yml`). Every check of
+//! it sits under `base` (`base::staged::...`, `base::audio::...`,
+//! `base::bundled::...`):
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile small-core --crate whisper
+//! cd validation && cargo validate run --profile small-core --crate whisper
 //! ```
 //!
 //! `gpu-tests` compiles the tests that run a model on a backend, and a

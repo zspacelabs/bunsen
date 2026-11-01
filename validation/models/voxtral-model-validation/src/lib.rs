@@ -15,13 +15,13 @@
 //! (feature **`reference`**). Both are off by default, so a plain `cargo
 //! test` here reaches no network and runs the fixture-integrity checks alone.
 //!
-//! `validation/tools/validate.py` runs this crate under a profile, which
-//! chooses the model (`validation/models.yml`; it is `large`). Every test of
-//! it has its id in its path
+//! `cargo validate` (`validation/tools/validate`) runs this crate under a
+//! profile, which chooses the model (`validation/models.yml`; it is `large`).
+//! Every test of it has its id in its path
 //! (`speech::voxtral_mini_4b_realtime_2602::transcribe_matches_transformers`):
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile large-core --crate voxtral
+//! cd validation && cargo validate run --profile large-core --crate voxtral
 //! ```
 //!
 //! `gpu-tests` compiles the tests that run a model on a backend, and a

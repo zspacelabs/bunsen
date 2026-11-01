@@ -97,7 +97,7 @@ workflow once on `main` from the Actions tab to seed it for everyone.
 |---|---|---|
 | `validate-cpu` | Silero's and Whisper's checks on the checkpoints alone, on the CPU | ~150 MB |
 | `validate-ci` | what `validation.yml` runs: the stream drivers on the smallest models, on the CPU (the `ci` profile) | ~0.6 GB |
-| `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~28 GB |
+| `validate-<model>` | one model's whole suite, optimized, with debug assertions (the `validate` cargo profile), on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~28 GB |
 | `validate` | the models `VALIDATION_PROFILE` chooses (`small-core` by default; `validation/README.md`) | 3 GB (`small-core`) to ~95 GB |
 | `validate-all` | every model's whole suite | ~95 GB |
 

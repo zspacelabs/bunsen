@@ -14,14 +14,14 @@
 //! (feature **`reference`**). Both are off by default, so a plain `cargo
 //! test` here reaches no network and runs the fixture-integrity checks alone.
 //!
-//! `validation/tools/validate.py` runs this crate under a profile, which
-//! chooses the models (`validation/models.yml`). Every test of a model has
-//! the model's id in its path
+//! `cargo validate` (`validation/tools/validate`) runs this crate under a
+//! profile, which chooses the models (`validation/models.yml`). Every test of a
+//! model has the model's id in its path
 //! (`speech::transcribes_like_transformers::phonon_1`,
 //! `staged::qwen3_asr_0_6b::audio_matches_onnxruntime`):
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile medium-core --crate qwen3-asr
+//! cd validation && cargo validate run --profile medium-core --crate qwen3-asr
 //! ```
 //!
 //! `gpu-tests` compiles the tests that run a model on a backend, and a
