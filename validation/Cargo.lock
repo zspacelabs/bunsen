@@ -7395,10 +7395,7 @@ checksum = "c4fdfe13e1c42e45f497416afb8dc4e783bf0e25b7be9077c1c77c5fb14cb998"
 name = "sortformer-model-validation"
 version = "0.41.0"
 dependencies = [
- "bind-parakeet-onnx",
- "bind-qwen3-asr-onnx",
  "bind-sortformer-onnx",
- "bind-whisper-onnx",
  "bunsen",
  "bunsen-test-audio",
  "burn",

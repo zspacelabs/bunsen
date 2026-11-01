@@ -137,81 +137,76 @@ fn samples() -> Vec<f32> {
         .expect("read the AMI clip")
 }
 
-/// Parakeet (Phonon-2): every word attributed.
-#[test]
-#[serial_test::serial]
-fn test_parakeet_with_speakers() {
-    let device = performance_device();
-    let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = default_parakeet_factory()
-        .unwrap()
-        .load_bundle(
-            "fermion/phonon-2",
-            &cache_at(bind_parakeet_onnx::cache_dir()),
-            &device,
-        )
-        .unwrap();
-    let driver = ParakeetStreamDriver::new(ParakeetEngine::new(bundle), EmissionPolicy::offline())
-        .unwrap()
-        .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
-        .unwrap();
-    score(
-        "parakeet",
-        &transcribe(&driver, LevelPolicy::PerWindow, &samples()),
-        PARAKEET_BOUND,
-    );
-}
+/// Each engine with Nemotron's speakers, on the AMI clip.
+mod sortformer_speakers {
+    use super::*;
 
-/// Qwen3-ASR (Phonon-1): windows cut at turns.
-#[test]
-#[serial_test::serial]
-fn test_qwen3_asr_with_speakers() {
-    let device = performance_device();
-    let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = default_qwen3_asr_factory()
-        .unwrap()
-        .load_bundle(
-            "fermion/phonon-1",
-            &cache_at(bind_qwen3_asr_onnx::cache_dir()),
-            &device,
-        )
-        .unwrap();
-    let driver = Qwen3AsrStreamDriver::new(Qwen3AsrEngine::new(bundle), EmissionPolicy::offline())
-        .unwrap()
-        .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
-        .unwrap();
-    score(
-        "qwen3-asr",
-        &transcribe(&driver, LevelPolicy::PerWindow, &samples()),
-        QWEN3_ASR_BOUND,
-    );
-}
+    /// Parakeet (Phonon-2): every word attributed.
+    #[test]
+    #[serial_test::serial]
+    fn parakeet() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = default_parakeet_factory()
+            .unwrap()
+            .load_bundle("fermion/phonon-2", &weights_cache(), &device)
+            .unwrap();
+        let driver =
+            ParakeetStreamDriver::new(ParakeetEngine::new(bundle), EmissionPolicy::offline())
+                .unwrap()
+                .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
+                .unwrap();
+        score(
+            "parakeet",
+            &transcribe(&driver, LevelPolicy::PerWindow, &samples()),
+            PARAKEET_BOUND,
+        );
+    }
 
-/// Whisper (`base`, English): windows cut at turns.
-#[test]
-#[serial_test::serial]
-fn test_whisper_with_speakers() {
-    let device = performance_device();
-    let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = default_whisper_factory()
-        .unwrap()
-        .load_bundle(
-            "openai/base",
-            &cache_at(bind_whisper_onnx::cache_dir()),
-            &device,
-        )
-        .unwrap();
-    let driver = WhisperStreamDriverConfig::new()
-        .with_language(Some("en".to_string()))
-        .init_from_bundle(bundle, &device)
-        .unwrap()
-        .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
-        .unwrap();
-    score(
-        "whisper",
-        &transcribe(&driver, LevelPolicy::Running, &samples()),
-        WHISPER_BOUND,
-    );
+    /// Qwen3-ASR (Phonon-1): windows cut at turns.
+    #[test]
+    #[serial_test::serial]
+    fn qwen3_asr() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = default_qwen3_asr_factory()
+            .unwrap()
+            .load_bundle("fermion/phonon-1", &weights_cache(), &device)
+            .unwrap();
+        let driver =
+            Qwen3AsrStreamDriver::new(Qwen3AsrEngine::new(bundle), EmissionPolicy::offline())
+                .unwrap()
+                .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
+                .unwrap();
+        score(
+            "qwen3-asr",
+            &transcribe(&driver, LevelPolicy::PerWindow, &samples()),
+            QWEN3_ASR_BOUND,
+        );
+    }
+
+    /// Whisper (`base`, English): windows cut at turns.
+    #[test]
+    #[serial_test::serial]
+    fn whisper() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = default_whisper_factory()
+            .unwrap()
+            .load_bundle("openai/base", &weights_cache(), &device)
+            .unwrap();
+        let driver = WhisperStreamDriverConfig::new()
+            .with_language(Some("en".to_string()))
+            .init_from_bundle(bundle, &device)
+            .unwrap()
+            .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
+            .unwrap();
+        score(
+            "whisper",
+            &transcribe(&driver, LevelPolicy::Running, &samples()),
+            WHISPER_BOUND,
+        );
+    }
 }
 
 /// Parakeet's cpWER bound. Measured on wgpu: 0.277 (plain WER 0.155).

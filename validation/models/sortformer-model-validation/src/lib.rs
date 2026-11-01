@@ -9,26 +9,30 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bind-sortformer-onnx`'s
-//! `onnx_gen` feature, which fetches the export, pins it to a SHA-256,
-//! rewrites the two constructs `burn-onnx` cannot import, and caches it, all
-//! under the **`download`** feature, which is off by default so an ordinary
-//! `cargo build --workspace` never reaches the network.
+//! The checkpoints come through bunsen's own pinned rows, fetched at run time
+//! into the weights cache by the tests that read them (feature
+//! **`checkpoints`**). The generated references come from
+//! `bind-sortformer-onnx`'s `onnx_gen` and `onnx_gen_v2_1`, which fetch the
+//! exports, pin them to SHA-256s, rewrite the two constructs `burn-onnx`
+//! cannot import, and generate the models, at build time (feature
+//! **`reference`**). Both are off by default, so a plain `cargo test` here
+//! reaches no network and runs the fixture-integrity checks alone.
+//!
+//! `validation/tools/validate.py` runs this crate under a profile, which
+//! chooses the models (`validation/models.yml`). Every test of a model has
+//! the model's id in its path
+//! (`speech::nemotron_3_diarization::offline_diarizes_like_nemo`,
+//! `v2_checkpoints::sortformer_v2_1::loads`,
+//! `asr::sortformer_speakers::whisper`):
 //!
 //! ```sh
-//! cargo test --release -p sortformer-model-validation \
-//!   --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile small-core --crate sortformer
 //! ```
 //!
-//! `gpu-tests` compiles every test that loads a model, `download` fetches
-//! what they compare against, and a backend feature says what they run on.
-//! None is inferred from the others. Without both `download` and `gpu-tests`
-//! the suite is the fixture-integrity checks, which load no model.
-//!
-//! `SORTFORMER_ONNX_NEMOTRON`, `SORTFORMER_NEMOTRON_SAFETENSORS`,
-//! `SORTFORMER_NEMOTRON_CONFIG`, `SORTFORMER_ONNX_V2_1`, `SORTFORMER_V2_NEMO`
-//! and `SORTFORMER_V2_1_NEMO` point the build at local files instead; they
-//! are read by `bind-sortformer-onnx`'s build script, not this crate's.
+//! `gpu-tests` compiles the tests that run a model on a backend, and a
+//! backend feature says which. `SORTFORMER_ONNX_NEMOTRON` and
+//! `SORTFORMER_ONNX_V2_1` point the build at local exports instead; they are
+//! read by `bind-sortformer-onnx`'s build script, not this crate's.
 //!
 //! ## The reference is itself checked
 //!
@@ -38,31 +42,36 @@
 //! tests hold the generated model to it, so neither a defect in the ONNX import
 //! nor one in the rewrite can pass for a defect in bunsen, or hide one.
 
-#![cfg_attr(not(feature = "download"), allow(unused))]
+#![cfg_attr(not(feature = "checkpoints"), allow(unused))]
 
 use bunsen::support::testing::TensorRecord;
 use burn::prelude::*;
 use serde::Deserialize;
 
 /// The reference model, generated from the `parakeet-rs` export.
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub mod reference {
     pub use bind_sortformer_onnx::onnx_gen::*;
 }
 
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "reference", feature = "gpu-tests"))]
 mod reference_tests;
 
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(
+    test,
+    feature = "checkpoints",
+    feature = "reference",
+    feature = "gpu-tests"
+))]
 mod staged;
 
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod speech;
 
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod asr;
 
-#[cfg(all(test, feature = "download"))]
+#[cfg(all(test, feature = "checkpoints"))]
 mod v2_checkpoints;
 
 /// The mel channel count of `Nemotron-3-Diarization`.
@@ -315,35 +324,52 @@ pub fn ami_reference_v2() -> AmiReferenceV2 {
     serde_json::from_str(&text).expect("parse the v2 AMI reference fixture")
 }
 
-/// The pretrained cache the checkpoint comes through.
-///
-/// Under `download`, it is rooted at `bind-sortformer-onnx`'s directory,
-/// which its build laid out as one, and offline: nothing is fetched at run
-/// time. Routing the checkpoint through the library's own factory is also
-/// what this crate is validating.
-#[cfg(feature = "download")]
+/// The weights cache the tests load the checkpoints through: bunsen's own
+/// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
+/// pinned file the first time it is asked for; offline when
+/// `BUNSEN_VALIDATE_OFFLINE` is set. Routing the checkpoints through the
+/// library's own factories is also what this crate is validating.
+#[cfg(feature = "checkpoints")]
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    cache_at(bind_sortformer_onnx::cache_dir())
-}
-
-/// An offline pretrained cache rooted at a bundled crate's directory.
-#[cfg(feature = "download")]
-pub fn cache_at(dir: &std::path::Path) -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    let options = PretrainedCacheOptions::default()
-        .with_disk(
-            bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(dir.to_path_buf())),
-        )
-        .with_offline(true);
-    PretrainedCache::new(options).expect("open the pretrained cache")
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
+}
+
+/// A Sortformer row's file under `key`, fetched into [`weights_cache`]
+/// alone, without loading the row.
+#[cfg(feature = "checkpoints")]
+pub fn row_file(
+    row: &str,
+    key: &str,
+) -> std::path::PathBuf {
+    use bunsen::{
+        data::pretrained::ResourceMap,
+        kits::speech::sortformer::pretrained::{
+            SORTFORMER_KIT,
+            default_sortformer_factory,
+        },
+    };
+    let (_, found) = default_sortformer_factory()
+        .expect("the sortformer factory")
+        .lookup(row)
+        .unwrap_or_else(|e| panic!("{row}: {e}"));
+    let mut map = ResourceMap::new(found.resources.name.clone());
+    map.insert(found.resources.try_get(key).expect("the resource").clone());
+    weights_cache()
+        .load(SORTFORMER_KIT, &map)
+        .unwrap_or_else(|e| panic!("{row}: {e}"))
+        .expect(key)
+        .expect("the fetched file")
+        .to_path_buf()
 }
 
 /// `Nemotron-3-Diarization`, through bunsen's factory and [`weights_cache`].
-#[cfg(feature = "download")]
+#[cfg(feature = "checkpoints")]
 pub fn load_bundle(
     device: &Device
 ) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerBundle> {
@@ -352,7 +378,7 @@ pub fn load_bundle(
 
 /// The Sortformer `model` names, through bunsen's factory and
 /// [`weights_cache`].
-#[cfg(feature = "download")]
+#[cfg(feature = "checkpoints")]
 pub fn load_named_bundle(
     model: &str,
     device: &Device,

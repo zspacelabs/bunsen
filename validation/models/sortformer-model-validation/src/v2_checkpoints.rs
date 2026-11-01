@@ -20,11 +20,14 @@ use bunsen::{
             NemoSortformerConfig,
             Sortformer,
             SortformerV2Config,
+            pretrained::CHECKPOINT,
             weights::load_sortformer_v2_nemo_tensors,
         },
     },
     support::testing::cpu_device,
 };
+
+use super::*;
 
 /// The `.nemo` at `path` describes the default v2 geometry, behind `NeMo`'s
 /// front end without normalization, and loads into it, every parameter
@@ -67,12 +70,20 @@ fn assert_loads(path: &Path) {
     assert_eq!(applied.applied.len(), 17 * 39 + 12 + 18 * 16 + 2 + 4);
 }
 
-#[test]
-fn test_v2_checkpoint_loads() {
-    assert_loads(bind_sortformer_onnx::v2_nemo());
+mod sortformer_v2 {
+    use super::*;
+
+    #[test]
+    fn loads() {
+        assert_loads(&row_file("sortformer-v2", CHECKPOINT));
+    }
 }
 
-#[test]
-fn test_v2_1_checkpoint_loads() {
-    assert_loads(bind_sortformer_onnx::v2_1_nemo());
+mod sortformer_v2_1 {
+    use super::*;
+
+    #[test]
+    fn loads() {
+        assert_loads(&row_file("sortformer-v2.1", CHECKPOINT));
+    }
 }

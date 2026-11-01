@@ -74,22 +74,25 @@ and none is published:
 - [`bind-silero-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx)
   fetches upstream's 16 kHz Silero VAD checkpoint and its ONNX graph, from
   which the reference model is generated, for `silero-model-validation`.
-- `bind-parakeet-onnx` and `bind-qwen3-asr-onnx` fetch the Phonon
-  checkpoints, the base models and the ONNX references for their validation
-  crates.
-- `bind-sortformer-onnx` fetches NVIDIA's `Nemotron-3-Diarization` and
-  streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron
-  (which its build script rewrites where `burn-onnx` cannot import it) and of
-  v2.1, for its validation crate.
+- `bind-parakeet-onnx` and `bind-qwen3-asr-onnx` fetch the ONNX exports of
+  the base models, for their validation crates.
+- `bind-sortformer-onnx` fetches ONNX exports of NVIDIA's
+  `Nemotron-3-Diarization` (which its build script rewrites where `burn-onnx`
+  cannot import it) and of streaming Sortformer v2.1, for its validation
+  crate.
 - `bind-qwen3-onnx` fetches an onnxruntime-genai export of `Qwen3-0.6B`, for
-  its validation crate, whose tests load the checkpoints themselves through
-  bunsen's pinned rows, at run time, into the weights cache. Such an export's attention, rotary
+  its validation crate. Such an export's attention, rotary
   and RMS-norm ops are onnxruntime's own, and
   [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx)
   rewrites them to standard ONNX before `burn-onnx` imports the graph.
 - `bind-voxtral-onnx` fetches the onnxruntime-genai export of Mistral's
   `Voxtral-Mini-4B-Realtime-2602` (its audio encoder, decoder and token
   embedding, 19 GB), rewritten the same way, for its validation crate.
+
+The validation crates converted to `validation/models.yml` (Qwen3, nanochat,
+Qwen3-ASR, Parakeet, Sortformer) fetch no checkpoint at build time: their
+tests load each through bunsen's own pinned rows, at run time, into the
+weights cache, and a bind crate fetches only its ONNX reference.
 
 Only the validation crates depend on them, through their `weights` and
 `download` features, so no other build reaches the network. bunsen's own tests

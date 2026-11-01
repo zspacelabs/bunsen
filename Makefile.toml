@@ -146,7 +146,7 @@ script = "python3 validation/tools/validate.py run --crate qwen3 --profile large
 [tasks.validate-sortformer]
 description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR checkpoints it scores with)"
 workspace = false
-script = "cargo test --manifest-path validation/Cargo.toml --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "python3 validation/tools/validate.py run --crate sortformer --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-voxtral]
 description = "Voxtral Realtime's whole validation suite (fetches ~28 GB)"
