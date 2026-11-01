@@ -1,6 +1,6 @@
 [package]
 name = "bind-qwen3-asr-onnx"
-description = "Bunsen bundled Qwen3-ASR assets: fetches FermionResearch's Phonon-1 builds, Qwen's Qwen3-ASR-0.6B and an ONNX export of it at build time, digest-pinned, each behind a feature, and generates Rust reference models from the export. Hosts none."
+description = "Bunsen bundled Qwen3-ASR assets: fetches an ONNX export of Qwen's Qwen3-ASR-0.6B at build time, digest-pinned, behind a feature, and generates Rust reference models from it. Hosts none."
 publish = false
 
 authors.workspace = true
@@ -24,22 +24,8 @@ workspace = true
 
 [features]
 ## Nothing by default: building this crate as a workspace member fetches
-## nothing. `qwen3-asr-model-validation/download` turns on every feature.
+## nothing. `qwen3-asr-model-validation/reference` turns on `onnx_gen`.
 default = []
-
-## Fetch `FermionResearch`'s Phonon-1 archive (415 MB), laid out under
-## `cache_dir()`: a bunsen pretrained cache rooted there resolves
-## `fermion/phonon-1` from it, offline.
-checkpoint = []
-
-## Fetch Phonon-1-Micro (285 MB) and Phonon-1-Big (581 MB), laid out under
-## `cache_dir()`. Independent of `checkpoint`.
-variant_checkpoints = []
-
-## Fetch Qwen's `Qwen3-ASR-0.6B-hf` `model.safetensors` (1.6 GB) and
-## `tokenizer.json`, laid out under `cache_dir()`: a bunsen pretrained cache
-## rooted there resolves `qwen/qwen3-asr-0.6b` from it, offline.
-base_checkpoint = []
 
 ## Fetch the `OpenVoiceOS/qwen3-asr-0.6b-onnx` export of `Qwen3-ASR-0.6B`
 ## (~3.8 GB) and generate Rust models from it, in `crate::onnx_gen`.
