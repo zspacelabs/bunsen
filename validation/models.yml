@@ -77,10 +77,24 @@ crates:
       sortformer-speakers: {size: small, gb: 0.7, core: false, dtypes: [f32], varies: "speakers over the Parakeet, Qwen3-ASR and Whisper engines"}
   parakeet:
     package: parakeet-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
     models:
-      fermion/phonon-2: {size: small, gb: 0.2, core: true, dtypes: [f32], varies: "the Fermion archive path"}
-      nvidia/parakeet-tdt-0.6b-v3: {size: medium, gb: 5.0, core: true, dtypes: [f32], varies: "NVIDIA's base weights, the ONNX reference"}
+      fermion/phonon-2:
+        size: small
+        gb: 0.2
+        core: true
+        dtypes: [f32]
+        varies: the Fermion archive path (a fine-tune on parakeet-tdt-0.6b-v3's architecture), held to its own transformers decode
+      nvidia/parakeet-tdt-0.6b-v3:
+        size: medium
+        gb: 5.0
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: NVIDIA's base weights, the ONNX reference (2.5 GB), stage by stage, the stream driver
+
   qwen3-asr:
     package: qwen3-asr-model-validation
     runner: nextest

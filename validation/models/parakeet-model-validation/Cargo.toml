@@ -16,27 +16,28 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs and generate the models from them, and pull in
-## the checkpoints compared against them: NVIDIA's `parakeet-tdt-0.6b-v3`,
-## whose weights the graphs carry, and `FermionResearch`'s Phonon-2.
+## Compile the tests against the checkpoints (NVIDIA's
+## `parakeet-tdt-0.6b-v3`, `FermionResearch`'s Phonon-2). Each fetches what
+## it reads at run time, through bunsen's pinned rows, into the weights cache
+## (`BUNSEN_CACHE_DIR`, or the user's cache directory), shared with
+## everything else that loads them through bunsen.
 ##
-## **Off by default.** Enabling this makes `bind-parakeet-onnx`'s build
-## reach the network on a cold cache (~5 GB), which a plain
-## `cargo build --workspace` must never do. Every asset is verified against a
-## pinned SHA-256, so a warm build is offline and reproducible.
-download = [
-    "bunsen/fermion",
-    "dep:bind-parakeet-onnx",
-    "bind-parakeet-onnx/onnx_gen",
-    "bind-parakeet-onnx/checkpoint",
-    "bind-parakeet-onnx/base_checkpoint",
-]
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `tools/validate.py`); this only compiles them.
+checkpoints = ["bunsen/fetch", "bunsen/fermion"]
 
-## Compile every test that loads a model.
+## Fetch the `istupakov/parakeet-tdt-0.6b-v3-onnx` export and generate the
+## reference models from it, at build time (`bind-parakeet-onnx/onnx_gen`,
+## 2.5 GB), and compile the tests against them.
+reference = ["dep:bind-parakeet-onnx", "bind-parakeet-onnx/onnx_gen"]
+
+## Compile the `checkpoints` and `reference` tests that run a model on a
+## backend.
 ##
 ## **Off by default**, and orthogonal to the backend features: this selects
 ## *whether* those tests are built, a backend feature selects *which*
-## accelerator runs them, and both are passed. Needs `download` too.
+## accelerator runs them, and both are passed.
 gpu-tests = []
 
 ## Run the cross-check on `wgpu`. The usual choice.
