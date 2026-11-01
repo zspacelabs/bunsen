@@ -252,76 +252,74 @@ fn report_and_gate(
     );
 }
 
-/// Scores every head of the base model, and holds
-/// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`], the best eight of them, to the gate.
-///
-/// Measured on wgpu: a dozen heads in layers 16 to 26 put 90% of the words
-/// within 0.20 s of Parakeet's (by the frame each attends to most); the eight
-/// aligned together, at their peaks, 0.20 s too, 90 of 114 within 0.16 s, a
-/// steady 0.12 s after Parakeet. Phonon-1: 0.20 s, 96 of 113; -micro 0.20 s,
-/// 99 of 112; -big 0.20 s, 93 of 115.
-#[test]
-#[serial_test::serial]
-fn test_measure_attention_alignment() {
-    let device = performance_device();
-    let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
-    let samples = speech_clip(CLIP);
-    let reference = word_times();
-    let windows: Vec<Window> = WINDOWS
-        .iter()
-        .map(|&w| decode_window(&bundle, &samples, w, &device))
-        .collect();
-    let n_layers = windows[0].weights.len();
-    let heads = windows[0].heads;
+mod measure_attention_alignment {
+    use super::*;
 
-    // Per head: each token at the placeholder it attends to most.
-    let mut scores: BTreeMap<(usize, usize), (f64, f64, usize)> = BTreeMap::new();
-    for layer in 0..n_layers {
-        for head in 0..heads {
-            let mut all = Vec::new();
-            for w in &windows {
-                let tokens = w.weights[layer].len() / (heads * w.n_audio);
-                let frames: Vec<usize> = w
-                    .rows
-                    .iter()
-                    .map(|&r| {
-                        let row = &w.weights[layer]
-                            [(head * tokens + r) * w.n_audio..(head * tokens + r + 1) * w.n_audio];
-                        (0..w.n_audio)
-                            .max_by(|&a, &b| row[a].total_cmp(&row[b]))
-                            .unwrap()
-                    })
-                    .collect();
-                all.extend(errors(w, &word_starts(w, &frames), &reference));
+    /// Scores every head of the base model, and holds
+    /// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`], the best eight of them, to the gate.
+    ///
+    /// Measured on wgpu: a dozen heads in layers 16 to 26 put 90% of the words
+    /// within 0.20 s of Parakeet's (by the frame each attends to most); the
+    /// eight aligned together, at their peaks, 0.20 s too, 90 of 114 within
+    /// 0.16 s, a steady 0.12 s after Parakeet. Phonon-1: 0.20 s, 96 of 113;
+    /// -micro 0.20 s, 99 of 112; -big 0.20 s, 93 of 115.
+    #[test]
+    #[serial_test::serial]
+    fn qwen3_asr_0_6b() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+        let samples = speech_clip(CLIP);
+        let reference = word_times();
+        let windows: Vec<Window> = WINDOWS
+            .iter()
+            .map(|&w| decode_window(&bundle, &samples, w, &device))
+            .collect();
+        let n_layers = windows[0].weights.len();
+        let heads = windows[0].heads;
+
+        // Per head: each token at the placeholder it attends to most.
+        let mut scores: BTreeMap<(usize, usize), (f64, f64, usize)> = BTreeMap::new();
+        for layer in 0..n_layers {
+            for head in 0..heads {
+                let mut all = Vec::new();
+                for w in &windows {
+                    let tokens = w.weights[layer].len() / (heads * w.n_audio);
+                    let frames: Vec<usize> = w
+                        .rows
+                        .iter()
+                        .map(|&r| {
+                            let row = &w.weights[layer][(head * tokens + r) * w.n_audio
+                                ..(head * tokens + r + 1) * w.n_audio];
+                            (0..w.n_audio)
+                                .max_by(|&a, &b| row[a].total_cmp(&row[b]))
+                                .unwrap()
+                        })
+                        .collect();
+                    all.extend(errors(w, &word_starts(w, &frames), &reference));
+                }
+                let (bias, spread) = bias_and_spread(&all);
+                scores.insert((layer, head), (spread, bias, all.len()));
             }
-            let (bias, spread) = bias_and_spread(&all);
-            scores.insert((layer, head), (spread, bias, all.len()));
         }
-    }
-    let mut ranked: Vec<_> = scores.iter().collect();
-    ranked.sort_by(|a, b| a.1.0.total_cmp(&b.1.0));
-    eprintln!("head (layer, head): p90 distance from the bias s, bias s, words matched");
-    for ((layer, head), (spread, bias, n)) in ranked.iter().take(16) {
-        eprintln!("  ({layer:2}, {head:2}): {spread:.3} {bias:+.3} {n}");
-    }
+        let mut ranked: Vec<_> = scores.iter().collect();
+        ranked.sort_by(|a, b| a.1.0.total_cmp(&b.1.0));
+        eprintln!("head (layer, head): p90 distance from the bias s, bias s, words matched");
+        for ((layer, head), (spread, bias, n)) in ranked.iter().take(16) {
+            eprintln!("  ({layer:2}, {head:2}): {spread:.3} {bias:+.3} {n}");
+        }
 
-    report_and_gate("base", &aligned_errors(&windows, &reference), 100);
+        report_and_gate("base", &aligned_errors(&windows, &reference), 100);
+    }
 }
 
 /// Phonon-1's builds re-pack the base model's weights, and its heads time
 /// words as well.
-#[test]
-#[serial_test::serial]
-fn test_phonon1_builds_align_on_the_base_heads() {
+fn check_aligns_on_the_base_heads(name: &str) {
     let device = performance_device();
     let samples = speech_clip(CLIP);
     let reference = word_times();
-    for name in [
-        "fermion/phonon-1",
-        "fermion/phonon-1-micro",
-        "fermion/phonon-1-big",
-    ] {
+    {
         let _memory = DeviceMemoryGuard::new(&device);
         let bundle = load_bundle(name, &device);
         let windows: Vec<Window> = WINDOWS
@@ -329,6 +327,28 @@ fn test_phonon1_builds_align_on_the_base_heads() {
             .map(|&w| decode_window(&bundle, &samples, w, &device))
             .collect();
         report_and_gate(name, &aligned_errors(&windows, &reference), 100);
+    }
+}
+
+mod aligns_on_the_base_heads {
+    use super::*;
+
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1() {
+        check_aligns_on_the_base_heads("fermion/phonon-1");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1_micro() {
+        check_aligns_on_the_base_heads("fermion/phonon-1-micro");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1_big() {
+        check_aligns_on_the_base_heads("fermion/phonon-1-big");
     }
 }
 

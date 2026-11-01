@@ -7,6 +7,7 @@ use std::{
         PathBuf,
     },
     str::FromStr,
+    time::SystemTime,
 };
 
 use super::{
@@ -44,6 +45,15 @@ pub struct CachedFile {
 
     /// An unfinished download (`<file>.partial`), which a fetch resumes.
     pub partial: bool,
+
+    /// When it came into the cache (its creation time), where the file
+    /// system records it.
+    pub created: Option<SystemTime>,
+
+    /// When it was last loaded (its modification time): a load that finds
+    /// it in the cache sets it ([`PretrainedCache`]'s "Use"), and a download
+    /// is its first use.
+    pub last_used: Option<SystemTime>,
 }
 
 /// Which of a [`PretrainedCache`]'s files: every one, a kit's, or one
@@ -180,6 +190,8 @@ impl PretrainedCache {
                             path,
                             bytes: meta.len(),
                             partial,
+                            created: meta.created().ok(),
+                            last_used: meta.modified().ok(),
                         });
                     }
                     files.sort_by(|a, b| a.path.cmp(&b.path));

@@ -836,6 +836,7 @@ dependencies = [
  "clap",
  "env_logger",
  "log",
+ "time",
 ]
 
 [[package]]

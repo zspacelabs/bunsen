@@ -258,13 +258,15 @@ the geometries. Neither needs a backend.
 
 ```sh
 bunsen-tool cache path                         # the cache directory
-bunsen-tool cache list [KIT[/NAMESPACE]]       # each file's kit, namespace, size and pin, then the total
-bunsen-tool cache clear [KIT[/NAMESPACE]] [--partial] [--yes]
+bunsen-tool cache list [KIT[/NAMESPACE]]       # each file's kit, namespace, size, fetched and last used (UTC), pin
+bunsen-tool cache clear [KIT[/NAMESPACE]] [--partial] [--age AGE] [--yes]
 ```
 
-The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer) and `silero_vad` (the VAD the
-`conservative` preset loads).
-`clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads.
+The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer), `silero_vad` (the VAD the
+`conservative` preset loads), `qwen3` and `nanochat`.
+`clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads, and `--age 30d` the
+files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
+and checking what is cached, do not.
 
 `transcribe` and `live` take `--preset` and `--chunk-ms` (`diarize live` takes `--chunk-ms`); every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
 `metal`, `cuda`; the CPU is always there) and `-v`/`-q`.

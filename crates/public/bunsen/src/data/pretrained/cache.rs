@@ -331,6 +331,18 @@ fn fetch_prefix(
 ///    the server sent, and renamed into place. [`load`](Self::load) fetches
 ///    every remote resource of a map together, under the options' fetch policy.
 ///
+/// # Use
+///
+/// A [`resolve`](Self::resolve) or [`load`](Self::load) that finds a file in
+/// the cache marks it used: its modification time is set to now, when the
+/// file is writable, so a listing's last use
+/// ([`CachedFile::last_used`](super::CachedFile::last_used)) is the last
+/// load's, and old files can be cleared by it. A probe marks nothing:
+/// [`status`](Self::status), [`map_status`](Self::map_status),
+/// [`resource_path`](Self::resource_path),
+/// [`read_prefix`](Self::read_prefix) and
+/// [`cached_files`](Self::cached_files) read without writing.
+///
 /// Nothing is linked or copied into the cache: only a download, or bundled
 /// bytes, write there. Every transfer reports to the disk cache's observer
 /// stack. A resource that only a URL can supply is a
@@ -490,7 +502,10 @@ impl PretrainedCache {
         res: &Resource,
     ) -> BunsenResult<ResolvedResource> {
         match self.resolve_local(kit, res)? {
-            Local::Found(found) => Ok(found),
+            Local::Found(found) => {
+                mark_used(&found);
+                Ok(found)
+            }
             Local::Remote { dest, urls } => {
                 if self.offline {
                     return Err(offline(&dest, res));
@@ -569,6 +584,7 @@ impl PretrainedCache {
         for (key, res) in &map.resources {
             match self.resolve_local(kit, res)? {
                 Local::Found(found) => {
+                    mark_used(&found);
                     parts.insert(key.clone(), found);
                 }
                 Local::Remote { dest, urls } => remote.push(RemotePart {
@@ -595,7 +611,8 @@ impl PretrainedCache {
         })
     }
 
-    /// The cache, then the local sources in order; the URLs otherwise.
+    /// The cache, then the local sources in order; the URLs otherwise. A
+    /// probe: what it finds is not marked used.
     fn resolve_local(
         &self,
         kit: &str,
@@ -803,6 +820,19 @@ impl PretrainedCache {
             remote_keys(&remote)
         ))
         .context(name))
+    }
+}
+
+/// Marks a file the cache already held as used: its access and modification
+/// times set to now. A file the process cannot write (a read-only cache, a
+/// file another user owns) keeps its times; the load goes on.
+fn mark_used(found: &ResolvedResource) {
+    if found.provenance != Provenance::Cached {
+        return;
+    }
+    let now = std::time::SystemTime::now();
+    if let Ok(file) = fs::OpenOptions::new().write(true).open(&found.path) {
+        let _ = file.set_times(fs::FileTimes::new().set_accessed(now).set_modified(now));
     }
 }
 
@@ -1101,6 +1131,76 @@ mod tests {
                 provenance: Provenance::Cached,
             }
         );
+    }
+
+    /// A load that finds a file in the cache marks it used, and a probe
+    /// does not: [`status`](PretrainedCache::status),
+    /// [`map_status`](PretrainedCache::map_status),
+    /// [`read_prefix`](PretrainedCache::read_prefix) and
+    /// [`cached_files`](PretrainedCache::cached_files) leave its times as
+    /// they were. A file the process cannot write loads, its times kept.
+    #[test]
+    fn test_a_load_marks_a_cached_file_used() {
+        use std::time::{
+            Duration,
+            SystemTime,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let r = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/abc.bin")],
+        );
+        let dest = cache.resource_path("kit", &r);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::write(&dest, b"abc").unwrap();
+        let old = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+        let age = || {
+            fs::File::options()
+                .write(true)
+                .open(&dest)
+                .unwrap()
+                .set_modified(old)
+                .unwrap()
+        };
+        let modified = || fs::metadata(&dest).unwrap().modified().unwrap();
+        let map = ResourceMap::new("m").with_resource(r.clone());
+
+        age();
+        assert_eq!(cache.status("kit", &r), CacheStatus::Cached);
+        cache.map_status("kit", &map);
+        cache.read_prefix("kit", &r, 2).unwrap();
+        let listed = cache.cached_files(&Default::default()).unwrap();
+        assert_eq!(listed[0].last_used, Some(old));
+        assert_eq!(modified(), old, "a probe marks nothing");
+
+        cache.resolve("kit", &r).unwrap();
+        assert!(modified() > old, "resolve marks it used");
+        age();
+        cache.load("kit", &map).unwrap();
+        assert!(modified() > old, "load marks it used");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            age();
+            fs::set_permissions(&dest, fs::Permissions::from_mode(0o444)).unwrap();
+            assert_eq!(
+                cache
+                    .load("kit", &map)
+                    .unwrap()
+                    .get("abc")
+                    .unwrap()
+                    .provenance,
+                Provenance::Cached
+            );
+            // Root writes a read-only file regardless.
+            if fs::File::options().write(true).open(&dest).is_err() {
+                assert_eq!(modified(), old, "a read-only file keeps its times");
+            }
+            fs::set_permissions(&dest, fs::Permissions::from_mode(0o644)).unwrap();
+        }
     }
 
     /// A file in a local dir is used where it is, and the cache stays

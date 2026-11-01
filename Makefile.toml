@@ -134,9 +134,9 @@ workspace = false
 script = "cargo test --manifest-path validation/Cargo.toml --release -p parakeet-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3-asr]
-description = "Qwen3-ASR's whole validation suite (fetches ~6.7 GB)"
+description = "Qwen3-ASR's whole validation suite, every model (fetches ~6.7 GB, the checkpoints into the weights cache)"
 workspace = false
-script = "cargo test --manifest-path validation/Cargo.toml --release -p qwen3-asr-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "python3 validation/tools/validate.py run --crate qwen3-asr --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3]
 description = "Qwen3's whole validation suite, every model (fetches ~24 GB into the weights cache)"
