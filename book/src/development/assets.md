@@ -117,9 +117,10 @@ directory every build script keeps what it fetches in, as `<sha256>`, and
 takes a pinned file from before fetching it, verified as any asset is. Its
 paths never move. The pull-request jobs fetch nothing at all; `validation.yml`,
 which runs only when asked (from the Actions tab, or for a pull request with
-the `validate` label), runs Silero's and Whisper's whole suites on the CPU over
-about 730 MB of assets, and caches that directory under a key that hashes the
-pins. The other families' assets run to GBs; their suites run by hand.
+the `validate` label), builds no ONNX reference: it runs the stream drivers on
+the smallest models, whose checkpoints the tests fetch into the weights cache
+(about 0.6 GB), which it caches under a key that hashes the rows' pins. The
+model checks run by hand.
 
 Locally, set `BUNSEN_ASSET_CACHE` to keep assets across `cargo clean` and
 toolchain updates, or point the override variables at copies you already

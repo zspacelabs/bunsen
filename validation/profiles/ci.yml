@@ -1,0 +1,15 @@
+# CI: the stream drivers, on the smallest models, on the CPU. A driver check
+# holds a model's stream driver to the same model's one-shot decode; how a
+# model behaves against its reference is the validate targets'. No ONNX
+# reference is built: no driver check needs one.
+include:
+  - crate: silero
+    model: silero/vad-16k        # 2 MB: the VAD's stream against one call
+  - crate: whisper
+    model: openai/tiny           # 75 MB: the Whisper stream driver
+  - crate: parakeet
+    model: fermion/phonon-2      # 164 MB: the asr_driver core, through Parakeet
+  - crate: qwen3-asr
+    model: fermion/phonon-1-micro  # 285 MB: Qwen3-ASR's windowing
+checks: [driver]
+backend: flex

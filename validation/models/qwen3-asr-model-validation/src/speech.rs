@@ -148,6 +148,80 @@ mod transcribes_like_transformers {
     }
 }
 
+/// The stream driver held to the model's own one-shot decode: what CI runs,
+/// on the smallest Qwen3-ASR.
+mod driver {
+    use super::*;
+
+    /// Phonon-1-Micro's stream driver, fed the clip in 0.1 s pieces under the
+    /// offline policy without the quiet cut, decodes each 30 s window as the
+    /// bundle decodes those samples in one shot, window for window, within
+    /// [`EDGE_WER`]: the stream's features differ from the one-shot
+    /// extractor's at a window's edges, which can move a word there, and no
+    /// more (a dropped, repeated or misplaced chunk moves far more).
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1_micro() {
+        use bunsen::kits::speech::{
+            asr_driver::{
+                EmissionPolicy,
+                LevelPolicy,
+                StreamClock,
+                TranscriptEvent,
+            },
+            qwen3_asr::{
+                Qwen3AsrEngine,
+                Qwen3AsrStreamDriver,
+            },
+        };
+
+        const WINDOW_SECONDS: usize = 30;
+        /// Measured on wgpu: 0.0 and 0.0175 (one edge word of 57).
+        const EDGE_WER: f64 = 0.02;
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = load_bundle("fermion/phonon-1-micro", &device);
+        let rate = bundle.front_end.sample_rate();
+        let engine = Qwen3AsrEngine::new(bundle.clone()).with_quiet_cut(false);
+        let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
+        let mut stream = driver
+            .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
+            .unwrap();
+        let samples = speech_clip(CLIP);
+        let mut events = Vec::new();
+        for piece in samples.chunks(rate / 10) {
+            events.extend(stream.write_read(piece).unwrap());
+        }
+        events.extend(stream.end_read().unwrap());
+
+        let streamed: Vec<String> = events
+            .iter()
+            .map(|event| {
+                let TranscriptEvent::Committed(segment) = event else {
+                    panic!("the offline policy only commits: {event:?}");
+                };
+                segment.text.clone().expect("the engine has a vocabulary")
+            })
+            .collect();
+        let windows = samples.len().div_ceil(WINDOW_SECONDS * rate);
+        assert_eq!(streamed.len(), windows, "one segment per window");
+        for (w, text) in streamed.iter().enumerate() {
+            let start = w * WINDOW_SECONDS * rate;
+            let end = (start + WINDOW_SECONDS * rate).min(samples.len());
+            let one_shot = bundle
+                .transcribe(&samples[start..end], &device)
+                .expect("transcribe");
+            let against_one_shot = wer(text, &one_shot.text);
+            eprintln!("window {w}: WER vs one-shot {against_one_shot:.4}: {text:?}");
+            assert!(
+                against_one_shot <= EDGE_WER,
+                "window {w}: WER vs one-shot {against_one_shot}\n  driver:   {text}\n  one-shot: {}",
+                one_shot.text
+            );
+        }
+    }
+}
+
 mod stream_driver_transcribes_like_transformers {
     use super::*;
 

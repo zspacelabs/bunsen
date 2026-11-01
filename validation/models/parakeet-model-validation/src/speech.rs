@@ -321,6 +321,44 @@ mod stream_driver_transcribes_like_the_reference {
     }
 }
 
+/// The stream driver held to the model's own one-shot decode: what CI runs,
+/// on the smallest Parakeet.
+mod driver {
+    use super::*;
+
+    /// Phonon-2's stream driver, its window longer than the clip, decodes
+    /// what the model decodes in one shot: the same ids, and the one-shot
+    /// transcript's words, each starting where it starts and ending no later.
+    #[test]
+    #[serial_test::serial]
+    fn phonon_2() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = load_bundle("fermion/phonon-2", &device);
+        let one_shot = transcribe(&bundle, &device);
+        let one_shot_words = one_shot
+            .words(&bundle.vocab, bundle.frame_seconds())
+            .unwrap();
+        let (ids, text, words) = stream(bundle, 60.0);
+        eprintln!("driver: {text}");
+        assert_eq!(ids, one_shot.hypothesis.tokens, "the driver's ids");
+        assert_eq!(words.len(), one_shot_words.len());
+        for ((word, start, end), expected) in words.iter().zip(&one_shot_words) {
+            assert_eq!(word, expected.text.trim());
+            assert!(
+                (start - expected.start).abs() < 1e-6,
+                "{word}: {start} vs {}",
+                expected.start
+            );
+            assert!(
+                *start <= *end && *end <= expected.end + 1e-6,
+                "{word}: ends {end} vs {}",
+                expected.end
+            );
+        }
+    }
+}
+
 mod stream_driver_cuts_windows_at_pauses {
     use super::*;
 

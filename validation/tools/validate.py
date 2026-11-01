@@ -4,7 +4,7 @@
     python3 validation/tools/validate.py list   [--profile P] [--crate C]...
     python3 validation/tools/validate.py filter [--profile P] [--crate C]... [--backend B] [--dtypes D,...]
     python3 validation/tools/validate.py run    [--profile P] [--crate C]... [--backend B] [--dtypes D,...] [--dry-run] [-- NEXTEST_ARGS]
-    python3 validation/tools/validate.py check  [--crate C]...
+    python3 validation/tools/validate.py check  [--crate C]... [--reference]
 
 `validation/models.yml` is the catalog: every model a crate checks, with its size, whether
 it is a representative (`core`), what it varies, and the dtypes it is checked in. A profile
@@ -14,23 +14,30 @@ it is a representative (`core`), what it varies, and the dtypes it is checked in
     include: [{size: medium, core: true}, {crate: qwen3, model: qwen3-1.7b}]
     deny:    [{crate: voxtral}]   # removed from everything included, extended ones too
     dtypes:  [f32, bf16]          # `bf16` checks run on cuda alone; default [f32]
+    checks:  [driver]             # `driver`, `model`, or both (the default)
     backend: cuda                 # the default for --backend
 
 A selector matches a model when every key it has does: `crate`, `model`, `size` (one or a
 list) and `core`. The profile is `--profile`, else `BUNSEN_VALIDATE_PROFILE`, else
 `small-core`.
 
+A *driver* check is a test with a `driver` segment in its path (a stream driver held to the same
+model's one-shot decode); every other test of a model is a *model* check. `checks: [driver]` runs
+the chosen models' driver checks alone, and builds no ONNX reference, which no driver check needs.
+
 `run` runs `cargo nextest` in the validation workspace, under its `validate` profile
-(`validation/.config/nextest.toml`), over the converted crates (`runner: nextest`), with
+(`validation/.config/nextest.toml`), over the crates with a chosen model, with
 the crate's `features`, its `reference` feature when a chosen model needs it, and the
 backend's; and a filter that drops the tests of every model not chosen (a test of a model
 has the model's id in its path: `qwen3-0.6b` is the segment `qwen3_0_6b`) and, without
-`bf16`, the `cuda_bf16` test binaries. Tests of no model (the fixture checks) always run.
+`bf16`, the `cuda_bf16` test binaries. Tests of no model (the fixture checks) run with their
+crate.
 The checkpoints are fetched by the tests into the weights cache (`BUNSEN_CACHE_DIR`, or the
 user's cache directory); `BUNSEN_VALIDATE_OFFLINE=1` forbids it.
 
-`check` lists the converted crates' tests (it builds them) and checks the catalog against
-them: every model has a test, and every test of a model is of a catalog model.
+`check` lists the crates' tests (it builds them, without their ONNX references unless
+`--reference`) and checks the catalog against them: every model has a test, and every test of a
+model is of a catalog model.
 
 Needs PyYAML (`pip install pyyaml`).
 """
@@ -53,6 +60,8 @@ CATALOG = VALIDATION / "models.yml"
 PROFILES = VALIDATION / "profiles"
 SIZES = ("small", "medium", "large")
 SELECTOR_KEYS = {"crate", "model", "size", "core"}
+CHECKS = {"driver", "model"}
+DRIVER = "(^|::)driver(::|$)"
 BACKENDS = ("wgpu", "vulkan", "cuda", "metal", "flex")
 
 
@@ -96,18 +105,19 @@ def load_profile(name: str, seen: tuple = ()) -> dict:
     if name in seen:
         sys.exit(f"profiles extend in a cycle: {' -> '.join(seen + (name,))}")
     raw = yaml.safe_load(profile_path(name).read_text()) or {}
-    unknown = set(raw) - {"extends", "include", "deny", "dtypes", "backend"}
+    unknown = set(raw) - {"extends", "include", "deny", "dtypes", "checks", "backend"}
     if unknown:
         sys.exit(f"profile {name}: unknown keys {sorted(unknown)}")
     extends = raw.get("extends") or []
     if isinstance(extends, str):
         extends = [extends]
-    profile = {"include": [], "deny": [], "dtypes": None, "backend": None}
+    profile = {"include": [], "deny": [], "dtypes": None, "checks": None, "backend": None}
     for parent in extends:
         base = load_profile(parent, seen + (name,))
         profile["include"] += base["include"]
         profile["deny"] += base["deny"]
         profile["dtypes"] = profile["dtypes"] or base["dtypes"]
+        profile["checks"] = profile["checks"] or base["checks"]
         profile["backend"] = profile["backend"] or base["backend"]
     for key in ("include", "deny"):
         for selector in raw.get(key) or []:
@@ -116,7 +126,11 @@ def load_profile(name: str, seen: tuple = ()) -> dict:
                 sys.exit(f"profile {name}: {key}: unknown selector keys {sorted(bad)}")
             profile[key].append(selector)
     profile["dtypes"] = raw.get("dtypes", profile["dtypes"])
+    profile["checks"] = raw.get("checks", profile["checks"])
     profile["backend"] = raw.get("backend", profile["backend"])
+    bad = set(profile["checks"] or []) - CHECKS
+    if bad:
+        sys.exit(f"profile {name}: checks {sorted(bad)}: one of {sorted(CHECKS)}")
     return profile
 
 
@@ -147,23 +161,35 @@ def segment_regex(models: list[str]) -> str:
     return "(^|::)(" + "|".join(ident(m) for m in models) + ")(::|$)"
 
 
-def nextest_filter(catalog: dict, chosen: dict, dtypes: list[str]) -> tuple[str, list[str]]:
-    """The filterset over the converted crates, and the features they run with."""
+def run_crates(catalog: dict, chosen: dict) -> list[tuple[str, dict]]:
+    """The crates a run builds: those with a chosen model. A crate with none is left
+    out, its fixture checks too (`cargo make check-validation` runs those)."""
+    return [(crate, models) for crate, models in chosen.items()
+            if catalog[crate]["runner"] == "nextest" and any(models.values())]
+
+
+def nextest_filter(
+    catalog: dict, chosen: dict, dtypes: list[str], checks: set[str]
+) -> tuple[str, list[str]]:
+    """The filterset over the crates, and the features they run with."""
     parts, features = [], []
-    for crate, models in chosen.items():
+    for crate, models in run_crates(catalog, chosen):
         spec = catalog[crate]
-        if spec["runner"] != "nextest":
-            continue
         package = spec["package"]
         expr = f"package({package})"
         dropped = [m for m, keep in models.items() if not keep]
         if dropped:
             expr += f" - test(/{segment_regex(dropped)}/)"
+        if "model" not in checks:
+            expr += f" - (test(/{segment_regex(list(models))}/) - test(/{DRIVER}/))"
+        if "driver" not in checks:
+            expr += f" - test(/{DRIVER}/)"
         if "bf16" not in dtypes:
             expr += " - binary(cuda_bf16)"
         parts.append(f"({expr})")
         features += [f"{package}/{f}" for f in spec.get("features", [])]
-        if spec.get("reference") and any(
+        # Only a model check needs a reference.
+        if "model" in checks and spec.get("reference") and any(
             keep and spec["models"][m].get("reference") for m, keep in models.items()
         ):
             features.append(f"{package}/{spec['reference']}")
@@ -174,7 +200,8 @@ def cmd_list(args) -> None:
     catalog, profile = load_catalog(), load_profile(args.profile)
     chosen = choose(catalog, profile, args.crate)
     total = 0.0
-    print(f"profile {args.profile}; dtypes {profile['dtypes'] or ['f32']}")
+    print(f"profile {args.profile}; dtypes {profile['dtypes'] or ['f32']}; "
+          f"checks {sorted(profile['checks'] or CHECKS)}")
     for crate, models in chosen.items():
         spec = catalog[crate]
         note = "" if spec["runner"] == "nextest" else "  (not converted: cargo make validate-" + crate + ")"
@@ -198,10 +225,11 @@ def nextest_command(args) -> list[str]:
         print(f"bf16 checks run on cuda alone; dropping them on {backend}", file=sys.stderr)
         dtypes = [d for d in dtypes if d != "bf16"]
     chosen = choose(catalog, profile, args.crate)
-    expr, features = nextest_filter(catalog, chosen, dtypes)
+    checks = set(profile["checks"] or CHECKS)
+    expr, features = nextest_filter(catalog, chosen, dtypes, checks)
     if not expr:
-        sys.exit("no converted crate in the selection")
-    packages = [catalog[c]["package"] for c in chosen if catalog[c]["runner"] == "nextest"]
+        sys.exit("the profile chooses no model")
+    packages = [catalog[c]["package"] for c, _ in run_crates(catalog, chosen)]
     # `flex` is the CPU, which every build has: no backend feature.
     if backend != "flex":
         features += [f"{p}/{backend}" for p in packages]
@@ -232,7 +260,8 @@ def cmd_check(args) -> None:
             continue
         package = spec["package"]
         features = list(spec.get("features", []))
-        if spec.get("reference"):
+        # A reference costs its export (Voxtral's is 19.4 GB): only on asking.
+        if args.reference and spec.get("reference"):
             features.append(spec["reference"])
         out = subprocess.run(
             ["cargo", "nextest", "list", "-p", package, "--features", ",".join(features),
@@ -261,6 +290,9 @@ def main() -> None:
         p.add_argument("--crate", action="append", default=[], help="only this crate (repeatable)")
         if name != "check":
             p.add_argument("--profile", default=os.environ.get("BUNSEN_VALIDATE_PROFILE", "small-core"))
+        if name == "check":
+            p.add_argument("--reference", action="store_true",
+                           help="build the ONNX references too (Voxtral's is 19.4 GB)")
         if name in ("filter", "run"):
             p.add_argument("--backend", choices=BACKENDS)
             p.add_argument("--dtypes", help="over the profile's: f32, bf16 (cuda alone), comma-separated")

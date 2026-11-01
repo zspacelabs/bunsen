@@ -80,22 +80,23 @@ Cargo workspace of its own, which no command in the root workspace builds, and w
 from there, or with `--manifest-path validation/Cargo.toml`. `cargo make check-validation` formats, lints and tests it
 with its default features, by hand: run it before merging a change to an API the validation crates use.
 
-**On a pull request**, add the `validate` label to run `validation.yml`: Silero's and Whisper's whole suites, ONNX
-cross-checks included, on the CPU, over about 730 MB of assets. It runs when the label is added and again on every push
-while it stays; remove the label to stop. Use it for a change that can move a model's numbers: the speech kits, the ops
-and blocks under them, the pretrained loaders, `bunsen-fetch`, or a `bind-*-onnx` crate. It can also be run from the
-Actions tab (`workflow_dispatch`), on any branch.
+**On a pull request**, add the `validate` label to run `validation.yml`: the stream drivers on the smallest models
+(Silero, Whisper `tiny`, Phonon-2, Phonon-1-Micro), on the CPU, each held to its model's own one-shot decode (the `ci`
+profile, about 0.6 GB of checkpoints). It runs when the label is added and again on every push while it stays; remove
+the label to stop. Use it for a change to a stream driver, `asr_driver`, a speech kit's engine, the pretrained loaders
+or `bunsen-fetch`. A change that can move a model's numbers runs that model's validate target, below, on a GPU. It can
+also be run from the Actions tab (`workflow_dispatch`), on any branch.
 
-The job caches its assets by digest (`BUNSEN_ASSET_CACHE`; STYLE.md, "Fetched assets live in `OUT_DIR`"), under a key
-that hashes the `bind-*-onnx` crates' pins. A pull request's run sees the cache `main` saved, and saves its own only for
-itself, so after a pin changes on `main`, run the workflow once on `main` from the Actions tab to seed it for everyone.
+The job caches the checkpoints the tests fetch (`BUNSEN_CACHE_DIR`), under a key that hashes the four kits' rows. A pull
+request's run sees the cache `main` saved, and saves its own only for itself, so after a pin changes on `main`, run the
+workflow once on `main` from the Actions tab to seed it for everyone.
 
 **Locally**, through `cargo make`:
 
 | Task | Runs | Fetches (cold) |
 |---|---|---|
 | `validate-cpu` | Silero's and Whisper's checks on the checkpoints alone, on the CPU | ~150 MB |
-| `validate-ci` | what `validation.yml` runs: Silero's and Whisper's whole suites, on the CPU | ~730 MB |
+| `validate-ci` | what `validation.yml` runs: the stream drivers on the smallest models, on the CPU (the `ci` profile) | ~0.6 GB |
 | `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~28 GB |
 | `validate` | the models `VALIDATION_PROFILE` chooses (`small-core` by default; `validation/README.md`) | 3 GB (`small-core`) to ~95 GB |
 | `validate-all` | every model's whole suite | ~95 GB |

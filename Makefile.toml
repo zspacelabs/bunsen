@@ -77,17 +77,17 @@ cargo test --manifest-path validation/Cargo.toml
 # the assets they compare (STYLE.md, "Network access"), so each run here is
 # asked for by name.
 #
-# `validate-cpu` is the cheap half, the checks on the checkpoints alone (~150
-# MB), on the CPU. `validate-ci` is what `validation.yml` runs when asked:
-# Silero's and Whisper's whole suites, on the CPU (~730 MB). `validate-<model>`
-# is a model's whole suite, ONNX reference included (GBs on a cold cache), on
-# `VALIDATION_BACKEND` (default `wgpu`; or `vulkan`, `cuda`, `metal`).
+# `validate-cpu` is Silero's and Whisper's checks on the checkpoints alone (~150
+# MB), on the CPU. `validate-ci` is what `validation.yml` runs when asked: the
+# stream drivers on the smallest models, on the CPU (the `ci` profile, ~0.6
+# GB). `validate-<model>` is a model's whole suite, ONNX reference included
+# (GBs on a cold cache), on `VALIDATION_BACKEND` (default `wgpu`; or `vulkan`,
+# `cuda`, `metal`).
 #
 # `BUNSEN_ASSET_CACHE`, set to a directory, keeps every fetched asset there by
 # its digest, so a `cargo clean` or a new toolchain does not fetch it again.
 #
-# `validate` runs the crates converted to `validation/models.yml` under a
-# profile (`VALIDATION_PROFILE`, else `BUNSEN_VALIDATE_PROFILE`, else
+# `validate` runs every crate under a profile (`VALIDATION_PROFILE`, else `BUNSEN_VALIDATE_PROFILE`, else
 # `small-core`): the models it chooses, their tests alone, through
 # `cargo nextest` (the validation workspace only). Their checkpoints are
 # fetched by the tests into the weights cache. `validation/README.md`,
@@ -110,13 +110,10 @@ cargo test --manifest-path validation/Cargo.toml -p whisper-model-validation --f
 '''
 
 [tasks.validate-ci]
-description = "Silero's and Whisper's whole suites on the CPU, as validation.yml runs them (fetches ~730 MB)"
+description = "The stream drivers on the smallest models, on the CPU, as validation.yml runs them: the ci profile (fetches ~0.6 GB)"
 workspace = false
 env = { BURN_DEVICE = "flex" }
-script = '''
-cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features checkpoints,reference,gpu-tests
-cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features checkpoints,reference,gpu-tests
-'''
+script = "python3 validation/tools/validate.py run --profile ci --backend flex"
 
 [tasks.validate-silero]
 description = "Silero VAD's whole validation suite (fetches ~4 MB)"

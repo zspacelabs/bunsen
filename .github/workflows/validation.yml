@@ -1,9 +1,10 @@
 name: Validation
 
-# Silero's and Whisper's whole validation suites, ONNX cross-checks included,
-# on the CPU: the models small enough for a runner (~730 MB of assets, all
-# cached between runs). The other families' assets run to GBs; they run by
-# hand, on a GPU (STYLE.md, "Network access").
+# The stream drivers, on the smallest models, on the CPU: the `ci` profile
+# (`validation/profiles/ci.yml`), each driver held to its model's own one-shot
+# decode (~0.6 GB of checkpoints, cached between runs). How a model behaves
+# against its reference is the validate targets', run by hand, on a GPU
+# (STYLE.md, "Network access").
 #
 # Never by default: run it from the Actions tab, or put the `validate` label on
 # a pull request, which runs it then and on every push after while the label
@@ -47,23 +48,14 @@ jobs:
           cache-targets: false
           save-if: false
 
-      # The bundled crates' build scripts take each pinned file from
-      # `BUNSEN_ASSET_CACHE`, by its SHA-256, before fetching it, and keep what
-      # they fetch there (`bunsen_fetch::BUNSEN_ASSET_CACHE`). A path there
-      # never changes with the toolchain or the lockfile, as an `OUT_DIR` path
-      # does, so the cache does not go stale: the key changes only with the
-      # pins, and an older entry restores what is still pinned.
-      #
-      # A pull request's saved entry is its own; one saved by a run on `main`
-      # (dispatched from the Actions tab) is every pull request's.
-      - name: Asset cache directory
-        run: echo "BUNSEN_ASSET_CACHE=$HOME/.cache/bunsen-assets" >> "$GITHUB_ENV"
-
-      - uses: actions/cache@v4
+      # The profile runs through `cargo nextest` (the validation workspace
+      # alone), chosen by `validate.py`, which reads YAML.
+      - uses: taiki-e/install-action@v2
         with:
-          path: ~/.cache/bunsen-assets
-          key: bunsen-assets-v1-${{ hashFiles('validation/onnx/bind-*-onnx/build.rs') }}
-          restore-keys: bunsen-assets-v1-
+          tool: nextest
+
+      - name: PyYAML
+        run: sudo apt-get install -y python3-yaml
 
       # The tests fetch the checkpoints themselves, through bunsen's pinned
       # rows, into the weights cache: kept here, keyed by the rows' pins.
@@ -73,21 +65,8 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/bunsen-weights
-          key: bunsen-weights-v1-${{ hashFiles('crates/public/bunsen/src/kits/speech/whisper/pretrained/**', 'crates/public/bunsen/src/kits/speech/silero_vad/pretrained/**') }}
+          key: bunsen-weights-v1-${{ hashFiles('crates/public/bunsen/src/kits/speech/whisper/pretrained/**', 'crates/public/bunsen/src/kits/speech/silero_vad/pretrained/**', 'crates/public/bunsen/src/kits/speech/parakeet/pretrained/**', 'crates/public/bunsen/src/kits/speech/qwen3_asr/pretrained/**') }}
           restore-keys: bunsen-weights-v1-
 
-      - name: Validate Silero and Whisper
-        run: |
-          cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features checkpoints,reference,gpu-tests
-          cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features checkpoints,reference,gpu-tests
-
-      # What a restored older entry still holds of a pin since replaced: drop
-      # every file no build script pins, so the saved entry is only what is.
-      - name: Prune unpinned assets
-        run: |
-          pins=$(grep -ho '"[0-9a-f]\{64\}"' validation/onnx/bind-*-onnx/build.rs | tr -d '"' | sort -u)
-          for f in "$BUNSEN_ASSET_CACHE"/*; do
-            [ -e "$f" ] || continue
-            grep -qx "$(basename "$f")" <<< "$pins" || { echo "pruning $(basename "$f")"; rm -f "$f"; }
-          done
-          du -sh "$BUNSEN_ASSET_CACHE"
+      - name: Validate the drivers
+        run: python3 validation/tools/validate.py run --profile ci --backend flex
