@@ -18,15 +18,15 @@
 //! **`reference`**). Both are off by default, so a plain `cargo test` here
 //! reaches no network and runs the fixture-integrity checks alone.
 //!
-//! `validation/tools/validate.py` runs this crate under a profile, which
-//! chooses the models (`validation/models.yml`). Every test of a model has
-//! the model's id in its path
+//! `cargo validate` (`validation/tools/validate`) runs this crate under a
+//! profile, which chooses the models (`validation/models.yml`). Every test of a
+//! model has the model's id in its path
 //! (`speech::nemotron_3_diarization::offline_diarizes_like_nemo`,
 //! `v2_checkpoints::sortformer_v2_1::loads`,
 //! `asr::sortformer_speakers::whisper`):
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile small-core --crate sortformer
+//! cd validation && cargo validate run --profile small-core --crate sortformer
 //! ```
 //!
 //! `gpu-tests` compiles the tests that run a model on a backend, and a

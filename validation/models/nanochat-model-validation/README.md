@@ -18,7 +18,7 @@ files (`validation/tools/gen_nanochat_fixtures.py`):
 ```sh
 cargo make validate-nanochat                          # every row: wgpu, float32
 VALIDATION_BACKEND=cuda cargo make validate-nanochat  # cuda: float32, and bf16
-python3 validation/tools/validate.py run --crate nanochat --profile medium-core   # the two representatives
+(cd validation && cargo validate run --crate nanochat --profile medium-core)   # the two representatives
 ```
 
 The tests fetch the checkpoints they read at run time, through bunsen's pinned rows, into the weights cache (~10 GB

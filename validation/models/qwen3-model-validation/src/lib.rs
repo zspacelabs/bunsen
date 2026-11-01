@@ -17,14 +17,14 @@
 //! Both are off by default, so a plain `cargo test` here reaches no network
 //! and runs the fixture-integrity checks alone.
 //!
-//! `validation/tools/validate.py` runs this crate under a profile, which
-//! chooses the models (`validation/models.yml`). Every test of a model has
-//! the model's id in its path (`greedy::qwen3_1_7b`,
+//! `cargo validate` (`validation/tools/validate`) runs this crate under a
+//! profile, which chooses the models (`validation/models.yml`). Every test of a
+//! model has the model's id in its path (`greedy::qwen3_1_7b`,
 //! `cross::qwen3_0_6b::tracks_the_reference`), which is how a profile's
 //! filter keeps or drops it:
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile medium-core --crate qwen3
+//! cd validation && cargo validate run --profile medium-core --crate qwen3
 //! ```
 //!
 //! `gpu-tests` compiles the tests that run a model on a backend, and a
@@ -260,7 +260,7 @@ pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
 /// The weights cache the tests load the checkpoints through: bunsen's own
 /// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
 /// pinned file the first time it is asked for; offline when
-/// `BUNSEN_VALIDATE_OFFLINE` is set, as after `validate.py fetch`.
+/// `BUNSEN_VALIDATE_OFFLINE` is set, for a run on a warm cache.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,

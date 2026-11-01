@@ -89,15 +89,17 @@ cargo test --manifest-path validation/Cargo.toml
 #
 # `validate` runs every crate under a profile (`VALIDATION_PROFILE`, else `BUNSEN_VALIDATE_PROFILE`, else
 # `small-core`): the models it chooses, their tests alone, through
-# `cargo nextest` (the validation workspace only). Their checkpoints are
+# `cargo validate` (`validation/tools/validate`, a Rust tool: no Python), under
+# the validation workspace's `validate` cargo profile (release's optimization,
+# with debug assertions). Their checkpoints are
 # fetched by the tests into the weights cache. `validation/README.md`,
 # "Choosing what to validate".
 
 [tasks.validate]
-description = "The converted validation crates under a profile (VALIDATION_PROFILE, default small-core)"
+description = "The validation crates under a profile (VALIDATION_PROFILE, default small-core)"
 workspace = false
 script = '''
-python3 validation/tools/validate.py run --profile "${VALIDATION_PROFILE:-${BUNSEN_VALIDATE_PROFILE:-small-core}}" ${VALIDATION_BACKEND:+--backend "$VALIDATION_BACKEND"} ${VALIDATION_DTYPES:+--dtypes "$VALIDATION_DTYPES"}
+cd validation && cargo validate run --profile "${VALIDATION_PROFILE:-${BUNSEN_VALIDATE_PROFILE:-small-core}}" ${VALIDATION_BACKEND:+--backend "$VALIDATION_BACKEND"} ${VALIDATION_DTYPES:+--dtypes "$VALIDATION_DTYPES"}
 '''
 
 [tasks.validate-cpu]
@@ -113,47 +115,47 @@ cargo test --manifest-path validation/Cargo.toml -p whisper-model-validation --f
 description = "The stream drivers on the smallest models, on the CPU, as validation.yml runs them: the ci profile (fetches ~0.6 GB)"
 workspace = false
 env = { BURN_DEVICE = "flex" }
-script = "python3 validation/tools/validate.py run --profile ci --backend flex"
+script = "cd validation && cargo validate run --profile ci --backend flex"
 
 [tasks.validate-silero]
 description = "Silero VAD's whole validation suite (fetches ~4 MB)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate silero --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate silero --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-whisper]
 description = "Whisper's whole validation suite (fetches ~725 MB)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate whisper --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate whisper --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-parakeet]
 description = "Parakeet's whole validation suite, every model (fetches ~5 GB, the checkpoints into the weights cache)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate parakeet --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate parakeet --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3-asr]
 description = "Qwen3-ASR's whole validation suite, every model (fetches ~6.7 GB, the checkpoints into the weights cache)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate qwen3-asr --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate qwen3-asr --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3]
 description = "Qwen3's whole validation suite, every model (fetches ~24 GB into the weights cache)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate qwen3 --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate qwen3 --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-sortformer]
 description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR checkpoints it scores with)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate sortformer --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate sortformer --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-voxtral]
 description = "Voxtral Realtime's whole validation suite (fetches ~28 GB)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate voxtral --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
+script = "cd validation && cargo validate run --crate voxtral --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-nanochat]
 description = "nanochat's whole validation suite, every model, on VALIDATION_BACKEND in f32 and, on cuda, in bf16 too (fetches ~10 GB into the weights cache)"
 workspace = false
-script = "python3 validation/tools/validate.py run --crate nanochat --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
+script = "cd validation && cargo validate run --crate nanochat --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
 
 [tasks.validate-all]
 description = "Every model's whole validation suite (fetches ~70 GB on a cold cache)"

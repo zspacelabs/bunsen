@@ -16,6 +16,8 @@ members = [
     # Each model's cross-checks: bunsen's kit against the generated reference,
     # and against upstream's own decodes.
     "models/*",
+    # `cargo validate`: runs the crates under a profile.
+    "tools/validate",
 ]
 
 [workspace.package]
@@ -53,15 +55,29 @@ opt-level = 3
 [profile.release.build-override]
 opt-level = 3
 
+# What `cargo validate` builds the crates with: release's optimization, with
+# `debug_assert!` and the contract checks gated on `debug_assertions` kept,
+# and overflow panics, as `dev` has them.
+[profile.validate]
+inherits = "release"
+debug-assertions = true
+overflow-checks = true
+
+[profile.validate.build-override]
+opt-level = 3
+
 [workspace.dependencies]
 burn = { version = "0.22.0", default-features = false }
+clap = "4.6.7"
 burn-onnx = "0.22.0"
 # The ONNX protos `burn-onnx` reads, for build scripts that rewrite a graph
 # before generating from it.
 onnx-ir = "0.22.0"
 burn-store = { version = "0.22.0", default-features = false }
 document-features = "0.2.12"
+indexmap = "2.14.2"
 serde = "1.0.229"
+serde-saphyr = { version = "2", default-features = false, features = ["deserialize"] }
 serde_json = "1.0.151"
 serial_test = "4.0.1"
 tempfile = "3.27.0"

@@ -1,5 +1,7 @@
 # nextest, for the validation workspace alone (the bunsen workspace runs
-# `cargo test`). `tools/validate.py` runs under the `validate` profile.
+# `cargo test`): `cargo validate run --nextest` runs under the `validate`
+# profile, a process per test. Without `--nextest`, `cargo validate` runs
+# `cargo test` and needs no nextest.
 
 [profile.validate]
 # One test at a time: each loads a model onto the one accelerator.

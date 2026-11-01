@@ -4532,6 +4532,8 @@ checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
 dependencies = [
  "equivalent",
  "hashbrown 0.17.1",
+ "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -8539,6 +8541,17 @@ name = "v_jsonescape"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be8219cc464ba10c48c3231a6871f11d26d831c5c45a47467eea387ea7bb10e8"
+
+[[package]]
+name = "validate"
+version = "0.41.0"
+dependencies = [
+ "clap",
+ "indexmap",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
+]
 
 [[package]]
 name = "valuable"

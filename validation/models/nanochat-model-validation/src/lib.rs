@@ -16,13 +16,13 @@
 //! **`checkpoints`**, off by default, so a plain `cargo test` here reaches no
 //! network and runs the fixture-integrity checks alone).
 //!
-//! `validation/tools/validate.py` runs this crate under a profile, which
-//! chooses the models (`validation/models.yml`). Every test of a model has
-//! the model's id in its path (`greedy::nanochat_d20_rl`,
+//! `cargo validate` (`validation/tools/validate`) runs this crate under a
+//! profile, which chooses the models (`validation/models.yml`). Every test of a
+//! model has the model's id in its path (`greedy::nanochat_d20_rl`,
 //! `chat::nanochat_d18_sft::tokenizer`, `bf16::nanochat_d20_base`):
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile medium-core --crate nanochat
+//! cd validation && cargo validate run --profile medium-core --crate nanochat
 //! ```
 //!
 //! `gpu-tests` compiles the tests that run a model on a backend, and a

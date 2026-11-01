@@ -1,15 +1,17 @@
 # The models the validation crates check, and what each stands for.
 #
-# `tools/validate.py` reads this and a profile (`profiles/*.yml`) and runs the
-# chosen models' tests; see README.md, "Choosing what to validate".
+# `cargo validate` (`tools/validate`) reads this and a profile
+# (`profiles/*.yml`) and runs the chosen models' tests; see README.md,
+# "Choosing what to validate".
 #
 # Per crate:
 #   package     the validation crate.
-#   runner      `nextest`: run by `validate.py`, each test of a model having the
-#               model's id in its path (`qwen3-0.6b` -> `...::qwen3_0_6b::...`).
 #   features    always on when the crate runs.
 #   reference   the feature that builds the crate's ONNX reference, turned on
 #               when a chosen model has `reference: true`.
+#
+# Each test of a model has the model's id in its path, as a whole segment
+# (`qwen3-0.6b` -> `...::qwen3_0_6b::...`).
 #
 # Per model (the id is bunsen's row name):
 #   size        `small` (fetches up to ~1 GB, its reference included),
@@ -29,7 +31,6 @@
 crates:
   qwen3:
     package: qwen3-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:
@@ -61,7 +62,6 @@ crates:
 
   silero:
     package: silero-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:
@@ -74,7 +74,6 @@ crates:
         varies: the only model - its ONNX graph (both rates), the bundle, the kits' recording, the stream
   whisper:
     package: whisper-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:
@@ -93,7 +92,6 @@ crates:
         varies: base's architecture, smaller - the stream driver against its one-shot decode, which CI runs
   sortformer:
     package: sortformer-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:
@@ -126,7 +124,6 @@ crates:
 
   parakeet:
     package: parakeet-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:
@@ -146,7 +143,6 @@ crates:
 
   qwen3-asr:
     package: qwen3-asr-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:
@@ -178,7 +174,6 @@ crates:
 
   nanochat:
     package: nanochat-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     models:
       nanochat-d20-rl:
@@ -213,7 +208,6 @@ crates:
         varies: another stage of the 2026 model (nitishpandey04/nanochat-d18-base)
   voxtral:
     package: voxtral-model-validation
-    runner: nextest
     features: [checkpoints, gpu-tests]
     reference: reference
     models:

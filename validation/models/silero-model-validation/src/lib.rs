@@ -6,7 +6,7 @@
 //! disagreement is a bunsen bug rather than a framework difference.
 //!
 //! ```sh
-//! python3 validation/tools/validate.py run --profile small-core --crate silero
+//! cd validation && cargo validate run --profile small-core --crate silero
 //! ```
 //!
 //! ## Why the reference is not in `bunsen`

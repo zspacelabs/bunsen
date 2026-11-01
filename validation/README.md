@@ -37,7 +37,7 @@ formatting check, by hand. Each crate's features opt in:
 | `cargo make validate` | the models `VALIDATION_PROFILE` chooses (default `small-core`), every crate ("Choosing what to validate", below) |
 | `cargo make validate-cpu` | Silero's and Whisper's checks on the checkpoints alone, on the CPU (~150 MB) |
 | `cargo make validate-ci` | the stream drivers on the smallest models, on the CPU: the `ci` profile (~0.6 GB); `validation.yml` runs this when asked: from the Actions tab, or for a PR labelled `validate` |
-| `cargo make validate-<model>` | one crate's every model (`large-all`), in release mode, on `VALIDATION_BACKEND` (default `wgpu`) |
+| `cargo make validate-<model>` | one crate's every model (`large-all`), optimized, with debug assertions (the `validate` cargo profile), on `VALIDATION_BACKEND` (default `wgpu`) |
 | `cargo make validate-all` | every model's whole suite (~95 GB on a cold cache) |
 
 `<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3`, `sortformer`, `voxtral` or `nanochat`.
@@ -45,9 +45,11 @@ formatting check, by hand. Each crate's features opt in:
 ## Choosing what to validate
 
 A machine validates what it can hold, chosen by a **profile** from a
-**catalog** of the models, and run through
-[`cargo nextest`](https://nexte.st) (this workspace alone; the bunsen
-workspace runs `cargo test`). Every crate's tests fetch their checkpoints at run time, through bunsen's own
+**catalog** of the models, and run by `cargo validate` (`tools/validate`, a
+Rust tool in this workspace: the Rust toolchain is all it needs) through
+`cargo test`, under this workspace's `validate` cargo profile: release's
+optimization, with `debug_assert!`, the contract checks gated on
+`debug_assertions` and overflow panics kept. Every crate's tests fetch their checkpoints at run time, through bunsen's own
 pinned rows into the weights cache (`BUNSEN_CACHE_DIR`, or the user's cache
 directory), so a model is fetched once, when its first test runs, and shared
 with everything else that loads it through bunsen. Only a crate's ONNX
@@ -59,12 +61,20 @@ off the network.
 ```sh
 cargo make validate                                   # VALIDATION_PROFILE, else small-core
 VALIDATION_PROFILE=medium-core VALIDATION_BACKEND=cuda cargo make validate
-python3 validation/tools/validate.py list --profile medium-core   # what it chooses, and the GB
-python3 validation/tools/validate.py run  --profile my-box.yml --crate qwen3
-python3 validation/tools/validate.py check                        # the catalog against the tests
+cd validation
+cargo validate list --profile medium-core             # what it chooses, and the GB
+cargo validate run  --profile my-box.yml --crate qwen3
+cargo validate run  --profile ci --dry-run            # build and list; print the chosen tests
+cargo validate run  --profile medium-core --nextest   # through cargo nextest: a process per test
+cargo validate check                                  # the catalog against the tests
 ```
 
-`validate.py` needs PyYAML (`pip install pyyaml`).
+`cargo validate` is an alias (`.cargo/config.toml`) for
+`cargo run -q -p validate --`; from the root,
+`cargo run -q --manifest-path validation/Cargo.toml -p validate -- ...`.
+A run builds each chosen crate's test targets, lists their tests, and runs
+the chosen ones one at a time, by exact name; it runs every crate before
+it reports, and fails if any did.
 
 ### The catalog: `models.yml`
 
@@ -80,8 +90,8 @@ bunsen's row name:
 | `dtypes` | what it is checked in: `f32`, `bf16` (on `cuda` alone) |
 | `varies` | the variation it stands for (`core`), or repeats |
 
-A crate's entry names its `package`, its `runner` (`nextest`), the `features`
-always on when it runs, and its `reference` feature.
+A crate's entry names its `package`, the `features` always on when it runs,
+and its `reference` feature.
 
 ### Profiles: `profiles/*.yml`
 
@@ -121,7 +131,7 @@ a whole segment: `qwen3-0.6b` (or `org/qwen3-0.6b`) is `qwen3_0_6b`, as in
 `greedy::qwen3_0_6b` or `cross::qwen3_0_6b::tracks_the_reference`. A profile's
 run drops the tests of every model it does not choose, and, without `bf16`,
 the `cuda_bf16` test binaries; a test of no model (a fixture check) always
-runs. `validate.py check` builds the crates and checks that every catalog
+runs. `cargo validate check` builds the crates and checks that every catalog
 model has a test, and lists the tests of no model.
 
 A crate's features:
@@ -133,7 +143,7 @@ A crate's features:
 | `gpu-tests` | the `checkpoints` and `reference` tests that run a model on a backend |
 | `wgpu`, `vulkan`, `cuda`, `metal` | the backend |
 
-`validate.py` turns them on: `features` always, `reference` when a chosen
+`cargo validate` turns them on: `features` always, `reference` when a chosen
 model needs it, and the backend's.
 
 bunsen's own tests read no fetched asset. A kit test that needs what a real

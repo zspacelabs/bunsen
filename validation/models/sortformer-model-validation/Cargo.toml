@@ -27,7 +27,7 @@ default = []
 ##
 ## **Off by default**, so a plain `cargo test` here reaches no network.
 ## Which models' tests run is the profile's (`validation/models.yml`,
-## `tools/validate.py`); this only compiles them.
+## `cargo validate`); this only compiles them.
 checkpoints = ["bunsen/fetch", "bunsen/fermion", "bunsen-test-audio/ami"]
 
 ## Fetch the ONNX exports of `Nemotron-3-Diarization` (`altunenes/parakeet-rs`)
