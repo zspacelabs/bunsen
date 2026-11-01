@@ -172,6 +172,22 @@ dependencies = [
     "validate-nanochat",
 ]
 
+# ── cards ─────────────────────────────────────────────────────────────────────
+#
+# The models card in README.md, crates/public/bunsen/README.md and
+# crates/public/bunsen-tool/README.md: `bunsen-tool card --section kits`, the
+# models the factories list by name. A new or changed row changes it.
+
+[tasks.cards]
+description = "Rebuild the models card in the READMEs (bunsen-tool card --section kits)"
+workspace = false
+script = "python3 tools/update_cards.py"
+
+[tasks.cards-check]
+description = "Fail if a README's models card is stale"
+workspace = false
+script = "python3 tools/update_cards.py --check"
+
 # ── exercise ──────────────────────────────────────────────────────────────────
 #
 # `bunsen-tool`, built in release mode for one GPU backend, over a real clip:
