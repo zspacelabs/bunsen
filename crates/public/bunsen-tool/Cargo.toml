@@ -71,7 +71,8 @@ rumqttc = { version = "0.25.1", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde-pickle = { workspace = true }
-serde-saphyr = { workspace = true }
+# `card`'s YAML.
+serde-saphyr = { workspace = true, features = ["serialize"] }
 time = { workspace = true }
 # Qwen3's added tokens are matched first, and the text between them is
 # NFC-normalized with the tables `transformers`' tokenizers use (Unicode

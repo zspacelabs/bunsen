@@ -2,7 +2,8 @@
 //! is speech to text, by profile or by model family, and who spoke when;
 //! `bunsen-tool chat` chats with a Qwen3 or nanochat checkpoint; `bunsen-tool
 //! cache <path|list|clear>` manages the weights cache every command loads
-//! through.
+//! through; `bunsen-tool card` describes the build, its cache and the models
+//! it knows.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
@@ -31,6 +32,11 @@ enum Command {
     /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
     /// `sortformer`, `silero_vad`, `qwen3`, `nanochat`), and clearing it.
     Cache(bunsen_app::cache::CacheCommand),
+
+    /// What this build is (`build`: its version and features), its weights
+    /// cache (`config`), and the models it knows by name (`kits`: by kind and
+    /// family, a name and a description each), as YAML or JSON.
+    Card(cli::card::CardCmd),
 }
 
 fn main() -> BunsenResult<()> {
@@ -39,6 +45,7 @@ fn main() -> BunsenResult<()> {
         Command::Asr(cmd) => cmd.run(),
         Command::Chat(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
+        Command::Card(cmd) => cmd.run(),
     }
 }
 
