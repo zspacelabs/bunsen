@@ -16,25 +16,28 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs and generate the models from them, and fetch
-## the checkpoint compared against them: Mistral's
-## `Voxtral-Mini-4B-Realtime-2602`.
+## Compile the tests against Mistral's `Voxtral-Mini-4B-Realtime-2602`.
+## Each fetches what it reads at run time, through bunsen's pinned row, into
+## the weights cache (`BUNSEN_CACHE_DIR`, or the user's cache directory),
+## shared with everything else that loads it through bunsen; the vocabulary
+## test fetches `tekken.json` alone.
 ##
-## **Off by default.** Enabling this makes `bind-voxtral-onnx`'s build
-## reach the network on a cold cache (~28 GB), which a plain
-## `cargo build --workspace` must never do. Every asset is verified against a
-## pinned SHA-256, so a warm build is offline and reproducible.
-download = [
-    "dep:bind-voxtral-onnx",
-    "bind-voxtral-onnx/onnx_gen",
-    "bind-voxtral-onnx/checkpoint",
-]
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `tools/validate.py`); this only compiles them.
+checkpoints = ["bunsen/fetch"]
 
-## Compile every test that loads a model.
+## Fetch `onnx-community/Voxtral-Mini-4B-Realtime-2602-ONNX`'s fp32 export
+## (19.4 GB) and generate the reference models from it, at build time
+## (`bind-voxtral-onnx/onnx_gen`), and compile the tests against them.
+reference = ["dep:bind-voxtral-onnx", "bind-voxtral-onnx/onnx_gen"]
+
+## Compile the `checkpoints` and `reference` tests that run a model on a
+## backend.
 ##
 ## **Off by default**, and orthogonal to the backend features: this selects
 ## *whether* those tests are built, a backend feature selects *which*
-## accelerator runs them, and both are passed. Needs `download` too.
+## accelerator runs them, and both are passed.
 gpu-tests = []
 
 ## Run the cross-check on `wgpu`. The usual choice.
