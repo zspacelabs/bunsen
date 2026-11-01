@@ -267,9 +267,9 @@ fn cache_config(cache: &PretrainedCache) -> Value {
     ])
 }
 
-/// The models, by kind (`asr`, `chat`) and family: each family's providers,
-/// as `provider: [{name}]`, then its named models, as
-/// `model: [{name, aliases, description}]`.
+/// The models, by kind (`asr`, `chat`) and family: each family a list of
+/// entries, its providers (`- provider: {name}`) then its named models
+/// (`- model: {name, aliases, description}`).
 fn kits() -> BunsenResult<Value> {
     Ok(Value::map([
         (
@@ -293,20 +293,21 @@ fn kits() -> BunsenResult<Value> {
     ]))
 }
 
-/// One family: `provider:`, each provider its factory searches, in order
-/// (`well-known`, `hf`, ...); then `model:`, a summary card per row its
-/// factory lists: its name, its aliases (none is an empty list, which the
-/// output elides) and its description.
+/// One family: a list of entries, each a one-key map. First a `provider:`
+/// entry for each provider its factory searches, in order (`well-known`,
+/// `hf`, ...), its name; then a `model:` entry for each row its factory
+/// lists, a summary card: its name, its aliases (none is an empty list,
+/// which the output elides) and its description.
 fn family<H: Construct>(factory: PretrainedFactory<H>) -> Value {
-    let providers = factory
-        .providers()
-        .iter()
-        .map(|provider| Value::map([("name", Value::str(provider.name()))]))
-        .collect();
-    let models = factory
-        .list()
-        .into_iter()
-        .map(|(_, row)| {
+    let providers = factory.providers().iter().map(|provider| {
+        Value::map([(
+            "provider",
+            Value::map([("name", Value::str(provider.name()))]),
+        )])
+    });
+    let models = factory.list().into_iter().map(|(_, row)| {
+        Value::map([(
+            "model",
             Value::map([
                 ("name", Value::str(row.name)),
                 (
@@ -314,13 +315,10 @@ fn family<H: Construct>(factory: PretrainedFactory<H>) -> Value {
                     Value::List(row.aliases.into_iter().map(Value::Str).collect()),
                 ),
                 ("description", Value::str(row.description)),
-            ])
-        })
-        .collect();
-    Value::map([
-        ("provider", Value::List(providers)),
-        ("model", Value::List(models)),
-    ])
+            ]),
+        )])
+    });
+    Value::List(providers.chain(models).collect())
 }
 
 #[cfg(test)]
@@ -336,9 +334,10 @@ mod tests {
         .unwrap()
     }
 
-    /// The card has its three sections in order; every family lists its
-    /// providers, the well-known table among them, then its models, each a
-    /// name, its aliases and a description, in that order.
+    /// The card has its three sections in order; every family is a list of
+    /// one-key entries, its providers first (the well-known table first of
+    /// them), then its models, each a name, its aliases and a description,
+    /// in that order.
     #[test]
     fn test_card_shape() {
         let card = card(&offline_cache()).unwrap();
@@ -371,27 +370,31 @@ mod tests {
             ("chat", &["qwen3", "nanochat"]),
         ] {
             for family in families {
-                let entry = kits.get(kind).and_then(|k| k.get(family)).unwrap();
-                let Value::Map(groups) = entry else {
-                    panic!("{kind}/{family}: a map");
+                let Some(Value::List(entries)) = kits.get(kind).and_then(|k| k.get(family)) else {
+                    panic!("{kind}/{family}: a list of entries");
                 };
-                let keys: Vec<&str> = groups.iter().map(|(k, _)| k.as_str()).collect();
-                assert_eq!(keys, ["provider", "model"], "{kind}/{family}");
-                let Some(Value::List(providers)) = entry.get("provider") else {
-                    panic!("{kind}/{family}: no providers");
-                };
+                // Each entry is one key, `provider` or `model`, the providers
+                // first.
+                let tags: Vec<&str> = entries
+                    .iter()
+                    .map(|e| match e {
+                        Value::Map(m) if m.len() == 1 => m[0].0.as_str(),
+                        other => panic!("{kind}/{family}: {other:?}"),
+                    })
+                    .collect();
+                let providers = tags.iter().take_while(|t| **t == "provider").count();
+                assert!(providers >= 1, "{kind}/{family}: {tags:?}");
                 assert!(
-                    providers
-                        .iter()
-                        .any(|p| p.get("name") == Some(&Value::str("well-known"))),
-                    "{kind}/{family}: {providers:?}"
+                    tags[providers..].iter().all(|t| *t == "model") && tags.len() > providers,
+                    "{kind}/{family}: {tags:?}"
                 );
-                let Some(Value::List(models)) = entry.get("model") else {
-                    panic!("{kind}/{family}: no models");
-                };
-                assert!(!models.is_empty(), "{kind}/{family}");
-                for model in models {
-                    let Value::Map(fields) = model else {
+                assert_eq!(
+                    entries[0].get("provider").and_then(|p| p.get("name")),
+                    Some(&Value::str("well-known")),
+                    "{kind}/{family}"
+                );
+                for entry in &entries[providers..] {
+                    let Some(Value::Map(fields)) = entry.get("model") else {
                         panic!("{kind}/{family}: a card is a map");
                     };
                     let keys: Vec<&str> = fields.iter().map(|(k, _)| k.as_str()).collect();
