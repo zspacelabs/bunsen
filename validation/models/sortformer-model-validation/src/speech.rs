@@ -137,21 +137,27 @@ const PROBS_ATOL: f64 = 2e-3;
 /// How far bunsen's error rate may sit from `NeMo`'s.
 const DER_MARGIN: f64 = 0.01;
 
-/// The low-latency preset (1.04 s): `NeMo`'s probabilities and error rate.
-#[test]
-#[serial_test::serial]
-fn test_low_latency_diarizes_like_nemo() {
-    check_preset(
-        "low_latency",
-        SortformerStreamingConfig::nemotron_low_latency(),
-    );
-}
+/// `Nemotron-3-Diarization`'s presets.
+mod nemotron_3_diarization {
+    use super::*;
 
-/// The offline-style preset (30.4 s): `NeMo`'s probabilities and error rate.
-#[test]
-#[serial_test::serial]
-fn test_offline_diarizes_like_nemo() {
-    check_preset("offline", SortformerStreamingConfig::nemotron_offline());
+    /// The low-latency preset (1.04 s): `NeMo`'s probabilities and error rate.
+    #[test]
+    #[serial_test::serial]
+    fn low_latency_diarizes_like_nemo() {
+        check_preset(
+            "low_latency",
+            SortformerStreamingConfig::nemotron_low_latency(),
+        );
+    }
+
+    /// The offline-style preset (30.4 s): `NeMo`'s probabilities and error
+    /// rate.
+    #[test]
+    #[serial_test::serial]
+    fn offline_diarizes_like_nemo() {
+        check_preset("offline", SortformerStreamingConfig::nemotron_offline());
+    }
 }
 
 /// The largest difference allowed in a v2 probability. Measured on wgpu
@@ -159,46 +165,56 @@ fn test_offline_diarizes_like_nemo() {
 /// presets; the margin is [`PROBS_ATOL`]'s.
 const V2_PROBS_ATOL: f64 = 2e-3;
 
-/// Sortformer v2 at low latency (1.04 s): `NeMo`'s probabilities and error
-/// rate.
-#[test]
-#[serial_test::serial]
-fn test_v2_low_latency_diarizes_like_nemo() {
-    check_v2("v2", "sortformer-v2", "low_latency", SortformerLatency::Low);
+/// Sortformer v2's latencies.
+mod sortformer_v2 {
+    use super::*;
+
+    /// Sortformer v2 at low latency (1.04 s): `NeMo`'s probabilities and error
+    /// rate.
+    #[test]
+    #[serial_test::serial]
+    fn low_latency_diarizes_like_nemo() {
+        check_v2("v2", "sortformer-v2", "low_latency", SortformerLatency::Low);
+    }
+
+    /// Sortformer v2 at very high latency (30.4 s).
+    #[test]
+    #[serial_test::serial]
+    fn very_high_latency_diarizes_like_nemo() {
+        check_v2(
+            "v2",
+            "sortformer-v2",
+            "very_high_latency",
+            SortformerLatency::Offline,
+        );
+    }
 }
 
-/// Sortformer v2 at very high latency (30.4 s).
-#[test]
-#[serial_test::serial]
-fn test_v2_very_high_latency_diarizes_like_nemo() {
-    check_v2(
-        "v2",
-        "sortformer-v2",
-        "very_high_latency",
-        SortformerLatency::Offline,
-    );
-}
+/// Sortformer v2.1's latencies.
+mod sortformer_v2_1 {
+    use super::*;
 
-/// Sortformer v2.1 at low latency (1.04 s).
-#[test]
-#[serial_test::serial]
-fn test_v2_1_low_latency_diarizes_like_nemo() {
-    check_v2(
-        "v2_1",
-        "sortformer-v2.1",
-        "low_latency",
-        SortformerLatency::Low,
-    );
-}
+    /// Sortformer v2.1 at low latency (1.04 s).
+    #[test]
+    #[serial_test::serial]
+    fn low_latency_diarizes_like_nemo() {
+        check_v2(
+            "v2_1",
+            "sortformer-v2.1",
+            "low_latency",
+            SortformerLatency::Low,
+        );
+    }
 
-/// Sortformer v2.1 at very high latency (30.4 s).
-#[test]
-#[serial_test::serial]
-fn test_v2_1_very_high_latency_diarizes_like_nemo() {
-    check_v2(
-        "v2_1",
-        "sortformer-v2.1",
-        "very_high_latency",
-        SortformerLatency::Offline,
-    );
+    /// Sortformer v2.1 at very high latency (30.4 s).
+    #[test]
+    #[serial_test::serial]
+    fn very_high_latency_diarizes_like_nemo() {
+        check_v2(
+            "v2_1",
+            "sortformer-v2.1",
+            "very_high_latency",
+            SortformerLatency::Offline,
+        );
+    }
 }

@@ -1,19 +1,17 @@
-//! Fetches the Sortformer assets.
-//!
-//! Each set behind its own feature: `checkpoint_nemotron` is NVIDIA's
-//! `Nemotron-3-Diarization` as `transformers` ships it, and `checkpoint_v2` and
-//! `checkpoint_v2_1` are the streaming Sortformer v2 and v2.1 `.nemo`s, each
-//! laid out as a bunsen pretrained cache; `onnx_gen` is
-//! `altunenes/parakeet-rs`'s ONNX export of Nemotron, and `onnx_gen_v2_1`
-//! `Scrybl`'s of v2.1, which `sortformer-model-validation` compares bunsen
-//! against.
+//! Fetches the Sortformer references, each behind its own feature:
+//! `onnx_gen` is `altunenes/parakeet-rs`'s ONNX export of NVIDIA's
+//! `Nemotron-3-Diarization`, and `onnx_gen_v2_1` `Scrybl`'s of the streaming
+//! Sortformer v2.1, which `sortformer-model-validation` compares bunsen
+//! against. The checkpoints themselves are not fetched here: the validation
+//! crate's tests load them through bunsen's own pinned rows, at run time,
+//! into the weights cache.
 //!
 //! `burn-onnx` 0.22 cannot import the Nemotron export as published, so that
 //! graph is rewritten first ([`rewrite_for_burn_onnx`]); the rewrite changes
 //! no value the graph computes. The v2.1 export imports as published.
 //!
-//! Fetching, pinning and the `SORTFORMER_*` overrides follow `bunsen-fetch`'s
-//! rules.
+//! Fetching, pinning and the overrides (`SORTFORMER_ONNX_NEMOTRON`,
+//! `SORTFORMER_ONNX_V2_1`) follow `bunsen-fetch`'s rules.
 
 // Each feature uses its own constants; the rest are dead in that build.
 #![allow(unused)]
@@ -21,7 +19,6 @@
 use bunsen_fetch::{
     Asset,
     out_dir,
-    pretrained_cache_path,
 };
 
 /// The export: one streaming step, `fp32`, dynamic time axes, its weights
@@ -41,84 +38,8 @@ const V2_1_ONNX: Asset = Asset {
     sha256: "0182539aa7f8ecfc446ec56eb320b6f9131d686f98ca8f40644830af7d4d81c8",
 };
 
-/// The Sortformer kit's segment of the pretrained cache layout:
-/// `SORTFORMER_KIT` in bunsen.
-const SORTFORMER_KIT: &str = "sortformer";
-
-/// A pretrained asset: its namespace, file name, and the compile-time
-/// variable naming its path.
-struct Pretrained {
-    asset: Asset<'static>,
-    namespace: &'static str,
-    file: &'static str,
-    path_var: &'static str,
-}
-
-/// `nvidia/Nemotron-3-Diarization`'s checkpoint, at the revision bunsen's
-/// `nvidia/nemotron-3-diarization` row pins.
-const NEMOTRON_SAFETENSORS: Pretrained = Pretrained {
-    asset: Asset {
-        override_var: "SORTFORMER_NEMOTRON_SAFETENSORS",
-        url: "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed73aee57d40cc39428eb768b4fd87a0a29e/model.safetensors",
-        sha256: "c074d86335b3b794f8fa5edc25594558f128bdb3914d27806a3a5a2e44963cb6",
-    },
-    namespace: "nvidia",
-    file: "model.safetensors",
-    path_var: "SORTFORMER_NEMOTRON_SAFETENSORS_PATH",
-};
-
-/// `nvidia/Nemotron-3-Diarization`'s `transformers` config.
-const NEMOTRON_CONFIG: Pretrained = Pretrained {
-    asset: Asset {
-        override_var: "SORTFORMER_NEMOTRON_CONFIG",
-        url: "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed73aee57d40cc39428eb768b4fd87a0a29e/config.json",
-        sha256: "dd795ec07ffa09acf18d231aa3fa8642aa5c521760953754e02559a7413b6873",
-    },
-    namespace: "nvidia",
-    file: "config.json",
-    path_var: "SORTFORMER_NEMOTRON_CONFIG_PATH",
-};
-
-/// `nvidia/diar_streaming_sortformer_4spk-v2`'s `.nemo`.
-const V2_NEMO: Pretrained = Pretrained {
-    asset: Asset {
-        override_var: "SORTFORMER_V2_NEMO",
-        url: "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2/resolve/84edd514b8ef68004c10086918cd62f2148cbd59/diar_streaming_sortformer_4spk-v2.nemo",
-        sha256: "b371afce2c4958186469df33d939936b9746c89f38b10a69cfd2c61254e83329",
-    },
-    namespace: "nvidia",
-    file: "diar_streaming_sortformer_4spk-v2.nemo",
-    path_var: "SORTFORMER_V2_NEMO_PATH",
-};
-
-/// `nvidia/diar_streaming_sortformer_4spk-v2.1`'s `.nemo`: the weights the
-/// `onnx_gen_v2_1` reference carries.
-const V2_1_NEMO: Pretrained = Pretrained {
-    asset: Asset {
-        override_var: "SORTFORMER_V2_1_NEMO",
-        url: "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1/resolve/cd03eee90fbec18297ac31b8c21546e596b7f71c/diar_streaming_sortformer_4spk-v2.1.nemo",
-        sha256: "8abd32832159c6ac1148c926b7276f35ba34582c444e559dce1f1253fea42ef8",
-    },
-    namespace: "nvidia",
-    file: "diar_streaming_sortformer_4spk-v2.1.nemo",
-    path_var: "SORTFORMER_V2_1_NEMO_PATH",
-};
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!(
-        "cargo:rustc-env=SORTFORMER_CACHE_DIR={}",
-        out_dir().display()
-    );
-
-    #[cfg(feature = "checkpoint_nemotron")]
-    for p in [&NEMOTRON_SAFETENSORS, &NEMOTRON_CONFIG] {
-        fetch_pretrained(p);
-    }
-    #[cfg(feature = "checkpoint_v2")]
-    fetch_pretrained(&V2_NEMO);
-    #[cfg(feature = "checkpoint_v2_1")]
-    fetch_pretrained(&V2_1_NEMO);
 
     // `cfg` rather than a `CARGO_FEATURE_*` lookup: `burn_onnx` is an
     // optional build-dependency, so without the feature it is not linked.
@@ -126,20 +47,6 @@ fn main() {
     generate_reference();
     #[cfg(feature = "onnx_gen_v2_1")]
     generate_v2_1_reference();
-}
-
-/// Fetches a pretrained asset into the cache layout and names its path as a
-/// compile-time variable.
-fn fetch_pretrained(p: &Pretrained) {
-    let dest = pretrained_cache_path(
-        &out_dir(),
-        SORTFORMER_KIT,
-        p.namespace,
-        p.asset.sha256,
-        p.file,
-    );
-    let path = p.asset.resolve(&dest);
-    println!("cargo:rustc-env={}={}", p.path_var, path.display());
 }
 
 /// Fetches the export, rewrites it, and generates the Rust model from it.

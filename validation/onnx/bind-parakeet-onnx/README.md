@@ -3,13 +3,17 @@
 Parakeet TDT assets for [`bunsen`](https://crates.io/crates/bunsen), fetched at build time.
 
 **This crate hosts nothing.** Its build script downloads each asset into the build directory and checks it against a
-pinned SHA-256. Each asset is behind a feature, and none is on by default, so a plain build fetches nothing:
+pinned SHA-256. The asset is behind a feature, off by default, so a plain build fetches nothing:
 
 - `onnx_gen`: the `istupakov/parakeet-tdt-0.6b-v3-onnx` export of NVIDIA's `parakeet-tdt-0.6b-v3` (the
   FastConformer encoder, and the TDT prediction and joint networks), and the Rust models
   generated from it: the reference that bunsen's Parakeet implementation is validated against.
 
-A build without the network can point the `PARAKEET_*` environment variables at local copies; the API docs list them.
+The checkpoints are not fetched here: `parakeet-model-validation`'s tests load them through bunsen's own pinned rows, at
+run time, into the weights cache.
+
+A build without the network can point the `PARAKEET_ONNX_*` environment variables at local copies; the API docs list
+them.
 
 ## License
 

@@ -69,12 +69,37 @@ crates:
       whisper-base: {size: small, gb: 0.7, core: true, dtypes: [f32], varies: "the OpenAI layout, its transformers conversion, the ONNX reference"}
   sortformer:
     package: sortformer-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
     models:
-      sortformer-nemotron: {size: small, gb: 0.8, core: true, dtypes: [f32], varies: "Nemotron-3's feature stacking, its ONNX reference"}
-      sortformer-v2.1: {size: small, gb: 1.0, core: true, dtypes: [f32], varies: "the streaming v2 family, its ONNX reference"}
-      sortformer-v2: {size: small, gb: 0.5, core: false, dtypes: [f32], varies: "v2 weights on v2.1's architecture"}
-      sortformer-speakers: {size: small, gb: 0.7, core: false, dtypes: [f32], varies: "speakers over the Parakeet, Qwen3-ASR and Whisper engines"}
+      nemotron-3-diarization:
+        size: small
+        gb: 0.8
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: Nemotron-3's feature stacking, its ONNX reference, the streaming presets against NeMo
+      sortformer-v2.1:
+        size: small
+        gb: 1.0
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: the streaming v2 family from its .nemo, its ONNX reference, the latencies against NeMo
+      sortformer-v2:
+        size: small
+        gb: 0.5
+        core: false
+        dtypes: [f32]
+        varies: v2 weights on v2.1's architecture
+      sortformer-speakers:
+        size: small
+        gb: 0.7
+        core: false
+        dtypes: [f32]
+        varies: not a row - speakers over the Parakeet (Phonon-2), Qwen3-ASR (Phonon-1) and Whisper (base) engines, with Nemotron's diarizer
+
   parakeet:
     package: parakeet-model-validation
     runner: nextest
