@@ -53,7 +53,7 @@ fn test_reference_encoder_runs() {
 /// **The cross-check.** bunsen's encoder must match the reference on
 /// identical weights.
 ///
-/// The checkpoint is OpenAI's multilingual `base.pt`, which is what
+/// The checkpoint is `OpenAI`'s multilingual `base.pt`, which is what
 /// `onnx-community/whisper-base` was converted from. It comes from
 /// `bind-whisper-onnx`, which this crate's `download` feature pulls
 /// in, so this never skips.

@@ -7,36 +7,30 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! Both sides of the comparison come from `bind-whisper-onnx`: the
-//! checkpoint and vocabularies through its `checkpoint` and `vocab`
-//! features, and the generated reference through its `onnx_gen` feature.
-//! That crate fetches ~725 MB of assets, pins each to a SHA-256, and caches
-//! them — all under this crate's **`download`** feature, which is off by
-//! default so an ordinary `cargo build --workspace` never reaches the
-//! network.
+//! The checkpoint and vocabularies come through bunsen's own pinned rows,
+//! fetched at run time into the weights cache by the tests that read them
+//! (feature **`checkpoints`**). The generated reference comes from
+//! `bind-whisper-onnx`'s `onnx_gen`, fetched and generated at build time,
+//! with the bundle the conversion is cross-checked with: `base.pt`, the
+//! vocabularies and `transformers`' `model.safetensors`, laid out as a
+//! pretrained cache (feature **`reference`**, ~725 MB). Both are off by
+//! default, so a plain `cargo test` here reaches no network and runs the
+//! fixture-integrity checks alone.
+//!
+//! `validation/tools/validate.py` runs this crate under a profile, which
+//! chooses the model (`validation/models.yml`). Every check of it sits under
+//! `base` (`base::staged::...`, `base::audio::...`, `base::bundled::...`):
 //!
 //! ```sh
-//! cargo test --release -p whisper-model-validation \
-//!   --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile small-core --crate whisper
 //! ```
 //!
-//! **`weights`** is the cheap half of `download`: the checkpoint and
-//! vocabularies alone (~150 MB), and the `bundled` checks of the kit's
-//! pretrained pathway on them, which run on the CPU:
-//!
-//! ```sh
-//! cargo test -p whisper-model-validation --features weights
-//! ```
-//!
-//! `gpu-tests` compiles every test that loads a model, `download` fetches
-//! what they compare against, and a backend feature says what they run on.
-//! None is inferred from the others. Without `gpu-tests` the suite is the
-//! fixture-integrity checks, plus the `weights` checks when `download` is on.
-//!
-//! Pass a backend deliberately. `performance_device()` falls through to `Flex`
-//! when none reaches `bunsen`, so a run without one does not fail — it
-//! quietly measures the CPU and passes. `--release` matters for the same
-//! reason: the work is inside `burn`'s kernels, not in this crate.
+//! `gpu-tests` compiles the tests that run a model on a backend, and a
+//! backend feature says which. Pass a backend deliberately:
+//! `performance_device()` falls through to `Flex` when none reaches `bunsen`,
+//! so a run without one does not fail — it quietly measures the CPU and
+//! passes. `--release` matters for the same reason: the work is inside
+//! `burn`'s kernels, not in this crate.
 //!
 //! `WHISPER_ONNX_ENCODER`, `WHISPER_ONNX_DECODER` and `WHISPER_BASE_PT` point
 //! the build at local files instead; they are read by
@@ -57,15 +51,18 @@
 //! * `audio` runs the composition over real speech and judges it by word error
 //!   rate against a ground-truth transcript.
 //! * `bundled` runs the kit's pretrained pathway, vocabularies and hook on the
-//!   real files, under `weights`; and, under `hf-weights`, holds the
-//!   `transformers` loader on `openai/whisper-base`'s `model.safetensors` to
-//!   `base.pt`.
+//!   bundle's files, and holds the `transformers` loader on
+//!   `openai/whisper-base`'s `model.safetensors` to `base.pt`, under
+//!   `reference`.
 //!
 //! `onnx-community/whisper-base` is a conversion of `OpenAI`'s multilingual
 //! `base.pt`, so the two agree only if bunsen's loader and forward pass are
 //! both right.
 
-#![cfg_attr(not(feature = "download"), allow(unused))]
+#![cfg_attr(
+    not(all(feature = "checkpoints", feature = "gpu-tests")),
+    allow(unused)
+)]
 
 use burn::tensor::Device;
 /// The reference models, generated from the `onnx-community` export.
@@ -74,7 +71,7 @@ use burn::tensor::Device;
 /// that one crate owns every Whisper asset — the checkpoint bunsen loads and
 /// the export it is judged against — leaving this crate as only the
 /// comparison.
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub mod reference {
     pub use bind_whisper_onnx::onnx_gen::*;
 }
@@ -82,28 +79,20 @@ pub mod reference {
 /// Whisper's fixed analysis window: 30 s at 16 kHz, 3000 mel frames.
 pub const N_FRAMES: usize = 3000;
 
-/// The pretrained cache the checkpoint and its vocabulary come through.
-///
-/// Under `weights`, it is rooted at `bind-whisper-onnx`'s directory,
-/// which its build laid out as one, and offline: nothing is fetched at run
-/// time and nothing is written there. Routing the assets through the
-/// library's own cache is also what this crate is validating. Without
-/// `weights` it is the default cache, which fetches on first use.
+/// The weights cache the tests load the checkpoint and its vocabulary
+/// through: bunsen's own (`BUNSEN_CACHE_DIR`, or the user's cache
+/// directory), which fetches a pinned file the first time it is asked for;
+/// offline when `BUNSEN_VALIDATE_OFFLINE` is set. Routing the assets through
+/// the library's own cache is also what this crate is validating. The
+/// bundle's own cache, the build-time layout, is the `bundled` checks'.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    #[cfg(feature = "weights")]
-    let options = PretrainedCacheOptions::default()
-        .with_disk(
-            bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bind_whisper_onnx::cache_dir().to_path_buf())),
-        )
-        .with_offline(true);
-    #[cfg(not(feature = "weights"))]
-    let options = PretrainedCacheOptions::default();
-    PretrainedCache::new(options).expect("open the pretrained cache")
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
 }
 
 /// bunsen's Whisper `openai/base`, at the precision it ships in (fp16), with
@@ -169,17 +158,9 @@ pub fn synthetic_encoder_output(device: &Device) -> burn::prelude::Tensor<3> {
     Tensor::from_data(TensorData::new(data, [1, seq, width]), device)
 }
 
-/// Staged cross-checks on synthetic input.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
-pub mod staged;
-
-/// End-to-end validation over the committed speech fixtures.
+/// `openai/base`'s checks: staged, over real speech, and of the bundle.
 #[cfg(test)]
-pub mod audio;
-
-/// The kit's pretrained pathway on the real files.
-#[cfg(all(test, feature = "weights"))]
-mod bundled;
+mod base;
 
 /// A fixture, and the accuracy it is held to.
 pub struct Fixture {

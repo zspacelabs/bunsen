@@ -92,19 +92,26 @@ The validation crates are a Cargo workspace of their own, under
 `validation/`, or with `--manifest-path validation/Cargo.toml`, as the
 `cargo make` tasks below do.
 
-The Whisper suite takes three features, and none implies another:
-`download` fetches the assets it compares against, `gpu-tests` compiles the
-tests that load a model, and a backend feature says what they run on.
-Without `gpu-tests` only its fixture-integrity checks run.
+Every suite takes the same features, and none implies another:
+`checkpoints` compiles the tests against the checkpoints, which fetch them at
+run time through bunsen's pinned rows into the weights cache; `reference`
+fetches the ONNX reference at build time, with the bundle the conversion is
+cross-checked with, and compiles the checks against them; `gpu-tests`
+compiles the tests that run a model on a backend, and a backend feature says
+which. Without them only the fixture-integrity checks run. A profile chooses
+which models' tests run (`cargo make validate`; the validation README's
+"Choosing what to validate").
 `cargo make check-validation` runs those, with clippy and the formatting
 check, over the whole workspace with its default features. Pull-request CI
 builds none of it: of the validation workspace it checks only that its
 lockfile agrees with the root's.
 
-`weights` is the cheap half of `download`, the checkpoints without the
-reference graphs, and compiles the checks that need only them: the Whisper
-kit's pretrained pathway on `base.pt`, and Silero's recorded probabilities
-held to upstream's model. They run on the CPU, as `cargo make validate-cpu`.
+`checkpoints` alone compiles the checks that need no reference graph and no
+backend: Silero's recorded probabilities held to upstream's model, and
+Whisper's fixtures against its vocabulary. They run on the CPU, as
+`cargo make validate-cpu`. The checks of the bundles (the Whisper kit's
+pretrained pathway on the bundled `base.pt`, Silero's bundled cache) run
+under `reference`, where the bundle is: bundling is for verification.
 
 `validation.yml` runs Silero's and Whisper's whole suites, ONNX cross-checks
 included, on the CPU (`cargo make validate-ci`), over about 730 MB of assets it

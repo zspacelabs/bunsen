@@ -65,10 +65,21 @@ jobs:
           key: bunsen-assets-v1-${{ hashFiles('validation/onnx/bind-*-onnx/build.rs') }}
           restore-keys: bunsen-assets-v1-
 
+      # The tests fetch the checkpoints themselves, through bunsen's pinned
+      # rows, into the weights cache: kept here, keyed by the rows' pins.
+      - name: Weights cache directory
+        run: echo "BUNSEN_CACHE_DIR=$HOME/.cache/bunsen-weights" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/bunsen-weights
+          key: bunsen-weights-v1-${{ hashFiles('crates/public/bunsen/src/kits/speech/whisper/pretrained/**', 'crates/public/bunsen/src/kits/speech/silero_vad/pretrained/**') }}
+          restore-keys: bunsen-weights-v1-
+
       - name: Validate Silero and Whisper
         run: |
-          cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features download,gpu-tests
-          cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features download,gpu-tests
+          cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features checkpoints,reference,gpu-tests
+          cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features checkpoints,reference,gpu-tests
 
       # What a restored older entry still holds of a pin since replaced: drop
       # every file no build script pins, so the saved entry is only what is.

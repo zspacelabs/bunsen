@@ -101,12 +101,12 @@ python3 validation/tools/validate.py run --profile "${VALIDATION_PROFILE:-${BUNS
 '''
 
 [tasks.validate-cpu]
-description = "Validation on the checkpoints alone, on the CPU (fetches ~150 MB)"
+description = "Silero's and Whisper's checks on the checkpoints alone, on the CPU: no reference graph, no backend (fetches ~150 MB into the weights cache)"
 workspace = false
 env = { BURN_DEVICE = "flex" }
 script = '''
-cargo test --manifest-path validation/Cargo.toml -p silero-model-validation --features weights
-cargo test --manifest-path validation/Cargo.toml -p whisper-model-validation --features weights
+cargo test --manifest-path validation/Cargo.toml -p silero-model-validation --features checkpoints
+cargo test --manifest-path validation/Cargo.toml -p whisper-model-validation --features checkpoints
 '''
 
 [tasks.validate-ci]
@@ -114,19 +114,19 @@ description = "Silero's and Whisper's whole suites on the CPU, as validation.yml
 workspace = false
 env = { BURN_DEVICE = "flex" }
 script = '''
-cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features download,gpu-tests
-cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features download,gpu-tests
+cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features checkpoints,reference,gpu-tests
+cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features checkpoints,reference,gpu-tests
 '''
 
 [tasks.validate-silero]
 description = "Silero VAD's whole validation suite (fetches ~4 MB)"
 workspace = false
-script = "cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "python3 validation/tools/validate.py run --crate silero --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-whisper]
 description = "Whisper's whole validation suite (fetches ~725 MB)"
 workspace = false
-script = "cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "python3 validation/tools/validate.py run --crate whisper --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-parakeet]
 description = "Parakeet's whole validation suite, every model (fetches ~5 GB, the checkpoints into the weights cache)"

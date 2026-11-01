@@ -131,8 +131,8 @@ cache = [
 
 ## Reach the network at run time, through `ureq`: `fetch_file`,
 ## `load_cached_path` / `load_data_path`, `fetch_many`, and the URL sources of
-## `PretrainedCache::resolve` and `ShardSet::fetch`. Never at build time; that
-## switch is `download`.
+## `PretrainedCache::resolve` and `ShardSet::fetch`. Never at build time; no
+## bunsen feature reaches the network then.
 fetch = [
     "cache",
     "bunsen-fetch/fetch",

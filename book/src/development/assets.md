@@ -14,21 +14,23 @@ the features that carry them are listed in
 
 There are two switches, and neither implies the other:
 
-- **`download`**: the *build* may reach the network. A build script fetches
-  an asset, and the crate compiles against it. It is off by default, so a
-  plain `cargo build --workspace` never fetches; and the crates that offer it
-  are in the validation workspace (`validation/`), which no command in the
-  main workspace builds. `download` is a
-  conventional name rather than a bunsen feature: a crate that offers it
-  turns on the per-asset features of the crates that own the assets.
+- **`reference`**: the *build* may reach the network. A build script fetches
+  an asset (an ONNX export, and the bundle of checkpoints its conversion is
+  cross-checked with), and the crate compiles against it. It is off by
+  default, so a plain `cargo build --workspace` never fetches; and the crates
+  that offer it are in the validation workspace (`validation/`), which no
+  command in the main workspace builds. `reference` is a conventional name
+  rather than a bunsen feature: a crate that offers it turns on the
+  per-asset features of the crates that own the assets.
 - **`fetch`**: the *program* may reach the network at run time, to bring a
   pretrained model or a dataset shard into the disk cache
   ([pretrained models](../systems/pretrained.md),
   [shard sets](../systems/shards.md)).
 
-A test that needs a checkpoint usually wants `download`: the bytes are in
-place before it runs, and the run itself is offline. A program that loads
-models by name wants `fetch`.
+A validation test that needs a checkpoint fetches it, through `fetch`: the
+validation crates' `checkpoints` loads it by its pinned row, into the
+weights cache, so a model is fetched once and shared. A program that loads
+models by name wants `fetch` too.
 
 ## Digest pins
 
@@ -94,8 +96,8 @@ Qwen3-ASR, Parakeet, Sortformer, Voxtral) fetch no checkpoint at build time: the
 tests load each through bunsen's own pinned rows, at run time, into the
 weights cache, and a bind crate fetches only its ONNX reference.
 
-Only the validation crates depend on them, through their `weights` and
-`download` features, so no other build reaches the network. bunsen's own tests
+Only the validation crates depend on them, through their `reference`
+features, so no other build reaches the network. bunsen's own tests
 read no fetched asset: where a test needs what a real model does, it replays
 a committed recording of it, and the validation crate checks the recording
 against the model.

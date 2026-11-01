@@ -47,8 +47,9 @@ by release-plz ([Releasing](../development/release.md)).
 `validation/` depends on the main workspace's crates by path, and has a
 lockfile of its own; every package bunsen's crates reach in it is the
 version `Cargo.lock` has (`tools/check_validation_lock.py`, run in CI).
-Building it with its default features fetches nothing; `weights` and
-`download` fetch, and only the validation runs turn them on
+Building it with its default features fetches nothing; `checkpoints` (at
+run time) and `reference` (at build time) fetch, and only the validation
+runs turn them on
 ([Validation](../development/validation.md)). No CI job builds it;
 `cargo make check-validation` does, by hand.
 

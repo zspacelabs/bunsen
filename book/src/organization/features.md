@@ -49,9 +49,10 @@ Two separate switches, never on by default:
   pretrained weights or dataset shards into the
   [disk cache](bunsen::data::cache). Without it, everything works from files
   already in the cache. `indicatif` adds a progress bar.
-- **Build-time network** is the `download` convention: a build script may
-  fetch assets. No bunsen feature does; only the validation crates' `weights`
-  and `download` turn on the bundled crates' fetches, digest-pinned.
+- **Build-time network**: a build script may fetch assets. No bunsen feature
+  does; only the validation crates' `reference` turns on the bind crates'
+  fetches of the ONNX references and their bundles, digest-pinned. Their
+  `checkpoints` tests fetch at run time, through `fetch`.
 
 [Assets, bundling and the network](../development/assets.md) explains the
 scheme, and why bundled weights are "a populated cache directory".

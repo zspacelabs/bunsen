@@ -7,7 +7,6 @@
 #   package     the validation crate.
 #   runner      `nextest`: run by `validate.py`, each test of a model having the
 #               model's id in its path (`qwen3-0.6b` -> `...::qwen3_0_6b::...`).
-#               `features`: not yet converted; `cargo make validate-<crate>`.
 #   features    always on when the crate runs.
 #   reference   the feature that builds the crate's ONNX reference, turned on
 #               when a chosen model has `reference: true`.
@@ -55,18 +54,32 @@ crates:
         dtypes: [f32]
         varies: a rotary base of 5e6 (a config value the config tests read), the non-thinking template and its sessions
 
-  # Not yet converted: their `download` feature fetches every model at build
-  # time. Their models, for the plan (scratch/validation-groups/PLAN.md):
   silero:
     package: silero-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
     models:
-      silero-vad-16k: {size: small, gb: 0.004, core: true, dtypes: [f32], varies: "the only model"}
+      silero/vad-16k:
+        size: small
+        gb: 0.004
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: the only model - its ONNX graph (both rates), the bundle, the kits' recording, the stream
   whisper:
     package: whisper-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
     models:
-      whisper-base: {size: small, gb: 0.7, core: true, dtypes: [f32], varies: "the OpenAI layout, its transformers conversion, the ONNX reference"}
+      openai/base:
+        size: small
+        gb: 0.7
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: the OpenAI layout and its decodes, the ONNX reference, the bundle, the transformers conversion
   sortformer:
     package: sortformer-model-validation
     runner: nextest

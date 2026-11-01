@@ -16,26 +16,26 @@ workspace = true
 [features]
 default = []
 
-## Fetch upstream's `silero_vad_16k.safetensors` (1.2 MB) at build time, and
-## compile the checks that need only it: the kits' recorded probabilities, the
-## stream, and the factory's pathway from a bundled cache. Cheap enough for
-## the CPU. **Off by default**: a plain build never reaches the network.
-weights = [
+## Compile the checks against upstream's `silero_vad_16k.safetensors`
+## (1.2 MB), which they fetch at run time through bunsen's pinned row into
+## the weights cache: the kits' recorded probabilities and the stream. Cheap
+## enough for the CPU. **Off by default**: a plain `cargo test` here reaches
+## no network.
+checkpoints = ["bunsen/fetch"]
+
+## Fetch upstream's ONNX graph (2.8 MB) and generate the reference model from
+## it, at build time, and the bundle the conversion is cross-checked with
+## (`bind-silero-onnx`'s `checkpoint`: the safetensors, laid out as a
+## pretrained cache); and compile the tests against them. Bundling is for
+## verification, so it comes in here alone. **Off by default**.
+reference = [
     "dep:bind-silero-onnx",
+    "bind-silero-onnx/onnx_gen",
     "bind-silero-onnx/checkpoint",
 ]
 
-## `weights`, and fetch upstream's ONNX graph (2.8 MB) and generate the
-## reference model from it. **Off by default**.
-download = [
-    "weights",
-    "bind-silero-onnx/onnx_gen",
-]
-
-## Compile the cross-checks, which load the models.
-##
-## Needs `download` too, for the assets they compare; without both, the crate
-## has only the `weights` checks, when `weights` is on.
+## Compile the cross-checks, which load the models on a backend. Needs
+## `reference` too, for what they compare against.
 gpu-tests = []
 
 ## Run the validation on `wgpu`. The usual choice.

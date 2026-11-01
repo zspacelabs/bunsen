@@ -232,12 +232,16 @@ not: dev-dependencies and crate-private test helpers.
 
 * `wgpu`, `cuda`, `metal` — select an accelerator backend.
 * `gpu-tests` — compile the tests that need one.
-* `download` — the build may reach the network.
-* `weights` — the build may fetch a validation crate's checkpoints, but not
-  its reference graphs: the cheap half of `download`.
+* `checkpoints` — compile a validation crate's tests against its checkpoints,
+  which they fetch at run time, through bunsen's pinned rows, into the
+  weights cache.
+* `reference` — a validation crate's ONNX reference: the build fetches the
+  export, and the bundle the conversion is cross-checked with, and generates
+  the reference models.
 * `fetch` — the program may reach the network at run time (`cache` alone is local).
 * `onnx_gen` — generate reference models from an ONNX graph.
-* `checkpoint` — fetch pretrained weights.
+* `checkpoint` — fetch pretrained weights at build time, into a bundle: a bind
+  crate's, for verification alone, under its validation crate's `reference`.
 * `tui` — burn's terminal training dashboard; on by default in the training
   examples.
 
@@ -291,7 +295,7 @@ the expensive tests are built, a backend feature selects *which* accelerator
 runs them. Both are passed:
 
 ```text
-cargo test --release -p whisper-model-validation --features gpu-tests,wgpu
+cargo test --release -p whisper-model-validation --features checkpoints,gpu-tests,wgpu
 ```
 
 Do **not** infer the intent from a backend feature:
@@ -307,14 +311,16 @@ asked for*, and leaves no way to have one without the other. A
 
 ### Network access
 
-`download` marks a build that may reach the network. It is **off by default**
-— a plain `cargo build --workspace` never fetches. Assets are pinned to a
-digest, re-verified on every build, and kept in `OUT_DIR`. An environment
-variable points the build at a local file instead. A crate that exists to
-bundle an asset (`bind-whisper-onnx`) still fetches only under the
+`reference` marks a build that may reach the network: a validation crate's
+ONNX reference, and the bundle its conversion is cross-checked with. It is
+**off by default** — a plain `cargo build --workspace` never fetches. Assets
+are pinned to a digest, re-verified on every build, and kept in `OUT_DIR`. An
+environment variable points the build at a local file instead. A crate that
+exists to bundle an asset (`bind-whisper-onnx`) still fetches only under the
 feature that names the asset, never by default, and lives in the validation
 workspace (`validation/onnx/`), which no command in the main workspace
-builds.
+builds. Bundling is for verification alone: a bind crate's checkpoint
+features come in only through its validation crate's `reference`.
 
 No `bunsen` feature reaches the network at build time, and a kit's tests
 read no fetched asset. A test that needs what a real model does replays a
@@ -323,20 +329,17 @@ holds the recording to the model. Everything that reads a fetched checkpoint
 lives in a validation crate (`validation/models/*`), in the validation
 workspace.
 
-A validation crate offers `weights`, the checkpoints alone, for the checks
-that need no reference graph, and `download`, which adds the reference
-graphs. CI never turns on either by default. `validation.yml` runs
-Silero's and Whisper's whole suites on the CPU only when asked: from the
-Actions tab, or for a pull request with the `validate` label. The rest are run
-by hand (`cargo make validate-<model>`), with `download`, `gpu-tests` and a
-backend.
-
-A crate converted to `validation/models.yml` (`qwen3`, `nanochat`, `qwen3-asr`, `parakeet`, `sortformer`, `voxtral`) fetches its
-checkpoints at run time, from the tests that read them, through bunsen's
-pinned rows into the weights cache: its `checkpoints` feature compiles those
-tests, off by default, and a profile chooses which run
-(`validation/README.md`). Its reference graph stays a build-time asset, under
-`reference`.
+A validation crate fetches its checkpoints at run time, from the tests that
+read them, through bunsen's pinned rows into the weights cache: its
+`checkpoints` feature compiles those tests, off by default. Its ONNX
+reference is a build-time asset, under `reference`, which also brings in the
+bind crate's bundle of checkpoints the conversion is cross-checked with:
+bundling is for verification alone. A profile (`validation/models.yml`,
+`validation/README.md`) chooses which models' tests run. CI turns on neither
+by default: `validation.yml` runs Silero's and Whisper's whole suites on the
+CPU only when asked, from the Actions tab or for a pull request with the
+`validate` label. The rest are run by hand (`cargo make validate-<model>`,
+`cargo make validate`).
 
 ### Fetched assets live in `OUT_DIR`
 
@@ -384,9 +387,9 @@ nothing outside `OUT_DIR` is read or written.
 `onnx_gen` generates Rust reference models from an ONNX graph and exposes them
 in a `crate::onnx_gen` module. `checkpoint` fetches pretrained weights.
 
-Neither implies the other — they are different assets. `download` is the
-aggregate switch a consumer flips; `onnx_gen` and `checkpoint` are the
-per-asset switches on the crate that owns them.
+Neither implies the other — they are different assets. `reference` is the
+aggregate switch a validation crate flips; `onnx_gen` and `checkpoint` are
+the per-asset switches on the crate that owns them.
 
 ### Feature documentation
 
@@ -478,8 +481,9 @@ config.
 * **Features live on the command line**, not the config: `requiredFeatures`
   is `false` on every test config. Backend and switch names follow the
   [cargo features](#cargo-features) chapter, a backend never implied. No
-  config turns on `download` or `gpu-tests`: only the validation workspace
-  offers them, and it runs through `cargo make validate-<model>`.
+  config turns on `checkpoints`, `reference` or `gpu-tests`: only the
+  validation workspace offers them, and it runs through `cargo make
+  validate-<model>` and `cargo make validate`.
 * **A test that "fails to start" is a step that failed.** The IDE reports a
   before-launch failure as `Process not started... Probably build process
   failed`, with no diagnostic. Run the steps singly, in chain order, to get

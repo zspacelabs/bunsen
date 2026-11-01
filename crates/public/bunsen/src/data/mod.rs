@@ -98,7 +98,7 @@
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
 //! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store` (implied by both) is what a burnpack is read with. |
 //!
-//! No bunsen feature reaches the network at build time. `download` is a
+//! No bunsen feature reaches the network at build time. `reference` is a
 //! conventional name (see `STYLE.md`), not a bunsen feature: it means "the
 //! build may reach the network", and only the validation crates offer it,
 //! turning on the `bind-*-onnx` crates' asset features. `fetch` is the

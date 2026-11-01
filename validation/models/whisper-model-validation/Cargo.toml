@@ -17,39 +17,30 @@ workspace = true
 [features]
 default = []
 
-## Fetch `OpenAI`'s `base.pt` and both `.tiktoken` vocabularies (~150 MB) at
-## build time, through `bind-whisper-onnx`, and compile the checks that
-## need only them: the kit's pretrained pathway on real files (`bundled`).
-## They load at most one model, so they run on the CPU.
+## Compile the tests against `OpenAI`'s `base`: each fetches what it reads
+## at run time (`base.pt`, a `.tiktoken` vocabulary), through bunsen's pinned
+## rows, into the weights cache (`BUNSEN_CACHE_DIR`, or the user's cache
+## directory), shared with everything else that loads them through bunsen.
 ##
-## **Off by default.** The assets arrive as `bind-whisper-onnx`'s
-## directory, laid out as bunsen's pretrained cache; `weights_cache()` roots
-## the cache there, offline, so routing them through the library's own cache
-## is also what this crate is validating.
-weights = [
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `tools/validate.py`); this only compiles them.
+checkpoints = ["bunsen/fetch"]
+
+## Fetch the `onnx-community/whisper-base` export and generate the reference
+## models from it, at build time, and the bundle the conversion is
+## cross-checked with: `base.pt`, both `.tiktoken` vocabularies and
+## `openai/whisper-base`'s `model.safetensors`, laid out by
+## `bind-whisper-onnx` as bunsen's pretrained cache (~725 MB in all); and
+## compile the tests against them: the reference checks, and the `bundled`
+## checks of the kit's pretrained pathway on the bundle's files. Bundling is
+## for verification, so it comes in here alone.
+reference = [
     "dep:bind-whisper-onnx",
+    "bind-whisper-onnx/onnx_gen",
     "bind-whisper-onnx/checkpoint",
     "bind-whisper-onnx/vocab",
-]
-
-## `weights`, and fetch `openai/whisper-base`'s `model.safetensors`
-## (~290 MB), and compile the check of the kit's `transformers` loader on
-## it against `base.pt` (`bundled::hf`). It loads two models on the CPU.
-hf-weights = [
-    "weights",
     "bind-whisper-onnx/hf_checkpoint",
-]
-
-## `hf-weights`, and fetch the reference graphs and generate the models from
-## them (~725 MB in all).
-##
-## **Off by default.** Enabling this makes `bind-whisper-onnx`'s build
-## reach the network on a cold cache, which a plain `cargo build --workspace`
-## must never do. Every asset is verified against a pinned SHA-256, so a warm
-## build is offline and reproducible.
-download = [
-    "hf-weights",
-    "bind-whisper-onnx/onnx_gen",
 ]
 
 ## Compile every test that loads a model.
@@ -58,8 +49,8 @@ download = [
 ## *whether* those tests are built, a backend feature selects *which*
 ## accelerator runs them, and both are passed.
 ##
-## Needs `download` too, for the assets they compare. Without it, the suite
-## is the fixture-integrity checks, which load no model.
+## Without it, or without `checkpoints`, the suite is the fixture-integrity
+## checks, which load no model.
 gpu-tests = []
 
 ## Run the cross-check on `wgpu`. The usual choice.

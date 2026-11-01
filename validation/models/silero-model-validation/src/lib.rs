@@ -6,7 +6,7 @@
 //! disagreement is a bunsen bug rather than a framework difference.
 //!
 //! ```sh
-//! cargo test --release -p silero-model-validation --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile small-core --crate silero
 //! ```
 //!
 //! ## Why the reference is not in `bunsen`
@@ -14,8 +14,11 @@
 //! A generated transliteration of a graph is validation machinery: it exists
 //! to be disagreed with, and shipping it would put a second, redundant Silero
 //! implementation on the public surface. Nothing of Silero's ships with
-//! bunsen at all: `bind-silero-onnx` fetches the graph and upstream's
-//! safetensors at build time, under this crate's **`download`** feature.
+//! bunsen at all: `bind-silero-onnx` fetches the graph, and the bundle the
+//! conversion is cross-checked with, at build time, under this crate's
+//! **`reference`** feature; the other checks fetch upstream's safetensors at
+//! run time, through bunsen's pinned row, under **`checkpoints`**. Every test
+//! sits under the model's id, `vad_16k`.
 //!
 //! ## What is compared
 //!
@@ -27,29 +30,25 @@
 //!   golden trace: a sibling checkpoint of the graph's, so held to its speech
 //!   decisions within a measured margin rather than to its numbers.
 //!
-//! The cross-checks compile under `download` and `gpu-tests` together (see
+//! The cross-checks compile under `reference` and `gpu-tests` together (see
 //! `STYLE.md`), and a backend feature says what they run on:
 //! `performance_device()` falls through to `Flex` when none reaches `bunsen`.
 //!
 //! ## On upstream's checkpoint alone
 //!
-//! **`weights`**, the cheap half of `download`, fetches only
-//! `silero_vad_16k.safetensors` and compiles the checks that need no graph,
-//! on the CPU (`upstream`):
-//!
-//! ```sh
-//! cargo test -p silero-model-validation --features weights
-//! ```
+//! **`checkpoints`** compiles the checks that need no graph, on the CPU
+//! (`upstream`), which fetch only `silero_vad_16k.safetensors`.
 //!
 //! - The recording the kits replay in place of a model,
 //!   `RecordedVoiceActivity::silero_jfk_moon_4s`
 //!   (`bunsen/testdata/silero/jfk_moon_4s.json`), is still what upstream's
 //!   model says. `write_the_kits_recording`, run by name, rewrites it.
 //! - Silero's stream, in pieces, is the stream in one call.
-//! - `silero/vad-16k` loads through the factory from the bundled cache.
+//! - `silero/vad-16k` loads through the factory from the bundled cache, under
+//!   `reference`, where the bundle is.
 
 /// The reference model, generated from the upstream ONNX graph.
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub mod reference {
     pub use bind_silero_onnx::onnx_gen::*;
 
@@ -57,8 +56,22 @@ pub mod reference {
     pub type ReferenceModel = Model;
 }
 
-#[cfg(all(feature = "download", feature = "gpu-tests"))]
+#[cfg(all(feature = "reference", feature = "gpu-tests"))]
 mod cross_test;
 
-#[cfg(all(test, feature = "weights"))]
+#[cfg(all(test, feature = "checkpoints"))]
 mod upstream;
+
+/// The weights cache the checks fetch upstream's safetensors through:
+/// bunsen's own (`BUNSEN_CACHE_DIR`, or the user's cache directory); offline
+/// when `BUNSEN_VALIDATE_OFFLINE` is set.
+#[cfg(feature = "checkpoints")]
+pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    use bunsen::data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    };
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
+}

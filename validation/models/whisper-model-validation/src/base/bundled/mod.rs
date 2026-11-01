@@ -1,23 +1,4 @@
-//! The Whisper kit's pretrained pathway on real files: `OpenAI`'s `base.pt`
-//! and both `.tiktoken` vocabularies, as `bind-whisper-onnx` lays them
-//! out.
-//!
-//! These ran inside `bunsen` under its `whisper-weights` feature, which made
-//! the build fetch ~150 MB. They need no reference graph and load at most one
-//! model, so they run on the CPU, under `weights` alone:
-//!
-//! ```sh
-//! cargo test -p whisper-model-validation --features weights
-//! ```
-//!
-//! * `vocabulary`: the rank files, detokenized and filtered, against ids and
-//!   lists read off upstream's `whisper.tokenizer`.
-//! * `cache`: the bundle's directory is a pretrained cache of the kit's own
-//!   maps, and a table of local files serves `openai/base` in place.
-//! * `construct`: the kit's hook plans, scans and builds a real checkpoint.
-//! * `hf`, under `hf-weights`: `transformers`' `model.safetensors` of the same
-//!   model, through the kit's `transformers` loader, is `base.pt`, weight for
-//!   weight.
+//! The Whisper kit's pretrained pathway on the bundle's files.
 
 use std::{
     path::PathBuf,
@@ -55,7 +36,6 @@ use bunsen::{
 
 mod cache;
 mod construct;
-#[cfg(feature = "hf-weights")]
 mod hf;
 mod vocabulary;
 
@@ -98,9 +78,8 @@ pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
 /// `openai/base` row with its two resources served in place from the
 /// bundle's files rather than fetched.
 ///
-/// `bunsen` used to register this under `whisper-weights`; it is how a
-/// deployment that ships its files would serve them, so it is built here
-/// the way such a caller would.
+/// It is how a deployment that ships its files would serve them, so it is
+/// built here the way such a caller would.
 pub fn bundled_table() -> PretrainedTable {
     let mut base = OPENAI.lookup("base").unwrap().to_pretrained();
     base.resources = base

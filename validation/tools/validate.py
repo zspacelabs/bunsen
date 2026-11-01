@@ -53,7 +53,7 @@ CATALOG = VALIDATION / "models.yml"
 PROFILES = VALIDATION / "profiles"
 SIZES = ("small", "medium", "large")
 SELECTOR_KEYS = {"crate", "model", "size", "core"}
-BACKENDS = ("wgpu", "vulkan", "cuda", "metal")
+BACKENDS = ("wgpu", "vulkan", "cuda", "metal", "flex")
 
 
 def ident(model: str) -> str:
@@ -202,7 +202,9 @@ def nextest_command(args) -> list[str]:
     if not expr:
         sys.exit("no converted crate in the selection")
     packages = [catalog[c]["package"] for c in chosen if catalog[c]["runner"] == "nextest"]
-    features += [f"{p}/{backend}" for p in packages]
+    # `flex` is the CPU, which every build has: no backend feature.
+    if backend != "flex":
+        features += [f"{p}/{backend}" for p in packages]
     command = ["cargo", "nextest", "run", "--release", "--profile", "validate", "--no-tests", "warn"]
     for p in packages:
         command += ["-p", p]
