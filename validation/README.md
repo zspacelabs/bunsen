@@ -45,7 +45,7 @@ formatting check, by hand. Two features opt in, on each crate:
 A machine validates what it can hold, chosen by a **profile** from a
 **catalog** of the models, and run through
 [`cargo nextest`](https://nexte.st) (this workspace alone; the bunsen
-workspace runs `cargo test`). The crates converted to it (`qwen3`, `nanochat`, `qwen3-asr`, `parakeet`, `sortformer`, so far)
+workspace runs `cargo test`). The crates converted to it (`qwen3`, `nanochat`, `qwen3-asr`, `parakeet`, `sortformer`, `voxtral`, so far)
 fetch their checkpoints from their tests, at run time, through bunsen's own
 pinned rows into the weights cache (`BUNSEN_CACHE_DIR`, or the user's cache
 directory), so a model is fetched once, when its first test runs, and shared

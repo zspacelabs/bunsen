@@ -189,6 +189,14 @@ crates:
         varies: another stage of the 2026 model (nitishpandey04/nanochat-d18-base)
   voxtral:
     package: voxtral-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
     models:
-      mistralai/voxtral-mini-4b-realtime-2602: {size: large, gb: 28.3, core: true, dtypes: [f32], varies: "the only model"}
+      mistralai/voxtral-mini-4b-realtime-2602:
+        size: large
+        gb: 28.3
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: the only model - its ONNX reference (19.4 GB), the front end, the tekken vocabulary, streaming transcription

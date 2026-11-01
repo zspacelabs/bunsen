@@ -25,14 +25,8 @@ workspace = true
 
 [features]
 ## Nothing by default: building this crate as a workspace member fetches
-## nothing. `voxtral-model-validation/download` turns on every feature.
+## nothing. `voxtral-model-validation/reference` turns on `onnx_gen`.
 default = []
-
-## Fetch `mistralai/Voxtral-Mini-4B-Realtime-2602`'s `model.safetensors`
-## (8.9 GB) and `tekken.json`, laid out under `cache_dir()`: a bunsen
-## pretrained cache rooted there resolves
-## `mistralai/voxtral-mini-4b-realtime-2602` from it, offline.
-checkpoint = []
 
 ## Fetch `onnx-community/Voxtral-Mini-4B-Realtime-2602-ONNX`'s fp32 export
 ## (the audio encoder, 4.0 GB; the decoder, 13.8 GB; the token embedding,

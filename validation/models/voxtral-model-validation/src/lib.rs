@@ -8,21 +8,24 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bind-voxtral-onnx`'s `onnx_gen`
-//! feature, and the checkpoint from its `checkpoint` feature, which fetch
-//! their assets, pin each to a SHA-256, and cache them, all under the
-//! **`download`** feature, off by default so an ordinary
-//! `cargo build --workspace` never reaches the network.
+//! The checkpoint comes through bunsen's own pinned row, fetched at run time
+//! into the weights cache by the tests that read it (feature
+//! **`checkpoints`**). The generated reference comes from
+//! `bind-voxtral-onnx`'s `onnx_gen`, fetched and generated at build time
+//! (feature **`reference`**). Both are off by default, so a plain `cargo
+//! test` here reaches no network and runs the fixture-integrity checks alone.
+//!
+//! `validation/tools/validate.py` runs this crate under a profile, which
+//! chooses the model (`validation/models.yml`; it is `large`). Every test of
+//! it has its id in its path
+//! (`speech::voxtral_mini_4b_realtime_2602::transcribe_matches_transformers`):
 //!
 //! ```sh
-//! cargo test --release -p voxtral-model-validation \
-//!   --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile large-core --crate voxtral
 //! ```
 //!
-//! `gpu-tests` compiles every test that loads a model, `download` fetches
-//! what they compare against, and a backend feature says what they run on.
-//! Without both `download` and `gpu-tests` the suite is the fixture-integrity
-//! checks, which load no model.
+//! `gpu-tests` compiles the tests that run a model on a backend, and a
+//! backend feature says which.
 //!
 //! ## The reference is itself checked
 //!
@@ -43,21 +46,21 @@
 //! a time (`#[serial]`); bunsen is compared with the reference through
 //! onnxruntime's recorded run, not side by side.
 
-#![cfg_attr(not(feature = "download"), allow(unused))]
+#![cfg_attr(not(feature = "checkpoints"), allow(unused))]
 
 use bunsen::support::testing::TensorRecord;
 use burn::prelude::*;
 use serde::Deserialize;
 
 /// The reference models, generated from the rewritten export.
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub mod reference {
     pub use bind_voxtral_onnx::onnx_gen::*;
 }
 
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 mod reference_decode;
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub use reference_decode::*;
 
 /// The mel channel count.
@@ -263,25 +266,18 @@ pub fn speech_reference() -> SpeechReference {
     serde_json::from_str(&text).expect("parse the speech fixture")
 }
 
-/// A pretrained cache over the bundled checkpoint, offline.
-///
-/// Without `download` there is none: an ordinary cache, which the tests
-/// that need it are not compiled without.
+/// The weights cache the tests load the checkpoint through: bunsen's own
+/// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
+/// pinned file the first time it is asked for; offline when
+/// `BUNSEN_VALIDATE_OFFLINE` is set.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    #[cfg(feature = "download")]
-    let options = PretrainedCacheOptions::default()
-        .with_disk(
-            bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bind_voxtral_onnx::cache_dir().to_path_buf())),
-        )
-        .with_offline(true);
-    #[cfg(not(feature = "download"))]
-    let options = PretrainedCacheOptions::default();
-    PretrainedCache::new(options).expect("open the pretrained cache")
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
 }
 
 /// The published model, through bunsen's factory and [`weights_cache`].
@@ -317,21 +313,21 @@ pub fn speech_transcript(name: &str) -> String {
 }
 
 /// The generated models against onnxruntime's run of the published graphs.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "reference", feature = "gpu-tests"))]
 mod reference_tests;
 
 /// bunsen's model against onnxruntime's run of the published graphs.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod cross;
 
 /// bunsen's front end, audio embeddings and decodes of real speech against
 /// `transformers`'.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod speech;
 
 /// bunsen's vocabulary and transcript parser on `transformers`' decodes.
 /// Reads the bundled `tekken.json`; loads no model.
-#[cfg(all(test, feature = "download"))]
+#[cfg(all(test, feature = "checkpoints"))]
 mod vocabulary;
 
 #[cfg(test)]

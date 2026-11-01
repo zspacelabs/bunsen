@@ -1,22 +1,19 @@
 //! Voxtral Realtime validation assets.
 //!
-//! **This crate hosts nothing.** `mistralai/Voxtral-Mini-4B-Realtime-2602` is
-//! 8.9 GB and its fp32 ONNX export 19 GB, far too large to commit, so this
-//! crate *fetches* them, pins each file to a SHA-256, and keeps them in
-//! `OUT_DIR`. Only `voxtral-model-validation` depends on it.
-//!
-//! The checkpoint is laid out in `OUT_DIR` as a **pretrained cache**,
-//! `pretrained/voxtral/mistralai/<sha256>/<file>`, which is how bunsen's
-//! `data::pretrained::PretrainedCache` roots a resource. A cache pointed at
-//! `cache_dir()`, offline, hits the row without knowing it was bundled.
+//! **This crate hosts nothing.** The fp32 ONNX export of
+//! `mistralai/Voxtral-Mini-4B-Realtime-2602` is 19 GB, far too large to commit,
+//! so this crate *fetches* it under `onnx_gen`, pins each file to a SHA-256,
+//! keeps them in `OUT_DIR`, and generates the reference models from it. Only
+//! `voxtral-model-validation` depends on it, and its tests load the
+//! checkpoint themselves, through bunsen's own pinned row, at run time, into
+//! the weights cache.
 //!
 //! ## What it exposes
 //!
-//! Each item exists only under the feature that fetches its asset:
+//! Each item exists only under `onnx_gen`, which fetches its asset:
 //!
 //! | Item | Feature | What it is |
 //! |---|---|---|
-//! | `cache_dir()` | `checkpoint` | `OUT_DIR`, laid out as a pretrained cache |
 //! | `onnx_gen::VoxtralAudioEncoderOnnx` | `onnx_gen` | the audio encoder (stem, layers, norm, projector), streamed through its caches |
 //! | `onnx_gen::VoxtralDecoderOnnx` | `onnx_gen` | the text decoder, from input embeddings to logits, through its KV cache |
 //! | `onnx_gen::VoxtralEmbedTokensOnnx` | `onnx_gen` | the token embedding |
@@ -29,9 +26,8 @@
 //! ## Using local copies
 //!
 //! Each file has a variable naming a local file to use instead, read only
-//! when the feature that fetches it is on: `VOXTRAL_MODEL_SAFETENSORS` and
-//! `VOXTRAL_TEKKEN_JSON` for the checkpoint, and for the export
-//! `VOXTRAL_ONNX_` and the file's name, in capitals with `_` for `.`
+//! under `onnx_gen`: `VOXTRAL_ONNX_` and the file's name, in capitals with
+//! `_` for `.`
 //! (`VOXTRAL_ONNX_AUDIO_ENCODER_ONNX`,
 //! `VOXTRAL_ONNX_DECODER_MODEL_MERGED_ONNX_DATA_3`). A file that is the
 //! pinned asset is put where the download would have gone; any other file is
@@ -39,15 +35,6 @@
 //!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
-
-/// `OUT_DIR` laid out as a pretrained cache: the root a
-/// `bunsen::data::pretrained::PretrainedCache` is pointed at to read the
-/// bundled row. A cache that fetches other models into it will change it, so
-/// a test wants it offline.
-#[cfg(feature = "checkpoint")]
-pub fn cache_dir() -> &'static std::path::Path {
-    std::path::Path::new(env!("VOXTRAL_CACHE_DIR"))
-}
 
 /// The reference models, generated from the rewritten export.
 #[cfg(feature = "onnx_gen")]

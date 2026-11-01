@@ -90,7 +90,7 @@ and none is published:
   embedding, 19 GB), rewritten the same way, for its validation crate.
 
 The validation crates converted to `validation/models.yml` (Qwen3, nanochat,
-Qwen3-ASR, Parakeet, Sortformer) fetch no checkpoint at build time: their
+Qwen3-ASR, Parakeet, Sortformer, Voxtral) fetch no checkpoint at build time: their
 tests load each through bunsen's own pinned rows, at run time, into the
 weights cache, and a bind crate fetches only its ONNX reference.
 

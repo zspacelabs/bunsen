@@ -1,56 +1,27 @@
-//! Fetches the Voxtral Realtime assets.
-//!
-//! Two sets, each behind its own feature: `checkpoint` is
-//! `mistralai/Voxtral-Mini-4B-Realtime-2602` as `transformers` ships it, laid
-//! out as a bunsen pretrained cache; `onnx_gen` is `onnx-community`'s fp32
-//! ONNX export of it, three graphs (the audio encoder, the decoder, the token
-//! embedding), which `voxtral-model-validation` compares bunsen against.
+//! Fetches the Voxtral Realtime reference: under `onnx_gen`,
+//! `onnx-community`'s fp32 ONNX export of
+//! `mistralai/Voxtral-Mini-4B-Realtime-2602`, three graphs (the audio encoder,
+//! the decoder, the token embedding), which `voxtral-model-validation`
+//! compares bunsen against. The checkpoint is not fetched here: the
+//! validation crate's tests load it through bunsen's own pinned row, at run
+//! time, into the weights cache.
 //!
 //! `burn-onnx` 0.22 cannot import the export as published, so each graph is
 //! rewritten first, by `rewrite_genai_onnx::rewrite_for_burn_onnx`.
 //!
 //! Fetching, pinning and the overrides (one per file, named for the file:
-//! `VOXTRAL_MODEL_SAFETENSORS`, `VOXTRAL_ONNX_AUDIO_ENCODER_ONNX`,
+//! `VOXTRAL_ONNX_AUDIO_ENCODER_ONNX`,
 //! `VOXTRAL_ONNX_DECODER_MODEL_MERGED_ONNX_DATA_3`, ...) follow
 //! `bunsen-fetch`'s rules.
 
-// Each feature uses its own constants; the rest are dead in that build.
+// Without `onnx_gen` the constants are dead.
 #![allow(unused)]
 
 use bunsen_fetch::{
     Asset,
     out_dir,
     place_file,
-    pretrained_cache_path,
 };
-
-/// The Voxtral kit's segment of the pretrained cache layout: `VOXTRAL_KIT`
-/// in bunsen.
-const VOXTRAL_KIT: &str = "voxtral";
-
-/// The namespace of Mistral's rows.
-const MISTRAL_NAMESPACE: &str = "mistralai";
-
-/// `mistralai/Voxtral-Mini-4B-Realtime-2602`'s files, at the revision
-/// bunsen's `mistralai/voxtral-mini-4b-realtime-2602` row pins.
-const CHECKPOINT: &[(&str, Asset<'static>)] = &[
-    (
-        "model.safetensors",
-        Asset {
-            override_var: "VOXTRAL_MODEL_SAFETENSORS",
-            url: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/resolve/2769294da9567371363522aac9bbcfdd19447add/model.safetensors",
-            sha256: "e745e4902df6a4c48f29f2f8dc1f6d0fb4cc73c7156bc45923451a5bcdfcd1d6",
-        },
-    ),
-    (
-        "tekken.json",
-        Asset {
-            override_var: "VOXTRAL_TEKKEN_JSON",
-            url: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/resolve/2769294da9567371363522aac9bbcfdd19447add/tekken.json",
-            sha256: "8434af1d39eba99f0ef46cf1450bf1a63fa941a26933a1ef5dbbf4adf0d00e44",
-        },
-    ),
-];
 
 /// One graph of the export: the graph, its external weights under the names
 /// the graph gives them, and how many of each rewritten op it holds.
@@ -192,19 +163,6 @@ const VOXTRAL_EMBED_TOKENS: Graph = Graph {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rustc-env=VOXTRAL_CACHE_DIR={}", out_dir().display());
-
-    #[cfg(feature = "checkpoint")]
-    for (file, asset) in CHECKPOINT {
-        let dest = pretrained_cache_path(
-            &out_dir(),
-            VOXTRAL_KIT,
-            MISTRAL_NAMESPACE,
-            asset.sha256,
-            file,
-        );
-        asset.resolve(&dest);
-    }
 
     // `cfg` rather than a `CARGO_FEATURE_*` lookup: `burn_onnx` is an
     // optional build-dependency, so without the feature it is not linked.
