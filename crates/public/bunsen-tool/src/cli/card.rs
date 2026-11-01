@@ -112,6 +112,33 @@ impl Value {
         Value::Str(s.into())
     }
 
+    /// Whether it is an empty string, list or map.
+    fn is_empty(&self) -> bool {
+        match self {
+            Value::Str(s) => s.is_empty(),
+            Value::Bool(_) => false,
+            Value::List(items) => items.is_empty(),
+            Value::Map(entries) => entries.is_empty(),
+        }
+    }
+
+    /// The value without its empty fields: every map entry whose value is an
+    /// empty string, list or map, at any depth, once its own empty fields are
+    /// gone. A list keeps its items; a boolean is never empty.
+    pub fn elide_empty(self) -> Value {
+        match self {
+            Value::List(items) => Value::List(items.into_iter().map(Value::elide_empty).collect()),
+            Value::Map(entries) => Value::Map(
+                entries
+                    .into_iter()
+                    .map(|(k, v)| (k, v.elide_empty()))
+                    .filter(|(_, v)| !v.is_empty())
+                    .collect(),
+            ),
+            other => other,
+        }
+    }
+
     /// The value under `key`, in a map.
     pub fn get(
         &self,
@@ -164,7 +191,7 @@ impl CardCmd {
                     .expect("every section is in the card"),
             )]),
         };
-        let text = render(&card, self.format)?;
+        let text = render(&card.elide_empty(), self.format)?;
         use std::io::Write;
         std::io::stdout()
             .write_all(text.as_bytes())
@@ -187,7 +214,9 @@ pub fn render(
 }
 
 /// The whole card: `build`, `config` (the weights cache) and `kits` (the
-/// models this build knows by name, by kind and family).
+/// models this build knows by name, by kind and family). Every field is
+/// present, an empty one included; the output elides those
+/// ([`Value::elide_empty`]).
 ///
 /// # Errors
 /// As a family's default factory, if two of its providers share a name.
@@ -266,8 +295,8 @@ fn kits() -> BunsenResult<Value> {
 
 /// One family: `provider:`, each provider its factory searches, in order
 /// (`well-known`, `hf`, ...); then `model:`, a summary card per row its
-/// factory lists: its name, its aliases (none is an empty list) and its
-/// description.
+/// factory lists: its name, its aliases (none is an empty list, which the
+/// output elides) and its description.
 fn family<H: Construct>(factory: PretrainedFactory<H>) -> Value {
     let providers = factory
         .providers()
@@ -373,6 +402,44 @@ mod tests {
     }
 
     /// YAML keeps the keys' order; JSON is one line.
+    /// Empty strings, lists and maps go, at any depth, and so does a map
+    /// emptied by it; booleans and list items stay.
+    #[test]
+    fn test_elide_empty() {
+        let card = Value::map([
+            (
+                "model",
+                Value::List(vec![
+                    Value::map([("name", Value::str("a")), ("aliases", Value::List(vec![]))]),
+                    Value::map([
+                        ("name", Value::str("b")),
+                        ("aliases", Value::List(vec![Value::str("bee")])),
+                    ]),
+                ]),
+            ),
+            ("features", Value::List(vec![])),
+            ("offline", Value::Bool(false)),
+            ("note", Value::str("")),
+            ("nested", Value::map([("empty", Value::map::<&str>([]))])),
+        ]);
+        assert_eq!(
+            card.elide_empty(),
+            Value::map([
+                (
+                    "model",
+                    Value::List(vec![
+                        Value::map([("name", Value::str("a"))]),
+                        Value::map([
+                            ("name", Value::str("b")),
+                            ("aliases", Value::List(vec![Value::str("bee")])),
+                        ]),
+                    ]),
+                ),
+                ("offline", Value::Bool(false)),
+            ])
+        );
+    }
+
     #[test]
     fn test_render() {
         let card = Value::map([(
