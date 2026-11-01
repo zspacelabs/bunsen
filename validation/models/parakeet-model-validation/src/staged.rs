@@ -1,5 +1,4 @@
-//! bunsen's Parakeet TDT against the generated reference, stage by stage, on
-//! synthetic input and identical weights (`nvidia/parakeet-tdt-0.6b-v3`).
+//! bunsen's Parakeet TDT against the generated reference, stage by stage.
 
 use bunsen::{
     kits::speech::parakeet::blocks::TdtPredictionState,
@@ -16,6 +15,7 @@ use super::*;
 /// graphs carry.
 const BASE: &str = "nvidia/parakeet-tdt-0.6b-v3";
 
+/// On synthetic input, with the weights the reference carries.
 mod parakeet_tdt_0_6b_v3 {
     use super::*;
 
