@@ -4,10 +4,14 @@
 //! A binary flattens [`WeightsCacheArgs`] into every command that loads
 //! weights, and mounts [`CacheCommand`] as a `cache` subcommand:
 //! `cache path`, `cache list [KIT[/NAMESPACE]]`, and
-//! `cache clear [KIT[/NAMESPACE]] [--partial] [--yes]`.
+//! `cache clear [KIT[/NAMESPACE]] [--partial] [--age AGE] [--yes]`.
 use std::{
     io::Write,
     path::PathBuf,
+    time::{
+        Duration,
+        SystemTime,
+    },
 };
 
 use bunsen::{
@@ -83,8 +87,9 @@ pub enum CacheAction {
     /// Print the cache directory.
     Path,
 
-    /// List the cached weights: each file's kit, namespace, size and pin,
-    /// then the total.
+    /// List the cached weights: each file's kit, namespace, size, when it
+    /// was fetched and last loaded (UTC), and its pin, then the total.
+    /// Listing loads nothing, so it changes no file's last use.
     List {
         /// `kit` or `kit/namespace`; every file when omitted.
         selector: Option<CacheSelector>,
@@ -98,6 +103,12 @@ pub enum CacheAction {
         /// Only unfinished downloads.
         #[arg(long)]
         partial: bool,
+
+        /// Only files not loaded for at least this long: `90m`, `12h`,
+        /// `30d`, `2w` (`s`, `m`, `h`, `d`, `w`). A file whose last use the
+        /// file system does not record is kept.
+        #[arg(long, value_parser = parse_age)]
+        age: Option<Duration>,
 
         /// Remove them.
         #[arg(long)]
@@ -146,13 +157,22 @@ impl CacheAction {
             CacheAction::Clear {
                 selector,
                 partial,
+                age,
                 yes,
             } => {
                 let selector = selector.clone().unwrap_or_default();
+                let now = SystemTime::now();
+                let old_enough = |f: &CachedFile| match age {
+                    None => true,
+                    Some(age) => f
+                        .last_used
+                        .and_then(|used| now.duration_since(used).ok())
+                        .is_some_and(|idle| idle >= *age),
+                };
                 let files: Vec<CachedFile> = cache
                     .cached_files(&selector)?
                     .into_iter()
-                    .filter(|f| !partial || f.partial)
+                    .filter(|f| (!partial || f.partial) && old_enough(f))
                     .collect();
                 if files.is_empty() {
                     return writeln!(out, "nothing cached for {selector}").map_err(w);
@@ -191,8 +211,36 @@ fn summary(files: &[CachedFile]) -> String {
     )
 }
 
-/// One row per file: kit, namespace, file (marked when partial), size, and
-/// the pin's first 12 characters.
+/// `--age`: a count and a unit, `s`, `m`, `h`, `d` or `w`.
+fn parse_age(text: &str) -> Result<Duration, String> {
+    let split = text
+        .find(|c: char| !c.is_ascii_digit())
+        .ok_or_else(|| format!("{text:?}: a count and a unit (s, m, h, d, w), as 30d"))?;
+    let (count, unit) = text.split_at(split);
+    let count: u64 = count
+        .parse()
+        .map_err(|_| format!("{text:?}: a count and a unit (s, m, h, d, w), as 30d"))?;
+    let seconds = match unit {
+        "s" => 1,
+        "m" => 60,
+        "h" => 3_600,
+        "d" => 86_400,
+        "w" => 604_800,
+        _ => return Err(format!("{text:?}: the unit is one of s, m, h, d, w")),
+    };
+    Ok(Duration::from_secs(count * seconds))
+}
+
+/// A time as `cache list` shows it: `2026-10-31 16:40`, UTC; `-` when the
+/// file system does not record it.
+fn utc_minute(time: Option<SystemTime>) -> String {
+    let format = time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]");
+    time.and_then(|t| time::OffsetDateTime::from(t).format(&format).ok())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+/// One row per file: kit, namespace, file (marked when partial), size, when
+/// it was fetched and last loaded, and the pin's first 12 characters.
 fn write_table(
     files: &[CachedFile],
     out: &mut impl Write,
@@ -217,18 +265,20 @@ fn write_table(
     let [k, n, f] = widths;
     writeln!(
         out,
-        "{:k$}  {:n$}  {:f$}  {:>9}  PIN",
-        "KIT", "NAMESPACE", "FILE", "SIZE"
+        "{:k$}  {:n$}  {:f$}  {:>9}  {:16}  {:16}  PIN",
+        "KIT", "NAMESPACE", "FILE", "SIZE", "FETCHED (UTC)", "LAST USED (UTC)"
     )?;
     for file in files {
         let pin: String = file.pin.chars().take(12).collect();
         writeln!(
             out,
-            "{:k$}  {:n$}  {:f$}  {:>9}  {pin}",
+            "{:k$}  {:n$}  {:f$}  {:>9}  {:16}  {:16}  {pin}",
             file.kit,
             file.namespace,
             name(file),
             human_bytes(file.bytes),
+            utc_minute(file.created),
+            utc_minute(file.last_used),
         )?;
     }
     Ok(())
@@ -321,6 +371,7 @@ mod tests {
             selector,
             partial,
             yes,
+            ..
         } = cmd.action
         else {
             panic!("clear");
@@ -328,6 +379,62 @@ mod tests {
         assert_eq!(selector, Some("whisper/openai".parse().unwrap()));
         assert!(partial && !yes);
         assert!(Cli::try_parse_from(["x", "cache", "list", "a/b/c"]).is_err());
+    }
+
+    #[test]
+    fn test_parse_age() {
+        assert_eq!(parse_age("90m"), Ok(Duration::from_secs(5_400)));
+        assert_eq!(parse_age("12h"), Ok(Duration::from_secs(43_200)));
+        assert_eq!(parse_age("30d"), Ok(Duration::from_secs(2_592_000)));
+        assert_eq!(parse_age("2w"), Ok(Duration::from_secs(1_209_600)));
+        assert_eq!(parse_age("45s"), Ok(Duration::from_secs(45)));
+        for bad in ["", "30", "d", "30y", "-1d", "1.5d"] {
+            assert!(parse_age(bad).is_err(), "{bad:?}");
+        }
+        let cli = Cli::try_parse_from(["x", "cache", "clear", "--age", "30d"]).unwrap();
+        let Cmd::Cache(cmd) = cli.cmd;
+        assert!(matches!(
+            cmd.action,
+            CacheAction::Clear { age: Some(age), .. } if age == Duration::from_secs(2_592_000)
+        ));
+    }
+
+    /// `list` shows when each file was fetched and last loaded, in UTC;
+    /// `clear --age` takes only the files not loaded for that long.
+    #[test]
+    fn test_dates_and_clear_by_age() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path());
+        put(&cache, "whisper/openai/aaaa/old.pt", 1_000);
+        put(&cache, "whisper/openai/bbbb/new.pt", 2_000);
+        let old = cache.pretrained_dir().join("whisper/openai/aaaa/old.pt");
+        let then = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+        fs::File::options()
+            .write(true)
+            .open(&old)
+            .unwrap()
+            .set_modified(then)
+            .unwrap();
+
+        let list = run(&CacheAction::List { selector: None }, &cache);
+        assert!(
+            list.lines().next().unwrap().contains("LAST USED (UTC)"),
+            "{list}"
+        );
+        let row = list.lines().find(|l| l.contains("old.pt")).unwrap();
+        assert!(row.contains("2001-09-09 01:46"), "{row}");
+        assert_eq!(utc_minute(None), "-");
+
+        let by_age = CacheAction::Clear {
+            selector: None,
+            partial: false,
+            age: Some(Duration::from_secs(30 * 86_400)),
+            yes: true,
+        };
+        assert!(run(&by_age, &cache).contains("removed 1 file, 1.0 kB"));
+        let left = cache.cached_files(&CacheSelector::default()).unwrap();
+        assert_eq!(left.len(), 1);
+        assert_eq!(left[0].file, "new.pt");
     }
 
     /// `path` prints the directory; `list` a row per file and the total;
@@ -357,6 +464,7 @@ mod tests {
         let dry = CacheAction::Clear {
             selector: Some("whisper".parse().unwrap()),
             partial: true,
+            age: None,
             yes: false,
         };
         let shown = run(&dry, &cache);
@@ -369,12 +477,14 @@ mod tests {
         let partial = CacheAction::Clear {
             selector: Some("whisper".parse().unwrap()),
             partial: true,
+            age: None,
             yes: true,
         };
         assert!(run(&partial, &cache).contains("removed 1 file, 500 B"));
         let all = CacheAction::Clear {
             selector: None,
             partial: false,
+            age: None,
             yes: true,
         };
         assert!(run(&all, &cache).contains("removed 2 files, 3.0 MB"));

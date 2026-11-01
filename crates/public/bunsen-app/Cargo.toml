@@ -21,6 +21,8 @@ bunsen = { version = "0.41.0", path = "../bunsen", features = ["std", "testing",
 clap = { workspace = true, features = ["derive"] }
 env_logger = { workspace = true }
 log = { workspace = true }
+# `cache list`'s dates.
+time = { workspace = true, features = ["formatting", "macros"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }
