@@ -14,7 +14,8 @@
 //!
 //! It is the model of the dense Qwen3 checkpoints up to 8B: `Qwen3-0.6B`,
 //! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds and `Qwen3-4B`'s `2507`
-//! builds, whose heads are tied, and `Qwen3-8B` and its `-Base`, whose head is
+//! builds, `Qwen3-4B-SafeRL`, and `Qwen3Guard-Gen-0.6B` and `-4B`, whose heads
+//! are tied, and `Qwen3-8B`, its `-Base` and `Qwen3Guard-Gen-8B`, whose head is
 //! its own. It is also the model of any dense Qwen3 an `hf:` repo holds, and
 //! the text model of
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
