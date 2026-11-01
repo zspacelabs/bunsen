@@ -16,27 +16,28 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs and generate the models from them, and fetch
-## the checkpoints compared against them: Qwen's `Qwen3-ASR-0.6B` and
-## `FermionResearch`'s three Phonon-1 builds.
+## Compile the tests against the checkpoints (Qwen's `Qwen3-ASR-0.6B`,
+## `FermionResearch`'s three Phonon-1 builds). Each fetches what it reads at
+## run time, through bunsen's pinned rows, into the weights cache
+## (`BUNSEN_CACHE_DIR`, or the user's cache directory), shared with
+## everything else that loads them through bunsen.
 ##
-## **Off by default.** Enabling this makes `bind-qwen3-asr-onnx`'s build
-## reach the network on a cold cache (~6.7 GB), which a plain
-## `cargo build --workspace` must never do. Every asset is verified against a
-## pinned SHA-256, so a warm build is offline and reproducible.
-download = [
-    "dep:bind-qwen3-asr-onnx",
-    "bind-qwen3-asr-onnx/onnx_gen",
-    "bind-qwen3-asr-onnx/checkpoint",
-    "bind-qwen3-asr-onnx/variant_checkpoints",
-    "bind-qwen3-asr-onnx/base_checkpoint",
-]
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `tools/validate.py`); this only compiles them.
+checkpoints = ["bunsen/fetch"]
 
-## Compile every test that loads a model.
+## Fetch `OpenVoiceOS/qwen3-asr-0.6b-onnx`'s export and generate the
+## reference models from it, at build time (`bind-qwen3-asr-onnx/onnx_gen`,
+## 3.8 GB), and compile the tests against them.
+reference = ["dep:bind-qwen3-asr-onnx", "bind-qwen3-asr-onnx/onnx_gen"]
+
+## Compile the `checkpoints` and `reference` tests that run a model on a
+## backend.
 ##
 ## **Off by default**, and orthogonal to the backend features: this selects
 ## *whether* those tests are built, a backend feature selects *which*
-## accelerator runs them, and both are passed. Needs `download` too.
+## accelerator runs them, and both are passed.
 gpu-tests = []
 
 ## Run the cross-check on `wgpu`. The usual choice.

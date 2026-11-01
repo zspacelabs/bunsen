@@ -98,117 +98,128 @@ fn transcribe_windows(
     (against_reference, against_truth)
 }
 
-/// bunsen on Qwen's base weights decodes what `transformers` decodes.
-#[test]
-#[serial_test::serial]
-fn test_bunsen_base_transcribes_like_transformers() {
-    let (reference, truth) = transcribe_windows("qwen/qwen3-asr-0.6b", &speech_reference().base);
-    // Measured on wgpu: 0.0 (ids identical) and 0.0085.
-    assert!(reference <= 0.0, "WER vs transformers {reference}");
-    assert!(truth <= 0.02, "WER vs the transcript {truth}");
-}
+/// Each row decodes what `transformers` decodes.
+mod transcribes_like_transformers {
+    use super::*;
 
-/// bunsen's Phonon-1 decodes what `transformers` decodes on the same dense
-/// weights. Its transcript is further from the truth than the base model's:
-/// it repeats a sentence, as `transformers` does on these weights.
-#[test]
-#[serial_test::serial]
-fn test_bunsen_phonon1_transcribes_like_transformers() {
-    let (reference, truth) = transcribe_windows("fermion/phonon-1", &speech_reference().audio6);
-    // Measured on wgpu: 0.0 (ids identical) and 0.1026.
-    assert!(reference <= 0.0, "WER vs transformers {reference}");
-    assert!(truth <= 0.12, "WER vs the transcript {truth}");
-}
-
-/// bunsen's Phonon-1-Micro decodes what `transformers` decodes.
-#[test]
-#[serial_test::serial]
-fn test_bunsen_phonon1_micro_transcribes_like_transformers() {
-    let (reference, truth) =
-        transcribe_windows("fermion/phonon-1-micro", &speech_reference().micro);
-    // Measured on wgpu: 0.0 (ids identical) and 0.1111.
-    assert!(reference <= 0.0, "WER vs transformers {reference}");
-    assert!(truth <= 0.13, "WER vs the transcript {truth}");
-}
-
-/// bunsen's Phonon-1-Big decodes what `transformers` decodes.
-#[test]
-#[serial_test::serial]
-fn test_bunsen_phonon1_big_transcribes_like_transformers() {
-    let (reference, truth) = transcribe_windows("fermion/phonon-1-big", &speech_reference().parity);
-    // Measured on wgpu: 0.0 (ids identical) and 0.0513.
-    assert!(reference <= 0.0, "WER vs transformers {reference}");
-    assert!(truth <= 0.07, "WER vs the transcript {truth}");
-}
-
-/// The stream driver, fed the clip in 0.1 s pieces under the offline policy,
-/// decodes the fixture's two windows as the bundle does: its windows are
-/// the same 30 s, and its features differ from the one-shot extractor's
-/// only at the windows' edges.
-#[test]
-#[serial_test::serial]
-fn test_bunsen_stream_driver_transcribes_like_transformers() {
-    use bunsen::kits::speech::{
-        asr_driver::{
-            EmissionPolicy,
-            LevelPolicy,
-            StreamClock,
-            TranscriptEvent,
-        },
-        qwen3_asr::{
-            Qwen3AsrEngine,
-            Qwen3AsrStreamDriver,
-        },
-    };
-
-    let device = performance_device();
-    let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
-    let rate = bundle.front_end.sample_rate();
-    // Without the quiet cut, a full window is decoded whole: the fixture's
-    // windows.
-    let engine = Qwen3AsrEngine::new(bundle).with_quiet_cut(false);
-    let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
-    let mut stream = driver
-        .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
-        .unwrap();
-
-    let samples = speech_clip(CLIP);
-    let mut events = Vec::new();
-    for piece in samples.chunks(rate / 10) {
-        events.extend(stream.write_read(piece).unwrap());
+    /// bunsen on Qwen's base weights decodes what `transformers` decodes.
+    #[test]
+    #[serial_test::serial]
+    fn qwen3_asr_0_6b() {
+        let (reference, truth) =
+            transcribe_windows("qwen/qwen3-asr-0.6b", &speech_reference().base);
+        // Measured on wgpu: 0.0 (ids identical) and 0.0085.
+        assert!(reference <= 0.0, "WER vs transformers {reference}");
+        assert!(truth <= 0.02, "WER vs the transcript {truth}");
     }
-    events.extend(stream.end_read().unwrap());
 
-    let fixture = &speech_reference().base;
-    let mut texts = Vec::new();
-    for event in &events {
-        let TranscriptEvent::Committed(segment) = event else {
-            panic!("the offline policy only commits: {event:?}");
+    /// bunsen's Phonon-1 decodes what `transformers` decodes on the same dense
+    /// weights. Its transcript is further from the truth than the base model's:
+    /// it repeats a sentence, as `transformers` does on these weights.
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1() {
+        let (reference, truth) = transcribe_windows("fermion/phonon-1", &speech_reference().audio6);
+        // Measured on wgpu: 0.0 (ids identical) and 0.1026.
+        assert!(reference <= 0.0, "WER vs transformers {reference}");
+        assert!(truth <= 0.12, "WER vs the transcript {truth}");
+    }
+
+    /// bunsen's Phonon-1-Micro decodes what `transformers` decodes.
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1_micro() {
+        let (reference, truth) =
+            transcribe_windows("fermion/phonon-1-micro", &speech_reference().micro);
+        // Measured on wgpu: 0.0 (ids identical) and 0.1111.
+        assert!(reference <= 0.0, "WER vs transformers {reference}");
+        assert!(truth <= 0.13, "WER vs the transcript {truth}");
+    }
+
+    /// bunsen's Phonon-1-Big decodes what `transformers` decodes.
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1_big() {
+        let (reference, truth) =
+            transcribe_windows("fermion/phonon-1-big", &speech_reference().parity);
+        // Measured on wgpu: 0.0 (ids identical) and 0.0513.
+        assert!(reference <= 0.0, "WER vs transformers {reference}");
+        assert!(truth <= 0.07, "WER vs the transcript {truth}");
+    }
+}
+
+mod stream_driver_transcribes_like_transformers {
+    use super::*;
+
+    /// The stream driver, fed the clip in 0.1 s pieces under the offline
+    /// policy, decodes the fixture's two windows as the bundle does: its
+    /// windows are the same 30 s, and its features differ from the one-shot
+    /// extractor's only at the windows' edges.
+    #[test]
+    #[serial_test::serial]
+    fn qwen3_asr_0_6b() {
+        use bunsen::kits::speech::{
+            asr_driver::{
+                EmissionPolicy,
+                LevelPolicy,
+                StreamClock,
+                TranscriptEvent,
+            },
+            qwen3_asr::{
+                Qwen3AsrEngine,
+                Qwen3AsrStreamDriver,
+            },
         };
-        eprintln!(
-            "{:.2}-{:.2}s: {:?}",
-            segment.start, segment.end, segment.text
-        );
-        texts.push(segment.text.clone().expect("the engine has a vocabulary"));
-    }
-    assert_eq!(texts.len(), fixture.len(), "one segment per window");
-    assert_eq!(stream.language(), Some("English"));
 
-    let text = texts.join(" ");
-    let against_reference = wer(&text, &reference_text(fixture));
-    let against_truth = wer(&text, &speech_transcript(CLIP));
-    eprintln!("driver: {text}");
-    eprintln!("WER vs transformers {against_reference:.4}, vs transcript {against_truth:.4}");
-    // Measured on wgpu: 0.0 and 0.0085, the bundle's own.
-    assert!(
-        against_reference <= 0.0,
-        "WER vs transformers {against_reference}"
-    );
-    assert!(
-        against_truth <= 0.02,
-        "WER vs the transcript {against_truth}"
-    );
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+        let rate = bundle.front_end.sample_rate();
+        // Without the quiet cut, a full window is decoded whole: the fixture's
+        // windows.
+        let engine = Qwen3AsrEngine::new(bundle).with_quiet_cut(false);
+        let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
+        let mut stream = driver
+            .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
+            .unwrap();
+
+        let samples = speech_clip(CLIP);
+        let mut events = Vec::new();
+        for piece in samples.chunks(rate / 10) {
+            events.extend(stream.write_read(piece).unwrap());
+        }
+        events.extend(stream.end_read().unwrap());
+
+        let fixture = &speech_reference().base;
+        let mut texts = Vec::new();
+        for event in &events {
+            let TranscriptEvent::Committed(segment) = event else {
+                panic!("the offline policy only commits: {event:?}");
+            };
+            eprintln!(
+                "{:.2}-{:.2}s: {:?}",
+                segment.start, segment.end, segment.text
+            );
+            texts.push(segment.text.clone().expect("the engine has a vocabulary"));
+        }
+        assert_eq!(texts.len(), fixture.len(), "one segment per window");
+        assert_eq!(stream.language(), Some("English"));
+
+        let text = texts.join(" ");
+        let against_reference = wer(&text, &reference_text(fixture));
+        let against_truth = wer(&text, &speech_transcript(CLIP));
+        eprintln!("driver: {text}");
+        eprintln!("WER vs transformers {against_reference:.4}, vs transcript {against_truth:.4}");
+        // Measured on wgpu: 0.0 and 0.0085, the bundle's own.
+        assert!(
+            against_reference <= 0.0,
+            "WER vs transformers {against_reference}"
+        );
+        assert!(
+            against_truth <= 0.02,
+            "WER vs the transcript {against_truth}"
+        );
+    }
 }
 
 /// The clip through bunsen's Qwen3-ASR stream driver, fed in 0.1 s pieces
@@ -269,10 +280,8 @@ fn stream_quiet_cut(name: &str) -> String {
 ///
 /// Measured on wgpu: WER 0.0 (base) and 0.0171 (Phonon-1), the phrase
 /// three times each.
-#[test]
-#[serial_test::serial]
-fn test_bunsen_stream_driver_cuts_full_windows_quiet() {
-    for name in ["qwen/qwen3-asr-0.6b", "fermion/phonon-1"] {
+fn check_cuts_full_windows_quiet(name: &str) {
+    {
         let text = stream_quiet_cut(name);
         let against_truth = wer(&text, &speech_transcript(CLIP));
         let phrase = normalize_transcript(&text)
@@ -286,5 +295,21 @@ fn test_bunsen_stream_driver_cuts_full_windows_quiet() {
             against_truth <= 0.03,
             "{name}: WER vs the transcript {against_truth}"
         );
+    }
+}
+
+mod stream_driver_cuts_full_windows_quiet {
+    use super::*;
+
+    #[test]
+    #[serial_test::serial]
+    fn qwen3_asr_0_6b() {
+        check_cuts_full_windows_quiet("qwen/qwen3-asr-0.6b");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn phonon_1() {
+        check_cuts_full_windows_quiet("fermion/phonon-1");
     }
 }

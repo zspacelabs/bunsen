@@ -83,12 +83,36 @@ crates:
       nvidia/parakeet-tdt-0.6b-v3: {size: medium, gb: 5.0, core: true, dtypes: [f32], varies: "NVIDIA's base weights, the ONNX reference"}
   qwen3-asr:
     package: qwen3-asr-model-validation
-    runner: features
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
     models:
-      fermion/phonon-1: {size: small, gb: 0.4, core: true, dtypes: [f32], varies: "the Fermion archive path"}
-      fermion/phonon-1-micro: {size: small, gb: 0.3, core: false, dtypes: [f32], varies: "a smaller geometry"}
-      fermion/phonon-1-big: {size: small, gb: 0.6, core: false, dtypes: [f32], varies: "a larger geometry"}
-      qwen/qwen3-asr-0.6b: {size: medium, gb: 5.4, core: true, dtypes: [f32], varies: "Qwen's base weights, the ONNX reference"}
+      fermion/phonon-1:
+        size: small
+        gb: 0.4
+        core: true
+        dtypes: [f32]
+        varies: the Fermion archive path (a fine-tune on Qwen3-ASR-0.6B's architecture), and its stream driver
+      fermion/phonon-1-micro:
+        size: small
+        gb: 0.3
+        core: false
+        dtypes: [f32]
+        varies: a smaller geometry from the same archive path
+      fermion/phonon-1-big:
+        size: small
+        gb: 0.6
+        core: false
+        dtypes: [f32]
+        varies: a larger geometry from the same archive path
+      qwen/qwen3-asr-0.6b:
+        size: medium
+        gb: 5.4
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: Qwen's base weights, the ONNX reference (3.8 GB), stage by stage, the alignment heads
+
   nanochat:
     package: nanochat-model-validation
     runner: nextest
