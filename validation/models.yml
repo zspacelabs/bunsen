@@ -20,6 +20,11 @@
 #   reference   whether its tests need the crate's `reference` feature.
 #   dtypes      what it is checked in; `bf16` checks run on `cuda` alone.
 #   varies      the variation it stands for (core), or repeats (not core).
+#
+# A test is a *driver* check when its path has a `driver` segment
+# (`speech::driver::phonon_2`): a stream driver held to the same model's
+# one-shot decode. Every other test of a model is a *model* check: the model
+# against its reference. A profile's `checks` chooses between them.
 
 crates:
   qwen3:
@@ -80,6 +85,12 @@ crates:
         reference: true
         dtypes: [f32]
         varies: the OpenAI layout and its decodes, the ONNX reference, the bundle, the transformers conversion
+      openai/tiny:
+        size: small
+        gb: 0.08
+        core: false
+        dtypes: [f32]
+        varies: base's architecture, smaller - the stream driver against its one-shot decode, which CI runs
   sortformer:
     package: sortformer-model-validation
     runner: nextest

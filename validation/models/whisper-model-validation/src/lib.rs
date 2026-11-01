@@ -162,6 +162,10 @@ pub fn synthetic_encoder_output(device: &Device) -> burn::prelude::Tensor<3> {
 #[cfg(test)]
 mod base;
 
+/// `openai/tiny`'s checks: the driver's, which CI runs.
+#[cfg(test)]
+mod tiny;
+
 /// A fixture, and the accuracy it is held to.
 pub struct Fixture {
     /// The basename of its reference, `testdata/{name}.reference.json`.

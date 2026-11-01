@@ -336,9 +336,9 @@ reference is a build-time asset, under `reference`, which also brings in the
 bind crate's bundle of checkpoints the conversion is cross-checked with:
 bundling is for verification alone. A profile (`validation/models.yml`,
 `validation/README.md`) chooses which models' tests run. CI turns on neither
-by default: `validation.yml` runs Silero's and Whisper's whole suites on the
-CPU only when asked, from the Actions tab or for a pull request with the
-`validate` label. The rest are run by hand (`cargo make validate-<model>`,
+by default: `validation.yml` runs the stream drivers on the smallest models,
+on the CPU (the `ci` profile), only when asked, from the Actions tab or for a
+pull request with the `validate` label. The rest are run by hand (`cargo make validate-<model>`,
 `cargo make validate`).
 
 ### Fetched assets live in `OUT_DIR`
@@ -378,8 +378,7 @@ does.
 Cache assets by their digest instead. `BUNSEN_ASSET_CACHE` names a directory
 that `bunsen_fetch::Asset::resolve` keeps every fetched file in, as
 `<sha256>`, and takes a pinned file from before fetching it, verified as
-always. Its paths never move, so `validation.yml` caches it under a key that
-hashes the pins, and prunes what is no longer pinned before it saves. Unset,
+always. Its paths never move, so a cache of it never goes stale. Unset,
 nothing outside `OUT_DIR` is read or written.
 
 ### Model assets

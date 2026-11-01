@@ -97,7 +97,7 @@ pub const FIXTURES: &[Fixture] = &[Fixture {
 
 /// The rate Whisper's front end is defined at, and the rate fixtures are
 /// stored at.
-const SAMPLE_RATE: usize = 16_000;
+pub(crate) const SAMPLE_RATE: usize = 16_000;
 
 /// Whisper's fixed analysis window: 30 s.
 const N_SAMPLES: usize = 30 * SAMPLE_RATE;
@@ -269,7 +269,7 @@ impl Vocab {
 }
 
 /// The shared vocabulary, for turning ids into text.
-fn vocab() -> Vocab {
+pub(crate) fn vocab() -> Vocab {
     let policy = WhisperTokenLayout::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
     let ranks = WhisperVocabulary::for_layout(policy.ids())
         .load(&crate::weights_cache())
@@ -285,7 +285,7 @@ fn vocab() -> Vocab {
 }
 
 /// A fixture's samples, decoded from mp3.
-fn samples(name: &str) -> Vec<f32> {
+pub(crate) fn samples(name: &str) -> Vec<f32> {
     bunsen::support::audio::load_audio_mono_sr(clip(name).path(), SAMPLE_RATE)
         .unwrap_or_else(|e| panic!("{name}: {e}"))
 }

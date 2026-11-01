@@ -36,7 +36,7 @@ formatting check, by hand. Each crate's features opt in:
 |---|---|
 | `cargo make validate` | the models `VALIDATION_PROFILE` chooses (default `small-core`), every crate ("Choosing what to validate", below) |
 | `cargo make validate-cpu` | Silero's and Whisper's checks on the checkpoints alone, on the CPU (~150 MB) |
-| `cargo make validate-ci` | Silero's and Whisper's whole suites, on the CPU (~730 MB); `validation.yml` runs this when asked: from the Actions tab, or for a PR labelled `validate` |
+| `cargo make validate-ci` | the stream drivers on the smallest models, on the CPU: the `ci` profile (~0.6 GB); `validation.yml` runs this when asked: from the Actions tab, or for a PR labelled `validate` |
 | `cargo make validate-<model>` | one crate's every model (`large-all`), in release mode, on `VALIDATION_BACKEND` (default `wgpu`) |
 | `cargo make validate-all` | every model's whole suite (~95 GB on a cold cache) |
 
@@ -98,14 +98,21 @@ include:
 deny:
   - {crate: voxtral}
 dtypes: [f32, bf16]                    # default [f32]; bf16 runs on cuda alone
+checks: [model, driver]                # the default; `driver` alone builds no ONNX reference
 backend: cuda                          # the default for --backend
 ```
 
 The shipped profiles are cumulative: `small-core`, `small-all`,
 `medium-core`, `medium-all`, `large-core` and `large-all`, each `-core` the
 representatives up to that size and each `-all` every model up to it.
+`ci` is the stream drivers on the smallest models, on the CPU: what CI runs.
 `profiles/example-machine.yml` is one machine's. A profile is named by
 `--profile` (a name here, or a path), else `BUNSEN_VALIDATE_PROFILE`.
+
+A **driver** check is a test with a `driver` segment in its path
+(`speech::driver::phonon_2`): a stream driver held to the same model's
+one-shot decode. Every other test of a model is a **model** check: the model
+against its reference. `checks` chooses between them.
 
 ### Tests carry their model
 

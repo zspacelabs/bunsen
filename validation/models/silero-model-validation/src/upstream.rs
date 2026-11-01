@@ -143,32 +143,37 @@ mod vad_16k {
         }
     }
 
-    /// Streamed in two calls, Silero's probabilities are those of one call
-    /// over the same chunks.
-    #[test]
-    #[serial_test::serial]
-    fn test_silero_streams_as_one_call() {
-        use bunsen::kits::speech::asr_driver::VoiceActivityModel;
+    /// The stream's driver check, which CI runs.
+    mod driver {
+        use super::*;
 
-        let model = upstream(&cpu_device());
-        let chunk = VoiceActivityModel::chunk_size(&model);
-        let mut samples =
-            load_audio_mono_sr(bunsen_test_audio::JFK_MOON_4S.path(), 16_000).unwrap();
-        samples.truncate(samples.len() / chunk * chunk);
+        /// Streamed in two calls, Silero's probabilities are those of one call
+        /// over the same chunks.
+        #[test]
+        #[serial_test::serial]
+        fn streams_as_one_call() {
+            use bunsen::kits::speech::asr_driver::VoiceActivityModel;
 
-        let whole = model.new_stream().probabilities(samples.clone());
-        assert_eq!(whole.len(), samples.len() / chunk);
+            let model = upstream(&cpu_device());
+            let chunk = VoiceActivityModel::chunk_size(&model);
+            let mut samples =
+                load_audio_mono_sr(bunsen_test_audio::JFK_MOON_4S.path(), 16_000).unwrap();
+            samples.truncate(samples.len() / chunk * chunk);
 
-        let mut stream = model.new_stream();
-        let cut = 37 * chunk;
-        let mut parts = stream.probabilities(samples[..cut].to_vec());
-        parts.extend(stream.probabilities(samples[cut..].to_vec()));
+            let whole = model.new_stream().probabilities(samples.clone());
+            assert_eq!(whole.len(), samples.len() / chunk);
 
-        assert_eq!(parts.len(), whole.len());
-        for (a, b) in parts.iter().zip(&whole) {
-            assert!((a - b).abs() < 1e-5, "{a} != {b}");
+            let mut stream = model.new_stream();
+            let cut = 37 * chunk;
+            let mut parts = stream.probabilities(samples[..cut].to_vec());
+            parts.extend(stream.probabilities(samples[cut..].to_vec()));
+
+            assert_eq!(parts.len(), whole.len());
+            for (a, b) in parts.iter().zip(&whole) {
+                assert!((a - b).abs() < 1e-5, "{a} != {b}");
+            }
+            assert!(whole.iter().any(|&p| p > 0.5));
         }
-        assert!(whole.iter().any(|&p| p > 0.5));
     }
 
     /// `silero/vad-16k` loads through the factory from the cache

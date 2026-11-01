@@ -113,11 +113,12 @@ Whisper's fixtures against its vocabulary. They run on the CPU, as
 pretrained pathway on the bundled `base.pt`, Silero's bundled cache) run
 under `reference`, where the bundle is: bundling is for verification.
 
-`validation.yml` runs Silero's and Whisper's whole suites, ONNX cross-checks
-included, on the CPU (`cargo make validate-ci`), over about 730 MB of assets it
-caches by digest ([Assets](./assets.md#how-ci-caches-them)). It runs only when
-asked: from the Actions tab, or for a pull request with the `validate` label,
-then on every push while the label stays.
+`validation.yml` runs the stream drivers on the smallest models, on the CPU
+(the `ci` profile, `cargo make validate-ci`): each driver held to its model's
+own one-shot decode, over about 0.6 GB of checkpoints it caches. How a model
+behaves against its reference is the validate targets', run by hand. It runs
+only when asked: from the Actions tab, or for a pull request with the
+`validate` label, then on every push while the label stays.
 
 `cargo make validate-<model>` (`silero`, `whisper`, `parakeet`, `qwen3-asr`,
 `qwen3`, `sortformer`, `voxtral`, `nanochat`, or `all`) runs a model's whole suite, in release mode, on
