@@ -56,24 +56,24 @@ fn check_row(row: &str) {
 
 #[test]
 #[serial_test::serial]
-fn test_qwen3_0_6b_greedy() {
+fn qwen3_0_6b() {
     check_row("qwen3-0.6b");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_qwen3_1_7b_greedy() {
+fn qwen3_1_7b() {
     check_row("qwen3-1.7b");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_qwen3_4b_greedy() {
+fn qwen3_4b() {
     check_row("qwen3-4b");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_qwen3_4b_instruct_2507_greedy() {
+fn qwen3_4b_instruct_2507() {
     check_row("qwen3-4b-instruct-2507");
 }

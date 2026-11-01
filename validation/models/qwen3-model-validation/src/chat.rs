@@ -43,10 +43,10 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf) {
 
 /// Every text encodes to `transformers`' ids, added tokens in it matched,
 /// and decodes back to itself.
-#[test]
-fn test_tokenizer_matches_transformers() {
-    for (row, fixture) in chat_reference() {
-        let (tokenizer, config) = tokenizer_files(&row);
+fn check_tokenizer(row: &str) {
+    let fixture = &chat_reference()[row];
+    {
+        let (tokenizer, config) = tokenizer_files(row);
         let tok = Qwen3Tokenizer::from_files(&tokenizer, Some(&config)).unwrap();
         for case in &fixture.encode {
             assert_eq!(
@@ -62,10 +62,10 @@ fn test_tokenizer_matches_transformers() {
 
 /// Every conversation, under every setting, renders to `transformers`'
 /// text, which encodes to its ids.
-#[test]
-fn test_chat_template_matches_transformers() {
-    for (row, fixture) in chat_reference() {
-        let (tokenizer, config) = tokenizer_files(&row);
+fn check_template(row: &str) {
+    let fixture = &chat_reference()[row];
+    {
+        let (tokenizer, config) = tokenizer_files(row);
         let tok = Qwen3Tokenizer::from_files(&tokenizer, Some(&config)).unwrap();
         let template = ChatTemplate::from_file(&config).unwrap();
         for case in &fixture.templates {
@@ -91,3 +91,25 @@ fn test_chat_template_matches_transformers() {
         eprintln!("{row}: {} renders alike", fixture.templates.len());
     }
 }
+
+/// A row's tokenizer and template tests, under the row's id.
+macro_rules! chat_row {
+    ($id:ident, $row:literal) => {
+        mod $id {
+            use super::*;
+
+            #[test]
+            fn tokenizer() {
+                check_tokenizer($row);
+            }
+
+            #[test]
+            fn template() {
+                check_template($row);
+            }
+        }
+    };
+}
+
+chat_row!(qwen3_0_6b, "qwen3-0.6b");
+chat_row!(qwen3_4b_instruct_2507, "qwen3-4b-instruct-2507");

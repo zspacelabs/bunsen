@@ -1,0 +1,105 @@
+# The models the validation crates check, and what each stands for.
+#
+# `tools/validate.py` reads this and a profile (`profiles/*.yml`) and runs the
+# chosen models' tests; see README.md, "Choosing what to validate".
+#
+# Per crate:
+#   package     the validation crate.
+#   runner      `nextest`: run by `validate.py`, each test of a model having the
+#               model's id in its path (`qwen3-0.6b` -> `...::qwen3_0_6b::...`).
+#               `features`: not yet converted; `cargo make validate-<crate>`.
+#   features    always on when the crate runs.
+#   reference   the feature that builds the crate's ONNX reference, turned on
+#               when a chosen model has `reference: true`.
+#
+# Per model (the id is bunsen's row name):
+#   size        `small` (fetches up to ~1 GB, its reference included),
+#               `medium` (up to ~10 GB) or `large`.
+#   gb          what it fetches on a cold cache.
+#   core        whether it is a representative: the one model for an
+#               architecture variation the kit has. The others repeat one.
+#   reference   whether its tests need the crate's `reference` feature.
+#   dtypes      what it is checked in; `bf16` checks run on `cuda` alone.
+#   varies      the variation it stands for (core), or repeats (not core).
+
+crates:
+  qwen3:
+    package: qwen3-model-validation
+    runner: nextest
+    features: [checkpoints, gpu-tests]
+    reference: reference
+    models:
+      qwen3-0.6b:
+        size: medium
+        gb: 3.9
+        core: true
+        reference: true
+        dtypes: [f32]
+        varies: the tied head, the ONNX reference (2.4 GB), the thinking chat template and its sessions
+      qwen3-1.7b:
+        size: medium
+        gb: 4.1
+        core: false
+        dtypes: [f32]
+        varies: a wider geometry of qwen3-0.6b's architecture
+      qwen3-4b:
+        size: medium
+        gb: 8.0
+        core: false
+        dtypes: [f32]
+        varies: a deeper geometry of qwen3-0.6b's architecture
+      qwen3-4b-instruct-2507:
+        size: medium
+        gb: 8.0
+        core: false
+        dtypes: [f32]
+        varies: a rotary base of 5e6 (a config value the config tests read), the non-thinking template and its sessions
+
+  # Not yet converted: their `download` feature fetches every model at build
+  # time. Their models, for the plan (scratch/validation-groups/PLAN.md):
+  silero:
+    package: silero-model-validation
+    runner: features
+    models:
+      silero-vad-16k: {size: small, gb: 0.004, core: true, dtypes: [f32], varies: "the only model"}
+  whisper:
+    package: whisper-model-validation
+    runner: features
+    models:
+      whisper-base: {size: small, gb: 0.7, core: true, dtypes: [f32], varies: "the OpenAI layout, its transformers conversion, the ONNX reference"}
+  sortformer:
+    package: sortformer-model-validation
+    runner: features
+    models:
+      sortformer-nemotron: {size: small, gb: 0.8, core: true, dtypes: [f32], varies: "Nemotron-3's feature stacking, its ONNX reference"}
+      sortformer-v2.1: {size: small, gb: 1.0, core: true, dtypes: [f32], varies: "the streaming v2 family, its ONNX reference"}
+      sortformer-v2: {size: small, gb: 0.5, core: false, dtypes: [f32], varies: "v2 weights on v2.1's architecture"}
+      sortformer-speakers: {size: small, gb: 0.7, core: false, dtypes: [f32], varies: "speakers over the Parakeet, Qwen3-ASR and Whisper engines"}
+  parakeet:
+    package: parakeet-model-validation
+    runner: features
+    models:
+      fermion/phonon-2: {size: small, gb: 0.2, core: true, dtypes: [f32], varies: "the Fermion archive path"}
+      nvidia/parakeet-tdt-0.6b-v3: {size: medium, gb: 5.0, core: true, dtypes: [f32], varies: "NVIDIA's base weights, the ONNX reference"}
+  qwen3-asr:
+    package: qwen3-asr-model-validation
+    runner: features
+    models:
+      fermion/phonon-1: {size: small, gb: 0.4, core: true, dtypes: [f32], varies: "the Fermion archive path"}
+      fermion/phonon-1-micro: {size: small, gb: 0.3, core: false, dtypes: [f32], varies: "a smaller geometry"}
+      fermion/phonon-1-big: {size: small, gb: 0.6, core: false, dtypes: [f32], varies: "a larger geometry"}
+      qwen/qwen3-asr-0.6b: {size: medium, gb: 5.4, core: true, dtypes: [f32], varies: "Qwen's base weights, the ONNX reference"}
+  nanochat:
+    package: nanochat-model-validation
+    runner: features
+    models:
+      nanochat-students/rl-d20: {size: medium, gb: 2.1, core: true, dtypes: [f32, bf16], varies: "upstream's 2025 model, with chat sessions"}
+      nitishpandey04/nanochat-d18-sft: {size: medium, gb: 2.1, core: true, dtypes: [f32, bf16], varies: "upstream's 2026 model, with chat sessions"}
+      nanochat-students/base-d20: {size: medium, gb: 2.1, core: false, dtypes: [f32, bf16], varies: "another stage of the 2025 model"}
+      nanochat-students/mid-d20: {size: medium, gb: 2.1, core: false, dtypes: [f32, bf16], varies: "another stage of the 2025 model"}
+      nitishpandey04/nanochat-d18-base: {size: medium, gb: 2.1, core: false, dtypes: [f32, bf16], varies: "another stage of the 2026 model"}
+  voxtral:
+    package: voxtral-model-validation
+    runner: features
+    models:
+      mistralai/voxtral-mini-4b-realtime-2602: {size: large, gb: 28.3, core: true, dtypes: [f32], varies: "the only model"}

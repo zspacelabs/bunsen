@@ -1,0 +1,4 @@
+# Every model.
+extends: [medium-all, large-core]
+include:
+  - {size: large}

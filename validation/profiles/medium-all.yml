@@ -1,0 +1,4 @@
+# Every model up to ~10 GB.
+extends: [small-all, medium-core]
+include:
+  - {size: medium}

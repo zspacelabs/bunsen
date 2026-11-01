@@ -1,0 +1,10 @@
+# nextest, for the validation workspace alone (the bunsen workspace runs
+# `cargo test`). `tools/validate.py` runs under the `validate` profile.
+
+[profile.validate]
+# One test at a time: each loads a model onto the one accelerator.
+test-threads = 1
+# A large model's first run fetches its checkpoint.
+slow-timeout = { period = "300s" }
+fail-fast = false
+failure-output = "immediate-final"

@@ -331,6 +331,13 @@ Actions tab, or for a pull request with the `validate` label. The rest are run
 by hand (`cargo make validate-<model>`), with `download`, `gpu-tests` and a
 backend.
 
+A crate converted to `validation/models.yml` (`qwen3`) instead fetches its
+checkpoints at run time, from the tests that read them, through bunsen's
+pinned rows into the weights cache: its `checkpoints` feature compiles those
+tests, off by default, and a profile chooses which run
+(`validation/README.md`). Its reference graph stays a build-time asset, under
+`reference`.
+
 ### Fetched assets live in `OUT_DIR`
 
 A fetched asset lands in the build script's `OUT_DIR`, never beside the

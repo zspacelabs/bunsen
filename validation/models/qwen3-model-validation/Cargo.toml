@@ -16,26 +16,27 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graph and generate the model from it, and fetch the
-## checkpoints compared against it and against `transformers`: Qwen's
-## `Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-4B` and `Qwen3-4B-Instruct-2507`.
+## Compile the tests against Qwen's checkpoints. Each fetches what it reads
+## at run time, through bunsen's pinned rows, into the weights cache
+## (`BUNSEN_CACHE_DIR`, or the user's cache directory): a model's files are
+## fetched once, when a test of it first runs, and shared with everything
+## else that loads it through bunsen.
 ##
-## **Off by default.** Enabling this makes `bind-qwen3-onnx`'s build
-## reach the network on a cold cache (~24 GB), which a plain
-## `cargo build --workspace` must never do. Every asset is verified against a
-## pinned SHA-256, so a warm build is offline and reproducible.
-download = [
-    "dep:bind-qwen3-onnx",
-    "bind-qwen3-onnx/onnx_gen",
-    "bind-qwen3-onnx/checkpoint",
-    "bind-qwen3-onnx/large_checkpoints",
-]
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `tools/validate.py`); this only compiles them.
+checkpoints = ["bunsen/fetch"]
 
-## Compile every test that loads a model.
+## Fetch `onnx-community/Qwen3-0.6B-ONNX`'s export and generate the reference
+## model from it, at build time (`bind-qwen3-onnx/onnx_gen`, 2.4 GB), and
+## compile the tests against it.
+reference = ["dep:bind-qwen3-onnx", "bind-qwen3-onnx/onnx_gen"]
+
+## Compile the `checkpoints` tests that run a model on a backend.
 ##
 ## **Off by default**, and orthogonal to the backend features: this selects
 ## *whether* those tests are built, a backend feature selects *which*
-## accelerator runs them, and both are passed. Needs `download` too.
+## accelerator runs them, and both are passed.
 gpu-tests = []
 
 ## Run the cross-check on `wgpu`. The usual choice.
