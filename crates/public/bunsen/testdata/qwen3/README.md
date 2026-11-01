@@ -22,6 +22,10 @@ from Qwen's repos (Apache-2.0), which the `hf:` config reader is tested on.
 | `qwen3-4b-thinking-2507.config.json` | `Qwen/Qwen3-4B-Thinking-2507` at `768f209d9ea81521153ed38c47d515654e938aea` |
 | `qwen3-8b.config.json` | `Qwen/Qwen3-8B` at `b968826d9c46dd6066d109eabc6255188de91218` |
 | `qwen3-8b-base.config.json` | `Qwen/Qwen3-8B-Base` at `49e3418fbbbca6ecbdf9608b4d22e5a407081db4` |
+| `qwen3-4b-saferl.config.json` | `Qwen/Qwen3-4B-SafeRL` at `1b95ccb88cabaf284ffb6968719c40ae6cd4085b` |
+| `qwen3guard-gen-0.6b.config.json` | `Qwen/Qwen3Guard-Gen-0.6B` at `fada3b2f655b89601929198343c94cd2f64d93cc` |
+| `qwen3guard-gen-4b.config.json` | `Qwen/Qwen3Guard-Gen-4B` at `6ec42827da0c1ff11e7a49dc269d2e810d27e108` |
+| `qwen3guard-gen-8b.config.json` | `Qwen/Qwen3Guard-Gen-8B` at `4505cb1a6f1864f21f8b27f7daf1b9a1aab6edbb` |
 
 Regenerate the toys with `tools/gen_qwen3_toy_fixtures.py`; its docstring pins
 the versions used.

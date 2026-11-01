@@ -811,6 +811,319 @@ static QWEN3_8B_BASE: StaticPretrained<'static> = StaticPretrained {
     maps: &[&QWEN3_8B_BASE_FILES],
 };
 
+/// `Qwen/Qwen3-4B-SafeRL`'s files, at a fixed revision.
+pub static QWEN3_4B_SAFERL_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3-4b-saferl",
+    description: "Qwen3-4B-SafeRL: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3-4B-SafeRL"),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3-4B-SafeRL/resolve/1b95ccb88cabaf284ffb6968719c40ae6cd4085b",
+    )],
+    resources: &[
+        StaticResource {
+            key: "checkpoint.index",
+            file: "model.safetensors.index.json",
+            sha256: Some("466ba79f90c65a2b01d1e8a6e54a4247c8afda1550f1940ff29a711e28b6e4c1"),
+            kind: Some(SAFETENSORS_INDEX),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00001",
+            file: "model-00001-of-00003.safetensors",
+            sha256: Some("c0190626eb435fa6dc3d433aed07f2841487df23c271a9592536098fb8f5f5dc"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00002",
+            file: "model-00002-of-00003.safetensors",
+            sha256: Some("e4b710d16bf22ff30617b4f1147dbcd772d76ec15646aca7e679ae018d6756b8"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00003",
+            file: "model-00003-of-00003.safetensors",
+            sha256: Some("3fcb4f4d1b33c73fc3b2e0d3fb3f512439d3a8352f62c914153378183257bdc9"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: CONFIG,
+            file: "config.json",
+            sha256: Some("8ba006f74fecfaaeb392872a60f4a480e7ec9860153d2e1b769ec81f9a147f8a"),
+            kind: Some(JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER,
+            file: "tokenizer.json",
+            sha256: Some("aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER_CONFIG,
+            file: "tokenizer_config.json",
+            sha256: Some("d98f11fc551faeff1f0f91cf596f2c56b5e59791ecf0024dbf054ed4d5442f29"),
+            kind: Some(TOKENIZER_CONFIG_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: GENERATION_CONFIG,
+            file: "generation_config.json",
+            sha256: Some("2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"),
+            kind: Some(GENERATION_CONFIG_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3_4B_SAFERL: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3-4b-saferl",
+    aliases: &[],
+    description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat, bf16, 8.04 GB",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3-4B-SafeRL"),
+    prefab: Some("qwen3-4b"),
+    maps: &[&QWEN3_4B_SAFERL_FILES],
+};
+
+/// `Qwen/Qwen3Guard-Gen-0.6B`'s files, at a fixed revision.
+pub static QWEN3GUARD_GEN_0_6B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3guard-gen-0.6b",
+    description: "Qwen3Guard-Gen-0.6B: one safetensors file (bf16, 1.50 GB), config, tokenizer, generation config",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B/resolve/fada3b2f655b89601929198343c94cd2f64d93cc",
+    )],
+    resources: &[
+        StaticResource {
+            key: CHECKPOINT,
+            file: "model.safetensors",
+            sha256: Some("4f3ce47ebd968cddb67de08d8764f8ede7c410a7d1fb9e08145a4c7a2f2e5c0f"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: CONFIG,
+            file: "config.json",
+            sha256: Some("4674816bdf440c113a9ca87aedfa069b67f7cabbd89e71da7d4e4a68adce4af4"),
+            kind: Some(JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER,
+            file: "tokenizer.json",
+            sha256: Some("aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER_CONFIG,
+            file: "tokenizer_config.json",
+            sha256: Some("934e187433b06c5d28519e0347dd293084cf28621f00a86ae7e24e42f8b53e81"),
+            kind: Some(TOKENIZER_CONFIG_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: GENERATION_CONFIG,
+            file: "generation_config.json",
+            sha256: Some("5f0bc42aae9f779d06bf620ce685a02cb0cde802d0f27f05c7331aaf0e1fd2d7"),
+            kind: Some(GENERATION_CONFIG_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3GUARD_GEN_0_6B: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3guard-gen-0.6b",
+    aliases: &[],
+    description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 1.50 GB",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"),
+    prefab: Some("qwen3-0.6b"),
+    maps: &[&QWEN3GUARD_GEN_0_6B_FILES],
+};
+
+/// `Qwen/Qwen3Guard-Gen-4B`'s files, at a fixed revision.
+pub static QWEN3GUARD_GEN_4B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3guard-gen-4b",
+    description: "Qwen3Guard-Gen-4B: 3 safetensors shards (bf16, 8.82 GB), config, tokenizer, generation config",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B/resolve/6ec42827da0c1ff11e7a49dc269d2e810d27e108",
+    )],
+    resources: &[
+        StaticResource {
+            key: "checkpoint.index",
+            file: "model.safetensors.index.json",
+            sha256: Some("d8971e86d2f9e8ba379e389e6ec0137c931952b13db1cdcc6e3ca75fbb7c0901"),
+            kind: Some(SAFETENSORS_INDEX),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00001",
+            file: "model-00001-of-00003.safetensors",
+            sha256: Some("d73f9558059de0740f2cf77bd98705dab0073fc3b61f41460124252df60a717e"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00002",
+            file: "model-00002-of-00003.safetensors",
+            sha256: Some("13f603d405366e68d19698e90a934eae216f9e9182e5b71c236b0043cb4f8b59"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00003",
+            file: "model-00003-of-00003.safetensors",
+            sha256: Some("e12365059f1dade58ce0df2d22f9d8618eaf60e15b01b2fcceee55b6ac5a8832"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: CONFIG,
+            file: "config.json",
+            sha256: Some("49f228b735a13b8d723ac710c44875aa38e91dca7629dc79978dd004db72f3b4"),
+            kind: Some(JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER,
+            file: "tokenizer.json",
+            sha256: Some("aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER_CONFIG,
+            file: "tokenizer_config.json",
+            sha256: Some("934e187433b06c5d28519e0347dd293084cf28621f00a86ae7e24e42f8b53e81"),
+            kind: Some(TOKENIZER_CONFIG_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: GENERATION_CONFIG,
+            file: "generation_config.json",
+            sha256: Some("5f0bc42aae9f779d06bf620ce685a02cb0cde802d0f27f05c7331aaf0e1fd2d7"),
+            kind: Some(GENERATION_CONFIG_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3GUARD_GEN_4B: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3guard-gen-4b",
+    aliases: &[],
+    description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 8.82 GB",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"),
+    prefab: Some("qwen3-4b"),
+    maps: &[&QWEN3GUARD_GEN_4B_FILES],
+};
+
+/// `Qwen/Qwen3Guard-Gen-8B`'s files, at a fixed revision.
+pub static QWEN3GUARD_GEN_8B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3guard-gen-8b",
+    description: "Qwen3Guard-Gen-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B/resolve/4505cb1a6f1864f21f8b27f7daf1b9a1aab6edbb",
+    )],
+    resources: &[
+        StaticResource {
+            key: "checkpoint.index",
+            file: "model.safetensors.index.json",
+            sha256: Some("cd39d5e44c5aadfd1954b598883aea1c4a98822a2f7723d214ef2278b7fec2e4"),
+            kind: Some(SAFETENSORS_INDEX),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00001",
+            file: "model-00001-of-00005.safetensors",
+            sha256: Some("017fbd70389fd873bbd89f1b833fe867aa09fcd87438dd35d556a7a8b403b8ea"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00002",
+            file: "model-00002-of-00005.safetensors",
+            sha256: Some("497581027655f3188e40f221d4130a8659c1ebd2191f898500210d69594cc712"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00003",
+            file: "model-00003-of-00005.safetensors",
+            sha256: Some("c5b6112c09d0c89924d98be42a18887d516e1cce92ca537d20dc48ed9a0e29f2"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00004",
+            file: "model-00004-of-00005.safetensors",
+            sha256: Some("ea7cf87db6e61d88c0476dffac16a2c15b99015866ae0e5e733b28ccf756e5c3"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: "checkpoint.00005",
+            file: "model-00005-of-00005.safetensors",
+            sha256: Some("048a9615fa462914b5028b0e68256176feeee525235d194a6d9985c4973eb8c1"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: CONFIG,
+            file: "config.json",
+            sha256: Some("984e02d7c38d5aae44f9d803287a5437faf7d5c39ad04409c9e4ed5810291898"),
+            kind: Some(JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER,
+            file: "tokenizer.json",
+            sha256: Some("aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: TOKENIZER_CONFIG,
+            file: "tokenizer_config.json",
+            sha256: Some("934e187433b06c5d28519e0347dd293084cf28621f00a86ae7e24e42f8b53e81"),
+            kind: Some(TOKENIZER_CONFIG_JSON),
+            sources: &[],
+        },
+        StaticResource {
+            key: GENERATION_CONFIG,
+            file: "generation_config.json",
+            sha256: Some("5f0bc42aae9f779d06bf620ce685a02cb0cde802d0f27f05c7331aaf0e1fd2d7"),
+            kind: Some(GENERATION_CONFIG_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3GUARD_GEN_8B: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3guard-gen-8b",
+    aliases: &[],
+    description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 16.38 GB",
+    license: Some("Apache-2.0"),
+    origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"),
+    prefab: Some("qwen3-8b"),
+    maps: &[&QWEN3GUARD_GEN_8B_FILES],
+};
+
 /// Qwen's dense Qwen3 language models up to 8B.
 pub static QWEN: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
     name: "qwen",
@@ -828,6 +1141,10 @@ pub static QWEN: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
         &QWEN3_4B_THINKING_2507,
         &QWEN3_8B,
         &QWEN3_8B_BASE,
+        &QWEN3_4B_SAFERL,
+        &QWEN3GUARD_GEN_0_6B,
+        &QWEN3GUARD_GEN_4B,
+        &QWEN3GUARD_GEN_8B,
     ],
 };
 
@@ -931,6 +1248,10 @@ mod tests {
             "qwen3-4b-thinking-2507",
             "qwen3-8b",
             "qwen3-8b-base",
+            "qwen3-4b-saferl",
+            "qwen3guard-gen-0.6b",
+            "qwen3guard-gen-4b",
+            "qwen3guard-gen-8b",
         ];
         assert_eq!(
             factory.ids(),

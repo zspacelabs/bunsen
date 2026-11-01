@@ -23,6 +23,13 @@
 //! - `qwen/qwen3-8b`, `qwen/qwen3-8b-base`: the 8B chat and pretrained models,
 //!   16.4 GB, whose head is their own (the `qwen3-8b` prefab). In bf16 they fit
 //!   one 24 GB device; in f32 they do not.
+//! - `qwen/qwen3-4b-saferl`: `Qwen3-4B` tuned for safety by reinforcement
+//!   learning, 8.0 GB.
+//! - `qwen/qwen3guard-gen-0.6b`, `qwen/qwen3guard-gen-4b`,
+//!   `qwen/qwen3guard-gen-8b`: safety moderation on the 0.6B, 4B and 8B
+//!   geometries (the 8B's head its own). Their chat template asks the model to
+//!   rate the last turn, a prompt or a reply: `Safety: Safe`, `Unsafe` or
+//!   `Controversial`, and the categories it falls under.
 //!
 //! Then `hf:org/repo` names any Hugging Face repo in `transformers`'
 //! `Qwen3ForCausalLM` layout: its safetensors checkpoint (one file or
