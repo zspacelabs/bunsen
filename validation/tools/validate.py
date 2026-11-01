@@ -2,8 +2,8 @@
 """Run the validation crates under a profile: the models it chooses, their tests alone.
 
     python3 validation/tools/validate.py list   [--profile P] [--crate C]...
-    python3 validation/tools/validate.py filter [--profile P] [--crate C]... [--backend B]
-    python3 validation/tools/validate.py run    [--profile P] [--crate C]... [--backend B] [--dry-run] [-- NEXTEST_ARGS]
+    python3 validation/tools/validate.py filter [--profile P] [--crate C]... [--backend B] [--dtypes D,...]
+    python3 validation/tools/validate.py run    [--profile P] [--crate C]... [--backend B] [--dtypes D,...] [--dry-run] [-- NEXTEST_ARGS]
     python3 validation/tools/validate.py check  [--crate C]...
 
 `validation/models.yml` is the catalog: every model a crate checks, with its size, whether
@@ -193,7 +193,7 @@ def nextest_command(args) -> list[str]:
     backend = args.backend or profile["backend"] or "wgpu"
     if backend not in BACKENDS:
         sys.exit(f"backend {backend!r}: one of {BACKENDS}")
-    dtypes = profile["dtypes"] or ["f32"]
+    dtypes = args.dtypes.split(",") if args.dtypes else (profile["dtypes"] or ["f32"])
     if "bf16" in dtypes and backend != "cuda":
         print(f"bf16 checks run on cuda alone; dropping them on {backend}", file=sys.stderr)
         dtypes = [d for d in dtypes if d != "bf16"]
@@ -261,6 +261,7 @@ def main() -> None:
             p.add_argument("--profile", default=os.environ.get("BUNSEN_VALIDATE_PROFILE", "small-core"))
         if name in ("filter", "run"):
             p.add_argument("--backend", choices=BACKENDS)
+            p.add_argument("--dtypes", help="over the profile's: f32, bf16 (cuda alone), comma-separated")
         if name == "run":
             p.add_argument("--dry-run", action="store_true")
         if name in ("filter", "run"):

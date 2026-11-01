@@ -9,7 +9,7 @@ comes through a `bind-*-onnx` crate, fetched at build time and digest-pinned.
 ```text
 onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and the reference generated from it
 onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
-assets/fetch-{model}/              a model's checkpoints when its reference is not an ONNX export
+models.yml, profiles/               the catalog of models and the profiles that choose from it
 models/{model}-model-validation/   each model's cross-checks
 tools/                             the fixture generators whose output lands in models/*/testdata
 ```
@@ -45,7 +45,7 @@ formatting check, by hand. Two features opt in, on each crate:
 A machine validates what it can hold, chosen by a **profile** from a
 **catalog** of the models, and run through
 [`cargo nextest`](https://nexte.st) (this workspace alone; the bunsen
-workspace runs `cargo test`). The crates converted to it (`qwen3`, so far)
+workspace runs `cargo test`). The crates converted to it (`qwen3`, `nanochat`, so far)
 fetch their checkpoints from their tests, at run time, through bunsen's own
 pinned rows into the weights cache (`BUNSEN_CACHE_DIR`, or the user's cache
 directory), so a model is fetched once, when its first test runs, and shared

@@ -20,7 +20,8 @@ Run once; commit the outputs. Regenerating is not part of CI.
     /tmp/ncvenv-cuda/bin/python validation/tools/gen_nanochat_fixtures.py bf16 \\
         /tmp/nanochat-2025 /tmp/nanochat-2026 CACHE_ROOT
 
-`CACHE_ROOT` is `fetch-nanochat`'s `cache_dir()` (its `OUT_DIR`, built with every feature): the
+`CACHE_ROOT` is a bunsen weights cache holding the rows (`BUNSEN_CACHE_DIR`, or the user's
+cache directory, after the validation tests or `bunsen-tool chat fetch` fetched them): the
 rows' files under `pretrained/nanochat/<namespace>/<sha256>/<file>`.
 
 Pinned versions used to produce the committed fixtures:
@@ -69,7 +70,7 @@ NEW_TOKENS = 32
 N_RECORDED = 512
 
 # Each row: its generation, cache namespace, and (sha256, path in the repository) of its meta,
-# state dict and tokenizer, as `fetch-nanochat` and bunsen's rows pin them.
+# state dict and tokenizer, as bunsen's rows pin them.
 ROWS = {
     "nanochat-students/base-d20": ("2025", "nanochat-students", {
         "meta": ("a34a9b144a30d2a8066e64a91b7becc8579ea355c075e20427c28afb83ef106c", "meta_021400.json"),

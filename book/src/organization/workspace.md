@@ -14,7 +14,7 @@ tools/              one-shot fixture generators and repo checks (Python, stdlib-
 
 validation/         a workspace of its own (validation/Cargo.toml, validation/Cargo.lock)
   onnx/             the ONNX references and checkpoints, fetched at build time
-  assets/           checkpoints whose reference is not an ONNX export, fetched at build time
+  models.yml        the catalog of the models the validation crates check, which a profile chooses from
   models/           cross-checks of bunsen models against those references
   tools/            the fixture generators whose output lands in models/
 ```
@@ -58,12 +58,6 @@ Building it with its default features fetches nothing; `weights` and
 |---|---|
 | [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx) | Rewrites an onnxruntime-genai ONNX export's `com.microsoft` ops to standard ONNX, so `burn-onnx` imports it; the `bind-{model}-onnx` build scripts call it. |
 | `bind-{model}-onnx` ([`whisper`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx), [`silero`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx), [`parakeet`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-parakeet-onnx), [`qwen3`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-onnx), [`qwen3-asr`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-asr-onnx), [`sortformer`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-sortformer-onnx), [`voxtral`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-voxtral-onnx)) | Each validation crate's assets: the checkpoints it compares, fetched and digest-pinned at build time and laid out as a pretrained cache, and the reference model `burn-onnx` generates from an upstream ONNX export. Host no files. See [Assets, bundling and the network](../development/assets.md#the-bundled-crates). |
-
-### Asset crates
-
-| Crate | Role |
-|---|---|
-| [`fetch-nanochat`](https://github.com/zspacelabs/bunsen/tree/main/validation/assets/fetch-nanochat) | The community nanochat checkpoints, upstream's own `.pt` files and tokenizers, fetched and digest-pinned at build time and laid out as a pretrained cache: a model whose reference is upstream's own code, not an ONNX export. |
 
 ### Validation crates
 

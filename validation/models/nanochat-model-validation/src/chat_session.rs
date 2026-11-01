@@ -77,12 +77,12 @@ fn check_row(row: &str) {
 
 #[test]
 #[serial_test::serial]
-fn test_rl_d20_sessions() {
+fn nanochat_d20_rl() {
     check_row("nanochat-students/rl-d20");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_d18_sft_sessions() {
+fn nanochat_d18_sft() {
     check_row("nitishpandey04/nanochat-d18-sft");
 }

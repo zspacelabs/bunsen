@@ -55,30 +55,30 @@ fn check_row(row: &str) {
 
 #[test]
 #[serial_test::serial]
-fn test_base_d20_greedy() {
+fn nanochat_d20_base() {
     check_row("nanochat-students/base-d20");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_mid_d20_greedy() {
+fn nanochat_d20_mid() {
     check_row("nanochat-students/mid-d20");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_rl_d20_greedy() {
+fn nanochat_d20_rl() {
     check_row("nanochat-students/rl-d20");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_d18_base_greedy() {
+fn nanochat_d18_base() {
     check_row("nitishpandey04/nanochat-d18-base");
 }
 
 #[test]
 #[serial_test::serial]
-fn test_d18_sft_greedy() {
+fn nanochat_d18_sft() {
     check_row("nitishpandey04/nanochat-d18-sft");
 }
