@@ -91,8 +91,9 @@ pub fn load_hf_tensors(
 /// file. What bunsen's model fixes is checked: a GELU audio tower with as
 /// many key/value heads as query heads, whose output is the text model's
 /// width; and a text model as
-/// [`qwen3_config_from_hf_section`] checks it, its head tied unless the
-/// section or the file says otherwise.
+/// [`qwen3_config_from_hf_section`] reads it, with its head tied: the
+/// section or the file may say so or say nothing, as Qwen3-ASR ships no head
+/// of its own.
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
@@ -132,6 +133,7 @@ pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
         &c.section("text_config")?,
         c.bool_or("tie_word_embeddings", true)?,
     )?;
+    c.expect_eq("tie_word_embeddings", text.tied_head, true)?;
     a.expect_eq("output_dim", a.usize("output_dim")?, text.d_model())?;
 
     Ok(Qwen3AsrConfig::new(audio, text).with_audio_token(c.usize("audio_token_id")?))

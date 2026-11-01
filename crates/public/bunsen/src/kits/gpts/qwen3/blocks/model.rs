@@ -8,6 +8,8 @@ use burn::{
     nn::{
         Embedding,
         EmbeddingConfig,
+        Linear,
+        LinearConfig,
         norm::{
             NormalizationConfig,
             RmsNorm,
@@ -133,6 +135,11 @@ pub struct Qwen3Config {
     /// The rotary embedding's base.
     #[config(default = "1_000_000")]
     pub rope_theta: usize,
+
+    /// Whether the output head is the embedding (`transformers`'
+    /// `tie_word_embeddings`); otherwise it is a linear map of its own.
+    #[config(default = "true")]
+    pub tied_head: bool,
 }
 
 impl Qwen3Config {
@@ -158,6 +165,13 @@ impl Qwen3Config {
     /// [`qwen3_4b`](Self::qwen3_4b)'s, with a rotary base of 5 * 10^6.
     pub fn qwen3_4b_2507() -> Self {
         Self::qwen3_4b().with_rope_theta(5_000_000)
+    }
+
+    /// `Qwen3-8B`'s geometry: 36 layers of width 4096, 32 query and 8
+    /// key/value heads of width 128, a 12288-wide feed-forward, and an output
+    /// head of its own.
+    pub fn qwen3_8b() -> Self {
+        Self::new(151_936, 4096, 36, 32, 8, 128, 12288).with_tied_head(false)
     }
 
     /// The rotary embedding for `seq_len` positions.
@@ -212,8 +226,14 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
                 .try_init(i, device)
             })
             .collect::<BunsenResult<_>>()?;
+        let lm_head = (!self.tied_head).then(|| {
+            LinearConfig::new(self.d_model, self.n_vocab)
+                .with_bias(false)
+                .init(device)
+        });
         Ok(Qwen3Model {
             embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
+            lm_head,
             layers,
             norm: norm(self.d_model).init(device),
             rope_theta: self.rope_theta,
@@ -221,11 +241,12 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
     }
 }
 
-/// The Qwen3 decoder-only language model (Qwen team 2025), with its head
-/// tied to its embedding: the dense Qwen3 checkpoints up to 4B, and the text
-/// model of Qwen3-ASR.
+/// The Qwen3 decoder-only language model (Qwen team 2025): the dense Qwen3
+/// checkpoints, their head tied to the embedding (up to 4B) or a linear map
+/// of its own (8B), and the text model of Qwen3-ASR.
 ///
-/// Its own fields carry the names `transformers`' `Qwen3Model` gives them;
+/// Its own fields carry the names `transformers`' `Qwen3ForCausalLM` gives
+/// them;
 /// its layers are the generic
 /// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
 /// (RMS norms, a `SwiGLU`, QK-norm before the rotary embedding), onto which
@@ -236,8 +257,12 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// Implements [`Qwen3Meta`].
 #[derive(Module, Debug)]
 pub struct Qwen3Model {
-    /// The token embedding, and the tied output head.
+    /// The token embedding, and the output head when it is tied.
     pub embed_tokens: Embedding,
+
+    /// The output head when it is not tied: `[d_model] -> [n_vocab]`, no
+    /// bias.
+    pub lm_head: Option<Linear>,
 
     /// The decoder layers.
     pub layers: Vec<CausalDecoderBlock>,
@@ -407,7 +432,7 @@ impl Qwen3Model {
             .collect()
     }
 
-    /// The tied head: logits over the vocabulary.
+    /// The head, tied or its own: logits over the vocabulary.
     ///
     /// # Arguments
     /// * `hidden` - `[batch, seq, d_model]`, from
@@ -427,7 +452,10 @@ impl Qwen3Model {
             &[("d_model", self.d_model())],
         );
 
-        let y = unembed(&self.embed_tokens, hidden);
+        let y = match &self.lm_head {
+            Some(head) => head.forward(hidden),
+            None => unembed(&self.embed_tokens, hidden),
+        };
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -462,6 +490,7 @@ mod tests {
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.rope_theta, config.rope_theta);
         assert_eq!(model.layers[0].attn.c_q.weight.dims(), [12, 18]);
+        assert!(model.lm_head.is_none(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
         let embeds = model.embed(tokens);
@@ -475,6 +504,33 @@ mod tests {
         stepped.to_data_as::<f32>().assert_approx_eq::<f32>(
             &whole.to_data_as::<f32>(),
             burn::tensor::Tolerance::rel_abs(1e-4, 1e-5),
+        );
+    }
+
+    /// An untied head is a linear map of its own, which the logits are:
+    /// not the embedding's.
+    #[test]
+    fn test_untied_head() {
+        let device = cpu_device();
+        let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20)
+            .with_tied_head(false)
+            .init(&device);
+        let head = model.lm_head.as_ref().expect("an untied head");
+        assert_eq!(head.weight.dims(), [12, 40]);
+        assert!(head.bias.is_none());
+
+        let tokens = Tensor::<2, Int>::from_data([[1, 5, 7]], &device);
+        let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(3, &device), None);
+        let logits = model.logits(hidden.clone());
+        crate::support::testing::assert_tensors_close(
+            &logits,
+            &head.forward(hidden.clone()),
+            burn::tensor::Tolerance::default(),
+        );
+        let tied = unembed(&model.embed_tokens, hidden);
+        assert!(
+            !logits.all_close(tied, None, None),
+            "the logits are not the embedding's"
         );
     }
 
