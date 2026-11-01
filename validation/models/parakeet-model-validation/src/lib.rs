@@ -6,20 +6,25 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bind-parakeet-onnx`'s `onnx_gen`
-//! feature, which fetches ~2.5 GB of assets, pins each to a SHA-256, and
-//! caches them — all under the **`download`** feature, which is off by default
-//! so an ordinary `cargo build --workspace` never reaches the network.
+//! The checkpoints come through bunsen's own pinned rows, fetched at run time
+//! into the weights cache by the tests that read them (feature
+//! **`checkpoints`**). The generated reference comes from
+//! `bind-parakeet-onnx`'s `onnx_gen`, which fetches ~2.5 GB at build time
+//! (feature **`reference`**). Both are off by default, so a plain `cargo
+//! test` here reaches no network and runs the fixture-integrity checks alone.
+//!
+//! `validation/tools/validate.py` runs this crate under a profile, which
+//! chooses the models (`validation/models.yml`). Every test of a model has
+//! the model's id in its path
+//! (`speech::transcribes_like_the_reference::phonon_2`,
+//! `staged::parakeet_tdt_0_6b_v3::encoder_matches_reference`):
 //!
 //! ```sh
-//! cargo test --release -p parakeet-model-validation \
-//!   --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile medium-core --crate parakeet
 //! ```
 //!
-//! `gpu-tests` compiles every test that loads a model, `download` fetches
-//! what they compare against, and a backend feature says what they run on.
-//! None is inferred from the others. Without both `download` and `gpu-tests`
-//! the suite is the fixture-integrity checks, which load no model.
+//! `gpu-tests` compiles the tests that run a model on a backend, and a
+//! backend feature says which.
 //!
 //! `PARAKEET_ONNX_ENCODER`, `PARAKEET_ONNX_ENCODER_DATA` and
 //! `PARAKEET_ONNX_DECODER_JOINT` point the build at local files instead; they
@@ -33,14 +38,14 @@
 //! tests hold the generated models to it, so a defect in the ONNX import cannot
 //! pass for a defect in bunsen, or hide one.
 
-#![cfg_attr(not(feature = "download"), allow(unused))]
+#![cfg_attr(not(feature = "checkpoints"), allow(unused))]
 
 use bunsen::support::testing::TensorRecord;
 use burn::prelude::*;
 use serde::Deserialize;
 
 /// The reference models, generated from the `istupakov` export.
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub mod reference {
     pub use bind_parakeet_onnx::onnx_gen::*;
 }
@@ -211,28 +216,19 @@ pub fn synthetic_waveform(
     Tensor::from_data(TensorData::new(data, [1, n_samples]), device)
 }
 
-/// The pretrained cache the checkpoints come through.
-///
-/// Under `download`, it is rooted at `bind-parakeet-onnx`'s directory,
-/// which its build laid out as one, and offline: nothing is fetched at run
-/// time. Routing the checkpoints through the library's own factory is also
-/// what this crate is validating. Without `download` it is the default
-/// cache, which fetches on first use.
+/// The weights cache the tests load the checkpoints through: bunsen's own
+/// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
+/// pinned file the first time it is asked for; offline when
+/// `BUNSEN_VALIDATE_OFFLINE` is set. Routing the checkpoints through the
+/// library's own factory is also what this crate is validating.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    #[cfg(feature = "download")]
-    let options = PretrainedCacheOptions::default()
-        .with_disk(
-            bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bind_parakeet_onnx::cache_dir().to_path_buf())),
-        )
-        .with_offline(true);
-    #[cfg(not(feature = "download"))]
-    let options = PretrainedCacheOptions::default();
-    PretrainedCache::new(options).expect("open the pretrained cache")
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
 }
 
 /// A Parakeet pretrained by name, through bunsen's factory and
@@ -294,16 +290,21 @@ pub fn phonon2_reference() -> Phonon2Reference {
 }
 
 /// The generated reference models, held to the onnxruntime fixture.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "reference", feature = "gpu-tests"))]
 mod reference_tests;
 
 /// bunsen's Parakeet, stage by stage, against the generated reference.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(
+    test,
+    feature = "checkpoints",
+    feature = "reference",
+    feature = "gpu-tests"
+))]
 mod staged;
 
 /// Transcriptions of real speech: bunsen against the references and the
 /// ground truth.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod speech;
 
 #[cfg(test)]
