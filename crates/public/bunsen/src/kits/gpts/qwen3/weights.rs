@@ -37,20 +37,23 @@ pub fn text_layer_rekey() -> Rekey {
 
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto a
 /// [`Qwen3Model`]'s module paths: under `model.`, the layers by
-/// [`text_layer_rekey`], and the embedding and final norm as they are.
-/// Anything outside `model.` is dropped: the head is tied to the embedding,
-/// so a checkpoint's `lm_head.weight` (`Qwen3-0.6B` carries a copy of the
-/// embedding there) is not read, as `transformers` ties over it under
-/// `tie_word_embeddings`.
+/// [`text_layer_rekey`], and the embedding and final norm as they are; and
+/// `lm_head.weight`, the head's, as it is. Anything else is dropped.
+///
+/// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
+/// (`Qwen3-0.6B` carries a copy of the embedding there) is then unused, as
+/// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
 /// [`apply_rekeyed_tensors_as`] resolves to `gamma`.
 pub fn hf_rekey() -> Rekey {
-    Rekey::drop_rest().mount(
-        "model.",
-        "",
-        Rekey::keep_rest().mount_indexed("layers.", "layers.", text_layer_rekey()),
-    )
+    Rekey::drop_rest()
+        .mount(
+            "model.",
+            "",
+            Rekey::keep_rest().mount_indexed("layers.", "layers.", text_layer_rekey()),
+        )
+        .exact("lm_head.weight", "lm_head.weight")
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
@@ -89,10 +92,10 @@ pub fn qwen3_config_from_hf(json: &str) -> BunsenResult<Qwen3Config> {
 /// a Qwen3 is the text model of. `tie_default` is whether the head is tied
 /// when the section does not say.
 ///
-/// The sizes, the norm epsilon and the rotary base come from the section.
-/// What bunsen's model fixes is checked: `model_type` `qwen3`, `SiLU`, no
-/// attention bias, no sliding window, the default rotary embedding (no
-/// scaling), and the head tied to the embedding.
+/// The sizes, the norm epsilon, the rotary base and whether the head is tied
+/// come from the section. What bunsen's model fixes is checked: `model_type`
+/// `qwen3`, `SiLU`, no attention bias, no sliding window, and the default
+/// rotary embedding (no scaling).
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
@@ -112,7 +115,6 @@ pub fn qwen3_config_from_hf_section(
         false,
     )?;
     let tied = t.bool_or("tie_word_embeddings", tie_default)?;
-    t.expect_eq("tie_word_embeddings", tied, true)?;
     for rope in ["rope_parameters", "rope_scaling"] {
         if let Ok(rope) = t.section(rope) {
             rope.expect_str("rope_type", "default")?;
@@ -132,7 +134,8 @@ pub fn qwen3_config_from_hf_section(
         t.usize("intermediate_size")?,
     )
     .with_rms_eps(t.f64("rms_norm_eps")?)
-    .with_rope_theta(rope_theta as usize))
+    .with_rope_theta(rope_theta as usize)
+    .with_tied_head(tied))
 }
 
 #[cfg(test)]
@@ -181,7 +184,8 @@ mod tests {
                 Some("layers.3.mlp.up_proj.weight"),
             ),
             ("model.norm.weight", Some("norm.weight")),
-            ("lm_head.weight", None),
+            ("lm_head.weight", Some("lm_head.weight")),
+            ("lm_head.bias", None),
         ] {
             assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
         }
@@ -251,11 +255,6 @@ mod tests {
         let small = config_json!("qwen3-0.6b");
         for (from, to, field) in [
             (
-                "\"tie_word_embeddings\": true",
-                "\"tie_word_embeddings\": false",
-                "tie_word_embeddings",
-            ),
-            (
                 "\"model_type\": \"qwen3\"",
                 "\"model_type\": \"qwen3_moe\"",
                 "model_type",
@@ -277,9 +276,16 @@ mod tests {
                 .assert_err(&qwen3_config_from_hf(&small.replace(from, to)));
         }
 
+        // The head is untied where the file says so, or says nothing.
+        let untied = small.replace(
+            "\"tie_word_embeddings\": true",
+            "\"tie_word_embeddings\": false",
+        );
         let unsaid = small.replace("\"tie_word_embeddings\": true,", "");
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .message_contains("tie_word_embeddings")
-            .assert_err(&qwen3_config_from_hf(&unsaid));
+        for json in [untied, unsaid] {
+            let config = qwen3_config_from_hf(&json).unwrap();
+            assert!(!config.tied_head);
+            assert_eq!(config.d_model, 1024, "the rest as it was");
+        }
     }
 }

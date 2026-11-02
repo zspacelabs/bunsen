@@ -3,7 +3,8 @@
 //! The Qwen3 decoder-only language model, as `transformers`' `Qwen3Model`
 //! defines it: grouped-query causal self-attention with per-head query/key
 //! RMS normalization before a rotary embedding, a `SwiGLU` feed-forward, and a
-//! head tied to the embedding. [`Qwen3Model`] is built from a
+//! head tied to the embedding or a linear map of its own
+//! (`tie_word_embeddings`). [`Qwen3Model`] is built from a
 //! [`Qwen3Config`] out of the shared
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
 //! [`GatedMlp`](crate::blocks::transformers::mlp::GatedMlp) and
@@ -13,7 +14,8 @@
 //!
 //! It is the model of the dense Qwen3 checkpoints up to 4B (`Qwen3-0.6B`,
 //! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds, and `Qwen3-4B`'s `2507`
-//! builds), whose heads are tied, and the text model of
+//! builds), whose heads are tied; of any dense Qwen3 an `hf:` repo holds,
+//! tied or not; and the text model of
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //!
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].
