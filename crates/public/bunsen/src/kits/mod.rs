@@ -16,7 +16,7 @@
 //! | [`images::resnet`] | `ResNet` image classifiers, with 14 torchvision and `timm` checkpoints by name. |
 //! | [`images::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
 //! | [`gpts::nanochat`] | karpathy's nanochat GPT, upstream's 2025 and 2026 models: a pretrained index of community checkpoints (`nanochat-students/rl-d20` by default), upstream's own checkpoint files loaded as they are, cached decoding, and the corpus it trains on. |
-//! | [`gpts::qwen3`] | The Qwen3 decoder: a pretrained index of the dense Qwen3 checkpoints up to 4B (`qwen/qwen3-0.6b` by default), and the text model of [`speech::qwen3_asr`]. |
+//! | [`gpts::qwen3`] | The Qwen3 decoder: a pretrained index of the dense Qwen3 checkpoints up to 8B (`qwen/qwen3-0.6b` by default), and the text model of [`speech::qwen3_asr`]. |
 //! | [`sims::conway`] | Conway's Game of Life on toroidal 2D and 3D boards. |
 //! | [`sims::lbm`] | A D2Q9 lattice-Boltzmann fluid, with a mass correction. |
 //! | [`speech::whisper`] | `OpenAI`'s Whisper: the model, a pretrained index, decoders, and a stream driver. |

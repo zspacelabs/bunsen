@@ -36,6 +36,11 @@ pub static QWEN3_PREFABS: StaticPreFabMap<Qwen3Config> = StaticPreFabMap {
             description: "qwen3-4b with a rotary base of 5e6",
             builder: Qwen3Config::qwen3_4b_2507,
         },
+        &StaticPreFabConfig {
+            name: "qwen3-8b",
+            description: "4096 wide, 36 layers, 32 query / 8 key-value heads, a head of its own",
+            builder: Qwen3Config::qwen3_8b,
+        },
     ],
 };
 
@@ -49,6 +54,9 @@ mod tests {
         let config = QWEN3_PREFABS.expect_lookup_prefab("qwen3-4b").to_config();
         assert_eq!(config.d_model(), 2560);
         assert_eq!(config.n_layers(), 36);
-        assert!(QWEN3_PREFABS.try_lookup_prefab("qwen3-8b").is_err());
+        let config = QWEN3_PREFABS.expect_lookup_prefab("qwen3-8b").to_config();
+        assert_eq!(config.d_model(), 4096);
+        assert!(!config.tied_head);
+        assert!(QWEN3_PREFABS.try_lookup_prefab("qwen3-14b").is_err());
     }
 }

@@ -20,6 +20,9 @@
 //!   pretrained models before chat tuning.
 //! - `qwen/qwen3-4b-instruct-2507`, `qwen/qwen3-4b-thinking-2507`: `Qwen3-4B`'s
 //!   2507 builds, non-thinking and thinking, the `qwen3-4b-2507` prefab.
+//! - `qwen/qwen3-8b`, `qwen/qwen3-8b-base`: the 8B chat and pretrained models,
+//!   16.4 GB, whose head is their own (the `qwen3-8b` prefab). In bf16 they fit
+//!   one 24 GB device; in f32 they do not.
 //!
 //! Then `hf:org/repo` names any Hugging Face repo in `transformers`'
 //! `Qwen3ForCausalLM` layout: its safetensors checkpoint (one file or

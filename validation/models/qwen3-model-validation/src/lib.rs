@@ -4,7 +4,9 @@
 //! implementation, generated from `onnx-community/Qwen3-0.6B-ONNX` (an export
 //! of `Qwen/Qwen3-0.6B`) by `burn_onnx::ModelGen`, and against
 //! `transformers`' own greedy decodes of the 0.6B, 1.7B, 4B and
-//! 4B-Instruct-2507 checkpoints. Every comparison runs bunsen through its
+//! 4B-Instruct-2507 checkpoints in float32, and of the 8B in bf16 (on
+//! `--features cuda`, which runs bunsen in bf16 too: in float32 the 8B does
+//! not fit a 24 GB device). Every comparison runs bunsen through its
 //! [`KVCache`](bunsen::ops::transformers::attention::KVCache), under each
 //! [`KVCacheStorage`].
 //!
@@ -35,9 +37,10 @@
 //! The export uses onnxruntime-only ops that `burn-onnx` cannot import, so
 //! `bind-qwen3-onnx` rewrites them to standard ONNX first.
 //! `testdata/onnx_reference.json` records what onnxruntime computes for the
-//! *published* graph on fixed ids, and `testdata/transformers.json` what
-//! `transformers` decodes (`validation/tools/gen_qwen3_fixtures.py` writes
-//! both). `testdata/chat.json` records `transformers`' tokenizer and chat
+//! *published* graph on fixed ids, `testdata/transformers.json` what
+//! `transformers` decodes, and `testdata/transformers_bf16.json` what it
+//! decodes in bf16 (`validation/tools/gen_qwen3_fixtures.py` writes all
+//! three). `testdata/chat.json` records `transformers`' tokenizer and chat
 //! template on fixed texts and conversations
 //! (`validation/tools/gen_qwen3_chat_fixtures.py`), which `bunsen_tool::chat`'s
 //! are held to, and `testdata/chat_replies.json` its greedy replies to
@@ -109,6 +112,17 @@ pub const CACHE_CHUNK: usize = 8;
 /// there.
 pub const NEAR_TIE: f64 = 0.02;
 
+/// The rows held to `transformers` in bf16 on CUDA alone
+/// (`testdata/transformers_bf16.json`): those too large for a float32 run on
+/// a 24 GB device.
+pub const BF16_ROWS: [&str; 1] = ["qwen3-8b"];
+
+/// The bf16 counterpart of [`NEAR_TIE`]. `transformers`' own bf16 and
+/// float32 prefill logits differ by up to 0.16 on [`BF16_ROWS`]; two bf16
+/// implementations can each be that far from float32, in opposite
+/// directions, so a step whose margin is under this may go either way.
+pub const BF16_NEAR_TIE: f64 = 0.5;
+
 /// `testdata/onnx_reference.json`: onnxruntime's run of the published graph.
 #[derive(Debug, Deserialize)]
 pub struct OnnxReference {
@@ -158,6 +172,12 @@ pub struct GreedyRecord {
     /// copy, which a tied loader may drop.
     #[serde(default)]
     pub lm_head_vs_embed_max_abs: Option<f64>,
+
+    /// For a bf16 record, how far `transformers`' float32 prefill logits are
+    /// from its bf16 ones: bf16's own error, which bunsen's is measured
+    /// against.
+    #[serde(default)]
+    pub f32_last_logits_max_abs: Option<f64>,
 }
 
 /// Reads `testdata/transformers.json`, by row.
@@ -165,6 +185,17 @@ pub fn transformers_reference() -> BTreeMap<String, GreedyRecord> {
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/transformers.json");
     let text = std::fs::read_to_string(path).expect("read the transformers fixture");
     serde_json::from_str(&text).expect("parse the transformers fixture")
+}
+
+/// Reads `testdata/transformers_bf16.json`, by row: `transformers`' greedy
+/// decodes in bf16, of [`BF16_ROWS`].
+pub fn transformers_bf16_reference() -> BTreeMap<String, GreedyRecord> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/testdata/transformers_bf16.json"
+    );
+    let text = std::fs::read_to_string(path).expect("read the transformers bf16 fixture");
+    serde_json::from_str(&text).expect("parse the transformers bf16 fixture")
 }
 
 /// `testdata/chat.json`, by row: `transformers`' tokenizer and chat template
@@ -392,6 +423,23 @@ mod tests {
             );
         }
         assert_eq!(greedy["qwen3-0.6b"].lm_head_vs_embed_max_abs, Some(0.0));
+
+        let bf16 = transformers_bf16_reference();
+        assert_eq!(
+            bf16.keys().map(String::as_str).collect::<Vec<_>>(),
+            BF16_ROWS
+        );
+        for (row, record) in &bf16 {
+            assert_eq!(record.ids.len(), record.margins.len(), "{row}");
+            assert_eq!(record.last_logits.shape, [1, N_VOCAB], "{row}");
+            assert_eq!(
+                record.last_logits.samples.len(),
+                record.last_logits.expected_samples(),
+                "{row}"
+            );
+            let gap = record.f32_last_logits_max_abs.expect("bf16's own error");
+            assert!(gap < BF16_NEAR_TIE / 2.0, "{row}: {gap}");
+        }
 
         let chat = chat_reference();
         assert_eq!(

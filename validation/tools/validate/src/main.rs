@@ -144,6 +144,11 @@ enum Cmd {
         /// Build the ONNX references too (Voxtral's export is 19.4 GB).
         #[arg(long)]
         reference: bool,
+
+        /// Build with `cuda` too, which the bf16 test binaries need: without
+        /// it, a model checked in bf16 alone is reported, not failed.
+        #[arg(long)]
+        cuda: bool,
     },
 }
 
@@ -204,9 +209,13 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
                 plan.cargo_test(&validation, dry_run, &test_args)
             }
         }
-        Cmd::Check { crates, reference } => {
+        Cmd::Check {
+            crates,
+            reference,
+            cuda,
+        } => {
             check_crates(&catalog, &crates)?;
-            check(&catalog, &validation, &crates, reference)
+            check(&catalog, &validation, &crates, reference, cuda)
         }
     }
 }
@@ -243,7 +252,7 @@ fn list(
     profile: &Profile,
     select: &Select,
 ) {
-    let chosen = profile::choose(catalog, profile, &select.crates);
+    let chosen = profile::choose(catalog, profile, &select.crates, &profile.dtypes());
     println!(
         "profile {}; dtypes {:?}; checks {:?}",
         select.profile,
@@ -303,7 +312,7 @@ impl Plan {
         dtypes: &[Dtype],
     ) -> Plan {
         let checks = profile.checks();
-        let crates = profile::choose(catalog, profile, crates)
+        let crates = profile::choose(catalog, profile, crates, dtypes)
             .into_iter()
             // A crate with no chosen model is left out, its fixture checks too
             // (`cargo make check-validation` runs those).
@@ -482,6 +491,7 @@ fn check(
     validation: &std::path::Path,
     crates: &[String],
     reference: bool,
+    cuda: bool,
 ) -> Result<ExitCode, String> {
     let mut failed = false;
     for (krate, spec) in &catalog.crates {
@@ -493,16 +503,24 @@ fn check(
         if let (true, Some(r)) = (reference, &spec.reference) {
             features.push(r.clone());
         }
+        if cuda {
+            features.extend(Backend::Cuda.feature().map(str::to_string));
+        }
         let tests: Vec<String> = run::build_and_list(validation, &spec.package, &features)?
             .into_iter()
             .flat_map(|t| t.tests)
             .collect();
         let segments: Vec<String> = spec.models.keys().map(|m| segment(m)).collect();
-        for (model, seg) in spec.models.keys().zip(&segments) {
-            if !tests.iter().any(|t| t.split("::").any(|s| s == seg)) {
-                println!("{krate}: {model} has no test (no `{seg}` in a test path)");
-                failed = true;
+        for ((model, m), seg) in spec.models.iter().zip(&segments) {
+            if tests.iter().any(|t| t.split("::").any(|s| s == seg)) {
+                continue;
             }
+            if !cuda && !m.dtypes.contains(&Dtype::F32) {
+                println!("{krate}: {model} is checked in bf16 alone, on cuda: not built (--cuda)");
+                continue;
+            }
+            println!("{krate}: {model} has no test (no `{seg}` in a test path)");
+            failed = true;
         }
         let free: Vec<&String> = tests
             .iter()

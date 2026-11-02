@@ -59,6 +59,12 @@ crates:
         core: false
         dtypes: [f32]
         varies: a rotary base of 5e6 (a config value the config tests read), the non-thinking template and its sessions
+      qwen3-8b:
+        size: large
+        gb: 16.4
+        core: true
+        dtypes: [bf16]
+        varies: the untied output head (`tie_word_embeddings` false); bf16 on cuda alone, too large for float32 on 24 GB
 
   silero:
     package: silero-model-validation

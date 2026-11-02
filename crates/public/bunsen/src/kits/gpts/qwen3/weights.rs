@@ -247,6 +247,16 @@ mod tests {
                 config_json!("qwen3-4b-thinking-2507"),
                 Qwen3Config::qwen3_4b_2507(),
             ),
+            (
+                "qwen3-8b",
+                config_json!("qwen3-8b"),
+                Qwen3Config::qwen3_8b(),
+            ),
+            (
+                "qwen3-8b-base",
+                config_json!("qwen3-8b-base"),
+                Qwen3Config::qwen3_8b(),
+            ),
         ] {
             let config = qwen3_config_from_hf(json).unwrap();
             assert_eq!(format!("{config:?}"), format!("{expected:?}"), "{name}");
