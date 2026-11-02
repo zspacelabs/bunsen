@@ -169,6 +169,18 @@ kits:
     - model:
         name: qwen/qwen3-8b-base
         description: "Qwen3-8B-Base: the pretrained model, no chat tuning, bf16, 16.38 GB"
+    - model:
+        name: qwen/qwen3-4b-saferl
+        description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat, bf16, 8.04 GB"
+    - model:
+        name: qwen/qwen3guard-gen-0.6b
+        description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 1.50 GB"
+    - model:
+        name: qwen/qwen3guard-gen-4b
+        description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 8.82 GB"
+    - model:
+        name: qwen/qwen3guard-gen-8b
+        description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 16.38 GB"
     nanochat:
     - provider:
         name: well-known
