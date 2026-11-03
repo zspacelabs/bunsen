@@ -879,6 +879,7 @@ dependencies = [
  "serde-pickle",
  "serde-saphyr",
  "serde_json",
+ "strsim",
  "time",
  "unicode-normalization-alignments",
  "wordchipper",
