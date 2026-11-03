@@ -17,6 +17,7 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
+        PresetSet,
         PretrainedRef,
         ResourceBundle,
         SAFETENSORS_INDEX,
@@ -33,6 +34,7 @@ use crate::{
             Qwen3AsrConfig,
             Qwen3AsrConstruct,
             Qwen3AsrFrontEndConfig,
+            Qwen3AsrPolicy,
             weights::{
                 load_hf_tensors,
                 qwen3_asr_config_from_hf,
@@ -40,6 +42,7 @@ use crate::{
         },
         support::{
             construct::ConstructInit,
+            model_config::resolve_ref_presets,
             tokens::ByteLevelVocabulary,
         },
     },
@@ -123,6 +126,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
     type Construct = Qwen3AsrConstruct;
 
     const KIT: &'static str = QWEN3_ASR_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
     /// come with a `tokenizer.json` vocabulary.
@@ -165,7 +169,9 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         let n_mels = config.audio.n_mels;
         let mut asr: Qwen3Asr = config.try_init(device)?;
         load_hf_tensors(&mut asr, tensors)?;
-        let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?;
+        let policy = resolve_ref_presets(&Qwen3AsrPolicy::default(), model, &PresetSet::default())?;
+        let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
+            .with_policy(policy.config.clone(), policy.applied());
         if n_mels != bundle.front_end.config.n_mels {
             bundle.front_end = Qwen3AsrFrontEndConfig::new()
                 .with_n_mels(n_mels)
@@ -199,5 +205,33 @@ mod tests {
         }
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());
         assert!(Qwen3AsrReader::for_kind(None).is_err());
+    }
+
+    /// Every row resolves to the default policy, which has no named presets;
+    /// the lookup's patch sets its fields, and a box finds no preset.
+    #[test]
+    fn test_the_policy() {
+        use crate::kits::speech::qwen3_asr::{
+            Qwen3AsrPolicy,
+            pretrained::default_qwen3_asr_factory,
+        };
+
+        let factory = default_qwen3_asr_factory().unwrap();
+        let row = factory.ids()[0].clone();
+        let policy = |spec: &str| factory.resolve_presets(spec, &Qwen3AsrPolicy::default());
+        let default = policy(&row).unwrap();
+        assert!(default.presets.is_empty());
+        assert_eq!(default.config, Qwen3AsrPolicy::default());
+        assert_eq!(default.config.window_seconds, 30.0);
+        assert_eq!(
+            policy(&format!("{row}{{window_seconds: 20}}"))
+                .unwrap()
+                .config
+                .window_seconds,
+            20.0
+        );
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+            .message_contains("no preset")
+            .assert_err(&policy(&format!("{row}[fast]")));
     }
 }

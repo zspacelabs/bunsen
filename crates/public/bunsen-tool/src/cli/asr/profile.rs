@@ -958,7 +958,7 @@ mod tests {
         assert_eq!(r.argv().unwrap(), ["--window-seconds", "20"]);
         assert_eq!(
             r.parse_flags::<ParakeetFlags>().unwrap().window_seconds,
-            20.0
+            Some(20.0)
         );
 
         // A bare key must be the profile's family's.

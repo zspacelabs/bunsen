@@ -43,9 +43,10 @@ use crate::cli::asr::{
 pub struct VoxtralFlags {
     /// The longest stretch of audio the model sees at once, in seconds; a
     /// longer one is committed up to a pause between words, and the rest
-    /// decoded again with the audio after it.
-    #[arg(long, default_value_t = VoxtralEngine::DEFAULT_WINDOW_SECONDS)]
-    pub window_seconds: f64,
+    /// decoded again with the audio after it. The model's policy when
+    /// omitted.
+    #[arg(long)]
+    pub window_seconds: Option<f64>,
 
     /// How far the transcript runs behind the audio, in ms: a multiple of
     /// 80 up to 1200, or 2400. Longer is more accurate; the model's
@@ -68,10 +69,10 @@ pub fn driver(
     device: &Device,
 ) -> BunsenResult<VoxtralStreamDriver> {
     let position = bundle.samples_per_position() as f64 / bundle.front_end.sample_rate() as f64;
-    if flags.window_seconds.is_nan() || flags.window_seconds < position {
+    let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
+    if window_seconds.is_nan() || window_seconds < position {
         return Err(BunsenError::illegal(format!(
-            "--window-seconds {} is under one decoder position, {position} s",
-            flags.window_seconds
+            "--window-seconds {window_seconds} is under one decoder position, {position} s"
         )));
     }
     let bundle = match flags.delay_ms {
@@ -82,7 +83,7 @@ pub fn driver(
         "voxtral: delay {} ms",
         bundle.layout.delay_positions() * bundle.layout.config().position_ms
     );
-    let engine = VoxtralEngine::new(bundle).with_window_seconds(flags.window_seconds);
+    let engine = VoxtralEngine::new(bundle).with_window_seconds(window_seconds);
     let driver = VoxtralStreamDriver::new(engine, preset.into())?;
     stream::with_vad(driver, preset, cache, device)
 }

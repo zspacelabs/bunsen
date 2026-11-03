@@ -16,6 +16,7 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
+        PresetSet,
         PretrainedRef,
         ResourceBundle,
         SAFETENSORS_INDEX,
@@ -29,6 +30,7 @@ use crate::{
     kits::{
         speech::parakeet::{
             ParakeetConstruct,
+            ParakeetPolicy,
             ParakeetTdt,
             ParakeetTdtConfig,
             ParakeetVocabulary,
@@ -37,7 +39,10 @@ use crate::{
                 parakeet_config_from_hf,
             },
         },
-        support::construct::ConstructInit,
+        support::{
+            construct::ConstructInit,
+            model_config::resolve_ref_presets,
+        },
     },
 };
 
@@ -118,6 +123,7 @@ impl ConstructInit for ParakeetConstructConfig {
     type Construct = ParakeetConstruct;
 
     const KIT: &'static str = PARAKEET_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index; a Safetensors checkpoint must come with a `tokenizer.json`
@@ -143,7 +149,7 @@ impl ConstructInit for ParakeetConstructConfig {
 
     fn try_init(
         &self,
-        _model: &PretrainedRef,
+        model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
@@ -156,9 +162,13 @@ impl ConstructInit for ParakeetConstructConfig {
             }
             None => ParakeetTdtConfig::tdt_0_6b_v3(),
         };
+        let policy = resolve_ref_presets(&ParakeetPolicy::default(), model, &PresetSet::default())?;
         let mut model: ParakeetTdt = config.try_init(device)?;
         load_hf_tensors(&mut model, tensors)?;
-        Ok(Arc::new(ParakeetConstruct::new(model, vocab, device)?))
+        Ok(Arc::new(
+            ParakeetConstruct::new(model, vocab, device)?
+                .with_policy(policy.config.clone(), policy.applied()),
+        ))
     }
 }
 
@@ -186,5 +196,33 @@ mod tests {
         }
         assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());
         assert!(ParakeetReader::for_kind(None).is_err());
+    }
+
+    /// Every row resolves to the default policy, which has no named presets;
+    /// the lookup's patch sets its fields, and a box finds no preset.
+    #[test]
+    fn test_the_policy() {
+        use crate::kits::speech::parakeet::{
+            ParakeetPolicy,
+            pretrained::default_parakeet_factory,
+        };
+
+        let factory = default_parakeet_factory().unwrap();
+        let row = factory.ids()[0].clone();
+        let policy = |spec: &str| factory.resolve_presets(spec, &ParakeetPolicy::default());
+        let default = policy(&row).unwrap();
+        assert!(default.presets.is_empty());
+        assert_eq!(default.config, ParakeetPolicy::default());
+        assert_eq!(default.config.window_seconds, 60.0);
+        assert_eq!(
+            policy(&format!("{row}{{window_seconds: 20}}"))
+                .unwrap()
+                .config
+                .window_seconds,
+            20.0
+        );
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+            .message_contains("no preset")
+            .assert_err(&policy(&format!("{row}[fast]")));
     }
 }

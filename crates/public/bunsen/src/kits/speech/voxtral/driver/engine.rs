@@ -48,8 +48,8 @@ pub type VoxtralStreamContext = AsrStreamContext<VoxtralEngine>;
 /// - **Features:** the construct's log-mels, streamed ([`LogMelFeatures`]), and
 ///   packaged per window under the front end's fixed level: no statistic of the
 ///   stream enters, so the window's [`MaxLevel`] is not read. A window is at
-///   most [`DEFAULT_WINDOW_SECONDS`](Self::DEFAULT_WINDOW_SECONDS) of frames by
-///   default ([`with_window_seconds`](Self::with_window_seconds)).
+///   most the construct's policy's window of frames by default
+///   ([`with_window_seconds`](Self::with_window_seconds)).
 /// - **Decode:**
 ///   [`transcribe_features`](VoxtralConstruct::transcribe_features), one window
 ///   at a time: the window padded with silence as an utterance is, and decoded
@@ -72,20 +72,18 @@ pub struct VoxtralEngine {
 }
 
 impl VoxtralEngine {
-    /// The longest window by default, in seconds: twice the audio encoder's
-    /// attention window, so its sliding window is in play.
-    pub const DEFAULT_WINDOW_SECONDS: f64 = 30.0;
-
     /// The engine of `bundle`, on the model's device, with windows of at most
-    /// [`DEFAULT_WINDOW_SECONDS`](Self::DEFAULT_WINDOW_SECONDS).
+    /// its policy's
+    /// [`window_seconds`](crate::kits::speech::voxtral::VoxtralPolicy::window_seconds).
     pub fn new(bundle: Arc<VoxtralConstruct>) -> Self {
         let device = bundle.model.devices()[0].clone();
+        let seconds = bundle.policy.window_seconds;
         let engine = Self {
             bundle,
             window_frames: 0,
             device,
         };
-        engine.with_window_seconds(Self::DEFAULT_WINDOW_SECONDS)
+        engine.with_window_seconds(seconds)
     }
 
     /// The engine with windows of at most `seconds`, rounded down to whole

@@ -40,9 +40,10 @@ use crate::cli::asr::{
 pub struct ParakeetFlags {
     /// The longest stretch of audio the encoder sees at once, in seconds; a
     /// longer one is committed up to a pause between words, and the rest
-    /// decoded again with the audio after it.
-    #[arg(long, default_value_t = ParakeetEngine::DEFAULT_WINDOW_SECONDS)]
-    pub window_seconds: f64,
+    /// decoded again with the audio after it. The model's policy when
+    /// omitted.
+    #[arg(long)]
+    pub window_seconds: Option<f64>,
 }
 
 /// The driver for `bundle` under `flags` and `preset`.
@@ -58,13 +59,13 @@ pub fn driver(
     device: &Device,
 ) -> BunsenResult<ParakeetStreamDriver> {
     let frame = bundle.frame_seconds();
-    if flags.window_seconds.is_nan() || flags.window_seconds < frame {
+    let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
+    if window_seconds.is_nan() || window_seconds < frame {
         return Err(BunsenError::illegal(format!(
-            "--window-seconds {} is under one encoder frame, {frame} s",
-            flags.window_seconds
+            "--window-seconds {window_seconds} is under one encoder frame, {frame} s"
         )));
     }
-    let engine = ParakeetEngine::new(bundle).with_window_seconds(flags.window_seconds);
+    let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);
     let driver = ParakeetStreamDriver::new(engine, preset.into())?;
     stream::with_vad(driver, preset, cache, device)
 }

@@ -3,6 +3,10 @@ use burn::{
     Tensor,
     tensor::Device,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::{
     ParakeetFrontEnd,
@@ -14,8 +18,27 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
+    data::pretrained::PresetSelection,
     errors::BunsenResult,
 };
+
+/// How a Parakeet pretrained transcribes a stream: the config its lookup's
+/// patch sets (`{window_seconds: 20}`). It has one known policy, this
+/// default, so no named presets.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ParakeetPolicy {
+    /// The longest window, in seconds, that the
+    /// [`ParakeetEngine`](super::ParakeetEngine) decodes at once.
+    pub window_seconds: f64,
+}
+
+impl Default for ParakeetPolicy {
+    fn default() -> Self {
+        Self {
+            window_seconds: 60.0,
+        }
+    }
+}
 
 /// A Parakeet TDT model, its front end, and its vocabulary: what a
 /// pretrained loads to, and everything a transcription needs.
@@ -32,6 +55,12 @@ pub struct ParakeetConstruct {
 
     /// The pieces the model's token ids spell.
     pub vocab: ParakeetVocabulary,
+
+    /// How it transcribes a stream: what its presets resolved to.
+    pub policy: ParakeetPolicy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
 }
 
 /// One transcribed item.
@@ -117,7 +146,20 @@ impl ParakeetConstruct {
             model,
             front_end: ParakeetFrontEndConfig::new().try_init(device)?,
             vocab,
+            policy: ParakeetPolicy::default(),
+            presets: PresetSelection::default(),
         })
+    }
+
+    /// Sets the policy, and the presets that resolved it.
+    pub fn with_policy(
+        mut self,
+        policy: ParakeetPolicy,
+        presets: PresetSelection,
+    ) -> Self {
+        self.policy = policy;
+        self.presets = presets;
+        self
     }
 
     /// The duration of one encoder frame, in seconds: the front end's hop

@@ -40,9 +40,10 @@ use crate::cli::asr::{
 pub struct Qwen3AsrFlags {
     /// The longest stretch of audio the model sees at once, in seconds; 30
     /// is the most it was trained on. A longer recording is cut at the
-    /// quietest point of each full window's last third.
-    #[arg(long, default_value_t = Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64)]
-    pub window_seconds: f64,
+    /// quietest point of each full window's last third. The model's policy
+    /// when omitted.
+    #[arg(long)]
+    pub window_seconds: Option<f64>,
 }
 
 /// The driver for `bundle` under `flags` and `preset`.
@@ -62,13 +63,13 @@ pub fn driver(
     let front_end = &bundle.front_end;
     let frame = front_end.hop() as f64 / front_end.sample_rate() as f64;
     let most = Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64;
-    if !(frame..=most).contains(&flags.window_seconds) {
+    let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
+    if !(frame..=most).contains(&window_seconds) {
         return Err(BunsenError::illegal(format!(
-            "--window-seconds {} is outside [{frame}, {most}] s",
-            flags.window_seconds
+            "--window-seconds {window_seconds} is outside [{frame}, {most}] s"
         )));
     }
-    let engine = Qwen3AsrEngine::new(bundle).with_window_seconds(flags.window_seconds);
+    let engine = Qwen3AsrEngine::new(bundle).with_window_seconds(window_seconds);
     let driver = Qwen3AsrStreamDriver::new(engine, preset.into())?;
     stream::with_vad(driver, preset, cache, device)
 }

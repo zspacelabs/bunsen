@@ -94,19 +94,17 @@ pub struct ParakeetEngine {
 }
 
 impl ParakeetEngine {
-    /// The longest window by default, in seconds.
-    pub const DEFAULT_WINDOW_SECONDS: f64 = 60.0;
-
     /// The engine of `bundle`, on the model's device, with windows of at most
-    /// [`DEFAULT_WINDOW_SECONDS`](Self::DEFAULT_WINDOW_SECONDS).
+    /// its policy's [`window_seconds`](super::ParakeetPolicy::window_seconds).
     pub fn new(bundle: Arc<ParakeetConstruct>) -> Self {
         let device = bundle.model.devices()[0].clone();
+        let seconds = bundle.policy.window_seconds;
         let engine = Self {
             bundle,
             window_frames: 0,
             device,
         };
-        engine.with_window_seconds(Self::DEFAULT_WINDOW_SECONDS)
+        engine.with_window_seconds(seconds)
     }
 
     /// The engine with windows of at most `seconds`, rounded down to whole
@@ -377,6 +375,8 @@ mod tests {
             model,
             front_end: ParakeetFrontEndConfig::new().with_n_mels(24).init(device),
             vocab: ParakeetVocabulary::new(pieces.map(String::from).to_vec()),
+            policy: Default::default(),
+            presets: Default::default(),
         }
     }
 
