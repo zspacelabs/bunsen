@@ -1,6 +1,6 @@
 //! `bunsen-tool asr`: speech to text. `asr <transcribe|live> [--preset
-//! NAME] [FLAGS]` runs a profile, a model chosen by what it is for, and `asr
-//! profiles <list|show|fetch>` shows them; `asr family
+//! NAME] [FLAGS]` runs a preset, a model chosen by what it is for, and `asr
+//! presets <list|show|fetch>` shows them; `asr family
 //! <parakeet|qwen3-asr|voxtral|whisper> <list|fetch|transcribe|live> [FLAGS]`
 //! (and `family whisper inspect|prefabs`) runs a family's model by name; `asr
 //! diarize <list|fetch|run|live>` says who spoke when.
@@ -8,6 +8,8 @@
 use bunsen::errors::BunsenResult;
 #[cfg(feature = "live")]
 mod capture;
+mod construct;
+mod construct_cmd;
 mod diarize;
 mod driver;
 mod family;
@@ -16,8 +18,6 @@ mod list_cmd;
 #[cfg(feature = "live")]
 mod live_cmd;
 mod parakeet;
-mod profile;
-mod profile_cmd;
 mod publish;
 mod qwen3_asr;
 #[cfg(feature = "live")]
@@ -39,16 +39,16 @@ pub struct AsrCmd {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// Transcribe audio files with a profile: a model chosen by what it is
+    /// Transcribe audio files with a preset: a model chosen by what it is
     /// for (`en` by default).
-    Transcribe(Box<profile_cmd::ProfileTranscribeCmd>),
+    Transcribe(Box<construct_cmd::AsrTranscribeCmd>),
 
-    /// Transcribe the microphone, as it speaks, with a profile.
+    /// Transcribe the microphone, as it speaks, with a preset.
     #[cfg(feature = "live")]
-    Live(Box<profile_cmd::ProfileLiveCmd>),
+    Live(Box<construct_cmd::AsrLiveCmd>),
 
-    /// The profiles: what each is for, and what it runs.
-    Presets(profile_cmd::ProfilesCmd),
+    /// The presets: what each is for, and what it runs.
+    Presets(construct_cmd::AsrPresetsCmd),
 
     /// The model families, each with its own `list` and `transcribe`, and
     /// only the flags that apply to it.
@@ -381,7 +381,7 @@ mod tests {
             .is_err()
         );
     }
-    /// The profiles' commands parse; the families are under `family` alone.
+    /// The presets' commands parse; the families are under `family` alone.
     #[test]
     fn test_profiles_parse() {
         Args::try_parse_from(["asr", "transcribe", "a.wav"]).unwrap();
@@ -452,7 +452,7 @@ mod tests {
             Args::try_parse_from(full).unwrap();
         }
         assert!(Args::try_parse_from(["asr", "presets", "fetch"]).is_err());
-        // `profiles` and `--profile` are gone, with no alias.
+        // `presets` and `--profile` are gone, with no alias.
         assert!(Args::try_parse_from(["asr", "profiles"]).is_err());
         assert!(Args::try_parse_from(["asr", "transcribe", "--profile", "en", "a.wav"]).is_err());
         // The families moved under `family`.
@@ -468,19 +468,19 @@ mod tests {
     /// parses as that command.
     #[test]
     fn test_profile_command_lines_parse() {
-        for profile in profile::profiles() {
-            for mode in [profile::Mode::Offline, profile::Mode::Live] {
+        for preset in construct::presets() {
+            for mode in [construct::Mode::Offline, construct::Mode::Live] {
                 #[cfg(not(feature = "live"))]
-                if mode == profile::Mode::Live {
+                if mode == construct::Mode::Live {
                     continue;
                 }
-                let resolved = profile.resolve(mode).unwrap();
+                let resolved = preset.resolve(mode).unwrap();
                 let mut line = resolved.command_line();
-                if mode == profile::Mode::Offline {
+                if mode == construct::Mode::Offline {
                     line.push("a.wav".into());
                 }
                 let crate::Args { command } = crate::Args::try_parse_from(&line)
-                    .unwrap_or_else(|e| panic!("{}: {e}", profile::shell_line(&line)));
+                    .unwrap_or_else(|e| panic!("{}: {e}", construct::shell_line(&line)));
                 assert!(
                     matches!(
                         &command,

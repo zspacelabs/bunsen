@@ -33,6 +33,7 @@ use serde::Serialize;
 use crate::cli::{
     PresetArgs,
     asr::{
+        construct::Stamp,
         diarize::{
             SpeakerArgs,
             speaker_name,
@@ -40,7 +41,6 @@ use crate::cli::{
         driver::Driver,
         family::Family,
         parakeet::ParakeetFlags,
-        profile::Stamp,
         publish::{
             Clock,
             Event,
@@ -128,7 +128,7 @@ pub struct TranscribeCmd<F: clap::Args> {
 }
 
 /// What `transcribe` reads and prints, whichever model it runs: the
-/// options a family's command and a profile's share.
+/// options a family's command and a preset's share.
 #[derive(clap::Args, Debug)]
 pub struct TranscribeIo {
     #[clap(flatten)]

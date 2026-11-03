@@ -94,7 +94,7 @@ pub struct LiveCmd<F: clap::Args> {
 }
 
 /// What `live` listens to and runs on, whichever model it runs: the options
-/// a family's command and a profile's share.
+/// a family's command and a preset's share.
 #[derive(clap::Args, Debug)]
 pub struct LiveIo {
     #[clap(flatten)]

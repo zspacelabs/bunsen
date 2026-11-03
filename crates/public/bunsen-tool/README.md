@@ -2,7 +2,7 @@
 
 `bunsen-tool`: [bunsen](https://crates.io/crates/bunsen)'s models on the command line, a branch for each kind of model:
 
-- `bunsen-tool asr`: speech to text, by profile or by model family, and who spoke when ([below](#asr-speech-to-text)).
+- `bunsen-tool asr`: speech to text, by ASR preset or by model family, and who spoke when ([below](#asr-speech-to-text)).
 - `bunsen-tool chat`: chat with a Qwen3 or nanochat checkpoint ([below](#chat-qwen3-and-nanochat)).
 - `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by kit.
 
@@ -407,14 +407,14 @@ kits:
 
 ## asr: speech to text
 
-Name a **profile**, a model chosen by what it is for, and `bunsen-tool asr` picks the family, the model and its
+Name an **ASR preset**, a model chosen by what it is for, and `bunsen-tool asr` picks the family, the model and its
 settings, for files (`transcribe`) or the microphone (`live`):
 
 ```sh
 bunsen-tool asr transcribe [--preset en] [FLAGS] FILE...   # audio files
 bunsen-tool asr live       [--preset en] [FLAGS]           # the microphone, as it speaks
 bunsen-tool asr live       [--speech S] [--task T] [--quality Q] [FLAGS]   # or by what is needed
-bunsen-tool asr presets   (list|show|fetch)                # what each profile is for, and what it runs
+bunsen-tool asr presets   (list|show|fetch)                # what each ASR preset is for, and what it runs
 ```
 
 ```sh
@@ -424,20 +424,20 @@ cargo run --release -p bunsen-tool --features wgpu -- asr live --preset translat
 cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech multi --quality fast recording.wav
 ```
 
-| profile | for | `transcribe` runs | `live` runs |
+| ASR preset | for | `transcribe` runs | `live` runs |
 |---|---|---|---|
 | `en` (`default`) | English, each word timed | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
 | `multi` | any of 30 languages, found from the speech | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
 | `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/small[translate]{beam_size: 1}`, `conservative` |
 
-The profiles are this binary's, and improve with it: when a better model arrives, a profile's row changes, and the
-command lines that name the profile do not. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
-command it runs, `-v` logs it before a run, and `transcribe --json` records `profile`, `need` (the point served:
+The ASR presets are this binary's, and improve with it: when a better model arrives, an ASR preset's row changes, and the
+command lines that name the ASR preset do not. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
+command it runs, `-v` logs it before a run, and `transcribe --json` records `preset`, `need` (the point served:
 `speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model expression, emission, push size, VAD)
-with each transcript. `presets fetch NAME...` brings every file a profile runs into the cache, as `family <family> fetch` does
+with each transcript. `presets fetch NAME...` brings every file an ASR preset runs into the cache, as `family <family> fetch` does
 for a model.
 
-Each profile is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
+Each ASR preset is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
 x `--quality` (`fast`, `balanced`, `good`), with a recipe for `transcribe` and one for `live` where a model was seen to
 do the job. `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and `translate-en` is
 `multi`/`translate`/`balanced`. A point with no recipe falls through to the nearest that has one (another quality, a
@@ -449,14 +449,14 @@ The flags choose, in this order:
    language is an error.
 2. **The point.** Without `--preset`, each of `--speech`, `--task` and `--quality` not given is `default`'s
    (`en`/`transcribe`/`balanced`), except that `--task translate` makes the speech `multi`; `--json` records the point
-   as the profile (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
-   ones not given are the profile's.
+   as the ASR preset (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
+   ones not given are the ASR preset's.
 3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its
-   transcript, so no cell translates English.
-4. **What runs.** Without `--preset`, the table's cell for the point. With it, the profile's recipe, and the flags
-   may only adjust it: `--quality` moves along the profile's row; `--speech` (or the speech `--language` implies) must
-   be one the profile hears (`multi` hears English); a task other than the profile's is set on a model that takes one
-   (Whisper's `[translate]` preset in its model's box). Anything else is an error that names another profile, or none.
+   transcript, so no point translates English.
+4. **What runs.** Without `--preset`, the table's recipe for the point. With it, the ASR preset's recipe, and the flags
+   may only adjust it: `--quality` moves along the ASR preset's row; `--speech` (or the speech `--language` implies) must
+   be one the ASR preset hears (`multi` hears English); a task other than the ASR preset's is set on a model that takes one
+   (Whisper's `[translate]` preset in its model's box). Anything else is an error that names another ASR preset, or none.
 
 So the task is `transcribe` unless `translate-en` or `--task translate` asks to translate speech that is not English.
 
@@ -472,21 +472,21 @@ So the task is `transcribe` unless `translate-en` or `--task translate` asks to 
 | `--preset en --language de` | an error: `en` hears only English | |
 | `--preset multi --task translate` | an error: Qwen3-ASR cannot translate | |
 
-A profile's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
+An ASR preset's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
 `--device`, the cache's and `live`'s capture flags), and:
 
 - `--language CODE`: the spoken language. It implies `--speech` (above), and is given to a model that can be told it
   (Whisper); one that finds the language itself goes on doing so.
 - `--model EXPR`: the model, as a lookup expression (`--model 'openai/small[translate]{beam_size: 1}'`), in place of
-  the profile's. The family that lists it runs, logged at `INFO` when it is not the profile's
-  (`asr transcribe --model openai/small` runs Whisper); a name no family lists (`hf:org/repo`) runs in the profile's.
-- `--emission` and `--chunk-ms`, in place of the profile's.
+  the ASR preset's. The family that lists it runs, logged at `INFO` when it is not the ASR preset's
+  (`asr transcribe --model openai/small` runs Whisper); a name no family lists (`hf:org/repo`) runs in the ASR preset's.
+- `--emission` and `--chunk-ms`, in place of the ASR preset's.
 - `--vad EXPR`: the VAD that finds the speech regions, in place of the table's (`silero/vad-16k[faster-whisper]`,
   which `asr presets show` prints). It is an error under `--emission offline`, which finds none.
 
 A model's settings are its expression's, not flags: its presets in the box and any field in the patch
 (`--model 'openai/small[translate]{beam_size: 1, timestamps: true}'`; the [table below](#family-settings) has each
-family's). `--language` on Whisper joins the patch, and a task the profile sets joins the box.
+family's). `--language` on Whisper joins the patch, and a task the ASR preset sets joins the box.
 
 ### Choosing a family yourself
 
@@ -518,7 +518,7 @@ bunsen-tool asr transcribe recording.wav
 
 `list` shows the family's named models, with each one's licence, its presets (each axis and its members, described,
 the default marked), its files, and whether each is cached; `diarize list` and `chat list` show theirs the same way. A name that
-no table has, a model's, a model's preset or a profile's, fails with the names nearest it (`did you mean
+no table has, a model's, a model's preset or an ASR preset's, fails with the names nearest it (`did you mean
 `openai/tiny`?`), by edit distance, case aside. Every family
 also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `config.json` gives the geometry;
 `diarize` also takes one holding a Sortformer v2 `.nemo` alone, whose own config does
@@ -536,7 +536,7 @@ long the transcription took at `INFO`, and after several, the total. Audio is re
 and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
 
 `--emission` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
-another (a family's `transcribe` default; a profile names its own); `conservative` also finds speech regions with a VAD (`--vad EXPR`; Silero's
+another (a family's `transcribe` default; an ASR preset names its own); `conservative` also finds speech regions with a VAD (`--vad EXPR`; Silero's
 `silero/vad-16k[faster-whisper]`, through the same cache, by default, and an error under `offline`) and decodes each
 as it ends, so silence is never decoded; `drafting` adds a draft of the speech so far every 600 ms of
 it, which `live` shows. `--chunk-ms` (1000) is how much audio each push carries.
@@ -571,7 +571,7 @@ cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --preset o
 cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --rttm meeting.wav > meeting.rttm
 ```
 
-`--diarize` on `transcribe` or `live`, a profile's or any family's, says who said what: the diarizer (`--diarize` alone for
+`--diarize` on `transcribe` or `live`, an ASR preset's or any family's, says who said what: the diarizer (`--diarize` alone for
 `nvidia/nemotron-3-diarization`, `--diarize=EXPR` for another, or for its presets) runs beside the recognizer, through the stream
 driver's speaker seam, and labels each word (Parakeet) or segment with its speaker. Qwen3-ASR and Whisper also cut
 their windows at speaker turns, so a segment is one speaker's. The text is printed a line per statement, a run of one
@@ -624,7 +624,7 @@ cargo run --release -p bunsen-tool --features wgpu -- asr live --diarize \
 
 The records are the events: a `statement`, a run of committed text one speaker spoke (undiarized, a decode's text on
 `live`, a file's on `transcribe`); a `draft`, `live`'s latest draft under `--emission drafting`; and a `transcript`,
-a file's whole transcript after its statements, with the profile and recipe that chose its model. A statement is flat;
+a file's whole transcript after its statements, with the ASR preset and recipe that chose its model. A statement is flat;
 under `--diarize`, it is wrapped under its speaker (`null` where the diarizer heard nobody):
 
 ```json

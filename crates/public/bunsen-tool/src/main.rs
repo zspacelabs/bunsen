@@ -1,5 +1,5 @@
 //! `bunsen-tool`: bunsen's models on the command line. `bunsen-tool asr`
-//! is speech to text, by profile or by model family, and who spoke when;
+//! is speech to text, by preset or by model family, and who spoke when;
 //! `bunsen-tool chat` chats with a Qwen3 or nanochat checkpoint; `bunsen-tool
 //! cache <path|list|clear>` manages the weights cache every command loads
 //! through; `bunsen-tool card` describes the build, its cache and the models
@@ -21,7 +21,7 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// Speech to text, by profile (`asr transcribe`, `asr live`) or by model
+    /// Speech to text, by preset (`asr transcribe`, `asr live`) or by model
     /// family (`asr family`), and who spoke when (`asr diarize`).
     Asr(cli::asr::AsrCmd),
 

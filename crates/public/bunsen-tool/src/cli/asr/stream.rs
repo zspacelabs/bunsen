@@ -26,7 +26,7 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::cli::asr::profile::catalog;
+use crate::cli::asr::construct::construct_config;
 
 /// When the driver decodes.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
@@ -100,7 +100,7 @@ impl VadArgs {
             )),
             (Emission::Offline, None) => Ok(None),
             (_, Some(vad)) => Ok(Some(vad.clone())),
-            (_, None) => Ok(Some(catalog().vad.clone())),
+            (_, None) => Ok(Some(construct_config().vad.clone())),
         }
     }
 }
