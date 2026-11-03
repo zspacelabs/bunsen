@@ -2,7 +2,6 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -22,7 +21,6 @@ use bunsen::{
         },
     },
 };
-use burn::tensor::Device;
 
 use crate::cli::asr::{
     stream::{
@@ -65,8 +63,6 @@ pub fn driver(
     bundle: Arc<VoxtralConstruct>,
     flags: &VoxtralFlags,
     emission: Emission,
-    cache: &PretrainedCache,
-    device: &Device,
 ) -> BunsenResult<VoxtralStreamDriver> {
     let position = bundle.samples_per_position() as f64 / bundle.front_end.sample_rate() as f64;
     let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
@@ -85,7 +81,7 @@ pub fn driver(
     );
     let engine = VoxtralEngine::new(bundle).with_window_seconds(window_seconds);
     let driver = VoxtralStreamDriver::new(engine, emission.into())?;
-    stream::with_vad(driver, emission, cache, device)
+    Ok(driver)
 }
 
 /// What each window's features are scaled against: nothing the stream

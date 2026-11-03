@@ -37,7 +37,11 @@ use crate::cli::{
             Publisher,
             statements,
         },
-        stream::Emission,
+        stream::{
+            Emission,
+            Streaming,
+            VadArgs,
+        },
         transcribe_cmd::FamilyFlags,
     },
 };
@@ -76,6 +80,9 @@ pub struct LiveCmd<F: clap::Args> {
     /// every few milliseconds, are batched to this.
     #[arg(long, default_value_t = 250)]
     pub chunk_ms: usize,
+
+    #[clap(flatten)]
+    pub vad: VadArgs,
 
     #[clap(flatten)]
     pub flags: F,
@@ -117,8 +124,12 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
             .presets
             .apply(self.model.as_deref().unwrap_or(family.default_model()))?;
         let model = model.as_str();
-        self.io
-            .run(family, model, &self.flags, self.emission, self.chunk_ms)
+        let streaming = Streaming {
+            emission: self.emission,
+            vad: self.vad.slot(self.emission)?,
+            chunk_ms: self.chunk_ms,
+        };
+        self.io.run(family, model, &self.flags, &streaming)
     }
 }
 
@@ -130,14 +141,13 @@ impl LiveIo {
     }
 
     /// Transcribes the microphone with `model` of `family` under `flags`,
-    /// `emission` and pushes of `chunk_ms`.
+    /// streamed as `streaming` says.
     pub fn run<F: FamilyFlags>(
         &self,
         family: Family,
         model: &str,
         flags: &F,
-        emission: Emission,
-        chunk_ms: usize,
+        streaming: &Streaming,
     ) -> BunsenResult<()> {
         let Some(capture) = self.capture.open()? else {
             return Ok(());
@@ -153,9 +163,17 @@ impl LiveIo {
         let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
         let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
-        let driver = Driver::build(loaded, flags, emission, speakers, &cache, &device)?;
+        let driver = Driver::build(
+            loaded,
+            flags,
+            streaming.emission,
+            streaming.vad.as_deref(),
+            speakers,
+            &cache,
+            &device,
+        )?;
         let rate = driver.sample_rate();
-        let chunk = driver.push_samples(chunk_ms);
+        let chunk = driver.push_samples(streaming.chunk_ms);
         log::debug!(
             "push: {chunk} samples ({:.0} ms)",
             chunk as f64 * 1000.0 / rate as f64

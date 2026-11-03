@@ -48,7 +48,11 @@ use crate::cli::{
             statements,
         },
         qwen3_asr::Qwen3AsrFlags,
-        stream::Emission,
+        stream::{
+            Emission,
+            Streaming,
+            VadArgs,
+        },
         voxtral::VoxtralFlags,
         whisper,
     },
@@ -137,6 +141,9 @@ pub struct TranscribeCmd<F: clap::Args> {
     /// live loop would feed it, in pieces of this.
     #[arg(long, default_value_t = 1000)]
     pub chunk_ms: usize,
+
+    #[clap(flatten)]
+    pub vad: VadArgs,
 
     #[clap(flatten)]
     pub flags: F,
@@ -276,14 +283,12 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
             .presets
             .apply(self.model.as_deref().unwrap_or(family.default_model()))?;
         let model = model.as_str();
-        self.io.run(
-            family,
-            model,
-            &self.flags,
-            self.emission,
-            self.chunk_ms,
-            None,
-        )
+        let streaming = Streaming {
+            emission: self.emission,
+            vad: self.vad.slot(self.emission)?,
+            chunk_ms: self.chunk_ms,
+        };
+        self.io.run(family, model, &self.flags, &streaming, None)
     }
 }
 
@@ -294,16 +299,15 @@ impl TranscribeIo {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))
     }
 
-    /// Transcribes the files with `model` of `family` under `flags`, `emission`
-    /// and pushes of `chunk_ms`, publishing each file's statements, then its
+    /// Transcribes the files with `model` of `family` under `flags`, streamed
+    /// as `streaming` says, publishing each file's statements, then its
     /// transcript with `stamp`, what chose them.
     pub fn run<F: FamilyFlags>(
         &self,
         family: Family,
         model: &str,
         flags: &F,
-        emission: Emission,
-        chunk_ms: usize,
+        streaming: &Streaming,
         stamp: Option<&Stamp>,
     ) -> BunsenResult<()> {
         // The targets open first: a bad config, or a broker, fails before
@@ -317,9 +321,17 @@ impl TranscribeIo {
         let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
 
-        let driver = Driver::build(loaded, flags, emission, speakers, &cache, &device)?;
+        let driver = Driver::build(
+            loaded,
+            flags,
+            streaming.emission,
+            streaming.vad.as_deref(),
+            speakers,
+            &cache,
+            &device,
+        )?;
         let rate = driver.sample_rate();
-        let chunk = driver.push_samples(chunk_ms);
+        let chunk = driver.push_samples(streaming.chunk_ms);
 
         let (mut audio, mut busy) = (0.0, Duration::ZERO);
         for path in &self.files {

@@ -27,7 +27,11 @@ use crate::cli::asr::{
     family::Family,
     parakeet::ParakeetFlags,
     qwen3_asr::Qwen3AsrFlags,
-    stream::Emission,
+    stream::{
+        Emission,
+        Streaming,
+        VadArgs,
+    },
     voxtral::VoxtralFlags,
     whisper::WhisperFlags,
 };
@@ -327,6 +331,11 @@ pub struct Catalog {
     pub presets: Vec<Profile>,
     pub fallback: Fallback,
     pub implications: Vec<Implication>,
+
+    /// The VAD slot's filler, as a lookup expression: what finds the speech
+    /// regions of every emission but [`Offline`](Emission::Offline).
+    pub vad: String,
+
     pub points: Vec<Cell>,
 }
 
@@ -466,24 +475,21 @@ fn family_args(family: Family) -> Vec<Arg> {
 
 /// The keys `--opt` takes for `family`: `model`, and its own options.
 fn family_keys(family: Family) -> String {
-    let mut keys = vec!["model".to_string()];
-    keys.extend(
-        family_args(family)
-            .iter()
-            .filter_map(|a| a.get_long().map(String::from)),
-    );
+    let keys: Vec<String> = family_args(family)
+        .iter()
+        .filter_map(|a| a.get_long().map(String::from))
+        .collect();
     keys.join(", ")
 }
 
-/// Whether `family` has an option `key`; `model` is every family's.
+/// Whether `family` has an option `key`.
 fn has_key(
     family: Family,
     key: &str,
 ) -> bool {
-    key == "model"
-        || family_args(family)
-            .iter()
-            .any(|a| a.get_long() == Some(key))
+    family_args(family)
+        .iter()
+        .any(|a| a.get_long() == Some(key))
 }
 
 /// The family's own flags alone, parsed as its command parses them.
@@ -510,6 +516,10 @@ pub struct Resolved {
     pub model: String,
     pub emission: Emission,
     pub chunk_ms: usize,
+
+    /// The VAD slot's filler, a lookup expression; `None` under an emission
+    /// that finds no speech regions.
+    pub vad: Option<String>,
 
     /// The family's own flags, by long name, each once, in order.
     pub flags: Vec<(String, String)>,
@@ -547,6 +557,7 @@ impl Recipe {
             model: self.engine.model.clone(),
             emission: self.emission,
             chunk_ms: self.chunk_ms,
+            vad: VadArgs::default().slot(self.emission)?,
             flags: Vec::new(),
         };
         if let Some(language) = language {
@@ -571,8 +582,6 @@ impl Recipe {
             }
             if owner != self.engine.family {
                 log::info!("profile {profile} runs {family}: --opt {opt} not applied");
-            } else if opt.key == "model" {
-                resolved.model = opt.value.clone();
             } else {
                 resolved.set(&opt.key, &opt.value);
             }
@@ -696,8 +705,20 @@ impl Resolved {
         .map(String::from)
         .to_vec();
         line.push(self.chunk_ms.to_string());
+        if let Some(vad) = &self.vad {
+            line.extend(["--vad".to_string(), vad.clone()]);
+        }
         line.extend(self.argv()?);
         Ok(line)
+    }
+
+    /// How this streams.
+    pub fn streaming(&self) -> Streaming {
+        Streaming {
+            emission: self.emission,
+            vad: self.vad.clone(),
+            chunk_ms: self.chunk_ms,
+        }
     }
 
     /// What `--json` records of this: the profile, the need it served, and
@@ -711,6 +732,7 @@ impl Resolved {
                 model: self.model.clone(),
                 emission: emission_name(self.emission).to_string(),
                 chunk_ms: self.chunk_ms,
+                vad: self.vad.clone(),
                 flags: self.flags.iter().cloned().collect(),
             },
         }
@@ -762,6 +784,11 @@ pub struct RecipeStamp {
     pub model: String,
     pub emission: String,
     pub chunk_ms: usize,
+
+    /// The VAD, when the emission finds speech regions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vad: Option<String>,
+
     pub flags: BTreeMap<String, String>,
 }
 
@@ -941,11 +968,8 @@ mod tests {
         let r = resolve("translate-en", Mode::Offline, None, &["task=sing"]).unwrap();
         assert!(r.parse_flags::<WhisperFlags>().is_err());
 
-        // `model` replaces the model, for any family or the profile's.
-        let r = resolve("multi", Mode::Offline, None, &["model=fermion/phonon-1"]).unwrap();
-        assert_eq!(r.model, "fermion/phonon-1");
-        let r = resolve("multi", Mode::Offline, None, &["whisper.model=openai/tiny"]).unwrap();
-        assert_eq!(r.model, "qwen/qwen3-asr-1.7b");
+        // `model` is no option: `--model` is the engine's slot.
+        assert!(resolve("multi", Mode::Offline, None, &["model=fermion/phonon-1"]).is_err());
     }
 
     #[test]
@@ -954,7 +978,7 @@ mod tests {
         assert_eq!(
             shell_line(&r.command_line().unwrap()),
             "bunsen-tool asr family whisper live --model 'openai/small[translate]{beam_size: 1}' \
-             --emission conservative --chunk-ms 250"
+             --emission conservative --chunk-ms 250 --vad 'silero/vad-16k[faster-whisper]'"
         );
         assert_eq!(
             shell_line(&["a b".into(), "it's".into(), "".into()]),
