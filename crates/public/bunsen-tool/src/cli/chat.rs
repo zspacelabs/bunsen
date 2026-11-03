@@ -99,10 +99,10 @@ enum Command {
     /// Holds a conversation on stdin, with the checkpoint `--model` names,
     /// of whichever family: `/reset` starts over, `/quit` (or end of input)
     /// leaves.
-    Chat(ConverseCmd<ThinkFlags>),
+    Repl(ConverseCmd<ThinkFlags>),
 
     /// The model families, each with its own `list`, `fetch`, `run` and
-    /// `chat`, its own default checkpoint, and only the flags that apply to
+    /// `repl`, its own default checkpoint, and only the flags that apply to
     /// it.
     Family(FamilyCmd),
 }
@@ -114,7 +114,7 @@ struct FamilyCmd {
     family: FamilySub,
 }
 
-/// The model families, each with its own `list`, `fetch`, `run` and `chat`.
+/// The model families, each with its own `list`, `fetch`, `run` and `repl`.
 #[derive(clap::Subcommand, Debug)]
 enum FamilySub {
     /// Qwen's Qwen3: `qwen/qwen3-0.6b` by default, or any `hf:org/repo` in
@@ -158,7 +158,7 @@ enum Action<F: clap::Args> {
 
     /// Holds a conversation on stdin: `/reset` starts over, `/quit` (or end
     /// of input) leaves.
-    Chat(ConverseCmd<F>),
+    Repl(ConverseCmd<F>),
 }
 
 impl<F: FamilyFlags> Action<F> {
@@ -170,7 +170,7 @@ impl<F: FamilyFlags> Action<F> {
             Action::List(cmd) => cmd.run(&[family]),
             Action::Fetch(cmd) => cmd.run(Some(family)),
             Action::Run(cmd) => cmd.run(Some(family)),
-            Action::Chat(cmd) => cmd.run(Some(family)),
+            Action::Repl(cmd) => cmd.run(Some(family)),
         }
     }
 }
@@ -852,7 +852,7 @@ impl ChatCmd {
             Command::List(cmd) => cmd.run(&Family::ALL),
             Command::Fetch(cmd) => cmd.run(None),
             Command::Run(cmd) => cmd.run(None),
-            Command::Chat(cmd) => cmd.run(None),
+            Command::Repl(cmd) => cmd.run(None),
             Command::Family(cmd) => cmd.run(),
         }
     }
@@ -897,7 +897,9 @@ mod tests {
         assert!(parse(&["family", "qwen3", "run", "--no-think", "hi"]).is_ok());
         assert!(parse(&["family", "nanochat", "run", "hi"]).is_ok());
         assert!(parse(&["family", "nanochat", "run", "--think", "hi"]).is_err());
-        assert!(parse(&["family", "nanochat", "chat", "--show-thinking"]).is_err());
+        assert!(parse(&["family", "nanochat", "repl", "--show-thinking"]).is_err());
+        assert!(parse(&["repl", "--no-think"]).is_ok());
+        assert!(parse(&["chat"]).is_err(), "the conversation is `repl`");
     }
 
     /// Each family's default is its own; a nanochat name or alias is
