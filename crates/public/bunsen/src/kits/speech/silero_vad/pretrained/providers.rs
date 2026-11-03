@@ -3,7 +3,10 @@
 use std::sync::Arc;
 
 use crate::{
-    data::pretrained::PretrainedProvider,
+    data::pretrained::{
+        EmbeddedCatalog,
+        PretrainedProvider,
+    },
     errors::BunsenResult,
     kits::{
         speech::silero_vad::pretrained::SileroConstructConfig,
@@ -31,77 +34,15 @@ pub const SAFETENSORS_KIND: &str = "safetensors";
 /// The namespace upstream's files are cached under.
 pub const SILERO_NAMESPACE: &str = "silero";
 
+/// The Silero checkpoints bunsen fetches by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider:
+/// `well-known:silero/vad-16k`, upstream's `silero_vad_16k.safetensors` at a
+/// pinned revision of `snakers4/silero-vad`.
+///
+/// Built from `validation/catalogs/silero.yml` by `cargo validate catalog`.
 #[cfg(feature = "store_safetensors")]
-const SILERO_ORIGIN: &str = "https://github.com/snakers4/silero-vad";
-
-#[cfg(feature = "store_safetensors")]
-mod upstream {
-    use super::{
-        CHECKPOINT,
-        SAFETENSORS_KIND,
-        SILERO_NAMESPACE,
-        SILERO_ORIGIN,
-    };
-    use crate::data::pretrained::{
-        StaticBase,
-        StaticPretrained,
-        StaticPretrainedGroup,
-        StaticPretrainedTable,
-        StaticResource,
-        StaticResourceBundle,
-        WELL_KNOWN,
-    };
-
-    /// Upstream's `silero_vad_16k.safetensors`, the 16 kHz model's state
-    /// dict, at a fixed revision of `snakers4/silero-vad`.
-    pub static SILERO_VAD_16K_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
-        name: "silero/vad-16k",
-        description: "Silero VAD's 16 kHz model, upstream's safetensors (f32)",
-        license: Some("MIT"),
-        origin: Some(SILERO_ORIGIN),
-        namespace: SILERO_NAMESPACE,
-        bases: &[StaticBase::Url(
-            "https://raw.githubusercontent.com/snakers4/silero-vad/fb7d7c7f5df63235f0afd037d8397593829aeb41/src/silero_vad/data",
-        )],
-        resources: &[StaticResource {
-            key: CHECKPOINT,
-            file: "silero_vad_16k.safetensors",
-            sha256: Some("c59271c284ae9c8335d795d60e0bfdb71aaaceec578d9bd9ffc1b8153c319ea1"),
-            kind: Some(SAFETENSORS_KIND),
-            sources: &[],
-        }],
-    };
-
-    static VAD_16K: StaticPretrained<'static> = StaticPretrained {
-        name: "vad-16k",
-        aliases: &[],
-        description: "Silero VAD, the 16 kHz model, from upstream's safetensors (1.2 MB)",
-        license: Some("MIT"),
-        origin: Some(SILERO_ORIGIN),
-        prefab: None,
-        resource_bundles: &[&SILERO_VAD_16K_FILES],
-    };
-
-    /// `snakers4/silero-vad`'s own files.
-    pub static SILERO_UPSTREAM: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-        name: "silero",
-        description: "snakers4/silero-vad, as upstream publishes it",
-        license: Some("MIT"),
-        origin: Some(SILERO_ORIGIN),
-        items: &[&VAD_16K],
-    };
-
-    /// The Silero checkpoints bunsen fetches by name, behind the
-    /// [`WELL_KNOWN`] provider: `well-known:silero/vad-16k`.
-    pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-        name: WELL_KNOWN,
-        description: "the Silero VAD checkpoints bunsen fetches by name",
-        groups: &[&SILERO_UPSTREAM],
-    };
-}
-
-#[cfg(feature = "store_safetensors")]
-pub use upstream::*;
+pub static SILERO_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("silero", include_str!("catalog.json"));
 
 /// Silero's compiled-in providers: the well-known table (with
 /// `store_safetensors`), and none without it.
@@ -112,7 +53,7 @@ pub use upstream::*;
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     let providers: Vec<Arc<dyn PretrainedProvider>> = vec![
         #[cfg(feature = "store_safetensors")]
-        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(SILERO_CATALOG.table()),
     ];
     providers
 }
@@ -139,6 +80,13 @@ mod tests {
         testing::ErrorMatcher,
     };
 
+    /// The embedded catalog hangs together.
+    #[cfg(feature = "store_safetensors")]
+    #[test]
+    fn test_catalog() {
+        SILERO_CATALOG.catalog().validate(&[]).unwrap();
+    }
+
     /// Upstream's row is the factory's only one, and the old bare names
     /// are not found.
     #[cfg(feature = "store_safetensors")]
@@ -155,7 +103,7 @@ mod tests {
     #[cfg(feature = "store_safetensors")]
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
-        let map = SILERO_VAD_16K_FILES.to_resource_bundle();
+        let map = SILERO_CATALOG.resource_bundle("silero/vad-16k");
         map.validate().unwrap();
         let r = map.get(CHECKPOINT).unwrap();
         assert!(r.is_pinned());

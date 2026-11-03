@@ -4,14 +4,8 @@ use alloc::vec;
 use std::sync::Arc;
 
 use crate::data::pretrained::{
+    EmbeddedCatalog,
     PretrainedProvider,
-    StaticBase,
-    StaticPretrained,
-    StaticPretrainedGroup,
-    StaticPretrainedTable,
-    StaticResource,
-    StaticResourceBundle,
-    WELL_KNOWN,
 };
 
 /// The kit segment of a `ResNet` resource's path in the cache:
@@ -31,307 +25,18 @@ pub const TORCHVISION_NAMESPACE: &str = "torchvision";
 /// The namespace the `pytorch-image-models` checkpoints are cached under.
 pub const TIMM_NAMESPACE: &str = "timm";
 
-const TORCHVISION_BASE: StaticBase<'static> =
-    StaticBase::Url("https://download.pytorch.org/models");
-
-const TIMM_RSB_BASE: StaticBase<'static> = StaticBase::Url(
-    "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights",
-);
-
-const TIMM_V01_BASE: StaticBase<'static> = StaticBase::Url(
-    "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights",
-);
-
-/// One checkpoint map: a single `.pth` under a base URL, pinned to its
-/// digest, whose first eight hex digits are the tag in the file's name.
-macro_rules! checkpoint {
-    ($name:ident, $map:literal, $file:literal, $sha256:literal, $namespace:expr, $base:expr) => {
-        static $name: StaticResourceBundle<'static> = StaticResourceBundle {
-            name: $map,
-            description: "an ImageNet checkpoint",
-            license: None,
-            origin: None,
-            namespace: $namespace,
-            bases: &[$base],
-            resources: &[StaticResource {
-                key: CHECKPOINT,
-                file: $file,
-                sha256: Some($sha256),
-                kind: Some(PYTORCH_FP32),
-                sources: &[],
-            }],
-        };
-    };
-}
-
-checkpoint!(
-    TV_RESNET18,
-    "torchvision/resnet18-f37072fd.pth",
-    "resnet18-f37072fd.pth",
-    "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
-    TORCHVISION_NAMESPACE,
-    TORCHVISION_BASE
-);
-checkpoint!(
-    TV_RESNET34,
-    "torchvision/resnet34-b627a593.pth",
-    "resnet34-b627a593.pth",
-    "b627a593bcbe140c234610266fe4f8ae95ea42fc881d091c9b6052e6b1d0590f",
-    TORCHVISION_NAMESPACE,
-    TORCHVISION_BASE
-);
-checkpoint!(
-    TV_RESNET50,
-    "torchvision/resnet50-0676ba61.pth",
-    "resnet50-0676ba61.pth",
-    "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a",
-    TORCHVISION_NAMESPACE,
-    TORCHVISION_BASE
-);
-checkpoint!(
-    TV_RESNET101,
-    "torchvision/resnet101-63fe2227.pth",
-    "resnet101-63fe2227.pth",
-    "63fe2227b86e8f1f2063f43a75c84d195911b6a0eace650907dd3dc62dd49a0a",
-    TORCHVISION_NAMESPACE,
-    TORCHVISION_BASE
-);
-checkpoint!(
-    TV_RESNET152,
-    "torchvision/resnet152-394f9c45.pth",
-    "resnet152-394f9c45.pth",
-    "394f9c45966e3651a89bbb78a48410a6755854ce4a5ab64927cf1c7247f85e58",
-    TORCHVISION_NAMESPACE,
-    TORCHVISION_BASE
-);
-checkpoint!(
-    TIMM_RESNET18_A1,
-    "timm/resnet18_a1_0-d63eafa0.pth",
-    "resnet18_a1_0-d63eafa0.pth",
-    "d63eafa07a6e32a39d328e364f8c9f89d671444ecc7f02aa0f7eb8882af3dd29",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-checkpoint!(
-    TIMM_RESNET18_A2,
-    "timm/resnet18_a2_0-b61bd467.pth",
-    "resnet18_a2_0-b61bd467.pth",
-    "b61bd467647a03d3f7db590a1158552d2e66bf5ba62c2158ca9594c03de49923",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-checkpoint!(
-    TIMM_RESNET18_A3,
-    "timm/resnet18_a3_0-40c531c8.pth",
-    "resnet18_a3_0-40c531c8.pth",
-    "40c531c8324d963735b0c7ab9a9b2d7715c573a04d0b95776d29cc816a2ef93e",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-checkpoint!(
-    TIMM_RESNET26,
-    "timm/resnet26-9aa10e23.pth",
-    "resnet26-9aa10e23.pth",
-    "9aa10e237cec57dcaa067ee38d19ffc38a6323d185ef8a9903434291fd4187cb",
-    TIMM_NAMESPACE,
-    TIMM_V01_BASE
-);
-checkpoint!(
-    TIMM_RESNET34_A1,
-    "timm/resnet34_a1_0-46f8f793.pth",
-    "resnet34_a1_0-46f8f793.pth",
-    "46f8f7930534e471b9a139b278896db5d11d17b8ea3fcc90ad43deed9e5e27d7",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-checkpoint!(
-    TIMM_RESNET34_A2,
-    "timm/resnet34_a2_0-82d47d71.pth",
-    "resnet34_a2_0-82d47d71.pth",
-    "82d47d71dafac5343b070e5883c41321b45e4759bfe6aa25d375300c38b386a0",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-checkpoint!(
-    TIMM_RESNET34_A3,
-    "timm/resnet34_a3_0-a20cabb6.pth",
-    "resnet34_a3_0-a20cabb6.pth",
-    "a20cabb63e1baf7963ede853c5a38046aede79a7e675d3576714b59cb4ab7519",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-checkpoint!(
-    TIMM_RESNET34,
-    "timm/resnet34-43635321.pth",
-    "resnet34-43635321.pth",
-    "436353219a11d07c7c74cf1a686ed3b02f6c954d4c7863e2046822e047c6f246",
-    TIMM_NAMESPACE,
-    TIMM_V01_BASE
-);
-checkpoint!(
-    TIMM_RESNET101_A1,
-    "timm/resnet101_a1_0-cdcb52a9.pth",
-    "resnet101_a1_0-cdcb52a9.pth",
-    "cdcb52a9df09a641606696e5520e4fbbe8256ee4983d8b4dd1a1ef87a9b8846f",
-    TIMM_NAMESPACE,
-    TIMM_RSB_BASE
-);
-
-/// One torchvision row: the reference `ImageNet-1k` weights of a prefab, and
-/// named after it.
-const fn torchvision(
-    prefab: &'static str,
-    description: &'static str,
-    maps: &'static [&'static StaticResourceBundle<'static>],
-) -> StaticPretrained<'static> {
-    StaticPretrained {
-        name: prefab,
-        aliases: &[],
-        description,
-        license: Some("bsd-3-clause"),
-        origin: Some("https://github.com/pytorch/vision"),
-        prefab: Some(prefab),
-        resource_bundles: maps,
-    }
-}
-
-/// One `pytorch-image-models` row.
-const fn timm(
-    name: &'static str,
-    prefab: &'static str,
-    description: &'static str,
-    maps: &'static [&'static StaticResourceBundle<'static>],
-) -> StaticPretrained<'static> {
-    StaticPretrained {
-        name,
-        aliases: &[],
-        description,
-        license: None,
-        origin: Some("https://github.com/huggingface/pytorch-image-models"),
-        prefab: Some(prefab),
-        resource_bundles: maps,
-    }
-}
-
-static TV_RESNET18_ROW: StaticPretrained<'static> =
-    torchvision("resnet18", "TorchVision ResNet-18", &[&TV_RESNET18]);
-static TV_RESNET34_ROW: StaticPretrained<'static> =
-    torchvision("resnet34", "TorchVision ResNet-34", &[&TV_RESNET34]);
-static TV_RESNET50_ROW: StaticPretrained<'static> =
-    torchvision("resnet50", "TorchVision ResNet-50", &[&TV_RESNET50]);
-static TV_RESNET101_ROW: StaticPretrained<'static> =
-    torchvision("resnet101", "TorchVision ResNet-101", &[&TV_RESNET101]);
-static TV_RESNET152_ROW: StaticPretrained<'static> =
-    torchvision("resnet152", "TorchVision ResNet-152", &[&TV_RESNET152]);
-
-static TIMM_RESNET18_A1_ROW: StaticPretrained<'static> = timm(
-    "resnet18_a1",
-    "resnet18",
-    "RSB Paper ResNet-18 a1",
-    &[&TIMM_RESNET18_A1],
-);
-static TIMM_RESNET18_A2_ROW: StaticPretrained<'static> = timm(
-    "resnet18_a2",
-    "resnet18",
-    "RSB Paper ResNet-18 a2",
-    &[&TIMM_RESNET18_A2],
-);
-static TIMM_RESNET18_A3_ROW: StaticPretrained<'static> = timm(
-    "resnet18_a3",
-    "resnet18",
-    "RSB Paper ResNet-18 a3",
-    &[&TIMM_RESNET18_A3],
-);
-static TIMM_RESNET26_ROW: StaticPretrained<'static> = timm(
-    "resnet26",
-    "resnet26",
-    "ResNet-26 pretrained on ImageNet",
-    &[&TIMM_RESNET26],
-);
-static TIMM_RESNET34_A1_ROW: StaticPretrained<'static> = timm(
-    "resnet34_a1",
-    "resnet34",
-    "RSB Paper ResNet-34 a1",
-    &[&TIMM_RESNET34_A1],
-);
-static TIMM_RESNET34_A2_ROW: StaticPretrained<'static> = timm(
-    "resnet34_a2",
-    "resnet34",
-    "RSB Paper ResNet-34 a2",
-    &[&TIMM_RESNET34_A2],
-);
-static TIMM_RESNET34_A3_ROW: StaticPretrained<'static> = timm(
-    "resnet34_a3",
-    "resnet34",
-    "RSB Paper ResNet-34 a3",
-    &[&TIMM_RESNET34_A3],
-);
-static TIMM_RESNET34_ROW: StaticPretrained<'static> = timm(
-    "resnet34",
-    "resnet34",
-    "ResNet-34 pretrained on ImageNet",
-    &[&TIMM_RESNET34],
-);
-static TIMM_RESNET101_A1_ROW: StaticPretrained<'static> = timm(
-    "resnet101_a1",
-    "resnet101",
-    "ResNet-101 pretrained on ImageNet",
-    &[&TIMM_RESNET101_A1],
-);
-
-/// `TorchVision`'s reference `ImageNet-1k` weights, one per prefab.
-pub static TORCHVISION: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "torchvision",
-    description: "TorchVision's ImageNet-1k reference weights",
-    license: Some("bsd-3-clause"),
-    origin: Some("https://github.com/pytorch/vision"),
-    items: &[
-        &TV_RESNET18_ROW,
-        &TV_RESNET34_ROW,
-        &TV_RESNET50_ROW,
-        &TV_RESNET101_ROW,
-        &TV_RESNET152_ROW,
-    ],
-};
-
-/// `pytorch-image-models`' weights: the `ResNet` Strikes Back recipes and
-/// the earlier release.
-pub static TIMM: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "timm",
-    description: "pytorch-image-models' ImageNet-1k weights: ResNet Strikes Back (a1, a2, a3) and earlier",
-    license: None,
-    origin: Some("https://github.com/huggingface/pytorch-image-models"),
-    items: &[
-        &TIMM_RESNET18_A1_ROW,
-        &TIMM_RESNET18_A2_ROW,
-        &TIMM_RESNET18_A3_ROW,
-        &TIMM_RESNET26_ROW,
-        &TIMM_RESNET34_A1_ROW,
-        &TIMM_RESNET34_A2_ROW,
-        &TIMM_RESNET34_A3_ROW,
-        &TIMM_RESNET34_ROW,
-        &TIMM_RESNET101_A1_ROW,
-    ],
-};
-
-/// The checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
-/// provider: `well-known:torchvision/resnet50`, `torchvision/resnet50`,
-/// or `resnet50`.
+/// The `ResNet` checkpoints bunsen knows by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider: 14 rows in
+/// two groups, `torchvision`, the reference `ImageNet` weights, and `timm`,
+/// the `ResNet` Strikes Back weights and earlier ones.
 ///
-/// Two groups, [`TORCHVISION`] and [`TIMM`], 14 rows in all. Each row
-/// names the [`RESNET_PREFABS`](super::RESNET_PREFABS) prefab it
-/// instantiates, and is one `.pth` file under its group's base URL, pinned
-/// to its digest. A bare name is answered by the first group that has it,
-/// torchvision.
-pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-    name: WELL_KNOWN,
-    description: "the ResNet checkpoints bunsen knows by name",
-    groups: &[&TORCHVISION, &TIMM],
-};
+/// Built from `validation/catalogs/resnet.yml` by `cargo validate catalog`.
+pub static RESNET_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("resnet", include_str!("catalog.json"));
 
 /// `ResNet`'s compiled-in providers, in search order: the well-known table.
 pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
+    vec![Arc::new(RESNET_CATALOG.table())]
 }
 
 #[cfg(test)]
@@ -344,17 +49,22 @@ mod tests {
     /// digest's first eight hex digits are the tag in the file's name.
     #[test]
     fn test_every_row_names_a_prefab_and_one_checkpoint() {
+        let prefabs: Vec<&str> = RESNET_PREFABS.iter().map(|p| p.name).collect();
+        RESNET_CATALOG.catalog().validate(&prefabs).unwrap();
         let mut n = 0;
-        for group in WELL_KNOWN_TABLE.groups {
-            for row in group.items {
+        for group in &RESNET_CATALOG.table().groups {
+            for row in &group.items {
                 n += 1;
-                let prefab = row.prefab.expect("every resnet row names a prefab");
+                let prefab = row
+                    .prefab
+                    .as_deref()
+                    .expect("every resnet row names a prefab");
                 assert!(
                     RESNET_PREFABS.lookup_prefab(prefab).is_some(),
                     "{}: prefab {prefab:?} is not in RESNET_PREFABS",
                     group.id(row),
                 );
-                let map = row.try_to_resource_bundle().unwrap();
+                let map = &row.resources;
                 map.validate().unwrap();
                 assert_eq!(map.keys(), [CHECKPOINT], "{}", group.id(row));
                 let checkpoint = map.get(CHECKPOINT).unwrap();
@@ -384,7 +94,7 @@ mod tests {
     /// The table answers `group/name` and bare names, torchvision first.
     #[test]
     fn test_the_table_lists_fourteen_refs() {
-        let table = WELL_KNOWN_TABLE.to_table();
+        let table = RESNET_CATALOG.table();
         let ids = table.ids();
         assert_eq!(ids.len(), 14);
         assert_eq!(ids[0], "well-known:torchvision/resnet18");

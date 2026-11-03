@@ -14,7 +14,7 @@ use crate::{
 /// `resnet18` to `resnet152`, each with 1000 classes.
 ///
 /// A prefab has no weights. The rows of
-/// [`WELL_KNOWN_TABLE`](super::WELL_KNOWN_TABLE) name the prefab they
+/// [`RESNET_CATALOG`](super::RESNET_CATALOG) name the prefab they
 /// instantiate, and [`ResNetConstructConfig`](super::ResNetConstructConfig)
 /// builds from it.
 pub static RESNET_PREFABS: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
