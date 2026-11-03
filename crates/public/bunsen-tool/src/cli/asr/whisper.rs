@@ -24,7 +24,6 @@ use bunsen::{
                 TranscriptSegment,
             },
             whisper::{
-                WhisperFallbackConfig,
                 driver::{
                     WhisperConstruct,
                     WhisperStreamDriver,
@@ -40,10 +39,7 @@ use bunsen::{
                 },
             },
         },
-        support::{
-            construct::Deferred,
-            decoding::SearchConfig,
-        },
+        support::construct::Deferred,
     },
 };
 use burn::tensor::Device;
@@ -79,31 +75,33 @@ pub struct WhisperFlags {
     #[arg(long)]
     pub language: Option<String>,
 
-    /// Transcribe, or translate to English.
-    #[arg(long, value_enum, default_value_t = Task::Transcribe)]
-    pub task: Task,
+    /// Transcribe, or translate to English; the model's preset when omitted.
+    #[arg(long, value_enum)]
+    pub task: Option<Task>,
 
-    /// Beams in the search; 1 is greedy.
-    #[arg(long, default_value_t = 5)]
-    pub beam_size: usize,
+    /// Beams in the search; 1 is greedy. The model's policy when omitted.
+    #[arg(long)]
+    pub beam_size: Option<usize>,
 
     /// Emit timestamp tokens and split segments on them, seeking to the
     /// last closed timestamp, as upstream's `transcribe()` does.
     #[arg(long)]
     pub timestamps: bool,
 
-    /// Cap on generated tokens per window.
-    #[arg(long, default_value_t = 224)]
-    pub max_tokens: usize,
+    /// Cap on generated tokens per window; the model's policy when omitted.
+    #[arg(long)]
+    pub max_tokens: Option<usize>,
 
-    /// Prompt each window with the transcript so far.
-    #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
-    pub prompt_carry: bool,
+    /// Prompt each window with the transcript so far; the model's policy
+    /// when omitted.
+    #[arg(long, action = clap::ArgAction::Set)]
+    pub prompt_carry: Option<bool>,
 
     /// Climb upstream's temperature ladder when a window's decode fails its
-    /// thresholds; with `false`, temperature zero alone.
-    #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
-    pub fallback: bool,
+    /// thresholds; with `false`, temperature zero alone. The model's policy
+    /// when omitted.
+    #[arg(long, action = clap::ArgAction::Set)]
+    pub fallback: Option<bool>,
 
     /// A vocabulary file (`multilingual.tiktoken`, `gpt2.tiktoken`) in place
     /// of the one the checkpoint's layout selects; trusted as given.
@@ -170,27 +168,35 @@ pub fn driver(
     if !multilingual && flags.language.is_some() {
         log::warn!("English-only checkpoint: --language and --task do not apply");
     }
-    let task = match flags.task {
-        Task::Transcribe => WhisperTask::Transcribe,
-        Task::Translate => WhisperTask::Translate,
+    // The model's policy, its presets resolved, under the flags given.
+    let mut policy = bundle.policy.clone();
+    if let Some(task) = flags.task {
+        policy.task = match task {
+            Task::Transcribe => WhisperTask::Transcribe,
+            Task::Translate => WhisperTask::Translate,
+        };
+    }
+    policy.language = if multilingual {
+        flags.language.clone().or(policy.language)
+    } else {
+        None
     };
+    policy.timestamps |= flags.timestamps;
+    if let Some(beam_size) = flags.beam_size {
+        policy.beam_size = beam_size;
+    }
+    if let Some(max_tokens) = flags.max_tokens {
+        policy.max_tokens = max_tokens;
+    }
+    if let Some(prompt_carry) = flags.prompt_carry {
+        policy.condition_on_previous_text = prompt_carry;
+    }
+    if let Some(fallback) = flags.fallback {
+        policy.fallback = fallback;
+    }
     let driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
-        .with_language(if multilingual {
-            flags.language.clone()
-        } else {
-            None
-        })
-        .with_task(task)
-        .with_timestamps(flags.timestamps)
-        .with_search(SearchConfig::new().with_beam_size(flags.beam_size))
-        .with_max_tokens(flags.max_tokens)
-        .with_condition_on_previous_text(flags.prompt_carry)
+        .with_policy(&policy)
         .with_emission(preset.into())
-        .with_fallback(if flags.fallback {
-            WhisperFallbackConfig::upstream()
-        } else {
-            WhisperFallbackConfig::new()
-        })
         .init_from_construct(bundle, device)
         // The settings come from the command line.
         .as_policy()?;

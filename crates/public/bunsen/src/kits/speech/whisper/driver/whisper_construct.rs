@@ -6,6 +6,7 @@ use std::{
 };
 
 use crate::{
+    data::pretrained::PresetSelection,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -19,7 +20,10 @@ use crate::{
                 AudioEncoderMeta,
                 TextDecoderMeta,
             },
-            driver::WhisperTokenLayout,
+            driver::{
+                WhisperPolicy,
+                WhisperTokenLayout,
+            },
             logit_filters::default_filters,
         },
         support::{
@@ -56,6 +60,14 @@ pub struct WhisperConstruct {
     /// The base vocabulary, when the construct has one. `None` is ids only: no
     /// text, and no default suppress list.
     pub ranks: Option<TiktokenRanks>,
+
+    /// How it decodes: what its presets resolved to; the default until
+    /// [`with_policy`](Self::with_policy). A driver takes it with
+    /// [`WhisperStreamDriverConfig::with_policy`](super::WhisperStreamDriverConfig::with_policy).
+    pub policy: WhisperPolicy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
 }
 
 impl WhisperConstruct {
@@ -69,7 +81,20 @@ impl WhisperConstruct {
             model,
             layout,
             ranks: None,
+            policy: WhisperPolicy::default(),
+            presets: PresetSelection::default(),
         }
+    }
+
+    /// Sets the decode policy, and the presets that resolved it.
+    pub fn with_policy(
+        mut self,
+        policy: WhisperPolicy,
+        presets: PresetSelection,
+    ) -> Self {
+        self.policy = policy;
+        self.presets = presets;
+        self
     }
 
     /// A construct over a model, deriving the token layout from the model's

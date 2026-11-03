@@ -203,11 +203,13 @@
 pub mod support;
 
 mod whisper_construct;
+mod whisper_policy;
 mod whisper_stream_context;
 mod whisper_stream_driver;
 mod whisper_token_layout;
 
 pub use whisper_construct::*;
+pub use whisper_policy::*;
 pub use whisper_stream_context::*;
 pub use whisper_stream_driver::*;
 pub use whisper_token_layout::*;
