@@ -12,6 +12,10 @@ use core::marker::PhantomData;
 
 use burn::tensor::Device;
 use log::Level;
+use serde::{
+    Serialize,
+    de::DeserializeOwned,
+};
 
 use super::{
     ConstructInit,
@@ -36,6 +40,10 @@ use crate::{
         BunsenResult,
         LookupError,
         ResultContext,
+    },
+    kits::support::model_config::{
+        ResolvedPresets,
+        resolve_presets,
     },
 };
 
@@ -297,6 +305,28 @@ impl<H: ConstructInit> PretrainedFactory<H> {
         };
         Self::check_selection(&row, &expr.selection)?;
         Ok((provider, row))
+    }
+
+    /// The config `spec` resolves `base` to through its row's presets, as
+    /// its box and patch ask, found by [`lookup`](Self::lookup): what the
+    /// kit's hook would resolve before building, with nothing fetched or
+    /// built. For a caller that needs a row's policy as a value: a test
+    /// feeding a recorded signal, a listing of what a preset sets.
+    ///
+    /// # Errors
+    /// As [`lookup`](Self::lookup) and
+    /// [`resolve_presets`](crate::kits::support::model_config::resolve_presets).
+    pub fn resolve_presets<C>(
+        &self,
+        spec: &str,
+        base: &C,
+    ) -> BunsenResult<ResolvedPresets<C>>
+    where
+        C: Serialize + DeserializeOwned,
+    {
+        let expr = LookupExpr::parse(spec)?;
+        let (_, row) = self.lookup(spec)?;
+        resolve_presets(base, &row.presets, &expr.selection)
     }
 
     /// Checks what a lookup asks of `row`'s presets, before anything is

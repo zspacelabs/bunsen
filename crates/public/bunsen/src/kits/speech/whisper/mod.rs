@@ -180,10 +180,7 @@
 //!     errors::BunsenResult,
 //!     kits::{
 //!         speech::{
-//!             asr_driver::{
-//!                 EmissionPolicy,
-//!                 VoiceActivityFilterConfig,
-//!             },
+//!             asr_driver::EmissionPolicy,
 //!             silero_vad::pretrained::default_silero_factory,
 //!             whisper::{
 //!                 driver::{
@@ -251,17 +248,18 @@
 //!     cache: &PretrainedCache,
 //!     device: &Device,
 //! ) -> BunsenResult<WhisperStreamDriver> {
+//!     // Upstream's own region policy, the row's `[silero]` preset.
 //!     let vad = default_silero_factory()?
-//!         .load("silero/vad-16k", cache, device)?
+//!         .load("silero/vad-16k[silero]", cache, device)?
 //!         .handle;
-//!     // The 16 kHz branch, and the filter's 16 kHz defaults: the model's
-//!     // rate.
+//!     // The 16 kHz branch, the model's rate, and the filter the preset
+//!     // resolved to.
 //!     WhisperStreamDriverConfig::new()
 //!         .with_emission(EmissionPolicy::conservative())
 //!         .init_from_construct(construct, device)?
 //!         .with_vad(
 //!             Arc::new(vad.expect_branch(16_000).clone()),
-//!             VoiceActivityFilterConfig::default(),
+//!             vad.vad_filter().clone(),
 //!         )
 //! }
 //! # }

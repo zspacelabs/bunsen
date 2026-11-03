@@ -39,8 +39,8 @@
 //!     },
 //!     errors::BunsenResult,
 //!     kits::speech::silero_vad::{
+//!         SileroConstruct,
 //!         SileroVad,
-//!         SileroVadCollection,
 //!         SileroVadContextConfig,
 //!         SileroVadMeta,
 //!         pretrained::default_silero_factory,
@@ -54,7 +54,7 @@
 //!
 //! /// Upstream's 16 kHz model on `device`: from the cache, or fetched into
 //! /// it on first use.
-//! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroVadCollection>> {
+//! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroConstruct>> {
 //!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!     Ok(default_silero_factory()?
 //!         .load("silero/vad-16k", &cache, device)?
@@ -102,12 +102,21 @@
 //! # }
 //! ```
 //!
+//! A loaded pretrained is a [`SileroConstruct`]: the models, and the policy
+//! that turns their probabilities into speech regions, a
+//! [`VoiceActivityFilterConfig`](crate::kits::speech::asr_driver::VoiceActivityFilterConfig)
+//! ([`SileroConstruct::vad_filter`]). The policy comes from the row's
+//! presets: `silero/vad-16k` has a `vad-policy` axis, with `[silero]`
+//! (upstream's `get_speech_timestamps` defaults, the row's default) and
+//! `[faster-whisper]` (`faster-whisper`'s `VadOptions`), so
+//! `silero/vad-16k[faster-whisper]` loads the same weights under the other
+//! policy.
+//!
 //! The Whisper stream driver's real-time emission presets take the model
-//! the same way, and turn its probabilities into speech regions through a
-//! [`VoiceActivityFilterConfig`](crate::kits::speech::asr_driver::VoiceActivityFilterConfig),
-//! attached with
+//! the same way, attached with
 //! [`with_vad`](crate::kits::speech::whisper::driver::WhisperStreamDriver::with_vad):
-//! the 16 kHz branch, cloned out of the collection. The Whisper kit's
+//! the 16 kHz branch, cloned out of the collection, and the construct's
+//! filter. The Whisper kit's
 //! [other ways in](crate::kits::speech::whisper#other-ways-in) show it
 //! whole.
 
@@ -115,6 +124,8 @@
 pub mod pretrained;
 
 pub mod blocks;
+mod construct;
 
 #[doc(inline)]
 pub use blocks::*;
+pub use construct::*;

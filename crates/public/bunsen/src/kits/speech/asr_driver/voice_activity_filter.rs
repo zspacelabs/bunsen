@@ -141,23 +141,6 @@ impl VoiceActivityFilterConfig {
         pad_regions(&mut regions, self.speech_pad_samples(), total_samples);
         regions
     }
-
-    /// `faster-whisper`'s defaults: 2 s of silence to close, 400 ms of
-    /// padding. Sentences glue together; first words survive. What
-    /// [`new`](Self::new) gives.
-    pub fn faster_whisper() -> Self {
-        Self::new()
-    }
-
-    /// `fast-whisper-burn`'s tuning: 100 ms of silence to close, 30 ms of
-    /// padding, regions under 250 ms dropped. Cuts between sentences, so
-    /// time-to-first-token is short.
-    pub fn fast_whisper_burn() -> Self {
-        Self::new()
-            .with_min_silence_ms(100)
-            .with_speech_pad_ms(30)
-            .with_min_speech_ms(250)
-    }
 }
 
 /// Hysteresis filter for voice activity.
@@ -364,18 +347,13 @@ mod tests {
     }
 
     #[test]
-    fn test_presets_and_derived_threshold() {
-        let fw = VoiceActivityFilterConfig::faster_whisper();
-        assert_eq!(fw, VoiceActivityFilterConfig::new());
+    fn test_defaults_and_derived_threshold() {
+        let fw = VoiceActivityFilterConfig::new();
+        assert_eq!(fw, VoiceActivityFilterConfig::default());
         assert_eq!(fw.min_silence_ms, 2000);
         assert_eq!(fw.speech_pad_ms, 400);
         assert_eq!(fw.speech_pad_samples(), 6400);
         assert!((fw.neg_threshold_value() - 0.35).abs() < 1e-12);
-
-        let burn = VoiceActivityFilterConfig::fast_whisper_burn();
-        assert_eq!(burn.min_silence_ms, 100);
-        assert_eq!(burn.speech_pad_ms, 30);
-        assert_eq!(burn.min_speech_ms, 250);
 
         assert_float_eq::assert_float_relative_eq!(
             VoiceActivityFilterConfig::new()
@@ -668,7 +646,12 @@ mod tests {
         fn test_golden_track() {
             let (probs, total) = probabilities();
 
-            let config = &VoiceActivityFilterConfig::fast_whisper_burn();
+            // Upstream Silero's `get_speech_timestamps` defaults, as the
+            // `silero/vad-16k` row's `[silero]` preset sets them.
+            let config = &VoiceActivityFilterConfig::new()
+                .with_min_silence_ms(100)
+                .with_speech_pad_ms(30)
+                .with_min_speech_ms(250);
             let quick = config.speech_regions(&probs, total);
             assert_eq!(total, 64_000, "4.0 s at 16 kHz");
             // "...the highest mountain?" to 1.05 s, the pause, then
