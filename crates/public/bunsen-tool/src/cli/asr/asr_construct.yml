@@ -9,6 +9,8 @@
 #   a nearer quality before another speech, as a multilingual model also
 #   hears English. The task is never changed by a fallback.
 # - `implications`: a point that is served as another.
+# - `language`: the speech `--language` implies, by its code; a `--speech`
+#   given with it must hear that speech (`fallback.speech`).
 # - `vad`: the VAD slot's filler, as a lookup expression: what finds the
 #   speech regions of every emission but `offline` (`--vad` replaces it).
 # - `points`: a cell where a model was seen to do the job, per mode, and
@@ -61,6 +63,11 @@ implications:
   - when: { speech: en, task: translate }
     then: { task: transcribe }
     reason: "English speech translated to English is transcribed"
+
+language:
+  # A code (case aside) and the speech it is; any other code is `otherwise`.
+  speech: { en: en }
+  otherwise: multi
 
 # Silero's VAD under `faster-whisper`'s policy: 2 s of silence closes a
 # region, 400 ms pads it.

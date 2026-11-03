@@ -273,6 +273,40 @@ pub struct Fallback {
     pub speech: BTreeMap<Speech, Vec<Speech>>,
 }
 
+impl Fallback {
+    /// Whether `speech` hears a need of `need`'s speech: `need`'s fallback
+    /// names it (a multilingual model also hears English), or it is `need`.
+    pub fn hears(
+        &self,
+        speech: Speech,
+        need: Speech,
+    ) -> bool {
+        speech == need || self.speech.get(&need).is_some_and(|c| c.contains(&speech))
+    }
+}
+
+/// What `--language` implies: the speech each listed code is, case aside,
+/// and `otherwise` for any code not listed.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LanguageRule {
+    pub speech: BTreeMap<String, Speech>,
+    pub otherwise: Speech,
+}
+
+impl LanguageRule {
+    /// The speech `language` is.
+    pub fn speech(
+        &self,
+        language: &str,
+    ) -> Speech {
+        self.speech
+            .iter()
+            .find(|(code, _)| code.eq_ignore_ascii_case(language))
+            .map_or(self.otherwise, |(_, speech)| *speech)
+    }
+}
+
 /// Part of a need: the axes it names.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -328,6 +362,9 @@ pub struct AsrConstructConfig {
     pub presets: Vec<AsrPreset>,
     pub fallback: Fallback,
     pub implications: Vec<Implication>,
+
+    /// What `--language` implies.
+    pub language: LanguageRule,
 
     /// The VAD slot's filler, as a lookup expression: what finds the speech
     /// regions of every emission but [`Offline`](Emission::Offline).
@@ -864,6 +901,14 @@ mod tests {
             };
             looked.unwrap_or_else(|e| panic!("{} {model}: {e}", point.need));
         }
+
+        // `--language` by the table, case aside; what hears what by the
+        // speech fallback.
+        assert_eq!(table.language.speech("EN"), Speech::En);
+        assert_eq!(table.language.speech("de"), Speech::Multi);
+        assert!(table.fallback.hears(Speech::Multi, Speech::En));
+        assert!(!table.fallback.hears(Speech::En, Speech::Multi));
+        assert!(table.fallback.hears(Speech::En, Speech::En));
 
         // English translated to English is transcribed, and says why.
         let (need, why) = Need {
