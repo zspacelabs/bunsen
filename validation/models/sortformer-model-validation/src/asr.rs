@@ -125,9 +125,10 @@ fn score(
 }
 
 fn diarizer(device: &Device) -> Arc<dyn bunsen::kits::speech::diarization::SpeakerActivityModel> {
+    let construct = load_construct(device);
     Arc::new(
-        load_construct(device)
-            .diarizer(SortformerStreamingConfig::nemotron_low_latency())
+        construct
+            .diarizer(construct.streaming().expect("the row's default latency"))
             .unwrap(),
     )
 }

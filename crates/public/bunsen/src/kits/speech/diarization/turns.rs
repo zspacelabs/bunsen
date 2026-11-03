@@ -86,30 +86,6 @@ impl TurnFilterConfig {
         Self::new()
     }
 
-    /// `NeMo`'s tuned parameters for streaming Sortformer v2 on DIHARD III dev
-    /// (`diar_streaming_sortformer_4spk-v2_dihard3-dev.yaml`).
-    pub fn dihard3_v2() -> Self {
-        Self::new()
-            .with_onset(0.56)
-            .with_offset(1.0)
-            .with_pad_onset(0.063)
-            .with_pad_offset(0.002)
-            .with_min_duration_on(0.007)
-            .with_min_duration_off(0.151)
-    }
-
-    /// `NeMo`'s tuned parameters for streaming Sortformer v2 on CALLHOME part 1
-    /// (`diar_streaming_sortformer_4spk-v2_callhome-part1.yaml`).
-    pub fn callhome_v2() -> Self {
-        Self::new()
-            .with_onset(0.641)
-            .with_offset(0.561)
-            .with_pad_onset(0.229)
-            .with_pad_offset(0.079)
-            .with_min_duration_on(0.511)
-            .with_min_duration_off(0.296)
-    }
-
     /// Opens a streaming filter.
     ///
     /// # Arguments
@@ -572,12 +548,38 @@ mod tests {
         probs
     }
 
+    /// `NeMo`'s tuned parameters for streaming Sortformer v2 on DIHARD III dev
+    /// (`diar_streaming_sortformer_4spk-v2_dihard3-dev.yaml`): the Sortformer
+    /// catalog's `[dihard3]` preset.
+    fn dihard3_v2() -> TurnFilterConfig {
+        TurnFilterConfig::new()
+            .with_onset(0.56)
+            .with_offset(1.0)
+            .with_pad_onset(0.063)
+            .with_pad_offset(0.002)
+            .with_min_duration_on(0.007)
+            .with_min_duration_off(0.151)
+    }
+
+    /// `NeMo`'s tuned parameters for streaming Sortformer v2 on CALLHOME part 1
+    /// (`diar_streaming_sortformer_4spk-v2_callhome-part1.yaml`): the
+    /// Sortformer catalog's `[callhome]` preset.
+    fn callhome_v2() -> TurnFilterConfig {
+        TurnFilterConfig::new()
+            .with_onset(0.641)
+            .with_offset(0.561)
+            .with_pad_onset(0.229)
+            .with_pad_offset(0.079)
+            .with_min_duration_on(0.511)
+            .with_min_duration_off(0.296)
+    }
+
     fn configs() -> Vec<TurnFilterConfig> {
         vec![
             TurnFilterConfig::none(),
-            TurnFilterConfig::dihard3_v2(),
-            TurnFilterConfig::callhome_v2(),
-            TurnFilterConfig::callhome_v2().with_filter_speech_first(false),
+            dihard3_v2(),
+            callhome_v2(),
+            callhome_v2().with_filter_speech_first(false),
             TurnFilterConfig::new()
                 .with_onset(0.7)
                 .with_offset(0.3)
@@ -677,11 +679,9 @@ mod tests {
     fn fixture_config(name: &str) -> TurnFilterConfig {
         match name {
             "none" => TurnFilterConfig::none(),
-            "dihard3_v2" => TurnFilterConfig::dihard3_v2(),
-            "callhome_v2" => TurnFilterConfig::callhome_v2(),
-            "callhome_v2_fill_first" => {
-                TurnFilterConfig::callhome_v2().with_filter_speech_first(false)
-            }
+            "dihard3_v2" => dihard3_v2(),
+            "callhome_v2" => callhome_v2(),
+            "callhome_v2_fill_first" => callhome_v2().with_filter_speech_first(false),
             "wide" => TurnFilterConfig::new()
                 .with_onset(0.7)
                 .with_offset(0.3)

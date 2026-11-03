@@ -2,10 +2,13 @@
 use std::sync::Arc;
 
 use burn::tensor::Device;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::{
     SortformerFamily,
-    SortformerLatency,
     SortformerStream,
     SortformerStreamingConfig,
     blocks::{
@@ -15,7 +18,9 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
+    data::pretrained::PresetSelection,
     errors::{
+        BunsenError,
         BunsenResult,
         ConstraintError,
         Rule,
@@ -36,12 +41,26 @@ use crate::{
     },
 };
 
+/// How a Sortformer runs: the config its presets patch.
+///
+/// - `streaming`: how far behind the audio it runs, a model card's latency.
+///   Unset by default; a family's `latency` presets set it whole.
+/// - `turns`: how speaker activity becomes turns, `NeMo`'s post-processing.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct SortformerPolicy {
+    /// The streaming config, once a latency preset sets it.
+    pub streaming: Option<SortformerStreamingConfig>,
+
+    /// The turn filter.
+    pub turns: TurnFilterConfig,
+}
+
 /// A Sortformer model and the front end it was trained behind: what a
 /// pretrained loads to, and everything diarization needs.
 ///
 /// [`diarizer`](Self::diarizer) makes it a [`SpeakerActivityModel`] under a
-/// streaming config (its family's [`preset`](Self::preset), say), which a
-/// stream driver attaches with
+/// streaming config (the one its presets resolved to,
+/// [`streaming`](Self::streaming), say), which a stream driver attaches with
 /// [`with_speakers`](crate::kits::speech::asr_driver::AsrStreamDriver::with_speakers);
 /// [`diarize`](Self::diarize) runs a whole recording.
 ///
@@ -55,8 +74,15 @@ pub struct SortformerConstruct {
     /// The mel front end the model was trained behind.
     pub front_end: NemoMelFrontEnd,
 
-    /// The family the model is of: whose streaming presets it runs under.
+    /// The family the model is of: whose presets it runs under.
     pub family: SortformerFamily,
+
+    /// The policy its presets resolved to; the default until
+    /// [`with_policy`](Self::with_policy).
+    pub policy: SortformerPolicy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
 }
 
 impl SortformerConstruct {
@@ -89,18 +115,40 @@ impl SortformerConstruct {
             model: Arc::new(model),
             front_end: front_end.try_init(device)?,
             family,
+            policy: SortformerPolicy::default(),
+            presets: PresetSelection::default(),
         })
     }
 
-    /// The family's streaming preset at `latency`.
+    /// Sets the policy, and the presets that resolved it.
+    pub fn with_policy(
+        mut self,
+        policy: SortformerPolicy,
+        presets: PresetSelection,
+    ) -> Self {
+        self.policy = policy;
+        self.presets = presets;
+        self
+    }
+
+    /// The streaming config its presets resolved to: the model card's
+    /// latency the lookup selected.
     ///
     /// # Errors
-    /// As [`SortformerFamily::preset`].
-    pub fn preset(
-        &self,
-        latency: SortformerLatency,
-    ) -> BunsenResult<SortformerStreamingConfig> {
-        self.family.preset(latency)
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) when no preset set
+    /// one: a lookup should select a `latency`.
+    pub fn streaming(&self) -> BunsenResult<SortformerStreamingConfig> {
+        self.policy.streaming.clone().ok_or_else(|| {
+            BunsenError::policy(format!(
+                "{} has no streaming latency: select a `latency` preset",
+                self.family
+            ))
+        })
+    }
+
+    /// The turn filter its presets resolved to.
+    pub fn turns(&self) -> &TurnFilterConfig {
+        &self.policy.turns
     }
 
     /// The sample rate, in Hz.
@@ -289,17 +337,28 @@ mod tests {
         assert!(turns.iter().all(|t| t.end <= 1.0 + 1e-9));
     }
 
-    /// The presets are the family's; the front end must read the model's
-    /// mels.
+    /// The policy is the default until set; the front end must read the
+    /// model's mels.
     #[test]
-    fn test_family_and_front_end() {
+    fn test_policy_and_front_end() {
         let bundle = bundle();
         assert!(bundle.to_string().starts_with("Nemotron-3-Diarization: "));
-        assert_eq!(
-            bundle.preset(SortformerLatency::Low).unwrap(),
-            SortformerStreamingConfig::nemotron_low_latency()
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Policy)
+            .message_contains("select a `latency` preset")
+            .assert_err(&bundle.streaming());
+        assert_eq!(bundle.turns(), &TurnFilterConfig::none());
+
+        let streaming = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
+        let bundle = bundle.with_policy(
+            SortformerPolicy {
+                streaming: Some(streaming.clone()),
+                turns: TurnFilterConfig::none().with_onset(0.6),
+            },
+            PresetSelection::new(["low"]),
         );
-        assert!(bundle.preset(SortformerLatency::High).is_err());
+        assert_eq!(bundle.streaming().unwrap(), streaming);
+        assert_eq!(bundle.turns().onset, 0.6);
+        assert_eq!(bundle.presets.presets, ["low"]);
 
         let model = Arc::try_unwrap(bundle.model).unwrap();
         let err = SortformerConstruct::new(

@@ -26,8 +26,16 @@
 //!   `.nemo`'s from the archive's head, by a range request), so a repo of
 //!   another model is refused first.
 //!
-//! A construct's [`family`](super::SortformerConstruct::family) names the
-//! streaming presets it runs under.
+//! Every model takes its family's presets (the catalog's `families`, which
+//! a row inherits and an `hf:` repo is given by its
+//! [`family`](super::SortformerConstruct::family)): a `latency` axis, the model
+//! card's streaming latencies (`ultra-low`, `very-low` for Nemotron, `low`,
+//! the default, `high` for v2, `offline`), and a `postprocess` axis, `NeMo`'s
+//! turn post-processing (`none`, the default, `dihard3`, `callhome`). So
+//! `'nvidia/nemotron-3-diarization[very-low]'` runs 0.64 s behind the audio,
+//! and the construct's [`streaming`](super::SortformerConstruct::streaming)
+//! and [`turns`](super::SortformerConstruct::turns) are what the presets
+//! resolved to.
 //!
 //! Every well-known file is pinned to its digest and fetched from a fixed
 //! revision of its Hugging Face repo.
