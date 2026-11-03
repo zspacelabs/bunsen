@@ -296,7 +296,12 @@ impl AsrConstructArgs {
         let task = if need.task != point.task {
             let family =
                 self.family(construct_config().point(point, mode).0.recipe.engine.family)?;
-            if family != Family::Whisper {
+            let does = construct_config()
+                .engine(family)
+                .tasks
+                .as_ref()
+                .is_some_and(|tasks| tasks.does(need.task));
+            if !does {
                 let task = value_name(need.task);
                 return Err(BunsenError::policy(format!(
                     "preset {} runs {}, which cannot {task}; --task {task} needs another \

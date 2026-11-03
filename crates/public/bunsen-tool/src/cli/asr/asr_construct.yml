@@ -9,6 +9,8 @@
 #   a nearer quality before another speech, as a multilingual model also
 #   hears English. The task is never changed by a fallback.
 # - `implications`: a point that is served as another.
+# - `engines`: what a family's engine takes from the command line; a
+#   family not named finds the language itself and only transcribes.
 # - `language`: the speech `--language` implies, by its code; a `--speech`
 #   given with it must hear that speech (`fallback.speech`).
 # - `vad`: the VAD slot's filler, as a lookup expression: what finds the
@@ -63,6 +65,18 @@ implications:
   - when: { speech: en, task: translate }
     then: { task: transcribe }
     reason: "English speech translated to English is transcribed"
+
+engines:
+  whisper:
+    # `--language` joins the model's patch under this key.
+    language: language
+    # The tasks its models do: each one's preset in the model's box (the
+    # default's is left out, as the task axis's default), and the patch key
+    # and values that set it too (a patch wins over the box).
+    tasks:
+      default: transcribe
+      presets: { transcribe: transcribe, translate: translate }
+      patch: { key: task, values: { transcribe: Transcribe, translate: Translate } }
 
 language:
   # A code (case aside) and the speech it is; any other code is `otherwise`.

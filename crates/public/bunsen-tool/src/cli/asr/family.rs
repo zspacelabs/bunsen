@@ -71,7 +71,7 @@ use crate::cli::asr::{
 };
 
 /// A model family: one kit, its factory, and its default model.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Family {
     /// NVIDIA's Parakeet TDT.
     Parakeet,
