@@ -111,9 +111,8 @@ mod tests {
         kits::{
             speech::whisper::pretrained::{
                 CHECKPOINT,
-                OPENAI,
+                WHISPER_CATALOG,
                 WHISPER_KIT,
-                openai_download_root,
             },
             support::construct::testing::ListsNothing,
         },
@@ -159,7 +158,6 @@ mod tests {
         );
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("nobody:base"));
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("gigantic"));
-        assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
     }
 
     /// A spec resolves to a deferred row, by ref, bare name or alias, with
@@ -227,7 +225,12 @@ mod tests {
     /// through the factory.
     #[test]
     fn test_one_prefab_many_pretrained() {
-        let large: Vec<&str> = OPENAI.for_prefab("large").iter().map(|p| p.name).collect();
+        let table = WHISPER_CATALOG.table();
+        let large: Vec<&str> = table.groups[0]
+            .for_prefab("large")
+            .iter()
+            .map(|p| p.name.as_str())
+            .collect();
         assert_eq!(large, ["large-v1", "large-v2"]);
         let derived: Vec<String> = default_whisper_factory()
             .unwrap()

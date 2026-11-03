@@ -22,9 +22,8 @@ impl WhisperVocabulary {
     /// The rank file, brought local through the cache and parsed: the
     /// cache, or one 800 KB fetch from the pinned commit.
     ///
-    /// The files are the two maps
-    /// [`MULTILINGUAL_VOCABULARY`](super::MULTILINGUAL_VOCABULARY) and
-    /// [`GPT2_VOCABULARY`](super::GPT2_VOCABULARY), pinned to
+    /// The files are the two vocabulary bundles of
+    /// [`WHISPER_CATALOG`](super::WHISPER_CATALOG), pinned to
     /// [`OPENAI_VOCAB_REVISION`]. A loaded construct already carries its
     /// vocabulary; this is for a caller that wants the ranks alone.
     ///
@@ -35,7 +34,7 @@ impl WhisperVocabulary {
         self,
         cache: &PretrainedCache,
     ) -> BunsenResult<TiktokenRanks> {
-        let map = self.resource_bundle().to_resource_bundle();
+        let map = self.resource_bundle();
         let resolved = cache.resolve(WHISPER_KIT, map.try_get(VOCABULARY)?)?;
         TiktokenRanks::load(&resolved.path)
     }
@@ -44,15 +43,14 @@ impl WhisperVocabulary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::whisper::pretrained::OPENAI_VOCABULARY_BUNDLES;
 
-    /// Both maps fetch from the pinned commit, by the file's own name.
+    /// Both bundles fetch from the pinned commit, by the file's own name.
     #[test]
-    fn test_the_maps_pin_the_commit() {
-        for map in OPENAI_VOCABULARY_BUNDLES {
-            let owned = map.to_resource_bundle();
+    fn test_the_bundles_pin_the_commit() {
+        for vocabulary in WhisperVocabulary::ALL {
+            let owned = vocabulary.resource_bundle();
             let r = owned.try_get(VOCABULARY).unwrap();
-            assert!(r.is_pinned(), "{}", map.name);
+            assert!(r.is_pinned(), "{}", owned.name);
             for url in r.urls() {
                 assert!(url.contains(OPENAI_VOCAB_REVISION), "{url}");
                 assert!(url.ends_with(&format!("/{}", r.file)), "{url}");

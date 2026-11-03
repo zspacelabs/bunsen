@@ -8,14 +8,13 @@ use bunsen::{
         Provenance,
     },
     kits::speech::whisper::pretrained::{
-        BASE_CHECKPOINT,
         CHECKPOINT,
-        GPT2_VOCABULARY,
-        MULTILINGUAL_VOCABULARY,
         PYTORCH_FP16,
         TIKTOKEN,
         VOCABULARY,
+        WHISPER_CATALOG,
         WHISPER_KIT,
+        WhisperVocabulary,
         default_whisper_factory,
     },
 };
@@ -34,8 +33,11 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     let root = bind_whisper_onnx::cache_dir();
     let cache = offline_cache();
 
-    for map in [&BASE_CHECKPOINT, &MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY] {
-        let owned = map.to_resource_bundle();
+    for owned in [
+        WHISPER_CATALOG.resource_bundle("openai/base.pt"),
+        WhisperVocabulary::Multilingual.resource_bundle(),
+        WhisperVocabulary::Gpt2.resource_bundle(),
+    ] {
         for (key, r) in &owned.resources {
             assert_eq!(cache.status(WHISPER_KIT, r), CacheStatus::Cached, "{key}");
             let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
@@ -49,9 +51,12 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
         }
     }
 
-    let base = BASE_CHECKPOINT
-        .to_resource_bundle()
-        .fuse(MULTILINGUAL_VOCABULARY.to_resource_bundle(), Fuse::Strict)
+    let base = WHISPER_CATALOG
+        .resource_bundle("openai/base.pt")
+        .fuse(
+            WhisperVocabulary::Multilingual.resource_bundle(),
+            Fuse::Strict,
+        )
         .unwrap();
     let loaded = cache.load(WHISPER_KIT, &base).unwrap();
     assert_eq!(loaded.keys(), [CHECKPOINT, VOCABULARY]);
@@ -90,8 +95,8 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
     let map = model.to_resource_bundle();
     assert_eq!(
         map.get(CHECKPOINT).unwrap().sha256,
-        BASE_CHECKPOINT
-            .to_resource_bundle()
+        WHISPER_CATALOG
+            .resource_bundle("openai/base.pt")
             .get(CHECKPOINT)
             .unwrap()
             .sha256,

@@ -21,8 +21,8 @@ use bunsen::{
             driver::WhisperSpecialIds,
             pretrained::{
                 CHECKPOINT,
-                OPENAI,
                 VOCABULARY,
+                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WhisperConstructConfig,
                 WhisperVocabulary,
@@ -62,9 +62,7 @@ pub fn cache_in(dir: PathBuf) -> PretrainedCache {
 
 /// The bundled rank file a layout selects.
 pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
-    let map = WhisperVocabulary::for_layout(ids)
-        .resource_bundle()
-        .to_resource_bundle();
+    let map = WhisperVocabulary::for_layout(ids).resource_bundle();
     offline_cache()
         .resolve(WHISPER_KIT, map.try_get(VOCABULARY).unwrap())
         .unwrap()
@@ -85,7 +83,8 @@ pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
 /// It is how a deployment that ships its files would serve them, so it is
 /// built here the way such a caller would.
 pub fn bundled_table() -> PretrainedTable {
-    let mut base = OPENAI.lookup("base").unwrap().to_pretrained();
+    let openai = WHISPER_CATALOG.table().groups.remove(0);
+    let mut base = openai.lookup("base").unwrap().clone();
     base.resources = base
         .resources
         .with_local_files(
@@ -100,11 +99,8 @@ pub fn bundled_table() -> PretrainedTable {
         name: BUNDLED.to_string(),
         description: "the Whisper assets bind-whisper-onnx ships, used in place".to_string(),
         groups: vec![PretrainedGroup {
-            name: OPENAI.name.to_string(),
-            description: OPENAI.description.to_string(),
-            license: OPENAI.license.map(str::to_string),
-            origin: OPENAI.origin.map(str::to_string),
             items: vec![base],
+            ..openai
         }],
     }
 }

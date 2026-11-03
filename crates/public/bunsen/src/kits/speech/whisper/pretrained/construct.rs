@@ -404,9 +404,7 @@ impl ConstructInit for WhisperConstructConfig {
             .as_policy()
             .with_context(|| model.id())?
             .ids();
-        let rule = WhisperVocabulary::for_layout(&ids)
-            .resource_bundle()
-            .to_resource_bundle();
+        let rule = WhisperVocabulary::for_layout(&ids).resource_bundle();
         match map.get(VOCABULARY).cloned() {
             None => map.fuse(rule, Fuse::Strict),
             Some(given) if given.namespace == GIVEN_NAMESPACE => Ok(map),

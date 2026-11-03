@@ -24,15 +24,15 @@ use bunsen::{
             WhisperGeometry,
             WhisperMeta,
             pretrained::{
-                BASE_CHECKPOINT,
                 CHECKPOINT,
-                GPT2_VOCABULARY,
                 GeometryMismatch,
                 PytorchWhisperScanner,
                 VOCABULARY,
+                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperConstructConfig,
+                WhisperVocabulary,
                 default_whisper_factory,
             },
         },
@@ -120,16 +120,16 @@ fn test_plan_derives_a_paths_vocabulary() {
 #[test]
 fn test_plan_checks_a_declared_vocabulary() {
     let cache = offline_cache();
-    let wrong = BASE_CHECKPOINT
-        .to_resource_bundle()
-        .fuse(GPT2_VOCABULARY.to_resource_bundle(), Fuse::Strict)
+    let wrong = WHISPER_CATALOG
+        .resource_bundle("openai/base.pt")
+        .fuse(WhisperVocabulary::Gpt2.resource_bundle(), Fuse::Strict)
         .unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .message_contains("gpt2.tiktoken")
         .message_contains("multilingual.tiktoken")
         .assert_err(&WhisperConstructConfig::new().plan(&PretrainedRef::from(wrong), &cache));
 
-    let overridden = PretrainedRef::from(BASE_CHECKPOINT.to_resource_bundle())
+    let overridden = PretrainedRef::from(WHISPER_CATALOG.resource_bundle("openai/base.pt"))
         .with_overlay(ResourceBundle::given(
             "--vocab",
             VOCABULARY,
@@ -173,7 +173,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
 fn test_plan_checks_the_prefab_a_name_promises() {
     let cache = offline_cache();
     let base_pt = bind_whisper_onnx::base_pt();
-    let given = PretrainedRef::from(BASE_CHECKPOINT.to_resource_bundle());
+    let given = PretrainedRef::from(WHISPER_CATALOG.resource_bundle("openai/base.pt"));
     let named = resolve_model("openai/base").unwrap();
     let hook = WhisperConstructConfig::new();
 
