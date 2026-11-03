@@ -32,7 +32,10 @@ pub struct Preset {
     /// `_` and `.`.
     pub name: String,
 
-    /// A line for a listing and for errors.
+    /// A line for a listing and for errors. Required, but a row's preset
+    /// laid over a family's of the same name may leave it empty to keep the
+    /// family's ([`PresetSet::over`]).
+    #[serde(default)]
     pub description: String,
 
     /// The merge patch it applies.
@@ -137,8 +140,10 @@ impl PresetSet {
     /// `self` merged over `family`: a family's presets with a row's own laid
     /// over them.
     ///
-    /// A preset or axis of `self` replaces the family's of the same name, and
-    /// the rest of each are kept in order, the family's first; the default is
+    /// A preset of `self` is merged over the family's of the same name: its
+    /// patch laid over the family's, its description the family's when it
+    /// gives none. An axis of `self` replaces the family's of the same name.
+    /// The rest of each are kept in order, the family's first. The default is
     /// `self`'s when it names any, else the family's; the base is `self`'s
     /// merged over the family's. The result is not checked:
     /// [`validate`](Self::validate) it.
@@ -169,9 +174,25 @@ impl PresetSet {
         }
         let mut base = family.base.clone();
         merge_patch::apply(&mut base, &self.base);
+        let presets = merged(&family.presets, &self.presets, |p| &p.name)
+            .into_iter()
+            .map(|mut preset| {
+                if let Some(theirs) = family.presets.iter().find(|f| f.name == preset.name)
+                    && self.presets.iter().any(|m| m.name == preset.name)
+                {
+                    let mut patch = theirs.patch.clone();
+                    merge_patch::apply(&mut patch, &preset.patch);
+                    preset.patch = patch;
+                    if preset.description.trim().is_empty() {
+                        preset.description = theirs.description.clone();
+                    }
+                }
+                preset
+            })
+            .collect();
         PresetSet {
             base,
-            presets: merged(&family.presets, &self.presets, |p| &p.name),
+            presets,
             axes: merged(&family.axes, &self.axes, |a| &a.name),
             default: if self.default.is_empty() {
                 family.default.clone()
@@ -719,7 +740,11 @@ mod tests {
             merged.names().collect::<Vec<_>>(),
             ["thinking", "no-thinking", "yarn-128k", "fast"]
         );
-        assert_eq!(merged.get("thinking").unwrap().patch["budget"], 1024);
+        // The row's `thinking` is laid over the family's.
+        assert_eq!(
+            merged.get("thinking").unwrap().patch,
+            json!({"thinking": true, "budget": 1024})
+        );
         assert_eq!(merged.axes, family.axes);
         assert_eq!(merged.default, ["thinking"]);
         merged.validate().unwrap();
@@ -731,5 +756,28 @@ mod tests {
         assert_eq!(with_default.over(&family).default, ["no-thinking"]);
         assert_eq!(PresetSet::default().over(&family), family);
         assert_eq!(family.over(&PresetSet::default()), family);
+    }
+
+    /// A same-named preset merges: the row's patch over the family's, the
+    /// family's description when the row gives none.
+    #[test]
+    fn test_over_merges_same_named_presets() {
+        let family = thinking_set();
+        let row = PresetSet {
+            presets: vec![Preset {
+                name: "no-thinking".to_string(),
+                description: String::new(),
+                patch: json!({"sampling": {"temperature": 0.7}}),
+            }],
+            ..Default::default()
+        };
+        let merged = row.over(&family);
+        let p = merged.get("no-thinking").unwrap();
+        assert_eq!(
+            p.patch,
+            json!({"thinking": false, "sampling": {"temperature": 0.7}})
+        );
+        assert_eq!(p.description, "the no-thinking preset");
+        merged.validate().unwrap();
     }
 }

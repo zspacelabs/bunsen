@@ -14,6 +14,7 @@ use serde_json::{
 use crate::{
     data::pretrained::{
         CatalogProbe,
+        Preset,
         PresetSet,
     },
     errors::{
@@ -214,20 +215,23 @@ pub fn builtin_probes() -> Vec<Box<dyn Probe>> {
 /// As [`apply_probes_with`].
 pub fn apply_probes(
     set: &PresetSet,
+    family: &PresetSet,
     entries: &[CatalogProbe],
     files: &ProbeFiles,
 ) -> BunsenResult<PresetSet> {
     let probes = builtin_probes();
     let probes: Vec<&dyn Probe> = probes.iter().map(Box::as_ref).collect();
-    apply_probes_with(set, entries, files, &probes)
+    apply_probes_with(set, family, entries, files, &probes)
 }
 
 /// `set` with what `entries` find in `files` beneath it: each entry's probe
 /// reads its file, and its patch goes into the set's base (`into: [base]`)
 /// or into the presets it names; then `set`'s own base and presets are laid
 /// over what was found, so a hand-written patch extends or corrects a
-/// probed one. A preset an entry names must be one `set` declares, with its
-/// description.
+/// probed one. A preset an entry names must be one `set` or its `family`
+/// declares (empty for a row with none); one only the family declares joins
+/// `set` as the probed patch alone, with no description, to be laid over the
+/// family's ([`PresetSet::over`]).
 ///
 /// # Errors
 /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): an unknown probe (its
@@ -236,6 +240,7 @@ pub fn apply_probes(
 /// - As a probe's [`probe`](Probe::probe), under a frame naming the entry.
 pub fn apply_probes_with(
     set: &PresetSet,
+    family: &PresetSet,
     entries: &[CatalogProbe],
     files: &ProbeFiles,
     probes: &[&dyn Probe],
@@ -260,9 +265,10 @@ pub fn apply_probes_with(
                 merge_patch::apply(&mut base, &patch);
                 continue;
             }
-            if set.get(into).is_none() {
+            if set.get(into).is_none() && family.get(into).is_none() {
                 return Err(BunsenError::lookup(
-                    LookupError::missing("preset", into.clone()).with_candidates(set.names()),
+                    LookupError::missing("preset", into.clone())
+                        .with_candidates(set.names().chain(family.names())),
                 )
                 .context(format!("the {} probe's `into`", entry.probe)));
             }
@@ -285,6 +291,14 @@ pub fn apply_probes_with(
             preset.patch = patch;
         }
     }
+    // What is left went into presets only the family declares.
+    for (name, patch) in found {
+        out.presets.push(Preset {
+            name,
+            description: String::new(),
+            patch,
+        });
+    }
     Ok(out)
 }
 
@@ -292,7 +306,6 @@ pub fn apply_probes_with(
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::Preset,
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
@@ -403,6 +416,7 @@ mod tests {
         let files = ProbeFiles::new().with("generation_config", QWEN3_GENERATION);
         let probed = apply_probes(
             &set,
+            &PresetSet::default(),
             &[entry(
                 "generation_config",
                 "generation_config",
@@ -434,6 +448,7 @@ mod tests {
             .message_contains("no probe \"chat_template\"")
             .assert_err(&apply_probes(
                 &set,
+                &PresetSet::default(),
                 &[entry("chat_template", "generation_config", &["base"])],
                 &files,
             ));
@@ -441,6 +456,7 @@ mod tests {
             .message_contains("no probe file \"tokenizer_config\"")
             .assert_err(&apply_probes(
                 &set,
+                &PresetSet::default(),
                 &[entry("tokenizer_config", "tokenizer_config", &["base"])],
                 &files,
             ));
@@ -448,8 +464,42 @@ mod tests {
             .message_contains("no preset \"fast\"")
             .assert_err(&apply_probes(
                 &set,
+                &PresetSet::default(),
                 &[entry("generation_config", "generation_config", &["fast"])],
                 &files,
             ));
+    }
+
+    /// A probe into a preset only the row's family declares makes a partial
+    /// row preset, which the family's is laid under at load.
+    #[test]
+    fn test_apply_probes_into_a_family_preset() {
+        let family = PresetSet {
+            presets: vec![Preset {
+                name: "thinking".to_string(),
+                description: "think first".to_string(),
+                patch: json!({"generation": {"template_kwargs": {"enable_thinking": true}}}),
+            }],
+            ..Default::default()
+        };
+        let files = ProbeFiles::new().with("generation_config", QWEN3_GENERATION);
+        let row = apply_probes(
+            &PresetSet::default(),
+            &family,
+            &[entry(
+                "generation_config",
+                "generation_config",
+                &["thinking"],
+            )],
+            &files,
+        )
+        .unwrap();
+        let partial = row.get("thinking").unwrap();
+        assert!(partial.description.is_empty());
+        let merged = row.over(&family);
+        merged.validate().unwrap();
+        let thinking = &merged.get("thinking").unwrap().patch["generation"];
+        assert_eq!(thinking["template_kwargs"]["enable_thinking"], true);
+        assert_eq!(thinking["sampling"]["top_k"], 20);
     }
 }

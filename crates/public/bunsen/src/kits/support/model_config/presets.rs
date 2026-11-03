@@ -60,8 +60,10 @@ impl<C> ResolvedPresets<C> {
 /// [`PresetSet::check_selection`]: two that set the same path are an error,
 /// so their order never matters. A layer over the default may set what the
 /// default set. Every patch is checked against the config it is applied to
-/// ([`validate_paths`](merge_patch::validate_paths)), and the result is
-/// deserialized as `C`.
+/// ([`validate_paths_open`](merge_patch::validate_paths_open)), except under
+/// the base's maps (its empty objects,
+/// [`empty_objects`](merge_patch::empty_objects)), which take any key; and
+/// the result is deserialized as `C`.
 ///
 /// # Errors
 /// - As [`PresetSet::check_selection`].
@@ -84,14 +86,15 @@ where
 
     let mut value = serde_json::to_value(base)
         .map_err(|e| BunsenError::internal("a config that does not serialize").with_cause(e))?;
-    apply_layer(&mut value, &set.base).map_err(|e| e.context("the base patch"))?;
+    let open = merge_patch::empty_objects(&value);
+    apply_layer::<C>(&mut value, &set.base, &open).map_err(|e| e.context("the base patch"))?;
     for name in &presets {
         let preset = set.get(name).expect("checked: every applied preset exists");
-        apply_layer(&mut value, &preset.patch)
+        apply_layer::<C>(&mut value, &preset.patch, &open)
             .map_err(|e| e.context(format!("the preset `{name}`")))?;
     }
     if let Some(patch) = &selection.patch {
-        apply_layer(&mut value, patch).map_err(|e| e.context("the lookup's patch"))?;
+        apply_layer::<C>(&mut value, patch, &open).map_err(|e| e.context("the lookup's patch"))?;
     }
 
     let config = serde_json::from_value(value).map_err(|e| {
@@ -134,12 +137,24 @@ where
     resolve_presets(base, set, selection)
 }
 
-fn apply_layer(
+/// Checks and applies one layer, then normalizes the result through `C`:
+/// deserialized and serialized again, so an optional field a layer left
+/// unset is `null` again, and a later layer may set it.
+fn apply_layer<C>(
     value: &mut Value,
     patch: &Value,
-) -> BunsenResult<()> {
-    merge_patch::validate_paths(value, patch)?;
+    open: &[merge_patch::PatchPath],
+) -> BunsenResult<()>
+where
+    C: Serialize + DeserializeOwned,
+{
+    merge_patch::validate_paths_open(value, patch, open)?;
     merge_patch::apply(value, patch);
+    let typed: C = serde_json::from_value(value.clone()).map_err(|e| {
+        BunsenError::policy("presets that resolve to an invalid config").with_cause(e)
+    })?;
+    *value = serde_json::to_value(typed)
+        .map_err(|e| BunsenError::internal("a config that does not serialize").with_cause(e))?;
     Ok(())
 }
 

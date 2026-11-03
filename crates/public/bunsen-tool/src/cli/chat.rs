@@ -69,7 +69,10 @@ use bunsen_tool::chat::{
     ChatSessionConfig,
     NanoChatChat,
     Qwen3Chat,
+    search_config,
 };
+
+use crate::cli::with_presets;
 
 /// `bunsen-tool chat`'s commands.
 #[derive(clap::Args, Debug)]
@@ -377,9 +380,10 @@ struct GenerateFlags {
 
 /// A family's own generation flags.
 trait FamilyFlags: clap::Args + std::fmt::Debug {
-    /// Whether the model thinks first; `None` for the checkpoint's default.
-    fn thinking(&self) -> Option<bool> {
-        None
+    /// The presets the flags select, added to a Qwen3 checkpoint's lookup
+    /// expression: none for the checkpoint's default.
+    fn presets(&self) -> Vec<&'static str> {
+        Vec::new()
     }
 
     /// Whether a reply's thinking is hidden from the stream.
@@ -391,12 +395,14 @@ trait FamilyFlags: clap::Args + std::fmt::Debug {
 /// Thinking: Qwen3's own flags.
 #[derive(clap::Args, Debug)]
 struct ThinkFlags {
-    /// Let the model think first (Qwen3's default; nanochat does not
-    /// think).
+    /// Let the model think first: a Qwen3 checkpoint's `[thinking]` preset,
+    /// the hybrid models' default, under the card's thinking sampling.
+    /// nanochat does not think.
     #[arg(long, conflicts_with = "no_think")]
     think: bool,
 
-    /// Ask the model not to think.
+    /// Ask the model not to think: its `[no-thinking]` preset, under the
+    /// card's non-thinking sampling.
     #[arg(long)]
     no_think: bool,
 
@@ -406,11 +412,13 @@ struct ThinkFlags {
 }
 
 impl FamilyFlags for ThinkFlags {
-    fn thinking(&self) -> Option<bool> {
+    /// `[thinking]` or `[no-thinking]`: the `thinking-mode` axis, which also
+    /// sets the model card's sampling for the mode.
+    fn presets(&self) -> Vec<&'static str> {
         match (self.think, self.no_think) {
-            (true, _) => Some(true),
-            (_, true) => Some(false),
-            _ => None,
+            (true, _) => vec!["thinking"],
+            (_, true) => vec!["no-thinking"],
+            _ => Vec::new(),
         }
     }
 
@@ -499,6 +507,7 @@ impl GenerateFlags {
     fn load(
         &self,
         family: Option<Family>,
+        presets: &[&str],
     ) -> BunsenResult<(DeviceSession, Chat)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
@@ -509,7 +518,12 @@ impl GenerateFlags {
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
-        let (family, name) = self.checkpoint(family)?;
+        let (family, mut name) = self.checkpoint(family)?;
+        // nanochat has no thinking switch: the flags select only Qwen3's
+        // presets.
+        if family == Family::Qwen3 && !presets.is_empty() {
+            name = with_presets(&name, presets)?;
+        }
         let chat = family.load(&name, &cache, &device)?;
         Ok((device, chat))
     }
@@ -519,9 +533,8 @@ impl GenerateFlags {
     fn config<B: ChatBackend>(
         &self,
         chat: &ChatModel<B>,
-        family: &impl FamilyFlags,
     ) -> ChatSessionConfig {
-        let defaults = chat.defaults().search.clone();
+        let defaults = search_config(chat.generation());
         let search = if self.greedy {
             SearchConfig::new()
         } else {
@@ -534,7 +547,6 @@ impl GenerateFlags {
         };
         ChatSessionConfig::new()
             .with_max_new_tokens(self.max_new_tokens)
-            .with_enable_thinking(family.thinking())
             .with_search(Some(search))
             .with_context(self.context)
             .with_storage(self.kv_storage.storage())
@@ -604,7 +616,7 @@ impl GenerateFlags {
         device: &DeviceSession,
         prompt: &str,
     ) -> BunsenResult<()> {
-        let mut session = self.session(chat, self.config(chat, family), device);
+        let mut session = self.session(chat, self.config(chat), device);
         self.reply(&mut session, family, prompt)?;
         Ok(())
     }
@@ -616,7 +628,7 @@ impl GenerateFlags {
         family: &impl FamilyFlags,
         device: &DeviceSession,
     ) -> BunsenResult<()> {
-        let config = self.config(chat, family);
+        let config = self.config(chat);
         let mut session = self.session(chat, config.clone(), device);
         let stdin = std::io::stdin();
         let mut lines = stdin.lock().lines();
@@ -807,7 +819,7 @@ impl<F: FamilyFlags> RunCmd<F> {
             }
         };
         let prompt = prompt.trim_end();
-        let (device, chat) = self.flags.load(family)?;
+        let (device, chat) = self.flags.load(family, &self.family.presets())?;
         match &chat {
             Chat::Qwen3(chat) => self.flags.run_once(chat, &self.family, &device, prompt)?,
             Chat::NanoChat(chat) => self.flags.run_once(chat, &self.family, &device, prompt)?,
@@ -824,7 +836,7 @@ impl<F: FamilyFlags> ConverseCmd<F> {
         &self,
         family: Option<Family>,
     ) -> BunsenResult<()> {
-        let (device, chat) = self.flags.load(family)?;
+        let (device, chat) = self.flags.load(family, &self.family.presets())?;
         match &chat {
             Chat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device)?,
             Chat::NanoChat(chat) => self.flags.converse(chat, &self.family, &device)?,

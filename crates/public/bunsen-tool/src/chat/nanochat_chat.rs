@@ -16,9 +16,10 @@ use bunsen::{
             },
         },
         support::{
-            decoding::{
-                LogitFilter,
-                SearchConfig,
+            decoding::LogitFilter,
+            model_config::{
+                GenerationPolicy,
+                SamplingPolicy,
             },
             tokens::Detokenizer,
         },
@@ -36,7 +37,6 @@ use burn::{
 use crate::chat::{
     ChatBackend,
     ChatMessage,
-    GenerationDefaults,
     NanoChatLayout,
     NanoChatTokenizer,
     row,
@@ -53,7 +53,7 @@ pub struct NanoChatChat {
     bundle: Arc<NanoChatConstruct>,
     tokenizer: Arc<NanoChatTokenizer>,
     layout: NanoChatLayout,
-    defaults: GenerationDefaults,
+    generation: GenerationPolicy,
 }
 
 impl NanoChatChat {
@@ -69,17 +69,21 @@ impl NanoChatChat {
             .ok_or_else(|| BunsenError::invalid_resource("a checkpoint without tokenizer.pkl"))?;
         let tokenizer = NanoChatTokenizer::from_file(path)?;
         let layout = NanoChatLayout::from_tokenizer(&tokenizer)?;
-        let defaults = GenerationDefaults {
+        let generation = GenerationPolicy {
             stop_ids: layout.stop_ids(),
-            search: SearchConfig::new()
-                .with_temperature(0.6)
-                .with_top_k(Some(50)),
+            sampling: Some(SamplingPolicy {
+                temperature: 0.6,
+                top_k: Some(50),
+                top_p: None,
+                min_p: None,
+            }),
+            ..Default::default()
         };
         Ok(Self {
             bundle,
             tokenizer: Arc::new(tokenizer),
             layout,
-            defaults,
+            generation,
         })
     }
 
@@ -119,8 +123,8 @@ impl ChatBackend for NanoChatChat {
         self.tokenizer.clone()
     }
 
-    fn defaults(&self) -> &GenerationDefaults {
-        &self.defaults
+    fn generation(&self) -> &GenerationPolicy {
+        &self.generation
     }
 
     fn filters(&self) -> Vec<Arc<dyn LogitFilter>> {
