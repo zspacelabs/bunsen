@@ -50,8 +50,9 @@ impl From<Preset> for EmissionPolicy {
     }
 }
 
-/// The VAD the presets that find speech regions load.
-pub const VAD_MODEL: &str = "silero/vad-16k";
+/// The VAD the presets that find speech regions load, under
+/// `faster-whisper`'s policy: 2 s of silence closes a region, 400 ms pads it.
+pub const VAD_MODEL: &str = "silero/vad-16k[faster-whisper]";
 
 /// `driver`, with Silero's VAD attached when `preset` finds speech regions.
 pub fn with_vad<E: AsrEngine>(
@@ -69,7 +70,7 @@ pub fn with_vad<E: AsrEngine>(
     let rate = driver.sample_rate();
     driver.with_vad(
         Arc::new(vad.expect_branch(rate).clone()),
-        Default::default(),
+        vad.vad_filter().clone(),
     )
 }
 

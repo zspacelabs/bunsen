@@ -16,6 +16,8 @@ use crate::{
     },
     kits::{
         speech::silero_vad::{
+            SileroConstruct,
+            SileroPolicy,
             SileroVadCollection,
             pretrained::{
                 BURNPACK,
@@ -25,7 +27,10 @@ use crate::{
                 SILERO_KIT,
             },
         },
-        support::construct::ConstructInit,
+        support::{
+            construct::ConstructInit,
+            model_config::resolve_ref_presets,
+        },
     },
 };
 
@@ -46,7 +51,9 @@ pub enum SileroReader {
 
 /// How a Silero pretrained is built: its checkpoint read by the
 /// [`SileroReader`] its map calls for, into a [`SileroVadCollection`]: both
-/// branches from a burnpack, the 16 kHz branch from upstream's safetensors.
+/// branches from a burnpack, the 16 kHz branch from upstream's safetensors;
+/// and its [`SileroPolicy`] resolved through the row's presets, as the
+/// lookup asked. Together, a [`SileroConstruct`].
 ///
 /// The Silero kit's construct config: its [`ConstructInit`] hook.
 /// [`default_silero_factory`](super::default_silero_factory) attaches it;
@@ -65,9 +72,10 @@ impl SileroConstructConfig {
 }
 
 impl ConstructInit for SileroConstructConfig {
-    type Construct = SileroVadCollection;
+    type Construct = SileroConstruct;
 
     const KIT: &'static str = SILERO_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The reader for the map's checkpoint: a burnpack under [`BURNPACK`],
     /// or upstream's safetensors under [`CHECKPOINT`].
@@ -110,14 +118,17 @@ impl ConstructInit for SileroConstructConfig {
     }
 
     /// Reads the checkpoint: a burnpack into the standard 16 kHz and 8 kHz
-    /// models, upstream's safetensors into the 16 kHz one.
+    /// models, upstream's safetensors into the 16 kHz one. The policy is the
+    /// row's presets over [`SileroPolicy`]'s default, as the lookup asked
+    /// ([`resolve_ref_presets`]).
     fn try_init(
         &self,
-        _model: &PretrainedRef,
+        model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<SileroVadCollection>> {
-        Ok(Arc::new(match self.reader {
+    ) -> BunsenResult<Arc<SileroConstruct>> {
+        let policy = resolve_ref_presets(&SileroPolicy::default(), model)?;
+        let vads = match self.reader {
             SileroReader::Burnpack => {
                 SileroVadCollection::load_from_burnpack_file(loaded.expect(BURNPACK)?, device)?
             }
@@ -134,6 +145,11 @@ impl ConstructInit for SileroConstructConfig {
                     "a safetensors checkpoint needs bunsen's `store_safetensors` feature",
                 ));
             }
+        };
+        Ok(Arc::new(SileroConstruct {
+            presets: policy.applied(),
+            policy: policy.config,
+            vads,
         }))
     }
 }
@@ -169,5 +185,49 @@ mod tests {
                 .reader,
             SileroReader::Burnpack
         );
+    }
+
+    /// `silero/vad-16k`'s `vad-policy` axis: upstream's policy by default,
+    /// `faster-whisper`'s by name, resolved with nothing fetched.
+    #[test]
+    fn test_the_vad_policy_presets() {
+        use crate::kits::speech::{
+            asr_driver::VoiceActivityFilterConfig,
+            silero_vad::pretrained::default_silero_factory,
+        };
+
+        let factory = default_silero_factory().unwrap();
+        let policy = |spec: &str| {
+            factory
+                .resolve_presets(spec, &SileroPolicy::default())
+                .unwrap()
+        };
+
+        let silero = policy("silero/vad-16k");
+        assert_eq!(silero.presets, ["silero"]);
+        assert_eq!(
+            silero.config.vad,
+            VoiceActivityFilterConfig::new()
+                .with_min_speech_ms(250)
+                .with_min_silence_ms(100)
+                .with_speech_pad_ms(30)
+        );
+        assert_eq!(policy("silero/vad-16k[silero]"), silero);
+
+        let fw = policy("Silero/VAD-16K[Faster-Whisper]");
+        assert_eq!(fw.presets, ["faster-whisper"]);
+        assert_eq!(fw.config.vad, VoiceActivityFilterConfig::new());
+
+        let patched = policy("silero/vad-16k{vad: {threshold: 0.6}}");
+        assert_eq!(patched.presets, ["silero"]);
+        assert_eq!(patched.config.vad.threshold, 0.6);
+        assert_eq!(patched.config.vad.min_silence_ms, 100);
+
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Policy)
+            .message_contains("vad-policy")
+            .assert_err(&factory.resolve_presets(
+                "silero/vad-16k[silero,faster-whisper]",
+                &SileroPolicy::default(),
+            ));
     }
 }

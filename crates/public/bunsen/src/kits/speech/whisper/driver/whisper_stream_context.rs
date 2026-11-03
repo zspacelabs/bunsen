@@ -1553,6 +1553,7 @@ mod tests {
     /// Against Silero's recorded probabilities over a real clip: regions
     /// become segments in the parent stream's frame of reference, and
     /// silence is never decoded.
+    #[cfg(all(feature = "store", feature = "cache"))]
     mod voice_activity {
         use burn::module::Module;
 
@@ -1567,7 +1568,11 @@ mod tests {
                     TranscriptSegment,
                     VoiceActivityFilterConfig,
                 },
-                silero_vad::SileroVad,
+                silero_vad::{
+                    SileroPolicy,
+                    SileroVad,
+                    pretrained::default_silero_factory,
+                },
                 testing::RecordedVoiceActivity,
             },
             support::{
@@ -1584,6 +1589,18 @@ mod tests {
             load_audio_mono_sr(&path, RATE).unwrap()
         }
 
+        /// Silero's own policy, `silero/vad-16k[silero]`, resolved from its
+        /// row with nothing fetched: what the recording's golden regions
+        /// were cut with.
+        fn silero_policy() -> VoiceActivityFilterConfig {
+            default_silero_factory()
+                .unwrap()
+                .resolve_presets("silero/vad-16k[silero]", &SileroPolicy::default())
+                .unwrap()
+                .config
+                .vad
+        }
+
         fn conservative_driver(device: &Device) -> WhisperStreamDriver {
             let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             config(false)
@@ -1594,10 +1611,7 @@ mod tests {
                     device,
                 )
                 .unwrap()
-                .with_vad(
-                    Arc::new(vad),
-                    VoiceActivityFilterConfig::fast_whisper_burn(),
-                )
+                .with_vad(Arc::new(vad), silero_policy())
                 .unwrap()
         }
 
@@ -1617,7 +1631,7 @@ mod tests {
                     )
                     .unwrap()
             };
-            let filter = VoiceActivityFilterConfig::fast_whisper_burn;
+            let filter = silero_policy;
 
             let mismatch =
                 ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
@@ -1667,10 +1681,7 @@ mod tests {
                     &device,
                 )
                 .unwrap()
-                .with_vad(
-                    Arc::new(vad),
-                    VoiceActivityFilterConfig::fast_whisper_burn(),
-                )
+                .with_vad(Arc::new(vad), silero_policy())
                 .unwrap();
             let audio = speech();
             assert_eq!(audio.len(), 64_000);
@@ -1790,10 +1801,7 @@ mod tests {
                     device,
                 )
                 .unwrap()
-                .with_vad(
-                    Arc::new(vad),
-                    VoiceActivityFilterConfig::fast_whisper_burn(),
-                )
+                .with_vad(Arc::new(vad), silero_policy())
                 .unwrap()
                 .with_logit_filters(vec![scripted])
         }
@@ -1963,10 +1971,7 @@ mod tests {
                 .with_emission(policy)
                 .init_with_layout(model, WhisperTokenLayout::new(ids), device)
                 .unwrap()
-                .with_vad(
-                    Arc::new(vad),
-                    VoiceActivityFilterConfig::fast_whisper_burn(),
-                )
+                .with_vad(Arc::new(vad), silero_policy())
                 .unwrap()
                 .with_logit_filters(vec![scripted])
         }
@@ -2056,10 +2061,7 @@ mod tests {
                     &device,
                 )
                 .unwrap()
-                .with_vad(
-                    Arc::new(vad),
-                    VoiceActivityFilterConfig::fast_whisper_burn(),
-                )
+                .with_vad(Arc::new(vad), silero_policy())
                 .unwrap();
             let audio = speech();
 

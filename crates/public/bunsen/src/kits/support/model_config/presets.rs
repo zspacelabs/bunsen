@@ -10,6 +10,7 @@ use crate::{
     data::pretrained::{
         PresetSelection,
         PresetSet,
+        PretrainedRef,
     },
     errors::{
         BunsenError,
@@ -99,6 +100,28 @@ where
         presets,
         patch: selection.patch.clone(),
     })
+}
+
+/// Resolves `base` through the presets of the row `model` names, as its
+/// lookup asked: [`resolve_presets`] over the row's [`PresetSet`] and the
+/// ref's [`selection`](PretrainedRef::selection). A given resource bundle
+/// has no row, so no presets: it resolves to `base`.
+///
+/// What a hook that resolves presets calls in its `try_init`.
+///
+/// # Errors
+/// As [`resolve_presets`].
+pub fn resolve_ref_presets<C>(
+    base: &C,
+    model: &PretrainedRef,
+) -> BunsenResult<ResolvedPresets<C>>
+where
+    C: Serialize + DeserializeOwned,
+{
+    match (model.named(), model.selection()) {
+        (Some((_, row)), Some(selection)) => resolve_presets(base, &row.presets, selection),
+        _ => resolve_presets(base, &PresetSet::default(), &PresetSelection::default()),
+    }
 }
 
 fn apply_layer(

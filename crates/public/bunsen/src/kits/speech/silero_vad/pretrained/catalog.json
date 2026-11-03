@@ -16,7 +16,46 @@
           "origin": "https://github.com/snakers4/silero-vad",
           "bundles": [
             "silero/vad-16k"
-          ]
+          ],
+          "presets": {
+            "presets": [
+              {
+                "name": "silero",
+                "description": "upstream's get_speech_timestamps defaults: regions under 250 ms dropped, 100 ms of silence to close, 30 ms of padding",
+                "patch": {
+                  "vad": {
+                    "min_silence_ms": 100,
+                    "min_speech_ms": 250,
+                    "speech_pad_ms": 30
+                  }
+                }
+              },
+              {
+                "name": "faster-whisper",
+                "description": "faster-whisper's VadOptions: no minimum region, 2000 ms of silence to close, 400 ms of padding",
+                "patch": {
+                  "vad": {
+                    "min_silence_ms": 2000,
+                    "min_speech_ms": 0,
+                    "speech_pad_ms": 400
+                  }
+                }
+              }
+            ],
+            "axes": [
+              {
+                "name": "vad-policy",
+                "description": "how speech regions are cut from the VAD's probabilities",
+                "members": [
+                  "silero",
+                  "faster-whisper"
+                ]
+              }
+            ],
+            "default": [
+              "silero"
+            ]
+          }
         }
       ]
     }
