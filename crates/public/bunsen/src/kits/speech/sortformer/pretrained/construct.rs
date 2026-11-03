@@ -386,6 +386,8 @@ mod tests {
         let remote = |body: &'static [u8]| {
             let mut map = ResourceBundle::new("remote");
             map.insert(Resource {
+                size: None,
+                dtype: None,
                 key: CHECKPOINT.into(),
                 file: "remote.nemo".into(),
                 sha256: None,

@@ -313,6 +313,8 @@ impl StaticResource<'_> {
         bases: &[StaticBase<'_>],
     ) -> Resource {
         Resource {
+            size: None,
+            dtype: None,
             key: self.key.to_string(),
             file: self.file.to_string(),
             sha256: self.sha256.map(str::to_string),
@@ -358,6 +360,15 @@ pub struct Resource {
     /// may, and a resource that arrived without a row has none.
     pub kind: Option<String>,
 
+    /// The file's size in bytes, when its row says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+
+    /// The element type a checkpoint stores its weights in, as its
+    /// publisher names it (`bfloat16`), when its row says.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dtype: Option<String>,
+
     /// The cache segment its file lives under: who published it.
     pub namespace: String,
 
@@ -381,6 +392,8 @@ impl Resource {
             .unwrap_or_else(|| path.display().to_string());
         let dir = path.parent().map(Path::to_path_buf);
         Self {
+            size: None,
+            dtype: None,
             key: key.into(),
             file,
             sha256: None,
@@ -590,6 +603,8 @@ mod tests {
     #[test]
     fn test_a_bundled_source_needs_a_digest() {
         let mut r = Resource {
+            size: None,
+            dtype: None,
             key: "burnpack".to_string(),
             file: "model.bpk".to_string(),
             sha256: None,

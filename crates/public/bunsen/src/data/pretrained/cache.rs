@@ -896,6 +896,8 @@ mod tests {
         sources: Vec<Source>,
     ) -> Resource {
         Resource {
+            size: None,
+            dtype: None,
             key: key.to_string(),
             file: format!("{key}.bin"),
             sha256: sha256.map(str::to_string),

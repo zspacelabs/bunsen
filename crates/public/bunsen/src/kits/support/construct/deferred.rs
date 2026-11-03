@@ -203,6 +203,8 @@ mod tests {
                 origin: None,
                 prefab: Some("small".to_string()),
                 resources: ResourceBundle::new("small").with_resource(Resource {
+                    size: None,
+                    dtype: None,
                     key: "checkpoint".to_string(),
                     file: "small.pt".to_string(),
                     sha256: None,

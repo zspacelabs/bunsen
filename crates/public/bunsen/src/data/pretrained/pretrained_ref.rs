@@ -162,6 +162,8 @@ mod tests {
         file: &str,
     ) -> Resource {
         Resource {
+            size: None,
+            dtype: None,
             key: key.to_string(),
             file: file.to_string(),
             sha256: None,
