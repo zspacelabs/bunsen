@@ -24,18 +24,10 @@ use crate::{
 /// name the published policies (`silero/vad-16k`'s `vad-policy` axis:
 /// `[silero]`, upstream's `get_speech_timestamps` defaults, and
 /// `[faster-whisper]`, `faster-whisper`'s `VadOptions`).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SileroPolicy {
     /// How the filter turns probabilities into speech regions.
     pub vad: VoiceActivityFilterConfig,
-}
-
-impl Default for SileroPolicy {
-    fn default() -> Self {
-        Self {
-            vad: VoiceActivityFilterConfig::new(),
-        }
-    }
 }
 
 /// A Silero pretrained, built: its sample-rate models, and the policy its
