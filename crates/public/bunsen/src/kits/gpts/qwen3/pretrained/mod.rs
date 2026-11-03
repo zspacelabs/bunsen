@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_qwen3_factory`] is the index a caller holds, over two providers.
-//! First the well-known table, [`WELL_KNOWN_TABLE`], whose rows name their
+//! First the well-known table, [`QWEN3_CATALOG`], whose rows name their
 //! prefab in [`QWEN3_PREFABS`]; each is a `transformers` checkpoint (bf16),
 //! its `config.json`, `tokenizer.json`, `tokenizer_config.json` and
 //! `generation_config.json`:

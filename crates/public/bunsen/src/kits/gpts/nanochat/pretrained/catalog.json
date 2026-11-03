@@ -1,0 +1,294 @@
+{
+  "kit": "nanochat",
+  "name": "well-known",
+  "description": "the nanochat checkpoints bunsen knows by name",
+  "groups": [
+    {
+      "name": "nanochat-students",
+      "description": "nanochat-students' d20 run of upstream nanochat's 2025 model: base, mid and RL",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/nanochat-students",
+      "rows": [
+        {
+          "name": "base-d20",
+          "aliases": [
+            "nanochat-d20-base"
+          ],
+          "description": "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/nanochat-students/base-d20",
+          "prefab": "nanochat-d20",
+          "bundles": [
+            "nanochat-students/base-d20"
+          ]
+        },
+        {
+          "name": "mid-d20",
+          "aliases": [
+            "nanochat-d20-mid"
+          ],
+          "description": "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/nanochat-students/mid-d20",
+          "prefab": "nanochat-d20",
+          "bundles": [
+            "nanochat-students/mid-d20"
+          ]
+        },
+        {
+          "name": "rl-d20",
+          "aliases": [
+            "nanochat-d20-rl"
+          ],
+          "description": "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/nanochat-students/rl-d20",
+          "prefab": "nanochat-d20",
+          "bundles": [
+            "nanochat-students/rl-d20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nitishpandey04",
+      "description": "nitishpandey04's d18 run of upstream nanochat's 2026 model: base and SFT",
+      "license": "MIT",
+      "origin": "https://huggingface.co/nitishpandey04",
+      "rows": [
+        {
+          "name": "nanochat-d18-base",
+          "description": "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base",
+          "license": "MIT",
+          "origin": "https://huggingface.co/nitishpandey04/nanochat-d18-base",
+          "prefab": "nanochat-d18-2026",
+          "bundles": [
+            "nitishpandey04/nanochat-d18-base"
+          ]
+        },
+        {
+          "name": "nanochat-d18-sft",
+          "description": "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat",
+          "license": "MIT",
+          "origin": "https://huggingface.co/nitishpandey04/nanochat-d18-sft",
+          "prefab": "nanochat-d18-2026",
+          "bundles": [
+            "nitishpandey04/nanochat-d18-sft"
+          ]
+        }
+      ]
+    }
+  ],
+  "bundles": [
+    {
+      "name": "nanochat-students/base-d20",
+      "description": "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base: model_*.pt, meta, tokenizer",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/nanochat-students/base-d20",
+      "namespace": "nanochat-students",
+      "bases": [
+        {
+          "url": "https://huggingface.co/nanochat-students/base-d20/resolve/4c6e4e8d8468a6b66302a472cb950bb73a1e2a61"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model_021400.pt",
+          "sha256": "574670de45c667a98fe72c2d145f24007ecc1778721e2481e41500842dd3ba13",
+          "kind": "pytorch",
+          "size": 2076230219
+        },
+        {
+          "key": "meta",
+          "file": "meta_021400.json",
+          "sha256": "a34a9b144a30d2a8066e64a91b7becc8579ea355c075e20427c28afb83ef106c",
+          "kind": "nanochat-meta.json",
+          "size": 762
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.pkl",
+          "sha256": "8467414b90511a50c4dac438af25c075817e9d62d799a5ef613b186c977f5d1b",
+          "kind": "tiktoken-pickle",
+          "size": 846518
+        },
+        {
+          "key": "token_bytes",
+          "file": "token_bytes.pt",
+          "sha256": "e1b6cdee5d02fe1018b2b1d2ae5b736be665f9c0e7d10c81dcf935e7efaf8cb5",
+          "kind": "pytorch",
+          "size": 263721
+        }
+      ]
+    },
+    {
+      "name": "nanochat-students/mid-d20",
+      "description": "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format: model_*.pt, meta, tokenizer",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/nanochat-students/mid-d20",
+      "namespace": "nanochat-students",
+      "bases": [
+        {
+          "url": "https://huggingface.co/nanochat-students/mid-d20/resolve/8db9593636d2b4dd8546cb211f3586f90da49269"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model_000765.pt",
+          "sha256": "cc0560b6adf23e663191ba3e73707381b648e94a6489493c2589baf87eb1863a",
+          "kind": "pytorch",
+          "size": 2076230219
+        },
+        {
+          "key": "meta",
+          "file": "meta_000765.json",
+          "sha256": "1282220593eaf3e120b3e6be0eb3894e054638d46021511ede8d60b074ece58d",
+          "kind": "nanochat-meta.json",
+          "size": 543
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.pkl",
+          "sha256": "8467414b90511a50c4dac438af25c075817e9d62d799a5ef613b186c977f5d1b",
+          "kind": "tiktoken-pickle",
+          "size": 846518
+        },
+        {
+          "key": "token_bytes",
+          "file": "token_bytes.pt",
+          "sha256": "e1b6cdee5d02fe1018b2b1d2ae5b736be665f9c0e7d10c81dcf935e7efaf8cb5",
+          "kind": "pytorch",
+          "size": 263721
+        }
+      ]
+    },
+    {
+      "name": "nanochat-students/rl-d20",
+      "description": "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat: model_*.pt, meta, tokenizer",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/nanochat-students/rl-d20",
+      "namespace": "nanochat-students",
+      "bases": [
+        {
+          "url": "https://huggingface.co/nanochat-students/rl-d20/resolve/22fbb6a82b381a7b0b4f04f3bc5f3580a996745e"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model_000650.pt",
+          "sha256": "ff2eee182e2aa396615d3b481ddf17884a7dbabb3caa47f66eede343135accff",
+          "kind": "pytorch",
+          "size": 2076230219
+        },
+        {
+          "key": "meta",
+          "file": "meta_000650.json",
+          "sha256": "353d774b8548a317a5e71762b775ee8ea506332f9b2acf8dff4fbfd9e813131a",
+          "kind": "nanochat-meta.json",
+          "size": 839
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.pkl",
+          "sha256": "8467414b90511a50c4dac438af25c075817e9d62d799a5ef613b186c977f5d1b",
+          "kind": "tiktoken-pickle",
+          "size": 846518
+        },
+        {
+          "key": "token_bytes",
+          "file": "token_bytes.pt",
+          "sha256": "e1b6cdee5d02fe1018b2b1d2ae5b736be665f9c0e7d10c81dcf935e7efaf8cb5",
+          "kind": "pytorch",
+          "size": 263721
+        }
+      ]
+    },
+    {
+      "name": "nitishpandey04/nanochat-d18-base",
+      "description": "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base: model_*.pt, meta, tokenizer",
+      "license": "MIT",
+      "origin": "https://huggingface.co/nitishpandey04/nanochat-d18-base",
+      "namespace": "nitishpandey04",
+      "bases": [
+        {
+          "url": "https://huggingface.co/nitishpandey04/nanochat-d18-base/resolve/bd4999f3186942207bac6b4b41ff743381e5fc8b"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "base_checkpoints/d18/model_003712.pt",
+          "sha256": "979a5ac9ea785da98d38dd9b58bd07d39d06230a6644d1f4e157f045499989b3",
+          "kind": "pytorch",
+          "size": 2052644332
+        },
+        {
+          "key": "meta",
+          "file": "base_checkpoints/d18/meta_003712.json",
+          "sha256": "7ecc0e6f4f0315d106d4fb213fec593879456475a21de34b71c329a4a8a4e7b4",
+          "kind": "nanochat-meta.json",
+          "size": 1338
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer/tokenizer.pkl",
+          "sha256": "ae73c5f7a960edc56022dfd46a653df2b9b38d84456e5e9f48eb5e02a60c21c2",
+          "kind": "tiktoken-pickle",
+          "size": 412126
+        },
+        {
+          "key": "token_bytes",
+          "file": "tokenizer/token_bytes.pt",
+          "sha256": "009ef93d20dd4684497c19c4b7fed29278b53f20022d2dc39264e27b9eefa2a8",
+          "kind": "pytorch",
+          "size": 132649
+        }
+      ]
+    },
+    {
+      "name": "nitishpandey04/nanochat-d18-sft",
+      "description": "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat: model_*.pt, meta, tokenizer",
+      "license": "MIT",
+      "origin": "https://huggingface.co/nitishpandey04/nanochat-d18-sft",
+      "namespace": "nitishpandey04",
+      "bases": [
+        {
+          "url": "https://huggingface.co/nitishpandey04/nanochat-d18-sft/resolve/e2c7c119fee2a0caf6a0c69704ccbe57bad87e63"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "chatsft_checkpoints/d18/model_000478.pt",
+          "sha256": "951589ed950a12358d69ab3180c39a237cf24fea80f01a4b6691f90e3bacf17a",
+          "kind": "pytorch",
+          "size": 2052644332
+        },
+        {
+          "key": "meta",
+          "file": "chatsft_checkpoints/d18/meta_000478.json",
+          "sha256": "e0acf64f9e195a42d5de9dc284f5d9a814a0b29d7a48e89f5f96ebb891967028",
+          "kind": "nanochat-meta.json",
+          "size": 838
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer/tokenizer.pkl",
+          "sha256": "ae73c5f7a960edc56022dfd46a653df2b9b38d84456e5e9f48eb5e02a60c21c2",
+          "kind": "tiktoken-pickle",
+          "size": 412126
+        },
+        {
+          "key": "token_bytes",
+          "file": "tokenizer/token_bytes.pt",
+          "sha256": "009ef93d20dd4684497c19c4b7fed29278b53f20022d2dc39264e27b9eefa2a8",
+          "kind": "pytorch",
+          "size": 132649
+        }
+      ]
+    }
+  ]
+}

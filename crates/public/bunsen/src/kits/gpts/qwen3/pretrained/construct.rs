@@ -111,17 +111,18 @@ impl ConstructInit for Qwen3ConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::qwen3::pretrained::{
-        QWEN3_0_6B_FILES,
-        QWEN3_4B_FILES,
-    };
+    use crate::kits::gpts::qwen3::pretrained::QWEN3_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        Qwen3ConstructConfig::for_resource_bundle(&QWEN3_0_6B_FILES.to_resource_bundle()).unwrap();
-        Qwen3ConstructConfig::for_resource_bundle(&QWEN3_4B_FILES.to_resource_bundle()).unwrap();
+        Qwen3ConstructConfig::for_resource_bundle(
+            &QWEN3_CATALOG.resource_bundle("qwen/qwen3-0.6b"),
+        )
+        .unwrap();
+        Qwen3ConstructConfig::for_resource_bundle(&QWEN3_CATALOG.resource_bundle("qwen/qwen3-4b"))
+            .unwrap();
 
-        let mut gguf = QWEN3_0_6B_FILES.to_resource_bundle();
+        let mut gguf = QWEN3_CATALOG.resource_bundle("qwen/qwen3-0.6b");
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

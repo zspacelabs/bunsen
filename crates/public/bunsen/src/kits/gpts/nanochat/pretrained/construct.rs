@@ -83,18 +83,21 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::gpts::nanochat::pretrained::{
-            BASE_D20_FILES,
-            D18_SFT_FILES,
-        },
+        kits::gpts::nanochat::pretrained::NANOCHAT_CATALOG,
     };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        NanoChatConstructConfig::for_resource_bundle(&BASE_D20_FILES.to_resource_bundle()).unwrap();
-        NanoChatConstructConfig::for_resource_bundle(&D18_SFT_FILES.to_resource_bundle()).unwrap();
+        NanoChatConstructConfig::for_resource_bundle(
+            &NANOCHAT_CATALOG.resource_bundle("nanochat-students/base-d20"),
+        )
+        .unwrap();
+        NanoChatConstructConfig::for_resource_bundle(
+            &NANOCHAT_CATALOG.resource_bundle("nitishpandey04/nanochat-d18-sft"),
+        )
+        .unwrap();
 
-        let mut safetensors = BASE_D20_FILES.to_resource_bundle();
+        let mut safetensors = NANOCHAT_CATALOG.resource_bundle("nanochat-students/base-d20");
         safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")
