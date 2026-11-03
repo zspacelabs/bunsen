@@ -10,7 +10,7 @@ use crate::data::pretrained::{
     StaticPretrainedGroup,
     StaticPretrainedTable,
     StaticResource,
-    StaticResourceMap,
+    StaticResourceBundle,
     WELL_KNOWN,
 };
 
@@ -18,7 +18,7 @@ use crate::data::pretrained::{
 /// `<cache>/pretrained/resnet/<namespace>/<sha256>/<file>`.
 pub const RESNET_KIT: &str = "resnet";
 
-/// The key of the checkpoint in a `ResNet` resource map.
+/// The key of the checkpoint in a `ResNet` resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The `kind` label of every checkpoint here: a `PyTorch` state dict in
@@ -46,7 +46,7 @@ const TIMM_V01_BASE: StaticBase<'static> = StaticBase::Url(
 /// digest, whose first eight hex digits are the tag in the file's name.
 macro_rules! checkpoint {
     ($name:ident, $map:literal, $file:literal, $sha256:literal, $namespace:expr, $base:expr) => {
-        static $name: StaticResourceMap<'static> = StaticResourceMap {
+        static $name: StaticResourceBundle<'static> = StaticResourceBundle {
             name: $map,
             description: "an ImageNet checkpoint",
             license: None,
@@ -182,7 +182,7 @@ checkpoint!(
 const fn torchvision(
     prefab: &'static str,
     description: &'static str,
-    maps: &'static [&'static StaticResourceMap<'static>],
+    maps: &'static [&'static StaticResourceBundle<'static>],
 ) -> StaticPretrained<'static> {
     StaticPretrained {
         name: prefab,
@@ -191,7 +191,7 @@ const fn torchvision(
         license: Some("bsd-3-clause"),
         origin: Some("https://github.com/pytorch/vision"),
         prefab: Some(prefab),
-        maps,
+        resource_bundles: maps,
     }
 }
 
@@ -200,7 +200,7 @@ const fn timm(
     name: &'static str,
     prefab: &'static str,
     description: &'static str,
-    maps: &'static [&'static StaticResourceMap<'static>],
+    maps: &'static [&'static StaticResourceBundle<'static>],
 ) -> StaticPretrained<'static> {
     StaticPretrained {
         name,
@@ -209,7 +209,7 @@ const fn timm(
         license: None,
         origin: Some("https://github.com/huggingface/pytorch-image-models"),
         prefab: Some(prefab),
-        maps,
+        resource_bundles: maps,
     }
 }
 
@@ -354,7 +354,7 @@ mod tests {
                     "{}: prefab {prefab:?} is not in RESNET_PREFABS",
                     group.id(row),
                 );
-                let map = row.try_to_map().unwrap();
+                let map = row.try_to_resource_bundle().unwrap();
                 map.validate().unwrap();
                 assert_eq!(map.keys(), [CHECKPOINT], "{}", group.id(row));
                 let checkpoint = map.get(CHECKPOINT).unwrap();

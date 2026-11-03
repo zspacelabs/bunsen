@@ -15,7 +15,7 @@ use crate::{
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     errors::BunsenResult,
@@ -26,7 +26,7 @@ use crate::{
 /// `<cache>/pretrained/sortformer/<namespace>/<sha256>/<file>`.
 pub const SORTFORMER_KIT: &str = "sortformer";
 
-/// The key of the checkpoint in a Sortformer resource map.
+/// The key of the checkpoint in a Sortformer resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
@@ -40,7 +40,7 @@ const NVIDIA_ORIGIN: &str = "https://huggingface.co/nvidia/Nemotron-3-Diarizatio
 
 /// `nvidia/Nemotron-3-Diarization`'s `transformers` checkpoint, at a fixed
 /// revision.
-pub static NEMOTRON_3_DIARIZATION_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static NEMOTRON_3_DIARIZATION_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nvidia/nemotron-3-diarization",
     description: "Nemotron-3-Diarization: model.safetensors (f32)",
     license: Some("OpenMDW-1.1"),
@@ -65,7 +65,7 @@ static NEMOTRON_3_DIARIZATION: StaticPretrained<'static> = StaticPretrained {
     license: Some("OpenMDW-1.1"),
     origin: Some(NVIDIA_ORIGIN),
     prefab: None,
-    maps: &[&NEMOTRON_3_DIARIZATION_FILES],
+    resource_bundles: &[&NEMOTRON_3_DIARIZATION_FILES],
 };
 
 const V2_ORIGIN: &str = "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2";
@@ -75,7 +75,7 @@ const V2_1_ORIGIN: &str = "https://huggingface.co/nvidia/diar_streaming_sortform
 const NVIDIA_OPEN_MODEL_LICENSE: &str = "NVIDIA Open Model License";
 
 /// `nvidia/diar_streaming_sortformer_4spk-v2`'s `.nemo`, at a fixed revision.
-pub static SORTFORMER_V2_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static SORTFORMER_V2_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nvidia/diar_streaming_sortformer_4spk-v2",
     description: "Streaming Sortformer v2: diar_streaming_sortformer_4spk-v2.nemo (f32)",
     license: Some(NVIDIA_OPEN_MODEL_LICENSE),
@@ -95,7 +95,7 @@ pub static SORTFORMER_V2_FILES: StaticResourceMap<'static> = StaticResourceMap {
 
 /// `nvidia/diar_streaming_sortformer_4spk-v2.1`'s `.nemo`, at a fixed
 /// revision.
-pub static SORTFORMER_V2_1_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static SORTFORMER_V2_1_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nvidia/diar_streaming_sortformer_4spk-v2.1",
     description: "Streaming Sortformer v2.1: diar_streaming_sortformer_4spk-v2.1.nemo (f32)",
     license: Some(NVIDIA_OPEN_MODEL_LICENSE),
@@ -120,7 +120,7 @@ static SORTFORMER_V2: StaticPretrained<'static> = StaticPretrained {
     license: Some(NVIDIA_OPEN_MODEL_LICENSE),
     origin: Some(V2_ORIGIN),
     prefab: None,
-    maps: &[&SORTFORMER_V2_FILES],
+    resource_bundles: &[&SORTFORMER_V2_FILES],
 };
 
 static SORTFORMER_V2_1: StaticPretrained<'static> = StaticPretrained {
@@ -130,7 +130,7 @@ static SORTFORMER_V2_1: StaticPretrained<'static> = StaticPretrained {
     license: Some(NVIDIA_OPEN_MODEL_LICENSE),
     origin: Some(V2_1_ORIGIN),
     prefab: None,
-    maps: &[&SORTFORMER_V2_1_FILES],
+    resource_bundles: &[&SORTFORMER_V2_1_FILES],
 };
 
 /// NVIDIA's Sortformer diarizers.
@@ -211,7 +211,7 @@ mod tests {
             (&SORTFORMER_V2_FILES, NEMO),
             (&SORTFORMER_V2_1_FILES, NEMO),
         ] {
-            let map = files.to_map();
+            let map = files.to_resource_bundle();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", files.name);

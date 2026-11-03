@@ -12,7 +12,7 @@ use bunsen::{
         Deferred,
         PretrainedCache,
         PretrainedCacheOptions,
-        ResourceMap,
+        ResourceBundle,
     },
     errors::{
         BunsenResult,
@@ -127,7 +127,7 @@ impl WhisperFlags {
     }
 }
 
-/// What `--model` names: a checkpoint on disk, as a one-resource map under
+/// What `--model` names: a checkpoint on disk, as a one-resource bundle under
 /// [`CHECKPOINT`] (its vocabulary the one its layout selects), or a row of
 /// the Whisper factory; `--vocab` over either.
 ///
@@ -142,7 +142,7 @@ pub fn resolve(
 ) -> BunsenResult<Deferred<WhisperConstruct>> {
     let path = Path::new(spec);
     let mut model = if path.is_file() {
-        Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path)).as_policy()?
+        Deferred::from_resource_bundle(ResourceBundle::given(spec, CHECKPOINT, path)).as_policy()?
     } else {
         default_whisper_factory()?
             .resolve(spec, cache)
@@ -150,7 +150,7 @@ pub fn resolve(
     };
     if let Some(vocab) = flags.and_then(|f| f.vocab.as_ref()) {
         model = model
-            .with_overlay(ResourceMap::given("--vocab", VOCABULARY, vocab))
+            .with_overlay(ResourceBundle::given("--vocab", VOCABULARY, vocab))
             .as_policy()?;
     }
     Ok(model)

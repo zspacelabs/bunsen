@@ -15,7 +15,7 @@ use crate::{
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     errors::BunsenResult,
@@ -26,10 +26,10 @@ use crate::{
 /// `<cache>/pretrained/parakeet/<namespace>/<sha256>/<file>`.
 pub const PARAKEET_KIT: &str = "parakeet";
 
-/// The key of the checkpoint in a Parakeet resource map.
+/// The key of the checkpoint in a Parakeet resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary in a Parakeet resource map, for a checkpoint
+/// The key of the vocabulary in a Parakeet resource bundle, for a checkpoint
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 
@@ -48,7 +48,7 @@ const PHONON_ORIGIN: &str = "https://huggingface.co/FermionResearch/Phonon-2";
 const NVIDIA_ORIGIN: &str = "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3";
 
 /// `FermionResearch/Phonon-2`'s archive, at a fixed revision.
-pub static PHONON_2_ARCHIVE: StaticResourceMap<'static> = StaticResourceMap {
+pub static PHONON_2_ARCHIVE: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "fermion/phonon-2.bps.tar.zst",
     description: "Phonon-2: the five-value container and its NeMo config, zstd tar",
     license: Some("CC-BY-4.0"),
@@ -68,7 +68,7 @@ pub static PHONON_2_ARCHIVE: StaticResourceMap<'static> = StaticResourceMap {
 
 /// `nvidia/parakeet-tdt-0.6b-v3`'s `transformers` checkpoint and tokenizer,
 /// at a fixed revision.
-pub static PARAKEET_TDT_0_6B_V3_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static PARAKEET_TDT_0_6B_V3_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nvidia/parakeet-tdt-0.6b-v3",
     description: "parakeet-tdt-0.6b-v3: model.safetensors (f32) and tokenizer.json",
     license: Some("CC-BY-4.0"),
@@ -102,7 +102,7 @@ static PHONON_2: StaticPretrained<'static> = StaticPretrained {
     license: Some("CC-BY-4.0"),
     origin: Some(PHONON_ORIGIN),
     prefab: None,
-    maps: &[&PHONON_2_ARCHIVE],
+    resource_bundles: &[&PHONON_2_ARCHIVE],
 };
 
 static PARAKEET_TDT_0_6B_V3: StaticPretrained<'static> = StaticPretrained {
@@ -112,7 +112,7 @@ static PARAKEET_TDT_0_6B_V3: StaticPretrained<'static> = StaticPretrained {
     license: Some("CC-BY-4.0"),
     origin: Some(NVIDIA_ORIGIN),
     prefab: None,
-    maps: &[&PARAKEET_TDT_0_6B_V3_FILES],
+    resource_bundles: &[&PARAKEET_TDT_0_6B_V3_FILES],
 };
 
 /// `FermionResearch`'s Phonon models.
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_rows_are_pinned_and_named() {
         for map in [&PHONON_2_ARCHIVE, &PARAKEET_TDT_0_6B_V3_FILES] {
-            let map = map.to_map();
+            let map = map.to_resource_bundle();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);

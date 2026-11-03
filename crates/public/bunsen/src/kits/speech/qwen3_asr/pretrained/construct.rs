@@ -19,7 +19,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
     },
@@ -124,7 +124,7 @@ impl Construct for Qwen3AsrConstruct {
 
     /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
     /// come with a `tokenizer.json` vocabulary.
-    fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
@@ -183,10 +183,12 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let qwen = Qwen3AsrConstruct::for_map(&QWEN3_ASR_0_6B_FILES.to_map()).unwrap();
+        let qwen =
+            Qwen3AsrConstruct::for_resource_bundle(&QWEN3_ASR_0_6B_FILES.to_resource_bundle())
+                .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
-        let phonon = Qwen3AsrConstruct::for_map(&PHONON_1_ARCHIVE.to_map());
+        let phonon = Qwen3AsrConstruct::for_resource_bundle(&PHONON_1_ARCHIVE.to_resource_bundle());
         if cfg!(feature = "fermion") {
             assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         } else {

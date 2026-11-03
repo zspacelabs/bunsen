@@ -23,7 +23,7 @@ use bunsen::data::{
     },
 };
 use bunsen::{
-    data::pretrained::ResourceMap,
+    data::pretrained::ResourceBundle,
     kits::speech::{
         silero_vad::{
             SileroVad,
@@ -62,7 +62,7 @@ fn upstream_file() -> std::path::PathBuf {
         .unwrap()
         .lookup("silero/vad-16k")
         .unwrap();
-    let mut map = ResourceMap::new(row.resources.name.clone());
+    let mut map = ResourceBundle::new(row.resources.name.clone());
     map.insert(row.resources.try_get(CHECKPOINT).unwrap().clone());
     crate::weights_cache()
         .load(SILERO_KIT, &map)

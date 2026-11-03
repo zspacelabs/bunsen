@@ -18,7 +18,7 @@ use crate::{
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     errors::BunsenResult,
@@ -34,7 +34,7 @@ use crate::{
 /// `<cache>/pretrained/qwen3/<namespace>/<sha256>/<file>`.
 pub const QWEN3_KIT: &str = "qwen3";
 
-/// The key of the checkpoint in a Qwen3 resource map: one
+/// The key of the checkpoint in a Qwen3 resource bundle: one
 /// `model.safetensors`, or `checkpoint.index` and its shards
 /// `checkpoint.<n>`.
 pub const CHECKPOINT: &str = "checkpoint";
@@ -54,7 +54,7 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 const QWEN_ORIGIN: &str = "https://huggingface.co/Qwen";
 
 /// `Qwen/Qwen3-0.6B`'s files, at a fixed revision.
-pub static QWEN3_0_6B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_0_6B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-0.6b",
     description: "Qwen3-0.6B: model.safetensors (bf16, 1.50 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -109,11 +109,11 @@ static QWEN3_0_6B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-0.6B"),
     prefab: Some("qwen3-0.6b"),
-    maps: &[&QWEN3_0_6B_FILES],
+    resource_bundles: &[&QWEN3_0_6B_FILES],
 };
 
 /// `Qwen/Qwen3-0.6B-Base`'s files, at a fixed revision.
-pub static QWEN3_0_6B_BASE_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_0_6B_BASE_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-0.6b-base",
     description: "Qwen3-0.6B-Base: model.safetensors (bf16, 1.19 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -168,11 +168,11 @@ static QWEN3_0_6B_BASE: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-0.6B-Base"),
     prefab: Some("qwen3-0.6b"),
-    maps: &[&QWEN3_0_6B_BASE_FILES],
+    resource_bundles: &[&QWEN3_0_6B_BASE_FILES],
 };
 
 /// `Qwen/Qwen3-1.7B`'s files, at a fixed revision.
-pub static QWEN3_1_7B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_1_7B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-1.7b",
     description: "Qwen3-1.7B: 2 safetensors shards (bf16, 4.06 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -241,11 +241,11 @@ static QWEN3_1_7B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-1.7B"),
     prefab: Some("qwen3-1.7b"),
-    maps: &[&QWEN3_1_7B_FILES],
+    resource_bundles: &[&QWEN3_1_7B_FILES],
 };
 
 /// `Qwen/Qwen3-1.7B-Base`'s files, at a fixed revision.
-pub static QWEN3_1_7B_BASE_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_1_7B_BASE_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-1.7b-base",
     description: "Qwen3-1.7B-Base: model.safetensors (bf16, 3.44 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -300,11 +300,11 @@ static QWEN3_1_7B_BASE: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-1.7B-Base"),
     prefab: Some("qwen3-1.7b"),
-    maps: &[&QWEN3_1_7B_BASE_FILES],
+    resource_bundles: &[&QWEN3_1_7B_BASE_FILES],
 };
 
 /// `Qwen/Qwen3-4B`'s files, at a fixed revision.
-pub static QWEN3_4B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_4B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-4b",
     description: "Qwen3-4B: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -380,11 +380,11 @@ static QWEN3_4B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-4B"),
     prefab: Some("qwen3-4b"),
-    maps: &[&QWEN3_4B_FILES],
+    resource_bundles: &[&QWEN3_4B_FILES],
 };
 
 /// `Qwen/Qwen3-4B-Base`'s files, at a fixed revision.
-pub static QWEN3_4B_BASE_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_4B_BASE_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-4b-base",
     description: "Qwen3-4B-Base: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -460,11 +460,11 @@ static QWEN3_4B_BASE: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-4B-Base"),
     prefab: Some("qwen3-4b"),
-    maps: &[&QWEN3_4B_BASE_FILES],
+    resource_bundles: &[&QWEN3_4B_BASE_FILES],
 };
 
 /// `Qwen/Qwen3-4B-Instruct-2507`'s files, at a fixed revision.
-pub static QWEN3_4B_INSTRUCT_2507_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_4B_INSTRUCT_2507_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-4b-instruct-2507",
     description: "Qwen3-4B-Instruct-2507: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -540,11 +540,11 @@ static QWEN3_4B_INSTRUCT_2507: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"),
     prefab: Some("qwen3-4b-2507"),
-    maps: &[&QWEN3_4B_INSTRUCT_2507_FILES],
+    resource_bundles: &[&QWEN3_4B_INSTRUCT_2507_FILES],
 };
 
 /// `Qwen/Qwen3-4B-Thinking-2507`'s files, at a fixed revision.
-pub static QWEN3_4B_THINKING_2507_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_4B_THINKING_2507_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-4b-thinking-2507",
     description: "Qwen3-4B-Thinking-2507: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -620,11 +620,11 @@ static QWEN3_4B_THINKING_2507: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"),
     prefab: Some("qwen3-4b-2507"),
-    maps: &[&QWEN3_4B_THINKING_2507_FILES],
+    resource_bundles: &[&QWEN3_4B_THINKING_2507_FILES],
 };
 
 /// `Qwen/Qwen3-8B`'s files, at a fixed revision.
-pub static QWEN3_8B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_8B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-8b",
     description: "Qwen3-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -714,11 +714,11 @@ static QWEN3_8B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-8B"),
     prefab: Some("qwen3-8b"),
-    maps: &[&QWEN3_8B_FILES],
+    resource_bundles: &[&QWEN3_8B_FILES],
 };
 
 /// `Qwen/Qwen3-8B-Base`'s files, at a fixed revision.
-pub static QWEN3_8B_BASE_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_8B_BASE_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-8b-base",
     description: "Qwen3-8B-Base: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -808,11 +808,11 @@ static QWEN3_8B_BASE: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-8B-Base"),
     prefab: Some("qwen3-8b"),
-    maps: &[&QWEN3_8B_BASE_FILES],
+    resource_bundles: &[&QWEN3_8B_BASE_FILES],
 };
 
 /// `Qwen/Qwen3-4B-SafeRL`'s files, at a fixed revision.
-pub static QWEN3_4B_SAFERL_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_4B_SAFERL_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-4b-saferl",
     description: "Qwen3-4B-SafeRL: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -888,11 +888,11 @@ static QWEN3_4B_SAFERL: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3-4B-SafeRL"),
     prefab: Some("qwen3-4b"),
-    maps: &[&QWEN3_4B_SAFERL_FILES],
+    resource_bundles: &[&QWEN3_4B_SAFERL_FILES],
 };
 
 /// `Qwen/Qwen3Guard-Gen-0.6B`'s files, at a fixed revision.
-pub static QWEN3GUARD_GEN_0_6B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3GUARD_GEN_0_6B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3guard-gen-0.6b",
     description: "Qwen3Guard-Gen-0.6B: one safetensors file (bf16, 1.50 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -947,11 +947,11 @@ static QWEN3GUARD_GEN_0_6B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"),
     prefab: Some("qwen3-0.6b"),
-    maps: &[&QWEN3GUARD_GEN_0_6B_FILES],
+    resource_bundles: &[&QWEN3GUARD_GEN_0_6B_FILES],
 };
 
 /// `Qwen/Qwen3Guard-Gen-4B`'s files, at a fixed revision.
-pub static QWEN3GUARD_GEN_4B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3GUARD_GEN_4B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3guard-gen-4b",
     description: "Qwen3Guard-Gen-4B: 3 safetensors shards (bf16, 8.82 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -1027,11 +1027,11 @@ static QWEN3GUARD_GEN_4B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"),
     prefab: Some("qwen3-4b"),
-    maps: &[&QWEN3GUARD_GEN_4B_FILES],
+    resource_bundles: &[&QWEN3GUARD_GEN_4B_FILES],
 };
 
 /// `Qwen/Qwen3Guard-Gen-8B`'s files, at a fixed revision.
-pub static QWEN3GUARD_GEN_8B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3GUARD_GEN_8B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3guard-gen-8b",
     description: "Qwen3Guard-Gen-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config",
     license: Some("Apache-2.0"),
@@ -1121,7 +1121,7 @@ static QWEN3GUARD_GEN_8B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"),
     prefab: Some("qwen3-8b"),
-    maps: &[&QWEN3GUARD_GEN_8B_FILES],
+    resource_bundles: &[&QWEN3GUARD_GEN_8B_FILES],
 };
 
 /// Qwen's dense Qwen3 language models up to 8B.

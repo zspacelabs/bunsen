@@ -16,7 +16,7 @@ use crate::{
         HfConfigJson,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
         SAFETENSORS,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -54,7 +54,7 @@ impl Construct for Qwen3Construct {
     const KIT: &'static str = QWEN3_KIT;
 
     /// The hook for a safetensors checkpoint.
-    fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
@@ -116,13 +116,13 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        Qwen3Construct::for_map(&QWEN3_0_6B_FILES.to_map()).unwrap();
-        Qwen3Construct::for_map(&QWEN3_4B_FILES.to_map()).unwrap();
+        Qwen3Construct::for_resource_bundle(&QWEN3_0_6B_FILES.to_resource_bundle()).unwrap();
+        Qwen3Construct::for_resource_bundle(&QWEN3_4B_FILES.to_resource_bundle()).unwrap();
 
-        let mut gguf = QWEN3_0_6B_FILES.to_map();
+        let mut gguf = QWEN3_0_6B_FILES.to_resource_bundle();
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
-            .assert_err(&Qwen3Construct::for_map(&gguf));
+            .assert_err(&Qwen3Construct::for_resource_bundle(&gguf));
     }
 }

@@ -15,13 +15,13 @@ use crate::{
 /// `<cache>/pretrained/silero_vad/<namespace>/<sha256>/<file>`.
 pub const SILERO_KIT: &str = "silero_vad";
 
-/// The key of the burnpack in a Silero resource map.
+/// The key of the burnpack in a Silero resource bundle.
 pub const BURNPACK: &str = "burnpack";
 
 /// The `kind` label of the burnpack resource.
 pub const BURNPACK_KIND: &str = "burnpack";
 
-/// The key of the checkpoint in a Silero resource map of upstream's files.
+/// The key of the checkpoint in a Silero resource bundle of upstream's files.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The `kind` label of a `PyTorch` state dict as safetensors: upstream's
@@ -48,13 +48,13 @@ mod upstream {
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     };
 
     /// Upstream's `silero_vad_16k.safetensors`, the 16 kHz model's state
     /// dict, at a fixed revision of `snakers4/silero-vad`.
-    pub static SILERO_VAD_16K_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    pub static SILERO_VAD_16K_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
         name: "silero/vad-16k",
         description: "Silero VAD's 16 kHz model, upstream's safetensors (f32)",
         license: Some("MIT"),
@@ -79,7 +79,7 @@ mod upstream {
         license: Some("MIT"),
         origin: Some(SILERO_ORIGIN),
         prefab: None,
-        maps: &[&SILERO_VAD_16K_FILES],
+        resource_bundles: &[&SILERO_VAD_16K_FILES],
     };
 
     /// `snakers4/silero-vad`'s own files.
@@ -155,7 +155,7 @@ mod tests {
     #[cfg(feature = "store_safetensors")]
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
-        let map = SILERO_VAD_16K_FILES.to_map();
+        let map = SILERO_VAD_16K_FILES.to_resource_bundle();
         map.validate().unwrap();
         let r = map.get(CHECKPOINT).unwrap();
         assert!(r.is_pinned());

@@ -57,8 +57,8 @@ fixed-shape blocks of token ids, with an optional shuffle
 ([pipeline overview](bunsen_arrow_dataloaders::dataloaders::chat#pipeline-overview)).
 
 A selection of shards can also become a
-[`ResourceMap`](bunsen::data::pretrained::ResourceMap), through
-[`to_resource_map`](bunsen::data::shards::ShardSetDescriptor::to_resource_map),
+[`ResourceBundle`](bunsen::data::pretrained::ResourceBundle), through
+[`to_resource_bundle`](bunsen::data::shards::ShardSetDescriptor::to_resource_bundle),
 for a pretrained row that includes a shard set.
 
 ## End to end: train-chat

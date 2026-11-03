@@ -35,7 +35,7 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     let cache = offline_cache();
 
     for map in [&BASE_CHECKPOINT, &MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY] {
-        let owned = map.to_map();
+        let owned = map.to_resource_bundle();
         for (key, r) in &owned.resources {
             assert_eq!(cache.status(WHISPER_KIT, r), CacheStatus::Cached, "{key}");
             let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
@@ -50,8 +50,8 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     }
 
     let base = BASE_CHECKPOINT
-        .to_map()
-        .fuse(MULTILINGUAL_VOCABULARY.to_map(), Fuse::Strict)
+        .to_resource_bundle()
+        .fuse(MULTILINGUAL_VOCABULARY.to_resource_bundle(), Fuse::Strict)
         .unwrap();
     let loaded = cache.load(WHISPER_KIT, &base).unwrap();
     assert_eq!(loaded.keys(), [CHECKPOINT, VOCABULARY]);
@@ -87,10 +87,14 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
     let status = model.status(&cache);
     assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
     assert_eq!(status[VOCABULARY], CacheStatus::LocalDir);
-    let map = model.to_map();
+    let map = model.to_resource_bundle();
     assert_eq!(
         map.get(CHECKPOINT).unwrap().sha256,
-        BASE_CHECKPOINT.to_map().get(CHECKPOINT).unwrap().sha256,
+        BASE_CHECKPOINT
+            .to_resource_bundle()
+            .get(CHECKPOINT)
+            .unwrap()
+            .sha256,
         "the same file, pinned the same"
     );
 
@@ -126,7 +130,9 @@ fn test_the_bundle_serves_openai_base() {
     assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
     assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 
-    let loaded = cache.load(WHISPER_KIT, &model.to_map()).unwrap();
+    let loaded = cache
+        .load(WHISPER_KIT, &model.to_resource_bundle())
+        .unwrap();
     assert_eq!(loaded.map.name, "well-known:openai/base");
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");

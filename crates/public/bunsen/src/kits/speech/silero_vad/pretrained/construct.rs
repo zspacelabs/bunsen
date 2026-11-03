@@ -9,7 +9,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
     },
     errors::{
         BunsenError,
@@ -27,7 +27,7 @@ use crate::{
     },
 };
 
-/// How a Silero checkpoint is read, by its resource map.
+/// How a Silero checkpoint is read, by its resource bundle.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SileroReader {
     /// A burnpack under [`BURNPACK`] ([`BURNPACK_KIND`]): both sample-rate
@@ -73,7 +73,7 @@ impl Construct for SileroConstruct {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
     /// map with neither, or a checkpoint of another kind.
-    fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
         let reader = if let Some(r) = map.get(BURNPACK) {
             match r.kind.as_deref() {
                 None | Some(BURNPACK_KIND) => SileroReader::Burnpack,
@@ -101,7 +101,7 @@ impl Construct for SileroConstruct {
             }
         } else {
             return Err(BunsenError::unsupported(format!(
-                "a Silero resource map needs a `{BURNPACK}` or a `{CHECKPOINT}`"
+                "a Silero resource bundle needs a `{BURNPACK}` or a `{CHECKPOINT}`"
             )));
         };
         Ok(Self { reader })
@@ -148,19 +148,23 @@ mod tests {
 
         #[cfg(feature = "store_safetensors")]
         assert_eq!(
-            SileroConstruct::for_map(&super::super::SILERO_VAD_16K_FILES.to_map())
-                .unwrap()
-                .reader,
+            SileroConstruct::for_resource_bundle(
+                &super::super::SILERO_VAD_16K_FILES.to_resource_bundle()
+            )
+            .unwrap()
+            .reader,
             SileroReader::Safetensors
         );
         // A burnpack given by path: unlabeled, read as a burnpack.
-        let mut burnpack = crate::data::pretrained::ResourceMap::new("a burnpack");
+        let mut burnpack = crate::data::pretrained::ResourceBundle::new("a burnpack");
         burnpack.insert(crate::data::pretrained::Resource::given(
             BURNPACK,
             "/models/silero_vad.bpk",
         ));
         assert_eq!(
-            SileroConstruct::for_map(&burnpack).unwrap().reader,
+            SileroConstruct::for_resource_bundle(&burnpack)
+                .unwrap()
+                .reader,
             SileroReader::Burnpack
         );
     }

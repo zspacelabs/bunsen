@@ -18,7 +18,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
     },
@@ -120,7 +120,7 @@ impl Construct for ParakeetConstruct {
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index; a Safetensors checkpoint must come with a `tokenizer.json`
     /// vocabulary.
-    fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
@@ -170,10 +170,13 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let nvidia = ParakeetConstruct::for_map(&PARAKEET_TDT_0_6B_V3_FILES.to_map()).unwrap();
+        let nvidia = ParakeetConstruct::for_resource_bundle(
+            &PARAKEET_TDT_0_6B_V3_FILES.to_resource_bundle(),
+        )
+        .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
-        let phonon = ParakeetConstruct::for_map(&PHONON_2_ARCHIVE.to_map());
+        let phonon = ParakeetConstruct::for_resource_bundle(&PHONON_2_ARCHIVE.to_resource_bundle());
         if cfg!(feature = "fermion") {
             assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         } else {

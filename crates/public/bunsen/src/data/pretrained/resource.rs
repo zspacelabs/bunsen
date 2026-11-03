@@ -1,4 +1,4 @@
-//! Resources: one file of a map, and the places it can be had from.
+//! Resources: one file of a resource bundle, and the places it can be had from.
 
 use alloc::{
     format,
@@ -228,11 +228,11 @@ impl fmt::Display for Source {
     }
 }
 
-/// A place a map's file names are appended to, as a compiled-in table spells
-/// it.
+/// A place a resource bundle's file names are appended to, as a compiled-in
+/// table spells it.
 ///
-/// A map lists its bases in preference order, as mirrors. Each becomes one
-/// [`Source`] per resource once the file name is appended:
+/// A resource bundle lists its bases in preference order, as mirrors. Each
+/// becomes one [`Source`] per resource once the file name is appended:
 /// [`Url`](Self::Url) a whole URL, [`LocalDir`](Self::LocalDir) the
 /// directory, which the cache joins the file name to when it looks.
 #[derive(Clone, Copy, Debug)]
@@ -279,11 +279,11 @@ impl fmt::Display for StaticBase<'_> {
     }
 }
 
-/// One file of a map, as a compiled-in table spells it.
+/// One file of a resource bundle, as a compiled-in table spells it.
 #[derive(Debug)]
 pub struct StaticResource<'a> {
-    /// The map's name for it: `checkpoint`, `vocabulary`. Opaque here; a
-    /// kit's constant.
+    /// The resource bundle's name for it: `checkpoint`, `vocabulary`. Opaque
+    /// here; a kit's constant.
     pub key: &'a str,
 
     /// The file name, under every base.
@@ -299,8 +299,8 @@ pub struct StaticResource<'a> {
     /// this layer reads it; a kit's hook may.
     pub kind: Option<&'a str>,
 
-    /// Sources of this resource alone, tried before the map's bases: a file
-    /// a whole URL, or a directory of its own.
+    /// Sources of this resource alone, tried before the resource bundle's
+    /// bases: a file a whole URL, or a directory of its own.
     pub sources: &'a [StaticSource<'a>],
 }
 
@@ -328,21 +328,21 @@ impl StaticResource<'_> {
     }
 }
 
-/// One file of a map.
+/// One file of a resource bundle.
 ///
-/// The owned twin of [`StaticResource`], with its map's bases already
-/// appended to its sources, so it stands alone. A resource's sources are
-/// its own first, then its map's bases with its file name appended, each
-/// in the order listed; a fused map needs no memory of which map a
-/// resource came from.
+/// The owned twin of [`StaticResource`], with its resource bundle's bases
+/// already appended to its sources, so it stands alone. A resource's sources
+/// are its own first, then its resource bundle's bases with its file name
+/// appended, each in the order listed; a fused resource bundle needs no memory
+/// of which resource bundle a resource came from.
 ///
-/// It is what a map is keyed by, and what
+/// It is what a resource bundle is keyed by, and what
 /// [`PretrainedCache::resolve`](super::PretrainedCache::resolve) brings
 /// local, in its [source order](super::PretrainedCache#source-order). A
 /// path on a command line becomes one through [`given`](Self::given).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resource {
-    /// The map's name for it. Opaque here; a kit's constant.
+    /// The resource bundle's name for it. Opaque here; a kit's constant.
     pub key: String,
 
     /// The file name, under every base.
@@ -361,8 +361,8 @@ pub struct Resource {
     /// The cache segment its file lives under: who published it.
     pub namespace: String,
 
-    /// Where the file can be had from, in preference order, its map's bases
-    /// already appended.
+    /// Where the file can be had from, in preference order, its resource
+    /// bundle's bases already appended.
     pub sources: Vec<Source>,
 }
 

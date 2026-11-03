@@ -15,18 +15,18 @@ use serde::{
 
 use super::{
     Fuse,
-    ResourceMap,
-    StaticResourceMap,
+    ResourceBundle,
+    StaticResourceBundle,
 };
 use crate::errors::BunsenResult;
 
 /// A pretrained, as a compiled-in table spells it.
 ///
-/// Its [`maps`](Self::maps) are fused strictly into one map when it
-/// becomes the owned twin, a [`Pretrained`]
+/// Its [`resource_bundles`](Self::resource_bundles) are fused strictly into one
+/// resource bundle when it becomes the owned twin, a [`Pretrained`]
 /// ([`to_pretrained`](Self::to_pretrained)). A file many rows share is a
-/// map of its own that each row references; a one-file model is a row of
-/// one map.
+/// resource bundle of its own that each row references; a one-file model is a
+/// row of one resource bundle.
 #[derive(Debug)]
 pub struct StaticPretrained<'a> {
     /// Its name, unique within its provider.
@@ -44,13 +44,13 @@ pub struct StaticPretrained<'a> {
     /// Where it is published.
     pub origin: Option<&'a str>,
 
-    /// The prefab it instantiates, by name in the kit's prefab map, when
-    /// the kit keeps one. The generic layer never reads it.
+    /// The prefab it instantiates, by name in the kit's prefab resource bundle,
+    /// when the kit keeps one. The generic layer never reads it.
     pub prefab: Option<&'a str>,
 
-    /// The maps it is made of, fused strictly: a repeated key across them
-    /// is a table's mistake, which a kit's tests pin.
-    pub maps: &'a [&'a StaticResourceMap<'a>],
+    /// The resource bundles it is made of, fused strictly: a repeated key
+    /// across them is a table's mistake, which a kit's tests pin.
+    pub resource_bundles: &'a [&'a StaticResourceBundle<'a>],
 }
 
 impl StaticPretrained<'_> {
@@ -62,36 +62,38 @@ impl StaticPretrained<'_> {
         self.name == name || self.aliases.contains(&name)
     }
 
-    /// The maps fused strictly into one, named and described as the row
-    /// is.
+    /// The resource bundles fused strictly into one, named and described as the
+    /// row is.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), as
-    /// [`ResourceMap::fuse`] under [`Fuse::Strict`], naming a key two of the
-    /// maps share.
-    pub fn try_to_map(&self) -> BunsenResult<ResourceMap> {
-        let mut fused = ResourceMap::new(self.name);
+    /// [`ResourceBundle::fuse`] under [`Fuse::Strict`], naming a key two of the
+    /// resource bundles share.
+    pub fn try_to_resource_bundle(&self) -> BunsenResult<ResourceBundle> {
+        let mut fused = ResourceBundle::new(self.name);
         fused.description = self.description.to_string();
         fused.license = self.license.map(str::to_string);
         fused.origin = self.origin.map(str::to_string);
-        for map in self.maps {
-            fused = fused.fuse(map.to_map(), Fuse::Strict)?;
+        for map in self.resource_bundles {
+            fused = fused.fuse(map.to_resource_bundle(), Fuse::Strict)?;
         }
         Ok(fused)
     }
 
-    /// The maps fused strictly into one.
+    /// The resource bundles fused strictly into one.
     ///
     /// # Panics
-    /// If two of the maps share a key; a kit's tests pin that none do.
-    pub fn to_map(&self) -> ResourceMap {
-        self.try_to_map().unwrap_or_else(|e| panic!("{e}"))
+    /// If two of the resource bundles share a key; a kit's tests pin that none
+    /// do.
+    pub fn to_resource_bundle(&self) -> ResourceBundle {
+        self.try_to_resource_bundle()
+            .unwrap_or_else(|e| panic!("{e}"))
     }
 
     /// The owned twin.
     ///
     /// # Errors
-    /// As [`try_to_map`](Self::try_to_map).
+    /// As [`try_to_resource_bundle`](Self::try_to_resource_bundle).
     pub fn try_to_pretrained(&self) -> BunsenResult<Pretrained> {
         Ok(Pretrained {
             name: self.name.to_string(),
@@ -100,14 +102,14 @@ impl StaticPretrained<'_> {
             license: self.license.map(str::to_string),
             origin: self.origin.map(str::to_string),
             prefab: self.prefab.map(str::to_string),
-            resources: self.try_to_map()?,
+            resources: self.try_to_resource_bundle()?,
         })
     }
 
     /// The owned twin.
     ///
     /// # Panics
-    /// As [`to_map`](Self::to_map).
+    /// As [`to_resource_bundle`](Self::to_resource_bundle).
     pub fn to_pretrained(&self) -> Pretrained {
         self.try_to_pretrained().unwrap_or_else(|e| panic!("{e}"))
     }
@@ -119,10 +121,10 @@ impl From<&StaticPretrained<'_>> for Pretrained {
     }
 }
 
-/// A pretrained row: a name in a provider, over a resource map.
+/// A pretrained row: a name in a provider, over a resource bundle.
 ///
 /// What a name in a provider is: listing fields, aliases, the prefab it
-/// instantiates when the kit keeps prefabs, and the resource maps it is
+/// instantiates when the kit keeps prefabs, and the resource bundles it is
 /// made of, fused strictly into one. A row is plain data. It knows no
 /// hook, since the function that loads a kit's models is the kit's and
 /// supplies one, and it does not know which of its resources is the model.
@@ -154,12 +156,12 @@ pub struct Pretrained {
     /// Where it is published.
     pub origin: Option<String>,
 
-    /// The prefab it instantiates, by name in the kit's prefab map, when
-    /// the kit keeps one.
+    /// The prefab it instantiates, by name in the kit's prefab resource bundle,
+    /// when the kit keeps one.
     pub prefab: Option<String>,
 
     /// What it is made of, fused.
-    pub resources: ResourceMap,
+    pub resources: ResourceBundle,
 }
 
 impl Pretrained {
@@ -189,7 +191,7 @@ mod tests {
 
     macro_rules! one_file {
         ($name:ident, $map:literal, $key:literal, $file:literal) => {
-            static $name: StaticResourceMap<'static> = StaticResourceMap {
+            static $name: StaticResourceBundle<'static> = StaticResourceBundle {
                 name: $map,
                 description: "one file",
                 license: None,
@@ -218,7 +220,7 @@ mod tests {
         license: Some("MIT"),
         origin: Some("https://t.example"),
         prefab: Some("small"),
-        maps: &[&CHECKPOINT, &VOCABULARY],
+        resource_bundles: &[&CHECKPOINT, &VOCABULARY],
     };
 
     static CLASH: StaticPretrained<'static> = StaticPretrained {
@@ -228,18 +230,18 @@ mod tests {
         license: None,
         origin: None,
         prefab: None,
-        maps: &[&CHECKPOINT, &ANOTHER_CHECKPOINT],
+        resource_bundles: &[&CHECKPOINT, &ANOTHER_CHECKPOINT],
     };
 
-    /// A row fuses its maps under its own name and listing fields, and
-    /// answers to its aliases.
+    /// A row fuses its resource bundles under its own name and listing fields,
+    /// and answers to its aliases.
     #[test]
     fn test_to_map_fuses_under_the_rows_name() {
         assert!(SMALL.matches("small"));
         assert!(SMALL.matches("s"));
         assert!(!SMALL.matches("large"));
 
-        let map = SMALL.to_map();
+        let map = SMALL.to_resource_bundle();
         assert_eq!(map.name, "small");
         assert_eq!(map.description, "a small model");
         assert_eq!(map.license.as_deref(), Some("MIT"));
@@ -260,20 +262,20 @@ mod tests {
         assert_eq!(serde_json::from_str::<Pretrained>(&json).unwrap(), owned);
     }
 
-    /// Two maps that share a key are a table's mistake: named by the
-    /// fallible form, a panic in the other.
+    /// Two resource bundles that share a key are a table's mistake: named by
+    /// the fallible form, a panic in the other.
     #[test]
     fn test_a_repeated_key_is_refused() {
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_eq("duplicate resource \"checkpoint\"")
             .has_cause::<LookupError>()
-            .assert_err(&CLASH.try_to_map());
+            .assert_err(&CLASH.try_to_resource_bundle());
         assert!(CLASH.try_to_pretrained().is_err());
     }
 
     #[test]
     #[should_panic(expected = "duplicate resource \"checkpoint\"")]
     fn test_to_map_panics_on_a_repeated_key() {
-        CLASH.to_map();
+        CLASH.to_resource_bundle();
     }
 }

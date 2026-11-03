@@ -15,7 +15,7 @@ use crate::{
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     errors::BunsenResult,
@@ -26,10 +26,10 @@ use crate::{
 /// `<cache>/pretrained/voxtral/<namespace>/<sha256>/<file>`.
 pub const VOXTRAL_KIT: &str = "voxtral";
 
-/// The key of the checkpoint in a Voxtral resource map.
+/// The key of the checkpoint in a Voxtral resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary, `tekken.json`, in a Voxtral resource map.
+/// The key of the vocabulary, `tekken.json`, in a Voxtral resource bundle.
 pub const VOCABULARY: &str = "vocabulary";
 
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
@@ -45,32 +45,33 @@ const MISTRAL_ORIGIN: &str = "https://huggingface.co/mistralai/Voxtral-Mini-4B-R
 
 /// `mistralai/Voxtral-Mini-4B-Realtime-2602`'s checkpoint and vocabulary, at
 /// a fixed revision.
-pub static VOXTRAL_MINI_4B_REALTIME_2602_FILES: StaticResourceMap<'static> = StaticResourceMap {
-    name: "mistralai/voxtral-mini-4b-realtime-2602",
-    description: "Voxtral-Mini-4B-Realtime-2602: model.safetensors (bf16) and tekken.json",
-    license: Some("Apache-2.0"),
-    origin: Some(MISTRAL_ORIGIN),
-    namespace: "mistralai",
-    bases: &[StaticBase::Url(
-        "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/resolve/2769294da9567371363522aac9bbcfdd19447add",
-    )],
-    resources: &[
-        StaticResource {
-            key: CHECKPOINT,
-            file: "model.safetensors",
-            sha256: Some("e745e4902df6a4c48f29f2f8dc1f6d0fb4cc73c7156bc45923451a5bcdfcd1d6"),
-            kind: Some(SAFETENSORS),
-            sources: &[],
-        },
-        StaticResource {
-            key: VOCABULARY,
-            file: "tekken.json",
-            sha256: Some("8434af1d39eba99f0ef46cf1450bf1a63fa941a26933a1ef5dbbf4adf0d00e44"),
-            kind: Some(TEKKEN_JSON),
-            sources: &[],
-        },
-    ],
-};
+pub static VOXTRAL_MINI_4B_REALTIME_2602_FILES: StaticResourceBundle<'static> =
+    StaticResourceBundle {
+        name: "mistralai/voxtral-mini-4b-realtime-2602",
+        description: "Voxtral-Mini-4B-Realtime-2602: model.safetensors (bf16) and tekken.json",
+        license: Some("Apache-2.0"),
+        origin: Some(MISTRAL_ORIGIN),
+        namespace: "mistralai",
+        bases: &[StaticBase::Url(
+            "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/resolve/2769294da9567371363522aac9bbcfdd19447add",
+        )],
+        resources: &[
+            StaticResource {
+                key: CHECKPOINT,
+                file: "model.safetensors",
+                sha256: Some("e745e4902df6a4c48f29f2f8dc1f6d0fb4cc73c7156bc45923451a5bcdfcd1d6"),
+                kind: Some(SAFETENSORS),
+                sources: &[],
+            },
+            StaticResource {
+                key: VOCABULARY,
+                file: "tekken.json",
+                sha256: Some("8434af1d39eba99f0ef46cf1450bf1a63fa941a26933a1ef5dbbf4adf0d00e44"),
+                kind: Some(TEKKEN_JSON),
+                sources: &[],
+            },
+        ],
+    };
 
 static VOXTRAL_MINI_4B_REALTIME_2602: StaticPretrained<'static> = StaticPretrained {
     name: "voxtral-mini-4b-realtime-2602",
@@ -79,7 +80,7 @@ static VOXTRAL_MINI_4B_REALTIME_2602: StaticPretrained<'static> = StaticPretrain
     license: Some("Apache-2.0"),
     origin: Some(MISTRAL_ORIGIN),
     prefab: Some(PREFAB),
-    maps: &[&VOXTRAL_MINI_4B_REALTIME_2602_FILES],
+    resource_bundles: &[&VOXTRAL_MINI_4B_REALTIME_2602_FILES],
 };
 
 /// Mistral's Voxtral Realtime models.
@@ -155,7 +156,7 @@ mod tests {
     /// qualified, short and aliased names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        let map = VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_map();
+        let map = VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_resource_bundle();
         map.validate().unwrap();
         for key in [CHECKPOINT, VOCABULARY] {
             let resource = map.get(key).unwrap();

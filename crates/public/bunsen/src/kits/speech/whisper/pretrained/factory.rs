@@ -32,8 +32,8 @@ use crate::{
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`WhisperBundle`]; the caller never builds or passes a hook. A
 /// checkpoint on disk is not the factory's: it is a given map through
-/// [`Deferred::from_map`], which gets its hook the same way. A caller with
-/// a provider of its own, a mirror say, adds it with
+/// [`Deferred::from_resource_bundle`], which gets its hook the same way. A
+/// caller with a provider of its own, a mirror say, adds it with
 /// [`with_provider`](PretrainedFactory::with_provider).
 ///
 /// # Errors
@@ -96,7 +96,7 @@ mod tests {
             pretrained::{
                 PretrainedCacheOptions,
                 PretrainedRef,
-                ResourceMap,
+                ResourceBundle,
                 WELL_KNOWN,
                 testing::ListsNothing,
             },
@@ -194,9 +194,10 @@ mod tests {
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
-        let given =
-            Deferred::<WhisperConstruct>::from_map(ResourceMap::given(spec, CHECKPOINT, &file))
-                .unwrap();
+        let given = Deferred::<WhisperConstruct>::from_resource_bundle(ResourceBundle::given(
+            spec, CHECKPOINT, &file,
+        ))
+        .unwrap();
         assert_eq!(given.id(), spec);
         assert!(given.model.named().is_none());
 
@@ -329,7 +330,7 @@ mod hub_tests {
         let factory = default_whisper_factory().unwrap();
 
         let model = factory.resolve("hf:openai/whisper-tiny", &cache).unwrap();
-        let checkpoint = model.to_map();
+        let checkpoint = model.to_resource_bundle();
         let checkpoint = checkpoint.get(CHECKPOINT).unwrap();
         assert_eq!(checkpoint.file, "model.safetensors");
         assert!(checkpoint.is_pinned(), "pinned by the hub's listing");

@@ -348,7 +348,7 @@ pub fn row_file(
     key: &str,
 ) -> std::path::PathBuf {
     use bunsen::{
-        data::pretrained::ResourceMap,
+        data::pretrained::ResourceBundle,
         kits::speech::sortformer::pretrained::{
             SORTFORMER_KIT,
             default_sortformer_factory,
@@ -358,7 +358,7 @@ pub fn row_file(
         .expect("the sortformer factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = ResourceMap::new(found.resources.name.clone());
+    let mut map = ResourceBundle::new(found.resources.name.clone());
     map.insert(found.resources.try_get(key).expect("the resource").clone());
     weights_cache()
         .load(SORTFORMER_KIT, &map)

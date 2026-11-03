@@ -174,7 +174,7 @@
 //!     data::pretrained::{
 //!         Deferred,
 //!         PretrainedCache,
-//!         ResourceMap,
+//!         ResourceBundle,
 //!     },
 //!     errors::BunsenResult,
 //!     kits::speech::{
@@ -207,9 +207,9 @@
 //!     cache: &PretrainedCache,
 //!     device: &Device,
 //! ) -> BunsenResult<Arc<WhisperBundle>> {
-//!     Deferred::<WhisperConstruct>::from_map(ResourceMap::given(
-//!         "mine", CHECKPOINT, path,
-//!     ))?
+//!     Deferred::<WhisperConstruct>::from_resource_bundle(
+//!         ResourceBundle::given("mine", CHECKPOINT, path),
+//!     )?
 //!     .load_bundle(cache, device)
 //! }
 //!
@@ -233,7 +233,7 @@
 //! ) -> BunsenResult<Arc<WhisperBundle>> {
 //!     default_whisper_factory()?
 //!         .resolve("openai/tiny.en", cache)?
-//!         .with_overlay(ResourceMap::given(
+//!         .with_overlay(ResourceBundle::given(
 //!             "--vocab", VOCABULARY, vocabulary,
 //!         ))?
 //!         .load_bundle(cache, device)

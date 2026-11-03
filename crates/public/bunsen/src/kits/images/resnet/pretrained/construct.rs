@@ -10,7 +10,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
     },
     errors::{
         BunsenError,
@@ -104,7 +104,7 @@ impl Construct for ResNetConstruct {
 
     /// Every row is a `PyTorch` state dict; the config comes at
     /// construction, from the row's prefab or the caller's.
-    fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
         Ok(Self::new())
     }
 
@@ -144,7 +144,7 @@ mod tests {
                     PretrainedCache,
                     PretrainedCacheOptions,
                     PretrainedRef,
-                    ResourceMap,
+                    ResourceBundle,
                 },
             },
             errors::{
@@ -193,7 +193,7 @@ mod tests {
             factory.resolve(file.to_str().unwrap(), &cache).is_err(),
             "a path is not a name the factory knows"
         );
-        let given = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file));
+        let given = PretrainedRef::from(ResourceBundle::given("mine", CHECKPOINT, &file));
         let missing_config = |kinds: &[BunsenErrorKind]| {
             ErrorMatcher::new()
                 .with_kind_matching(value::one_of(kinds.to_vec()))
@@ -219,10 +219,11 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let err =
-            Deferred::<ResNetConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, &file))
-                .unwrap()
-                .load(&cache, &cpu_device());
+        let err = Deferred::<ResNetConstruct>::from_resource_bundle(ResourceBundle::given(
+            "mine", CHECKPOINT, &file,
+        ))
+        .unwrap()
+        .load(&cache, &cpu_device());
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.
         missing_config(&[BunsenErrorKind::Policy]).assert_err(&err);

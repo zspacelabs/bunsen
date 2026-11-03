@@ -1,10 +1,10 @@
-//! # Whisper resource maps
+//! # Whisper resource bundles
 
 use crate::{
     data::pretrained::{
         StaticBase,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
     },
     kits::speech::whisper::{
         driver::WhisperSpecialIds,
@@ -15,10 +15,10 @@ use crate::{
     },
 };
 
-/// The key of the checkpoint in a Whisper resource map.
+/// The key of the checkpoint in a Whisper resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the `.tiktoken` vocabulary in a Whisper resource map.
+/// The key of the `.tiktoken` vocabulary in a Whisper resource bundle.
 pub const VOCABULARY: &str = "vocabulary";
 
 /// The namespace every `openai` resource is cached under:
@@ -45,12 +45,12 @@ pub const UPSTREAM_BASE: StaticBase<'static> = StaticBase::LocalDir {
     default: openai_download_root,
 };
 
-/// One `openai` checkpoint map: the file under [`UPSTREAM_BASE`], then
-/// upstream's URL, which is addressed by the same digest that pins it.
+/// One `openai` checkpoint resource bundle: the file under [`UPSTREAM_BASE`],
+/// then upstream's URL, which is addressed by the same digest that pins it.
 macro_rules! openai_checkpoint {
     ($name:ident, $file:literal, $sha256:literal, $description:literal) => {
         #[doc = concat!("`openai/", $file, "`: ", $description, ".")]
-        pub static $name: StaticResourceMap<'static> = StaticResourceMap {
+        pub static $name: StaticResourceBundle<'static> = StaticResourceBundle {
             name: concat!("openai/", $file),
             description: $description,
             license: Some("MIT"),
@@ -147,21 +147,21 @@ openai_checkpoint!(
     "809 M parameters, multilingual, 128 mels, four-layer decoder"
 );
 
-/// Every `openai` checkpoint map, in upstream's order.
+/// Every `openai` checkpoint resource bundle, in upstream's order.
 ///
-/// What each `openai` pretrained is made of, as resource maps: one map per
-/// checkpoint, one per vocabulary ([`OPENAI_VOCABULARIES_MAPS`]), each a
-/// single file under the `openai` namespace. A pretrained row fuses a
-/// checkpoint map with the vocabulary map its token layout selects; a path
-/// arrives as a one-resource map, and the rule that selects its vocabulary
-/// is [`WhisperVocabulary::for_layout`].
+/// What each `openai` pretrained is made of, as resource bundles: one resource
+/// bundle per checkpoint, one per vocabulary ([`OPENAI_VOCABULARY_BUNDLES`]),
+/// each a single file under the `openai` namespace. A pretrained row fuses a
+/// checkpoint resource bundle with the vocabulary resource bundle its token
+/// layout selects; a path arrives as a one-resource bundle, and the rule that
+/// selects its vocabulary is [`WhisperVocabulary::for_layout`].
 ///
 /// The checkpoints are `whisper/__init__.py`'s `_MODELS`: each file under
 /// upstream's download root ([`UPSTREAM_BASE`], a "trust me" base used in
 /// place), and then upstream's digest-addressed URL. Nothing here names a
 /// bundle: a bundled copy is a cache directory populated ahead of time, and
 /// the cache hits it without knowing.
-pub static OPENAI_CHECKPOINTS: &[&StaticResourceMap<'static>] = &[
+pub static OPENAI_CHECKPOINTS: &[&StaticResourceBundle<'static>] = &[
     &TINY_EN_CHECKPOINT,
     &TINY_CHECKPOINT,
     &BASE_EN_CHECKPOINT,
@@ -179,7 +179,7 @@ pub static OPENAI_CHECKPOINTS: &[&StaticResourceMap<'static>] = &[
 /// `multilingual.tiktoken`: the vocabulary of every multilingual checkpoint.
 /// Its last line is `= 50256`, base64 of nothing, and that empty token is
 /// real; bunsen's parser reads it as such.
-pub static MULTILINGUAL_VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
+pub static MULTILINGUAL_VOCABULARY: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "openai/multilingual.tiktoken",
     description: "the multilingual vocabulary: GPT-2's ranks plus one, as every multilingual checkpoint numbers them",
     license: Some("MIT"),
@@ -199,7 +199,7 @@ pub static MULTILINGUAL_VOCABULARY: StaticResourceMap<'static> = StaticResourceM
 
 /// `gpt2.tiktoken`: the vocabulary of the English-only (`*.en`) checkpoints,
 /// GPT-2's ranks as they are.
-pub static GPT2_VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
+pub static GPT2_VOCABULARY: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "openai/gpt2.tiktoken",
     description: "the English-only vocabulary: GPT-2's ranks, as the `*.en` checkpoints number them",
     license: Some("MIT"),
@@ -217,12 +217,12 @@ pub static GPT2_VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
     }],
 };
 
-/// Both vocabulary maps: multilingual first.
+/// Both vocabulary resource bundles: multilingual first.
 ///
 /// The two `.tiktoken` rank files, fetched from the commit of
 /// `openai/whisper` that last touched them, so each URL names one file
 /// forever.
-pub static OPENAI_VOCABULARIES_MAPS: &[&StaticResourceMap<'static>] =
+pub static OPENAI_VOCABULARY_BUNDLES: &[&StaticResourceBundle<'static>] =
     &[&MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY];
 
 /// Which of the two rank files a checkpoint decodes through:
@@ -230,12 +230,13 @@ pub static OPENAI_VOCABULARIES_MAPS: &[&StaticResourceMap<'static>] =
 /// an English-only one.
 ///
 /// [`for_layout`](Self::for_layout) is the rule a path model's vocabulary
-/// is derived by, and a named row's is checked against; [`map`](Self::map)
-/// is the file, as a resource map. The two files number their tokens
-/// differently, and a checkpoint decoded through the wrong one produces
-/// text that is wrong without being obviously so, so the rule takes the
-/// token layout, which comes from the checkpoint's vocabulary size, and
-/// the pairing stays out of the caller's hands.
+/// is derived by, and a named row's is checked against;
+/// [`resource_bundle`](Self::resource_bundle) is the file, as a resource
+/// bundle. The two files number their tokens differently, and a checkpoint
+/// decoded through the wrong one produces text that is wrong without being
+/// obviously so, so the rule takes the token layout, which comes from the
+/// checkpoint's vocabulary size, and the pairing stays out of the caller's
+/// hands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum WhisperVocabulary {
     /// `multilingual.tiktoken`: every multilingual checkpoint's.
@@ -258,9 +259,9 @@ impl WhisperVocabulary {
         }
     }
 
-    /// The rank file, as a resource map: [`MULTILINGUAL_VOCABULARY`] or
+    /// The rank file, as a resource bundle: [`MULTILINGUAL_VOCABULARY`] or
     /// [`GPT2_VOCABULARY`].
-    pub fn map(self) -> &'static StaticResourceMap<'static> {
+    pub fn resource_bundle(self) -> &'static StaticResourceBundle<'static> {
         match self {
             Self::Multilingual => &MULTILINGUAL_VOCABULARY,
             Self::Gpt2 => &GPT2_VOCABULARY,
@@ -284,9 +285,9 @@ mod tests {
             .ids()
     }
 
-    /// Every checkpoint map is one pinned, labeled `checkpoint` under the
-    /// `openai` namespace, found under upstream's root before upstream's
-    /// URL, and that URL is addressed by the digest that pins it.
+    /// Every checkpoint resource bundle is one pinned, labeled `checkpoint`
+    /// under the `openai` namespace, found under upstream's root before
+    /// upstream's URL, and that URL is addressed by the digest that pins it.
     #[test]
     fn test_checkpoint_maps_validate_and_pin_their_urls() {
         assert_eq!(OPENAI_CHECKPOINTS.len(), 12);
@@ -296,7 +297,7 @@ mod tests {
         assert_eq!(names.len(), 12, "a map name is repeated");
 
         for map in OPENAI_CHECKPOINTS {
-            let owned = map.to_map();
+            let owned = map.to_resource_bundle();
             owned.validate().unwrap();
             assert_eq!(owned.keys(), [CHECKPOINT], "{}", map.name);
             let r = owned.get(CHECKPOINT).unwrap();
@@ -323,12 +324,12 @@ mod tests {
         assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
     }
 
-    /// The vocabulary maps validate, are pinned to the commit, and the
-    /// layout picks between them.
+    /// The vocabulary resource bundles validate, are pinned to the commit, and
+    /// the layout picks between them.
     #[test]
     fn test_vocabulary_maps_and_the_rule() {
-        for map in OPENAI_VOCABULARIES_MAPS {
-            let owned = map.to_map();
+        for map in OPENAI_VOCABULARY_BUNDLES {
+            let owned = map.to_resource_bundle();
             owned.validate().unwrap();
             assert_eq!(owned.keys(), [VOCABULARY], "{}", map.name);
             let r = owned.get(VOCABULARY).unwrap();
@@ -350,11 +351,14 @@ mod tests {
         assert_eq!(rule("tiny"), WhisperVocabulary::Multilingual);
         assert_eq!(rule("tiny.en"), WhisperVocabulary::Gpt2);
         assert_eq!(rule("large-v3"), WhisperVocabulary::Multilingual);
-        assert_eq!(rule("tiny").map().name, MULTILINGUAL_VOCABULARY.name);
-        assert_eq!(rule("tiny.en").map().name, GPT2_VOCABULARY.name);
         assert_eq!(
-            WhisperVocabulary::ALL.map(|v| v.map().name),
-            OPENAI_VOCABULARIES_MAPS
+            rule("tiny").resource_bundle().name,
+            MULTILINGUAL_VOCABULARY.name
+        );
+        assert_eq!(rule("tiny.en").resource_bundle().name, GPT2_VOCABULARY.name);
+        assert_eq!(
+            WhisperVocabulary::ALL.map(|v| v.resource_bundle().name),
+            OPENAI_VOCABULARY_BUNDLES
                 .iter()
                 .map(|m| m.name)
                 .collect::<Vec<_>>()

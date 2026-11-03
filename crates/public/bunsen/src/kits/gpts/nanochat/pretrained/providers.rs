@@ -14,7 +14,7 @@ use crate::{
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     errors::BunsenResult,
@@ -43,7 +43,7 @@ pub const META_JSON: &str = "nanochat-meta.json";
 pub const TIKTOKEN_PICKLE: &str = "tiktoken-pickle";
 
 /// `nanochat-students/base-d20`'s files, at a fixed revision.
-pub static BASE_D20_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static BASE_D20_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nanochat-students/base-d20",
     description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base: model_*.pt, meta, tokenizer",
     license: Some("Apache-2.0"),
@@ -91,11 +91,11 @@ static BASE_D20: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/nanochat-students/base-d20"),
     prefab: Some("nanochat-d20"),
-    maps: &[&BASE_D20_FILES],
+    resource_bundles: &[&BASE_D20_FILES],
 };
 
 /// `nanochat-students/mid-d20`'s files, at a fixed revision.
-pub static MID_D20_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static MID_D20_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nanochat-students/mid-d20",
     description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format: model_*.pt, meta, tokenizer",
     license: Some("Apache-2.0"),
@@ -143,11 +143,11 @@ static MID_D20: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/nanochat-students/mid-d20"),
     prefab: Some("nanochat-d20"),
-    maps: &[&MID_D20_FILES],
+    resource_bundles: &[&MID_D20_FILES],
 };
 
 /// `nanochat-students/rl-d20`'s files, at a fixed revision.
-pub static RL_D20_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static RL_D20_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nanochat-students/rl-d20",
     description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat: model_*.pt, meta, tokenizer",
     license: Some("Apache-2.0"),
@@ -195,11 +195,11 @@ static RL_D20: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/nanochat-students/rl-d20"),
     prefab: Some("nanochat-d20"),
-    maps: &[&RL_D20_FILES],
+    resource_bundles: &[&RL_D20_FILES],
 };
 
 /// `nitishpandey04/nanochat-d18-base`'s files, at a fixed revision.
-pub static D18_BASE_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static D18_BASE_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nitishpandey04/nanochat-d18-base",
     description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base: model_*.pt, meta, tokenizer",
     license: Some("MIT"),
@@ -247,11 +247,11 @@ static D18_BASE: StaticPretrained<'static> = StaticPretrained {
     license: Some("MIT"),
     origin: Some("https://huggingface.co/nitishpandey04/nanochat-d18-base"),
     prefab: Some("nanochat-d18-2026"),
-    maps: &[&D18_BASE_FILES],
+    resource_bundles: &[&D18_BASE_FILES],
 };
 
 /// `nitishpandey04/nanochat-d18-sft`'s files, at a fixed revision.
-pub static D18_SFT_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static D18_SFT_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "nitishpandey04/nanochat-d18-sft",
     description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat: model_*.pt, meta, tokenizer",
     license: Some("MIT"),
@@ -299,7 +299,7 @@ static D18_SFT: StaticPretrained<'static> = StaticPretrained {
     license: Some("MIT"),
     origin: Some("https://huggingface.co/nitishpandey04/nanochat-d18-sft"),
     prefab: Some("nanochat-d18-2026"),
-    maps: &[&D18_SFT_FILES],
+    resource_bundles: &[&D18_SFT_FILES],
 };
 
 /// `nanochat-students`' d20 run of upstream's 2025 model.

@@ -10,17 +10,17 @@ use std::{
 use super::Qwen3Model;
 
 /// The key of the tokenizer, `tokenizer.json`, in a [`Qwen3Bundle`]'s files
-/// and a Qwen3 resource map.
+/// and a Qwen3 resource bundle.
 pub const TOKENIZER: &str = "tokenizer";
 
 /// The key of the tokenizer's config, `tokenizer_config.json` (its added
 /// tokens and its chat template), in a [`Qwen3Bundle`]'s files and a Qwen3
-/// resource map.
+/// resource bundle.
 pub const TOKENIZER_CONFIG: &str = "tokenizer_config";
 
 /// The key of the generation defaults, `generation_config.json` (the stop
 /// tokens and the sampling parameters), in a [`Qwen3Bundle`]'s files and a
-/// Qwen3 resource map.
+/// Qwen3 resource bundle.
 pub const GENERATION_CONFIG: &str = "generation_config";
 
 /// A Qwen3 model, the positions it was trained on, and its checkpoint's

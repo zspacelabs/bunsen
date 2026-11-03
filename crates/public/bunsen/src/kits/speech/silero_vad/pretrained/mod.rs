@@ -7,7 +7,7 @@
 //!
 //! [`SileroConstruct`] reads it into a
 //! [`SileroVadCollection`](super::SileroVadCollection) of the 16 kHz branch.
-//! A resource map of a burnpack (both branches, keyed as `burn-onnx` names
+//! A resource bundle of a burnpack (both branches, keyed as `burn-onnx` names
 //! the ONNX graph's nodes) reads too. The loaders in [`load`] read files or
 //! bytes directly, with no cache.
 //!
