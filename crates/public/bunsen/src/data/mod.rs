@@ -12,7 +12,7 @@
 //!   *resource* is one pinned file with the places it can be had from.
 //!   Providers answer names with rows, a [`PretrainedFactory`] dispatches a
 //!   spec to them, and a [`PretrainedCache`] brings the files local for the
-//!   kit's [`Construct`] hook to build from.
+//!   kit's [`ConstructInit`] hook to build from.
 //! - [`shards`]: numbered dataset files. A [`ShardSetDescriptor`] names a
 //!   family of files (`shard_00000.parquet`, ...), and a [`ShardSet`] binds one
 //!   to a directory and brings shards in through the disk cache.
@@ -45,9 +45,9 @@
 //!   │     per resource: the cache path, else a local dir (used in
 //!   │     place) or bundled bytes (written in), else its URLs,
 //!   │     fetched together under the FetchPolicy [fetch]
-//!   │   H::construct(ref, loaded, device) -> Arc<H::Built>
+//!   │   H::try_init(ref, loaded, device) -> Arc<H::Construct>
 //!   ▼
-//! Loaded<H::Built>: name, handle (an Arc), resources
+//! Loaded<H::Construct>: name, handle (an Arc), resources
 //! ```
 //!
 //! - **Spec to row.** [`PretrainedFactory::resolve`] offers a spec to its
@@ -57,16 +57,16 @@
 //!   [`Resource`]s. A path or a manifest skips this step, since it is a
 //!   resource bundle already.
 //! - **Row to deferred model.** The row, or the given resource bundle, becomes
-//!   a [`PretrainedRef`]. [`Deferred::new`] or [`Deferred::from_map`] pairs it
-//!   with the kit's hook, chosen by [`Construct::for_resource_bundle`] from the
-//!   resources' `kind`s. [`Deferred::with_overlay`] lays the caller's resources
-//!   over the row's.
+//!   a [`PretrainedRef`]. [`Deferred::new`] or
+//!   [`Deferred::from_resource_bundle`] pairs it with the kit's hook, chosen by
+//!   [`ConstructInit::for_resource_bundle`] from the resources' `kind`s.
+//!   [`Deferred::with_overlay`] lays the caller's resources over the row's.
 //! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
-//!   [`plan`](crate::kits::support::construct::Construct::plan), then
+//!   [`plan`](crate::kits::support::construct::ConstructInit::plan), then
 //!   [`PretrainedCache::load`] (in its [source order], into
 //!   [`LoadedResources`]), then the hook's
-//!   [`construct`](crate::kits::support::construct::Construct::construct). The
-//!   result is a [`Loaded`] handle.
+//!   [`try_init`](crate::kits::support::construct::ConstructInit::try_init).
+//!   The result is a [`Loaded`] handle.
 //!
 //! Prefabs sit beside this pathway. A kit's [`StaticPreFabMap`] names its
 //! geometries, and a row names the prefab it instantiates;
@@ -94,7 +94,7 @@
 //!
 //! | Feature | Default | What it adds here |
 //! |---------|---------|-------------------|
-//! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`Construct`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
+//! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`ConstructInit`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
 //! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store` (implied by both) is what a burnpack is read with. |
@@ -106,10 +106,10 @@
 //! run-time counterpart, and neither implies the other.
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
-//! [`Construct`]: crate::kits::support::construct::Construct
-//! [`Construct::for_resource_bundle`]: crate::kits::support::construct::Construct::for_resource_bundle
+//! [`ConstructInit`]: crate::kits::support::construct::ConstructInit
+//! [`ConstructInit::for_resource_bundle`]: crate::kits::support::construct::ConstructInit::for_resource_bundle
 //! [`Deferred`]: crate::kits::support::construct::Deferred
-//! [`Deferred::from_map`]: crate::kits::support::construct::Deferred::from_resource_bundle
+//! [`Deferred::from_resource_bundle`]: crate::kits::support::construct::Deferred::from_resource_bundle
 //! [`Deferred::load`]: crate::kits::support::construct::Deferred::load
 //! [`Deferred::new`]: crate::kits::support::construct::Deferred::new
 //! [`Deferred::with_overlay`]: crate::kits::support::construct::Deferred::with_overlay

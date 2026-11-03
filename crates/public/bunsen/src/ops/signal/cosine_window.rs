@@ -124,8 +124,8 @@ pub struct DualCosineWindow {
 }
 
 impl DualCosineWindow {
-    /// Construct: `DualCosineWindow { alpha, beta, gamma: 1.0 - (alpha + beta),
-    /// periodic }`
+    /// Construct: `DualCosineWindow { alpha, beta, gamma: 1.0 - (alpha +
+    /// beta), periodic }`
     pub fn from_alpha_beta_complement(
         alpha: f64,
         beta: f64,

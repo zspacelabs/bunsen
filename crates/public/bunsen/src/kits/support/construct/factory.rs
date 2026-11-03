@@ -14,7 +14,7 @@ use burn::tensor::Device;
 use log::Level;
 
 use super::{
-    Construct,
+    ConstructInit,
     Deferred,
     Loaded,
 };
@@ -112,32 +112,32 @@ use crate::{
 /// # Ok::<(), bunsen::errors::BunsenError>(())
 /// ```
 #[derive(Debug)]
-pub struct PretrainedFactory<H: Construct> {
+pub struct PretrainedFactory<H: ConstructInit> {
     providers: Vec<Arc<dyn PretrainedProvider>>,
-    hook: PhantomData<H>,
+    config: PhantomData<H>,
 }
 
-impl<H: Construct> Clone for PretrainedFactory<H> {
+impl<H: ConstructInit> Clone for PretrainedFactory<H> {
     fn clone(&self) -> Self {
         Self {
             providers: self.providers.clone(),
-            hook: PhantomData,
+            config: PhantomData,
         }
     }
 }
 
-impl<H: Construct> Default for PretrainedFactory<H> {
+impl<H: ConstructInit> Default for PretrainedFactory<H> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: Construct> PretrainedFactory<H> {
+impl<H: ConstructInit> PretrainedFactory<H> {
     /// A factory with no providers yet.
     pub fn new() -> Self {
         Self {
             providers: Vec::new(),
-            hook: PhantomData,
+            config: PhantomData,
         }
     }
 
@@ -326,7 +326,7 @@ impl<H: Construct> PretrainedFactory<H> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Loaded<H::Built>> {
+    ) -> BunsenResult<Loaded<H::Construct>> {
         self.resolve(spec, cache)?.load(cache, device)
     }
 
@@ -499,8 +499,8 @@ pub(crate) mod testing {
     #[derive(Clone, Debug, Default)]
     pub struct CheckpointPath;
 
-    impl Construct for CheckpointPath {
-        type Built = PathBuf;
+    impl ConstructInit for CheckpointPath {
+        type Construct = PathBuf;
 
         const KIT: &'static str = "kit";
 
@@ -508,7 +508,7 @@ pub(crate) mod testing {
             Ok(Self)
         }
 
-        fn construct(
+        fn try_init(
             &self,
             _model: &PretrainedRef,
             loaded: &LoadedResources,
@@ -841,7 +841,7 @@ mod tests {
             Some(("well-known", "a/small"))
         );
         assert_eq!(model.to_resource_bundle().name, "well-known:a/small");
-        assert!(format!("{:?}", model.hook).contains("CheckpointPath"));
+        assert!(format!("{:?}", model.config).contains("CheckpointPath"));
         let model = factory.resolve("hub:x/y", &cache).unwrap();
         assert_eq!(model.id(), "hub:x/y");
 

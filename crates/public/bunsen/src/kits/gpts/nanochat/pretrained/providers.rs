@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 
-use super::NanoChatConstruct;
+use super::NanoChatConstructConfig;
 use crate::{
     data::pretrained::{
         PretrainedCache,
@@ -340,7 +340,7 @@ pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 }
 
 /// nanochat's factory over [`default_nanochat_providers`], building through
-/// [`NanoChatConstruct`].
+/// [`NanoChatConstructConfig`].
 ///
 /// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
 /// is the whole pathway from a name to a [`NanoChatBundle`].
@@ -348,11 +348,11 @@ pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_nanochat_factory() -> BunsenResult<PretrainedFactory<NanoChatConstruct>> {
+pub fn default_nanochat_factory() -> BunsenResult<PretrainedFactory<NanoChatConstructConfig>> {
     PretrainedFactory::new().with_providers(default_nanochat_providers())
 }
 
-impl PretrainedFactory<NanoChatConstruct> {
+impl PretrainedFactory<NanoChatConstructConfig> {
     /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors

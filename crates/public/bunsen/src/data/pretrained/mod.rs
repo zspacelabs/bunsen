@@ -5,15 +5,15 @@
 //! takes a spec, `provider:ref` or a bare name, and asks its providers for the
 //! row the spec names. Loading the row, the [`PretrainedCache`] brings its
 //! files local and the kit's
-//! [`Construct`](crate::kits::support::construct::Construct) hook builds from
-//! them, behind an `Arc`. The [`data`](crate::data#lifecycle) overview draws
-//! the whole pathway; this page says what the pieces are, and why they are
-//! split the way they are.
+//! [`ConstructInit`](crate::kits::support::construct::ConstructInit) hook
+//! builds from them, behind an `Arc`. The [`data`](crate::data#lifecycle)
+//! overview draws the whole pathway; this page says what the pieces are, and
+//! why they are split the way they are.
 //!
 //! Most of this module needs the `cache` feature (default, through
 //! `store`): the factory, the cache,
 //! [`Deferred`](crate::kits::support::construct::Deferred),
-//! [`Construct`](crate::kits::support::construct::Construct) and
+//! [`ConstructInit`](crate::kits::support::construct::ConstructInit) and
 //! [`Loaded`](crate::kits::support::construct::Loaded). The rows, resource
 //! bundles, resources, prefabs and providers are plain data and are always
 //! here.
@@ -145,7 +145,7 @@
 //!         sys_at,
 //!     },
 //!     kits::support::construct::{
-//!         Construct,
+//!         ConstructInit,
 //!         Deferred,
 //!         PretrainedFactory,
 //!     },
@@ -155,8 +155,8 @@
 //! /// The toy kit's hook: it builds the text of the `text` resource.
 //! struct Greeting;
 //!
-//! impl Construct for Greeting {
-//!     type Built = String;
+//! impl ConstructInit for Greeting {
+//!     type Construct = String;
 //!
 //!     const KIT: &'static str = "greeting";
 //!
@@ -164,7 +164,7 @@
 //!         Ok(Greeting)
 //!     }
 //!
-//!     fn construct(
+//!     fn try_init(
 //!         &self,
 //!         _model: &PretrainedRef,
 //!         loaded: &LoadedResources,

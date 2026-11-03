@@ -24,7 +24,7 @@ use bunsen::{
                 OPENAI,
                 VOCABULARY,
                 WHISPER_KIT,
-                WhisperConstruct,
+                WhisperConstructConfig,
                 WhisperVocabulary,
                 default_whisper_factory,
             },
@@ -110,7 +110,7 @@ pub fn bundled_table() -> PretrainedTable {
 }
 
 /// The default Whisper factory with [`bundled_table`] registered.
-pub fn factory_with_bundle() -> PretrainedFactory<WhisperConstruct> {
+pub fn factory_with_bundle() -> PretrainedFactory<WhisperConstructConfig> {
     default_whisper_factory()
         .unwrap()
         .with_provider(Arc::new(bundled_table()))

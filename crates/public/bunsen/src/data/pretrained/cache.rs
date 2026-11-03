@@ -278,8 +278,8 @@ fn fetch_prefix(
 /// verification, and with `fetch` the batch policy) and passes it to every
 /// load. [`Deferred::load`](crate::kits::support::construct::Deferred::load)
 /// calls [`load`](Self::load) between the kit hook's
-/// [`plan`](crate::kits::support::construct::Construct::plan) and
-/// [`construct`](crate::kits::support::construct::Construct::construct), and
+/// [`plan`](crate::kits::support::construct::ConstructInit::plan) and
+/// [`try_init`](crate::kits::support::construct::ConstructInit::try_init), and
 /// the [`LoadedResources`] it returns are what the hook builds from. A
 /// [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
 /// hands the cache to its providers too, so that a hub
@@ -294,8 +294,8 @@ fn fetch_prefix(
 /// ```
 ///
 /// `<kit>` is the hook's
-/// [`KIT`](crate::kits::support::construct::Construct::KIT), `<namespace>` the
-/// resource's (who published it), and `<file>` its file name. An unpinned
+/// [`KIT`](crate::kits::support::construct::ConstructInit::KIT), `<namespace>`
+/// the resource's (who published it), and `<file>` its file name. An unpinned
 /// resource sits under a cache key in place of `<sha256>`: one derived from
 /// its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its
 /// file name when it has no URL. [`resource_path`](Self::resource_path)

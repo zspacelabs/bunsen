@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use burn::tensor::Device;
 
 use super::{
-    Construct,
+    ConstructInit,
     Loaded,
 };
 use crate::{
@@ -28,7 +28,7 @@ use crate::{
 /// from a spec; a resource bundle from elsewhere, a checkpoint on disk say,
 /// becomes one through [`from_resource_bundle`](Self::from_resource_bundle),
 /// and any [`PretrainedRef`] through [`new`](Self::new). Either way the hook is
-/// [`Construct::for_resource_bundle`]'s choice, made from what the resource
+/// [`ConstructInit::for_resource_bundle`]'s choice, made from what the resource
 /// bundle says about its resources (their `kind`s): different providers' rows
 /// may be read by different mechanisms, and the hook attached is the one for
 /// this resource bundle.
@@ -42,25 +42,25 @@ use crate::{
 ///
 /// [`PretrainedFactory::resolve`]: super::PretrainedFactory::resolve
 #[derive(Clone, Debug)]
-pub struct Deferred<H: Construct> {
+pub struct Deferred<H: ConstructInit> {
     /// What resolved: a row of a provider, or a given resource bundle.
     pub model: PretrainedRef,
 
     /// The kit's hook for it, chosen by the resource bundle. Public, so that a
     /// caller doing surgery of its own, a config the model is built from say,
     /// can adjust what it was given; it never has to build one.
-    pub hook: H,
+    pub config: H,
 }
 
-impl<H: Construct> Deferred<H> {
+impl<H: ConstructInit> Deferred<H> {
     /// `model` with the hook its resource bundle calls for.
     ///
     /// # Errors
-    /// As [`Construct::for_resource_bundle`]: a resource of a kind the kit
+    /// As [`ConstructInit::for_resource_bundle`]: a resource of a kind the kit
     /// cannot read.
     pub fn new(model: PretrainedRef) -> BunsenResult<Self> {
-        let hook = H::for_resource_bundle(&model.to_resource_bundle())?;
-        Ok(Self { model, hook })
+        let config = H::for_resource_bundle(&model.to_resource_bundle())?;
+        Ok(Self { model, config })
     }
 
     /// A resource bundle from elsewhere, a checkpoint on disk say, as a
@@ -93,7 +93,7 @@ impl<H: Construct> Deferred<H> {
     ) -> BunsenResult<Self> {
         Ok(Self {
             model: self.model.with_overlay(map)?,
-            hook: self.hook,
+            config: self.config,
         })
     }
 
@@ -109,7 +109,7 @@ impl<H: Construct> Deferred<H> {
     /// the plan itself looks at is fetched.
     ///
     /// # Errors
-    /// As [`Construct::plan`], under a frame naming the kit and the model.
+    /// As [`ConstructInit::plan`], under a frame naming the kit and the model.
     /// The model is the caller's input: an
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error it causes
     /// is re-marked [`Policy`](crate::errors::BunsenErrorKind::Policy).
@@ -117,19 +117,19 @@ impl<H: Construct> Deferred<H> {
         &self,
         cache: &PretrainedCache,
     ) -> BunsenResult<ResourceBundle> {
-        self.hook
+        self.config
             .plan(&self.model, cache)
             .with_context(|| format!("planning {} {:?}", H::KIT, self.id()))
             .as_policy()
     }
 
-    /// Loads: [`Construct::plan`], [`PretrainedCache::load`],
-    /// [`Construct::construct`]. The whole pathway once a model is in hand,
+    /// Loads: [`ConstructInit::plan`], [`PretrainedCache::load`],
+    /// [`ConstructInit::try_init`]. The whole pathway once a model is in hand,
     /// whether it came from a factory, a path, or a manifest.
     ///
     /// # Errors
-    /// As [`Construct::plan`], [`PretrainedCache::load`] and
-    /// [`Construct::construct`], under a frame naming the kit and the
+    /// As [`ConstructInit::plan`], [`PretrainedCache::load`] and
+    /// [`ConstructInit::try_init`], under a frame naming the kit and the
     /// model. The model and its files are the caller's input: an
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error they cause
     /// is re-marked [`Policy`](crate::errors::BunsenErrorKind::Policy).
@@ -137,11 +137,11 @@ impl<H: Construct> Deferred<H> {
         &self,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Loaded<H::Built>> {
-        let load = || -> BunsenResult<Loaded<H::Built>> {
-            let planned = self.hook.plan(&self.model, cache)?;
+    ) -> BunsenResult<Loaded<H::Construct>> {
+        let load = || -> BunsenResult<Loaded<H::Construct>> {
+            let planned = self.config.plan(&self.model, cache)?;
             let resources = cache.load(H::KIT, &planned)?;
-            let handle = self.hook.construct(&self.model, &resources, device)?;
+            let handle = self.config.try_init(&self.model, &resources, device)?;
             Ok(Loaded {
                 name: resources.map.name.clone(),
                 handle,

@@ -15,8 +15,8 @@ use crate::{
 ///
 /// A prefab has no weights. The rows of
 /// [`WELL_KNOWN_TABLE`](super::WELL_KNOWN_TABLE) name the prefab they
-/// instantiate, and [`ResNetConstruct`](super::ResNetConstruct) builds from
-/// it.
+/// instantiate, and [`ResNetConstructConfig`](super::ResNetConstructConfig)
+/// builds from it.
 pub static RESNET_PREFABS: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
     name: "resnet",
     description: "Well-Know ResNet configs",

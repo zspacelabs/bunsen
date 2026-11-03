@@ -15,7 +15,7 @@ use super::{
 /// what lets a checkpoint be checked against the shape its name promised.
 /// [`WHISPER_PREFABS`](crate::kits::speech::whisper::pretrained::WHISPER_PREFABS)
 /// holds the geometry of every checkpoint `openai-whisper` ships, and
-/// [`WhisperConstruct`](crate::kits::speech::whisper::pretrained::WhisperConstruct)
+/// [`WhisperConstructConfig`](crate::kits::speech::whisper::pretrained::WhisperConstructConfig)
 /// checks each checkpoint it loads against its name's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WhisperGeometry {

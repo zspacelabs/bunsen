@@ -6,7 +6,7 @@ use crate::{
     data::pretrained::PretrainedProvider,
     errors::BunsenResult,
     kits::{
-        speech::silero_vad::pretrained::SileroConstruct,
+        speech::silero_vad::pretrained::SileroConstructConfig,
         support::construct::PretrainedFactory,
     },
 };
@@ -118,7 +118,7 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 }
 
 /// Silero's factory: [`default_silero_providers`] behind
-/// [`SileroConstruct`].
+/// [`SileroConstructConfig`].
 ///
 /// The index a caller holds: `load("silero/vad-16k", ..)` gives the
 /// [`SileroVadCollection`](crate::kits::speech::silero_vad::SileroVadCollection)
@@ -127,7 +127,7 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstruct>> {
+pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstructConfig>> {
     PretrainedFactory::new().with_providers(default_silero_providers())
 }
 

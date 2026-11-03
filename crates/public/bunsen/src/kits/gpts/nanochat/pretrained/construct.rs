@@ -27,7 +27,7 @@ use crate::{
                 load_pt_checkpoint,
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
 };
 
@@ -36,14 +36,14 @@ use crate::{
 /// is ([`load_pt_checkpoint`]); bundled with its meta and every file of the
 /// checkpoint by its key.
 ///
-/// The [`Construct`] hook for the nanochat kit.
+/// The nanochat kit's construct config: its [`ConstructInit`] hook.
 /// [`default_nanochat_factory`](super::default_nanochat_factory) attaches it;
 /// a caller never builds one.
 #[derive(Clone, Debug)]
-pub struct NanoChatConstruct;
+pub struct NanoChatConstructConfig;
 
-impl Construct for NanoChatConstruct {
-    type Built = NanoChatBundle;
+impl ConstructInit for NanoChatConstructConfig {
+    type Construct = NanoChatBundle;
 
     const KIT: &'static str = NANOCHAT_KIT;
 
@@ -58,7 +58,7 @@ impl Construct for NanoChatConstruct {
         }
     }
 
-    fn construct(
+    fn try_init(
         &self,
         _model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -91,13 +91,13 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        NanoChatConstruct::for_resource_bundle(&BASE_D20_FILES.to_resource_bundle()).unwrap();
-        NanoChatConstruct::for_resource_bundle(&D18_SFT_FILES.to_resource_bundle()).unwrap();
+        NanoChatConstructConfig::for_resource_bundle(&BASE_D20_FILES.to_resource_bundle()).unwrap();
+        NanoChatConstructConfig::for_resource_bundle(&D18_SFT_FILES.to_resource_bundle()).unwrap();
 
         let mut safetensors = BASE_D20_FILES.to_resource_bundle();
         safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")
-            .assert_err(&NanoChatConstruct::for_resource_bundle(&safetensors));
+            .assert_err(&NanoChatConstructConfig::for_resource_bundle(&safetensors));
     }
 }

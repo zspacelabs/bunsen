@@ -25,7 +25,7 @@ use crate::{
                 SILERO_KIT,
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
 };
 
@@ -48,24 +48,24 @@ pub enum SileroReader {
 /// [`SileroReader`] its map calls for, into a [`SileroVadCollection`]: both
 /// branches from a burnpack, the 16 kHz branch from upstream's safetensors.
 ///
-/// The [`Construct`] hook for the Silero kit.
+/// The Silero kit's construct config: its [`ConstructInit`] hook.
 /// [`default_silero_factory`](super::default_silero_factory) attaches it;
 /// a caller never builds one.
 #[derive(Clone, Debug, Default)]
-pub struct SileroConstruct {
+pub struct SileroConstructConfig {
     /// The checkpoint's reader.
     pub reader: SileroReader,
 }
 
-impl SileroConstruct {
+impl SileroConstructConfig {
     /// The hook, reading a burnpack.
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Construct for SileroConstruct {
-    type Built = SileroVadCollection;
+impl ConstructInit for SileroConstructConfig {
+    type Construct = SileroVadCollection;
 
     const KIT: &'static str = SILERO_KIT;
 
@@ -111,7 +111,7 @@ impl Construct for SileroConstruct {
 
     /// Reads the checkpoint: a burnpack into the standard 16 kHz and 8 kHz
     /// models, upstream's safetensors into the 16 kHz one.
-    fn construct(
+    fn try_init(
         &self,
         _model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -145,12 +145,12 @@ mod tests {
     /// The hook names its kit, and follows the map's checkpoint.
     #[test]
     fn test_the_hook_follows_the_map() {
-        assert_eq!(<SileroConstruct as Construct>::KIT, "silero_vad");
-        assert_eq!(SileroConstruct::new().reader, SileroReader::Burnpack);
+        assert_eq!(<SileroConstructConfig as ConstructInit>::KIT, "silero_vad");
+        assert_eq!(SileroConstructConfig::new().reader, SileroReader::Burnpack);
 
         #[cfg(feature = "store_safetensors")]
         assert_eq!(
-            SileroConstruct::for_resource_bundle(
+            SileroConstructConfig::for_resource_bundle(
                 &super::super::SILERO_VAD_16K_FILES.to_resource_bundle()
             )
             .unwrap()
@@ -164,7 +164,7 @@ mod tests {
             "/models/silero_vad.bpk",
         ));
         assert_eq!(
-            SileroConstruct::for_resource_bundle(&burnpack)
+            SileroConstructConfig::for_resource_bundle(&burnpack)
                 .unwrap()
                 .reader,
             SileroReader::Burnpack

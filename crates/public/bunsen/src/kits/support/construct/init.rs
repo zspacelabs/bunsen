@@ -1,5 +1,3 @@
-//! Construction: the kit's hook from a resolved ref to what it builds.
-
 use std::sync::Arc;
 
 use burn::tensor::Device;
@@ -14,22 +12,23 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// What a kit builds from a resolved ref, and how.
+/// What a kit builds from a resolved ref, and how: the kit's construct
+/// config, its hook into the pretrained pathway.
 ///
-/// The hook is the kit's. It says which cache segment its files live under
+/// Each kit's `{Kit}ConstructConfig` implements it, and builds the kit's
+/// construct. It says which cache segment its files live under
 /// ([`KIT`](Self::KIT)), what it builds for a backend
-/// ([`Built`](Self::Built)), which hook a resource bundle calls for
+/// ([`Construct`](Self::Construct)), which hook a resource bundle calls for
 /// ([`for_resource_bundle`](Self::for_resource_bundle)), how a ref's resource
 /// bundle is completed before it is loaded ([`plan`](Self::plan)), and how the
 /// loaded parts become the built thing, behind an `Arc`
-/// ([`construct`](Self::construct)). A [`Deferred`](super::Deferred) model
-/// pairs a ref with its hook and runs the whole way: plan,
-/// [`PretrainedCache::load`], construct. The kits' hooks are `ResNetConstruct`,
-/// `WhisperConstruct` and `SileroConstruct`.
+/// ([`try_init`](Self::try_init)). A [`Deferred`](super::Deferred) model
+/// pairs a ref with its construct config and runs the whole way: plan,
+/// [`PretrainedCache::load`], `try_init`.
 ///
-/// Not object-safe: [`construct`](Self::construct) is generic over the
-/// backend so that [`Built`](Self::Built) is a real type. A hook is a
-/// value, chosen for a resource bundle by
+/// Not object-safe: [`try_init`](Self::try_init) is generic over the
+/// backend so that [`Construct`](Self::Construct) is a real type. A
+/// construct config is a value, chosen for a resource bundle by
 /// [`for_resource_bundle`](Self::for_resource_bundle) and carried by the
 /// deferred model it builds: different providers' rows may be read by different
 /// mechanisms, and the resource bundle's resources, their `kind`s, say which. A
@@ -38,16 +37,17 @@ use crate::{
 /// Both steps see the ref, not just its resource bundle: what a row promises
 /// (its prefab) is checked in [`plan`](Self::plan) before bytes are fetched,
 /// and a kit whose checkpoint does not describe itself takes its config
-/// from the row in [`construct`](Self::construct).
-pub trait Construct: Sized {
+/// from the row in [`try_init`](Self::try_init).
+pub trait ConstructInit: Sized {
     /// The cache segment the kit's files live under: the `<kit>` of
     /// `pretrained/<kit>/<namespace>/<sha256>/<file>`.
     const KIT: &'static str;
 
     /// What construction yields, for a backend.
-    type Built;
+    type Construct;
 
-    /// The hook for `map`: the reader its resources' `kind`s call for.
+    /// The construct config for `map`: the reader its resources' `kind`s call
+    /// for.
     ///
     /// # Errors
     /// The kit's: a resource of a kind it has no reader for, refused by
@@ -79,12 +79,12 @@ pub trait Construct: Sized {
     /// The kit's: a part the resource bundle lacks
     /// ([`LoadedResources::expect`]), or one that does not read as what its
     /// key says.
-    fn construct(
+    fn try_init(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<Self::Built>>;
+    ) -> BunsenResult<Arc<Self::Construct>>;
 }
 
 /// The handle a pretrained hands back: bound by what was built.
@@ -151,8 +151,8 @@ mod tests {
         vocabulary: Option<PathBuf>,
     }
 
-    impl Construct for Paths {
-        type Built = Vec<PathBuf>;
+    impl ConstructInit for Paths {
+        type Construct = Vec<PathBuf>;
 
         const KIT: &'static str = "paths";
 
@@ -175,7 +175,7 @@ mod tests {
             }
         }
 
-        fn construct(
+        fn try_init(
             &self,
             _model: &PretrainedRef,
             loaded: &LoadedResources,
@@ -192,8 +192,8 @@ mod tests {
     /// takes the default plan.
     struct NeedsConfig;
 
-    impl Construct for NeedsConfig {
-        type Built = ();
+    impl ConstructInit for NeedsConfig {
+        type Construct = ();
 
         const KIT: &'static str = "paths";
 
@@ -201,7 +201,7 @@ mod tests {
             Ok(NeedsConfig)
         }
 
-        fn construct(
+        fn try_init(
             &self,
             _model: &PretrainedRef,
             loaded: &LoadedResources,
@@ -236,13 +236,13 @@ mod tests {
         fs::write(&checkpoint, b"x").unwrap();
         fs::write(&vocabulary, b"y").unwrap();
         let cache = cache_in(dir.path());
-        let hook = Paths {
+        let config = Paths {
             vocabulary: Some(vocabulary.clone()),
         };
 
         let loaded = Deferred {
             model: PretrainedRef::from(ResourceBundle::given("mine", "checkpoint", &checkpoint)),
-            hook,
+            config,
         }
         .load(&cache, &cpu_device())
         .unwrap();
@@ -279,12 +279,12 @@ mod tests {
                 .unwrap(),
         );
 
-        let hook = Paths {
+        let config = Paths {
             vocabulary: Some(dir.path().join("never-read.tiktoken")),
         };
         let loaded = Deferred {
             model: model.clone(),
-            hook,
+            config,
         }
         .load(&cache, &cpu_device())
         .unwrap();
@@ -292,7 +292,7 @@ mod tests {
 
         // The hook a resource bundle calls for, with no rule of its own.
         let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
-        assert!(no_rule.hook.vocabulary.is_none());
+        assert!(no_rule.config.vocabulary.is_none());
         let loaded = no_rule.load(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
 

@@ -38,8 +38,8 @@
 //! # Loading
 //!
 //! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
-//! resolves a name to a deferred model carrying [`Qwen3AsrConstruct`], the
-//! hook its checkpoint's `kind` calls for, brings every file local through
+//! resolves a name to a deferred model carrying [`Qwen3AsrConstructConfig`],
+//! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into the row's prefab through
 //! [`load_hf_tensors`](super::weights::load_hf_tensors).
 

@@ -17,15 +17,15 @@
 //! `torchvision/resnet50`, `timm/resnet18_a1`, or a bare `resnet50`, which
 //! the torchvision group answers first.
 //!
-//! [`default_resnet_factory`] is the index, and [`ResNetConstruct`] its
+//! [`default_resnet_factory`] is the index, and [`ResNetConstructConfig`] its
 //! hook: it builds the model from the row's prefab and reads the
 //! checkpoint into it with
 //! [`ResNet::load_pytorch_weights`](super::ResNet::load_pytorch_weights). A
 //! checkpoint does not describe its own geometry, so a model built from
 //! any other config, or a checkpoint given as a path, needs
-//! [`ResNetConstruct::with_config`]: resolve the name, set the config on
-//! the deferred model's hook, then load it. `examples/resnet_tiny` swaps
-//! the activation this way before the weights land:
+//! [`ResNetConstructConfig::with_config`]: resolve the name, set the config on
+//! the deferred model's construct config, then load it. `examples/resnet_tiny`
+//! swaps the activation this way before the weights land:
 //!
 //! ```rust,no_run
 //! # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
@@ -57,7 +57,7 @@
 //!
 //! let mut model =
 //!     default_resnet_factory()?.resolve("timm/resnet18_a1", &cache)?;
-//! model.hook = model.hook.with_config(config);
+//! model.config = model.config.with_config(config);
 //! let resnet: ResNet =
 //!     Arc::unwrap_or_clone(model.load(&cache, &device)?.handle);
 //! # }

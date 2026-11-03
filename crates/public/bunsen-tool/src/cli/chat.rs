@@ -35,7 +35,7 @@ use bunsen::{
         },
         support::{
             construct::{
-                Construct,
+                ConstructInit,
                 PretrainedFactory,
             },
             decoding::SearchConfig,
@@ -219,7 +219,7 @@ impl Family {
 
     /// The family's checkpoints by name: each row, by its id.
     fn rows(self) -> BunsenResult<Vec<(String, Pretrained)>> {
-        fn rows_of<H: Construct>(
+        fn rows_of<H: ConstructInit>(
             factory: &PretrainedFactory<H>
         ) -> BunsenResult<Vec<(String, Pretrained)>> {
             factory

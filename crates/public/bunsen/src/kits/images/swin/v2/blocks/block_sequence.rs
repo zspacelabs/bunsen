@@ -76,8 +76,8 @@ pub trait StochasticDepthTransformerBlockSequenceMeta {
 /// Config for [`StochasticDepthTransformerBlockSequence`].
 ///
 /// Describes a stack of `depth` shift-window-alternating transformer blocks.
-/// Construct it, then call `.init(device)` to build the module and `forward` a
-/// `[batch, height * width, channels]` tensor through it.
+/// Construct it, then call `.init(device)` to build the module and
+/// `forward` a `[batch, height * width, channels]` tensor through it.
 #[derive(Config, Debug)]
 pub struct StochasticDepthTransformerBlockSequenceConfig {
     /// Number of input channels.

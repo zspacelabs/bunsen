@@ -113,9 +113,9 @@ impl ModuleInit<Mlp> for MlpConfig {
 ///
 /// The position-wise feed-forward block of a transformer: an up-projection to
 /// an expanded hidden size, an activation (optionally raised to a configured
-/// exponent), and a down-projection back to the embedding size. Construct via
-/// [`MlpConfig`] and `.init(device)`, then call [`forward`](Mlp::forward) on a
-/// `[batch, time, embed]` input.
+/// exponent), and a down-projection back to the embedding size. Construct
+/// via [`MlpConfig`] and `.init(device)`, then call [`forward`](Mlp::forward)
+/// on a `[batch, time, embed]` input.
 ///
 /// Built by [`MlpConfig`].
 #[derive(Module, Debug)]

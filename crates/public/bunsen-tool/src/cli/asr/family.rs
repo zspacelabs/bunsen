@@ -57,7 +57,7 @@ use bunsen::{
             },
         },
         support::construct::{
-            Construct,
+            ConstructInit,
             Deferred,
             PretrainedFactory,
         },
@@ -236,7 +236,7 @@ impl Kit {
 
     /// What the kit's factory offers.
     pub fn listing(self) -> BunsenResult<Listing> {
-        fn split<H: Construct>(factory: PretrainedFactory<H>) -> Listing {
+        fn split<H: ConstructInit>(factory: PretrainedFactory<H>) -> Listing {
             let rows = factory.list();
             let listed: Vec<&str> = rows.iter().map(|(p, _)| p.as_str()).collect();
             let unlisted = factory
@@ -295,7 +295,7 @@ impl Kit {
 /// [`Kit::fetch`] through one kit's factory: each name's plan (a
 /// path's vocabulary is the one its checkpoint's layout selects, and a
 /// name's checkpoint must scan as its prefab), then every resource of it.
-pub fn fetch_with<H: Construct>(
+pub fn fetch_with<H: ConstructInit>(
     factory: PretrainedFactory<H>,
     names: &[String],
     cache: &PretrainedCache,
@@ -334,11 +334,11 @@ pub fn fetch_with<H: Construct>(
 
 /// Resolves and loads `spec`, logging what it is and where its files came
 /// from: the model's info card.
-pub fn load_logged<H: Construct>(
+pub fn load_logged<H: ConstructInit>(
     deferred: Deferred<H>,
     cache: &PretrainedCache,
     device: &Device,
-) -> BunsenResult<Arc<H::Built>> {
+) -> BunsenResult<Arc<H::Construct>> {
     let t0 = Instant::now();
     let loaded = deferred.load(cache, device)?;
     log::info!("model: {}", deferred.id());

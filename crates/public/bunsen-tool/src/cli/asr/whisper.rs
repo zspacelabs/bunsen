@@ -35,7 +35,7 @@ use bunsen::{
                     CHECKPOINT,
                     OPENAI_LOCAL_DIR,
                     VOCABULARY,
-                    WhisperConstruct,
+                    WhisperConstructConfig,
                     default_whisper_factory,
                 },
             },
@@ -141,7 +141,7 @@ pub fn resolve(
     spec: &str,
     flags: Option<&WhisperFlags>,
     cache: &PretrainedCache,
-) -> BunsenResult<Deferred<WhisperConstruct>> {
+) -> BunsenResult<Deferred<WhisperConstructConfig>> {
     let path = Path::new(spec);
     let mut model = if path.is_file() {
         Deferred::from_resource_bundle(ResourceBundle::given(spec, CHECKPOINT, path)).as_policy()?

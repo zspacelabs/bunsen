@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 
-use super::ParakeetConstruct;
+use super::ParakeetConstructConfig;
 use crate::{
     data::pretrained::{
         HfProvider,
@@ -163,7 +163,7 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 }
 
 /// Parakeet's factory over [`default_parakeet_providers`], building through
-/// [`ParakeetConstruct`].
+/// [`ParakeetConstructConfig`].
 ///
 /// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
 /// is the whole pathway from a name to a [`ParakeetBundle`].
@@ -171,11 +171,11 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_parakeet_factory() -> BunsenResult<PretrainedFactory<ParakeetConstruct>> {
+pub fn default_parakeet_factory() -> BunsenResult<PretrainedFactory<ParakeetConstructConfig>> {
     PretrainedFactory::new().with_providers(default_parakeet_providers())
 }
 
-impl PretrainedFactory<ParakeetConstruct> {
+impl PretrainedFactory<ParakeetConstructConfig> {
     /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors

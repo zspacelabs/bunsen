@@ -42,7 +42,7 @@
 //! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
 //! behind an `Arc`. The factory resolves the name to a
 //! [`Deferred`](crate::kits::support::construct::Deferred) model carrying the
-//! kit's hook, [`WhisperConstruct`], with the [`WhisperReader`] its
+//! kit's hook, [`WhisperConstructConfig`], with the [`WhisperReader`] its
 //! checkpoint's `kind` names (`OpenAI`'s `.pt`, or `transformers`'
 //! `model.safetensors`, one file or shards). The hook's plan brings the
 //! checkpoint local, scans it, checks it against the geometry the prefab
@@ -50,7 +50,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_map`](crate::kits::support::construct::Deferred::from_resource_bundle).
+//! through [`Deferred::from_resource_bundle`](crate::kits::support::construct::Deferred::from_resource_bundle).
 //!
 //! # Example
 //!

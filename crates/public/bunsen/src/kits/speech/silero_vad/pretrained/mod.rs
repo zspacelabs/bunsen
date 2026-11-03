@@ -5,7 +5,7 @@
 //! `silero_vad_16k.safetensors`: the 16 kHz model, fetched from a pinned
 //! revision of `snakers4/silero-vad` (1.2 MB, MIT).
 //!
-//! [`SileroConstruct`] reads it into a
+//! [`SileroConstructConfig`] reads it into a
 //! [`SileroVadCollection`](super::SileroVadCollection) of the 16 kHz branch.
 //! A resource bundle of a burnpack (both branches, keyed as `burn-onnx` names
 //! the ONNX graph's nodes) reads too. The loaders in [`load`] read files or

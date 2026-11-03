@@ -33,7 +33,7 @@ use crate::{
 /// vocabulary.
 ///
 /// What a Whisper pretrained builds
-/// ([`WhisperConstruct`](crate::kits::speech::whisper::pretrained::WhisperConstruct)'s
+/// ([`WhisperConstructConfig`](crate::kits::speech::whisper::pretrained::WhisperConstructConfig)'s
 /// `Built`, through `load_bundle` on the factory), and what the driver
 /// holds behind an `Arc`: the model, its token layout, and, when the
 /// pretrained has one, the base vocabulary a decode needs for text and for

@@ -32,11 +32,11 @@ use bunsen::{
                 VOCABULARY,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
-                WhisperConstruct,
+                WhisperConstructConfig,
                 default_whisper_factory,
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
     support::testing::performance_device,
 };
@@ -106,7 +106,7 @@ fn test_plan_derives_a_paths_vocabulary() {
         CHECKPOINT,
         bind_whisper_onnx::base_pt(),
     ));
-    let planned = WhisperConstruct::new().plan(&given, &cache).unwrap();
+    let planned = WhisperConstructConfig::new().plan(&given, &cache).unwrap();
     assert_eq!(planned.name, "base");
     assert_eq!(planned.keys(), [CHECKPOINT, VOCABULARY]);
     assert_eq!(
@@ -127,7 +127,7 @@ fn test_plan_checks_a_declared_vocabulary() {
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .message_contains("gpt2.tiktoken")
         .message_contains("multilingual.tiktoken")
-        .assert_err(&WhisperConstruct::new().plan(&PretrainedRef::from(wrong), &cache));
+        .assert_err(&WhisperConstructConfig::new().plan(&PretrainedRef::from(wrong), &cache));
 
     let overridden = PretrainedRef::from(BASE_CHECKPOINT.to_resource_bundle())
         .with_overlay(ResourceBundle::given(
@@ -136,7 +136,9 @@ fn test_plan_checks_a_declared_vocabulary() {
             bind_whisper_onnx::gpt2_tiktoken(),
         ))
         .unwrap();
-    let planned = WhisperConstruct::new().plan(&overridden, &cache).unwrap();
+    let planned = WhisperConstructConfig::new()
+        .plan(&overridden, &cache)
+        .unwrap();
     assert_eq!(planned.get(VOCABULARY).unwrap().file, "gpt2.tiktoken");
 }
 
@@ -151,7 +153,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
         .resolve("bundled:openai/base", &cache)
         .unwrap()
         .model;
-    let planned = WhisperConstruct::new().plan(&model, &cache).unwrap();
+    let planned = WhisperConstructConfig::new().plan(&model, &cache).unwrap();
     assert_eq!(planned.keys(), [CHECKPOINT, VOCABULARY]);
     let vocabulary = planned.get(VOCABULARY).unwrap();
     assert_eq!(vocabulary.file, "multilingual.tiktoken");
@@ -173,7 +175,7 @@ fn test_plan_checks_the_prefab_a_name_promises() {
     let base_pt = bind_whisper_onnx::base_pt();
     let given = PretrainedRef::from(BASE_CHECKPOINT.to_resource_bundle());
     let named = resolve_model("openai/base").unwrap();
-    let hook = WhisperConstruct::new();
+    let hook = WhisperConstructConfig::new();
 
     assert_eq!(hook.expected_for(&given), None);
     assert_eq!(hook.expected_for(&named), Some(geometry_of("base")));
@@ -210,7 +212,7 @@ fn test_plan_checks_the_prefab_a_name_promises() {
 #[test]
 fn test_the_bundled_base_scans_as_the_base_prefab() {
     let model = resolve_model("openai/base").unwrap();
-    let cfg = WhisperConstruct::new()
+    let cfg = WhisperConstructConfig::new()
         .scan(&model, &loaded(bind_whisper_onnx::base_pt()))
         .unwrap();
 
@@ -225,7 +227,8 @@ fn test_the_bundled_base_scans_as_the_base_prefab() {
 #[test]
 fn test_scan_honors_the_scanner() {
     let base = bind_whisper_onnx::base_pt();
-    let hook = WhisperConstruct::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
+    let hook =
+        WhisperConstructConfig::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
 
     let named = resolve_model("openai/base").unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
@@ -249,5 +252,7 @@ fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
             |m: &GeometryMismatch| m.model.contains("openai/tiny"),
         ))
         .display_contains("openai/tiny")
-        .assert_err(&WhisperConstruct::new().scan(&model, &loaded(bind_whisper_onnx::base_pt())));
+        .assert_err(
+            &WhisperConstructConfig::new().scan(&model, &loaded(bind_whisper_onnx::base_pt())),
+        );
 }

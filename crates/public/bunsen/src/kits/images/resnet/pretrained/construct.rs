@@ -27,14 +27,14 @@ use crate::{
                 RESNET_PREFABS,
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
 };
 
 /// How a `ResNet` pretrained is built: the config the model is
 /// initialised from before the checkpoint is read into it.
 ///
-/// `ResNet`'s [`Construct`] hook, behind
+/// `ResNet`'s [`ConstructInit`] hook, behind
 /// [`default_resnet_factory`](super::default_resnet_factory). It
 /// builds a [`ResNet`] from the config, then reads the checkpoint into
 /// it with [`ResNet::load_pytorch_weights`].
@@ -47,12 +47,12 @@ use crate::{
 /// `examples/resnet_tiny` swaps the activation this way before the
 /// weights land.
 #[derive(Clone, Debug, Default)]
-pub struct ResNetConstruct {
+pub struct ResNetConstructConfig {
     /// The config to build from, overriding the prefab's.
     pub config: Option<ResNetContractConfig>,
 }
 
-impl ResNetConstruct {
+impl ResNetConstructConfig {
     /// Builds from the prefab the row names.
     pub fn new() -> Self {
         Self::default()
@@ -86,7 +86,7 @@ impl ResNetConstruct {
             .map(|prefab| prefab.to_config())
             .ok_or_else(|| {
                 BunsenError::from(ConstraintError::new(
-                    "ResNetConstruct",
+                    "ResNetConstructConfig",
                     "config",
                     Rule::Missing,
                 ))
@@ -99,8 +99,8 @@ impl ResNetConstruct {
     }
 }
 
-impl Construct for ResNetConstruct {
-    type Built = ResNet;
+impl ConstructInit for ResNetConstructConfig {
+    type Construct = ResNet;
 
     const KIT: &'static str = RESNET_KIT;
 
@@ -111,7 +111,7 @@ impl Construct for ResNetConstruct {
     }
 
     /// Initialises the config's model and reads the checkpoint into it.
-    fn construct(
+    fn try_init(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -156,7 +156,7 @@ mod tests {
                 },
             },
             kits::support::construct::{
-                Construct,
+                ConstructInit,
                 Deferred,
             },
             support::testing::cpu_device,
@@ -175,7 +175,7 @@ mod tests {
         .unwrap();
         let factory = default_resnet_factory().unwrap();
         let named = factory.resolve("resnet50", &cache).unwrap();
-        let hook = named.hook.clone();
+        let hook = named.config.clone();
         let named = named.model;
         let resnet50 = RESNET_PREFABS.expect_lookup_prefab("resnet50").to_config();
         assert_eq!(
@@ -223,7 +223,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let err = Deferred::<ResNetConstruct>::from_resource_bundle(ResourceBundle::given(
+        let err = Deferred::<ResNetConstructConfig>::from_resource_bundle(ResourceBundle::given(
             "mine", CHECKPOINT, &file,
         ))
         .unwrap()
@@ -231,6 +231,6 @@ mod tests {
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.
         missing_config(&[BunsenErrorKind::Policy]).assert_err(&err);
-        assert_eq!(<ResNetConstruct as Construct>::KIT, RESNET_KIT);
+        assert_eq!(<ResNetConstructConfig as ConstructInit>::KIT, RESNET_KIT);
     }
 }

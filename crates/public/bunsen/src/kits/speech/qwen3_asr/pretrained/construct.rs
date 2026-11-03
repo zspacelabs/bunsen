@@ -39,7 +39,7 @@ use crate::{
             },
         },
         support::{
-            construct::Construct,
+            construct::ConstructInit,
             tokens::ByteLevelVocabulary,
         },
     },
@@ -110,17 +110,17 @@ impl Qwen3AsrReader {
 /// its vocabulary, behind a front end of the model's mel count and the
 /// default prompt and decoder.
 ///
-/// The [`Construct`] hook for the Qwen3-ASR kit.
+/// The Qwen3-ASR kit's construct config: its [`ConstructInit`] hook.
 /// [`default_qwen3_asr_factory`](super::default_qwen3_asr_factory) attaches
 /// it; a caller never builds one.
 #[derive(Clone, Debug)]
-pub struct Qwen3AsrConstruct {
+pub struct Qwen3AsrConstructConfig {
     /// The checkpoint's reader.
     pub reader: Qwen3AsrReader,
 }
 
-impl Construct for Qwen3AsrConstruct {
-    type Built = Qwen3AsrBundle;
+impl ConstructInit for Qwen3AsrConstructConfig {
+    type Construct = Qwen3AsrBundle;
 
     const KIT: &'static str = QWEN3_ASR_KIT;
 
@@ -145,7 +145,7 @@ impl Construct for Qwen3AsrConstruct {
         Ok(Self { reader })
     }
 
-    fn construct(
+    fn try_init(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -185,12 +185,14 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let qwen =
-            Qwen3AsrConstruct::for_resource_bundle(&QWEN3_ASR_0_6B_FILES.to_resource_bundle())
-                .unwrap();
+        let qwen = Qwen3AsrConstructConfig::for_resource_bundle(
+            &QWEN3_ASR_0_6B_FILES.to_resource_bundle(),
+        )
+        .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
-        let phonon = Qwen3AsrConstruct::for_resource_bundle(&PHONON_1_ARCHIVE.to_resource_bundle());
+        let phonon =
+            Qwen3AsrConstructConfig::for_resource_bundle(&PHONON_1_ARCHIVE.to_resource_bundle());
         if cfg!(feature = "fermion") {
             assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         } else {
