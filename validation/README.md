@@ -10,6 +10,7 @@ comes through a `bind-*-onnx` crate, fetched at build time and digest-pinned.
 onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and the reference generated from it
 onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
 models.yml, profiles/               the validation schedule of models and the profiles that choose from it
+catalogs/{kit}.yml                  each kit's pretrained catalog source, which `cargo validate catalog` builds into the kit
 models/{model}-model-validation/   each model's cross-checks
 tools/                             the fixture generators whose output lands in models/*/testdata
 ```
@@ -151,3 +152,27 @@ bunsen's own tests read no fetched asset. A kit test that needs what a real
 model does replays a committed recording of it (for example
 `RecordedVoiceActivity::silero_jfk_moon_4s`), and the model's validation
 crate checks the recording against the model.
+
+## Pretrained catalogs: `catalogs/{kit}.yml`
+
+A kit's table of named checkpoints is data: `catalog.json` in the kit's
+`pretrained` module, which the kit embeds and loads
+(`bunsen::data::pretrained::PretrainedCatalog`). It is generated from a
+hand-written source here, by `cargo validate catalog`:
+
+```sh
+cargo validate catalog --build                  # into target/catalog/, once per source and tool version
+cargo validate catalog --check                  # fail if a checked-in catalog differs from its build
+cargo validate catalog --update --kit qwen3     # overwrite the kit's checked-in catalog
+cargo validate catalog --check --verify-remote  # also download every file and hash it against its pin
+```
+
+A source names the table, its groups and rows, and their resource bundles:
+for each, a Hub repo at a pinned revision (`hub: {repo, revision}`), or
+explicit `bases`, and its files (`key`, `file`, `kind`). The tool derives
+what it can: a Hub file's digest and size from the repo's listing (an LFS
+file) or from its bytes (a small file, which it fetches), and a checkpoint's
+dtype from its `config.json`. A digest the source gives is authoritative: it
+must agree with the derived one, and a file off the Hub must have one. Only
+`--verify-remote` downloads the weights.
+
