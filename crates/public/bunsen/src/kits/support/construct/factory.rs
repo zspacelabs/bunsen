@@ -1070,7 +1070,7 @@ mod tests {
             .message_eq("the kit kit takes no presets or patch, but the lookup asks for `[fast]`")
             .assert_err(&factory.lookup("a/small[fast]"));
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .message_contains("{\"beam\":1}")
+            .message_contains("{beam: 1}")
             .assert_err(&factory.lookup("a/small{beam: 1}"));
         ErrorMatcher::kind(BunsenErrorKind::Policy).assert_err(&factory.lookup("a/small[fast"));
     }

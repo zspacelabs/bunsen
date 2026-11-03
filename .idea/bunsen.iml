@@ -59,6 +59,8 @@
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-qwen3-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-voxtral-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/rewrite-genai-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-model-validation/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/tools/validate/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
