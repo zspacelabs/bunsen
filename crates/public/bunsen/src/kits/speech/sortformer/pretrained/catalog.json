@@ -15,7 +15,8 @@
           "origin": "https://huggingface.co/nvidia/Nemotron-3-Diarization",
           "bundles": [
             "nvidia/nemotron-3-diarization"
-          ]
+          ],
+          "family": "nemotron"
         },
         {
           "name": "diar_streaming_sortformer_4spk-v2",
@@ -27,7 +28,8 @@
           "origin": "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2",
           "bundles": [
             "nvidia/diar_streaming_sortformer_4spk-v2"
-          ]
+          ],
+          "family": "sortformer-v2"
         },
         {
           "name": "diar_streaming_sortformer_4spk-v2.1",
@@ -39,7 +41,8 @@
           "origin": "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1",
           "bundles": [
             "nvidia/diar_streaming_sortformer_4spk-v2.1"
-          ]
+          ],
+          "family": "sortformer-v2"
         }
       ]
     }
@@ -110,6 +113,332 @@
           "dtype": "float32"
         }
       ]
+    }
+  ],
+  "families": [
+    {
+      "name": "nemotron",
+      "description": "Nemotron-3-Diarization: its model card's streaming latencies",
+      "presets": {
+        "presets": [
+          {
+            "name": "ultra-low",
+            "description": "0.32 s: chunks of 3 frames with 1 of look-ahead",
+            "patch": {
+              "streaming": {
+                "chunk_len": 3,
+                "fifo_len": 264,
+                "latest_boost": 0.05,
+                "left_context": 0,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 1,
+                "silence_frames_per_speaker": 1,
+                "silence_threshold": 0.2,
+                "spkcache_len": 264,
+                "strong_boost_rate": 0.75,
+                "update_period": 222,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "very-low",
+            "description": "0.64 s: chunks of 6 frames with 2 of look-ahead",
+            "patch": {
+              "streaming": {
+                "chunk_len": 6,
+                "fifo_len": 264,
+                "latest_boost": 0.05,
+                "left_context": 0,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 2,
+                "silence_frames_per_speaker": 1,
+                "silence_threshold": 0.2,
+                "spkcache_len": 264,
+                "strong_boost_rate": 0.75,
+                "update_period": 222,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "low",
+            "description": "1.04 s: chunks of 9 frames with 4 of look-ahead",
+            "patch": {
+              "streaming": {
+                "chunk_len": 9,
+                "fifo_len": 264,
+                "latest_boost": 0.05,
+                "left_context": 0,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 4,
+                "silence_frames_per_speaker": 1,
+                "silence_threshold": 0.2,
+                "spkcache_len": 264,
+                "strong_boost_rate": 0.75,
+                "update_period": 222,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "offline",
+            "description": "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for files",
+            "patch": {
+              "streaming": {
+                "chunk_len": 340,
+                "fifo_len": 40,
+                "latest_boost": 0.05,
+                "left_context": 0,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 40,
+                "silence_frames_per_speaker": 1,
+                "silence_threshold": 0.2,
+                "spkcache_len": 264,
+                "strong_boost_rate": 0.75,
+                "update_period": 300,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "none",
+            "description": "NeMo's bypass: thresholds of 0.5, no padding, no filters",
+            "patch": {
+              "turns": {
+                "filter_speech_first": true,
+                "min_duration_off": 0.0,
+                "min_duration_on": 0.0,
+                "offset": 0.5,
+                "onset": 0.5,
+                "pad_offset": 0.0,
+                "pad_onset": 0.0
+              }
+            }
+          },
+          {
+            "name": "dihard3",
+            "description": "NeMo's parameters tuned for streaming Sortformer v2 on DIHARD III dev",
+            "patch": {
+              "turns": {
+                "filter_speech_first": true,
+                "min_duration_off": 0.151,
+                "min_duration_on": 0.007,
+                "offset": 1.0,
+                "onset": 0.56,
+                "pad_offset": 0.002,
+                "pad_onset": 0.063
+              }
+            }
+          },
+          {
+            "name": "callhome",
+            "description": "NeMo's parameters tuned for streaming Sortformer v2 on CALLHOME part 1",
+            "patch": {
+              "turns": {
+                "filter_speech_first": true,
+                "min_duration_off": 0.296,
+                "min_duration_on": 0.511,
+                "offset": 0.561,
+                "onset": 0.641,
+                "pad_offset": 0.079,
+                "pad_onset": 0.229
+              }
+            }
+          }
+        ],
+        "axes": [
+          {
+            "name": "latency",
+            "description": "how far behind the audio the diarizer runs",
+            "members": [
+              "ultra-low",
+              "very-low",
+              "low",
+              "offline"
+            ]
+          },
+          {
+            "name": "postprocess",
+            "description": "how speaker activity becomes turns",
+            "members": [
+              "none",
+              "dihard3",
+              "callhome"
+            ]
+          }
+        ],
+        "default": [
+          "low",
+          "none"
+        ]
+      }
+    },
+    {
+      "name": "sortformer-v2",
+      "description": "The streaming Sortformer v2 and v2.1: their model card's streaming latencies, with one frame of left context and three silence slots per speaker",
+      "presets": {
+        "presets": [
+          {
+            "name": "ultra-low",
+            "description": "0.32 s: chunks of 3 frames with 1 of look-ahead",
+            "patch": {
+              "streaming": {
+                "chunk_len": 3,
+                "fifo_len": 188,
+                "latest_boost": 0.05,
+                "left_context": 1,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 1,
+                "silence_frames_per_speaker": 3,
+                "silence_threshold": 0.2,
+                "spkcache_len": 188,
+                "strong_boost_rate": 0.75,
+                "update_period": 144,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "low",
+            "description": "1.04 s: chunks of 6 frames with 7 of look-ahead",
+            "patch": {
+              "streaming": {
+                "chunk_len": 6,
+                "fifo_len": 188,
+                "latest_boost": 0.05,
+                "left_context": 1,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 7,
+                "silence_frames_per_speaker": 3,
+                "silence_threshold": 0.2,
+                "spkcache_len": 188,
+                "strong_boost_rate": 0.75,
+                "update_period": 144,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "high",
+            "description": "10 s: chunks of 124 frames with 1 of look-ahead",
+            "patch": {
+              "streaming": {
+                "chunk_len": 124,
+                "fifo_len": 124,
+                "latest_boost": 0.05,
+                "left_context": 1,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 1,
+                "silence_frames_per_speaker": 3,
+                "silence_threshold": 0.2,
+                "spkcache_len": 188,
+                "strong_boost_rate": 0.75,
+                "update_period": 124,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "offline",
+            "description": "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for files",
+            "patch": {
+              "streaming": {
+                "chunk_len": 340,
+                "fifo_len": 40,
+                "latest_boost": 0.05,
+                "left_context": 1,
+                "min_pos_scores_rate": 0.5,
+                "pred_score_threshold": 0.25,
+                "right_context": 40,
+                "silence_frames_per_speaker": 3,
+                "silence_threshold": 0.2,
+                "spkcache_len": 188,
+                "strong_boost_rate": 0.75,
+                "update_period": 300,
+                "weak_boost_rate": 1.5
+              }
+            }
+          },
+          {
+            "name": "none",
+            "description": "NeMo's bypass: thresholds of 0.5, no padding, no filters",
+            "patch": {
+              "turns": {
+                "filter_speech_first": true,
+                "min_duration_off": 0.0,
+                "min_duration_on": 0.0,
+                "offset": 0.5,
+                "onset": 0.5,
+                "pad_offset": 0.0,
+                "pad_onset": 0.0
+              }
+            }
+          },
+          {
+            "name": "dihard3",
+            "description": "NeMo's parameters tuned for streaming Sortformer v2 on DIHARD III dev",
+            "patch": {
+              "turns": {
+                "filter_speech_first": true,
+                "min_duration_off": 0.151,
+                "min_duration_on": 0.007,
+                "offset": 1.0,
+                "onset": 0.56,
+                "pad_offset": 0.002,
+                "pad_onset": 0.063
+              }
+            }
+          },
+          {
+            "name": "callhome",
+            "description": "NeMo's parameters tuned for streaming Sortformer v2 on CALLHOME part 1",
+            "patch": {
+              "turns": {
+                "filter_speech_first": true,
+                "min_duration_off": 0.296,
+                "min_duration_on": 0.511,
+                "offset": 0.561,
+                "onset": 0.641,
+                "pad_offset": 0.079,
+                "pad_onset": 0.229
+              }
+            }
+          }
+        ],
+        "axes": [
+          {
+            "name": "latency",
+            "description": "how far behind the audio the diarizer runs",
+            "members": [
+              "ultra-low",
+              "low",
+              "high",
+              "offline"
+            ]
+          },
+          {
+            "name": "postprocess",
+            "description": "how speaker activity becomes turns",
+            "members": [
+              "none",
+              "dihard3",
+              "callhome"
+            ]
+          }
+        ],
+        "default": [
+          "low",
+          "none"
+        ]
+      }
     }
   ]
 }

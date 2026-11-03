@@ -12,18 +12,18 @@
 //!   splits as `NeMo` streams it, into [`pre_encode`](Sortformer::pre_encode)
 //!   and [`forward_pre_encoded`](Sortformer::forward_pre_encoded).
 //! - [`SortformerStreamingConfig`]: the chunks, the look-ahead, and the
-//!   Arrival-Order Speaker Cache's geometry and scoring, with the model cards'
-//!   latency presets.
+//!   Arrival-Order Speaker Cache's geometry and scoring.
 //! - [`SpeakerCache`]: one stream's cache and FIFO between steps, its silence
 //!   slots filled by a [`SilenceFill`]: the model's learned embedding, or a
 //!   running mean of the silent frames.
 //! - [`SortformerMelStream`]: the model streamed over mel frames;
 //!   [`SortformerStream`]: over samples, through `NeMo`'s mel front end, as a
 //!   [`SpeakerActivityStream`](crate::kits::speech::diarization::SpeakerActivityStream).
-//! - [`SortformerConstruct`]: a loaded model with its front end;
+//! - [`SortformerConstruct`]: a loaded model with its front end, and the
+//!   [`SortformerPolicy`] its presets resolved to;
 //!   [`diarizer`](SortformerConstruct::diarizer) makes it a
 //!   [`SpeakerActivityModel`](crate::kits::speech::diarization::SpeakerActivityModel)
-//!   under a streaming preset, [`diarize`](SortformerConstruct::diarize) runs a
+//!   under a streaming config, [`diarize`](SortformerConstruct::diarize) runs a
 //!   whole recording to speaker turns.
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the index of
 //!   named checkpoints, `nvidia/nemotron-3-diarization` the default, `hf:`

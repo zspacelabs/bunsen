@@ -11,21 +11,22 @@ use std::{
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
-    kits::speech::{
-        diarization::{
-            RttmSegment,
-            SpeakerActivityModel,
-            SpeakerTurn,
-            TurnFilterConfig,
-        },
-        sortformer::{
-            SortformerConstruct,
-            SortformerLatency,
-            pretrained::{
-                DEFAULT_SORTFORMER_MODEL,
-                default_sortformer_factory,
+    kits::{
+        speech::{
+            diarization::{
+                RttmSegment,
+                SpeakerActivityModel,
+                SpeakerTurn,
+            },
+            sortformer::{
+                SortformerConstruct,
+                pretrained::{
+                    DEFAULT_SORTFORMER_MODEL,
+                    default_sortformer_factory,
+                },
             },
         },
+        support::construct::LookupExpr,
     },
     support::audio::load_audio_mono_sr,
 };
@@ -110,14 +111,15 @@ pub enum Latency {
     Offline,
 }
 
-impl From<Latency> for SortformerLatency {
-    fn from(latency: Latency) -> Self {
-        match latency {
-            Latency::UltraLow => Self::UltraLow,
-            Latency::VeryLow => Self::VeryLow,
-            Latency::Low => Self::Low,
-            Latency::High => Self::High,
-            Latency::Offline => Self::Offline,
+impl Latency {
+    /// The model's `latency` preset of this name.
+    pub fn preset(self) -> &'static str {
+        match self {
+            Self::UltraLow => "ultra-low",
+            Self::VeryLow => "very-low",
+            Self::Low => "low",
+            Self::High => "high",
+            Self::Offline => "offline",
         }
     }
 }
@@ -136,14 +138,30 @@ pub enum Postprocess {
     Callhome,
 }
 
-impl From<Postprocess> for TurnFilterConfig {
-    fn from(postprocess: Postprocess) -> Self {
-        match postprocess {
-            Postprocess::None => Self::none(),
-            Postprocess::Dihard3 => Self::dihard3_v2(),
-            Postprocess::Callhome => Self::callhome_v2(),
+impl Postprocess {
+    /// The model's `postprocess` preset of this name.
+    pub fn preset(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Dihard3 => "dihard3",
+            Self::Callhome => "callhome",
         }
     }
+}
+
+/// `model`, a lookup expression, with `presets` added to its box.
+///
+/// # Errors
+/// As [`LookupExpr::parse`].
+pub fn with_presets(
+    model: &str,
+    presets: &[&str],
+) -> BunsenResult<String> {
+    let mut expr = LookupExpr::parse(model)?;
+    expr.selection
+        .presets
+        .extend(presets.iter().map(|p| p.to_string()));
+    Ok(expr.to_string())
 }
 
 /// The diarizer, and how its activity becomes turns.
@@ -164,7 +182,8 @@ pub struct DiarizerArgs {
 }
 
 impl DiarizerArgs {
-    /// Loads the model through `cache`, logging its info card.
+    /// Loads the model through `cache` under the `--latency` and
+    /// `--postprocess` presets, logging its info card.
     ///
     /// # Errors
     /// As [`load_construct`].
@@ -173,11 +192,11 @@ impl DiarizerArgs {
         cache: &PretrainedCache,
         device: &Device,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
-        load_construct(
+        let model = with_presets(
             self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL),
-            cache,
-            device,
-        )
+            &[self.latency.preset(), self.postprocess.preset()],
+        )?;
+        load_construct(&model, cache, device)
     }
 }
 
@@ -234,10 +253,9 @@ impl SpeakerArgs {
         let Some(model) = &self.diarize else {
             return Ok(None);
         };
-        let bundle = load_construct(model, cache, device)?;
-        Ok(Some(Arc::new(
-            bundle.diarizer(bundle.preset(self.diarize_latency.into())?)?,
-        )))
+        let model = with_presets(model, &[self.diarize_latency.preset()])?;
+        let bundle = load_construct(&model, cache, device)?;
+        Ok(Some(Arc::new(bundle.diarizer(bundle.streaming()?)?)))
     }
 }
 
@@ -366,8 +384,8 @@ impl RunCmd {
         let device = self.device.open()?;
         let cache = self.cache.init()?;
         let bundle = self.diarizer.load(&cache, &device)?;
-        let streaming = bundle.preset(self.diarizer.latency.into())?;
-        let filter: TurnFilterConfig = self.diarizer.postprocess.into();
+        let streaming = bundle.streaming()?;
+        let filter = bundle.turns().clone();
         let rate = bundle.sample_rate();
 
         for path in &self.files {
@@ -456,14 +474,13 @@ impl LiveCmd {
         let device = self.device.open()?;
         let cache = self.cache.init()?;
         let bundle = self.diarizer.load(&cache, &device)?;
-        let diarizer = bundle.diarizer(bundle.preset(self.diarizer.latency.into())?)?;
+        let diarizer = bundle.diarizer(bundle.streaming()?)?;
         let rate = bundle.sample_rate();
         let frame_seconds =
             bunsen::kits::speech::diarization::SpeakerActivityModel::frame_samples(&diarizer)
                 as f64
                 / rate as f64;
-        let mut filter = TurnFilterConfig::from(self.diarizer.postprocess)
-            .init(diarizer.max_speakers(), frame_seconds);
+        let mut filter = bundle.turns().init(diarizer.max_speakers(), frame_seconds);
         let mut stream = diarizer.stream()?;
         let chunk = (rate * self.chunk_ms / 1000).max(1);
 
@@ -528,28 +545,42 @@ mod tests {
         assert_eq!(got, [("speaker_0", 1.0, 1), ("speaker_1", 2.5, 2)]);
     }
 
-    /// Every preset maps to its config.
+    /// The flags name the model's presets, added to the model's box; every
+    /// name is one the catalog's families declare.
     #[test]
     fn test_presets() {
+        assert_eq!(Latency::default().preset(), "low");
+        assert_eq!(Postprocess::default().preset(), "none");
         assert_eq!(
-            SortformerLatency::from(Latency::Low),
-            SortformerLatency::Low
+            with_presets("nvidia/nemotron-3-diarization", &["low", "none"]).unwrap(),
+            "nvidia/nemotron-3-diarization[low,none]"
         );
         assert_eq!(
-            SortformerLatency::from(Latency::High),
-            SortformerLatency::High
+            with_presets("sortformer-v2[dihard3]", &["high"]).unwrap(),
+            "sortformer-v2[dihard3,high]"
         );
-        assert_eq!(
-            SortformerLatency::from(Latency::default()),
-            SortformerLatency::default()
-        );
-        assert_eq!(
-            TurnFilterConfig::from(Postprocess::None),
-            TurnFilterConfig::none()
-        );
-        assert_eq!(
-            TurnFilterConfig::from(Postprocess::Dihard3),
-            TurnFilterConfig::dihard3_v2()
-        );
+
+        let catalog = bunsen::kits::speech::sortformer::pretrained::SORTFORMER_CATALOG.catalog();
+        let names: Vec<&str> = catalog
+            .families
+            .iter()
+            .flat_map(|f| f.presets.names())
+            .collect();
+        for latency in [
+            Latency::UltraLow,
+            Latency::VeryLow,
+            Latency::Low,
+            Latency::High,
+            Latency::Offline,
+        ] {
+            assert!(names.contains(&latency.preset()), "{latency:?}");
+        }
+        for postprocess in [
+            Postprocess::None,
+            Postprocess::Dihard3,
+            Postprocess::Callhome,
+        ] {
+            assert!(names.contains(&postprocess.preset()), "{postprocess:?}");
+        }
     }
 }

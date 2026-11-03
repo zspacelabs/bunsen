@@ -7,6 +7,7 @@ use super::{
     CHECKPOINT,
     NEMO,
     SAFETENSORS,
+    SORTFORMER_CATALOG,
     SORTFORMER_KIT,
 };
 use crate::{
@@ -33,13 +34,17 @@ use crate::{
                 Sortformer,
                 SortformerConstruct,
                 SortformerFamily,
+                SortformerPolicy,
                 weights::{
                     load_nemotron_hf_tensors,
                     nemotron_config_from_hf,
                 },
             },
         },
-        support::construct::ConstructInit,
+        support::{
+            construct::ConstructInit,
+            model_config::resolve_ref_presets,
+        },
     },
 };
 
@@ -187,6 +192,7 @@ impl ConstructInit for SortformerConstructConfig {
     type Construct = SortformerConstruct;
 
     const KIT: &'static str = SORTFORMER_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index.
@@ -222,9 +228,12 @@ impl ConstructInit for SortformerConstructConfig {
         Ok(map)
     }
 
+    /// Builds the model, then resolves its [`SortformerPolicy`] through the
+    /// row's presets, or, for a model no row describes, its family's
+    /// ([`SortformerFamily::catalog_family`]).
     fn try_init(
         &self,
-        _model: &PretrainedRef,
+        model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
@@ -235,7 +244,11 @@ impl ConstructInit for SortformerConstructConfig {
             #[cfg(not(feature = "nemo"))]
             SortformerReader::Nemo => return Err(no_nemo_feature()),
         };
-        Ok(Arc::new(bundle))
+        let family = SORTFORMER_CATALOG.family_presets(bundle.family.catalog_family());
+        let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
+        Ok(Arc::new(
+            bundle.with_policy(policy.config.clone(), policy.applied()),
+        ))
     }
 }
 
@@ -276,10 +289,7 @@ mod tests {
             kits::{
                 speech::{
                     nemo::NemoMelFrontEndMeta,
-                    sortformer::{
-                        SortformerLatency,
-                        SortformerMeta,
-                    },
+                    sortformer::SortformerMeta,
                 },
                 support::construct::Deferred,
             },
@@ -312,11 +322,107 @@ mod tests {
         assert!(bundle.model.transformer.is_some());
         assert_eq!(bundle.front_end.n_mels(), 24);
         assert!(bundle.to_string().starts_with("Sortformer v2: 3 speakers"));
+        // A given file has no row: it takes its family's default presets.
+        assert_eq!(bundle.presets.presets, ["low", "none"]);
+        let streaming = bundle.streaming().unwrap();
         assert_eq!(
-            bundle.preset(SortformerLatency::High).unwrap(),
-            crate::kits::speech::sortformer::SortformerStreamingConfig::sortformer_v2_high_latency(
-            )
+            (streaming.latency_frames(), streaming.left_context),
+            (13, 1)
         );
+    }
+
+    /// Each family's latencies are its model card's: the latency in frames
+    /// each name says, a budget the model's speakers fit, and the same wall
+    /// time in every family that has it; the turn presets are `NeMo`'s
+    /// tuned parameters; the catalog's rows inherit their family's.
+    #[test]
+    fn test_family_presets() {
+        use crate::{
+            data::pretrained::PresetSelection,
+            kits::{
+                speech::{
+                    diarization::TurnFilterConfig,
+                    sortformer::SortformerStreamingConfig,
+                },
+                support::model_config::resolve_presets,
+            },
+        };
+
+        let resolve = |family: &str, presets: &[&str]| {
+            resolve_presets(
+                &SortformerPolicy::default(),
+                &SORTFORMER_CATALOG.family_presets(family),
+                &PresetSelection::new(presets.iter().copied()),
+            )
+            .unwrap()
+            .config
+        };
+        let streaming = |family: &str, latency: &str| -> SortformerStreamingConfig {
+            resolve(family, &[latency]).streaming.unwrap()
+        };
+
+        let frames = [
+            ("ultra-low", 4),
+            ("very-low", 8),
+            ("low", 13),
+            ("high", 125),
+            ("offline", 380),
+        ];
+        for (family, speakers, latencies) in [
+            (
+                "nemotron",
+                8,
+                &["ultra-low", "very-low", "low", "offline"][..],
+            ),
+            (
+                "sortformer-v2",
+                4,
+                &["ultra-low", "low", "high", "offline"][..],
+            ),
+        ] {
+            for latency in latencies {
+                let c = streaming(family, latency);
+                c.check(speakers).unwrap();
+                let want = frames.iter().find(|(n, _)| n == latency).unwrap().1;
+                assert_eq!(c.latency_frames(), want, "{family} {latency}");
+            }
+        }
+        let low = streaming("nemotron", "low");
+        assert_eq!((low.left_context, low.speaker_budget(8)), (0, 32));
+        let v2 = streaming("sortformer-v2", "low");
+        assert_eq!((v2.left_context, v2.speaker_budget(4)), (1, 44));
+        assert_eq!(resolve("nemotron", &[]).streaming.unwrap(), low);
+
+        assert_eq!(resolve("nemotron", &[]).turns, TurnFilterConfig::none());
+        assert_eq!(
+            resolve("sortformer-v2", &["dihard3"]).turns,
+            TurnFilterConfig::new()
+                .with_onset(0.56)
+                .with_offset(1.0)
+                .with_pad_onset(0.063)
+                .with_pad_offset(0.002)
+                .with_min_duration_on(0.007)
+                .with_min_duration_off(0.151)
+        );
+        assert_eq!(
+            resolve("nemotron", &["callhome"]).turns.min_duration_on,
+            0.511
+        );
+
+        let table = SORTFORMER_CATALOG.table();
+        for row in table.groups.iter().flat_map(|g| &g.items) {
+            let family = if row.name.contains("nemotron") {
+                "nemotron"
+            } else {
+                "sortformer-v2"
+            };
+            assert_eq!(
+                row.presets,
+                SORTFORMER_CATALOG.family_presets(family),
+                "{}",
+                row.name
+            );
+        }
     }
 
     /// A `.nemo`'s config is checked in `plan` from the archive's head:

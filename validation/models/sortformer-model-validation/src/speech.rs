@@ -13,10 +13,7 @@ use bunsen::{
             SpeakerActivityModel,
             TurnFilterConfig,
         },
-        sortformer::{
-            SortformerLatency,
-            SortformerStreamingConfig,
-        },
+        sortformer::SortformerStreamingConfig,
         testing::der::diarization_error,
     },
     support::{
@@ -35,11 +32,15 @@ use super::*;
 /// error against the RTTM, beside `NeMo`'s.
 fn check_preset(
     name: &str,
-    streaming: SortformerStreamingConfig,
+    latency: &str,
 ) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_construct(&device);
+    let bundle = load_named_construct(
+        &format!("nvidia/nemotron-3-diarization[{latency}]"),
+        &device,
+    );
+    let streaming = bundle.streaming().unwrap();
     check_diarization(
         name,
         &bundle,
@@ -106,18 +107,18 @@ fn check_diarization(
 }
 
 /// The streaming Sortformer `model` (`v2` or `v2_1`), loaded by its
-/// well-known name, diarizes the clip at its family's `latency` preset as
+/// well-known name under its family's `latency` preset, diarizes the clip as
 /// `NeMo` did at `preset`.
 fn check_v2(
     model: &str,
     name: &str,
     preset: &str,
-    latency: SortformerLatency,
+    latency: &str,
 ) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_named_construct(name, &device);
-    let streaming = bundle.preset(latency).unwrap();
+    let bundle = load_named_construct(&format!("{name}[{latency}]"), &device);
+    let streaming = bundle.streaming().unwrap();
     check_diarization(
         &format!("{name} {preset}"),
         &bundle,
@@ -145,10 +146,7 @@ mod nemotron_3_diarization {
     #[test]
     #[serial_test::serial]
     fn low_latency_diarizes_like_nemo() {
-        check_preset(
-            "low_latency",
-            SortformerStreamingConfig::nemotron_low_latency(),
-        );
+        check_preset("low_latency", "low");
     }
 
     /// The offline-style preset (30.4 s): `NeMo`'s probabilities and error
@@ -156,7 +154,7 @@ mod nemotron_3_diarization {
     #[test]
     #[serial_test::serial]
     fn offline_diarizes_like_nemo() {
-        check_preset("offline", SortformerStreamingConfig::nemotron_offline());
+        check_preset("offline", "offline");
     }
 }
 
@@ -174,19 +172,14 @@ mod sortformer_v2 {
     #[test]
     #[serial_test::serial]
     fn low_latency_diarizes_like_nemo() {
-        check_v2("v2", "sortformer-v2", "low_latency", SortformerLatency::Low);
+        check_v2("v2", "sortformer-v2", "low_latency", "low");
     }
 
     /// Sortformer v2 at very high latency (30.4 s).
     #[test]
     #[serial_test::serial]
     fn very_high_latency_diarizes_like_nemo() {
-        check_v2(
-            "v2",
-            "sortformer-v2",
-            "very_high_latency",
-            SortformerLatency::Offline,
-        );
+        check_v2("v2", "sortformer-v2", "very_high_latency", "offline");
     }
 }
 
@@ -198,23 +191,13 @@ mod sortformer_v2_1 {
     #[test]
     #[serial_test::serial]
     fn low_latency_diarizes_like_nemo() {
-        check_v2(
-            "v2_1",
-            "sortformer-v2.1",
-            "low_latency",
-            SortformerLatency::Low,
-        );
+        check_v2("v2_1", "sortformer-v2.1", "low_latency", "low");
     }
 
     /// Sortformer v2.1 at very high latency (30.4 s).
     #[test]
     #[serial_test::serial]
     fn very_high_latency_diarizes_like_nemo() {
-        check_v2(
-            "v2_1",
-            "sortformer-v2.1",
-            "very_high_latency",
-            SortformerLatency::Offline,
-        );
+        check_v2("v2_1", "sortformer-v2.1", "very_high_latency", "offline");
     }
 }
