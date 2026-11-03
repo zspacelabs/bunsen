@@ -12,10 +12,13 @@ use bunsen_app::{
     },
 };
 
-use crate::cli::asr::family::Kit;
+use crate::cli::{
+    asr::family::Kit,
+    preset_lines,
+};
 
-/// Lists the models `--model` can name, their licences and files, and
-/// whether each file is cached.
+/// Lists the models `--model` can name, their licences, their presets, and
+/// their files, and whether each file is cached.
 #[derive(clap::Args, Debug)]
 pub struct ListCmd {
     #[clap(flatten)]
@@ -58,6 +61,9 @@ impl ListCmd {
             println!("  license: {}", row.license.as_deref().unwrap_or("unknown"));
             if !row.aliases.is_empty() {
                 println!("  aliases: {}", row.aliases.join(", "));
+            }
+            for line in preset_lines(&row.presets) {
+                println!("{line}");
             }
             for (key, r) in &row.resources.resources {
                 println!(

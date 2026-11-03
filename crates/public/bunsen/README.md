@@ -125,6 +125,12 @@ kits:
         description: 39 M parameters, multilingual
         size: 76.4 MB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/base.en
         description: 74 M parameters, English-only
@@ -135,6 +141,12 @@ kits:
         description: 74 M parameters, multilingual
         size: 146.1 MB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/small.en
         description: 244 M parameters, English-only
@@ -145,6 +157,12 @@ kits:
         description: 244 M parameters, multilingual
         size: 484.4 MB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/medium.en
         description: 769 M parameters, English-only
@@ -155,16 +173,34 @@ kits:
         description: 769 M parameters, multilingual
         size: 1.53 GB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/large-v1
         description: 1550 M parameters, multilingual
         size: 3.09 GB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/large-v2
         description: 1550 M parameters, multilingual
         size: 3.09 GB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/large-v3
         aliases:
@@ -172,6 +208,12 @@ kits:
         description: 1550 M parameters, multilingual, 128 mels
         size: 3.09 GB
         dtype: float16
+        presets:
+          task:
+          - transcribe
+          - translate
+          default:
+          - transcribe
     - model:
         name: openai/large-v3-turbo
         aliases:
@@ -189,6 +231,19 @@ kits:
         description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames, streaming"
         size: 397.0 MB
         dtype: float32
+        presets:
+          latency:
+          - ultra-low
+          - very-low
+          - low
+          - offline
+          postprocess:
+          - none
+          - dihard3
+          - callhome
+          default:
+          - low
+          - none
     - model:
         name: nvidia/diar_streaming_sortformer_4spk-v2
         aliases:
@@ -196,6 +251,19 @@ kits:
         description: "Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames"
         size: 471.4 MB
         dtype: float32
+        presets:
+          latency:
+          - ultra-low
+          - low
+          - high
+          - offline
+          postprocess:
+          - none
+          - dihard3
+          - callhome
+          default:
+          - low
+          - none
     - model:
         name: nvidia/diar_streaming_sortformer_4spk-v2.1
         aliases:
@@ -203,6 +271,19 @@ kits:
         description: "Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms frames"
         size: 471.4 MB
         dtype: float32
+        presets:
+          latency:
+          - ultra-low
+          - low
+          - high
+          - offline
+          postprocess:
+          - none
+          - dihard3
+          - callhome
+          default:
+          - low
+          - none
     silero-vad:
     - provider:
         name: well-known
@@ -211,6 +292,12 @@ kits:
         description: Silero VAD, the 16 kHz model, from upstream's safetensors
         size: 1.2 MB
         dtype: float32
+        presets:
+          vad-policy:
+          - silero
+          - faster-whisper
+          default:
+          - silero
   chat:
     qwen3:
     - provider:
@@ -222,6 +309,12 @@ kits:
         description: "Qwen3-0.6B: thinking and non-thinking chat"
         size: 1.51 GB
         dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
     - model:
         name: qwen/qwen3-0.6b-base
         description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning"
@@ -232,6 +325,12 @@ kits:
         description: "Qwen3-1.7B: thinking and non-thinking chat"
         size: 4.07 GB
         dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
     - model:
         name: qwen/qwen3-1.7b-base
         description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning"
@@ -242,6 +341,12 @@ kits:
         description: "Qwen3-4B: thinking and non-thinking chat"
         size: 8.06 GB
         dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
     - model:
         name: qwen/qwen3-4b-base
         description: "Qwen3-4B-Base: the pretrained model, no chat tuning"
@@ -262,6 +367,12 @@ kits:
         description: "Qwen3-8B: thinking and non-thinking chat"
         size: 16.39 GB
         dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
     - model:
         name: qwen/qwen3-8b-base
         description: "Qwen3-8B-Base: the pretrained model, no chat tuning"
@@ -272,6 +383,12 @@ kits:
         description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat"
         size: 8.06 GB
         dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
     - model:
         name: qwen/qwen3guard-gen-0.6b
         description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"

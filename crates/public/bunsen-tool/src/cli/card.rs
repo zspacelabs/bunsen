@@ -1,7 +1,10 @@
 //! `bunsen-tool card`: what this build is, its cache, and the models it knows.
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::pretrained::{
+        PresetSet,
+        PretrainedCache,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -10,15 +13,36 @@ use bunsen::{
     kits::{
         gpts::{
             nanochat::pretrained::default_nanochat_factory,
-            qwen3::pretrained::default_qwen3_factory,
+            qwen3::{
+                Qwen3Policy,
+                pretrained::default_qwen3_factory,
+            },
         },
         speech::{
-            parakeet::pretrained::default_parakeet_factory,
-            qwen3_asr::pretrained::default_qwen3_asr_factory,
-            silero_vad::pretrained::default_silero_factory,
-            sortformer::pretrained::default_sortformer_factory,
-            voxtral::pretrained::default_voxtral_factory,
-            whisper::pretrained::default_whisper_factory,
+            parakeet::{
+                ParakeetPolicy,
+                pretrained::default_parakeet_factory,
+            },
+            qwen3_asr::{
+                Qwen3AsrPolicy,
+                pretrained::default_qwen3_asr_factory,
+            },
+            silero_vad::{
+                SileroPolicy,
+                pretrained::default_silero_factory,
+            },
+            sortformer::{
+                SortformerPolicy,
+                pretrained::default_sortformer_factory,
+            },
+            voxtral::{
+                VoxtralPolicy,
+                pretrained::default_voxtral_factory,
+            },
+            whisper::{
+                driver::WhisperPolicy,
+                pretrained::default_whisper_factory,
+            },
         },
         support::construct::{
             ConstructInit,
@@ -33,6 +57,7 @@ use bunsen_app::cache::{
 use serde::{
     Serialize,
     Serializer,
+    de::DeserializeOwned,
     ser::{
         SerializeMap,
         SerializeSeq,
@@ -52,6 +77,11 @@ pub struct CardCmd {
     /// One section alone, under its name: `build`, `config` or `kits`.
     #[arg(long, value_enum)]
     section: Option<Section>,
+
+    /// Each model's presets as data, their patches included, and the
+    /// policy its default selection resolves to (`policy`).
+    #[arg(long)]
+    policies: bool,
 }
 
 /// `--format`.
@@ -103,6 +133,9 @@ pub enum Value {
 
     /// A map, in the order its keys were added.
     Map(Vec<(String, Value)>),
+
+    /// Data as it serializes: a preset set, a resolved policy.
+    Json(serde_json::Value),
 }
 
 impl Value {
@@ -122,6 +155,12 @@ impl Value {
             Value::Bool(_) => false,
             Value::List(items) => items.is_empty(),
             Value::Map(entries) => entries.is_empty(),
+            Value::Json(json) => match json {
+                serde_json::Value::Null => true,
+                serde_json::Value::Array(items) => items.is_empty(),
+                serde_json::Value::Object(entries) => entries.is_empty(),
+                _ => false,
+            },
         }
     }
 
@@ -176,6 +215,7 @@ impl Serialize for Value {
                 }
                 map.end()
             }
+            Value::Json(json) => json.serialize(serializer),
         }
     }
 }
@@ -184,7 +224,7 @@ impl CardCmd {
     /// Builds the card and writes it to stdout.
     pub fn run(&self) -> BunsenResult<()> {
         let cache = self.cache.init()?;
-        let card = card(&cache)?;
+        let card = card(&cache, self.policies)?;
         let card = match self.section {
             None => card,
             Some(section) => Value::map([(
@@ -217,17 +257,22 @@ pub fn render(
 }
 
 /// The whole card: `build`, `config` (the weights cache) and `kits` (the
-/// models this build knows by name, by kind and family). Every field is
+/// models this build knows by name, by kind and family; under `policies`,
+/// each one's presets as data and its resolved policy). Every field is
 /// present, an empty one included; the output elides those
 /// ([`Value::elide_empty`]).
 ///
 /// # Errors
-/// As a family's default factory, if two of its providers share a name.
-pub fn card(cache: &PretrainedCache) -> BunsenResult<Value> {
+/// As a family's default factory, if two of its providers share a name; as
+/// a row's policy, under `policies`.
+pub fn card(
+    cache: &PretrainedCache,
+    policies: bool,
+) -> BunsenResult<Value> {
     Ok(Value::map([
         ("build", build()),
         ("config", Value::map([("cache", cache_config(cache))])),
-        ("kits", kits()?),
+        ("kits", kits(policies)?),
     ]))
 }
 
@@ -273,44 +318,138 @@ fn cache_config(cache: &PretrainedCache) -> Value {
 /// The models, by kind (`asr`, `chat`) and family: each family a list of
 /// entries, its providers (`- provider: {name}`) then its named models
 /// (`- model: {name, aliases, description, size, dtype}`).
-fn kits() -> BunsenResult<Value> {
+fn kits(policies: bool) -> BunsenResult<Value> {
+    // A family's rows, their policies resolved as `C` under `policies`.
+    macro_rules! family {
+        ($factory:expr, $policy:ty) => {
+            family($factory, policies.then_some(policy::<_, $policy>))?
+        };
+    }
     Ok(Value::map([
         (
             "asr",
             Value::map([
-                ("parakeet", family(default_parakeet_factory()?)),
-                ("qwen3-asr", family(default_qwen3_asr_factory()?)),
-                ("voxtral", family(default_voxtral_factory()?)),
-                ("whisper", family(default_whisper_factory()?)),
-                ("sortformer", family(default_sortformer_factory()?)),
-                ("silero-vad", family(default_silero_factory()?)),
+                (
+                    "parakeet",
+                    family!(default_parakeet_factory()?, ParakeetPolicy),
+                ),
+                (
+                    "qwen3-asr",
+                    family!(default_qwen3_asr_factory()?, Qwen3AsrPolicy),
+                ),
+                (
+                    "voxtral",
+                    family!(default_voxtral_factory()?, VoxtralPolicy),
+                ),
+                (
+                    "whisper",
+                    family!(default_whisper_factory()?, WhisperPolicy),
+                ),
+                (
+                    "sortformer",
+                    family!(default_sortformer_factory()?, SortformerPolicy),
+                ),
+                (
+                    "silero-vad",
+                    family!(default_silero_factory()?, SileroPolicy),
+                ),
             ]),
         ),
         (
             "chat",
             Value::map([
-                ("qwen3", family(default_qwen3_factory()?)),
-                ("nanochat", family(default_nanochat_factory()?)),
+                ("qwen3", family!(default_qwen3_factory()?, Qwen3Policy)),
+                // nanochat has no policy to resolve.
+                (
+                    "nanochat",
+                    family(default_nanochat_factory()?, None::<fn(&_, &str) -> _>)?,
+                ),
             ]),
         ),
     ]))
+}
+
+/// The policy `C` the row `name` resolves to under its default selection,
+/// as data: what its kit's hook would build it under, with nothing fetched.
+///
+/// # Errors
+/// As [`PretrainedFactory::resolve_presets`];
+/// [`Internal`](bunsen::errors::BunsenErrorKind::Internal) if the policy
+/// does not serialize.
+fn policy<H: ConstructInit, C: Default + Serialize + DeserializeOwned>(
+    factory: &PretrainedFactory<H>,
+    name: &str,
+) -> BunsenResult<serde_json::Value> {
+    let resolved = factory.resolve_presets(name, &C::default())?;
+    serde_json::to_value(resolved.config)
+        .map_err(|e| BunsenError::internal(format!("the policy of {name} as data: {e}")))
+}
+
+/// A row's presets, in brief: each axis and its members, the presets on no
+/// axis (`other`), and the `default` selection; under `full`, the preset
+/// set as data, its descriptions and patches included. Empty (and elided)
+/// for a row with none.
+fn presets(
+    set: &PresetSet,
+    full: bool,
+) -> BunsenResult<Value> {
+    if set.presets.is_empty() {
+        return Ok(Value::map::<&str>([]));
+    }
+    if full {
+        return serde_json::to_value(set)
+            .map(Value::Json)
+            .map_err(|e| BunsenError::internal(format!("a preset set as data: {e}")));
+    }
+    let names = |names: &mut dyn Iterator<Item = &String>| {
+        Value::List(names.map(|n| Value::str(n.as_str())).collect())
+    };
+    let mut entries: Vec<(String, Value)> = set
+        .axes
+        .iter()
+        .map(|a| (a.name.clone(), names(&mut a.members.iter())))
+        .collect();
+    let other: Vec<&String> = set
+        .presets
+        .iter()
+        .map(|p| &p.name)
+        .filter(|n| !set.axes.iter().any(|a| a.members.contains(n)))
+        .collect();
+    entries.push(("other".to_string(), names(&mut other.into_iter())));
+    entries.push(("default".to_string(), names(&mut set.default.iter())));
+    Ok(Value::Map(entries))
 }
 
 /// One family: a list of entries, each a one-key map. First a `provider:`
 /// entry for each provider its factory searches, in order (`well-known`,
 /// `hf`, ...), its name; then a `model:` entry for each row its factory
 /// lists, a summary card: its name, its aliases (none is an empty list,
-/// which the output elides), its description, the size of its files, and
-/// the dtypes its files declare (none is an empty string, also elided).
-fn family<H: ConstructInit>(factory: PretrainedFactory<H>) -> Value {
+/// which the output elides), its description, the size of its files, the
+/// dtypes its files declare (none is an empty string, also elided), and its
+/// presets, in brief ([`presets`]). With a `policy`, the presets are the
+/// set as data, and `policy` is what the row's default selection resolves
+/// to.
+///
+/// # Errors
+/// As `policy`, for a row.
+fn family<H: ConstructInit>(
+    factory: PretrainedFactory<H>,
+    policy: Option<impl Fn(&PretrainedFactory<H>, &str) -> BunsenResult<serde_json::Value>>,
+) -> BunsenResult<Value> {
     let providers = factory.providers().iter().map(|provider| {
         Value::map([(
             "provider",
             Value::map([("name", Value::str(provider.name()))]),
         )])
     });
-    let models = factory.list().into_iter().map(|(_, row)| {
-        Value::map([(
+    let mut models = Vec::new();
+    for (provider, row) in factory.list() {
+        let presets = presets(&row.presets, policy.is_some())?;
+        let policy = match &policy {
+            Some(policy) => Value::Json(policy(&factory, &format!("{provider}:{}", row.name))?),
+            None => Value::map::<&str>([]),
+        };
+        models.push(Value::map([(
             "model",
             Value::map([
                 ("name", Value::str(row.name)),
@@ -324,10 +463,12 @@ fn family<H: ConstructInit>(factory: PretrainedFactory<H>) -> Value {
                     Value::str(row.resources.size().map(human_bytes).unwrap_or_default()),
                 ),
                 ("dtype", Value::str(row.resources.dtypes().join(", "))),
+                ("presets", presets),
+                ("policy", policy),
             ]),
-        )])
-    });
-    Value::List(providers.chain(models).collect())
+        )]));
+    }
+    Ok(Value::List(providers.chain(models).collect()))
 }
 
 #[cfg(test)]
@@ -349,7 +490,7 @@ mod tests {
     /// size and its dtypes, in that order; every model's size is known.
     #[test]
     fn test_card_shape() {
-        let card = card(&offline_cache()).unwrap();
+        let card = card(&offline_cache(), true).unwrap();
         let Value::Map(sections) = &card else {
             panic!("a map");
         };
@@ -364,6 +505,25 @@ mod tests {
             Some(&Value::Bool(true))
         );
         let kits = card.get("kits").unwrap();
+        // A multilingual Whisper row: its task axis, and the policy its
+        // default selection resolves to.
+        let Some(Value::List(whisper)) = kits.get("asr").and_then(|k| k.get("whisper")) else {
+            panic!("whisper");
+        };
+        let small = whisper
+            .iter()
+            .filter_map(|e| e.get("model"))
+            .find(|m| m.get("name") == Some(&Value::str("openai/small")))
+            .unwrap();
+        let Some(Value::Json(presets)) = small.get("presets") else {
+            panic!("presets as data");
+        };
+        assert_eq!(presets["default"], serde_json::json!(["transcribe"]));
+        let Some(Value::Json(policy)) = small.get("policy") else {
+            panic!("a policy as data");
+        };
+        assert_eq!(policy["task"], "Transcribe");
+        assert_eq!(policy["beam_size"], 5);
         for (kind, families) in [
             (
                 "asr",
@@ -409,16 +569,61 @@ mod tests {
                     let keys: Vec<&str> = fields.iter().map(|(k, _)| k.as_str()).collect();
                     assert_eq!(
                         keys,
-                        ["name", "aliases", "description", "size", "dtype"],
+                        [
+                            "name",
+                            "aliases",
+                            "description",
+                            "size",
+                            "dtype",
+                            "presets",
+                            "policy"
+                        ],
                         "{kind}/{family}"
                     );
                     assert!(
                         fields.iter().any(|(k, v)| k == "size" && !v.is_empty()),
                         "{kind}/{family}: every catalog file is sized"
                     );
+                    // A kit with a policy resolves every row's default.
+                    if *family != "nanochat" {
+                        assert!(
+                            fields.iter().any(|(k, v)| k == "policy" && !v.is_empty()),
+                            "{kind}/{family}: a policy"
+                        );
+                    }
                 }
             }
         }
+    }
+
+    /// Without `--policies`, a row's presets are in brief, its axes and
+    /// default, and there is no policy.
+    #[test]
+    fn test_card_presets_in_brief() {
+        let card = card(&offline_cache(), false).unwrap().elide_empty();
+        let Some(Value::List(whisper)) = card
+            .get("kits")
+            .and_then(|k| k.get("asr"))
+            .and_then(|k| k.get("whisper"))
+        else {
+            panic!("whisper");
+        };
+        let small = whisper
+            .iter()
+            .filter_map(|e| e.get("model"))
+            .find(|m| m.get("name") == Some(&Value::str("openai/small")))
+            .unwrap();
+        assert_eq!(
+            small.get("presets"),
+            Some(&Value::map([
+                (
+                    "task",
+                    Value::List(vec![Value::str("transcribe"), Value::str("translate")])
+                ),
+                ("default", Value::List(vec![Value::str("transcribe")])),
+            ]))
+        );
+        assert_eq!(small.get("policy"), None);
     }
 
     /// YAML keeps the keys' order; JSON is one line.
