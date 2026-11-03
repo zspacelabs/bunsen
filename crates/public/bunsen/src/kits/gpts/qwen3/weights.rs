@@ -11,11 +11,11 @@ use crate::{
         tensor::param_float_dtype,
     },
     data::pretrained::{
-        HfConfigJson,
         NamedTensorsApplied,
         apply_rekeyed_tensors_as,
     },
     errors::BunsenResult,
+    kits::support::model_config::HfConfigJson,
 };
 
 /// `transformers`' Qwen3 decoder layer names onto a

@@ -12,7 +12,6 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
-        HfConfigJson,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -34,7 +33,10 @@ use crate::{
                 qwen3_config_from_hf,
             },
         },
-        support::construct::ConstructInit,
+        support::{
+            construct::ConstructInit,
+            model_config::HfConfigJson,
+        },
     },
 };
 

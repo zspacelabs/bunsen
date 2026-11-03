@@ -14,8 +14,12 @@
 //! - [`decoding`]: the search machinery, from a step's logits to the ids a
 //!   decode returns: logit filters, greedy and beam search, sampling, ranking,
 //!   and the temperature ladder.
+//! - [`model_config`]: the config side, apart from building: reading the
+//!   configs a checkpoint ships with, such as a `transformers` `config.json`
+//!   ([`HfConfigJson`](model_config::HfConfigJson)).
 
 #[cfg(feature = "cache")]
 pub mod construct;
 pub mod decoding;
+pub mod model_config;
 pub mod tokens;

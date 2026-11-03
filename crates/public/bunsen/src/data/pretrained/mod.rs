@@ -278,7 +278,6 @@ mod catalog;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
-mod hf_config;
 #[cfg(feature = "cache")]
 mod loaded;
 pub mod mlx;
@@ -301,7 +300,6 @@ pub use cache::*;
 pub use cached_files::*;
 pub use catalog::*;
 pub use hf::*;
-pub use hf_config::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use prefabs::*;

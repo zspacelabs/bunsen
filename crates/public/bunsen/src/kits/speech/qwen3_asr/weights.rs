@@ -17,17 +17,19 @@ use crate::{
         tensor::param_float_dtype,
     },
     data::pretrained::{
-        HfConfigJson,
         NamedTensorsApplied,
         apply_rekeyed_tensors_as,
     },
     errors::BunsenResult,
-    kits::gpts::qwen3::{
-        Qwen3Meta,
-        weights::{
-            qwen3_config_from_hf_section,
-            text_layer_rekey,
+    kits::{
+        gpts::qwen3::{
+            Qwen3Meta,
+            weights::{
+                qwen3_config_from_hf_section,
+                text_layer_rekey,
+            },
         },
+        support::model_config::HfConfigJson,
     },
 };
 
