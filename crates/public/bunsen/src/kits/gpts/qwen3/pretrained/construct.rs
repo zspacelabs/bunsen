@@ -12,7 +12,9 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
+        CatalogProbe,
         LoadedResources,
+        PresetSet,
         PretrainedRef,
         ResourceBundle,
         SAFETENSORS,
@@ -26,8 +28,10 @@ use crate::{
     },
     kits::{
         gpts::qwen3::{
+            GENERATION_CONFIG,
             Qwen3Construct,
             Qwen3Model,
+            Qwen3Policy,
             weights::{
                 load_hf_tensors,
                 qwen3_config_from_hf,
@@ -35,7 +39,12 @@ use crate::{
         },
         support::{
             construct::ConstructInit,
-            model_config::HfConfigJson,
+            model_config::{
+                HfConfigJson,
+                ProbeFiles,
+                apply_probes,
+                resolve_ref_presets,
+            },
         },
     },
 };
@@ -52,10 +61,33 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Qwen3ConstructConfig;
 
+impl Qwen3ConstructConfig {
+    /// The presets of a checkpoint no row describes, an `hf:` repo's: its
+    /// `generation_config.json`, when it has one, probed into the base (the
+    /// stop tokens and sampling), as the catalog tool probes a row's.
+    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
+        let Some(part) = loaded.get(GENERATION_CONFIG) else {
+            return Ok(PresetSet::default());
+        };
+        let bytes = std::fs::read(&part.path).map_err(sys_at("read", &part.path))?;
+        apply_probes(
+            &PresetSet::default(),
+            &PresetSet::default(),
+            &[CatalogProbe {
+                probe: "generation_config".to_string(),
+                file: GENERATION_CONFIG.to_string(),
+                into: vec!["base".to_string()],
+            }],
+            &ProbeFiles::new().with(GENERATION_CONFIG, bytes),
+        )
+    }
+}
+
 impl ConstructInit for Qwen3ConstructConfig {
     type Construct = Qwen3Construct;
 
     const KIT: &'static str = QWEN3_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The hook for a safetensors checkpoint.
     fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
@@ -102,7 +134,10 @@ impl ConstructInit for Qwen3ConstructConfig {
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let mut qwen3: Qwen3Model = config.try_init(device)?;
         load_hf_tensors(&mut qwen3, tensors)?;
-        let mut bundle = Qwen3Construct::new(qwen3).with_max_positions(max_positions);
+        let policy = resolve_ref_presets(&Qwen3Policy::default(), model, &Self::probed(loaded)?)?;
+        let mut bundle = Qwen3Construct::new(qwen3)
+            .with_max_positions(max_positions)
+            .with_policy(policy.config.clone(), policy.applied());
         for (key, part) in &loaded.parts {
             bundle = bundle.with_file(key, &part.path);
         }
@@ -129,5 +164,62 @@ mod tests {
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
             .assert_err(&Qwen3ConstructConfig::for_resource_bundle(&gguf));
+    }
+
+    /// The hybrid chat rows think by default and answer at once by name,
+    /// each under its card's sampling; every row stops where its
+    /// `generation_config.json` says; the pretrained models and the
+    /// fixed-mode 2507 builds have no `thinking-mode` axis.
+    #[test]
+    fn test_the_generation_presets() {
+        use crate::kits::{
+            gpts::qwen3::pretrained::default_qwen3_factory,
+            support::model_config::SamplingPolicy,
+        };
+
+        let factory = default_qwen3_factory().unwrap();
+        let policy = |spec: &str| factory.resolve_presets(spec, &Qwen3Policy::default());
+
+        let thinking = policy("qwen/qwen3-0.6b").unwrap();
+        assert_eq!(thinking.presets, ["thinking"]);
+        let g = &thinking.config.generation;
+        assert_eq!(g.stop_ids, [151645, 151643]);
+        assert_eq!(g.template_kwargs["enable_thinking"], true);
+        assert_eq!(
+            g.sampling,
+            Some(SamplingPolicy {
+                temperature: 0.6,
+                top_k: Some(20),
+                top_p: Some(0.95),
+                min_p: None,
+            })
+        );
+
+        let fast = policy("qwen/qwen3-8b[no-thinking]").unwrap();
+        let g = &fast.config.generation;
+        assert_eq!(g.template_kwargs["enable_thinking"], false);
+        assert_eq!(
+            g.sampling,
+            Some(SamplingPolicy {
+                temperature: 0.7,
+                top_k: Some(20),
+                top_p: Some(0.8),
+                min_p: Some(0.0),
+            })
+        );
+
+        for row in [
+            "qwen/qwen3-0.6b-base",
+            "qwen/qwen3-4b-instruct-2507",
+            "qwen/qwen3guard-gen-4b",
+        ] {
+            let r = policy(row).unwrap();
+            assert!(r.presets.is_empty(), "{row}");
+            assert!(!r.config.generation.stop_ids.is_empty(), "{row}");
+            assert!(r.config.generation.template_kwargs.is_empty(), "{row}");
+            crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+                .message_contains("no preset")
+                .assert_err(&policy(&format!("{row}[thinking]")));
+        }
     }
 }

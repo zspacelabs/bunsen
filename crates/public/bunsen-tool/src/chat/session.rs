@@ -22,9 +22,12 @@ use bunsen::{
             },
             qwen3::Qwen3Construct,
         },
-        support::decoding::{
-            SearchConfig,
-            decode_cached_observed,
+        support::{
+            decoding::{
+                SearchConfig,
+                decode_cached_observed,
+            },
+            model_config::GenerationPolicy,
         },
     },
     ops::transformers::attention::KVCacheStorage,
@@ -37,8 +40,8 @@ use burn::{
 use crate::chat::{
     ChatBackend,
     ChatMessage,
-    GenerationDefaults,
     Qwen3Chat,
+    search_config,
 };
 
 /// The positions a session's cache holds when neither its config nor the
@@ -77,8 +80,8 @@ impl<B: ChatBackend> ChatModel<B> {
     }
 
     /// The checkpoint's generation defaults.
-    pub fn defaults(&self) -> &GenerationDefaults {
-        self.backend.defaults()
+    pub fn generation(&self) -> &GenerationPolicy {
+        self.backend.generation()
     }
 
     /// The float dtype the model's weights are held, and computed, in: the
@@ -283,7 +286,16 @@ impl<B: ChatBackend> ChatSession<B> {
     ) -> BunsenResult<ChatReply> {
         let chat = self.model.clone();
         let backend = &chat.backend;
-        let prompt = backend.render(&self.messages, self.config.enable_thinking)?;
+        // The session's switch, else the checkpoint's policy: what its
+        // presets set the template's `enable_thinking` to.
+        let enable_thinking = self.config.enable_thinking.or_else(|| {
+            backend
+                .generation()
+                .template_kwargs
+                .get("enable_thinking")
+                .and_then(serde_json::Value::as_bool)
+        });
+        let prompt = backend.render(&self.messages, enable_thinking)?;
         let budget = self.config.max_new_tokens;
         if prompt.len() + budget > self.context {
             return Err(BunsenError::policy(format!(
@@ -305,8 +317,8 @@ impl<B: ChatBackend> ChatSession<B> {
             .config
             .search
             .clone()
-            .unwrap_or_else(|| backend.defaults().search.clone());
-        let stops = &backend.defaults().stop_ids;
+            .unwrap_or_else(|| search_config(backend.generation()));
+        let stops = &backend.generation().stop_ids;
         let mut searcher = search.init_search(stops, stops[0]);
         let mut filters = backend.filters();
         filters.extend(search.sampling_filters());
@@ -392,7 +404,6 @@ mod tests {
     use bunsen::{
         burner::module::ModuleInit,
         kits::gpts::qwen3::{
-            GENERATION_CONFIG,
             Qwen3Config,
             Qwen3Model,
             TOKENIZER,
@@ -415,15 +426,20 @@ mod tests {
                 "tokenizer_config.json",
                 serde_json::json!({ "chat_template": template }).to_string(),
             ),
-            (
-                GENERATION_CONFIG,
-                "generation_config.json",
-                r#"{"eos_token_id": 301, "do_sample": false}"#.to_string(),
-            ),
         ];
         let device = cpu_device();
         let model: Qwen3Model = Qwen3Config::new(310, 12, 2, 3, 1, 6, 20).init(&device);
-        let mut bundle = Qwen3Construct::new(model).with_max_positions(Some(256));
+        // Greedy, stopping at 301: what a `generation_config.json` of
+        // `{"eos_token_id": 301}` probes to.
+        let policy = bunsen::kits::gpts::qwen3::Qwen3Policy {
+            generation: GenerationPolicy {
+                stop_ids: vec![301],
+                ..Default::default()
+            },
+        };
+        let mut bundle = Qwen3Construct::new(model)
+            .with_max_positions(Some(256))
+            .with_policy(policy, Default::default());
         for (key, name, body) in files {
             let path = dir.join(name);
             std::fs::write(&path, body).unwrap();

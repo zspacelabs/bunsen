@@ -25,6 +25,7 @@ use bunsen::{
                 LogitFilter,
                 SuppressTokens,
             },
+            model_config::GenerationPolicy,
             tokens::Detokenizer,
         },
     },
@@ -45,7 +46,6 @@ use burn::{
 use crate::chat::{
     ChatMessage,
     ChatTemplate,
-    GenerationDefaults,
     Qwen3Tokenizer,
 };
 
@@ -79,8 +79,9 @@ pub trait ChatBackend: Debug + Send + Sync + 'static {
     /// What turns the reply's ids into text.
     fn detokenizer(&self) -> Arc<dyn Detokenizer>;
 
-    /// The stop tokens and sampling a reply uses unless told otherwise.
-    fn defaults(&self) -> &GenerationDefaults;
+    /// The checkpoint's generation policy: the stop tokens, and the
+    /// sampling and template kwargs a reply uses unless told otherwise.
+    fn generation(&self) -> &GenerationPolicy;
 
     /// Filters every reply's logits pass before the search chooses: ids the
     /// tokenizer cannot spell, say.
@@ -141,18 +142,19 @@ pub struct Qwen3Chat {
     bundle: Arc<Qwen3Construct>,
     tokenizer: Arc<Qwen3Tokenizer>,
     template: ChatTemplate,
-    defaults: GenerationDefaults,
+    generation: GenerationPolicy,
     unspelled: Arc<dyn LogitFilter>,
 }
 
 impl Qwen3Chat {
-    /// A chat over a loaded checkpoint, from the tokenizer, template and
-    /// generation files it carries.
+    /// A chat over a loaded checkpoint, from the tokenizer and template files
+    /// it carries, under the generation policy its presets resolved to.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
-    /// when the checkpoint lacks `tokenizer.json`, `tokenizer_config.json`
-    /// or `generation_config.json`; as each file's reader.
+    /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
+    /// or its policy names no stop token (a repo without a
+    /// `generation_config.json`); as each file's reader.
     pub fn from_construct(bundle: Arc<Qwen3Construct>) -> BunsenResult<Self> {
         let missing =
             |what: &str| BunsenError::invalid_resource(format!("a checkpoint without {what}"));
@@ -166,18 +168,17 @@ impl Qwen3Chat {
             Some(config),
         )?;
         let template = ChatTemplate::from_file(config)?;
-        let defaults = GenerationDefaults::from_file(
-            bundle
-                .generation_config()
-                .ok_or_else(|| missing("generation_config.json"))?,
-        )?;
+        let generation = bundle.policy.generation.clone();
+        if generation.stop_ids.is_empty() {
+            return Err(missing("a stop token (no generation_config.json)"));
+        }
         let unspelled = (0..bundle.model.n_vocab() as i64).filter(|&id| !tokenizer.contains(id));
         Ok(Self {
             unspelled: Arc::new(SuppressTokens::new(unspelled)),
             bundle,
             tokenizer: Arc::new(tokenizer),
             template,
-            defaults,
+            generation,
         })
     }
 
@@ -218,8 +219,8 @@ impl ChatBackend for Qwen3Chat {
         self.tokenizer.clone()
     }
 
-    fn defaults(&self) -> &GenerationDefaults {
-        &self.defaults
+    fn generation(&self) -> &GenerationPolicy {
+        &self.generation
     }
 
     fn filters(&self) -> Vec<Arc<dyn LogitFilter>> {

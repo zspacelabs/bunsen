@@ -11,22 +11,19 @@ use std::{
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
-    kits::{
-        speech::{
-            diarization::{
-                RttmSegment,
-                SpeakerActivityModel,
-                SpeakerTurn,
-            },
-            sortformer::{
-                SortformerConstruct,
-                pretrained::{
-                    DEFAULT_SORTFORMER_MODEL,
-                    default_sortformer_factory,
-                },
+    kits::speech::{
+        diarization::{
+            RttmSegment,
+            SpeakerActivityModel,
+            SpeakerTurn,
+        },
+        sortformer::{
+            SortformerConstruct,
+            pretrained::{
+                DEFAULT_SORTFORMER_MODEL,
+                default_sortformer_factory,
             },
         },
-        support::construct::LookupExpr,
     },
     support::audio::load_audio_mono_sr,
 };
@@ -44,14 +41,17 @@ use serde::Serialize;
 
 #[cfg(feature = "live")]
 use crate::cli::asr::capture::CaptureArgs;
-use crate::cli::asr::{
-    family::{
-        Kit,
-        load_logged,
+use crate::cli::{
+    asr::{
+        family::{
+            Kit,
+            load_logged,
+        },
+        fetch_cmd::FetchCmd,
+        list_cmd::ListCmd,
+        transcribe_cmd::millis,
     },
-    fetch_cmd::FetchCmd,
-    list_cmd::ListCmd,
-    transcribe_cmd::millis,
+    with_presets,
 };
 
 /// The diarizer's commands.
@@ -147,21 +147,6 @@ impl Postprocess {
             Self::Callhome => "callhome",
         }
     }
-}
-
-/// `model`, a lookup expression, with `presets` added to its box.
-///
-/// # Errors
-/// As [`LookupExpr::parse`].
-pub fn with_presets(
-    model: &str,
-    presets: &[&str],
-) -> BunsenResult<String> {
-    let mut expr = LookupExpr::parse(model)?;
-    expr.selection
-        .presets
-        .extend(presets.iter().map(|p| p.to_string()));
-    Ok(expr.to_string())
 }
 
 /// The diarizer, and how its activity becomes turns.

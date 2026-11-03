@@ -7,7 +7,27 @@ use std::{
     },
 };
 
+use serde::{
+    Deserialize,
+    Serialize,
+};
+
 use super::Qwen3Model;
+use crate::{
+    data::pretrained::PresetSelection,
+    kits::support::model_config::GenerationPolicy,
+};
+
+/// How a Qwen3 pretrained is run: the config its presets and probes patch.
+///
+/// Its `generation` is the [`GenerationPolicy`] a chat driver reads: the
+/// stop tokens and sampling its `generation_config.json` names, and the
+/// template's kwargs its `thinking-mode` presets set.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Qwen3Policy {
+    /// How it generates a reply.
+    pub generation: GenerationPolicy,
+}
 
 /// The key of the tokenizer, `tokenizer.json`, in a [`Qwen3Construct`]'s files
 /// and a Qwen3 resource bundle.
@@ -26,11 +46,11 @@ pub const GENERATION_CONFIG: &str = "generation_config";
 /// A Qwen3 model, the positions it was trained on, and its checkpoint's
 /// other files, unread: what a pretrained loads to.
 ///
-/// The kit reads only what builds the model: ids in, logits out. The
-/// tokenizer, its config (its added tokens and chat template) and the
-/// generation defaults are the caller's to read, through
-/// [`tokenizer`](Self::tokenizer), [`tokenizer_config`](Self::tokenizer_config)
-/// and [`generation_config`](Self::generation_config). The model decodes
+/// The kit reads only what builds the model: ids in, logits out, and the
+/// [`Qwen3Policy`] its presets resolved to. The tokenizer and its config (its
+/// added tokens and chat template) are the caller's to read, through
+/// [`tokenizer`](Self::tokenizer) and
+/// [`tokenizer_config`](Self::tokenizer_config). The model decodes
 /// through a [`KVCache`](crate::ops::transformers::attention::KVCache) the
 /// caller makes from it
 /// ([`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel)).
@@ -50,6 +70,12 @@ pub struct Qwen3Construct {
     /// [`TOKENIZER_CONFIG`] and [`GENERATION_CONFIG`] among them, where it
     /// has them.
     pub files: BTreeMap<String, PathBuf>,
+
+    /// How it is run: what its presets resolved to.
+    pub policy: Qwen3Policy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
 }
 
 impl Qwen3Construct {
@@ -59,6 +85,21 @@ impl Qwen3Construct {
             model,
             max_positions: None,
             files: BTreeMap::new(),
+            policy: Qwen3Policy::default(),
+            presets: PresetSelection::default(),
+        }
+    }
+
+    /// Sets the policy, and the presets that resolved it.
+    pub fn with_policy(
+        self,
+        policy: Qwen3Policy,
+        presets: PresetSelection,
+    ) -> Self {
+        Self {
+            policy,
+            presets,
+            ..self
         }
     }
 

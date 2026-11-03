@@ -504,7 +504,13 @@ pub fn build(
                 .ok_or_else(|| format!("{what}: no file {:?} for its probes", entry.file))??;
             files.insert(entry.file.clone(), found);
         }
-        row.presets = apply_probes(&row.presets, &row.probe, &files)
+        let family = row
+            .family
+            .as_ref()
+            .and_then(|name| source.families.iter().find(|f| &f.name == name))
+            .map(|f| f.presets.clone())
+            .unwrap_or_default();
+        row.presets = apply_probes(&row.presets, &family, &row.probe, &files)
             .map_err(|e| format!("{what}: its probes: {e}"))?;
         row.probe.clear();
     }

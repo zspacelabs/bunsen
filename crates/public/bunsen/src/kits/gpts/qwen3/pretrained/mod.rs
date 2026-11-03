@@ -40,6 +40,22 @@
 //! Every file of a well-known row is pinned to its digest and fetched from a
 //! fixed revision of its Hugging Face repo.
 //!
+//! # Presets
+//!
+//! A construct carries the [`Qwen3Policy`](super::Qwen3Policy) its presets
+//! resolved to: its
+//! [`GenerationPolicy`](crate::kits::support::model_config::GenerationPolicy),
+//! for a chat driver. Every row's base holds what its `generation_config.json`
+//! names (the stop tokens, and the sampling), probed when the catalog is
+//! built. The hybrid chat models (`qwen3-0.6b` through `qwen3-8b`, and
+//! `qwen3-4b-saferl`) are the catalog's `hybrid` family, with a
+//! `thinking-mode` axis: `[thinking]`, the default (the chat template's own,
+//! which the validation crate checks), and `[no-thinking]`, which switches
+//! the template's `enable_thinking` off and samples at the card's
+//! non-thinking settings. The pretrained models, the guard models and the
+//! fixed-mode 2507 builds have no axis. An `hf:` repo's
+//! `generation_config.json` is probed into its base when it loads.
+//!
 //! # Loading
 //!
 //! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)

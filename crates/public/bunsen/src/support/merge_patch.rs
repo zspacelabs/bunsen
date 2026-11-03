@@ -167,21 +167,63 @@ pub fn validate_paths(
     base: &Value,
     patch: &Value,
 ) -> BunsenResult<()> {
-    validate_at(&PatchPath::default(), base, patch)
+    validate_paths_open(base, patch, &[])
+}
+
+/// [`validate_paths`], with `open` paths whose members are not checked: the
+/// paths of maps, which take any key. [`empty_objects`] finds a typed
+/// config's maps in its serialization, where they are the empty objects.
+///
+/// # Errors
+/// As [`validate_paths`], for a member outside `open`.
+pub fn validate_paths_open(
+    base: &Value,
+    patch: &Value,
+    open: &[PatchPath],
+) -> BunsenResult<()> {
+    validate_at(&PatchPath::default(), base, patch, open)
+}
+
+/// The paths of the empty objects in `value`, sorted: in a serialized typed
+/// config, its empty maps (a struct serializes with its fields).
+pub fn empty_objects(value: &Value) -> Vec<PatchPath> {
+    fn walk(
+        at: &PatchPath,
+        value: &Value,
+        out: &mut Vec<PatchPath>,
+    ) {
+        if let Value::Object(members) = value {
+            if members.is_empty() && !at.0.is_empty() {
+                out.push(at.clone());
+            }
+            for (name, v) in members {
+                walk(&at.child(name), v, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&PatchPath::default(), value, &mut out);
+    out.sort();
+    out
 }
 
 fn validate_at(
     at: &PatchPath,
     base: &Value,
     patch: &Value,
+    open: &[PatchPath],
 ) -> BunsenResult<()> {
+    if open.contains(at) {
+        return Ok(());
+    }
     let (Value::Object(fields), Value::Object(members)) = (base, patch) else {
         return Ok(());
     };
     for (name, value) in members {
         let path = at.child(name);
         match fields.get(name) {
-            Some(field) => validate_at(&path, field, value)?,
+            Some(field) => validate_at(&path, field, value, open)?,
+            None if open.contains(&path) => {}
             None => {
                 return Err(BunsenError::lookup(
                     LookupError::missing("field", path.to_string())
@@ -486,5 +528,30 @@ mod tests {
         apply(&mut ba, &a);
         assert_eq!(ab, ba);
         assert_eq!(ab, json!({"beam": 1, "sampling": {"temperature": 0.6}}));
+    }
+
+    /// Under an open path, any member passes; elsewhere the check holds.
+    #[test]
+    fn test_validate_paths_open() {
+        let base = json!({"generation": {"kwargs": {}, "stop": [1]}, "beam": 1});
+        let open = empty_objects(&base);
+        assert_eq!(open, vec![path(&["generation", "kwargs"])]);
+        validate_paths_open(
+            &base,
+            &json!({"generation": {"kwargs": {"any": true}}}),
+            &open,
+        )
+        .unwrap();
+        // Once the map holds a key, another may still join it.
+        let held = json!({"generation": {"kwargs": {"any": true}, "stop": [1]}, "beam": 1});
+        validate_paths_open(
+            &held,
+            &json!({"generation": {"kwargs": {"other": 1}}}),
+            &open,
+        )
+        .unwrap();
+        assert!(validate_paths_open(&base, &json!({"generation": {"stopp": [2]}}), &open).is_err());
+        assert!(validate_paths(&base, &json!({"generation": {"kwargs": {"any": true}}})).is_err());
+        assert_eq!(empty_objects(&json!({})), Vec::<PatchPath>::new());
     }
 }

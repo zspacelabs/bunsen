@@ -16,84 +16,103 @@ groups:
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3-0.6b"]
+        family: "hybrid"
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-0.6b-base"
         description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3-0.6b-base"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-1.7b"
         description: "Qwen3-1.7B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
         prefab: "qwen3-1.7b"
         bundles: ["qwen/qwen3-1.7b"]
+        family: "hybrid"
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-1.7b-base"
         description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
         prefab: "qwen3-1.7b"
         bundles: ["qwen/qwen3-1.7b-base"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-4b"
         description: "Qwen3-4B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b"]
+        family: "hybrid"
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-4b-base"
         description: "Qwen3-4B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b-base"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-4b-instruct-2507"
         description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
         prefab: "qwen3-4b-2507"
         bundles: ["qwen/qwen3-4b-instruct-2507"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-4b-thinking-2507"
         description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
         prefab: "qwen3-4b-2507"
         bundles: ["qwen/qwen3-4b-thinking-2507"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-8b"
         description: "Qwen3-8B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3-8b"]
+        family: "hybrid"
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-8b-base"
         description: "Qwen3-8B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3-8b-base"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3-4b-saferl"
         description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-SafeRL"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b-saferl"]
+        family: "hybrid"
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3guard-gen-0.6b"
         description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3guard-gen-0.6b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3guard-gen-4b"
         description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3guard-gen-4b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
       - name: "qwen3guard-gen-8b"
         description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3guard-gen-8b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
 bundles:
   - name: "qwen/qwen3-0.6b"
     description: "Qwen3-0.6B: model.safetensors, config, tokenizer, generation config"
@@ -298,3 +317,19 @@ bundles:
       - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+families:
+  - name: "hybrid"
+    description: "The Qwen3 chat models that think or answer at once, as the chat template's `enable_thinking` says"
+    presets:
+      presets:
+        - name: "thinking"
+          description: "think before answering, under the card's thinking sampling (the checkpoint's generation_config.json)"
+          patch: { generation: { template_kwargs: { enable_thinking: true } } }
+        - name: "no-thinking"
+          description: "answer at once, under the card's non-thinking sampling: temperature 0.7, top-p 0.8, top-k 20, min-p 0"
+          patch: { generation: { template_kwargs: { enable_thinking: false }, sampling: { temperature: 0.7, top_p: 0.8, top_k: 20, min_p: 0.0 } } }
+      axes:
+        - name: "thinking-mode"
+          description: "whether the model thinks before it answers"
+          members: ["thinking", "no-thinking"]
+      default: ["thinking"]

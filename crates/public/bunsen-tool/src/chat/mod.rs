@@ -10,7 +10,7 @@
 //!   ([`Qwen3Chat`], Qwen3's). [`send`](ChatSession::send) streams a reply
 //!   through [`decode_cached_observed`](bunsen::kits::support::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
-//! - [`GenerationDefaults`]: a checkpoint's stop tokens and sampling.
+//! - [`search_config`]: the search a checkpoint's generation policy says.
 //! - [`Qwen3Tokenizer`]: a checkpoint's tokenizer, text to ids and back, as
 //!   `transformers` encodes; a
 //!   [`Detokenizer`](bunsen::kits::support::tokens::Detokenizer).

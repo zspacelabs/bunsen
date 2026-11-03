@@ -373,6 +373,11 @@ mod cross;
 #[cfg(all(test, feature = "checkpoints"))]
 mod chat;
 
+/// Each hybrid row's default `thinking-mode` preset against its chat
+/// template's own default. Fetches each row's `tokenizer_config.json` alone.
+#[cfg(all(test, feature = "checkpoints"))]
+mod template_fidelity;
+
 /// `bunsen_tool::chat`'s sessions against `transformers`' greedy chat replies.
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod chat_session;
