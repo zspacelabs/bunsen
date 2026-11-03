@@ -943,7 +943,7 @@ mod tests {
             ]
         );
         let flags = r.parse_flags::<WhisperFlags>().unwrap();
-        assert_eq!(flags.beam_size, 2);
+        assert_eq!(flags.beam_size, Some(2));
         assert_eq!(flags.language.as_deref(), Some("de"));
         assert!(flags.timestamps);
 

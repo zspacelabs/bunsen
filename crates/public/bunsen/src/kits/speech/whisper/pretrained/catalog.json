@@ -29,7 +29,8 @@
           "bundles": [
             "openai/tiny.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "base.en",
@@ -51,7 +52,8 @@
           "bundles": [
             "openai/base.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "small.en",
@@ -73,7 +75,8 @@
           "bundles": [
             "openai/small.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "medium.en",
@@ -95,7 +98,8 @@
           "bundles": [
             "openai/medium.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "large-v1",
@@ -106,7 +110,8 @@
           "bundles": [
             "openai/large-v1.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "large-v2",
@@ -117,7 +122,8 @@
           "bundles": [
             "openai/large-v2.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "large-v3",
@@ -131,7 +137,8 @@
           "bundles": [
             "openai/large-v3.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "family": "multilingual"
         },
         {
           "name": "large-v3-turbo",
@@ -564,6 +571,43 @@
           "dtype": "float16"
         }
       ]
+    }
+  ],
+  "families": [
+    {
+      "name": "multilingual",
+      "description": "The multilingual checkpoints that translate: transcribe in the speech's own language, or translate to English",
+      "presets": {
+        "presets": [
+          {
+            "name": "transcribe",
+            "description": "emit the speech in its own language",
+            "patch": {
+              "task": "Transcribe"
+            }
+          },
+          {
+            "name": "translate",
+            "description": "translate the speech to English",
+            "patch": {
+              "task": "Translate"
+            }
+          }
+        ],
+        "axes": [
+          {
+            "name": "task",
+            "description": "what the model emits: the speech's own language, or English",
+            "members": [
+              "transcribe",
+              "translate"
+            ]
+          }
+        ],
+        "default": [
+          "transcribe"
+        ]
+      }
     }
   ]
 }

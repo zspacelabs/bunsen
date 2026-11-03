@@ -22,6 +22,7 @@ use crate::{
         Fuse,
         GIVEN_NAMESPACE,
         LoadedResources,
+        PresetSet,
         PretrainedCache,
         PretrainedRef,
         ResourceBundle,
@@ -37,11 +38,15 @@ use crate::{
         speech::whisper::{
             WhisperApiConfig,
             WhisperGeometry,
-            driver::WhisperConstruct,
+            driver::{
+                WhisperConstruct,
+                WhisperPolicy,
+            },
             pretrained::{
                 CHECKPOINT,
                 PytorchWhisperScanner,
                 VOCABULARY,
+                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperVocabulary,
@@ -49,6 +54,7 @@ use crate::{
         },
         support::{
             construct::ConstructInit,
+            model_config::resolve_ref_presets,
             tokens::TiktokenRanks,
         },
     },
@@ -353,10 +359,15 @@ impl WhisperConstructConfig {
     }
 }
 
+/// The Whisper catalog's family of multilingual checkpoints: its presets are
+/// the `task` axis, `[transcribe]` and `[translate]`.
+pub const MULTILINGUAL_FAMILY: &str = "multilingual";
+
 impl ConstructInit for WhisperConstructConfig {
     type Construct = WhisperConstruct;
 
     const KIT: &'static str = WHISPER_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The reader the checkpoint's `kind` names, through
     /// [`WhisperReader::for_kind`], expecting what the model promises. The
@@ -442,12 +453,94 @@ impl ConstructInit for WhisperConstructConfig {
             .policy_for_vocab(cfg.vocab_size)
             .as_policy()
             .with_context(|| model.id())?;
-        let mut bundle = WhisperConstruct::new(whisper, layout);
+        // A model no row describes takes its family's presets by its layout:
+        // a multilingual one the `multilingual` family's task axis.
+        let family = if layout.ids().is_multilingual() {
+            WHISPER_CATALOG.family_presets(MULTILINGUAL_FAMILY)
+        } else {
+            PresetSet::default()
+        };
+        let policy = resolve_ref_presets(&WhisperPolicy::default(), model, &family)?;
+        let mut bundle = WhisperConstruct::new(whisper, layout)
+            .with_policy(policy.config.clone(), policy.applied());
         if let Some(part) = loaded.get(VOCABULARY) {
             bundle = bundle.with_ranks(TiktokenRanks::load(&part.path)?);
         }
         bundle.validate().as_policy().with_context(|| model.id())?;
         Ok(Arc::new(bundle))
+    }
+}
+
+#[cfg(test)]
+mod preset_tests {
+    use super::*;
+    use crate::kits::speech::whisper::{
+        driver::{
+            WhisperStreamDriverConfig,
+            WhisperTask,
+        },
+        pretrained::default_whisper_factory,
+    };
+
+    fn policy(
+        spec: &str
+    ) -> BunsenResult<crate::kits::support::model_config::ResolvedPresets<WhisperPolicy>> {
+        default_whisper_factory()?.resolve_presets(spec, &WhisperPolicy::default())
+    }
+
+    /// The multilingual rows transcribe by default and translate by name;
+    /// the English-only rows and `large-v3-turbo` have no `task` axis; any
+    /// other field is the lookup's patch.
+    #[test]
+    fn test_the_task_axis() {
+        let small = policy("openai/small").unwrap();
+        assert_eq!(small.presets, ["transcribe"]);
+        assert_eq!(small.config, WhisperPolicy::default());
+
+        let translate = policy("openai/small[translate]{beam_size: 1}").unwrap();
+        assert_eq!(translate.presets, ["translate"]);
+        assert_eq!(translate.config.task, WhisperTask::Translate);
+        assert_eq!(translate.config.beam_size, 1);
+
+        for row in ["openai/tiny.en", "openai/large-v3-turbo"] {
+            assert!(policy(row).unwrap().presets.is_empty(), "{row}");
+            crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+                .message_contains("no preset \"translate\"")
+                .assert_err(&policy(&format!("{row}[translate]")));
+        }
+        assert_eq!(policy("large").unwrap().presets, ["transcribe"]);
+    }
+
+    /// A policy sets the driver's decode fields, and leaves the rest of its
+    /// search alone.
+    #[test]
+    fn test_with_policy() {
+        let policy = WhisperPolicy {
+            task: WhisperTask::Translate,
+            language: Some("de".to_string()),
+            timestamps: true,
+            beam_size: 3,
+            max_tokens: 100,
+            condition_on_previous_text: false,
+            fallback: false,
+        };
+        let base = WhisperStreamDriverConfig::new();
+        let c = base.clone().with_policy(&policy);
+        assert_eq!(c.task, WhisperTask::Translate);
+        assert_eq!(c.language.as_deref(), Some("de"));
+        assert!(c.timestamps);
+        assert_eq!(c.search.beam_size, 3);
+        assert_eq!(c.search.temperature, base.search.temperature);
+        assert_eq!(c.max_tokens, 100);
+        assert!(!c.condition_on_previous_text);
+        assert_eq!(
+            c.fallback,
+            crate::kits::speech::whisper::WhisperFallbackConfig::new()
+        );
+        assert_eq!(
+            base.with_policy(&WhisperPolicy::default()).fallback,
+            crate::kits::speech::whisper::WhisperFallbackConfig::upstream()
+        );
     }
 }
 

@@ -32,6 +32,7 @@ use crate::{
                 },
                 driver::{
                     WhisperConstruct,
+                    WhisperPolicy,
                     WhisperTask,
                     WhisperTokenLayout,
                 },
@@ -132,6 +133,29 @@ pub struct WhisperStreamDriverConfig {
 }
 
 impl WhisperStreamDriverConfig {
+    /// Sets the decode fields from `policy`: the task, the language, the
+    /// timestamps, the beam size (the rest of the search as it is), the token
+    /// cap, the prompt carry, and the fallback (upstream's ladder, or
+    /// temperature zero alone). A construct's
+    /// [`policy`](WhisperConstruct::policy) is what its presets resolved to.
+    pub fn with_policy(
+        self,
+        policy: &WhisperPolicy,
+    ) -> Self {
+        let search = self.search.clone().with_beam_size(policy.beam_size);
+        self.with_task(policy.task)
+            .with_language(policy.language.clone())
+            .with_timestamps(policy.timestamps)
+            .with_search(search)
+            .with_max_tokens(policy.max_tokens)
+            .with_condition_on_previous_text(policy.condition_on_previous_text)
+            .with_fallback(if policy.fallback {
+                WhisperFallbackConfig::upstream()
+            } else {
+                WhisperFallbackConfig::new()
+            })
+    }
+
     /// Builds the driver over a model alone, deriving the token layout from
     /// the model's vocabulary size: ids only, with no vocabulary, no text
     /// and no default suppress list. See

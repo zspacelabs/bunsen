@@ -19,6 +19,18 @@
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
 //!   checkpoint under [`CHECKPOINT`]. It lists nothing.
 //!
+//! # Presets
+//!
+//! A construct carries the [`WhisperPolicy`](super::driver::WhisperPolicy)
+//! its presets resolved to, which a driver takes with
+//! [`with_policy`](super::driver::WhisperStreamDriverConfig::with_policy).
+//! The multilingual checkpoints that translate (every one but the `.en`
+//! checkpoints and `large-v3-turbo`) are the catalog's `multilingual` family,
+//! with a `task` axis: `[transcribe]`, the default, and `[translate]`. Every
+//! other field is the lookup's patch: `'openai/small[translate]{beam_size:
+//! 1}'`. A multilingual checkpoint no row describes, a file or an `hf:` repo,
+//! takes the family's presets ([`MULTILINGUAL_FAMILY`]).
+//!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
 //! [`with_provider`](crate::kits::support::construct::PretrainedFactory::with_provider);

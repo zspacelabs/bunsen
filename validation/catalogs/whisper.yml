@@ -21,6 +21,7 @@ groups:
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "tiny"
+        family: "multilingual"
         bundles: ["openai/tiny.pt", "openai/multilingual.tiktoken"]
       - name: "base.en"
         description: "74 M parameters, English-only"
@@ -33,6 +34,7 @@ groups:
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "base"
+        family: "multilingual"
         bundles: ["openai/base.pt", "openai/multilingual.tiktoken"]
       - name: "small.en"
         description: "244 M parameters, English-only"
@@ -45,6 +47,7 @@ groups:
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "small"
+        family: "multilingual"
         bundles: ["openai/small.pt", "openai/multilingual.tiktoken"]
       - name: "medium.en"
         description: "769 M parameters, English-only"
@@ -57,18 +60,21 @@ groups:
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "medium"
+        family: "multilingual"
         bundles: ["openai/medium.pt", "openai/multilingual.tiktoken"]
       - name: "large-v1"
         description: "1550 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "large"
+        family: "multilingual"
         bundles: ["openai/large-v1.pt", "openai/multilingual.tiktoken"]
       - name: "large-v2"
         description: "1550 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "large"
+        family: "multilingual"
         bundles: ["openai/large-v2.pt", "openai/multilingual.tiktoken"]
       - name: "large-v3"
         aliases: ["large"]
@@ -76,6 +82,7 @@ groups:
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "large-v3"
+        family: "multilingual"
         bundles: ["openai/large-v3.pt", "openai/multilingual.tiktoken"]
       - name: "large-v3-turbo"
         aliases: ["turbo"]
@@ -197,3 +204,19 @@ bundles:
     bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a" }]
     resources:
       - { key: "checkpoint", file: "large-v3-turbo.pt", kind: "pytorch fp16", sha256: "aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a", dtype: "float16" }
+families:
+  - name: "multilingual"
+    description: "The multilingual checkpoints that translate: transcribe in the speech's own language, or translate to English"
+    presets:
+      presets:
+        - name: "transcribe"
+          description: "emit the speech in its own language"
+          patch: { task: "Transcribe" }
+        - name: "translate"
+          description: "translate the speech to English"
+          patch: { task: "Translate" }
+      axes:
+        - name: "task"
+          description: "what the model emits: the speech's own language, or English"
+          members: ["transcribe", "translate"]
+      default: ["transcribe"]
