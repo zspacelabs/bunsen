@@ -36,45 +36,28 @@ use crate::cli::asr::{
     },
 };
 
-/// Voxtral Realtime's own transcription flags.
-#[derive(clap::Args, Debug)]
-pub struct VoxtralFlags {
-    /// The longest stretch of audio the model sees at once, in seconds; a
-    /// longer one is committed up to a pause between words, and the rest
-    /// decoded again with the audio after it. The model's policy when
-    /// omitted.
-    #[arg(long)]
-    pub window_seconds: Option<f64>,
+/// Voxtral Realtime's own transcription flags: none. The policy is the model's,
+/// its presets and patch resolved (`--model '<name>{window_seconds: 20}'`).
+#[derive(clap::Args, Debug, Default)]
+pub struct VoxtralFlags {}
 
-    /// How far the transcript runs behind the audio, in ms: a multiple of
-    /// 80 up to 1200, or 2400. Longer is more accurate; the model's
-    /// `tekken.json` names its default, 480.
-    #[arg(long)]
-    pub delay_ms: Option<usize>,
-}
-
-/// The driver for `bundle` under `flags` and `emission`.
+/// The driver for `bundle` under its policy and `emission`.
 ///
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
-/// `--window-seconds` is under one decoder position, or `--delay-ms` is not a
-/// delay the model takes; as the driver and the VAD.
+/// the policy's `window_seconds` is under one decoder position; as the driver
+/// and the VAD. The policy's `delay_ms` was applied when the model loaded.
 pub fn driver(
     bundle: Arc<VoxtralConstruct>,
-    flags: &VoxtralFlags,
     emission: Emission,
 ) -> BunsenResult<VoxtralStreamDriver> {
     let position = bundle.samples_per_position() as f64 / bundle.front_end.sample_rate() as f64;
-    let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
+    let window_seconds = bundle.policy.window_seconds;
     if window_seconds.is_nan() || window_seconds < position {
         return Err(BunsenError::illegal(format!(
-            "--window-seconds {window_seconds} is under one decoder position, {position} s"
+            "window_seconds {window_seconds} is under one decoder position, {position} s"
         )));
     }
-    let bundle = match flags.delay_ms {
-        Some(ms) => Arc::new(Arc::unwrap_or_clone(bundle).with_delay_ms(ms)?),
-        None => bundle,
-    };
     log::info!(
         "voxtral: delay {} ms",
         bundle.layout.delay_positions() * bundle.layout.config().position_ms

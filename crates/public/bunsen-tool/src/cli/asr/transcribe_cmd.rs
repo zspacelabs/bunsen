@@ -58,23 +58,8 @@ use crate::cli::{
     },
 };
 
-/// A family's own transcription flags.
+/// A family's own transcription flags: paths, not policy.
 pub trait FamilyFlags: std::fmt::Debug {
-    /// Parakeet's, when these are Parakeet's.
-    fn parakeet(&self) -> Option<&ParakeetFlags> {
-        None
-    }
-
-    /// Qwen3-ASR's, when these are Qwen3-ASR's.
-    fn qwen3_asr(&self) -> Option<&Qwen3AsrFlags> {
-        None
-    }
-
-    /// Voxtral's, when these are Voxtral's.
-    fn voxtral(&self) -> Option<&VoxtralFlags> {
-        None
-    }
-
     /// Whisper's, when these are Whisper's.
     fn whisper(&self) -> Option<&whisper::WhisperFlags> {
         None
@@ -98,23 +83,11 @@ impl FamilyFlags for whisper::WhisperFlags {
     }
 }
 
-impl FamilyFlags for ParakeetFlags {
-    fn parakeet(&self) -> Option<&ParakeetFlags> {
-        Some(self)
-    }
-}
+impl FamilyFlags for ParakeetFlags {}
 
-impl FamilyFlags for Qwen3AsrFlags {
-    fn qwen3_asr(&self) -> Option<&Qwen3AsrFlags> {
-        Some(self)
-    }
-}
+impl FamilyFlags for Qwen3AsrFlags {}
 
-impl FamilyFlags for VoxtralFlags {
-    fn voxtral(&self) -> Option<&VoxtralFlags> {
-        Some(self)
-    }
-}
+impl FamilyFlags for VoxtralFlags {}
 
 /// Transcribes audio files.
 ///
@@ -125,9 +98,11 @@ impl FamilyFlags for VoxtralFlags {
 /// how long it took, are logged at `INFO` (`-v`).
 #[derive(clap::Args, Debug)]
 pub struct TranscribeCmd<F: clap::Args> {
-    /// The model, by name: `list` shows them; the family's default when
-    /// omitted. Whisper also takes a checkpoint's path.
-    #[arg(long)]
+    /// The model, as a lookup expression, its presets and patch its policy
+    /// (`'openai/small[translate]{beam_size: 1}'`): `list` shows the names
+    /// and presets; the family's default when omitted. Whisper also takes a
+    /// checkpoint's path.
+    #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 
     #[clap(flatten)]
@@ -323,7 +298,6 @@ impl TranscribeIo {
 
         let driver = Driver::build(
             loaded,
-            flags,
             streaming.emission,
             streaming.vad.as_deref(),
             speakers,

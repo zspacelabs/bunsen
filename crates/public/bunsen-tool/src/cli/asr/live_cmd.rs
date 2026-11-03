@@ -63,9 +63,11 @@ use crate::cli::{
 /// exits.
 #[derive(clap::Args, Debug)]
 pub struct LiveCmd<F: clap::Args> {
-    /// The model, by name: `list` shows them; the family's default when
-    /// omitted. Whisper also takes a checkpoint's path.
-    #[arg(long)]
+    /// The model, as a lookup expression, its presets and patch its policy
+    /// (`'openai/small[translate]{beam_size: 1}'`): `list` shows the names
+    /// and presets; the family's default when omitted. Whisper also takes a
+    /// checkpoint's path.
+    #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 
     #[clap(flatten)]
@@ -165,7 +167,6 @@ impl LiveIo {
         let speakers = self.speakers.diarizer(&cache, &device)?;
         let driver = Driver::build(
             loaded,
-            flags,
             streaming.emission,
             streaming.vad.as_deref(),
             speakers,

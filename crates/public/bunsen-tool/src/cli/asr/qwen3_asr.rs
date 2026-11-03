@@ -33,36 +33,29 @@ use crate::cli::asr::{
     },
 };
 
-/// Qwen3-ASR's own transcription flags.
-#[derive(clap::Args, Debug)]
-pub struct Qwen3AsrFlags {
-    /// The longest stretch of audio the model sees at once, in seconds; 30
-    /// is the most it was trained on. A longer recording is cut at the
-    /// quietest point of each full window's last third. The model's policy
-    /// when omitted.
-    #[arg(long)]
-    pub window_seconds: Option<f64>,
-}
+/// Qwen3-ASR's own transcription flags: none. The policy is the model's, its
+/// presets and patch resolved (`--model '<name>{window_seconds: 20}'`).
+#[derive(clap::Args, Debug, Default)]
+pub struct Qwen3AsrFlags {}
 
-/// The driver for `bundle` under `flags` and `emission`.
+/// The driver for `bundle` under its policy and `emission`.
 ///
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
-/// `--window-seconds` is under one frame or over
+/// the policy's `window_seconds` is under one frame or over
 /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS); as the driver
 /// and the VAD.
 pub fn driver(
     bundle: Arc<Qwen3AsrConstruct>,
-    flags: &Qwen3AsrFlags,
     emission: Emission,
 ) -> BunsenResult<Qwen3AsrStreamDriver> {
     let front_end = &bundle.front_end;
     let frame = front_end.hop() as f64 / front_end.sample_rate() as f64;
     let most = Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64;
-    let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
+    let window_seconds = bundle.policy.window_seconds;
     if !(frame..=most).contains(&window_seconds) {
         return Err(BunsenError::illegal(format!(
-            "--window-seconds {window_seconds} is outside [{frame}, {most}] s"
+            "window_seconds {window_seconds} is outside [{frame}, {most}] s"
         )));
     }
     let engine = Qwen3AsrEngine::new(bundle).with_window_seconds(window_seconds);

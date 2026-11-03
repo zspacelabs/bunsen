@@ -28,7 +28,6 @@ use bunsen::{
                     WhisperConstruct,
                     WhisperStreamDriver,
                     WhisperStreamDriverConfig,
-                    WhisperTask,
                 },
                 pretrained::{
                     CHECKPOINT,
@@ -57,52 +56,11 @@ use crate::cli::asr::{
     },
 };
 
-/// What Whisper emits.
-#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Task {
-    /// The speech in its own language.
-    Transcribe,
-
-    /// An English translation of it.
-    Translate,
-}
-
-/// Whisper's own transcription flags.
-#[derive(clap::Args, Debug)]
+/// Whisper's own transcription flags: paths, not policy. The policy is the
+/// model's, its presets and patch resolved
+/// (`--model 'openai/small[translate]{beam_size: 1}'`).
+#[derive(clap::Args, Debug, Default)]
 pub struct WhisperFlags {
-    /// A Whisper language code (`en`, `de`, ...); detected from the first
-    /// window when omitted. English-only checkpoints ignore it.
-    #[arg(long)]
-    pub language: Option<String>,
-
-    /// Transcribe, or translate to English; the model's preset when omitted.
-    #[arg(long, value_enum)]
-    pub task: Option<Task>,
-
-    /// Beams in the search; 1 is greedy. The model's policy when omitted.
-    #[arg(long)]
-    pub beam_size: Option<usize>,
-
-    /// Emit timestamp tokens and split segments on them, seeking to the
-    /// last closed timestamp, as upstream's `transcribe()` does.
-    #[arg(long)]
-    pub timestamps: bool,
-
-    /// Cap on generated tokens per window; the model's policy when omitted.
-    #[arg(long)]
-    pub max_tokens: Option<usize>,
-
-    /// Prompt each window with the transcript so far; the model's policy
-    /// when omitted.
-    #[arg(long, action = clap::ArgAction::Set)]
-    pub prompt_carry: Option<bool>,
-
-    /// Climb upstream's temperature ladder when a window's decode fails its
-    /// thresholds; with `false`, temperature zero alone. The model's policy
-    /// when omitted.
-    #[arg(long, action = clap::ArgAction::Set)]
-    pub fallback: Option<bool>,
-
     /// A vocabulary file (`multilingual.tiktoken`, `gpt2.tiktoken`) in place
     /// of the one the checkpoint's layout selects; trusted as given.
     #[arg(long)]
@@ -156,42 +114,19 @@ pub fn resolve(
     Ok(model)
 }
 
-/// The driver for `bundle` under `flags` and `emission`.
+/// The driver for `bundle` under its policy and `emission`.
 pub fn driver(
     bundle: Arc<WhisperConstruct>,
-    flags: &WhisperFlags,
     emission: Emission,
     device: &Device,
 ) -> BunsenResult<WhisperStreamDriver> {
-    let multilingual = bundle.layout.ids().is_multilingual();
-    if !multilingual && flags.language.is_some() {
-        log::warn!("English-only checkpoint: --language and --task do not apply");
-    }
-    // The model's policy, its presets resolved, under the flags given.
+    // The model's policy, its presets and patch resolved; an English-only
+    // checkpoint is told no language.
     let mut policy = bundle.policy.clone();
-    if let Some(task) = flags.task {
-        policy.task = match task {
-            Task::Transcribe => WhisperTask::Transcribe,
-            Task::Translate => WhisperTask::Translate,
-        };
-    }
-    policy.language = if multilingual {
-        flags.language.clone().or(policy.language)
-    } else {
-        None
-    };
-    policy.timestamps |= flags.timestamps;
-    if let Some(beam_size) = flags.beam_size {
-        policy.beam_size = beam_size;
-    }
-    if let Some(max_tokens) = flags.max_tokens {
-        policy.max_tokens = max_tokens;
-    }
-    if let Some(prompt_carry) = flags.prompt_carry {
-        policy.condition_on_previous_text = prompt_carry;
-    }
-    if let Some(fallback) = flags.fallback {
-        policy.fallback = fallback;
+    if !bundle.layout.ids().is_multilingual()
+        && let Some(language) = policy.language.take()
+    {
+        log::warn!("English-only checkpoint: language {language} does not apply");
     }
     let driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
         .with_policy(&policy)

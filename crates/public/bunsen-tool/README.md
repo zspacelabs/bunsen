@@ -309,13 +309,13 @@ cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech mu
 |---|---|---|---|
 | `en` (`default`) | English, each word timed | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
 | `multi` | any of 30 languages, found from the speech | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
-| `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3`, `--task translate` | `whisper` `openai/small`, `--task translate --beam-size 1`, `conservative` |
+| `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/small[translate]{beam_size: 1}`, `conservative` |
 
 The profiles are this binary's, and improve with it: when a better model arrives, a profile's row changes, and the
 command lines that name the profile do not. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
 command it runs, `-v` logs it before a run, and `transcribe --json` records `profile`, `need` (the point served:
-`speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model, preset, flags) with each
-transcript. `presets fetch NAME...` brings every file a profile runs into the cache, as `family <family> fetch` does
+`speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model expression, emission, push size, VAD)
+with each transcript. `presets fetch NAME...` brings every file a profile runs into the cache, as `family <family> fetch` does
 for a model.
 
 Each profile is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
@@ -337,7 +337,7 @@ The flags choose, in this order:
 4. **What runs.** Without `--preset`, the table's cell for the point. With it, the profile's recipe, and the flags
    may only adjust it: `--quality` moves along the profile's row; `--speech` (or the speech `--language` implies) must
    be one the profile hears (`multi` hears English); a task other than the profile's is set on a model that takes one
-   (Whisper's `--task`; an `--opt` still wins). Anything else is an error that names another profile, or none.
+   (Whisper's `[translate]` preset in its model's box). Anything else is an error that names another profile, or none.
 
 So the task is `transcribe` unless `translate-en` or `--task translate` asks to translate speech that is not English.
 
@@ -347,8 +347,8 @@ So the task is `transcribe` unless `translate-en` or `--task translate` asks to 
 | `--language de` | `multi/transcribe/balanced`: Qwen3-ASR | transcribe |
 | `--task translate` | `multi/translate/balanced`: Whisper | translate |
 | `--speech en --task translate` | `en/transcribe/balanced`: Parakeet | transcribe |
-| `--preset translate-en --task transcribe` | `translate-en`: Whisper, `--task transcribe` | transcribe |
-| `--preset translate-en --speech en` | `translate-en`: Whisper, `--task transcribe` | transcribe |
+| `--preset translate-en --task transcribe` | `translate-en`: Whisper, without `[translate]` | transcribe |
+| `--preset translate-en --speech en` | `translate-en`: Whisper, without `[translate]` | transcribe |
 | `--preset en --task translate` | `en`: Parakeet | transcribe |
 | `--preset en --language de` | an error: `en` hears only English | |
 | `--preset multi --task translate` | an error: Qwen3-ASR cannot translate | |
@@ -363,11 +363,10 @@ A profile's run takes every flag below that is not a family's own (`--publish`, 
 - `--emission` and `--chunk-ms`, in place of the profile's.
 - `--vad EXPR`: the VAD that finds the speech regions, in place of the table's (`silero/vad-16k[faster-whisper]`,
   which `asr presets show` prints). It is an error under `--emission offline`, which finds none.
-- `--opt [FAMILY.]KEY[=VALUE]`, repeated: one of the family's own flags, without its `--` (`KEY` alone is `KEY=true`).
-  With `FAMILY.` (`--opt whisper.beam-size=1`) it applies only while the profile runs that family and is logged as not
-  applied otherwise, so a script keeps working when the profile moves to another family; several families' can be
-  given at once. Without, the profile's family must have it. A key its family does not have is an error either
-  way.
+
+A model's settings are its expression's, not flags: its presets in the box and any field in the patch
+(`--model 'openai/small[translate]{beam_size: 1, timestamps: true}'`; the [table below](#family-settings) has each
+family's). `--language` on Whisper joins the patch, and a task the profile sets joins the box.
 
 ### Choosing a family yourself
 
@@ -385,8 +384,8 @@ bunsen-tool asr diarize          (list|fetch|run|live)        [FLAGS]   # who sp
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet transcribe recording.wav
 cargo run --release -p bunsen-tool --features wgpu -- asr family qwen3-asr transcribe --model qwen/qwen3-asr-1.7b --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr family voxtral transcribe --delay-ms 960 --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcribe --emission conservative --language en recording.wav
+cargo run --release -p bunsen-tool --features wgpu -- asr family voxtral transcribe --model 'mistralai/voxtral-mini-4b-realtime-2602{delay_ms: 960}' --json recording.wav
+cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcribe --emission conservative --model 'openai/base{language: en}' recording.wav
 cargo run --release -p bunsen-tool -- asr family qwen3-asr list
 ```
 
@@ -438,25 +437,25 @@ cargo run --release -p bunsen-tool -- asr live --list-devices
 up to 4 speakers, 80 ms frames). `diarize run FILE...` prints each file's speaker turns as lines of `{start} {end}
 speaker_{k}` in seconds, speakers numbered in the order they first speak; `--rttm` prints NIST RTTM instead (the file's
 stem as its recording id), and `--json` one object per file, its turns and each speaker's total. `diarize live` prints
-each turn as it closes, from the microphone, opened as the families' `live` opens it. `--latency` picks the model's
-streaming preset: `low` (1.04 s, the default), `ultra-low` (0.32 s), `offline` (30.4 s chunks, the most accurate on
-files), and the presets only one family has, `very-low` (0.64 s, Nemotron-3-Diarization) and `high` (10 s, Sortformer
-v2). `--postprocess` picks how activity becomes turns: `none` (thresholds of 0.5, the default), or NeMo's tuned
-`dihard3` or `callhome` parameters. `list` and `fetch` work as for the families.
+each turn as it closes, from the microphone, opened as the families' `live` opens it. The model's presets
+(`--preset`, a comma list) choose its `latency`: `low` (1.04 s, the default), `ultra-low` (0.32 s), `offline` (30.4 s
+chunks, the most accurate on files), and the presets only one family has, `very-low` (0.64 s, Nemotron-3-Diarization)
+and `high` (10 s, Sortformer v2); and its `postprocess`, how activity becomes turns: `none` (thresholds of 0.5, the
+default), or NeMo's tuned `dihard3` or `callhome` parameters. `list` and `fetch` work as for the families.
 
 ```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --latency offline meeting.wav
+cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --preset offline,dihard3 meeting.wav
 cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --rttm meeting.wav > meeting.rttm
 ```
 
 `--diarize` on `transcribe` or `live`, a profile's or any family's, says who said what: the diarizer (`--diarize` alone for
-`nvidia/nemotron-3-diarization`, `--diarize=MODEL` for another) runs beside the recognizer, through the stream
+`nvidia/nemotron-3-diarization`, `--diarize=EXPR` for another, or for its presets) runs beside the recognizer, through the stream
 driver's speaker seam, and labels each word (Parakeet) or segment with its speaker. Qwen3-ASR and Whisper also cut
 their windows at speaker turns, so a segment is one speaker's. The text is printed a line per statement, a run of one
 speaker's words, `[speaker_k] text` (`[?]` where the diarizer heard nobody). Under `--json` each statement is wrapped
 under its speaker, and the `transcript` adds each word's or segment's `speaker`, and the `turns`: each speaker's runs
-with their start, end and text. `--rttm` prints the statements as NIST RTTM. `--diarize-latency` picks the diarizer's streaming preset, as `diarize
---latency` does; a decode waits until the diarizer has caught up with it.
+with their start, end and text. `--rttm` prints the statements as NIST RTTM. The diarizer's latency is its expression's preset, as for `diarize`
+(`--diarize='nvidia/nemotron-3-diarization[very-low]'`); a decode waits until the diarizer has caught up with it.
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- asr live --diarize
@@ -524,12 +523,15 @@ the audio up: a failed POST, or a publish while the broker is gone (`rumqttc` re
 record tried, and at the end each waits for what is queued (MQTT up to 5 s for the broker's acknowledgements). The
 log is filtered as every log is: `RUST_LOG=bunsen_tool::transcript=info` shows a `log` target's records alone.
 
-| Family | Flags of its own |
-|---|---|
-| `parakeet` | `--window-seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it |
-| `qwen3-asr` | `--window-seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third |
-| `voxtral` | `--window-seconds` (30): a full window is committed up to a pause between words, and the rest decoded again with the audio after it; `--delay-ms` (the model's, 480): how far the transcript runs behind the audio, a multiple of 80 up to 1200, or 2400 |
-| `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--beam-size` (5), `--timestamps` (split segments on timestamp tokens), `--max-tokens` (224 a window), `--prompt-carry` (`true`: prompt each window with the transcript so far), `--fallback` (`true`: upstream's temperature ladder), `--vocab` (a vocabulary file in place of the layout's), `--upstream-cache-dir` (`openai-whisper`'s download cache, used in place; `~/.cache/whisper`); `--model` also takes a checkpoint's path |
+<a id="family-settings"></a>A family's settings are its model's policy, set in the model's patch (`--model
+'NAME{key: value}'`) or by its presets; the flags left are paths:
+
+| Family | Settings (patch keys) | Flags of its own |
+|---|---|---|
+| `parakeet` | `window_seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it | |
+| `qwen3-asr` | `window_seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third | |
+| `voxtral` | `window_seconds` (30), as Parakeet's; `delay_ms` (the model's, 480): how far the transcript runs behind the audio, a multiple of 80 up to 1200, or 2400 | |
+| `whisper` | `language` (detected when unset), `task` (`Transcribe`, `Translate`; or the `[translate]` preset), `beam_size` (5), `timestamps` (split segments on timestamp tokens), `max_tokens` (224 a window), `condition_on_previous_text` (`true`: prompt each window with the transcript so far), `fallback` (`true`: upstream's temperature ladder) | `--vocab` (a vocabulary file in place of the layout's), `--upstream-cache-dir` (`openai-whisper`'s download cache, used in place; `~/.cache/whisper`); `--model` also takes a checkpoint's path |
 
 `bunsen-tool asr family whisper inspect NAME|PATH` scans a Whisper checkpoint and checks it against its prefab (its resources and
 where each stands, the geometry it promised, and the one its shapes say); `bunsen-tool asr family whisper prefabs` lists
