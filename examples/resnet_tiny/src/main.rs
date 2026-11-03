@@ -248,7 +248,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
             // the prefab's, and the checkpoint is read into that model.
             let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
             let mut model = default_resnet_factory()?.resolve(pretrained, &cache)?;
-            model.hook = model.hook.with_config(contract.clone());
+            model.config = model.config.with_config(contract.clone());
             let loaded = model.load(&cache, &device)?;
 
             Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))

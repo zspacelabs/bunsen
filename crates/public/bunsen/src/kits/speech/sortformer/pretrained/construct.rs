@@ -39,7 +39,7 @@ use crate::{
                 },
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
 };
 
@@ -75,7 +75,7 @@ impl SortformerReader {
     }
 }
 
-/// The bytes of a `.nemo`'s head [`plan`](Construct::plan) reads its config
+/// The bytes of a `.nemo`'s head [`plan`](ConstructInit::plan) reads its config
 /// from: `NeMo` writes the config, a few kilobytes, before the weights, and
 /// after a tokenizer's files when the model has them.
 pub const NEMO_CONFIG_PREFIX: u64 = 1024 * 1024;
@@ -95,20 +95,20 @@ fn no_nemo_feature() -> BunsenError {
 ///   when the map has none), behind Nemotron's front end; a
 ///   [`SortformerFamily::Nemotron`].
 ///
-/// Either way the config is read in [`plan`](Construct::plan), before the
+/// Either way the config is read in [`plan`](ConstructInit::plan), before the
 /// checkpoint is fetched, so a repo of another model is refused first: a
 /// `config.json` whole, a `.nemo`'s from the archive's head alone.
 ///
-/// The [`Construct`] hook for the Sortformer kit.
+/// The Sortformer kit's construct config: its [`ConstructInit`] hook.
 /// [`default_sortformer_factory`](super::default_sortformer_factory) attaches
 /// it; a caller never builds one.
 #[derive(Clone, Debug)]
-pub struct SortformerConstruct {
+pub struct SortformerConstructConfig {
     /// The checkpoint's reader.
     pub reader: SortformerReader,
 }
 
-impl SortformerConstruct {
+impl SortformerConstructConfig {
     /// The geometry of a map's `config.json` at `path`.
     fn read_config(path: &std::path::Path) -> BunsenResult<NemotronDiarizationConfig> {
         let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
@@ -136,7 +136,7 @@ impl SortformerConstruct {
     /// does not build is refused before the archive is fetched. An archive
     /// whose config is not in its first [`NEMO_CONFIG_PREFIX`] bytes, or a
     /// gzipped one, is checked once it is fetched, in
-    /// [`construct`](Construct::construct).
+    /// [`try_init`](ConstructInit::try_init).
     #[cfg(feature = "nemo")]
     fn check_nemo_config(
         map: &ResourceBundle,
@@ -183,8 +183,8 @@ impl SortformerConstruct {
     }
 }
 
-impl Construct for SortformerConstruct {
-    type Built = SortformerBundle;
+impl ConstructInit for SortformerConstructConfig {
+    type Construct = SortformerBundle;
 
     const KIT: &'static str = SORTFORMER_KIT;
 
@@ -222,7 +222,7 @@ impl Construct for SortformerConstruct {
         Ok(map)
     }
 
-    fn construct(
+    fn try_init(
         &self,
         _model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let hook = SortformerConstruct::for_resource_bundle(
+        let hook = SortformerConstructConfig::for_resource_bundle(
             &NEMOTRON_3_DIARIZATION_FILES.to_resource_bundle(),
         )
         .unwrap();
@@ -255,7 +255,7 @@ mod tests {
         for res in map.resources.values_mut() {
             res.kind = Some("pytorch".into());
         }
-        assert!(SortformerConstruct::for_resource_bundle(&map).is_err());
+        assert!(SortformerConstructConfig::for_resource_bundle(&map).is_err());
         assert!(SortformerReader::for_kind(None).is_err());
         assert_eq!(
             SortformerReader::for_kind(Some(NEMO)).ok(),
@@ -301,7 +301,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let bundle = Deferred::<SortformerConstruct>::from_resource_bundle(map)
+        let bundle = Deferred::<SortformerConstructConfig>::from_resource_bundle(map)
             .unwrap()
             .load(&cache, &cpu_device())
             .unwrap()
@@ -359,7 +359,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let hook = SortformerConstruct {
+        let hook = SortformerConstructConfig {
             reader: SortformerReader::Nemo,
         };
 

@@ -4,8 +4,8 @@
 //! resolves a name to a row and its resource bundle, and brings the bundle's
 //! files local; what turns those files into an in-memory construct is here:
 //!
-//! - [`Construct`]: the kit's hook, which completes a resolved ref's resource
-//!   bundle before it is loaded and builds from the loaded parts.
+//! - [`ConstructInit`]: the kit's hook, which completes a resolved ref's
+//!   resource bundle before it is loaded and builds from the loaded parts.
 //! - [`Deferred`]: a model not yet loaded, its ref paired with the hook that
 //!   will build it.
 //! - [`PretrainedFactory`]: a kit's providers in search order, resolving names

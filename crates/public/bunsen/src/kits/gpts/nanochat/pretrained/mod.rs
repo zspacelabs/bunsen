@@ -31,8 +31,8 @@
 //! # Loading
 //!
 //! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
-//! resolves a name to a deferred model carrying [`NanoChatConstruct`], brings
-//! every file local through the cache, and reads the checkpoint through
+//! resolves a name to a deferred model carrying [`NanoChatConstructConfig`],
+//! brings every file local through the cache, and reads the checkpoint through
 //! [`load_pt_checkpoint`](super::weights::load_pt_checkpoint): the meta's
 //! geometry, which of upstream's models the state dict is, and the weights.
 //! The tokenizer files are handed back as paths, unread: the kit's model is

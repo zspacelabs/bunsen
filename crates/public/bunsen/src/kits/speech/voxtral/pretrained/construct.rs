@@ -38,7 +38,7 @@ use crate::{
             },
         },
         support::{
-            construct::Construct,
+            construct::ConstructInit,
             tokens::TekkenVocabulary,
         },
     },
@@ -54,14 +54,14 @@ use crate::{
 /// ms for the published model); behind a front end of the model's mel count
 /// and the default decoder.
 ///
-/// The [`Construct`] hook for the Voxtral kit.
+/// The Voxtral kit's construct config: its [`ConstructInit`] hook.
 /// [`default_voxtral_factory`](super::default_voxtral_factory) attaches it; a
 /// caller never builds one.
 #[derive(Clone, Debug)]
-pub struct VoxtralConstruct;
+pub struct VoxtralConstructConfig;
 
-impl Construct for VoxtralConstruct {
-    type Built = VoxtralBundle;
+impl ConstructInit for VoxtralConstructConfig {
+    type Construct = VoxtralBundle;
 
     const KIT: &'static str = VOXTRAL_KIT;
 
@@ -92,7 +92,7 @@ impl Construct for VoxtralConstruct {
         Ok(Self)
     }
 
-    fn construct(
+    fn try_init(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
-        VoxtralConstruct::for_resource_bundle(
+        VoxtralConstructConfig::for_resource_bundle(
             &VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_resource_bundle(),
         )
         .unwrap();

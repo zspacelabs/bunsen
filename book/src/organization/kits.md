@@ -21,7 +21,7 @@ appears:
   pretrained table names checkpoints; a factory turns either name into a
   loaded module. The machinery is shared and lives in
   [`bunsen::data::pretrained`]. A kit contributes
-  tables and a `Construct` hook, not a loader of its own. See
+  tables and a `ConstructInit` hook, not a loader of its own. See
   [Files, caches and pretrained models](../systems/pretrained.md).
 - **Configuring it.** A kit's configs follow the Simple or Stacked shape from
   [Module design conventions](../systems/conventions.md). A user-facing
@@ -44,7 +44,7 @@ A new kit grows in roughly this order, and each step is useful on its own:
    blocks and ops where they fit, with shape contracts at its boundaries and
    a narrow `Meta` trait.
 2. **An example** under `examples/` that runs it end to end.
-3. **Names**: a prefab map, then pretrained rows and a `Construct` hook, and
+3. **Names**: a prefab map, then pretrained rows and a `ConstructInit` hook, and
    a `default_{kit}_factory()`, once there are weights to load.
 4. **A validation crate** under `validation/models/`, once the kit claims
    parity with an upstream implementation.

@@ -15,7 +15,7 @@ use crate::{
             WhisperApiConfig,
             driver::WhisperBundle,
             pretrained::{
-                WhisperConstruct,
+                WhisperConstructConfig,
                 default_whisper_providers,
             },
         },
@@ -27,10 +27,10 @@ use crate::{
 };
 
 /// Whisper's factory over [`default_whisper_providers`], building through
-/// [`WhisperConstruct`].
+/// [`WhisperConstructConfig`].
 ///
 /// The index a caller holds: Whisper's providers, resolving names to
-/// [`Deferred`] models that carry the kit's [`WhisperConstruct`] hook,
+/// [`Deferred`] models that carry the kit's [`WhisperConstructConfig`] hook,
 /// chosen by what each row's map says about its checkpoint.
 /// [`load_bundle`](PretrainedFactory::load_bundle) with
 /// `"[provider:]name"` is the whole pathway from a name to a
@@ -43,11 +43,11 @@ use crate::{
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstruct>> {
+pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstructConfig>> {
     PretrainedFactory::new().with_providers(default_whisper_providers())
 }
 
-impl PretrainedFactory<WhisperConstruct> {
+impl PretrainedFactory<WhisperConstructConfig> {
     /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
@@ -62,18 +62,18 @@ impl PretrainedFactory<WhisperConstruct> {
     }
 }
 
-impl Deferred<WhisperConstruct> {
+impl Deferred<WhisperConstructConfig> {
     /// Scans the checkpoint in `loaded` for its config without loading its
     /// weights, and checks it against the geometry this model promises:
     /// the read-only half, for a listing.
     ///
     /// # Errors
-    /// As [`WhisperConstruct::scan`].
+    /// As [`WhisperConstructConfig::scan`].
     pub fn scan(
         &self,
         loaded: &LoadedResources,
     ) -> BunsenResult<WhisperApiConfig> {
-        self.hook.scan(&self.model, loaded)
+        self.config.scan(&self.model, loaded)
     }
 
     /// This model to a bundle: [`load`](Self::load), keeping the handle.
@@ -183,7 +183,7 @@ mod tests {
             }
             other => panic!("{other:?}"),
         }
-        assert!(format!("{:?}", model.hook).contains("WhisperConstruct"));
+        assert!(format!("{:?}", model.config).contains("WhisperConstructConfig"));
         assert_eq!(
             factory
                 .resolve("well-known:openai/tiny.en", &cache)
@@ -200,9 +200,9 @@ mod tests {
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
-        let given = Deferred::<WhisperConstruct>::from_resource_bundle(ResourceBundle::given(
-            spec, CHECKPOINT, &file,
-        ))
+        let given = Deferred::<WhisperConstructConfig>::from_resource_bundle(
+            ResourceBundle::given(spec, CHECKPOINT, &file),
+        )
         .unwrap();
         assert_eq!(given.id(), spec);
         assert!(given.model.named().is_none());
@@ -274,7 +274,7 @@ mod tests {
         let resolved = factory.resolve("hub:openai/whisper-base", &offline_cache_in(dir.path()));
         #[cfg(feature = "store_safetensors")]
         assert!(matches!(
-            resolved.unwrap().hook.reader,
+            resolved.unwrap().config.reader,
             WhisperReader::Safetensors(_)
         ));
         #[cfg(not(feature = "store_safetensors"))]

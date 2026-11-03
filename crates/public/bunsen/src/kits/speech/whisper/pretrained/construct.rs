@@ -48,7 +48,7 @@ use crate::{
             },
         },
         support::{
-            construct::Construct,
+            construct::ConstructInit,
             tokens::TiktokenRanks,
         },
     },
@@ -58,8 +58,8 @@ use crate::{
 /// promises: the files at a name are not the model the name claims.
 ///
 /// The cause of the [`InvalidResource`](BunsenErrorKind::InvalidResource)
-/// error [`WhisperConstruct::scan`] (and so
-/// [`plan`](Construct::plan)) returns for it. A caller that wants to tell
+/// error [`WhisperConstructConfig::scan`] (and so
+/// [`plan`](ConstructInit::plan)) returns for it. A caller that wants to tell
 /// this apart from a checkpoint it could not read at all finds it with
 /// [`BunsenError::find`]:
 ///
@@ -234,25 +234,25 @@ impl WhisperReader {
 /// How a Whisper pretrained is built: the reader for its checkpoint, and
 /// the geometry the checkpoint must have.
 ///
-/// The [`Construct`] hook for the Whisper kit: from a resolved model to a
-/// [`WhisperBundle`]. [`plan`](Construct::plan) scans the checkpoint,
+/// The [`ConstructInit`] hook for the Whisper kit: from a resolved model to a
+/// [`WhisperBundle`]. [`plan`](ConstructInit::plan) scans the checkpoint,
 /// checks it against the geometry the model promises, and applies the
 /// vocabulary rule, all before anything but the checkpoint is brought
-/// local; [`construct`](Construct::construct) reads the checkpoint through
+/// local; [`try_init`](ConstructInit::try_init) reads the checkpoint through
 /// the reader and the vocabulary through the rank parser, and checks that
 /// they agree. [`scan`](Self::scan) is the read-only half, for a listing
 /// that wants the geometry without the weights. The checkpoint is the
 /// map's [family](ResourceBundle::family) under [`CHECKPOINT`]: one resource,
 /// or an index and its shards.
 ///
-/// [`for_resource_bundle`](Construct::for_resource_bundle) chooses the hook by
-/// the checkpoint resource's `kind`, through [`WhisperReader::for_kind`]: a
+/// [`for_resource_bundle`](ConstructInit::for_resource_bundle) chooses the hook
+/// by the checkpoint resource's `kind`, through [`WhisperReader::for_kind`]: a
 /// `PyTorch` row gets the `.pt` scanner, a Hugging Face row the safetensors
 /// one, and a row of a kind neither reads is refused by name rather than
 /// misread. A caller gets this with the deferred model the factory resolves and
 /// never builds it.
 #[derive(Clone, Debug)]
-pub struct WhisperConstruct {
+pub struct WhisperConstructConfig {
     /// How the checkpoint is read: which layout, and what the reader
     /// declares that the file does not record (the head size, the front
     /// end and the token layout).
@@ -265,13 +265,13 @@ pub struct WhisperConstruct {
     pub expected: Option<WhisperGeometry>,
 }
 
-impl Default for WhisperConstruct {
+impl Default for WhisperConstructConfig {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl WhisperConstruct {
+impl WhisperConstructConfig {
     /// Upstream's `.pt` scanner, expecting what the model promises.
     pub fn new() -> Self {
         Self {
@@ -353,8 +353,8 @@ impl WhisperConstruct {
     }
 }
 
-impl Construct for WhisperConstruct {
-    type Built = WhisperBundle;
+impl ConstructInit for WhisperConstructConfig {
+    type Construct = WhisperBundle;
 
     const KIT: &'static str = WHISPER_KIT;
 
@@ -432,7 +432,7 @@ impl Construct for WhisperConstruct {
     /// A layout the checkpoint and the vocabulary disagree on is their
     /// fault, not the code's: it comes back as
     /// [`Policy`](BunsenErrorKind::Policy), under a frame naming the model.
-    fn construct(
+    fn try_init(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -469,25 +469,25 @@ mod reader_tests {
     #[test]
     fn test_the_kind_chooses_the_reader() {
         let mut map = ResourceBundle::given("mine", CHECKPOINT, "/no/such/model.safetensors");
-        let hook = WhisperConstruct::for_resource_bundle(&map).unwrap();
+        let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
         assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
 
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("pytorch fp16".to_string());
-        let hook = WhisperConstruct::for_resource_bundle(&map).unwrap();
+        let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
         assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
 
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some(SAFETENSORS.to_string());
         #[cfg(feature = "store_safetensors")]
         {
-            let hook = WhisperConstruct::for_resource_bundle(&map).unwrap();
+            let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
             assert!(matches!(hook.reader, WhisperReader::Safetensors(_)));
-            assert!(Deferred::<WhisperConstruct>::from_resource_bundle(map.clone()).is_ok());
+            assert!(Deferred::<WhisperConstructConfig>::from_resource_bundle(map.clone()).is_ok());
         }
         #[cfg(not(feature = "store_safetensors"))]
         {
             ErrorMatcher::kind(BunsenErrorKind::Unsupported)
                 .message_contains("store_safetensors")
-                .assert_err(&WhisperConstruct::for_map(&map));
+                .assert_err(&WhisperConstructConfig::for_map(&map));
         }
 
         // A sharded family under the key: its first resource speaks.
@@ -503,24 +503,27 @@ mod reader_tests {
         }
         #[cfg(feature = "store_safetensors")]
         assert!(matches!(
-            WhisperConstruct::for_resource_bundle(&sharded)
+            WhisperConstructConfig::for_resource_bundle(&sharded)
                 .unwrap()
                 .reader,
             WhisperReader::Safetensors(_)
         ));
         #[cfg(not(feature = "store_safetensors"))]
-        assert!(WhisperConstruct::for_map(&sharded).is_err());
+        assert!(WhisperConstructConfig::for_map(&sharded).is_err());
 
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("burnpack".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .frame_contains("checkpoint")
             .display_contains("checkpoint: no reader for a \"burnpack\"")
-            .assert_err(&WhisperConstruct::for_resource_bundle(&map));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .assert_err(&Deferred::<WhisperConstruct>::from_resource_bundle(map));
+            .assert_err(&WhisperConstructConfig::for_resource_bundle(&map));
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(&Deferred::<
+            WhisperConstructConfig,
+        >::from_resource_bundle(
+            map
+        ));
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(
-            &WhisperConstruct::for_resource_bundle(&ResourceBundle::new("empty")),
+            &WhisperConstructConfig::for_resource_bundle(&ResourceBundle::new("empty")),
         );
     }
 }

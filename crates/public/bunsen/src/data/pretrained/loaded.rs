@@ -27,7 +27,7 @@ use crate::{
 ///
 /// What [`PretrainedCache::load`](super::PretrainedCache::load) returns,
 /// and what a kit's
-/// [`Construct::construct`](crate::kits::support::construct::Construct::construct)
+/// [`ConstructInit::try_init`](crate::kits::support::construct::ConstructInit::try_init)
 /// is handed: all it is handed, besides the ref. The hook reads its parts
 /// by key, with [`expect`](Self::expect), [`get`](Self::get), or
 /// [`family`](Self::family) for a checkpoint split across files (as

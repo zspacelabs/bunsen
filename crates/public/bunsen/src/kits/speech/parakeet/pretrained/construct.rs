@@ -37,7 +37,7 @@ use crate::{
                 parakeet_config_from_hf,
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
 };
 
@@ -105,17 +105,17 @@ impl ParakeetReader {
 /// gives ([`parakeet_config_from_hf`]; `parakeet-tdt-0.6b-v3`'s when the map
 /// has none), with its vocabulary, behind the default front end.
 ///
-/// The [`Construct`] hook for the Parakeet kit.
+/// The Parakeet kit's construct config: its [`ConstructInit`] hook.
 /// [`default_parakeet_factory`](super::default_parakeet_factory) attaches
 /// it; a caller never builds one.
 #[derive(Clone, Debug)]
-pub struct ParakeetConstruct {
+pub struct ParakeetConstructConfig {
     /// The checkpoint's reader.
     pub reader: ParakeetReader,
 }
 
-impl Construct for ParakeetConstruct {
-    type Built = ParakeetBundle;
+impl ConstructInit for ParakeetConstructConfig {
+    type Construct = ParakeetBundle;
 
     const KIT: &'static str = PARAKEET_KIT;
 
@@ -141,7 +141,7 @@ impl Construct for ParakeetConstruct {
         Ok(Self { reader })
     }
 
-    fn construct(
+    fn try_init(
         &self,
         _model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -172,13 +172,14 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let nvidia = ParakeetConstruct::for_resource_bundle(
+        let nvidia = ParakeetConstructConfig::for_resource_bundle(
             &PARAKEET_TDT_0_6B_V3_FILES.to_resource_bundle(),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
-        let phonon = ParakeetConstruct::for_resource_bundle(&PHONON_2_ARCHIVE.to_resource_bundle());
+        let phonon =
+            ParakeetConstructConfig::for_resource_bundle(&PHONON_2_ARCHIVE.to_resource_bundle());
         if cfg!(feature = "fermion") {
             assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         } else {

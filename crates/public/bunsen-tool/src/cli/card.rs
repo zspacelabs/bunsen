@@ -21,7 +21,7 @@ use bunsen::{
             whisper::pretrained::default_whisper_factory,
         },
         support::construct::{
-            Construct,
+            ConstructInit,
             PretrainedFactory,
         },
     },
@@ -298,7 +298,7 @@ fn kits() -> BunsenResult<Value> {
 /// `hf`, ...), its name; then a `model:` entry for each row its factory
 /// lists, a summary card: its name, its aliases (none is an empty list,
 /// which the output elides) and its description.
-fn family<H: Construct>(factory: PretrainedFactory<H>) -> Value {
+fn family<H: ConstructInit>(factory: PretrainedFactory<H>) -> Value {
     let providers = factory.providers().iter().map(|provider| {
         Value::map([(
             "provider",

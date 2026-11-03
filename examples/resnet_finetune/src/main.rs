@@ -313,7 +313,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     // The activation rewrite is this example's own surgery: the deferred
     // model's hook builds from this config rather than the prefab's, and
     // the checkpoint is read into that model.
-    model_ref.hook = model_ref.hook.with_config(resnet_config.clone());
+    model_ref.config = model_ref.config.with_config(resnet_config.clone());
     let loaded = model_ref
         .load(&cache, &device)
         .context("loading pretrained weights")?;

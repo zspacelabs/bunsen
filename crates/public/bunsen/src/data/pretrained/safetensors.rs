@@ -196,8 +196,8 @@ impl SafetensorsIndex {
 /// the shards it names. That is the layout an
 /// [`HfProvider`](super::HfProvider) row has.
 ///
-/// A kit's [`Construct`](crate::kits::support::construct::Construct) hook makes
-/// one from the [`LoadedResources`] the cache brought local.
+/// A kit's [`ConstructInit`](crate::kits::support::construct::ConstructInit)
+/// hook makes one from the [`LoadedResources`] the cache brought local.
 /// [`headers`](Self::headers) reads every tensor's name, element type and shape
 /// without touching the data. [`load_into`](Self::load_into) loads every shard
 /// into a module through `burn-store`'s [`SafetensorsStore`], configured by the

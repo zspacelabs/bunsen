@@ -192,7 +192,7 @@
 //!                 pretrained::{
 //!                     CHECKPOINT,
 //!                     VOCABULARY,
-//!                     WhisperConstruct,
+//!                     WhisperConstructConfig,
 //!                     default_whisper_factory,
 //!                 },
 //!             },
@@ -209,7 +209,7 @@
 //!     cache: &PretrainedCache,
 //!     device: &Device,
 //! ) -> BunsenResult<Arc<WhisperBundle>> {
-//!     Deferred::<WhisperConstruct>::from_resource_bundle(
+//!     Deferred::<WhisperConstructConfig>::from_resource_bundle(
 //!         ResourceBundle::given("mine", CHECKPOINT, path),
 //!     )?
 //!     .load_bundle(cache, device)

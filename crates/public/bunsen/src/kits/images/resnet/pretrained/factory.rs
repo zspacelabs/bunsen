@@ -4,7 +4,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         images::resnet::pretrained::{
-            ResNetConstruct,
+            ResNetConstructConfig,
             default_resnet_providers,
         },
         support::construct::PretrainedFactory,
@@ -12,12 +12,12 @@ use crate::{
 };
 
 /// `ResNet`'s factory: [`default_resnet_providers`] behind
-/// [`ResNetConstruct`].
+/// [`ResNetConstructConfig`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::register`], if two of the defaults share a name,
 /// which the tests pin they do not.
-pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstruct>> {
+pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstructConfig>> {
     PretrainedFactory::new().with_providers(default_resnet_providers())
 }
 
@@ -53,7 +53,7 @@ mod tests {
             ]
         );
         assert!(
-            PretrainedFactory::<ResNetConstruct>::new()
+            PretrainedFactory::<ResNetConstructConfig>::new()
                 .with_providers(default_resnet_providers())
                 .unwrap()
                 .with_providers(default_resnet_providers())

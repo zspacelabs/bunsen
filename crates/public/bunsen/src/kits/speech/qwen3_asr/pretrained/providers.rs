@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 
-use super::Qwen3AsrConstruct;
+use super::Qwen3AsrConstructConfig;
 use crate::{
     data::pretrained::{
         HfProvider,
@@ -254,7 +254,7 @@ pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 }
 
 /// Qwen3-ASR's factory over [`default_qwen3_asr_providers`], building
-/// through [`Qwen3AsrConstruct`].
+/// through [`Qwen3AsrConstructConfig`].
 ///
 /// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
 /// is the whole pathway from a name to a [`Qwen3AsrBundle`].
@@ -262,11 +262,11 @@ pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_qwen3_asr_factory() -> BunsenResult<PretrainedFactory<Qwen3AsrConstruct>> {
+pub fn default_qwen3_asr_factory() -> BunsenResult<PretrainedFactory<Qwen3AsrConstructConfig>> {
     PretrainedFactory::new().with_providers(default_qwen3_asr_providers())
 }
 
-impl PretrainedFactory<Qwen3AsrConstruct> {
+impl PretrainedFactory<Qwen3AsrConstructConfig> {
     /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors

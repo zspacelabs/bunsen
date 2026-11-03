@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 
-use super::SortformerConstruct;
+use super::SortformerConstructConfig;
 use crate::{
     data::pretrained::{
         HfProvider,
@@ -174,7 +174,7 @@ pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 }
 
 /// Sortformer's factory over [`default_sortformer_providers`], building
-/// through [`SortformerConstruct`].
+/// through [`SortformerConstructConfig`].
 ///
 /// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
 /// is the whole pathway from a name to a [`SortformerBundle`].
@@ -182,11 +182,11 @@ pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_sortformer_factory() -> BunsenResult<PretrainedFactory<SortformerConstruct>> {
+pub fn default_sortformer_factory() -> BunsenResult<PretrainedFactory<SortformerConstructConfig>> {
     PretrainedFactory::new().with_providers(default_sortformer_providers())
 }
 
-impl PretrainedFactory<SortformerConstruct> {
+impl PretrainedFactory<SortformerConstructConfig> {
     /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors

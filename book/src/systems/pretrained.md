@@ -128,18 +128,18 @@ described under
 
 What a name resolves to is a
 [`Deferred`](bunsen::kits::support::construct::Deferred) model: the row's resource bundle, plus
-the kit's [`Construct`](bunsen::kits::support::construct::Construct) hook. The hook
+the kit's [`ConstructInit`](bunsen::kits::support::construct::ConstructInit) hook. The hook
 is chosen for the resource bundle by
-[`for_resource_bundle`](bunsen::kits::support::construct::Construct::for_resource_bundle), from the
+[`for_resource_bundle`](bunsen::kits::support::construct::ConstructInit::for_resource_bundle), from the
 resources' `kind`s, because rows from different providers can need
 different readers: an OpenAI `.pt` checkpoint and a Hugging Face safetensors
 repo are both Whisper, read two ways.
 
 Loading runs three steps. The hook's
-[`plan`](bunsen::kits::support::construct::Construct::plan) completes the resource bundle and
+[`plan`](bunsen::kits::support::construct::ConstructInit::plan) completes the resource bundle and
 checks what the row promises, such as its prefab, before any bytes are
 fetched. The cache then brings the files local. Finally the hook's
-[`construct`](bunsen::kits::support::construct::Construct::construct) builds the
+[`try_init`](bunsen::kits::support::construct::ConstructInit::try_init) builds the
 model from them. Before loading, a caller can lay its own resources over
 the row's with
 [`with_overlay`](bunsen::kits::support::construct::Deferred::with_overlay), where the

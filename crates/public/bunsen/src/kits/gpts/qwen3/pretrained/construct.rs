@@ -34,7 +34,7 @@ use crate::{
                 qwen3_config_from_hf,
             },
         },
-        support::construct::Construct,
+        support::construct::ConstructInit,
     },
 };
 
@@ -44,14 +44,14 @@ use crate::{
 /// device's float dtype; bundled with the positions the `config.json` says it
 /// was trained on, and every file of the checkpoint by its key.
 ///
-/// The [`Construct`] hook for the Qwen3 kit.
+/// The Qwen3 kit's construct config: its [`ConstructInit`] hook.
 /// [`default_qwen3_factory`](super::default_qwen3_factory) attaches it; a
 /// caller never builds one.
 #[derive(Clone, Debug)]
-pub struct Qwen3Construct;
+pub struct Qwen3ConstructConfig;
 
-impl Construct for Qwen3Construct {
-    type Built = Qwen3Bundle;
+impl ConstructInit for Qwen3ConstructConfig {
+    type Construct = Qwen3Bundle;
 
     const KIT: &'static str = QWEN3_KIT;
 
@@ -70,7 +70,7 @@ impl Construct for Qwen3Construct {
         }
     }
 
-    fn construct(
+    fn try_init(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
@@ -118,13 +118,13 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        Qwen3Construct::for_resource_bundle(&QWEN3_0_6B_FILES.to_resource_bundle()).unwrap();
-        Qwen3Construct::for_resource_bundle(&QWEN3_4B_FILES.to_resource_bundle()).unwrap();
+        Qwen3ConstructConfig::for_resource_bundle(&QWEN3_0_6B_FILES.to_resource_bundle()).unwrap();
+        Qwen3ConstructConfig::for_resource_bundle(&QWEN3_4B_FILES.to_resource_bundle()).unwrap();
 
         let mut gguf = QWEN3_0_6B_FILES.to_resource_bundle();
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
-            .assert_err(&Qwen3Construct::for_resource_bundle(&gguf));
+            .assert_err(&Qwen3ConstructConfig::for_resource_bundle(&gguf));
     }
 }

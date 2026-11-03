@@ -13,7 +13,7 @@ use crate::{
 /// Collection of sample-rate Silero VAD models.
 ///
 /// What a Silero checkpoint holds, and what
-/// [`SileroConstruct`](crate::kits::speech::silero_vad::pretrained::SileroConstruct)
+/// [`SileroConstructConfig`](crate::kits::speech::silero_vad::pretrained::SileroConstructConfig)
 /// builds: one [`SileroVad`] per sample rate (16 kHz and 8 kHz for the
 /// upstream graph). A stream picks its branch by rate with
 /// [`try_branch`](Self::try_branch) or [`expect_branch`](Self::expect_branch).

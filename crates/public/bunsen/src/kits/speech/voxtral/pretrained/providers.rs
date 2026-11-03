@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 
-use super::VoxtralConstruct;
+use super::VoxtralConstructConfig;
 use crate::{
     data::pretrained::{
         HfProvider,
@@ -122,7 +122,7 @@ pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 }
 
 /// Voxtral's factory over [`default_voxtral_providers`], building through
-/// [`VoxtralConstruct`].
+/// [`VoxtralConstructConfig`].
 ///
 /// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
 /// is the whole pathway from a name to a [`VoxtralBundle`].
@@ -130,11 +130,11 @@ pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_voxtral_factory() -> BunsenResult<PretrainedFactory<VoxtralConstruct>> {
+pub fn default_voxtral_factory() -> BunsenResult<PretrainedFactory<VoxtralConstructConfig>> {
     PretrainedFactory::new().with_providers(default_voxtral_providers())
 }
 
-impl PretrainedFactory<VoxtralConstruct> {
+impl PretrainedFactory<VoxtralConstructConfig> {
     /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
