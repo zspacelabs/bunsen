@@ -129,12 +129,12 @@ impl ConstructInit for VoxtralConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::voxtral::pretrained::VOXTRAL_MINI_4B_REALTIME_2602_FILES;
+    use crate::kits::speech::voxtral::pretrained::VOXTRAL_CATALOG;
 
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
         VoxtralConstructConfig::for_resource_bundle(
-            &VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_resource_bundle(),
+            &VOXTRAL_CATALOG.resource_bundle("mistralai/voxtral-mini-4b-realtime-2602"),
         )
         .unwrap();
     }

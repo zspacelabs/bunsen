@@ -164,22 +164,21 @@ impl ConstructInit for ParakeetConstructConfig {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::kits::speech::parakeet::pretrained::{
-        PARAKEET_TDT_0_6B_V3_FILES,
-        PHONON_2_ARCHIVE,
-    };
+    use crate::kits::speech::parakeet::pretrained::PARAKEET_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let nvidia = ParakeetConstructConfig::for_resource_bundle(
-            &PARAKEET_TDT_0_6B_V3_FILES.to_resource_bundle(),
+            &PARAKEET_CATALOG.resource_bundle("nvidia/parakeet-tdt-0.6b-v3"),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
-        let phonon =
-            ParakeetConstructConfig::for_resource_bundle(&PHONON_2_ARCHIVE.to_resource_bundle());
+        let phonon = ParakeetConstructConfig::for_resource_bundle(
+            &PARAKEET_CATALOG.resource_bundle("fermion/phonon-2.bps.tar.zst"),
+        );
         if cfg!(feature = "fermion") {
             assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         } else {

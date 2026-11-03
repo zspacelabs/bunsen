@@ -6,16 +6,10 @@ use burn::tensor::Device;
 use super::SortformerConstructConfig;
 use crate::{
     data::pretrained::{
+        EmbeddedCatalog,
         HfProvider,
         PretrainedCache,
         PretrainedProvider,
-        StaticBase,
-        StaticPretrained,
-        StaticPretrainedGroup,
-        StaticPretrainedTable,
-        StaticResource,
-        StaticResourceBundle,
-        WELL_KNOWN,
     },
     errors::BunsenResult,
     kits::{
@@ -38,122 +32,13 @@ pub const SAFETENSORS: &str = "safetensors";
 /// one archive.
 pub const NEMO: &str = "nemo";
 
-const NVIDIA_ORIGIN: &str = "https://huggingface.co/nvidia/Nemotron-3-Diarization";
-
-/// `nvidia/Nemotron-3-Diarization`'s `transformers` checkpoint, at a fixed
-/// revision.
-pub static NEMOTRON_3_DIARIZATION_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "nvidia/nemotron-3-diarization",
-    description: "Nemotron-3-Diarization: model.safetensors (f32)",
-    license: Some("OpenMDW-1.1"),
-    origin: Some(NVIDIA_ORIGIN),
-    namespace: "nvidia",
-    bases: &[StaticBase::Url(
-        "https://huggingface.co/nvidia/Nemotron-3-Diarization/resolve/f667ed73aee57d40cc39428eb768b4fd87a0a29e",
-    )],
-    resources: &[StaticResource {
-        key: CHECKPOINT,
-        file: "model.safetensors",
-        sha256: Some("c074d86335b3b794f8fa5edc25594558f128bdb3914d27806a3a5a2e44963cb6"),
-        kind: Some(SAFETENSORS),
-        sources: &[],
-    }],
-};
-
-static NEMOTRON_3_DIARIZATION: StaticPretrained<'static> = StaticPretrained {
-    name: "nemotron-3-diarization",
-    aliases: &[],
-    description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames, streaming",
-    license: Some("OpenMDW-1.1"),
-    origin: Some(NVIDIA_ORIGIN),
-    prefab: None,
-    resource_bundles: &[&NEMOTRON_3_DIARIZATION_FILES],
-};
-
-const V2_ORIGIN: &str = "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2";
-
-const V2_1_ORIGIN: &str = "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1";
-
-const NVIDIA_OPEN_MODEL_LICENSE: &str = "NVIDIA Open Model License";
-
-/// `nvidia/diar_streaming_sortformer_4spk-v2`'s `.nemo`, at a fixed revision.
-pub static SORTFORMER_V2_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "nvidia/diar_streaming_sortformer_4spk-v2",
-    description: "Streaming Sortformer v2: diar_streaming_sortformer_4spk-v2.nemo (f32)",
-    license: Some(NVIDIA_OPEN_MODEL_LICENSE),
-    origin: Some(V2_ORIGIN),
-    namespace: "nvidia",
-    bases: &[StaticBase::Url(
-        "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2/resolve/84edd514b8ef68004c10086918cd62f2148cbd59",
-    )],
-    resources: &[StaticResource {
-        key: CHECKPOINT,
-        file: "diar_streaming_sortformer_4spk-v2.nemo",
-        sha256: Some("b371afce2c4958186469df33d939936b9746c89f38b10a69cfd2c61254e83329"),
-        kind: Some(NEMO),
-        sources: &[],
-    }],
-};
-
-/// `nvidia/diar_streaming_sortformer_4spk-v2.1`'s `.nemo`, at a fixed
-/// revision.
-pub static SORTFORMER_V2_1_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "nvidia/diar_streaming_sortformer_4spk-v2.1",
-    description: "Streaming Sortformer v2.1: diar_streaming_sortformer_4spk-v2.1.nemo (f32)",
-    license: Some(NVIDIA_OPEN_MODEL_LICENSE),
-    origin: Some(V2_1_ORIGIN),
-    namespace: "nvidia",
-    bases: &[StaticBase::Url(
-        "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1/resolve/cd03eee90fbec18297ac31b8c21546e596b7f71c",
-    )],
-    resources: &[StaticResource {
-        key: CHECKPOINT,
-        file: "diar_streaming_sortformer_4spk-v2.1.nemo",
-        sha256: Some("8abd32832159c6ac1148c926b7276f35ba34582c444e559dce1f1253fea42ef8"),
-        kind: Some(NEMO),
-        sources: &[],
-    }],
-};
-
-static SORTFORMER_V2: StaticPretrained<'static> = StaticPretrained {
-    name: "diar_streaming_sortformer_4spk-v2",
-    aliases: &["sortformer-v2"],
-    description: "Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames",
-    license: Some(NVIDIA_OPEN_MODEL_LICENSE),
-    origin: Some(V2_ORIGIN),
-    prefab: None,
-    resource_bundles: &[&SORTFORMER_V2_FILES],
-};
-
-static SORTFORMER_V2_1: StaticPretrained<'static> = StaticPretrained {
-    name: "diar_streaming_sortformer_4spk-v2.1",
-    aliases: &["sortformer-v2.1"],
-    description: "Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms frames",
-    license: Some(NVIDIA_OPEN_MODEL_LICENSE),
-    origin: Some(V2_1_ORIGIN),
-    prefab: None,
-    resource_bundles: &[&SORTFORMER_V2_1_FILES],
-};
-
-/// NVIDIA's Sortformer diarizers.
-pub static NVIDIA: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "nvidia",
-    description: "NVIDIA's Sortformer speaker diarizers: Nemotron-3-Diarization as transformers ships it, the streaming Sortformer v2 and v2.1 as NeMo does",
-    license: None,
-    origin: Some("https://huggingface.co/nvidia"),
-    items: &[&NEMOTRON_3_DIARIZATION, &SORTFORMER_V2, &SORTFORMER_V2_1],
-};
-
-/// The Sortformer checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
-/// provider: `well-known:nvidia/nemotron-3-diarization`,
-/// `nvidia/nemotron-3-diarization`, or `nemotron-3-diarization`; and so
-/// `nvidia/diar_streaming_sortformer_4spk-v2` (`sortformer-v2`) and
-/// `nvidia/diar_streaming_sortformer_4spk-v2.1` (`sortformer-v2.1`).
-pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-    name: WELL_KNOWN,
-    description: "the Sortformer diarizers bunsen knows by name",
-    groups: &[&NVIDIA],
-};
+/// The Sortformer checkpoints bunsen knows by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
+/// `nvidia`: Nemotron-3-Diarization, and the streaming Sortformer v2 and v2.1.
+///
+/// Built from `validation/catalogs/sortformer.yml` by `cargo validate catalog`.
+pub static SORTFORMER_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("sortformer", include_str!("catalog.json"));
 
 /// The name [`default_sortformer_factory`] loads when a caller names none.
 pub const DEFAULT_SORTFORMER_MODEL: &str = "nvidia/nemotron-3-diarization";
@@ -164,7 +49,7 @@ pub const DEFAULT_SORTFORMER_MODEL: &str = "nvidia/nemotron-3-diarization";
 /// holding a `NeMo` `.nemo` alone.
 pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(SORTFORMER_CATALOG.table()),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -209,18 +94,19 @@ mod tests {
     /// Every row is pinned, and answers by its qualified and short names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        for (files, kind) in [
-            (&NEMOTRON_3_DIARIZATION_FILES, SAFETENSORS),
-            (&SORTFORMER_V2_FILES, NEMO),
-            (&SORTFORMER_V2_1_FILES, NEMO),
+        SORTFORMER_CATALOG.catalog().validate(&[]).unwrap();
+        for (name, kind) in [
+            ("nvidia/nemotron-3-diarization", SAFETENSORS),
+            ("nvidia/diar_streaming_sortformer_4spk-v2", NEMO),
+            ("nvidia/diar_streaming_sortformer_4spk-v2.1", NEMO),
         ] {
-            let map = files.to_resource_bundle();
+            let map = SORTFORMER_CATALOG.resource_bundle(name);
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
-            assert!(checkpoint.is_pinned(), "{}", files.name);
-            assert_eq!(checkpoint.urls().len(), 1, "{}", files.name);
+            assert!(checkpoint.is_pinned(), "{name}");
+            assert_eq!(checkpoint.urls().len(), 1, "{name}");
             assert!(checkpoint.urls()[0].ends_with(&checkpoint.file));
-            assert_eq!(checkpoint.kind.as_deref(), Some(kind), "{}", files.name);
+            assert_eq!(checkpoint.kind.as_deref(), Some(kind), "{name}");
         }
 
         let factory = default_sortformer_factory().unwrap();

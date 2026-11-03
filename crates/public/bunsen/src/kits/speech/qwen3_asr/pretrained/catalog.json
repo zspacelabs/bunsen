@@ -1,0 +1,194 @@
+{
+  "kit": "qwen3-asr",
+  "name": "well-known",
+  "description": "the Qwen3-ASR checkpoints bunsen knows by name",
+  "groups": [
+    {
+      "name": "fermion",
+      "description": "FermionResearch's Phonon-1 builds of Qwen3-ASR-0.6B",
+      "license": "Apache-2.0",
+      "origin": "https://github.com/fermionresearch/phonon",
+      "rows": [
+        {
+          "name": "phonon-1",
+          "description": "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 415 MB",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/FermionResearch/Phonon-1",
+          "prefab": "qwen3-asr-0.6b",
+          "bundles": [
+            "fermion/phonon-audio6.bps.tar.zst"
+          ]
+        },
+        {
+          "name": "phonon-1-micro",
+          "description": "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 285 MB",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/FermionResearch/Phonon-1-Micro",
+          "prefab": "qwen3-asr-0.6b",
+          "bundles": [
+            "fermion/phonon-micro.bps.tar.zst"
+          ]
+        },
+        {
+          "name": "phonon-1-big",
+          "description": "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 581 MB",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/FermionResearch/Phonon-1-Big",
+          "prefab": "qwen3-asr-0.6b",
+          "bundles": [
+            "fermion/phonon-parity.bps.tar.zst"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "qwen",
+      "description": "Qwen's Qwen3-ASR speech recognizers, as transformers ships them",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf",
+      "rows": [
+        {
+          "name": "qwen3-asr-0.6b",
+          "description": "Qwen3-ASR-0.6B: 0.8 B parameters, bf16, 30 languages",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf",
+          "prefab": "qwen3-asr-0.6b",
+          "bundles": [
+            "qwen/qwen3-asr-0.6b"
+          ]
+        },
+        {
+          "name": "qwen3-asr-1.7b",
+          "description": "Qwen3-ASR-1.7B: 2.0 B parameters, bf16, 30 languages",
+          "license": "Apache-2.0",
+          "origin": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf",
+          "prefab": "qwen3-asr-1.7b",
+          "bundles": [
+            "qwen/qwen3-asr-1.7b"
+          ]
+        }
+      ]
+    }
+  ],
+  "bundles": [
+    {
+      "name": "fermion/phonon-audio6.bps.tar.zst",
+      "description": "Phonon-1: quint5 text decoder, 6-bit audio tower, 8-bit embedding, zstd tar",
+      "license": "Apache-2.0",
+      "origin": "https://github.com/fermionresearch/phonon",
+      "namespace": "fermion",
+      "bases": [
+        {
+          "url": "https://huggingface.co/FermionResearch/Phonon-1/resolve/68f96e309cd19bf5b9b72c0ead80eed92a499eae"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "phonon-audio6.bps.tar.zst",
+          "sha256": "214c3b45aa57257013811a53f99a905848466ad4ab21f2b2f8368f7ac79427b2",
+          "kind": "phonon archive",
+          "size": 415077202
+        }
+      ]
+    },
+    {
+      "name": "fermion/phonon-micro.bps.tar.zst",
+      "description": "Phonon-1-Micro: quint5 text decoder, 4-bit audio tower and embedding, zstd tar",
+      "license": "Apache-2.0",
+      "origin": "https://github.com/fermionresearch/phonon",
+      "namespace": "fermion",
+      "bases": [
+        {
+          "url": "https://huggingface.co/FermionResearch/Phonon-1-Micro/resolve/e916a4f8e30ed5c3ddfc1808429f049669bd8bf3"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "phonon-micro.bps.tar.zst",
+          "sha256": "8a03e55d78e65c10f6ce22aff7e32359ca6a7aaa27973435b9ebc3cdbff13f9c",
+          "kind": "phonon archive",
+          "size": 285083584
+        }
+      ]
+    },
+    {
+      "name": "fermion/phonon-parity.bps.tar.zst",
+      "description": "Phonon-1-Big: quint5 text decoder, bf16 audio tower and embedding, zstd tar",
+      "license": "Apache-2.0",
+      "origin": "https://github.com/fermionresearch/phonon",
+      "namespace": "fermion",
+      "bases": [
+        {
+          "url": "https://huggingface.co/FermionResearch/Phonon-1-Big/resolve/74ec0333ac8a5ede5e855489c069ef763bc99edb"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "phonon-parity.bps.tar.zst",
+          "sha256": "5dbd566d022a05bac045d1e84f0bf6188999494070e2a00dc5fd1bac6caffdb9",
+          "kind": "phonon archive",
+          "size": 580892956
+        }
+      ]
+    },
+    {
+      "name": "qwen/qwen3-asr-0.6b",
+      "description": "Qwen3-ASR-0.6B: model.safetensors (bf16) and tokenizer.json",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf",
+      "namespace": "qwen",
+      "bases": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf/resolve/7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35",
+          "kind": "safetensors",
+          "size": 1564928088
+        },
+        {
+          "key": "vocabulary",
+          "file": "tokenizer.json",
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "kind": "tokenizer.json",
+          "size": 11429653
+        }
+      ]
+    },
+    {
+      "name": "qwen/qwen3-asr-1.7b",
+      "description": "Qwen3-ASR-1.7B: model.safetensors (bf16) and tokenizer.json",
+      "license": "Apache-2.0",
+      "origin": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf",
+      "namespace": "qwen",
+      "bases": [
+        {
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1",
+          "kind": "safetensors",
+          "size": 4076193080
+        },
+        {
+          "key": "vocabulary",
+          "file": "tokenizer.json",
+          "sha256": "fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05",
+          "kind": "tokenizer.json",
+          "size": 11429653
+        }
+      ]
+    }
+  ]
+}

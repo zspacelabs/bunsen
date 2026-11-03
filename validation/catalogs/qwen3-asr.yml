@@ -1,0 +1,90 @@
+# The qwen3-asr kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/speech/qwen3_asr/pretrained/catalog.json`.
+kit: qwen3-asr
+out: crates/public/bunsen/src/kits/speech/qwen3_asr/pretrained/catalog.json
+name: "well-known"
+description: "the Qwen3-ASR checkpoints bunsen knows by name"
+groups:
+  - name: "fermion"
+    description: "FermionResearch's Phonon-1 builds of Qwen3-ASR-0.6B"
+    license: "Apache-2.0"
+    origin: "https://github.com/fermionresearch/phonon"
+    rows:
+      - name: "phonon-1"
+        description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 415 MB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/FermionResearch/Phonon-1"
+        prefab: "qwen3-asr-0.6b"
+        bundles: ["fermion/phonon-audio6.bps.tar.zst"]
+      - name: "phonon-1-micro"
+        description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 285 MB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/FermionResearch/Phonon-1-Micro"
+        prefab: "qwen3-asr-0.6b"
+        bundles: ["fermion/phonon-micro.bps.tar.zst"]
+      - name: "phonon-1-big"
+        description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 581 MB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/FermionResearch/Phonon-1-Big"
+        prefab: "qwen3-asr-0.6b"
+        bundles: ["fermion/phonon-parity.bps.tar.zst"]
+  - name: "qwen"
+    description: "Qwen's Qwen3-ASR speech recognizers, as transformers ships them"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
+    rows:
+      - name: "qwen3-asr-0.6b"
+        description: "Qwen3-ASR-0.6B: 0.8 B parameters, bf16, 30 languages"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
+        prefab: "qwen3-asr-0.6b"
+        bundles: ["qwen/qwen3-asr-0.6b"]
+      - name: "qwen3-asr-1.7b"
+        description: "Qwen3-ASR-1.7B: 2.0 B parameters, bf16, 30 languages"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf"
+        prefab: "qwen3-asr-1.7b"
+        bundles: ["qwen/qwen3-asr-1.7b"]
+bundles:
+  - name: "fermion/phonon-audio6.bps.tar.zst"
+    description: "Phonon-1: quint5 text decoder, 6-bit audio tower, 8-bit embedding, zstd tar"
+    license: "Apache-2.0"
+    origin: "https://github.com/fermionresearch/phonon"
+    namespace: "fermion"
+    hub: { repo: "FermionResearch/Phonon-1", revision: "68f96e309cd19bf5b9b72c0ead80eed92a499eae" }
+    resources:
+      - { key: "checkpoint", file: "phonon-audio6.bps.tar.zst", kind: "phonon archive" }
+  - name: "fermion/phonon-micro.bps.tar.zst"
+    description: "Phonon-1-Micro: quint5 text decoder, 4-bit audio tower and embedding, zstd tar"
+    license: "Apache-2.0"
+    origin: "https://github.com/fermionresearch/phonon"
+    namespace: "fermion"
+    hub: { repo: "FermionResearch/Phonon-1-Micro", revision: "e916a4f8e30ed5c3ddfc1808429f049669bd8bf3" }
+    resources:
+      - { key: "checkpoint", file: "phonon-micro.bps.tar.zst", kind: "phonon archive" }
+  - name: "fermion/phonon-parity.bps.tar.zst"
+    description: "Phonon-1-Big: quint5 text decoder, bf16 audio tower and embedding, zstd tar"
+    license: "Apache-2.0"
+    origin: "https://github.com/fermionresearch/phonon"
+    namespace: "fermion"
+    hub: { repo: "FermionResearch/Phonon-1-Big", revision: "74ec0333ac8a5ede5e855489c069ef763bc99edb" }
+    resources:
+      - { key: "checkpoint", file: "phonon-parity.bps.tar.zst", kind: "phonon archive" }
+  - name: "qwen/qwen3-asr-0.6b"
+    description: "Qwen3-ASR-0.6B: model.safetensors (bf16) and tokenizer.json"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-ASR-0.6B-hf", revision: "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "vocabulary", file: "tokenizer.json", kind: "tokenizer.json" }
+  - name: "qwen/qwen3-asr-1.7b"
+    description: "Qwen3-ASR-1.7B: model.safetensors (bf16) and tokenizer.json"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-ASR-1.7B-hf", revision: "bcd2b5b7f32b480ab5790554cfa8347f246a14f3" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "vocabulary", file: "tokenizer.json", kind: "tokenizer.json" }

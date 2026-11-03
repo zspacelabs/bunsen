@@ -6,16 +6,10 @@ use burn::tensor::Device;
 use super::VoxtralConstructConfig;
 use crate::{
     data::pretrained::{
+        EmbeddedCatalog,
         HfProvider,
         PretrainedCache,
         PretrainedProvider,
-        StaticBase,
-        StaticPretrained,
-        StaticPretrainedGroup,
-        StaticPretrainedTable,
-        StaticResource,
-        StaticResourceBundle,
-        WELL_KNOWN,
     },
     errors::BunsenResult,
     kits::{
@@ -40,68 +34,13 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a Mistral `tekken.json` vocabulary.
 pub const TEKKEN_JSON: &str = "tekken.json";
 
-/// The prefab the published row instantiates.
-const PREFAB: &str = "voxtral-mini-4b-realtime-2602";
-
-const MISTRAL_ORIGIN: &str = "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602";
-
-/// `mistralai/Voxtral-Mini-4B-Realtime-2602`'s checkpoint and vocabulary, at
-/// a fixed revision.
-pub static VOXTRAL_MINI_4B_REALTIME_2602_FILES: StaticResourceBundle<'static> =
-    StaticResourceBundle {
-        name: "mistralai/voxtral-mini-4b-realtime-2602",
-        description: "Voxtral-Mini-4B-Realtime-2602: model.safetensors (bf16) and tekken.json",
-        license: Some("Apache-2.0"),
-        origin: Some(MISTRAL_ORIGIN),
-        namespace: "mistralai",
-        bases: &[StaticBase::Url(
-            "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602/resolve/2769294da9567371363522aac9bbcfdd19447add",
-        )],
-        resources: &[
-            StaticResource {
-                key: CHECKPOINT,
-                file: "model.safetensors",
-                sha256: Some("e745e4902df6a4c48f29f2f8dc1f6d0fb4cc73c7156bc45923451a5bcdfcd1d6"),
-                kind: Some(SAFETENSORS),
-                sources: &[],
-            },
-            StaticResource {
-                key: VOCABULARY,
-                file: "tekken.json",
-                sha256: Some("8434af1d39eba99f0ef46cf1450bf1a63fa941a26933a1ef5dbbf4adf0d00e44"),
-                kind: Some(TEKKEN_JSON),
-                sources: &[],
-            },
-        ],
-    };
-
-static VOXTRAL_MINI_4B_REALTIME_2602: StaticPretrained<'static> = StaticPretrained {
-    name: "voxtral-mini-4b-realtime-2602",
-    aliases: &["voxtral-mini-4b-realtime"],
-    description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, bf16, 13 languages, streaming",
-    license: Some("Apache-2.0"),
-    origin: Some(MISTRAL_ORIGIN),
-    prefab: Some(PREFAB),
-    resource_bundles: &[&VOXTRAL_MINI_4B_REALTIME_2602_FILES],
-};
-
-/// Mistral's Voxtral Realtime models.
-pub static MISTRALAI: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "mistralai",
-    description: "Mistral's Voxtral Realtime speech recognizers",
-    license: Some("Apache-2.0"),
-    origin: Some(MISTRAL_ORIGIN),
-    items: &[&VOXTRAL_MINI_4B_REALTIME_2602],
-};
-
-/// The Voxtral checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
-/// provider: `well-known:mistralai/voxtral-mini-4b-realtime-2602`,
-/// `mistralai/voxtral-mini-4b-realtime-2602`, or `voxtral-mini-4b-realtime`.
-pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-    name: WELL_KNOWN,
-    description: "the Voxtral Realtime checkpoints bunsen knows by name",
-    groups: &[&MISTRALAI],
-};
+/// The Voxtral Realtime checkpoints bunsen knows by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
+/// `mistralai`: Voxtral-Mini-4B-Realtime-2602.
+///
+/// Built from `validation/catalogs/voxtral.yml` by `cargo validate catalog`.
+pub static VOXTRAL_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("voxtral", include_str!("catalog.json"));
 
 /// The name [`default_voxtral_factory`] loads when a caller names none.
 pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral-mini-4b-realtime-2602";
@@ -112,7 +51,7 @@ pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral-mini-4b-realtime-2602
 /// `tekken.json` as the vocabulary).
 pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(VOXTRAL_CATALOG.table()),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -159,7 +98,9 @@ mod tests {
     /// qualified, short and aliased names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        let map = VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_resource_bundle();
+        let prefabs: Vec<&str> = VOXTRAL_PREFABS.iter().map(|p| p.name).collect();
+        VOXTRAL_CATALOG.catalog().validate(&prefabs).unwrap();
+        let map = VOXTRAL_CATALOG.resource_bundle("mistralai/voxtral-mini-4b-realtime-2602");
         map.validate().unwrap();
         for key in [CHECKPOINT, VOCABULARY] {
             let resource = map.get(key).unwrap();

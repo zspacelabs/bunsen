@@ -6,16 +6,10 @@ use burn::tensor::Device;
 use super::ParakeetConstructConfig;
 use crate::{
     data::pretrained::{
+        EmbeddedCatalog,
         HfProvider,
         PretrainedCache,
         PretrainedProvider,
-        StaticBase,
-        StaticPretrained,
-        StaticPretrainedGroup,
-        StaticPretrainedTable,
-        StaticResource,
-        StaticResourceBundle,
-        WELL_KNOWN,
     },
     errors::BunsenResult,
     kits::{
@@ -45,104 +39,14 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a `transformers` `tokenizer.json` vocabulary.
 pub const TOKENIZER_JSON: &str = "tokenizer.json";
 
-const PHONON_ORIGIN: &str = "https://huggingface.co/FermionResearch/Phonon-2";
-
-const NVIDIA_ORIGIN: &str = "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3";
-
-/// `FermionResearch/Phonon-2`'s archive, at a fixed revision.
-pub static PHONON_2_ARCHIVE: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "fermion/phonon-2.bps.tar.zst",
-    description: "Phonon-2: the five-value container and its NeMo config, zstd tar",
-    license: Some("CC-BY-4.0"),
-    origin: Some(PHONON_ORIGIN),
-    namespace: "fermion",
-    bases: &[StaticBase::Url(
-        "https://huggingface.co/FermionResearch/Phonon-2/resolve/7e153e4054c0a10db6d47d6fff5c062d4c77c154",
-    )],
-    resources: &[StaticResource {
-        key: CHECKPOINT,
-        file: "phonon-2.bps.tar.zst",
-        sha256: Some("98125795b6dda72f5c6eee9ba33d19815df65dcb18b50a357bf9f73c9935309e"),
-        kind: Some(PHONON_ARCHIVE),
-        sources: &[],
-    }],
-};
-
-/// `nvidia/parakeet-tdt-0.6b-v3`'s `transformers` checkpoint and tokenizer,
-/// at a fixed revision.
-pub static PARAKEET_TDT_0_6B_V3_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "nvidia/parakeet-tdt-0.6b-v3",
-    description: "parakeet-tdt-0.6b-v3: model.safetensors (f32) and tokenizer.json",
-    license: Some("CC-BY-4.0"),
-    origin: Some(NVIDIA_ORIGIN),
-    namespace: "nvidia",
-    bases: &[StaticBase::Url(
-        "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b",
-    )],
-    resources: &[
-        StaticResource {
-            key: CHECKPOINT,
-            file: "model.safetensors",
-            sha256: Some("3a2026366188c8c68598edbbff92f8d11590a08e0ae2e6775544e7b07d6a5e11"),
-            kind: Some(SAFETENSORS),
-            sources: &[],
-        },
-        StaticResource {
-            key: VOCABULARY,
-            file: "tokenizer.json",
-            sha256: Some("bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91"),
-            kind: Some(TOKENIZER_JSON),
-            sources: &[],
-        },
-    ],
-};
-
-static PHONON_2: StaticPretrained<'static> = StaticPretrained {
-    name: "phonon-2",
-    aliases: &["phonon"],
-    description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, 164 MB, English",
-    license: Some("CC-BY-4.0"),
-    origin: Some(PHONON_ORIGIN),
-    prefab: None,
-    resource_bundles: &[&PHONON_2_ARCHIVE],
-};
-
-static PARAKEET_TDT_0_6B_V3: StaticPretrained<'static> = StaticPretrained {
-    name: "parakeet-tdt-0.6b-v3",
-    aliases: &[],
-    description: "parakeet-tdt-0.6b-v3: 600 M parameters, f32, 25 European languages",
-    license: Some("CC-BY-4.0"),
-    origin: Some(NVIDIA_ORIGIN),
-    prefab: None,
-    resource_bundles: &[&PARAKEET_TDT_0_6B_V3_FILES],
-};
-
-/// `FermionResearch`'s Phonon models.
-pub static FERMION: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "fermion",
-    description: "FermionResearch's Phonon speech recognizers",
-    license: Some("CC-BY-4.0"),
-    origin: Some("https://github.com/fermionresearch/phonon"),
-    items: &[&PHONON_2],
-};
-
-/// NVIDIA's Parakeet TDT models.
-pub static NVIDIA: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "nvidia",
-    description: "NVIDIA's Parakeet TDT speech recognizers, as transformers ships them",
-    license: Some("CC-BY-4.0"),
-    origin: Some(NVIDIA_ORIGIN),
-    items: &[&PARAKEET_TDT_0_6B_V3],
-};
-
-/// The Parakeet checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
-/// provider: `well-known:fermion/phonon-2`, `fermion/phonon-2`, or
-/// `phonon-2`.
-pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-    name: WELL_KNOWN,
-    description: "the Parakeet TDT checkpoints bunsen knows by name",
-    groups: &[&FERMION, &NVIDIA],
-};
+/// The Parakeet checkpoints bunsen knows by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider: in group
+/// `fermion`, `FermionResearch`'s Phonon-2 archive, and in group `nvidia`,
+/// NVIDIA's Parakeet TDT 0.6B v3.
+///
+/// Built from `validation/catalogs/parakeet.yml` by `cargo validate catalog`.
+pub static PARAKEET_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("parakeet", include_str!("catalog.json"));
 
 /// The name [`default_parakeet_factory`] loads when a caller names none.
 pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
@@ -153,7 +57,7 @@ pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(PARAKEET_CATALOG.table()),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -199,8 +103,9 @@ mod tests {
     /// names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        for map in [&PHONON_2_ARCHIVE, &PARAKEET_TDT_0_6B_V3_FILES] {
-            let map = map.to_resource_bundle();
+        PARAKEET_CATALOG.catalog().validate(&[]).unwrap();
+        for bundle in &PARAKEET_CATALOG.catalog().bundles {
+            let map = bundle.to_resource_bundle();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);

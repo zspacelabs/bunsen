@@ -9,7 +9,7 @@
 //! # The index
 //!
 //! [`default_qwen3_asr_factory`] is the index a caller holds, over two
-//! providers. First the well-known table, [`WELL_KNOWN_TABLE`], whose rows
+//! providers. First the well-known table, [`QWEN3_ASR_CATALOG`], whose rows
 //! name their prefab in [`QWEN3_ASR_PREFABS`]:
 //!
 //! - `fermion/phonon-1` (`phonon-1`): `FermionResearch`'s Phonon-1, an English

@@ -1,0 +1,53 @@
+# The sortformer kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/speech/sortformer/pretrained/catalog.json`.
+kit: sortformer
+out: crates/public/bunsen/src/kits/speech/sortformer/pretrained/catalog.json
+name: "well-known"
+description: "the Sortformer diarizers bunsen knows by name"
+groups:
+  - name: "nvidia"
+    description: "NVIDIA's Sortformer speaker diarizers: Nemotron-3-Diarization as transformers ships it, the streaming Sortformer v2 and v2.1 as NeMo does"
+    origin: "https://huggingface.co/nvidia"
+    rows:
+      - name: "nemotron-3-diarization"
+        description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames, streaming"
+        license: "OpenMDW-1.1"
+        origin: "https://huggingface.co/nvidia/Nemotron-3-Diarization"
+        bundles: ["nvidia/nemotron-3-diarization"]
+      - name: "diar_streaming_sortformer_4spk-v2"
+        aliases: ["sortformer-v2"]
+        description: "Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames"
+        license: "NVIDIA Open Model License"
+        origin: "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2"
+        bundles: ["nvidia/diar_streaming_sortformer_4spk-v2"]
+      - name: "diar_streaming_sortformer_4spk-v2.1"
+        aliases: ["sortformer-v2.1"]
+        description: "Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms frames"
+        license: "NVIDIA Open Model License"
+        origin: "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1"
+        bundles: ["nvidia/diar_streaming_sortformer_4spk-v2.1"]
+bundles:
+  - name: "nvidia/nemotron-3-diarization"
+    description: "Nemotron-3-Diarization: model.safetensors (f32)"
+    license: "OpenMDW-1.1"
+    origin: "https://huggingface.co/nvidia/Nemotron-3-Diarization"
+    namespace: "nvidia"
+    hub: { repo: "nvidia/Nemotron-3-Diarization", revision: "f667ed73aee57d40cc39428eb768b4fd87a0a29e" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+  - name: "nvidia/diar_streaming_sortformer_4spk-v2"
+    description: "Streaming Sortformer v2: diar_streaming_sortformer_4spk-v2.nemo (f32)"
+    license: "NVIDIA Open Model License"
+    origin: "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2"
+    namespace: "nvidia"
+    hub: { repo: "nvidia/diar_streaming_sortformer_4spk-v2", revision: "84edd514b8ef68004c10086918cd62f2148cbd59" }
+    resources:
+      - { key: "checkpoint", file: "diar_streaming_sortformer_4spk-v2.nemo", kind: "nemo" }
+  - name: "nvidia/diar_streaming_sortformer_4spk-v2.1"
+    description: "Streaming Sortformer v2.1: diar_streaming_sortformer_4spk-v2.1.nemo (f32)"
+    license: "NVIDIA Open Model License"
+    origin: "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1"
+    namespace: "nvidia"
+    hub: { repo: "nvidia/diar_streaming_sortformer_4spk-v2.1", revision: "cd03eee90fbec18297ac31b8c21546e596b7f71c" }
+    resources:
+      - { key: "checkpoint", file: "diar_streaming_sortformer_4spk-v2.1.nemo", kind: "nemo" }
