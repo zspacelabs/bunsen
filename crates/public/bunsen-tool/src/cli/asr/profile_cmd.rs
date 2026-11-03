@@ -105,7 +105,9 @@ pub struct ProfileArgs {
     pub language: Option<String>,
 
     /// The model, as a lookup expression (`'openai/small[translate]{beam_size:
-    /// 1}'`), in place of the profile's: a model of the family it runs.
+    /// 1}'`), in place of the profile's. The family that lists it runs, the
+    /// profile's when it does; a name no family lists (`hf:`, a path) runs
+    /// in the profile's.
     #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 
@@ -161,6 +163,53 @@ impl ProfileArgs {
             ))),
             (Some(speech), _) => Ok(Some(speech)),
             (None, implied) => Ok(implied),
+        }
+    }
+
+    /// The family that runs where the table picked `picked`: without
+    /// `--model`, `picked`; with it, the family that lists the model's name,
+    /// `picked` when it does, or `picked` when none does (an `hf:` repo, a
+    /// checkpoint path). A switch is logged at `INFO`.
+    ///
+    /// # Errors
+    /// As [`LookupExpr::parse`](bunsen::kits::support::construct::LookupExpr::parse)
+    /// on `--model`; [`Policy`](bunsen::errors::BunsenErrorKind::Policy)
+    /// when more than one other family lists it.
+    fn family(
+        &self,
+        picked: Family,
+    ) -> BunsenResult<Family> {
+        let Some(model) = &self.model else {
+            return Ok(picked);
+        };
+        let name = bunsen::kits::support::construct::LookupExpr::parse(model)?.name;
+        if Kit::Asr(picked).lists(&name)? {
+            return Ok(picked);
+        }
+        let mut others = Vec::new();
+        for family in Family::ALL {
+            if family != picked && Kit::Asr(family).lists(&name)? {
+                others.push(family);
+            }
+        }
+        match others.as_slice() {
+            [] => Ok(picked),
+            [family] => {
+                log::info!(
+                    "--model {model}: a {} model, so {} runs in place of {}",
+                    family.name(),
+                    family.name(),
+                    picked.name()
+                );
+                Ok(*family)
+            }
+            many => {
+                let names: Vec<&str> = many.iter().map(|f| f.name()).collect();
+                Err(BunsenError::policy(format!(
+                    "--model {model}: {} each list it; `asr family <family>` names one",
+                    names.join(" and ")
+                )))
+            }
         }
     }
 
@@ -241,7 +290,7 @@ impl ProfileArgs {
             ..profile.need
         };
         let task = if need.task != cell.task {
-            let family = pick(cell, mode).0.recipe.engine.family;
+            let family = self.family(pick(cell, mode).0.recipe.engine.family)?;
             if family != Family::Whisper {
                 let task = value_name(need.task);
                 return Err(BunsenError::policy(format!(
@@ -282,6 +331,7 @@ impl ProfileArgs {
         }
         let mut recipe = cell.recipe.clone();
         if let Some(model) = &self.model {
+            recipe.engine.family = self.family(recipe.engine.family)?;
             recipe.engine.model = model.clone();
         }
         let mut resolved = recipe.resolve(
@@ -608,8 +658,8 @@ mod tests {
         ))
     }
 
-    /// The slot flags: `--model` replaces the engine's model in the family
-    /// the profile runs; `--vad` the VAD's, under an emission that finds
+    /// The slot flags: `--model` replaces the engine's model, in the family
+    /// that lists it; `--vad` the VAD's, under an emission that finds
     /// speech regions, and an error under one that does not.
     #[test]
     fn test_slots() {
@@ -623,6 +673,37 @@ mod tests {
             (Family::Qwen3Asr, "fermion/phonon-1")
         );
         assert_eq!(r.vad, None);
+
+        // A model another family lists runs in that family: Whisper's, under
+        // `en`, which runs Parakeet; its expression's box and patch aside,
+        // case aside.
+        let r = resolve(&["--model", "OpenAI/Small{beam_size: 2}"], Mode::Offline).unwrap();
+        assert_eq!(r.family, Family::Whisper);
+        assert_eq!(r.model, "OpenAI/Small{beam_size: 2}");
+        assert_eq!(r.task(), Task::Transcribe);
+        // A task the profile's family cannot do, on a model that can.
+        let r = resolve(
+            &[
+                "--preset",
+                "multi",
+                "--task",
+                "translate",
+                "--model",
+                "openai/small",
+            ],
+            Mode::Live,
+        )
+        .unwrap();
+        assert_eq!(
+            (r.family, r.model.as_str(), r.need.task),
+            (Family::Whisper, "openai/small[translate]", Task::Translate)
+        );
+        assert!(resolve(&["--preset", "multi", "--task", "translate"], Mode::Live).is_err());
+        // A name no family lists runs in the profile's family.
+        let r = resolve(&["--model", "hf:org/repo"], Mode::Offline).unwrap();
+        assert_eq!(r.family, Family::Parakeet);
+        let r = resolve(&["--model", "well-known:openai/tiny"], Mode::Offline).unwrap();
+        assert_eq!(r.family, Family::Whisper);
 
         // Live finds speech regions: the table's VAD, or `--vad`'s.
         let table = catalog().vad.as_str();

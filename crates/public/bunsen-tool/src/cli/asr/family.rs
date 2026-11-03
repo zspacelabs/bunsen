@@ -246,6 +246,28 @@ impl Kit {
         }
     }
 
+    /// Whether the kit's factory lists `name`, a row's name or alias, with
+    /// or without its provider (`well-known:openai/small`), case aside.
+    ///
+    /// # Errors
+    /// As [`listing`](Self::listing).
+    pub fn lists(
+        self,
+        name: &str,
+    ) -> BunsenResult<bool> {
+        let listing = self.listing()?;
+        Ok(listing.rows.iter().any(|(provider, row)| {
+            let bare = match name.split_once(':') {
+                Some((p, bare)) if p.eq_ignore_ascii_case(provider) => bare,
+                Some(_) => return false,
+                None => name,
+            };
+            std::iter::once(&row.name)
+                .chain(&row.aliases)
+                .any(|n| n.eq_ignore_ascii_case(bare))
+        }))
+    }
+
     /// What the kit's factory offers.
     pub fn listing(self) -> BunsenResult<Listing> {
         fn split<H: ConstructInit>(factory: PretrainedFactory<H>) -> Listing {

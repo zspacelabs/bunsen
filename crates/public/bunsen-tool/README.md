@@ -478,7 +478,8 @@ A profile's run takes every flag below that is not a family's own (`--publish`, 
 - `--language CODE`: the spoken language. It implies `--speech` (above), and is given to a model that can be told it
   (Whisper); one that finds the language itself goes on doing so.
 - `--model EXPR`: the model, as a lookup expression (`--model 'openai/small[translate]{beam_size: 1}'`), in place of
-  the profile's: a model of the family the profile runs.
+  the profile's. The family that lists it runs, logged at `INFO` when it is not the profile's
+  (`asr transcribe --model openai/small` runs Whisper); a name no family lists (`hf:org/repo`) runs in the profile's.
 - `--emission` and `--chunk-ms`, in place of the profile's.
 - `--vad EXPR`: the VAD that finds the speech regions, in place of the table's (`silero/vad-16k[faster-whisper]`,
   which `asr presets show` prints). It is an error under `--emission offline`, which finds none.
