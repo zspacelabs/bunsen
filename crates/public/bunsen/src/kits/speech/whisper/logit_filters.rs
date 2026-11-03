@@ -30,14 +30,16 @@ use burn::{
 };
 
 use crate::kits::{
-    decoding::{
-        LogitFilter,
-        SuppressTokens,
-        suppress,
-    },
     speech::whisper::driver::WhisperSpecialIds,
-    tokens,
-    tokens::TiktokenRanks,
+    support::{
+        decoding::{
+            LogitFilter,
+            SuppressTokens,
+            suppress,
+        },
+        tokens,
+        tokens::TiktokenRanks,
+    },
 };
 
 /// Never opens a transcript with a space or with nothing: at the first
@@ -323,7 +325,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::tokens::{
+        kits::support::tokens::{
             blank_token,
             non_speech_tokens,
         },

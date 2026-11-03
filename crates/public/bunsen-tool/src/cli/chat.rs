@@ -23,7 +23,6 @@ use bunsen::{
         sys_at,
     },
     kits::{
-        decoding::SearchConfig,
         gpts::{
             nanochat::pretrained::{
                 DEFAULT_NANOCHAT_MODEL,
@@ -36,6 +35,7 @@ use bunsen::{
                 default_qwen3_factory,
             },
         },
+        support::decoding::SearchConfig,
     },
     ops::transformers::attention::KVCacheStorage,
 };

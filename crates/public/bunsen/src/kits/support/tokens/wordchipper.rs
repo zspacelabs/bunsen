@@ -21,7 +21,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    kits::tokens::Detokenizer,
+    kits::support::tokens::Detokenizer,
 };
 
 /// A [`Detokenizer`] over any `wordchipper` decoder.

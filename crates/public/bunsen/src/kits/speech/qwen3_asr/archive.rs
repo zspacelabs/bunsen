@@ -27,7 +27,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::tokens::ByteLevelVocabulary,
+    kits::support::tokens::ByteLevelVocabulary,
 };
 
 /// The member of a Phonon-1 archive that describes its packing.

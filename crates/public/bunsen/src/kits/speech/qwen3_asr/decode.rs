@@ -6,7 +6,7 @@ use burn::{
 
 use super::blocks::Qwen3Asr;
 use crate::{
-    kits::decoding::{
+    kits::support::decoding::{
         GreedySearch,
         decode_cached,
     },

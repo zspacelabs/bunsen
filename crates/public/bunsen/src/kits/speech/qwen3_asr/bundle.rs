@@ -20,7 +20,7 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::tokens::ByteLevelVocabulary,
+    kits::support::tokens::ByteLevelVocabulary,
 };
 
 /// A Qwen3-ASR model, its front end, its vocabulary, its prompt and its

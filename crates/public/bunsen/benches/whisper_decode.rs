@@ -17,12 +17,12 @@ use std::time::Instant;
 use bunsen::{
     burner::module::ModuleInit,
     kits::{
-        decoding::SearchConfig,
         speech::whisper::{
             DecodeConfig,
             Whisper,
             WhisperApiConfig,
         },
+        support::decoding::SearchConfig,
     },
     support::testing::performance_device,
 };

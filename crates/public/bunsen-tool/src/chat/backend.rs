@@ -10,11 +10,6 @@ use bunsen::{
         BunsenResult,
     },
     kits::{
-        decoding::{
-            CachedStep,
-            LogitFilter,
-            SuppressTokens,
-        },
         gpts::{
             driver_support::CachedHistory,
             qwen3::{
@@ -24,7 +19,14 @@ use bunsen::{
                 Qwen3Model,
             },
         },
-        tokens::Detokenizer,
+        support::{
+            decoding::{
+                CachedStep,
+                LogitFilter,
+                SuppressTokens,
+            },
+            tokens::Detokenizer,
+        },
     },
     ops::transformers::attention::KVCacheStorage,
 };

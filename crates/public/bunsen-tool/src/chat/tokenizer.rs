@@ -11,7 +11,7 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::tokens::{
+    kits::support::tokens::{
         ByteLevelVocabulary,
         Detokenizer,
     },

@@ -11,7 +11,7 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::tokens::Detokenizer,
+    kits::support::tokens::Detokenizer,
 };
 use serde_pickle::{
     DeOptions,

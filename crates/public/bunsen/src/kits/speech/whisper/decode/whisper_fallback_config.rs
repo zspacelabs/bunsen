@@ -9,11 +9,11 @@ use flate2::{
 };
 
 use crate::kits::{
-    decoding::TemperatureLadder,
     speech::whisper::decode::{
         DecodeConfig,
         DecodedTokens,
     },
+    support::decoding::TemperatureLadder,
 };
 
 /// The ladder and the thresholds that climb it.
@@ -195,7 +195,7 @@ pub fn decode_with_fallback(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::decoding::SearchConfig;
+    use crate::kits::support::decoding::SearchConfig;
 
     fn decoded(
         n: usize,

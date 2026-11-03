@@ -9,7 +9,7 @@ use crate::{
             WHISPER_KIT,
             WhisperVocabulary,
         },
-        tokens::TiktokenRanks,
+        support::tokens::TiktokenRanks,
     },
 };
 

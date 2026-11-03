@@ -8,12 +8,12 @@
 //!   the cache that holds them), over a [`ChatBackend`]: the checkpoint's
 //!   model, and what turns a conversation into its ids and its ids into text
 //!   ([`Qwen3Chat`], Qwen3's). [`send`](ChatSession::send) streams a reply
-//!   through [`decode_cached_observed`](bunsen::kits::decoding::decode_cached_observed),
+//!   through [`decode_cached_observed`](bunsen::kits::support::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
 //! - [`GenerationDefaults`]: a checkpoint's stop tokens and sampling.
 //! - [`Qwen3Tokenizer`]: a checkpoint's tokenizer, text to ids and back, as
 //!   `transformers` encodes; a
-//!   [`Detokenizer`](bunsen::kits::tokens::Detokenizer).
+//!   [`Detokenizer`](bunsen::kits::support::tokens::Detokenizer).
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
 //! - [`NanoChatChat`], [`NanoChatTokenizer`] and [`NanoChatLayout`]: a nanochat

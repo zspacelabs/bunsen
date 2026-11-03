@@ -23,8 +23,9 @@
 //!   ([`VoxtralDecodeStep`]).
 //! - [`VoxtralTranscript`]: a decode's ids as timed [`VoxtralWord`]s and text.
 //! - [`VoxtralBundle`]: a model with its front end, vocabulary
-//!   ([`TekkenVocabulary`](crate::kits::tokens::TekkenVocabulary)), layout and
-//!   decoder; [`transcribe`](VoxtralBundle::transcribe) one utterance.
+//!   ([`TekkenVocabulary`](crate::kits::support::tokens::TekkenVocabulary)),
+//!   layout and decoder; [`transcribe`](VoxtralBundle::transcribe) one
+//!   utterance.
 //! - [`driver`]: [`VoxtralEngine`](driver::VoxtralEngine), a bundle as the
 //!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine, each window
 //!   decoded whole and laid out a segment per timed word; a

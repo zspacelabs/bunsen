@@ -147,7 +147,7 @@ pub fn decode_cached_observed<M: CachedStep>(
 mod tests {
     use super::*;
     use crate::{
-        kits::decoding::{
+        kits::support::decoding::{
             GreedySearch,
             SuppressTokens,
         },

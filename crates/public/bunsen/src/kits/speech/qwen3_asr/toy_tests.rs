@@ -201,9 +201,9 @@ fn test_toy_cached_decode_matches_uncached() {
 }
 
 /// A vocabulary spelling each of the toy's 50 ids as ` t<id>`.
-fn toy_vocab() -> crate::kits::tokens::ByteLevelVocabulary {
+fn toy_vocab() -> crate::kits::support::tokens::ByteLevelVocabulary {
     let entries: Vec<String> = (0..50).map(|k| format!("\"Ġt{k}\": {k}")).collect();
-    crate::kits::tokens::ByteLevelVocabulary::from_vocab_json(
+    crate::kits::support::tokens::ByteLevelVocabulary::from_vocab_json(
         &format!("{{{}}}", entries.join(", ")),
         None,
     )

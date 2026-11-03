@@ -160,7 +160,7 @@ audio = [
 ##
 ## Ids never need this: a kit's token layout (`kits::speech::whisper::WhisperTokenLayout`
 ## and every special id) is derived arithmetically and always available.
-## Only `kits::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
+## Only `kits::support::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
 ## `default-features = false` — no downloader, no TLS, no thread pool — so
 ## the cost to a consumer that has nothing else from it is small; see the
 ## feature's entry in `CHANGELOG.md` for the measured number.

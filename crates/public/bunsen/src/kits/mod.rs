@@ -25,8 +25,7 @@
 //! | [`speech::qwen3_asr`] | Qwen's Qwen3-ASR: the model, a pretrained index (`FermionResearch`'s Phonon-1 by default), the prompt, and greedy decoding. |
 //! | [`speech::voxtral`] | Mistral's Voxtral Realtime: the model, a pretrained index (`mistralai/voxtral-mini-4b-realtime-2602` by default), its stream layout and delay, greedy decoding, and a stream driver. |
 //! | [`speech::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
-//! | [`tokens`] | Not a model: the ids-to-text seam the model kits share. |
-//! | [`decoding`] | Not a model: the search machinery the decoding kits share: logit filters, greedy and beam search, sampling, ranking, and the temperature ladder. |
+//! | [`support`] | Not a model: what kits of more than one family share: [`support::tokens`], the ids-to-text seam, and [`support::decoding`], the search machinery (logit filters, greedy and beam search, sampling, ranking, and the temperature ladder). |
 //!
 //! The area modules, [`images`], [`gpts`], [`sims`] and [`speech`], group the
 //! kits by domain and say what the kits in each have in common.
@@ -95,7 +94,7 @@
 //! | Hook | [`ResNetConstruct`](images::resnet::pretrained::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) | [`ParakeetConstruct`](speech::parakeet::pretrained::ParakeetConstruct) | [`Qwen3AsrConstruct`](speech::qwen3_asr::pretrained::Qwen3AsrConstruct) | [`SortformerConstruct`](speech::sortformer::pretrained::SortformerConstruct) | [`Qwen3Construct`](gpts::qwen3::pretrained::Qwen3Construct) | [`VoxtralConstruct`](speech::voxtral::pretrained::VoxtralConstruct) | [`NanoChatConstruct`](gpts::nanochat::pretrained::NanoChatConstruct) |
 //! | Factory | [`default_resnet_factory`](images::resnet::pretrained::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) | [`default_parakeet_factory`](speech::parakeet::pretrained::default_parakeet_factory) | [`default_qwen3_asr_factory`](speech::qwen3_asr::pretrained::default_qwen3_asr_factory) | [`default_sortformer_factory`](speech::sortformer::pretrained::default_sortformer_factory) | [`default_qwen3_factory`](gpts::qwen3::pretrained::default_qwen3_factory) | [`default_voxtral_factory`](speech::voxtral::pretrained::default_voxtral_factory) | [`default_nanochat_factory`](gpts::nanochat::pretrained::default_nanochat_factory) |
 //! | Built | [`ResNet`](images::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate | [`ParakeetBundle`](speech::parakeet::ParakeetBundle): model, front end, vocabulary | [`Qwen3AsrBundle`](speech::qwen3_asr::Qwen3AsrBundle): model, front end, vocabulary, prompt, decoder | [`SortformerBundle`](speech::sortformer::SortformerBundle): model, front end | [`Qwen3Bundle`](gpts::qwen3::Qwen3Bundle): model, trained length, tokenizer and generation files | [`VoxtralBundle`](speech::voxtral::VoxtralBundle): model, front end, vocabulary, layout, decoder | [`NanoChatBundle`](gpts::nanochat::NanoChatBundle): model, generation, meta, tokenizer files |
-//! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) | [`ParakeetStreamDriver`](speech::parakeet::ParakeetStreamDriver), [`ParakeetStreamContext`](speech::parakeet::ParakeetStreamContext) | [`Qwen3AsrStreamDriver`](speech::qwen3_asr::Qwen3AsrStreamDriver), [`Qwen3AsrStreamContext`](speech::qwen3_asr::Qwen3AsrStreamContext) | [`SortformerDiarizer`](speech::sortformer::SortformerDiarizer), [`SortformerStream`](speech::sortformer::SortformerStream): a diarizer for any ASR stream driver | [`Qwen3DecodeState`](gpts::qwen3::Qwen3DecodeState) through [`decode_cached`](decoding::decode_cached); `bunsen_tool::chat`'s `ChatSession` | [`VoxtralStreamDriver`](speech::voxtral::driver::VoxtralStreamDriver), [`VoxtralStreamContext`](speech::voxtral::driver::VoxtralStreamContext) | [`NanoChatDecodeState`](gpts::nanochat::NanoChatDecodeState) through [`decode_cached`](decoding::decode_cached) |
+//! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) | [`ParakeetStreamDriver`](speech::parakeet::ParakeetStreamDriver), [`ParakeetStreamContext`](speech::parakeet::ParakeetStreamContext) | [`Qwen3AsrStreamDriver`](speech::qwen3_asr::Qwen3AsrStreamDriver), [`Qwen3AsrStreamContext`](speech::qwen3_asr::Qwen3AsrStreamContext) | [`SortformerDiarizer`](speech::sortformer::SortformerDiarizer), [`SortformerStream`](speech::sortformer::SortformerStream): a diarizer for any ASR stream driver | [`Qwen3DecodeState`](gpts::qwen3::Qwen3DecodeState) through [`decode_cached`](support::decoding::decode_cached); `bunsen_tool::chat`'s `ChatSession` | [`VoxtralStreamDriver`](speech::voxtral::driver::VoxtralStreamDriver), [`VoxtralStreamContext`](speech::voxtral::driver::VoxtralStreamContext) | [`NanoChatDecodeState`](gpts::nanochat::NanoChatDecodeState) through [`decode_cached`](support::decoding::decode_cached) |
 //! | Bundled crate (validation only) | none | `bind-whisper-onnx` | `bind-silero-onnx` | `bind-parakeet-onnx` | `bind-qwen3-asr-onnx` | `bind-sortformer-onnx` | `bind-qwen3-onnx` | `bind-voxtral-onnx` | `fetch-nanochat` |
 //! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` | `qwen3-asr-model-validation` | `sortformer-model-validation` | `qwen3-model-validation` | `voxtral-model-validation` | `nanochat-model-validation` |
 //! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `bunsen-tool asr` | `bunsen-tool asr`, as the VAD gate | `bunsen-tool asr` | `bunsen-tool asr` | none | `bunsen-tool chat` | `bunsen-tool asr` | `examples/train-chat` |
@@ -109,8 +108,8 @@
 //!
 //! Three seams are shared across kits:
 //! [`data::pretrained`](crate::data::pretrained) for loading,
-//! [`tokens::Detokenizer`] for turning ids into text, and
-//! [`decoding::TokenSearch`] for choosing them.
+//! [`support::tokens::Detokenizer`] for turning ids into text, and
+//! [`support::decoding::TokenSearch`] for choosing them.
 //!
 //! # Stability
 //!
@@ -119,9 +118,8 @@
 //! filled in. Pin a specific `bunsen` version when you need a stable
 //! API.
 
-pub mod decoding;
 pub mod gpts;
 pub mod images;
 pub mod sims;
 pub mod speech;
-pub mod tokens;
+pub mod support;

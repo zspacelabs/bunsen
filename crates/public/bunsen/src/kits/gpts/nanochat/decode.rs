@@ -13,7 +13,7 @@ use super::{
     NanoChatGptMeta,
 };
 use crate::{
-    kits::decoding::CachedStep,
+    kits::support::decoding::CachedStep,
     ops::transformers::attention::{
         KVCache,
         KVCacheModel,
@@ -27,7 +27,7 @@ use crate::{
 ///
 /// Made by [`NanoChatGpt::decode_state`], filled by
 /// [`NanoChatGpt::prefill`], then stepped by
-/// [`decode_cached`](crate::kits::decoding::decode_cached) through the
+/// [`decode_cached`](crate::kits::support::decoding::decode_cached) through the
 /// model's [`CachedStep`]. The model never owns one, so one loaded model
 /// serves any number of decodes.
 #[derive(Debug)]
@@ -150,11 +150,11 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            decoding::{
+            gpts::nanochat::NanoChatGptContractConfig,
+            support::decoding::{
                 SearchConfig,
                 decode_cached,
             },
-            gpts::nanochat::NanoChatGptContractConfig,
         },
         support::testing::{
             DeviceMemoryGuard,

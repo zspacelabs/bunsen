@@ -3,7 +3,7 @@ use burn::config::Config;
 
 use crate::{
     errors::BunsenResult,
-    kits::tokens::ByteLevelVocabulary,
+    kits::support::tokens::ByteLevelVocabulary,
 };
 
 /// `Qwen3-ASR-0.6B`'s prompt before the audio:

@@ -7,7 +7,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    kits::tokens::TekkenVocabulary,
+    kits::support::tokens::TekkenVocabulary,
 };
 
 /// The longest delay a Voxtral Realtime model takes but 2400 ms, in ms.

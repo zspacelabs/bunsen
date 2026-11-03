@@ -5,7 +5,7 @@
 //!
 //! - [`TextStream`]: a reply's text as it grows, one delta per token, never
 //!   splitting a character whose bytes span two tokens; over any
-//!   [`Detokenizer`](crate::kits::tokens::Detokenizer).
+//!   [`Detokenizer`](crate::kits::support::tokens::Detokenizer).
 //! - [`StopStrings`]: stop strings matched across those deltas, holding back
 //!   what might yet become one.
 //! - [`CachedHistory`]: the tokens a
@@ -15,7 +15,7 @@
 //!   so a multi-turn session prefills only what changed.
 //!
 //! The searches a driver runs are
-//! [`kits::decoding`](crate::kits::decoding)'s.
+//! [`kits::support::decoding`](crate::kits::support::decoding)'s.
 
 mod cached_history;
 mod stop_strings;

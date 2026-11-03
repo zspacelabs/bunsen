@@ -71,7 +71,7 @@ mod tests {
                     },
                 },
             },
-            tokens::TekkenVocabulary,
+            support::tokens::TekkenVocabulary,
         },
         support::testing::performance_device,
     };

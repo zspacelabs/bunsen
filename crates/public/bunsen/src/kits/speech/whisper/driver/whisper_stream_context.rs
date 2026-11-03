@@ -443,10 +443,6 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::{
-            decoding::{
-                LogitFilter,
-                TemperatureLadder,
-            },
             speech::{
                 asr_driver::{
                     CommitRule,
@@ -472,7 +468,13 @@ mod tests {
                     },
                 },
             },
-            tokens::Detokenizer,
+            support::{
+                decoding::{
+                    LogitFilter,
+                    TemperatureLadder,
+                },
+                tokens::Detokenizer,
+            },
         },
         support::testing::{
             DeviceMemoryGuard,

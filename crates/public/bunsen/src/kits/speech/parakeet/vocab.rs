@@ -4,7 +4,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::tokens::Detokenizer,
+    kits::support::tokens::Detokenizer,
 };
 
 /// The word-boundary mark of a `SentencePiece` vocabulary: a piece that begins

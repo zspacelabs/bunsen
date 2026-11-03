@@ -2,7 +2,7 @@
 use super::VoxtralTokenLayout;
 use crate::{
     errors::BunsenResult,
-    kits::tokens::TekkenVocabulary,
+    kits::support::tokens::TekkenVocabulary,
 };
 
 /// One word of a [`VoxtralTranscript`]: the text tokens after a

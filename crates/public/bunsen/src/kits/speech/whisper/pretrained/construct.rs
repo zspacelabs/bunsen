@@ -48,7 +48,7 @@ use crate::{
                 WhisperVocabulary,
             },
         },
-        tokens::TiktokenRanks,
+        support::tokens::TiktokenRanks,
     },
 };
 
