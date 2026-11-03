@@ -30,25 +30,28 @@ use bunsen_app::{
 };
 use serde::Serialize;
 
-use crate::cli::asr::{
-    diarize::{
-        SpeakerArgs,
-        speaker_name,
+use crate::cli::{
+    PresetArgs,
+    asr::{
+        diarize::{
+            SpeakerArgs,
+            speaker_name,
+        },
+        driver::Driver,
+        family::Family,
+        parakeet::ParakeetFlags,
+        profile::Stamp,
+        publish::{
+            Clock,
+            Event,
+            PublishArgs,
+            statements,
+        },
+        qwen3_asr::Qwen3AsrFlags,
+        stream::Emission,
+        voxtral::VoxtralFlags,
+        whisper,
     },
-    driver::Driver,
-    family::Family,
-    parakeet::ParakeetFlags,
-    profile::Stamp,
-    publish::{
-        Clock,
-        Event,
-        PublishArgs,
-        statements,
-    },
-    qwen3_asr::Qwen3AsrFlags,
-    stream::Emission,
-    voxtral::VoxtralFlags,
-    whisper,
 };
 
 /// A family's own transcription flags.
@@ -122,6 +125,9 @@ pub struct TranscribeCmd<F: clap::Args> {
     /// omitted. Whisper also takes a checkpoint's path.
     #[arg(long)]
     pub model: Option<String>,
+
+    #[clap(flatten)]
+    pub presets: PresetArgs,
 
     /// When to decode.
     #[arg(long, value_enum, default_value_t = Emission::Offline)]
@@ -266,7 +272,10 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
         family: Family,
     ) -> BunsenResult<()> {
         self.io.init_logging()?;
-        let model = self.model.as_deref().unwrap_or(family.default_model());
+        let model = self
+            .presets
+            .apply(self.model.as_deref().unwrap_or(family.default_model()))?;
+        let model = model.as_str();
         self.io.run(
             family,
             model,

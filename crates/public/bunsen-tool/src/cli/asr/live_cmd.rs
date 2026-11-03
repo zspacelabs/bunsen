@@ -20,23 +20,26 @@ use bunsen_app::{
     },
 };
 
-use crate::cli::asr::{
-    capture::CaptureArgs,
-    diarize::SpeakerArgs,
-    driver::{
-        Driver,
-        Stream,
+use crate::cli::{
+    PresetArgs,
+    asr::{
+        capture::CaptureArgs,
+        diarize::SpeakerArgs,
+        driver::{
+            Driver,
+            Stream,
+        },
+        family::Family,
+        publish::{
+            Clock,
+            Event,
+            PublishArgs,
+            Publisher,
+            statements,
+        },
+        stream::Emission,
+        transcribe_cmd::FamilyFlags,
     },
-    family::Family,
-    publish::{
-        Clock,
-        Event,
-        PublishArgs,
-        Publisher,
-        statements,
-    },
-    stream::Emission,
-    transcribe_cmd::FamilyFlags,
 };
 
 /// Transcribes the microphone, as it speaks, through the family's stream
@@ -60,6 +63,9 @@ pub struct LiveCmd<F: clap::Args> {
     /// omitted. Whisper also takes a checkpoint's path.
     #[arg(long)]
     pub model: Option<String>,
+
+    #[clap(flatten)]
+    pub presets: PresetArgs,
 
     /// When to decode: a microphone has no end, so by default each speech
     /// region is decoded as it closes.
@@ -107,7 +113,10 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
         family: Family,
     ) -> BunsenResult<()> {
         self.io.init_logging()?;
-        let model = self.model.as_deref().unwrap_or(family.default_model());
+        let model = self
+            .presets
+            .apply(self.model.as_deref().unwrap_or(family.default_model()))?;
+        let model = model.as_str();
         self.io
             .run(family, model, &self.flags, self.emission, self.chunk_ms)
     }

@@ -42,6 +42,7 @@ use serde::Serialize;
 #[cfg(feature = "live")]
 use crate::cli::asr::capture::CaptureArgs;
 use crate::cli::{
+    PresetArgs,
     asr::{
         family::{
             Kit,
@@ -164,6 +165,9 @@ pub struct DiarizerArgs {
     /// How speaker activity becomes turns.
     #[arg(long, value_enum, default_value_t)]
     pub postprocess: Postprocess,
+
+    #[clap(flatten)]
+    pub presets: PresetArgs,
 }
 
 impl DiarizerArgs {
@@ -178,7 +182,9 @@ impl DiarizerArgs {
         device: &Device,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let model = with_presets(
-            self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL),
+            &self
+                .presets
+                .apply(self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL))?,
             &[self.latency.preset(), self.postprocess.preset()],
         )?;
         load_construct(&model, cache, device)

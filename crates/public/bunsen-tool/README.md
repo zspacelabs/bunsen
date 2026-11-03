@@ -292,16 +292,16 @@ Name a **profile**, a model chosen by what it is for, and `bunsen-tool asr` pick
 settings, for files (`transcribe`) or the microphone (`live`):
 
 ```sh
-bunsen-tool asr transcribe [--profile en] [FLAGS] FILE...   # audio files
-bunsen-tool asr live       [--profile en] [FLAGS]           # the microphone, as it speaks
+bunsen-tool asr transcribe [--preset en] [FLAGS] FILE...   # audio files
+bunsen-tool asr live       [--preset en] [FLAGS]           # the microphone, as it speaks
 bunsen-tool asr live       [--speech S] [--task T] [--quality Q] [FLAGS]   # or by what is needed
-bunsen-tool asr profiles   (list|show|fetch)                # what each profile is for, and what it runs
+bunsen-tool asr presets   (list|show|fetch)                # what each profile is for, and what it runs
 ```
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- asr transcribe recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --profile multi --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr live --profile translate-en
+cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --preset multi --json recording.wav
+cargo run --release -p bunsen-tool --features wgpu -- asr live --preset translate-en
 cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech multi --quality fast recording.wav
 ```
 
@@ -312,10 +312,10 @@ cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech mu
 | `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3`, `--task translate` | `whisper` `openai/small`, `--task translate --beam-size 1`, `conservative` |
 
 The profiles are this binary's, and improve with it: when a better model arrives, a profile's row changes, and the
-command lines that name the profile do not. `profiles show [NAME...]` prints each recipe as the `bunsen-tool asr family`
+command lines that name the profile do not. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
 command it runs, `-v` logs it before a run, and `transcribe --json` records `profile`, `need` (the point served:
 `speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model, preset, flags) with each
-transcript. `profiles fetch NAME...` brings every file a profile runs into the cache, as `family <family> fetch` does
+transcript. `presets fetch NAME...` brings every file a profile runs into the cache, as `family <family> fetch` does
 for a model.
 
 Each profile is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
@@ -328,13 +328,13 @@ The flags choose, in this order:
 
 1. **`--language` implies `--speech`**: `en` means `en` speech, any other code `multi`. `--speech en` with another
    language is an error.
-2. **The point.** Without `--profile`, each of `--speech`, `--task` and `--quality` not given is `default`'s
+2. **The point.** Without `--preset`, each of `--speech`, `--task` and `--quality` not given is `default`'s
    (`en`/`transcribe`/`balanced`), except that `--task translate` makes the speech `multi`; `--json` records the point
-   as the profile (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--profile`, the
+   as the profile (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
    ones not given are the profile's.
 3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its
    transcript, so no cell translates English.
-4. **What runs.** Without `--profile`, the table's cell for the point. With it, the profile's recipe, and the flags
+4. **What runs.** Without `--preset`, the table's cell for the point. With it, the profile's recipe, and the flags
    may only adjust it: `--quality` moves along the profile's row; `--speech` (or the speech `--language` implies) must
    be one the profile hears (`multi` hears English); a task other than the profile's is set on a model that takes one
    (Whisper's `--task`; an `--opt` still wins). Anything else is an error that names another profile, or none.
@@ -347,11 +347,11 @@ So the task is `transcribe` unless `translate-en` or `--task translate` asks to 
 | `--language de` | `multi/transcribe/balanced`: Qwen3-ASR | transcribe |
 | `--task translate` | `multi/translate/balanced`: Whisper | translate |
 | `--speech en --task translate` | `en/transcribe/balanced`: Parakeet | transcribe |
-| `--profile translate-en --task transcribe` | `translate-en`: Whisper, `--task transcribe` | transcribe |
-| `--profile translate-en --speech en` | `translate-en`: Whisper, `--task transcribe` | transcribe |
-| `--profile en --task translate` | `en`: Parakeet | transcribe |
-| `--profile en --language de` | an error: `en` hears only English | |
-| `--profile multi --task translate` | an error: Qwen3-ASR cannot translate | |
+| `--preset translate-en --task transcribe` | `translate-en`: Whisper, `--task transcribe` | transcribe |
+| `--preset translate-en --speech en` | `translate-en`: Whisper, `--task transcribe` | transcribe |
+| `--preset en --task translate` | `en`: Parakeet | transcribe |
+| `--preset en --language de` | an error: `en` hears only English | |
+| `--preset multi --task translate` | an error: Qwen3-ASR cannot translate | |
 
 A profile's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
 `--device`, the cache's and `live`'s capture flags), and:
@@ -455,7 +455,7 @@ with their start, end and text. `--rttm` prints the statements as NIST RTTM. `--
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- asr live --diarize
-cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --profile multi --diarize --json meeting.wav
+cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --preset multi --diarize --json meeting.wav
 ```
 
 ### Where the transcript goes
