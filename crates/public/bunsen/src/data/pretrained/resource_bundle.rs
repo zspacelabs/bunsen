@@ -23,8 +23,6 @@ use serde::{
 use super::{
     Resource,
     Source,
-    StaticBase,
-    StaticResource,
     not_found,
 };
 use crate::errors::{
@@ -34,72 +32,6 @@ use crate::errors::{
     LookupError,
     ResultContext,
 };
-
-/// A named set of resources under a set of bases, as a compiled-in table
-/// spells it.
-///
-/// [`to_resource_bundle`](Self::to_resource_bundle) appends every
-/// [base](StaticBase) to every file, so each owned [`Resource`] stands alone.
-#[derive(Debug)]
-pub struct StaticResourceBundle<'a> {
-    /// The resource bundle's name, for messages.
-    pub name: &'a str,
-
-    /// A line for a listing.
-    pub description: &'a str,
-
-    /// The license the files are distributed under.
-    pub license: Option<&'a str>,
-
-    /// Where the files are published.
-    pub origin: Option<&'a str>,
-
-    /// The cache segment the files live under: who published them.
-    pub namespace: &'a str,
-
-    /// Mirrors, in preference order. Each is appended to every file name,
-    /// after the file's own sources.
-    pub bases: &'a [StaticBase<'a>],
-
-    /// The files, in listing order.
-    pub resources: &'a [StaticResource<'a>],
-}
-
-impl StaticResourceBundle<'_> {
-    /// The owned twin, every base appended to every file.
-    pub fn to_resource_bundle(&self) -> ResourceBundle {
-        ResourceBundle {
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            license: self.license.map(str::to_string),
-            origin: self.origin.map(str::to_string),
-            resources: self
-                .resources
-                .iter()
-                .map(|r| (r.key.to_string(), r.to_resource(self.namespace, self.bases)))
-                .collect(),
-        }
-    }
-
-    /// Every key, in listing order.
-    pub fn keys(&self) -> Vec<&str> {
-        self.resources.iter().map(|r| r.key).collect()
-    }
-
-    /// The resource called `key`.
-    pub fn get(
-        &self,
-        key: &str,
-    ) -> Option<&StaticResource<'_>> {
-        self.resources.iter().find(|r| r.key == key)
-    }
-}
-
-impl From<&StaticResourceBundle<'_>> for ResourceBundle {
-    fn from(map: &StaticResourceBundle<'_>) -> Self {
-        map.to_resource_bundle()
-    }
-}
 
 /// How two resource bundles combine when a key is in both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,12 +53,12 @@ pub enum Fuse {
 /// bundle; [`PretrainedCache::load`](super::PretrainedCache::load) brings a
 /// whole resource bundle local, as [`LoadedResources`](super::LoadedResources).
 ///
-/// Built from a [`StaticResourceBundle`], deserialized, or assembled at
-/// runtime; [`validate`](Self::validate) checks a hand-built one. Two resource
-/// bundles [fuse](Self::fuse) by key, with no memory of where a resource came
-/// from: [`Fuse::Strict`] for authoring, where a repeated key is a
-/// mistake, or [`Fuse::Overlay`] for an override, where the right-hand resource
-/// bundle wins.
+/// Built from a [`PretrainedCatalog`](super::PretrainedCatalog)'s bundle,
+/// deserialized, or assembled at runtime; [`validate`](Self::validate) checks a
+/// hand-built one. Two resource bundles [fuse](Self::fuse) by key, with no
+/// memory of where a resource came from: [`Fuse::Strict`] for authoring, where
+/// a repeated key is a mistake, or [`Fuse::Overlay`] for an override, where the
+/// right-hand resource bundle wins.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceBundle {
     /// The resource bundle's name, for messages.
@@ -340,10 +272,7 @@ mod tests {
     /// their digests and namespaces, and checks each file name.
     #[test]
     fn test_with_local_files_replaces_sources_and_checks_names() {
-        let map = CHECKPOINT
-            .to_resource_bundle()
-            .fuse(VOCABULARY.to_resource_bundle(), Fuse::Strict)
-            .unwrap();
+        let map = checkpoint().fuse(vocabulary(), Fuse::Strict).unwrap();
         let bundled = map
             .clone()
             .with_local_files(
@@ -380,11 +309,7 @@ mod tests {
                 &map.with_local_files("bundled", &[("config", Path::new("/x/config.json"))]),
             );
     }
-    use crate::data::pretrained::{
-        GIVEN_NAMESPACE,
-        Source,
-        StaticSource,
-    };
+    use crate::data::pretrained::GIVEN_NAMESPACE;
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
@@ -392,76 +317,63 @@ mod tests {
         Some(PathBuf::from("/home/someone/.cache/whisper"))
     }
 
-    /// A one-file resource bundle with two bases: a checkpoint, as the whisper
-    /// table spells one.
-    static CHECKPOINT: StaticResourceBundle<'static> = StaticResourceBundle {
-        name: "a/tiny.en.pt",
-        description: "a checkpoint",
-        license: Some("MIT"),
-        origin: Some("https://a.example"),
-        namespace: "a",
-        bases: &[
-            StaticBase::LocalDir {
-                name: "upstream",
-                default: upstream_dir,
-            },
-            StaticBase::Url("https://a.example/models"),
-        ],
-        resources: &[StaticResource {
-            key: "checkpoint",
-            file: "tiny.en.pt",
-            sha256: Some(ABC_SHA256),
-            kind: Some("pytorch fp16"),
-            sources: &[],
-        }],
-    };
-
-    /// A one-file resource bundle with a mirror of its own and a URL base: a
-    /// vocabulary.
-    static VOCABULARY: StaticResourceBundle<'static> = StaticResourceBundle {
-        name: "a/gpt2.tiktoken",
-        description: "a vocabulary",
-        license: None,
-        origin: None,
-        namespace: "a",
-        bases: &[StaticBase::Url("https://raw.example/assets/")],
-        resources: &[StaticResource {
-            key: "vocabulary",
-            file: "gpt2.tiktoken",
-            sha256: None,
-            kind: Some("tiktoken"),
-            sources: &[StaticSource::Url("https://mirror.example/gpt2.tiktoken")],
-        }],
-    };
-
-    #[test]
-    fn test_static_to_map() {
-        assert_eq!(CHECKPOINT.keys(), ["checkpoint"]);
-        assert_eq!(
-            CHECKPOINT.get("checkpoint").map(|r| r.file),
-            Some("tiny.en.pt")
-        );
-        assert!(CHECKPOINT.get("vocabulary").is_none());
-
-        let map = CHECKPOINT.to_resource_bundle();
-        assert_eq!(map, ResourceBundle::from(&CHECKPOINT));
-        assert_eq!(map.name, "a/tiny.en.pt");
-        assert_eq!(map.license.as_deref(), Some("MIT"));
-        assert_eq!(map.len(), 1);
-        assert!(!map.is_empty());
-        assert_eq!(map.keys(), ["checkpoint"]);
-        let r = map.get("checkpoint").unwrap();
-        assert_eq!(r.namespace, "a");
-        assert_eq!(
-            r.sources,
-            vec![
+    /// A one-file resource bundle with two sources: a checkpoint, as the
+    /// whisper catalog spells one.
+    fn checkpoint() -> ResourceBundle {
+        ResourceBundle {
+            name: "a/tiny.en.pt".to_string(),
+            description: "a checkpoint".to_string(),
+            license: Some("MIT".to_string()),
+            origin: Some("https://a.example".to_string()),
+            resources: BTreeMap::new(),
+        }
+        .with_resource(Resource {
+            size: None,
+            dtype: None,
+            key: "checkpoint".to_string(),
+            file: "tiny.en.pt".to_string(),
+            sha256: Some(ABC_SHA256.to_string()),
+            kind: Some("pytorch fp16".to_string()),
+            namespace: "a".to_string(),
+            sources: vec![
                 Source::LocalDir {
                     name: "upstream".to_string(),
                     dir: upstream_dir(),
                 },
                 Source::Url("https://a.example/models/tiny.en.pt".to_string()),
-            ]
-        );
+            ],
+        })
+    }
+
+    /// A one-file resource bundle with a mirror and a URL: a vocabulary.
+    fn vocabulary() -> ResourceBundle {
+        ResourceBundle::new("a/gpt2.tiktoken").with_resource(Resource {
+            size: None,
+            dtype: None,
+            key: "vocabulary".to_string(),
+            file: "gpt2.tiktoken".to_string(),
+            sha256: None,
+            kind: Some("tiktoken".to_string()),
+            namespace: "a".to_string(),
+            sources: vec![
+                Source::Url("https://mirror.example/gpt2.tiktoken".to_string()),
+                Source::Url("https://raw.example/assets/gpt2.tiktoken".to_string()),
+            ],
+        })
+    }
+
+    /// A bundle answers by key, validates, and survives a round trip
+    /// through JSON.
+    #[test]
+    fn test_accessors_and_round_trip() {
+        let map = checkpoint();
+        assert_eq!(map.name, "a/tiny.en.pt");
+        assert_eq!(map.license.as_deref(), Some("MIT"));
+        assert_eq!(map.len(), 1);
+        assert!(!map.is_empty());
+        assert_eq!(map.keys(), ["checkpoint"]);
+        assert_eq!(map.get("checkpoint").unwrap().namespace, "a");
+        assert!(map.get("vocabulary").is_none());
         map.validate().unwrap();
 
         let json = serde_json::to_string(&map).unwrap();
@@ -472,10 +384,7 @@ mod tests {
     /// a repeated key is refused and named.
     #[test]
     fn test_fuse_strict() {
-        let fused = CHECKPOINT
-            .to_resource_bundle()
-            .fuse(VOCABULARY.to_resource_bundle(), Fuse::Strict)
-            .unwrap();
+        let fused = checkpoint().fuse(vocabulary(), Fuse::Strict).unwrap();
         assert_eq!(fused.name, "a/tiny.en.pt");
         assert_eq!(fused.keys(), ["checkpoint", "vocabulary"]);
         assert_eq!(
@@ -494,21 +403,14 @@ mod tests {
                 "a duplicate \"checkpoint\"",
                 |c: &LookupError| c.problem == LookupProblem::Duplicate && c.key == "checkpoint",
             ))
-            .assert_err(
-                &CHECKPOINT
-                    .to_resource_bundle()
-                    .fuse(CHECKPOINT.to_resource_bundle(), Fuse::Strict),
-            );
+            .assert_err(&checkpoint().fuse(checkpoint(), Fuse::Strict));
     }
 
     /// An overlay lets the right resource bundle replace: a given path over a
     /// row.
     #[test]
     fn test_fuse_overlay() {
-        let row = CHECKPOINT
-            .to_resource_bundle()
-            .fuse(VOCABULARY.to_resource_bundle(), Fuse::Strict)
-            .unwrap();
+        let row = checkpoint().fuse(vocabulary(), Fuse::Strict).unwrap();
         let overlaid = row
             .fuse(
                 ResourceBundle::given("flags", "vocabulary", "/mine/vocab.tiktoken"),

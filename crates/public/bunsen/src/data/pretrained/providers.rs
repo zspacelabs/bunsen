@@ -2,10 +2,7 @@
 
 use alloc::{
     format,
-    string::{
-        String,
-        ToString,
-    },
+    string::String,
     vec::Vec,
 };
 use core::fmt;
@@ -15,12 +12,9 @@ use serde::{
     Serialize,
 };
 
+use super::Pretrained;
 #[cfg(feature = "cache")]
 use super::PretrainedCache;
-use super::{
-    Pretrained,
-    StaticPretrained,
-};
 use crate::errors::BunsenResult;
 
 /// The name of the provider the compiled-in rows sit behind:
@@ -152,81 +146,6 @@ pub trait PretrainedProvider: Send + Sync + fmt::Debug {
     }
 }
 
-/// A labelled set of pretrained rows, as a compiled-in table spells it: the
-/// `openai` of `openai/tiny`.
-#[derive(Debug)]
-pub struct StaticPretrainedGroup<'a> {
-    /// The label: the `group` in `group/name`.
-    pub name: &'a str,
-
-    /// A line for a listing.
-    pub description: &'a str,
-
-    /// The license the rows are distributed under.
-    pub license: Option<&'a str>,
-
-    /// Where the table came from.
-    pub origin: Option<&'a str>,
-
-    /// The rows, in listing order.
-    pub items: &'a [&'a StaticPretrained<'a>],
-}
-
-impl<'a> StaticPretrainedGroup<'a> {
-    /// The row `name` names, by its name or an alias.
-    pub fn lookup(
-        &self,
-        name: &str,
-    ) -> Option<&'a StaticPretrained<'a>> {
-        self.items.iter().copied().find(|p| p.matches(name))
-    }
-
-    /// The ref of a row within a table: `group/name`.
-    pub fn id(
-        &self,
-        pretrained: &StaticPretrained<'_>,
-    ) -> String {
-        format!("{}/{}", self.name, pretrained.name)
-    }
-
-    /// Every ref, in listing order.
-    pub fn ids(&self) -> Vec<String> {
-        self.items.iter().map(|p| self.id(p)).collect()
-    }
-
-    /// The rows that instantiate `prefab`, in listing order.
-    pub fn for_prefab(
-        &self,
-        prefab: &str,
-    ) -> Vec<&'a StaticPretrained<'a>> {
-        self.items
-            .iter()
-            .copied()
-            .filter(|p| p.prefab == Some(prefab))
-            .collect()
-    }
-
-    /// The owned twin.
-    ///
-    /// # Panics
-    /// If a row's resource bundles share a key; a kit's tests pin that none do.
-    pub fn to_group(&self) -> PretrainedGroup {
-        PretrainedGroup {
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            license: self.license.map(str::to_string),
-            origin: self.origin.map(str::to_string),
-            items: self.items.iter().map(|p| p.to_pretrained()).collect(),
-        }
-    }
-}
-
-impl From<&StaticPretrainedGroup<'_>> for PretrainedGroup {
-    fn from(group: &StaticPretrainedGroup<'_>) -> Self {
-        group.to_group()
-    }
-}
-
 /// A labelled set of pretrained rows, with one license and origin: the
 /// `openai` of `openai/tiny`.
 ///
@@ -292,47 +211,6 @@ impl PretrainedGroup {
         let mut row = pretrained.clone();
         row.name = self.id(pretrained);
         row
-    }
-}
-
-/// A provider over groups, as a compiled-in table spells it.
-#[derive(Debug)]
-pub struct StaticPretrainedTable<'a> {
-    /// The provider's name: [`WELL_KNOWN`] for the compiled-in rows.
-    pub name: &'a str,
-
-    /// A line for a listing.
-    pub description: &'a str,
-
-    /// The groups, in search order.
-    pub groups: &'a [&'a StaticPretrainedGroup<'a>],
-}
-
-impl<'a> StaticPretrainedTable<'a> {
-    /// The group called `name`.
-    pub fn group(
-        &self,
-        name: &str,
-    ) -> Option<&'a StaticPretrainedGroup<'a>> {
-        self.groups.iter().copied().find(|g| g.name == name)
-    }
-
-    /// The owned twin: the provider.
-    ///
-    /// # Panics
-    /// If a row's resource bundles share a key; a kit's tests pin that none do.
-    pub fn to_table(&self) -> PretrainedTable {
-        PretrainedTable {
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            groups: self.groups.iter().map(|g| g.to_group()).collect(),
-        }
-    }
-}
-
-impl From<&StaticPretrainedTable<'_>> for PretrainedTable {
-    fn from(table: &StaticPretrainedTable<'_>) -> Self {
-        table.to_table()
     }
 }
 
@@ -403,142 +281,125 @@ impl PretrainedProvider for PretrainedTable {
 
 #[cfg(test)]
 mod tests {
-    use alloc::sync::Arc;
+    use alloc::{
+        string::ToString,
+        sync::Arc,
+    };
 
     use super::*;
     use crate::data::pretrained::{
-        StaticBase,
-        StaticResource,
-        StaticResourceBundle,
+        Resource,
+        ResourceBundle,
+        Source,
     };
 
-    macro_rules! one_file {
-        ($name:ident, $map:literal, $file:literal, $base:literal) => {
-            static $name: StaticResourceBundle<'static> = StaticResourceBundle {
-                name: $map,
-                description: "one file",
-                license: None,
-                origin: None,
-                namespace: "t",
-                bases: &[StaticBase::Url($base)],
-                resources: &[StaticResource {
-                    key: "weights",
-                    file: $file,
-                    sha256: None,
-                    kind: None,
-                    sources: &[],
-                }],
-            };
-        };
-    }
-
-    one_file!(A_SMALL_FILES, "a/small.pt", "small.pt", "https://a.example");
-    one_file!(
-        A_LARGE_V1_FILES,
-        "a/large-v1.pt",
-        "large-v1.pt",
-        "https://a.example"
-    );
-    one_file!(
-        A_LARGE_V2_FILES,
-        "a/large-v2.pt",
-        "large-v2.pt",
-        "https://a.example"
-    );
-    one_file!(B_SMALL_FILES, "b/small.pt", "small.pt", "https://b.example");
-    one_file!(B_TINY_FILES, "b/tiny.pt", "tiny.pt", "https://b.example");
-
-    const fn entry(
-        name: &'static str,
-        aliases: &'static [&'static str],
-        prefab: &'static str,
-        maps: &'static [&'static StaticResourceBundle<'static>],
-    ) -> StaticPretrained<'static> {
-        StaticPretrained {
-            name,
-            aliases,
-            description: "an entry",
+    /// A row of one `weights` file at `{base}/{file}`.
+    fn entry(
+        name: &str,
+        aliases: &[&str],
+        prefab: &str,
+        file: &str,
+        base: &str,
+    ) -> Pretrained {
+        Pretrained {
+            name: name.to_string(),
+            aliases: aliases.iter().map(|a| a.to_string()).collect(),
+            description: "an entry".to_string(),
             license: None,
             origin: None,
-            prefab: Some(prefab),
-            resource_bundles: maps,
+            prefab: Some(prefab.to_string()),
+            resources: ResourceBundle::new(name).with_resource(Resource {
+                size: None,
+                dtype: None,
+                key: "weights".to_string(),
+                file: file.to_string(),
+                sha256: None,
+                kind: None,
+                namespace: "t".to_string(),
+                sources: alloc::vec![Source::Url(format!("{base}/{file}"))],
+            }),
         }
     }
 
-    static A_SMALL: StaticPretrained<'static> = entry("small", &["s"], "small", &[&A_SMALL_FILES]);
-    static A_LARGE_V1: StaticPretrained<'static> =
-        entry("large-v1", &[], "large", &[&A_LARGE_V1_FILES]);
-    static A_LARGE_V2: StaticPretrained<'static> =
-        entry("large-v2", &["large"], "large", &[&A_LARGE_V2_FILES]);
-    static B_SMALL: StaticPretrained<'static> = entry("small", &[], "small", &[&B_SMALL_FILES]);
-    static B_TINY: StaticPretrained<'static> = entry("tiny", &[], "tiny", &[&B_TINY_FILES]);
-
-    static A: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-        name: "a",
-        description: "group a",
-        license: Some("MIT"),
-        origin: Some("https://a.example"),
-        items: &[&A_SMALL, &A_LARGE_V1, &A_LARGE_V2],
-    };
-    static B: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-        name: "b",
-        description: "group b",
-        license: None,
-        origin: None,
-        items: &[&B_SMALL, &B_TINY],
-    };
-    /// The two groups as the well-known table.
-    pub(crate) static TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-        name: WELL_KNOWN,
-        description: "the test rows",
-        groups: &[&A, &B],
-    };
-
-    #[test]
-    fn test_group_lookups_and_ids() {
-        assert_eq!(A.lookup("s").map(|p| p.name), Some("small"));
-        assert_eq!(A.lookup("large").map(|p| p.name), Some("large-v2"));
-        assert!(A.lookup("tiny").is_none());
-        assert_eq!(A.id(&A_SMALL), "a/small");
-        assert_eq!(A.ids(), vec!["a/small", "a/large-v1", "a/large-v2"]);
-        assert_eq!(
-            A.for_prefab("large")
-                .iter()
-                .map(|p| p.name)
-                .collect::<Vec<_>>(),
-            vec!["large-v1", "large-v2"]
-        );
-        assert!(A.for_prefab("tiny").is_empty());
+    fn a_small() -> Pretrained {
+        entry("small", &["s"], "small", "small.pt", "https://a.example")
     }
 
+    fn b_tiny() -> Pretrained {
+        entry("tiny", &[], "tiny", "tiny.pt", "https://b.example")
+    }
+
+    fn group_a() -> PretrainedGroup {
+        PretrainedGroup {
+            name: "a".to_string(),
+            description: "group a".to_string(),
+            license: Some("MIT".to_string()),
+            origin: Some("https://a.example".to_string()),
+            items: alloc::vec![
+                a_small(),
+                entry("large-v1", &[], "large", "large-v1.pt", "https://a.example"),
+                entry(
+                    "large-v2",
+                    &["large"],
+                    "large",
+                    "large-v2.pt",
+                    "https://a.example"
+                ),
+            ],
+        }
+    }
+
+    /// The two groups as the well-known table.
+    fn table() -> PretrainedTable {
+        PretrainedTable {
+            name: WELL_KNOWN.to_string(),
+            description: "the test rows".to_string(),
+            groups: alloc::vec![
+                group_a(),
+                PretrainedGroup {
+                    name: "b".to_string(),
+                    description: "group b".to_string(),
+                    license: None,
+                    origin: None,
+                    items: alloc::vec![
+                        entry("small", &[], "small", "small.pt", "https://b.example"),
+                        b_tiny(),
+                    ],
+                },
+            ],
+        }
+    }
+
+    /// A group answers a row by name or alias, names its rows `group/name`,
+    /// finds the rows of a prefab, and survives a round trip through JSON.
     #[test]
-    fn test_owned_group_matches_the_static_one() {
-        let owned = A.to_group();
-        assert_eq!(owned, PretrainedGroup::from(&A));
-        assert_eq!(owned.name, "a");
-        assert_eq!(owned.license.as_deref(), Some("MIT"));
-        assert_eq!(owned.items.len(), 3);
+    fn test_group_lookups_and_ids() {
+        let a = group_a();
+        assert_eq!(a.name, "a");
+        assert_eq!(a.license.as_deref(), Some("MIT"));
+        assert_eq!(a.lookup("s").map(|p| p.name.as_str()), Some("small"));
+        assert_eq!(a.lookup("large").map(|p| p.name.as_str()), Some("large-v2"));
+        assert!(a.lookup("tiny").is_none());
+        assert_eq!(a.id(&a.items[0]), "a/small");
+        assert_eq!(a.ids(), ["a/small", "a/large-v1", "a/large-v2"]);
         assert_eq!(
-            owned.lookup("large").map(|p| p.name.as_str()),
-            Some("large-v2")
+            a.for_prefab("large")
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["large-v1", "large-v2"]
         );
-        assert_eq!(owned.ids(), A.ids());
-        assert_eq!(owned.for_prefab("large").len(), 2);
-        assert_eq!(owned.id(&owned.items[0]), "a/small");
-        assert_eq!(owned.items[0].resources.keys(), ["weights"]);
-        let json = serde_json::to_string(&owned).unwrap();
-        assert_eq!(
-            serde_json::from_str::<PretrainedGroup>(&json).unwrap(),
-            owned
-        );
+        assert!(a.for_prefab("tiny").is_empty());
+        assert_eq!(a.items[0].resources.keys(), ["weights"]);
+        let json = serde_json::to_string(&a).unwrap();
+        assert_eq!(serde_json::from_str::<PretrainedGroup>(&json).unwrap(), a);
     }
 
     /// A table lists its rows by ref, `group/name`, and answers a ref in one
     /// group or a bare name across them, first group first.
     #[test]
     fn test_the_table_lists_refs_and_looks_up() {
-        let table = TABLE.to_table();
-        assert_eq!(table, PretrainedTable::from(&TABLE));
+        let table = table();
         assert_eq!(table.name(), WELL_KNOWN);
         assert_eq!(table.description(), "the test rows");
         assert_eq!(table.license(), None, "a table's license is its groups'");
@@ -590,7 +451,6 @@ mod tests {
             ["a/small", "b/small"]
         );
         assert_eq!(table.group("b").map(|g| g.items.len()), Some(2));
-        assert_eq!(TABLE.group("b").map(|g| g.items.len()), Some(2));
         assert!(table.get("nope").is_none());
 
         let json = serde_json::to_string(&table).unwrap();
@@ -604,7 +464,7 @@ mod tests {
     /// every provider.
     #[test]
     fn test_a_table_behind_a_trait_object() {
-        let provider: Arc<dyn PretrainedProvider> = Arc::new(TABLE.to_table());
+        let provider: Arc<dyn PretrainedProvider> = Arc::new(table());
         assert_eq!(provider.name(), "well-known");
         assert_eq!(provider.list().len(), 5);
         assert_eq!(
@@ -639,7 +499,7 @@ mod tests {
             }
 
             fn list(&self) -> Vec<Pretrained> {
-                alloc::vec![A_SMALL.to_pretrained(), B_TINY.to_pretrained()]
+                alloc::vec![a_small(), b_tiny()]
             }
         }
 
