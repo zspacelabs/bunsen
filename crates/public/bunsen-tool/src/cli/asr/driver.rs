@@ -32,7 +32,7 @@ use crate::cli::asr::{
     qwen3_asr,
     stream::{
         self,
-        Preset,
+        Emission,
     },
     transcribe_cmd::{
         FamilyFlags,
@@ -51,8 +51,8 @@ pub enum Driver {
 }
 
 impl Driver {
-    /// The driver for `loaded` under its family's `flags` and `preset`, with
-    /// Silero's VAD attached when the preset finds speech regions, and
+    /// The driver for `loaded` under its family's `flags` and `emission`, with
+    /// Silero's VAD attached when the emission finds speech regions, and
     /// `speakers` when there is a diarizer.
     ///
     /// # Panics
@@ -60,7 +60,7 @@ impl Driver {
     pub fn build<F: FamilyFlags>(
         loaded: Loaded,
         flags: &F,
-        preset: Preset,
+        emission: Emission,
         speakers: Option<Arc<dyn SpeakerActivityModel>>,
         cache: &PretrainedCache,
         device: &Device,
@@ -70,7 +70,7 @@ impl Driver {
                 parakeet::driver(
                     bundle,
                     flags.parakeet().expect("Parakeet's flags"),
-                    preset,
+                    emission,
                     cache,
                     device,
                 )?,
@@ -80,7 +80,7 @@ impl Driver {
                 qwen3_asr::driver(
                     bundle,
                     flags.qwen3_asr().expect("Qwen3-ASR's flags"),
-                    preset,
+                    emission,
                     cache,
                     device,
                 )?,
@@ -90,7 +90,7 @@ impl Driver {
                 voxtral::driver(
                     bundle,
                     flags.voxtral().expect("Voxtral's flags"),
-                    preset,
+                    emission,
                     cache,
                     device,
                 )?,
@@ -100,7 +100,7 @@ impl Driver {
                 whisper::driver(
                     bundle,
                     flags.whisper().expect("Whisper's flags"),
-                    preset,
+                    emission,
                     cache,
                     device,
                 )?,

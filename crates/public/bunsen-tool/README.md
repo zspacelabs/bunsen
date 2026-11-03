@@ -358,7 +358,7 @@ A profile's run takes every flag below that is not a family's own (`--publish`, 
 
 - `--language CODE`: the spoken language. It implies `--speech` (above), and is given to a model that can be told it
   (Whisper); one that finds the language itself goes on doing so.
-- `--preset` and `--chunk-ms`, in place of the profile's.
+- `--emission` and `--chunk-ms`, in place of the profile's.
 - `--opt [FAMILY.]KEY[=VALUE]`, repeated: one of the family's own flags, without its `--` (`KEY` alone is `KEY=true`).
   With `FAMILY.` (`--opt whisper.beam-size=1`) it applies only while the profile runs that family and is logged as not
   applied otherwise, so a script keeps working when the profile moves to another family; several families' can be
@@ -382,7 +382,7 @@ bunsen-tool asr diarize          (list|fetch|run|live)        [FLAGS]   # who sp
 cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet transcribe recording.wav
 cargo run --release -p bunsen-tool --features wgpu -- asr family qwen3-asr transcribe --model qwen/qwen3-asr-1.7b --json recording.wav
 cargo run --release -p bunsen-tool --features wgpu -- asr family voxtral transcribe --delay-ms 960 --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcribe --preset conservative --language en recording.wav
+cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcribe --emission conservative --language en recording.wav
 cargo run --release -p bunsen-tool -- asr family qwen3-asr list
 ```
 
@@ -409,22 +409,22 @@ word and segment with the token ids it was decoded as. After each file it logs h
 long the transcription took at `INFO`, and after several, the total. Audio is read at the model's rate, 16 kHz mono,
 and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
 
-`--preset` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
+`--emission` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
 another (a family's `transcribe` default; a profile names its own); `conservative` also finds speech regions with Silero's VAD (`silero/vad-16k`, through the same cache) and
-decodes each as it ends, so silence is never decoded; `responsive` adds a draft of the speech so far every 600 ms of
+decodes each as it ends, so silence is never decoded; `drafting` adds a draft of the speech so far every 600 ms of
 it, which `live` shows. `--chunk-ms` (1000) is how much audio each push carries.
 
 `live` transcribes the microphone as it speaks, through the same driver: the host's default input device, or
 `--input-device` (a substring of an id or name from `--list-devices`), opened at the model's rate when it offers that
 and resampled otherwise. Each decode's committed text is a line on stdout (a statement per speaker under `--diarize`),
-its times, where a target shows them, the wall clock's; under `--preset responsive` the draft of the speech so far is
-on stderr, redrawn in place on a terminal. A family's `--preset` defaults to `conservative` here, `--chunk-ms`
+its times, where a target shows them, the wall clock's; under `--emission drafting` the draft of the speech so far is
+on stderr, redrawn in place on a terminal. A family's `--emission` defaults to `conservative` here, `--chunk-ms`
 to 250; `--seconds` stops after that much audio, Ctrl-C otherwise, and either way the speech past the last commit is
 decoded before the process exits. The default `live` feature builds it: it captures through `cpal`, which on Linux
 links ALSA (`libasound2-dev`); `--no-default-features` builds without it.
 
 ```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet live --preset responsive
+cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet live --emission drafting
 cargo run --release -p bunsen-tool -- asr live --list-devices
 ```
 
@@ -496,7 +496,7 @@ cargo run --release -p bunsen-tool --features wgpu -- asr live --diarize \
 ```
 
 The records are the events: a `statement`, a run of committed text one speaker spoke (undiarized, a decode's text on
-`live`, a file's on `transcribe`); a `draft`, `live`'s latest draft under `--preset responsive`; and a `transcript`,
+`live`, a file's on `transcribe`); a `draft`, `live`'s latest draft under `--emission drafting`; and a `transcript`,
 a file's whole transcript after its statements, with the profile and recipe that chose its model. A statement is flat;
 under `--diarize`, it is wrapped under its speaker (`null` where the diarizer heard nobody):
 
@@ -544,7 +544,7 @@ The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer), `s
 files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
 and checking what is cached, do not.
 
-`transcribe` and `live` take `--preset` and `--chunk-ms` (`diarize live` takes `--chunk-ms`); every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
+`transcribe` and `live` take `--emission` and `--chunk-ms` (`diarize live` takes `--chunk-ms`); every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
 `metal`, `cuda`; the CPU is always there) and `-v`/`-q`.
 
 | model | | licence |

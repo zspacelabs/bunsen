@@ -47,7 +47,7 @@ use burn::tensor::Device;
 use crate::cli::asr::{
     stream::{
         self,
-        Preset,
+        Emission,
     },
     transcribe_cmd::{
         Segment,
@@ -156,11 +156,11 @@ pub fn resolve(
     Ok(model)
 }
 
-/// The driver for `bundle` under `flags` and `preset`.
+/// The driver for `bundle` under `flags` and `emission`.
 pub fn driver(
     bundle: Arc<WhisperConstruct>,
     flags: &WhisperFlags,
-    preset: Preset,
+    emission: Emission,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<WhisperStreamDriver> {
@@ -196,11 +196,11 @@ pub fn driver(
     }
     let driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
         .with_policy(&policy)
-        .with_emission(preset.into())
+        .with_emission(emission.into())
         .init_from_construct(bundle, device)
         // The settings come from the command line.
         .as_policy()?;
-    stream::with_vad(driver, preset, cache, device)
+    stream::with_vad(driver, emission, cache, device)
 }
 
 /// What each window's features are scaled against: each window floored against

@@ -17,7 +17,7 @@ use burn::config::Config;
     strum::EnumString,
     strum::Display,
 )]
-pub enum PresetEmissionPolicy {
+pub enum EmissionMode {
     /// Decode each full window and commit all of it.
     Offline,
 
@@ -28,15 +28,15 @@ pub enum PresetEmissionPolicy {
 
     /// Conservative, plus a draft every 600 ms of speech.
     /// Needs a voice-activity model.
-    Responsive,
+    Drafting,
 }
 
-impl From<PresetEmissionPolicy> for EmissionPolicy {
-    fn from(policy: PresetEmissionPolicy) -> Self {
+impl From<EmissionMode> for EmissionPolicy {
+    fn from(policy: EmissionMode) -> Self {
         match policy {
-            PresetEmissionPolicy::Offline => EmissionPolicy::offline(),
-            PresetEmissionPolicy::Conservative => EmissionPolicy::conservative(),
-            PresetEmissionPolicy::Responsive => EmissionPolicy::responsive(),
+            EmissionMode::Offline => EmissionPolicy::offline(),
+            EmissionMode::Conservative => EmissionPolicy::conservative(),
+            EmissionMode::Drafting => EmissionPolicy::drafting(),
         }
     }
 }
@@ -152,7 +152,7 @@ impl EmissionPolicy {
 
     /// Best-effort real time, for a human reading during the utterance:
     /// as [`conservative`](Self::conservative), plus a draft every 600 ms.
-    pub fn responsive() -> Self {
+    pub fn drafting() -> Self {
         Self {
             triggers: DecodeTriggers::new()
                 .with_endpoint(true)
@@ -182,13 +182,13 @@ mod tests {
         assert_eq!(conservative.triggers.interval, None);
         assert_eq!(conservative.commit, CommitRule::LastTimestamp);
 
-        let responsive = EmissionPolicy::responsive();
+        let drafting = EmissionPolicy::drafting();
         assert_eq!(
-            responsive.triggers,
+            drafting.triggers,
             DecodeTriggers::new()
                 .with_endpoint(true)
                 .with_interval(Some(Duration::from_millis(600)))
         );
-        assert_eq!(responsive.commit, conservative.commit);
+        assert_eq!(drafting.commit, conservative.commit);
     }
 }

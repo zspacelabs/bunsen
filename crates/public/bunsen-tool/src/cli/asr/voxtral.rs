@@ -27,7 +27,7 @@ use burn::tensor::Device;
 use crate::cli::asr::{
     stream::{
         self,
-        Preset,
+        Emission,
     },
     transcribe_cmd::{
         Transcript,
@@ -55,7 +55,7 @@ pub struct VoxtralFlags {
     pub delay_ms: Option<usize>,
 }
 
-/// The driver for `bundle` under `flags` and `preset`.
+/// The driver for `bundle` under `flags` and `emission`.
 ///
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
@@ -64,7 +64,7 @@ pub struct VoxtralFlags {
 pub fn driver(
     bundle: Arc<VoxtralConstruct>,
     flags: &VoxtralFlags,
-    preset: Preset,
+    emission: Emission,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<VoxtralStreamDriver> {
@@ -84,8 +84,8 @@ pub fn driver(
         bundle.layout.delay_positions() * bundle.layout.config().position_ms
     );
     let engine = VoxtralEngine::new(bundle).with_window_seconds(window_seconds);
-    let driver = VoxtralStreamDriver::new(engine, preset.into())?;
-    stream::with_vad(driver, preset, cache, device)
+    let driver = VoxtralStreamDriver::new(engine, emission.into())?;
+    stream::with_vad(driver, emission, cache, device)
 }
 
 /// What each window's features are scaled against: nothing the stream

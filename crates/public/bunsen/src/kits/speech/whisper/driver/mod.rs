@@ -108,7 +108,7 @@
 //! |---|---|---|---|
 //! | [`offline`](crate::kits::speech::asr_driver::EmissionPolicy::offline) | `window_full` | `Complete` | never |
 //! | [`conservative`](crate::kits::speech::asr_driver::EmissionPolicy::conservative) | `window_full`, `endpoint` | `LastTimestamp` | with timestamps on, a decode's unfinished tail |
-//! | [`responsive`](crate::kits::speech::asr_driver::EmissionPolicy::responsive) | `window_full`, `endpoint`, `interval` (600 ms) | `LastTimestamp` | as conservative, plus one per interval of speech |
+//! | [`drafting`](crate::kits::speech::asr_driver::EmissionPolicy::drafting) | `window_full`, `endpoint`, `interval` (600 ms) | `LastTimestamp` | as conservative, plus one per interval of speech |
 //!
 //! ## What a decode may touch
 //!
@@ -119,7 +119,7 @@
 //! seek pointer, the transcript, the prompt carry); a draft moves nothing but
 //! its own pacing. So a draft is the same decode as a commit, not a second code
 //! path, and adding the `interval` trigger cannot change what is
-//! committed: `responsive` commits exactly what `conservative` commits on
+//! committed: `drafting` commits exactly what `conservative` commits on
 //! the same audio, which the context's tests pin. That holds on a driver
 //! that detects the language too: only a commit fixes a stream's language,
 //! and a draft before the first commit detects one for its own decode and

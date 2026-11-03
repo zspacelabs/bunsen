@@ -161,7 +161,7 @@ timer drafts.
 
 Drafts are opt-in, per policy. `offline` never drafts. `conservative`
 drafts only the unfinished tail of a timestamped decode, before that tail
-is decoded again with more audio. `responsive` adds a draft every 600 ms of
+is decoded again with more audio. `drafting` adds a draft every 600 ms of
 speech. A consumer that wants final text only keeps the
 [`Committed`](bunsen::kits::speech::asr_driver::TranscriptEvent::Committed)
 events. A draft covers the audio after the last commit and replaces the
@@ -169,7 +169,7 @@ previous draft whole, so there is no retraction protocol.
 
 A draft is the same decode as a commit, not a second code path. A decode
 reads the context through `&self`, and only a commit moves the stream, so
-`responsive` commits exactly what `conservative` commits on the same audio.
+`drafting` commits exactly what `conservative` commits on the same audio.
 That holds with language detection too: only a commit fixes a stream's
 language
 ([what a decode may touch](bunsen::kits::speech::whisper::driver#what-a-decode-may-touch)).

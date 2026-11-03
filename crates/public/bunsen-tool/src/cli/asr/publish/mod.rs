@@ -57,7 +57,7 @@ pub enum Event<'a> {
     },
 
     /// The latest draft of the speech past the last commit (`live` under
-    /// `--preset responsive`), from `start` to `end` on the stream's clock.
+    /// `--emission drafting`), from `start` to `end` on the stream's clock.
     #[cfg_attr(not(feature = "live"), allow(dead_code))]
     Draft { start: f64, end: f64, text: &'a str },
 

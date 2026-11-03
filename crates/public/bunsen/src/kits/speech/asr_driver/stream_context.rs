@@ -1336,7 +1336,7 @@ mod tests {
     fn test_drafts_never_change_commits() {
         let samples = speech();
         let conservative = driver(ToyEngine::new(None), EmissionPolicy::conservative());
-        let responsive = driver(
+        let drafting = driver(
             ToyEngine::new(None),
             EmissionPolicy {
                 triggers: DecodeTriggers::new()
@@ -1349,7 +1349,7 @@ mod tests {
         for sizes in [&[4][..], &[6, 2], &[samples.len()]] {
             let mut quiet_ctx = open(&conservative);
             let quiet = run(&mut quiet_ctx, &samples, sizes);
-            let mut ctx = open(&responsive);
+            let mut ctx = open(&drafting);
             let loud = run(&mut ctx, &samples, sizes);
             assert_eq!(committed(&loud), committed(&quiet), "{sizes:?}");
             assert_eq!(ctx.engine_state(), quiet_ctx.engine_state(), "{sizes:?}");
@@ -1525,7 +1525,7 @@ mod tests {
             driver(ToyEngine::new(None), EmissionPolicy::conservative()),
             100,
         );
-        let responsive = with_speakers(
+        let drafting = with_speakers(
             driver(
                 ToyEngine::new(None),
                 EmissionPolicy {
@@ -1539,7 +1539,7 @@ mod tests {
         );
         for sizes in [&[4][..], &[6, 2]] {
             let quiet = run(&mut open(&conservative), &samples, sizes);
-            let loud = run(&mut open(&responsive), &samples, sizes);
+            let loud = run(&mut open(&drafting), &samples, sizes);
             assert_eq!(committed(&loud), committed(&quiet), "{sizes:?}");
             assert!(loud.iter().any(|e| !e.is_committed()), "{sizes:?}");
             assert!(committed(&loud).iter().all(|s| s.speaker.is_some()));
