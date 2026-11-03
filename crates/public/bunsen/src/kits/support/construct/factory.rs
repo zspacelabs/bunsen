@@ -443,6 +443,8 @@ pub(crate) mod testing {
             };
             let base = format!("https://hub.example/{org}/{repo}/resolve/main");
             let file = |key: &str, file: &str, kind: &str| Resource {
+                size: None,
+                dtype: None,
                 key: key.to_string(),
                 file: file.to_string(),
                 sha256: None,
@@ -564,6 +566,8 @@ mod tests {
             origin: None,
             prefab: Some(prefab.to_string()),
             resources: ResourceBundle::new(name).with_resource(Resource {
+                size: None,
+                dtype: None,
                 key: "checkpoint".to_string(),
                 file: format!("{name}.pt"),
                 sha256: None,

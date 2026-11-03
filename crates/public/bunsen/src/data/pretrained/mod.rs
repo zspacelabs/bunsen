@@ -57,6 +57,14 @@
 //! from: strictly for authoring, where a repeated key is a mistake, or as an
 //! overlay for an override, where the right-hand resource bundle wins.
 //!
+//! A kit's table can also be data: a [`PretrainedCatalog`], the `catalog.json`
+//! the catalogue tool (`cargo validate catalog`) generates from a hand-written
+//! source. Its rows name their resource bundles, a bundle shared by many rows
+//! is listed once, its files carry their sizes and dtypes, and a
+//! directory base names where another tool keeps its files as path templates
+//! ([`resolve_dir_template`]). [`PretrainedCatalog::to_table`] loads it into
+//! the owned [`PretrainedTable`].
+//!
 //! ## Providers
 //!
 //! A [`PretrainedProvider`] is a namespace over rows: the `provider` of
@@ -196,6 +204,8 @@
 //!         file: "hello.txt".to_string(),
 //!         sha256: Some(sha256_of(&upstream.join("hello.txt"))?),
 //!         kind: Some("text".to_string()),
+//!         size: None,
+//!         dtype: None,
 //!         namespace: "toy".to_string(),
 //!         sources: vec![Source::LocalDir {
 //!             name: "upstream".to_string(),
@@ -265,6 +275,7 @@ mod apply_named;
 mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
+mod catalog;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
@@ -289,6 +300,7 @@ pub use apply_named::*;
 pub use cache::*;
 #[cfg(feature = "cache")]
 pub use cached_files::*;
+pub use catalog::*;
 pub use hf::*;
 pub use hf_config::*;
 #[cfg(feature = "cache")]

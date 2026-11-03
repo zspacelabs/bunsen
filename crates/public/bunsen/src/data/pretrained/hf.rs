@@ -391,6 +391,8 @@ impl HfProvider {
         repo: &str,
     ) -> Resource {
         Resource {
+            size: None,
+            dtype: None,
             key: "listing".to_string(),
             file: format!("{org}--{repo}--{}.json", self.revision.replace('/', "-")),
             sha256: None,
@@ -411,6 +413,8 @@ impl HfProvider {
         kind: &str,
     ) -> Resource {
         Resource {
+            size: Some(entry.size),
+            dtype: None,
             key: key.to_string(),
             file: entry.path.clone(),
             sha256: entry.sha256(),

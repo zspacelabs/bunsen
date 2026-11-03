@@ -341,6 +341,8 @@ impl ShardSetDescriptor {
             }
             let file = self.file_name(id);
             map.insert(Resource {
+                size: None,
+                dtype: None,
                 key: file.clone(),
                 file,
                 sha256: self.digest(id).map(str::to_string),
