@@ -7,6 +7,7 @@ use burn::config::Config;
 use super::{
     Fuse,
     PreFabConfig,
+    PresetSelection,
     Pretrained,
     ResourceBundle,
     StaticPreFabMap,
@@ -38,6 +39,9 @@ pub enum PretrainedRef {
         /// The row; its `name` is the ref. Boxed: a row is much larger than
         /// a given resource bundle.
         pretrained: Box<Pretrained>,
+        /// What the lookup asked of the row's presets: the presets its box
+        /// named, and its patch.
+        selection: PresetSelection,
     },
 
     /// A resource bundle from somewhere else: a path, a manifest. No prefab is
@@ -58,8 +62,17 @@ impl PretrainedRef {
             Self::Named {
                 provider,
                 pretrained,
+                ..
             } => alloc::format!("{provider}:{}", pretrained.name),
             Self::Given(map) => map.name.clone(),
+        }
+    }
+
+    /// What the lookup asked of the row's presets, if the spec was a name.
+    pub fn selection(&self) -> Option<&PresetSelection> {
+        match self {
+            Self::Named { selection, .. } => Some(selection),
+            Self::Given(_) => None,
         }
     }
 
@@ -69,6 +82,7 @@ impl PretrainedRef {
             Self::Named {
                 provider,
                 pretrained,
+                ..
             } => Some((provider, pretrained)),
             Self::Given(_) => None,
         }
@@ -119,11 +133,13 @@ impl PretrainedRef {
             Self::Named {
                 provider,
                 mut pretrained,
+                selection,
             } => {
                 pretrained.resources = pretrained.resources.fuse(map, Fuse::Overlay)?;
                 Self::Named {
                     provider,
                     pretrained,
+                    selection,
                 }
             }
             Self::Given(mine) => Self::Given(mine.fuse(map, Fuse::Overlay)?),
@@ -190,6 +206,7 @@ mod tests {
                     .with_resource(resource("vocabulary", "vocab.txt")),
                 presets: Default::default(),
             }),
+            selection: Default::default(),
         }
     }
 

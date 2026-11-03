@@ -175,7 +175,19 @@ impl PretrainedGroup {
         &self,
         name: &str,
     ) -> Option<&Pretrained> {
-        self.items.iter().find(|p| p.matches(name))
+        self.lookup_with(name, true)
+    }
+
+    /// The row `name` names, by its name or an alias, ignoring ASCII case
+    /// unless `case_sensitive`.
+    pub fn lookup_with(
+        &self,
+        name: &str,
+        case_sensitive: bool,
+    ) -> Option<&Pretrained> {
+        self.items
+            .iter()
+            .find(|p| p.matches_with(name, case_sensitive))
     }
 
     /// The ref of a row within a table: `group/name`.
@@ -217,6 +229,10 @@ impl PretrainedGroup {
 /// A provider over groups: the compiled-in rows, and any table read from
 /// a manifest. Its refs are `{group}/{name}`; a bare name or alias
 /// searches the groups in order, first hit wins.
+///
+/// Names compare ignoring ASCII case unless the table is
+/// [`case_sensitive`](Self::case_sensitive): `Qwen/Qwen3-0.6B` finds
+/// `qwen/qwen3-0.6b`. A listing gives names as the table declares them.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PretrainedTable {
     /// The provider's name: [`WELL_KNOWN`] for the compiled-in rows.
@@ -227,31 +243,43 @@ pub struct PretrainedTable {
 
     /// The groups, in search order.
     pub groups: Vec<PretrainedGroup>,
+
+    /// Whether names compare exactly; by default they ignore ASCII case.
+    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
+    pub case_sensitive: bool,
 }
 
 impl PretrainedTable {
-    /// The group called `name`.
+    /// The group called `name`, by the table's case rule.
     pub fn group(
         &self,
         name: &str,
     ) -> Option<&PretrainedGroup> {
-        self.groups.iter().find(|g| g.name == name)
+        self.groups.iter().find(|g| {
+            if self.case_sensitive {
+                g.name == name
+            } else {
+                g.name.eq_ignore_ascii_case(name)
+            }
+        })
     }
 
     /// The row a ref names, with its group: `group/name` looks in that
     /// group, by name or alias; anything else searches the groups in order.
+    /// Names compare by the table's case rule.
     pub fn get(
         &self,
         name: &str,
     ) -> Option<(&PretrainedGroup, &Pretrained)> {
+        let exact = self.case_sensitive;
         if let Some((group, rest)) = name.split_once('/')
             && let Some(group) = self.group(group)
         {
-            return group.lookup(rest).map(|p| (group, p));
+            return group.lookup_with(rest, exact).map(|p| (group, p));
         }
         self.groups
             .iter()
-            .find_map(|group| group.lookup(name).map(|p| (group, p)))
+            .find_map(|group| group.lookup_with(name, exact).map(|p| (group, p)))
     }
 }
 
@@ -368,6 +396,7 @@ mod tests {
                     ],
                 },
             ],
+            case_sensitive: false,
         }
     }
 

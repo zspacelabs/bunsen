@@ -1,5 +1,6 @@
 //! A pretrained's presets: named, described merge patches over its config.
 
+use core::fmt;
 use std::collections::BTreeSet;
 
 use serde::{
@@ -12,6 +13,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        LookupError,
     },
     support::merge_patch,
 };
@@ -111,6 +113,104 @@ impl PresetSet {
         self.presets.iter().map(|p| p.name.as_str())
     }
 
+    /// The preset a lookup's `name` selects: the one so named, ignoring
+    /// ASCII case.
+    pub fn find(
+        &self,
+        name: &str,
+    ) -> Option<&Preset> {
+        self.get(name).or_else(|| {
+            self.presets
+                .iter()
+                .find(|p| p.name.eq_ignore_ascii_case(name))
+        })
+    }
+
+    /// Checks `selection`'s presets against the set, and names them as the
+    /// set declares them.
+    ///
+    /// Each must be a preset of the set (ignoring ASCII case), named once;
+    /// at most one member of an axis may be selected; and the selected
+    /// presets' patches must set disjoint paths, so that their order never
+    /// matters.
+    ///
+    /// # Errors
+    /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): a preset the set
+    ///   lacks (its candidates are the set's presets), or one selected twice.
+    /// - [`Policy`](crate::errors::BunsenErrorKind::Policy): two members of one
+    ///   axis, or two presets setting the same path.
+    pub fn check_selection(
+        &self,
+        selection: &PresetSelection,
+    ) -> BunsenResult<Vec<String>> {
+        let mut selected: Vec<String> = Vec::new();
+        for name in &selection.presets {
+            let Some(preset) = self.find(name) else {
+                return Err(BunsenError::lookup(
+                    LookupError::missing("preset", name.clone()).with_candidates(self.names()),
+                ));
+            };
+            let name = &preset.name;
+            if selected.contains(name) {
+                return Err(BunsenError::lookup(LookupError::duplicate(
+                    "preset",
+                    name.clone(),
+                )));
+            }
+            if let Some(axis) = self.axis_of(name)
+                && let Some(other) = selected
+                    .iter()
+                    .find(|s| axis.members.iter().any(|m| m == *s))
+            {
+                return Err(BunsenError::policy(format!(
+                    "`{other}` and `{name}` are both on the axis `{}` ({}): select one",
+                    axis.name, axis.description
+                )));
+            }
+            selected.push(name.clone());
+        }
+
+        let patches: Vec<&Value> = selected
+            .iter()
+            .map(|name| &self.get(name).expect("found above").patch)
+            .collect();
+        if let Some(conflict) = merge_patch::conflicts(&patches).first() {
+            let who: Vec<&str> = conflict
+                .patches
+                .iter()
+                .map(|&i| selected[i].as_str())
+                .collect();
+            return Err(BunsenError::policy(format!(
+                "the presets {} each set `{}`: select one",
+                quoted(&who),
+                conflict.path
+            )));
+        }
+        Ok(selected)
+    }
+
+    /// The presets a checked selection applies, in order: the default's
+    /// that it does not displace (a default whose axis it selects a member
+    /// of is displaced), then the selected.
+    pub fn applied(
+        &self,
+        selected: &[String],
+    ) -> Vec<String> {
+        let mut applied: Vec<String> = self
+            .default
+            .iter()
+            .filter(|name| {
+                let displaced = self.axis_of(name).is_some_and(|axis| {
+                    selected.iter().any(|s| axis.members.iter().any(|m| m == s))
+                });
+                !displaced && !selected.contains(name)
+            })
+            .cloned()
+            .collect();
+        applied.extend(selected.iter().cloned());
+        applied
+    }
+
     /// Checks the set is well formed.
     ///
     /// Names are unique, non-empty, and in the preset alphabet; every preset
@@ -205,6 +305,63 @@ impl PresetSet {
                 quoted(&who),
                 conflict.path
             )));
+        }
+        Ok(())
+    }
+}
+
+/// What a lookup asks of a pretrained's presets: the presets it names, and
+/// a final patch over the result.
+///
+/// `Display` writes it as a lookup expression's tail: the box, then the
+/// patch as JSON, each only when present (`[thinking,yarn-128k]{"beam":1}`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PresetSelection {
+    /// The presets named, in the order given.
+    pub presets: Vec<String>,
+
+    /// A merge patch applied after every preset.
+    pub patch: Option<Value>,
+}
+
+impl PresetSelection {
+    /// Selects `presets`.
+    pub fn new<I, S>(presets: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self {
+            presets: presets.into_iter().map(Into::into).collect(),
+            patch: None,
+        }
+    }
+
+    /// Sets the final patch.
+    pub fn with_patch(
+        mut self,
+        patch: Value,
+    ) -> Self {
+        self.patch = Some(patch);
+        self
+    }
+
+    /// Whether it selects nothing and patches nothing.
+    pub fn is_empty(&self) -> bool {
+        self.presets.is_empty() && self.patch.is_none()
+    }
+}
+
+impl fmt::Display for PresetSelection {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        if !self.presets.is_empty() {
+            write!(f, "[{}]", self.presets.join(","))?;
+        }
+        if let Some(patch) = &self.patch {
+            write!(f, "{patch}")?;
         }
         Ok(())
     }
@@ -438,5 +595,37 @@ mod tests {
         assert_eq!(quoted(&["a"]), "`a`");
         assert_eq!(quoted(&["a", "b"]), "`a` and `b`");
         assert_eq!(quoted(&["a", "b", "c"]), "`a`, `b` and `c`");
+    }
+
+    #[test]
+    fn test_check_selection_folds_case_and_applies_over_the_default() {
+        let set = thinking_set();
+        assert_eq!(
+            set.check_selection(&PresetSelection::new(["No-Thinking", "YARN-128K"]))
+                .unwrap(),
+            ["no-thinking", "yarn-128k"]
+        );
+        assert_eq!(
+            set.applied(&["yarn-128k".to_string()]),
+            ["thinking", "yarn-128k"]
+        );
+        assert_eq!(set.applied(&["no-thinking".to_string()]), ["no-thinking"]);
+        assert_eq!(set.applied(&[]), ["thinking"]);
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_contains("thinking")
+            .assert_err(&set.check_selection(&PresetSelection::new(["thinking", "THINKING"])));
+    }
+
+    #[test]
+    fn test_selection_display() {
+        assert_eq!(PresetSelection::default().to_string(), "");
+        assert!(PresetSelection::default().is_empty());
+        let s = PresetSelection::new(["a", "b"]).with_patch(json!({"beam": 1}));
+        assert!(!s.is_empty());
+        assert_eq!(s.to_string(), r#"[a,b]{"beam":1}"#);
+        assert_eq!(
+            PresetSelection::default().with_patch(json!({})).to_string(),
+            "{}"
+        );
     }
 }

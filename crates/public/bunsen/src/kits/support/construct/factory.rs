@@ -17,11 +17,13 @@ use super::{
     ConstructInit,
     Deferred,
     Loaded,
+    LookupExpr,
 };
 #[cfg(doc)]
 use crate::data::pretrained::ResourceBundle;
 use crate::{
     data::pretrained::{
+        PresetSelection,
         Pretrained,
         PretrainedCache,
         PretrainedProvider,
@@ -50,6 +52,23 @@ use crate::{
 /// [`for_prefab`](Self::for_prefab) answer a listing. A file on disk is
 /// not the factory's business: that is a given [`ResourceBundle`], through
 /// [`Deferred::from_resource_bundle`].
+///
+/// # Lookup expressions
+///
+/// A spec is a [`LookupExpr`]: `[provider:]name`, then an optional box of
+/// presets and an optional YAML patch, `name[preset, …]{patch}`. Only the
+/// name is dispatched. The box and the patch are checked against the row
+/// found before anything is fetched: a kit whose hook does not resolve
+/// presets ([`ConstructInit::RESOLVES_PRESETS`]) refuses them, and one that
+/// does checks the box against the row's presets
+/// ([`PresetSet::check_selection`](crate::data::pretrained::PresetSet::check_selection)).
+/// The selection rides on the ref ([`PretrainedRef::selection`]) to the
+/// hook, which resolves its config through it.
+///
+/// A table compares names ignoring ASCII case unless it is
+/// [`case_sensitive`](crate::data::pretrained::PretrainedTable::case_sensitive):
+/// `Qwen/Qwen3-0.6B` finds `qwen/qwen3-0.6b`. A hub compares as it is asked,
+/// since its names are paths in URLs.
 ///
 /// # Dispatch
 ///
@@ -271,10 +290,35 @@ impl<H: ConstructInit> PretrainedFactory<H> {
         &self,
         spec: &str,
     ) -> BunsenResult<(String, Pretrained)> {
-        match self.find(spec, |provider, name| provider.lookup(name))? {
-            Some(found) => Ok(found),
-            None => Err(self.not_found(spec)),
+        let expr = LookupExpr::parse(spec)?;
+        let (provider, row) = match self.find(&expr.name, |provider, name| provider.lookup(name))? {
+            Some(found) => found,
+            None => return Err(self.not_found(&expr.name)),
+        };
+        Self::check_selection(&row, &expr.selection)?;
+        Ok((provider, row))
+    }
+
+    /// Checks what a lookup asks of `row`'s presets, before anything is
+    /// fetched: that the kit resolves presets at all, and that the selection
+    /// is one `row`'s presets allow ([`PresetSet::check_selection`]).
+    fn check_selection(
+        row: &Pretrained,
+        selection: &PresetSelection,
+    ) -> BunsenResult<()> {
+        if selection.is_empty() {
+            return Ok(());
         }
+        if !H::RESOLVES_PRESETS {
+            return Err(BunsenError::unsupported(format!(
+                "the {} kit takes no presets or patch, but the lookup asks for `{selection}`",
+                H::KIT
+            )));
+        }
+        row.presets
+            .check_selection(selection)
+            .with_context(|| format!("the presets of {:?}", row.name))?;
+        Ok(())
     }
 
     /// The row `spec` names, dispatched as [`lookup`](Self::lookup) is but
@@ -296,14 +340,19 @@ impl<H: ConstructInit> PretrainedFactory<H> {
         cache: &PretrainedCache,
     ) -> BunsenResult<Deferred<H>> {
         let resolve = || -> BunsenResult<Deferred<H>> {
-            let found = self.find(spec, |provider, name| provider.resolve(name, H::KIT, cache))?;
+            let expr = LookupExpr::parse(spec)?;
+            let found = self.find(&expr.name, |provider, name| {
+                provider.resolve(name, H::KIT, cache)
+            })?;
             let (provider, pretrained) = match found {
                 Some(found) => found,
-                None => return Err(self.not_found(spec)),
+                None => return Err(self.not_found(&expr.name)),
             };
+            Self::check_selection(&pretrained, &expr.selection)?;
             Deferred::new(PretrainedRef::Named {
                 provider,
                 pretrained: Box::new(pretrained),
+                selection: expr.selection,
             })
         };
 
@@ -520,6 +569,30 @@ pub(crate) mod testing {
             Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
         }
     }
+
+    /// [`CheckpointPath`], for a kit whose hook resolves presets.
+    #[derive(Clone, Debug, Default)]
+    pub struct PresetPath;
+
+    impl ConstructInit for PresetPath {
+        type Construct = PathBuf;
+
+        const KIT: &'static str = "kit";
+        const RESOLVES_PRESETS: bool = true;
+
+        fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+            Ok(Self)
+        }
+
+        fn try_init(
+            &self,
+            model: &PretrainedRef,
+            loaded: &LoadedResources,
+            device: &Device,
+        ) -> BunsenResult<Arc<PathBuf>> {
+            CheckpointPath.try_init(model, loaded, device)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -532,6 +605,7 @@ mod tests {
             CheckpointPath,
             Failing,
             ListsNothing,
+            PresetPath,
         },
         *,
     };
@@ -618,6 +692,7 @@ mod tests {
             name: name.to_string(),
             description: format!("table {name}"),
             groups,
+            case_sensitive: false,
         })
     }
 
@@ -931,5 +1006,74 @@ mod tests {
             .collect();
         assert_eq!(small, ["well-known:a/small", "well-known:b/small"]);
         assert!(factory.for_prefab("nothing").is_empty());
+    }
+
+    /// A well-known table compares names ignoring case, and hands the row
+    /// back named as it declares it.
+    #[test]
+    fn test_well_known_names_ignore_case() {
+        let factory = factory();
+        let (provider, row) = factory.lookup("A/SMALL").unwrap();
+        assert_eq!(
+            (provider.as_str(), row.name.as_str()),
+            ("well-known", "a/small")
+        );
+        assert_eq!(
+            factory.lookup("well-known:B/Tiny").unwrap().1.name,
+            "b/tiny"
+        );
+        assert_eq!(factory.lookup("S").unwrap().1.name, "a/small");
+    }
+
+    /// A box or a patch, to a kit whose hook does not resolve presets, is
+    /// refused rather than ignored; a malformed expression is the caller's.
+    #[test]
+    fn test_a_selection_needs_a_kit_that_resolves_presets() {
+        let factory = factory();
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_eq("the kit kit takes no presets or patch, but the lookup asks for `[fast]`")
+            .assert_err(&factory.lookup("a/small[fast]"));
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_contains("{\"beam\":1}")
+            .assert_err(&factory.lookup("a/small{beam: 1}"));
+        ErrorMatcher::kind(BunsenErrorKind::Policy).assert_err(&factory.lookup("a/small[fast"));
+    }
+
+    /// For a kit that resolves presets, the box is checked against the
+    /// row's presets before anything is fetched, and rides on the ref.
+    #[test]
+    fn test_a_selection_is_checked_against_the_row() {
+        use crate::data::pretrained::{
+            Preset,
+            PresetSet,
+        };
+
+        let mut small = row("small", &[], "small");
+        small.presets = PresetSet {
+            presets: vec![Preset {
+                name: "fast".to_string(),
+                description: "a greedy search".to_string(),
+                patch: serde_json::json!({"beam": 1}),
+            }],
+            ..Default::default()
+        };
+        let factory = PretrainedFactory::<PresetPath>::new()
+            .with_providers([table(WELL_KNOWN, vec![group("a", vec![small])])])
+            .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let cache = offline_cache(dir.path());
+
+        let model = factory.resolve("a/small[FAST]{beam: 2}", &cache).unwrap();
+        assert_eq!(model.id(), "well-known:a/small");
+        let selection = model.model.selection().unwrap();
+        assert_eq!(selection.presets, ["FAST"]);
+        assert_eq!(selection.patch, Some(serde_json::json!({"beam": 2})));
+
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_contains("no preset \"slow\"; there are: fast")
+            .assert_err(&factory.resolve("a/small[slow]", &cache));
+        // An empty box is a malformed expression, not an empty selection.
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .assert_err(&factory.resolve("a/small[]", &cache));
     }
 }

@@ -43,6 +43,12 @@ pub trait ConstructInit: Sized {
     /// `pretrained/<kit>/<namespace>/<sha256>/<file>`.
     const KIT: &'static str;
 
+    /// Whether [`try_init`](Self::try_init) resolves the ref's preset
+    /// selection ([`PretrainedRef::selection`]). A factory refuses a lookup
+    /// that selects presets or patches the config of a kit whose hook does
+    /// not, rather than let the request be ignored.
+    const RESOLVES_PRESETS: bool = false;
+
     /// What construction yields, for a backend.
     type Construct;
 

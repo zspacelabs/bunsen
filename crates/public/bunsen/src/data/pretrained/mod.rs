@@ -225,6 +225,7 @@
 //!         origin: None,
 //!         items: vec![hello],
 //!     }],
+//!     case_sensitive: false,
 //! };
 //! let factory =
 //!     PretrainedFactory::<Greeting>::new().with_provider(Arc::new(table))?;

@@ -69,7 +69,24 @@ impl Pretrained {
         &self,
         name: &str,
     ) -> bool {
-        self.name == name || self.aliases.iter().any(|a| a == name)
+        self.matches_with(name, true)
+    }
+
+    /// Does `name` name this pretrained, by its name or an alias, comparing
+    /// exactly when `case_sensitive` and ignoring ASCII case otherwise?
+    pub fn matches_with(
+        &self,
+        name: &str,
+        case_sensitive: bool,
+    ) -> bool {
+        let eq = |a: &str| {
+            if case_sensitive {
+                a == name
+            } else {
+                a.eq_ignore_ascii_case(name)
+            }
+        };
+        eq(&self.name) || self.aliases.iter().any(|a| eq(a))
     }
 }
 
@@ -96,6 +113,10 @@ mod tests {
         assert!(row.matches("small"));
         assert!(row.matches("s"));
         assert!(!row.matches("large"));
+        assert!(!row.matches("Small"));
+        assert!(row.matches_with("SMALL", false));
+        assert!(row.matches_with("S", false));
+        assert!(!row.matches_with("S", true));
         let json = serde_json::to_string(&row).unwrap();
         assert_eq!(serde_json::from_str::<Pretrained>(&json).unwrap(), row);
     }

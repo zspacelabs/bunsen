@@ -214,6 +214,7 @@ mod tests {
                 }),
                 presets: Default::default(),
             }),
+            selection: Default::default(),
         }
     }
 

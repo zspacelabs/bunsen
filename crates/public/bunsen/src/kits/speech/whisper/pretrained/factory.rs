@@ -174,6 +174,7 @@ mod tests {
             PretrainedRef::Named {
                 provider,
                 pretrained,
+                ..
             } => {
                 assert_eq!(provider, "well-known");
                 assert_eq!(pretrained.name, "openai/tiny.en");
