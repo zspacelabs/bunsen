@@ -3,7 +3,6 @@
 use std::{
     collections::BTreeMap,
     fmt,
-    str::FromStr,
 };
 
 use bunsen::{
@@ -13,27 +12,21 @@ use bunsen::{
     },
     kits::support::construct::LookupExpr,
 };
-use clap::{
-    Arg,
-    Command,
-    Parser,
-};
 use serde::{
     Deserialize,
     Serialize,
 };
 
-use crate::cli::asr::{
-    family::Family,
-    parakeet::ParakeetFlags,
-    qwen3_asr::Qwen3AsrFlags,
-    stream::{
-        Emission,
-        Streaming,
-        VadArgs,
+use crate::cli::{
+    asr::{
+        family::Family,
+        stream::{
+            Emission,
+            Streaming,
+            VadArgs,
+        },
     },
-    voxtral::VoxtralFlags,
-    whisper::WhisperFlags,
+    with_patch,
 };
 
 /// Which of a profile's recipes a command runs.
@@ -246,7 +239,7 @@ impl Profile {
         mode: Mode,
     ) -> BunsenResult<Resolved> {
         self.recipe(mode)
-            .resolve(&self.name, self.need, mode, None, &[])
+            .resolve(&self.name, self.need, mode, None, None)
     }
 }
 
@@ -404,102 +397,6 @@ pub fn lookup(name: &str) -> BunsenResult<&'static Profile> {
         })
 }
 
-/// One `--opt`: a family's own option, for whichever family the profile
-/// runs, or only for `family`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Opt {
-    /// The family it is for; any, when `None`.
-    pub family: Option<Family>,
-
-    /// The option's long name, or `model`.
-    pub key: String,
-
-    pub value: String,
-}
-
-impl FromStr for Opt {
-    type Err = String;
-
-    /// `[FAMILY.]KEY=VALUE`, or `[FAMILY.]KEY` for `KEY=true`.
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (key, value) = s.split_once('=').unwrap_or((s, "true"));
-        let (family, key) = match key.split_once('.') {
-            Some((family, key)) => (
-                Some(Family::from_name(family).ok_or_else(|| {
-                    let names: Vec<&str> = Family::ALL.iter().map(|f| f.name()).collect();
-                    format!("`{family}` is not a family: {}", names.join(", "))
-                })?),
-                key,
-            ),
-            None => (None, key),
-        };
-        let key = key.trim_start_matches("--");
-        if key.is_empty() {
-            return Err(format!("`{s}` names no option"));
-        }
-        Ok(Opt {
-            family,
-            key: key.to_string(),
-            value: value.to_string(),
-        })
-    }
-}
-
-impl fmt::Display for Opt {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        if let Some(family) = self.family {
-            write!(f, "{}.", family.name())?;
-        }
-        write!(f, "{}={}", self.key, self.value)
-    }
-}
-
-/// The family's own options, as its command declares them.
-fn family_args(family: Family) -> Vec<Arg> {
-    let command = Command::new(family.name());
-    let command = match family {
-        Family::Parakeet => <ParakeetFlags as clap::Args>::augment_args(command),
-        Family::Qwen3Asr => <Qwen3AsrFlags as clap::Args>::augment_args(command),
-        Family::Voxtral => <VoxtralFlags as clap::Args>::augment_args(command),
-        Family::Whisper => <WhisperFlags as clap::Args>::augment_args(command),
-    };
-    command
-        .get_arguments()
-        .filter(|a| a.get_long().is_some())
-        .cloned()
-        .collect()
-}
-
-/// The keys `--opt` takes for `family`: `model`, and its own options.
-fn family_keys(family: Family) -> String {
-    let keys: Vec<String> = family_args(family)
-        .iter()
-        .filter_map(|a| a.get_long().map(String::from))
-        .collect();
-    keys.join(", ")
-}
-
-/// Whether `family` has an option `key`.
-fn has_key(
-    family: Family,
-    key: &str,
-) -> bool {
-    family_args(family)
-        .iter()
-        .any(|a| a.get_long() == Some(key))
-}
-
-/// The family's own flags alone, parsed as its command parses them.
-#[derive(Parser, Debug)]
-#[command(no_binary_name = true)]
-struct FlagsOnly<F: clap::Args> {
-    #[command(flatten)]
-    flags: F,
-}
-
 /// A profile's recipe, with the command line's choices over it: what runs.
 #[derive(Clone, Debug)]
 pub struct Resolved {
@@ -508,7 +405,7 @@ pub struct Resolved {
     pub profile: String,
 
     /// The need it serves, [settled](Need::settled): its task is the one
-    /// the model runs, an `--opt task=` included.
+    /// the model runs.
     pub need: Need,
 
     pub mode: Mode,
@@ -520,176 +417,113 @@ pub struct Resolved {
     /// The VAD slot's filler, a lookup expression; `None` under an emission
     /// that finds no speech regions.
     pub vad: Option<String>,
-
-    /// The family's own flags, by long name, each once, in order.
-    pub flags: Vec<(String, String)>,
 }
 
 impl Recipe {
-    /// This recipe of `profile`, serving `need`, with `language` and `opts`
-    /// over it.
+    /// This recipe of `profile`, serving `need`, with `task` and `language`
+    /// set on its model.
     ///
-    /// `language` is Whisper's `--language`; a family that finds the
-    /// language itself is logged, at `INFO`, as not taking it. An `opt` for
-    /// another family is logged as not applied; one for this family, or for
-    /// none, replaces the recipe's value. Whisper's `--task`, as it ends,
-    /// is the need's task; another family transcribes.
+    /// `task`, when given, is Whisper's: its `[translate]` preset in the
+    /// model's box, or none for `transcribe`. `language` is Whisper's
+    /// `{language: ...}` in the model's patch; a family that finds the
+    /// language itself is logged, at `INFO`, as not taking it. The task the
+    /// model runs, as it ends, is the need's.
     ///
     /// # Errors
-    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when an `opt`
-    /// names an option its family does not have (or, for none, this
-    /// family), or a flag that takes no value is given one but `true` or
-    /// `false`: they come from the command line.
+    /// As [`LookupExpr::parse`] on the model, and [`VadArgs::slot`].
     pub fn resolve(
         &self,
         profile: &str,
         need: Need,
         mode: Mode,
+        task: Option<Task>,
         language: Option<&str>,
-        opts: &[Opt],
     ) -> BunsenResult<Resolved> {
-        let family = self.engine.family.name();
+        let mut model = self.engine.model.clone();
+        if let Some(task) = task {
+            model = with_task(&model, task)?;
+        }
+        if let Some(language) = language {
+            if self.engine.family == Family::Whisper {
+                model = with_patch(&model, &serde_json::json!({ "language": language }))?;
+            } else {
+                log::info!(
+                    "profile {profile} runs {}, which finds the language itself: \
+                     --language {language} not applied",
+                    self.engine.family.name()
+                );
+            }
+        }
         let mut resolved = Resolved {
             profile: profile.to_string(),
             need: need.settled(),
             mode,
             family: self.engine.family,
-            model: self.engine.model.clone(),
+            model,
             emission: self.emission,
             chunk_ms: self.chunk_ms,
             vad: VadArgs::default().slot(self.emission)?,
-            flags: Vec::new(),
         };
-        if let Some(language) = language {
-            if self.engine.family == Family::Whisper {
-                resolved.set("language", language);
-            } else {
-                log::info!(
-                    "profile {profile} runs {family}, which finds the language itself: \
-                     --language {language} not applied"
-                );
-            }
-        }
-        for opt in opts {
-            let owner = opt.family.unwrap_or(self.engine.family);
-            if !has_key(owner, &opt.key) {
-                return Err(BunsenError::policy(format!(
-                    "--opt {opt}: {} has no `{}`; it takes: {}",
-                    owner.name(),
-                    opt.key,
-                    family_keys(owner)
-                )));
-            }
-            if owner != self.engine.family {
-                log::info!("profile {profile} runs {family}: --opt {opt} not applied");
-            } else {
-                resolved.set(&opt.key, &opt.value);
-            }
-        }
-        resolved.argv()?;
         resolved.need.task = resolved.task();
         Ok(resolved)
     }
 }
 
+/// Whisper's `model` set to `task`: its box's `translate` and `transcribe`
+/// presets replaced by `translate`, or by none for `transcribe` (the task
+/// axis's default), and a `task` its patch sets removed.
+///
+/// # Errors
+/// As [`LookupExpr::parse`].
+fn with_task(
+    model: &str,
+    task: Task,
+) -> BunsenResult<String> {
+    let mut expr = LookupExpr::parse(model)?;
+    expr.selection
+        .presets
+        .retain(|p| p != "translate" && p != "transcribe");
+    if task == Task::Translate {
+        expr.selection.presets.push("translate".to_string());
+    }
+    if let Some(patch) = expr
+        .selection
+        .patch
+        .as_mut()
+        .and_then(|p| p.as_object_mut())
+    {
+        patch.remove("task");
+    }
+    Ok(expr.to_string())
+}
+
 impl Resolved {
-    /// The task the model runs: Whisper's `--task`, as its flags have it,
-    /// else the `translate` preset in its model's box (`transcribe`
-    /// without); another family transcribes.
+    /// The task the model runs: Whisper's, as its model's patch sets it
+    /// (`{task: Translate}`), else `translate` when its box names the
+    /// `translate` preset, `transcribe` without; another family transcribes.
     pub fn task(&self) -> Task {
-        match self.family {
-            Family::Whisper => self
-                .flags
-                .iter()
-                .find(|(k, _)| k == "task")
-                .and_then(|(_, v)| <Task as clap::ValueEnum>::from_str(v, false).ok())
-                .unwrap_or_else(|| {
-                    let translates = LookupExpr::parse(&self.model)
-                        .is_ok_and(|e| e.selection.presets.iter().any(|p| p == "translate"));
-                    if translates {
-                        Task::Translate
-                    } else {
-                        Task::Transcribe
-                    }
-                }),
-            Family::Parakeet | Family::Qwen3Asr | Family::Voxtral => Task::Transcribe,
+        if self.family != Family::Whisper {
+            return Task::Transcribe;
         }
-    }
-
-    /// Sets the family flag `key`, in place when it is already set.
-    fn set(
-        &mut self,
-        key: &str,
-        value: &str,
-    ) {
-        match self.flags.iter_mut().find(|(k, _)| k == key) {
-            Some((_, v)) => *v = value.to_string(),
-            None => self.flags.push((key.to_string(), value.to_string())),
+        let Ok(expr) = LookupExpr::parse(&self.model) else {
+            return Task::Transcribe;
+        };
+        let patched = expr
+            .selection
+            .patch
+            .as_ref()
+            .and_then(|p| p.get("task"))
+            .and_then(|t| t.as_str());
+        match patched {
+            Some("Translate") => Task::Translate,
+            Some(_) => Task::Transcribe,
+            None if expr.selection.presets.iter().any(|p| p == "translate") => Task::Translate,
+            None => Task::Transcribe,
         }
-    }
-
-    /// The family flags as its command takes them: `--key value`, or
-    /// `--key` alone for a flag that takes no value and is `true`.
-    ///
-    /// # Errors
-    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when such a flag
-    /// is neither `true` nor `false`, or a key is not the family's.
-    pub fn argv(&self) -> BunsenResult<Vec<String>> {
-        let args = family_args(self.family);
-        let mut argv = Vec::new();
-        for (key, value) in &self.flags {
-            let arg = args
-                .iter()
-                .find(|a| a.get_long() == Some(key.as_str()))
-                .ok_or_else(|| {
-                    BunsenError::policy(format!(
-                        "profile {}: {} has no `--{key}`",
-                        self.profile,
-                        self.family.name()
-                    ))
-                })?;
-            if arg.get_action().takes_values() {
-                argv.extend([format!("--{key}"), value.clone()]);
-            } else {
-                match value.as_str() {
-                    "true" => argv.push(format!("--{key}")),
-                    "false" => {}
-                    _ => {
-                        return Err(BunsenError::policy(format!(
-                            "profile {}: `--{key}` takes no value; `{value}` is neither \
-                             `true` nor `false`",
-                            self.profile
-                        )));
-                    }
-                }
-            }
-        }
-        Ok(argv)
-    }
-
-    /// The family flags, parsed by `F`, the family's own flags.
-    ///
-    /// # Errors
-    /// As [`argv`](Self::argv);
-    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when `F` does
-    /// not take a value.
-    pub fn parse_flags<F: clap::Args>(&self) -> BunsenResult<F> {
-        FlagsOnly::<F>::try_parse_from(self.argv()?)
-            .map(|parsed| parsed.flags)
-            .map_err(|e| {
-                BunsenError::policy(format!(
-                    "profile {}: {}",
-                    self.profile,
-                    e.render().to_string().trim()
-                ))
-            })
     }
 
     /// The `bunsen-tool asr family` command this runs, word by word.
-    ///
-    /// # Errors
-    /// As [`argv`](Self::argv).
-    pub fn command_line(&self) -> BunsenResult<Vec<String>> {
+    pub fn command_line(&self) -> Vec<String> {
         let mut line: Vec<String> = [
             "bunsen-tool",
             "asr",
@@ -708,8 +542,7 @@ impl Resolved {
         if let Some(vad) = &self.vad {
             line.extend(["--vad".to_string(), vad.clone()]);
         }
-        line.extend(self.argv()?);
-        Ok(line)
+        line
     }
 
     /// How this streams.
@@ -733,7 +566,6 @@ impl Resolved {
                 emission: emission_name(self.emission).to_string(),
                 chunk_ms: self.chunk_ms,
                 vad: self.vad.clone(),
-                flags: self.flags.iter().cloned().collect(),
             },
         }
     }
@@ -788,33 +620,26 @@ pub struct RecipeStamp {
     /// The VAD, when the emission finds speech regions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vad: Option<String>,
-
-    pub flags: BTreeMap<String, String>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn opt(s: &str) -> Opt {
-        s.parse().unwrap()
-    }
-
     fn resolve(
         name: &str,
         mode: Mode,
+        task: Option<Task>,
         language: Option<&str>,
-        opts: &[&str],
     ) -> BunsenResult<Resolved> {
         let profile = lookup(name)?;
-        let opts: Vec<Opt> = opts.iter().map(|s| opt(s)).collect();
         profile
             .recipe(mode)
-            .resolve(&profile.name, profile.need, mode, language, &opts)
+            .resolve(&profile.name, profile.need, mode, task, language)
     }
 
-    /// Every recipe parses as its family's flags; the names and aliases are
-    /// each one profile's, and the default is one of them.
+    /// Every recipe resolves, serving its profile's need; the names and
+    /// aliases are each one profile's, and the default is one of them.
     #[test]
     fn test_profiles_parse() {
         let mut names = Vec::new();
@@ -822,13 +647,8 @@ mod tests {
             names.push(profile.name.as_str());
             names.extend(profile.aliases.iter().map(String::as_str));
             for mode in [Mode::Offline, Mode::Live] {
-                let resolved = resolve(&profile.name, mode, None, &[]).unwrap();
-                match resolved.family {
-                    Family::Parakeet => drop(resolved.parse_flags::<ParakeetFlags>().unwrap()),
-                    Family::Qwen3Asr => drop(resolved.parse_flags::<Qwen3AsrFlags>().unwrap()),
-                    Family::Voxtral => drop(resolved.parse_flags::<VoxtralFlags>().unwrap()),
-                    Family::Whisper => drop(resolved.parse_flags::<WhisperFlags>().unwrap()),
-                }
+                let resolved = resolve(&profile.name, mode, None, None).unwrap();
+                assert_eq!(resolved.need, profile.need.settled(), "{}", profile.name);
             }
         }
         let mut unique = names.clone();
@@ -888,95 +708,62 @@ mod tests {
         assert!(note.is_some());
     }
 
-    #[test]
-    fn test_opt_parse() {
-        assert_eq!(
-            opt("whisper.beam-size=1"),
-            Opt {
-                family: Some(Family::Whisper),
-                key: "beam-size".into(),
-                value: "1".into()
-            }
-        );
-        assert_eq!(
-            opt("--window-seconds=20"),
-            Opt {
-                family: None,
-                key: "window-seconds".into(),
-                value: "20".into()
-            }
-        );
-        assert_eq!(opt("whisper.timestamps").value, "true");
-        assert_eq!(opt("model=openai/v1.2=x").value, "openai/v1.2=x");
-        assert_eq!(opt("qwen3-asr.model=a").to_string(), "qwen3-asr.model=a");
-        assert!("klingon.beam-size=1".parse::<Opt>().is_err());
-        assert!("=1".parse::<Opt>().is_err());
+    /// The model's selection, parsed: its box and its patch.
+    fn selection(model: &str) -> (Vec<String>, Option<serde_json::Value>) {
+        let expr = LookupExpr::parse(model).unwrap();
+        (expr.selection.presets, expr.selection.patch)
     }
 
-    /// A family's `--opt` is applied to that family alone; one for no
-    /// family must be the profile's family's; a key no family has fails
-    /// even where it would not apply.
+    /// The task is set in the model's box, the language in its patch, on
+    /// Whisper alone; the need's task is what the model runs.
     #[test]
-    fn test_opts() {
-        // `translate-en` is Whisper: its options apply, a user's winning.
-        let r = resolve(
-            "translate-en",
-            Mode::Offline,
-            Some("de"),
-            &[
-                "whisper.beam-size=2",
-                "timestamps",
-                "qwen3-asr.window-seconds=20",
-            ],
-        )
-        .unwrap();
-        // The task and the beam are the model's (`[translate]{beam_size: 5}`);
-        // the flags are what the command line added.
-        assert_eq!(r.model, "openai/large-v3[translate]{beam_size: 5}");
-        assert_eq!(
-            r.argv().unwrap(),
-            ["--language", "de", "--beam-size", "2", "--timestamps"]
-        );
-        let flags = r.parse_flags::<WhisperFlags>().unwrap();
-        assert_eq!(flags.beam_size, Some(2));
-        assert_eq!(flags.language.as_deref(), Some("de"));
-        assert!(flags.timestamps);
+    fn test_task_and_language() {
+        use serde_json::json;
 
-        // `en` is Parakeet: Whisper's are skipped, as is the language.
-        let r = resolve(
-            "en",
-            Mode::Live,
-            Some("de"),
-            &["whisper.beam-size=1", "window-seconds=20"],
-        )
-        .unwrap();
-        assert_eq!(r.argv().unwrap(), ["--window-seconds", "20"]);
+        // `translate-en` is Whisper: the language joins the recipe's patch.
+        let r = resolve("translate-en", Mode::Offline, None, Some("de")).unwrap();
         assert_eq!(
-            r.parse_flags::<ParakeetFlags>().unwrap().window_seconds,
-            Some(20.0)
+            selection(&r.model),
+            (
+                vec!["translate".to_string()],
+                Some(json!({"beam_size": 5, "language": "de"}))
+            )
+        );
+        assert_eq!(r.need.task, Task::Translate);
+
+        // Transcribing takes `translate` out of the box: the axis's default.
+        let r = resolve("translate-en", Mode::Live, Some(Task::Transcribe), None).unwrap();
+        assert_eq!(selection(&r.model), (vec![], Some(json!({"beam_size": 1}))));
+        assert_eq!(
+            (r.task(), r.need.task),
+            (Task::Transcribe, Task::Transcribe)
         );
 
-        // A bare key must be the profile's family's.
-        assert!(resolve("en", Mode::Offline, None, &["beam-size=1"]).is_err());
-        // A family's key it does not have fails, applied or not.
-        assert!(resolve("en", Mode::Offline, None, &["whisper.beam-sise=1"]).is_err());
-        // A flag that takes no value is `true` or `false`.
-        assert!(resolve("translate-en", Mode::Offline, None, &["timestamps=yes"]).is_err());
-        let r = resolve("translate-en", Mode::Offline, None, &["timestamps=false"]).unwrap();
-        assert!(!r.parse_flags::<WhisperFlags>().unwrap().timestamps);
-        // A value the family rejects fails when parsed.
-        let r = resolve("translate-en", Mode::Offline, None, &["task=sing"]).unwrap();
-        assert!(r.parse_flags::<WhisperFlags>().is_err());
+        // `en` is Parakeet, which finds the language itself.
+        let r = resolve("en", Mode::Live, None, Some("de")).unwrap();
+        assert_eq!(r.model, "fermion/phonon-2");
 
-        // `model` is no option: `--model` is the engine's slot.
-        assert!(resolve("multi", Mode::Offline, None, &["model=fermion/phonon-1"]).is_err());
+        // The patch's task wins over the box, and setting a task clears it.
+        let mut r = resolve("translate-en", Mode::Live, None, None).unwrap();
+        r.model = "openai/small{task: Transcribe}".to_string();
+        assert_eq!(r.task(), Task::Transcribe);
+        r.model = "openai/small{task: Translate}".to_string();
+        assert_eq!(r.task(), Task::Translate);
+        assert_eq!(
+            selection(&with_task(&r.model, Task::Transcribe).unwrap()),
+            (vec![], Some(json!({})))
+        );
+        assert_eq!(
+            selection(&with_task("openai/small[transcribe]", Task::Translate).unwrap()).0,
+            ["translate"]
+        );
     }
 
     #[test]
     fn test_command_line() {
-        let r = resolve("translate-en", Mode::Live, None, &[]).unwrap();
+        let r = resolve("translate-en", Mode::Live, None, None).unwrap();
         assert_eq!(
-            shell_line(&r.command_line().unwrap()),
+            shell_line(&r.command_line()),
             "bunsen-tool asr family whisper live --model 'openai/small[translate]{beam_size: 1}' \
              --emission conservative --chunk-ms 250 --vad 'silero/vad-16k[faster-whisper]'"
         );
@@ -994,11 +781,6 @@ mod tests {
             stamp["need"],
             serde_json::json!({"speech": "multi", "task": "translate", "quality": "balanced"})
         );
-
-        // An `--opt` that changes Whisper's task changes the need served.
-        let r = resolve("translate-en", Mode::Live, None, &["task=transcribe"]).unwrap();
-        assert_eq!(r.need.task, Task::Transcribe);
-        assert_eq!(r.task(), Task::Transcribe);
     }
 
     /// The catalog's axes are the enums' values, each described; every

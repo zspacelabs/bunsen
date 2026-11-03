@@ -31,7 +31,6 @@ use crate::cli::asr::{
         DEFAULT_PROFILE,
         Mode,
         Need,
-        Opt,
         Profile,
         Quality,
         Resolved,
@@ -67,7 +66,7 @@ use crate::cli::asr::{
 /// 4. Without `--preset`, the table's cell for that need runs. With it, the
 ///    profile's recipe runs, at `--quality`; `--speech` must be one it hears
 ///    (`multi` hears English), and a task not its own is set on its model
-///    (Whisper's `--task`) or is an error.
+///    (Whisper's `[translate]` preset) or is an error.
 ///
 /// The task, unless a translating profile or `--task translate` asks
 /// otherwise, is `transcribe`; the need served, its task the one the model
@@ -88,7 +87,7 @@ pub struct ProfileArgs {
 
     /// What to make of the speech: `transcribe` unless the profile
     /// translates. Without `--preset`, in place of `default`'s; with it,
-    /// set on a model that takes a task (Whisper's `--task`), and an error
+    /// set on a model that takes a task (Whisper's `[translate]`), and an error
     /// on one that does not. English speech is transcribed either way.
     #[arg(long, value_enum)]
     pub task: Option<Task>,
@@ -113,14 +112,6 @@ pub struct ProfileArgs {
     #[clap(flatten)]
     pub vad: VadArgs,
 
-    /// One of the family's own options, as `bunsen-tool asr family <family>`
-    /// takes it, without the `--` (`KEY` alone is `KEY=true`). With
-    /// `FAMILY.`, it applies only while the profile runs that family, so a
-    /// script keeps working when the profile moves; without, the profile's
-    /// family must have it.
-    #[arg(long = "opt", value_name = "[FAMILY.]KEY[=VALUE]")]
-    pub opts: Vec<Opt>,
-
     /// When to decode, in place of the profile's.
     #[arg(long, value_enum)]
     pub emission: Option<Emission>,
@@ -131,7 +122,7 @@ pub struct ProfileArgs {
 }
 
 /// What the command line asks of the table: a name for it, the need it is
-/// for, the cell's need, and the `--opt` that sets the task on its model.
+/// for, the cell's need, and the task to set on its model.
 struct Asked {
     /// The profile's name, or the need's.
     name: String,
@@ -143,8 +134,9 @@ struct Asked {
     /// the need itself.
     cell: Need,
 
-    /// Whisper's `--task`, when the need's task is not the cell's.
-    task: Option<Opt>,
+    /// The task to set on the model (Whisper's), when the need's is not
+    /// the cell's.
+    task: Option<Task>,
 }
 
 impl ProfileArgs {
@@ -259,11 +251,7 @@ impl ProfileArgs {
                     family.name()
                 )));
             }
-            Some(Opt {
-                family: Some(family),
-                key: "task".to_string(),
-                value: value_name(need.task),
-            })
+            Some(need.task)
         } else {
             None
         };
@@ -276,9 +264,9 @@ impl ProfileArgs {
     }
 
     /// The `mode` recipe of the profile, or of the table's cell for the
-    /// need the axis flags ask for, with the command line over it (an
-    /// `--opt` last), logged at `INFO` as the need it serves and the family
-    /// command it runs.
+    /// need the axis flags ask for, with the command line over it (`--model`
+    /// first, then the task and `--language` set on it), logged at `INFO` as
+    /// the need it serves and the family command it runs.
     ///
     /// # Errors
     /// As [`asked`](Self::asked) and
@@ -292,21 +280,17 @@ impl ProfileArgs {
         if let Some(note) = note {
             log::info!("{note}");
         }
-        let opts: Vec<Opt> = asked
-            .task
-            .into_iter()
-            .chain(self.opts.iter().cloned())
-            .collect();
-        let mut resolved = cell.recipe.resolve(
+        let mut recipe = cell.recipe.clone();
+        if let Some(model) = &self.model {
+            recipe.engine.model = model.clone();
+        }
+        let mut resolved = recipe.resolve(
             &asked.name,
             asked.need,
             mode,
+            asked.task,
             self.language.as_deref(),
-            &opts,
         )?;
-        if let Some(model) = &self.model {
-            resolved.model = model.clone();
-        }
         if let Some(emission) = self.emission {
             resolved.emission = emission;
         }
@@ -318,7 +302,7 @@ impl ProfileArgs {
             "profile {} ({}): {}",
             resolved.profile,
             resolved.need,
-            shell_line(&resolved.command_line()?)
+            shell_line(&resolved.command_line())
         );
         Ok(resolved)
     }
@@ -333,24 +317,25 @@ fn value_name(value: impl clap::ValueEnum) -> String {
         .to_string()
 }
 
-/// `$body` with `$flags` the resolved family's own flags, parsed.
+/// `$body` with `$flags` the resolved family's own flags: their defaults, as
+/// a profile sets no paths.
 macro_rules! with_flags {
     ($resolved:expr, $flags:ident => $body:expr) => {
         match $resolved.family {
             Family::Parakeet => {
-                let $flags = $resolved.parse_flags::<ParakeetFlags>()?;
+                let $flags = ParakeetFlags::default();
                 $body
             }
             Family::Qwen3Asr => {
-                let $flags = $resolved.parse_flags::<Qwen3AsrFlags>()?;
+                let $flags = Qwen3AsrFlags::default();
                 $body
             }
             Family::Voxtral => {
-                let $flags = $resolved.parse_flags::<VoxtralFlags>()?;
+                let $flags = VoxtralFlags::default();
                 $body
             }
             Family::Whisper => {
-                let $flags = $resolved.parse_flags::<WhisperFlags>()?;
+                let $flags = WhisperFlags::default();
                 $body
             }
         }
@@ -359,8 +344,8 @@ macro_rules! with_flags {
 
 /// Transcribes audio files with a profile's model for files.
 ///
-/// The profile picks the family, the model, when to decode and the family's
-/// own flags; `--opt` changes them, `presets show` prints them, and `-v`
+/// The profile picks the family, the model and when to decode; `--model`,
+/// `--emission` and `--vad` change them, `presets show` prints them, and `-v`
 /// logs them as the `bunsen-tool asr family` command they are. `--json` records
 /// the profile and its recipe with each transcript.
 #[derive(clap::Args, Debug)]
@@ -390,8 +375,8 @@ impl ProfileTranscribeCmd {
 /// Transcribes the microphone, as it speaks, with a profile's model for
 /// the microphone.
 ///
-/// The profile picks the family, the model, when to decode and the family's
-/// own flags; `--opt` changes them, `presets show` prints them, and `-v`
+/// The profile picks the family, the model and when to decode; `--model`,
+/// `--emission` and `--vad` change them, `presets show` prints them, and `-v`
 /// logs them as the `bunsen-tool asr family` command they are.
 #[cfg(feature = "live")]
 #[derive(clap::Args, Debug)]
@@ -523,7 +508,7 @@ impl ShowCmd {
                     out,
                     "  {}: {}",
                     mode.command(),
-                    shell_line(&resolved.command_line()?)
+                    shell_line(&resolved.command_line())
                 )
                 .map_err(w)?;
             }
@@ -649,11 +634,7 @@ mod tests {
         let r = resolve(&["--vad", vad], Mode::Live).unwrap();
         assert_eq!(r.vad.as_deref(), Some(vad));
         assert_eq!(r.stamp().recipe.vad.as_deref(), Some(vad));
-        assert!(
-            r.command_line()
-                .unwrap()
-                .ends_with(&["--vad".into(), vad.into()])
-        );
+        assert!(r.command_line().ends_with(&["--vad".into(), vad.into()]));
 
         // `--vad` with no VAD to fill is an error, whichever emission
         // removed it; an emission that adds one takes it.
@@ -689,6 +670,11 @@ mod tests {
         const QWEN_LIVE: &str = "qwen/qwen3-asr-0.6b";
         const LARGE: &str = "openai/large-v3[translate]{beam_size: 5}";
         const SMALL: &str = "openai/small[translate]{beam_size: 1}";
+        // A model's patch, merged, is written as JSON.
+        const LARGE_DE: &str = r#"openai/large-v3[translate]{"beam_size":5,"language":"de"}"#;
+        const LARGE_TRANSCRIBE: &str = r#"openai/large-v3{"beam_size":5}"#;
+        const SMALL_TRANSCRIBE: &str = r#"openai/small{"beam_size":1}"#;
+        const SMALL_EN: &str = r#"openai/small{"beam_size":1,"language":"en"}"#;
         type Ran<'a> = Result<(&'a str, &'a str, &'a str, Task), &'a str>;
         let rows: &[(&[&str], Mode, Ran)] = &[
             // Nothing given: `default`, which transcribes.
@@ -729,7 +715,7 @@ mod tests {
                 Ok((
                     "multi/translate/balanced",
                     "multi/translate/balanced",
-                    LARGE,
+                    LARGE_DE,
                     Translate,
                 )),
             ),
@@ -840,12 +826,22 @@ mod tests {
             (
                 &["--preset", "translate-en", "--speech", "en"],
                 Offline,
-                Ok(("translate-en", "en/transcribe/balanced", LARGE, Transcribe)),
+                Ok((
+                    "translate-en",
+                    "en/transcribe/balanced",
+                    LARGE_TRANSCRIBE,
+                    Transcribe,
+                )),
             ),
             (
                 &["--preset", "translate-en", "--language", "en"],
                 Live,
-                Ok(("translate-en", "en/transcribe/balanced", SMALL, Transcribe)),
+                Ok((
+                    "translate-en",
+                    "en/transcribe/balanced",
+                    SMALL_EN,
+                    Transcribe,
+                )),
             ),
             // 4. With `--preset`, its recipe runs, adjusted: `--quality` along
             // its row,
@@ -868,7 +864,12 @@ mod tests {
             (
                 &["--preset", "translate-en", "--language", "de"],
                 Offline,
-                Ok(("translate-en", "multi/translate/balanced", LARGE, Translate)),
+                Ok((
+                    "translate-en",
+                    "multi/translate/balanced",
+                    LARGE_DE,
+                    Translate,
+                )),
             ),
             (
                 &["--preset", "en", "--speech", "multi"],
@@ -880,14 +881,14 @@ mod tests {
                 Offline,
                 Err("--language de needs another profile"),
             ),
-            // and a task set on Whisper, an `--opt` still winning.
+            // and a task set on Whisper's model, or by the model given.
             (
                 &["--preset", "translate-en", "--task", "transcribe"],
                 Live,
                 Ok((
                     "translate-en",
                     "multi/transcribe/balanced",
-                    SMALL,
+                    SMALL_TRANSCRIBE,
                     Transcribe,
                 )),
             ),
@@ -895,13 +896,16 @@ mod tests {
                 &[
                     "--preset",
                     "translate-en",
-                    "--task",
-                    "transcribe",
-                    "--opt",
-                    "task=translate",
+                    "--model",
+                    "openai/small{task: Translate}",
                 ],
                 Live,
-                Ok(("translate-en", "multi/translate/balanced", SMALL, Translate)),
+                Ok((
+                    "translate-en",
+                    "multi/translate/balanced",
+                    "openai/small{task: Translate}",
+                    Translate,
+                )),
             ),
             (
                 &["--preset", "multi", "--task", "transcribe"],

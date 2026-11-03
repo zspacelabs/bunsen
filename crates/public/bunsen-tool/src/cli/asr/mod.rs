@@ -213,14 +213,19 @@ mod tests {
             "asr",
             "diarize",
             "run",
-            "--latency",
-            "very-low",
-            "--postprocess",
-            "dihard3",
+            "--preset",
+            "very-low,dihard3",
             "--rttm",
             "a.wav",
         ])
         .unwrap();
+        // Its latency and post-processing are the model's presets, not flags.
+        for flag in ["--latency", "--postprocess"] {
+            assert!(
+                Args::try_parse_from(["asr", "diarize", "run", flag, "low", "a.wav"]).is_err(),
+                "{flag}"
+            );
+        }
         assert!(
             Args::try_parse_from(["asr", "diarize", "run", "--rttm", "--json", "a.wav"]).is_err()
         );
@@ -240,9 +245,7 @@ mod tests {
                 "family",
                 family,
                 "transcribe",
-                "--diarize=hf:org/repo",
-                "--diarize-latency",
-                "ultra-low",
+                "--diarize=nvidia/nemotron-3-diarization[very-low]",
                 "--rttm",
                 "a.wav",
             ])
@@ -252,21 +255,29 @@ mod tests {
                     .is_err(),
                 "{family}: --rttm without --diarize"
             );
+            assert!(
+                Args::try_parse_from([
+                    "asr",
+                    "family",
+                    family,
+                    "transcribe",
+                    "--diarize",
+                    "--diarize-latency",
+                    "low",
+                    "a.wav"
+                ])
+                .is_err(),
+                "{family}: --diarize-latency"
+            );
         }
-        // Whisper's own: its decode flags, a checkpoint path, inspect and
-        // prefabs.
+        // Whisper's own: its paths, a checkpoint path, inspect and prefabs;
+        // its policy is the model's (`--model 'openai/tiny{timestamps:
+        // true}'`).
         Args::try_parse_from([
             "asr",
             "family",
             "whisper",
             "transcribe",
-            "--timestamps",
-            "--max-tokens",
-            "100",
-            "--prompt-carry",
-            "false",
-            "--fallback",
-            "false",
             "--vocab",
             "v.tiktoken",
             "--upstream-cache-dir",
@@ -279,17 +290,26 @@ mod tests {
         Args::try_parse_from(["asr", "family", "whisper", "inspect", "openai/tiny"]).unwrap();
         Args::try_parse_from(["asr", "family", "whisper", "prefabs"]).unwrap();
         assert!(Args::try_parse_from(["asr", "family", "parakeet", "inspect", "x"]).is_err());
-        assert!(
-            Args::try_parse_from([
-                "asr",
-                "family",
-                "parakeet",
-                "transcribe",
-                "--timestamps",
-                "a.wav"
-            ])
-            .is_err()
-        );
+        // The policy flags are gone from every family.
+        for (family, flag) in [
+            ("whisper", "--language=de"),
+            ("whisper", "--task=translate"),
+            ("whisper", "--beam-size=1"),
+            ("whisper", "--timestamps"),
+            ("whisper", "--max-tokens=100"),
+            ("whisper", "--prompt-carry=false"),
+            ("whisper", "--fallback=false"),
+            ("parakeet", "--window-seconds=20"),
+            ("qwen3-asr", "--window-seconds=20"),
+            ("voxtral", "--window-seconds=20"),
+            ("voxtral", "--delay-ms=960"),
+        ] {
+            assert!(
+                Args::try_parse_from(["asr", "family", family, "transcribe", flag, "a.wav"])
+                    .is_err(),
+                "{family} {flag}"
+            );
+        }
         // Every family fetches, at least one name.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from(["asr", "family", family, "fetch", "--verify", "a", "b"]).unwrap();
@@ -325,24 +345,14 @@ mod tests {
             ])
             .unwrap();
         }
-        // Each family's flags are its own.
+        // Each family's flags are its own; its policy is its model's patch.
         Args::try_parse_from([
             "asr",
             "family",
             "parakeet",
             "transcribe",
-            "--window-seconds",
-            "20",
-            "a.wav",
-        ])
-        .unwrap();
-        Args::try_parse_from([
-            "asr",
-            "family",
-            "whisper",
-            "transcribe",
-            "--language",
-            "en",
+            "--model",
+            "fermion/phonon-2{window_seconds: 20}",
             "a.wav",
         ])
         .unwrap();
@@ -382,10 +392,6 @@ mod tests {
             "multi",
             "--language",
             "de",
-            "--opt",
-            "whisper.beam-size=1",
-            "--opt",
-            "window-seconds=20",
             "--emission",
             "conservative",
             "--chunk-ms",
@@ -418,8 +424,9 @@ mod tests {
             "a.wav",
         ])
         .unwrap();
+        // `--opt` is gone: a model's settings are its expression's.
         assert!(
-            Args::try_parse_from(["asr", "transcribe", "--opt", "klingon.x=1", "a.wav"]).is_err()
+            Args::try_parse_from(["asr", "transcribe", "--opt", "beam-size=1", "a.wav"]).is_err()
         );
         #[cfg(feature = "live")]
         Args::try_parse_from([
@@ -427,8 +434,8 @@ mod tests {
             "live",
             "--preset",
             "translate-en",
-            "--opt",
-            "whisper.timestamps",
+            "--model",
+            "openai/small[translate]{timestamps: true}",
             "--seconds",
             "5",
         ])
@@ -468,7 +475,7 @@ mod tests {
                     continue;
                 }
                 let resolved = profile.resolve(mode).unwrap();
-                let mut line = resolved.command_line().unwrap();
+                let mut line = resolved.command_line();
                 if mode == profile::Mode::Offline {
                     line.push("a.wav".into());
                 }

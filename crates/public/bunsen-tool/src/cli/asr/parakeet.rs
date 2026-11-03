@@ -33,32 +33,26 @@ use crate::cli::asr::{
     },
 };
 
-/// Parakeet's own transcription flags.
-#[derive(clap::Args, Debug)]
-pub struct ParakeetFlags {
-    /// The longest stretch of audio the encoder sees at once, in seconds; a
-    /// longer one is committed up to a pause between words, and the rest
-    /// decoded again with the audio after it. The model's policy when
-    /// omitted.
-    #[arg(long)]
-    pub window_seconds: Option<f64>,
-}
+/// Parakeet's own transcription flags: none. The policy is the model's, its
+/// presets and patch resolved (`--model '<name>{window_seconds: 20}'`).
+#[derive(clap::Args, Debug, Default)]
+pub struct ParakeetFlags {}
 
-/// The driver for `bundle` under `flags` and `emission`.
+/// The driver for `bundle` under its policy and `emission`.
 ///
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
-/// `--window-seconds` is under one encoder frame; as the driver and the VAD.
+/// the policy's `window_seconds` is under one encoder frame; as the driver and
+/// the VAD.
 pub fn driver(
     bundle: Arc<ParakeetConstruct>,
-    flags: &ParakeetFlags,
     emission: Emission,
 ) -> BunsenResult<ParakeetStreamDriver> {
     let frame = bundle.frame_seconds();
-    let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
+    let window_seconds = bundle.policy.window_seconds;
     if window_seconds.is_nan() || window_seconds < frame {
         return Err(BunsenError::illegal(format!(
-            "--window-seconds {window_seconds} is under one encoder frame, {frame} s"
+            "window_seconds {window_seconds} is under one encoder frame, {frame} s"
         )));
     }
     let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);

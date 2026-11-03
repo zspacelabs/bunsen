@@ -52,7 +52,6 @@ use crate::cli::{
         list_cmd::ListCmd,
         transcribe_cmd::millis,
     },
-    with_presets,
 };
 
 /// The diarizer's commands.
@@ -91,88 +90,24 @@ impl DiarizeCmd {
     }
 }
 
-/// How far behind the audio the diarizer runs: the model's streaming preset
-/// at that latency. Not every model has every one.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
-pub enum Latency {
-    /// 0.32 s.
-    UltraLow,
-
-    /// 0.64 s (Nemotron-3-Diarization).
-    VeryLow,
-
-    /// 1.04 s.
-    #[default]
-    Low,
-
-    /// 10 s (Sortformer v2).
-    High,
-
-    /// 30.4 s: the most accurate, for files.
-    Offline,
-}
-
-impl Latency {
-    /// The model's `latency` preset of this name.
-    pub fn preset(self) -> &'static str {
-        match self {
-            Self::UltraLow => "ultra-low",
-            Self::VeryLow => "very-low",
-            Self::Low => "low",
-            Self::High => "high",
-            Self::Offline => "offline",
-        }
-    }
-}
-
-/// How speaker activity becomes turns: `NeMo`'s post-processing presets.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
-pub enum Postprocess {
-    /// Thresholds of 0.5, no padding, no filters.
-    #[default]
-    None,
-
-    /// `NeMo`'s parameters tuned on DIHARD III.
-    Dihard3,
-
-    /// `NeMo`'s parameters tuned on CALLHOME.
-    Callhome,
-}
-
-impl Postprocess {
-    /// The model's `postprocess` preset of this name.
-    pub fn preset(self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::Dihard3 => "dihard3",
-            Self::Callhome => "callhome",
-        }
-    }
-}
-
-/// The diarizer, and how its activity becomes turns.
+/// The diarizer: its model, and the presets that say how far behind the
+/// audio it runs (`latency`: `--preset very-low`) and how its activity
+/// becomes turns (`postprocess`: `--preset dihard3`); `diarize list` shows
+/// each model's.
 #[derive(clap::Args, Debug)]
 pub struct DiarizerArgs {
-    /// The model, by name: `diarize list` shows them;
+    /// The model, as a lookup expression: `diarize list` shows them;
     /// `nvidia/nemotron-3-diarization` when omitted.
     #[arg(long)]
     pub model: Option<String>,
-
-    /// How far behind the audio the diarizer runs.
-    #[arg(long, value_enum, default_value_t)]
-    pub latency: Latency,
-
-    /// How speaker activity becomes turns.
-    #[arg(long, value_enum, default_value_t)]
-    pub postprocess: Postprocess,
 
     #[clap(flatten)]
     pub presets: PresetArgs,
 }
 
 impl DiarizerArgs {
-    /// Loads the model through `cache` under the `--latency` and
-    /// `--postprocess` presets, logging its info card.
+    /// Loads the model through `cache` under its presets, logging its info
+    /// card.
     ///
     /// # Errors
     /// As [`load_construct`].
@@ -181,12 +116,9 @@ impl DiarizerArgs {
         cache: &PretrainedCache,
         device: &Device,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
-        let model = with_presets(
-            &self
-                .presets
-                .apply(self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL))?,
-            &[self.latency.preset(), self.postprocess.preset()],
-        )?;
+        let model = self
+            .presets
+            .apply(self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL))?;
         load_construct(&model, cache, device)
     }
 }
@@ -214,20 +146,18 @@ pub fn load_construct(
 #[derive(clap::Args, Debug)]
 pub struct SpeakerArgs {
     /// Label each word or segment with its speaker, through a diarizer:
-    /// `--diarize` alone for `nvidia/nemotron-3-diarization`, `--diarize=MODEL`
-    /// for another (`diarize list` shows them).
+    /// `--diarize` alone for `nvidia/nemotron-3-diarization`, `--diarize=EXPR`
+    /// for another, or its presets
+    /// (`--diarize='nvidia/nemotron-3-diarization[very-low]'`; `diarize list`
+    /// shows them).
     #[arg(
         long,
-        value_name = "MODEL",
+        value_name = "EXPR",
         num_args = 0..=1,
         require_equals = true,
         default_missing_value = DEFAULT_SORTFORMER_MODEL
     )]
     pub diarize: Option<String>,
-
-    /// How far behind the audio the diarizer runs; a decode waits for it.
-    #[arg(long, value_enum, default_value_t)]
-    pub diarize_latency: Latency,
 }
 
 impl SpeakerArgs {
@@ -235,7 +165,7 @@ impl SpeakerArgs {
     /// without the flag. The recognizers see only the trait object.
     ///
     /// # Errors
-    /// As [`load_construct`]; as the latency preset against the model.
+    /// As [`load_construct`].
     pub fn diarizer(
         &self,
         cache: &PretrainedCache,
@@ -244,8 +174,7 @@ impl SpeakerArgs {
         let Some(model) = &self.diarize else {
             return Ok(None);
         };
-        let model = with_presets(model, &[self.diarize_latency.preset()])?;
-        let bundle = load_construct(&model, cache, device)?;
+        let bundle = load_construct(model, cache, device)?;
         Ok(Some(Arc::new(bundle.diarizer(bundle.streaming()?)?)))
     }
 }
@@ -343,7 +272,7 @@ fn speaker_totals(turns: &[SpeakerTurn]) -> Vec<JsonSpeaker> {
 /// `{start} {end} speaker_{k}` (seconds), RTTM, or JSON.
 ///
 /// Each file is decoded at the model's rate (16 kHz, mono) and streamed
-/// through the diarizer under `--latency`; speakers are numbered in the
+/// through the diarizer at its `latency` preset; speakers are numbered in the
 /// order they first speak. The model's info card, and after each file how
 /// long it took, are logged at `INFO` (`-v`).
 #[derive(clap::Args, Debug)]
@@ -504,6 +433,7 @@ impl LiveCmd {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::with_presets;
 
     /// Text lines and JSON name speakers as `NeMo` and the RTTM do, and
     /// round times to the millisecond.
@@ -536,42 +466,26 @@ mod tests {
         assert_eq!(got, [("speaker_0", 1.0, 1), ("speaker_1", 2.5, 2)]);
     }
 
-    /// The flags name the model's presets, added to the model's box; every
-    /// name is one the catalog's families declare.
+    /// A diarizer's latency and post-processing are the catalog families'
+    /// axes: a model's box names them, and the families default to `low`
+    /// and `none`.
     #[test]
     fn test_presets() {
-        assert_eq!(Latency::default().preset(), "low");
-        assert_eq!(Postprocess::default().preset(), "none");
-        assert_eq!(
-            with_presets("nvidia/nemotron-3-diarization", &["low", "none"]).unwrap(),
-            "nvidia/nemotron-3-diarization[low,none]"
-        );
         assert_eq!(
             with_presets("sortformer-v2[dihard3]", &["high"]).unwrap(),
             "sortformer-v2[dihard3,high]"
         );
 
         let catalog = bunsen::kits::speech::sortformer::pretrained::SORTFORMER_CATALOG.catalog();
-        let names: Vec<&str> = catalog
-            .families
-            .iter()
-            .flat_map(|f| f.presets.names())
-            .collect();
-        for latency in [
-            Latency::UltraLow,
-            Latency::VeryLow,
-            Latency::Low,
-            Latency::High,
-            Latency::Offline,
-        ] {
-            assert!(names.contains(&latency.preset()), "{latency:?}");
-        }
-        for postprocess in [
-            Postprocess::None,
-            Postprocess::Dihard3,
-            Postprocess::Callhome,
-        ] {
-            assert!(names.contains(&postprocess.preset()), "{postprocess:?}");
+        for family in &catalog.families {
+            let axes: Vec<&str> = family
+                .presets
+                .axes
+                .iter()
+                .map(|a| a.name.as_str())
+                .collect();
+            assert_eq!(axes, ["latency", "postprocess"], "{}", family.name);
+            assert_eq!(family.presets.default, ["low", "none"], "{}", family.name);
         }
     }
 }

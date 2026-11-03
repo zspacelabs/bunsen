@@ -7,6 +7,7 @@ pub mod chat;
 use bunsen::{
     errors::BunsenResult,
     kits::support::construct::LookupExpr,
+    support::merge_patch,
 };
 
 /// `model`, a lookup expression, with `presets` added to its box.
@@ -21,6 +22,26 @@ pub fn with_presets(
     expr.selection
         .presets
         .extend(presets.iter().map(|p| p.to_string()));
+    Ok(expr.to_string())
+}
+
+/// `model`, a lookup expression, with `patch` merged over its patch
+/// (RFC 7386: a `null` removes a key).
+///
+/// # Errors
+/// As [`LookupExpr::parse`].
+pub fn with_patch(
+    model: &str,
+    patch: &serde_json::Value,
+) -> BunsenResult<String> {
+    let mut expr = LookupExpr::parse(model)?;
+    let mut merged = expr
+        .selection
+        .patch
+        .take()
+        .unwrap_or_else(|| serde_json::json!({}));
+    merge_patch::apply(&mut merged, patch);
+    expr.selection.patch = Some(merged);
     Ok(expr.to_string())
 }
 
