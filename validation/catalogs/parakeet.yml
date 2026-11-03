@@ -1,0 +1,46 @@
+# The parakeet kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/speech/parakeet/pretrained/catalog.json`.
+kit: parakeet
+out: crates/public/bunsen/src/kits/speech/parakeet/pretrained/catalog.json
+name: "well-known"
+description: "the Parakeet TDT checkpoints bunsen knows by name"
+groups:
+  - name: "fermion"
+    description: "FermionResearch's Phonon speech recognizers"
+    license: "CC-BY-4.0"
+    origin: "https://github.com/fermionresearch/phonon"
+    rows:
+      - name: "phonon-2"
+        aliases: ["phonon"]
+        description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, 164 MB, English"
+        license: "CC-BY-4.0"
+        origin: "https://huggingface.co/FermionResearch/Phonon-2"
+        bundles: ["fermion/phonon-2.bps.tar.zst"]
+  - name: "nvidia"
+    description: "NVIDIA's Parakeet TDT speech recognizers, as transformers ships them"
+    license: "CC-BY-4.0"
+    origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
+    rows:
+      - name: "parakeet-tdt-0.6b-v3"
+        description: "parakeet-tdt-0.6b-v3: 600 M parameters, f32, 25 European languages"
+        license: "CC-BY-4.0"
+        origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
+        bundles: ["nvidia/parakeet-tdt-0.6b-v3"]
+bundles:
+  - name: "fermion/phonon-2.bps.tar.zst"
+    description: "Phonon-2: the five-value container and its NeMo config, zstd tar"
+    license: "CC-BY-4.0"
+    origin: "https://huggingface.co/FermionResearch/Phonon-2"
+    namespace: "fermion"
+    hub: { repo: "FermionResearch/Phonon-2", revision: "7e153e4054c0a10db6d47d6fff5c062d4c77c154" }
+    resources:
+      - { key: "checkpoint", file: "phonon-2.bps.tar.zst", kind: "phonon archive" }
+  - name: "nvidia/parakeet-tdt-0.6b-v3"
+    description: "parakeet-tdt-0.6b-v3: model.safetensors (f32) and tokenizer.json"
+    license: "CC-BY-4.0"
+    origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
+    namespace: "nvidia"
+    hub: { repo: "nvidia/parakeet-tdt-0.6b-v3", revision: "541d1f99c6b0c3cd0b11a95167540bb8edefd82b" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "vocabulary", file: "tokenizer.json", kind: "tokenizer.json" }

@@ -1,0 +1,29 @@
+# The voxtral kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/speech/voxtral/pretrained/catalog.json`.
+kit: voxtral
+out: crates/public/bunsen/src/kits/speech/voxtral/pretrained/catalog.json
+name: "well-known"
+description: "the Voxtral Realtime checkpoints bunsen knows by name"
+groups:
+  - name: "mistralai"
+    description: "Mistral's Voxtral Realtime speech recognizers"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602"
+    rows:
+      - name: "voxtral-mini-4b-realtime-2602"
+        aliases: ["voxtral-mini-4b-realtime"]
+        description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, bf16, 13 languages, streaming"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602"
+        prefab: "voxtral-mini-4b-realtime-2602"
+        bundles: ["mistralai/voxtral-mini-4b-realtime-2602"]
+bundles:
+  - name: "mistralai/voxtral-mini-4b-realtime-2602"
+    description: "Voxtral-Mini-4B-Realtime-2602: model.safetensors (bf16) and tekken.json"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602"
+    namespace: "mistralai"
+    hub: { repo: "mistralai/Voxtral-Mini-4B-Realtime-2602", revision: "2769294da9567371363522aac9bbcfdd19447add" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "vocabulary", file: "tekken.json", kind: "tekken.json" }

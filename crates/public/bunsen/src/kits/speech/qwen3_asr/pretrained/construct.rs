@@ -177,22 +177,21 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
-    use crate::kits::speech::qwen3_asr::pretrained::{
-        PHONON_1_ARCHIVE,
-        QWEN3_ASR_0_6B_FILES,
-    };
+    use crate::kits::speech::qwen3_asr::pretrained::QWEN3_ASR_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let qwen = Qwen3AsrConstructConfig::for_resource_bundle(
-            &QWEN3_ASR_0_6B_FILES.to_resource_bundle(),
+            &QWEN3_ASR_CATALOG.resource_bundle("qwen/qwen3-asr-0.6b"),
         )
         .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
-        let phonon =
-            Qwen3AsrConstructConfig::for_resource_bundle(&PHONON_1_ARCHIVE.to_resource_bundle());
+        let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
+            &QWEN3_ASR_CATALOG.resource_bundle("fermion/phonon-audio6.bps.tar.zst"),
+        );
         if cfg!(feature = "fermion") {
             assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         } else {

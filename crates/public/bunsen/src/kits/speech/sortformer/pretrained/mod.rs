@@ -9,7 +9,7 @@
 //! # The index
 //!
 //! [`default_sortformer_factory`] is the index a caller holds, over
-//! [`WELL_KNOWN_TABLE`] and Hugging Face repos:
+//! [`SORTFORMER_CATALOG`] and Hugging Face repos:
 //!
 //! - `nvidia/nemotron-3-diarization` (`nemotron-3-diarization`): NVIDIA's
 //!   Nemotron-3-Diarization, 8 speakers, 10 ms frames, `transformers`' 397 MB

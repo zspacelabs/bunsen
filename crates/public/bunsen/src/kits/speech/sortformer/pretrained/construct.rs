@@ -242,16 +242,16 @@ impl ConstructInit for SortformerConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::sortformer::pretrained::NEMOTRON_3_DIARIZATION_FILES;
+    use crate::kits::speech::sortformer::pretrained::SORTFORMER_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let hook = SortformerConstructConfig::for_resource_bundle(
-            &NEMOTRON_3_DIARIZATION_FILES.to_resource_bundle(),
+            &SORTFORMER_CATALOG.resource_bundle("nvidia/nemotron-3-diarization"),
         )
         .unwrap();
         assert_eq!(hook.reader, SortformerReader::Safetensors);
-        let mut map = NEMOTRON_3_DIARIZATION_FILES.to_resource_bundle();
+        let mut map = SORTFORMER_CATALOG.resource_bundle("nvidia/nemotron-3-diarization");
         for res in map.resources.values_mut() {
             res.kind = Some("pytorch".into());
         }

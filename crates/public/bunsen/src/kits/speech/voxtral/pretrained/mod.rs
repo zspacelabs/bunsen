@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_voxtral_factory`] is the index a caller holds, over two
-//! providers. First the well-known table, [`WELL_KNOWN_TABLE`], whose row
+//! providers. First the well-known table, [`VOXTRAL_CATALOG`], whose row
 //! names its prefab in [`VOXTRAL_PREFABS`]:
 //!
 //! - `mistralai/voxtral-mini-4b-realtime-2602` (`voxtral-mini-4b-realtime`):

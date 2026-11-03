@@ -1,0 +1,95 @@
+{
+  "kit": "parakeet",
+  "name": "well-known",
+  "description": "the Parakeet TDT checkpoints bunsen knows by name",
+  "groups": [
+    {
+      "name": "fermion",
+      "description": "FermionResearch's Phonon speech recognizers",
+      "license": "CC-BY-4.0",
+      "origin": "https://github.com/fermionresearch/phonon",
+      "rows": [
+        {
+          "name": "phonon-2",
+          "aliases": [
+            "phonon"
+          ],
+          "description": "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, 164 MB, English",
+          "license": "CC-BY-4.0",
+          "origin": "https://huggingface.co/FermionResearch/Phonon-2",
+          "bundles": [
+            "fermion/phonon-2.bps.tar.zst"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "nvidia",
+      "description": "NVIDIA's Parakeet TDT speech recognizers, as transformers ships them",
+      "license": "CC-BY-4.0",
+      "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+      "rows": [
+        {
+          "name": "parakeet-tdt-0.6b-v3",
+          "description": "parakeet-tdt-0.6b-v3: 600 M parameters, f32, 25 European languages",
+          "license": "CC-BY-4.0",
+          "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+          "bundles": [
+            "nvidia/parakeet-tdt-0.6b-v3"
+          ]
+        }
+      ]
+    }
+  ],
+  "bundles": [
+    {
+      "name": "fermion/phonon-2.bps.tar.zst",
+      "description": "Phonon-2: the five-value container and its NeMo config, zstd tar",
+      "license": "CC-BY-4.0",
+      "origin": "https://huggingface.co/FermionResearch/Phonon-2",
+      "namespace": "fermion",
+      "bases": [
+        {
+          "url": "https://huggingface.co/FermionResearch/Phonon-2/resolve/7e153e4054c0a10db6d47d6fff5c062d4c77c154"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "phonon-2.bps.tar.zst",
+          "sha256": "98125795b6dda72f5c6eee9ba33d19815df65dcb18b50a357bf9f73c9935309e",
+          "kind": "phonon archive",
+          "size": 163515201
+        }
+      ]
+    },
+    {
+      "name": "nvidia/parakeet-tdt-0.6b-v3",
+      "description": "parakeet-tdt-0.6b-v3: model.safetensors (f32) and tokenizer.json",
+      "license": "CC-BY-4.0",
+      "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
+      "namespace": "nvidia",
+      "bases": [
+        {
+          "url": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "3a2026366188c8c68598edbbff92f8d11590a08e0ae2e6775544e7b07d6a5e11",
+          "kind": "safetensors",
+          "size": 2508311120
+        },
+        {
+          "key": "vocabulary",
+          "file": "tokenizer.json",
+          "sha256": "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91",
+          "kind": "tokenizer.json",
+          "size": 1159960
+        }
+      ]
+    }
+  ]
+}
