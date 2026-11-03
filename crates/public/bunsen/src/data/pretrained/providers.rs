@@ -318,6 +318,7 @@ mod tests {
                 namespace: "t".to_string(),
                 sources: alloc::vec![Source::Url(format!("{base}/{file}"))],
             }),
+            presets: Default::default(),
         }
     }
 

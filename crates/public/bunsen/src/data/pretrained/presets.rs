@@ -83,9 +83,9 @@ pub struct PresetSet {
 }
 
 impl PresetSet {
-    /// Whether there are no presets.
+    /// Whether the set declares nothing: no presets, axes or default.
     pub fn is_empty(&self) -> bool {
-        self.presets.is_empty()
+        self.presets.is_empty() && self.axes.is_empty() && self.default.is_empty()
     }
 
     /// The preset `name`, if there is one.

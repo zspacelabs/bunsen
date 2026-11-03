@@ -303,7 +303,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
             };
             Deferred::new(PretrainedRef::Named {
                 provider,
-                pretrained,
+                pretrained: Box::new(pretrained),
             })
         };
 
@@ -463,6 +463,7 @@ pub(crate) mod testing {
                 origin: Some(base),
                 prefab: None,
                 resources,
+                presets: Default::default(),
             }))
         }
 
@@ -575,6 +576,7 @@ mod tests {
                 namespace: "t".to_string(),
                 sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
             }),
+            presets: Default::default(),
         }
     }
 
@@ -591,6 +593,7 @@ mod tests {
             origin: None,
             prefab: None,
             resources: ResourceBundle::given(name, "checkpoint", path),
+            presets: Default::default(),
         }
     }
 

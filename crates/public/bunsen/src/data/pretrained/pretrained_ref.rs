@@ -35,8 +35,9 @@ pub enum PretrainedRef {
     Named {
         /// The provider's name: the `provider` of `provider:ref`.
         provider: String,
-        /// The row; its `name` is the ref.
-        pretrained: Pretrained,
+        /// The row; its `name` is the ref. Boxed: a row is much larger than
+        /// a given resource bundle.
+        pretrained: Box<Pretrained>,
     },
 
     /// A resource bundle from somewhere else: a path, a manifest. No prefab is
@@ -177,7 +178,7 @@ mod tests {
     fn named() -> PretrainedRef {
         PretrainedRef::Named {
             provider: "well-known".to_string(),
-            pretrained: Pretrained {
+            pretrained: Box::new(Pretrained {
                 name: "a/small".to_string(),
                 aliases: vec!["s".to_string()],
                 description: "small weights".to_string(),
@@ -187,7 +188,8 @@ mod tests {
                 resources: ResourceBundle::new("small")
                     .with_resource(resource("checkpoint", "small.pt"))
                     .with_resource(resource("vocabulary", "vocab.txt")),
-            },
+                presets: Default::default(),
+            }),
         }
     }
 

@@ -768,4 +768,42 @@ bundles:
         );
         assert_eq!(config_dtype(b"{}"), None);
     }
+
+    /// A source row's presets pass through to the catalog; a preset without
+    /// a description is refused at build.
+    #[test]
+    fn test_build_row_presets() {
+        let vocab_sha = sha256_of(b"vocab");
+        let with_presets = |description: &str| {
+            let mut source = source(&format!(", sha256: {vocab_sha}"));
+            source.groups[0].rows[0].presets = serde_saphyr::from_str(&format!(
+                r#"
+presets:
+  - {{ name: fast, description: "{description}", patch: {{ beam: 1 }} }}
+  - {{ name: good, description: a wide search, patch: {{ beam: 5 }} }}
+axes:
+  - {{ name: quality, description: how hard the search tries, members: [fast, good] }}
+default: [good]
+"#
+            ))
+            .unwrap();
+            source
+        };
+
+        let source = with_presets("a greedy search");
+        let catalog = build(&fake(), &source, false).unwrap();
+        let presets = &catalog.groups[0].rows[0].presets;
+        assert_eq!(presets, &source.groups[0].rows[0].presets);
+        assert_eq!(presets.default, ["good"]);
+        assert_eq!(
+            presets.get("fast").unwrap().patch,
+            serde_json::json!({"beam": 1})
+        );
+
+        let error = build(&fake(), &with_presets(""), false).unwrap_err();
+        assert!(
+            error.contains("the preset `fast` has no description"),
+            "{error}"
+        );
+    }
 }
