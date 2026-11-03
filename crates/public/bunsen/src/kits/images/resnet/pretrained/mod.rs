@@ -9,8 +9,8 @@
 //! The geometries are [`RESNET_PREFABS`]: six
 //! [`ResNetContractConfig`](super::ResNetContractConfig)s by name,
 //! `resnet18` to `resnet152`, each with 1000 classes. The checkpoints are
-//! 14 rows in two groups of the [`WELL_KNOWN_TABLE`]: [`TORCHVISION`], the
-//! reference `ImageNet` weights, and [`TIMM`], the `ResNet` Strikes Back
+//! 14 rows in two groups of [`RESNET_CATALOG`]: `torchvision`, the
+//! reference `ImageNet` weights, and `timm`, the `ResNet` Strikes Back
 //! recipes (`a1`, `a2`, `a3`) and earlier `pytorch-image-models` releases.
 //! Each row names the prefab it instantiates, and is one `.pth` file under
 //! its group's base URL, pinned to its digest. A spec is

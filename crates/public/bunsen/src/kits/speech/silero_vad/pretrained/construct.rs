@@ -151,7 +151,7 @@ mod tests {
         #[cfg(feature = "store_safetensors")]
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
-                &super::super::SILERO_VAD_16K_FILES.to_resource_bundle()
+                &super::super::SILERO_CATALOG.resource_bundle("silero/vad-16k")
             )
             .unwrap()
             .reader,

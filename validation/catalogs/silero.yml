@@ -1,0 +1,26 @@
+# The silero kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/speech/silero_vad/pretrained/catalog.json`.
+kit: silero
+out: crates/public/bunsen/src/kits/speech/silero_vad/pretrained/catalog.json
+name: "well-known"
+description: "the Silero VAD checkpoints bunsen fetches by name"
+groups:
+  - name: "silero"
+    description: "snakers4/silero-vad, as upstream publishes it"
+    license: "MIT"
+    origin: "https://github.com/snakers4/silero-vad"
+    rows:
+      - name: "vad-16k"
+        description: "Silero VAD, the 16 kHz model, from upstream's safetensors (1.2 MB)"
+        license: "MIT"
+        origin: "https://github.com/snakers4/silero-vad"
+        bundles: ["silero/vad-16k"]
+bundles:
+  - name: "silero/vad-16k"
+    description: "Silero VAD's 16 kHz model, upstream's safetensors (f32)"
+    license: "MIT"
+    origin: "https://github.com/snakers4/silero-vad"
+    namespace: "silero"
+    bases: [{ url: "https://raw.githubusercontent.com/snakers4/silero-vad/fb7d7c7f5df63235f0afd037d8397593829aeb41/src/silero_vad/data" }]
+    resources:
+      - { key: "checkpoint", file: "silero_vad_16k.safetensors", kind: "safetensors", sha256: "c59271c284ae9c8335d795d60e0bfdb71aaaceec578d9bd9ffc1b8153c319ea1" }

@@ -1,0 +1,421 @@
+{
+  "kit": "resnet",
+  "name": "well-known",
+  "description": "the ResNet checkpoints bunsen knows by name",
+  "groups": [
+    {
+      "name": "torchvision",
+      "description": "TorchVision's ImageNet-1k reference weights",
+      "license": "bsd-3-clause",
+      "origin": "https://github.com/pytorch/vision",
+      "rows": [
+        {
+          "name": "resnet18",
+          "description": "TorchVision ResNet-18",
+          "license": "bsd-3-clause",
+          "origin": "https://github.com/pytorch/vision",
+          "prefab": "resnet18",
+          "bundles": [
+            "torchvision/resnet18-f37072fd.pth"
+          ]
+        },
+        {
+          "name": "resnet34",
+          "description": "TorchVision ResNet-34",
+          "license": "bsd-3-clause",
+          "origin": "https://github.com/pytorch/vision",
+          "prefab": "resnet34",
+          "bundles": [
+            "torchvision/resnet34-b627a593.pth"
+          ]
+        },
+        {
+          "name": "resnet50",
+          "description": "TorchVision ResNet-50",
+          "license": "bsd-3-clause",
+          "origin": "https://github.com/pytorch/vision",
+          "prefab": "resnet50",
+          "bundles": [
+            "torchvision/resnet50-0676ba61.pth"
+          ]
+        },
+        {
+          "name": "resnet101",
+          "description": "TorchVision ResNet-101",
+          "license": "bsd-3-clause",
+          "origin": "https://github.com/pytorch/vision",
+          "prefab": "resnet101",
+          "bundles": [
+            "torchvision/resnet101-63fe2227.pth"
+          ]
+        },
+        {
+          "name": "resnet152",
+          "description": "TorchVision ResNet-152",
+          "license": "bsd-3-clause",
+          "origin": "https://github.com/pytorch/vision",
+          "prefab": "resnet152",
+          "bundles": [
+            "torchvision/resnet152-394f9c45.pth"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "timm",
+      "description": "pytorch-image-models' ImageNet-1k weights: ResNet Strikes Back (a1, a2, a3) and earlier",
+      "origin": "https://github.com/huggingface/pytorch-image-models",
+      "rows": [
+        {
+          "name": "resnet18_a1",
+          "description": "RSB Paper ResNet-18 a1",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet18",
+          "bundles": [
+            "timm/resnet18_a1_0-d63eafa0.pth"
+          ]
+        },
+        {
+          "name": "resnet18_a2",
+          "description": "RSB Paper ResNet-18 a2",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet18",
+          "bundles": [
+            "timm/resnet18_a2_0-b61bd467.pth"
+          ]
+        },
+        {
+          "name": "resnet18_a3",
+          "description": "RSB Paper ResNet-18 a3",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet18",
+          "bundles": [
+            "timm/resnet18_a3_0-40c531c8.pth"
+          ]
+        },
+        {
+          "name": "resnet26",
+          "description": "ResNet-26 pretrained on ImageNet",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet26",
+          "bundles": [
+            "timm/resnet26-9aa10e23.pth"
+          ]
+        },
+        {
+          "name": "resnet34_a1",
+          "description": "RSB Paper ResNet-34 a1",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet34",
+          "bundles": [
+            "timm/resnet34_a1_0-46f8f793.pth"
+          ]
+        },
+        {
+          "name": "resnet34_a2",
+          "description": "RSB Paper ResNet-34 a2",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet34",
+          "bundles": [
+            "timm/resnet34_a2_0-82d47d71.pth"
+          ]
+        },
+        {
+          "name": "resnet34_a3",
+          "description": "RSB Paper ResNet-34 a3",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet34",
+          "bundles": [
+            "timm/resnet34_a3_0-a20cabb6.pth"
+          ]
+        },
+        {
+          "name": "resnet34",
+          "description": "ResNet-34 pretrained on ImageNet",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet34",
+          "bundles": [
+            "timm/resnet34-43635321.pth"
+          ]
+        },
+        {
+          "name": "resnet101_a1",
+          "description": "ResNet-101 pretrained on ImageNet",
+          "origin": "https://github.com/huggingface/pytorch-image-models",
+          "prefab": "resnet101",
+          "bundles": [
+            "timm/resnet101_a1_0-cdcb52a9.pth"
+          ]
+        }
+      ]
+    }
+  ],
+  "bundles": [
+    {
+      "name": "torchvision/resnet18-f37072fd.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "torchvision",
+      "bases": [
+        {
+          "url": "https://download.pytorch.org/models"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet18-f37072fd.pth",
+          "sha256": "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
+          "kind": "pytorch fp32",
+          "size": 46830571
+        }
+      ]
+    },
+    {
+      "name": "torchvision/resnet34-b627a593.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "torchvision",
+      "bases": [
+        {
+          "url": "https://download.pytorch.org/models"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet34-b627a593.pth",
+          "sha256": "b627a593bcbe140c234610266fe4f8ae95ea42fc881d091c9b6052e6b1d0590f",
+          "kind": "pytorch fp32",
+          "size": 87319819
+        }
+      ]
+    },
+    {
+      "name": "torchvision/resnet50-0676ba61.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "torchvision",
+      "bases": [
+        {
+          "url": "https://download.pytorch.org/models"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet50-0676ba61.pth",
+          "sha256": "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a",
+          "kind": "pytorch fp32",
+          "size": 102530333
+        }
+      ]
+    },
+    {
+      "name": "torchvision/resnet101-63fe2227.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "torchvision",
+      "bases": [
+        {
+          "url": "https://download.pytorch.org/models"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet101-63fe2227.pth",
+          "sha256": "63fe2227b86e8f1f2063f43a75c84d195911b6a0eace650907dd3dc62dd49a0a",
+          "kind": "pytorch fp32",
+          "size": 178793939
+        }
+      ]
+    },
+    {
+      "name": "torchvision/resnet152-394f9c45.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "torchvision",
+      "bases": [
+        {
+          "url": "https://download.pytorch.org/models"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet152-394f9c45.pth",
+          "sha256": "394f9c45966e3651a89bbb78a48410a6755854ce4a5ab64927cf1c7247f85e58",
+          "kind": "pytorch fp32",
+          "size": 241627721
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet18_a1_0-d63eafa0.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet18_a1_0-d63eafa0.pth",
+          "sha256": "d63eafa07a6e32a39d328e364f8c9f89d671444ecc7f02aa0f7eb8882af3dd29",
+          "kind": "pytorch fp32",
+          "size": 46812648
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet18_a2_0-b61bd467.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet18_a2_0-b61bd467.pth",
+          "sha256": "b61bd467647a03d3f7db590a1158552d2e66bf5ba62c2158ca9594c03de49923",
+          "kind": "pytorch fp32",
+          "size": 46812648
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet18_a3_0-40c531c8.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet18_a3_0-40c531c8.pth",
+          "sha256": "40c531c8324d963735b0c7ab9a9b2d7715c573a04d0b95776d29cc816a2ef93e",
+          "kind": "pytorch fp32",
+          "size": 46812648
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet26-9aa10e23.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet26-9aa10e23.pth",
+          "sha256": "9aa10e237cec57dcaa067ee38d19ffc38a6323d185ef8a9903434291fd4187cb",
+          "kind": "pytorch fp32",
+          "size": 64129972
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet34_a1_0-46f8f793.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet34_a1_0-46f8f793.pth",
+          "sha256": "46f8f7930534e471b9a139b278896db5d11d17b8ea3fcc90ad43deed9e5e27d7",
+          "kind": "pytorch fp32",
+          "size": 87288056
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet34_a2_0-82d47d71.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet34_a2_0-82d47d71.pth",
+          "sha256": "82d47d71dafac5343b070e5883c41321b45e4759bfe6aa25d375300c38b386a0",
+          "kind": "pytorch fp32",
+          "size": 87288056
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet34_a3_0-a20cabb6.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet34_a3_0-a20cabb6.pth",
+          "sha256": "a20cabb63e1baf7963ede853c5a38046aede79a7e675d3576714b59cb4ab7519",
+          "kind": "pytorch fp32",
+          "size": 87288056
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet34-43635321.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet34-43635321.pth",
+          "sha256": "436353219a11d07c7c74cf1a686ed3b02f6c954d4c7863e2046822e047c6f246",
+          "kind": "pytorch fp32",
+          "size": 87290831
+        }
+      ]
+    },
+    {
+      "name": "timm/resnet101_a1_0-cdcb52a9.pth",
+      "description": "an ImageNet checkpoint",
+      "namespace": "timm",
+      "bases": [
+        {
+          "url": "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "resnet101_a1_0-cdcb52a9.pth",
+          "sha256": "cdcb52a9df09a641606696e5520e4fbbe8256ee4983d8b4dd1a1ef87a9b8846f",
+          "kind": "pytorch fp32",
+          "size": 178703660
+        }
+      ]
+    }
+  ]
+}
