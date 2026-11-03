@@ -10,7 +10,10 @@ use serde::{
     Serialize,
 };
 
-use super::ResourceBundle;
+use super::{
+    PresetSet,
+    ResourceBundle,
+};
 
 /// A pretrained row: a name in a provider, over a resource bundle.
 ///
@@ -53,6 +56,11 @@ pub struct Pretrained {
 
     /// What it is made of, fused.
     pub resources: ResourceBundle,
+
+    /// Its presets: named deltas over the config it is built from, and its
+    /// default selection.
+    #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
+    pub presets: PresetSet,
 }
 
 impl Pretrained {
@@ -83,6 +91,7 @@ mod tests {
             prefab: Some("small".to_string()),
             resources: ResourceBundle::new("small")
                 .with_resource(Resource::given("checkpoint", "/t/small.pt")),
+            presets: PresetSet::default(),
         };
         assert!(row.matches("small"));
         assert!(row.matches("s"));

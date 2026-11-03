@@ -195,7 +195,7 @@ mod tests {
     fn named() -> PretrainedRef {
         PretrainedRef::Named {
             provider: "well-known".to_string(),
-            pretrained: Pretrained {
+            pretrained: Box::new(Pretrained {
                 name: "a/small".to_string(),
                 aliases: Vec::new(),
                 description: "small weights".to_string(),
@@ -212,7 +212,8 @@ mod tests {
                     namespace: "a".to_string(),
                     sources: vec![Source::Url("https://a.example/small.pt".to_string())],
                 }),
-            },
+                presets: Default::default(),
+            }),
         }
     }
 

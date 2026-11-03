@@ -12,6 +12,7 @@ use serde::{
 
 use super::{
     Fuse,
+    PresetSet,
     Pretrained,
     PretrainedGroup,
     PretrainedTable,
@@ -107,6 +108,10 @@ pub struct CatalogRow {
     /// The resource bundles it is made of, by name, fused strictly in
     /// order.
     pub bundles: Vec<String>,
+
+    /// Its presets, and its default selection.
+    #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
+    pub presets: PresetSet,
 }
 
 /// One resource bundle of a [`PretrainedCatalog`]: a [`ResourceBundle`] before
@@ -321,17 +326,21 @@ impl PretrainedCatalog {
     }
 
     /// The owned row: its bundles fused strictly under its own name and
-    /// listing fields.
+    /// listing fields, with its presets.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a bundle the
     /// catalog does not have;
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when two of its
-    /// bundles share a key.
+    /// bundles share a key, or when its presets are not well formed
+    /// ([`PresetSet::validate`]).
     pub fn to_pretrained(
         &self,
         row: &CatalogRow,
     ) -> BunsenResult<Pretrained> {
+        row.presets
+            .validate()
+            .with_context(|| format!("the row {:?}'s presets", row.name))?;
         let mut resources = ResourceBundle::new(&row.name);
         resources.description = row.description.clone();
         resources.license = row.license.clone();
@@ -351,6 +360,7 @@ impl PretrainedCatalog {
             origin: row.origin.clone(),
             prefab: row.prefab.clone(),
             resources,
+            presets: row.presets.clone(),
         })
     }
 
@@ -691,5 +701,55 @@ mod tests {
         assert_eq!(resolve("$UNSET/whisper"), None);
         assert_eq!(resolve("$EMPTY/whisper"), None);
         assert_eq!(resolve_dir_template_with("~/x", &env, &|| None), None);
+    }
+
+    /// A row's presets ride through to its pretrained, and survive the JSON
+    /// round trip; a row whose presets are malformed does not load.
+    #[test]
+    fn test_row_presets() {
+        use crate::data::pretrained::{
+            Preset,
+            PresetAxis,
+        };
+
+        let preset = |name: &str, patch: serde_json::Value| Preset {
+            name: name.to_string(),
+            description: format!("the {name} preset"),
+            patch,
+        };
+        let mut catalog = PretrainedCatalog::from_json(CATALOG).unwrap();
+        catalog.groups[0].rows[0].presets = PresetSet {
+            presets: vec![
+                preset("fast", serde_json::json!({"beam": 1})),
+                preset("good", serde_json::json!({"beam": 5})),
+            ],
+            axes: vec![PresetAxis {
+                name: "quality".to_string(),
+                description: "how hard the search tries".to_string(),
+                members: vec!["fast".to_string(), "good".to_string()],
+            }],
+            default: vec!["good".to_string()],
+        };
+        let json = serde_json::to_string(&catalog).unwrap();
+        assert_eq!(PretrainedCatalog::from_json(&json).unwrap(), catalog);
+
+        let table = catalog.to_table().unwrap();
+        let small = &table.groups[0].items[0];
+        assert_eq!(small.presets, catalog.groups[0].rows[0].presets);
+        assert!(table.groups[0].items[1].presets.is_empty());
+
+        catalog.groups[0].rows[0]
+            .presets
+            .default
+            .push("fast".to_string());
+        let result = catalog.to_table();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("the default selects two members of the axis `quality`")
+            .assert_err(&result);
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "the toy catalog: the row \"small\"'s presets: \
+             the default selects two members of the axis `quality`"
+        );
     }
 }

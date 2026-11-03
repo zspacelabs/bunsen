@@ -176,3 +176,23 @@ dtype from its `config.json`. A digest the source gives is authoritative: it
 must agree with the derived one, and a file off the Hub must have one. Only
 `--verify-remote` downloads the weights.
 
+A row may carry `presets`: named merge patches over the config its model is
+built from, each with a required `description`; `axes` grouping presets that
+exclude one another, each with a required `description`; and the `default`
+selection, by name. The tool refuses a row whose presets are malformed
+(`bunsen::data::pretrained::PresetSet::validate`):
+
+```yaml
+rows:
+  - name: m
+    description: a model
+    bundles: [o/m]
+    presets:
+      presets:
+        - { name: fast, description: a greedy search, patch: { beam: 1 } }
+        - { name: good, description: a wide search, patch: { beam: 5 } }
+      axes:
+        - { name: quality, description: how hard the search tries, members: [fast, good] }
+      default: [good]
+```
+

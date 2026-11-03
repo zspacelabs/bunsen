@@ -565,6 +565,7 @@ impl HfProvider {
             origin: Some(origin),
             prefab: None,
             resources,
+            presets: Default::default(),
         })
     }
 
