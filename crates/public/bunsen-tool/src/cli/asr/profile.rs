@@ -370,7 +370,7 @@ impl Profile {
     }
 }
 
-/// The profile `--profile` names when it is not given: an alias, so what it
+/// The profile `--preset` names when it is not given: an alias, so what it
 /// means can change too.
 pub const DEFAULT_PROFILE: &str = "default";
 

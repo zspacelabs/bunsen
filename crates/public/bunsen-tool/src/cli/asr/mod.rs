@@ -1,4 +1,4 @@
-//! `bunsen-tool asr`: speech to text. `asr <transcribe|live> [--profile
+//! `bunsen-tool asr`: speech to text. `asr <transcribe|live> [--preset
 //! NAME] [FLAGS]` runs a profile, a model chosen by what it is for, and `asr
 //! profiles <list|show|fetch>` shows them; `asr family
 //! <parakeet|qwen3-asr|voxtral|whisper> <list|fetch|transcribe|live> [FLAGS]`
@@ -48,7 +48,7 @@ enum Command {
     Live(Box<profile_cmd::ProfileLiveCmd>),
 
     /// The profiles: what each is for, and what it runs.
-    Profiles(profile_cmd::ProfilesCmd),
+    Presets(profile_cmd::ProfilesCmd),
 
     /// The model families, each with its own `list` and `transcribe`, and
     /// only the flags that apply to it.
@@ -178,7 +178,7 @@ impl AsrCmd {
             Command::Transcribe(cmd) => cmd.run(),
             #[cfg(feature = "live")]
             Command::Live(cmd) => cmd.run(),
-            Command::Profiles(cmd) => cmd.run(),
+            Command::Presets(cmd) => cmd.run(),
             Command::Family(cmd) => cmd.run(),
             Command::Diarize(cmd) => cmd.run(),
         }
@@ -378,7 +378,7 @@ mod tests {
         Args::try_parse_from([
             "asr",
             "transcribe",
-            "--profile",
+            "--preset",
             "multi",
             "--language",
             "de",
@@ -405,7 +405,7 @@ mod tests {
         Args::try_parse_from([
             "asr",
             "live",
-            "--profile",
+            "--preset",
             "translate-en",
             "--opt",
             "whisper.timestamps",
@@ -414,17 +414,20 @@ mod tests {
         ])
         .unwrap();
         for argv in [
-            &["profiles"][..],
-            &["profiles", "list"],
-            &["profiles", "show"],
-            &["profiles", "show", "en", "multi"],
-            &["profiles", "fetch", "--verify", "en"],
+            &["presets"][..],
+            &["presets", "list"],
+            &["presets", "show"],
+            &["presets", "show", "en", "multi"],
+            &["presets", "fetch", "--verify", "en"],
         ] {
             let mut full = vec!["asr"];
             full.extend_from_slice(argv);
             Args::try_parse_from(full).unwrap();
         }
-        assert!(Args::try_parse_from(["asr", "profiles", "fetch"]).is_err());
+        assert!(Args::try_parse_from(["asr", "presets", "fetch"]).is_err());
+        // `profiles` and `--profile` are gone, with no alias.
+        assert!(Args::try_parse_from(["asr", "profiles"]).is_err());
+        assert!(Args::try_parse_from(["asr", "transcribe", "--profile", "en", "a.wav"]).is_err());
         // The families moved under `family`.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             assert!(
@@ -434,7 +437,7 @@ mod tests {
         }
     }
 
-    /// Each recipe's family command line, as `profiles show` prints it,
+    /// Each recipe's family command line, as `presets show` prints it,
     /// parses as that command.
     #[test]
     fn test_profile_command_lines_parse() {

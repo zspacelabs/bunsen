@@ -1,4 +1,4 @@
-//! `asr transcribe`, `live` and `profiles`: speech to text by profile.
+//! `asr transcribe`, `live` and `presets`: speech to text by profile.
 use std::io::Write;
 
 use bunsen::{
@@ -58,12 +58,12 @@ use crate::cli::asr::{
 ///
 /// 1. `--language` implies `--speech`: `en` is `en`, any other code `multi`.
 ///    `--speech en` with another language is an error.
-/// 2. Without `--profile`, each of `--speech`, `--task` and `--quality` not
+/// 2. Without `--preset`, each of `--speech`, `--task` and `--quality` not
 ///    given is `default`'s, but `--task translate` makes the speech `multi`.
 ///    With it, they are the profile's.
 /// 3. English speech translated to English is transcribed ([`Need::settled`]),
 ///    logged at `INFO`.
-/// 4. Without `--profile`, the table's cell for that need runs. With it, the
+/// 4. Without `--preset`, the table's cell for that need runs. With it, the
 ///    profile's recipe runs, at `--quality`; `--speech` must be one it hears
 ///    (`multi` hears English), and a task not its own is set on its model
 ///    (Whisper's `--task`) or is an error.
@@ -73,20 +73,20 @@ use crate::cli::asr::{
 /// runs, is logged and recorded by `--json`.
 #[derive(clap::Args, Debug)]
 pub struct ProfileArgs {
-    /// The profile, by name or alias: `profiles` lists them, and what each
+    /// The profile, by name or alias: `presets` lists them, and what each
     /// runs. Without it, `--speech`, `--task`, `--quality` and `--language`
     /// choose the model, over `default`'s; with it, they may only adjust it.
-    #[arg(long)]
+    #[arg(long = "preset", value_name = "PRESET")]
     pub profile: Option<String>,
 
-    /// What the speech is; `--language` implies it. Without `--profile`, in
+    /// What the speech is; `--language` implies it. Without `--preset`, in
     /// place of `default`'s (`multi` with `--task translate`); with it, only
     /// as the profile already hears it (`multi` hears English).
     #[arg(long, value_enum)]
     pub speech: Option<Speech>,
 
     /// What to make of the speech: `transcribe` unless the profile
-    /// translates. Without `--profile`, in place of `default`'s; with it,
+    /// translates. Without `--preset`, in place of `default`'s; with it,
     /// set on a model that takes a task (Whisper's `--task`), and an error
     /// on one that does not. English speech is transcribed either way.
     #[arg(long, value_enum)]
@@ -347,7 +347,7 @@ macro_rules! with_flags {
 /// Transcribes audio files with a profile's model for files.
 ///
 /// The profile picks the family, the model, when to decode and the family's
-/// own flags; `--opt` changes them, `profiles show` prints them, and `-v`
+/// own flags; `--opt` changes them, `presets show` prints them, and `-v`
 /// logs them as the `bunsen-tool asr family` command they are. `--json` records
 /// the profile and its recipe with each transcript.
 #[derive(clap::Args, Debug)]
@@ -379,7 +379,7 @@ impl ProfileTranscribeCmd {
 /// the microphone.
 ///
 /// The profile picks the family, the model, when to decode and the family's
-/// own flags; `--opt` changes them, `profiles show` prints them, and `-v`
+/// own flags; `--opt` changes them, `presets show` prints them, and `-v`
 /// logs them as the `bunsen-tool asr family` command they are.
 #[cfg(feature = "live")]
 #[derive(clap::Args, Debug)]
@@ -526,7 +526,7 @@ struct FetchCmd {
     #[arg(long)]
     verify: bool,
 
-    /// Profiles, by name or alias (`profiles` lists them).
+    /// Profiles, by name or alias (`presets` lists them).
     #[arg(required = true)]
     names: Vec<String>,
 }
@@ -677,7 +677,7 @@ mod tests {
                 Offline,
                 Err("is not English"),
             ),
-            // 2. Without `--profile`, `default`'s need under the flags given;
+            // 2. Without `--preset`, `default`'s need under the flags given;
             // `--task translate` makes the speech `multi`.
             (
                 &["--task", "transcribe"],
@@ -762,56 +762,56 @@ mod tests {
                 )),
             ),
             (
-                &["--profile", "en", "--task", "translate"],
+                &["--preset", "en", "--task", "translate"],
                 Offline,
                 Ok(("en", "en/transcribe/balanced", PHONON, Transcribe)),
             ),
             (
-                &["--profile", "translate-en", "--speech", "en"],
+                &["--preset", "translate-en", "--speech", "en"],
                 Offline,
                 Ok(("translate-en", "en/transcribe/balanced", LARGE, Transcribe)),
             ),
             (
-                &["--profile", "translate-en", "--language", "en"],
+                &["--preset", "translate-en", "--language", "en"],
                 Live,
                 Ok(("translate-en", "en/transcribe/balanced", SMALL, Transcribe)),
             ),
-            // 4. With `--profile`, its recipe runs, adjusted: `--quality` along
+            // 4. With `--preset`, its recipe runs, adjusted: `--quality` along
             // its row,
             (
-                &["--profile", "multi", "--quality", "fast"],
+                &["--preset", "multi", "--quality", "fast"],
                 Offline,
                 Ok(("multi", "multi/transcribe/fast", QWEN_LIVE, Transcribe)),
             ),
             // `--speech` it hears,
             (
-                &["--profile", "multi", "--speech", "en"],
+                &["--preset", "multi", "--speech", "en"],
                 Live,
                 Ok(("multi", "en/transcribe/balanced", QWEN_LIVE, Transcribe)),
             ),
             (
-                &["--profile", "multi", "--language", "de"],
+                &["--preset", "multi", "--language", "de"],
                 Offline,
                 Ok(("multi", "multi/transcribe/balanced", QWEN, Transcribe)),
             ),
             (
-                &["--profile", "translate-en", "--language", "de"],
+                &["--preset", "translate-en", "--language", "de"],
                 Offline,
                 Ok(("translate-en", "multi/translate/balanced", LARGE, Translate)),
             ),
             (
-                &["--profile", "en", "--speech", "multi"],
+                &["--preset", "en", "--speech", "multi"],
                 Live,
                 Err("profile en hears en"),
             ),
             (
-                &["--profile", "en", "--language", "de"],
+                &["--preset", "en", "--language", "de"],
                 Offline,
                 Err("--language de needs another profile"),
             ),
             // and a task set on Whisper, an `--opt` still winning.
             (
-                &["--profile", "translate-en", "--task", "transcribe"],
+                &["--preset", "translate-en", "--task", "transcribe"],
                 Live,
                 Ok((
                     "translate-en",
@@ -822,7 +822,7 @@ mod tests {
             ),
             (
                 &[
-                    "--profile",
+                    "--preset",
                     "translate-en",
                     "--task",
                     "transcribe",
@@ -833,12 +833,12 @@ mod tests {
                 Ok(("translate-en", "multi/translate/balanced", SMALL, Translate)),
             ),
             (
-                &["--profile", "multi", "--task", "transcribe"],
+                &["--preset", "multi", "--task", "transcribe"],
                 Live,
                 Ok(("multi", "multi/transcribe/balanced", QWEN_LIVE, Transcribe)),
             ),
             (
-                &["--profile", "multi", "--task", "translate"],
+                &["--preset", "multi", "--task", "translate"],
                 Live,
                 Err("cannot translate"),
             ),
@@ -859,7 +859,7 @@ mod tests {
         }
     }
 
-    /// Over every combination of `--profile`, `--speech`, `--task` and
+    /// Over every combination of `--preset`, `--speech`, `--task` and
     /// `--language`, in each mode: the task is `transcribe` unless a
     /// translating profile or `--task translate` asks otherwise, English
     /// speech is transcribed, a language not English is never given to an
@@ -874,7 +874,7 @@ mod tests {
                         for mode in [Mode::Offline, Mode::Live] {
                             let mut line = Vec::new();
                             for (flag, value) in [
-                                ("--profile", profile),
+                                ("--preset", profile),
                                 ("--speech", speech),
                                 ("--task", task),
                                 ("--language", language),

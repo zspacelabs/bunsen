@@ -72,7 +72,10 @@ use bunsen_tool::chat::{
     search_config,
 };
 
-use crate::cli::with_presets;
+use crate::cli::{
+    PresetArgs,
+    with_presets,
+};
 
 /// `bunsen-tool chat`'s commands.
 #[derive(clap::Args, Debug)]
@@ -336,6 +339,9 @@ struct GenerateFlags {
     #[arg(long)]
     model: Option<String>,
 
+    #[clap(flatten)]
+    presets: PresetArgs,
+
     /// A system prompt.
     #[arg(long)]
     system: Option<String>,
@@ -518,7 +524,8 @@ impl GenerateFlags {
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
-        let (family, mut name) = self.checkpoint(family)?;
+        let (family, name) = self.checkpoint(family)?;
+        let mut name = self.presets.apply(&name)?;
         // nanochat has no thinking switch: the flags select only Qwen3's
         // presets.
         if family == Family::Qwen3 && !presets.is_empty() {
