@@ -14,7 +14,7 @@
           "aliases": [
             "phonon"
           ],
-          "description": "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, 164 MB, English",
+          "description": "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English",
           "license": "CC-BY-4.0",
           "origin": "https://huggingface.co/FermionResearch/Phonon-2",
           "bundles": [
@@ -31,7 +31,7 @@
       "rows": [
         {
           "name": "parakeet-tdt-0.6b-v3",
-          "description": "parakeet-tdt-0.6b-v3: 600 M parameters, f32, 25 European languages",
+          "description": "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages",
           "license": "CC-BY-4.0",
           "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
           "bundles": [
@@ -65,7 +65,7 @@
     },
     {
       "name": "nvidia/parakeet-tdt-0.6b-v3",
-      "description": "parakeet-tdt-0.6b-v3: model.safetensors (f32) and tokenizer.json",
+      "description": "parakeet-tdt-0.6b-v3: model.safetensors and tokenizer.json",
       "license": "CC-BY-4.0",
       "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
       "namespace": "nvidia",
@@ -80,7 +80,8 @@
           "file": "model.safetensors",
           "sha256": "3a2026366188c8c68598edbbff92f8d11590a08e0ae2e6775544e7b07d6a5e11",
           "kind": "safetensors",
-          "size": 2508311120
+          "size": 2508311120,
+          "dtype": "float32"
         },
         {
           "key": "vocabulary",

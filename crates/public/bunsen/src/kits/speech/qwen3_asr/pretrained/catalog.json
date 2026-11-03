@@ -11,7 +11,7 @@
       "rows": [
         {
           "name": "phonon-1",
-          "description": "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 415 MB",
+          "description": "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed",
           "license": "Apache-2.0",
           "origin": "https://huggingface.co/FermionResearch/Phonon-1",
           "prefab": "qwen3-asr-0.6b",
@@ -21,7 +21,7 @@
         },
         {
           "name": "phonon-1-micro",
-          "description": "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 285 MB",
+          "description": "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed",
           "license": "Apache-2.0",
           "origin": "https://huggingface.co/FermionResearch/Phonon-1-Micro",
           "prefab": "qwen3-asr-0.6b",
@@ -31,7 +31,7 @@
         },
         {
           "name": "phonon-1-big",
-          "description": "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 581 MB",
+          "description": "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed",
           "license": "Apache-2.0",
           "origin": "https://huggingface.co/FermionResearch/Phonon-1-Big",
           "prefab": "qwen3-asr-0.6b",
@@ -49,7 +49,7 @@
       "rows": [
         {
           "name": "qwen3-asr-0.6b",
-          "description": "Qwen3-ASR-0.6B: 0.8 B parameters, bf16, 30 languages",
+          "description": "Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages",
           "license": "Apache-2.0",
           "origin": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf",
           "prefab": "qwen3-asr-0.6b",
@@ -59,7 +59,7 @@
         },
         {
           "name": "qwen3-asr-1.7b",
-          "description": "Qwen3-ASR-1.7B: 2.0 B parameters, bf16, 30 languages",
+          "description": "Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages",
           "license": "Apache-2.0",
           "origin": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf",
           "prefab": "qwen3-asr-1.7b",
@@ -136,7 +136,7 @@
     },
     {
       "name": "qwen/qwen3-asr-0.6b",
-      "description": "Qwen3-ASR-0.6B: model.safetensors (bf16) and tokenizer.json",
+      "description": "Qwen3-ASR-0.6B: model.safetensors and tokenizer.json",
       "license": "Apache-2.0",
       "origin": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf",
       "namespace": "qwen",
@@ -151,7 +151,8 @@
           "file": "model.safetensors",
           "sha256": "d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35",
           "kind": "safetensors",
-          "size": 1564928088
+          "size": 1564928088,
+          "dtype": "bfloat16"
         },
         {
           "key": "vocabulary",
@@ -164,7 +165,7 @@
     },
     {
       "name": "qwen/qwen3-asr-1.7b",
-      "description": "Qwen3-ASR-1.7B: model.safetensors (bf16) and tokenizer.json",
+      "description": "Qwen3-ASR-1.7B: model.safetensors and tokenizer.json",
       "license": "Apache-2.0",
       "origin": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf",
       "namespace": "qwen",
@@ -179,7 +180,8 @@
           "file": "model.safetensors",
           "sha256": "2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1",
           "kind": "safetensors",
-          "size": 4076193080
+          "size": 4076193080,
+          "dtype": "bfloat16"
         },
         {
           "key": "vocabulary",

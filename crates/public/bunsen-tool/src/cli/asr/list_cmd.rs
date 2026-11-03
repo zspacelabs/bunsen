@@ -1,7 +1,10 @@
 //! `asr family <family> list` and `asr diarize list`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
-    cache::WeightsCacheArgs,
+    cache::{
+        WeightsCacheArgs,
+        human_bytes,
+    },
     logging::{
         LevelFilter,
         LogArgs,
@@ -45,6 +48,13 @@ impl ListCmd {
             println!();
             println!("{provider}:{}{default}", row.name);
             println!("  {}", row.description);
+            if let Some(size) = row.resources.size() {
+                println!("  size: {}", human_bytes(size));
+            }
+            let dtypes = row.resources.dtypes();
+            if !dtypes.is_empty() {
+                println!("  dtype: {}", dtypes.join(", "));
+            }
             println!("  license: {}", row.license.as_deref().unwrap_or("unknown"));
             if !row.aliases.is_empty() {
                 println!("  aliases: {}", row.aliases.join(", "));

@@ -11,92 +11,92 @@ groups:
     origin: "https://huggingface.co/Qwen"
     rows:
       - name: "qwen3-0.6b"
-        description: "Qwen3-0.6B: thinking and non-thinking chat, bf16, 1.50 GB"
+        description: "Qwen3-0.6B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3-0.6b"]
       - name: "qwen3-0.6b-base"
-        description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning, bf16, 1.19 GB"
+        description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3-0.6b-base"]
       - name: "qwen3-1.7b"
-        description: "Qwen3-1.7B: thinking and non-thinking chat, bf16, 4.06 GB"
+        description: "Qwen3-1.7B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
         prefab: "qwen3-1.7b"
         bundles: ["qwen/qwen3-1.7b"]
       - name: "qwen3-1.7b-base"
-        description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning, bf16, 3.44 GB"
+        description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
         prefab: "qwen3-1.7b"
         bundles: ["qwen/qwen3-1.7b-base"]
       - name: "qwen3-4b"
-        description: "Qwen3-4B: thinking and non-thinking chat, bf16, 8.04 GB"
+        description: "Qwen3-4B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b"]
       - name: "qwen3-4b-base"
-        description: "Qwen3-4B-Base: the pretrained model, no chat tuning, bf16, 8.04 GB"
+        description: "Qwen3-4B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b-base"]
       - name: "qwen3-4b-instruct-2507"
-        description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context, bf16, 8.04 GB"
+        description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
         prefab: "qwen3-4b-2507"
         bundles: ["qwen/qwen3-4b-instruct-2507"]
       - name: "qwen3-4b-thinking-2507"
-        description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context, bf16, 8.04 GB"
+        description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
         prefab: "qwen3-4b-2507"
         bundles: ["qwen/qwen3-4b-thinking-2507"]
       - name: "qwen3-8b"
-        description: "Qwen3-8B: thinking and non-thinking chat, bf16, 16.38 GB"
+        description: "Qwen3-8B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3-8b"]
       - name: "qwen3-8b-base"
-        description: "Qwen3-8B-Base: the pretrained model, no chat tuning, bf16, 16.38 GB"
+        description: "Qwen3-8B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3-8b-base"]
       - name: "qwen3-4b-saferl"
-        description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat, bf16, 8.04 GB"
+        description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-SafeRL"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b-saferl"]
       - name: "qwen3guard-gen-0.6b"
-        description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 1.50 GB"
+        description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3guard-gen-0.6b"]
       - name: "qwen3guard-gen-4b"
-        description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 8.82 GB"
+        description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3guard-gen-4b"]
       - name: "qwen3guard-gen-8b"
-        description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 16.38 GB"
+        description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3guard-gen-8b"]
 bundles:
   - name: "qwen/qwen3-0.6b"
-    description: "Qwen3-0.6B: model.safetensors (bf16, 1.50 GB), config, tokenizer, generation config"
+    description: "Qwen3-0.6B: model.safetensors, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
     namespace: "qwen"
@@ -108,7 +108,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-0.6b-base"
-    description: "Qwen3-0.6B-Base: model.safetensors (bf16, 1.19 GB), config, tokenizer, generation config"
+    description: "Qwen3-0.6B-Base: model.safetensors, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
     namespace: "qwen"
@@ -120,7 +120,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-1.7b"
-    description: "Qwen3-1.7B: 2 safetensors shards (bf16, 4.06 GB), config, tokenizer, generation config"
+    description: "Qwen3-1.7B: 2 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
     namespace: "qwen"
@@ -134,7 +134,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-1.7b-base"
-    description: "Qwen3-1.7B-Base: model.safetensors (bf16, 3.44 GB), config, tokenizer, generation config"
+    description: "Qwen3-1.7B-Base: model.safetensors, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
     namespace: "qwen"
@@ -146,7 +146,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-4b"
-    description: "Qwen3-4B: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    description: "Qwen3-4B: 3 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-4B"
     namespace: "qwen"
@@ -161,7 +161,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-4b-base"
-    description: "Qwen3-4B-Base: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    description: "Qwen3-4B-Base: 3 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
     namespace: "qwen"
@@ -176,7 +176,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-4b-instruct-2507"
-    description: "Qwen3-4B-Instruct-2507: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    description: "Qwen3-4B-Instruct-2507: 3 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
     namespace: "qwen"
@@ -191,7 +191,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-4b-thinking-2507"
-    description: "Qwen3-4B-Thinking-2507: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    description: "Qwen3-4B-Thinking-2507: 3 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
     namespace: "qwen"
@@ -206,7 +206,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-8b"
-    description: "Qwen3-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config"
+    description: "Qwen3-8B: 5 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-8B"
     namespace: "qwen"
@@ -223,7 +223,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-8b-base"
-    description: "Qwen3-8B-Base: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config"
+    description: "Qwen3-8B-Base: 5 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
     namespace: "qwen"
@@ -240,7 +240,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3-4b-saferl"
-    description: "Qwen3-4B-SafeRL: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    description: "Qwen3-4B-SafeRL: 3 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-4B-SafeRL"
     namespace: "qwen"
@@ -255,7 +255,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3guard-gen-0.6b"
-    description: "Qwen3Guard-Gen-0.6B: one safetensors file (bf16, 1.50 GB), config, tokenizer, generation config"
+    description: "Qwen3Guard-Gen-0.6B: one safetensors file, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
     namespace: "qwen"
@@ -267,7 +267,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3guard-gen-4b"
-    description: "Qwen3Guard-Gen-4B: 3 safetensors shards (bf16, 8.82 GB), config, tokenizer, generation config"
+    description: "Qwen3Guard-Gen-4B: 3 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
     namespace: "qwen"
@@ -282,7 +282,7 @@ bundles:
       - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
   - name: "qwen/qwen3guard-gen-8b"
-    description: "Qwen3Guard-Gen-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config"
+    description: "Qwen3Guard-Gen-8B: 5 safetensors shards, config, tokenizer, generation config"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
     namespace: "qwen"

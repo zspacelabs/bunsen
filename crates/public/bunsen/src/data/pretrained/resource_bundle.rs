@@ -116,6 +116,23 @@ impl ResourceBundle {
         self.resources.insert(resource.key.clone(), resource)
     }
 
+    /// The bundle's size in bytes: the sum of its resources' sizes, when
+    /// every one is known.
+    pub fn size(&self) -> Option<u64> {
+        self.resources.values().map(|r| r.size).sum()
+    }
+
+    /// The distinct dtypes its resources declare, in key order.
+    pub fn dtypes(&self) -> Vec<&str> {
+        let mut dtypes = Vec::new();
+        for dtype in self.resources.values().filter_map(|r| r.dtype.as_deref()) {
+            if !dtypes.contains(&dtype) {
+                dtypes.push(dtype);
+            }
+        }
+        dtypes
+    }
+
     /// Every key, in key order.
     pub fn keys(&self) -> Vec<&str> {
         self.resources.keys().map(String::as_str).collect()
@@ -378,6 +395,26 @@ mod tests {
 
         let json = serde_json::to_string(&map).unwrap();
         assert_eq!(serde_json::from_str::<ResourceBundle>(&json).unwrap(), map);
+    }
+
+    /// A bundle's size is known when every resource's is; its dtypes are
+    /// the distinct ones its resources declare.
+    #[test]
+    fn test_size_and_dtypes() {
+        let map = checkpoint().fuse(vocabulary(), Fuse::Strict).unwrap();
+        assert_eq!(map.size(), None);
+        assert!(map.dtypes().is_empty());
+
+        let mut sized = map.clone();
+        for (i, r) in sized.resources.values_mut().enumerate() {
+            r.size = Some(10 + i as u64);
+            r.dtype = Some("bfloat16".to_string());
+        }
+        assert_eq!(sized.size(), Some(21));
+        assert_eq!(sized.dtypes(), ["bfloat16"]);
+        sized.resources.get_mut("vocabulary").unwrap().dtype = Some("float32".to_string());
+        assert_eq!(sized.dtypes(), ["bfloat16", "float32"]);
+        assert_eq!(ResourceBundle::new("empty").size(), Some(0));
     }
 
     /// A strict fuse takes the union and keeps the left resource bundle's name;

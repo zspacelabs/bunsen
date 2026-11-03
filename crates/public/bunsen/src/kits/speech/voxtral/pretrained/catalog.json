@@ -14,7 +14,7 @@
           "aliases": [
             "voxtral-mini-4b-realtime"
           ],
-          "description": "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, bf16, 13 languages, streaming",
+          "description": "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming",
           "license": "Apache-2.0",
           "origin": "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602",
           "prefab": "voxtral-mini-4b-realtime-2602",
@@ -28,7 +28,7 @@
   "bundles": [
     {
       "name": "mistralai/voxtral-mini-4b-realtime-2602",
-      "description": "Voxtral-Mini-4B-Realtime-2602: model.safetensors (bf16) and tekken.json",
+      "description": "Voxtral-Mini-4B-Realtime-2602: model.safetensors and tekken.json",
       "license": "Apache-2.0",
       "origin": "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602",
       "namespace": "mistralai",
@@ -43,7 +43,8 @@
           "file": "model.safetensors",
           "sha256": "e745e4902df6a4c48f29f2f8dc1f6d0fb4cc73c7156bc45923451a5bcdfcd1d6",
           "kind": "safetensors",
-          "size": 8859446848
+          "size": 8859446848,
+          "dtype": "bfloat16"
         },
         {
           "key": "vocabulary",

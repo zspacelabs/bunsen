@@ -11,7 +11,7 @@
       "rows": [
         {
           "name": "vad-16k",
-          "description": "Silero VAD, the 16 kHz model, from upstream's safetensors (1.2 MB)",
+          "description": "Silero VAD, the 16 kHz model, from upstream's safetensors",
           "license": "MIT",
           "origin": "https://github.com/snakers4/silero-vad",
           "bundles": [
@@ -24,7 +24,7 @@
   "bundles": [
     {
       "name": "silero/vad-16k",
-      "description": "Silero VAD's 16 kHz model, upstream's safetensors (f32)",
+      "description": "Silero VAD's 16 kHz model, upstream's safetensors",
       "license": "MIT",
       "origin": "https://github.com/snakers4/silero-vad",
       "namespace": "silero",
@@ -39,7 +39,8 @@
           "file": "silero_vad_16k.safetensors",
           "sha256": "c59271c284ae9c8335d795d60e0bfdb71aaaceec578d9bd9ffc1b8153c319ea1",
           "kind": "safetensors",
-          "size": 1239748
+          "size": 1239748,
+          "dtype": "float32"
         }
       ]
     }

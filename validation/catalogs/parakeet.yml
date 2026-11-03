@@ -12,7 +12,7 @@ groups:
     rows:
       - name: "phonon-2"
         aliases: ["phonon"]
-        description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, 164 MB, English"
+        description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English"
         license: "CC-BY-4.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-2"
         bundles: ["fermion/phonon-2.bps.tar.zst"]
@@ -22,7 +22,7 @@ groups:
     origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
     rows:
       - name: "parakeet-tdt-0.6b-v3"
-        description: "parakeet-tdt-0.6b-v3: 600 M parameters, f32, 25 European languages"
+        description: "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages"
         license: "CC-BY-4.0"
         origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
         bundles: ["nvidia/parakeet-tdt-0.6b-v3"]
@@ -36,11 +36,11 @@ bundles:
     resources:
       - { key: "checkpoint", file: "phonon-2.bps.tar.zst", kind: "phonon archive" }
   - name: "nvidia/parakeet-tdt-0.6b-v3"
-    description: "parakeet-tdt-0.6b-v3: model.safetensors (f32) and tokenizer.json"
+    description: "parakeet-tdt-0.6b-v3: model.safetensors and tokenizer.json"
     license: "CC-BY-4.0"
     origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
     namespace: "nvidia"
     hub: { repo: "nvidia/parakeet-tdt-0.6b-v3", revision: "541d1f99c6b0c3cd0b11a95167540bb8edefd82b" }
     resources:
-      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors", dtype: "float32" }
       - { key: "vocabulary", file: "tokenizer.json", kind: "tokenizer.json" }
