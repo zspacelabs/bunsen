@@ -230,6 +230,8 @@ fn test_toy_construct() {
         decoder: Qwen3AsrGreedyDecoderConfig::new()
             .with_max_new_tokens(4)
             .with_eos(vec![6]),
+        policy: Default::default(),
+        presets: Default::default(),
     };
     let samples: Vec<f32> = (0..40_000)
         .map(|k| 0.1 * ((k as f32) * 0.05).sin())
@@ -279,6 +281,8 @@ fn test_toy_audio_attention() {
         decoder: Qwen3AsrGreedyDecoderConfig::new()
             .with_max_new_tokens(4)
             .with_eos(vec![6]),
+        policy: Default::default(),
+        presets: Default::default(),
     };
     let samples: Vec<f32> = (0..16_000)
         .map(|k| 0.1 * ((k as f32) * 0.05).sin())

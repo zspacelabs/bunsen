@@ -3,6 +3,10 @@ use burn::{
     Tensor,
     tensor::Device,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::{
     Qwen3AsrFrontEnd,
@@ -19,9 +23,30 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
+    data::pretrained::PresetSelection,
     errors::BunsenResult,
     kits::support::tokens::ByteLevelVocabulary,
 };
+
+/// How a Qwen3-ASR pretrained transcribes a stream: the config its lookup's
+/// patch sets (`{window_seconds: 20}`). It has one known policy, this
+/// default, so no named presets.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Qwen3AsrPolicy {
+    /// The longest window, in seconds, that the
+    /// [`Qwen3AsrEngine`](super::Qwen3AsrEngine) decodes at once: at most
+    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), the
+    /// default.
+    pub window_seconds: f64,
+}
+
+impl Default for Qwen3AsrPolicy {
+    fn default() -> Self {
+        Self {
+            window_seconds: Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64,
+        }
+    }
+}
 
 /// A Qwen3-ASR model, its front end, its vocabulary, its prompt and its
 /// decoder: what a pretrained loads to, and everything a transcription
@@ -42,6 +67,12 @@ pub struct Qwen3AsrConstruct {
 
     /// The decode's budget and end tokens.
     pub decoder: Qwen3AsrGreedyDecoderConfig,
+
+    /// How it transcribes a stream: what its presets resolved to.
+    pub policy: Qwen3AsrPolicy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
 }
 
 impl Qwen3AsrConstruct {
@@ -66,7 +97,20 @@ impl Qwen3AsrConstruct {
             vocab,
             prompt: Qwen3AsrPromptConfig::new(),
             decoder: Qwen3AsrGreedyDecoderConfig::new(),
+            policy: Qwen3AsrPolicy::default(),
+            presets: PresetSelection::default(),
         })
+    }
+
+    /// Sets the policy, and the presets that resolved it.
+    pub fn with_policy(
+        mut self,
+        policy: Qwen3AsrPolicy,
+        presets: PresetSelection,
+    ) -> Self {
+        self.policy = policy;
+        self.presets = presets;
+        self
     }
 
     /// Transcribes one utterance, greedily.

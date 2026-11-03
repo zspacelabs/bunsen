@@ -3,6 +3,10 @@ use burn::{
     Tensor,
     module::Module,
 };
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use super::{
     VoxtralFrontEnd,
@@ -19,9 +23,36 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
+    data::pretrained::PresetSelection,
     errors::BunsenResult,
     kits::support::tokens::TekkenVocabulary,
 };
+
+/// How a Voxtral pretrained transcribes a stream: the config its lookup's
+/// patch sets (`{delay_ms: 960, window_seconds: 20}`). It has one known
+/// policy, this default, so no named presets.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct VoxtralPolicy {
+    /// The longest window, in seconds, that the
+    /// [`VoxtralEngine`](super::driver::VoxtralEngine) decodes at once: by
+    /// default twice the audio encoder's attention window, so its sliding
+    /// window is in play.
+    pub window_seconds: f64,
+
+    /// How far behind the audio the model writes, in milliseconds; the
+    /// model's own default (480 ms) when `None`
+    /// ([`VoxtralConstruct::with_delay_ms`]).
+    pub delay_ms: Option<usize>,
+}
+
+impl Default for VoxtralPolicy {
+    fn default() -> Self {
+        Self {
+            window_seconds: 30.0,
+            delay_ms: None,
+        }
+    }
+}
 
 /// A Voxtral Realtime model, its front end, its vocabulary, its stream
 /// layout and its decoder: what a pretrained loads to, and everything a
@@ -44,6 +75,12 @@ pub struct VoxtralConstruct {
 
     /// The decode.
     pub decoder: VoxtralGreedyDecoder,
+
+    /// How it transcribes a stream: what its presets resolved to.
+    pub policy: VoxtralPolicy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
 }
 
 impl VoxtralConstruct {
@@ -67,7 +104,29 @@ impl VoxtralConstruct {
             vocab,
             layout,
             decoder: VoxtralGreedyDecoder::default(),
+            policy: VoxtralPolicy::default(),
+            presets: PresetSelection::default(),
         })
+    }
+
+    /// Takes on `policy`, and the presets that resolved it: its delay, when
+    /// it names one ([`with_delay_ms`](Self::with_delay_ms)), and its window
+    /// for an engine.
+    ///
+    /// # Errors
+    /// As [`with_delay_ms`](Self::with_delay_ms).
+    pub fn with_policy(
+        self,
+        policy: VoxtralPolicy,
+        presets: PresetSelection,
+    ) -> BunsenResult<Self> {
+        let mut construct = match policy.delay_ms {
+            Some(ms) => self.with_delay_ms(ms)?,
+            None => self,
+        };
+        construct.policy = policy;
+        construct.presets = presets;
+        Ok(construct)
     }
 
     /// The construct under another delay: the same model, told to write

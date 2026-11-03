@@ -16,6 +16,7 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
+        PresetSet,
         PretrainedRef,
         ResourceBundle,
         SAFETENSORS_INDEX,
@@ -29,6 +30,7 @@ use crate::{
     kits::{
         speech::voxtral::{
             VoxtralConstruct,
+            VoxtralPolicy,
             VoxtralRealtime,
             VoxtralRealtimeConfig,
             VoxtralTokenLayoutConfig,
@@ -39,6 +41,7 @@ use crate::{
         },
         support::{
             construct::ConstructInit,
+            model_config::resolve_ref_presets,
             tokens::TekkenVocabulary,
         },
     },
@@ -64,6 +67,7 @@ impl ConstructInit for VoxtralConstructConfig {
     type Construct = VoxtralConstruct;
 
     const KIT: &'static str = VOXTRAL_KIT;
+    const RESOLVES_PRESETS: bool = true;
 
     /// The hook, for a safetensors checkpoint (one file or shards) with a
     /// `tekken.json` vocabulary.
@@ -122,7 +126,11 @@ impl ConstructInit for VoxtralConstructConfig {
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         load_hf_tensors(&mut voxtral, tensors)?;
-        Ok(Arc::new(VoxtralConstruct::new(voxtral, vocab, layout)?))
+        let policy = resolve_ref_presets(&VoxtralPolicy::default(), model, &PresetSet::default())?;
+        Ok(Arc::new(
+            VoxtralConstruct::new(voxtral, vocab, layout)?
+                .with_policy(policy.config.clone(), policy.applied())?,
+        ))
     }
 }
 
@@ -137,5 +145,33 @@ mod tests {
             &VOXTRAL_CATALOG.resource_bundle("mistralai/voxtral-mini-4b-realtime-2602"),
         )
         .unwrap();
+    }
+
+    /// Every row resolves to the default policy, which has no named presets;
+    /// the lookup's patch sets its fields, and a box finds no preset.
+    #[test]
+    fn test_the_policy() {
+        use crate::kits::speech::voxtral::{
+            VoxtralPolicy,
+            pretrained::default_voxtral_factory,
+        };
+
+        let factory = default_voxtral_factory().unwrap();
+        let row = factory.ids()[0].clone();
+        let policy = |spec: &str| factory.resolve_presets(spec, &VoxtralPolicy::default());
+        let default = policy(&row).unwrap();
+        assert!(default.presets.is_empty());
+        assert_eq!(default.config, VoxtralPolicy::default());
+        assert_eq!(default.config.delay_ms, None);
+        assert_eq!(
+            policy(&format!("{row}{{delay_ms: 960}}"))
+                .unwrap()
+                .config
+                .delay_ms,
+            Some(960)
+        );
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
+            .message_contains("no preset")
+            .assert_err(&policy(&format!("{row}[fast]")));
     }
 }

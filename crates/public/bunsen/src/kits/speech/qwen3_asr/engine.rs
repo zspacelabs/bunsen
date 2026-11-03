@@ -86,18 +86,24 @@ pub struct Qwen3AsrEngine {
 
 impl Qwen3AsrEngine {
     /// The engine of `bundle`, on the model's device, with windows of at most
-    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), each full
-    /// one cut at a quiet point.
+    /// its policy's [`window_seconds`](super::Qwen3AsrPolicy::window_seconds)
+    /// ([`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS) by
+    /// default), each full one cut at a quiet point.
+    ///
+    /// # Panics
+    /// As [`with_window_seconds`](Self::with_window_seconds), for a policy's
+    /// window out of range.
     pub fn new(bundle: Arc<Qwen3AsrConstruct>) -> Self {
         let device = bundle.model.devices()[0].clone();
-        let window_frames = bundle.max_window() / bundle.front_end.hop();
+        let seconds = bundle.policy.window_seconds;
         Self {
             bundle,
-            window_frames,
+            window_frames: 0,
             quiet_cut: true,
             speaker_cut: Some(SpeakerCutConfig::new()),
             device,
         }
+        .with_window_seconds(seconds)
     }
 
     /// The engine with a window cut at a change of speaker before it is
@@ -411,6 +417,8 @@ mod tests {
             decoder: Qwen3AsrGreedyDecoderConfig::new()
                 .with_max_new_tokens(3)
                 .with_eos(eos),
+            policy: Default::default(),
+            presets: Default::default(),
         }
     }
 
