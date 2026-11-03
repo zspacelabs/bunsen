@@ -47,7 +47,7 @@
   "bundles": [
     {
       "name": "nvidia/nemotron-3-diarization",
-      "description": "Nemotron-3-Diarization: model.safetensors (f32)",
+      "description": "Nemotron-3-Diarization: model.safetensors",
       "license": "OpenMDW-1.1",
       "origin": "https://huggingface.co/nvidia/Nemotron-3-Diarization",
       "namespace": "nvidia",
@@ -62,13 +62,14 @@
           "file": "model.safetensors",
           "sha256": "c074d86335b3b794f8fa5edc25594558f128bdb3914d27806a3a5a2e44963cb6",
           "kind": "safetensors",
-          "size": 396954592
+          "size": 396954592,
+          "dtype": "float32"
         }
       ]
     },
     {
       "name": "nvidia/diar_streaming_sortformer_4spk-v2",
-      "description": "Streaming Sortformer v2: diar_streaming_sortformer_4spk-v2.nemo (f32)",
+      "description": "Streaming Sortformer v2: diar_streaming_sortformer_4spk-v2.nemo",
       "license": "NVIDIA Open Model License",
       "origin": "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2",
       "namespace": "nvidia",
@@ -83,13 +84,14 @@
           "file": "diar_streaming_sortformer_4spk-v2.nemo",
           "sha256": "b371afce2c4958186469df33d939936b9746c89f38b10a69cfd2c61254e83329",
           "kind": "nemo",
-          "size": 471367680
+          "size": 471367680,
+          "dtype": "float32"
         }
       ]
     },
     {
       "name": "nvidia/diar_streaming_sortformer_4spk-v2.1",
-      "description": "Streaming Sortformer v2.1: diar_streaming_sortformer_4spk-v2.1.nemo (f32)",
+      "description": "Streaming Sortformer v2.1: diar_streaming_sortformer_4spk-v2.1.nemo",
       "license": "NVIDIA Open Model License",
       "origin": "https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1",
       "namespace": "nvidia",
@@ -104,7 +106,8 @@
           "file": "diar_streaming_sortformer_4spk-v2.1.nemo",
           "sha256": "8abd32832159c6ac1148c926b7276f35ba34582c444e559dce1f1253fea42ef8",
           "kind": "nemo",
-          "size": 471367680
+          "size": 471367680,
+          "dtype": "float32"
         }
       ]
     }

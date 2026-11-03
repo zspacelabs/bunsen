@@ -26,7 +26,10 @@ use bunsen::{
         },
     },
 };
-use bunsen_app::cache::WeightsCacheArgs;
+use bunsen_app::cache::{
+    WeightsCacheArgs,
+    human_bytes,
+};
 use serde::{
     Serialize,
     Serializer,
@@ -269,7 +272,7 @@ fn cache_config(cache: &PretrainedCache) -> Value {
 
 /// The models, by kind (`asr`, `chat`) and family: each family a list of
 /// entries, its providers (`- provider: {name}`) then its named models
-/// (`- model: {name, aliases, description}`).
+/// (`- model: {name, aliases, description, size, dtype}`).
 fn kits() -> BunsenResult<Value> {
     Ok(Value::map([
         (
@@ -297,7 +300,8 @@ fn kits() -> BunsenResult<Value> {
 /// entry for each provider its factory searches, in order (`well-known`,
 /// `hf`, ...), its name; then a `model:` entry for each row its factory
 /// lists, a summary card: its name, its aliases (none is an empty list,
-/// which the output elides) and its description.
+/// which the output elides), its description, the size of its files, and
+/// the dtypes its files declare (none is an empty string, also elided).
 fn family<H: ConstructInit>(factory: PretrainedFactory<H>) -> Value {
     let providers = factory.providers().iter().map(|provider| {
         Value::map([(
@@ -315,6 +319,11 @@ fn family<H: ConstructInit>(factory: PretrainedFactory<H>) -> Value {
                     Value::List(row.aliases.into_iter().map(Value::Str).collect()),
                 ),
                 ("description", Value::str(row.description)),
+                (
+                    "size",
+                    Value::str(row.resources.size().map(human_bytes).unwrap_or_default()),
+                ),
+                ("dtype", Value::str(row.resources.dtypes().join(", "))),
             ]),
         )])
     });
@@ -336,8 +345,8 @@ mod tests {
 
     /// The card has its three sections in order; every family is a list of
     /// one-key entries, its providers first (the well-known table first of
-    /// them), then its models, each a name, its aliases and a description,
-    /// in that order.
+    /// them), then its models, each a name, its aliases, a description, a
+    /// size and its dtypes, in that order; every model's size is known.
     #[test]
     fn test_card_shape() {
         let card = card(&offline_cache()).unwrap();
@@ -398,7 +407,15 @@ mod tests {
                         panic!("{kind}/{family}: a card is a map");
                     };
                     let keys: Vec<&str> = fields.iter().map(|(k, _)| k.as_str()).collect();
-                    assert_eq!(keys, ["name", "aliases", "description"], "{kind}/{family}");
+                    assert_eq!(
+                        keys,
+                        ["name", "aliases", "description", "size", "dtype"],
+                        "{kind}/{family}"
+                    );
+                    assert!(
+                        fields.iter().any(|(k, v)| k == "size" && !v.is_empty()),
+                        "{kind}/{family}: every catalog file is sized"
+                    );
                 }
             }
         }

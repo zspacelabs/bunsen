@@ -11,19 +11,19 @@ groups:
     origin: "https://github.com/fermionresearch/phonon"
     rows:
       - name: "phonon-1"
-        description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 415 MB"
+        description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed"
         license: "Apache-2.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-1"
         prefab: "qwen3-asr-0.6b"
         bundles: ["fermion/phonon-audio6.bps.tar.zst"]
       - name: "phonon-1-micro"
-        description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 285 MB"
+        description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed"
         license: "Apache-2.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-1-Micro"
         prefab: "qwen3-asr-0.6b"
         bundles: ["fermion/phonon-micro.bps.tar.zst"]
       - name: "phonon-1-big"
-        description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 581 MB"
+        description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed"
         license: "Apache-2.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-1-Big"
         prefab: "qwen3-asr-0.6b"
@@ -34,13 +34,13 @@ groups:
     origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
     rows:
       - name: "qwen3-asr-0.6b"
-        description: "Qwen3-ASR-0.6B: 0.8 B parameters, bf16, 30 languages"
+        description: "Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
         prefab: "qwen3-asr-0.6b"
         bundles: ["qwen/qwen3-asr-0.6b"]
       - name: "qwen3-asr-1.7b"
-        description: "Qwen3-ASR-1.7B: 2.0 B parameters, bf16, 30 languages"
+        description: "Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf"
         prefab: "qwen3-asr-1.7b"
@@ -71,20 +71,20 @@ bundles:
     resources:
       - { key: "checkpoint", file: "phonon-parity.bps.tar.zst", kind: "phonon archive" }
   - name: "qwen/qwen3-asr-0.6b"
-    description: "Qwen3-ASR-0.6B: model.safetensors (bf16) and tokenizer.json"
+    description: "Qwen3-ASR-0.6B: model.safetensors and tokenizer.json"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
     namespace: "qwen"
     hub: { repo: "Qwen/Qwen3-ASR-0.6B-hf", revision: "7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c" }
     resources:
-      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors", dtype: "bfloat16" }
       - { key: "vocabulary", file: "tokenizer.json", kind: "tokenizer.json" }
   - name: "qwen/qwen3-asr-1.7b"
-    description: "Qwen3-ASR-1.7B: model.safetensors (bf16) and tokenizer.json"
+    description: "Qwen3-ASR-1.7B: model.safetensors and tokenizer.json"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf"
     namespace: "qwen"
     hub: { repo: "Qwen/Qwen3-ASR-1.7B-hf", revision: "bcd2b5b7f32b480ab5790554cfa8347f246a14f3" }
     resources:
-      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors", dtype: "bfloat16" }
       - { key: "vocabulary", file: "tokenizer.json", kind: "tokenizer.json" }

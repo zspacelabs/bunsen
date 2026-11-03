@@ -44,7 +44,10 @@ use bunsen::{
     ops::transformers::attention::KVCacheStorage,
 };
 use bunsen_app::{
-    cache::WeightsCacheArgs,
+    cache::{
+        WeightsCacheArgs,
+        human_bytes,
+    },
     device::{
         DeviceArgs,
         DevicePrefs,
@@ -747,6 +750,13 @@ fn print_row(
         println!("  aliases: {}", row.aliases.join(", "));
     }
     println!("  {}", row.description);
+    if let Some(size) = row.resources.size() {
+        println!("  size: {}", human_bytes(size));
+    }
+    let dtypes = row.resources.dtypes();
+    if !dtypes.is_empty() {
+        println!("  dtype: {}", dtypes.join(", "));
+    }
     if let Some(origin) = &row.origin {
         println!("  origin: {origin}");
     }
