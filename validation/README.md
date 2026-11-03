@@ -203,3 +203,20 @@ row's replaces the family's of the same name, and a row's `default`
 replaces the family's). A kit gives a model of the family that no row
 describes, such as an `hf:` repo, the family's presets as they are.
 
+A set's `base` is a patch applied under every selection, before the
+default: what any preset keeps, such as a checkpoint's stop tokens. A row's
+`probe` entries read its files when the catalog is built, each a named
+probe (`generation_config`, `tokenizer_config`) over a file by its resource
+key, its patch going `into` the base or the presets it names; the row's own
+presets are then laid over what the probes found, so a hand-written patch
+extends or corrects a probed one. The built catalog records the values, not
+the probes:
+
+```yaml
+    presets:
+      presets:
+        - { name: thinking, description: think first, patch: { generation: { template_kwargs: { enable_thinking: true } } } }
+    probe:
+      - { probe: generation_config, file: generation_config, into: [base, thinking] }
+```
+

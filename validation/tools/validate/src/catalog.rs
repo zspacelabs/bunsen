@@ -1,6 +1,7 @@
 //! `cargo validate catalog`: builds kits' pretrained catalogs from sources.
 
 use std::{
+    collections::BTreeMap,
     io::Read,
     path::{
         Path,
@@ -8,13 +9,19 @@ use std::{
     },
 };
 
-use bunsen::data::pretrained::{
-    CatalogBase,
-    CatalogBundle,
-    CatalogFamily,
-    CatalogGroup,
-    CatalogResource,
-    PretrainedCatalog,
+use bunsen::{
+    data::pretrained::{
+        CatalogBase,
+        CatalogBundle,
+        CatalogFamily,
+        CatalogGroup,
+        CatalogResource,
+        PretrainedCatalog,
+    },
+    kits::support::model_config::{
+        ProbeFiles,
+        apply_probes,
+    },
 };
 use serde::Deserialize;
 use sha2::{
@@ -347,12 +354,22 @@ fn first_url(
         })
 }
 
+/// A built bundle, and the bytes of the files it fetched to build it, by
+/// resource key: what its rows' probes read without fetching again.
+struct Built {
+    bundle: CatalogBundle,
+    fetched: BTreeMap<String, Vec<u8>>,
+    urls: BTreeMap<String, String>,
+}
+
 /// Builds one bundle: its bases, and every file's digest, size and dtype.
 fn build_bundle(
     remote: &dyn Remote,
     bundle: &SourceBundle,
     verify_remote: bool,
-) -> Result<CatalogBundle, String> {
+) -> Result<Built, String> {
+    let mut fetched = BTreeMap::new();
+    let mut urls = BTreeMap::new();
     let listing = match &bundle.hub {
         Some(hub) => Some(hub_listing(remote, hub)?),
         None => None,
@@ -387,7 +404,9 @@ fn build_bundle(
                     if r.file == "config.json" {
                         config_dtype_found = config_dtype(&bytes);
                     }
-                    (Some(sha256_of(&bytes)), Some(e.size))
+                    let digest = sha256_of(&bytes);
+                    fetched.insert(r.key.clone(), bytes);
+                    (Some(digest), Some(e.size))
                 }
             },
             None => {
@@ -398,6 +417,9 @@ fn build_bundle(
                 (None, size)
             }
         };
+        if let Some(u) = &url {
+            urls.insert(r.key.clone(), u.clone());
+        }
         let sha256 = reconcile(&what, r.sha256.as_deref(), derived.as_deref())?;
         if let Some(u) = &url
             && u.contains("openaipublic.azureedge.net")
@@ -435,14 +457,18 @@ fn build_bundle(
             r.dtype = config_dtype_found.clone();
         }
     }
-    Ok(CatalogBundle {
-        name: bundle.name.clone(),
-        description: bundle.description.clone(),
-        license: bundle.license.clone(),
-        origin: bundle.origin.clone(),
-        namespace: bundle.namespace.clone(),
-        bases,
-        resources,
+    Ok(Built {
+        fetched,
+        urls,
+        bundle: CatalogBundle {
+            name: bundle.name.clone(),
+            description: bundle.description.clone(),
+            license: bundle.license.clone(),
+            origin: bundle.origin.clone(),
+            namespace: bundle.namespace.clone(),
+            bases,
+            resources,
+        },
     })
 }
 
@@ -452,17 +478,42 @@ pub fn build(
     source: &CatalogSource,
     verify_remote: bool,
 ) -> Result<PretrainedCatalog, String> {
-    let bundles = source
+    let built = source
         .bundles
         .iter()
         .map(|b| build_bundle(remote, b, verify_remote))
-        .collect::<Result<_, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut groups = source.groups.clone();
+    for row in groups.iter_mut().flat_map(|g| g.rows.iter_mut()) {
+        if row.probe.is_empty() {
+            continue;
+        }
+        let what = format!("{}: the row {:?}", source.kit, row.name);
+        let mut files = ProbeFiles::new();
+        for entry in &row.probe {
+            let found = built
+                .iter()
+                .filter(|b| row.bundles.contains(&b.bundle.name))
+                .find_map(|b| {
+                    b.fetched
+                        .get(&entry.file)
+                        .cloned()
+                        .map(Ok)
+                        .or_else(|| b.urls.get(&entry.file).map(|u| remote.get(u)))
+                })
+                .ok_or_else(|| format!("{what}: no file {:?} for its probes", entry.file))??;
+            files.insert(entry.file.clone(), found);
+        }
+        row.presets = apply_probes(&row.presets, &row.probe, &files)
+            .map_err(|e| format!("{what}: its probes: {e}"))?;
+        row.probe.clear();
+    }
     let catalog = PretrainedCatalog {
         kit: source.kit.clone(),
         name: source.name.clone(),
         description: source.description.clone(),
-        groups: source.groups.clone(),
-        bundles,
+        groups,
+        bundles: built.into_iter().map(|b| b.bundle).collect(),
         families: source.families.clone(),
     };
     catalog
@@ -811,5 +862,71 @@ default: [good]
             error.contains("the preset `fast` has no description"),
             "{error}"
         );
+    }
+
+    /// A row's probes read the files its bundles fetched, the probed values
+    /// go into the base and the presets they name under the row's own, and
+    /// the built row keeps no probes.
+    #[test]
+    fn test_build_runs_probes() {
+        const GENERATION: &[u8] =
+            br#"{"do_sample": true, "eos_token_id": [7, 8], "temperature": 0.6, "top_k": 20}"#;
+        let mut fake = fake();
+        let listing = format!(
+            r#"[{{"type":"file","path":"model.safetensors","size":1,"lfs":{{"oid":"{}","size":1000}}}},
+                {{"type":"file","path":"config.json","size":{}}},
+                {{"type":"file","path":"generation_config.json","size":{}}}]"#,
+            sha256_of(WEIGHTS),
+            CONFIG.len(),
+            GENERATION.len()
+        );
+        fake.bodies.insert(LISTING.into(), listing.into_bytes());
+        fake.bodies.insert(
+            "https://huggingface.co/o/m/resolve/abc/generation_config.json".into(),
+            GENERATION.to_vec(),
+        );
+
+        let vocab_sha = sha256_of(b"vocab");
+        let mut source = source(&format!(", sha256: {vocab_sha}"));
+        source.bundles[0].resources.push(SourceResource {
+            key: "generation_config".into(),
+            file: "generation_config.json".into(),
+            kind: Some("json".into()),
+            sha256: None,
+            size: None,
+            dtype: None,
+            sources: Vec::new(),
+        });
+        let row = &mut source.groups[0].rows[0];
+        row.presets = serde_saphyr::from_str(
+            r#"
+base: { generation: { max_new_tokens: 512 } }
+presets:
+  - { name: thinking, description: think first, patch: { generation: { template_kwargs: { enable_thinking: true } } } }
+"#,
+        )
+        .unwrap();
+        row.probe = serde_saphyr::from_str(
+            "[{ probe: generation_config, file: generation_config, into: [base, thinking] }]",
+        )
+        .unwrap();
+
+        let catalog = build(&fake, &source, false).unwrap();
+        let row = &catalog.groups[0].rows[0];
+        assert!(row.probe.is_empty());
+        assert_eq!(
+            row.presets.base["generation"]["stop_ids"],
+            serde_json::json!([7, 8])
+        );
+        assert_eq!(row.presets.base["generation"]["max_new_tokens"], 512);
+        let thinking = &row.presets.get("thinking").unwrap().patch["generation"];
+        assert_eq!(thinking["sampling"]["temperature"], 0.6);
+        assert_eq!(thinking["template_kwargs"]["enable_thinking"], true);
+        catalog.validate(&[]).unwrap();
+
+        // A probe of a file the row's bundles lack is refused.
+        source.groups[0].rows[0].probe[0].file = "tokenizer_config".into();
+        let error = build(&fake, &source, false).unwrap_err();
+        assert!(error.contains("no file \"tokenizer_config\""), "{error}");
     }
 }

@@ -67,10 +67,17 @@ pub struct PresetAxis {
 ///
 /// The default is explicit: a pretrained's config with no presets selected
 /// is its config with these applied. A lookup that selects a member of an
-/// axis replaces the default's member of that axis.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// axis replaces the default's member of that axis. The
+/// [`base`](Self::base) patch holds what every selection keeps, applied
+/// before the default.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PresetSet {
+    /// A patch applied under every preset: what any selection keeps, such
+    /// as the stop tokens a checkpoint's `generation_config.json` names.
+    #[serde(default = "empty_patch", skip_serializing_if = "is_empty_patch")]
+    pub base: Value,
+
     /// The presets, in listing order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub presets: Vec<Preset>,
@@ -84,10 +91,24 @@ pub struct PresetSet {
     pub default: Vec<String>,
 }
 
+impl Default for PresetSet {
+    fn default() -> Self {
+        Self {
+            base: empty_patch(),
+            presets: Vec::new(),
+            axes: Vec::new(),
+            default: Vec::new(),
+        }
+    }
+}
+
 impl PresetSet {
-    /// Whether the set declares nothing: no presets, axes or default.
+    /// Whether the set declares nothing: no base, presets, axes or default.
     pub fn is_empty(&self) -> bool {
-        self.presets.is_empty() && self.axes.is_empty() && self.default.is_empty()
+        is_empty_patch(&self.base)
+            && self.presets.is_empty()
+            && self.axes.is_empty()
+            && self.default.is_empty()
     }
 
     /// The preset `name`, if there is one.
@@ -118,8 +139,9 @@ impl PresetSet {
     ///
     /// A preset or axis of `self` replaces the family's of the same name, and
     /// the rest of each are kept in order, the family's first; the default is
-    /// `self`'s when it names any, else the family's. The result is not
-    /// checked: [`validate`](Self::validate) it.
+    /// `self`'s when it names any, else the family's; the base is `self`'s
+    /// merged over the family's. The result is not checked:
+    /// [`validate`](Self::validate) it.
     pub fn over(
         &self,
         family: &PresetSet,
@@ -145,7 +167,10 @@ impl PresetSet {
             );
             out
         }
+        let mut base = family.base.clone();
+        merge_patch::apply(&mut base, &self.base);
         PresetSet {
+            base,
             presets: merged(&family.presets, &self.presets, |p| &p.name),
             axes: merged(&family.axes, &self.axes, |a| &a.name),
             default: if self.default.is_empty() {
@@ -256,7 +281,8 @@ impl PresetSet {
 
     /// Checks the set is well formed.
     ///
-    /// Names are unique, non-empty, and in the preset alphabet; every preset
+    /// The base is an object; names are unique, non-empty, and in the preset
+    /// alphabet; every preset
     /// and axis has a description; an axis has two or more members, each a
     /// preset, and a preset is on at most one axis; the default names
     /// presets, each once, at most one per axis, and their patches set
@@ -266,6 +292,9 @@ impl PresetSet {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), naming the first
     /// rule broken.
     pub fn validate(&self) -> BunsenResult<()> {
+        if !self.base.is_object() {
+            return Err(BunsenError::illegal("the base patch is not an object"));
+        }
         let mut names = BTreeSet::new();
         for preset in &self.presets {
             check_name("preset", &preset.name)?;
@@ -497,6 +526,7 @@ mod tests {
             ],
             axes: vec![axis("thinking-mode", &["thinking", "no-thinking"])],
             default: vec!["thinking".to_string()],
+            ..Default::default()
         }
     }
 
@@ -682,6 +712,7 @@ mod tests {
             ],
             axes: vec![],
             default: vec![],
+            ..Default::default()
         };
         let merged = row.over(&family);
         assert_eq!(
