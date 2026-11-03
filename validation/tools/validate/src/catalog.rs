@@ -11,6 +11,7 @@ use std::{
 use bunsen::data::pretrained::{
     CatalogBase,
     CatalogBundle,
+    CatalogFamily,
     CatalogGroup,
     CatalogResource,
     PretrainedCatalog,
@@ -52,6 +53,10 @@ pub struct CatalogSource {
 
     /// The resource bundles.
     pub bundles: Vec<SourceBundle>,
+
+    /// The model families whose presets rows inherit.
+    #[serde(default)]
+    pub families: Vec<CatalogFamily>,
 }
 
 /// One resource bundle of a source: on the Hub at a pinned revision, or
@@ -458,6 +463,7 @@ pub fn build(
         description: source.description.clone(),
         groups: source.groups.clone(),
         bundles,
+        families: source.families.clone(),
     };
     catalog
         .to_table()

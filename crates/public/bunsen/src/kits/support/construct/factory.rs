@@ -331,7 +331,10 @@ impl<H: ConstructInit> PretrainedFactory<H> {
 
     /// Checks what a lookup asks of `row`'s presets, before anything is
     /// fetched: that the kit resolves presets at all, and that the selection
-    /// is one `row`'s presets allow ([`PresetSet::check_selection`]).
+    /// is one `row`'s presets allow ([`PresetSet::check_selection`]). A row
+    /// with no presets of its own, an `hf:` repo's, is left to the hook,
+    /// which knows the model's family only once it reads the files
+    /// ([`resolve_ref_presets`](crate::kits::support::model_config::resolve_ref_presets)).
     fn check_selection(
         row: &Pretrained,
         selection: &PresetSelection,
@@ -344,6 +347,9 @@ impl<H: ConstructInit> PretrainedFactory<H> {
                 "the {} kit takes no presets or patch, but the lookup asks for `{selection}`",
                 H::KIT
             )));
+        }
+        if row.presets.is_empty() {
+            return Ok(());
         }
         row.presets
             .check_selection(selection)
@@ -1102,6 +1108,15 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .message_contains("no preset \"slow\"; there are: fast")
             .assert_err(&factory.resolve("a/small[slow]", &cache));
+        // A row with no presets of its own leaves the box to the hook.
+        let bare = PretrainedFactory::<PresetPath>::new()
+            .with_providers([table(
+                WELL_KNOWN,
+                vec![group("a", vec![row("bare", &[], "small")])],
+            )])
+            .unwrap();
+        let model = bare.resolve("a/bare[anything]", &cache).unwrap();
+        assert_eq!(model.model.selection().unwrap().presets, ["anything"]);
         // An empty box is a malformed expression, not an empty selection.
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .assert_err(&factory.resolve("a/small[]", &cache));

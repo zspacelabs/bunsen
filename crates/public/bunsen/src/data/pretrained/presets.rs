@@ -113,6 +113,49 @@ impl PresetSet {
         self.presets.iter().map(|p| p.name.as_str())
     }
 
+    /// `self` merged over `family`: a family's presets with a row's own laid
+    /// over them.
+    ///
+    /// A preset or axis of `self` replaces the family's of the same name, and
+    /// the rest of each are kept in order, the family's first; the default is
+    /// `self`'s when it names any, else the family's. The result is not
+    /// checked: [`validate`](Self::validate) it.
+    pub fn over(
+        &self,
+        family: &PresetSet,
+    ) -> PresetSet {
+        fn merged<T: Clone>(
+            base: &[T],
+            mine: &[T],
+            name: impl Fn(&T) -> &str,
+        ) -> Vec<T> {
+            let mut out: Vec<T> = base
+                .iter()
+                .map(|b| {
+                    mine.iter()
+                        .find(|m| name(m) == name(b))
+                        .unwrap_or(b)
+                        .clone()
+                })
+                .collect();
+            out.extend(
+                mine.iter()
+                    .filter(|m| !base.iter().any(|b| name(b) == name(m)))
+                    .cloned(),
+            );
+            out
+        }
+        PresetSet {
+            presets: merged(&family.presets, &self.presets, |p| &p.name),
+            axes: merged(&family.axes, &self.axes, |a| &a.name),
+            default: if self.default.is_empty() {
+                family.default.clone()
+            } else {
+                self.default.clone()
+            },
+        }
+    }
+
     /// The preset a lookup's `name` selects: the one so named, ignoring
     /// ASCII case.
     pub fn find(
@@ -627,5 +670,35 @@ mod tests {
             PresetSelection::default().with_patch(json!({})).to_string(),
             "{}"
         );
+    }
+
+    #[test]
+    fn test_over_a_family() {
+        let family = thinking_set();
+        let row = PresetSet {
+            presets: vec![
+                preset("thinking", json!({"thinking": true, "budget": 1024})),
+                preset("fast", json!({"beam": 1})),
+            ],
+            axes: vec![],
+            default: vec![],
+        };
+        let merged = row.over(&family);
+        assert_eq!(
+            merged.names().collect::<Vec<_>>(),
+            ["thinking", "no-thinking", "yarn-128k", "fast"]
+        );
+        assert_eq!(merged.get("thinking").unwrap().patch["budget"], 1024);
+        assert_eq!(merged.axes, family.axes);
+        assert_eq!(merged.default, ["thinking"]);
+        merged.validate().unwrap();
+
+        let with_default = PresetSet {
+            default: vec!["no-thinking".to_string()],
+            ..Default::default()
+        };
+        assert_eq!(with_default.over(&family).default, ["no-thinking"]);
+        assert_eq!(PresetSet::default().over(&family), family);
+        assert_eq!(family.over(&PresetSet::default()), family);
     }
 }

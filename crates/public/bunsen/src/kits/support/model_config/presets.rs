@@ -104,8 +104,12 @@ where
 
 /// Resolves `base` through the presets of the row `model` names, as its
 /// lookup asked: [`resolve_presets`] over the row's [`PresetSet`] and the
-/// ref's [`selection`](PretrainedRef::selection). A given resource bundle
-/// has no row, so no presets: it resolves to `base`.
+/// ref's [`selection`](PretrainedRef::selection).
+///
+/// `family` stands in for a row with no presets of its own, such as an
+/// `hf:` repo's, and for a given resource bundle, which has no row: the
+/// presets of the model family the hook found the files to be (empty when
+/// the kit keeps none). A given bundle takes its family's default.
 ///
 /// What a hook that resolves presets calls in its `try_init`.
 ///
@@ -114,14 +118,18 @@ where
 pub fn resolve_ref_presets<C>(
     base: &C,
     model: &PretrainedRef,
+    family: &PresetSet,
 ) -> BunsenResult<ResolvedPresets<C>>
 where
     C: Serialize + DeserializeOwned,
 {
-    match (model.named(), model.selection()) {
-        (Some((_, row)), Some(selection)) => resolve_presets(base, &row.presets, selection),
-        _ => resolve_presets(base, &PresetSet::default(), &PresetSelection::default()),
-    }
+    let none = PresetSelection::default();
+    let selection = model.selection().unwrap_or(&none);
+    let set = match model.named() {
+        Some((_, row)) if !row.presets.is_empty() => &row.presets,
+        _ => family,
+    };
+    resolve_presets(base, set, selection)
 }
 
 fn apply_layer(
@@ -343,5 +351,58 @@ mod tests {
             resolve_presets(&base(), &PresetSet::default(), &PresetSelection::default()).unwrap();
         assert_eq!(r.config, base());
         assert!(r.presets.is_empty());
+    }
+
+    /// A row with presets resolves through them; a row with none (an `hf:`
+    /// repo's) and a given bundle resolve through the family's.
+    #[test]
+    fn test_resolve_ref_presets_falls_back_to_the_family() {
+        use crate::data::pretrained::{
+            Pretrained,
+            ResourceBundle,
+        };
+
+        let named = |presets: PresetSet, selection: PresetSelection| PretrainedRef::Named {
+            provider: "hf".to_string(),
+            pretrained: Box::new(Pretrained {
+                name: "org/repo".to_string(),
+                aliases: Vec::new(),
+                description: "a repo".to_string(),
+                license: None,
+                origin: None,
+                prefab: None,
+                resources: ResourceBundle::new("org/repo"),
+                presets,
+            }),
+            selection,
+        };
+        let family = set();
+
+        let own = PresetSet {
+            presets: vec![preset("wide", json!({"beam": 9}))],
+            ..Default::default()
+        };
+        let r = resolve_ref_presets(
+            &base(),
+            &named(own, PresetSelection::new(["wide"])),
+            &family,
+        )
+        .unwrap();
+        assert_eq!(r.config.beam, 9);
+        assert!(!r.config.thinking, "the row's own set, not the family's");
+
+        let r = resolve_ref_presets(
+            &base(),
+            &named(PresetSet::default(), PresetSelection::new(["no-thinking"])),
+            &family,
+        )
+        .unwrap();
+        assert_eq!(r.presets, ["no-thinking"]);
+
+        let given = PretrainedRef::Given(ResourceBundle::new("files"));
+        let r = resolve_ref_presets(&base(), &given, &family).unwrap();
+        assert_eq!(r.presets, ["thinking"]);
+        let r = resolve_ref_presets(&base(), &given, &PresetSet::default()).unwrap();
+        assert_eq!(r.config, base());
     }
 }
