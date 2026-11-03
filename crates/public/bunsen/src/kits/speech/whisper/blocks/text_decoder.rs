@@ -237,7 +237,7 @@ impl TextDecoder {
     /// backend's float, and upstream likewise takes its logits to `float()`
     /// before the search sees them.
     ///
-    /// [`LogitFilter`]: crate::kits::decoding::LogitFilter
+    /// [`LogitFilter`]: crate::kits::support::decoding::LogitFilter
     pub fn forward(
         &self,
         x: Tensor<2, Int>,

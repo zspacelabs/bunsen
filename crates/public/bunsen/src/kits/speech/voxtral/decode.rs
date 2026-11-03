@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     blocks::transformers::embedding::RotaryEmbedding,
-    kits::decoding::{
+    kits::support::decoding::{
         CachedStep,
         GreedySearch,
         decode_cached,

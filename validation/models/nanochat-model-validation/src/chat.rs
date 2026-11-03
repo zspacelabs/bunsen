@@ -3,7 +3,7 @@
 
 use bunsen::kits::{
     gpts::nanochat::TOKENIZER,
-    tokens::Detokenizer,
+    support::tokens::Detokenizer,
 };
 use bunsen_tool::chat::{
     ChatMessage,

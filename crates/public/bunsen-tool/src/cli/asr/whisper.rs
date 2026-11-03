@@ -19,7 +19,6 @@ use bunsen::{
         ResultContext,
     },
     kits::{
-        decoding::SearchConfig,
         speech::{
             asr_driver::{
                 LevelPolicy,
@@ -42,6 +41,7 @@ use bunsen::{
                 },
             },
         },
+        support::decoding::SearchConfig,
     },
 };
 use burn::tensor::Device;

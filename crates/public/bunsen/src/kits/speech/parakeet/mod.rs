@@ -18,7 +18,8 @@
 //! - [`TdtGreedyDecoder`]: greedy decoding of the transducer, batched, to
 //!   [`TdtHypothesis`] tokens with their frames.
 //! - [`ParakeetVocabulary`]: the `SentencePiece` pieces, as a
-//!   [`Detokenizer`](crate::kits::tokens::Detokenizer) and as transcripts.
+//!   [`Detokenizer`](crate::kits::support::tokens::Detokenizer) and as
+//!   transcripts.
 //! - [`ParakeetBundle`]: a loaded model with its front end and vocabulary, and
 //!   [`transcribe`](ParakeetBundle::transcribe).
 //! - [`ParakeetEngine`]: a bundle as the

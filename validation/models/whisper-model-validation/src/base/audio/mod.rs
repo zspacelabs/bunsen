@@ -48,7 +48,7 @@ use bunsen::{
                 pretrained::WhisperVocabulary,
             },
         },
-        tokens::{
+        support::tokens::{
             Detokenizer,
             TiktokenRanks,
             WordchipperDetokenizer,

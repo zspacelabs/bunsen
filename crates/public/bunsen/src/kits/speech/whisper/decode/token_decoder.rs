@@ -16,18 +16,18 @@ use burn::{
 
 use crate::{
     kits::{
-        decoding::{
-            LogitFilter,
-            MaximumLikelihoodRanker,
-            SearchConfig,
-            SequenceRanker,
-            TokenSearch,
-        },
         speech::whisper::{
             Whisper,
             WhisperMeta,
             driver::WhisperSpecialIds,
             logit_filters::RestrictToLanguages,
+        },
+        support::decoding::{
+            LogitFilter,
+            MaximumLikelihoodRanker,
+            SearchConfig,
+            SequenceRanker,
+            TokenSearch,
         },
     },
     ops::{
@@ -727,11 +727,11 @@ mod search_tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            decoding::{
+            speech::whisper::blocks::WhisperApiConfig,
+            support::decoding::{
                 BeamSearch,
                 SuppressTokens,
             },
-            speech::whisper::blocks::WhisperApiConfig,
         },
         support::testing::{
             DeviceMemoryGuard,

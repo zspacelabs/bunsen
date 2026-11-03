@@ -374,7 +374,7 @@ mod tests {
                 },
                 testing::ToneConfig,
             },
-            tokens::ByteLevelVocabulary,
+            support::tokens::ByteLevelVocabulary,
         },
         support::testing::performance_device,
     };

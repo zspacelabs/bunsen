@@ -7,10 +7,6 @@ use bunsen::{
         BunsenResult,
     },
     kits::{
-        decoding::{
-            LogitFilter,
-            SearchConfig,
-        },
         gpts::{
             driver_support::CachedHistory,
             nanochat::{
@@ -19,7 +15,13 @@ use bunsen::{
                 NanoChatGpt,
             },
         },
-        tokens::Detokenizer,
+        support::{
+            decoding::{
+                LogitFilter,
+                SearchConfig,
+            },
+            tokens::Detokenizer,
+        },
     },
     ops::transformers::attention::KVCacheStorage,
 };

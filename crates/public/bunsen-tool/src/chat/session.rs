@@ -14,10 +14,6 @@ use bunsen::{
         BunsenResult,
     },
     kits::{
-        decoding::{
-            SearchConfig,
-            decode_cached_observed,
-        },
         gpts::{
             driver_support::{
                 CachedHistory,
@@ -25,6 +21,10 @@ use bunsen::{
                 TextStream,
             },
             qwen3::Qwen3Bundle,
+        },
+        support::decoding::{
+            SearchConfig,
+            decode_cached_observed,
         },
     },
     ops::transformers::attention::KVCacheStorage,

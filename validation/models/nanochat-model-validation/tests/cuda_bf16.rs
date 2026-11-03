@@ -10,14 +10,14 @@ use std::sync::Arc;
 use bunsen::{
     data::pretrained::read_pytorch_tensors,
     kits::{
-        decoding::{
-            GreedySearch,
-            TokenSearch,
-        },
         gpts::nanochat::{
             CHECKPOINT,
             NanoChatBundle,
             pretrained::DEFAULT_NANOCHAT_MODEL,
+        },
+        support::decoding::{
+            GreedySearch,
+            TokenSearch,
         },
     },
     ops::transformers::attention::KVCacheStorage,

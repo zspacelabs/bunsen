@@ -30,7 +30,7 @@ use bunsen::{
                 default_whisper_factory,
             },
         },
-        tokens::TiktokenRanks,
+        support::tokens::TiktokenRanks,
     },
 };
 

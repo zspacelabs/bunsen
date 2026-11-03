@@ -3,9 +3,9 @@
 //! one ([`cp_word_error_rate`], CHiME-6's cpWER).
 //!
 //! A speech model emits **token ids**; judging them against a transcript
-//! needs text, which is [`Detokenizer`](crate::kits::tokens::Detokenizer)'s
-//! job, and then a comparison that forgives formatting, which is this
-//! module's.
+//! needs text, which is
+//! [`Detokenizer`](crate::kits::support::tokens::Detokenizer)'s job, and then a
+//! comparison that forgives formatting, which is this module's.
 
 /// Normalizes a transcript for comparison: lowercase, punctuation stripped,
 /// whitespace collapsed.

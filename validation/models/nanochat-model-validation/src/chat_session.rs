@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use bunsen::{
-    kits::decoding::SearchConfig,
+    kits::support::decoding::SearchConfig,
     support::testing::{
         DeviceMemoryGuard,
         performance_device,

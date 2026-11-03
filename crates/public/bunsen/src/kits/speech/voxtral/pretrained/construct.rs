@@ -38,7 +38,7 @@ use crate::{
                 voxtral_config_from_hf,
             },
         },
-        tokens::TekkenVocabulary,
+        support::tokens::TekkenVocabulary,
     },
 };
 

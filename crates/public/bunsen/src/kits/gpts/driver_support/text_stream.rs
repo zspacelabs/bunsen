@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::{
     errors::BunsenResult,
-    kits::tokens::Detokenizer,
+    kits::support::tokens::Detokenizer,
 };
 
 /// A reply's text as its tokens arrive: each [`push`](Self::push) returns

@@ -6,7 +6,7 @@ use bunsen::kits::{
         VoxtralTokenLayoutConfig,
         VoxtralTranscript,
     },
-    tokens::TekkenVocabulary,
+    support::tokens::TekkenVocabulary,
 };
 
 use super::*;

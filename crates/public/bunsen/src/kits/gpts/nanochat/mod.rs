@@ -71,9 +71,9 @@
 //! name loads to a [`NanoChatBundle`], the model with its meta and its
 //! tokenizer files. A decode runs through a [`NanoChatDecodeState`] (the KV
 //! cache, and each row's last token for the smear) and the shared
-//! [`decode_cached`](crate::kits::decoding::decode_cached) loop; the model is
-//! a [`CachedStep`](crate::kits::decoding::CachedStep). The tokenizer is not
-//! part of the kit.
+//! [`decode_cached`](crate::kits::support::decoding::decode_cached) loop; the
+//! model is a [`CachedStep`](crate::kits::support::decoding::CachedStep). The
+//! tokenizer is not part of the kit.
 //!
 //! # Datasets
 //!

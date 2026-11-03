@@ -20,7 +20,7 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::tokens::TekkenVocabulary,
+    kits::support::tokens::TekkenVocabulary,
 };
 
 /// A Voxtral Realtime model, its front end, its vocabulary, its stream

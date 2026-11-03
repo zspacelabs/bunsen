@@ -22,9 +22,9 @@
 //!
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].
 //! - [`Qwen3DecodeState`]: a decode's cache and rotary table; the model is a
-//!   [`CachedStep`](crate::kits::decoding::CachedStep), so
-//!   [`decode_cached`](crate::kits::decoding::decode_cached) decodes it under
-//!   any search.
+//!   [`CachedStep`](crate::kits::support::decoding::CachedStep), so
+//!   [`decode_cached`](crate::kits::support::decoding::decode_cached) decodes
+//!   it under any search.
 //! - [`Qwen3Bundle`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer and generation files, unread.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
@@ -34,7 +34,7 @@
 //!   one.
 //!
 //! A tokenizer and a chat template are not part of the kit; the searches are
-//! [`kits::decoding`](crate::kits::decoding)'s.
+//! [`kits::support::decoding`](crate::kits::support::decoding)'s.
 
 pub mod blocks;
 

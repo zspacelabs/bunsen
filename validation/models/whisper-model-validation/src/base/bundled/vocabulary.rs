@@ -23,7 +23,7 @@ use bunsen::{
                 WhisperVocabulary,
             },
         },
-        tokens::{
+        support::tokens::{
             Detokenizer,
             blank_token,
             non_speech_tokens,

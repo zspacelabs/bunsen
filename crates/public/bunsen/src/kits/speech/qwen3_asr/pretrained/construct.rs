@@ -39,7 +39,7 @@ use crate::{
                 qwen3_asr_config_from_hf,
             },
         },
-        tokens::ByteLevelVocabulary,
+        support::tokens::ByteLevelVocabulary,
     },
 };
 

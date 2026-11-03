@@ -12,7 +12,6 @@ use crate::{
         Rule,
     },
     kits::{
-        decoding::LogitFilter,
         speech::whisper::{
             Whisper,
             WhisperMeta,
@@ -23,7 +22,10 @@ use crate::{
             driver::WhisperTokenLayout,
             logit_filters::default_filters,
         },
-        tokens::TiktokenRanks,
+        support::{
+            decoding::LogitFilter,
+            tokens::TiktokenRanks,
+        },
     },
 };
 
@@ -138,7 +140,7 @@ impl WhisperBundle {
     #[cfg(feature = "tokenizer")]
     pub fn detokenizer(
         &self
-    ) -> BunsenResult<Option<crate::kits::tokens::WordchipperDetokenizer<u16>>> {
+    ) -> BunsenResult<Option<crate::kits::support::tokens::WordchipperDetokenizer<u16>>> {
         self.ranks
             .as_ref()
             .map(|ranks| self.layout.detokenizer(ranks))
@@ -229,7 +231,7 @@ mod tests {
         assert!(!bundle.default_filters().is_empty());
         #[cfg(feature = "tokenizer")]
         {
-            use crate::kits::tokens::Detokenizer;
+            use crate::kits::support::tokens::Detokenizer;
             assert_eq!(
                 bundle
                     .detokenizer()

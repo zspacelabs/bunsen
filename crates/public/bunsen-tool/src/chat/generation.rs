@@ -7,7 +7,7 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::decoding::SearchConfig,
+    kits::support::decoding::SearchConfig,
 };
 use serde_json::Value;
 

@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     blocks::transformers::embedding::RotaryEmbedding,
-    kits::decoding::CachedStep,
+    kits::support::decoding::CachedStep,
     ops::transformers::attention::{
         KVCache,
         KVCacheModel,
@@ -25,7 +25,7 @@ use crate::{
 ///
 /// Made by [`Qwen3Model::decode_state`], filled by
 /// [`Qwen3Model::prefill`], then stepped by
-/// [`decode_cached`](crate::kits::decoding::decode_cached) through the
+/// [`decode_cached`](crate::kits::support::decoding::decode_cached) through the
 /// model's [`CachedStep`]. The model never owns one, so one loaded model
 /// serves any number of decodes.
 #[derive(Module, Debug)]
@@ -115,11 +115,11 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            decoding::{
+            gpts::qwen3::Qwen3Config,
+            support::decoding::{
                 SearchConfig,
                 decode_cached,
             },
-            gpts::qwen3::Qwen3Config,
         },
         support::testing::cpu_device,
     };

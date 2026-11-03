@@ -368,8 +368,8 @@ mod tests {
             },
         },
         kits::{
-            decoding::LogitFilter,
             speech::whisper::logit_filters::SuppressBlank,
+            support::decoding::LogitFilter,
         },
         support::testing::cpu_device,
     };

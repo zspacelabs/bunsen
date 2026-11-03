@@ -2,10 +2,6 @@ use std::sync::Arc;
 
 use bunsen::{
     kits::{
-        decoding::{
-            LogitFilter,
-            SearchConfig,
-        },
         speech::{
             asr_driver::{
                 LevelPolicy,
@@ -26,6 +22,10 @@ use bunsen::{
                 },
                 split_mel_windows,
             },
+        },
+        support::decoding::{
+            LogitFilter,
+            SearchConfig,
         },
     },
     support::testing::{

@@ -54,8 +54,10 @@
 //! (named, bundled and Hugging Face checkpoints) or
 //! [`default_silero_factory`](silero_vad::pretrained::default_silero_factory)
 //! (upstream's 16 kHz safetensors, `silero/vad-16k`). Whisper's text
-//! comes through the shared [`Detokenizer`](crate::kits::tokens::Detokenizer)
-//! seam in [`kits::tokens`](crate::kits::tokens); its ids need no tokenizer.
+//! comes through the shared
+//! [`Detokenizer`](crate::kits::support::tokens::Detokenizer)
+//! seam in [`kits::support::tokens`](crate::kits::support::tokens); its ids
+//! need no tokenizer.
 //!
 //! # Stream state is injected
 //!

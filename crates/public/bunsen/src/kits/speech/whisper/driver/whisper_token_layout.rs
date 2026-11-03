@@ -12,7 +12,7 @@ use crate::{
     },
     kits::{
         speech::whisper::blocks::WhisperTokenLayoutConfig,
-        tokens::TiktokenRanks,
+        support::tokens::TiktokenRanks,
     },
 };
 
@@ -312,7 +312,7 @@ impl WhisperTokenLayoutConfig {
 /// Text is a separate concern, and an optional one: the base vocabulary's
 /// ranks ([`TiktokenRanks`]) and, under the `tokenizer` feature,
 /// `detokenizer`, which renders ids through the shared
-/// [`Detokenizer`](crate::kits::tokens::Detokenizer) seam.
+/// [`Detokenizer`](crate::kits::support::tokens::Detokenizer) seam.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhisperTokenLayout {
     layout: Arc<WhisperTokenLayoutConfig>,
@@ -556,8 +556,8 @@ impl WhisperTokenLayout {
         Ok(spans)
     }
 
-    /// A [`Detokenizer`](crate::kits::tokens::Detokenizer) over a Whisper
-    /// vocabulary.
+    /// A [`Detokenizer`](crate::kits::support::tokens::Detokenizer) over a
+    /// Whisper vocabulary.
     ///
     /// [`Self::token_spans`] handed to `wordchipper`'s decode-only path.
     ///
@@ -567,8 +567,8 @@ impl WhisperTokenLayout {
     pub fn detokenizer(
         &self,
         ranks: &TiktokenRanks,
-    ) -> BunsenResult<crate::kits::tokens::WordchipperDetokenizer<u16>> {
-        crate::kits::tokens::WordchipperDetokenizer::from_spans(
+    ) -> BunsenResult<crate::kits::support::tokens::WordchipperDetokenizer<u16>> {
+        crate::kits::support::tokens::WordchipperDetokenizer::from_spans(
             self.token_spans(ranks)?.into_iter().enumerate(),
         )
     }
@@ -582,7 +582,7 @@ impl WhisperTokenLayout {
     pub fn load_detokenizer(
         &self,
         path: impl AsRef<std::path::Path>,
-    ) -> BunsenResult<crate::kits::tokens::WordchipperDetokenizer<u16>> {
+    ) -> BunsenResult<crate::kits::support::tokens::WordchipperDetokenizer<u16>> {
         self.detokenizer(&TiktokenRanks::load(path)?)
     }
 }
@@ -1017,7 +1017,7 @@ mod tests {
     #[cfg(feature = "tokenizer")]
     mod wordchipper {
         use super::*;
-        use crate::kits::tokens::Detokenizer;
+        use crate::kits::support::tokens::Detokenizer;
 
         /// Specials render as their spellings, straight from the layout.
         #[test]
