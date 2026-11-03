@@ -358,12 +358,16 @@ A profile's run takes every flag below that is not a family's own (`--publish`, 
 
 - `--language CODE`: the spoken language. It implies `--speech` (above), and is given to a model that can be told it
   (Whisper); one that finds the language itself goes on doing so.
+- `--model EXPR`: the model, as a lookup expression (`--model 'openai/small[translate]{beam_size: 1}'`), in place of
+  the profile's: a model of the family the profile runs.
 - `--emission` and `--chunk-ms`, in place of the profile's.
+- `--vad EXPR`: the VAD that finds the speech regions, in place of the table's (`silero/vad-16k[faster-whisper]`,
+  which `asr presets show` prints). It is an error under `--emission offline`, which finds none.
 - `--opt [FAMILY.]KEY[=VALUE]`, repeated: one of the family's own flags, without its `--` (`KEY` alone is `KEY=true`).
   With `FAMILY.` (`--opt whisper.beam-size=1`) it applies only while the profile runs that family and is logged as not
   applied otherwise, so a script keeps working when the profile moves to another family; several families' can be
-  given at once. Without, the profile's family must have it. `model=NAME` replaces the profile's model. A key its
-  family does not have is an error either way.
+  given at once. Without, the profile's family must have it. A key its family does not have is an error either
+  way.
 
 ### Choosing a family yourself
 
@@ -410,8 +414,9 @@ long the transcription took at `INFO`, and after several, the total. Audio is re
 and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
 
 `--emission` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
-another (a family's `transcribe` default; a profile names its own); `conservative` also finds speech regions with Silero's VAD (`silero/vad-16k`, through the same cache) and
-decodes each as it ends, so silence is never decoded; `drafting` adds a draft of the speech so far every 600 ms of
+another (a family's `transcribe` default; a profile names its own); `conservative` also finds speech regions with a VAD (`--vad EXPR`; Silero's
+`silero/vad-16k[faster-whisper]`, through the same cache, by default, and an error under `offline`) and decodes each
+as it ends, so silence is never decoded; `drafting` adds a draft of the speech so far every 600 ms of
 it, which `live` shows. `--chunk-ms` (1000) is how much audio each push carries.
 
 `live` transcribes the microphone as it speaks, through the same driver: the host's default input device, or

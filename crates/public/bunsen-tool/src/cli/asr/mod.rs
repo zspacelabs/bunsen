@@ -397,7 +397,27 @@ mod tests {
         ])
         .unwrap();
         assert!(Args::try_parse_from(["asr", "transcribe"]).is_err());
-        assert!(Args::try_parse_from(["asr", "transcribe", "--model", "x", "a.wav"]).is_err());
+        // The slots: the engine's model and the VAD.
+        Args::try_parse_from([
+            "asr",
+            "transcribe",
+            "--model",
+            "fermion/phonon-1",
+            "--vad",
+            "silero/vad-16k[silero]",
+            "a.wav",
+        ])
+        .unwrap();
+        Args::try_parse_from([
+            "asr",
+            "family",
+            "whisper",
+            "transcribe",
+            "--vad",
+            "silero/vad-16k[silero]",
+            "a.wav",
+        ])
+        .unwrap();
         assert!(
             Args::try_parse_from(["asr", "transcribe", "--opt", "klingon.x=1", "a.wav"]).is_err()
         );

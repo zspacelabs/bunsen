@@ -2,7 +2,6 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -19,7 +18,6 @@ use bunsen::{
         },
     },
 };
-use burn::tensor::Device;
 
 use crate::cli::asr::{
     stream::{
@@ -55,8 +53,6 @@ pub fn driver(
     bundle: Arc<ParakeetConstruct>,
     flags: &ParakeetFlags,
     emission: Emission,
-    cache: &PretrainedCache,
-    device: &Device,
 ) -> BunsenResult<ParakeetStreamDriver> {
     let frame = bundle.frame_seconds();
     let window_seconds = flags.window_seconds.unwrap_or(bundle.policy.window_seconds);
@@ -67,7 +63,7 @@ pub fn driver(
     }
     let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);
     let driver = ParakeetStreamDriver::new(engine, emission.into())?;
-    stream::with_vad(driver, emission, cache, device)
+    Ok(driver)
 }
 
 /// What each window's features are scaled against: each window normalized as

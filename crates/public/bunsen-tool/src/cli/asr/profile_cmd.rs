@@ -46,7 +46,7 @@ use crate::cli::asr::{
     qwen3_asr::Qwen3AsrFlags,
     stream::{
         Emission,
-        VAD_MODEL,
+        VadArgs,
     },
     transcribe_cmd::TranscribeIo,
     voxtral::VoxtralFlags,
@@ -105,11 +105,19 @@ pub struct ProfileArgs {
     #[arg(long)]
     pub language: Option<String>,
 
+    /// The model, as a lookup expression (`'openai/small[translate]{beam_size:
+    /// 1}'`), in place of the profile's: a model of the family it runs.
+    #[arg(long, value_name = "EXPR")]
+    pub model: Option<String>,
+
+    #[clap(flatten)]
+    pub vad: VadArgs,
+
     /// One of the family's own options, as `bunsen-tool asr family <family>`
     /// takes it, without the `--` (`KEY` alone is `KEY=true`). With
     /// `FAMILY.`, it applies only while the profile runs that family, so a
     /// script keeps working when the profile moves; without, the profile's
-    /// family must have it. `model=NAME` replaces the profile's model.
+    /// family must have it.
     #[arg(long = "opt", value_name = "[FAMILY.]KEY[=VALUE]")]
     pub opts: Vec<Opt>,
 
@@ -296,9 +304,13 @@ impl ProfileArgs {
             self.language.as_deref(),
             &opts,
         )?;
+        if let Some(model) = &self.model {
+            resolved.model = model.clone();
+        }
         if let Some(emission) = self.emission {
             resolved.emission = emission;
         }
+        resolved.vad = self.vad.slot(resolved.emission)?;
         if let Some(chunk_ms) = self.chunk_ms {
             resolved.chunk_ms = chunk_ms;
         }
@@ -369,8 +381,7 @@ impl ProfileTranscribeCmd {
             resolved.family,
             &resolved.model,
             &flags,
-            resolved.emission,
-            resolved.chunk_ms,
+            &resolved.streaming(),
             Some(&stamp),
         ))
     }
@@ -401,8 +412,7 @@ impl ProfileLiveCmd {
             resolved.family,
             &resolved.model,
             &flags,
-            resolved.emission,
-            resolved.chunk_ms,
+            &resolved.streaming(),
         ))
     }
 }
@@ -566,7 +576,7 @@ impl FetchCmd {
         if vad {
             fetch_with(
                 default_silero_factory()?,
-                &[VAD_MODEL.to_string()],
+                &[catalog().vad.clone()],
                 &cache,
                 self.verify,
                 &mut out,
@@ -611,6 +621,55 @@ mod tests {
             r.model.clone(),
             r.task(),
         ))
+    }
+
+    /// The slot flags: `--model` replaces the engine's model in the family
+    /// the profile runs; `--vad` the VAD's, under an emission that finds
+    /// speech regions, and an error under one that does not.
+    #[test]
+    fn test_slots() {
+        let r = resolve(
+            &["--preset", "multi", "--model", "fermion/phonon-1"],
+            Mode::Offline,
+        )
+        .unwrap();
+        assert_eq!(
+            (r.family, r.model.as_str()),
+            (Family::Qwen3Asr, "fermion/phonon-1")
+        );
+        assert_eq!(r.vad, None);
+
+        // Live finds speech regions: the table's VAD, or `--vad`'s.
+        let table = catalog().vad.as_str();
+        assert_eq!(
+            resolve(&[], Mode::Live).unwrap().vad.as_deref(),
+            Some(table)
+        );
+        let vad = "silero/vad-16k[silero]";
+        let r = resolve(&["--vad", vad], Mode::Live).unwrap();
+        assert_eq!(r.vad.as_deref(), Some(vad));
+        assert_eq!(r.stamp().recipe.vad.as_deref(), Some(vad));
+        assert!(
+            r.command_line()
+                .unwrap()
+                .ends_with(&["--vad".into(), vad.into()])
+        );
+
+        // `--vad` with no VAD to fill is an error, whichever emission
+        // removed it; an emission that adds one takes it.
+        let err = resolve(&["--vad", vad], Mode::Offline).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("`--vad` has no effect with `--emission offline`"),
+            "{err}"
+        );
+        assert!(resolve(&["--vad", vad, "--emission", "offline"], Mode::Live).is_err());
+        let r = resolve(&["--vad", vad, "--emission", "conservative"], Mode::Offline).unwrap();
+        assert_eq!(r.vad.as_deref(), Some(vad));
+        assert_eq!(
+            resolve(&["--emission", "offline"], Mode::Live).unwrap().vad,
+            None
+        );
     }
 
     /// Each rule on [`ProfileArgs`], line by line: the profile recorded, the

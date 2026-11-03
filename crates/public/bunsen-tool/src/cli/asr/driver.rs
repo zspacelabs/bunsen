@@ -52,8 +52,9 @@ pub enum Driver {
 
 impl Driver {
     /// The driver for `loaded` under its family's `flags` and `emission`, with
-    /// Silero's VAD attached when the emission finds speech regions, and
-    /// `speakers` when there is a diarizer.
+    /// the VAD `vad` names attached ([`VadArgs::slot`](stream::VadArgs::slot)
+    /// gives one when the emission finds speech regions), and `speakers` when
+    /// there is a diarizer.
     ///
     /// # Panics
     /// If `flags` are not `loaded`'s family's.
@@ -61,46 +62,56 @@ impl Driver {
         loaded: Loaded,
         flags: &F,
         emission: Emission,
+        vad: Option<&str>,
         speakers: Option<Arc<dyn SpeakerActivityModel>>,
         cache: &PretrainedCache,
         device: &Device,
     ) -> BunsenResult<Self> {
         Ok(match loaded {
             Loaded::Parakeet(bundle) => Driver::Parakeet(stream::with_speakers(
-                parakeet::driver(
-                    bundle,
-                    flags.parakeet().expect("Parakeet's flags"),
-                    emission,
+                stream::with_vad(
+                    parakeet::driver(
+                        bundle,
+                        flags.parakeet().expect("Parakeet's flags"),
+                        emission,
+                    )?,
+                    vad,
                     cache,
                     device,
                 )?,
                 speakers,
             )?),
             Loaded::Qwen3Asr(bundle) => Driver::Qwen3Asr(stream::with_speakers(
-                qwen3_asr::driver(
-                    bundle,
-                    flags.qwen3_asr().expect("Qwen3-ASR's flags"),
-                    emission,
+                stream::with_vad(
+                    qwen3_asr::driver(
+                        bundle,
+                        flags.qwen3_asr().expect("Qwen3-ASR's flags"),
+                        emission,
+                    )?,
+                    vad,
                     cache,
                     device,
                 )?,
                 speakers,
             )?),
             Loaded::Voxtral(bundle) => Driver::Voxtral(stream::with_speakers(
-                voxtral::driver(
-                    bundle,
-                    flags.voxtral().expect("Voxtral's flags"),
-                    emission,
+                stream::with_vad(
+                    voxtral::driver(bundle, flags.voxtral().expect("Voxtral's flags"), emission)?,
+                    vad,
                     cache,
                     device,
                 )?,
                 speakers,
             )?),
             Loaded::Whisper(bundle) => Driver::Whisper(Box::new(stream::with_speakers(
-                whisper::driver(
-                    bundle,
-                    flags.whisper().expect("Whisper's flags"),
-                    emission,
+                stream::with_vad(
+                    whisper::driver(
+                        bundle,
+                        flags.whisper().expect("Whisper's flags"),
+                        emission,
+                        device,
+                    )?,
+                    vad,
                     cache,
                     device,
                 )?,

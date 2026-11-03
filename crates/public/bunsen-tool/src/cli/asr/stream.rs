@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use bunsen::{
     data::pretrained::PretrainedCache,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     kits::speech::{
         asr_driver::{
             AsrEngine,
@@ -23,6 +26,8 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
+use crate::cli::asr::profile::catalog;
+
 /// When the driver decodes.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -30,8 +35,9 @@ pub enum Emission {
     /// Whole windows, one after another.
     Offline,
 
-    /// Speech regions as well, found by Silero's VAD (`silero/vad-16k`,
-    /// through the same cache): silence is never decoded.
+    /// Speech regions as well, found by the VAD (`--vad`; Silero's
+    /// `silero/vad-16k`, through the same cache, by default): silence is
+    /// never decoded.
     Conservative,
 
     /// Conservative, plus a draft of the speech so far every 600 ms of it:
@@ -51,23 +57,65 @@ impl From<Emission> for EmissionPolicy {
     }
 }
 
-/// The VAD the presets that find speech regions load, under
-/// `faster-whisper`'s policy: 2 s of silence closes a region, 400 ms pads it.
-pub const VAD_MODEL: &str = "silero/vad-16k[faster-whisper]";
+/// How a run streams: when it decodes, the VAD that finds the speech
+/// regions, and how much audio each push carries.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Streaming {
+    pub emission: Emission,
 
-/// `driver`, with Silero's VAD attached when `emission` finds speech regions.
+    /// The VAD slot's filler, a lookup expression; `None` under an emission
+    /// that finds no speech regions ([`VadArgs::slot`]).
+    pub vad: Option<String>,
+
+    /// Milliseconds of audio per push.
+    pub chunk_ms: usize,
+}
+
+/// The VAD slot: `--vad`, the model that finds the speech regions.
+#[derive(clap::Args, Clone, Debug, Default)]
+pub struct VadArgs {
+    /// The VAD that finds the speech regions, as a lookup expression
+    /// (`silero/vad-16k[silero]`); `asr presets list`'s when omitted. Only
+    /// with an emission that finds them: an error with `--emission offline`.
+    #[arg(long, value_name = "EXPR")]
+    pub vad: Option<String>,
+}
+
+impl VadArgs {
+    /// The VAD slot's filler under `emission`: `--vad`, else the table's;
+    /// `None` under [`Offline`](Emission::Offline), which finds no speech
+    /// regions.
+    ///
+    /// # Errors
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) on `--vad` with
+    /// [`Offline`](Emission::Offline): a slot flag for a slot the run does
+    /// not use.
+    pub fn slot(
+        &self,
+        emission: Emission,
+    ) -> BunsenResult<Option<String>> {
+        match (emission, &self.vad) {
+            (Emission::Offline, Some(_)) => Err(BunsenError::policy(
+                "`--vad` has no effect with `--emission offline`",
+            )),
+            (Emission::Offline, None) => Ok(None),
+            (_, Some(vad)) => Ok(Some(vad.clone())),
+            (_, None) => Ok(Some(catalog().vad.clone())),
+        }
+    }
+}
+
+/// `driver`, with the VAD `vad` names attached; as it is without one.
 pub fn with_vad<E: AsrEngine>(
     driver: AsrStreamDriver<E>,
-    emission: Emission,
+    vad: Option<&str>,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<AsrStreamDriver<E>> {
-    if emission == Emission::Offline {
+    let Some(vad) = vad else {
         return Ok(driver);
-    }
-    let vad = default_silero_factory()?
-        .load(VAD_MODEL, cache, device)?
-        .handle;
+    };
+    let vad = default_silero_factory()?.load(vad, cache, device)?.handle;
     let rate = driver.sample_rate();
     driver.with_vad(
         Arc::new(vad.expect_branch(rate).clone()),

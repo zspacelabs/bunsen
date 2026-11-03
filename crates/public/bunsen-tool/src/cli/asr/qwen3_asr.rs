@@ -2,7 +2,6 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -20,7 +19,6 @@ use bunsen::{
         },
     },
 };
-use burn::tensor::Device;
 
 use crate::cli::asr::{
     stream::{
@@ -57,8 +55,6 @@ pub fn driver(
     bundle: Arc<Qwen3AsrConstruct>,
     flags: &Qwen3AsrFlags,
     emission: Emission,
-    cache: &PretrainedCache,
-    device: &Device,
 ) -> BunsenResult<Qwen3AsrStreamDriver> {
     let front_end = &bundle.front_end;
     let frame = front_end.hop() as f64 / front_end.sample_rate() as f64;
@@ -71,7 +67,7 @@ pub fn driver(
     }
     let engine = Qwen3AsrEngine::new(bundle).with_window_seconds(window_seconds);
     let driver = Qwen3AsrStreamDriver::new(engine, emission.into())?;
-    stream::with_vad(driver, emission, cache, device)
+    Ok(driver)
 }
 
 /// What each window's features are scaled against: each window packaged as the

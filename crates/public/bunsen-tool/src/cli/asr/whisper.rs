@@ -161,7 +161,6 @@ pub fn driver(
     bundle: Arc<WhisperConstruct>,
     flags: &WhisperFlags,
     emission: Emission,
-    cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<WhisperStreamDriver> {
     let multilingual = bundle.layout.ids().is_multilingual();
@@ -200,7 +199,7 @@ pub fn driver(
         .init_from_construct(bundle, device)
         // The settings come from the command line.
         .as_policy()?;
-    stream::with_vad(driver, emission, cache, device)
+    Ok(driver)
 }
 
 /// What each window's features are scaled against: each window floored against
