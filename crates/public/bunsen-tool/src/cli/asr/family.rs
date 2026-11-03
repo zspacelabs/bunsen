@@ -20,7 +20,7 @@ use bunsen::{
     kits::{
         speech::{
             parakeet::{
-                ParakeetBundle,
+                ParakeetConstruct,
                 pretrained::{
                     DEFAULT_PARAKEET_MODEL,
                     PARAKEET_KIT,
@@ -28,7 +28,7 @@ use bunsen::{
                 },
             },
             qwen3_asr::{
-                Qwen3AsrBundle,
+                Qwen3AsrConstruct,
                 pretrained::{
                     DEFAULT_QWEN3_ASR_MODEL,
                     QWEN3_ASR_KIT,
@@ -41,7 +41,7 @@ use bunsen::{
                 default_sortformer_factory,
             },
             voxtral::{
-                VoxtralBundle,
+                VoxtralConstruct,
                 pretrained::{
                     DEFAULT_VOXTRAL_MODEL,
                     VOXTRAL_KIT,
@@ -49,7 +49,7 @@ use bunsen::{
                 },
             },
             whisper::{
-                driver::WhisperBundle,
+                driver::WhisperConstruct,
                 pretrained::{
                     WHISPER_KIT,
                     default_whisper_factory,
@@ -117,17 +117,17 @@ pub struct Listing {
 /// A loaded model of one family.
 #[derive(Clone, Debug)]
 pub enum Loaded {
-    /// A Parakeet TDT bundle.
-    Parakeet(Arc<ParakeetBundle>),
+    /// A Parakeet TDT construct.
+    Parakeet(Arc<ParakeetConstruct>),
 
-    /// A Qwen3-ASR bundle.
-    Qwen3Asr(Arc<Qwen3AsrBundle>),
+    /// A Qwen3-ASR construct.
+    Qwen3Asr(Arc<Qwen3AsrConstruct>),
 
-    /// A Voxtral Realtime bundle.
-    Voxtral(Arc<VoxtralBundle>),
+    /// A Voxtral Realtime construct.
+    Voxtral(Arc<VoxtralConstruct>),
 
-    /// A Whisper bundle, which `transcribe` drives through a stream driver.
-    Whisper(Arc<WhisperBundle>),
+    /// A Whisper construct, which `transcribe` drives through a stream driver.
+    Whisper(Arc<WhisperConstruct>),
 }
 
 impl Family {

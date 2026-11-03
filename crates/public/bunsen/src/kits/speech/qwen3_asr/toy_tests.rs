@@ -19,7 +19,7 @@ use burn::{
 };
 
 use super::{
-    Qwen3AsrBundle,
+    Qwen3AsrConstruct,
     Qwen3AsrFrontEndConfig,
     Qwen3AsrGreedyDecoderConfig,
     Qwen3AsrPromptConfig,
@@ -210,13 +210,13 @@ fn toy_vocab() -> crate::kits::support::tokens::ByteLevelVocabulary {
     .unwrap()
 }
 
-/// The bundle runs the toy end to end, from samples to a parsed transcript;
+/// The construct runs the toy end to end, from samples to a parsed transcript;
 /// a long recording is the concatenation of its windows' transcriptions.
 #[test]
-fn test_toy_bundle() {
+fn test_toy_construct() {
     let toy = Toy::load();
     let device = toy.device.clone();
-    let bundle = Qwen3AsrBundle {
+    let bundle = Qwen3AsrConstruct {
         model: toy.model,
         front_end: Qwen3AsrFrontEndConfig::new()
             .with_n_mels(16)
@@ -265,7 +265,7 @@ fn test_toy_audio_attention() {
 
     let toy = Toy::load();
     let device = toy.device.clone();
-    let bundle = Qwen3AsrBundle {
+    let bundle = Qwen3AsrConstruct {
         model: toy.model,
         front_end: Qwen3AsrFrontEndConfig::new()
             .with_n_mels(16)

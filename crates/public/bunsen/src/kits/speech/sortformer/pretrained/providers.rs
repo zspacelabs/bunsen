@@ -19,7 +19,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        speech::sortformer::SortformerBundle,
+        speech::sortformer::SortformerConstruct,
         support::construct::PretrainedFactory,
     },
 };
@@ -176,8 +176,9 @@ pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Sortformer's factory over [`default_sortformer_providers`], building
 /// through [`SortformerConstructConfig`].
 ///
-/// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
-/// is the whole pathway from a name to a [`SortformerBundle`].
+/// [`load_construct`](PretrainedFactory::load_construct) with
+/// `"[provider:]name"` is the whole pathway from a name to a
+/// [`SortformerConstruct`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -187,16 +188,16 @@ pub fn default_sortformer_factory() -> BunsenResult<PretrainedFactory<Sortformer
 }
 
 impl PretrainedFactory<SortformerConstructConfig> {
-    /// A name to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<SortformerBundle>> {
+    ) -> BunsenResult<Arc<SortformerConstruct>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }

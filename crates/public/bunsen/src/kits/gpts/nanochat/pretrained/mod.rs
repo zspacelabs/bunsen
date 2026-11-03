@@ -1,9 +1,9 @@
 //! # Pretrained nanochat models
 //!
-//! From a model's name to a loaded [`NanoChatBundle`](super::NanoChatBundle),
-//! through the data layer's pretrained machinery
-//! ([`data::pretrained`](crate::data::pretrained)). The whole module needs the
-//! `store_pytorch` and `cache` features.
+//! From a model's name to a loaded
+//! [`NanoChatConstruct`](super::NanoChatConstruct), through the data layer's
+//! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
+//! whole module needs the `store_pytorch` and `cache` features.
 //!
 //! # The index
 //!
@@ -30,7 +30,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
+//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`NanoChatConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint through
 //! [`load_pt_checkpoint`](super::weights::load_pt_checkpoint): the meta's

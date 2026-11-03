@@ -30,7 +30,7 @@ mod voxtral_mini_4b_realtime_2602 {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference();
-        let bundle = load_bundle(&device);
+        let bundle = load_construct(&device);
         let model = &bundle.model;
         assert_eq!(bundle.layout.delay_positions(), EXPORT_DELAY);
 

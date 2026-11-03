@@ -1,4 +1,4 @@
-//! Transcribing with Qwen3-ASR: the bundle through a stream driver.
+//! Transcribing with Qwen3-ASR: the construct through a stream driver.
 use std::sync::Arc;
 
 use bunsen::{
@@ -13,7 +13,7 @@ use bunsen::{
             TranscriptSegment,
         },
         qwen3_asr::{
-            Qwen3AsrBundle,
+            Qwen3AsrConstruct,
             Qwen3AsrEngine,
             Qwen3AsrFrontEndMeta,
             Qwen3AsrStreamDriver,
@@ -41,7 +41,7 @@ pub struct Qwen3AsrFlags {
     /// The longest stretch of audio the model sees at once, in seconds; 30
     /// is the most it was trained on. A longer recording is cut at the
     /// quietest point of each full window's last third.
-    #[arg(long, default_value_t = Qwen3AsrBundle::MAX_WINDOW_SECONDS as f64)]
+    #[arg(long, default_value_t = Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64)]
     pub window_seconds: f64,
 }
 
@@ -50,10 +50,10 @@ pub struct Qwen3AsrFlags {
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
 /// `--window-seconds` is under one frame or over
-/// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS); as the driver
+/// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS); as the driver
 /// and the VAD.
 pub fn driver(
-    bundle: Arc<Qwen3AsrBundle>,
+    bundle: Arc<Qwen3AsrConstruct>,
     flags: &Qwen3AsrFlags,
     preset: Preset,
     cache: &PretrainedCache,
@@ -61,7 +61,7 @@ pub fn driver(
 ) -> BunsenResult<Qwen3AsrStreamDriver> {
     let front_end = &bundle.front_end;
     let frame = front_end.hop() as f64 / front_end.sample_rate() as f64;
-    let most = Qwen3AsrBundle::MAX_WINDOW_SECONDS as f64;
+    let most = Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64;
     if !(frame..=most).contains(&flags.window_seconds) {
         return Err(BunsenError::illegal(format!(
             "--window-seconds {} is outside [{frame}, {most}] s",

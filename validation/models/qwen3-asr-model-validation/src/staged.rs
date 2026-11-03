@@ -22,7 +22,7 @@ mod qwen3_asr_0_6b {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().encoder;
-        let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
 
         let frames = fixture.chunks * CHUNK;
         let features = synthetic_features(frames, &device).squeeze_dim::<2>(0);
@@ -43,7 +43,7 @@ mod qwen3_asr_0_6b {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference();
-        let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
         let lm = &bundle.model.language_model;
 
         let embed = &fixture.embed;

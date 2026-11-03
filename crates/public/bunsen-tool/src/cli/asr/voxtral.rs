@@ -1,4 +1,4 @@
-//! Transcribing with Voxtral Realtime: the bundle through a stream driver.
+//! Transcribing with Voxtral Realtime: the construct through a stream driver.
 use std::sync::Arc;
 
 use bunsen::{
@@ -13,7 +13,7 @@ use bunsen::{
             TranscriptSegment,
         },
         voxtral::{
-            VoxtralBundle,
+            VoxtralConstruct,
             VoxtralFrontEndMeta,
             driver::{
                 VoxtralEngine,
@@ -61,7 +61,7 @@ pub struct VoxtralFlags {
 /// `--window-seconds` is under one decoder position, or `--delay-ms` is not a
 /// delay the model takes; as the driver and the VAD.
 pub fn driver(
-    bundle: Arc<VoxtralBundle>,
+    bundle: Arc<VoxtralConstruct>,
     flags: &VoxtralFlags,
     preset: Preset,
     cache: &PretrainedCache,

@@ -12,7 +12,7 @@ use bunsen::{
     kits::{
         gpts::nanochat::{
             CHECKPOINT,
-            NanoChatBundle,
+            NanoChatConstruct,
             pretrained::DEFAULT_NANOCHAT_MODEL,
         },
         support::decoding::{
@@ -39,7 +39,7 @@ use nanochat_model_validation::{
     STORAGES,
     argmax,
     bunsen_decode,
-    load_bundle,
+    load_construct,
     upstream_bf16_reference,
 };
 
@@ -57,7 +57,7 @@ fn bf16_device() -> Device {
 /// they are, never through f32.
 fn assert_bf16_tensors_load_as_they_are(
     row: &str,
-    bundle: &Arc<NanoChatBundle>,
+    bundle: &Arc<NanoChatConstruct>,
 ) {
     let path = bundle.file(CHECKPOINT).expect("the checkpoint's path");
     let file = read_pytorch_tensors(path).expect("read the checkpoint");
@@ -94,7 +94,7 @@ fn check_row(row: &str) {
     let device = bf16_device();
     let fixture = upstream_bf16_reference();
     let record = &fixture.rows[row];
-    let bundle = load_bundle(row, &device);
+    let bundle = load_construct(row, &device);
     assert_bf16_tensors_load_as_they_are(row, &bundle);
 
     for storage in STORAGES {
@@ -175,7 +175,7 @@ mod bf16_sampling {
         let device = bf16_device();
         let fixture = upstream_bf16_reference();
         let record = &fixture.rows[DEFAULT_NANOCHAT_MODEL];
-        let bundle = load_bundle(DEFAULT_NANOCHAT_MODEL, &device);
+        let bundle = load_construct(DEFAULT_NANOCHAT_MODEL, &device);
         let steps = bunsen_decode(
             &bundle,
             &record.prompt_ids,

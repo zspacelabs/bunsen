@@ -24,7 +24,7 @@ use crate::{
     kits::{
         gpts::qwen3::{
             GENERATION_CONFIG,
-            Qwen3Bundle,
+            Qwen3Construct,
             TOKENIZER,
             TOKENIZER_CONFIG,
         },
@@ -1191,8 +1191,9 @@ pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Qwen3's factory over [`default_qwen3_providers`], building through
 /// [`Qwen3ConstructConfig`].
 ///
-/// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
-/// is the whole pathway from a name to a [`Qwen3Bundle`].
+/// [`load_construct`](PretrainedFactory::load_construct) with
+/// `"[provider:]name"` is the whole pathway from a name to a
+/// [`Qwen3Construct`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -1202,16 +1203,16 @@ pub fn default_qwen3_factory() -> BunsenResult<PretrainedFactory<Qwen3ConstructC
 }
 
 impl PretrainedFactory<Qwen3ConstructConfig> {
-    /// A name to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<Qwen3Bundle>> {
+    ) -> BunsenResult<Arc<Qwen3Construct>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }

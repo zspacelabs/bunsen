@@ -31,7 +31,7 @@ use crate::{
                     WhisperFrontEndConfig,
                 },
                 driver::{
-                    WhisperBundle,
+                    WhisperConstruct,
                     WhisperTask,
                     WhisperTokenLayout,
                 },
@@ -57,10 +57,11 @@ use crate::{
 ///
 /// Set the language, task, timestamps, search, [`EmissionPolicy`] and
 /// fallback ladder here, then build the driver over a loaded
-/// [`WhisperBundle`] with [`init_from_bundle`](Self::init_from_bundle),
-/// over a bare model with [`init`](Self::init), or over a model and an
-/// explicit token layout with [`init_with_layout`](Self::init_with_layout).
-/// The driver keeps a copy of this config, and opens a
+/// [`WhisperConstruct`] with
+/// [`init_from_construct`](Self::init_from_construct), over a bare model with
+/// [`init`](Self::init), or over a model and an explicit token layout with
+/// [`init_with_layout`](Self::init_with_layout). The driver keeps a copy of
+/// this config, and opens a
 /// [`WhisperStreamContext`](super::WhisperStreamContext) per stream with
 /// [`new_context`](WhisperStreamDriver::new_context).
 #[derive(Config, Debug)]
@@ -134,18 +135,18 @@ impl WhisperStreamDriverConfig {
     /// Builds the driver over a model alone, deriving the token layout from
     /// the model's vocabulary size: ids only, with no vocabulary, no text
     /// and no default suppress list. See
-    /// [`init_from_bundle`](Self::init_from_bundle).
+    /// [`init_from_construct`](Self::init_from_construct).
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, if the vocabulary size is not a Whisper
-    /// layout, or as [`init_from_bundle`](Self::init_from_bundle).
+    /// layout, or as [`init_from_construct`](Self::init_from_construct).
     pub fn init(
         &self,
         model: Whisper,
         device: &Device,
     ) -> BunsenResult<WhisperStreamDriver> {
-        self.init_from_bundle(Arc::new(WhisperBundle::from_model(model)?), device)
+        self.init_from_construct(Arc::new(WhisperConstruct::from_model(model)?), device)
     }
 
     /// Builds the driver over a model with an explicit token layout, and no
@@ -155,32 +156,32 @@ impl WhisperStreamDriverConfig {
     /// model &mdash; or to override what [`init`](Self::init) would derive.
     ///
     /// # Errors
-    /// As [`init_from_bundle`](Self::init_from_bundle).
+    /// As [`init_from_construct`](Self::init_from_construct).
     pub fn init_with_layout(
         &self,
         whisper_model: Whisper,
         token_layout: WhisperTokenLayout,
         device: &Device,
     ) -> BunsenResult<WhisperStreamDriver> {
-        self.init_from_bundle(
-            Arc::new(WhisperBundle::new(whisper_model, token_layout)),
+        self.init_from_construct(
+            Arc::new(WhisperConstruct::new(whisper_model, token_layout)),
             device,
         )
     }
 
-    /// Builds the driver over a loaded bundle, sharing it.
+    /// Builds the driver over a loaded construct, sharing it.
     ///
-    /// The model and its layout come from the bundle. So do, when the
-    /// bundle has a vocabulary, upstream's default logit filters and, under
+    /// The model and its layout come from the construct. So do, when the
+    /// construct has a vocabulary, upstream's default logit filters and, under
     /// the `tokenizer` feature, a detokenizer, so emissions carry text;
     /// [`with_logit_filters`](WhisperStreamDriver::with_logit_filters) and
     /// [`with_detokenizer`](WhisperStreamDriver::with_detokenizer) replace
-    /// either. Several drivers over one bundle are `Arc::clone`s of it.
+    /// either. Several drivers over one construct are `Arc::clone`s of it.
     ///
     /// # Errors
     /// - [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the layout
     ///   does not fit the model or its vocabulary (see
-    ///   [`WhisperBundle::validate`]), if a language or task is given for an
+    ///   [`WhisperConstruct::validate`]), if a language or task is given for an
     ///   English-only layout, or if the configuration breaks a rule: no trigger
     ///   that decodes, a zero `interval`, the `interval` trigger without
     ///   `endpoint` (which could never draft), a zero `search.beam_size` or
@@ -194,9 +195,9 @@ impl WhisperStreamDriverConfig {
     ///   which is not implemented.
     /// - As [`WhisperFrontEndConfig::try_init_audio_converter`] for the model's
     ///   front end.
-    pub fn init_from_bundle(
+    pub fn init_from_construct(
         &self,
-        bundle: Arc<WhisperBundle>,
+        bundle: Arc<WhisperConstruct>,
         device: &Device,
     ) -> BunsenResult<WhisperStreamDriver> {
         bundle.validate()?;
@@ -286,19 +287,19 @@ impl WhisperStreamDriverConfig {
 /// transcription, the core's [`AsrStreamDriver`] over a [`WhisperEngine`].
 ///
 /// Built by [`WhisperStreamDriverConfig`]
-/// ([`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle) and
+/// ([`init_from_construct`](WhisperStreamDriverConfig::init_from_construct) and
 /// its siblings), then optionally given a voice-activity model with
 /// [`with_vad`](AsrStreamDriver::with_vad). Opens streams with
 /// [`new_context`](AsrStreamDriver::new_context); each
 /// [`WhisperStreamContext`](super::WhisperStreamContext) holds a clone of
-/// the driver, which is cheap (the bundle is an `Arc`, and tensors are
+/// the driver, which is cheap (the construct is an `Arc`, and tensors are
 /// shared), so one driver serves any number of streams in one process and
 /// [`advance_ready`](crate::kits::speech::asr_driver::advance_ready) batches
 /// their decodes.
 pub type WhisperStreamDriver = AsrStreamDriver<WhisperEngine>;
 
 /// Whisper as an [`AsrEngine`](crate::kits::speech::asr_driver::AsrEngine):
-/// the model and its token layout (a [`WhisperBundle`] behind an `Arc`),
+/// the model and its token layout (a [`WhisperConstruct`] behind an `Arc`),
 /// the mel front end, the logit filters, the decode settings and the
 /// detokenizer.
 ///
@@ -312,7 +313,7 @@ pub struct WhisperEngine {
     pub(super) config: WhisperStreamDriverConfig,
     pub(super) audio_converter: PerceptiveAudioConverter,
     /// The model, its layout and its vocabulary, shared.
-    pub(super) bundle: Arc<WhisperBundle>,
+    pub(super) bundle: Arc<WhisperConstruct>,
     /// The sot sequence every window's decode opens with; empty when the
     /// language is detected per stream.
     pub(super) prompt: Vec<i64>,
@@ -331,8 +332,8 @@ impl WhisperEngine {
         &self.config
     }
 
-    /// The bundle: the model, its layout and its vocabulary.
-    pub fn bundle(&self) -> &Arc<WhisperBundle> {
+    /// The construct: the model, its layout and its vocabulary.
+    pub fn bundle(&self) -> &Arc<WhisperConstruct> {
         &self.bundle
     }
 
@@ -438,8 +439,8 @@ impl AsrStreamDriver<WhisperEngine> {
         self.engine().config()
     }
 
-    /// The bundle: the model, its layout and its vocabulary.
-    pub fn bundle(&self) -> &Arc<WhisperBundle> {
+    /// The construct: the model, its layout and its vocabulary.
+    pub fn bundle(&self) -> &Arc<WhisperConstruct> {
         self.engine().bundle()
     }
 

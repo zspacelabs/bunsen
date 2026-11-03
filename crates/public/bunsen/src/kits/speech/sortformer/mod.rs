@@ -20,14 +20,14 @@
 //! - [`SortformerMelStream`]: the model streamed over mel frames;
 //!   [`SortformerStream`]: over samples, through `NeMo`'s mel front end, as a
 //!   [`SpeakerActivityStream`](crate::kits::speech::diarization::SpeakerActivityStream).
-//! - [`SortformerBundle`]: a loaded model with its front end;
-//!   [`diarizer`](SortformerBundle::diarizer) makes it a
+//! - [`SortformerConstruct`]: a loaded model with its front end;
+//!   [`diarizer`](SortformerConstruct::diarizer) makes it a
 //!   [`SpeakerActivityModel`](crate::kits::speech::diarization::SpeakerActivityModel)
-//!   under a streaming preset, [`diarize`](SortformerBundle::diarize) runs a
+//!   under a streaming preset, [`diarize`](SortformerConstruct::diarize) runs a
 //!   whole recording to speaker turns.
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the index of
 //!   named checkpoints, `nvidia/nemotron-3-diarization` the default, `hf:`
-//!   repos, and the factory that loads one into a bundle.
+//!   repos, and the factory that loads one into a construct.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Nemotron3DiarizationForAudioFrameClassification` state dict, or as a
 //!   Sortformer v2 `.nemo`'s.
@@ -41,12 +41,12 @@
 
 pub mod blocks;
 
-mod bundle;
 mod cache;
+mod construct;
 mod stream;
 mod streaming;
-pub use bundle::*;
 pub use cache::*;
+pub use construct::*;
 pub use stream::*;
 pub use streaming::*;
 

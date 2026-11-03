@@ -1,10 +1,10 @@
 //! # Pretrained Parakeet models
 //!
-//! From a model's name to a loaded [`ParakeetBundle`](super::ParakeetBundle),
-//! through the data layer's pretrained machinery
-//! ([`data::pretrained`](crate::data::pretrained)). The whole module needs
-//! the `store_safetensors` and `cache` features; the Phonon archive reader
-//! needs `fermion` as well.
+//! From a model's name to a loaded
+//! [`ParakeetConstruct`](super::ParakeetConstruct), through the data layer's
+//! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
+//! whole module needs the `store_safetensors` and `cache` features; the Phonon
+//! archive reader needs `fermion` as well.
 //!
 //! # The index
 //!
@@ -22,7 +22,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
+//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`ParakeetConstructConfig`],
 //! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into a `parakeet-tdt-0.6b-v3`-shaped

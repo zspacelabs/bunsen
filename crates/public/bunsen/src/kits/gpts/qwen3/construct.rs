@@ -9,17 +9,17 @@ use std::{
 
 use super::Qwen3Model;
 
-/// The key of the tokenizer, `tokenizer.json`, in a [`Qwen3Bundle`]'s files
+/// The key of the tokenizer, `tokenizer.json`, in a [`Qwen3Construct`]'s files
 /// and a Qwen3 resource bundle.
 pub const TOKENIZER: &str = "tokenizer";
 
 /// The key of the tokenizer's config, `tokenizer_config.json` (its added
-/// tokens and its chat template), in a [`Qwen3Bundle`]'s files and a Qwen3
+/// tokens and its chat template), in a [`Qwen3Construct`]'s files and a Qwen3
 /// resource bundle.
 pub const TOKENIZER_CONFIG: &str = "tokenizer_config";
 
 /// The key of the generation defaults, `generation_config.json` (the stop
-/// tokens and the sampling parameters), in a [`Qwen3Bundle`]'s files and a
+/// tokens and the sampling parameters), in a [`Qwen3Construct`]'s files and a
 /// Qwen3 resource bundle.
 pub const GENERATION_CONFIG: &str = "generation_config";
 
@@ -38,7 +38,7 @@ pub const GENERATION_CONFIG: &str = "generation_config";
 /// [`default_qwen3_factory`](super::pretrained::default_qwen3_factory)
 /// builds one from a name.
 #[derive(Debug)]
-pub struct Qwen3Bundle {
+pub struct Qwen3Construct {
     /// The model.
     pub model: Qwen3Model,
 
@@ -52,8 +52,8 @@ pub struct Qwen3Bundle {
     pub files: BTreeMap<String, PathBuf>,
 }
 
-impl Qwen3Bundle {
-    /// A bundle of `model` alone: no trained length, no files.
+impl Qwen3Construct {
+    /// A construct of `model` alone: no trained length, no files.
     pub fn new(model: Qwen3Model) -> Self {
         Self {
             model,
@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn test_files_by_key() {
         let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20).init(&cpu_device());
-        let bundle = Qwen3Bundle::new(model)
+        let bundle = Qwen3Construct::new(model)
             .with_max_positions(Some(512))
             .with_file(TOKENIZER, "/x/tokenizer.json");
         assert_eq!(bundle.max_positions, Some(512));

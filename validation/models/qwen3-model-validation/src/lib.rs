@@ -53,7 +53,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::gpts::qwen3::Qwen3Bundle,
+    kits::gpts::qwen3::Qwen3Construct,
     ops::transformers::attention::{
         KVCacheModel,
         KVCacheStorage,
@@ -304,13 +304,13 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 
 /// A Qwen3 pretrained by name, through bunsen's factory and
 /// [`weights_cache`].
-pub fn load_bundle(
+pub fn load_construct(
     name: &str,
     device: &Device,
-) -> std::sync::Arc<Qwen3Bundle> {
+) -> std::sync::Arc<Qwen3Construct> {
     bunsen::kits::gpts::qwen3::pretrained::default_qwen3_factory()
         .expect("the qwen3 factory")
-        .load_bundle(name, &weights_cache(), device)
+        .load_construct(name, &weights_cache(), device)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 
@@ -322,7 +322,7 @@ pub fn load_bundle(
 /// The `[1, vocab]` logits after the prefill and after each step, one more
 /// row than `fed` has tokens.
 pub fn bunsen_decode(
-    bundle: &Qwen3Bundle,
+    bundle: &Qwen3Construct,
     prompt: &[i64],
     fed: &[i64],
     storage: KVCacheStorage,

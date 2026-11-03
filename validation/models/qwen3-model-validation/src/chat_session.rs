@@ -26,7 +26,7 @@ fn check_row(row: &str) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
     let fixture = chat_replies_reference();
-    let chat = Arc::new(ChatModel::from_bundle(load_bundle(row, &device)).unwrap());
+    let chat = Arc::new(ChatModel::from_construct(load_construct(row, &device)).unwrap());
 
     for session_record in &fixture[row] {
         let config = ChatSessionConfig::new()

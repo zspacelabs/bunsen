@@ -30,8 +30,8 @@ use crate::{
     kits::{
         speech::qwen3_asr::{
             Qwen3Asr,
-            Qwen3AsrBundle,
             Qwen3AsrConfig,
+            Qwen3AsrConstruct,
             Qwen3AsrFrontEndConfig,
             weights::{
                 load_hf_tensors,
@@ -120,7 +120,7 @@ pub struct Qwen3AsrConstructConfig {
 }
 
 impl ConstructInit for Qwen3AsrConstructConfig {
-    type Construct = Qwen3AsrBundle;
+    type Construct = Qwen3AsrConstruct;
 
     const KIT: &'static str = QWEN3_ASR_KIT;
 
@@ -150,7 +150,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<Qwen3AsrBundle>> {
+    ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
             Some(part) => {
@@ -165,7 +165,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         let n_mels = config.audio.n_mels;
         let mut asr: Qwen3Asr = config.try_init(device)?;
         load_hf_tensors(&mut asr, tensors)?;
-        let mut bundle = Qwen3AsrBundle::new(asr, vocab, device)?;
+        let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?;
         if n_mels != bundle.front_end.config.n_mels {
             bundle.front_end = Qwen3AsrFrontEndConfig::new()
                 .with_n_mels(n_mels)

@@ -20,7 +20,7 @@ use bunsen::{
                 StopStrings,
                 TextStream,
             },
-            qwen3::Qwen3Bundle,
+            qwen3::Qwen3Construct,
         },
         support::decoding::{
             SearchConfig,
@@ -56,12 +56,12 @@ pub struct ChatModel<B: ChatBackend = Qwen3Chat> {
 
 impl ChatModel<Qwen3Chat> {
     /// A chat over a loaded Qwen3 checkpoint, from the tokenizer, template
-    /// and generation files it carries ([`Qwen3Chat::from_bundle`]).
+    /// and generation files it carries ([`Qwen3Chat::from_construct`]).
     ///
     /// # Errors
-    /// As [`Qwen3Chat::from_bundle`].
-    pub fn from_bundle(bundle: Arc<Qwen3Bundle>) -> BunsenResult<Self> {
-        Ok(Self::new(Qwen3Chat::from_bundle(bundle)?))
+    /// As [`Qwen3Chat::from_construct`].
+    pub fn from_construct(bundle: Arc<Qwen3Construct>) -> BunsenResult<Self> {
+        Ok(Self::new(Qwen3Chat::from_construct(bundle)?))
     }
 }
 
@@ -423,13 +423,13 @@ mod tests {
         ];
         let device = cpu_device();
         let model: Qwen3Model = Qwen3Config::new(310, 12, 2, 3, 1, 6, 20).init(&device);
-        let mut bundle = Qwen3Bundle::new(model).with_max_positions(Some(256));
+        let mut bundle = Qwen3Construct::new(model).with_max_positions(Some(256));
         for (key, name, body) in files {
             let path = dir.join(name);
             std::fs::write(&path, body).unwrap();
             bundle = bundle.with_file(key, path);
         }
-        Arc::new(ChatModel::from_bundle(Arc::new(bundle)).unwrap())
+        Arc::new(ChatModel::from_construct(Arc::new(bundle)).unwrap())
     }
 
     /// Two turns: each reply streams as it is decoded, joins the

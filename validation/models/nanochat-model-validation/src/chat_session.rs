@@ -30,7 +30,7 @@ fn check_row(row: &str) {
     let _memory = DeviceMemoryGuard::new(&device);
     let fixture = chat_replies_reference();
     let chat = Arc::new(ChatModel::new(
-        NanoChatChat::from_bundle(load_bundle(row, &device)).unwrap(),
+        NanoChatChat::from_construct(load_construct(row, &device)).unwrap(),
     ));
 
     for (n, turns) in fixture[row].iter().enumerate() {

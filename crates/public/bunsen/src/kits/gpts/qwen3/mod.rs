@@ -25,7 +25,7 @@
 //!   [`CachedStep`](crate::kits::support::decoding::CachedStep), so
 //!   [`decode_cached`](crate::kits::support::decoding::decode_cached) decodes
 //!   it under any search.
-//! - [`Qwen3Bundle`]: a model with the positions it was trained on and its
+//! - [`Qwen3Construct`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer and generation files, unread.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Qwen3ForCausalLM` state dict, and reading its `config.json`.
@@ -38,9 +38,9 @@
 
 pub mod blocks;
 
-mod bundle;
+mod construct;
 mod decode;
-pub use bundle::*;
+pub use construct::*;
 pub use decode::*;
 
 #[cfg(feature = "store")]

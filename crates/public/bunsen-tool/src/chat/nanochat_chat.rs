@@ -10,7 +10,7 @@ use bunsen::{
         gpts::{
             driver_support::CachedHistory,
             nanochat::{
-                NanoChatBundle,
+                NanoChatConstruct,
                 NanoChatDecodeState,
                 NanoChatGpt,
             },
@@ -50,7 +50,7 @@ use crate::chat::{
 /// `<|assistant_end|>` or `<|bos|>`. It has no thinking switch.
 #[derive(Debug)]
 pub struct NanoChatChat {
-    bundle: Arc<NanoChatBundle>,
+    bundle: Arc<NanoChatConstruct>,
     tokenizer: Arc<NanoChatTokenizer>,
     layout: NanoChatLayout,
     defaults: GenerationDefaults,
@@ -63,7 +63,7 @@ impl NanoChatChat {
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.pkl`, or its tokenizer the
     /// layout's special tokens; as [`NanoChatTokenizer::from_file`].
-    pub fn from_bundle(bundle: Arc<NanoChatBundle>) -> BunsenResult<Self> {
+    pub fn from_construct(bundle: Arc<NanoChatConstruct>) -> BunsenResult<Self> {
         let path = bundle
             .tokenizer()
             .ok_or_else(|| BunsenError::invalid_resource("a checkpoint without tokenizer.pkl"))?;
@@ -84,7 +84,7 @@ impl NanoChatChat {
     }
 
     /// The model and its files.
-    pub fn bundle(&self) -> &Arc<NanoChatBundle> {
+    pub fn bundle(&self) -> &Arc<NanoChatConstruct> {
         &self.bundle
     }
 

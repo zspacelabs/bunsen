@@ -37,9 +37,9 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
+//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
 //! is the whole pathway from a name to a
-//! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
+//! [`WhisperConstruct`](crate::kits::speech::whisper::driver::WhisperConstruct)
 //! behind an `Arc`. The factory resolves the name to a
 //! [`Deferred`](crate::kits::support::construct::Deferred) model carrying the
 //! kit's hook, [`WhisperConstructConfig`], with the [`WhisperReader`] its

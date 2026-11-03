@@ -68,7 +68,7 @@ pub struct DecodeTriggers {
     /// Whether speech is in progress is the voice-activity gate's to say,
     /// and the gate runs only under `endpoint`, so this trigger needs it:
     /// without it no draft could ever be made, and building a driver
-    /// ([`init_from_bundle`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::init_from_bundle))
+    /// ([`init_from_construct`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::init_from_construct))
     /// fails with
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal).
     #[config(default = "None")]
@@ -99,7 +99,7 @@ pub enum CommitRule {
     /// rule under which a provisional decode becomes load-bearing.
     ///
     /// Not implemented: building a driver under it
-    /// ([`init_from_bundle`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::init_from_bundle))
+    /// ([`init_from_construct`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::init_from_construct))
     /// fails with
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Agreement {

@@ -2,7 +2,7 @@
 use burn::Tensor;
 
 use super::{
-    Qwen3AsrBundle,
+    Qwen3AsrConstruct,
     blocks::Qwen3AsrAudioEncoderMeta,
 };
 use crate::errors::BunsenResult;
@@ -11,7 +11,7 @@ use crate::errors::BunsenResult;
 /// follows the speech in `Qwen3-ASR-0.6B` and `FermionResearch`'s Phonon-1
 /// builds, which re-pack its weights.
 ///
-/// Averaged and aligned ([`Qwen3AsrBundle::token_frames`]), they put 90% of
+/// Averaged and aligned ([`Qwen3AsrConstruct::token_frames`]), they put 90% of
 /// the words of `jfk_moon.mp3` within 0.20 s of Parakeet's word times, on
 /// the base model and on each Phonon-1 build, once a constant offset is
 /// taken out: the attention peaks 0.12 s after Parakeet times a word.
@@ -114,7 +114,7 @@ pub fn monotonic_peaks(
         .collect()
 }
 
-impl Qwen3AsrBundle {
+impl Qwen3AsrConstruct {
     /// The encoder frame each token of a reply is spoken at: `heads`' rows
     /// of [`audio_attention`](Self::audio_attention), each renormalized over
     /// the audio, averaged, aligned to the audio monotonically, and each

@@ -39,7 +39,7 @@ fn check_preset(
 ) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_bundle(&device);
+    let bundle = load_construct(&device);
     check_diarization(
         name,
         &bundle,
@@ -55,7 +55,7 @@ fn check_preset(
 /// RTTM to [`DER_MARGIN`].
 fn check_diarization(
     what: &str,
-    bundle: &bunsen::kits::speech::sortformer::SortformerBundle,
+    bundle: &bunsen::kits::speech::sortformer::SortformerConstruct,
     streaming: SortformerStreamingConfig,
     reference: &AmiPreset,
     atol: f64,
@@ -116,7 +116,7 @@ fn check_v2(
 ) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_named_bundle(name, &device);
+    let bundle = load_named_construct(name, &device);
     let streaming = bundle.preset(latency).unwrap();
     check_diarization(
         &format!("{name} {preset}"),

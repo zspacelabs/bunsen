@@ -27,7 +27,7 @@ use crate::{
     },
     kits::{
         gpts::qwen3::{
-            Qwen3Bundle,
+            Qwen3Construct,
             Qwen3Model,
             weights::{
                 load_hf_tensors,
@@ -51,7 +51,7 @@ use crate::{
 pub struct Qwen3ConstructConfig;
 
 impl ConstructInit for Qwen3ConstructConfig {
-    type Construct = Qwen3Bundle;
+    type Construct = Qwen3Construct;
 
     const KIT: &'static str = QWEN3_KIT;
 
@@ -75,7 +75,7 @@ impl ConstructInit for Qwen3ConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<Qwen3Bundle>> {
+    ) -> BunsenResult<Arc<Qwen3Construct>> {
         let (config, max_positions) = match loaded.get(CONFIG) {
             Some(part) => {
                 let json =
@@ -100,7 +100,7 @@ impl ConstructInit for Qwen3ConstructConfig {
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let mut qwen3: Qwen3Model = config.try_init(device)?;
         load_hf_tensors(&mut qwen3, tensors)?;
-        let mut bundle = Qwen3Bundle::new(qwen3).with_max_positions(max_positions);
+        let mut bundle = Qwen3Construct::new(qwen3).with_max_positions(max_positions);
         for (key, part) in &loaded.parts {
             bundle = bundle.with_file(key, &part.path);
         }

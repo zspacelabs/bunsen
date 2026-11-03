@@ -370,22 +370,22 @@ pub fn row_file(
 
 /// `Nemotron-3-Diarization`, through bunsen's factory and [`weights_cache`].
 #[cfg(feature = "checkpoints")]
-pub fn load_bundle(
+pub fn load_construct(
     device: &Device
-) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerBundle> {
-    load_named_bundle("nvidia/nemotron-3-diarization", device)
+) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerConstruct> {
+    load_named_construct("nvidia/nemotron-3-diarization", device)
 }
 
 /// The Sortformer `model` names, through bunsen's factory and
 /// [`weights_cache`].
 #[cfg(feature = "checkpoints")]
-pub fn load_named_bundle(
+pub fn load_named_construct(
     model: &str,
     device: &Device,
-) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerBundle> {
+) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerConstruct> {
     bunsen::kits::speech::sortformer::pretrained::default_sortformer_factory()
         .expect("the sortformer factory")
-        .load_bundle(model, &weights_cache(), device)
+        .load_construct(model, &weights_cache(), device)
         .unwrap_or_else(|e| panic!("load {model}: {e}"))
 }
 

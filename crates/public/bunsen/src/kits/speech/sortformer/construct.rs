@@ -48,7 +48,7 @@ use crate::{
 /// [`default_sortformer_factory`](super::pretrained::default_sortformer_factory)
 /// builds one from a name.
 #[derive(Debug)]
-pub struct SortformerBundle {
+pub struct SortformerConstruct {
     /// The model, shared by every stream.
     pub model: Arc<Sortformer>,
 
@@ -59,8 +59,8 @@ pub struct SortformerBundle {
     pub family: SortformerFamily,
 }
 
-impl SortformerBundle {
-    /// A bundle of `model`, of `family`, behind the front end `front_end`
+impl SortformerConstruct {
+    /// A construct of `model`, of `family`, behind the front end `front_end`
     /// configures.
     ///
     /// # Errors
@@ -75,7 +75,7 @@ impl SortformerBundle {
     ) -> BunsenResult<Self> {
         if front_end.n_mels() != model.n_mels() {
             return Err(ConstraintError::new(
-                "SortformerBundle",
+                "SortformerConstruct",
                 "front_end",
                 Rule::Relation {
                     lhs: ("front_end.n_mels".into(), front_end.n_mels().to_string()),
@@ -146,7 +146,7 @@ impl SortformerBundle {
     }
 }
 
-impl std::fmt::Display for SortformerBundle {
+impl std::fmt::Display for SortformerConstruct {
     fn fmt(
         &self,
         f: &mut std::fmt::Formatter<'_>,
@@ -234,7 +234,7 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    fn bundle() -> SortformerBundle {
+    fn bundle() -> SortformerConstruct {
         let model: Sortformer = NemotronDiarizationConfig::new()
             .with_n_mels(24)
             .with_d_model(16)
@@ -243,7 +243,7 @@ mod tests {
             .with_d_hidden(8)
             .with_n_speakers(3)
             .init(&cpu_device());
-        SortformerBundle::new(
+        SortformerConstruct::new(
             model,
             SortformerFamily::Nemotron,
             &NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(24),
@@ -302,7 +302,7 @@ mod tests {
         assert!(bundle.preset(SortformerLatency::High).is_err());
 
         let model = Arc::try_unwrap(bundle.model).unwrap();
-        let err = SortformerBundle::new(
+        let err = SortformerConstruct::new(
             model,
             SortformerFamily::Nemotron,
             &NemoMelFrontEndConfig::nemotron_diarization(),

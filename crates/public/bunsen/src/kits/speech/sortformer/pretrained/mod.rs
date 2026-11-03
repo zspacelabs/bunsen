@@ -1,9 +1,10 @@
 //! # Pretrained Sortformer models
 //!
 //! From a model's name to a loaded
-//! [`SortformerBundle`](super::SortformerBundle), through the data layer's
-//! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
-//! whole module needs the `store_safetensors` and `cache` features.
+//! [`SortformerConstruct`](super::SortformerConstruct), through the data
+//! layer's pretrained machinery
+//! ([`data::pretrained`](crate::data::pretrained)). The whole module needs the
+//! `store_safetensors` and `cache` features.
 //!
 //! # The index
 //!
@@ -25,7 +26,7 @@
 //!   `.nemo`'s from the archive's head, by a range request), so a repo of
 //!   another model is refused first.
 //!
-//! A bundle's [`family`](super::SortformerBundle::family) names the
+//! A construct's [`family`](super::SortformerConstruct::family) names the
 //! streaming presets it runs under.
 //!
 //! Every well-known file is pinned to its digest and fetched from a fixed

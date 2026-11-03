@@ -1,7 +1,7 @@
 //! The Whisper stream driver: audio pushed in chunks, timed transcript out.
 //!
 //! What a caller touches lives here: the driver and its config, the stream
-//! context, the [`WhisperEngine`] they run, the bundle, and the token
+//! context, the [`WhisperEngine`] they run, the construct, and the token
 //! layout. The driver and the context are the
 //! [`asr_driver`](crate::kits::speech::asr_driver) core's
 //! [`AsrStreamDriver`](crate::kits::speech::asr_driver::AsrStreamDriver) and
@@ -15,7 +15,7 @@
 //!
 //! A transcription is split in two. The [`WhisperStreamDriver`] is the
 //! shared, immutable half: the model and its token layout (a
-//! [`WhisperBundle`] behind an `Arc`), the mel front end, the logit
+//! [`WhisperConstruct`] behind an `Arc`), the mel front end, the logit
 //! filters, the decode settings, and the voice-activity model when one is
 //! attached. A [`WhisperStreamContext`] is one stream in progress, and the
 //! only stateful type here: the front end's carry, the frames not yet
@@ -44,14 +44,14 @@
 //!
 //! # Lifecycle
 //!
-//! 1. A [`WhisperBundle`]: from a name, through
+//! 1. A [`WhisperConstruct`]: from a name, through
 //!    [`default_whisper_factory`](crate::kits::speech::whisper::pretrained::default_whisper_factory)
 //!    and a [`PretrainedCache`](crate::data::pretrained::PretrainedCache), or
 //!    over a model already in hand.
 //! 2. A [`WhisperStreamDriverConfig`] (language, task, timestamps, search,
 //!    [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy),
-//!    fallback ladder), built into a driver over the bundle by
-//!    [`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle).
+//!    fallback ladder), built into a driver over the construct by
+//!    [`init_from_construct`](WhisperStreamDriverConfig::init_from_construct).
 //!    [`with_vad`](WhisperStreamDriver::with_vad) attaches a voice-activity
 //!    model, which the real-time presets need.
 //! 3. One context per stream, from
@@ -202,12 +202,12 @@
 
 pub mod support;
 
-mod whisper_bundle;
+mod whisper_construct;
 mod whisper_stream_context;
 mod whisper_stream_driver;
 mod whisper_token_layout;
 
-pub use whisper_bundle::*;
+pub use whisper_construct::*;
 pub use whisper_stream_context::*;
 pub use whisper_stream_driver::*;
 pub use whisper_token_layout::*;

@@ -22,11 +22,11 @@
 //!   position, each position's audio added to its token
 //!   ([`VoxtralDecodeStep`]).
 //! - [`VoxtralTranscript`]: a decode's ids as timed [`VoxtralWord`]s and text.
-//! - [`VoxtralBundle`]: a model with its front end, vocabulary
+//! - [`VoxtralConstruct`]: a model with its front end, vocabulary
 //!   ([`TekkenVocabulary`](crate::kits::support::tokens::TekkenVocabulary)),
-//!   layout and decoder; [`transcribe`](VoxtralBundle::transcribe) one
+//!   layout and decoder; [`transcribe`](VoxtralConstruct::transcribe) one
 //!   utterance.
-//! - [`driver`]: [`VoxtralEngine`](driver::VoxtralEngine), a bundle as the
+//! - [`driver`]: [`VoxtralEngine`](driver::VoxtralEngine), a construct as the
 //!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine, each window
 //!   decoded whole and laid out a segment per timed word; a
 //!   [`VoxtralStreamDriver`](driver::VoxtralStreamDriver) streams audio through
@@ -34,19 +34,19 @@
 //!   [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the named
 //!   checkpoint, `mistralai/voxtral-mini-4b-realtime-2602` the default, `hf:`
-//!   repos, and the factory that loads one into a bundle.
+//!   repos, and the factory that loads one into a construct.
 //! - [`weights`] (feature `store`): loading tensors named as the published
 //!   `model.safetensors` names them, and reading its `config.json`.
 
 pub mod blocks;
 pub mod driver;
 
-mod bundle;
+mod construct;
 mod decode;
 mod front_end;
 mod layout;
 mod transcript;
-pub use bundle::*;
+pub use construct::*;
 pub use decode::*;
 pub use front_end::*;
 pub use layout::*;

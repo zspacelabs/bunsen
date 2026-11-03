@@ -234,13 +234,13 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 
 /// A Qwen3-ASR pretrained by name, through bunsen's factory and
 /// [`weights_cache`].
-pub fn load_bundle(
+pub fn load_construct(
     name: &str,
     device: &Device,
-) -> std::sync::Arc<bunsen::kits::speech::qwen3_asr::Qwen3AsrBundle> {
+) -> std::sync::Arc<bunsen::kits::speech::qwen3_asr::Qwen3AsrConstruct> {
     bunsen::kits::speech::qwen3_asr::pretrained::default_qwen3_asr_factory()
         .expect("the qwen3-asr factory")
-        .load_bundle(name, &weights_cache(), device)
+        .load_construct(name, &weights_cache(), device)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 

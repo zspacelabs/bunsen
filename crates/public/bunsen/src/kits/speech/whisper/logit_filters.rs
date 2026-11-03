@@ -7,7 +7,7 @@
 //! pair over a vocabulary ([`SuppressBlank`], then
 //! [`SuppressTokens`] over
 //! [`default_suppress_tokens`]), which a
-//! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
+//! [`WhisperConstruct`](crate::kits::speech::whisper::driver::WhisperConstruct)
 //! with a vocabulary supplies; [`ApplyTimestampRules`] is the timestamp
 //! grammar the stream driver appends when timestamps are on; and
 //! [`RestrictToLanguages`] is language detection. A filter is an injected

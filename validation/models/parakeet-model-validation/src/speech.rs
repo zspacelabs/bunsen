@@ -7,7 +7,7 @@
 use bunsen::{
     kits::speech::{
         parakeet::{
-            ParakeetBundle,
+            ParakeetConstruct,
             ParakeetFrontEndMeta,
             pretrained::DEFAULT_PARAKEET_MODEL,
         },
@@ -55,7 +55,7 @@ fn wer(
 }
 
 fn transcribe(
-    bundle: &ParakeetBundle,
+    bundle: &ParakeetConstruct,
     device: &Device,
 ) -> bunsen::kits::speech::parakeet::ParakeetTranscript {
     let samples = speech_clip(CLIP);
@@ -158,7 +158,7 @@ mod transcribes_like_the_reference {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
-        let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
+        let bundle = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
 
         let transcript = transcribe(&bundle, &device);
         report_ids(
@@ -190,7 +190,7 @@ mod transcribes_like_the_reference {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = phonon2_reference();
-        let bundle = load_bundle(DEFAULT_PARAKEET_MODEL, &device);
+        let bundle = load_construct(DEFAULT_PARAKEET_MODEL, &device);
 
         let transcript = transcribe(&bundle, &device);
         report_ids(
@@ -218,7 +218,7 @@ mod transcribes_like_the_reference {
 /// under the offline policy, with windows of at most `window_seconds`: the
 /// committed ids, the text, and each word with its start and end in seconds.
 fn stream(
-    bundle: std::sync::Arc<ParakeetBundle>,
+    bundle: std::sync::Arc<ParakeetConstruct>,
     window_seconds: f64,
 ) -> (Vec<usize>, String, Vec<(String, f64, f64)>) {
     use bunsen::kits::speech::{
@@ -277,7 +277,7 @@ mod stream_driver_transcribes_like_the_reference {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
-        let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
+        let bundle = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
         let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
 
         let one_shot = transcribe(&bundle, &device)
@@ -334,7 +334,7 @@ mod driver {
     fn phonon_2() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_bundle("fermion/phonon-2", &device);
+        let bundle = load_construct("fermion/phonon-2", &device);
         let one_shot = transcribe(&bundle, &device);
         let one_shot_words = one_shot
             .words(&bundle.vocab, bundle.frame_seconds())
@@ -371,7 +371,7 @@ mod stream_driver_cuts_windows_at_pauses {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
-        let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
+        let bundle = load_construct("nvidia/parakeet-tdt-0.6b-v3", &device);
         let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
 
         let (_, text, _) = stream(bundle, 20.0);

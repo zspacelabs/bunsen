@@ -12,14 +12,14 @@
 //! - [`Qwen3AsrGreedyDecoder`]: greedy decoding through a KV cache.
 //! - [`Qwen3AsrPromptConfig`]: the chat prompt around an utterance's audio, and
 //!   parsing the reply into a [`Qwen3AsrTranscript`].
-//! - [`Qwen3AsrBundle`]: a model with its front end, vocabulary, prompt and
-//!   decoder; [`transcribe`](Qwen3AsrBundle::transcribe) one utterance, or
-//!   [`transcribe_long`](Qwen3AsrBundle::transcribe_long) any recording in
+//! - [`Qwen3AsrConstruct`]: a model with its front end, vocabulary, prompt and
+//!   decoder; [`transcribe`](Qwen3AsrConstruct::transcribe) one utterance, or
+//!   [`transcribe_long`](Qwen3AsrConstruct::transcribe_long) any recording in
 //!   windows.
-//! - [`token_frames`](Qwen3AsrBundle::token_frames): when each reply token is
-//!   spoken, from the decoder's attention onto the audio, under the heads that
-//!   follow the speech ([`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]).
-//! - [`Qwen3AsrEngine`]: a bundle as the
+//! - [`token_frames`](Qwen3AsrConstruct::token_frames): when each reply token
+//!   is spoken, from the decoder's attention onto the audio, under the heads
+//!   that follow the speech ([`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]).
+//! - [`Qwen3AsrEngine`]: a construct as the
 //!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine; a
 //!   [`Qwen3AsrStreamDriver`] streams audio through it, under any
 //!   [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
@@ -27,7 +27,7 @@
 //!   expanded to dense `transformers`-named tensors, and its vocabulary.
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the named
 //!   checkpoints, `fermion/phonon-1` the default, and the factory that loads
-//!   one into a bundle.
+//!   one into a construct.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Qwen3ASRForConditionalGeneration` state dict.
 
@@ -36,7 +36,7 @@ pub mod blocks;
 mod alignment;
 #[cfg(feature = "fermion")]
 mod archive;
-mod bundle;
+mod construct;
 mod decode;
 mod engine;
 mod front_end;
@@ -44,7 +44,7 @@ mod prompt;
 pub use alignment::*;
 #[cfg(feature = "fermion")]
 pub use archive::*;
-pub use bundle::*;
+pub use construct::*;
 pub use decode::*;
 pub use engine::*;
 pub use front_end::*;

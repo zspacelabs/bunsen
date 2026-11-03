@@ -26,7 +26,7 @@ use crate::{
             word_segments,
         },
         voxtral::{
-            VoxtralBundle,
+            VoxtralConstruct,
             VoxtralFrontEndMeta,
             VoxtralTranscript,
             blocks::VoxtralRealtimeMeta,
@@ -42,17 +42,18 @@ pub type VoxtralStreamDriver = AsrStreamDriver<VoxtralEngine>;
 /// [`VoxtralEngine`].
 pub type VoxtralStreamContext = AsrStreamContext<VoxtralEngine>;
 
-/// A [`VoxtralBundle`] as an [`AsrEngine`]: what the stream driver core needs
-/// of the model.
+/// A [`VoxtralConstruct`] as an [`AsrEngine`]: what the stream driver core
+/// needs of the model.
 ///
-/// - **Features:** the bundle's log-mels, streamed ([`LogMelFeatures`]), and
+/// - **Features:** the construct's log-mels, streamed ([`LogMelFeatures`]), and
 ///   packaged per window under the front end's fixed level: no statistic of the
 ///   stream enters, so the window's [`MaxLevel`] is not read. A window is at
 ///   most [`DEFAULT_WINDOW_SECONDS`](Self::DEFAULT_WINDOW_SECONDS) of frames by
 ///   default ([`with_window_seconds`](Self::with_window_seconds)).
-/// - **Decode:** [`transcribe_features`](VoxtralBundle::transcribe_features),
-///   one window at a time: the window padded with silence as an utterance is,
-///   and decoded greedily, one id per 80 ms.
+/// - **Decode:**
+///   [`transcribe_features`](VoxtralConstruct::transcribe_features), one window
+///   at a time: the window padded with silence as an utterance is, and decoded
+///   greedily, one id per 80 ms.
 /// - **Timing:** each word starts at its `[STREAMING_WORD]`'s position, less
 ///   the left padding and the delay, and ends where its last text id is
 ///   written, less the same: on the decoder's grid, 8 mel frames. Each word is
@@ -65,7 +66,7 @@ pub type VoxtralStreamContext = AsrStreamContext<VoxtralEngine>;
 /// extractor drops it.
 #[derive(Clone, Debug)]
 pub struct VoxtralEngine {
-    bundle: Arc<VoxtralBundle>,
+    bundle: Arc<VoxtralConstruct>,
     window_frames: usize,
     device: Device,
 }
@@ -77,7 +78,7 @@ impl VoxtralEngine {
 
     /// The engine of `bundle`, on the model's device, with windows of at most
     /// [`DEFAULT_WINDOW_SECONDS`](Self::DEFAULT_WINDOW_SECONDS).
-    pub fn new(bundle: Arc<VoxtralBundle>) -> Self {
+    pub fn new(bundle: Arc<VoxtralConstruct>) -> Self {
         let device = bundle.model.devices()[0].clone();
         let engine = Self {
             bundle,
@@ -105,8 +106,8 @@ impl VoxtralEngine {
         self
     }
 
-    /// The bundle.
-    pub fn bundle(&self) -> &Arc<VoxtralBundle> {
+    /// The construct.
+    pub fn bundle(&self) -> &Arc<VoxtralConstruct> {
         &self.bundle
     }
 

@@ -1,4 +1,4 @@
-//! Transcribing with Whisper: the bundle through a stream driver.
+//! Transcribing with Whisper: the construct through a stream driver.
 use std::{
     path::{
         Path,
@@ -26,7 +26,7 @@ use bunsen::{
             whisper::{
                 WhisperFallbackConfig,
                 driver::{
-                    WhisperBundle,
+                    WhisperConstruct,
                     WhisperStreamDriver,
                     WhisperStreamDriverConfig,
                     WhisperTask,
@@ -160,7 +160,7 @@ pub fn resolve(
 
 /// The driver for `bundle` under `flags` and `preset`.
 pub fn driver(
-    bundle: Arc<WhisperBundle>,
+    bundle: Arc<WhisperConstruct>,
     flags: &WhisperFlags,
     preset: Preset,
     cache: &PretrainedCache,
@@ -191,7 +191,7 @@ pub fn driver(
         } else {
             WhisperFallbackConfig::new()
         })
-        .init_from_bundle(bundle, device)
+        .init_from_construct(bundle, device)
         // The settings come from the command line.
         .as_policy()?;
     stream::with_vad(driver, preset, cache, device)
