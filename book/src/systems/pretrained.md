@@ -97,6 +97,53 @@ There is no process-wide registry. Each kit ships a
 `default_{kit}_factory()`, and a caller that wants another provider adds it
 to that factory ([no registry](bunsen::kits::support::construct::PretrainedFactory#no-registry)).
 
+## Presets
+
+A row's presets are named, described
+[merge patches](bunsen::support::merge_patch) over the config its kit
+builds the model under: a Whisper policy, a Sortformer streaming setup, a
+Qwen3 generation policy ([`Preset`](bunsen::data::pretrained::Preset)). Which
+fields a preset may set is the config's business. A field the construction
+reads changes what is built, and one a driver reads changes how it runs.
+
+A row's [`PresetSet`](bunsen::data::pretrained::PresetSet) groups them. An
+axis holds presets that exclude one another, such as Whisper's `task`
+(`transcribe`, `translate`) or Sortformer's `latency`; a selection names at
+most one member of each. The default selection is explicit: the row's
+config with nothing selected is its config under the default presets. A
+`base` patch holds what every selection keeps, such as the stop tokens a
+checkpoint's `generation_config.json` names.
+
+Resolution stacks the layers, each a patch over the one before
+([`resolve_presets`](bunsen::kits::support::model_config::resolve_presets)):
+
+1. the family's config, serialized;
+2. the set's `base`;
+3. the default presets, except where the selection names another member of
+   the same axis;
+4. the selected presets, as one layer: two that set the same path are an
+   error, so their order never matters;
+5. the lookup expression's patch.
+
+Every layer is checked against the config it patches, so a misspelled
+field fails, naming the preset or the patch, and the result must
+deserialize as the config. A kit's hook resolves presets before it builds,
+and [`PretrainedFactory::resolve_presets`](bunsen::kits::support::construct::PretrainedFactory::resolve_presets)
+resolves a row's config with nothing fetched or built.
+
+A catalog states presets once per model family
+([`CatalogFamily`](bunsen::data::pretrained::CatalogFamily)), and its rows
+inherit them under their own. An `hf:` repo that no row describes gets its
+family's. Some presets are read from a model's own files. A catalog row
+names probes, such as one that reads `generation_config.json`, and
+`cargo validate catalog` runs them when it builds the catalog, so a
+well-known row's presets are fixed data in the build and need no probing
+when the model loads.
+
+`bunsen-tool` shows them. Each listing prints a row's axes, members and
+default; `bunsen-tool card --policies` prints the preset sets as data, and
+the config each row's default selection resolves to.
+
 ## The cache and its trust model
 
 A [`PretrainedCache`](bunsen::data::pretrained::PretrainedCache) keeps each
@@ -168,8 +215,10 @@ another tensor loads as the weight it is.
 ## The operational view
 
 `bunsen-tool` shows the machinery from the outside. Each family's `list`
-shows its rows and where each one's files stand, and its `fetch` brings a
-model's resources local; `bunsen-tool asr family whisper inspect` checks a
+shows its rows, their presets, and where each one's files stand, and its
+`fetch` brings a model's resources local. Every `--model` takes a lookup
+expression, and `--preset` adds to its box; a name no table has fails with
+the names nearest it, as "did you mean?"; `bunsen-tool asr family whisper inspect` checks a
 checkpoint against its prefab, and `bunsen-tool asr family whisper prefabs` lists
 the geometries; `bunsen-tool cache` lists and clears what the cache holds. Its
 [README](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md#whisper-models)

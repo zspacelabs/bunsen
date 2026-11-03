@@ -134,8 +134,9 @@ The driver serves three deployments, and it is configured for each, never
 forked: server-batch offline inference; conservative real time, for a
 program that consumes the transcript; and best-effort real time, for a
 person reading along during the utterance. The three
-[`EmissionPolicy`](bunsen::kits::speech::asr_driver::EmissionPolicy)
-presets are those three deployments.
+[`EmissionMode`](bunsen::kits::speech::asr_driver::EmissionMode)s of an
+[`EmissionPolicy`](bunsen::kits::speech::asr_driver::EmissionPolicy) are
+those three deployments.
 
 ### The `write_read` fold
 
@@ -207,7 +208,7 @@ Whisper's is a maximum
 
 ### Voice-activity regions as sub-streams
 
-The real-time presets decode at the end of each speech region, so they need
+The real-time emission modes decode at the end of each speech region, so they need
 a voice-activity model, attached with
 [`with_vad`](bunsen::kits::speech::whisper::driver::WhisperStreamDriver::with_vad).
 Each stream then runs Silero in a Silero context of its own. A
