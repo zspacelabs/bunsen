@@ -24,7 +24,7 @@ enum Command {
     Asr(cli::asr::AsrCmd),
 
     /// Chat with a Qwen3 or nanochat checkpoint: one prompt (`chat run`), a
-    /// conversation (`chat chat`), and the checkpoints (`chat list`, `chat
+    /// conversation (`chat repl`), and the checkpoints (`chat list`, `chat
     /// fetch`); `chat family` for one family's.
     Chat(cli::chat::ChatCmd),
 

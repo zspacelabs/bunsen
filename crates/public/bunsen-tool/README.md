@@ -599,22 +599,22 @@ autotuned kernels see one shape; the first file of a run pays for the tuning.
 
 ## chat: Qwen3 and nanochat
 
-`bunsen-tool chat` answers one prompt (`run`) or holds a conversation on stdin (`chat`: `/reset` starts over, `/quit`
+`bunsen-tool chat` answers one prompt (`run`) or holds a conversation on stdin (`repl`: `/reset` starts over, `/quit`
 or the end of input leaves), on the KV cache: each turn prefills only what the cache does not already hold.
 
 ```sh
 bunsen-tool chat list [--urls]                       # every family's checkpoints, and what of each is cached
 bunsen-tool chat fetch NAME...                       # bring checkpoints into the cache
 bunsen-tool chat run  [--model NAME] [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
-bunsen-tool chat chat [--model NAME] [FLAGS]            # a conversation
-bunsen-tool chat family (qwen3|nanochat) (list|fetch|run|chat) [FLAGS]   # one family's, its own default by default
+bunsen-tool chat repl [--model NAME] [FLAGS]            # a conversation
+bunsen-tool chat family (qwen3|nanochat) (list|fetch|run|repl) [FLAGS]   # one family's, its own default by default
 ```
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat chat --model qwen3-4b-instruct-2507 --stats
+cargo run --release -p bunsen-tool --features wgpu -- chat repl --model qwen3-4b-instruct-2507 --stats
 cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
-cargo run --release -p bunsen-tool --features cuda -- chat family nanochat chat --device cuda --precision half
+cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda --precision half
 ```
 
 Outside `family`, the name `--model` gives picks the family, and Qwen3's default (`qwen/qwen3-0.6b`) is the default.

@@ -20,7 +20,7 @@
 //!   checkpoint's chat: its `tokenizer.pkl`, read through `serde_pickle`, and
 //!   upstream's conversation layout, each as upstream encodes and renders.
 //!
-//! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `chat` take
+//! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `repl` take
 //! a checkpoint of any family by its name; `family qwen3` and `family
 //! nanochat` have the same commands for one family, its own default by
 //! default, with only the flags that apply to it:
@@ -29,9 +29,9 @@
 //! bunsen-tool chat list
 //! bunsen-tool cache list qwen3
 //! bunsen-tool chat run --device wgpu --no-think "What is the capital of France?"
-//! bunsen-tool chat chat --device wgpu --model qwen3-4b-instruct-2507 --stats
+//! bunsen-tool chat repl --device wgpu --model qwen3-4b-instruct-2507 --stats
 //! bunsen-tool chat family nanochat list --urls
-//! bunsen-tool chat family nanochat chat --device cuda --precision half
+//! bunsen-tool chat family nanochat repl --device cuda --precision half
 //! ```
 
 mod backend;
