@@ -19,7 +19,7 @@ use bunsen::{
             TurnFilterConfig,
         },
         sortformer::{
-            SortformerBundle,
+            SortformerConstruct,
             SortformerLatency,
             pretrained::{
                 DEFAULT_SORTFORMER_MODEL,
@@ -167,13 +167,13 @@ impl DiarizerArgs {
     /// Loads the model through `cache`, logging its info card.
     ///
     /// # Errors
-    /// As [`load_bundle`].
+    /// As [`load_construct`].
     pub fn load(
         &self,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<SortformerBundle>> {
-        load_bundle(
+    ) -> BunsenResult<Arc<SortformerConstruct>> {
+        load_construct(
             self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL),
             cache,
             device,
@@ -185,11 +185,11 @@ impl DiarizerArgs {
 ///
 /// # Errors
 /// As the factory resolving the name, and the load.
-pub fn load_bundle(
+pub fn load_construct(
     model: &str,
     cache: &PretrainedCache,
     device: &Device,
-) -> BunsenResult<Arc<SortformerBundle>> {
+) -> BunsenResult<Arc<SortformerConstruct>> {
     let bundle = load_logged(
         default_sortformer_factory()?.resolve(model, cache)?,
         cache,
@@ -225,7 +225,7 @@ impl SpeakerArgs {
     /// without the flag. The recognizers see only the trait object.
     ///
     /// # Errors
-    /// As [`load_bundle`]; as the latency preset against the model.
+    /// As [`load_construct`]; as the latency preset against the model.
     pub fn diarizer(
         &self,
         cache: &PretrainedCache,
@@ -234,7 +234,7 @@ impl SpeakerArgs {
         let Some(model) = &self.diarize else {
             return Ok(None);
         };
-        let bundle = load_bundle(model, cache, device)?;
+        let bundle = load_construct(model, cache, device)?;
         Ok(Some(Arc::new(
             bundle.diarizer(bundle.preset(self.diarize_latency.into())?)?,
         )))

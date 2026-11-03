@@ -1,4 +1,4 @@
-//! Transcribing with Parakeet: the bundle through a stream driver.
+//! Transcribing with Parakeet: the construct through a stream driver.
 use std::sync::Arc;
 
 use bunsen::{
@@ -13,7 +13,7 @@ use bunsen::{
             TranscriptSegment,
         },
         parakeet::{
-            ParakeetBundle,
+            ParakeetConstruct,
             ParakeetEngine,
             ParakeetStreamDriver,
         },
@@ -51,7 +51,7 @@ pub struct ParakeetFlags {
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
 /// `--window-seconds` is under one encoder frame; as the driver and the VAD.
 pub fn driver(
-    bundle: Arc<ParakeetBundle>,
+    bundle: Arc<ParakeetConstruct>,
     flags: &ParakeetFlags,
     preset: Preset,
     cache: &PretrainedCache,

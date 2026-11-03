@@ -12,12 +12,12 @@
 //!
 //! # Lifecycle
 //!
-//! 1. A [`VoxtralBundle`](super::VoxtralBundle): from a name, through
+//! 1. A [`VoxtralConstruct`](super::VoxtralConstruct): from a name, through
 //!    [`default_voxtral_factory`](super::pretrained::default_voxtral_factory)
 //!    and a [`PretrainedCache`](crate::data::pretrained::PretrainedCache)
 //!    (features `store_safetensors` and `cache`), or over a model in hand;
-//!    [`with_delay_ms`](super::VoxtralBundle::with_delay_ms) sets how far the
-//!    text runs behind the audio.
+//!    [`with_delay_ms`](super::VoxtralConstruct::with_delay_ms) sets how far
+//!    the text runs behind the audio.
 //! 2. A [`VoxtralEngine`] over it, its window set by
 //!    [`with_window_seconds`](VoxtralEngine::with_window_seconds).
 //! 3. A [`VoxtralStreamDriver`] over the engine and an
@@ -61,7 +61,7 @@ mod tests {
                 },
                 testing::ToneConfig,
                 voxtral::{
-                    VoxtralBundle,
+                    VoxtralConstruct,
                     VoxtralRealtime,
                     VoxtralTokenLayoutConfig,
                     blocks::{
@@ -76,9 +76,9 @@ mod tests {
         support::testing::performance_device,
     };
 
-    /// An untrained toy bundle: 128 mels, a 40-token vocabulary whose ids
+    /// An untrained toy construct: 128 mels, a 40-token vocabulary whose ids
     /// past the 8 specials are single letters.
-    fn toy_bundle(device: &Device) -> VoxtralBundle {
+    fn toy_construct(device: &Device) -> VoxtralConstruct {
         let model: VoxtralRealtime = VoxtralRealtimeConfig::new(
             VoxtralAudioEncoderConfig::new(128, 16, 2, 8, 32, 1).with_sliding_window(Some(20)),
             VoxtralTextConfig::new(40, 16, 1, 2, 1, 8, 32).with_sliding_window(Some(30)),
@@ -126,7 +126,7 @@ mod tests {
             .with_delay_ms(160)
             .with_right_buffer_positions(2)
             .init();
-        VoxtralBundle::new(
+        VoxtralConstruct::new(
             model,
             TekkenVocabulary::from_tekken_json(&json).unwrap(),
             layout,
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn test_streams_through_the_core() {
         let device = performance_device();
-        let engine = VoxtralEngine::new(Arc::new(toy_bundle(&device))).with_window_seconds(1.0);
+        let engine = VoxtralEngine::new(Arc::new(toy_construct(&device))).with_window_seconds(1.0);
         assert_eq!(engine.window_frames(), 96);
         assert_eq!(engine.grid_frames(), 8);
         let driver = VoxtralStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
@@ -183,7 +183,7 @@ mod tests {
     /// an error.
     #[test]
     fn test_text() {
-        let engine = VoxtralEngine::new(Arc::new(toy_bundle(&performance_device())));
+        let engine = VoxtralEngine::new(Arc::new(toy_construct(&performance_device())));
         assert_eq!(engine.text(&[4, 8, 3, 9]).unwrap().as_deref(), Some(" a b"));
         assert!(engine.text(&[-1]).is_err());
         assert!(engine.text(&[45]).is_err());

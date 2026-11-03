@@ -29,7 +29,7 @@ mod parakeet_tdt_0_6b_v3 {
         let (reference, _) = reference::EncoderModel::load_pretrained(&device)
             .forward(synthetic_features(&device), length);
 
-        let bundle = load_bundle(BASE, &device);
+        let bundle = load_construct(BASE, &device);
         let (ours, lengths) = bundle
             .model
             .encoder
@@ -52,7 +52,7 @@ mod parakeet_tdt_0_6b_v3 {
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().decoder_joint;
         let reference = reference::DecoderJointModel::load_pretrained(&device);
-        let bundle = load_bundle(BASE, &device);
+        let bundle = load_construct(BASE, &device);
         let model = &bundle.model;
 
         for (i, step) in fixture.steps.iter().enumerate() {

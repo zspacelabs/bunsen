@@ -300,8 +300,9 @@ impl WhisperTokenLayoutConfig {
 ///
 /// [`WhisperSpecialIds`] is the layout as numbers, a plain `Copy` value;
 /// this pairs it with the layout's names and timestamp grid, and is the
-/// view of it the decode loop holds. A [`WhisperBundle`](super::WhisperBundle)
-/// carries one beside its model, and the driver reads it from there.
+/// view of it the decode loop holds. A
+/// [`WhisperConstruct`](super::WhisperConstruct) carries one beside its model,
+/// and the driver reads it from there.
 ///
 /// The [`ids`](Self::ids) as numbers, with the [`layout`](Self::layout)
 /// that names them and times the timestamps. Built from the checkpoint's own

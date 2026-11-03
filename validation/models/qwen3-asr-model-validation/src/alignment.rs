@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use bunsen::{
     kits::speech::qwen3_asr::{
         QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
-        Qwen3AsrBundle,
+        Qwen3AsrConstruct,
         Qwen3AsrFrontEndMeta,
     },
     support::testing::{
@@ -106,13 +106,13 @@ struct Window {
     /// Seconds into the window of each encoder frame: the middle of the
     /// mel frames it starts on.
     seconds: Vec<f64>,
-    /// [`Qwen3AsrBundle::token_frames`] under
+    /// [`Qwen3AsrConstruct::token_frames`] under
     /// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]: a frame per transcript token.
     aligned: Vec<usize>,
 }
 
 fn decode_window(
-    bundle: &Qwen3AsrBundle,
+    bundle: &Qwen3AsrConstruct,
     samples: &[f32],
     (start, end): (usize, usize),
     device: &Device,
@@ -214,7 +214,7 @@ fn word_starts(
         .collect()
 }
 
-/// The words' errors under [`Qwen3AsrBundle::token_frames`] with
+/// The words' errors under [`Qwen3AsrConstruct::token_frames`] with
 /// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`].
 fn aligned_errors(
     windows: &[Window],
@@ -268,7 +268,7 @@ mod measure_attention_alignment {
     fn qwen3_asr_0_6b() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
         let samples = speech_clip(CLIP);
         let reference = word_times();
         let windows: Vec<Window> = WINDOWS
@@ -321,7 +321,7 @@ fn check_aligns_on_the_base_heads(name: &str) {
     let reference = word_times();
     {
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_bundle(name, &device);
+        let bundle = load_construct(name, &device);
         let windows: Vec<Window> = WINDOWS
             .iter()
             .map(|&w| decode_window(&bundle, &samples, w, &device))

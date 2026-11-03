@@ -75,7 +75,7 @@ fn geometry_of(prefab: &str) -> WhisperGeometry {
 /// multilingual layout, the multilingual vocabulary, both parts cached.
 #[test]
 #[serial]
-fn test_the_factory_builds_the_bundle() {
+fn test_the_factory_builds_the_construct() {
     let cache = offline_cache();
     let loaded = default_whisper_factory()
         .unwrap()

@@ -31,7 +31,7 @@ use crate::{
             sortformer::{
                 NemotronDiarizationConfig,
                 Sortformer,
-                SortformerBundle,
+                SortformerConstruct,
                 SortformerFamily,
                 weights::{
                     load_nemotron_hf_tensors,
@@ -115,11 +115,11 @@ impl SortformerConstructConfig {
         nemotron_config_from_hf(&json).map_err(|e| e.context(path.display()))
     }
 
-    /// A Nemotron bundle from a `transformers` checkpoint.
+    /// A Nemotron construct from a `transformers` checkpoint.
     fn construct_safetensors(
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<SortformerBundle> {
+    ) -> BunsenResult<SortformerConstruct> {
         let config = match loaded.get(CONFIG) {
             Some(part) => Self::read_config(&part.path)?,
             None => NemotronDiarizationConfig::nemotron_3_diarization(),
@@ -128,7 +128,7 @@ impl SortformerConstructConfig {
         let mut model: Sortformer = config.try_init(device)?;
         load_nemotron_hf_tensors(&mut model, tensors)?;
         let front_end = NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(config.n_mels);
-        SortformerBundle::new(model, SortformerFamily::Nemotron, &front_end, device)
+        SortformerConstruct::new(model, SortformerFamily::Nemotron, &front_end, device)
     }
 
     /// Checks a `.nemo`'s config from the head of the archive, read alone
@@ -158,12 +158,12 @@ impl SortformerConstructConfig {
         Ok(())
     }
 
-    /// A Sortformer v2 bundle from a `.nemo`.
+    /// A Sortformer v2 construct from a `.nemo`.
     #[cfg(feature = "nemo")]
     fn construct_nemo(
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<SortformerBundle> {
+    ) -> BunsenResult<SortformerConstruct> {
         use crate::kits::speech::{
             nemo::NemoArchive,
             sortformer::{
@@ -179,12 +179,12 @@ impl SortformerConstructConfig {
         let front_end = config.front_end().map_err(in_path)?;
         let mut model: Sortformer = structure.try_init(device)?;
         archive.with_weights(|tensors| load_sortformer_v2_nemo_tensors(&mut model, tensors))?;
-        SortformerBundle::new(model, SortformerFamily::SortformerV2, &front_end, device)
+        SortformerConstruct::new(model, SortformerFamily::SortformerV2, &front_end, device)
     }
 }
 
 impl ConstructInit for SortformerConstructConfig {
-    type Construct = SortformerBundle;
+    type Construct = SortformerConstruct;
 
     const KIT: &'static str = SORTFORMER_KIT;
 
@@ -227,7 +227,7 @@ impl ConstructInit for SortformerConstructConfig {
         _model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<SortformerBundle>> {
+    ) -> BunsenResult<Arc<SortformerConstruct>> {
         let bundle = match self.reader {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device)?,
             #[cfg(feature = "nemo")]
@@ -263,7 +263,7 @@ mod tests {
         );
     }
 
-    /// A `.nemo` builds a Sortformer v2 bundle: the model and the front end
+    /// A `.nemo` builds a Sortformer v2 construct: the model and the front end
     /// from its config, every parameter from its weights.
     #[cfg(feature = "nemo")]
     #[test]

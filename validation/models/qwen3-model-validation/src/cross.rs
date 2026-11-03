@@ -30,7 +30,7 @@ mod qwen3_0_6b {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference();
-        let bundle = load_bundle("qwen/qwen3-0.6b", &device);
+        let bundle = load_construct("qwen/qwen3-0.6b", &device);
         let model = &bundle.model;
         let seq = fixture.ids.len();
 
@@ -61,7 +61,7 @@ mod qwen3_0_6b {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference();
-        let bundle = load_bundle("qwen/qwen3-0.6b", &device);
+        let bundle = load_construct("qwen/qwen3-0.6b", &device);
         let reference = reference::Qwen3OnnxModel::load_pretrained(&device);
 
         // The reference decodes greedily; bunsen is fed the same tokens.

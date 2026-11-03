@@ -23,7 +23,7 @@ use crate::{
 /// [`default_parakeet_factory`](super::pretrained::default_parakeet_factory)
 /// builds one from a name.
 #[derive(Debug)]
-pub struct ParakeetBundle {
+pub struct ParakeetConstruct {
     /// The model.
     pub model: ParakeetTdt,
 
@@ -65,7 +65,7 @@ impl ParakeetTranscript {
     /// takes every following piece that does not; special pieces are
     /// skipped. It starts at its first token's frame and ends where its last
     /// token's duration (at least one frame) ends; `frame_seconds` is
-    /// [`ParakeetBundle::frame_seconds`].
+    /// [`ParakeetConstruct::frame_seconds`].
     ///
     /// # Errors
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
@@ -103,8 +103,8 @@ impl ParakeetTranscript {
     }
 }
 
-impl ParakeetBundle {
-    /// A bundle of `model` and `vocab`, behind the default front end.
+impl ParakeetConstruct {
+    /// A construct of `model` and `vocab`, behind the default front end.
     ///
     /// # Errors
     /// As [`ParakeetFrontEndConfig`]'s `try_init`.

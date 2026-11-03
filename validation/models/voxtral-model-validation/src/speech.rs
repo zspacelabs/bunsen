@@ -52,7 +52,7 @@ mod voxtral_mini_4b_realtime_2602 {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = speech_reference().front_end;
-        let bundle = load_bundle(&device);
+        let bundle = load_construct(&device);
         let samples = synthetic_wave(fixture.samples);
         let padded = bundle.layout.pad(&samples, bundle.samples_per_position());
         let features = bundle.front_end.forward(&padded, &device).unwrap();
@@ -78,7 +78,7 @@ mod voxtral_mini_4b_realtime_2602 {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = speech_reference();
-        let bundle = load_bundle(&device);
+        let bundle = load_construct(&device);
         let rate = bundle.front_end.sample_rate();
         let samples = speech_clip(&fixture.clip);
 

@@ -28,7 +28,7 @@ use crate::{
     },
     kits::{
         speech::parakeet::{
-            ParakeetBundle,
+            ParakeetConstruct,
             ParakeetTdt,
             ParakeetTdtConfig,
             ParakeetVocabulary,
@@ -115,7 +115,7 @@ pub struct ParakeetConstructConfig {
 }
 
 impl ConstructInit for ParakeetConstructConfig {
-    type Construct = ParakeetBundle;
+    type Construct = ParakeetConstruct;
 
     const KIT: &'static str = PARAKEET_KIT;
 
@@ -146,7 +146,7 @@ impl ConstructInit for ParakeetConstructConfig {
         _model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<ParakeetBundle>> {
+    ) -> BunsenResult<Arc<ParakeetConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
             Some(part) => {
@@ -158,7 +158,7 @@ impl ConstructInit for ParakeetConstructConfig {
         };
         let mut model: ParakeetTdt = config.try_init(device)?;
         load_hf_tensors(&mut model, tensors)?;
-        Ok(Arc::new(ParakeetBundle::new(model, vocab, device)?))
+        Ok(Arc::new(ParakeetConstruct::new(model, vocab, device)?))
     }
 }
 

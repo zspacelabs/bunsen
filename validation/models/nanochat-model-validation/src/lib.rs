@@ -46,7 +46,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::gpts::nanochat::NanoChatBundle,
+    kits::gpts::nanochat::NanoChatConstruct,
     ops::transformers::attention::KVCacheStorage,
     support::testing::TensorRecord,
 };
@@ -257,13 +257,13 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 
 /// A nanochat pretrained by name, through bunsen's factory and
 /// [`weights_cache`].
-pub fn load_bundle(
+pub fn load_construct(
     name: &str,
     device: &Device,
-) -> std::sync::Arc<NanoChatBundle> {
+) -> std::sync::Arc<NanoChatConstruct> {
     bunsen::kits::gpts::nanochat::pretrained::default_nanochat_factory()
         .expect("the nanochat factory")
-        .load_bundle(name, &weights_cache(), device)
+        .load_construct(name, &weights_cache(), device)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 
@@ -274,7 +274,7 @@ pub fn load_bundle(
 /// The `[1, vocab]` logits after the prefill and after each step, one more
 /// row than `fed` has tokens.
 pub fn bunsen_decode(
-    bundle: &NanoChatBundle,
+    bundle: &NanoChatConstruct,
     prompt: &[i64],
     fed: &[i64],
     storage: KVCacheStorage,

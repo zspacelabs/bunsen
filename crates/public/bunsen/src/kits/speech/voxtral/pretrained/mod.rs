@@ -1,9 +1,9 @@
 //! # Pretrained Voxtral Realtime models
 //!
-//! From a model's name to a loaded [`VoxtralBundle`](super::VoxtralBundle),
-//! through the data layer's pretrained machinery
-//! ([`data::pretrained`](crate::data::pretrained)). The whole module needs
-//! the `store_safetensors` and `cache` features.
+//! From a model's name to a loaded
+//! [`VoxtralConstruct`](super::VoxtralConstruct), through the data layer's
+//! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
+//! whole module needs the `store_safetensors` and `cache` features.
 //!
 //! # The index
 //!
@@ -26,7 +26,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
+//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`VoxtralConstructConfig`],
 //! brings every file local through the cache, and reads them into the row's
 //! prefab through [`load_hf_tensors`](super::weights::load_hf_tensors).

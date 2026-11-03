@@ -27,7 +27,7 @@ use crate::{
 /// decoder: what a pretrained loads to, and everything a transcription
 /// needs.
 #[derive(Debug)]
-pub struct Qwen3AsrBundle {
+pub struct Qwen3AsrConstruct {
     /// The model.
     pub model: Qwen3Asr,
 
@@ -44,13 +44,13 @@ pub struct Qwen3AsrBundle {
     pub decoder: Qwen3AsrGreedyDecoderConfig,
 }
 
-impl Qwen3AsrBundle {
+impl Qwen3AsrConstruct {
     /// The longest window [`transcribe_long`](Self::transcribe_long) is
     /// meant to take, in seconds: Qwen3-ASR was trained on utterances of at
     /// most 30 s.
     pub const MAX_WINDOW_SECONDS: usize = 30;
 
-    /// A bundle of `model` and `vocab`, behind the default front end, prompt
+    /// A construct of `model` and `vocab`, behind the default front end, prompt
     /// and decoder.
     ///
     /// # Errors

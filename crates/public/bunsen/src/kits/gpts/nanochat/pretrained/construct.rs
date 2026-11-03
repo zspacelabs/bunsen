@@ -21,7 +21,7 @@ use crate::{
         gpts::nanochat::{
             CHECKPOINT,
             META,
-            NanoChatBundle,
+            NanoChatConstruct,
             weights::{
                 NanoChatMeta,
                 load_pt_checkpoint,
@@ -43,7 +43,7 @@ use crate::{
 pub struct NanoChatConstructConfig;
 
 impl ConstructInit for NanoChatConstructConfig {
-    type Construct = NanoChatBundle;
+    type Construct = NanoChatConstruct;
 
     const KIT: &'static str = NANOCHAT_KIT;
 
@@ -63,11 +63,11 @@ impl ConstructInit for NanoChatConstructConfig {
         _model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<NanoChatBundle>> {
+    ) -> BunsenResult<Arc<NanoChatConstruct>> {
         let meta = loaded.expect(META)?;
         let checkpoint = loaded.expect(CHECKPOINT)?;
         let (model, generation) = load_pt_checkpoint(meta, checkpoint, device)?;
-        let mut bundle = NanoChatBundle::new(model, generation, NanoChatMeta::from_file(meta)?);
+        let mut bundle = NanoChatConstruct::new(model, generation, NanoChatMeta::from_file(meta)?);
         for (key, part) in &loaded.parts {
             bundle = bundle.with_file(key, &part.path);
         }

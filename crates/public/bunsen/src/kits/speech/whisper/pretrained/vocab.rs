@@ -25,7 +25,7 @@ impl WhisperVocabulary {
     /// The files are the two maps
     /// [`MULTILINGUAL_VOCABULARY`](super::MULTILINGUAL_VOCABULARY) and
     /// [`GPT2_VOCABULARY`](super::GPT2_VOCABULARY), pinned to
-    /// [`OPENAI_VOCAB_REVISION`]. A loaded bundle already carries its
+    /// [`OPENAI_VOCAB_REVISION`]. A loaded construct already carries its
     /// vocabulary; this is for a caller that wants the ranks alone.
     ///
     /// # Errors

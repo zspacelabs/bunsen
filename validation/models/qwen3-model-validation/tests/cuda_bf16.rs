@@ -18,7 +18,7 @@ use qwen3_model_validation::{
     STORAGES,
     argmax,
     bunsen_decode,
-    load_bundle,
+    load_construct,
     transformers_bf16_reference,
 };
 
@@ -40,7 +40,7 @@ fn check_row(row: &str) {
     let device = bf16_device();
     let fixture = transformers_bf16_reference();
     let record = &fixture[row];
-    let bundle = load_bundle(row, &device);
+    let bundle = load_construct(row, &device);
     assert!(bundle.model.lm_head.is_some(), "{row}: the head is its own");
 
     for storage in STORAGES {

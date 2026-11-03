@@ -1,10 +1,10 @@
 //! # Pretrained Qwen3-ASR models
 //!
-//! From a model's name to a loaded [`Qwen3AsrBundle`](super::Qwen3AsrBundle),
-//! through the data layer's pretrained machinery
-//! ([`data::pretrained`](crate::data::pretrained)). The whole module needs
-//! the `store_safetensors` and `cache` features; the Phonon archive reader
-//! needs `fermion` as well.
+//! From a model's name to a loaded
+//! [`Qwen3AsrConstruct`](super::Qwen3AsrConstruct), through the data layer's
+//! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
+//! whole module needs the `store_safetensors` and `cache` features; the Phonon
+//! archive reader needs `fermion` as well.
 //!
 //! # The index
 //!
@@ -37,7 +37,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
+//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`Qwen3AsrConstructConfig`],
 //! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into the row's prefab through

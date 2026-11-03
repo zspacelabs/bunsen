@@ -37,7 +37,7 @@ use crate::{
         speech::whisper::{
             WhisperApiConfig,
             WhisperGeometry,
-            driver::WhisperBundle,
+            driver::WhisperConstruct,
             pretrained::{
                 CHECKPOINT,
                 PytorchWhisperScanner,
@@ -235,7 +235,7 @@ impl WhisperReader {
 /// the geometry the checkpoint must have.
 ///
 /// The [`ConstructInit`] hook for the Whisper kit: from a resolved model to a
-/// [`WhisperBundle`]. [`plan`](ConstructInit::plan) scans the checkpoint,
+/// [`WhisperConstruct`]. [`plan`](ConstructInit::plan) scans the checkpoint,
 /// checks it against the geometry the model promises, and applies the
 /// vocabulary rule, all before anything but the checkpoint is brought
 /// local; [`try_init`](ConstructInit::try_init) reads the checkpoint through
@@ -354,7 +354,7 @@ impl WhisperConstructConfig {
 }
 
 impl ConstructInit for WhisperConstructConfig {
-    type Construct = WhisperBundle;
+    type Construct = WhisperConstruct;
 
     const KIT: &'static str = WHISPER_KIT;
 
@@ -437,14 +437,14 @@ impl ConstructInit for WhisperConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<WhisperBundle>> {
+    ) -> BunsenResult<Arc<WhisperConstruct>> {
         let (whisper, cfg) = self.reader.load(loaded, device)?;
         let layout = cfg
             .token_layout
             .policy_for_vocab(cfg.vocab_size)
             .as_policy()
             .with_context(|| model.id())?;
-        let mut bundle = WhisperBundle::new(whisper, layout);
+        let mut bundle = WhisperConstruct::new(whisper, layout);
         if let Some(part) = loaded.get(VOCABULARY) {
             bundle = bundle.with_ranks(TiktokenRanks::load(&part.path)?);
         }

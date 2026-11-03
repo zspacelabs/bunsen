@@ -13,7 +13,7 @@ use crate::{
     kits::{
         speech::whisper::{
             WhisperApiConfig,
-            driver::WhisperBundle,
+            driver::WhisperConstruct,
             pretrained::{
                 WhisperConstructConfig,
                 default_whisper_providers,
@@ -32,9 +32,9 @@ use crate::{
 /// The index a caller holds: Whisper's providers, resolving names to
 /// [`Deferred`] models that carry the kit's [`WhisperConstructConfig`] hook,
 /// chosen by what each row's map says about its checkpoint.
-/// [`load_bundle`](PretrainedFactory::load_bundle) with
+/// [`load_construct`](PretrainedFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
-/// [`WhisperBundle`]; the caller never builds or passes a hook. A
+/// [`WhisperConstruct`]; the caller never builds or passes a hook. A
 /// checkpoint on disk is not the factory's: it is a given map through
 /// [`Deferred::from_resource_bundle`], which gets its hook the same way. A
 /// caller with a provider of its own, a mirror say, adds it with
@@ -48,16 +48,16 @@ pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstr
 }
 
 impl PretrainedFactory<WhisperConstructConfig> {
-    /// A name to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<WhisperBundle>> {
+    ) -> BunsenResult<Arc<WhisperConstruct>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }
@@ -76,15 +76,15 @@ impl Deferred<WhisperConstructConfig> {
         self.config.scan(&self.model, loaded)
     }
 
-    /// This model to a bundle: [`load`](Self::load), keeping the handle.
+    /// This model to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<WhisperBundle>> {
+    ) -> BunsenResult<Arc<WhisperConstruct>> {
         Ok(self.load(cache, device)?.handle)
     }
 }
@@ -361,7 +361,9 @@ mod hub_tests {
         assert!(hf.layout.ids().is_multilingual());
         assert_eq!(hf.ranks.as_ref().map(|r| r.len()), Some(50257));
 
-        let openai = factory.load_bundle("openai/tiny", &cache, &device).unwrap();
+        let openai = factory
+            .load_construct("openai/tiny", &cache, &device)
+            .unwrap();
         let close = |a: Tensor<2>, b: Tensor<2>| {
             assert_tensors_close(&a, &b, Tolerance::<f32>::default());
         };

@@ -12,13 +12,13 @@
 //!   [`default_whisper_factory`](pretrained::default_whisper_factory) is the
 //!   index: `openai/base`, `large`, `well-known:openai/tiny.en`, and
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo. It resolves a name
-//!   to a [`WhisperBundle`](driver::WhisperBundle): the model at the precision
-//!   it ships in, its token layout, and its vocabulary.
+//!   to a [`WhisperConstruct`](driver::WhisperConstruct): the model at the
+//!   precision it ships in, its token layout, and its vocabulary.
 //! - [`decode`]: one window of audio to tokens, with upstream's temperature
 //!   fallback.
 //! - [`logit_filters`]: what the decode may and may not emit.
 //! - [`driver`]: [`WhisperStreamDriver`](driver::WhisperStreamDriver) over a
-//!   bundle, and the [context](driver::WhisperStreamContext) it opens on a
+//!   construct, and the [context](driver::WhisperStreamContext) it opens on a
 //!   stream: samples in,
 //!   [`TranscriptEvent`](crate::kits::speech::asr_driver::TranscriptEvent)s
 //!   out.
@@ -30,14 +30,16 @@
 //! 2. The factory,
 //!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
 //!    to a row of the index, and the kit's hook to build it.
-//! 3. A [`WhisperBundle`](driver::WhisperBundle) behind an `Arc`, from the
-//!    factory's [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle):
+//! 3. A [`WhisperConstruct`](driver::WhisperConstruct) behind an `Arc`, from
+//!    the factory's
+//!    [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct):
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
 //!    language, task, timestamps, search, and the
 //!    [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
-//! 5. A [`WhisperStreamDriver`](driver::WhisperStreamDriver) over the bundle,
-//!    from [`init_from_bundle`](driver::WhisperStreamDriverConfig::init_from_bundle):
+//! 5. A [`WhisperStreamDriver`](driver::WhisperStreamDriver) over the
+//!    construct, from
+//!    [`init_from_construct`](driver::WhisperStreamDriverConfig::init_from_construct):
 //!    shared, and never mutated.
 //! 6. A [`WhisperStreamContext`](driver::WhisperStreamContext) per stream, from
 //!    [`new_context`](driver::WhisperStreamDriver::new_context): all of that
@@ -55,7 +57,7 @@
 //! # Example
 //!
 //! The default pathway, as `bunsen-tool asr family whisper` walks it, over any
-//! backend: a cache, the factory, a bundle by name, a driver over it, and a
+//! backend: a cache, the factory, a construct by name, a driver over it, and a
 //! context fed a stream. The first run fetches `openai/base` (145 MB,
 //! digest-checked) and its vocabulary into the cache; later runs find them
 //! there.
@@ -95,13 +97,13 @@
 //! ) -> BunsenResult<WhisperStreamDriver> {
 //!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
-//!     // A name to a bundle: the checkpoint read through the reader its
+//!     // A name to a construct: the checkpoint read through the reader its
 //!     // row names, checked against the geometry the name promises, and
 //!     // the vocabulary its token layout selects.
-//!     let bundle =
-//!         default_whisper_factory()?.load_bundle(name, &cache, device)?;
+//!     let construct =
+//!         default_whisper_factory()?.load_construct(name, &cache, device)?;
 //!
-//!     WhisperStreamDriverConfig::new().init_from_bundle(bundle, device)
+//!     WhisperStreamDriverConfig::new().init_from_construct(construct, device)
 //! }
 //!
 //! /// One stream through the driver: mono samples at the model's rate
@@ -153,7 +155,7 @@
 //!
 //! # Other ways in
 //!
-//! The same driver serves every other way to a bundle. A checkpoint on disk
+//! The same driver serves every other way to a construct. A checkpoint on disk
 //! is a given map, with the same hook the factory would attach. A Hugging
 //! Face repo is a ref of the `hf` provider, resolved through the cache (the
 //! hub's file listing is fetched once and kept). A vocabulary of one's own
@@ -185,7 +187,7 @@
 //!             silero_vad::pretrained::default_silero_factory,
 //!             whisper::{
 //!                 driver::{
-//!                     WhisperBundle,
+//!                     WhisperConstruct,
 //!                     WhisperStreamDriver,
 //!                     WhisperStreamDriverConfig,
 //!                 },
@@ -208,19 +210,19 @@
 //!     path: &Path,
 //!     cache: &PretrainedCache,
 //!     device: &Device,
-//! ) -> BunsenResult<Arc<WhisperBundle>> {
+//! ) -> BunsenResult<Arc<WhisperConstruct>> {
 //!     Deferred::<WhisperConstructConfig>::from_resource_bundle(
 //!         ResourceBundle::given("mine", CHECKPOINT, path),
 //!     )?
-//!     .load_bundle(cache, device)
+//!     .load_construct(cache, device)
 //! }
 //!
 //! /// A Hugging Face repo: `transformers`' safetensors, one file or shards.
 //! fn load_from_hub(
 //!     cache: &PretrainedCache,
 //!     device: &Device,
-//! ) -> BunsenResult<Arc<WhisperBundle>> {
-//!     default_whisper_factory()?.load_bundle(
+//! ) -> BunsenResult<Arc<WhisperConstruct>> {
+//!     default_whisper_factory()?.load_construct(
 //!         "hf:openai/whisper-large-v3",
 //!         cache,
 //!         device,
@@ -232,20 +234,20 @@
 //!     vocabulary: &Path,
 //!     cache: &PretrainedCache,
 //!     device: &Device,
-//! ) -> BunsenResult<Arc<WhisperBundle>> {
+//! ) -> BunsenResult<Arc<WhisperConstruct>> {
 //!     default_whisper_factory()?
 //!         .resolve("openai/tiny.en", cache)?
 //!         .with_overlay(ResourceBundle::given(
 //!             "--vocab", VOCABULARY, vocabulary,
 //!         ))?
-//!         .load_bundle(cache, device)
+//!         .load_construct(cache, device)
 //! }
 //!
 //! /// Conservative real time: decodes on speech endpoints as well as full
 //! /// windows, with upstream's 16 kHz Silero model as the voice-activity
 //! /// gate.
 //! fn conservative_driver(
-//!     bundle: Arc<WhisperBundle>,
+//!     construct: Arc<WhisperConstruct>,
 //!     cache: &PretrainedCache,
 //!     device: &Device,
 //! ) -> BunsenResult<WhisperStreamDriver> {
@@ -256,7 +258,7 @@
 //!     // rate.
 //!     WhisperStreamDriverConfig::new()
 //!         .with_emission(EmissionPolicy::conservative())
-//!         .init_from_bundle(bundle, device)?
+//!         .init_from_construct(construct, device)?
 //!         .with_vad(
 //!             Arc::new(vad.expect_branch(16_000).clone()),
 //!             VoiceActivityFilterConfig::default(),

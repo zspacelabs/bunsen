@@ -23,11 +23,12 @@ pub const CHECKPOINT: &str = "checkpoint";
 pub const META: &str = "meta";
 
 /// The key of the tokenizer, `tokenizer.pkl` (a pickled `tiktoken`
-/// `Encoding`), in a [`NanoChatBundle`]'s files and a nanochat resource bundle.
+/// `Encoding`), in a [`NanoChatConstruct`]'s files and a nanochat resource
+/// construct.
 pub const TOKENIZER: &str = "tokenizer";
 
 /// The key of the tokenizer's byte lengths, `token_bytes.pt` (one per token,
-/// for upstream's bits-per-byte metric), in a [`NanoChatBundle`]'s files and
+/// for upstream's bits-per-byte metric), in a [`NanoChatConstruct`]'s files and
 /// a nanochat resource bundle.
 pub const TOKEN_BYTES: &str = "token_bytes";
 
@@ -43,7 +44,7 @@ pub const TOKEN_BYTES: &str = "token_bytes";
 /// [`default_nanochat_factory`](super::pretrained::default_nanochat_factory)
 /// builds one from a name.
 #[derive(Debug)]
-pub struct NanoChatBundle {
+pub struct NanoChatConstruct {
     /// The model.
     pub model: NanoChatGpt,
 
@@ -58,8 +59,8 @@ pub struct NanoChatBundle {
     pub files: BTreeMap<String, PathBuf>,
 }
 
-impl NanoChatBundle {
-    /// A bundle of `model`, of `generation`, with its `meta`, and no files.
+impl NanoChatConstruct {
+    /// A construct of `model`, of `generation`, with its `meta`, and no files.
     pub fn new(
         model: NanoChatGpt,
         generation: NanoChatGeneration,
@@ -142,7 +143,7 @@ mod tests {
                 window_pattern: None,
             },
         };
-        let bundle = NanoChatBundle::new(model, NanoChatGeneration::Upstream2025, meta)
+        let bundle = NanoChatConstruct::new(model, NanoChatGeneration::Upstream2025, meta)
             .with_file(TOKENIZER, "/x/tokenizer.pkl");
         assert_eq!(bundle.sequence_len(), 4);
         assert_eq!(bundle.tokenizer(), Some(Path::new("/x/tokenizer.pkl")));

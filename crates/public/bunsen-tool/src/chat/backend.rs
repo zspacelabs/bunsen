@@ -13,7 +13,7 @@ use bunsen::{
         gpts::{
             driver_support::CachedHistory,
             qwen3::{
-                Qwen3Bundle,
+                Qwen3Construct,
                 Qwen3DecodeState,
                 Qwen3Meta,
                 Qwen3Model,
@@ -138,7 +138,7 @@ pub fn row(
 /// a reply never chooses an id the tokenizer cannot spell.
 #[derive(Debug)]
 pub struct Qwen3Chat {
-    bundle: Arc<Qwen3Bundle>,
+    bundle: Arc<Qwen3Construct>,
     tokenizer: Arc<Qwen3Tokenizer>,
     template: ChatTemplate,
     defaults: GenerationDefaults,
@@ -153,7 +153,7 @@ impl Qwen3Chat {
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.json`, `tokenizer_config.json`
     /// or `generation_config.json`; as each file's reader.
-    pub fn from_bundle(bundle: Arc<Qwen3Bundle>) -> BunsenResult<Self> {
+    pub fn from_construct(bundle: Arc<Qwen3Construct>) -> BunsenResult<Self> {
         let missing =
             |what: &str| BunsenError::invalid_resource(format!("a checkpoint without {what}"));
         let config = bundle
@@ -182,7 +182,7 @@ impl Qwen3Chat {
     }
 
     /// The model and its files.
-    pub fn bundle(&self) -> &Arc<Qwen3Bundle> {
+    pub fn bundle(&self) -> &Arc<Qwen3Construct> {
         &self.bundle
     }
 

@@ -1,4 +1,4 @@
-//! # The Whisper bundle
+//! # The Whisper construct
 
 use std::{
     fmt,
@@ -34,32 +34,32 @@ use crate::{
 ///
 /// What a Whisper pretrained builds
 /// ([`WhisperConstructConfig`](crate::kits::speech::whisper::pretrained::WhisperConstructConfig)'s
-/// `Built`, through `load_bundle` on the factory), and what the driver
+/// `Built`, through `load_construct` on the factory), and what the driver
 /// holds behind an `Arc`: the model, its token layout, and, when the
 /// pretrained has one, the base vocabulary a decode needs for text and for
 /// upstream's default suppress list.
-/// [`WhisperStreamDriverConfig::init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle)
+/// [`WhisperStreamDriverConfig::init_from_construct`](super::WhisperStreamDriverConfig::init_from_construct)
 /// builds a driver over one; several drivers over one loaded model share
 /// the `Arc`.
 ///
-/// A bundle without a vocabulary is ids only, which is still a complete
+/// A construct without a vocabulary is ids only, which is still a complete
 /// result: the layout needs no file, and a driver over it emits ids and
 /// applies no suppress list.
 #[derive(Debug)]
-pub struct WhisperBundle {
+pub struct WhisperConstruct {
     /// The model.
     pub model: Whisper,
 
     /// The token layout the model's vocabulary follows.
     pub layout: WhisperTokenLayout,
 
-    /// The base vocabulary, when the bundle has one. `None` is ids only: no
+    /// The base vocabulary, when the construct has one. `None` is ids only: no
     /// text, and no default suppress list.
     pub ranks: Option<TiktokenRanks>,
 }
 
-impl WhisperBundle {
-    /// A bundle over a model with an explicit token layout, and no
+impl WhisperConstruct {
+    /// A construct over a model with an explicit token layout, and no
     /// vocabulary.
     pub fn new(
         model: Whisper,
@@ -72,7 +72,7 @@ impl WhisperBundle {
         }
     }
 
-    /// A bundle over a model, deriving the token layout from the model's
+    /// A construct over a model, deriving the token layout from the model's
     /// vocabulary size, and no vocabulary.
     ///
     /// # Errors
@@ -105,7 +105,7 @@ impl WhisperBundle {
         let ids = self.layout.ids();
         if ids.n_vocab() > self.model.vocab_size() {
             return Err(ConstraintError::new(
-                "WhisperBundle",
+                "WhisperConstruct",
                 "",
                 Rule::Relation {
                     lhs: ("layout.ids().n_vocab()".into(), ids.n_vocab().to_string()),
@@ -148,10 +148,10 @@ impl WhisperBundle {
     }
 }
 
-impl fmt::Display for WhisperBundle {
+impl fmt::Display for WhisperConstruct {
     /// One line of what was loaded: `80 mels, vocabulary 51865, d_model
     /// 512, 6 + 6 layers, 50257 ranks`, or `ids only` in place of the
-    /// ranks for a bundle without a vocabulary.
+    /// ranks for a construct without a vocabulary.
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>,
@@ -206,10 +206,10 @@ mod tests {
             .unwrap()
     }
 
-    /// Without a vocabulary the bundle is ids only: no filters, no text.
+    /// Without a vocabulary the construct is ids only: no filters, no text.
     #[test]
     fn test_ids_only() {
-        let bundle = WhisperBundle::new(tiny_model(), tiny_layout());
+        let bundle = WhisperConstruct::new(tiny_model(), tiny_layout());
         let shown = bundle.to_string();
         assert!(shown.contains(" mels, vocabulary "), "{shown}");
         assert!(shown.ends_with(" layers, ids only"), "{shown}");
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_with_a_vocabulary() {
         let ranks = TiktokenRanks::parse("IA== 0\nb2s= 1\n").unwrap();
-        let bundle = WhisperBundle::new(tiny_model(), tiny_layout()).with_ranks(ranks);
+        let bundle = WhisperConstruct::new(tiny_model(), tiny_layout()).with_ranks(ranks);
         assert!(bundle.to_string().ends_with(" ranks"), "{bundle}");
         bundle.validate().unwrap();
         assert!(!bundle.default_filters().is_empty());
@@ -243,7 +243,7 @@ mod tests {
             );
         }
 
-        let short = WhisperBundle::new(tiny_model(), tiny_layout())
+        let short = WhisperConstruct::new(tiny_model(), tiny_layout())
             .with_ranks(TiktokenRanks::parse("IA== 0\n").unwrap());
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .has_cause::<ConstraintError>()
@@ -254,7 +254,7 @@ mod tests {
     /// whose vocabulary is not a Whisper size cannot derive one.
     #[test]
     fn test_layout_must_fit_the_model() {
-        let too_big = WhisperBundle::new(
+        let too_big = WhisperConstruct::new(
             tiny_model(),
             WhisperTokenLayout::from_vocab_size(51865).unwrap(),
         );
@@ -264,6 +264,6 @@ mod tests {
             .assert_err(&too_big.validate());
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .has_cause::<ConstraintError>()
-            .assert_err(&WhisperBundle::from_model(tiny_model()));
+            .assert_err(&WhisperConstruct::from_model(tiny_model()));
     }
 }

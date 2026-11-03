@@ -68,7 +68,7 @@
 //! [`pretrained`] is an index of community checkpoints of both of
 //! upstream's models, `nanochat-students/rl-d20` by default, through
 //! [`default_nanochat_factory`](pretrained::default_nanochat_factory); a
-//! name loads to a [`NanoChatBundle`], the model with its meta and its
+//! name loads to a [`NanoChatConstruct`], the model with its meta and its
 //! tokenizer files. A decode runs through a [`NanoChatDecodeState`] (the KV
 //! cache, and each row's last token for the smear) and the shared
 //! [`decode_cached`](crate::kits::support::decoding::decode_cached) loop; the
@@ -132,9 +132,9 @@ mod decode;
 pub use decode::*;
 
 #[cfg(feature = "store_pytorch")]
-mod bundle;
+mod construct;
 #[cfg(feature = "store_pytorch")]
-pub use bundle::*;
+pub use construct::*;
 
 #[cfg(feature = "store_pytorch")]
 pub mod weights;

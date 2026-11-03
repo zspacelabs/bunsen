@@ -281,16 +281,16 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 }
 
 /// The published model, through bunsen's factory and [`weights_cache`].
-pub fn load_bundle(
+pub fn load_construct(
     device: &Device
-) -> std::sync::Arc<bunsen::kits::speech::voxtral::VoxtralBundle> {
+) -> std::sync::Arc<bunsen::kits::speech::voxtral::VoxtralConstruct> {
     use bunsen::kits::speech::voxtral::pretrained::{
         DEFAULT_VOXTRAL_MODEL,
         default_voxtral_factory,
     };
     default_voxtral_factory()
         .expect("the voxtral factory")
-        .load_bundle(DEFAULT_VOXTRAL_MODEL, &weights_cache(), device)
+        .load_construct(DEFAULT_VOXTRAL_MODEL, &weights_cache(), device)
         .unwrap_or_else(|e| panic!("load {DEFAULT_VOXTRAL_MODEL}: {e}"))
 }
 

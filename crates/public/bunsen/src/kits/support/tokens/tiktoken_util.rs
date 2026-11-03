@@ -32,7 +32,7 @@ use crate::errors::{
 /// decoder rejects it, and then the file cannot be loaded at all. This one
 /// reads an all-padding field as the empty span, as the reference loader
 /// does. Being here also keeps the ranks available without the `tokenizer`
-/// feature: a bundle's vocabulary, and the suppress list derived from it,
+/// feature: a construct's vocabulary, and the suppress list derived from it,
 /// need no tokenizer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TiktokenRanks {

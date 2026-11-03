@@ -233,13 +233,13 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 
 /// A Parakeet pretrained by name, through bunsen's factory and
 /// [`weights_cache`].
-pub fn load_bundle(
+pub fn load_construct(
     name: &str,
     device: &Device,
-) -> std::sync::Arc<bunsen::kits::speech::parakeet::ParakeetBundle> {
+) -> std::sync::Arc<bunsen::kits::speech::parakeet::ParakeetConstruct> {
     bunsen::kits::speech::parakeet::pretrained::default_parakeet_factory()
         .expect("the parakeet factory")
-        .load_bundle(name, &weights_cache(), device)
+        .load_construct(name, &weights_cache(), device)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 

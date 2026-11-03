@@ -8,7 +8,7 @@ use burn::{
 };
 
 use super::{
-    ParakeetBundle,
+    ParakeetConstruct,
     ParakeetFeatures,
     ParakeetFrontEnd,
     ParakeetFrontEndMeta,
@@ -67,7 +67,7 @@ fn normalize(
         .swap_dims(0, 1)
 }
 
-/// A [`ParakeetBundle`] as an [`AsrEngine`]: what the stream driver core
+/// A [`ParakeetConstruct`] as an [`AsrEngine`]: what the stream driver core
 /// needs of the model.
 ///
 /// - **Features:** [`ParakeetFeatures`], each window normalized per mel channel
@@ -88,7 +88,7 @@ fn normalize(
 /// extractor counts as padding, and goes.
 #[derive(Clone, Debug)]
 pub struct ParakeetEngine {
-    bundle: Arc<ParakeetBundle>,
+    bundle: Arc<ParakeetConstruct>,
     window_frames: usize,
     device: Device,
 }
@@ -99,7 +99,7 @@ impl ParakeetEngine {
 
     /// The engine of `bundle`, on the model's device, with windows of at most
     /// [`DEFAULT_WINDOW_SECONDS`](Self::DEFAULT_WINDOW_SECONDS).
-    pub fn new(bundle: Arc<ParakeetBundle>) -> Self {
+    pub fn new(bundle: Arc<ParakeetConstruct>) -> Self {
         let device = bundle.model.devices()[0].clone();
         let engine = Self {
             bundle,
@@ -130,8 +130,8 @@ impl ParakeetEngine {
         self
     }
 
-    /// The bundle.
-    pub fn bundle(&self) -> &Arc<ParakeetBundle> {
+    /// The construct.
+    pub fn bundle(&self) -> &Arc<ParakeetConstruct> {
         &self.bundle
     }
 
@@ -345,9 +345,9 @@ mod tests {
         support::testing::performance_device,
     };
 
-    /// An untrained toy bundle: a 24-mel encoder subsampling by 8, and an
+    /// An untrained toy construct: a 24-mel encoder subsampling by 8, and an
     /// 11-token vocabulary, the blank last.
-    fn toy_bundle(device: &Device) -> ParakeetBundle {
+    fn toy_construct(device: &Device) -> ParakeetConstruct {
         let config = ParakeetTdtConfig::new(
             ConformerEncoderConfig::new(
                 DwStridingSubsamplingConfig::new(24, 4, 16),
@@ -373,7 +373,7 @@ mod tests {
             "t",
             "<blk>",
         ];
-        ParakeetBundle {
+        ParakeetConstruct {
             model,
             front_end: ParakeetFrontEndConfig::new().with_n_mels(24).init(device),
             vocab: ParakeetVocabulary::new(pieces.map(String::from).to_vec()),
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn test_lay_out() {
         let device = performance_device();
-        let engine = ParakeetEngine::new(Arc::new(toy_bundle(&device))).with_window_seconds(2.0);
+        let engine = ParakeetEngine::new(Arc::new(toy_construct(&device))).with_window_seconds(2.0);
         assert_eq!(engine.window_frames(), 200);
         assert_eq!(engine.grid_frames(), 8);
         let full = engine.window_frames();
@@ -515,7 +515,7 @@ mod tests {
     #[test]
     fn test_streams_through_the_core() {
         let device = performance_device();
-        let engine = ParakeetEngine::new(Arc::new(toy_bundle(&device))).with_window_seconds(1.0);
+        let engine = ParakeetEngine::new(Arc::new(toy_construct(&device))).with_window_seconds(1.0);
         let driver = ParakeetStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)

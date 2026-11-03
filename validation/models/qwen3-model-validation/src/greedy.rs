@@ -16,7 +16,7 @@ fn check_row(row: &str) {
     let _memory = DeviceMemoryGuard::new(&device);
     let fixture = transformers_reference();
     let record = &fixture[row];
-    let bundle = load_bundle(row, &device);
+    let bundle = load_construct(row, &device);
 
     for storage in STORAGES {
         let steps = bunsen_decode(

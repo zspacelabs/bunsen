@@ -8,7 +8,7 @@ use burn::{
 };
 
 use super::{
-    Qwen3AsrBundle,
+    Qwen3AsrConstruct,
     Qwen3AsrFrontEndMeta,
     Qwen3AsrTranscript,
 };
@@ -42,18 +42,19 @@ pub type Qwen3AsrStreamDriver = AsrStreamDriver<Qwen3AsrEngine>;
 /// [`Qwen3AsrEngine`].
 pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 
-/// A [`Qwen3AsrBundle`] as an [`AsrEngine`]: what the stream driver core
+/// A [`Qwen3AsrConstruct`] as an [`AsrEngine`]: what the stream driver core
 /// needs of the model.
 ///
-/// - **Features:** the bundle's log-mels, streamed ([`LogMelFeatures`]), and
+/// - **Features:** the construct's log-mels, streamed ([`LogMelFeatures`]), and
 ///   packaged per window as its front end packages an utterance: floored 8 dB
 ///   under the window's [`MaxLevel`], scaled, and padded with silence to the
 ///   front end's 30 s. A window is at most
-///   [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS) of frames by
+///   [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS) of frames by
 ///   default, and never more
 ///   ([`with_window_seconds`](Self::with_window_seconds)).
-/// - **Decode:** [`transcribe_features`](Qwen3AsrBundle::transcribe_features),
-///   one window at a time: the greedy decoder takes one prompt. A reply's
+/// - **Decode:**
+///   [`transcribe_features`](Qwen3AsrConstruct::transcribe_features), one
+///   window at a time: the greedy decoder takes one prompt. A reply's
 ///   transcript is one segment over the window decoded; Qwen3-ASR has no
 ///   timestamps, so a window is committed whole, and the grid speech regions
 ///   snap to is one frame. A reply with no transcript (`language None`, for
@@ -76,7 +77,7 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 /// where the one-shot extractor pads the waveform with zeros.
 #[derive(Clone, Debug)]
 pub struct Qwen3AsrEngine {
-    bundle: Arc<Qwen3AsrBundle>,
+    bundle: Arc<Qwen3AsrConstruct>,
     window_frames: usize,
     quiet_cut: bool,
     speaker_cut: Option<SpeakerCutConfig>,
@@ -85,9 +86,9 @@ pub struct Qwen3AsrEngine {
 
 impl Qwen3AsrEngine {
     /// The engine of `bundle`, on the model's device, with windows of at most
-    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS), each full
+    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), each full
     /// one cut at a quiet point.
-    pub fn new(bundle: Arc<Qwen3AsrBundle>) -> Self {
+    pub fn new(bundle: Arc<Qwen3AsrConstruct>) -> Self {
         let device = bundle.model.devices()[0].clone();
         let window_frames = bundle.max_window() / bundle.front_end.hop();
         Self {
@@ -125,7 +126,7 @@ impl Qwen3AsrEngine {
     ///
     /// # Panics
     /// If that is under one frame, or over
-    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS), the most
+    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), the most
     /// the model was trained on.
     pub fn with_window_seconds(
         mut self,
@@ -137,14 +138,14 @@ impl Qwen3AsrEngine {
         assert!(
             frames > 0 && frames <= most,
             "a window of {seconds} s is under one frame or over {} s",
-            Qwen3AsrBundle::MAX_WINDOW_SECONDS
+            Qwen3AsrConstruct::MAX_WINDOW_SECONDS
         );
         self.window_frames = frames;
         self
     }
 
-    /// The bundle.
-    pub fn bundle(&self) -> &Arc<Qwen3AsrBundle> {
+    /// The construct.
+    pub fn bundle(&self) -> &Arc<Qwen3AsrConstruct> {
         &self.bundle
     }
 
@@ -382,13 +383,13 @@ mod tests {
     /// The toy's token count.
     const VOCAB: usize = 50;
 
-    /// An untrained toy bundle: a 16-mel encoder, a 50-token text model and
+    /// An untrained toy construct: a 16-mel encoder, a 50-token text model and
     /// vocabulary, a prompt of small ids.
-    fn toy_bundle(
+    fn toy_construct(
         text_token: usize,
         eos: Vec<usize>,
         device: &Device,
-    ) -> Qwen3AsrBundle {
+    ) -> Qwen3AsrConstruct {
         let config = Qwen3AsrConfig::new(
             Qwen3AsrAudioEncoderConfig::new(16, 32, 4, 64, 2, 8).with_n_window_infer(200),
             Qwen3Config::new(VOCAB, 24, 2, 4, 2, 8, 48),
@@ -399,7 +400,7 @@ mod tests {
         let vocab =
             ByteLevelVocabulary::from_vocab_json(&format!("{{{}}}", entries.join(", ")), None)
                 .unwrap();
-        Qwen3AsrBundle {
+        Qwen3AsrConstruct {
             model,
             front_end: Qwen3AsrFrontEndConfig::new().with_n_mels(16).init(device),
             vocab,
@@ -418,7 +419,7 @@ mod tests {
     #[test]
     fn test_window_seconds() {
         let device = performance_device();
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device)));
         assert_eq!(engine.window_frames(), 3000);
         assert_eq!(
             engine.clone().with_window_seconds(12.345).window_frames(),
@@ -431,7 +432,7 @@ mod tests {
     #[should_panic(expected = "over 30 s")]
     fn test_window_past_the_range_panics() {
         let device = performance_device();
-        Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device))).with_window_seconds(30.5);
+        Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).with_window_seconds(30.5);
     }
 
     /// A streamed window, packaged, is the front end's one-shot features,
@@ -441,7 +442,7 @@ mod tests {
     #[test]
     fn test_packaging_matches_the_one_shot_front_end() {
         let device = performance_device();
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device)));
         assert_eq!(engine.window_frames(), 3000);
         let samples = ToneConfig::Duration {
             seconds: 2.0,
@@ -485,7 +486,7 @@ mod tests {
     #[test]
     fn test_lay_out_and_commit() {
         let device = performance_device();
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device)));
         let reply = |tokens: Vec<usize>, language: Option<&str>| Qwen3AsrTranscript {
             tokens,
             language: language.map(String::from),
@@ -535,7 +536,7 @@ mod tests {
         let device = performance_device();
         // No end token, and a text token the model cannot produce: every
         // reply is three tokens of transcript.
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(VOCAB, Vec::new(), &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)));
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
@@ -595,7 +596,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>()
         };
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(VOCAB, Vec::new(), &device)))
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)))
             .with_window_seconds(1.0);
 
         let cut = commits(engine.clone());
@@ -654,7 +655,7 @@ mod tests {
                 })
                 .collect::<Vec<_>>()
         };
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(VOCAB, Vec::new(), &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)));
 
         let cut = commits(
             engine

@@ -21,7 +21,7 @@ use crate::{
         gpts::nanochat::{
             CHECKPOINT,
             META,
-            NanoChatBundle,
+            NanoChatConstruct,
             TOKEN_BYTES,
             TOKENIZER,
         },
@@ -342,8 +342,9 @@ pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// nanochat's factory over [`default_nanochat_providers`], building through
 /// [`NanoChatConstructConfig`].
 ///
-/// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
-/// is the whole pathway from a name to a [`NanoChatBundle`].
+/// [`load_construct`](PretrainedFactory::load_construct) with
+/// `"[provider:]name"` is the whole pathway from a name to a
+/// [`NanoChatConstruct`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -353,16 +354,16 @@ pub fn default_nanochat_factory() -> BunsenResult<PretrainedFactory<NanoChatCons
 }
 
 impl PretrainedFactory<NanoChatConstructConfig> {
-    /// A name to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<NanoChatBundle>> {
+    ) -> BunsenResult<Arc<NanoChatConstruct>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }

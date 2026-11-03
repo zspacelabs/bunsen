@@ -60,7 +60,7 @@ fn transcribe_windows(
 ) -> (f64, f64) {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_bundle(name, &device);
+    let bundle = load_construct(name, &device);
     let rate = bundle.front_end.sample_rate();
     let samples = speech_clip(CLIP);
 
@@ -155,7 +155,7 @@ mod driver {
 
     /// Phonon-1-Micro's stream driver, fed the clip in 0.1 s pieces under the
     /// offline policy without the quiet cut, decodes each 30 s window as the
-    /// bundle decodes those samples in one shot, window for window, within
+    /// construct decodes those samples in one shot, window for window, within
     /// [`EDGE_WER`]: the stream's features differ from the one-shot
     /// extractor's at a window's edges, which can move a word there, and no
     /// more (a dropped, repeated or misplaced chunk moves far more).
@@ -180,7 +180,7 @@ mod driver {
         const EDGE_WER: f64 = 0.02;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_bundle("fermion/phonon-1-micro", &device);
+        let bundle = load_construct("fermion/phonon-1-micro", &device);
         let rate = bundle.front_end.sample_rate();
         let engine = Qwen3AsrEngine::new(bundle.clone()).with_quiet_cut(false);
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
@@ -226,7 +226,7 @@ mod stream_driver_transcribes_like_transformers {
     use super::*;
 
     /// The stream driver, fed the clip in 0.1 s pieces under the offline
-    /// policy, decodes the fixture's two windows as the bundle does: its
+    /// policy, decodes the fixture's two windows as the construct does: its
     /// windows are the same 30 s, and its features differ from the one-shot
     /// extractor's only at the windows' edges.
     #[test]
@@ -247,7 +247,7 @@ mod stream_driver_transcribes_like_transformers {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+        let bundle = load_construct("qwen/qwen3-asr-0.6b", &device);
         let rate = bundle.front_end.sample_rate();
         // Without the quiet cut, a full window is decoded whole: the fixture's
         // windows.
@@ -284,7 +284,7 @@ mod stream_driver_transcribes_like_transformers {
         let against_truth = wer(&text, &speech_transcript(CLIP));
         eprintln!("driver: {text}");
         eprintln!("WER vs transformers {against_reference:.4}, vs transcript {against_truth:.4}");
-        // Measured on wgpu: 0.0 and 0.0085, the bundle's own.
+        // Measured on wgpu: 0.0 and 0.0085, the construct's own.
         assert!(
             against_reference <= 0.0,
             "WER vs transformers {against_reference}"
@@ -319,7 +319,7 @@ fn stream_quiet_cut(name: &str) -> String {
 
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let bundle = load_bundle(name, &device);
+    let bundle = load_construct(name, &device);
     let rate = bundle.front_end.sample_rate();
     let engine = Qwen3AsrEngine::new(bundle);
     let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();

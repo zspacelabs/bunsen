@@ -126,7 +126,7 @@ fn score(
 
 fn diarizer(device: &Device) -> Arc<dyn bunsen::kits::speech::diarization::SpeakerActivityModel> {
     Arc::new(
-        load_bundle(device)
+        load_construct(device)
             .diarizer(SortformerStreamingConfig::nemotron_low_latency())
             .unwrap(),
     )
@@ -149,7 +149,7 @@ mod sortformer_speakers {
         let _memory = DeviceMemoryGuard::new(&device);
         let bundle = default_parakeet_factory()
             .unwrap()
-            .load_bundle("fermion/phonon-2", &weights_cache(), &device)
+            .load_construct("fermion/phonon-2", &weights_cache(), &device)
             .unwrap();
         let driver =
             ParakeetStreamDriver::new(ParakeetEngine::new(bundle), EmissionPolicy::offline())
@@ -171,7 +171,7 @@ mod sortformer_speakers {
         let _memory = DeviceMemoryGuard::new(&device);
         let bundle = default_qwen3_asr_factory()
             .unwrap()
-            .load_bundle("fermion/phonon-1", &weights_cache(), &device)
+            .load_construct("fermion/phonon-1", &weights_cache(), &device)
             .unwrap();
         let driver =
             Qwen3AsrStreamDriver::new(Qwen3AsrEngine::new(bundle), EmissionPolicy::offline())
@@ -193,11 +193,11 @@ mod sortformer_speakers {
         let _memory = DeviceMemoryGuard::new(&device);
         let bundle = default_whisper_factory()
             .unwrap()
-            .load_bundle("openai/base", &weights_cache(), &device)
+            .load_construct("openai/base", &weights_cache(), &device)
             .unwrap();
         let driver = WhisperStreamDriverConfig::new()
             .with_language(Some("en".to_string()))
-            .init_from_bundle(bundle, &device)
+            .init_from_construct(bundle, &device)
             .unwrap()
             .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
             .unwrap();

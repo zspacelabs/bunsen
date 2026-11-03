@@ -243,12 +243,14 @@ impl Family {
     ) -> BunsenResult<Chat> {
         Ok(match self {
             Family::Qwen3 => {
-                let bundle = default_qwen3_factory()?.load_bundle(name, cache, device)?;
-                Chat::Qwen3(Arc::new(ChatModel::from_bundle(bundle)?))
+                let bundle = default_qwen3_factory()?.load_construct(name, cache, device)?;
+                Chat::Qwen3(Arc::new(ChatModel::from_construct(bundle)?))
             }
             Family::NanoChat => {
-                let bundle = default_nanochat_factory()?.load_bundle(name, cache, device)?;
-                Chat::NanoChat(Arc::new(ChatModel::new(NanoChatChat::from_bundle(bundle)?)))
+                let bundle = default_nanochat_factory()?.load_construct(name, cache, device)?;
+                Chat::NanoChat(Arc::new(ChatModel::new(NanoChatChat::from_construct(
+                    bundle,
+                )?)))
             }
         })
     }

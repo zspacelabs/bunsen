@@ -29,7 +29,7 @@ use crate::{
 ///
 /// Cloning shares the model's parameters.
 #[derive(Clone, Debug)]
-pub struct VoxtralBundle {
+pub struct VoxtralConstruct {
     /// The model.
     pub model: VoxtralRealtime,
 
@@ -46,8 +46,8 @@ pub struct VoxtralBundle {
     pub decoder: VoxtralGreedyDecoder,
 }
 
-impl VoxtralBundle {
-    /// A bundle of `model`, `vocab` and `layout`, behind the default front
+impl VoxtralConstruct {
+    /// A construct of `model`, `vocab` and `layout`, behind the default front
     /// end and decoder.
     ///
     /// # Errors
@@ -70,7 +70,7 @@ impl VoxtralBundle {
         })
     }
 
-    /// The bundle under another delay: the same model, told to write
+    /// The construct under another delay: the same model, told to write
     /// `delay_ms` behind the audio.
     ///
     /// # Errors

@@ -19,7 +19,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        speech::parakeet::ParakeetBundle,
+        speech::parakeet::ParakeetConstruct,
         support::construct::PretrainedFactory,
     },
 };
@@ -165,8 +165,9 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Parakeet's factory over [`default_parakeet_providers`], building through
 /// [`ParakeetConstructConfig`].
 ///
-/// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
-/// is the whole pathway from a name to a [`ParakeetBundle`].
+/// [`load_construct`](PretrainedFactory::load_construct) with
+/// `"[provider:]name"` is the whole pathway from a name to a
+/// [`ParakeetConstruct`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -176,16 +177,16 @@ pub fn default_parakeet_factory() -> BunsenResult<PretrainedFactory<ParakeetCons
 }
 
 impl PretrainedFactory<ParakeetConstructConfig> {
-    /// A name to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<ParakeetBundle>> {
+    ) -> BunsenResult<Arc<ParakeetConstruct>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }

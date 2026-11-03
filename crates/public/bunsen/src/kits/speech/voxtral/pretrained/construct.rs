@@ -28,7 +28,7 @@ use crate::{
     },
     kits::{
         speech::voxtral::{
-            VoxtralBundle,
+            VoxtralConstruct,
             VoxtralRealtime,
             VoxtralRealtimeConfig,
             VoxtralTokenLayoutConfig,
@@ -61,7 +61,7 @@ use crate::{
 pub struct VoxtralConstructConfig;
 
 impl ConstructInit for VoxtralConstructConfig {
-    type Construct = VoxtralBundle;
+    type Construct = VoxtralConstruct;
 
     const KIT: &'static str = VOXTRAL_KIT;
 
@@ -97,7 +97,7 @@ impl ConstructInit for VoxtralConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<VoxtralBundle>> {
+    ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
         let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;
         let vocab =
@@ -122,7 +122,7 @@ impl ConstructInit for VoxtralConstructConfig {
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         load_hf_tensors(&mut voxtral, tensors)?;
-        Ok(Arc::new(VoxtralBundle::new(voxtral, vocab, layout)?))
+        Ok(Arc::new(VoxtralConstruct::new(voxtral, vocab, layout)?))
     }
 }
 

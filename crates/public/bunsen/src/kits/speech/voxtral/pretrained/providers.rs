@@ -19,7 +19,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        speech::voxtral::VoxtralBundle,
+        speech::voxtral::VoxtralConstruct,
         support::construct::PretrainedFactory,
     },
 };
@@ -124,8 +124,9 @@ pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Voxtral's factory over [`default_voxtral_providers`], building through
 /// [`VoxtralConstructConfig`].
 ///
-/// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
-/// is the whole pathway from a name to a [`VoxtralBundle`].
+/// [`load_construct`](PretrainedFactory::load_construct) with
+/// `"[provider:]name"` is the whole pathway from a name to a
+/// [`VoxtralConstruct`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -135,16 +136,16 @@ pub fn default_voxtral_factory() -> BunsenResult<PretrainedFactory<VoxtralConstr
 }
 
 impl PretrainedFactory<VoxtralConstructConfig> {
-    /// A name to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a construct: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle(
+    pub fn load_construct(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<VoxtralBundle>> {
+    ) -> BunsenResult<Arc<VoxtralConstruct>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }
