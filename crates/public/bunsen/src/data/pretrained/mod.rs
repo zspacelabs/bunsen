@@ -211,6 +211,7 @@
 //!             dir: Some(upstream.clone()),
 //!         }],
 //!     }),
+//!     presets: Default::default(),
 //! };
 //!
 //! // The kit's index: one provider, a table of one group.
