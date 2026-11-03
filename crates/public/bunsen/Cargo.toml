@@ -120,12 +120,14 @@ train = [
 
 ## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
 ## digests (`sha256_of`, `verify_sha256`), links (`link_or_copy`), the shard
-## and weights indexes over local files. Nothing here reaches the network;
-## that is `fetch`.
+## and weights indexes over local files, and the pretrained factory, whose
+## lookup expressions take a YAML patch (through `serde-saphyr`). Nothing
+## here reaches the network; that is `fetch`.
 cache = [
     "std",
     "dep:bunsen-fetch",
     "dep:directories-next",
+    "dep:serde-saphyr",
     "dep:sha2",
 ]
 

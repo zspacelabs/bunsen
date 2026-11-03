@@ -9,9 +9,10 @@
 //!   `hf:` readers map it onto their configs.
 //! - [`resolve_presets`]: a config resolved through a pretrained's presets
 //!   ([`PresetSet`](crate::data::pretrained::PresetSet)) as a
-//!   [`PresetSelection`] asks: the family's config, the row's default presets,
-//!   the selected presets, then a final patch, each a [merge
-//!   patch](crate::support::merge_patch) over the one before.
+//!   [`PresetSelection`](crate::data::pretrained::PresetSelection) asks: the
+//!   family's config, the row's default presets, the selected presets, then a
+//!   final patch, each a [merge patch](crate::support::merge_patch) over the
+//!   one before.
 
 mod hf_config;
 mod presets;

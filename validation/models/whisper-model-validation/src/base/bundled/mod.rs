@@ -102,6 +102,7 @@ pub fn bundled_table() -> PretrainedTable {
             items: vec![base],
             ..openai
         }],
+        case_sensitive: false,
     }
 }
 

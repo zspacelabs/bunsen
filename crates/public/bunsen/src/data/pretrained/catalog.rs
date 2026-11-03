@@ -370,7 +370,7 @@ impl PretrainedCatalog {
     /// As [`to_pretrained`](Self::to_pretrained), under a frame naming the
     /// kit.
     pub fn to_table(&self) -> BunsenResult<PretrainedTable> {
-        let groups = self
+        let groups: Vec<PretrainedGroup> = self
             .groups
             .iter()
             .map(|group| {
@@ -389,12 +389,47 @@ impl PretrainedCatalog {
             })
             .collect::<BunsenResult<_>>()
             .with_context(|| format!("the {} catalog", self.kit))?;
+        check_case_unique(&groups).with_context(|| format!("the {} catalog", self.kit))?;
         Ok(PretrainedTable {
             name: self.name.clone(),
             description: self.description.clone(),
             groups,
+            case_sensitive: false,
         })
     }
+}
+
+/// Checks that no two groups, and no two names within a group (rows and
+/// aliases), differ only by ASCII case: a table compares names ignoring case
+/// by default, so such a pair could never be told apart.
+fn check_case_unique(groups: &[PretrainedGroup]) -> BunsenResult<()> {
+    fn first_clash<'a>(names: impl IntoIterator<Item = &'a str>) -> Option<(&'a str, &'a str)> {
+        let mut seen: Vec<&str> = Vec::new();
+        for name in names {
+            if let Some(other) = seen.iter().find(|s| s.eq_ignore_ascii_case(name)) {
+                return Some((other, name));
+            }
+            seen.push(name);
+        }
+        None
+    }
+    if let Some((a, b)) = first_clash(groups.iter().map(|g| g.name.as_str())) {
+        return Err(BunsenError::illegal(format!(
+            "the groups {a:?} and {b:?} differ only by case"
+        )));
+    }
+    for group in groups {
+        let names = group.items.iter().flat_map(|row| {
+            core::iter::once(row.name.as_str()).chain(row.aliases.iter().map(String::as_str))
+        });
+        if let Some((a, b)) = first_clash(names) {
+            return Err(BunsenError::illegal(format!(
+                "the group {:?}: the names {a:?} and {b:?} differ only by case",
+                group.name
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// A kit's catalog, embedded at build time and parsed on first use:
@@ -751,5 +786,28 @@ mod tests {
             "the toy catalog: the row \"small\"'s presets: \
              the default selects two members of the axis `quality`"
         );
+    }
+
+    /// Names a table cannot tell apart, ignoring case, do not load.
+    #[test]
+    fn test_names_differ_by_more_than_case() {
+        let mut catalog = PretrainedCatalog::from_json(CATALOG).unwrap();
+        catalog.groups[0].rows[1].aliases.push("Small".to_string());
+        let result = catalog.to_table();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("the group \"a\": the names \"small\" and \"Small\" differ only by case")
+            .assert_err(&result);
+
+        let mut catalog = PretrainedCatalog::from_json(CATALOG).unwrap();
+        catalog.groups[1].name = "A".to_string();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("the groups \"a\" and \"A\" differ only by case")
+            .assert_err(&catalog.to_table());
+
+        // The same name in two groups is two rows, as before.
+        PretrainedCatalog::from_json(CATALOG)
+            .unwrap()
+            .to_table()
+            .unwrap();
     }
 }

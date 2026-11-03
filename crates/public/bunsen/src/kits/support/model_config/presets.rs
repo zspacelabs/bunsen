@@ -8,50 +8,15 @@ use serde_json::Value;
 
 use crate::{
     data::pretrained::{
+        PresetSelection,
         PresetSet,
-        quoted,
     },
     errors::{
         BunsenError,
         BunsenResult,
-        LookupError,
     },
     support::merge_patch,
 };
-
-/// What a lookup asks of a pretrained's presets: the presets it names, and
-/// a final patch over the result.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct PresetSelection {
-    /// The presets named, in the order given.
-    pub presets: Vec<String>,
-
-    /// A merge patch applied after every preset.
-    pub patch: Option<Value>,
-}
-
-impl PresetSelection {
-    /// Selects `presets`.
-    pub fn new<I, S>(presets: I) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        S: Into<String>,
-    {
-        Self {
-            presets: presets.into_iter().map(Into::into).collect(),
-            patch: None,
-        }
-    }
-
-    /// Sets the final patch.
-    pub fn with_patch(
-        mut self,
-        patch: Value,
-    ) -> Self {
-        self.patch = Some(patch);
-        self
-    }
-}
 
 /// A config resolved through a pretrained's presets, and what resolved it.
 #[derive(Clone, Debug, PartialEq)]
@@ -60,11 +25,22 @@ pub struct ResolvedPresets<C> {
     pub config: C,
 
     /// The presets applied, in order: the default's that no selection
-    /// displaced, then the selected.
+    /// displaced, then the selected, each named as the set declares it.
     pub presets: Vec<String>,
 
     /// The final patch, if the selection had one.
     pub patch: Option<Value>,
+}
+
+impl<C> ResolvedPresets<C> {
+    /// What was applied, as a lookup expression's tail: the applied presets
+    /// and the patch ([`PresetSelection`]'s `Display`).
+    pub fn applied(&self) -> PresetSelection {
+        PresetSelection {
+            presets: self.presets.clone(),
+            patch: self.patch.clone(),
+        }
+    }
 }
 
 /// Resolves `base` through `set`'s presets as `selection` asks.
@@ -78,19 +54,19 @@ pub struct ResolvedPresets<C> {
 /// 3. the selected presets;
 /// 4. the selection's final patch.
 ///
-/// The selected presets are one layer: two that set the same path are an
-/// error, so their order never matters. A layer over the default may set
-/// what the default set. Every patch is checked against the config it is
-/// applied to ([`validate_paths`](merge_patch::validate_paths)), and the
-/// result is deserialized as `C`.
+/// The selected presets are one layer, checked by
+/// [`PresetSet::check_selection`]: two that set the same path are an error,
+/// so their order never matters. A layer over the default may set what the
+/// default set. Every patch is checked against the config it is applied to
+/// ([`validate_paths`](merge_patch::validate_paths)), and the result is
+/// deserialized as `C`.
 ///
 /// # Errors
-/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): a selected preset that
-///   `set` lacks (its candidates are `set`'s presets), a preset selected twice,
-///   or a patch naming a field the config lacks.
-/// - [`Policy`](crate::errors::BunsenErrorKind::Policy): two selected members
-///   of one axis, two selected presets setting the same path, or a result that
-///   does not deserialize as `C`.
+/// - As [`PresetSet::check_selection`].
+/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): a patch naming a field
+///   the config lacks, under a frame naming the preset or the lookup's patch.
+/// - [`Policy`](crate::errors::BunsenErrorKind::Policy): a result that does not
+///   deserialize as `C`.
 /// - [`Internal`](crate::errors::BunsenErrorKind::Internal): `base` does not
 ///   serialize.
 pub fn resolve_presets<C>(
@@ -101,20 +77,8 @@ pub fn resolve_presets<C>(
 where
     C: Serialize + DeserializeOwned,
 {
-    let selected = check_selection(set, selection)?;
-
-    let mut presets: Vec<String> = set
-        .default
-        .iter()
-        .filter(|name| {
-            let displaced = set
-                .axis_of(name)
-                .is_some_and(|axis| selected.iter().any(|s| axis.members.iter().any(|m| m == s)));
-            !displaced && !selected.contains(name)
-        })
-        .cloned()
-        .collect();
-    presets.extend(selected.iter().cloned());
+    let selected = set.check_selection(selection)?;
+    let presets = set.applied(&selected);
 
     let mut value = serde_json::to_value(base)
         .map_err(|e| BunsenError::internal("a config that does not serialize").with_cause(e))?;
@@ -135,57 +99,6 @@ where
         presets,
         patch: selection.patch.clone(),
     })
-}
-
-/// The selection's names, checked: each a preset of `set`, named once, at
-/// most one per axis, and the lot setting disjoint paths.
-fn check_selection(
-    set: &PresetSet,
-    selection: &PresetSelection,
-) -> BunsenResult<Vec<String>> {
-    let mut selected: Vec<String> = Vec::new();
-    for name in &selection.presets {
-        if set.get(name).is_none() {
-            return Err(BunsenError::lookup(
-                LookupError::missing("preset", name.clone()).with_candidates(set.names()),
-            ));
-        }
-        if selected.contains(name) {
-            return Err(BunsenError::lookup(LookupError::duplicate(
-                "preset",
-                name.clone(),
-            )));
-        }
-        if let Some(axis) = set.axis_of(name)
-            && let Some(other) = selected
-                .iter()
-                .find(|s| axis.members.iter().any(|m| m == *s))
-        {
-            return Err(BunsenError::policy(format!(
-                "`{other}` and `{name}` are both on the axis `{}` ({}): select one",
-                axis.name, axis.description
-            )));
-        }
-        selected.push(name.clone());
-    }
-
-    let patches: Vec<&Value> = selected
-        .iter()
-        .map(|name| &set.get(name).expect("checked above").patch)
-        .collect();
-    if let Some(conflict) = merge_patch::conflicts(&patches).first() {
-        let who: Vec<&str> = conflict
-            .patches
-            .iter()
-            .map(|&i| selected[i].as_str())
-            .collect();
-        return Err(BunsenError::policy(format!(
-            "the presets {} each set `{}`: select one",
-            quoted(&who),
-            conflict.path
-        )));
-    }
-    Ok(selected)
 }
 
 fn apply_layer(
@@ -210,6 +123,7 @@ mod tests {
         },
         errors::{
             BunsenErrorKind,
+            LookupError,
             testing::ErrorMatcher,
         },
     };

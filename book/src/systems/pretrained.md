@@ -82,6 +82,17 @@ returns an error, and the error aborts the lookup, because a hub that cannot
 be reached is not the same as a hub that has no such row
 ([dispatch](bunsen::kits::support::construct::PretrainedFactory#dispatch)).
 
+A spec is a lookup expression: `[provider:]name`, then an optional box of
+presets and an optional YAML patch over the resolved config, as in
+`'openai/small[translate]{beam_size: 1}'`. Quote it on a shell command
+line, since `[` and `]` glob. Only the name is dispatched. The box and the
+patch are checked against the row found before anything is fetched, and a
+kit that takes no presets refuses them rather than ignore them
+([lookup expressions](bunsen::kits::support::construct::PretrainedFactory#lookup-expressions)).
+Well-known names compare ignoring case, so `Qwen/Qwen3-0.6B` finds
+`qwen/qwen3-0.6b`. `hf:` names compare as given, since they are paths in
+URLs.
+
 There is no process-wide registry. Each kit ships a
 `default_{kit}_factory()`, and a caller that wants another provider adds it
 to that factory ([no registry](bunsen::kits::support::construct::PretrainedFactory#no-registry)).
