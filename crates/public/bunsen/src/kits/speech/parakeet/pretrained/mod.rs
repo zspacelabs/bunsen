@@ -22,7 +22,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle)
+//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
 //! resolves a name to a deferred model carrying [`ParakeetConstruct`], the
 //! hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into a `parakeet-tdt-0.6b-v3`-shaped

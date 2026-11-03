@@ -7,7 +7,6 @@ use super::NanoChatConstruct;
 use crate::{
     data::pretrained::{
         PretrainedCache,
-        PretrainedFactory,
         PretrainedProvider,
         StaticBase,
         StaticPretrained,
@@ -18,12 +17,15 @@ use crate::{
         WELL_KNOWN,
     },
     errors::BunsenResult,
-    kits::gpts::nanochat::{
-        CHECKPOINT,
-        META,
-        NanoChatBundle,
-        TOKEN_BYTES,
-        TOKENIZER,
+    kits::{
+        gpts::nanochat::{
+            CHECKPOINT,
+            META,
+            NanoChatBundle,
+            TOKEN_BYTES,
+            TOKENIZER,
+        },
+        support::construct::PretrainedFactory,
     },
 };
 

@@ -1,11 +1,7 @@
 //! `bunsen-tool card`: what this build is, its cache, and the models it knows.
 
 use bunsen::{
-    data::pretrained::{
-        Construct,
-        PretrainedCache,
-        PretrainedFactory,
-    },
+    data::pretrained::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -23,6 +19,10 @@ use bunsen::{
             sortformer::pretrained::default_sortformer_factory,
             voxtral::pretrained::default_voxtral_factory,
             whisper::pretrained::default_whisper_factory,
+        },
+        support::construct::{
+            Construct,
+            PretrainedFactory,
         },
     },
 };

@@ -9,7 +9,6 @@ use crate::{
         CONFIG,
         HfProvider,
         PretrainedCache,
-        PretrainedFactory,
         PretrainedProvider,
         SAFETENSORS,
         SAFETENSORS_INDEX,
@@ -22,11 +21,14 @@ use crate::{
         WELL_KNOWN,
     },
     errors::BunsenResult,
-    kits::gpts::qwen3::{
-        GENERATION_CONFIG,
-        Qwen3Bundle,
-        TOKENIZER,
-        TOKENIZER_CONFIG,
+    kits::{
+        gpts::qwen3::{
+            GENERATION_CONFIG,
+            Qwen3Bundle,
+            TOKENIZER,
+            TOKENIZER_CONFIG,
+        },
+        support::construct::PretrainedFactory,
     },
 };
 

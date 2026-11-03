@@ -21,7 +21,7 @@
 //!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
-//! [`with_provider`](crate::data::pretrained::PretrainedFactory::with_provider);
+//! [`with_provider`](crate::kits::support::construct::PretrainedFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
 //! # Rows, prefabs and maps
@@ -37,11 +37,11 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle)
+//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
 //! is the whole pathway from a name to a
 //! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
 //! behind an `Arc`. The factory resolves the name to a
-//! [`Deferred`](crate::data::pretrained::Deferred) model carrying the
+//! [`Deferred`](crate::kits::support::construct::Deferred) model carrying the
 //! kit's hook, [`WhisperConstruct`], with the [`WhisperReader`] its
 //! checkpoint's `kind` names (`OpenAI`'s `.pt`, or `transformers`'
 //! `model.safetensors`, one file or shards). The hook's plan brings the
@@ -50,7 +50,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_map`](crate::data::pretrained::Deferred::from_resource_bundle).
+//! through [`Deferred::from_map`](crate::kits::support::construct::Deferred::from_resource_bundle).
 //!
 //! # Example
 //!

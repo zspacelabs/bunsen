@@ -13,10 +13,8 @@ use std::{
 
 use bunsen::{
     data::pretrained::{
-        Construct,
         Pretrained,
         PretrainedCache,
-        PretrainedFactory,
     },
     errors::{
         BunsenResult,
@@ -35,7 +33,13 @@ use bunsen::{
                 default_qwen3_factory,
             },
         },
-        support::decoding::SearchConfig,
+        support::{
+            construct::{
+                Construct,
+                PretrainedFactory,
+            },
+            decoding::SearchConfig,
+        },
     },
     ops::transformers::attention::KVCacheStorage,
 };

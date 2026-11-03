@@ -26,13 +26,14 @@ use crate::{
 /// A resource bundle with every resource local: key to path and provenance.
 ///
 /// What [`PretrainedCache::load`](super::PretrainedCache::load) returns,
-/// and what a kit's [`Construct::construct`](super::Construct::construct)
+/// and what a kit's
+/// [`Construct::construct`](crate::kits::support::construct::Construct::construct)
 /// is handed: all it is handed, besides the ref. The hook reads its parts
 /// by key, with [`expect`](Self::expect), [`get`](Self::get), or
 /// [`family`](Self::family) for a checkpoint split across files (as
 /// [`SafetensorsCheckpoint::from_loaded`](super::SafetensorsCheckpoint::from_loaded)
-/// does). The [`Loaded`](super::Loaded) handle keeps it as `resources`,
-/// so a caller can say where every part came from
+/// does). The [`Loaded`](crate::kits::support::construct::Loaded) handle keeps
+/// it as `resources`, so a caller can say where every part came from
 /// ([`Provenance`](super::Provenance)).
 ///
 /// [`materialize`](Self::materialize) is a directory view over it, for a

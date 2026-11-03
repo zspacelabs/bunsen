@@ -53,17 +53,18 @@
 //!   `default_{kit}_providers()` lists the kit's providers in search order,
 //!   `bundled:` and `hf:` among them where the kit has them.
 //! - **A `Construct` hook.** `{Kit}Construct` is the kit's
-//!   [`Construct`](crate::data::pretrained::Construct): the cache segment its
-//!   files land under (`{KIT}_KIT`), and how the loaded files become the model.
+//!   [`Construct`](crate::kits::support::construct::Construct): the cache
+//!   segment its files land under (`{KIT}_KIT`), and how the loaded files
+//!   become the model.
 //! - **`default_{kit}_factory()`.** A
-//!   [`PretrainedFactory`](crate::data::pretrained::PretrainedFactory) over the
-//!   default providers, behind the hook. A name to a model is one call:
-//!   `default_{kit}_factory()?.load(name, &cache, &device)`. There is [no
-//!   registry](crate::data::pretrained::PretrainedFactory#no-registry): a
-//!   caller who wants another provider adds it to the factory.
+//!   [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+//!   over the default providers, behind the hook. A name to a model is one
+//!   call: `default_{kit}_factory()?.load(name, &cache, &device)`. There is [no
+//!   registry](crate::kits::support::construct::PretrainedFactory#no-registry):
+//!   a caller who wants another provider adds it to the factory.
 //! - **The built handle.** What `load` returns: a
-//!   [`Loaded`](crate::data::pretrained::Loaded) whose `handle` is an `Arc` of
-//!   the hook's `Built` type, the model or a bundle around it.
+//!   [`Loaded`](crate::kits::support::construct::Loaded) whose `handle` is an
+//!   `Arc` of the hook's `Built` type, the model or a bundle around it.
 //! - **A driver or context.** Optional. The state a stream or a decode carries
 //!   is injected, never owned by the model ([the
 //!   rule](crate::ops#ops-and-blocks)): the model is immutable, and the caller

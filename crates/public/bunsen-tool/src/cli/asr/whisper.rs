@@ -9,7 +9,6 @@ use std::{
 
 use bunsen::{
     data::pretrained::{
-        Deferred,
         PretrainedCache,
         PretrainedCacheOptions,
         ResourceBundle,
@@ -41,7 +40,10 @@ use bunsen::{
                 },
             },
         },
-        support::decoding::SearchConfig,
+        support::{
+            construct::Deferred,
+            decoding::SearchConfig,
+        },
     },
 };
 use burn::tensor::Device;

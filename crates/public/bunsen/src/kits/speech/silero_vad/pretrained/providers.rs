@@ -3,12 +3,12 @@
 use std::sync::Arc;
 
 use crate::{
-    data::pretrained::{
-        PretrainedFactory,
-        PretrainedProvider,
-    },
+    data::pretrained::PretrainedProvider,
     errors::BunsenResult,
-    kits::speech::silero_vad::pretrained::SileroConstruct,
+    kits::{
+        speech::silero_vad::pretrained::SileroConstruct,
+        support::construct::PretrainedFactory,
+    },
 };
 
 /// The kit segment of a Silero resource's path in the cache:

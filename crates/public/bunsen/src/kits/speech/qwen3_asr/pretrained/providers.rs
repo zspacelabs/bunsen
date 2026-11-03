@@ -8,7 +8,6 @@ use crate::{
     data::pretrained::{
         HfProvider,
         PretrainedCache,
-        PretrainedFactory,
         PretrainedProvider,
         StaticBase,
         StaticPretrained,
@@ -19,7 +18,10 @@ use crate::{
         WELL_KNOWN,
     },
     errors::BunsenResult,
-    kits::speech::qwen3_asr::Qwen3AsrBundle,
+    kits::{
+        speech::qwen3_asr::Qwen3AsrBundle,
+        support::construct::PretrainedFactory,
+    },
 };
 
 /// The kit segment of a Qwen3-ASR resource's path in the cache:

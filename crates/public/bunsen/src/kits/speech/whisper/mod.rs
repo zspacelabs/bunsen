@@ -31,7 +31,7 @@
 //!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
 //!    to a row of the index, and the kit's hook to build it.
 //! 3. A [`WhisperBundle`](driver::WhisperBundle) behind an `Arc`, from the
-//!    factory's [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle):
+//!    factory's [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle):
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
 //!    language, task, timestamps, search, and the
@@ -172,30 +172,32 @@
 //!
 //! use bunsen::{
 //!     data::pretrained::{
-//!         Deferred,
 //!         PretrainedCache,
 //!         ResourceBundle,
 //!     },
 //!     errors::BunsenResult,
-//!     kits::speech::{
-//!         asr_driver::{
-//!             EmissionPolicy,
-//!             VoiceActivityFilterConfig,
-//!         },
-//!         silero_vad::pretrained::default_silero_factory,
-//!         whisper::{
-//!             driver::{
-//!                 WhisperBundle,
-//!                 WhisperStreamDriver,
-//!                 WhisperStreamDriverConfig,
+//!     kits::{
+//!         speech::{
+//!             asr_driver::{
+//!                 EmissionPolicy,
+//!                 VoiceActivityFilterConfig,
 //!             },
-//!             pretrained::{
-//!                 CHECKPOINT,
-//!                 VOCABULARY,
-//!                 WhisperConstruct,
-//!                 default_whisper_factory,
+//!             silero_vad::pretrained::default_silero_factory,
+//!             whisper::{
+//!                 driver::{
+//!                     WhisperBundle,
+//!                     WhisperStreamDriver,
+//!                     WhisperStreamDriverConfig,
+//!                 },
+//!                 pretrained::{
+//!                     CHECKPOINT,
+//!                     VOCABULARY,
+//!                     WhisperConstruct,
+//!                     default_whisper_factory,
+//!                 },
 //!             },
 //!         },
+//!         support::construct::Deferred,
 //!     },
 //! };
 //! use burn::tensor::Device;

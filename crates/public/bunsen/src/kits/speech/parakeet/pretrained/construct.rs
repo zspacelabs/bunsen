@@ -15,7 +15,6 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
-        Construct,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -27,15 +26,18 @@ use crate::{
         BunsenResult,
         sys_at,
     },
-    kits::speech::parakeet::{
-        ParakeetBundle,
-        ParakeetTdt,
-        ParakeetTdtConfig,
-        ParakeetVocabulary,
-        weights::{
-            load_hf_tensors,
-            parakeet_config_from_hf,
+    kits::{
+        speech::parakeet::{
+            ParakeetBundle,
+            ParakeetTdt,
+            ParakeetTdtConfig,
+            ParakeetVocabulary,
+            weights::{
+                load_hf_tensors,
+                parakeet_config_from_hf,
+            },
         },
+        support::construct::Construct,
     },
 };
 

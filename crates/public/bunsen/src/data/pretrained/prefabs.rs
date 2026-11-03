@@ -139,7 +139,7 @@ where
 /// its prefab, [`PretrainedRef::prefab`](super::PretrainedRef::prefab)
 /// looks it up here for a resolved row (for the kit's hook to build from
 /// or check against), and a factory's
-/// [`for_prefab`](super::PretrainedFactory::for_prefab) lists the rows of
+/// [`for_prefab`](crate::kits::support::construct::PretrainedFactory::for_prefab) lists the rows of
 /// one prefab. [`find`](Self::find) is the reverse lookup, for a config that
 /// arrived without a name. [`to_prefab_map`](Self::to_prefab_map) gives the
 /// owned twin, a [`PreFabMap`].

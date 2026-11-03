@@ -1,11 +1,13 @@
 //! # The `ResNet` pretrained factory
 
 use crate::{
-    data::pretrained::PretrainedFactory,
     errors::BunsenResult,
-    kits::images::resnet::pretrained::{
-        ResNetConstruct,
-        default_resnet_providers,
+    kits::{
+        images::resnet::pretrained::{
+            ResNetConstruct,
+            default_resnet_providers,
+        },
+        support::construct::PretrainedFactory,
     },
 };
 

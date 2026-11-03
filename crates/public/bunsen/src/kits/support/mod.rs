@@ -8,9 +8,14 @@
 //!
 //! - [`tokens`]: the ids-to-text seam, [`Detokenizer`](tokens::Detokenizer),
 //!   and the vocabulary readers behind it.
+//! - `construct` (feature `cache`): the construct side of the pretrained
+//!   pathway: the hook a kit builds through, deferred models, the factory, and
+//!   the loaded handle.
 //! - [`decoding`]: the search machinery, from a step's logits to the ids a
 //!   decode returns: logit filters, greedy and beam search, sampling, ranking,
 //!   and the temperature ladder.
 
+#[cfg(feature = "cache")]
+pub mod construct;
 pub mod decoding;
 pub mod tokens;

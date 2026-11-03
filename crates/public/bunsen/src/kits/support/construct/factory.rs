@@ -13,24 +13,28 @@ use core::marker::PhantomData;
 use burn::tensor::Device;
 use log::Level;
 
-#[cfg(doc)]
-use super::ResourceBundle;
 use super::{
     Construct,
     Deferred,
     Loaded,
-    Pretrained,
-    PretrainedCache,
-    PretrainedProvider,
-    PretrainedRef,
-    not_found,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenErrorKind,
-    BunsenResult,
-    LookupError,
-    ResultContext,
+#[cfg(doc)]
+use crate::data::pretrained::ResourceBundle;
+use crate::{
+    data::pretrained::{
+        Pretrained,
+        PretrainedCache,
+        PretrainedProvider,
+        PretrainedRef,
+        not_found,
+    },
+    errors::{
+        BunsenError,
+        BunsenErrorKind,
+        BunsenResult,
+        LookupError,
+        ResultContext,
+    },
 };
 
 /// A kit's providers, in search order, resolving names to [`Deferred`]
@@ -54,8 +58,9 @@ use crate::errors::{
 /// - Any other spec, with no `:` or with a prefix that names no provider, is
 ///   offered whole to each provider that [answers bare
 ///   names](PretrainedProvider::answers_bare_names), in registration order, and
-///   the first row wins. A hub such as [`HfProvider`](super::HfProvider)
-///   declines bare names, so it is only reached qualified.
+///   the first row wins. A hub such as
+///   [`HfProvider`](crate::data::pretrained::HfProvider) declines bare names,
+///   so it is only reached qualified.
 /// - A provider's "not here" is `Ok(None)`, and the search moves on. Any error
 ///   a provider returns aborts the lookup: a hub that cannot be reached is not
 ///   the same as a hub that has no such row.

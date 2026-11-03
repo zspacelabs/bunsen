@@ -1,17 +1,22 @@
 //! # Pretrained models
 //!
-//! From a name to a model. A kit's [`PretrainedFactory`] takes a spec,
-//! `provider:ref` or a bare name, and asks its providers for the row the
-//! spec names. Loading the row, the [`PretrainedCache`] brings its files
-//! local and the kit's [`Construct`] hook builds from them, behind an
-//! `Arc`. The [`data`](crate::data#lifecycle) overview draws the whole
-//! pathway; this page says what the pieces are, and why they are split
-//! the way they are.
+//! From a name to a model. A kit's
+//! [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+//! takes a spec, `provider:ref` or a bare name, and asks its providers for the
+//! row the spec names. Loading the row, the [`PretrainedCache`] brings its
+//! files local and the kit's
+//! [`Construct`](crate::kits::support::construct::Construct) hook builds from
+//! them, behind an `Arc`. The [`data`](crate::data#lifecycle) overview draws
+//! the whole pathway; this page says what the pieces are, and why they are
+//! split the way they are.
 //!
 //! Most of this module needs the `cache` feature (default, through
-//! `store`): the factory, the cache, [`Deferred`], [`Construct`] and
-//! [`Loaded`]. The rows, resource bundles, resources, prefabs and providers are
-//! plain data and are always here.
+//! `store`): the factory, the cache,
+//! [`Deferred`](crate::kits::support::construct::Deferred),
+//! [`Construct`](crate::kits::support::construct::Construct) and
+//! [`Loaded`](crate::kits::support::construct::Loaded). The rows, resource
+//! bundles, resources, prefabs and providers are plain data and are always
+//! here.
 //!
 //! A hook reads its checkpoint's own format with the readers here: the
 //! safetensors checkpoint and header ([`SafetensorsCheckpoint`]), MLX's
@@ -67,10 +72,12 @@
 //! - `hf:` ([`HF`]) is an [`HfProvider`]: a Hugging Face repo, by `org/repo`.
 //!   It lists nothing and never answers a bare name.
 //!
-//! A [`PretrainedFactory`] holds a kit's providers in search order and
-//! offers a spec to them by its [dispatch rules](PretrainedFactory#dispatch).
-//! A provider's `Ok(None)` means "not here", and an error aborts the
-//! lookup.
+//! A [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+//! holds a kit's providers in search order and offers a spec to them by its
+//! [dispatch rules]. A provider's `Ok(None)` means "not here", and an error
+//! aborts the lookup.
+//!
+//! [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
 //!
 //! ## The cache and bundles
 //!
@@ -119,13 +126,10 @@
 //!             sha256_of,
 //!         },
 //!         pretrained::{
-//!             Construct,
-//!             Deferred,
 //!             LoadedResources,
 //!             Pretrained,
 //!             PretrainedCache,
 //!             PretrainedCacheOptions,
-//!             PretrainedFactory,
 //!             PretrainedGroup,
 //!             PretrainedRef,
 //!             PretrainedTable,
@@ -139,6 +143,11 @@
 //!     errors::{
 //!         BunsenResult,
 //!         sys_at,
+//!     },
+//!     kits::support::construct::{
+//!         Construct,
+//!         Deferred,
+//!         PretrainedFactory,
 //!     },
 //! };
 //! use burn::tensor::Device;
@@ -256,12 +265,6 @@ mod apply_named;
 mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
-#[cfg(feature = "cache")]
-mod construct;
-#[cfg(feature = "cache")]
-mod deferred;
-#[cfg(feature = "cache")]
-mod factory;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
@@ -286,12 +289,6 @@ pub use apply_named::*;
 pub use cache::*;
 #[cfg(feature = "cache")]
 pub use cached_files::*;
-#[cfg(feature = "cache")]
-pub use construct::*;
-#[cfg(feature = "cache")]
-pub use deferred::*;
-#[cfg(feature = "cache")]
-pub use factory::*;
 pub use hf::*;
 pub use hf_config::*;
 #[cfg(feature = "cache")]

@@ -17,12 +17,12 @@ use crate::errors::BunsenResult;
 /// bundle from somewhere else, such as a path.
 ///
 /// The first step of the name-to-model pathway, shared by every kit. A
-/// [`PretrainedFactory`](super::PretrainedFactory) makes a
-/// [`Named`](Self::Named) ref from a spec; a path or a manifest becomes a
-/// [`Given`](Self::Given) one through `From<ResourceBundle>`. A
-/// [`Deferred`](super::Deferred) model pairs the ref with the kit's hook
-/// and loads it, and the hook plans and builds from the ref:
-/// [`to_resource_bundle`](Self::to_resource_bundle) for its files,
+/// [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+/// makes a [`Named`](Self::Named) ref from a spec; a path or a manifest becomes
+/// a [`Given`](Self::Given) one through `From<ResourceBundle>`. A
+/// [`Deferred`](crate::kits::support::construct::Deferred) model pairs the ref
+/// with the kit's hook and loads it, and the hook plans and builds from the
+/// ref: [`to_resource_bundle`](Self::to_resource_bundle) for its files,
 /// [`prefab`](Self::prefab) for the geometry a row promises.
 ///
 /// A ref is plain data: the row and the resource bundle are serde types, and

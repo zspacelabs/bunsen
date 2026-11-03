@@ -8,7 +8,6 @@ use crate::{
     data::pretrained::{
         HfProvider,
         PretrainedCache,
-        PretrainedFactory,
         PretrainedProvider,
         StaticBase,
         StaticPretrained,
@@ -19,7 +18,10 @@ use crate::{
         WELL_KNOWN,
     },
     errors::BunsenResult,
-    kits::speech::voxtral::VoxtralBundle,
+    kits::{
+        speech::voxtral::VoxtralBundle,
+        support::construct::PretrainedFactory,
+    },
 };
 
 /// The kit segment of a Voxtral resource's path in the cache:

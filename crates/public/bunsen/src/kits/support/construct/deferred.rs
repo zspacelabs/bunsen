@@ -5,16 +5,20 @@ use std::collections::BTreeMap;
 use burn::tensor::Device;
 
 use super::{
-    CacheStatus,
     Construct,
     Loaded,
-    PretrainedCache,
-    PretrainedRef,
-    ResourceBundle,
 };
-use crate::errors::{
-    BunsenResult,
-    ResultContext,
+use crate::{
+    data::pretrained::{
+        CacheStatus,
+        PretrainedCache,
+        PretrainedRef,
+        ResourceBundle,
+    },
+    errors::{
+        BunsenResult,
+        ResultContext,
+    },
 };
 
 /// A model not yet loaded: its resource bundle, and the hook that will build
@@ -164,13 +168,13 @@ mod tests {
                 Provenance,
                 Resource,
                 Source,
-                testing::CheckpointPath,
             },
         },
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
+        kits::support::construct::testing::CheckpointPath,
         support::testing::cpu_device,
     };
 
