@@ -1326,6 +1326,7 @@ dependencies = [
  "serde-pickle",
  "serde-saphyr",
  "serde_json",
+ "strsim",
  "tempfile",
  "time",
  "unicode-normalization-alignments",

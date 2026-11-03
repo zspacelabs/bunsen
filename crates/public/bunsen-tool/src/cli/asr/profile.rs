@@ -9,6 +9,7 @@ use bunsen::{
     errors::{
         BunsenError,
         BunsenResult,
+        LookupError,
     },
     kits::support::construct::LookupExpr,
 };
@@ -382,18 +383,18 @@ pub fn profiles() -> &'static [Profile] {
 /// The preset `name` names, by its name or an alias.
 ///
 /// # Errors
-/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when no preset has
-/// the name: it comes from the command line.
+/// [`Lookup`](bunsen::errors::BunsenErrorKind::Lookup), with a
+/// [`LookupError`] of every name and alias, when no preset has the name.
 pub fn lookup(name: &str) -> BunsenResult<&'static Profile> {
     profiles()
         .iter()
         .find(|p| p.name == name || p.aliases.iter().any(|a| a == name))
         .ok_or_else(|| {
-            let names: Vec<&str> = profiles().iter().map(|p| p.name.as_str()).collect();
-            BunsenError::policy(format!(
-                "no preset `{name}`; the presets: {}",
-                names.join(", ")
-            ))
+            let names = profiles()
+                .iter()
+                .flat_map(|p| std::iter::once(&p.name).chain(&p.aliases))
+                .cloned();
+            BunsenError::lookup(LookupError::missing("ASR preset", name).with_candidates(names))
         })
 }
 

@@ -5,6 +5,8 @@
 //! through; `bunsen-tool card` describes the build, its cache and the models
 //! it knows.
 
+use std::process::ExitCode;
+
 use bunsen::errors::BunsenResult;
 use clap::Parser;
 
@@ -39,9 +41,24 @@ enum Command {
     Card(cli::card::CardCmd),
 }
 
-fn main() -> BunsenResult<()> {
+/// Runs the command; a failure is printed as its report, then, for a name
+/// a table does not have, the names nearest it ([`cli::did_you_mean`]).
+fn main() -> ExitCode {
+    match run(&Args::parse()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("Error: {error:?}");
+            if let Some(hint) = cli::did_you_mean::hint(&error) {
+                eprintln!("{hint}");
+            }
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(args: &Args) -> BunsenResult<()> {
     bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
-    match &Args::parse().command {
+    match &args.command {
         Command::Asr(cmd) => cmd.run(),
         Command::Chat(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),

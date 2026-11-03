@@ -396,7 +396,9 @@ cargo install bunsen-tool --features wgpu
 bunsen-tool asr transcribe recording.wav
 ```
 
-`list` shows the family's named models, with each one's licence, its files, and whether each is cached; every family
+`list` shows the family's named models, with each one's licence, its files, and whether each is cached. A name that
+no table has, a model's, a model's preset or a profile's, fails with the names nearest it (`did you mean
+`openai/tiny`?`), by edit distance, case aside. Every family
 also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `config.json` gives the geometry;
 `diarize` also takes one holding a Sortformer v2 `.nemo` alone, whose own config does
 (`hf:nvidia/diar_streaming_sortformer_4spk-v2.1`), read from the archive's head before the archive is fetched. `fetch
