@@ -779,6 +779,9 @@ fn print_row(
     if let Some(origin) = &row.origin {
         println!("  origin: {origin}");
     }
+    for line in crate::cli::preset_lines(&row.presets) {
+        println!("{line}");
+    }
     for (key, r) in &row.resources.resources {
         println!("  {key}: [{}]", cache.status(kit, r));
         println!("    path: {}", r.file);
