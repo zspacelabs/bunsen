@@ -282,6 +282,7 @@ mod hf;
 mod loaded;
 pub mod mlx;
 mod prefabs;
+mod presets;
 mod pretrained_ref;
 mod providers;
 #[cfg(feature = "store_pytorch")]
@@ -303,6 +304,7 @@ pub use hf::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use prefabs::*;
+pub use presets::*;
 pub use pretrained_ref::*;
 pub use providers::*;
 #[cfg(feature = "store_pytorch")]
