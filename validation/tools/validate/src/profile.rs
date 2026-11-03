@@ -8,11 +8,11 @@ use std::path::{
 use indexmap::IndexMap;
 use serde::Deserialize;
 
-use crate::catalog::{
-    Catalog,
+use crate::schedule::{
     Dtype,
     ModelSpec,
     Size,
+    ValidationSchedule,
 };
 
 /// One value or a list of them.
@@ -235,12 +235,12 @@ fn load_with(
 /// matches, and only a model checked in one of `dtypes` (the 8B, checked in
 /// bf16 alone, is not chosen by an f32 run).
 pub fn choose(
-    catalog: &Catalog,
+    schedule: &ValidationSchedule,
     profile: &Profile,
     crates: &[String],
     dtypes: &[Dtype],
 ) -> IndexMap<String, IndexMap<String, bool>> {
-    catalog
+    schedule
         .crates
         .iter()
         .filter(|(name, _)| crates.is_empty() || crates.contains(name))
@@ -264,8 +264,8 @@ pub fn choose(
 mod tests {
     use super::*;
 
-    fn catalog() -> Catalog {
-        Catalog::load(&crate::validation_dir().join("models.yml")).unwrap()
+    fn schedule() -> ValidationSchedule {
+        ValidationSchedule::load(&crate::validation_dir().join("models.yml")).unwrap()
     }
 
     fn profiles() -> PathBuf {
@@ -277,7 +277,7 @@ mod tests {
         krate: &str,
     ) -> Vec<String> {
         let profile = load(name, &profiles()).unwrap();
-        choose(&catalog(), &profile, &[], &profile.dtypes())[krate]
+        choose(&schedule(), &profile, &[], &profile.dtypes())[krate]
             .iter()
             .filter(|(_, keep)| **keep)
             .map(|(m, _)| m.clone())
@@ -295,7 +295,7 @@ mod tests {
             ("medium-core", "medium-all"),
             ("large-core", "large-all"),
         ] {
-            for krate in catalog().crates.keys() {
+            for krate in schedule().crates.keys() {
                 let all = chosen(all, krate);
                 for model in chosen(core, krate) {
                     assert!(all.contains(&model), "{core} ⊄ {krate} {model}");
@@ -333,12 +333,12 @@ mod tests {
         };
         let load = |name: &str| load_with(name, &read, &mut Vec::new());
         let profile = load("mine").unwrap();
-        let picked = &choose(&catalog(), &profile, &[], &profile.dtypes())["qwen3"];
+        let picked = &choose(&schedule(), &profile, &[], &profile.dtypes())["qwen3"];
         assert!(picked["qwen3-1.7b"] && !picked["qwen3-4b"]);
         // The 8B is checked in bf16 alone: an f32 run does not choose it.
         let large = load("large").unwrap();
-        assert!(choose(&catalog(), &large, &[], &[Dtype::Bf16])["qwen3"]["qwen3-8b"]);
-        assert!(!choose(&catalog(), &large, &[], &[Dtype::F32])["qwen3"]["qwen3-8b"]);
+        assert!(choose(&schedule(), &large, &[], &[Dtype::Bf16])["qwen3"]["qwen3-8b"]);
+        assert!(!choose(&schedule(), &large, &[], &[Dtype::F32])["qwen3"]["qwen3-8b"]);
         assert_eq!(profile.dtypes(), [Dtype::F32, Dtype::Bf16]);
         assert_eq!(profile.checks(), [Check::Model, Check::Driver]);
         assert!(load("bad").is_err());

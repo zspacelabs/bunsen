@@ -14,7 +14,7 @@ tools/              one-shot fixture generators and repo checks (Python, stdlib-
 
 validation/         a workspace of its own (validation/Cargo.toml, validation/Cargo.lock)
   onnx/             the ONNX references and checkpoints, fetched at build time
-  models.yml        the catalog of the models the validation crates check, which a profile chooses from
+  models.yml        the validation schedule: the models the validation crates check, which a profile chooses from
   models/           cross-checks of bunsen models against those references
   tools/            the fixture generators whose output lands in models/
 ```

@@ -9,7 +9,7 @@ comes through a `bind-*-onnx` crate, fetched at build time and digest-pinned.
 ```text
 onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and the reference generated from it
 onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
-models.yml, profiles/               the catalog of models and the profiles that choose from it
+models.yml, profiles/               the validation schedule of models and the profiles that choose from it
 models/{model}-model-validation/   each model's cross-checks
 tools/                             the fixture generators whose output lands in models/*/testdata
 ```
@@ -45,7 +45,7 @@ formatting check, by hand. Each crate's features opt in:
 ## Choosing what to validate
 
 A machine validates what it can hold, chosen by a **profile** from a
-**catalog** of the models, and run by `cargo validate` (`tools/validate`, a
+**validation schedule** of the models, and run by `cargo validate` (`tools/validate`, a
 Rust tool in this workspace: the Rust toolchain is all it needs) through
 `cargo test`, under this workspace's `validate` cargo profile: release's
 optimization, with `debug_assert!`, the contract checks gated on
@@ -66,7 +66,7 @@ cargo validate list --profile medium-core             # what it chooses, and the
 cargo validate run  --profile my-box.yml --crate qwen3
 cargo validate run  --profile ci --dry-run            # build and list; print the chosen tests
 cargo validate run  --profile medium-core --nextest   # through cargo nextest: a process per test
-cargo validate check                                  # the catalog against the tests
+cargo validate check                                  # the schedule against the tests
 cargo validate check --cuda                           # with the bf16 binaries, which need cuda
 ```
 
@@ -77,7 +77,7 @@ A run builds each chosen crate's test targets, lists their tests, and runs
 the chosen ones one at a time, by exact name; it runs every crate before
 it reports, and fails if any did.
 
-### The catalog: `models.yml`
+### The validation schedule: `models.yml`
 
 One entry per model a crate checks, under the crate, the model's id being
 bunsen's row name:
@@ -96,7 +96,7 @@ and its `reference` feature.
 
 ### Profiles: `profiles/*.yml`
 
-A profile chooses models from the catalog by **selectors**, each matching a
+A profile chooses models from the validation schedule by **selectors**, each matching a
 model when every key it has does: `crate`, `model`, `size` (one or a list) and
 `core`. What it chooses is everything its `include` selectors match, less
 everything its `deny` selectors match, added to what each profile it
@@ -132,7 +132,7 @@ a whole segment: `qwen3-0.6b` (or `org/qwen3-0.6b`) is `qwen3_0_6b`, as in
 `greedy::qwen3_0_6b` or `cross::qwen3_0_6b::tracks_the_reference`. A profile's
 run drops the tests of every model it does not choose, and, without `bf16`,
 the `cuda_bf16` test binaries; a test of no model (a fixture check) always
-runs. `cargo validate check` builds the crates and checks that every catalog
+runs. `cargo validate check` builds the crates and checks that every scheduled
 model has a test, and lists the tests of no model.
 
 A crate's features:

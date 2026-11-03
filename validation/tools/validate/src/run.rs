@@ -14,8 +14,8 @@ use std::{
 use indexmap::IndexMap;
 
 use crate::{
-    catalog::segment,
     profile::Check,
+    schedule::segment,
 };
 
 /// One test target of a crate, built: its tests, by name.

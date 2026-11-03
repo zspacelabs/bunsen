@@ -1,15 +1,15 @@
-//! The catalog, `validation/models.yml`: every model a crate checks.
+//! The validation schedule, `models.yml`: every model a crate checks.
 
 use std::path::Path;
 
 use indexmap::IndexMap;
 use serde::Deserialize;
 
-/// The catalog: the crates, in the file's order.
+/// The validation schedule: the crates, in the file's order.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Catalog {
-    /// Each crate, by its name in the catalog (`qwen3`, `whisper`).
+pub struct ValidationSchedule {
+    /// Each crate, by its name in the validation schedule (`qwen3`, `whisper`).
     pub crates: IndexMap<String, CrateSpec>,
 }
 
@@ -95,9 +95,9 @@ impl Dtype {
     }
 }
 
-impl Catalog {
-    /// Reads the catalog at `path`.
-    pub fn load(path: &Path) -> Result<Catalog, String> {
+impl ValidationSchedule {
+    /// Reads the validation schedule at `path`.
+    pub fn load(path: &Path) -> Result<ValidationSchedule, String> {
         let text =
             std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
         serde_saphyr::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
@@ -129,13 +129,14 @@ mod tests {
         assert_eq!(segment("sortformer-v2.1"), "sortformer_v2_1");
     }
 
-    /// The committed catalog reads, and its segments are distinct within a
-    /// crate.
+    /// The committed validation schedule reads, and its segments are distinct
+    /// within a crate.
     #[test]
     fn test_the_catalog_reads() {
-        let catalog = Catalog::load(&crate::validation_dir().join("models.yml")).unwrap();
-        assert!(catalog.crates.contains_key("qwen3"));
-        for (name, spec) in &catalog.crates {
+        let schedule =
+            ValidationSchedule::load(&crate::validation_dir().join("models.yml")).unwrap();
+        assert!(schedule.crates.contains_key("qwen3"));
+        for (name, spec) in &schedule.crates {
             let mut segments: Vec<String> = spec.models.keys().map(|m| segment(m)).collect();
             let n = segments.len();
             segments.sort();

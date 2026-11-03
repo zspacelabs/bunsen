@@ -8,10 +8,10 @@
 //! cargo validate check [--crate C]... [--reference]
 //! ```
 //!
-//! `models.yml` is the catalog: every model a crate checks, with its size,
-//! whether it is a representative (`core`), what it varies, and the dtypes
-//! it is checked in. A profile (`profiles/<name>.yml`, or a path) chooses
-//! models from it:
+//! `models.yml` is the validation schedule: every model a crate checks, with
+//! its size, whether it is a representative (`core`), what it varies, and the
+//! dtypes it is checked in. A profile (`profiles/<name>.yml`, or a path)
+//! chooses models from it:
 //!
 //! ```yaml
 //! extends: medium-core          # a profile, or a list of them, whose choice this adds to
@@ -49,8 +49,8 @@
 //! `BUNSEN_VALIDATE_OFFLINE=1` forbids it.
 //!
 //! `check` builds and lists the crates' tests (without their ONNX references
-//! unless `--reference`) and checks the catalog against them: every model
-//! has a test.
+//! unless `--reference`) and checks the validation schedule against them: every
+//! model has a test.
 
 use std::{
     path::PathBuf,
@@ -67,11 +67,6 @@ use clap::{
 use indexmap::IndexMap;
 
 use crate::{
-    catalog::{
-        Catalog,
-        Dtype,
-        segment,
-    },
     profile::{
         Backend,
         Check,
@@ -81,11 +76,16 @@ use crate::{
         Choice,
         DRIVER,
     },
+    schedule::{
+        Dtype,
+        ValidationSchedule,
+        segment,
+    },
 };
 
-mod catalog;
 mod profile;
 mod run;
+mod schedule;
 
 /// The validation workspace: `validation/`.
 pub fn validation_dir() -> PathBuf {
@@ -135,7 +135,8 @@ enum Cmd {
         test_args: Vec<String>,
     },
 
-    /// Checks the catalog against the crates' tests: every model has one.
+    /// Checks the validation schedule against the crates' tests: every model
+    /// has one.
     Check {
         /// Only this crate (repeatable).
         #[arg(long = "crate")]
@@ -175,12 +176,12 @@ fn main() -> ExitCode {
 
 fn run(cli: Cli) -> Result<ExitCode, String> {
     let validation = validation_dir();
-    let catalog = Catalog::load(&validation.join("models.yml"))?;
+    let schedule = ValidationSchedule::load(&validation.join("models.yml"))?;
     match cli.command {
         Cmd::List { select } => {
             let profile = profile::load(&select.profile, &validation.join("profiles"))?;
-            check_crates(&catalog, &select.crates)?;
-            list(&catalog, &profile, &select);
+            check_crates(&schedule, &select.crates)?;
+            list(&schedule, &profile, &select);
             Ok(ExitCode::SUCCESS)
         }
         Cmd::Run {
@@ -192,14 +193,14 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             test_args,
         } => {
             let profile = profile::load(&select.profile, &validation.join("profiles"))?;
-            check_crates(&catalog, &select.crates)?;
+            check_crates(&schedule, &select.crates)?;
             let backend = backend.or(profile.backend).unwrap_or(Backend::Wgpu);
             let mut dtypes = dtypes.unwrap_or_else(|| profile.dtypes());
             if dtypes.contains(&Dtype::Bf16) && backend != Backend::Cuda {
                 eprintln!("bf16 checks run on cuda alone; dropping them on {backend:?}");
                 dtypes.retain(|d| *d != Dtype::Bf16);
             }
-            let plan = Plan::new(&catalog, &profile, &select.crates, backend, &dtypes);
+            let plan = Plan::new(&schedule, &profile, &select.crates, backend, &dtypes);
             if plan.crates.is_empty() {
                 return Err("the profile chooses no model".into());
             }
@@ -214,21 +215,21 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             reference,
             cuda,
         } => {
-            check_crates(&catalog, &crates)?;
-            check(&catalog, &validation, &crates, reference, cuda)
+            check_crates(&schedule, &crates)?;
+            check(&schedule, &validation, &crates, reference, cuda)
         }
     }
 }
 
-/// Refuses a `--crate` the catalog does not have.
+/// Refuses a `--crate` the validation schedule does not have.
 fn check_crates(
-    catalog: &Catalog,
+    schedule: &ValidationSchedule,
     crates: &[String],
 ) -> Result<(), String> {
-    match crates.iter().find(|c| !catalog.crates.contains_key(*c)) {
+    match crates.iter().find(|c| !schedule.crates.contains_key(*c)) {
         Some(c) => Err(format!(
             "no crate {c:?} in models.yml: one of {:?}",
-            catalog.crates.keys().collect::<Vec<_>>()
+            schedule.crates.keys().collect::<Vec<_>>()
         )),
         None => Ok(()),
     }
@@ -248,11 +249,11 @@ fn check_names(checks: &[Check]) -> Vec<&'static str> {
 }
 
 fn list(
-    catalog: &Catalog,
+    schedule: &ValidationSchedule,
     profile: &Profile,
     select: &Select,
 ) {
-    let chosen = profile::choose(catalog, profile, &select.crates, &profile.dtypes());
+    let chosen = profile::choose(schedule, profile, &select.crates, &profile.dtypes());
     println!(
         "profile {}; dtypes {:?}; checks {:?}",
         select.profile,
@@ -267,7 +268,7 @@ fn list(
     for (krate, models) in &chosen {
         println!("\n{krate}");
         for (model, keep) in models {
-            let m = &catalog.crates[krate].models[model];
+            let m = &schedule.crates[krate].models[model];
             if *keep {
                 total += m.gb;
             }
@@ -305,20 +306,20 @@ struct Plan {
 
 impl Plan {
     fn new(
-        catalog: &Catalog,
+        schedule: &ValidationSchedule,
         profile: &Profile,
         crates: &[String],
         backend: Backend,
         dtypes: &[Dtype],
     ) -> Plan {
         let checks = profile.checks();
-        let crates = profile::choose(catalog, profile, crates, dtypes)
+        let crates = profile::choose(schedule, profile, crates, dtypes)
             .into_iter()
             // A crate with no chosen model is left out, its fixture checks too
             // (`cargo make check-validation` runs those).
             .filter(|(_, models)| models.values().any(|keep| *keep))
             .map(|(krate, models)| {
-                let spec = &catalog.crates[&krate];
+                let spec = &schedule.crates[&krate];
                 let mut features = spec.features.clone();
                 // Only a model check needs a reference.
                 let needs_reference = checks.contains(&Check::Model)
@@ -485,16 +486,16 @@ impl Plan {
     }
 }
 
-/// Every catalog model has a test; prints each crate's tests of no model.
+/// Every scheduled model has a test; prints each crate's tests of no model.
 fn check(
-    catalog: &Catalog,
+    schedule: &ValidationSchedule,
     validation: &std::path::Path,
     crates: &[String],
     reference: bool,
     cuda: bool,
 ) -> Result<ExitCode, String> {
     let mut failed = false;
-    for (krate, spec) in &catalog.crates {
+    for (krate, spec) in &schedule.crates {
         if !crates.is_empty() && !crates.contains(krate) {
             continue;
         }
@@ -547,9 +548,9 @@ mod tests {
     #[test]
     fn test_ci_plan() {
         let validation = validation_dir();
-        let catalog = Catalog::load(&validation.join("models.yml")).unwrap();
+        let schedule = ValidationSchedule::load(&validation.join("models.yml")).unwrap();
         let profile = profile::load("ci", &validation.join("profiles")).unwrap();
-        let plan = Plan::new(&catalog, &profile, &[], Backend::Flex, &[Dtype::F32]);
+        let plan = Plan::new(&schedule, &profile, &[], Backend::Flex, &[Dtype::F32]);
         let packages: Vec<&str> = plan.crates.iter().map(|c| c.package.as_str()).collect();
         assert_eq!(
             packages,
