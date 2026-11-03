@@ -25,7 +25,7 @@ use burn::tensor::Device;
 use crate::cli::asr::{
     stream::{
         self,
-        Preset,
+        Emission,
     },
     transcribe_cmd::{
         Segment,
@@ -46,7 +46,7 @@ pub struct Qwen3AsrFlags {
     pub window_seconds: Option<f64>,
 }
 
-/// The driver for `bundle` under `flags` and `preset`.
+/// The driver for `bundle` under `flags` and `emission`.
 ///
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
@@ -56,7 +56,7 @@ pub struct Qwen3AsrFlags {
 pub fn driver(
     bundle: Arc<Qwen3AsrConstruct>,
     flags: &Qwen3AsrFlags,
-    preset: Preset,
+    emission: Emission,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<Qwen3AsrStreamDriver> {
@@ -70,8 +70,8 @@ pub fn driver(
         )));
     }
     let engine = Qwen3AsrEngine::new(bundle).with_window_seconds(window_seconds);
-    let driver = Qwen3AsrStreamDriver::new(engine, preset.into())?;
-    stream::with_vad(driver, preset, cache, device)
+    let driver = Qwen3AsrStreamDriver::new(engine, emission.into())?;
+    stream::with_vad(driver, emission, cache, device)
 }
 
 /// What each window's features are scaled against: each window packaged as the

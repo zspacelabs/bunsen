@@ -46,7 +46,7 @@ use crate::cli::asr::{
         statements,
     },
     qwen3_asr::Qwen3AsrFlags,
-    stream::Preset,
+    stream::Emission,
     voxtral::VoxtralFlags,
     whisper,
 };
@@ -124,8 +124,8 @@ pub struct TranscribeCmd<F: clap::Args> {
     pub model: Option<String>,
 
     /// When to decode.
-    #[arg(long, value_enum, default_value_t = Preset::Offline)]
-    pub preset: Preset,
+    #[arg(long, value_enum, default_value_t = Emission::Offline)]
+    pub emission: Emission,
 
     /// Milliseconds of audio per push: each file is fed to the driver as a
     /// live loop would feed it, in pieces of this.
@@ -267,8 +267,14 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
     ) -> BunsenResult<()> {
         self.io.init_logging()?;
         let model = self.model.as_deref().unwrap_or(family.default_model());
-        self.io
-            .run(family, model, &self.flags, self.preset, self.chunk_ms, None)
+        self.io.run(
+            family,
+            model,
+            &self.flags,
+            self.emission,
+            self.chunk_ms,
+            None,
+        )
     }
 }
 
@@ -279,7 +285,7 @@ impl TranscribeIo {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))
     }
 
-    /// Transcribes the files with `model` of `family` under `flags`, `preset`
+    /// Transcribes the files with `model` of `family` under `flags`, `emission`
     /// and pushes of `chunk_ms`, publishing each file's statements, then its
     /// transcript with `stamp`, what chose them.
     pub fn run<F: FamilyFlags>(
@@ -287,7 +293,7 @@ impl TranscribeIo {
         family: Family,
         model: &str,
         flags: &F,
-        preset: Preset,
+        emission: Emission,
         chunk_ms: usize,
         stamp: Option<&Stamp>,
     ) -> BunsenResult<()> {
@@ -302,7 +308,7 @@ impl TranscribeIo {
         let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
 
-        let driver = Driver::build(loaded, flags, preset, speakers, &cache, &device)?;
+        let driver = Driver::build(loaded, flags, emission, speakers, &cache, &device)?;
         let rate = driver.sample_rate();
         let chunk = driver.push_samples(chunk_ms);
 

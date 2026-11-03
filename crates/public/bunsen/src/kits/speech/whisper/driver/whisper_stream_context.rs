@@ -1505,10 +1505,10 @@ mod tests {
         );
         assert!(
             base.clone()
-                .with_emission(EmissionPolicy::responsive())
+                .with_emission(EmissionPolicy::drafting())
                 .init_with_layout(tiny_model_on(&device), policy.clone(), &device)
                 .is_ok(),
-            "responsive is the third deployment target",
+            "drafting is the third deployment target",
         );
         // An interval of zero.
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -1778,13 +1778,13 @@ mod tests {
             assert_eq!(ctx.regions_pending(), 0);
         }
 
-        /// A responsive driver: conservative plus a draft every 50 ms of
+        /// A drafting driver: conservative plus a draft every 50 ms of
         /// media time while speech is in progress &mdash; shorter than
-        /// `responsive()`'s 600 ms because the tiny model's window is 0.16 s
+        /// `drafting()`'s 600 ms because the tiny model's window is 0.16 s
         /// of audio, and a full window commits before a longer interval
         /// could draft. Its decode is scripted so the pin is about
         /// scheduling, not the untrained model.
-        fn responsive_driver(device: &Device) -> WhisperStreamDriver {
+        fn drafting_driver(device: &Device) -> WhisperStreamDriver {
             let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let scripted: Arc<dyn LogitFilter> = Arc::new(Script(vec![3, 1, 4, 1]));
             let policy = EmissionPolicy::new(
@@ -1818,16 +1818,16 @@ mod tests {
         }
 
         /// **I9.** Adding the interval trigger cannot change the transcript:
-        /// `responsive()` commits exactly what `conservative()` commits, and
+        /// `drafting()` commits exactly what `conservative()` commits, and
         /// drafts besides: each covering the audio since the last commit,
         /// paced at least an interval apart, none after the last commit.
         #[test]
         #[serial]
-        fn test_responsive_commits_what_conservative_commits() {
+        fn test_drafting_commits_what_conservative_commits() {
             let device = cpu_device();
             let scripted: Arc<dyn LogitFilter> = Arc::new(Script(vec![3, 1, 4, 1]));
             let conservative = conservative_driver(&device).with_logit_filters(vec![scripted]);
-            let responsive = responsive_driver(&device);
+            let drafting = drafting_driver(&device);
 
             let mut ctx = conservative
                 .new_context(clock(), LevelPolicy::PerWindow)
@@ -1838,7 +1838,7 @@ mod tests {
                 "conservative never drafts"
             );
 
-            let mut ctx = responsive
+            let mut ctx = drafting
                 .new_context(clock(), LevelPolicy::PerWindow)
                 .unwrap();
             let chatty = in_pieces(&mut ctx);
@@ -1885,13 +1885,13 @@ mod tests {
             );
         }
 
-        /// Batched, a responsive stream drafts and commits exactly as it
+        /// Batched, a drafting stream drafts and commits exactly as it
         /// does alone: fed a piece at a time and advanced after each.
         #[test]
         #[serial]
         fn test_advance_ready_drafts_like_solo() {
             let device = cpu_device();
-            let driver = responsive_driver(&device);
+            let driver = drafting_driver(&device);
             let audio = speech();
 
             let mut solo = driver.new_context(clock(), LevelPolicy::PerWindow).unwrap();
@@ -1997,13 +1997,13 @@ mod tests {
             let language = ctx.language().map(str::to_string);
             assert!(language.is_some());
 
-            let responsive = EmissionPolicy::new(
+            let drafting = EmissionPolicy::new(
                 DecodeTriggers::new()
                     .with_endpoint(true)
                     .with_interval(Some(std::time::Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             );
-            let driver = detecting_driver(&device, responsive);
+            let driver = detecting_driver(&device, drafting);
             let mut ctx = driver.new_context(clock(), LevelPolicy::PerWindow).unwrap();
             let mut chatty = Vec::new();
             let mut fixed_by_a_draft = false;
@@ -2022,7 +2022,7 @@ mod tests {
                 .collect();
             assert_eq!(
                 committed, quiet,
-                "responsive commits what conservative commits"
+                "drafting commits what conservative commits"
             );
             assert_eq!(ctx.language(), language.as_deref());
             assert!(!fixed_by_a_draft, "only a commit fixes the language");

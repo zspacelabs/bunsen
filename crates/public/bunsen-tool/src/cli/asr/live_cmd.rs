@@ -35,7 +35,7 @@ use crate::cli::asr::{
         Publisher,
         statements,
     },
-    stream::Preset,
+    stream::Emission,
     transcribe_cmd::FamilyFlags,
 };
 
@@ -48,7 +48,7 @@ use crate::cli::asr::{
 /// downmixed to mono, to the main thread, which batches them into pushes,
 /// anchors the stream's clock at each push's capture time, and publishes
 /// what the driver emits (`--publish`): each decode's statements, by default
-/// a line each on stdout, and, under `--preset responsive`, a draft of the
+/// a line each on stdout, and, under `--emission drafting`, a draft of the
 /// speech so far, on stderr and redrawn in place on a terminal. Times are
 /// the wall clock's: the stream's start is when capture began. Ctrl-C, or
 /// `--seconds`, ends the stream
@@ -63,8 +63,8 @@ pub struct LiveCmd<F: clap::Args> {
 
     /// When to decode: a microphone has no end, so by default each speech
     /// region is decoded as it closes.
-    #[arg(long, value_enum, default_value_t = Preset::Conservative)]
-    pub preset: Preset,
+    #[arg(long, value_enum, default_value_t = Emission::Conservative)]
+    pub emission: Emission,
 
     /// Milliseconds of audio per push: the capture callbacks, which arrive
     /// every few milliseconds, are batched to this.
@@ -109,7 +109,7 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
         self.io.init_logging()?;
         let model = self.model.as_deref().unwrap_or(family.default_model());
         self.io
-            .run(family, model, &self.flags, self.preset, self.chunk_ms)
+            .run(family, model, &self.flags, self.emission, self.chunk_ms)
     }
 }
 
@@ -121,13 +121,13 @@ impl LiveIo {
     }
 
     /// Transcribes the microphone with `model` of `family` under `flags`,
-    /// `preset` and pushes of `chunk_ms`.
+    /// `emission` and pushes of `chunk_ms`.
     pub fn run<F: FamilyFlags>(
         &self,
         family: Family,
         model: &str,
         flags: &F,
-        preset: Preset,
+        emission: Emission,
         chunk_ms: usize,
     ) -> BunsenResult<()> {
         let Some(capture) = self.capture.open()? else {
@@ -144,7 +144,7 @@ impl LiveIo {
         let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
         let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
-        let driver = Driver::build(loaded, flags, preset, speakers, &cache, &device)?;
+        let driver = Driver::build(loaded, flags, emission, speakers, &cache, &device)?;
         let rate = driver.sample_rate();
         let chunk = driver.push_samples(chunk_ms);
         log::debug!(

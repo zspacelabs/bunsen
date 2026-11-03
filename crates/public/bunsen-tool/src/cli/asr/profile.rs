@@ -21,7 +21,7 @@ use crate::cli::asr::{
     family::Family,
     parakeet::ParakeetFlags,
     qwen3_asr::Qwen3AsrFlags,
-    stream::Preset,
+    stream::Emission,
     voxtral::VoxtralFlags,
     whisper::WhisperFlags,
 };
@@ -59,7 +59,7 @@ pub struct Recipe {
     /// The model, as `--model` names it.
     pub model: &'static str,
 
-    pub preset: Preset,
+    pub emission: Emission,
 
     /// Milliseconds of audio per push.
     pub chunk_ms: usize,
@@ -195,7 +195,7 @@ const fn offline(
     Recipe {
         family,
         model,
-        preset: Preset::Offline,
+        emission: Emission::Offline,
         chunk_ms: 1000,
         flags,
     }
@@ -210,7 +210,7 @@ const fn live(
     Recipe {
         family,
         model,
-        preset: Preset::Conservative,
+        emission: Emission::Conservative,
         chunk_ms: 250,
         flags,
     }
@@ -540,7 +540,7 @@ pub struct Resolved {
     pub mode: Mode,
     pub family: Family,
     pub model: String,
-    pub preset: Preset,
+    pub emission: Emission,
     pub chunk_ms: usize,
 
     /// The family's own flags, by long name, each once, in order.
@@ -577,7 +577,7 @@ impl Recipe {
             mode,
             family: self.family,
             model: self.model.to_string(),
-            preset: self.preset,
+            emission: self.emission,
             chunk_ms: self.chunk_ms,
             flags: self
                 .flags
@@ -716,8 +716,8 @@ impl Resolved {
             self.mode.command(),
             "--model",
             &self.model,
-            "--preset",
-            preset_name(self.preset),
+            "--emission",
+            emission_name(self.emission),
             "--chunk-ms",
         ]
         .map(String::from)
@@ -736,7 +736,7 @@ impl Resolved {
             recipe: RecipeStamp {
                 family: self.family.name().to_string(),
                 model: self.model.clone(),
-                preset: preset_name(self.preset).to_string(),
+                emission: emission_name(self.emission).to_string(),
                 chunk_ms: self.chunk_ms,
                 flags: self.flags.iter().cloned().collect(),
             },
@@ -744,12 +744,12 @@ impl Resolved {
     }
 }
 
-/// The name `--preset` takes for `preset`.
-pub fn preset_name(preset: Preset) -> &'static str {
-    match preset {
-        Preset::Offline => "offline",
-        Preset::Conservative => "conservative",
-        Preset::Responsive => "responsive",
+/// The name `--emission` takes for `emission`.
+pub fn emission_name(emission: Emission) -> &'static str {
+    match emission {
+        Emission::Offline => "offline",
+        Emission::Conservative => "conservative",
+        Emission::Drafting => "drafting",
     }
 }
 
@@ -787,7 +787,7 @@ pub struct Stamp {
 pub struct RecipeStamp {
     pub family: String,
     pub model: String,
-    pub preset: String,
+    pub emission: String,
     pub chunk_ms: usize,
     pub flags: BTreeMap<String, String>,
 }
@@ -985,7 +985,7 @@ mod tests {
         let r = resolve("translate-en", Mode::Live, None, &[]).unwrap();
         assert_eq!(
             shell_line(&r.command_line().unwrap()),
-            "bunsen-tool asr family whisper live --model openai/small --preset conservative \
+            "bunsen-tool asr family whisper live --model openai/small --emission conservative \
              --chunk-ms 250 --task translate --beam-size 1"
         );
         assert_eq!(

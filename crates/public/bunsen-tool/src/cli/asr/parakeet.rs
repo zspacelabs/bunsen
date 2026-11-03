@@ -24,7 +24,7 @@ use burn::tensor::Device;
 use crate::cli::asr::{
     stream::{
         self,
-        Preset,
+        Emission,
     },
     transcribe_cmd::{
         Transcript,
@@ -46,7 +46,7 @@ pub struct ParakeetFlags {
     pub window_seconds: Option<f64>,
 }
 
-/// The driver for `bundle` under `flags` and `preset`.
+/// The driver for `bundle` under `flags` and `emission`.
 ///
 /// # Errors
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
@@ -54,7 +54,7 @@ pub struct ParakeetFlags {
 pub fn driver(
     bundle: Arc<ParakeetConstruct>,
     flags: &ParakeetFlags,
-    preset: Preset,
+    emission: Emission,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<ParakeetStreamDriver> {
@@ -66,8 +66,8 @@ pub fn driver(
         )));
     }
     let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);
-    let driver = ParakeetStreamDriver::new(engine, preset.into())?;
-    stream::with_vad(driver, preset, cache, device)
+    let driver = ParakeetStreamDriver::new(engine, emission.into())?;
+    stream::with_vad(driver, emission, cache, device)
 }
 
 /// What each window's features are scaled against: each window normalized as

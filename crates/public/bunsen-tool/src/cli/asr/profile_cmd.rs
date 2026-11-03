@@ -44,7 +44,7 @@ use crate::cli::asr::{
     },
     qwen3_asr::Qwen3AsrFlags,
     stream::{
-        Preset,
+        Emission,
         VAD_MODEL,
     },
     transcribe_cmd::TranscribeIo,
@@ -114,7 +114,7 @@ pub struct ProfileArgs {
 
     /// When to decode, in place of the profile's.
     #[arg(long, value_enum)]
-    pub preset: Option<Preset>,
+    pub emission: Option<Emission>,
 
     /// Milliseconds of audio per push, in place of the profile's.
     #[arg(long)]
@@ -295,8 +295,8 @@ impl ProfileArgs {
             self.language.as_deref(),
             &opts,
         )?;
-        if let Some(preset) = self.preset {
-            resolved.preset = preset;
+        if let Some(emission) = self.emission {
+            resolved.emission = emission;
         }
         if let Some(chunk_ms) = self.chunk_ms {
             resolved.chunk_ms = chunk_ms;
@@ -368,7 +368,7 @@ impl ProfileTranscribeCmd {
             resolved.family,
             &resolved.model,
             &flags,
-            resolved.preset,
+            resolved.emission,
             resolved.chunk_ms,
             Some(&stamp),
         ))
@@ -400,7 +400,7 @@ impl ProfileLiveCmd {
             resolved.family,
             &resolved.model,
             &flags,
-            resolved.preset,
+            resolved.emission,
             resolved.chunk_ms,
         ))
     }
@@ -544,7 +544,7 @@ impl FetchCmd {
                 if !models.contains(&(recipe.family, recipe.model)) {
                     models.push((recipe.family, recipe.model));
                 }
-                vad |= recipe.preset != Preset::Offline;
+                vad |= recipe.emission != Emission::Offline;
             }
         }
         let mut out = std::io::stdout().lock();

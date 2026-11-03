@@ -18,7 +18,7 @@
 //!   committed segment or a draft one.
 //! - [`EmissionPolicy`]: when a driver decodes ([`DecodeTriggers`]) and what it
 //!   commits ([`CommitRule`]), with presets for the three deployments (offline,
-//!   conservative real time, responsive real time).
+//!   conservative real time, drafting real time).
 //! - [`StreamClock`]: a stream's sample index to media time.
 //! - [`VoiceActivityModel`] and [`VoiceActivityFilter`]: per-chunk speech
 //!   probabilities, and the gate that turns them into [`SpeechRegion`]s.

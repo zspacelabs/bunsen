@@ -29,7 +29,7 @@
 //! Silero is the voice-activity gate of the Whisper stream driver. The
 //! real-time emission presets
 //! ([`conservative`](asr_driver::EmissionPolicy::conservative) and
-//! [`responsive`](asr_driver::EmissionPolicy::responsive)) decode at
+//! [`drafting`](asr_driver::EmissionPolicy::drafting)) decode at
 //! the end of each speech region, so their driver needs a
 //! [`SileroVad`](silero_vad::SileroVad), attached with
 //! [`with_vad`](whisper::driver::WhisperStreamDriver::with_vad) together

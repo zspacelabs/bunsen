@@ -9,10 +9,10 @@ use bunsen::{
             AsrEngine,
             AsrStreamContext,
             AsrStreamDriver,
+            EmissionMode,
             EmissionPolicy,
             LevelPolicy,
             MeanActivity,
-            PresetEmissionPolicy,
             StreamClock,
             TranscriptEvent,
             TranscriptSegment,
@@ -25,7 +25,7 @@ use burn::tensor::Device;
 
 /// When the driver decodes.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Preset {
+pub enum Emission {
     /// Whole windows, one after another.
     Offline,
 
@@ -36,15 +36,15 @@ pub enum Preset {
     /// Conservative, plus a draft of the speech so far every 600 ms of it:
     /// `live` shows the drafts as they come; `transcribe` prints only what
     /// is committed.
-    Responsive,
+    Drafting,
 }
 
-impl From<Preset> for EmissionPolicy {
-    fn from(preset: Preset) -> Self {
-        match preset {
-            Preset::Offline => PresetEmissionPolicy::Offline,
-            Preset::Conservative => PresetEmissionPolicy::Conservative,
-            Preset::Responsive => PresetEmissionPolicy::Responsive,
+impl From<Emission> for EmissionPolicy {
+    fn from(emission: Emission) -> Self {
+        match emission {
+            Emission::Offline => EmissionMode::Offline,
+            Emission::Conservative => EmissionMode::Conservative,
+            Emission::Drafting => EmissionMode::Drafting,
         }
         .into()
     }
@@ -54,14 +54,14 @@ impl From<Preset> for EmissionPolicy {
 /// `faster-whisper`'s policy: 2 s of silence closes a region, 400 ms pads it.
 pub const VAD_MODEL: &str = "silero/vad-16k[faster-whisper]";
 
-/// `driver`, with Silero's VAD attached when `preset` finds speech regions.
+/// `driver`, with Silero's VAD attached when `emission` finds speech regions.
 pub fn with_vad<E: AsrEngine>(
     driver: AsrStreamDriver<E>,
-    preset: Preset,
+    emission: Emission,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<AsrStreamDriver<E>> {
-    if preset == Preset::Offline {
+    if emission == Emission::Offline {
         return Ok(driver);
     }
     let vad = default_silero_factory()?

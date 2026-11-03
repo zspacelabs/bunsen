@@ -295,7 +295,7 @@ mod tests {
             Args::try_parse_from(["asr", "family", family, "fetch", "--verify", "a", "b"]).unwrap();
             assert!(Args::try_parse_from(["asr", "family", family, "fetch"]).is_err());
         }
-        // Every family listens live, under any preset.
+        // Every family listens live, under any emission.
         #[cfg(feature = "live")]
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
@@ -303,8 +303,8 @@ mod tests {
                 "family",
                 family,
                 "live",
-                "--preset",
-                "responsive",
+                "--emission",
+                "drafting",
                 "--chunk-ms",
                 "100",
                 "--seconds",
@@ -312,14 +312,14 @@ mod tests {
             ])
             .unwrap();
         }
-        // Every family takes a preset.
+        // Every family takes an emission.
         for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
                 "asr",
                 "family",
                 family,
                 "transcribe",
-                "--preset",
+                "--emission",
                 "conservative",
                 "a.wav",
             ])
@@ -386,7 +386,7 @@ mod tests {
             "whisper.beam-size=1",
             "--opt",
             "window-seconds=20",
-            "--preset",
+            "--emission",
             "conservative",
             "--chunk-ms",
             "500",
