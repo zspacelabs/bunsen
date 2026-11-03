@@ -1,4 +1,4 @@
-//! Reading a `transformers` `config.json`.
+//! `HfConfigJson`: reading a `transformers` `config.json` field by field.
 use serde_json::Value;
 
 use crate::errors::{

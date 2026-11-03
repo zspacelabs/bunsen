@@ -20,7 +20,6 @@ use crate::{
     },
     burner::module::Rekey,
     data::pretrained::{
-        HfConfigJson,
         NamedTensorsApplied,
         apply_rekeyed_tensors,
     },
@@ -28,6 +27,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    kits::support::model_config::HfConfigJson,
 };
 
 /// `transformers`' `ParakeetEncoderSubsampling` names onto a

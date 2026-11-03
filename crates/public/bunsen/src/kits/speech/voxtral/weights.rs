@@ -14,12 +14,14 @@ use crate::{
         tensor::param_float_dtype,
     },
     data::pretrained::{
-        HfConfigJson,
         NamedTensorsApplied,
         apply_rekeyed_tensors_as,
     },
     errors::BunsenResult,
-    kits::gpts::qwen3::weights::text_layer_rekey,
+    kits::{
+        gpts::qwen3::weights::text_layer_rekey,
+        support::model_config::HfConfigJson,
+    },
 };
 
 /// `transformers`' Voxtral Realtime audio-encoder layer names onto a

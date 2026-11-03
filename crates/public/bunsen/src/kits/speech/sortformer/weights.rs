@@ -13,7 +13,6 @@ use crate::{
     },
     burner::module::Rekey,
     data::pretrained::{
-        HfConfigJson,
         NamedTensorsApplied,
         apply_rekeyed_tensors,
     },
@@ -21,9 +20,12 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::nemo::{
-        conformer_encoder_rekey,
-        transformer_encoder_rekey,
+    kits::{
+        speech::nemo::{
+            conformer_encoder_rekey,
+            transformer_encoder_rekey,
+        },
+        support::model_config::HfConfigJson,
     },
 };
 
