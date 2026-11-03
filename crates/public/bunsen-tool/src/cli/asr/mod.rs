@@ -441,7 +441,7 @@ mod tests {
     /// parses as that command.
     #[test]
     fn test_profile_command_lines_parse() {
-        for profile in profile::PROFILES {
+        for profile in profile::profiles() {
             for mode in [profile::Mode::Offline, profile::Mode::Live] {
                 #[cfg(not(feature = "live"))]
                 if mode == profile::Mode::Live {

@@ -24,7 +24,8 @@ use bunsen::{
 use burn::tensor::Device;
 
 /// When the driver decodes.
-#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Emission {
     /// Whole windows, one after another.
     Offline,
