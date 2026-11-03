@@ -1,0 +1,300 @@
+# The qwen3 kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/gpts/qwen3/pretrained/catalog.json`.
+kit: qwen3
+out: crates/public/bunsen/src/kits/gpts/qwen3/pretrained/catalog.json
+name: "well-known"
+description: "the Qwen3 checkpoints bunsen knows by name"
+groups:
+  - name: "qwen"
+    description: "Qwen's dense Qwen3 language models, as transformers ships them"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen"
+    rows:
+      - name: "qwen3-0.6b"
+        description: "Qwen3-0.6B: thinking and non-thinking chat, bf16, 1.50 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
+        prefab: "qwen3-0.6b"
+        bundles: ["qwen/qwen3-0.6b"]
+      - name: "qwen3-0.6b-base"
+        description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning, bf16, 1.19 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
+        prefab: "qwen3-0.6b"
+        bundles: ["qwen/qwen3-0.6b-base"]
+      - name: "qwen3-1.7b"
+        description: "Qwen3-1.7B: thinking and non-thinking chat, bf16, 4.06 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
+        prefab: "qwen3-1.7b"
+        bundles: ["qwen/qwen3-1.7b"]
+      - name: "qwen3-1.7b-base"
+        description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning, bf16, 3.44 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
+        prefab: "qwen3-1.7b"
+        bundles: ["qwen/qwen3-1.7b-base"]
+      - name: "qwen3-4b"
+        description: "Qwen3-4B: thinking and non-thinking chat, bf16, 8.04 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-4B"
+        prefab: "qwen3-4b"
+        bundles: ["qwen/qwen3-4b"]
+      - name: "qwen3-4b-base"
+        description: "Qwen3-4B-Base: the pretrained model, no chat tuning, bf16, 8.04 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
+        prefab: "qwen3-4b"
+        bundles: ["qwen/qwen3-4b-base"]
+      - name: "qwen3-4b-instruct-2507"
+        description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context, bf16, 8.04 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
+        prefab: "qwen3-4b-2507"
+        bundles: ["qwen/qwen3-4b-instruct-2507"]
+      - name: "qwen3-4b-thinking-2507"
+        description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context, bf16, 8.04 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
+        prefab: "qwen3-4b-2507"
+        bundles: ["qwen/qwen3-4b-thinking-2507"]
+      - name: "qwen3-8b"
+        description: "Qwen3-8B: thinking and non-thinking chat, bf16, 16.38 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-8B"
+        prefab: "qwen3-8b"
+        bundles: ["qwen/qwen3-8b"]
+      - name: "qwen3-8b-base"
+        description: "Qwen3-8B-Base: the pretrained model, no chat tuning, bf16, 16.38 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
+        prefab: "qwen3-8b"
+        bundles: ["qwen/qwen3-8b-base"]
+      - name: "qwen3-4b-saferl"
+        description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat, bf16, 8.04 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3-4B-SafeRL"
+        prefab: "qwen3-4b"
+        bundles: ["qwen/qwen3-4b-saferl"]
+      - name: "qwen3guard-gen-0.6b"
+        description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 1.50 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
+        prefab: "qwen3-0.6b"
+        bundles: ["qwen/qwen3guard-gen-0.6b"]
+      - name: "qwen3guard-gen-4b"
+        description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 8.82 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
+        prefab: "qwen3-4b"
+        bundles: ["qwen/qwen3guard-gen-4b"]
+      - name: "qwen3guard-gen-8b"
+        description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories, bf16, 16.38 GB"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
+        prefab: "qwen3-8b"
+        bundles: ["qwen/qwen3guard-gen-8b"]
+bundles:
+  - name: "qwen/qwen3-0.6b"
+    description: "Qwen3-0.6B: model.safetensors (bf16, 1.50 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-0.6B", revision: "c1899de289a04d12100db370d81485cdf75e47ca" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-0.6b-base"
+    description: "Qwen3-0.6B-Base: model.safetensors (bf16, 1.19 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-0.6B-Base", revision: "da87bfb608c14b7cf20ba1ce41287e8de496c0cd" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-1.7b"
+    description: "Qwen3-1.7B: 2 safetensors shards (bf16, 4.06 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-1.7B", revision: "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00002.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00002.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-1.7b-base"
+    description: "Qwen3-1.7B-Base: model.safetensors (bf16, 3.44 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-1.7B-Base", revision: "ea980cb0a6c2ae4b936e82123acc929f1cec04c1" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-4b"
+    description: "Qwen3-4B: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-4B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-4B", revision: "1cfa9a7208912126459214e8b04321603b3df60c" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-4b-base"
+    description: "Qwen3-4B-Base: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-4B-Base", revision: "906bfd4b4dc7f14ee4320094d8b41684abff8539" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-4b-instruct-2507"
+    description: "Qwen3-4B-Instruct-2507: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-4B-Instruct-2507", revision: "cdbee75f17c01a7cc42f958dc650907174af0554" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-4b-thinking-2507"
+    description: "Qwen3-4B-Thinking-2507: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-4B-Thinking-2507", revision: "768f209d9ea81521153ed38c47d515654e938aea" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-8b"
+    description: "Qwen3-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-8B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-8B", revision: "b968826d9c46dd6066d109eabc6255188de91218" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model-00004-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00005", file: "model-00005-of-00005.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-8b-base"
+    description: "Qwen3-8B-Base: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-8B-Base", revision: "49e3418fbbbca6ecbdf9608b4d22e5a407081db4" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model-00004-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00005", file: "model-00005-of-00005.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3-4b-saferl"
+    description: "Qwen3-4B-SafeRL: 3 safetensors shards (bf16, 8.04 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3-4B-SafeRL"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3-4B-SafeRL", revision: "1b95ccb88cabaf284ffb6968719c40ae6cd4085b" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3guard-gen-0.6b"
+    description: "Qwen3Guard-Gen-0.6B: one safetensors file (bf16, 1.50 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3Guard-Gen-0.6B", revision: "fada3b2f655b89601929198343c94cd2f64d93cc" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3guard-gen-4b"
+    description: "Qwen3Guard-Gen-4B: 3 safetensors shards (bf16, 8.82 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3Guard-Gen-4B", revision: "6ec42827da0c1ff11e7a49dc269d2e810d27e108" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "qwen/qwen3guard-gen-8b"
+    description: "Qwen3Guard-Gen-8B: 5 safetensors shards (bf16, 16.38 GB), config, tokenizer, generation config"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3Guard-Gen-8B", revision: "4505cb1a6f1864f21f8b27f7daf1b9a1aab6edbb" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model-00004-of-00005.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00005", file: "model-00005-of-00005.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }

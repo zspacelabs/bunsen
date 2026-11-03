@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_nanochat_factory`] is the index a caller holds, over the
-//! well-known table, [`WELL_KNOWN_TABLE`], whose rows name their prefab in
+//! well-known table, [`NANOCHAT_CATALOG`], whose rows name their prefab in
 //! [`NANOCHAT_PREFABS`]. There are no official nanochat releases; each row is
 //! a community upload of upstream's own checkpoint files, unconverted: a
 //! `model_<step>.pt` (about 2 GB), its `meta_<step>.json`, and the tokenizer
