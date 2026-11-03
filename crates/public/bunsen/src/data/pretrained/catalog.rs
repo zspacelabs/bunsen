@@ -138,6 +138,27 @@ pub struct CatalogRow {
     /// ([`PresetSet::over`]).
     #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
     pub presets: PresetSet,
+
+    /// The probes the catalog tool runs over the row's files, whose results
+    /// its presets are laid over. The tool's input: a built catalog has
+    /// none, only what they found.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub probe: Vec<CatalogProbe>,
+}
+
+/// One probe of a [`CatalogRow`]: a named reader of one of the row's files,
+/// and where what it finds goes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogProbe {
+    /// The probe, by name: `generation_config`, say.
+    pub probe: String,
+
+    /// The file it reads, by its resource key in the row's bundles.
+    pub file: String,
+
+    /// Where its patch goes: `base`, the set's base, or presets by name.
+    pub into: Vec<String>,
 }
 
 /// One resource bundle of a [`PretrainedCatalog`]: a [`ResourceBundle`] before
@@ -643,6 +664,12 @@ impl PretrainedCatalog {
             }
         }
         for row in self.rows() {
+            if !row.probe.is_empty() {
+                return problem(format!(
+                    "row {:?} keeps probes the catalog tool should have run",
+                    row.name
+                ));
+            }
             if let Some(prefab) = &row.prefab
                 && !prefabs.contains(&prefab.as_str())
             {
@@ -856,6 +883,7 @@ mod tests {
                 members: vec!["fast".to_string(), "good".to_string()],
             }],
             default: vec!["good".to_string()],
+            ..Default::default()
         };
         let json = serde_json::to_string(&catalog).unwrap();
         assert_eq!(PretrainedCatalog::from_json(&json).unwrap(), catalog);
@@ -929,6 +957,7 @@ mod tests {
                     members: vec!["fast".to_string(), "good".to_string()],
                 }],
                 default: vec!["good".to_string()],
+                ..Default::default()
             },
         }];
         let json = serde_json::to_string(&catalog).unwrap();

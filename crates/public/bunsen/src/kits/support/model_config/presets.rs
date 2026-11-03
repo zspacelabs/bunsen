@@ -50,10 +50,11 @@ impl<C> ResolvedPresets<C> {
 /// before:
 ///
 /// 1. `base`: the family's config, serialized;
-/// 2. the default presets, except those whose axis `selection` selects a member
+/// 2. the set's [`base`](PresetSet::base) patch, which every selection keeps;
+/// 3. the default presets, except those whose axis `selection` selects a member
 ///    of;
-/// 3. the selected presets;
-/// 4. the selection's final patch.
+/// 4. the selected presets;
+/// 5. the selection's final patch.
 ///
 /// The selected presets are one layer, checked by
 /// [`PresetSet::check_selection`]: two that set the same path are an error,
@@ -83,6 +84,7 @@ where
 
     let mut value = serde_json::to_value(base)
         .map_err(|e| BunsenError::internal("a config that does not serialize").with_cause(e))?;
+    apply_layer(&mut value, &set.base).map_err(|e| e.context("the base patch"))?;
     for name in &presets {
         let preset = set.get(name).expect("checked: every applied preset exists");
         apply_layer(&mut value, &preset.patch)
@@ -217,6 +219,7 @@ mod tests {
                 members: vec!["thinking".to_string(), "no-thinking".to_string()],
             }],
             default: vec!["thinking".to_string()],
+            ..Default::default()
         };
         set.validate().unwrap();
         set
@@ -404,5 +407,28 @@ mod tests {
         assert_eq!(r.presets, ["thinking"]);
         let r = resolve_ref_presets(&base(), &given, &PresetSet::default()).unwrap();
         assert_eq!(r.config, base());
+    }
+
+    /// The set's base applies under every selection, the default's and a
+    /// displacing one's alike; a preset may set what the base set.
+    #[test]
+    fn test_the_base_is_under_every_selection() {
+        let mut set = set();
+        set.base = json!({"beam": 3, "yarn": 2.0});
+        set.validate().unwrap();
+        let r = resolve_presets(&base(), &set, &PresetSelection::default()).unwrap();
+        assert_eq!((r.config.beam, r.config.yarn), (3, Some(2.0)));
+        let r = resolve_presets(
+            &base(),
+            &set,
+            &PresetSelection::new(["no-thinking", "wide"]),
+        )
+        .unwrap();
+        assert_eq!((r.config.beam, r.config.yarn), (5, Some(2.0)));
+
+        set.base = json!({"bean": 3});
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_contains("bean")
+            .assert_err(&resolve_presets(&base(), &set, &PresetSelection::default()));
     }
 }
