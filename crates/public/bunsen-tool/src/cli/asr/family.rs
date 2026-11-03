@@ -130,6 +130,18 @@ pub enum Loaded {
     Whisper(Arc<WhisperConstruct>),
 }
 
+impl<'de> serde::Deserialize<'de> for Family {
+    /// By [`name`](Family::name): `parakeet`, `qwen3-asr`, `voxtral`,
+    /// `whisper`.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        Family::from_name(&name).ok_or_else(|| {
+            let names: Vec<&str> = Family::ALL.iter().map(|f| f.name()).collect();
+            serde::de::Error::custom(format!("`{name}` is not a family: {}", names.join(", ")))
+        })
+    }
+}
+
 impl Family {
     /// Every family.
     pub const ALL: [Family; 4] = [

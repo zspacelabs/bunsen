@@ -32,14 +32,15 @@ use crate::cli::asr::{
         Mode,
         Need,
         Opt,
-        PROFILES,
         Profile,
         Quality,
         Resolved,
         Speech,
         Task,
+        catalog,
         lookup,
         pick,
+        profiles,
         shell_line,
     },
     qwen3_asr::Qwen3AsrFlags,
@@ -185,9 +186,9 @@ impl ProfileArgs {
     ) -> BunsenResult<Asked> {
         let speech = self.speech()?;
         let settle = |asked: Need| {
-            let need = asked.settled();
-            if need != asked {
-                log::info!("{asked}: English speech translated to English is transcribed");
+            let (need, reasons) = asked.settled_why();
+            for reason in reasons {
+                log::info!("{asked}: {reason}");
             }
             need
         };
@@ -240,7 +241,7 @@ impl ProfileArgs {
             ..profile.need
         };
         let task = if need.task != cell.task {
-            let family = pick(cell, mode).0.recipe.family;
+            let family = pick(cell, mode).0.recipe.engine.family;
             if family != Family::Whisper {
                 let task = value_name(need.task);
                 return Err(BunsenError::policy(format!(
@@ -440,16 +441,17 @@ impl ProfilesCmd {
 
 /// A profile's name, and its aliases when it has any.
 fn title(profile: &Profile) -> String {
-    match profile.aliases {
-        [] => profile.name.to_string(),
+    match profile.aliases.as_slice() {
+        [] => profile.name.clone(),
         aliases => format!("{} ({})", profile.name, aliases.join(", ")),
     }
 }
 
-/// Writes each profile, and what each of its recipes runs.
+/// Writes each profile, and what each of its recipes runs; then the axes
+/// they are points of.
 fn list(out: &mut impl Write) -> BunsenResult<()> {
     let w = |e| sys_at("write to", "stdout")(e);
-    for (i, profile) in PROFILES.iter().enumerate() {
+    for (i, profile) in profiles().iter().enumerate() {
         if i > 0 {
             writeln!(out).map_err(w)?;
         }
@@ -461,10 +463,19 @@ fn list(out: &mut impl Write) -> BunsenResult<()> {
                 out,
                 "  {:<11} {} {}",
                 format!("{}:", mode.command()),
-                recipe.family.name(),
-                recipe.model
+                recipe.engine.family.name(),
+                recipe.engine.model
             )
             .map_err(w)?;
+        }
+    }
+    // The axes the presets are points of, and what each value means.
+    writeln!(out).map_err(w)?;
+    writeln!(out, "The axes (`--speech`, `--task`, `--quality`):").map_err(w)?;
+    for axis in &catalog().axes {
+        writeln!(out, "  {}: {}", axis.name, axis.description).map_err(w)?;
+        for member in &axis.members {
+            writeln!(out, "    {:<11} {}", member.name, member.description).map_err(w)?;
         }
     }
     Ok(())
@@ -481,7 +492,7 @@ struct ShowCmd {
 impl ShowCmd {
     fn run(&self) -> BunsenResult<()> {
         let profiles: Vec<&Profile> = if self.names.is_empty() {
-            PROFILES.iter().collect()
+            profiles().iter().collect()
         } else {
             self.names
                 .iter()
@@ -541,8 +552,9 @@ impl FetchCmd {
         for name in &self.names {
             let profile = lookup(name)?;
             for recipe in [Mode::Offline, Mode::Live].map(|m| profile.recipe(m)) {
-                if !models.contains(&(recipe.family, recipe.model)) {
-                    models.push((recipe.family, recipe.model));
+                let model = (recipe.engine.family, recipe.engine.model.as_str());
+                if !models.contains(&model) {
+                    models.push(model);
                 }
                 vad |= recipe.emission != Emission::Offline;
             }
@@ -616,8 +628,8 @@ mod tests {
         const PHONON: &str = "fermion/phonon-2";
         const QWEN: &str = "qwen/qwen3-asr-1.7b";
         const QWEN_LIVE: &str = "qwen/qwen3-asr-0.6b";
-        const LARGE: &str = "openai/large-v3";
-        const SMALL: &str = "openai/small";
+        const LARGE: &str = "openai/large-v3[translate]{beam_size: 5}";
+        const SMALL: &str = "openai/small[translate]{beam_size: 1}";
         type Ran<'a> = Result<(&'a str, &'a str, &'a str, Task), &'a str>;
         let rows: &[(&[&str], Mode, Ran)] = &[
             // Nothing given: `default`, which transcribes.
@@ -938,9 +950,9 @@ mod tests {
         list(&mut out).unwrap();
         let text = String::from_utf8(out).unwrap();
         assert!(text.starts_with("en (default)\n"), "{text}");
-        for profile in PROFILES {
+        for profile in profiles() {
             for mode in [Mode::Offline, Mode::Live] {
-                assert!(text.contains(profile.recipe(mode).model), "{text}");
+                assert!(text.contains(&profile.recipe(mode).engine.model), "{text}");
             }
         }
         assert!(

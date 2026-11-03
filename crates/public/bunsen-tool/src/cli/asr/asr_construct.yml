@@ -1,0 +1,89 @@
+# The ASR construct: what `bunsen-tool asr transcribe` and `asr live` run,
+# by what the speech is for rather than which model does it. Embedded in the
+# binary and read once (`profile::catalog`).
+#
+# - `axes`: the points' coordinates, each with what it decides.
+# - `presets`: names for the points people ask for (`--preset`), each a
+#   point; `default` is an alias, so what it means can change.
+# - `fallback`: where a point without a cell looks next, per axis, in order:
+#   a nearer quality before another speech, as a multilingual model also
+#   hears English. The task is never changed by a fallback.
+# - `implications`: a point that is served as another.
+# - `points`: a cell where a model was seen to do the job, per mode, and
+#   its recipe: the engine (a family, and its model as a lookup expression,
+#   presets and patch included), the emission, and the push size. Every speech and
+#   task reaches a `balanced` cell in each mode.
+
+axes:
+  - name: speech
+    description: "what the speech is"
+    members:
+      - { name: en, description: "English" }
+      - { name: multi, description: "any language a model finds from the speech; English among them" }
+  - name: task
+    description: "what to make of the speech"
+    members:
+      - { name: transcribe, description: "text in the language spoken" }
+      - { name: translate, description: "English text" }
+  - name: quality
+    description: "how much compute to spend on it"
+    members:
+      - { name: fast, description: "less compute: a smaller model, where the table has one" }
+      - { name: balanced, description: "the default" }
+      - { name: good, description: "more compute: a larger model, where the table has one" }
+
+presets:
+  - name: en
+    aliases: [default]
+    description: "English: NVIDIA's Parakeet TDT, as FermionResearch's Phonon-2; each word timed"
+    need: { speech: en, task: transcribe, quality: balanced }
+  - name: multi
+    description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR (1.7B; 0.6B live)"
+    need: { speech: multi, task: transcribe, quality: balanced }
+  - name: translate-en
+    description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper (large-v3-turbo was not trained to translate)"
+    need: { speech: multi, task: translate, quality: balanced }
+
+fallback:
+  quality:
+    fast: [fast, balanced, good]
+    balanced: [balanced, good, fast]
+    good: [good, balanced, fast]
+  speech:
+    en: [en, multi]
+    multi: [multi]
+
+implications:
+  # Translating English to English is out of every model's training, and
+  # Whisper's output for it is its transcript.
+  - when: { speech: en, task: translate }
+    then: { task: transcribe }
+    reason: "English speech translated to English is transcribed"
+
+points:
+  # Parakeet TDT, as Phonon-2: each word timed.
+  - need: { speech: en, task: transcribe, quality: balanced }
+    mode: offline
+    recipe: { engine: { family: parakeet, model: "fermion/phonon-2" }, emission: offline, chunk_ms: 1000 }
+  - need: { speech: en, task: transcribe, quality: balanced }
+    mode: live
+    recipe: { engine: { family: parakeet, model: "fermion/phonon-2" }, emission: conservative, chunk_ms: 250 }
+  # Qwen3-ASR: 30 languages. Phonon-1 is an English fine-tune, and writes
+  # other speech as broken English. 1.7B is about 2.5x 0.6B's time, too
+  # slow to be seen keeping up live.
+  - need: { speech: multi, task: transcribe, quality: fast }
+    mode: offline
+    recipe: { engine: { family: qwen3-asr, model: "qwen/qwen3-asr-0.6b" }, emission: offline, chunk_ms: 1000 }
+  - need: { speech: multi, task: transcribe, quality: balanced }
+    mode: offline
+    recipe: { engine: { family: qwen3-asr, model: "qwen/qwen3-asr-1.7b" }, emission: offline, chunk_ms: 1000 }
+  - need: { speech: multi, task: transcribe, quality: balanced }
+    mode: live
+    recipe: { engine: { family: qwen3-asr, model: "qwen/qwen3-asr-0.6b" }, emission: conservative, chunk_ms: 250 }
+  # Whisper alone translates (large-v3-turbo was not trained to).
+  - need: { speech: multi, task: translate, quality: balanced }
+    mode: offline
+    recipe: { engine: { family: whisper, model: "openai/large-v3[translate]{beam_size: 5}" }, emission: offline, chunk_ms: 1000 }
+  - need: { speech: multi, task: translate, quality: balanced }
+    mode: live
+    recipe: { engine: { family: whisper, model: "openai/small[translate]{beam_size: 1}" }, emission: conservative, chunk_ms: 250 }

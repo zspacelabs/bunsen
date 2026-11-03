@@ -6,16 +6,22 @@ use std::{
     str::FromStr,
 };
 
-use bunsen::errors::{
-    BunsenError,
-    BunsenResult,
+use bunsen::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::support::construct::LookupExpr,
 };
 use clap::{
     Arg,
     Command,
     Parser,
 };
-use serde::Serialize;
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 use crate::cli::asr::{
     family::Family,
@@ -27,7 +33,8 @@ use crate::cli::asr::{
 };
 
 /// Which of a profile's recipes a command runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// Files: `transcribe`.
     Offline,
@@ -46,31 +53,10 @@ impl Mode {
     }
 }
 
-/// One way to run a family: what `bunsen-tool asr family <family>
-/// transcribe|live` would be given.
-///
-/// The flags are kept as the family command's long flags and parsed by the
-/// family's own `clap` struct, so no second copy of any family's options
-/// lives here, and a recipe is always a command `bunsen-tool asr family` runs.
-#[derive(Clone, Copy, Debug)]
-pub struct Recipe {
-    pub family: Family,
-
-    /// The model, as `--model` names it.
-    pub model: &'static str,
-
-    pub emission: Emission,
-
-    /// Milliseconds of audio per push.
-    pub chunk_ms: usize,
-
-    /// The family's own flags, by long name, in order; a flag that takes no
-    /// value is `"true"`.
-    pub flags: &'static [(&'static str, &'static str)],
-}
-
 /// What the speech is: the table's language axis.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum, Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Speech {
     /// English.
@@ -81,7 +67,7 @@ pub enum Speech {
 }
 
 /// What to make of the speech.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Task {
     /// Text in the language spoken.
@@ -92,7 +78,9 @@ pub enum Task {
 }
 
 /// How much compute to spend on it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Serialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Quality {
     Fast,
@@ -100,20 +88,10 @@ pub enum Quality {
     Good,
 }
 
-impl Quality {
-    /// This, then the others nearest first, a better one before a worse.
-    fn nearest(self) -> [Quality; 3] {
-        match self {
-            Quality::Fast => [Quality::Fast, Quality::Balanced, Quality::Good],
-            Quality::Balanced => [Quality::Balanced, Quality::Good, Quality::Fast],
-            Quality::Good => [Quality::Good, Quality::Balanced, Quality::Fast],
-        }
-    }
-}
-
 /// A point in the table: what the speech is, what to make of it, how much
 /// to spend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Need {
     pub speech: Speech,
     pub task: Task,
@@ -140,33 +118,48 @@ impl fmt::Display for Need {
 }
 
 impl Need {
-    /// This need as it is served: English speech translated to English is
-    /// transcribed.
-    ///
-    /// Translating English to English is out of every model's training, and
-    /// Whisper's output for it is its transcript, so the table has no such
-    /// cell; a need for one is the `transcribe` need.
+    /// This need as it is served: each of the catalog's implications that
+    /// matches it is applied, in order. English speech translated to English
+    /// is transcribed, for one: out of every model's training, and Whisper's
+    /// output for it is its transcript.
     pub fn settled(self) -> Need {
-        match (self.speech, self.task) {
-            (Speech::En, Task::Translate) => Need {
-                task: Task::Transcribe,
-                ..self
-            },
-            _ => self,
-        }
+        self.settled_why().0
+    }
+
+    /// [`settled`](Self::settled), with the reasons of the implications
+    /// that changed it, in order.
+    pub fn settled_why(self) -> (Need, Vec<&'static str>) {
+        let mut reasons = Vec::new();
+        let need = catalog().implications.iter().fold(self, |need, rule| {
+            if rule.when.matches(need) && rule.then.apply(need) != need {
+                reasons.push(rule.reason.as_str());
+                rule.then.apply(need)
+            } else {
+                need
+            }
+        });
+        (need, reasons)
     }
 
     /// The points that can stand in for this settled one, nearest first,
-    /// this one first: another quality before other speech, as a
-    /// multilingual model also hears English. The task is never changed.
+    /// this one first, by the catalog's fallback: another quality before
+    /// other speech, as a multilingual model also hears English. The task is
+    /// never changed.
     fn candidates(self) -> Vec<Need> {
-        let speeches: &[Speech] = match self.speech {
-            Speech::En => &[Speech::En, Speech::Multi],
-            Speech::Multi => &[Speech::Multi],
-        };
+        let fallback = &catalog().fallback;
+        let speeches = fallback
+            .speech
+            .get(&self.speech)
+            .cloned()
+            .unwrap_or_else(|| vec![self.speech]);
+        let qualities = fallback
+            .quality
+            .get(&self.quality)
+            .cloned()
+            .unwrap_or_else(|| vec![self.quality]);
         let mut out = Vec::new();
-        for &speech in speeches {
-            for quality in self.quality.nearest() {
+        for &speech in &speeches {
+            for &quality in &qualities {
                 out.push(Need {
                     speech,
                     task: self.task,
@@ -178,173 +171,56 @@ impl Need {
     }
 }
 
+/// One way to run a family: what `bunsen-tool asr family <family>
+/// transcribe|live` would be given. The engine's model is a lookup
+/// expression, its presets and patch included
+/// (`openai/large-v3[translate]{beam_size: 5}`), so a recipe is always a
+/// command `bunsen-tool asr family` runs.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Recipe {
+    /// The engine slot: the family that runs, and its model.
+    pub engine: EngineSlot,
+
+    pub emission: Emission,
+
+    /// Milliseconds of audio per push.
+    pub chunk_ms: usize,
+}
+
+/// A recipe's engine: a family, and its model as a lookup expression.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EngineSlot {
+    pub family: Family,
+
+    /// The model, as `--model` names it.
+    pub model: String,
+}
+
 /// One cell of the table: what runs for a need, in a mode.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Cell {
     pub need: Need,
     pub mode: Mode,
     pub recipe: Recipe,
 }
 
-/// A recipe for files: whole windows, a second of audio per push.
-const fn offline(
-    family: Family,
-    model: &'static str,
-    flags: &'static [(&'static str, &'static str)],
-) -> Recipe {
-    Recipe {
-        family,
-        model,
-        emission: Emission::Offline,
-        chunk_ms: 1000,
-        flags,
-    }
-}
-
-/// A recipe for the microphone: speech regions, a quarter second per push.
-const fn live(
-    family: Family,
-    model: &'static str,
-    flags: &'static [(&'static str, &'static str)],
-) -> Recipe {
-    Recipe {
-        family,
-        model,
-        emission: Emission::Conservative,
-        chunk_ms: 250,
-        flags,
-    }
-}
-
-const fn cell(
-    speech: Speech,
-    task: Task,
-    quality: Quality,
-    mode: Mode,
-    recipe: Recipe,
-) -> Cell {
-    Cell {
-        need: Need {
-            speech,
-            task,
-            quality,
-        },
-        mode,
-        recipe,
-    }
-}
-
-/// The table: a cell where a model was seen to do the job; a need without
-/// one falls through to the nearest that has one ([`pick`]).
+/// A named, semantic choice of model: a point of the table, as `--preset`
+/// names it.
 ///
-/// Every speech and task reaches a cell: `multi` `transcribe` and `multi`
-/// `translate` each have a `balanced` cell in each mode.
-pub const TABLE: &[Cell] = {
-    use Family::*;
-    use Mode::{
-        Live,
-        Offline,
-    };
-    use Quality::*;
-    use Speech::*;
-    use Task::*;
-    &[
-        // Parakeet TDT, as Phonon-2: each word timed.
-        cell(
-            En,
-            Transcribe,
-            Balanced,
-            Offline,
-            offline(Parakeet, "fermion/phonon-2", &[]),
-        ),
-        cell(
-            En,
-            Transcribe,
-            Balanced,
-            Live,
-            live(Parakeet, "fermion/phonon-2", &[]),
-        ),
-        // Qwen3-ASR: 30 languages. Phonon-1 is an English fine-tune, and
-        // writes other speech as broken English. 1.7B is about 2.5x 0.6B's
-        // time, too slow to be seen keeping up live.
-        cell(
-            Multi,
-            Transcribe,
-            Fast,
-            Offline,
-            offline(Qwen3Asr, "qwen/qwen3-asr-0.6b", &[]),
-        ),
-        cell(
-            Multi,
-            Transcribe,
-            Balanced,
-            Offline,
-            offline(Qwen3Asr, "qwen/qwen3-asr-1.7b", &[]),
-        ),
-        cell(
-            Multi,
-            Transcribe,
-            Balanced,
-            Live,
-            live(Qwen3Asr, "qwen/qwen3-asr-0.6b", &[]),
-        ),
-        // Whisper alone translates (large-v3-turbo was not trained to).
-        cell(
-            Multi,
-            Translate,
-            Balanced,
-            Offline,
-            offline(
-                Whisper,
-                "openai/large-v3",
-                &[("task", "translate"), ("beam-size", "5")],
-            ),
-        ),
-        cell(
-            Multi,
-            Translate,
-            Balanced,
-            Live,
-            live(
-                Whisper,
-                "openai/small",
-                &[("task", "translate"), ("beam-size", "1")],
-            ),
-        ),
-    ]
-};
-
-/// The cell for `need`, [settled](Need::settled), in `mode`, and, when it
-/// is not `need`'s own, a note of what stood in.
-pub fn pick(
-    need: Need,
-    mode: Mode,
-) -> (&'static Cell, Option<String>) {
-    for candidate in need.settled().candidates() {
-        if let Some(cell) = TABLE.iter().find(|c| c.need == candidate && c.mode == mode) {
-            let note = (candidate != need).then(|| {
-                format!(
-                    "no {} recipe for {need}: {candidate} stands in",
-                    mode.command()
-                )
-            });
-            return (cell, note);
-        }
-    }
-    unreachable!("every speech and task reaches a balanced cell; see TABLE")
-}
-
-/// A named, semantic choice of model: a point in the [`TABLE`].
-///
-/// A profile names what the speech is for (`en`, `multi`, `translate-en`),
+/// A preset names what the speech is for (`en`, `multi`, `translate-en`),
 /// with one recipe for files (`transcribe`) and one for the microphone
-/// (`live`). The table is this binary's: when a better model arrives, a row
-/// changes, and the command lines that name the profile do not.
-#[derive(Clone, Copy, Debug)]
+/// (`live`). The table is this binary's data: when a better model arrives, a
+/// cell changes, and the command lines that name the preset do not.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Profile {
-    pub name: &'static str,
-    pub aliases: &'static [&'static str],
-    pub description: &'static str,
+    pub name: String,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    pub description: String,
     pub need: Need,
 }
 
@@ -366,62 +242,154 @@ impl Profile {
         mode: Mode,
     ) -> BunsenResult<Resolved> {
         self.recipe(mode)
-            .resolve(self.name, self.need, mode, None, &[])
+            .resolve(&self.name, self.need, mode, None, &[])
     }
 }
 
-/// The profile `--preset` names when it is not given: an alias, so what it
+/// One axis of the table, and its members, each described.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Axis {
+    pub name: String,
+    pub description: String,
+    pub members: Vec<AxisMember>,
+}
+
+/// A member of an [`Axis`].
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AxisMember {
+    pub name: String,
+    pub description: String,
+}
+
+/// Where a need without a cell looks next: per axis, each value's
+/// candidates in order, the value itself first.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Fallback {
+    pub quality: BTreeMap<Quality, Vec<Quality>>,
+    pub speech: BTreeMap<Speech, Vec<Speech>>,
+}
+
+/// Part of a need: the axes it names.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NeedPattern {
+    #[serde(default)]
+    pub speech: Option<Speech>,
+    #[serde(default)]
+    pub task: Option<Task>,
+    #[serde(default)]
+    pub quality: Option<Quality>,
+}
+
+impl NeedPattern {
+    /// Whether `need` has every axis this names.
+    fn matches(
+        &self,
+        need: Need,
+    ) -> bool {
+        self.speech.is_none_or(|s| s == need.speech)
+            && self.task.is_none_or(|t| t == need.task)
+            && self.quality.is_none_or(|q| q == need.quality)
+    }
+
+    /// `need` with the axes this names set.
+    fn apply(
+        &self,
+        need: Need,
+    ) -> Need {
+        Need {
+            speech: self.speech.unwrap_or(need.speech),
+            task: self.task.unwrap_or(need.task),
+            quality: self.quality.unwrap_or(need.quality),
+        }
+    }
+}
+
+/// A need that is served as another: when it matches `when`, `then` is set
+/// over it.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Implication {
+    pub when: NeedPattern,
+    pub then: NeedPattern,
+    pub reason: String,
+}
+
+/// The ASR construct's table, as data: `asr_construct.yml`, embedded and
+/// read once ([`catalog`]).
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Catalog {
+    pub axes: Vec<Axis>,
+    pub presets: Vec<Profile>,
+    pub fallback: Fallback,
+    pub implications: Vec<Implication>,
+    pub points: Vec<Cell>,
+}
+
+/// The table, from the binary's `asr_construct.yml`.
+///
+/// # Panics
+/// If the embedded file is not a catalog: a broken build, which the tests
+/// catch.
+pub fn catalog() -> &'static Catalog {
+    static CATALOG: std::sync::OnceLock<Catalog> = std::sync::OnceLock::new();
+    CATALOG.get_or_init(|| {
+        serde_saphyr::from_str(include_str!("asr_construct.yml"))
+            .unwrap_or_else(|e| panic!("the embedded asr_construct.yml: {e}"))
+    })
+}
+
+/// The cell for `need`, [settled](Need::settled), in `mode`, and, when it
+/// is not `need`'s own, a note of what stood in.
+pub fn pick(
+    need: Need,
+    mode: Mode,
+) -> (&'static Cell, Option<String>) {
+    let table = catalog();
+    for candidate in need.settled().candidates() {
+        if let Some(cell) = table
+            .points
+            .iter()
+            .find(|c| c.need == candidate && c.mode == mode)
+        {
+            let note = (candidate != need).then(|| {
+                format!(
+                    "no {} recipe for {need}: {candidate} stands in",
+                    mode.command()
+                )
+            });
+            return (cell, note);
+        }
+    }
+    unreachable!("every speech and task reaches a balanced cell; see asr_construct.yml")
+}
+
+/// The preset `--preset` names when it is not given: an alias, so what it
 /// means can change too.
 pub const DEFAULT_PROFILE: &str = "default";
 
-/// The profiles: names for the points of the table people ask for.
-pub const PROFILES: &[Profile] = &[
-    Profile {
-        name: "en",
-        aliases: &[DEFAULT_PROFILE],
-        description: "English: NVIDIA's Parakeet TDT, as FermionResearch's Phonon-2; each word timed",
-        need: Need {
-            speech: Speech::En,
-            task: Task::Transcribe,
-            quality: Quality::Balanced,
-        },
-    },
-    Profile {
-        name: "multi",
-        aliases: &[],
-        description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR (1.7B; 0.6B live)",
-        need: Need {
-            speech: Speech::Multi,
-            task: Task::Transcribe,
-            quality: Quality::Balanced,
-        },
-    },
-    Profile {
-        name: "translate-en",
-        aliases: &[],
-        description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper \
-                      (large-v3-turbo was not trained to translate)",
-        need: Need {
-            speech: Speech::Multi,
-            task: Task::Translate,
-            quality: Quality::Balanced,
-        },
-    },
-];
+/// The presets: names for the points of the table people ask for.
+pub fn profiles() -> &'static [Profile] {
+    &catalog().presets
+}
 
-/// The profile `name` names, by its name or an alias.
+/// The preset `name` names, by its name or an alias.
 ///
 /// # Errors
-/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when no profile has
+/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when no preset has
 /// the name: it comes from the command line.
 pub fn lookup(name: &str) -> BunsenResult<&'static Profile> {
-    PROFILES
+    profiles()
         .iter()
-        .find(|p| p.name == name || p.aliases.contains(&name))
+        .find(|p| p.name == name || p.aliases.iter().any(|a| a == name))
         .ok_or_else(|| {
-            let names: Vec<&str> = PROFILES.iter().map(|p| p.name).collect();
+            let names: Vec<&str> = profiles().iter().map(|p| p.name.as_str()).collect();
             BunsenError::policy(format!(
-                "no profile `{name}`; the profiles: {}",
+                "no preset `{name}`; the presets: {}",
                 names.join(", ")
             ))
         })
@@ -570,23 +538,19 @@ impl Recipe {
         language: Option<&str>,
         opts: &[Opt],
     ) -> BunsenResult<Resolved> {
-        let family = self.family.name();
+        let family = self.engine.family.name();
         let mut resolved = Resolved {
             profile: profile.to_string(),
             need: need.settled(),
             mode,
-            family: self.family,
-            model: self.model.to_string(),
+            family: self.engine.family,
+            model: self.engine.model.clone(),
             emission: self.emission,
             chunk_ms: self.chunk_ms,
-            flags: self
-                .flags
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect(),
+            flags: Vec::new(),
         };
         if let Some(language) = language {
-            if self.family == Family::Whisper {
+            if self.engine.family == Family::Whisper {
                 resolved.set("language", language);
             } else {
                 log::info!(
@@ -596,7 +560,7 @@ impl Recipe {
             }
         }
         for opt in opts {
-            let owner = opt.family.unwrap_or(self.family);
+            let owner = opt.family.unwrap_or(self.engine.family);
             if !has_key(owner, &opt.key) {
                 return Err(BunsenError::policy(format!(
                     "--opt {opt}: {} has no `{}`; it takes: {}",
@@ -605,7 +569,7 @@ impl Recipe {
                     family_keys(owner)
                 )));
             }
-            if owner != self.family {
+            if owner != self.engine.family {
                 log::info!("profile {profile} runs {family}: --opt {opt} not applied");
             } else if opt.key == "model" {
                 resolved.model = opt.value.clone();
@@ -620,8 +584,9 @@ impl Recipe {
 }
 
 impl Resolved {
-    /// The task the model runs: Whisper's `--task`, as its flags have it
-    /// (`transcribe` when they do not set it); another family transcribes.
+    /// The task the model runs: Whisper's `--task`, as its flags have it,
+    /// else the `translate` preset in its model's box (`transcribe`
+    /// without); another family transcribes.
     pub fn task(&self) -> Task {
         match self.family {
             Family::Whisper => self
@@ -629,7 +594,15 @@ impl Resolved {
                 .iter()
                 .find(|(k, _)| k == "task")
                 .and_then(|(_, v)| <Task as clap::ValueEnum>::from_str(v, false).ok())
-                .unwrap_or(Task::Transcribe),
+                .unwrap_or_else(|| {
+                    let translates = LookupExpr::parse(&self.model)
+                        .is_ok_and(|e| e.selection.presets.iter().any(|p| p == "translate"));
+                    if translates {
+                        Task::Translate
+                    } else {
+                        Task::Transcribe
+                    }
+                }),
             Family::Parakeet | Family::Qwen3Asr | Family::Voxtral => Task::Transcribe,
         }
     }
@@ -810,7 +783,7 @@ mod tests {
         let opts: Vec<Opt> = opts.iter().map(|s| opt(s)).collect();
         profile
             .recipe(mode)
-            .resolve(profile.name, profile.need, mode, language, &opts)
+            .resolve(&profile.name, profile.need, mode, language, &opts)
     }
 
     /// Every recipe parses as its family's flags; the names and aliases are
@@ -818,11 +791,11 @@ mod tests {
     #[test]
     fn test_profiles_parse() {
         let mut names = Vec::new();
-        for profile in PROFILES {
-            names.push(profile.name);
-            names.extend(profile.aliases);
+        for profile in profiles() {
+            names.push(profile.name.as_str());
+            names.extend(profile.aliases.iter().map(String::as_str));
             for mode in [Mode::Offline, Mode::Live] {
-                let resolved = resolve(profile.name, mode, None, &[]).unwrap();
+                let resolved = resolve(&profile.name, mode, None, &[]).unwrap();
                 match resolved.family {
                     Family::Parakeet => drop(resolved.parse_flags::<ParakeetFlags>().unwrap()),
                     Family::Qwen3Asr => drop(resolved.parse_flags::<Qwen3AsrFlags>().unwrap()),
@@ -860,7 +833,7 @@ mod tests {
                 }
             }
         }
-        for profile in PROFILES {
+        for profile in profiles() {
             for mode in [Mode::Offline, Mode::Live] {
                 let (cell, note) = pick(profile.need, mode);
                 assert_eq!(note, None, "{} {mode:?}", profile.name);
@@ -878,13 +851,13 @@ mod tests {
             need(Speech::Multi, Task::Transcribe, Quality::Good),
             Mode::Live,
         );
-        assert_eq!(cell.recipe.model, "qwen/qwen3-asr-0.6b");
+        assert_eq!(cell.recipe.engine.model, "qwen/qwen3-asr-0.6b");
         // English translated to English is transcribed.
         let (cell, note) = pick(
             need(Speech::En, Task::Translate, Quality::Fast),
             Mode::Offline,
         );
-        assert_eq!(cell.recipe.model, "fermion/phonon-2");
+        assert_eq!(cell.recipe.engine.model, "fermion/phonon-2");
         assert!(note.is_some());
     }
 
@@ -930,17 +903,12 @@ mod tests {
             ],
         )
         .unwrap();
+        // The task and the beam are the model's (`[translate]{beam_size: 5}`);
+        // the flags are what the command line added.
+        assert_eq!(r.model, "openai/large-v3[translate]{beam_size: 5}");
         assert_eq!(
             r.argv().unwrap(),
-            [
-                "--task",
-                "translate",
-                "--beam-size",
-                "2",
-                "--language",
-                "de",
-                "--timestamps"
-            ]
+            ["--language", "de", "--beam-size", "2", "--timestamps"]
         );
         let flags = r.parse_flags::<WhisperFlags>().unwrap();
         assert_eq!(flags.beam_size, Some(2));
@@ -985,15 +953,18 @@ mod tests {
         let r = resolve("translate-en", Mode::Live, None, &[]).unwrap();
         assert_eq!(
             shell_line(&r.command_line().unwrap()),
-            "bunsen-tool asr family whisper live --model openai/small --emission conservative \
-             --chunk-ms 250 --task translate --beam-size 1"
+            "bunsen-tool asr family whisper live --model 'openai/small[translate]{beam_size: 1}' \
+             --emission conservative --chunk-ms 250"
         );
         assert_eq!(
             shell_line(&["a b".into(), "it's".into(), "".into()]),
             r"'a b' 'it'\''s' ''"
         );
         let stamp = serde_json::to_value(r.stamp()).unwrap();
-        assert_eq!(stamp["recipe"]["flags"]["task"], "translate");
+        assert_eq!(
+            stamp["recipe"]["model"],
+            "openai/small[translate]{beam_size: 1}"
+        );
         assert_eq!(stamp["profile"], "translate-en");
         assert_eq!(
             stamp["need"],
@@ -1004,5 +975,92 @@ mod tests {
         let r = resolve("translate-en", Mode::Live, None, &["task=transcribe"]).unwrap();
         assert_eq!(r.need.task, Task::Transcribe);
         assert_eq!(r.task(), Task::Transcribe);
+    }
+
+    /// The catalog's axes are the enums' values, each described; every
+    /// recipe's model is a lookup expression its family's factory resolves,
+    /// its presets and patch checked, with nothing fetched.
+    #[test]
+    fn test_catalog() {
+        use bunsen::kits::speech::{
+            parakeet::pretrained::default_parakeet_factory,
+            qwen3_asr::pretrained::default_qwen3_asr_factory,
+            voxtral::pretrained::default_voxtral_factory,
+            whisper::pretrained::default_whisper_factory,
+        };
+        use clap::ValueEnum;
+
+        let table = catalog();
+        let members = |axis: &str| -> Vec<String> {
+            let axis = table.axes.iter().find(|a| a.name == axis).unwrap();
+            assert!(!axis.description.is_empty());
+            axis.members
+                .iter()
+                .inspect(|m| assert!(!m.description.is_empty(), "{}", m.name))
+                .map(|m| m.name.clone())
+                .collect()
+        };
+        let names = |values: Vec<Option<clap::builder::PossibleValue>>| -> Vec<String> {
+            values
+                .into_iter()
+                .map(|v| v.unwrap().get_name().to_string())
+                .collect()
+        };
+        assert_eq!(
+            members("speech"),
+            names(
+                Speech::value_variants()
+                    .iter()
+                    .map(|v| v.to_possible_value())
+                    .collect()
+            )
+        );
+        assert_eq!(
+            members("task"),
+            names(
+                Task::value_variants()
+                    .iter()
+                    .map(|v| v.to_possible_value())
+                    .collect()
+            )
+        );
+        assert_eq!(
+            members("quality"),
+            names(
+                Quality::value_variants()
+                    .iter()
+                    .map(|v| v.to_possible_value())
+                    .collect()
+            )
+        );
+
+        for cell in &table.points {
+            let model = &cell.recipe.engine.model;
+            let looked = match cell.recipe.engine.family {
+                Family::Parakeet => default_parakeet_factory()
+                    .and_then(|f| f.lookup(model))
+                    .map(drop),
+                Family::Qwen3Asr => default_qwen3_asr_factory()
+                    .and_then(|f| f.lookup(model))
+                    .map(drop),
+                Family::Voxtral => default_voxtral_factory()
+                    .and_then(|f| f.lookup(model))
+                    .map(drop),
+                Family::Whisper => default_whisper_factory()
+                    .and_then(|f| f.lookup(model))
+                    .map(drop),
+            };
+            looked.unwrap_or_else(|e| panic!("{} {model}: {e}", cell.need));
+        }
+
+        // English translated to English is transcribed, and says why.
+        let (need, why) = Need {
+            speech: Speech::En,
+            task: Task::Translate,
+            quality: Quality::Fast,
+        }
+        .settled_why();
+        assert_eq!(need.task, Task::Transcribe);
+        assert_eq!(why, ["English speech translated to English is transcribed"]);
     }
 }
