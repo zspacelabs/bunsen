@@ -54,6 +54,26 @@ pub struct PretrainedCatalog {
     /// The resource bundles, by name, in any order: a row lists the ones it
     /// is made of.
     pub bundles: Vec<CatalogBundle>,
+
+    /// The model families whose presets rows inherit, by name, in any order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub families: Vec<CatalogFamily>,
+}
+
+/// A model family of a [`PretrainedCatalog`]: the presets every model of the
+/// family has, which its rows inherit ([`CatalogRow::family`]) and a kit
+/// gives a model of the family that no row describes, such as an `hf:` repo.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogFamily {
+    /// Its name, unique within its catalog.
+    pub name: String,
+
+    /// A line for a listing.
+    pub description: String,
+
+    /// The family's presets, and its default selection.
+    pub presets: PresetSet,
 }
 
 /// One group of a [`PretrainedCatalog`]: its listing fields, and its rows by
@@ -109,7 +129,13 @@ pub struct CatalogRow {
     /// order.
     pub bundles: Vec<String>,
 
-    /// Its presets, and its default selection.
+    /// The family whose presets it inherits, by name in the catalog's
+    /// [`families`](PretrainedCatalog::families).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
+
+    /// Its own presets, and its default selection, laid over its family's
+    /// ([`PresetSet::over`]).
     #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
     pub presets: PresetSet,
 }
@@ -317,6 +343,53 @@ impl PretrainedCatalog {
             .map_err(|e| BunsenError::invalid_resource("a pretrained catalog").with_cause(e))
     }
 
+    /// Checks the families: names unique, and each family's presets well
+    /// formed ([`PresetSet::validate`]).
+    fn check_families(&self) -> BunsenResult<()> {
+        for (i, family) in self.families.iter().enumerate() {
+            if self.families[..i].iter().any(|f| f.name == family.name) {
+                return Err(BunsenError::illegal(format!(
+                    "the family {:?} is declared twice",
+                    family.name
+                )));
+            }
+            family
+                .presets
+                .validate()
+                .with_context(|| format!("the family {:?}'s presets", family.name))?;
+        }
+        Ok(())
+    }
+
+    /// The family called `name`.
+    pub fn family(
+        &self,
+        name: &str,
+    ) -> Option<&CatalogFamily> {
+        self.families.iter().find(|f| f.name == name)
+    }
+
+    /// A row's presets: its own over its family's, when it names one.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a family the
+    /// catalog does not have.
+    pub fn row_presets(
+        &self,
+        row: &CatalogRow,
+    ) -> BunsenResult<PresetSet> {
+        match &row.family {
+            None => Ok(row.presets.clone()),
+            Some(name) => {
+                let family = self.family(name).ok_or_else(|| {
+                    let names: Vec<&str> = self.families.iter().map(|f| f.name.as_str()).collect();
+                    not_found(Some(&row.name), "family", name, &names)
+                })?;
+                Ok(row.presets.over(&family.presets))
+            }
+        }
+    }
+
     /// The bundle called `name`.
     pub fn bundle(
         &self,
@@ -326,11 +399,11 @@ impl PretrainedCatalog {
     }
 
     /// The owned row: its bundles fused strictly under its own name and
-    /// listing fields, with its presets.
+    /// listing fields, with its presets ([`row_presets`](Self::row_presets)).
     ///
     /// # Errors
-    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a bundle the
-    /// catalog does not have;
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a bundle or a
+    /// family the catalog does not have;
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when two of its
     /// bundles share a key, or when its presets are not well formed
     /// ([`PresetSet::validate`]).
@@ -338,7 +411,8 @@ impl PretrainedCatalog {
         &self,
         row: &CatalogRow,
     ) -> BunsenResult<Pretrained> {
-        row.presets
+        let presets = self.row_presets(row)?;
+        presets
             .validate()
             .with_context(|| format!("the row {:?}'s presets", row.name))?;
         let mut resources = ResourceBundle::new(&row.name);
@@ -360,7 +434,7 @@ impl PretrainedCatalog {
             origin: row.origin.clone(),
             prefab: row.prefab.clone(),
             resources,
-            presets: row.presets.clone(),
+            presets,
         })
     }
 
@@ -370,6 +444,8 @@ impl PretrainedCatalog {
     /// As [`to_pretrained`](Self::to_pretrained), under a frame naming the
     /// kit.
     pub fn to_table(&self) -> BunsenResult<PretrainedTable> {
+        self.check_families()
+            .with_context(|| format!("the {} catalog", self.kit))?;
         let groups: Vec<PretrainedGroup> = self
             .groups
             .iter()
@@ -493,6 +569,22 @@ impl EmbeddedCatalog {
             .bundle(name)
             .unwrap_or_else(|| panic!("the {} kit's catalog has no bundle {name:?}", self.kit))
             .to_resource_bundle()
+    }
+
+    /// The presets of the family called `name`: what a kit gives a model of
+    /// the family that no row describes.
+    ///
+    /// # Panics
+    /// As [`catalog`](Self::catalog), and if there is no such family.
+    pub fn family_presets(
+        &self,
+        name: &str,
+    ) -> PresetSet {
+        self.catalog()
+            .family(name)
+            .unwrap_or_else(|| panic!("the {} kit's catalog has no family {name:?}", self.kit))
+            .presets
+            .clone()
     }
 }
 
@@ -809,5 +901,65 @@ mod tests {
             .unwrap()
             .to_table()
             .unwrap();
+    }
+
+    /// A row inherits its family's presets under its own; a family no row
+    /// names still loads, and an unknown family is a lookup error.
+    #[test]
+    fn test_family_presets() {
+        use crate::data::pretrained::{
+            Preset,
+            PresetAxis,
+        };
+
+        let preset = |name: &str, beam: u32| Preset {
+            name: name.to_string(),
+            description: format!("the {name} preset"),
+            patch: serde_json::json!({"beam": beam}),
+        };
+        let mut catalog = PretrainedCatalog::from_json(CATALOG).unwrap();
+        catalog.families = vec![CatalogFamily {
+            name: "searchers".to_string(),
+            description: "models that search".to_string(),
+            presets: PresetSet {
+                presets: vec![preset("fast", 1), preset("good", 5)],
+                axes: vec![PresetAxis {
+                    name: "quality".to_string(),
+                    description: "how hard the search tries".to_string(),
+                    members: vec!["fast".to_string(), "good".to_string()],
+                }],
+                default: vec!["good".to_string()],
+            },
+        }];
+        let json = serde_json::to_string(&catalog).unwrap();
+        assert_eq!(PretrainedCatalog::from_json(&json).unwrap(), catalog);
+        catalog.to_table().unwrap();
+
+        let row = &mut catalog.groups[0].rows[0];
+        row.family = Some("searchers".to_string());
+        row.presets = PresetSet {
+            presets: vec![preset("good", 8)],
+            ..Default::default()
+        };
+        let table = catalog.to_table().unwrap();
+        let small = &table.groups[0].items[0].presets;
+        assert_eq!(small.names().collect::<Vec<_>>(), ["fast", "good"]);
+        assert_eq!(
+            small.get("good").unwrap().patch,
+            serde_json::json!({"beam": 8})
+        );
+        assert_eq!(small.default, ["good"]);
+        assert!(table.groups[0].items[1].presets.is_empty());
+
+        catalog.groups[0].rows[0].family = Some("nobody".to_string());
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_contains("nobody")
+            .assert_err(&catalog.to_table());
+
+        let mut twice = PretrainedCatalog::from_json(&json).unwrap();
+        twice.families.push(twice.families[0].clone());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("the family \"searchers\" is declared twice")
+            .assert_err(&twice.to_table());
     }
 }

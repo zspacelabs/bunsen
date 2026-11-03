@@ -196,3 +196,10 @@ rows:
       default: [good]
 ```
 
+Presets every model of a family has go in the source's `families`, each
+with a `name`, a `description` and its `presets`; a row names its `family`,
+and its own presets are laid over the family's (a preset or axis of the
+row's replaces the family's of the same name, and a row's `default`
+replaces the family's). A kit gives a model of the family that no row
+describes, such as an `hf:` repo, the family's presets as they are.
+
