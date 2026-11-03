@@ -48,22 +48,21 @@
 //! None of these knows a hook, or which resource is the model: the
 //! function that loads a kit's models is the kit's, and it supplies the
 //! hook. Rows, resource bundles and resources are plain serde data, so a
-//! manifest can carry them. Each has a static twin for compiled-in tables
-//! ([`StaticPretrained`], [`StaticResourceBundle`], [`StaticResource`],
-//! [`StaticSource`]), which a `to_*` method turns into the owned one. An
-//! owned resource carries its resource bundle's bases appended to its own
-//! sources, so it stands alone, and two resource bundles
-//! [fuse](ResourceBundle::fuse) by key with no memory of where a resource came
-//! from: strictly for authoring, where a repeated key is a mistake, or as an
-//! overlay for an override, where the right-hand resource bundle wins.
+//! manifest can carry them. An owned resource carries its resource bundle's
+//! bases appended to its own sources, so it stands alone, and two resource
+//! bundles [fuse](ResourceBundle::fuse) by key with no memory of where a
+//! resource came from: strictly for authoring, where a repeated key is a
+//! mistake, or as an overlay for an override, where the right-hand resource
+//! bundle wins.
 //!
-//! A kit's table can also be data: a [`PretrainedCatalog`], the `catalog.json`
-//! the catalogue tool (`cargo validate catalog`) generates from a hand-written
-//! source. Its rows name their resource bundles, a bundle shared by many rows
-//! is listed once, its files carry their sizes and dtypes, and a
-//! directory base names where another tool keeps its files as path templates
-//! ([`resolve_dir_template`]). [`PretrainedCatalog::to_table`] loads it into
-//! the owned [`PretrainedTable`].
+//! A kit's table is data: a [`PretrainedCatalog`], the `catalog.json` the
+//! catalog tool (`cargo validate catalog`) generates from a hand-written
+//! source, embedded in the kit as an [`EmbeddedCatalog`]. Its rows name their
+//! resource bundles, a bundle shared by many rows is listed once, its files
+//! carry their sizes and dtypes, and a directory base names where another
+//! tool keeps its files as path templates ([`resolve_dir_template`]).
+//! [`PretrainedCatalog::to_table`] loads it into the owned
+//! [`PretrainedTable`].
 //!
 //! ## Providers
 //!

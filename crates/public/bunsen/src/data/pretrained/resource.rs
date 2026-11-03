@@ -54,76 +54,6 @@ pub const SAFETENSORS: &str = "safetensors";
 /// (`model.safetensors.index.json`): the shard each tensor is in.
 pub const SAFETENSORS_INDEX: &str = "safetensors-index";
 
-/// One place a file can be had from, as a compiled-in table spells it.
-///
-/// A resource's local sources are tried first, in the order listed: a
-/// directory another tool keeps the file in is used in place, and bytes
-/// linked into the binary are written into the cache on first use. Its
-/// URLs come after, in the order listed, each fetched into the cache. A
-/// bundle laid out on disk is a local directory; one compiled in is
-/// [`Bundled`](Self::Bundled). [`to_source`](Self::to_source) gives the
-/// owned twin, a [`Source`].
-#[derive(Clone, Copy)]
-pub enum StaticSource<'a> {
-    /// A URL, fetched into the cache.
-    Url(&'a str),
-
-    /// A directory another tool keeps this file in, under its bare name:
-    /// `openai-whisper`'s download root, a hub cache. `name` is what a caller
-    /// overrides the directory by; `default` is where it is when nobody does.
-    LocalDir {
-        /// The source's name, for overrides and messages.
-        name: &'a str,
-        /// Where the directory is by default, when it can be resolved.
-        default: fn() -> Option<PathBuf>,
-    },
-
-    /// The file's bytes, linked into the binary: `include_bytes!` in a
-    /// bundle crate. Written into the cache under the resource's digest on
-    /// first use, so the resource must be pinned.
-    Bundled(&'static [u8]),
-}
-
-impl StaticSource<'_> {
-    /// The owned twin, with the default directory resolved now.
-    pub fn to_source(&self) -> Source {
-        match self {
-            Self::Url(url) => Source::Url(url.to_string()),
-            Self::LocalDir { name, default } => Source::LocalDir {
-                name: name.to_string(),
-                dir: default(),
-            },
-            Self::Bundled(bytes) => Source::Bundled(BundledBytes(bytes)),
-        }
-    }
-}
-
-impl fmt::Debug for StaticSource<'_> {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        match self {
-            Self::Url(url) => f.debug_tuple("Url").field(url).finish(),
-            Self::LocalDir { name, .. } => f.debug_struct("LocalDir").field("name", name).finish(),
-            Self::Bundled(bytes) => write!(f, "Bundled({} bytes)", bytes.len()),
-        }
-    }
-}
-
-impl fmt::Display for StaticSource<'_> {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        match self {
-            Self::Url(url) => write!(f, "url: {url}"),
-            Self::LocalDir { name, .. } => write!(f, "local_dir: {name}"),
-            Self::Bundled(bytes) => write!(f, "bundled: ({} bytes)", bytes.len()),
-        }
-    }
-}
-
 /// Bytes linked into the binary: the payload of a bundled source.
 ///
 /// No manifest form: serializing one is an error, and none can be read
@@ -173,9 +103,13 @@ impl<'de> Deserialize<'de> for BundledBytes {
 
 /// One place a file can be had from.
 ///
-/// The owned twin of [`StaticSource`]: a local directory carries the
-/// directory it resolved to. A [`Bundled`](Self::Bundled) source has no
-/// manifest form: serializing one is an error, and none can be read back.
+/// A resource's local sources are tried first, in the order listed: a
+/// directory another tool keeps the file in is used in place, and bytes
+/// linked into the binary are written into the cache on first use. Its
+/// URLs come after, in the order listed, each fetched into the cache. A
+/// local directory carries the directory it resolved to. A
+/// [`Bundled`](Self::Bundled) source has no manifest form: serializing one
+/// is an error, and none can be read back.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Source {
     /// A URL, fetched into the cache.
@@ -228,112 +162,10 @@ impl fmt::Display for Source {
     }
 }
 
-/// A place a resource bundle's file names are appended to, as a compiled-in
-/// table spells it.
-///
-/// A resource bundle lists its bases in preference order, as mirrors. Each
-/// becomes one [`Source`] per resource once the file name is appended:
-/// [`Url`](Self::Url) a whole URL, [`LocalDir`](Self::LocalDir) the
-/// directory, which the cache joins the file name to when it looks.
-#[derive(Clone, Copy, Debug)]
-pub enum StaticBase<'a> {
-    /// A URL prefix: the file is at `<url>/<file>`.
-    Url(&'a str),
-
-    /// A directory another tool keeps the files in, under their bare names.
-    /// `name` is what a caller overrides the directory by; `default` is
-    /// where it is when nobody does.
-    LocalDir {
-        /// The base's name, for overrides and messages.
-        name: &'a str,
-        /// Where the directory is by default, when it can be resolved.
-        default: fn() -> Option<PathBuf>,
-    },
-}
-
-impl StaticBase<'_> {
-    /// The source `file` has under this base.
-    pub fn source_for(
-        &self,
-        file: &str,
-    ) -> Source {
-        match self {
-            Self::Url(url) => Source::Url(format!("{}/{file}", url.trim_end_matches('/'))),
-            Self::LocalDir { name, default } => Source::LocalDir {
-                name: name.to_string(),
-                dir: default(),
-            },
-        }
-    }
-}
-
-impl fmt::Display for StaticBase<'_> {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        match self {
-            Self::Url(url) => write!(f, "url: {url}"),
-            Self::LocalDir { name, .. } => write!(f, "local_dir: {name}"),
-        }
-    }
-}
-
-/// One file of a resource bundle, as a compiled-in table spells it.
-#[derive(Debug)]
-pub struct StaticResource<'a> {
-    /// The resource bundle's name for it: `checkpoint`, `vocabulary`. Opaque
-    /// here; a kit's constant.
-    pub key: &'a str,
-
-    /// The file name, under every base.
-    pub file: &'a str,
-
-    /// Lowercase hex SHA-256 of the file: the pin in its cache path. A
-    /// download and bundled bytes are checked against it, and a local-dir
-    /// file only when the cache's options ask. `None` leaves the file
-    /// unpinned, which a bundled source may not be.
-    pub sha256: Option<&'a str>,
-
-    /// A label for a listing: `"pytorch fp16"`, `"tiktoken"`. Nothing in
-    /// this layer reads it; a kit's hook may.
-    pub kind: Option<&'a str>,
-
-    /// Sources of this resource alone, tried before the resource bundle's
-    /// bases: a file a whole URL, or a directory of its own.
-    pub sources: &'a [StaticSource<'a>],
-}
-
-impl StaticResource<'_> {
-    /// The owned twin, under `namespace`, with `bases` appended after its
-    /// own sources.
-    pub fn to_resource(
-        &self,
-        namespace: &str,
-        bases: &[StaticBase<'_>],
-    ) -> Resource {
-        Resource {
-            size: None,
-            dtype: None,
-            key: self.key.to_string(),
-            file: self.file.to_string(),
-            sha256: self.sha256.map(str::to_string),
-            kind: self.kind.map(str::to_string),
-            namespace: namespace.to_string(),
-            sources: self
-                .sources
-                .iter()
-                .map(StaticSource::to_source)
-                .chain(bases.iter().map(|b| b.source_for(self.file)))
-                .collect(),
-        }
-    }
-}
-
 /// One file of a resource bundle.
 ///
-/// The owned twin of [`StaticResource`], with its resource bundle's bases
-/// already appended to its sources, so it stands alone. A resource's sources
+/// Its resource bundle's bases are already appended to its sources, so it
+/// stands alone. A resource's sources
 /// are its own first, then its resource bundle's bases with its file name
 /// appended, each in the order listed; a fused resource bundle needs no memory
 /// of which resource bundle a resource came from.
@@ -539,33 +371,17 @@ mod tests {
         },
     };
 
-    fn upstream_dir_for_display() -> Option<PathBuf> {
-        Some(PathBuf::from("/home/someone/.cache/upstream"))
-    }
-
-    /// Sources print as a listing shows them, the owned local dir with the
-    /// directory it resolved to.
+    /// Sources print as a listing shows them, a local dir with the
+    /// directory it resolved to; bundled bytes have no manifest form.
     #[test]
     fn test_source_display() {
-        let sources = [
-            StaticSource::LocalDir {
-                name: "upstream",
-                default: upstream_dir_for_display,
-            },
-            StaticSource::Url("https://a.example/my_model.pt"),
-        ];
-        let shown: Vec<String> = sources.iter().map(|s| s.to_string()).collect();
         assert_eq!(
-            shown,
-            ["local_dir: upstream", "url: https://a.example/my_model.pt"]
-        );
-        assert_eq!(
-            sources[0].to_source().to_string(),
+            Source::LocalDir {
+                name: "upstream".to_string(),
+                dir: Some(PathBuf::from("/home/someone/.cache/upstream")),
+            }
+            .to_string(),
             "local_dir: upstream (/home/someone/.cache/upstream)"
-        );
-        assert_eq!(
-            sources[1].to_source(),
-            Source::Url("https://a.example/my_model.pt".to_string())
         );
         assert_eq!(
             Source::LocalDir {
@@ -575,22 +391,14 @@ mod tests {
             .to_string(),
             "local_dir: x (unresolved)"
         );
-        let bundled = StaticSource::Bundled(b"abc");
-        assert_eq!(bundled.to_string(), "bundled: (3 bytes)");
-        assert_eq!(format!("{bundled:?}"), "Bundled(3 bytes)");
-        assert_eq!(bundled.to_source(), Source::Bundled(BundledBytes(b"abc")));
-        assert_eq!(format!("{:?}", bundled.to_source()), "Bundled(3 bytes)");
-        assert!(
-            serde_json::to_string(&Source::Bundled(BundledBytes(b"abc"))).is_err(),
-            "in-binary bytes have no manifest form"
+        assert_eq!(
+            Source::Url("https://a.example/my_model.pt".to_string()).to_string(),
+            "url: https://a.example/my_model.pt"
         );
-        let bundled = StaticSource::Bundled(b"abc");
-        assert_eq!(bundled.to_string(), "bundled: (3 bytes)");
+        let bundled = Source::Bundled(BundledBytes(b"abc"));
         assert_eq!(format!("{bundled:?}"), "Bundled(3 bytes)");
-        assert_eq!(bundled.to_source(), Source::Bundled(BundledBytes(b"abc")));
-        assert_eq!(format!("{:?}", bundled.to_source()), "Bundled(3 bytes)");
         assert!(
-            serde_json::to_string(&Source::Bundled(BundledBytes(b"abc"))).is_err(),
+            serde_json::to_string(&bundled).is_err(),
             "in-binary bytes have no manifest form"
         );
         assert_eq!(
@@ -631,81 +439,33 @@ mod tests {
         Some(PathBuf::from("/home/someone/.cache/whisper"))
     }
 
-    fn nowhere() -> Option<PathBuf> {
-        None
-    }
-
-    static BASES: [StaticBase<'static>; 2] = [
-        StaticBase::LocalDir {
-            name: "upstream",
-            default: upstream_dir,
-        },
-        StaticBase::Url("https://a.example/models/"),
-    ];
-
-    static CHECKPOINT: StaticResource<'static> = StaticResource {
-        key: "checkpoint",
-        file: "tiny.en.pt",
-        sha256: Some(ABC_SHA256),
-        kind: Some("pytorch fp16"),
-        sources: &[StaticSource::Url("https://mirror.example/tiny.en.pt")],
-    };
-
-    /// A URL base loses its trailing slash before the file is appended; a
-    /// local-dir base resolves its default now.
-    #[test]
-    fn test_base_source_for() {
-        assert_eq!(
-            BASES[1].source_for("tiny.en.pt"),
-            Source::Url("https://a.example/models/tiny.en.pt".to_string())
-        );
-        assert_eq!(
-            StaticBase::Url("https://a.example/models").source_for("tiny.en.pt"),
-            Source::Url("https://a.example/models/tiny.en.pt".to_string())
-        );
-        assert_eq!(
-            BASES[0].source_for("tiny.en.pt"),
-            Source::LocalDir {
-                name: "upstream".to_string(),
-                dir: upstream_dir(),
-            }
-        );
-        assert_eq!(
-            StaticBase::LocalDir {
-                name: "gone",
-                default: nowhere,
-            }
-            .source_for("x"),
-            Source::LocalDir {
-                name: "gone".to_string(),
-                dir: None,
-            }
-        );
-        assert_eq!(BASES[0].to_string(), "local_dir: upstream");
-        assert_eq!(BASES[1].to_string(), "url: https://a.example/models/");
-    }
-
-    /// The owned twin carries the resource's own sources first, then the
-    /// bases in order, under the namespace it was given.
-    #[test]
-    fn test_to_resource_orders_sources() {
-        let r = CHECKPOINT.to_resource("openai", &BASES);
-        assert_eq!(r.key, "checkpoint");
-        assert_eq!(r.file, "tiny.en.pt");
-        assert_eq!(r.sha256.as_deref(), Some(ABC_SHA256));
-        assert_eq!(r.kind.as_deref(), Some("pytorch fp16"));
-        assert_eq!(r.namespace, "openai");
-        assert_eq!(
-            r.sources,
-            vec![
+    /// A pinned checkpoint with a mirror of its own, then an upstream
+    /// directory, then a base URL.
+    fn checkpoint() -> Resource {
+        Resource {
+            size: None,
+            dtype: None,
+            key: "checkpoint".to_string(),
+            file: "tiny.en.pt".to_string(),
+            sha256: Some(ABC_SHA256.to_string()),
+            kind: Some("pytorch fp16".to_string()),
+            namespace: "openai".to_string(),
+            sources: vec![
                 Source::Url("https://mirror.example/tiny.en.pt".to_string()),
                 Source::LocalDir {
                     name: "upstream".to_string(),
                     dir: upstream_dir(),
                 },
                 Source::Url("https://a.example/models/tiny.en.pt".to_string()),
-            ]
-        );
+            ],
+        }
+    }
+
+    /// A resource's URLs are its URL sources in order; its cache key comes
+    /// from the first; it prints as a listing shows it, and round-trips.
+    #[test]
+    fn test_resource_urls_key_and_display() {
+        let r = checkpoint();
         assert!(r.is_pinned());
         assert_eq!(
             r.urls(),
@@ -763,7 +523,7 @@ mod tests {
 
     #[test]
     fn test_validate_names_the_problem() {
-        let r = CHECKPOINT.to_resource("openai", &BASES);
+        let r = checkpoint();
 
         let broken = |field: &'static str| {
             ErrorMatcher::kind(BunsenErrorKind::Illegal).cause(predicate(
