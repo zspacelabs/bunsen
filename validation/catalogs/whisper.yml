@@ -1,0 +1,199 @@
+# The whisper kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/speech/whisper/pretrained/catalog.json`.
+kit: whisper
+out: crates/public/bunsen/src/kits/speech/whisper/pretrained/catalog.json
+name: "well-known"
+description: "the Whisper checkpoints bunsen knows by name"
+groups:
+  - name: "openai"
+    description: "OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    rows:
+      - name: "tiny.en"
+        description: "39 M parameters, English-only"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "tiny.en"
+        bundles: ["openai/tiny.en.pt", "openai/gpt2.tiktoken"]
+      - name: "tiny"
+        description: "39 M parameters, multilingual"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "tiny"
+        bundles: ["openai/tiny.pt", "openai/multilingual.tiktoken"]
+      - name: "base.en"
+        description: "74 M parameters, English-only"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "base.en"
+        bundles: ["openai/base.en.pt", "openai/gpt2.tiktoken"]
+      - name: "base"
+        description: "74 M parameters, multilingual"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "base"
+        bundles: ["openai/base.pt", "openai/multilingual.tiktoken"]
+      - name: "small.en"
+        description: "244 M parameters, English-only"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "small.en"
+        bundles: ["openai/small.en.pt", "openai/gpt2.tiktoken"]
+      - name: "small"
+        description: "244 M parameters, multilingual"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "small"
+        bundles: ["openai/small.pt", "openai/multilingual.tiktoken"]
+      - name: "medium.en"
+        description: "769 M parameters, English-only"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "medium.en"
+        bundles: ["openai/medium.en.pt", "openai/gpt2.tiktoken"]
+      - name: "medium"
+        description: "769 M parameters, multilingual"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "medium"
+        bundles: ["openai/medium.pt", "openai/multilingual.tiktoken"]
+      - name: "large-v1"
+        description: "1550 M parameters, multilingual"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "large"
+        bundles: ["openai/large-v1.pt", "openai/multilingual.tiktoken"]
+      - name: "large-v2"
+        description: "1550 M parameters, multilingual"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "large"
+        bundles: ["openai/large-v2.pt", "openai/multilingual.tiktoken"]
+      - name: "large-v3"
+        aliases: ["large"]
+        description: "1550 M parameters, multilingual, 128 mels"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "large-v3"
+        bundles: ["openai/large-v3.pt", "openai/multilingual.tiktoken"]
+      - name: "large-v3-turbo"
+        aliases: ["turbo"]
+        description: "809 M parameters, multilingual, 128 mels, four-layer decoder"
+        license: "MIT"
+        origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+        prefab: "large-v3-turbo"
+        bundles: ["openai/large-v3-turbo.pt", "openai/multilingual.tiktoken"]
+bundles:
+  - name: "openai/tiny.en.pt"
+    description: "39 M parameters, English-only"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03" }]
+    resources:
+      - { key: "checkpoint", file: "tiny.en.pt", kind: "pytorch fp16", sha256: "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03" }
+  - name: "openai/gpt2.tiktoken"
+    description: "the English-only vocabulary: GPT-2's ranks, as the `*.en` checkpoints number them"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/tree/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets"
+    namespace: "openai"
+    bases: [{ url: "https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets" }]
+    resources:
+      - { key: "vocabulary", file: "gpt2.tiktoken", kind: "tiktoken", sha256: "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930" }
+  - name: "openai/tiny.pt"
+    description: "39 M parameters, multilingual"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9" }]
+    resources:
+      - { key: "checkpoint", file: "tiny.pt", kind: "pytorch fp16", sha256: "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9" }
+  - name: "openai/multilingual.tiktoken"
+    description: "the multilingual vocabulary: GPT-2's ranks plus one, as every multilingual checkpoint numbers them"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/tree/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets"
+    namespace: "openai"
+    bases: [{ url: "https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets" }]
+    resources:
+      - { key: "vocabulary", file: "multilingual.tiktoken", kind: "tiktoken", sha256: "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126" }
+  - name: "openai/base.en.pt"
+    description: "74 M parameters, English-only"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead" }]
+    resources:
+      - { key: "checkpoint", file: "base.en.pt", kind: "pytorch fp16", sha256: "25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead" }
+  - name: "openai/base.pt"
+    description: "74 M parameters, multilingual"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e" }]
+    resources:
+      - { key: "checkpoint", file: "base.pt", kind: "pytorch fp16", sha256: "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e" }
+  - name: "openai/small.en.pt"
+    description: "244 M parameters, English-only"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872" }]
+    resources:
+      - { key: "checkpoint", file: "small.en.pt", kind: "pytorch fp16", sha256: "f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872" }
+  - name: "openai/small.pt"
+    description: "244 M parameters, multilingual"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794" }]
+    resources:
+      - { key: "checkpoint", file: "small.pt", kind: "pytorch fp16", sha256: "9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794" }
+  - name: "openai/medium.en.pt"
+    description: "769 M parameters, English-only"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f" }]
+    resources:
+      - { key: "checkpoint", file: "medium.en.pt", kind: "pytorch fp16", sha256: "d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f" }
+  - name: "openai/medium.pt"
+    description: "769 M parameters, multilingual"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1" }]
+    resources:
+      - { key: "checkpoint", file: "medium.pt", kind: "pytorch fp16", sha256: "345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1" }
+  - name: "openai/large-v1.pt"
+    description: "1550 M parameters, multilingual"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a" }]
+    resources:
+      - { key: "checkpoint", file: "large-v1.pt", kind: "pytorch fp16", sha256: "e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a" }
+  - name: "openai/large-v2.pt"
+    description: "1550 M parameters, multilingual"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524" }]
+    resources:
+      - { key: "checkpoint", file: "large-v2.pt", kind: "pytorch fp16", sha256: "81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524" }
+  - name: "openai/large-v3.pt"
+    description: "1550 M parameters, multilingual, 128 mels"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb" }]
+    resources:
+      - { key: "checkpoint", file: "large-v3.pt", kind: "pytorch fp16", sha256: "e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb" }
+  - name: "openai/large-v3-turbo.pt"
+    description: "809 M parameters, multilingual, 128 mels, four-layer decoder"
+    license: "MIT"
+    origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
+    namespace: "openai"
+    bases: [{ local_dir: { name: "openai-whisper", default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }, { url: "https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a" }]
+    resources:
+      - { key: "checkpoint", file: "large-v3-turbo.pt", kind: "pytorch fp16", sha256: "aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a" }

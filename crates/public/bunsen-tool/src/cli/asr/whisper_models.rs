@@ -164,9 +164,7 @@ impl InspectCmd {
         // A row declares its vocabulary, listed above; a path has only the
         // rule, applied to what the scan found.
         if map.get(VOCABULARY).is_none() {
-            let vocab = WhisperVocabulary::for_layout(&layout_of(&cfg)?)
-                .resource_bundle()
-                .to_resource_bundle();
+            let vocab = WhisperVocabulary::for_layout(&layout_of(&cfg)?).resource_bundle();
             let r = vocab.try_get(VOCABULARY)?;
             println!(
                 "vocabulary (by the checkpoint's layout): {} ({})",

@@ -1,17 +1,10 @@
 //! # Whisper resource bundles
 
 use crate::{
-    data::pretrained::{
-        StaticBase,
-        StaticResource,
-        StaticResourceBundle,
-    },
+    data::pretrained::ResourceBundle,
     kits::speech::whisper::{
         driver::WhisperSpecialIds,
-        pretrained::{
-            OPENAI_LOCAL_DIR,
-            openai_download_root,
-        },
+        pretrained::WHISPER_CATALOG,
     },
 };
 
@@ -30,200 +23,6 @@ pub const PYTORCH_FP16: &str = "pytorch fp16";
 
 /// The label on the vocabularies.
 pub const TIKTOKEN: &str = "tiktoken";
-
-const OPENAI_MODELS_ORIGIN: &str =
-    "https://github.com/openai/whisper/blob/main/whisper/__init__.py";
-
-const OPENAI_ASSETS_ORIGIN: &str = "https://github.com/openai/whisper/tree/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets";
-
-/// Upstream's download root, as a base: `openai-whisper` keeps its
-/// checkpoints there under their bare names, and a file found there is used
-/// in place. A `PretrainedCacheOptions` override by [`OPENAI_LOCAL_DIR`]
-/// points it elsewhere.
-pub const UPSTREAM_BASE: StaticBase<'static> = StaticBase::LocalDir {
-    name: OPENAI_LOCAL_DIR,
-    default: openai_download_root,
-};
-
-/// One `openai` checkpoint resource bundle: the file under [`UPSTREAM_BASE`],
-/// then upstream's URL, which is addressed by the same digest that pins it.
-macro_rules! openai_checkpoint {
-    ($name:ident, $file:literal, $sha256:literal, $description:literal) => {
-        #[doc = concat!("`openai/", $file, "`: ", $description, ".")]
-        pub static $name: StaticResourceBundle<'static> = StaticResourceBundle {
-            name: concat!("openai/", $file),
-            description: $description,
-            license: Some("MIT"),
-            origin: Some(OPENAI_MODELS_ORIGIN),
-            namespace: OPENAI_NAMESPACE,
-            bases: &[
-                UPSTREAM_BASE,
-                StaticBase::Url(concat!(
-                    "https://openaipublic.azureedge.net/main/whisper/models/",
-                    $sha256
-                )),
-            ],
-            resources: &[StaticResource {
-                key: CHECKPOINT,
-                file: $file,
-                sha256: Some($sha256),
-                kind: Some(PYTORCH_FP16),
-                sources: &[],
-            }],
-        };
-    };
-}
-
-openai_checkpoint!(
-    TINY_EN_CHECKPOINT,
-    "tiny.en.pt",
-    "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03",
-    "39 M parameters, English-only"
-);
-openai_checkpoint!(
-    TINY_CHECKPOINT,
-    "tiny.pt",
-    "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9",
-    "39 M parameters, multilingual"
-);
-openai_checkpoint!(
-    BASE_EN_CHECKPOINT,
-    "base.en.pt",
-    "25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead",
-    "74 M parameters, English-only"
-);
-openai_checkpoint!(
-    BASE_CHECKPOINT,
-    "base.pt",
-    "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e",
-    "74 M parameters, multilingual"
-);
-openai_checkpoint!(
-    SMALL_EN_CHECKPOINT,
-    "small.en.pt",
-    "f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872",
-    "244 M parameters, English-only"
-);
-openai_checkpoint!(
-    SMALL_CHECKPOINT,
-    "small.pt",
-    "9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794",
-    "244 M parameters, multilingual"
-);
-openai_checkpoint!(
-    MEDIUM_EN_CHECKPOINT,
-    "medium.en.pt",
-    "d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f",
-    "769 M parameters, English-only"
-);
-openai_checkpoint!(
-    MEDIUM_CHECKPOINT,
-    "medium.pt",
-    "345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1",
-    "769 M parameters, multilingual"
-);
-openai_checkpoint!(
-    LARGE_V1_CHECKPOINT,
-    "large-v1.pt",
-    "e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a",
-    "1550 M parameters, multilingual"
-);
-openai_checkpoint!(
-    LARGE_V2_CHECKPOINT,
-    "large-v2.pt",
-    "81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524",
-    "1550 M parameters, multilingual"
-);
-openai_checkpoint!(
-    LARGE_V3_CHECKPOINT,
-    "large-v3.pt",
-    "e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb",
-    "1550 M parameters, multilingual, 128 mels"
-);
-openai_checkpoint!(
-    LARGE_V3_TURBO_CHECKPOINT,
-    "large-v3-turbo.pt",
-    "aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a",
-    "809 M parameters, multilingual, 128 mels, four-layer decoder"
-);
-
-/// Every `openai` checkpoint resource bundle, in upstream's order.
-///
-/// What each `openai` pretrained is made of, as resource bundles: one resource
-/// bundle per checkpoint, one per vocabulary ([`OPENAI_VOCABULARY_BUNDLES`]),
-/// each a single file under the `openai` namespace. A pretrained row fuses a
-/// checkpoint resource bundle with the vocabulary resource bundle its token
-/// layout selects; a path arrives as a one-resource bundle, and the rule that
-/// selects its vocabulary is [`WhisperVocabulary::for_layout`].
-///
-/// The checkpoints are `whisper/__init__.py`'s `_MODELS`: each file under
-/// upstream's download root ([`UPSTREAM_BASE`], a "trust me" base used in
-/// place), and then upstream's digest-addressed URL. Nothing here names a
-/// bundle: a bundled copy is a cache directory populated ahead of time, and
-/// the cache hits it without knowing.
-pub static OPENAI_CHECKPOINTS: &[&StaticResourceBundle<'static>] = &[
-    &TINY_EN_CHECKPOINT,
-    &TINY_CHECKPOINT,
-    &BASE_EN_CHECKPOINT,
-    &BASE_CHECKPOINT,
-    &SMALL_EN_CHECKPOINT,
-    &SMALL_CHECKPOINT,
-    &MEDIUM_EN_CHECKPOINT,
-    &MEDIUM_CHECKPOINT,
-    &LARGE_V1_CHECKPOINT,
-    &LARGE_V2_CHECKPOINT,
-    &LARGE_V3_CHECKPOINT,
-    &LARGE_V3_TURBO_CHECKPOINT,
-];
-
-/// `multilingual.tiktoken`: the vocabulary of every multilingual checkpoint.
-/// Its last line is `= 50256`, base64 of nothing, and that empty token is
-/// real; bunsen's parser reads it as such.
-pub static MULTILINGUAL_VOCABULARY: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "openai/multilingual.tiktoken",
-    description: "the multilingual vocabulary: GPT-2's ranks plus one, as every multilingual checkpoint numbers them",
-    license: Some("MIT"),
-    origin: Some(OPENAI_ASSETS_ORIGIN),
-    namespace: OPENAI_NAMESPACE,
-    bases: &[StaticBase::Url(
-        "https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets",
-    )],
-    resources: &[StaticResource {
-        key: VOCABULARY,
-        file: "multilingual.tiktoken",
-        sha256: Some("b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126"),
-        kind: Some(TIKTOKEN),
-        sources: &[],
-    }],
-};
-
-/// `gpt2.tiktoken`: the vocabulary of the English-only (`*.en`) checkpoints,
-/// GPT-2's ranks as they are.
-pub static GPT2_VOCABULARY: StaticResourceBundle<'static> = StaticResourceBundle {
-    name: "openai/gpt2.tiktoken",
-    description: "the English-only vocabulary: GPT-2's ranks, as the `*.en` checkpoints number them",
-    license: Some("MIT"),
-    origin: Some(OPENAI_ASSETS_ORIGIN),
-    namespace: OPENAI_NAMESPACE,
-    bases: &[StaticBase::Url(
-        "https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets",
-    )],
-    resources: &[StaticResource {
-        key: VOCABULARY,
-        file: "gpt2.tiktoken",
-        sha256: Some("306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930"),
-        kind: Some(TIKTOKEN),
-        sources: &[],
-    }],
-};
-
-/// Both vocabulary resource bundles: multilingual first.
-///
-/// The two `.tiktoken` rank files, fetched from the commit of
-/// `openai/whisper` that last touched them, so each URL names one file
-/// forever.
-pub static OPENAI_VOCABULARY_BUNDLES: &[&StaticResourceBundle<'static>] =
-    &[&MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY];
 
 /// Which of the two rank files a checkpoint decodes through:
 /// `multilingual.tiktoken` for a multilingual layout, `gpt2.tiktoken` for
@@ -259,13 +58,22 @@ impl WhisperVocabulary {
         }
     }
 
-    /// The rank file, as a resource bundle: [`MULTILINGUAL_VOCABULARY`] or
-    /// [`GPT2_VOCABULARY`].
-    pub fn resource_bundle(self) -> &'static StaticResourceBundle<'static> {
+    /// The name of the rank file's resource bundle in
+    /// [`WHISPER_CATALOG`]: `openai/multilingual.tiktoken` or
+    /// `openai/gpt2.tiktoken`.
+    pub fn bundle_name(self) -> &'static str {
         match self {
-            Self::Multilingual => &MULTILINGUAL_VOCABULARY,
-            Self::Gpt2 => &GPT2_VOCABULARY,
+            Self::Multilingual => "openai/multilingual.tiktoken",
+            Self::Gpt2 => "openai/gpt2.tiktoken",
         }
+    }
+
+    /// The rank file, as a resource bundle, pinned to
+    /// [`OPENAI_VOCAB_REVISION`](super::OPENAI_VOCAB_REVISION).
+    /// `multilingual.tiktoken`'s last line is `= 50256`, base64 of nothing,
+    /// and that empty token is real; bunsen's parser reads it as such.
+    pub fn resource_bundle(self) -> ResourceBundle {
+        WHISPER_CATALOG.resource_bundle(self.bundle_name())
     }
 }
 
@@ -273,8 +81,15 @@ impl WhisperVocabulary {
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::Source,
-        kits::speech::whisper::pretrained::WHISPER_PREFABS,
+        data::pretrained::{
+            LocalDirBase,
+            Source,
+            resolve_dir_template,
+        },
+        kits::speech::whisper::pretrained::{
+            OPENAI_LOCAL_DIR,
+            WHISPER_PREFABS,
+        },
     };
 
     fn ids_of(prefab: &str) -> WhisperSpecialIds {
@@ -287,29 +102,32 @@ mod tests {
 
     /// Every checkpoint resource bundle is one pinned, labeled `checkpoint`
     /// under the `openai` namespace, found under upstream's root before
-    /// upstream's URL, and that URL is addressed by the digest that pins it.
+    /// upstream's URL, and that URL is addressed by the digest that pins it;
+    /// upstream's root is `$XDG_CACHE_HOME/whisper`, else `~/.cache/whisper`.
     #[test]
-    fn test_checkpoint_maps_validate_and_pin_their_urls() {
-        assert_eq!(OPENAI_CHECKPOINTS.len(), 12);
-        let mut names: Vec<&str> = OPENAI_CHECKPOINTS.iter().map(|m| m.name).collect();
-        names.sort_unstable();
-        names.dedup();
-        assert_eq!(names.len(), 12, "a map name is repeated");
+    fn test_checkpoint_bundles_validate_and_pin_their_urls() {
+        let checkpoints: Vec<_> = WHISPER_CATALOG
+            .catalog()
+            .bundles
+            .iter()
+            .filter(|b| b.name.ends_with(".pt"))
+            .collect();
+        assert_eq!(checkpoints.len(), 12);
 
-        for map in OPENAI_CHECKPOINTS {
-            let owned = map.to_resource_bundle();
+        for bundle in checkpoints {
+            let owned = bundle.to_resource_bundle();
             owned.validate().unwrap();
-            assert_eq!(owned.keys(), [CHECKPOINT], "{}", map.name);
+            assert_eq!(owned.keys(), [CHECKPOINT], "{}", bundle.name);
             let r = owned.get(CHECKPOINT).unwrap();
-            assert_eq!(r.namespace, OPENAI_NAMESPACE, "{}", map.name);
-            assert_eq!(r.kind.as_deref(), Some(PYTORCH_FP16), "{}", map.name);
+            assert_eq!(r.namespace, OPENAI_NAMESPACE, "{}", bundle.name);
+            assert_eq!(r.kind.as_deref(), Some(PYTORCH_FP16), "{}", bundle.name);
             let sha256 = r.sha256.as_deref().expect("every checkpoint is pinned");
-            assert_eq!(map.name, format!("openai/{}", r.file));
-            assert_eq!(r.sources.len(), 2, "{}", map.name);
+            assert_eq!(bundle.name, format!("openai/{}", r.file));
+            assert_eq!(r.sources.len(), 2, "{}", bundle.name);
             assert!(
                 matches!(&r.sources[0], Source::LocalDir { name, .. } if name == OPENAI_LOCAL_DIR),
                 "{}: upstream's root comes first",
-                map.name
+                bundle.name
             );
             assert_eq!(
                 r.urls(),
@@ -318,25 +136,33 @@ mod tests {
                     r.file
                 )],
                 "{}",
-                map.name
+                bundle.name
             );
+            let crate::data::pretrained::CatalogBase::LocalDir(LocalDirBase { default, .. }) =
+                &bundle.bases[0]
+            else {
+                panic!("{}: upstream's root is the first base", bundle.name);
+            };
+            assert_eq!(default, &["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"]);
         }
-        assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
+        assert!(
+            resolve_dir_template("~/.cache/whisper").is_some_and(|d| d.ends_with(".cache/whisper"))
+        );
     }
 
-    /// The vocabulary resource bundles validate, are pinned to the commit, and
-    /// the layout picks between them.
+    /// The vocabulary resource bundles validate, are pinned to the commit,
+    /// and the layout picks between them.
     #[test]
-    fn test_vocabulary_maps_and_the_rule() {
-        for map in OPENAI_VOCABULARY_BUNDLES {
-            let owned = map.to_resource_bundle();
+    fn test_vocabulary_bundles_and_the_rule() {
+        for vocabulary in WhisperVocabulary::ALL {
+            let owned = vocabulary.resource_bundle();
             owned.validate().unwrap();
-            assert_eq!(owned.keys(), [VOCABULARY], "{}", map.name);
+            assert_eq!(owned.keys(), [VOCABULARY], "{}", owned.name);
             let r = owned.get(VOCABULARY).unwrap();
             assert_eq!(r.namespace, OPENAI_NAMESPACE);
             assert_eq!(r.kind.as_deref(), Some(TIKTOKEN));
             assert!(r.is_pinned());
-            assert_eq!(map.name, format!("openai/{}", r.file));
+            assert_eq!(owned.name, format!("openai/{}", r.file));
             let urls = r.urls();
             assert_eq!(urls.len(), 1);
             assert!(
@@ -351,18 +177,7 @@ mod tests {
         assert_eq!(rule("tiny"), WhisperVocabulary::Multilingual);
         assert_eq!(rule("tiny.en"), WhisperVocabulary::Gpt2);
         assert_eq!(rule("large-v3"), WhisperVocabulary::Multilingual);
-        assert_eq!(
-            rule("tiny").resource_bundle().name,
-            MULTILINGUAL_VOCABULARY.name
-        );
-        assert_eq!(rule("tiny.en").resource_bundle().name, GPT2_VOCABULARY.name);
-        assert_eq!(
-            WhisperVocabulary::ALL.map(|v| v.resource_bundle().name),
-            OPENAI_VOCABULARY_BUNDLES
-                .iter()
-                .map(|m| m.name)
-                .collect::<Vec<_>>()
-                .as_slice()
-        );
+        assert_eq!(rule("tiny").bundle_name(), "openai/multilingual.tiktoken");
+        assert_eq!(rule("tiny.en").bundle_name(), "openai/gpt2.tiktoken");
     }
 }

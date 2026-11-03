@@ -11,9 +11,9 @@
 //! [`default_whisper_factory`] is the index a caller holds, over
 //! [`default_whisper_providers`] in search order:
 //!
-//! - [`WELL_KNOWN_TABLE`]: the checkpoints bunsen knows by name, as
+//! - [`WHISPER_CATALOG`]: the checkpoints bunsen knows by name, as
 //!   `well-known:openai/base`, `openai/base`, or `base`. Its one group,
-//!   [`OPENAI`], is upstream's `_MODELS`, with upstream's aliases (`large`,
+//!   `openai`, is upstream's `_MODELS`, with upstream's aliases (`large`,
 //!   `turbo`).
 //! - The data layer's [`HfProvider`](crate::data::pretrained::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
@@ -24,13 +24,13 @@
 //! [`with_provider`](crate::kits::support::construct::PretrainedFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
-//! # Rows, prefabs and maps
+//! # Rows, prefabs and bundles
 //!
 //! A row names its prefab in [`WHISPER_PREFABS`], the geometry its
-//! checkpoint must have, and fuses a checkpoint map from
-//! [`OPENAI_CHECKPOINTS`] with the vocabulary map its token layout
+//! checkpoint must have, and fuses a checkpoint bundle of
+//! [`WHISPER_CATALOG`] with the vocabulary bundle its token layout
 //! selects ([`WhisperVocabulary`]). A prefab is a shape without weights,
-//! so a name means a shape before any bytes are fetched; a map is where
+//! so a name means a shape before any bytes are fetched; a bundle is where
 //! the bytes come from and the digest that pins them. A path arrives as a
 //! one-resource bundle with no prefab, and gets its vocabulary from the same
 //! rule, [`WhisperVocabulary::for_layout`].
@@ -81,9 +81,7 @@
 //!
 //! // The row's vocabulary is the one that geometry's token layout selects.
 //! let ids = WhisperSpecialIds::from_vocab_size(geometry.vocab_size)?;
-//! let rule = WhisperVocabulary::for_layout(&ids)
-//!     .resource_bundle()
-//!     .to_resource_bundle();
+//! let rule = WhisperVocabulary::for_layout(&ids).resource_bundle();
 //! assert_eq!(
 //!     row.resources.try_get(VOCABULARY)?.file,
 //!     rule.try_get(VOCABULARY)?.file,

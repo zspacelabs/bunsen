@@ -1,37 +1,14 @@
 //! # Whisper pretrained providers
 
-use std::{
-    path::PathBuf,
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use crate::{
     data::pretrained::{
+        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
-        StaticPretrained,
-        StaticPretrainedGroup,
-        StaticPretrainedTable,
-        StaticResourceBundle,
-        WELL_KNOWN,
     },
-    kits::speech::whisper::pretrained::{
-        BASE_CHECKPOINT,
-        BASE_EN_CHECKPOINT,
-        CHECKPOINT,
-        GPT2_VOCABULARY,
-        LARGE_V1_CHECKPOINT,
-        LARGE_V2_CHECKPOINT,
-        LARGE_V3_CHECKPOINT,
-        LARGE_V3_TURBO_CHECKPOINT,
-        MEDIUM_CHECKPOINT,
-        MEDIUM_EN_CHECKPOINT,
-        MULTILINGUAL_VOCABULARY,
-        SMALL_CHECKPOINT,
-        SMALL_EN_CHECKPOINT,
-        TINY_CHECKPOINT,
-        TINY_EN_CHECKPOINT,
-    },
+    kits::speech::whisper::pretrained::CHECKPOINT,
 };
 
 /// The kit segment of a Whisper resource's path in the cache:
@@ -43,174 +20,23 @@ pub const WHISPER_KIT: &str = "whisper";
 /// override by this name points it elsewhere.
 pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 
-/// `openai-whisper`'s default `download_root`: `$XDG_CACHE_HOME/whisper`, or
-/// `~/.cache/whisper`. Upstream uses `~/.cache` on every platform, so this
-/// does not ask the platform for its cache directory.
-pub fn openai_download_root() -> Option<PathBuf> {
-    let cache_home = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::home_dir().map(|h| h.join(".cache")))?;
-    Some(cache_home.join("whisper"))
-}
-
-/// One `openai` row: a checkpoint map and the vocabulary map its layout
-/// selects, naming its prefab.
-const fn openai(
-    name: &'static str,
-    aliases: &'static [&'static str],
-    prefab: &'static str,
-    description: &'static str,
-    maps: &'static [&'static StaticResourceBundle<'static>],
-) -> StaticPretrained<'static> {
-    StaticPretrained {
-        name,
-        aliases,
-        description,
-        license: Some("MIT"),
-        origin: Some("https://github.com/openai/whisper/blob/main/whisper/__init__.py"),
-        prefab: Some(prefab),
-        resource_bundles: maps,
-    }
-}
-
-static TINY_EN: StaticPretrained<'static> = openai(
-    "tiny.en",
-    &[],
-    "tiny.en",
-    "39 M parameters, English-only",
-    &[&TINY_EN_CHECKPOINT, &GPT2_VOCABULARY],
-);
-
-static TINY: StaticPretrained<'static> = openai(
-    "tiny",
-    &[],
-    "tiny",
-    "39 M parameters, multilingual",
-    &[&TINY_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static BASE_EN: StaticPretrained<'static> = openai(
-    "base.en",
-    &[],
-    "base.en",
-    "74 M parameters, English-only",
-    &[&BASE_EN_CHECKPOINT, &GPT2_VOCABULARY],
-);
-
-static BASE: StaticPretrained<'static> = openai(
-    "base",
-    &[],
-    "base",
-    "74 M parameters, multilingual",
-    &[&BASE_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static SMALL_EN: StaticPretrained<'static> = openai(
-    "small.en",
-    &[],
-    "small.en",
-    "244 M parameters, English-only",
-    &[&SMALL_EN_CHECKPOINT, &GPT2_VOCABULARY],
-);
-
-static SMALL: StaticPretrained<'static> = openai(
-    "small",
-    &[],
-    "small",
-    "244 M parameters, multilingual",
-    &[&SMALL_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static MEDIUM_EN: StaticPretrained<'static> = openai(
-    "medium.en",
-    &[],
-    "medium.en",
-    "769 M parameters, English-only",
-    &[&MEDIUM_EN_CHECKPOINT, &GPT2_VOCABULARY],
-);
-
-static MEDIUM: StaticPretrained<'static> = openai(
-    "medium",
-    &[],
-    "medium",
-    "769 M parameters, multilingual",
-    &[&MEDIUM_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static LARGE_V1: StaticPretrained<'static> = openai(
-    "large-v1",
-    &[],
-    "large",
-    "1550 M parameters, multilingual",
-    &[&LARGE_V1_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static LARGE_V2: StaticPretrained<'static> = openai(
-    "large-v2",
-    &[],
-    "large",
-    "1550 M parameters, multilingual",
-    &[&LARGE_V2_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static LARGE_V3: StaticPretrained<'static> = openai(
-    "large-v3",
-    &["large"],
-    "large-v3",
-    "1550 M parameters, multilingual, 128 mels",
-    &[&LARGE_V3_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-static LARGE_V3_TURBO: StaticPretrained<'static> = openai(
-    "large-v3-turbo",
-    &["turbo"],
-    "large-v3-turbo",
-    "809 M parameters, multilingual, 128 mels, four-layer decoder",
-    &[&LARGE_V3_TURBO_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
-);
-
-/// `OpenAI`'s checkpoints, as `openai-whisper` names and pins them, each
-/// with the vocabulary it decodes through.
+/// The Whisper checkpoints bunsen knows by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
+/// `openai`: `OpenAI`'s twelve checkpoints as `openai-whisper` names and pins
+/// them (`well-known:openai/tiny`, `openai/tiny`, or `tiny`).
 ///
-/// `whisper/__init__.py`'s `_MODELS`, with upstream's two aliases
-/// (`large`, `turbo`) folded onto the rows they name rather than repeated.
-/// A group is a label, the `openai` in `openai/tiny.en`, over rows that
-/// each name their prefab in [`WHISPER_PREFABS`](super::WHISPER_PREFABS)
-/// and fuse a checkpoint map from
-/// [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) with the vocabulary
-/// map its token layout selects
-/// ([`WhisperVocabulary`](super::WhisperVocabulary)). Every row declares the
-/// vocabulary the rule would select for its prefab's layout; the tests pin that
-/// the declaration and the rule agree, so a path model, which has only the
-/// rule, gets the same file a name does.
-pub static OPENAI: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-    name: "openai",
-    description: "OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them",
-    license: Some("MIT"),
-    origin: Some("https://github.com/openai/whisper/blob/main/whisper/__init__.py"),
-    items: &[
-        &TINY_EN,
-        &TINY,
-        &BASE_EN,
-        &BASE,
-        &SMALL_EN,
-        &SMALL,
-        &MEDIUM_EN,
-        &MEDIUM,
-        &LARGE_V1,
-        &LARGE_V2,
-        &LARGE_V3,
-        &LARGE_V3_TURBO,
-    ],
-};
-
-/// The checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
-/// provider: `well-known:openai/tiny`, or `openai/tiny`, or `tiny`.
-pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
-    name: WELL_KNOWN,
-    description: "the Whisper checkpoints bunsen knows by name",
-    groups: &[&OPENAI],
-};
+/// Each row fuses a checkpoint bundle with the vocabulary bundle its token
+/// layout selects ([`WhisperVocabulary`](super::WhisperVocabulary)); the
+/// tests pin that every row's declaration and the rule agree, so a path
+/// model, which has only the rule, gets the same file a name does. A
+/// checkpoint is found first under `openai-whisper`'s download root (the
+/// local-dir base [`OPENAI_LOCAL_DIR`]: `$XDG_CACHE_HOME/whisper`, else
+/// `~/.cache/whisper`, used in place), then at upstream's digest-addressed
+/// URL.
+///
+/// Built from `validation/catalogs/whisper.yml` by `cargo validate catalog`.
+pub static WHISPER_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("whisper", include_str!("catalog.json"));
 
 /// Whisper's compiled-in providers, in search order: the well-known table,
 /// then Hugging Face, which answers only `hf:org/repo`, through the cache,
@@ -222,7 +48,7 @@ pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTa
 /// [`default_whisper_factory`](super::default_whisper_factory).
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(WHISPER_CATALOG.table()),
         Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
     ]
 }
@@ -233,7 +59,6 @@ mod tests {
     use crate::kits::speech::whisper::{
         driver::WhisperSpecialIds,
         pretrained::{
-            CHECKPOINT,
             VOCABULARY,
             WHISPER_PREFABS,
             WhisperVocabulary,
@@ -253,15 +78,21 @@ mod tests {
     /// pinned.
     #[test]
     fn test_every_row_names_a_prefab_and_fuses() {
-        for group in WELL_KNOWN_TABLE.groups {
-            for row in group.items {
-                let prefab = row.prefab.expect("every whisper row names a prefab");
+        let prefabs: Vec<&str> = WHISPER_PREFABS.iter().map(|p| p.name).collect();
+        WHISPER_CATALOG.catalog().validate(&prefabs).unwrap();
+        let table = WHISPER_CATALOG.table();
+        for group in &table.groups {
+            for row in &group.items {
+                let prefab = row
+                    .prefab
+                    .as_deref()
+                    .expect("every whisper row names a prefab");
                 assert!(
                     WHISPER_PREFABS.lookup_prefab(prefab).is_some(),
                     "{}: prefab {prefab:?} is not in WHISPER_PREFABS",
                     group.id(row),
                 );
-                let map = row.try_to_resource_bundle().unwrap();
+                let map = &row.resources;
                 map.validate().unwrap();
                 assert_eq!(map.keys(), [CHECKPOINT, VOCABULARY], "{}", group.id(row));
                 let checkpoint = map.get(CHECKPOINT).unwrap();
@@ -270,21 +101,21 @@ mod tests {
                 assert!(map.get(VOCABULARY).unwrap().is_pinned());
             }
         }
-        assert_eq!(OPENAI.items.len(), 12);
+        assert_eq!(table.groups[0].items.len(), 12);
     }
 
     /// The vocabulary a row declares is the one the rule selects for its
     /// prefab's layout, so a name and a path agree on it.
     #[test]
     fn test_the_declared_vocabulary_is_the_rules() {
-        for row in OPENAI.items {
-            let declared = row.to_resource_bundle();
-            let declared = declared.get(VOCABULARY).unwrap();
-            let rule = WhisperVocabulary::for_layout(&layout_of(row.prefab.unwrap()))
-                .resource_bundle()
-                .to_resource_bundle();
+        let table = WHISPER_CATALOG.table();
+        let openai = &table.groups[0];
+        for row in &openai.items {
+            let declared = row.resources.get(VOCABULARY).unwrap();
+            let rule = WhisperVocabulary::for_layout(&layout_of(row.prefab.as_deref().unwrap()))
+                .resource_bundle();
             let rule = rule.get(VOCABULARY).unwrap();
-            assert_eq!(declared, rule, "{}", OPENAI.id(row));
+            assert_eq!(declared, rule, "{}", openai.id(row));
         }
     }
 
@@ -292,7 +123,7 @@ mod tests {
     /// answers the refs, the bare names and upstream's aliases.
     #[test]
     fn test_the_well_known_table_lists_the_openai_rows() {
-        let table = WELL_KNOWN_TABLE.to_table();
+        let table = WHISPER_CATALOG.table();
         assert_eq!(table.name(), "well-known");
         let ids = table.ids();
         assert_eq!(ids.len(), 12);
@@ -316,11 +147,13 @@ mod tests {
 
     #[test]
     fn test_names_and_aliases_are_unique_within_a_group() {
-        for group in WELL_KNOWN_TABLE.groups {
+        for group in &WHISPER_CATALOG.table().groups {
             let mut names: Vec<&str> = group
                 .items
                 .iter()
-                .flat_map(|p| std::iter::once(p.name).chain(p.aliases.iter().copied()))
+                .flat_map(|p| {
+                    std::iter::once(p.name.as_str()).chain(p.aliases.iter().map(String::as_str))
+                })
                 .collect();
             let n = names.len();
             names.sort_unstable();
