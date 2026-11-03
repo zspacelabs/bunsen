@@ -132,7 +132,7 @@ mod tests {
     /// The committed validation schedule reads, and its segments are distinct
     /// within a crate.
     #[test]
-    fn test_the_catalog_reads() {
+    fn test_the_schedule_reads() {
         let schedule =
             ValidationSchedule::load(&crate::validation_dir().join("models.yml")).unwrap();
         assert!(schedule.crates.contains_key("qwen3"));

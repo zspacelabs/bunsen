@@ -1,6 +1,6 @@
 [package]
 name = "validate"
-description = "Runs the validation crates under a profile: the models it chooses from validation/models.yml, their tests alone, through cargo test."
+description = "Runs the validation crates under a profile (the models it chooses from validation/models.yml, their tests alone, through cargo test), and builds the kits' pretrained catalogs."
 publish = false
 
 authors.workspace = true
@@ -14,8 +14,11 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+bunsen = { path = "../../../crates/public/bunsen", default-features = false }
 clap = { workspace = true, features = ["derive", "env"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde-saphyr = { workspace = true }
+sha2 = { workspace = true }
+ureq = { workspace = true }

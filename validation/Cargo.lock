@@ -8546,11 +8546,14 @@ checksum = "be8219cc464ba10c48c3231a6871f11d26d831c5c45a47467eea387ea7bb10e8"
 name = "validate"
 version = "0.41.0"
 dependencies = [
+ "bunsen",
  "clap",
  "indexmap",
  "serde",
  "serde-saphyr",
  "serde_json",
+ "sha2 0.11.0",
+ "ureq 3.4.2",
 ]
 
 [[package]]
