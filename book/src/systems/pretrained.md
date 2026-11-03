@@ -22,7 +22,7 @@ is the smallest: one compiled-in row, upstream's 16 kHz checkpoint.
 spec ("tiny", "hf:org/repo")
   │  the kit's factory asks its providers
   ▼
-row: a name over a map of pinned resources
+row: a name over a resource bundle of pinned resources
   │  paired with the kit's hook, optionally overlaid
   ▼
 deferred model
@@ -35,7 +35,7 @@ A [`PretrainedFactory`](bunsen::data::pretrained::PretrainedFactory) is the
 one object a caller holds for a kit, and its
 [`load`](bunsen::data::pretrained::PretrainedFactory::load) runs the whole
 pathway. A file on disk does not go through the factory at all: it is a
-given map ([`ResourceMap::given`](bunsen::data::pretrained::ResourceMap::given)),
+given resource bundle ([`ResourceBundle::given`](bunsen::data::pretrained::ResourceBundle::given)),
 loaded the same way from the deferred step on.
 
 ## Prefabs, rows and resources
@@ -47,14 +47,14 @@ Three things are kept apart, because they vary independently:
   [`StaticPreFabMap`](bunsen::data::pretrained::StaticPreFabMap).
 - A **row**, a [`Pretrained`](bunsen::data::pretrained::Pretrained), is a
   name in a provider, with its aliases, the prefab it instantiates, and the
-  resource maps it is made of.
+  resource bundles it is made of.
 - A **resource**, a [`Resource`](bunsen::data::pretrained::Resource), is one
   file: the key the kit reads it by, the SHA-256 that pins it, a `kind`
   label, and the places it can be had from, in order.
 
 One prefab has many rows, in many providers. One file can serve many rows:
 Whisper's two vocabulary files serve its twelve checkpoints, each as a
-resource map of its own that the rows reference. Rows, maps and resources
+resource bundle of its own that the rows reference. Rows, resource bundles and resources
 know nothing about how a model is built: that is the kit's business. They
 are plain serde data, so a manifest can carry them ([prefabs, rows and
 resources](bunsen::data::pretrained#prefabs-rows-and-resources)).
@@ -124,16 +124,16 @@ described under
 ## Deferred models and the kit's hook
 
 What a name resolves to is a
-[`Deferred`](bunsen::data::pretrained::Deferred) model: the row's map, plus
+[`Deferred`](bunsen::data::pretrained::Deferred) model: the row's resource bundle, plus
 the kit's [`Construct`](bunsen::data::pretrained::Construct) hook. The hook
-is chosen for the map by
-[`for_map`](bunsen::data::pretrained::Construct::for_map), from the
+is chosen for the resource bundle by
+[`for_resource_bundle`](bunsen::data::pretrained::Construct::for_resource_bundle), from the
 resources' `kind`s, because rows from different providers can need
 different readers: an OpenAI `.pt` checkpoint and a Hugging Face safetensors
 repo are both Whisper, read two ways.
 
 Loading runs three steps. The hook's
-[`plan`](bunsen::data::pretrained::Construct::plan) completes the map and
+[`plan`](bunsen::data::pretrained::Construct::plan) completes the resource bundle and
 checks what the row promises, such as its prefab, before any bytes are
 fetched. The cache then brings the files local. Finally the hook's
 [`construct`](bunsen::data::pretrained::Construct::construct) builds the

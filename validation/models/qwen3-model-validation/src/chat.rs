@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use bunsen::{
-    data::pretrained::ResourceMap,
+    data::pretrained::ResourceBundle,
     kits::gpts::qwen3::{
         TOKENIZER,
         TOKENIZER_CONFIG,
@@ -28,7 +28,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf) {
         .expect("the qwen3 factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = ResourceMap::new(pretrained.resources.name.clone());
+    let mut map = ResourceBundle::new(pretrained.resources.name.clone());
     for key in [TOKENIZER, TOKENIZER_CONFIG] {
         map.insert(pretrained.resources.try_get(key).unwrap().clone());
     }

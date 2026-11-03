@@ -10,22 +10,24 @@ use super::{
     Loaded,
     PretrainedCache,
     PretrainedRef,
-    ResourceMap,
+    ResourceBundle,
 };
 use crate::errors::{
     BunsenResult,
     ResultContext,
 };
 
-/// A model not yet loaded: its map, and the hook that will build it.
+/// A model not yet loaded: its resource bundle, and the hook that will build
+/// it.
 ///
 /// What a name resolved to. [`PretrainedFactory::resolve`] hands one back
-/// from a spec; a map from elsewhere, a checkpoint on disk say, becomes one
-/// through [`from_map`](Self::from_map), and any [`PretrainedRef`] through
-/// [`new`](Self::new). Either way the hook is
-/// [`Construct::for_map`]'s choice, made from what the map says about its
-/// resources (their `kind`s): different providers' rows may be read by
-/// different mechanisms, and the hook attached is the one for this map.
+/// from a spec; a resource bundle from elsewhere, a checkpoint on disk say,
+/// becomes one through [`from_resource_bundle`](Self::from_resource_bundle),
+/// and any [`PretrainedRef`] through [`new`](Self::new). Either way the hook is
+/// [`Construct::for_resource_bundle`]'s choice, made from what the resource
+/// bundle says about its resources (their `kind`s): different providers' rows
+/// may be read by different mechanisms, and the hook attached is the one for
+/// this resource bundle.
 ///
 /// Before loading, a caller may lay its own resources over the model's
 /// ([`with_overlay`](Self::with_overlay)), ask where each resource stands
@@ -37,41 +39,43 @@ use crate::errors::{
 /// [`PretrainedFactory::resolve`]: super::PretrainedFactory::resolve
 #[derive(Clone, Debug)]
 pub struct Deferred<H: Construct> {
-    /// What resolved: a row of a provider, or a given map.
+    /// What resolved: a row of a provider, or a given resource bundle.
     pub model: PretrainedRef,
 
-    /// The kit's hook for it, chosen by the map. Public, so that a caller
-    /// doing surgery of its own, a config the model is built from say, can
-    /// adjust what it was given; it never has to build one.
+    /// The kit's hook for it, chosen by the resource bundle. Public, so that a
+    /// caller doing surgery of its own, a config the model is built from say,
+    /// can adjust what it was given; it never has to build one.
     pub hook: H,
 }
 
 impl<H: Construct> Deferred<H> {
-    /// `model` with the hook its map calls for.
+    /// `model` with the hook its resource bundle calls for.
     ///
     /// # Errors
-    /// As [`Construct::for_map`]: a resource of a kind the kit cannot read.
+    /// As [`Construct::for_resource_bundle`]: a resource of a kind the kit
+    /// cannot read.
     pub fn new(model: PretrainedRef) -> BunsenResult<Self> {
-        let hook = H::for_map(&model.to_map())?;
+        let hook = H::for_resource_bundle(&model.to_resource_bundle())?;
         Ok(Self { model, hook })
     }
 
-    /// A map from elsewhere, a checkpoint on disk say, as a deferred model.
+    /// A resource bundle from elsewhere, a checkpoint on disk say, as a
+    /// deferred model.
     ///
     /// # Errors
     /// As [`new`](Self::new).
-    pub fn from_map(map: ResourceMap) -> BunsenResult<Self> {
+    pub fn from_resource_bundle(map: ResourceBundle) -> BunsenResult<Self> {
         Self::new(PretrainedRef::from(map))
     }
 
-    /// The qualified id, or the given map's name.
+    /// The qualified id, or the given resource bundle's name.
     pub fn id(&self) -> String {
         self.model.id()
     }
 
-    /// The map as it stands.
-    pub fn to_map(&self) -> ResourceMap {
-        self.model.to_map()
+    /// The resource bundle as it stands.
+    pub fn to_resource_bundle(&self) -> ResourceBundle {
+        self.model.to_resource_bundle()
     }
 
     /// The caller's resources over the model's, by key: a `--vocab` over a
@@ -81,7 +85,7 @@ impl<H: Construct> Deferred<H> {
     /// As [`PretrainedRef::with_overlay`].
     pub fn with_overlay(
         self,
-        map: ResourceMap,
+        map: ResourceBundle,
     ) -> BunsenResult<Self> {
         Ok(Self {
             model: self.model.with_overlay(map)?,
@@ -94,11 +98,11 @@ impl<H: Construct> Deferred<H> {
         &self,
         cache: &PretrainedCache,
     ) -> BTreeMap<String, CacheStatus> {
-        cache.map_status(H::KIT, &self.to_map())
+        cache.map_status(H::KIT, &self.to_resource_bundle())
     }
 
-    /// The hook's plan: the map completed, before anything but what the
-    /// plan itself looks at is fetched.
+    /// The hook's plan: the resource bundle completed, before anything but what
+    /// the plan itself looks at is fetched.
     ///
     /// # Errors
     /// As [`Construct::plan`], under a frame naming the kit and the model.
@@ -108,7 +112,7 @@ impl<H: Construct> Deferred<H> {
     pub fn plan(
         &self,
         cache: &PretrainedCache,
-    ) -> BunsenResult<ResourceMap> {
+    ) -> BunsenResult<ResourceBundle> {
         self.hook
             .plan(&self.model, cache)
             .with_context(|| format!("planning {} {:?}", H::KIT, self.id()))
@@ -194,7 +198,7 @@ mod tests {
                 license: None,
                 origin: None,
                 prefab: Some("small".to_string()),
-                resources: ResourceMap::new("small").with_resource(Resource {
+                resources: ResourceBundle::new("small").with_resource(Resource {
                     key: "checkpoint".to_string(),
                     file: "small.pt".to_string(),
                     sha256: None,
@@ -207,8 +211,8 @@ mod tests {
     }
 
     /// A given path is local already and loads in place through the hook
-    /// its map called for; a name goes through the cache, which is offline
-    /// here and has nothing local.
+    /// its resource bundle called for; a name goes through the cache, which is
+    /// offline here and has nothing local.
     #[test]
     fn test_status_and_load() {
         let dir = tempfile::tempdir().unwrap();
@@ -217,12 +221,15 @@ mod tests {
         fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
 
-        let given =
-            Deferred::<CheckpointPath>::from_map(ResourceMap::given(spec, "checkpoint", &file))
-                .unwrap();
+        let given = Deferred::<CheckpointPath>::from_resource_bundle(ResourceBundle::given(
+            spec,
+            "checkpoint",
+            &file,
+        ))
+        .unwrap();
         assert_eq!(given.id(), spec);
         assert_eq!(given.status(&cache)["checkpoint"], CacheStatus::LocalDir);
-        assert_eq!(given.plan(&cache).unwrap(), given.to_map());
+        assert_eq!(given.plan(&cache).unwrap(), given.to_resource_bundle());
         let loaded = given.load(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, spec);
@@ -251,10 +258,13 @@ mod tests {
 
         let model = Deferred::<CheckpointPath>::new(named())
             .unwrap()
-            .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
+            .with_overlay(ResourceBundle::given("mine", "checkpoint", &other))
             .unwrap();
         assert_eq!(model.id(), "well-known:a/small");
-        assert_eq!(model.to_map().get("checkpoint").unwrap().file, "other.pt");
+        assert_eq!(
+            model.to_resource_bundle().get("checkpoint").unwrap().file,
+            "other.pt"
+        );
         let loaded = model.load(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, other);
         assert_eq!(loaded.name, "well-known:a/small");

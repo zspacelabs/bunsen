@@ -239,8 +239,8 @@ impl SafetensorsCheckpoint {
     /// As [`LoadedResources::expect`] when `loaded` has nothing under `key`,
     /// naming what it has; as [`SafetensorsIndex::read`] for the index.
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
-    /// naming the map, for a family with no index, or shards that are not
-    /// the index's.
+    /// naming the resource bundle, for a family with no index, or shards that
+    /// are not the index's.
     pub fn from_loaded(
         loaded: &LoadedResources,
         key: &str,
@@ -498,7 +498,7 @@ mod tests {
         use crate::data::pretrained::{
             Provenance,
             ResolvedResource,
-            ResourceMap,
+            ResourceBundle,
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -536,7 +536,7 @@ mod tests {
             provenance: Provenance::LocalDir,
         };
         let loaded = |parts: Vec<(&str, &Path)>| LoadedResources {
-            map: ResourceMap::new("sharded"),
+            map: ResourceBundle::new("sharded"),
             parts: parts
                 .into_iter()
                 .map(|(k, p)| (k.to_string(), part(p)))

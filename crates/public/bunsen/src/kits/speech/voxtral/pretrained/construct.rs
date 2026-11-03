@@ -18,7 +18,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
     },
@@ -65,7 +65,7 @@ impl Construct for VoxtralConstruct {
 
     /// The hook, for a safetensors checkpoint (one file or shards) with a
     /// `tekken.json` vocabulary.
-    fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
@@ -131,6 +131,9 @@ mod tests {
 
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
-        VoxtralConstruct::for_map(&VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_map()).unwrap();
+        VoxtralConstruct::for_resource_bundle(
+            &VOXTRAL_MINI_4B_REALTIME_2602_FILES.to_resource_bundle(),
+        )
+        .unwrap();
     }
 }

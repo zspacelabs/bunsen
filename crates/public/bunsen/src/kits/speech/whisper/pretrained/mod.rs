@@ -32,7 +32,7 @@
 //! selects ([`WhisperVocabulary`]). A prefab is a shape without weights,
 //! so a name means a shape before any bytes are fetched; a map is where
 //! the bytes come from and the digest that pins them. A path arrives as a
-//! one-resource map with no prefab, and gets its vocabulary from the same
+//! one-resource bundle with no prefab, and gets its vocabulary from the same
 //! rule, [`WhisperVocabulary::for_layout`].
 //!
 //! # Loading
@@ -50,7 +50,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_map`](crate::data::pretrained::Deferred::from_map).
+//! through [`Deferred::from_map`](crate::data::pretrained::Deferred::from_resource_bundle).
 //!
 //! # Example
 //!
@@ -81,7 +81,9 @@
 //!
 //! // The row's vocabulary is the one that geometry's token layout selects.
 //! let ids = WhisperSpecialIds::from_vocab_size(geometry.vocab_size)?;
-//! let rule = WhisperVocabulary::for_layout(&ids).map().to_map();
+//! let rule = WhisperVocabulary::for_layout(&ids)
+//!     .resource_bundle()
+//!     .to_resource_bundle();
 //! assert_eq!(
 //!     row.resources.try_get(VOCABULARY)?.file,
 //!     rule.try_get(VOCABULARY)?.file,
@@ -94,11 +96,11 @@
 mod construct;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod factory;
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
-mod maps;
 mod prefabs;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod providers;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+mod resource_bundles;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod vocab;
 
@@ -106,11 +108,11 @@ mod vocab;
 pub use construct::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use factory::*;
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
-pub use maps::*;
 pub use prefabs::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use providers::*;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+pub use resource_bundles::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use vocab::*;
 

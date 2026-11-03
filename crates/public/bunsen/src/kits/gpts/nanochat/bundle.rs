@@ -15,20 +15,20 @@ use super::{
     },
 };
 
-/// The key of the state dict, `model_<step>.pt`, in a nanochat resource map.
+/// The key of the state dict, `model_<step>.pt`, in a nanochat resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The key of the checkpoint's meta, `meta_<step>.json`, in a nanochat
-/// resource map.
+/// resource bundle.
 pub const META: &str = "meta";
 
 /// The key of the tokenizer, `tokenizer.pkl` (a pickled `tiktoken`
-/// `Encoding`), in a [`NanoChatBundle`]'s files and a nanochat resource map.
+/// `Encoding`), in a [`NanoChatBundle`]'s files and a nanochat resource bundle.
 pub const TOKENIZER: &str = "tokenizer";
 
 /// The key of the tokenizer's byte lengths, `token_bytes.pt` (one per token,
 /// for upstream's bits-per-byte metric), in a [`NanoChatBundle`]'s files and
-/// a nanochat resource map.
+/// a nanochat resource bundle.
 pub const TOKEN_BYTES: &str = "token_bytes";
 
 /// A nanochat model, which of upstream's models it is, its meta, and its

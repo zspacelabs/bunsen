@@ -35,7 +35,7 @@ impl WhisperVocabulary {
         self,
         cache: &PretrainedCache,
     ) -> BunsenResult<TiktokenRanks> {
-        let map = self.map().to_map();
+        let map = self.resource_bundle().to_resource_bundle();
         let resolved = cache.resolve(WHISPER_KIT, map.try_get(VOCABULARY)?)?;
         TiktokenRanks::load(&resolved.path)
     }
@@ -44,13 +44,13 @@ impl WhisperVocabulary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::whisper::pretrained::OPENAI_VOCABULARIES_MAPS;
+    use crate::kits::speech::whisper::pretrained::OPENAI_VOCABULARY_BUNDLES;
 
     /// Both maps fetch from the pinned commit, by the file's own name.
     #[test]
     fn test_the_maps_pin_the_commit() {
-        for map in OPENAI_VOCABULARIES_MAPS {
-            let owned = map.to_map();
+        for map in OPENAI_VOCABULARY_BUNDLES {
+            let owned = map.to_resource_bundle();
             let r = owned.try_get(VOCABULARY).unwrap();
             assert!(r.is_pinned(), "{}", map.name);
             for url in r.urls() {

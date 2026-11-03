@@ -15,7 +15,7 @@ use crate::{
         StaticPretrainedGroup,
         StaticPretrainedTable,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     errors::BunsenResult,
@@ -26,10 +26,10 @@ use crate::{
 /// `<cache>/pretrained/qwen3-asr/<namespace>/<sha256>/<file>`.
 pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
 
-/// The key of the checkpoint in a Qwen3-ASR resource map.
+/// The key of the checkpoint in a Qwen3-ASR resource bundle.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary in a Qwen3-ASR resource map, for a checkpoint
+/// The key of the vocabulary in a Qwen3-ASR resource bundle, for a checkpoint
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 
@@ -55,7 +55,7 @@ const QWEN_1_7B_ORIGIN: &str = "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf";
 /// One Phonon-1 archive, at a fixed revision of its repo.
 macro_rules! phonon_1_archive {
     ($name:literal, $description:literal, $base:literal, $file:literal, $sha256:literal) => {
-        StaticResourceMap {
+        StaticResourceBundle {
             name: $name,
             description: $description,
             license: Some("Apache-2.0"),
@@ -74,7 +74,7 @@ macro_rules! phonon_1_archive {
 }
 
 /// `FermionResearch/Phonon-1`'s archive.
-pub static PHONON_1_ARCHIVE: StaticResourceMap<'static> = phonon_1_archive!(
+pub static PHONON_1_ARCHIVE: StaticResourceBundle<'static> = phonon_1_archive!(
     "fermion/phonon-audio6.bps.tar.zst",
     "Phonon-1: quint5 text decoder, 6-bit audio tower, 8-bit embedding, zstd tar",
     "https://huggingface.co/FermionResearch/Phonon-1/resolve/68f96e309cd19bf5b9b72c0ead80eed92a499eae",
@@ -83,7 +83,7 @@ pub static PHONON_1_ARCHIVE: StaticResourceMap<'static> = phonon_1_archive!(
 );
 
 /// `FermionResearch/Phonon-1-Micro`'s archive.
-pub static PHONON_1_MICRO_ARCHIVE: StaticResourceMap<'static> = phonon_1_archive!(
+pub static PHONON_1_MICRO_ARCHIVE: StaticResourceBundle<'static> = phonon_1_archive!(
     "fermion/phonon-micro.bps.tar.zst",
     "Phonon-1-Micro: quint5 text decoder, 4-bit audio tower and embedding, zstd tar",
     "https://huggingface.co/FermionResearch/Phonon-1-Micro/resolve/e916a4f8e30ed5c3ddfc1808429f049669bd8bf3",
@@ -92,7 +92,7 @@ pub static PHONON_1_MICRO_ARCHIVE: StaticResourceMap<'static> = phonon_1_archive
 );
 
 /// `FermionResearch/Phonon-1-Big`'s archive.
-pub static PHONON_1_BIG_ARCHIVE: StaticResourceMap<'static> = phonon_1_archive!(
+pub static PHONON_1_BIG_ARCHIVE: StaticResourceBundle<'static> = phonon_1_archive!(
     "fermion/phonon-parity.bps.tar.zst",
     "Phonon-1-Big: quint5 text decoder, bf16 audio tower and embedding, zstd tar",
     "https://huggingface.co/FermionResearch/Phonon-1-Big/resolve/74ec0333ac8a5ede5e855489c069ef763bc99edb",
@@ -101,7 +101,7 @@ pub static PHONON_1_BIG_ARCHIVE: StaticResourceMap<'static> = phonon_1_archive!(
 );
 
 /// `Qwen/Qwen3-ASR-0.6B-hf`'s checkpoint and tokenizer, at a fixed revision.
-pub static QWEN3_ASR_0_6B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_ASR_0_6B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-asr-0.6b",
     description: "Qwen3-ASR-0.6B: model.safetensors (bf16) and tokenizer.json",
     license: Some("Apache-2.0"),
@@ -135,7 +135,7 @@ static PHONON_1: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/FermionResearch/Phonon-1"),
     prefab: Some(PREFAB),
-    maps: &[&PHONON_1_ARCHIVE],
+    resource_bundles: &[&PHONON_1_ARCHIVE],
 };
 
 static PHONON_1_MICRO: StaticPretrained<'static> = StaticPretrained {
@@ -145,7 +145,7 @@ static PHONON_1_MICRO: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/FermionResearch/Phonon-1-Micro"),
     prefab: Some(PREFAB),
-    maps: &[&PHONON_1_MICRO_ARCHIVE],
+    resource_bundles: &[&PHONON_1_MICRO_ARCHIVE],
 };
 
 static PHONON_1_BIG: StaticPretrained<'static> = StaticPretrained {
@@ -155,11 +155,11 @@ static PHONON_1_BIG: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/FermionResearch/Phonon-1-Big"),
     prefab: Some(PREFAB),
-    maps: &[&PHONON_1_BIG_ARCHIVE],
+    resource_bundles: &[&PHONON_1_BIG_ARCHIVE],
 };
 
 /// `Qwen/Qwen3-ASR-1.7B-hf`'s checkpoint and tokenizer, at a fixed revision.
-pub static QWEN3_ASR_1_7B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+pub static QWEN3_ASR_1_7B_FILES: StaticResourceBundle<'static> = StaticResourceBundle {
     name: "qwen/qwen3-asr-1.7b",
     description: "Qwen3-ASR-1.7B: model.safetensors (bf16) and tokenizer.json",
     license: Some("Apache-2.0"),
@@ -193,7 +193,7 @@ static QWEN3_ASR_1_7B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some(QWEN_1_7B_ORIGIN),
     prefab: Some("qwen3-asr-1.7b"),
-    maps: &[&QWEN3_ASR_1_7B_FILES],
+    resource_bundles: &[&QWEN3_ASR_1_7B_FILES],
 };
 
 static QWEN3_ASR_0_6B: StaticPretrained<'static> = StaticPretrained {
@@ -203,7 +203,7 @@ static QWEN3_ASR_0_6B: StaticPretrained<'static> = StaticPretrained {
     license: Some("Apache-2.0"),
     origin: Some(QWEN_ORIGIN),
     prefab: Some(PREFAB),
-    maps: &[&QWEN3_ASR_0_6B_FILES],
+    resource_bundles: &[&QWEN3_ASR_0_6B_FILES],
 };
 
 /// `FermionResearch`'s Phonon-1 builds.
@@ -295,7 +295,7 @@ mod tests {
             &QWEN3_ASR_0_6B_FILES,
             &QWEN3_ASR_1_7B_FILES,
         ] {
-            let map = map.to_map();
+            let map = map.to_resource_bundle();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);

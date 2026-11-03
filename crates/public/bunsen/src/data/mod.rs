@@ -8,7 +8,7 @@
 //!   Digests, links and `.partial` files are here too. With the `fetch`
 //!   feature, so are the downloads.
 //! - [`pretrained`]: what a name means, and how it becomes a model. A *prefab*
-//!   is a geometry by name, a *row* is a name over a resource map, and a
+//!   is a geometry by name, a *row* is a name over a resource bundle, and a
 //!   *resource* is one pinned file with the places it can be had from.
 //!   Providers answer names with rows, a [`PretrainedFactory`] dispatches a
 //!   spec to them, and a [`PretrainedCache`] brings the files local for the
@@ -24,7 +24,7 @@
 //! ```text
 //! spec: "provider:ref" or a bare name         a path, a manifest
 //!   │                                            │
-//!   │ PretrainedFactory::resolve(spec, &cache)   │ ResourceMap::given,
+//!   │ PretrainedFactory::resolve(spec, &cache)   │ ResourceBundle::given,
 //!   │   provider:ref -> that provider only       │ or deserialized
 //!   │   bare -> each provider that answers       │
 //!   │     bare names, in order; first row wins   │
@@ -34,14 +34,14 @@
 //!   │     keeps the listing in the cache         │
 //!   ▼                                            │
 //! Pretrained row: name, aliases, prefab?,        │
-//!   one ResourceMap (its maps fused strictly)    │
+//!   one ResourceBundle (its resource bundles fused strictly)    │
 //!   │ PretrainedRef::Named                       │ PretrainedRef::Given
 //!   ▼                                            ▼
-//! Deferred<H>: the ref, and the hook H::for_map(map) picks for it
-//!   │ [with_overlay(map)]: the caller's resources win, by key
+//! Deferred<H>: the ref, and the hook H::for_resource_bundle(resource bundle) picks for it
+//!   │ [with_overlay(resource bundle)]: the caller's resources win, by key
 //!   │ load(&cache, &device):
-//!   │   H::plan(ref, cache)              -> the completed ResourceMap
-//!   │   PretrainedCache::load(KIT, map)  -> LoadedResources
+//!   │   H::plan(ref, cache)              -> the completed ResourceBundle
+//!   │   PretrainedCache::load(KIT, resource bundle)  -> LoadedResources
 //!   │     per resource: the cache path, else a local dir (used in
 //!   │     place) or bundled bytes (written in), else its URLs,
 //!   │     fetched together under the FetchPolicy [fetch]
@@ -53,14 +53,14 @@
 //! - **Spec to row.** [`PretrainedFactory::resolve`] offers a spec to its
 //!   [`PretrainedProvider`]s by the [dispatch rules]. A [`PretrainedTable`]
 //!   answers from compiled-in rows, and an [`HfProvider`] from the hub's file
-//!   listing. The answer is a [`Pretrained`] row over a [`ResourceMap`] of
-//!   [`Resource`]s. A path or a manifest skips this step, since it is a map
-//!   already.
-//! - **Row to deferred model.** The row, or the given map, becomes a
-//!   [`PretrainedRef`]. [`Deferred::new`] or [`Deferred::from_map`] pairs it
-//!   with the kit's hook, chosen by [`Construct::for_map`] from the resources'
-//!   `kind`s. [`Deferred::with_overlay`] lays the caller's resources over the
-//!   row's.
+//!   listing. The answer is a [`Pretrained`] row over a [`ResourceBundle`] of
+//!   [`Resource`]s. A path or a manifest skips this step, since it is a
+//!   resource bundle already.
+//! - **Row to deferred model.** The row, or the given resource bundle, becomes
+//!   a [`PretrainedRef`]. [`Deferred::new`] or [`Deferred::from_map`] pairs it
+//!   with the kit's hook, chosen by [`Construct::for_resource_bundle`] from the
+//!   resources' `kind`s. [`Deferred::with_overlay`] lays the caller's resources
+//!   over the row's.
 //! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
 //!   [`plan`](pretrained::Construct::plan), then [`PretrainedCache::load`] (in
 //!   its [source order], into [`LoadedResources`]), then the hook's
@@ -106,9 +106,9 @@
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
 //! [`Construct`]: pretrained::Construct
-//! [`Construct::for_map`]: pretrained::Construct::for_map
+//! [`Construct::for_resource_bundle`]: pretrained::Construct::for_resource_bundle
 //! [`Deferred`]: pretrained::Deferred
-//! [`Deferred::from_map`]: pretrained::Deferred::from_map
+//! [`Deferred::from_map`]: pretrained::Deferred::from_resource_bundle
 //! [`Deferred::load`]: pretrained::Deferred::load
 //! [`Deferred::new`]: pretrained::Deferred::new
 //! [`Deferred::with_overlay`]: pretrained::Deferred::with_overlay
@@ -127,7 +127,7 @@
 //! [`PretrainedRef::prefab`]: pretrained::PretrainedRef::prefab
 //! [`PretrainedTable`]: pretrained::PretrainedTable
 //! [`Resource`]: pretrained::Resource
-//! [`ResourceMap`]: pretrained::ResourceMap
+//! [`ResourceBundle`]: pretrained::ResourceBundle
 //! [`SafetensorsCheckpoint`]: pretrained::SafetensorsCheckpoint
 //! [`ShardSet`]: shards::ShardSet
 //! [`ShardSetDescriptor`]: shards::ShardSetDescriptor

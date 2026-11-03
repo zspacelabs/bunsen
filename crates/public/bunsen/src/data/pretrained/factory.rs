@@ -14,7 +14,7 @@ use burn::tensor::Device;
 use log::Level;
 
 #[cfg(doc)]
-use super::ResourceMap;
+use super::ResourceBundle;
 use super::{
     Construct,
     Deferred,
@@ -40,12 +40,12 @@ use crate::errors::{
 /// listing. [`load`](Self::load)`("[provider:]name", &cache, &device)`
 /// is the whole pathway, from a name to a [`Loaded`] model.
 /// [`resolve`](Self::resolve) is its index half: a [`Deferred`] model that
-/// carries the hook its map calls for, so that a caller can overlay a row
-/// ([`Deferred::with_overlay`]) before loading it, and never builds or
+/// carries the hook its resource bundle calls for, so that a caller can overlay
+/// a row ([`Deferred::with_overlay`]) before loading it, and never builds or
 /// passes a hook. [`list`](Self::list), [`ids`](Self::ids) and
 /// [`for_prefab`](Self::for_prefab) answer a listing. A file on disk is
-/// not the factory's business: that is a given [`ResourceMap`], through
-/// [`Deferred::from_map`].
+/// not the factory's business: that is a given [`ResourceBundle`], through
+/// [`Deferred::from_resource_bundle`].
 ///
 /// # Dispatch
 ///
@@ -274,8 +274,8 @@ impl<H: Construct> PretrainedFactory<H> {
 
     /// The row `spec` names, dispatched as [`lookup`](Self::lookup) is but
     /// through each provider's [`resolve`](PretrainedProvider::resolve)
-    /// with `cache` to hand, as a [`Deferred`] model with the hook its map
-    /// calls for: the index half of [`load`](Self::load), for a caller
+    /// with `cache` to hand, as a [`Deferred`] model with the hook its resource
+    /// bundle calls for: the index half of [`load`](Self::load), for a caller
     /// that overlays the row before loading it. A table answers from its
     /// rows; a hub asks what the repo holds, once, and keeps the answer in
     /// the cache.
@@ -390,14 +390,14 @@ pub(crate) mod testing {
     use crate::data::pretrained::{
         LoadedResources,
         Resource,
-        ResourceMap,
+        ResourceBundle,
         Source,
     };
 
     /// A provider that can look up but not list: the shape of a hub
-    /// wrapper. Answers `hub:<org>/<repo>` with a two-file map of URLs, and
-    /// counts how often it was asked, so a test can pin that a bare name
-    /// never reached it.
+    /// wrapper. Answers `hub:<org>/<repo>` with a two-file resource bundle of
+    /// URLs, and counts how often it was asked, so a test can pin that a bare
+    /// name never reached it.
     #[derive(Debug, Default)]
     pub struct ListsNothing {
         /// How many lookups reached this provider.
@@ -445,7 +445,7 @@ pub(crate) mod testing {
                 namespace: "hub".to_string(),
                 sources: vec![Source::Url(format!("{base}/{file}"))],
             };
-            let resources = ResourceMap::new(name)
+            let resources = ResourceBundle::new(name)
                 .with_resource(file("checkpoint", "model.safetensors", "safetensors"))
                 .with_resource(file("config", "config.json", "json"));
             Ok(Some(Pretrained {
@@ -490,7 +490,7 @@ pub(crate) mod testing {
     }
 
     /// A hook for kit `kit` that builds the checkpoint's path, whatever the
-    /// map says.
+    /// resource bundle says.
     #[derive(Clone, Debug, Default)]
     pub struct CheckpointPath;
 
@@ -499,7 +499,7 @@ pub(crate) mod testing {
 
         const KIT: &'static str = "kit";
 
-        fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+        fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
             Ok(Self)
         }
 
@@ -532,7 +532,7 @@ mod tests {
             PretrainedGroup,
             PretrainedTable,
             Resource,
-            ResourceMap,
+            ResourceBundle,
             Source,
             WELL_KNOWN,
         },
@@ -558,7 +558,7 @@ mod tests {
             license: None,
             origin: None,
             prefab: Some(prefab.to_string()),
-            resources: ResourceMap::new(name).with_resource(Resource {
+            resources: ResourceBundle::new(name).with_resource(Resource {
                 key: "checkpoint".to_string(),
                 file: format!("{name}.pt"),
                 sha256: None,
@@ -581,7 +581,7 @@ mod tests {
             license: None,
             origin: None,
             prefab: None,
-            resources: ResourceMap::given(name, "checkpoint", path),
+            resources: ResourceBundle::given(name, "checkpoint", path),
         }
     }
 
@@ -835,7 +835,7 @@ mod tests {
             model.model.named().map(|(p, row)| (p, row.name.as_str())),
             Some(("well-known", "a/small"))
         );
-        assert_eq!(model.to_map().name, "well-known:a/small");
+        assert_eq!(model.to_resource_bundle().name, "well-known:a/small");
         assert!(format!("{:?}", model.hook).contains("CheckpointPath"));
         let model = factory.resolve("hub:x/y", &cache).unwrap();
         assert_eq!(model.id(), "hub:x/y");
@@ -849,8 +849,8 @@ mod tests {
             .assert_err(&factory.resolve("well-known:a/gigantic", &cache));
     }
 
-    /// `load` runs the whole pathway through the hook the map called for;
-    /// a ref the caller overlays first goes through the same hook.
+    /// `load` runs the whole pathway through the hook the resource bundle
+    /// called for; a ref the caller overlays first goes through the same hook.
     #[test]
     fn test_load_goes_through_the_hook() {
         use crate::{
@@ -880,7 +880,7 @@ mod tests {
         let loaded = factory
             .resolve("ckpt", &cache)
             .unwrap()
-            .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
+            .with_overlay(ResourceBundle::given("mine", "checkpoint", &other))
             .unwrap()
             .load(&cache, &cpu_device())
             .unwrap();

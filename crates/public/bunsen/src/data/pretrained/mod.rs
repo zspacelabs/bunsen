@@ -10,16 +10,16 @@
 //!
 //! Most of this module needs the `cache` feature (default, through
 //! `store`): the factory, the cache, [`Deferred`], [`Construct`] and
-//! [`Loaded`]. The rows, maps, resources, prefabs and providers are plain
-//! data and are always here.
+//! [`Loaded`]. The rows, resource bundles, resources, prefabs and providers are
+//! plain data and are always here.
 //!
 //! A hook reads its checkpoint's own format with the readers here: the
 //! safetensors checkpoint and header ([`SafetensorsCheckpoint`]), MLX's
 //! affine-quantized tensors ([`mlx`]), `FermionResearch`'s Phonon formats
 //! ([`fermion`]), and [`apply_named_tensors`], which loads any of them into a
-//! module under a kit's name map, or [`apply_rekeyed_tensors`], under a
-//! [`Rekey`](crate::burner::module::Rekey) whose targets may also change a
-//! tensor's data on the way.
+//! module under a kit's name resource bundle, or [`apply_rekeyed_tensors`],
+//! under a [`Rekey`](crate::burner::module::Rekey) whose targets may also
+//! change a tensor's data on the way.
 //!
 //! ## Prefabs, rows and resources
 //!
@@ -30,27 +30,27 @@
 //!   [`StaticPreFabMap`].
 //! - A **row**, a [`Pretrained`], is a name in a provider: its aliases and
 //!   listing fields, the prefab it instantiates when the kit keeps one, and the
-//!   resource maps it is made of, fused strictly into one [`ResourceMap`]. A
-//!   file many rows share is a map of its own that each row references
-//!   (Whisper's two vocabularies serve its twelve checkpoints); a one-file
-//!   model is a row of one map. One prefab may have many rows, in many
-//!   providers.
-//! - A **resource**, a [`Resource`], is one file: its key in the map
-//!   (`checkpoint`, `vocabulary`: the kit's constants), the file name it lands
-//!   as, the SHA-256 that pins it, a `kind` label, and the [`Source`]s it can
-//!   be had from, in order.
+//!   resource bundles it is made of, fused strictly into one
+//!   [`ResourceBundle`]. A file many rows share is a resource bundle of its own
+//!   that each row references (Whisper's two vocabularies serve its twelve
+//!   checkpoints); a one-file model is a row of one resource bundle. One prefab
+//!   may have many rows, in many providers.
+//! - A **resource**, a [`Resource`], is one file: its key in the resource
+//!   bundle (`checkpoint`, `vocabulary`: the kit's constants), the file name it
+//!   lands as, the SHA-256 that pins it, a `kind` label, and the [`Source`]s it
+//!   can be had from, in order.
 //!
 //! None of these knows a hook, or which resource is the model: the
 //! function that loads a kit's models is the kit's, and it supplies the
-//! hook. Rows, maps and resources are plain serde data, so a manifest can
-//! carry them. Each has a static twin for compiled-in tables
-//! ([`StaticPretrained`], [`StaticResourceMap`], [`StaticResource`],
+//! hook. Rows, resource bundles and resources are plain serde data, so a
+//! manifest can carry them. Each has a static twin for compiled-in tables
+//! ([`StaticPretrained`], [`StaticResourceBundle`], [`StaticResource`],
 //! [`StaticSource`]), which a `to_*` method turns into the owned one. An
-//! owned resource carries its map's bases appended to its own sources, so
-//! it stands alone, and two maps [fuse](ResourceMap::fuse) by key with no
-//! memory of where a resource came from: strictly for authoring, where a
-//! repeated key is a mistake, or as an overlay for an override, where the
-//! right-hand map wins.
+//! owned resource carries its resource bundle's bases appended to its own
+//! sources, so it stands alone, and two resource bundles
+//! [fuse](ResourceBundle::fuse) by key with no memory of where a resource came
+//! from: strictly for authoring, where a repeated key is a mistake, or as an
+//! overlay for an override, where the right-hand resource bundle wins.
 //!
 //! ## Providers
 //!
@@ -131,7 +131,7 @@
 //!             PretrainedTable,
 //!             Provenance,
 //!             Resource,
-//!             ResourceMap,
+//!             ResourceBundle,
 //!             Source,
 //!             WELL_KNOWN,
 //!         },
@@ -151,7 +151,7 @@
 //!
 //!     const KIT: &'static str = "greeting";
 //!
-//!     fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+//!     fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
 //!         Ok(Greeting)
 //!     }
 //!
@@ -182,7 +182,7 @@
 //!     license: None,
 //!     origin: None,
 //!     prefab: None,
-//!     resources: ResourceMap::new("hello").with_resource(Resource {
+//!     resources: ResourceBundle::new("hello").with_resource(Resource {
 //!         key: "text".to_string(),
 //!         file: "hello.txt".to_string(),
 //!         sha256: Some(sha256_of(&upstream.join("hello.txt"))?),
@@ -231,12 +231,10 @@
 //! assert_eq!(text.provenance, Provenance::LocalDir);
 //! assert!(!tmp.path().join("cache").exists(), "nothing was copied in");
 //!
-//! // A path is not the factory's business: it is a given map.
-//! let given = Deferred::<Greeting>::from_map(ResourceMap::given(
-//!     "mine",
-//!     "text",
-//!     upstream.join("hello.txt"),
-//! ))?;
+//! // A path is not the factory's business: it is a given resource bundle.
+//! let given = Deferred::<Greeting>::from_resource_bundle(
+//!     ResourceBundle::given("mine", "text", upstream.join("hello.txt")),
+//! )?;
 //! let loaded = given.load(&cache, &Default::default())?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
@@ -277,7 +275,7 @@ mod providers;
 #[cfg(feature = "store_pytorch")]
 mod pytorch;
 mod resource;
-mod resource_map;
+mod resource_bundle;
 mod rows;
 #[cfg(feature = "store_safetensors")]
 mod safetensors;
@@ -304,7 +302,7 @@ pub use providers::*;
 #[cfg(feature = "store_pytorch")]
 pub use pytorch::*;
 pub use resource::*;
-pub use resource_map::*;
+pub use resource_bundle::*;
 pub use rows::*;
 #[cfg(feature = "store_safetensors")]
 pub use safetensors::*;

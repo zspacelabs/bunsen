@@ -12,7 +12,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
-        ResourceMap,
+        ResourceBundle,
     },
     errors::{
         BunsenError,
@@ -46,7 +46,7 @@ impl Construct for NanoChatConstruct {
     const KIT: &'static str = NANOCHAT_KIT;
 
     /// The hook for a `PyTorch` state dict with its meta.
-    fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
+    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
         map.try_get(META)?;
         match map.try_get(CHECKPOINT)?.kind.as_deref() {
             Some(PYTORCH) => Ok(Self),
@@ -89,13 +89,13 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        NanoChatConstruct::for_map(&BASE_D20_FILES.to_map()).unwrap();
-        NanoChatConstruct::for_map(&D18_SFT_FILES.to_map()).unwrap();
+        NanoChatConstruct::for_resource_bundle(&BASE_D20_FILES.to_resource_bundle()).unwrap();
+        NanoChatConstruct::for_resource_bundle(&D18_SFT_FILES.to_resource_bundle()).unwrap();
 
-        let mut safetensors = BASE_D20_FILES.to_map();
+        let mut safetensors = BASE_D20_FILES.to_resource_bundle();
         safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")
-            .assert_err(&NanoChatConstruct::for_map(&safetensors));
+            .assert_err(&NanoChatConstruct::for_resource_bundle(&safetensors));
     }
 }

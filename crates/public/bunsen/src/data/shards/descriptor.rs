@@ -14,7 +14,7 @@ use serde::{
 use crate::{
     data::pretrained::{
         Resource,
-        ResourceMap,
+        ResourceBundle,
         Source,
     },
     errors::{
@@ -159,8 +159,8 @@ impl From<&StaticShardSetDescriptor<'_>> for ShardSetDescriptor {
 /// checks a hand-built one. [`select`](Self::select) turns slices into
 /// shard ids. A [`ShardSet`](super::ShardSet) binds the descriptor to a
 /// directory and brings its shards in, and
-/// [`to_resource_map`](Self::to_resource_map) makes a selection of shards a
-/// [`ResourceMap`], for a pretrained row that fuses a shard set in.
+/// [`to_resource_bundle`](Self::to_resource_bundle) makes a selection of shards
+/// a [`ResourceBundle`], for a pretrained row that fuses a shard set in.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShardSetDescriptor {
     /// The set's name, unique within its map.
@@ -314,7 +314,7 @@ impl ShardSetDescriptor {
         }
     }
 
-    /// The shards `ids` name as a resource map: one resource per shard,
+    /// The shards `ids` name as a resource bundle: one resource per shard,
     /// keyed by its file name, pinned by the table when the set is, labeled
     /// by the set's format, under the set's name as its namespace, and
     /// reachable from every base URL in order. What a pretrained row fuses a
@@ -324,11 +324,11 @@ impl ShardSetDescriptor {
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
     /// [`LookupError`] cause, for an id outside the set.
-    pub fn to_resource_map(
+    pub fn to_resource_bundle(
         &self,
         ids: &[ShardId],
-    ) -> BunsenResult<ResourceMap> {
-        let mut map = ResourceMap::new(&self.name);
+    ) -> BunsenResult<ResourceBundle> {
+        let mut map = ResourceBundle::new(&self.name);
         map.description = self.description.clone();
         map.license = self.license.clone();
         map.origin = self.origin.clone();
@@ -605,10 +605,10 @@ mod tests {
     /// The shards a slice names, as a map: keyed by file name, pinned when
     /// the set is, labeled by the format, one URL per base in order.
     #[test]
-    fn test_to_resource_map() {
+    fn test_to_resource_bundle() {
         let d = tiny_pinned().to_descriptor();
         let ids = d.select(&[Slice::from(..2)]).unwrap();
-        let map = d.to_resource_map(&ids).unwrap();
+        let map = d.to_resource_bundle(&ids).unwrap();
         assert_eq!(map.name, "tiny");
         assert_eq!(map.description, "a tiny set");
         assert_eq!(map.license.as_deref(), Some("CC0"));
@@ -629,7 +629,7 @@ mod tests {
 
         let unpinned = tiny()
             .to_descriptor()
-            .to_resource_map(&[ShardId(3)])
+            .to_resource_bundle(&[ShardId(3)])
             .unwrap();
         assert!(unpinned.get("shard_003.bin").unwrap().sha256.is_none());
         assert_eq!(unpinned.len(), 1);
@@ -639,7 +639,7 @@ mod tests {
             .cause(predicate("shard 12 of 12", |l: &LookupError| {
                 l.problem == LookupProblem::OutOfRange { len: 12 }
             }))
-            .assert_err(&d.to_resource_map(&[ShardId(12)]));
+            .assert_err(&d.to_resource_bundle(&[ShardId(12)]));
     }
 
     #[test]

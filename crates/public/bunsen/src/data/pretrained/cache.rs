@@ -25,7 +25,7 @@ use sha2::{
 use super::{
     LoadedResources,
     Resource,
-    ResourceMap,
+    ResourceBundle,
     Source,
 };
 use crate::{
@@ -80,7 +80,7 @@ pub struct PretrainedCacheOptions {
     /// is not sure has `verify_sha256`.
     pub verify_local_dirs: bool,
 
-    /// How the remote resources of a map are fetched together.
+    /// How the remote resources of a resource bundle are fetched together.
     #[cfg(feature = "fetch")]
     pub fetch: FetchPolicy,
 }
@@ -123,7 +123,7 @@ impl PretrainedCacheOptions {
         self
     }
 
-    /// Sets how a map's remote resources are fetched together.
+    /// Sets how a resource bundle's remote resources are fetched together.
     #[cfg(feature = "fetch")]
     pub fn with_fetch_policy(
         mut self,
@@ -209,7 +209,7 @@ enum Local {
     Remote { dest: PathBuf, urls: Vec<String> },
 }
 
-/// A resource a map load has to fetch.
+/// A resource that loading a resource bundle has to fetch.
 #[cfg_attr(not(feature = "fetch"), allow(dead_code))]
 struct RemotePart {
     key: String,
@@ -270,7 +270,7 @@ fn fetch_prefix(
 }
 
 /// Digest-pinned resources under the disk cache's cache directory: where a
-/// [`ResourceMap`]'s files are brought local.
+/// [`ResourceBundle`]'s files are brought local.
 ///
 /// [`BunsenDiskCache`] decides *where* the cache directory is; this decides
 /// *what is trusted there*. A caller opens one from
@@ -319,7 +319,7 @@ fn fetch_prefix(
 /// # Source order
 ///
 /// [`resolve`](Self::resolve), for one resource, and [`load`](Self::load),
-/// for a map, look in the same order:
+/// for a resource bundle, look in the same order:
 ///
 /// 1. the cache path: a file there is [`Provenance::Cached`];
 /// 2. the resource's local sources, in the order listed: a [`Source::LocalDir`]
@@ -329,7 +329,8 @@ fn fetch_prefix(
 /// 3. only then its [`Source::Url`]s, in the order listed: streamed to a
 ///    `.partial`, checked against the digest when pinned and against the length
 ///    the server sent, and renamed into place. [`load`](Self::load) fetches
-///    every remote resource of a map together, under the options' fetch policy.
+///    every remote resource of a resource bundle together, under the options'
+///    fetch policy.
 ///
 /// # Use
 ///
@@ -460,7 +461,7 @@ impl PretrainedCache {
     pub fn map_status(
         &self,
         kit: &str,
-        map: &ResourceMap,
+        map: &ResourceBundle,
     ) -> BTreeMap<String, CacheStatus> {
         map.resources
             .iter()
@@ -567,7 +568,7 @@ impl PretrainedCache {
     ///
     /// # Errors
     /// As [`resolve`](Self::resolve) for a resource looked for locally.
-    /// Under a frame naming the map:
+    /// Under a frame naming the resource bundle:
     /// [`Policy`](crate::errors::BunsenErrorKind::Policy) naming the remote
     /// keys when the cache is offline, and
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when the
@@ -577,7 +578,7 @@ impl PretrainedCache {
     pub fn load(
         &self,
         kit: &str,
-        map: &ResourceMap,
+        map: &ResourceBundle,
     ) -> BunsenResult<LoadedResources> {
         let mut parts = BTreeMap::new();
         let mut remote = Vec::new();
@@ -1016,7 +1017,7 @@ mod tests {
             cache.resolve("kit", &ordered).unwrap().provenance,
             Provenance::LocalDir
         );
-        let map = ResourceMap::new("m").with_resource(bundled.clone());
+        let map = ResourceBundle::new("m").with_resource(bundled.clone());
         let loaded = cache.load("kit", &map).unwrap();
         assert_eq!(loaded.get("abc").unwrap().provenance, Provenance::Cached);
     }
@@ -1165,7 +1166,7 @@ mod tests {
                 .unwrap()
         };
         let modified = || fs::metadata(&dest).unwrap().modified().unwrap();
-        let map = ResourceMap::new("m").with_resource(r.clone());
+        let map = ResourceBundle::new("m").with_resource(r.clone());
 
         age();
         assert_eq!(cache.status("kit", &r), CacheStatus::Cached);
@@ -1346,8 +1347,8 @@ mod tests {
         assert!(!cache.resource_path("kit", &r).exists());
     }
 
-    /// A map loads with one provenance per resource: the cached one is
-    /// trusted, the local-dir one used in place, the remote one fetched.
+    /// A resource bundle loads with one provenance per resource: the cached one
+    /// is trusted, the local-dir one used in place, the remote one fetched.
     #[cfg(feature = "fetch")]
     #[test]
     fn test_load_mixes_provenances() {
@@ -1372,7 +1373,7 @@ mod tests {
             vec![local_dir(&upstream), url("https://a.example/local.bin")],
         );
         let remote = res("remote", Some(ABC_SHA256), vec![url(&live)]);
-        let map = ResourceMap::new("m")
+        let map = ResourceBundle::new("m")
             .with_resource(cached)
             .with_resource(local.clone())
             .with_resource(remote.clone());
@@ -1432,7 +1433,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url(&refused_url("dead.bin"))],
         );
-        let map = ResourceMap::new("m")
+        let map = ResourceBundle::new("m")
             .with_resource(live.clone())
             .with_resource(dead);
 
@@ -1448,8 +1449,8 @@ mod tests {
         assert!(cache.resource_path("kit", &live).is_file());
     }
 
-    /// Offline, a map with a remote resource is not found, and the error
-    /// names the remote keys; a map of local resources loads.
+    /// Offline, a resource bundle with a remote resource is not found, and the
+    /// error names the remote keys; a resource bundle of local resources loads.
     #[test]
     fn test_load_offline_names_the_remote_keys() {
         let dir = tempfile::tempdir().unwrap();
@@ -1467,7 +1468,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/remote.bin")],
         );
-        let map = ResourceMap::new("m")
+        let map = ResourceBundle::new("m")
             .with_resource(cached)
             .with_resource(remote);
 
@@ -1476,7 +1477,7 @@ mod tests {
             .frame_contains("m")
             .assert_err(&cache.load("kit", &map));
 
-        let local_only = ResourceMap::new("m").with_resource(res(
+        let local_only = ResourceBundle::new("m").with_resource(res(
             "cached",
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],

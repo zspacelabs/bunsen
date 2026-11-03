@@ -12,7 +12,7 @@ use crate::{
         StaticPretrained,
         StaticPretrainedGroup,
         StaticPretrainedTable,
-        StaticResourceMap,
+        StaticResourceBundle,
         WELL_KNOWN,
     },
     kits::speech::whisper::pretrained::{
@@ -60,7 +60,7 @@ const fn openai(
     aliases: &'static [&'static str],
     prefab: &'static str,
     description: &'static str,
-    maps: &'static [&'static StaticResourceMap<'static>],
+    maps: &'static [&'static StaticResourceBundle<'static>],
 ) -> StaticPretrained<'static> {
     StaticPretrained {
         name,
@@ -69,7 +69,7 @@ const fn openai(
         license: Some("MIT"),
         origin: Some("https://github.com/openai/whisper/blob/main/whisper/__init__.py"),
         prefab: Some(prefab),
-        maps,
+        resource_bundles: maps,
     }
 }
 
@@ -261,7 +261,7 @@ mod tests {
                     "{}: prefab {prefab:?} is not in WHISPER_PREFABS",
                     group.id(row),
                 );
-                let map = row.try_to_map().unwrap();
+                let map = row.try_to_resource_bundle().unwrap();
                 map.validate().unwrap();
                 assert_eq!(map.keys(), [CHECKPOINT, VOCABULARY], "{}", group.id(row));
                 let checkpoint = map.get(CHECKPOINT).unwrap();
@@ -278,11 +278,11 @@ mod tests {
     #[test]
     fn test_the_declared_vocabulary_is_the_rules() {
         for row in OPENAI.items {
-            let declared = row.to_map();
+            let declared = row.to_resource_bundle();
             let declared = declared.get(VOCABULARY).unwrap();
             let rule = WhisperVocabulary::for_layout(&layout_of(row.prefab.unwrap()))
-                .map()
-                .to_map();
+                .resource_bundle()
+                .to_resource_bundle();
             let rule = rule.get(VOCABULARY).unwrap();
             assert_eq!(declared, rule, "{}", OPENAI.id(row));
         }

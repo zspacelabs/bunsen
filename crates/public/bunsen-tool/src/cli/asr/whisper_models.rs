@@ -103,7 +103,7 @@ impl InspectCmd {
             println!("  description: {}", row.description);
         }
 
-        let map = model.to_map();
+        let map = model.to_resource_bundle();
         println!("resources:");
         for (key, r) in &map.resources {
             let pin = match &r.sha256 {
@@ -165,8 +165,8 @@ impl InspectCmd {
         // rule, applied to what the scan found.
         if map.get(VOCABULARY).is_none() {
             let vocab = WhisperVocabulary::for_layout(&layout_of(&cfg)?)
-                .map()
-                .to_map();
+                .resource_bundle()
+                .to_resource_bundle();
             let r = vocab.try_get(VOCABULARY)?;
             println!(
                 "vocabulary (by the checkpoint's layout): {} ({})",

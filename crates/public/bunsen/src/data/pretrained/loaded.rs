@@ -1,4 +1,4 @@
-//! Loaded resources: a resource map with every file local.
+//! Loaded resources: a resource bundle with every file local.
 
 use std::{
     collections::BTreeMap,
@@ -11,7 +11,7 @@ use std::{
 
 use super::{
     ResolvedResource,
-    ResourceMap,
+    ResourceBundle,
     not_found,
 };
 use crate::{
@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-/// A resource map with every resource local: key to path and provenance.
+/// A resource bundle with every resource local: key to path and provenance.
 ///
 /// What [`PretrainedCache::load`](super::PretrainedCache::load) returns,
 /// and what a kit's [`Construct::construct`](super::Construct::construct)
@@ -41,8 +41,8 @@ use crate::{
 /// operation, not the storage truth, which stays per file under its digest.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoadedResources {
-    /// The map that was loaded.
-    pub map: ResourceMap,
+    /// The resource bundle that was loaded.
+    pub map: ResourceBundle,
 
     /// Where each resource is, and where it came from, by key.
     pub parts: BTreeMap<String, ResolvedResource>,
@@ -62,7 +62,7 @@ impl LoadedResources {
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
     /// [`LookupError`](crate::errors::LookupError) naming the keys there
-    /// are, under a frame naming the map.
+    /// are, under a frame naming the resource bundle.
     pub fn expect(
         &self,
         key: &str,
@@ -115,8 +115,8 @@ impl LoadedResources {
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if two parts
-    /// would land under one file name: the map is declared wrong. An
-    /// `io::Error` sorted by [`sys_at`], naming the path, if the directory
+    /// would land under one file name: the resource bundle is declared wrong.
+    /// An `io::Error` sorted by [`sys_at`], naming the path, if the directory
     /// cannot be made or a file in the way removed; as [`link_or_copy`] if a
     /// link or copy cannot be made.
     pub fn materialize(
@@ -171,7 +171,7 @@ mod tests {
     fn loaded() -> LoadedResources {
         let mut checkpoint = Resource::given("checkpoint", "/models/tiny.pt");
         checkpoint.kind = Some("pytorch fp16".to_string());
-        let map = ResourceMap::new("m")
+        let map = ResourceBundle::new("m")
             .with_resource(checkpoint)
             .with_resource(Resource::given("vocabulary", "/models/gpt2.tiktoken"));
         let parts = [
@@ -228,7 +228,7 @@ mod tests {
         );
 
         let empty = LoadedResources {
-            map: ResourceMap::new("empty"),
+            map: ResourceBundle::new("empty"),
             parts: BTreeMap::new(),
         };
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -248,7 +248,7 @@ mod tests {
         fs::create_dir_all(checkpoint.parent().unwrap()).unwrap();
         fs::write(&checkpoint, b"weights").unwrap();
         fs::write(&vocabulary, b"ranks").unwrap();
-        let map = ResourceMap::new("m")
+        let map = ResourceBundle::new("m")
             .with_resource(Resource::given("checkpoint", &checkpoint))
             .with_resource(Resource::given("vocabulary", &vocabulary));
         let parts = [("checkpoint", &checkpoint), ("vocabulary", &vocabulary)]
@@ -274,7 +274,7 @@ mod tests {
         assert_eq!(fs::read(again.join("tiny.pt")).unwrap(), b"weights");
 
         let clash = LoadedResources {
-            map: ResourceMap::new("clash")
+            map: ResourceBundle::new("clash")
                 .with_resource(Resource::given(
                     "a",
                     dir.path().join("one").join("same.bin"),

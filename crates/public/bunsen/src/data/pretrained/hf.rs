@@ -18,7 +18,7 @@ use super::{
     Pretrained,
     PretrainedProvider,
     Resource,
-    ResourceMap,
+    ResourceBundle,
     SAFETENSORS,
     SAFETENSORS_INDEX,
     Source,
@@ -139,9 +139,9 @@ fn missing_shards(
 ///
 /// `hf:{org}/{repo}` is a Hugging Face repo: `hf:openai/whisper-large-v3`
 /// is <https://huggingface.co/openai/whisper-large-v3>. The provider
-/// answers such a ref with a row whose map is the repo's safetensors
-/// checkpoint, and it lists nothing: the hub is not enumerable, and a bare
-/// name never reaches it
+/// answers such a ref with a row whose resource bundle is the repo's
+/// safetensors checkpoint, and it lists nothing: the hub is not enumerable, and
+/// a bare name never reaches it
 /// ([`answers_bare_names`](PretrainedProvider::answers_bare_names) is
 /// `false`). A kit registers one in its default factory, after its own
 /// tables and under its own checkpoint key
@@ -445,7 +445,7 @@ impl HfProvider {
         let origin = format!("{}/{org}/{repo}", self.origin);
         let key = self.checkpoint_key.as_str();
 
-        let mut resources = ResourceMap::new(name);
+        let mut resources = ResourceBundle::new(name);
         resources.origin = Some(origin.clone());
         let what;
         if let Some(single) = file(HF_SINGLE_FILE) {

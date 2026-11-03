@@ -60,7 +60,9 @@ pub fn cache_in(dir: PathBuf) -> PretrainedCache {
 
 /// The bundled rank file a layout selects.
 pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
-    let map = WhisperVocabulary::for_layout(ids).map().to_map();
+    let map = WhisperVocabulary::for_layout(ids)
+        .resource_bundle()
+        .to_resource_bundle();
     offline_cache()
         .resolve(WHISPER_KIT, map.try_get(VOCABULARY).unwrap())
         .unwrap()

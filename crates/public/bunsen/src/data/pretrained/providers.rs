@@ -208,7 +208,7 @@ impl<'a> StaticPretrainedGroup<'a> {
     /// The owned twin.
     ///
     /// # Panics
-    /// If a row's maps share a key; a kit's tests pin that none do.
+    /// If a row's resource bundles share a key; a kit's tests pin that none do.
     pub fn to_group(&self) -> PretrainedGroup {
         PretrainedGroup {
             name: self.name.to_string(),
@@ -319,7 +319,7 @@ impl<'a> StaticPretrainedTable<'a> {
     /// The owned twin: the provider.
     ///
     /// # Panics
-    /// If a row's maps share a key; a kit's tests pin that none do.
+    /// If a row's resource bundles share a key; a kit's tests pin that none do.
     pub fn to_table(&self) -> PretrainedTable {
         PretrainedTable {
             name: self.name.to_string(),
@@ -408,12 +408,12 @@ mod tests {
     use crate::data::pretrained::{
         StaticBase,
         StaticResource,
-        StaticResourceMap,
+        StaticResourceBundle,
     };
 
     macro_rules! one_file {
         ($name:ident, $map:literal, $file:literal, $base:literal) => {
-            static $name: StaticResourceMap<'static> = StaticResourceMap {
+            static $name: StaticResourceBundle<'static> = StaticResourceBundle {
                 name: $map,
                 description: "one file",
                 license: None,
@@ -431,27 +431,27 @@ mod tests {
         };
     }
 
-    one_file!(A_SMALL_MAP, "a/small.pt", "small.pt", "https://a.example");
+    one_file!(A_SMALL_FILES, "a/small.pt", "small.pt", "https://a.example");
     one_file!(
-        A_LARGE_V1_MAP,
+        A_LARGE_V1_FILES,
         "a/large-v1.pt",
         "large-v1.pt",
         "https://a.example"
     );
     one_file!(
-        A_LARGE_V2_MAP,
+        A_LARGE_V2_FILES,
         "a/large-v2.pt",
         "large-v2.pt",
         "https://a.example"
     );
-    one_file!(B_SMALL_MAP, "b/small.pt", "small.pt", "https://b.example");
-    one_file!(B_TINY_MAP, "b/tiny.pt", "tiny.pt", "https://b.example");
+    one_file!(B_SMALL_FILES, "b/small.pt", "small.pt", "https://b.example");
+    one_file!(B_TINY_FILES, "b/tiny.pt", "tiny.pt", "https://b.example");
 
     const fn entry(
         name: &'static str,
         aliases: &'static [&'static str],
         prefab: &'static str,
-        maps: &'static [&'static StaticResourceMap<'static>],
+        maps: &'static [&'static StaticResourceBundle<'static>],
     ) -> StaticPretrained<'static> {
         StaticPretrained {
             name,
@@ -460,17 +460,17 @@ mod tests {
             license: None,
             origin: None,
             prefab: Some(prefab),
-            maps,
+            resource_bundles: maps,
         }
     }
 
-    static A_SMALL: StaticPretrained<'static> = entry("small", &["s"], "small", &[&A_SMALL_MAP]);
+    static A_SMALL: StaticPretrained<'static> = entry("small", &["s"], "small", &[&A_SMALL_FILES]);
     static A_LARGE_V1: StaticPretrained<'static> =
-        entry("large-v1", &[], "large", &[&A_LARGE_V1_MAP]);
+        entry("large-v1", &[], "large", &[&A_LARGE_V1_FILES]);
     static A_LARGE_V2: StaticPretrained<'static> =
-        entry("large-v2", &["large"], "large", &[&A_LARGE_V2_MAP]);
-    static B_SMALL: StaticPretrained<'static> = entry("small", &[], "small", &[&B_SMALL_MAP]);
-    static B_TINY: StaticPretrained<'static> = entry("tiny", &[], "tiny", &[&B_TINY_MAP]);
+        entry("large-v2", &["large"], "large", &[&A_LARGE_V2_FILES]);
+    static B_SMALL: StaticPretrained<'static> = entry("small", &[], "small", &[&B_SMALL_FILES]);
+    static B_TINY: StaticPretrained<'static> = entry("tiny", &[], "tiny", &[&B_TINY_FILES]);
 
     static A: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
         name: "a",

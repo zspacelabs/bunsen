@@ -1,4 +1,4 @@
-//! Resource maps: named sets of resources, and how two of them fuse.
+//! Resource bundles: named sets of resources, and how two of them fuse.
 
 use alloc::{
     collections::BTreeMap,
@@ -38,11 +38,11 @@ use crate::errors::{
 /// A named set of resources under a set of bases, as a compiled-in table
 /// spells it.
 ///
-/// [`to_map`](Self::to_map) appends every [base](StaticBase) to every
-/// file, so each owned [`Resource`] stands alone.
+/// [`to_resource_bundle`](Self::to_resource_bundle) appends every
+/// [base](StaticBase) to every file, so each owned [`Resource`] stands alone.
 #[derive(Debug)]
-pub struct StaticResourceMap<'a> {
-    /// The map's name, for messages.
+pub struct StaticResourceBundle<'a> {
+    /// The resource bundle's name, for messages.
     pub name: &'a str,
 
     /// A line for a listing.
@@ -65,10 +65,10 @@ pub struct StaticResourceMap<'a> {
     pub resources: &'a [StaticResource<'a>],
 }
 
-impl StaticResourceMap<'_> {
+impl StaticResourceBundle<'_> {
     /// The owned twin, every base appended to every file.
-    pub fn to_map(&self) -> ResourceMap {
-        ResourceMap {
+    pub fn to_resource_bundle(&self) -> ResourceBundle {
+        ResourceBundle {
             name: self.name.to_string(),
             description: self.description.to_string(),
             license: self.license.map(str::to_string),
@@ -95,19 +95,20 @@ impl StaticResourceMap<'_> {
     }
 }
 
-impl From<&StaticResourceMap<'_>> for ResourceMap {
-    fn from(map: &StaticResourceMap<'_>) -> Self {
-        map.to_map()
+impl From<&StaticResourceBundle<'_>> for ResourceBundle {
+    fn from(map: &StaticResourceBundle<'_>) -> Self {
+        map.to_resource_bundle()
     }
 }
 
-/// How two maps combine when a key is in both.
+/// How two resource bundles combine when a key is in both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fuse {
     /// A repeated key is an error: for authoring, where it is a mistake.
     Strict,
 
-    /// A repeated key takes the right map's resource: for an override.
+    /// A repeated key takes the right resource bundle's resource: for an
+    /// override.
     Overlay,
 }
 
@@ -115,20 +116,20 @@ pub enum Fuse {
 ///
 /// The unit a pretrained is described in, cached by, and fused from. The
 /// keys are the kit's; nothing here knows which one is the model. A
-/// [`Pretrained`](super::Pretrained) row is one map, fused from the maps
-/// it lists; [`ResourceMap::given`] is a path as a map;
-/// [`PretrainedCache::load`](super::PretrainedCache::load) brings a whole
-/// map local, as [`LoadedResources`](super::LoadedResources).
+/// [`Pretrained`](super::Pretrained) row is one resource bundle, fused from the
+/// resource bundles it lists; [`ResourceBundle::given`] is a path as a resource
+/// bundle; [`PretrainedCache::load`](super::PretrainedCache::load) brings a
+/// whole resource bundle local, as [`LoadedResources`](super::LoadedResources).
 ///
-/// Built from a [`StaticResourceMap`], deserialized, or assembled at
-/// runtime; [`validate`](Self::validate) checks a hand-built one. Two maps
-/// [fuse](Self::fuse) by key, with no memory of where a resource came
+/// Built from a [`StaticResourceBundle`], deserialized, or assembled at
+/// runtime; [`validate`](Self::validate) checks a hand-built one. Two resource
+/// bundles [fuse](Self::fuse) by key, with no memory of where a resource came
 /// from: [`Fuse::Strict`] for authoring, where a repeated key is a
-/// mistake, or [`Fuse::Overlay`] for an override, where the right-hand map
-/// wins.
+/// mistake, or [`Fuse::Overlay`] for an override, where the right-hand resource
+/// bundle wins.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResourceMap {
-    /// The map's name, for messages.
+pub struct ResourceBundle {
+    /// The resource bundle's name, for messages.
     pub name: String,
 
     /// A line for a listing.
@@ -144,8 +145,8 @@ pub struct ResourceMap {
     pub resources: BTreeMap<String, Resource>,
 }
 
-impl ResourceMap {
-    /// An empty map called `name`.
+impl ResourceBundle {
+    /// An empty resource bundle called `name`.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -156,8 +157,8 @@ impl ResourceMap {
         }
     }
 
-    /// A map of one resource: a file on disk already, under `key`. What a
-    /// path on a command line becomes.
+    /// A resource bundle of one resource: a file on disk already, under `key`.
+    /// What a path on a command line becomes.
     pub fn given(
         name: impl Into<String>,
         key: impl Into<String>,
@@ -188,13 +189,13 @@ impl ResourceMap {
         self.resources.keys().map(String::as_str).collect()
     }
 
-    /// The resources keyed `key` or `key.<part>`, as a map of their own
-    /// under this map's name: a checkpoint that is one file, or one split
-    /// across several (`checkpoint.index`, `checkpoint.00001`, ...).
+    /// The resources keyed `key` or `key.<part>`, as a resource bundle of their
+    /// own under this resource bundle's name: a checkpoint that is one file, or
+    /// one split across several (`checkpoint.index`, `checkpoint.00001`, ...).
     pub fn family(
         &self,
         key: &str,
-    ) -> ResourceMap {
+    ) -> ResourceBundle {
         let prefix = format!("{key}.");
         let mut family = Self::new(self.name.clone());
         family.description.clone_from(&self.description);
@@ -230,7 +231,7 @@ impl ResourceMap {
     ///
     /// # Errors
     /// [`Lookup`](BunsenErrorKind::Lookup), with a [`LookupError`] naming the
-    /// keys there are, under a frame naming the map.
+    /// keys there are, under a frame naming the resource bundle.
     pub fn try_get(
         &self,
         key: &str,
@@ -239,14 +240,14 @@ impl ResourceMap {
             .ok_or_else(|| not_found(Some(&self.name), "resource", key, &self.keys()))
     }
 
-    /// Checks the map hangs together: every resource validates and sits
-    /// under its own key.
+    /// Checks the resource bundle hangs together: every resource validates and
+    /// sits under its own key.
     ///
     /// # Errors
     /// [`Illegal`](BunsenErrorKind::Illegal) naming the first problem,
-    /// under a frame naming the map: a resource filed under a key not its
-    /// own, or one that does not [validate](Resource::validate). The map is
-    /// declared wrong.
+    /// under a frame naming the resource bundle: a resource filed under a key
+    /// not its own, or one that does not [validate](Resource::validate). The
+    /// resource bundle is declared wrong.
     pub fn validate(&self) -> BunsenResult<()> {
         for (key, resource) in &self.resources {
             if key != &resource.key {
@@ -261,13 +262,13 @@ impl ResourceMap {
         Ok(())
     }
 
-    /// The union of this map and `other`, by key, keeping this map's name
-    /// and listing fields.
+    /// The union of this resource bundle and `other`, by key, keeping this
+    /// resource bundle's name and listing fields.
     ///
     /// # Errors
     /// Under [`Fuse::Strict`], [`Illegal`](BunsenErrorKind::Illegal), with a
-    /// [`LookupError`] for the key in both, under a frame naming the maps:
-    /// the maps were authored to be disjoint.
+    /// [`LookupError`] for the key in both, under a frame naming the resource
+    /// bundles: the resource bundles were authored to be disjoint.
     pub fn fuse(
         mut self,
         other: Self,
@@ -286,15 +287,15 @@ impl ResourceMap {
         Ok(self)
     }
 
-    /// This map with the named resources served from files on disk, in
-    /// place: each resource's sources become one local-dir source called
+    /// This resource bundle with the named resources served from files on disk,
+    /// in place: each resource's sources become one local-dir source called
     /// `name` at its file's directory. What a bundle laid out at build time
     /// becomes a provider through.
     ///
     /// # Errors
-    /// As [`try_get`](Self::try_get) for a key the map lacks;
-    /// [`Illegal`](BunsenErrorKind::Illegal), under a frame naming the map,
-    /// when a path's file name is not the resource's.
+    /// As [`try_get`](Self::try_get) for a key the resource bundle lacks;
+    /// [`Illegal`](BunsenErrorKind::Illegal), under a frame naming the resource
+    /// bundle, when a path's file name is not the resource's.
     pub fn with_local_files(
         mut self,
         name: &str,
@@ -340,8 +341,8 @@ mod tests {
     #[test]
     fn test_with_local_files_replaces_sources_and_checks_names() {
         let map = CHECKPOINT
-            .to_map()
-            .fuse(VOCABULARY.to_map(), Fuse::Strict)
+            .to_resource_bundle()
+            .fuse(VOCABULARY.to_resource_bundle(), Fuse::Strict)
             .unwrap();
         let bundled = map
             .clone()
@@ -391,9 +392,9 @@ mod tests {
         Some(PathBuf::from("/home/someone/.cache/whisper"))
     }
 
-    /// A one-file map with two bases: a checkpoint, as the whisper table
-    /// spells one.
-    static CHECKPOINT: StaticResourceMap<'static> = StaticResourceMap {
+    /// A one-file resource bundle with two bases: a checkpoint, as the whisper
+    /// table spells one.
+    static CHECKPOINT: StaticResourceBundle<'static> = StaticResourceBundle {
         name: "a/tiny.en.pt",
         description: "a checkpoint",
         license: Some("MIT"),
@@ -415,9 +416,9 @@ mod tests {
         }],
     };
 
-    /// A one-file map with a mirror of its own and a URL base: a
+    /// A one-file resource bundle with a mirror of its own and a URL base: a
     /// vocabulary.
-    static VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
+    static VOCABULARY: StaticResourceBundle<'static> = StaticResourceBundle {
         name: "a/gpt2.tiktoken",
         description: "a vocabulary",
         license: None,
@@ -442,8 +443,8 @@ mod tests {
         );
         assert!(CHECKPOINT.get("vocabulary").is_none());
 
-        let map = CHECKPOINT.to_map();
-        assert_eq!(map, ResourceMap::from(&CHECKPOINT));
+        let map = CHECKPOINT.to_resource_bundle();
+        assert_eq!(map, ResourceBundle::from(&CHECKPOINT));
         assert_eq!(map.name, "a/tiny.en.pt");
         assert_eq!(map.license.as_deref(), Some("MIT"));
         assert_eq!(map.len(), 1);
@@ -464,16 +465,16 @@ mod tests {
         map.validate().unwrap();
 
         let json = serde_json::to_string(&map).unwrap();
-        assert_eq!(serde_json::from_str::<ResourceMap>(&json).unwrap(), map);
+        assert_eq!(serde_json::from_str::<ResourceBundle>(&json).unwrap(), map);
     }
 
-    /// A strict fuse takes the union and keeps the left map's name; a
-    /// repeated key is refused and named.
+    /// A strict fuse takes the union and keeps the left resource bundle's name;
+    /// a repeated key is refused and named.
     #[test]
     fn test_fuse_strict() {
         let fused = CHECKPOINT
-            .to_map()
-            .fuse(VOCABULARY.to_map(), Fuse::Strict)
+            .to_resource_bundle()
+            .fuse(VOCABULARY.to_resource_bundle(), Fuse::Strict)
             .unwrap();
         assert_eq!(fused.name, "a/tiny.en.pt");
         assert_eq!(fused.keys(), ["checkpoint", "vocabulary"]);
@@ -493,19 +494,24 @@ mod tests {
                 "a duplicate \"checkpoint\"",
                 |c: &LookupError| c.problem == LookupProblem::Duplicate && c.key == "checkpoint",
             ))
-            .assert_err(&CHECKPOINT.to_map().fuse(CHECKPOINT.to_map(), Fuse::Strict));
+            .assert_err(
+                &CHECKPOINT
+                    .to_resource_bundle()
+                    .fuse(CHECKPOINT.to_resource_bundle(), Fuse::Strict),
+            );
     }
 
-    /// An overlay lets the right map replace: a given path over a row.
+    /// An overlay lets the right resource bundle replace: a given path over a
+    /// row.
     #[test]
     fn test_fuse_overlay() {
         let row = CHECKPOINT
-            .to_map()
-            .fuse(VOCABULARY.to_map(), Fuse::Strict)
+            .to_resource_bundle()
+            .fuse(VOCABULARY.to_resource_bundle(), Fuse::Strict)
             .unwrap();
         let overlaid = row
             .fuse(
-                ResourceMap::given("flags", "vocabulary", "/mine/vocab.tiktoken"),
+                ResourceBundle::given("flags", "vocabulary", "/mine/vocab.tiktoken"),
                 Fuse::Overlay,
             )
             .unwrap();
@@ -527,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_given_insert_and_lookup() {
-        let mut map = ResourceMap::given("flags", "checkpoint", "/models/my.pt");
+        let mut map = ResourceBundle::given("flags", "checkpoint", "/models/my.pt");
         assert_eq!(map.keys(), ["checkpoint"]);
         assert_eq!(map.try_get("checkpoint").unwrap().file, "my.pt");
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -543,7 +549,7 @@ mod tests {
         assert_eq!(replaced.map(|r| r.file), Some("my.pt".to_string()));
         assert_eq!(map.get("checkpoint").unwrap().file, "other.pt");
 
-        let empty = ResourceMap::new("empty");
+        let empty = ResourceBundle::new("empty");
         assert!(empty.is_empty());
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .display(text::eq("empty: no resource \"x\""))
@@ -551,11 +557,12 @@ mod tests {
         empty.validate().unwrap();
     }
 
-    /// A hand-built map is checked: a resource filed under the wrong key,
-    /// or one that does not validate itself, is named with the map.
+    /// A hand-built resource bundle is checked: a resource filed under the
+    /// wrong key, or one that does not validate itself, is named with the
+    /// resource bundle.
     #[test]
     fn test_validate_names_the_problem() {
-        let mut misfiled = ResourceMap::new("m");
+        let mut misfiled = ResourceBundle::new("m");
         misfiled.resources.insert(
             "vocabulary".to_string(),
             Resource::given("checkpoint", "/x.pt"),
@@ -566,7 +573,7 @@ mod tests {
             ))
             .assert_err(&misfiled.validate());
 
-        let mut no_source = ResourceMap::given("m", "checkpoint", "/x.pt");
+        let mut no_source = ResourceBundle::given("m", "checkpoint", "/x.pt");
         no_source
             .resources
             .get_mut("checkpoint")

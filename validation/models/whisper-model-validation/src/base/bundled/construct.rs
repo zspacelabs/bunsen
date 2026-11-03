@@ -9,7 +9,7 @@ use bunsen::{
         LoadedResources,
         PretrainedRef,
         Provenance,
-        ResourceMap,
+        ResourceBundle,
         Source,
     },
     errors::{
@@ -55,7 +55,10 @@ fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
 /// A checkpoint on disk, as loaded resources: used in place.
 fn loaded(path: &std::path::Path) -> LoadedResources {
     offline_cache()
-        .load(WHISPER_KIT, &ResourceMap::given("given", CHECKPOINT, path))
+        .load(
+            WHISPER_KIT,
+            &ResourceBundle::given("given", CHECKPOINT, path),
+        )
         .unwrap()
 }
 
@@ -96,7 +99,7 @@ fn test_the_factory_builds_the_bundle() {
 #[test]
 fn test_plan_derives_a_paths_vocabulary() {
     let cache = offline_cache();
-    let given = PretrainedRef::from(ResourceMap::given(
+    let given = PretrainedRef::from(ResourceBundle::given(
         "base",
         CHECKPOINT,
         bind_whisper_onnx::base_pt(),
@@ -116,16 +119,16 @@ fn test_plan_derives_a_paths_vocabulary() {
 fn test_plan_checks_a_declared_vocabulary() {
     let cache = offline_cache();
     let wrong = BASE_CHECKPOINT
-        .to_map()
-        .fuse(GPT2_VOCABULARY.to_map(), Fuse::Strict)
+        .to_resource_bundle()
+        .fuse(GPT2_VOCABULARY.to_resource_bundle(), Fuse::Strict)
         .unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .message_contains("gpt2.tiktoken")
         .message_contains("multilingual.tiktoken")
         .assert_err(&WhisperConstruct::new().plan(&PretrainedRef::from(wrong), &cache));
 
-    let overridden = PretrainedRef::from(BASE_CHECKPOINT.to_map())
-        .with_overlay(ResourceMap::given(
+    let overridden = PretrainedRef::from(BASE_CHECKPOINT.to_resource_bundle())
+        .with_overlay(ResourceBundle::given(
             "--vocab",
             VOCABULARY,
             bind_whisper_onnx::gpt2_tiktoken(),
@@ -166,7 +169,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
 fn test_plan_checks_the_prefab_a_name_promises() {
     let cache = offline_cache();
     let base_pt = bind_whisper_onnx::base_pt();
-    let given = PretrainedRef::from(BASE_CHECKPOINT.to_map());
+    let given = PretrainedRef::from(BASE_CHECKPOINT.to_resource_bundle());
     let named = resolve_model("openai/base").unwrap();
     let hook = WhisperConstruct::new();
 
@@ -227,7 +230,7 @@ fn test_scan_honors_the_scanner() {
         .has_cause::<GeometryMismatch>()
         .assert_err(&hook.scan(&named, &loaded(base)));
 
-    let given = PretrainedRef::from(ResourceMap::given("base", CHECKPOINT, base));
+    let given = PretrainedRef::from(ResourceBundle::given("base", CHECKPOINT, base));
     let cfg = hook.scan(&given, &loaded(base)).unwrap();
     assert_eq!(cfg.geometry().d_head, 32);
     assert_eq!(cfg.geometry().n_heads(), 16);

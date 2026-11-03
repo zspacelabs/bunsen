@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(set.cached_ids().unwrap(), vec![ShardId(0)]);
     }
 
-    /// A set's shards, as a resource map, come in through the pretrained
+    /// A set's shards, as a resource bundle, come in through the pretrained
     /// cache together, and are cached there on the next load.
     #[cfg(feature = "fetch")]
     #[test]
@@ -514,7 +514,7 @@ mod tests {
         let bases: &'static [&'static str] =
             Box::leak(vec![Box::leak(live.into_boxed_str()) as &str].into_boxed_slice());
         let desc = served(bases, 2, StaticShardDigests::Unpinned);
-        let map = desc.to_resource_map(&[ShardId(0), ShardId(1)]).unwrap();
+        let map = desc.to_resource_bundle(&[ShardId(0), ShardId(1)]).unwrap();
         assert_eq!(map.keys(), ["shard_00.bin", "shard_01.bin"]);
 
         let cache = PretrainedCache::new(
