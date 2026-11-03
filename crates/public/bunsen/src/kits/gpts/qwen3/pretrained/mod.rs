@@ -42,7 +42,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle)
+//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
 //! resolves a name to a deferred model carrying [`Qwen3Construct`], brings
 //! every file local through the cache, and reads the checkpoint into its
 //! geometry through [`load_hf_tensors`](super::weights::load_hf_tensors). The

@@ -12,7 +12,6 @@ use bunsen::{
             BUNDLED,
             PretrainedCache,
             PretrainedCacheOptions,
-            PretrainedFactory,
             PretrainedGroup,
             PretrainedTable,
         },
@@ -30,7 +29,10 @@ use bunsen::{
                 default_whisper_factory,
             },
         },
-        support::tokens::TiktokenRanks,
+        support::{
+            construct::PretrainedFactory,
+            tokens::TiktokenRanks,
+        },
     },
 };
 

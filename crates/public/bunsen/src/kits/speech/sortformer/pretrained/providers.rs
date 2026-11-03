@@ -8,7 +8,6 @@ use crate::{
     data::pretrained::{
         HfProvider,
         PretrainedCache,
-        PretrainedFactory,
         PretrainedProvider,
         StaticBase,
         StaticPretrained,
@@ -19,7 +18,10 @@ use crate::{
         WELL_KNOWN,
     },
     errors::BunsenResult,
-    kits::speech::sortformer::SortformerBundle,
+    kits::{
+        speech::sortformer::SortformerBundle,
+        support::construct::PretrainedFactory,
+    },
 };
 
 /// The kit segment of a Sortformer resource's path in the cache:

@@ -276,16 +276,16 @@ fn fetch_prefix(
 /// *what is trusted there*. A caller opens one from
 /// [`PretrainedCacheOptions`] (offline or not, local-dir overrides and
 /// verification, and with `fetch` the batch policy) and passes it to every
-/// load. [`Deferred::load`](super::Deferred::load) calls
-/// [`load`](Self::load) between the kit hook's
-/// [`plan`](super::Construct::plan) and
-/// [`construct`](super::Construct::construct), and the
-/// [`LoadedResources`] it returns are what the hook builds from. A
-/// [`PretrainedFactory`](super::PretrainedFactory) hands the cache to its
-/// providers too, so that a hub ([`HfProvider`](super::HfProvider)) can
-/// keep what it asked for. [`status`](Self::status) and
-/// [`map_status`](Self::map_status) answer a listing without touching any
-/// bytes.
+/// load. [`Deferred::load`](crate::kits::support::construct::Deferred::load)
+/// calls [`load`](Self::load) between the kit hook's
+/// [`plan`](crate::kits::support::construct::Construct::plan) and
+/// [`construct`](crate::kits::support::construct::Construct::construct), and
+/// the [`LoadedResources`] it returns are what the hook builds from. A
+/// [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+/// hands the cache to its providers too, so that a hub
+/// ([`HfProvider`](super::HfProvider)) can keep what it asked for.
+/// [`status`](Self::status) and [`map_status`](Self::map_status) answer a
+/// listing without touching any bytes.
 ///
 /// # Cache layout
 ///
@@ -293,7 +293,8 @@ fn fetch_prefix(
 /// <cache>/pretrained/<kit>/<namespace>/<sha256>/<file>
 /// ```
 ///
-/// `<kit>` is the hook's [`KIT`](super::Construct::KIT), `<namespace>` the
+/// `<kit>` is the hook's
+/// [`KIT`](crate::kits::support::construct::Construct::KIT), `<namespace>` the
 /// resource's (who published it), and `<file>` its file name. An unpinned
 /// resource sits under a cache key in place of `<sha256>`: one derived from
 /// its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its

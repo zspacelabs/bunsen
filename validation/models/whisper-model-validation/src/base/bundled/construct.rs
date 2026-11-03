@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use bunsen::{
     data::pretrained::{
-        Construct,
         Fuse,
         LoadedResources,
         PretrainedRef,
@@ -20,21 +19,24 @@ use bunsen::{
             predicate,
         },
     },
-    kits::speech::whisper::{
-        WhisperGeometry,
-        WhisperMeta,
-        pretrained::{
-            BASE_CHECKPOINT,
-            CHECKPOINT,
-            GPT2_VOCABULARY,
-            GeometryMismatch,
-            PytorchWhisperScanner,
-            VOCABULARY,
-            WHISPER_KIT,
-            WHISPER_PREFABS,
-            WhisperConstruct,
-            default_whisper_factory,
+    kits::{
+        speech::whisper::{
+            WhisperGeometry,
+            WhisperMeta,
+            pretrained::{
+                BASE_CHECKPOINT,
+                CHECKPOINT,
+                GPT2_VOCABULARY,
+                GeometryMismatch,
+                PytorchWhisperScanner,
+                VOCABULARY,
+                WHISPER_KIT,
+                WHISPER_PREFABS,
+                WhisperConstruct,
+                default_whisper_factory,
+            },
         },
+        support::construct::Construct,
     },
     support::testing::performance_device,
 };

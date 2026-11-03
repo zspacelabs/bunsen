@@ -15,7 +15,6 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
-        Construct,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -38,7 +37,10 @@ use crate::{
                 voxtral_config_from_hf,
             },
         },
-        support::tokens::TekkenVocabulary,
+        support::{
+            construct::Construct,
+            tokens::TekkenVocabulary,
+        },
     },
 };
 

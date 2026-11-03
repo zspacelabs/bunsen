@@ -6,18 +6,22 @@ use burn::tensor::Device;
 
 use crate::{
     data::pretrained::{
-        Deferred,
         LoadedResources,
         PretrainedCache,
-        PretrainedFactory,
     },
     errors::BunsenResult,
-    kits::speech::whisper::{
-        WhisperApiConfig,
-        driver::WhisperBundle,
-        pretrained::{
-            WhisperConstruct,
-            default_whisper_providers,
+    kits::{
+        speech::whisper::{
+            WhisperApiConfig,
+            driver::WhisperBundle,
+            pretrained::{
+                WhisperConstruct,
+                default_whisper_providers,
+            },
+        },
+        support::construct::{
+            Deferred,
+            PretrainedFactory,
         },
     },
 };
@@ -98,18 +102,20 @@ mod tests {
                 PretrainedRef,
                 ResourceBundle,
                 WELL_KNOWN,
-                testing::ListsNothing,
             },
         },
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::speech::whisper::pretrained::{
-            CHECKPOINT,
-            OPENAI,
-            WHISPER_KIT,
-            openai_download_root,
+        kits::{
+            speech::whisper::pretrained::{
+                CHECKPOINT,
+                OPENAI,
+                WHISPER_KIT,
+                openai_download_root,
+            },
+            support::construct::testing::ListsNothing,
         },
     };
 

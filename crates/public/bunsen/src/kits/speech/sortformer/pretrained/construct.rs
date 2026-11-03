@@ -13,7 +13,6 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
-        Construct,
         LoadedResources,
         PretrainedCache,
         PretrainedRef,
@@ -26,18 +25,21 @@ use crate::{
         BunsenResult,
         sys_at,
     },
-    kits::speech::{
-        nemo::NemoMelFrontEndConfig,
-        sortformer::{
-            NemotronDiarizationConfig,
-            Sortformer,
-            SortformerBundle,
-            SortformerFamily,
-            weights::{
-                load_nemotron_hf_tensors,
-                nemotron_config_from_hf,
+    kits::{
+        speech::{
+            nemo::NemoMelFrontEndConfig,
+            sortformer::{
+                NemotronDiarizationConfig,
+                Sortformer,
+                SortformerBundle,
+                SortformerFamily,
+                weights::{
+                    load_nemotron_hf_tensors,
+                    nemotron_config_from_hf,
+                },
             },
         },
+        support::construct::Construct,
     },
 };
 
@@ -269,17 +271,17 @@ mod tests {
         use crate::{
             data::{
                 cache::BunsenDiskCacheOptions,
-                pretrained::{
-                    Deferred,
-                    PretrainedCacheOptions,
-                },
+                pretrained::PretrainedCacheOptions,
             },
-            kits::speech::{
-                nemo::NemoMelFrontEndMeta,
-                sortformer::{
-                    SortformerLatency,
-                    SortformerMeta,
+            kits::{
+                speech::{
+                    nemo::NemoMelFrontEndMeta,
+                    sortformer::{
+                        SortformerLatency,
+                        SortformerMeta,
+                    },
                 },
+                support::construct::Deferred,
             },
             support::testing::cpu_device,
         };

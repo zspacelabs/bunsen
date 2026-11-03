@@ -26,7 +26,7 @@
 //!
 //! # Loading
 //!
-//! [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle)
+//! [`load_bundle`](crate::kits::support::construct::PretrainedFactory::load_bundle)
 //! resolves a name to a deferred model carrying [`VoxtralConstruct`], brings
 //! every file local through the cache, and reads them into the row's prefab
 //! through [`load_hf_tensors`](super::weights::load_hf_tensors).

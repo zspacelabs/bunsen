@@ -19,7 +19,6 @@ use crate::kits::speech::whisper::{
 };
 use crate::{
     data::pretrained::{
-        Construct,
         Fuse,
         GIVEN_NAMESPACE,
         LoadedResources,
@@ -48,7 +47,10 @@ use crate::{
                 WhisperVocabulary,
             },
         },
-        support::tokens::TiktokenRanks,
+        support::{
+            construct::Construct,
+            tokens::TiktokenRanks,
+        },
     },
 };
 
@@ -455,8 +457,8 @@ impl Construct for WhisperConstruct {
 mod reader_tests {
     use super::*;
     use crate::{
-        data::pretrained::Deferred,
         errors::testing::ErrorMatcher,
+        kits::support::construct::Deferred,
     };
 
     /// The checkpoint's `kind` chooses the reader when the hook is chosen,

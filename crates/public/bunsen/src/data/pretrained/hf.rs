@@ -364,7 +364,7 @@ impl HfProvider {
     /// [`Illegal`](BunsenErrorKind::Illegal), with a [`ParseError`], for
     /// anything else. A caller that took the ref from outside the program
     /// re-marks it [`as_policy`](BunsenError::as_policy), as
-    /// [`PretrainedFactory::resolve`](super::PretrainedFactory::resolve)
+    /// [`PretrainedFactory::resolve`](crate::kits::support::construct::PretrainedFactory::resolve)
     /// does.
     pub fn split<'a>(
         &self,

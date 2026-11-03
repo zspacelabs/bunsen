@@ -62,10 +62,11 @@
 //!   resources' `kind`s. [`Deferred::with_overlay`] lays the caller's resources
 //!   over the row's.
 //! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
-//!   [`plan`](pretrained::Construct::plan), then [`PretrainedCache::load`] (in
-//!   its [source order], into [`LoadedResources`]), then the hook's
-//!   [`construct`](pretrained::Construct::construct). The result is a
-//!   [`Loaded`] handle.
+//!   [`plan`](crate::kits::support::construct::Construct::plan), then
+//!   [`PretrainedCache::load`] (in its [source order], into
+//!   [`LoadedResources`]), then the hook's
+//!   [`construct`](crate::kits::support::construct::Construct::construct). The
+//!   result is a [`Loaded`] handle.
 //!
 //! Prefabs sit beside this pathway. A kit's [`StaticPreFabMap`] names its
 //! geometries, and a row names the prefab it instantiates;
@@ -105,23 +106,23 @@
 //! run-time counterpart, and neither implies the other.
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
-//! [`Construct`]: pretrained::Construct
-//! [`Construct::for_resource_bundle`]: pretrained::Construct::for_resource_bundle
-//! [`Deferred`]: pretrained::Deferred
-//! [`Deferred::from_map`]: pretrained::Deferred::from_resource_bundle
-//! [`Deferred::load`]: pretrained::Deferred::load
-//! [`Deferred::new`]: pretrained::Deferred::new
-//! [`Deferred::with_overlay`]: pretrained::Deferred::with_overlay
+//! [`Construct`]: crate::kits::support::construct::Construct
+//! [`Construct::for_resource_bundle`]: crate::kits::support::construct::Construct::for_resource_bundle
+//! [`Deferred`]: crate::kits::support::construct::Deferred
+//! [`Deferred::from_map`]: crate::kits::support::construct::Deferred::from_resource_bundle
+//! [`Deferred::load`]: crate::kits::support::construct::Deferred::load
+//! [`Deferred::new`]: crate::kits::support::construct::Deferred::new
+//! [`Deferred::with_overlay`]: crate::kits::support::construct::Deferred::with_overlay
 //! [`HfProvider`]: pretrained::HfProvider
-//! [`Loaded`]: pretrained::Loaded
+//! [`Loaded`]: crate::kits::support::construct::Loaded
 //! [`LoadedResources`]: pretrained::LoadedResources
 //! [`Pretrained`]: pretrained::Pretrained
 //! [`PretrainedCache`]: pretrained::PretrainedCache
 //! [`PretrainedCache::load`]: pretrained::PretrainedCache::load
-//! [`PretrainedFactory`]: pretrained::PretrainedFactory
-//! [`PretrainedFactory::for_prefab`]: pretrained::PretrainedFactory::for_prefab
-//! [`PretrainedFactory::load`]: pretrained::PretrainedFactory::load
-//! [`PretrainedFactory::resolve`]: pretrained::PretrainedFactory::resolve
+//! [`PretrainedFactory`]: crate::kits::support::construct::PretrainedFactory
+//! [`PretrainedFactory::for_prefab`]: crate::kits::support::construct::PretrainedFactory::for_prefab
+//! [`PretrainedFactory::load`]: crate::kits::support::construct::PretrainedFactory::load
+//! [`PretrainedFactory::resolve`]: crate::kits::support::construct::PretrainedFactory::resolve
 //! [`PretrainedProvider`]: pretrained::PretrainedProvider
 //! [`PretrainedRef`]: pretrained::PretrainedRef
 //! [`PretrainedRef::prefab`]: pretrained::PretrainedRef::prefab
@@ -136,7 +137,7 @@
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::whisper::pretrained::default_whisper_factory
-//! [dispatch rules]: pretrained::PretrainedFactory#dispatch
+//! [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
 //! [source order]: pretrained::PretrainedCache#source-order
 
 #[cfg(feature = "cache")]

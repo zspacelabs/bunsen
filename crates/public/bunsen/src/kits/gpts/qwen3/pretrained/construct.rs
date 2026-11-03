@@ -12,7 +12,6 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
-        Construct,
         HfConfigJson,
         LoadedResources,
         PretrainedRef,
@@ -26,13 +25,16 @@ use crate::{
         BunsenResult,
         sys_at,
     },
-    kits::gpts::qwen3::{
-        Qwen3Bundle,
-        Qwen3Model,
-        weights::{
-            load_hf_tensors,
-            qwen3_config_from_hf,
+    kits::{
+        gpts::qwen3::{
+            Qwen3Bundle,
+            Qwen3Model,
+            weights::{
+                load_hf_tensors,
+                qwen3_config_from_hf,
+            },
         },
+        support::construct::Construct,
     },
 };
 

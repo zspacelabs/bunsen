@@ -4,8 +4,11 @@ This chapter covers how a name such as `tiny` or `hf:openai/whisper-tiny`
 becomes a loaded model: what a name means, who answers it, where the files
 land, and why bunsen trusts them once they are there. The reference is
 [`bunsen::data`], whose
-[lifecycle diagram](bunsen::data#lifecycle) links every step, and
-[`bunsen::data::pretrained`].
+[lifecycle diagram](bunsen::data#lifecycle) links every step,
+[`bunsen::data::pretrained`] for the data side (rows, resource bundles,
+providers, the cache), and
+[`bunsen::kits::support::construct`] for the construct side (the hook, the
+deferred model, the factory, the loaded handle).
 
 The kits show three sizes of the same machinery.
 [`default_resnet_factory`](bunsen::kits::images::resnet::pretrained::default_resnet_factory)
@@ -31,9 +34,9 @@ deferred model
 loaded model, behind an Arc
 ```
 
-A [`PretrainedFactory`](bunsen::data::pretrained::PretrainedFactory) is the
+A [`PretrainedFactory`](bunsen::kits::support::construct::PretrainedFactory) is the
 one object a caller holds for a kit, and its
-[`load`](bunsen::data::pretrained::PretrainedFactory::load) runs the whole
+[`load`](bunsen::kits::support::construct::PretrainedFactory::load) runs the whole
 pathway. A file on disk does not go through the factory at all: it is a
 given resource bundle ([`ResourceBundle::given`](bunsen::data::pretrained::ResourceBundle::given)),
 loaded the same way from the deferred step on.
@@ -77,11 +80,11 @@ The two kinds of "no" are kept distinct. A provider that doesn't have the
 row says so (`Ok(None)`), and the search moves on. A provider that fails
 returns an error, and the error aborts the lookup, because a hub that cannot
 be reached is not the same as a hub that has no such row
-([dispatch](bunsen::data::pretrained::PretrainedFactory#dispatch)).
+([dispatch](bunsen::kits::support::construct::PretrainedFactory#dispatch)).
 
 There is no process-wide registry. Each kit ships a
 `default_{kit}_factory()`, and a caller that wants another provider adds it
-to that factory ([no registry](bunsen::data::pretrained::PretrainedFactory#no-registry)).
+to that factory ([no registry](bunsen::kits::support::construct::PretrainedFactory#no-registry)).
 
 ## The cache and its trust model
 
@@ -124,22 +127,22 @@ described under
 ## Deferred models and the kit's hook
 
 What a name resolves to is a
-[`Deferred`](bunsen::data::pretrained::Deferred) model: the row's resource bundle, plus
-the kit's [`Construct`](bunsen::data::pretrained::Construct) hook. The hook
+[`Deferred`](bunsen::kits::support::construct::Deferred) model: the row's resource bundle, plus
+the kit's [`Construct`](bunsen::kits::support::construct::Construct) hook. The hook
 is chosen for the resource bundle by
-[`for_resource_bundle`](bunsen::data::pretrained::Construct::for_resource_bundle), from the
+[`for_resource_bundle`](bunsen::kits::support::construct::Construct::for_resource_bundle), from the
 resources' `kind`s, because rows from different providers can need
 different readers: an OpenAI `.pt` checkpoint and a Hugging Face safetensors
 repo are both Whisper, read two ways.
 
 Loading runs three steps. The hook's
-[`plan`](bunsen::data::pretrained::Construct::plan) completes the resource bundle and
+[`plan`](bunsen::kits::support::construct::Construct::plan) completes the resource bundle and
 checks what the row promises, such as its prefab, before any bytes are
 fetched. The cache then brings the files local. Finally the hook's
-[`construct`](bunsen::data::pretrained::Construct::construct) builds the
+[`construct`](bunsen::kits::support::construct::Construct::construct) builds the
 model from them. Before loading, a caller can lay its own resources over
 the row's with
-[`with_overlay`](bunsen::data::pretrained::Deferred::with_overlay), where the
+[`with_overlay`](bunsen::kits::support::construct::Deferred::with_overlay), where the
 caller's resource wins by key. `bunsen-tool asr family whisper`'s `--vocab` flag works this way.
 
 ## PyTorch checkpoints

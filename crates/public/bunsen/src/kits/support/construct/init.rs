@@ -4,13 +4,15 @@ use std::sync::Arc;
 
 use burn::tensor::Device;
 
-use super::{
-    LoadedResources,
-    PretrainedCache,
-    PretrainedRef,
-    ResourceBundle,
+use crate::{
+    data::pretrained::{
+        LoadedResources,
+        PretrainedCache,
+        PretrainedRef,
+        ResourceBundle,
+    },
+    errors::BunsenResult,
 };
-use crate::errors::BunsenResult;
 
 /// What a kit builds from a resolved ref, and how.
 ///
@@ -125,7 +127,6 @@ mod tests {
         data::{
             cache::BunsenDiskCacheOptions,
             pretrained::{
-                Deferred,
                 Fuse,
                 PretrainedCacheOptions,
                 Provenance,
@@ -140,6 +141,7 @@ mod tests {
                 predicate,
             },
         },
+        kits::support::construct::Deferred,
         support::testing::cpu_device,
     };
 

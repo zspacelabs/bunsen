@@ -9,7 +9,6 @@ use super::{
 };
 use crate::{
     data::pretrained::{
-        Construct,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -18,14 +17,17 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::gpts::nanochat::{
-        CHECKPOINT,
-        META,
-        NanoChatBundle,
-        weights::{
-            NanoChatMeta,
-            load_pt_checkpoint,
+    kits::{
+        gpts::nanochat::{
+            CHECKPOINT,
+            META,
+            NanoChatBundle,
+            weights::{
+                NanoChatMeta,
+                load_pt_checkpoint,
+            },
         },
+        support::construct::Construct,
     },
 };
 

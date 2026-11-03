@@ -6,7 +6,6 @@ use burn::tensor::Device;
 
 use crate::{
     data::pretrained::{
-        Construct,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -15,15 +14,18 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::silero_vad::{
-        SileroVadCollection,
-        pretrained::{
-            BURNPACK,
-            BURNPACK_KIND,
-            CHECKPOINT,
-            SAFETENSORS_KIND,
-            SILERO_KIT,
+    kits::{
+        speech::silero_vad::{
+            SileroVadCollection,
+            pretrained::{
+                BURNPACK,
+                BURNPACK_KIND,
+                CHECKPOINT,
+                SAFETENSORS_KIND,
+                SILERO_KIT,
+            },
         },
+        support::construct::Construct,
     },
 };
 

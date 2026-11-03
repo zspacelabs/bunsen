@@ -16,7 +16,6 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
-        Construct,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -39,7 +38,10 @@ use crate::{
                 qwen3_asr_config_from_hf,
             },
         },
-        support::tokens::ByteLevelVocabulary,
+        support::{
+            construct::Construct,
+            tokens::ByteLevelVocabulary,
+        },
     },
 };
 
