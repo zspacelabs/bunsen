@@ -4,7 +4,6 @@ use burn::{
     nn::{
         BatchNormConfig,
         activation::ActivationConfig,
-        norm::NormalizationConfig,
     },
     prelude::{
         Config,
@@ -15,6 +14,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::norm::NormConfig,
     burner::module::{
         ModuleInit,
         ToStructureConfig,
@@ -72,8 +72,8 @@ pub struct ResidualBlockContractConfig {
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
-    #[config(default = "NormalizationConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: NormalizationConfig,
+    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: NormConfig,
 
     /// Activation config.
     #[config(default = "ActivationConfig::Relu")]

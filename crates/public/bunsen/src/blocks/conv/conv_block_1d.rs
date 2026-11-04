@@ -13,16 +13,16 @@ use burn::{
             Conv1d,
             Conv1dConfig,
         },
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
     },
     prelude::Tensor,
     tensor::Device,
 };
 
 use crate::{
+    blocks::norm::{
+        Norm,
+        NormConfig,
+    },
     burner::module::ModuleInit,
     errors::{
         BunsenError,
@@ -33,15 +33,15 @@ use crate::{
 
 /// Abstract policy for [`ConvBlock1d`] Config.
 ///
-/// Defines a [`NormalizationConfig`] and [`ActivationConfig`],
+/// Defines a [`NormConfig`] and [`ActivationConfig`],
 /// and can be lifted to a [`ConvBlock1dConfig`] to match a [`Conv1dConfig`].
 ///
-/// The abstract [`NormalizationConfig`] will be feature matched
+/// The abstract [`NormConfig`] will be feature matched
 /// with the target [`Conv1dConfig`].
 #[derive(Config, Debug)]
 pub struct AbstractConvBlock1dConfig {
-    /// The [`Normalization`] config.
-    pub norm: Option<NormalizationConfig>,
+    /// The [`Norm`] config.
+    pub norm: Option<NormConfig>,
 
     /// Activation Config.
     #[config(default = "Some(ActivationConfig::Relu)")]
@@ -51,7 +51,7 @@ pub struct AbstractConvBlock1dConfig {
 impl AbstractConvBlock1dConfig {
     /// Merges with a [`Conv1dConfig`] to construct a [`ConvBlock1dConfig`].
     ///
-    /// The abstract [`NormalizationConfig`] will be feature matched
+    /// The abstract [`NormConfig`] will be feature matched
     /// with the target [`Conv1dConfig`], resulting in a normalization
     /// layer sized appropriately for the input convolution.
     pub fn build_config(
@@ -160,8 +160,8 @@ pub struct ConvBlock1dConfig {
     /// The [`Conv1d`] config.
     pub conv: Conv1dConfig,
 
-    /// The [`Normalization`] config.
-    pub norm: Option<NormalizationConfig>,
+    /// The [`Norm`] config.
+    pub norm: Option<NormConfig>,
 
     /// The [`Activation`] config.
     #[config(default = "Some(ActivationConfig::Relu)")]
@@ -232,7 +232,7 @@ impl ModuleInit<ConvBlock1d> for ConvBlock1dConfig {
 ///
 /// A [`ConvBlock1d`] module is:
 /// * a [`Conv1d`] layer,
-/// * an optional [`Normalization`] layer,
+/// * an optional [`Norm`] layer,
 /// * an optional [`Activation`] layer.
 ///
 /// With support for hooking the forward method,
@@ -247,7 +247,7 @@ pub struct ConvBlock1d {
     pub conv: Conv1d,
 
     /// Internal Norm Layer.
-    pub norm: Option<Normalization>,
+    pub norm: Option<Norm>,
 
     /// Activation layer.
     pub act: Option<Activation>,
@@ -417,7 +417,6 @@ mod tests {
             BatchNormConfig,
             PaddingConfig1d,
             activation::ActivationConfig,
-            norm::NormalizationConfig,
         },
         tensor::Distribution,
     };
@@ -434,7 +433,7 @@ mod tests {
     #[test]
     fn test_conv_norm_config() {
         let abstract_config = AbstractConvBlock1dConfig::new()
-            .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(0))));
+            .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))));
 
         let conv_config = Conv1dConfig::new(2, 4, 3)
             .with_stride(2)
@@ -523,7 +522,7 @@ mod tests {
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
                 .with_bias(false),
         )
-        .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(0))))
+        .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))))
         .with_act(Some(ActivationConfig::Relu));
 
         let layer: ConvBlock1d = config.init(&device);

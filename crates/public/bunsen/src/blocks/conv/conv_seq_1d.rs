@@ -4,18 +4,18 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        activation::ActivationConfig,
-        norm::NormalizationConfig,
-    },
+    nn::activation::ActivationConfig,
     tensor::Device,
 };
 
 use crate::{
-    blocks::conv::{
-        ConvBlock1d,
-        ConvBlock1dConfig,
-        ConvBlock1dMeta,
+    blocks::{
+        conv::{
+            ConvBlock1d,
+            ConvBlock1dConfig,
+            ConvBlock1dMeta,
+        },
+        norm::NormConfig,
     },
     burner::module::{
         Indices,
@@ -285,8 +285,8 @@ impl ConvSeq1dConfig {
         }
     }
 
-    /// Set the [`Option<NormalizationConfig>`] for all blocks.
-    pub fn with_norm<N: Into<Option<NormalizationConfig>>>(
+    /// Set the [`Option<NormConfig>`] for all blocks.
+    pub fn with_norm<N: Into<Option<NormConfig>>>(
         self,
         norm: N,
     ) -> Self {

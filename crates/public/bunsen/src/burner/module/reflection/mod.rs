@@ -50,9 +50,9 @@
 //! - `@class` is `struct` or `enum` for a derived module, `builtin` for the
 //!   containers `Vec`, `Array` and `Tuple`, and `tensor` for a `<Param>`.
 //! - A struct field has `@name`. The child of an enum module has the variant
-//!   name as `@name`: `<Normalization name="norm">` holds `<RmsNorm
-//!   name="Rms">`. The items of a `Vec`, `Array` or `Tuple` have no `@name`;
-//!   select them by position (`*[2]`, counting from 1).
+//!   name as `@name`: `<Norm name="norm">` holds `<RmsNorm name="Rms">`. The
+//!   items of a `Vec`, `Array` or `Tuple` have no `@name`; select them by
+//!   position (`*[2]`, counting from 1).
 //! - A `<Param>` is a leaf. Its attributes are those of its
 //!   [`TensorParamDesc`](crate::burner::descriptors::TensorParamDesc):
 //!   `param_id`, `kind`, `dtype`, `shape` (dims separated by spaces) and

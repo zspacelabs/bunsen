@@ -2,13 +2,10 @@
 
 use burn::{
     Tensor,
-    nn::{
-        attention::{
-            MhaInput,
-            MhaOutput,
-            MultiHeadAttention,
-        },
-        norm::Normalization,
+    nn::attention::{
+        MhaInput,
+        MhaOutput,
+        MultiHeadAttention,
     },
     prelude::Bool,
     tensor::activation::{
@@ -18,12 +15,13 @@ use burn::{
 };
 
 use super::KVCache;
+use crate::blocks::norm::Norm;
 
 /// Asserts that `norm` normalizes `d_model` features, when it counts any
 /// (an [`Identity`](Normalization::Identity) norm counts none).
 #[cfg(any(debug_assertions, test))]
 fn assert_norm_width(
-    norm: &Normalization,
+    norm: &Norm,
     d_model: usize,
 ) {
     let features = norm.num_features();
@@ -63,7 +61,7 @@ pub fn split_heads(
 /// Computes normalized self-attention: `attn(norm(x))`.
 ///
 /// # Arguments
-/// * `norm` - the sublayer's [`Normalization`].
+/// * `norm` - the sublayer's [`Norm`].
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - `[batch, seq_len, d_model]` input.
 /// * `mask` - Optional `[batch, seq_len, seq_len]` attention mask.
@@ -73,7 +71,7 @@ pub fn split_heads(
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, seq_len]`.
 pub fn norm_self_attn(
-    norm: &Normalization,
+    norm: &Norm,
     mh_attn: &MultiHeadAttention,
     x: Tensor<3>,
     mask: Option<Tensor<3, Bool>>,
@@ -118,7 +116,7 @@ pub fn norm_self_attn(
 /// Computes normalized cross-attention: `attn(norm(x), xa)`.
 ///
 /// # Arguments
-/// * `norm` - the sublayer's [`Normalization`].
+/// * `norm` - the sublayer's [`Norm`].
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - `[batch, seq_len, d_model]` input.
 /// * `xa` - `[batch, cross_len, d_model]` cross-attention input.
@@ -131,7 +129,7 @@ pub fn norm_self_attn(
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, cross_len]`.
 pub fn norm_cross_attn(
-    norm: &Normalization,
+    norm: &Norm,
     mh_attn: &MultiHeadAttention,
     x: Tensor<3>,
     xa: Tensor<3>,
@@ -213,7 +211,7 @@ pub fn attend_q_kv_mask(
 /// # Returns
 /// `[batch, seq_new, d_model]`.
 pub fn norm_self_attn_w_kv_cache(
-    norm: &Normalization,
+    norm: &Norm,
     mha: &MultiHeadAttention,
     x: Tensor<3>,
     mask: Option<Tensor<3, Bool>>,
@@ -263,7 +261,7 @@ pub fn norm_self_attn_w_kv_cache(
 /// When `layer`'s cross-attention keys and values aren't set, or `x`'s rows
 /// aren't `group` per encoder row.
 pub fn norm_cross_attn_w_kv_cache(
-    norm: &Normalization,
+    norm: &Norm,
     mha: &MultiHeadAttention,
     x: Tensor<3>,
     cache: &KVCache,
@@ -344,7 +342,7 @@ mod tests {
         let (seq_len, cross_len) = (3, 17);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
 
         let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
@@ -364,7 +362,7 @@ mod tests {
         let (batch, d_model, n_heads, seq_len) = (1, 16, 2, 5);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
 
         let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
 
@@ -380,7 +378,7 @@ mod tests {
         let (batch, d_model, n_heads) = (1, 16, 2);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
 
         let x = Tensor::<3>::random([batch, 4, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, 9, d_model * 2], Distribution::Default, &device);
@@ -409,7 +407,7 @@ mod tests {
         let (batch, d_model, n_heads, seq) = (2, 32, 4, 5);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
 
         let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
 
@@ -445,7 +443,7 @@ mod tests {
         let (batch, d_model, n_heads, seq) = (1, 32, 4, 6);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
         let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
 
         // Prefill 4, then step the last 2.
@@ -494,7 +492,7 @@ mod tests {
         let (seq, cross_len) = (3, 17);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
 
         let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
@@ -524,7 +522,7 @@ mod tests {
         let rows = audio * group;
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
+        let ln = crate::blocks::norm::NormConfig::from(LayerNormConfig::new(d_model)).init(&device);
         let x = Tensor::<3>::random([rows, seq, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([audio, cross_len, d_model], Distribution::Default, &device);
 

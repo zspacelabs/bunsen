@@ -10,7 +10,6 @@ use burn::{
             Conv1d,
             Conv1dConfig,
         },
-        norm::NormalizationConfig,
     },
     prelude::Bool,
     tensor::{
@@ -23,9 +22,12 @@ use burn::{
 };
 
 use crate::{
-    blocks::conv::{
-        ConvBlock1d,
-        ConvBlock1dConfig,
+    blocks::{
+        conv::{
+            ConvBlock1d,
+            ConvBlock1dConfig,
+        },
+        norm::NormConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -85,7 +87,7 @@ impl ModuleInit<ConformerConvolution> for ConformerConvolutionConfig {
                     .with_padding(PaddingConfig1d::Explicit(pad, pad))
                     .with_bias(self.bias),
             )
-            .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(c))))
+            .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(c))))
             .with_act(None)
             .try_init(device)?,
             pointwise_conv2: Conv1dConfig::new(c, c, 1).with_bias(self.bias).init(device),

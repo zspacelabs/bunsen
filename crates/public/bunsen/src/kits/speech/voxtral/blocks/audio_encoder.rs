@@ -8,7 +8,6 @@ use burn::{
         activation::ActivationConfig,
         conv::Conv1dConfig,
         norm::{
-            NormalizationConfig,
             RmsNorm,
             RmsNormConfig,
         },
@@ -23,6 +22,7 @@ use crate::{
             ConvSeq1d,
             ConvSeq1dConfig,
         },
+        norm::NormConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             decoders::causal::{
@@ -164,7 +164,7 @@ impl VoxtralAudioEncoderConfig {
                 .with_down_bias(Some(true))
                 .into(),
         )
-        .with_norm(NormalizationConfig::Rms(
+        .with_norm(NormConfig::Rms(
             RmsNormConfig::new(0).with_epsilon(self.rms_eps),
         ))
     }

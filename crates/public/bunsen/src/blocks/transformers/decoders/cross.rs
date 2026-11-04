@@ -12,22 +12,24 @@ use burn::{
             MultiHeadAttention,
             MultiHeadAttentionConfig,
         },
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
     },
     prelude::Bool,
     tensor::Device,
 };
 
 use crate::{
-    blocks::transformers::{
-        encoders::residual::ResidualEncoderAttentionBlock,
-        mlp::{
-            Mlp,
-            MlpConfig,
-            norm_mlp,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
+        },
+        transformers::{
+            encoders::residual::ResidualEncoderAttentionBlock,
+            mlp::{
+                Mlp,
+                MlpConfig,
+                norm_mlp,
+            },
         },
     },
     burner::module::{
@@ -74,8 +76,8 @@ pub struct CrossDecoderBlockConfig {
 
     /// The normalization before each sublayer, sized to `d_model` whatever
     /// feature count it names: a `LayerNorm` by default, Whisper's.
-    #[config(default = "NormalizationConfig::Layer(LayerNormConfig::new(0))")]
-    pub norm: NormalizationConfig,
+    #[config(default = "NormConfig::Layer(LayerNormConfig::new(0))")]
+    pub norm: NormConfig,
 }
 
 impl CrossDecoderBlockMeta for CrossDecoderBlockConfig {
@@ -135,7 +137,7 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 ///
 /// Whisper's text decoder is a stack of these. The attention is burn's
 /// [`MultiHeadAttention`] (without a key bias), and the norms are any
-/// [`Normalization`], `LayerNorm`s by default: what the ported checkpoints
+/// [`Norm`], `LayerNorm`s by default: what the ported checkpoints
 /// hold. The fields are named by
 /// role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, `mlp_norm`,
 /// `mlp`.
@@ -149,19 +151,19 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 #[derive(Module, Debug)]
 pub struct CrossDecoderBlock {
     /// Attention Normalization.
-    pub attn_norm: Normalization,
+    pub attn_norm: Norm,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// Cross Attention Normalization.
-    pub cross_attn_norm: Normalization,
+    pub cross_attn_norm: Norm,
 
     /// Cross Attention.
     pub cross_attn: MultiHeadAttention,
 
     /// MLP Normalization.
-    pub mlp_norm: Normalization,
+    pub mlp_norm: Norm,
 
     /// MLP.
     pub mlp: Mlp,

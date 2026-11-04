@@ -8,11 +8,7 @@ use burn::{
         Initializer,
         Linear,
         LinearConfig,
-        norm::{
-            Normalization,
-            NormalizationConfig,
-            RmsNormConfig,
-        },
+        norm::RmsNormConfig,
     },
     prelude::{
         Bool,
@@ -23,7 +19,13 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::embedding::RotaryEmbedding,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
+        },
+        transformers::embedding::RotaryEmbedding,
+    },
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -77,8 +79,8 @@ pub struct CausalSelfAttentionConfig {
 
     /// The query/key normalization (QK-norm), sized to `head_dim` whatever
     /// feature count it names; `None` normalizes nothing, and builds no norm.
-    #[config(default = "Some(NormalizationConfig::Rms(RmsNormConfig::new(0)))")]
-    pub norm: Option<NormalizationConfig>,
+    #[config(default = "Some(NormConfig::Rms(RmsNormConfig::new(0)))")]
+    pub norm: Option<NormConfig>,
 
     /// The width of each head; `None` is `n_embed / n_head`.
     ///
@@ -168,7 +170,7 @@ impl QkNormPlacement {
     pub fn apply(
         self,
         x: Tensor<4>,
-        norm: Option<&Normalization>,
+        norm: Option<&Norm>,
         r_emb: &RotaryEmbedding,
     ) -> Tensor<4> {
         let Some(norm) = norm else {
@@ -343,13 +345,13 @@ pub struct CausalSelfAttention {
     pub c_q: Linear,
 
     /// Query Normalization; `None` without QK-norm.
-    pub q_norm: Option<Normalization>,
+    pub q_norm: Option<Norm>,
 
     /// Key Linear.
     pub c_k: Linear,
 
     /// Key Normalization; `None` without QK-norm.
-    pub k_norm: Option<Normalization>,
+    pub k_norm: Option<Norm>,
 
     /// Value Linear.
     pub c_v: Linear,

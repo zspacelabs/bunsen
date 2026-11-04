@@ -105,7 +105,7 @@ impl ModuleInit<EncoderTransformer> for EncoderTransformerConfig {
 
 /// A bidirectional encoder stack, whichever its config chose: the generic
 /// encoder a model holds when the stack is a choice, as
-/// [`Normalization`](burn::nn::norm::Normalization) is for a norm.
+/// [`Norm`](crate::blocks::norm::Norm) is for a norm.
 ///
 /// Every variant keeps the frame rate and shares one contract,
 /// [`forward`](Self::forward): `[batch, frames, d_model]` in and out, each

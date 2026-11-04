@@ -14,7 +14,6 @@ use burn::{
         PaddingConfig2d,
         activation::ActivationConfig,
         conv::Conv2dConfig,
-        norm::NormalizationConfig,
         pool::{
             AdaptiveAvgPool2d,
             AdaptiveAvgPool2dConfig,
@@ -30,9 +29,12 @@ use burn::{
 };
 
 use crate::{
-    blocks::conv::{
-        ConvBlock2d,
-        ConvBlock2dConfig,
+    blocks::{
+        conv::{
+            ConvBlock2d,
+            ConvBlock2dConfig,
+        },
+        norm::NormConfig,
     },
     burner::module::{
         Indices,
@@ -105,8 +107,8 @@ pub struct ResNetContractConfig {
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
-    #[config(default = "NormalizationConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: NormalizationConfig,
+    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: NormConfig,
 
     /// Activation config.
     #[config(default = "ActivationConfig::Relu")]
