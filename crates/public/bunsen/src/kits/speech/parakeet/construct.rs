@@ -221,9 +221,10 @@ impl ParakeetConstruct {
                 data[row * longest..row * longest + (b - a)].copy_from_slice(&samples[a..b]);
             }
             let lengths: Vec<usize> = group.iter().map(|(a, b)| b - a).collect();
+            // The front end computes in f32, whatever the device's default.
             let waveforms = Tensor::<2>::from_data(
                 burn::prelude::TensorData::new(data, [group.len(), longest]),
-                device,
+                (device, burn::tensor::DType::F32),
             );
             for (transcript, &(a, _)) in self
                 .transcribe(waveforms, Some(&lengths))?
