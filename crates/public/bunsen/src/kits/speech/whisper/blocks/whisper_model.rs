@@ -4,8 +4,8 @@ use burn::{
     module::Module,
     prelude::Int,
     tensor::{
-        DType,
         Device,
+        FloatDType,
     },
 };
 
@@ -16,8 +16,10 @@ use super::{
 };
 use crate::{
     burner::module::{
-        HasDType,
+        CoercesInput,
+        InputDTypes,
         ModuleInit,
+        ResultDType,
         ToStructureConfig,
     },
     errors::{
@@ -290,7 +292,7 @@ impl WhisperMeta for Whisper {
     }
 }
 
-impl HasDType for Whisper {
+impl InputDTypes for Whisper {
     /// The dtype the model's parameters were loaded in, and so the one it
     /// computes in. `OpenAI`'s checkpoints ship in fp16.
     ///
@@ -306,13 +308,30 @@ impl HasDType for Whisper {
     /// If the encoder and the decoder are at different precisions. No
     /// checkpoint ships that and no loader here produces it; only mapping
     /// one half on its own can.
-    fn dtype(&self) -> DType {
-        let (encoder, decoder) = (self.encoder.dtype(), self.decoder.dtype());
+    fn preferred_dtype(&self) -> FloatDType {
+        let (encoder, decoder) = (
+            self.encoder.preferred_dtype(),
+            self.decoder.preferred_dtype(),
+        );
         assert_eq!(
             encoder, decoder,
             "the encoder and the decoder are at different precisions",
         );
         encoder
+    }
+}
+
+/// [`forward`](Whisper::forward) casts its log-mels, as the encoder does.
+impl CoercesInput for Whisper {}
+
+impl ResultDType for Whisper {
+    /// The backend's default float, whatever the input's: the logits are the
+    /// decoder's ([`TextDecoder`]'s [`ResultDType`]).
+    fn result_dtype(
+        &self,
+        input: FloatDType,
+    ) -> FloatDType {
+        self.decoder.result_dtype(input)
     }
 }
 
@@ -341,9 +360,10 @@ impl Whisper {
     ///   float dtype; the mel front end works in the backend's default.
     ///
     /// # Returns
-    /// `[batch, seq, n_audio_states]`, in the model's [`dtype`](Self::dtype)
-    /// — these features feed the decoder and its cross-attention cache, and
-    /// are not an interface value. See [`AudioEncoder::forward`].
+    /// `[batch, seq, n_audio_states]`, in the model's
+    /// [`preferred_dtype`](InputDTypes::preferred_dtype) — these features feed
+    /// the decoder and its cross-attention cache, and are not an interface
+    /// value. See [`AudioEncoder::forward`].
     pub fn forward_encoder(
         &self,
         mel: Tensor<3>,
@@ -371,7 +391,10 @@ impl Whisper {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Distribution;
+    use burn::tensor::{
+        DType,
+        Distribution,
+    };
     use serial_test::serial;
 
     use super::*;
@@ -503,10 +526,14 @@ mod tests {
         let model: Whisper = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
             .try_init(&device)
             .unwrap();
-        assert_eq!(model.dtype(), float, "init builds at the backend's float");
+        assert_eq!(
+            DType::from(model.preferred_dtype()),
+            float,
+            "init builds at the backend's float"
+        );
 
         let half = model.map(&mut DTypeMapper::new(DType::F16));
-        assert_eq!(half.dtype(), DType::F16);
+        assert_eq!(half.preferred_dtype(), FloatDType::F16);
 
         // The mel front end's output: the backend's float, not the model's.
         let mel: Tensor<3> = Tensor::random([1, 8, 16], Distribution::Default, &device);

@@ -14,9 +14,9 @@ use burn::{
     },
     prelude::s,
     tensor::{
-        DType,
         Device,
         Distribution,
+        FloatDType,
     },
 };
 
@@ -36,8 +36,10 @@ use crate::{
         },
     },
     burner::module::{
-        HasDType,
+        CoercesInput,
+        InputDTypes,
         ModuleInit,
+        ResultDType,
     },
     errors::BunsenResult,
 };
@@ -204,9 +206,26 @@ impl AudioEncoderMeta for AudioEncoder {
     }
 }
 
-impl HasDType for AudioEncoder {
-    fn dtype(&self) -> DType {
-        self.positional_embedding.dtype()
+impl InputDTypes for AudioEncoder {
+    /// The dtype its parameters were loaded in, and so the one it computes
+    /// in.
+    fn preferred_dtype(&self) -> FloatDType {
+        FloatDType::from(self.positional_embedding.dtype())
+    }
+}
+
+/// [`forward`](AudioEncoder::forward) casts its mel input
+/// ([`forward_head`](AudioEncoder::forward_head)).
+impl CoercesInput for AudioEncoder {}
+
+impl ResultDType for AudioEncoder {
+    /// Its own, whatever the input's: the features stay in the model's dtype
+    /// ([`forward`](AudioEncoder::forward)).
+    fn result_dtype(
+        &self,
+        _input: FloatDType,
+    ) -> FloatDType {
+        self.preferred_dtype()
     }
 }
 
@@ -216,11 +235,12 @@ impl AudioEncoder {
     /// # Arguments
     /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`, in any float
     ///   dtype. The mel front end works in the backend's default float;
-    ///   [`forward_head`](Self::forward_head) casts to [`dtype`](Self::dtype).
+    ///   [`forward_head`](Self::forward_head) casts to
+    ///   [`preferred_dtype`](InputDTypes::preferred_dtype).
     ///
     /// # Returns
     /// `[batch, seq, n_audio_states]`, in the encoder's
-    /// [`dtype`](Self::dtype).
+    /// [`preferred_dtype`](InputDTypes::preferred_dtype).
     ///
     /// These features are not an interface value: they are the decoder's
     /// input, and the source of its cross-attention cache. Widening them
@@ -245,8 +265,8 @@ impl AudioEncoder {
     /// Forward pass through the audio encoder head.
     ///
     /// The encoder's one tensor entry point: `x` is cast to
-    /// [`dtype`](Self::dtype) here, and everything downstream of it is in
-    /// the model's precision.
+    /// [`preferred_dtype`](InputDTypes::preferred_dtype) here, and everything
+    /// downstream of it is in the model's precision.
     ///
     /// # Arguments
     /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`, in any float
@@ -258,7 +278,7 @@ impl AudioEncoder {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        let x = x.cast(self.dtype());
+        let x = self.coerce_input(x);
 
         #[cfg(any(debug_assertions, test))]
         let [batch] = crate::contracts::unpack_shape_contract!(
@@ -367,5 +387,32 @@ mod tests {
             &output,
             &[("batch", batch), ("seq", k / 2), ("d_model", d_model),],
         );
+    }
+
+    /// The encoder coerces its mel input: an f32 input to an f16 encoder
+    /// gives what an f16 input does.
+    #[test]
+    fn test_encoder_coerces_its_input() {
+        use burn::{
+            module::Module,
+            tensor::{
+                DType,
+                Distribution,
+            },
+        };
+
+        use crate::{
+            burner::module::DTypeMapper,
+            support::testing::{
+                assert_coerces_input,
+                cpu_device,
+            },
+        };
+
+        let device = cpu_device();
+        let encoder: AudioEncoder = AudioEncoderConfig::new(8, 64, 16, 1).init(&device);
+        let encoder = encoder.map(&mut DTypeMapper::new(DType::F16));
+        let mel: Tensor<3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
+        assert_coerces_input(&encoder, mel, |e, x| e.forward(x), 0.0);
     }
 }

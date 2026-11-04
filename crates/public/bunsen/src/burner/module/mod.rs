@@ -12,8 +12,11 @@
 //!   lowers an upper policy config of a Stacked Config family to its structure
 //!   config, and a blanket impl gives every implementor `ModuleInit` through
 //!   that structure.
+//! - [`InputDTypes`], [`CoercesInput`], [`ResultDType`] and [`DTypeWrapped`]
+//!   &mdash; a block's float dtypes: the one it computes in and casts its
+//!   inputs to, and the one its output is in (see [`InputDTypes`]).
 //! - [`HasDType`] &mdash; reports the [`DType`](burn::tensor::DType) a value
-//!   works in, such as the precision a model's parameters were loaded at.
+//!   that is not a block works in: a simulation's state, a dynamic tensor.
 //! - [`DTypeMapper`] &mdash; a [`ModuleMapper`](burn::module::ModuleMapper)
 //!   that casts every float parameter of a built module to one `DType`
 //!   (`model.map(&mut DTypeMapper::new(DType::F16))`).
@@ -28,12 +31,14 @@
 #[cfg(feature = "reflection")]
 pub mod reflection;
 
+mod dtype_traits;
 mod has_dtype;
 mod module_init;
 mod rekey;
 mod to_structure_config;
 mod type_mapper;
 
+pub use dtype_traits::*;
 pub use has_dtype::*;
 pub use module_init::*;
 pub use rekey::*;

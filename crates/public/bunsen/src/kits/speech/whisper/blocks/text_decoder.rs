@@ -14,9 +14,9 @@ use burn::{
     prelude::s,
     tensor::{
         Bool,
-        DType,
         Device,
         Distribution,
+        FloatDType,
         Int,
     },
 };
@@ -30,8 +30,10 @@ use crate::{
     },
     burner::{
         module::{
-            HasDType,
+            CoercesInput,
+            InputDTypes,
             ModuleInit,
+            ResultDType,
         },
         tensor::device_float_dtype,
     },
@@ -215,9 +217,27 @@ impl TextDecoderMeta for TextDecoder {
     }
 }
 
-impl HasDType for TextDecoder {
-    fn dtype(&self) -> DType {
-        self.token_embedding.weight.dtype()
+impl InputDTypes for TextDecoder {
+    /// The dtype its parameters were loaded in, and so the one it computes
+    /// in, its caches included.
+    fn preferred_dtype(&self) -> FloatDType {
+        FloatDType::from(self.token_embedding.weight.dtype())
+    }
+}
+
+/// [`forward`](TextDecoder::forward) and the cache builder cast the encoder
+/// features they are given.
+impl CoercesInput for TextDecoder {}
+
+impl ResultDType for TextDecoder {
+    /// The backend's default float ([`device_float_dtype`]), whatever the
+    /// input's: the logits are the model's outward edge
+    /// ([`forward`](TextDecoder::forward)).
+    fn result_dtype(
+        &self,
+        _input: FloatDType,
+    ) -> FloatDType {
+        FloatDType::from(device_float_dtype(&self.token_embedding.weight.device()))
     }
 }
 
@@ -227,7 +247,7 @@ impl TextDecoder {
     /// # Arguments
     /// * `x`: `[batch, seq]` token ids.
     /// * `xa`: `[batch, seq, d_model]` encoder features, in any float dtype;
-    ///   cast to [`dtype`](Self::dtype) here.
+    ///   cast to [`preferred_dtype`](InputDTypes::preferred_dtype) here.
     ///
     /// # Returns
     /// `[batch, seq, n_vocab]` logits, in the backend's default float
@@ -243,7 +263,7 @@ impl TextDecoder {
         x: Tensor<2, Int>,
         xa: Tensor<3>,
     ) -> Tensor<3> {
-        let xa = xa.cast(self.dtype());
+        let xa = self.coerce_input(xa);
 
         let [_batch, seq_len] = x.dims();
         assert!(
@@ -285,7 +305,8 @@ impl TextDecoder {
     ///
     /// # Arguments
     /// * `xa`: `[batch, cross_len, d_model]` encoder output, in any float
-    ///   dtype; the cache is built in [`dtype`](Self::dtype).
+    ///   dtype; the cache is built in
+    ///   [`preferred_dtype`](InputDTypes::preferred_dtype).
     pub fn new_cache(
         &self,
         xa: Tensor<3>,
@@ -314,7 +335,7 @@ impl TextDecoder {
         // state and are scored against this decoder's weights on every step,
         // so they are built in the decoder's precision whatever the caller
         // handed in.
-        let xa = xa.cast(self.dtype());
+        let xa = self.coerce_input(xa);
 
         let mut cache = self
             .kv_cache_config()
@@ -416,7 +437,10 @@ impl TextDecoder {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::TensorData;
+    use burn::tensor::{
+        DType,
+        TensorData,
+    };
     use serial_test::serial;
 
     use super::*;
@@ -598,7 +622,7 @@ mod tests {
         let float = device_float_dtype(&device);
         let decoder: TextDecoder = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
         let decoder = decoder.map(&mut DTypeMapper::new(DType::F16));
-        assert_eq!(decoder.dtype(), DType::F16);
+        assert_eq!(decoder.preferred_dtype(), FloatDType::F16);
 
         // Features at the *caller's* precision, as a caller that widened
         // them, or built them by hand, would have.
@@ -658,5 +682,31 @@ mod tests {
         first
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&second.to_data_as::<F>(), Tolerance::permissive());
+    }
+
+    /// The decoder coerces the encoder features it is given: f32 features to
+    /// an f16 decoder give what f16 ones do, and the logits are the
+    /// backend's float either way.
+    #[test]
+    fn test_decoder_coerces_its_features() {
+        use burn::{
+            module::Module,
+            tensor::Distribution,
+        };
+
+        use crate::{
+            burner::module::DTypeMapper,
+            support::testing::{
+                assert_coerces_input,
+                cpu_device,
+            },
+        };
+
+        let device = cpu_device();
+        let decoder: TextDecoder = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
+        let decoder = decoder.map(&mut DTypeMapper::new(DType::F16));
+        let tokens = Tensor::<2, Int>::from_data([[1i64, 2, 3]], &device);
+        let xa: Tensor<3> = Tensor::random([1, 4, 128], Distribution::Default, &device);
+        assert_coerces_input(&decoder, xa, |d, xa| d.forward(tokens.clone(), xa), 0.0);
     }
 }

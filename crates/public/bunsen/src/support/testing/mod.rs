@@ -106,11 +106,13 @@
 mod common_assertions;
 mod common_devices;
 mod device_memory;
+mod dtype_assertions;
 mod seeded;
 mod tensor_record;
 
 pub use common_assertions::*;
 pub use common_devices::*;
 pub use device_memory::*;
+pub use dtype_assertions::*;
 pub use seeded::*;
 pub use tensor_record::*;
