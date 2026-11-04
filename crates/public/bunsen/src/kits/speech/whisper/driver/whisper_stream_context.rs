@@ -109,7 +109,10 @@ impl WhisperEngine {
         let width = self.window_frames();
         let [_, n_mels, have] = packaged.dims();
         if have < width {
-            let pad = Tensor::zeros([1, n_mels, width - have], &packaged.device());
+            let pad = Tensor::zeros(
+                [1, n_mels, width - have],
+                (&packaged.device(), packaged.dtype()),
+            );
             Tensor::cat(vec![packaged, pad], 2)
         } else {
             packaged

@@ -538,14 +538,38 @@ impl SileroVadMeta for SileroVad {
     }
 }
 
+impl crate::burner::module::InputDTypes for SileroVad {
+    /// Its STFT's dtype: the dtype its parameters were loaded in, which its
+    /// chunks and recurrent state take.
+    fn preferred_dtype(&self) -> burn::tensor::FloatDType {
+        burn::tensor::FloatDType::from(self.stft.weight.val().dtype())
+    }
+}
+
+impl crate::burner::module::ResultDType for SileroVad {
+    /// Its own: the probabilities are in the model's dtype.
+    fn result_dtype(
+        &self,
+        _input: burn::tensor::FloatDType,
+    ) -> burn::tensor::FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(self)
+    }
+}
+
 impl SileroVad {
-    /// Allocates a zeroed recurrent state of shape `[2, batch, d_hidden]`.
+    /// Allocates a zeroed recurrent state of shape `[2, batch, d_hidden]`,
+    /// in the model's dtype.
     pub fn init_state(
         &self,
         batch: usize,
         device: &Device,
     ) -> Tensor<3> {
-        Tensor::zeros([2, batch, self.d_hidden()], device)
+        Tensor::zeros([2, batch, self.d_hidden()], (device, self.state_dtype()))
+    }
+
+    /// The dtype a context's tensors take: the model's.
+    fn state_dtype(&self) -> burn::tensor::DType {
+        crate::burner::module::InputDTypes::preferred_dtype(self).into()
     }
 
     /// Construct an initial continuation context: a zero tail of
@@ -565,7 +589,7 @@ impl SileroVad {
         assert_context_size(context_size);
         SileroVadContext {
             sample_rate: self.sample_rate(),
-            context: Tensor::zeros([batch, context_size], device),
+            context: Tensor::zeros([batch, context_size], (device, self.state_dtype())),
             state: self.init_state(batch, device),
         }
     }

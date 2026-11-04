@@ -255,11 +255,12 @@ impl AsrEngine for ParakeetEngine {
                 let frames = r.window.dims()[1];
                 let features = normalize(&self.bundle.front_end, r.window, &r.level);
                 let [n_mels, _] = features.dims();
+                let dtype = features.dtype();
                 let features = if frames < longest {
                     Tensor::cat(
                         vec![
                             features,
-                            Tensor::zeros([n_mels, longest - frames], &self.device),
+                            Tensor::zeros([n_mels, longest - frames], (&self.device, dtype)),
                         ],
                         1,
                     )

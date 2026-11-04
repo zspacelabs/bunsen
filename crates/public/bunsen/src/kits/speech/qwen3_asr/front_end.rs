@@ -151,7 +151,11 @@ impl Qwen3AsrFrontEnd {
         let n = samples.len().max(self.min_samples());
         let mut padded = samples.to_vec();
         padded.resize(n, 0.0);
-        let wave = Tensor::<2>::from_data(TensorData::new(padded, [1, n]), device);
+        // The front end computes in f32, whatever the device's default.
+        let wave = Tensor::<2>::from_data(
+            TensorData::new(padded, [1, n]),
+            (device, burn::tensor::DType::F32),
+        );
         let (mels, context) = self.converter.new_context(1).transform(wave)?;
         let joined = match context.finish() {
             Some(tail) => Tensor::cat(vec![mels, tail], 1),

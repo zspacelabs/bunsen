@@ -85,10 +85,14 @@ impl LogMelFeatures {
             return Ok(None);
         }
 
-        // `from_data` converts to the device's float dtype, so the samples
-        // go up as they are.
+        // The front end computes in f32, its STFT and mel filters a DSP's
+        // precision, whatever the device's default float; the model casts
+        // the features to its own dtype (`CoercesInput`).
         let chunk: Vec<f32> = self.staging.drain(..whole).collect();
-        let waves: Tensor<2> = Tensor::from_data(TensorData::new(chunk, [1, whole]), &self.device);
+        let waves: Tensor<2> = Tensor::from_data(
+            TensorData::new(chunk, [1, whole]),
+            (&self.device, burn::tensor::DType::F32),
+        );
 
         let ctx = self
             .context

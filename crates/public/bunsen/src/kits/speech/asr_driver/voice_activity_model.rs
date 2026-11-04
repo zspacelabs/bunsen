@@ -92,8 +92,13 @@ impl VoiceActivityStream for SileroVadStream {
             return Vec::new();
         }
         let device = self.model.devices()[0].clone();
-        let chunks: Tensor<3> =
-            Tensor::from_data(TensorData::new(samples, [steps, 1, chunk]), &device);
+        // The chunks in the model's own dtype, whatever the device's default
+        // float.
+        let dtype = crate::burner::module::InputDTypes::preferred_dtype(&self.model);
+        let chunks: Tensor<3> = Tensor::from_data(
+            TensorData::new(samples, [steps, 1, chunk]),
+            (&device, burn::tensor::DType::from(dtype)),
+        );
 
         let context = self.context.take().expect("present between steps");
         let (probs, context) = self.model.context_forward_sequence(chunks, context);
@@ -144,5 +149,28 @@ mod tests {
         for (a, b) in parts.iter().zip(&whole) {
             assert!((a - b).abs() < 1e-5, "{a} != {b}");
         }
+    }
+
+    /// A half model streams: the chunks go up in the model's dtype, not the
+    /// device's default float (the CPU backend refuses a mixed op), and the
+    /// probabilities read back as f32.
+    #[test]
+    fn test_silero_streams_in_its_own_dtype() {
+        use burn::tensor::DType;
+
+        use crate::burner::module::DTypeMapper;
+
+        let device = cpu_device();
+        device.seed(7);
+        let model: SileroVad = SileroVadSignalConfig::standard_16khz().init(&device);
+        let half = model.map(&mut DTypeMapper::new(DType::BF16));
+        let chunk = VoiceActivityModel::chunk_size(&half);
+        let path = bunsen_test_audio::JFK_MOON_4S.path();
+        let mut samples = load_audio_mono_sr(&path, 16_000).unwrap();
+        samples.truncate(8 * chunk);
+
+        let probs = half.new_stream().probabilities(samples);
+        assert_eq!(probs.len(), 8);
+        assert!(probs.iter().all(|p| (0.0..=1.0).contains(p)), "{probs:?}");
     }
 }

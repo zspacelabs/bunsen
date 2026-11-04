@@ -175,9 +175,11 @@ impl TdtPredictionNetwork {
         device: &Device,
     ) -> TdtPredictionState {
         let shape = [self.n_layers(), batch, self.d_pred()];
+        // In the network's own dtype, whatever the device's default float.
+        let dtype = self.embedding.weight.val().dtype();
         TdtPredictionState {
-            hidden: Tensor::zeros(shape, device),
-            cell: Tensor::zeros(shape, device),
+            hidden: Tensor::zeros(shape, (device, dtype)),
+            cell: Tensor::zeros(shape, (device, dtype)),
         }
     }
 
