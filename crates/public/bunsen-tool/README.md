@@ -749,7 +749,7 @@ bunsen-tool chat family (qwen3|nanochat) (list|fetch|run|repl) [FLAGS]   # one f
 cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
 cargo run --release -p bunsen-tool --features wgpu -- chat repl --model qwen3-4b-instruct-2507 --stats
 cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
-cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda --precision half
+cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda
 ```
 
 Outside `family`, the name `--model` gives picks the family, and Qwen3's default (`qwen/qwen3-0.6b`) is the default.
@@ -762,6 +762,7 @@ The families:
 
 Each family takes only the flags that apply to it: thinking (`--think`, `--no-think`, `--show-thinking`) is Qwen3's.
 Sampling follows the checkpoint's generation defaults; `--greedy`, `--temperature`, `--top-k`, `--top-p` and `--seed`
-override them. `--precision half` runs in bf16 where the device does (cuda, metal), the dtype Qwen3 ships and
-nanochat trains in; f16 overflows Qwen3. `--context` sizes the KV cache (the checkpoint's trained length by default),
+override them. A checkpoint loads at the precision it ships in where the device accelerates it, else in f32: Qwen3's
+bf16 on cuda and metal, f32 on vulkan, wgpu and the CPU; `bunsen-tool devices` shows what a device accelerates.
+`--context` sizes the KV cache (the checkpoint's trained length by default),
 `--kv-storage` picks how it stores its history, and `--stats` prints, after each reply, the model's lookup expression (its name with the presets the flags add), then the reply's token counts and speeds.
