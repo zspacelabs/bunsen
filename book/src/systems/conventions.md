@@ -157,8 +157,8 @@ The crate's Stacked families show the variations:
   [`UniformStackConfig`](bunsen::blocks::transformers::decoders::stack::UniformStackConfig)
   repeats one layer config, and
   [`PatternedStackConfig`](bunsen::blocks::transformers::decoders::stack::PatternedStackConfig)
-  picks each layer's from a few kinds (a sliding-window layer among full
-  ones, say). Both lower to
+  picks each layer's from a few kinds (Gemma 3's five sliding-window layers
+  to each full one). Both lower to
   [`DecoderStackStructureConfig`](bunsen::blocks::transformers::decoders::stack::DecoderStackStructureConfig),
   one block config per layer, which a kit with its own per-layer rules
   (nanochat's window pattern and value embeddings) builds directly.
