@@ -197,7 +197,7 @@ fn upload_batches(
 
 /// [`apply_named_tensors`] under a [`Rekey`]: each tensor loads where the
 /// map sends it, and its data first changes as the map says
-/// ([`Rekey::transform`]), on the host, before the store's adapter.
+/// ([`Rekey::adapt`]), on the host, before the store's adapter.
 ///
 /// A transformed tensor is read whole at that point; the others stay as
 /// lazy as their source.
@@ -288,6 +288,7 @@ pub fn apply_rekeyed_tensors_as<M: ModuleSnapshot>(
             Some(Target {
                 path,
                 transform: None,
+                ..
             }) => {
                 tensor.name = path;
                 placed.push(tensor);
@@ -295,6 +296,7 @@ pub fn apply_rekeyed_tensors_as<M: ModuleSnapshot>(
             Some(Target {
                 path,
                 transform: Some(f),
+                ..
             }) => {
                 let (name, param_id) = (tensor.name.clone(), tensor.param_id);
                 let data = burn::store::bridge::into_data(tensor).map_err(|e| {

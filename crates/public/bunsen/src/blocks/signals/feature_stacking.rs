@@ -11,15 +11,10 @@ use burn::{
 };
 
 use crate::{
-    burner::{
-        module::{
-            ModuleInit,
-            Rekey,
-        },
-        tensor::{
-            permute_data,
-            reshape_data,
-        },
+    burner::module::{
+        Adapter,
+        ModuleInit,
+        Rekey,
     },
     contracts::unpack_shape_contract,
     errors::{
@@ -84,11 +79,7 @@ pub trait FeatureStackingMeta {
             StackOrder::FramesFeatures => (k, d),
             StackOrder::FeaturesFrames => (d, k),
         };
-        rekey.transform("projection.weight", move |data| {
-            let out = data.shape().num_elements() / (a * b);
-            let data = reshape_data(data, vec![out, a, b]);
-            reshape_data(permute_data(data, &[0, 2, 1]), vec![out, b * a])
-        })
+        rekey.adapt("projection.weight", Adapter::regroup_columns(a, b))
     }
 }
 

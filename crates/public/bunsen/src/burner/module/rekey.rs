@@ -10,11 +10,16 @@ use std::{
     sync::Arc,
 };
 
-use burn::tensor::TensorData;
-
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    burner::module::{
+        Adapter,
+        Select,
+        TensorTransform,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// A map from a checkpoint's tensor names (a `transformers` or `NeMo` state
@@ -37,11 +42,13 @@ use crate::errors::{
 /// the map it is mounted in, as if the mount had not claimed it
 /// ([`pass_rest`](Self::pass_rest)).
 ///
-/// A map can also say how a tensor's data changes on the way
-/// ([`transform`](Self::transform)): for a weight whose axes follow a layout
-/// the checkpoint's module chose differently from the block that loads it.
-/// [`target`](Self::target) gives the path and that transform together; a
-/// mounted map's transforms come along with its paths.
+/// A map can also say how a tensor's data changes on the way, by named
+/// [`Adapter`]s on the paths a [`Select`] picks ([`adapt`](Self::adapt)):
+/// a weight whose axes follow a layout the checkpoint's module chose
+/// differently from the block that loads it, or a norm gain stored as
+/// `w` for `1 + w`. [`target`](Self::target) gives the path and the change
+/// together, and names its adapters; a mounted map's adapters come along
+/// with its paths.
 ///
 /// ```rust
 /// use bunsen::burner::module::Rekey;
@@ -73,7 +80,7 @@ use crate::errors::{
 #[derive(Clone)]
 pub struct Rekey {
     rules: Vec<Rule>,
-    transforms: Vec<(String, TensorTransform)>,
+    adapters: Vec<(Select, Adapter)>,
     unclaimed: Unclaimed,
 }
 
@@ -111,18 +118,17 @@ pub enum Indices {
 /// What a [`Rekey::custom`] rule says of a name.
 pub type Claim = Option<Option<String>>;
 
-/// A change to a tensor's data as it loads: a permute or reshape on the
-/// host, applied before the store's own adapter.
-pub type TensorTransform = Arc<dyn Fn(TensorData) -> TensorData + Send + Sync>;
-
 /// Where a checkpoint's tensor loads, and how its data changes on the way.
 #[derive(Clone)]
 pub struct Target {
     /// The module path.
     pub path: String,
 
-    /// The change to its data, if any.
+    /// The change to its data, if any: its adapters', composed in order.
     pub transform: Option<TensorTransform>,
+
+    /// The adapters that make the change, by name, in order.
+    pub adapters: Vec<String>,
 }
 
 impl fmt::Debug for Target {
@@ -132,7 +138,7 @@ impl fmt::Debug for Target {
     ) -> fmt::Result {
         f.debug_struct("Target")
             .field("path", &self.path)
-            .field("transform", &self.transform.is_some())
+            .field("adapters", &self.adapters)
             .finish()
     }
 }
@@ -147,8 +153,8 @@ pub struct RekeyPlan {
     /// Each module path more than one name loads into, with those names.
     pub collisions: Vec<(String, Vec<String>)>,
 
-    /// The module paths of transforms no name reached: a map that names a
-    /// path its own rules never produce.
+    /// The adapters no name reached, each as `path (adapter)`: a map that
+    /// adapts a path its own rules never produce.
     pub orphan_transforms: Vec<String>,
 
     /// Rules that claimed no name, as written: shadowed by an earlier rule,
@@ -194,7 +200,7 @@ impl RekeyPlan {
         details.extend(
             self.orphan_transforms
                 .iter()
-                .map(|path| format!("transform for {path}: no name loads there")),
+                .map(|orphan| format!("adapter for {orphan}: no name loads there")),
         );
         details.extend(
             self.index_conflicts
@@ -202,7 +208,7 @@ impl RekeyPlan {
                 .map(|conflict| format!("indices: {conflict}")),
         );
         Err(BunsenError::invalid_resource(format!(
-            "the key map loads {} paths from more than one name, has {} transforms no name \
+            "the key map loads {} paths from more than one name, has {} adapters no name \
              reaches, and {} stacks whose indices do not match the module's",
             self.collisions.len(),
             self.orphan_transforms.len(),
@@ -230,7 +236,7 @@ fn prefixed(
 ) -> Target {
     Target {
         path: format!("{prefix}{}", target.path),
-        transform: target.transform,
+        ..target
     }
 }
 
@@ -238,6 +244,7 @@ fn plain(path: String) -> Target {
     Target {
         path,
         transform: None,
+        adapters: Vec::new(),
     }
 }
 
@@ -318,8 +325,8 @@ fn rule_addr(rule: &Rule) -> usize {
     std::ptr::from_ref(rule) as usize
 }
 
-fn transform_addr(f: &TensorTransform) -> usize {
-    Arc::as_ptr(f).cast::<()>() as usize
+fn adapter_addr(adapter: &Adapter) -> usize {
+    Arc::as_ptr(&adapter.transform()).cast::<()>() as usize
 }
 
 impl Rule {
@@ -403,7 +410,7 @@ impl Rekey {
     pub fn keep_rest() -> Self {
         Self {
             rules: Vec::new(),
-            transforms: Vec::new(),
+            adapters: Vec::new(),
             unclaimed: Unclaimed::Keep,
         }
     }
@@ -413,7 +420,7 @@ impl Rekey {
     pub fn drop_rest() -> Self {
         Self {
             rules: Vec::new(),
-            transforms: Vec::new(),
+            adapters: Vec::new(),
             unclaimed: Unclaimed::Drop,
         }
     }
@@ -426,7 +433,7 @@ impl Rekey {
     pub fn pass_rest() -> Self {
         Self {
             rules: Vec::new(),
-            transforms: Vec::new(),
+            adapters: Vec::new(),
             unclaimed: Unclaimed::Pass,
         }
     }
@@ -533,15 +540,16 @@ impl Rekey {
         self.with(Rule::Custom(Arc::new(f)))
     }
 
-    /// Changes the data of the tensor this map sends to `path` (a module
-    /// path, relative to this map) by `f`: after any change a mounted map
-    /// made to it.
-    pub fn transform(
+    /// Changes the data of the tensors this map sends to the paths `select`
+    /// picks (module paths, relative to this map) by `adapter`: after any
+    /// change a mounted map made to them, and after this map's earlier
+    /// adapters of the same path.
+    pub fn adapt(
         mut self,
-        path: impl Into<String>,
-        f: impl Fn(TensorData) -> TensorData + Send + Sync + 'static,
+        select: impl Into<Select>,
+        adapter: Adapter,
     ) -> Self {
-        self.transforms.push((path.into(), Arc::new(f)));
+        self.adapters.push((select.into(), adapter));
         self
     }
 
@@ -580,25 +588,24 @@ impl Rekey {
         Some(claimed.map(|target| self.with_own_transform(target, &mut cx.trace)))
     }
 
-    /// `target`, with this map's transform for its path composed after any
-    /// it already carries.
+    /// `target`, with this map's adapters for its path composed after any
+    /// change it already carries.
     fn with_own_transform(
         &self,
         target: Target,
         trace: &mut Trace,
     ) -> Target {
-        let own = self
-            .transforms
+        let mut target = target;
+        for (_, adapter) in self
+            .adapters
             .iter()
-            .find(|(path, _)| *path == target.path)
-            .map(|(_, f)| {
-                trace.transforms.insert(transform_addr(f));
-                f.clone()
-            });
-        Target {
-            transform: compose(target.transform, own),
-            path: target.path,
+            .filter(|(select, _)| select.matches(&target.path))
+        {
+            trace.transforms.insert(adapter_addr(adapter));
+            target.transform = compose(target.transform, Some(adapter.transform()));
+            target.adapters.push(adapter.name().to_string());
         }
+        target
     }
 
     /// The module path `name` loads into, or `None` to drop it.
@@ -767,9 +774,9 @@ impl Rekey {
         rules: &mut Vec<String>,
         transforms: &mut Vec<String>,
     ) {
-        for (path, f) in &self.transforms {
-            if !trace.transforms.contains(&transform_addr(f)) {
-                transforms.push(format!("{to_prefix}{path}"));
+        for (select, adapter) in &self.adapters {
+            if !trace.transforms.contains(&adapter_addr(adapter)) {
+                transforms.push(format!("{to_prefix}{select} ({})", adapter.name()));
             }
         }
         for rule in &self.rules {
@@ -816,7 +823,7 @@ impl fmt::Debug for Rekey {
     ) -> fmt::Result {
         f.debug_struct("Rekey")
             .field("rules", &self.rules.len())
-            .field("transforms", &self.transforms.len())
+            .field("adapters", &self.adapters.len())
             .field("unclaimed", &self.unclaimed)
             .finish()
     }
@@ -892,7 +899,7 @@ mod tests {
                 let n: usize = n.parse().ok()?;
                 Some((n > 0).then(|| format!("blocks.{}.{rest}", n - 1)))
             })
-            .transform("blocks.0.weight", |data| data);
+            .adapt("blocks.0.weight", Adapter::new("identity", |data| data));
         let model = Rekey::keep_rest().mount("conv", "head.", numbered.clone());
         assert_eq!(
             model.apply("conv1.weight").as_deref(),
@@ -915,8 +922,8 @@ mod tests {
         let block = Rekey::keep_rest()
             .rename("fc1.", "mlp.linear1.")
             .rename("fc2.", "mlp.linear2.")
-            .transform("mlp.linear1.weight", |data| data)
-            .transform("mlp.nothing.weight", |data| data);
+            .adapt("mlp.linear1.weight", Adapter::new("identity", |data| data))
+            .adapt("mlp.nothing.weight", Adapter::new("identity", |data| data));
         let model = Rekey::drop_rest()
             .mount_indexed("layers.", "blocks.", block)
             .exact("head", "out.weight")
@@ -943,7 +950,10 @@ mod tests {
                 vec!["head".to_string(), "tied_head".to_string()]
             )]
         );
-        assert_eq!(plan.orphan_transforms, ["blocks.N.mlp.nothing.weight"]);
+        assert_eq!(
+            plan.orphan_transforms,
+            ["blocks.N.mlp.nothing.weight (identity)"]
+        );
         assert_eq!(
             plan.unused_rules,
             [
@@ -1058,40 +1068,75 @@ mod tests {
         );
     }
 
-    /// A transform rides with its path through mounts, after the mounted
-    /// map's own, and `apply` sees only the path.
+    /// An adapter rides with its path through mounts, after the mounted
+    /// map's own, and `apply` sees only the path; the target names each.
     #[test]
-    fn test_transforms_compose_through_mounts() {
+    fn test_adapters_compose_through_mounts() {
         use burn::tensor::TensorData;
 
-        let scale = |k: f32| {
-            move |data: TensorData| {
-                let v: Vec<f32> = data.try_to_vec::<f32>().unwrap();
-                TensorData::new(v.into_iter().map(|x| x * k).collect::<Vec<_>>(), [2])
-            }
-        };
         let block = Rekey::keep_rest()
             .rename("fc1.", "mlp.linear1.")
-            .transform("mlp.linear1.weight", scale(2.0));
+            .adapt("mlp.linear1.weight", Adapter::scale(2.0));
         let model = Rekey::drop_rest()
             .mount("tower.", "encoder.", block)
-            .transform("encoder.mlp.linear1.weight", |data| {
-                let v: Vec<f32> = data.try_to_vec::<f32>().unwrap();
-                TensorData::new(v.into_iter().map(|x| x + 1.0).collect::<Vec<_>>(), [2])
-            });
+            .adapt("encoder.mlp.linear1.weight", Adapter::zero_centered_gain());
 
         let target = model.target("tower.fc1.weight").unwrap();
         assert_eq!(target.path, "encoder.mlp.linear1.weight");
+        assert_eq!(target.adapters, ["scale(2)", "zero_centered_gain"]);
         let out = (target.transform.unwrap())(TensorData::new(vec![1.0f32, 3.0], [2]));
         // Doubled by the block's, then incremented by the model's.
         assert_eq!(out.try_to_vec::<f32>().unwrap(), vec![3.0, 7.0]);
 
         let plain = model.target("tower.fc1.bias").unwrap();
         assert_eq!(plain.path, "encoder.mlp.linear1.bias");
-        assert!(plain.transform.is_none());
+        assert!(plain.transform.is_none() && plain.adapters.is_empty());
         assert_eq!(
             model.apply("tower.fc1.weight").as_deref(),
             Some("encoder.mlp.linear1.weight")
         );
+    }
+
+    /// A suffix selection adapts every path it ends, across the stacks a
+    /// map mounts; one that ends none is an orphan.
+    #[test]
+    fn test_suffix_selection() {
+        let layer = Rekey::keep_rest()
+            .rename("input_layernorm.", "attn_norm.")
+            .rename("post_attention_layernorm.", "attn_post_norm.");
+        let model = Rekey::drop_rest()
+            .mount(
+                "model.",
+                "",
+                Rekey::keep_rest()
+                    .mount_indexed("layers.", "stack.layers.", layer)
+                    .rename("norm.", "stack.norm."),
+            )
+            .adapt(Select::suffix("norm.weight"), Adapter::zero_centered_gain())
+            .adapt(Select::suffix(".nothing"), Adapter::scale(2.0));
+        let plan = model.plan([
+            "model.layers.0.input_layernorm.weight",
+            "model.layers.7.post_attention_layernorm.weight",
+            "model.layers.7.self_attn.q_proj.weight",
+            "model.norm.weight",
+        ]);
+        let adapted: Vec<(&str, usize)> = plan
+            .targets
+            .iter()
+            .map(|(_, t)| {
+                let t = t.as_ref().unwrap();
+                (t.path.as_str(), t.adapters.len())
+            })
+            .collect();
+        assert_eq!(
+            adapted,
+            [
+                ("stack.layers.0.attn_norm.weight", 1),
+                ("stack.layers.7.attn_post_norm.weight", 1),
+                ("stack.layers.7.self_attn.q_proj.weight", 0),
+                ("stack.norm.weight", 1),
+            ]
+        );
+        assert_eq!(plan.orphan_transforms, ["*.nothing (scale(2))"]);
     }
 }

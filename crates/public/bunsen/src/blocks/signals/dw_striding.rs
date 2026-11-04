@@ -17,15 +17,10 @@ use crate::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
-    burner::{
-        module::{
-            ModuleInit,
-            Rekey,
-        },
-        tensor::{
-            permute_data,
-            reshape_data,
-        },
+    burner::module::{
+        Adapter,
+        ModuleInit,
+        Rekey,
     },
     errors::{
         BunsenResult,
@@ -125,11 +120,7 @@ pub trait DwStridingSubsamplingMeta {
             FlattenOrder::ChannelsFreqs => (c, f),
             FlattenOrder::FreqsChannels => (f, c),
         };
-        rekey.transform("linear.weight", move |data| {
-            let d = data.shape().num_elements() / (a * b);
-            let data = reshape_data(data, vec![d, a, b]);
-            reshape_data(permute_data(data, &[0, 2, 1]), vec![d, b * a])
-        })
+        rekey.adapt("linear.weight", Adapter::regroup_columns(a, b))
     }
 }
 
