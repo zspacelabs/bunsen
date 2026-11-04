@@ -10,8 +10,9 @@ Run once; commit the outputs. Regenerating is not part of CI.
 
 - `ROW=HF_DIR`: a bunsen row name and a directory holding that row's pinned files under their
   repo names (`config.json`, the safetensors, `tokenizer.json`, ...), for the rows of
-  `ROWS`, `IT_ROWS`, `BF16_ROWS` and `CHAT_ROWS` (revisions as bunsen's rows pin them, on
-  the `unsloth/` mirrors). Each output is written when every row it needs is given.
+  `ROWS`, `IT_ROWS`, `BF16_ROWS`, `CHAT_ROWS` and `LONG_ROWS` (revisions as bunsen's rows pin
+  them, on the `unsloth/` mirrors). Each output is written when every row it needs is
+  given.
 
 Pinned versions used to produce the committed fixtures:
     transformers 5.19.0, torch 2.14.1+cpu, numpy 2.5.4, tokenizers 0.23.3, jinja2 3.1.6
@@ -45,6 +46,17 @@ Outputs, under `validation/models/gemma-model-validation/testdata/`:
     tokenizer gives it (no special tokens added); and `templates`, the conversations the
     row's template accepts, under each `add_generation_prompt`, each with the text
     `apply_chat_template` renders and its ids.
+`transformers_long.json`
+    `conversation`: a long multi-turn conversation over a generated warehouse ledger (no
+    third-party text), its last turn a question whose answer is in the ledger, far behind it,
+    as `gen_qwen3_fixtures.py` writes Qwen3's; rendered by each of `LONG_ROWS`' chat
+    templates (generation prompt on) to at least `LONG_MIN_POSITIONS` ids. For each row: its
+    `prompt_ids`; the greedy decode of `LONG_NEW_TOKENS` tokens through `transformers`' KV
+    cache on the CPU in float32 (`f32`) and in bfloat16 (`bf16`), each its `ids`, `text`,
+    `margins` and prefill `last_logits` (read as float32); how far the two prefills' logits
+    are apart, `bf16_vs_f32_last_logits_max_abs`; and how many leading tokens the two decodes
+    agree on, `bf16_f32_agree`. bf16's distance from float32 is what bunsen's bf16 run is
+    measured against.
 `chat_replies.json`
     For each of `CHAT_ROWS`, its `SESSIONS`: conversations of user turns, each answered by
     `transformers` (CPU, float32) greedily through its own KV cache from the chat-templated
@@ -77,6 +89,10 @@ IT_ROWS = ["gemma-3-1b-it", "gemma-2-2b-it"]
 BF16_ROWS = ["gemma-2-9b"]
 CHAT_ROWS = ["gemma-3-1b-it", "gemma-2-2b-it"]
 END_OF_TURN = "<end_of_turn>"
+LONG_ROWS = ["gemma-3-1b-it", "gemma-2-2b-it", "gemma-2-9b-it"]
+LONG_NEW_TOKENS = 48
+LONG_MIN_POSITIONS = 2048
+LONG_SEED = 20261103
 WINDOW_PAST = 96
 WINDOW_NEW_TOKENS = 16
 WINDOW_SEED = 20261104
@@ -185,7 +201,7 @@ def window_prompt(tok, window: int) -> list[int]:
 
 def main() -> None:
     dirs = {row: pathlib.Path(d) for row, d in (arg.split("=", 1) for arg in sys.argv[1:])}
-    unknown = set(dirs) - set(ROWS + IT_ROWS + BF16_ROWS + CHAT_ROWS)
+    unknown = set(dirs) - set(ROWS + IT_ROWS + BF16_ROWS + CHAT_ROWS + LONG_ROWS)
     assert not unknown, f"not a fixture row: {sorted(unknown)}"
     OUT.mkdir(parents=True, exist_ok=True)
     if all(row in dirs for row in ROWS + IT_ROWS):
@@ -195,6 +211,8 @@ def main() -> None:
     if all(row in dirs for row in CHAT_ROWS):
         write_chat(dirs)
         write_sessions(dirs)
+    if all(row in dirs for row in LONG_ROWS):
+        write_long(dirs)
 
 
 def write_f32(dirs: dict) -> None:
@@ -317,6 +335,93 @@ def write_sessions(dirs: dict) -> None:
         replies[row] = sessions
         del model
     (OUT / "chat_replies.json").write_text(json.dumps(replies, ensure_ascii=False) + "\n")
+
+
+def ledger_conversation(items: int) -> list[dict]:
+    """A conversation over a generated ledger of `items` lines: the ledger, two questions
+    answered from it, then a last question for the model, about lines far behind it. The
+    same conversation as `gen_qwen3_fixtures.py`'s, for the same `items`."""
+    rng = random.Random(LONG_SEED)
+    materials = ["copper", "steel", "oak", "brass", "nylon", "cedar", "glass", "rubber",
+                 "cotton", "granite", "aluminium", "linen"]
+    goods = ["wire", "bolts", "planks", "hinges", "rope", "beams", "panes", "gaskets",
+             "thread", "tiles", "brackets", "canvas", "nails", "pipes", "springs", "valves"]
+    ledger = []
+    for i in range(1, items + 1):
+        ledger.append({
+            "item": i,
+            "what": f"{rng.choice(materials)} {rng.choice(goods)}",
+            "units": rng.randint(3, 480),
+            "price": rng.randint(25, 9999) / 100,
+            "aisle": rng.choice("ABCDEFGH"),
+            "shelf": rng.randint(1, 6),
+        })
+    lines = [f"Item {e['item']:03d}: {e['what']}, {e['units']} units at {e['price']:.2f} each, "
+             f"aisle {e['aisle']}, shelf {e['shelf']}." for e in ledger]
+    a, b = ledger[items // 5], ledger[items // 2]
+    last = ledger[3]
+    return [
+        {"role": "user", "content": "Here is the warehouse ledger. Read it carefully: I will "
+                                    "ask about it.\n\n" + "\n".join(lines)},
+        {"role": "assistant", "content": f"I have read the ledger of {items} items, and I am "
+                                         "ready for your questions."},
+        {"role": "user", "content": f"Where is item {a['item']:03d} kept?"},
+        {"role": "assistant", "content": f"Item {a['item']:03d}, the {a['what']}, is kept in "
+                                         f"aisle {a['aisle']}, shelf {a['shelf']}."},
+        {"role": "user", "content": f"How many units of item {b['item']:03d} are there, and "
+                                    "at what price?"},
+        {"role": "assistant", "content": f"There are {b['units']} units of item "
+                                         f"{b['item']:03d}, the {b['what']}, at "
+                                         f"{b['price']:.2f} each."},
+        {"role": "user", "content": f"What is item {last['item']:03d}, and where is it kept? "
+                                    "Then list every other item kept in the same aisle."},
+    ]
+
+
+def long_prompt(tok) -> tuple[list[dict], list[int]]:
+    """The fewest ledger lines (in steps of 10) whose conversation renders to at least
+    `LONG_MIN_POSITIONS` ids, `<bos>` first."""
+    for items in range(60, 400, 10):
+        conversation = ledger_conversation(items)
+        text = tok.apply_chat_template(conversation, add_generation_prompt=True,
+                                       tokenize=False)
+        ids = tok(text, add_special_tokens=False)["input_ids"]
+        if len(ids) >= LONG_MIN_POSITIONS:
+            assert ids[0] == tok.bos_token_id, "<bos> first"
+            return conversation, ids
+    raise AssertionError("no ledger is long enough")
+
+
+def write_long(dirs: dict) -> None:
+    fixture = {"new_tokens": LONG_NEW_TOKENS, "rows": {}}
+    for row in LONG_ROWS:
+        hf_dir = pathlib.Path(dirs[row])
+        tok = AutoTokenizer.from_pretrained(hf_dir)
+        conversation, prompt_ids = long_prompt(tok)
+        if "conversation" in fixture:
+            assert fixture["conversation"] == conversation, f"{row}: another conversation"
+        fixture["conversation"] = conversation
+        entry = {"prompt_ids": prompt_ids}
+        logits = {}
+        for name, dtype in [("f32", torch.float32), ("bf16", torch.bfloat16)]:
+            model = load(hf_dir, dtype)
+            entry[name], logits[name] = decode(model, tok, prompt_ids, LONG_NEW_TOKENS)
+            del model
+            print(row, name, len(prompt_ids), "positions:",
+                  entry[name]["text"][:80].replace("\n", " "),
+                  "| min margin", min(entry[name]["margins"]))
+        entry["bf16_vs_f32_last_logits_max_abs"] = float(
+            np.abs(logits["f32"] - logits["bf16"]).max())
+        agree = 0
+        for x, y in zip(entry["f32"]["ids"], entry["bf16"]["ids"]):
+            if x != y:
+                break
+            agree += 1
+        entry["bf16_f32_agree"] = agree
+        print(row, "bf16 vs f32: prefill logits max abs",
+              entry["bf16_vs_f32_last_logits_max_abs"], "| agree on", agree, "tokens")
+        fixture["rows"][row] = entry
+    (OUT / "transformers_long.json").write_text(json.dumps(fixture) + "\n")
 
 
 if __name__ == "__main__":
