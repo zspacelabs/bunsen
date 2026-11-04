@@ -6,7 +6,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
     python3 -m venv /tmp/pkvenv
     /tmp/pkvenv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
     /tmp/pkvenv/bin/pip install transformers safetensors
-    /tmp/pkvenv/bin/python tools/gen_qwen3_asr_toy_fixtures.py
+    /tmp/pkvenv/bin/python -I tools/gen_qwen3_asr_toy_fixtures.py
 
 Pinned versions used to produce the committed fixture:
     transformers 5.19.0, torch 2.14.1+cpu, safetensors 0.8.0
@@ -28,16 +28,18 @@ Output, `crates/public/bunsen/testdata/qwen3_asr/toy.safetensors`:
   `audio_projected`): `text_layer0`, `text_hidden` (after the final norm) and `logits`.
 """
 
-import json
 import pathlib
+import sys
 
-import numpy as np
 import torch
-from safetensors.torch import save_file
 from transformers import Qwen3ASRConfig, Qwen3ASRForConditionalGeneration
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "crates/public/bunsen/testdata/qwen3_asr"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from toy_fixture import (  # noqa: E402
+    TESTDATA, Capture, build, init_weights, io_tensors, shapes, weights, write, write_json
+)
+
+OUT = TESTDATA / "qwen3_asr"
 
 AUDIO_TOKEN = 7
 FEATURE_FRAMES = 300
@@ -82,18 +84,8 @@ CONFIG = dict(
 
 
 def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
-    torch.manual_seed(4321)
-    model = Qwen3ASRForConditionalGeneration(Qwen3ASRConfig(**CONFIG)).double().eval()
-    with torch.no_grad():
-        for name, p in model.named_parameters():
-            if "norm" in name and name.endswith(".weight"):
-                p.copy_(1.0 + 0.2 * torch.randn_like(p))
-            else:
-                fan_in = p.shape[1] if p.ndim >= 2 else 4
-                for d in p.shape[2:]:
-                    fan_in *= d
-                p.copy_(torch.randn_like(p) / np.sqrt(fan_in))
+    model = build(lambda: Qwen3ASRForConditionalGeneration(Qwen3ASRConfig(**CONFIG)), seed=4321)
+    init_weights(model)
     model.tie_weights()
 
     torch.manual_seed(77)
@@ -103,18 +95,11 @@ def main() -> None:
     features = features * mask[:, None, :]
 
     tower = model.model.audio_tower
-    captured = {}
-
-    def keep(name):
-        def hook(_m, _i, out):
-            captured[name] = out[0] if isinstance(out, tuple) else out
-        return hook
-
-    tower.layers[0].register_forward_hook(keep("audio_layer0"))
-
-    def conv_pre(_m, args, kwargs=None):
-        captured["conv"] = args[0]
-    tower.layers[0].register_forward_pre_hook(conv_pre)
+    lm = model.model.language_model
+    capture = Capture()
+    capture.output("audio_layer0", tower.layers[0])
+    capture.input("conv", tower.layers[0])
+    capture.output("text_layer0", lm.layers[0])
 
     with torch.no_grad():
         audio = tower(input_features=features, input_features_mask=mask).last_hidden_state
@@ -122,8 +107,6 @@ def main() -> None:
         n_audio = projected.shape[0]
         ids = [1, 2, 3] + [AUDIO_TOKEN] * n_audio + [4, 5, 6, 9]
         input_ids = torch.tensor([ids])
-        lm = model.model.language_model
-        lm.layers[0].register_forward_hook(keep("text_layer0"))
         out = model(input_ids=input_ids, input_features=features, input_features_mask=mask)
         hidden = model.model(input_ids=input_ids, input_features=features,
                              input_features_mask=mask).last_hidden_state
@@ -131,23 +114,20 @@ def main() -> None:
     io = {
         "features": features,
         "feature_len": torch.tensor([FEATURE_LEN], dtype=torch.float64),
-        "conv": captured["conv"],
-        "audio_layer0": captured["audio_layer0"],
+        "conv": capture.values["conv"],
+        "audio_layer0": capture.values["audio_layer0"],
         "audio": audio,
         "audio_projected": projected,
         "input_ids": input_ids.to(torch.float64),
-        "text_layer0": captured["text_layer0"],
+        "text_layer0": capture.values["text_layer0"],
         "text_hidden": hidden,
         "logits": out.logits,
     }
     # Every weight name starts `model.`; the head is tied, so it is not stored.
-    tensors = {k: v.float().contiguous()
-               for k, v in model.state_dict().items() if k != "lm_head.weight"}
-    tensors.update({f"io.{k}": v.float().contiguous() for k, v in io.items()})
-    save_file(tensors, OUT / "toy.safetensors")
-    (OUT / "toy.json").write_text(json.dumps({"config": CONFIG, "feature_len": FEATURE_LEN,
-                                              "audio_frames": n_audio}, indent=1) + "\n")
-    print("wrote", OUT, "audio frames", n_audio, {k: tuple(v.shape) for k, v in io.items()})
+    write(OUT / "toy.safetensors", weights(model, drop=["lm_head.weight"]), io_tensors(io))
+    write_json(OUT / "toy.json", {"config": CONFIG, "feature_len": FEATURE_LEN,
+                                  "audio_frames": n_audio})
+    print("wrote", OUT, "audio frames", n_audio, shapes(io))
 
 
 if __name__ == "__main__":

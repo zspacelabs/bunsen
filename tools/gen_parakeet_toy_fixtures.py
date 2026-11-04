@@ -6,7 +6,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
     python3 -m venv /tmp/pkvenv
     /tmp/pkvenv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
     /tmp/pkvenv/bin/pip install transformers safetensors librosa
-    /tmp/pkvenv/bin/python tools/gen_parakeet_toy_fixtures.py
+    /tmp/pkvenv/bin/python -I tools/gen_parakeet_toy_fixtures.py
 
 Pinned versions used to produce the committed fixtures:
     transformers 5.19.0, torch 2.14.1+cpu, safetensors 0.8.0, librosa 1.0.0
@@ -31,16 +31,20 @@ Outputs, under `crates/public/bunsen/testdata/parakeet/`:
     `features [2, T, 128]`, `mask [2, T]`.
 """
 
-import json
 import pathlib
+import sys
 
 import numpy as np
 import torch
-from safetensors.torch import save_file
 from transformers import ParakeetFeatureExtractor, ParakeetForTDT, ParakeetTDTConfig
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "crates/public/bunsen/testdata/parakeet"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from toy_fixture import (  # noqa: E402
+    TESTDATA, Capture, build, init_running_stats, init_weights, io_tensors, weights, write,
+    write_json
+)
+
+OUT = TESTDATA / "parakeet"
 
 # Two utterances of different lengths, so masking is exercised.
 N_FRAMES = 53
@@ -82,27 +86,13 @@ CONFIG = dict(
 
 
 def build_model() -> ParakeetForTDT:
-    torch.manual_seed(1234)
-    model = ParakeetForTDT(ParakeetTDTConfig(**CONFIG)).double().eval()
-    with torch.no_grad():
-        for name, p in model.named_parameters():
-            if "norm" in name and name.endswith(".weight"):
-                p.copy_(1.0 + 0.2 * torch.randn_like(p))
-            else:
-                fan_in = p.shape[1] if p.ndim >= 2 else 4
-                for d in p.shape[2:]:
-                    fan_in *= d
-                p.copy_(torch.randn_like(p) / np.sqrt(fan_in))
-        for name, b in model.named_buffers():
-            if name.endswith("running_mean"):
-                b.copy_(0.3 * torch.randn_like(b))
-            elif name.endswith("running_var"):
-                b.copy_(0.5 + torch.rand_like(b))
+    model = build(lambda: ParakeetForTDT(ParakeetTDTConfig(**CONFIG)), seed=1234)
+    init_weights(model)
+    init_running_stats(model)
     return model
 
 
 def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
     model = build_model()
     enc = model.encoder
 
@@ -113,18 +103,12 @@ def main() -> None:
     features = features * mask[:, :, None]
 
     io = {}
-    captured = {}
-
-    def keep(name):
-        def hook(_module, _inputs, output):
-            captured[name] = output[0] if isinstance(output, tuple) else output
-
-        return hook
-
-    enc.subsampling.register_forward_hook(keep("subsampling"))
-    enc.encode_positions.register_forward_hook(keep("positions"))
+    capture = Capture()
+    capture.output("subsampling", enc.subsampling)
+    capture.output("positions", enc.encode_positions)
     for i, layer in enumerate(enc.layers):
-        layer.register_forward_hook(keep(f"layer{i}"))
+        capture.output(f"layer{i}", layer)
+    captured = capture.values
 
     with torch.no_grad():
         out = enc(input_features=features, attention_mask=mask.long())
@@ -160,13 +144,9 @@ def main() -> None:
     io["decoder"] = decoded
     io["logits"] = logits
 
-    tensors = {f"model.{k}": v.float().contiguous() for k, v in model.state_dict().items()}
-    tensors.update({f"io.{k}": v.float().contiguous() for k, v in io.items()})
-    save_file(tensors, OUT / "toy.safetensors")
-    (OUT / "toy.json").write_text(
-        json.dumps({"config": CONFIG, "n_frames": N_FRAMES, "lengths": LENGTHS}, indent=1)
-        + "\n"
-    )
+    write(OUT / "toy.safetensors", weights(model, rename=lambda k: f"model.{k}"),
+          io_tensors(io))
+    write_json(OUT / "toy.json", {"config": CONFIG, "n_frames": N_FRAMES, "lengths": LENGTHS})
 
     front_end()
     print("wrote", OUT)
@@ -188,14 +168,14 @@ def front_end() -> None:
     padded = np.zeros((len(n), max(n)), np.float32)
     for i, w in enumerate(waves):
         padded[i, : len(w)] = w
-    save_file(
+    write(
+        OUT / "front_end.safetensors",
         {
             "waveforms": torch.from_numpy(padded),
             "lengths": torch.tensor(n, dtype=torch.float32),
             "features": out["input_features"].float().contiguous(),
             "mask": out["attention_mask"].float().contiguous(),
         },
-        OUT / "front_end.safetensors",
     )
 
 
