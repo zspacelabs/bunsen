@@ -54,6 +54,11 @@ use crate::{
                 TokenEmbeddingConfig,
                 TokenEmbeddingMeta,
             },
+            head::{
+                LmHead,
+                LmHeadConfig,
+                LmHeadMeta,
+            },
             mlp::MlpConfig,
         },
     },
@@ -418,10 +423,12 @@ impl ToStructureConfig for NanoChatGptContractConfig {
                     .with_base(self.rope_base)
                     .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
             ),
-            lm_head: LinearConfig::new(self.n_embed, vocab).with_bias(self.head_bias),
+            lm_head: LmHeadConfig::new(self.n_embed, vocab)
+                .with_tied(false)
+                .with_bias(self.head_bias)
+                .with_softcap(Some(self.softcap))
+                .with_vocab(Some(self.vocab_size)),
             init_seq_len: self.init_seq_len,
-            softcap: self.softcap,
-            vocab_size: self.vocab_size,
             residual_lambdas: self.residual_lambdas,
             value_embeds: (0..self.n_layer)
                 .map(|i| {
@@ -452,19 +459,13 @@ pub struct NanoChatGptStructureConfig {
     /// embedding, whose `seq_len` is the model's longest sequence.
     pub stack: DecoderStackStructureConfig,
 
-    /// The config for the final linear layer.
-    pub lm_head: LinearConfig,
+    /// The head: a projection of its own onto the padded vocabulary, the
+    /// logits sliced back to `vocab_size` and soft-capped.
+    pub lm_head: LmHeadConfig,
 
     /// Initial sequence Length.
     #[config(default = "1024")]
     pub init_seq_len: usize,
-
-    /// Softcap for the logits.
-    #[config(default = "15.0")]
-    pub softcap: f64,
-
-    /// The logits' width: the embedding's, unpadded.
-    pub vocab_size: usize,
 
     /// Whether the residual stream is rescaled and mixed with the
     /// embedding before each block.
@@ -514,7 +515,7 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 
     fn vocab_size(&self) -> usize {
-        self.vocab_size
+        self.lm_head.n_vocab()
     }
 }
 
@@ -542,11 +543,9 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         Ok(NanoChatGpt {
             wte: self.wte.init(device),
             stack: self.stack.try_init(device)?,
-            lm_head: self.lm_head.init(device),
+            lm_head: self.lm_head.try_init(device)?,
             r_emb: self.stack.rotary.try_init(device)?,
             init_seq_len: self.init_seq_len,
-            softcap: self.softcap,
-            vocab_size: self.vocab_size,
             resid_lambdas: self.residual_lambdas.then(|| ramp(1.15, 0.10)),
             x0_lambdas: self.residual_lambdas.then(|| ramp(0.20, 0.15)),
             value_embeds: self
@@ -595,13 +594,12 @@ pub struct NanoChatGpt {
     wte: TokenEmbedding,
     /// The blocks and the final norm.
     stack: DecoderStack,
-    lm_head: Linear,
+    /// The head, its own projection, sliced and soft-capped.
+    lm_head: LmHead,
     /// The rotary table, covering the longest sequence.
     r_emb: RotaryEmbedding,
 
     init_seq_len: usize,
-    softcap: f64,
-    vocab_size: usize,
 
     /// `[n_layer]`: the residual stream's scale before each block.
     resid_lambdas: Option<Param<Tensor<1>>>,
@@ -648,7 +646,7 @@ impl NanoChatGptMeta for NanoChatGpt {
     }
 
     fn vocab_size(&self) -> usize {
-        self.vocab_size
+        self.lm_head.n_vocab()
     }
 }
 
@@ -819,21 +817,12 @@ impl NanoChatGpt {
             &["B", "T"],
             &[("D", self.n_embed())]
         );
-        let logits = self.lm_head.forward(hidden);
-        let logits = if logits.dims()[2] == self.vocab_size {
-            logits
-        } else {
-            logits.slice(s![.., .., ..self.vocab_size])
-        };
-        let logits = logits
-            .div_scalar(self.softcap)
-            .tanh()
-            .mul_scalar(self.softcap);
+        let logits = self.lm_head.forward(hidden, &self.wte.weight);
 
         assert_shape_contract_periodically!(
             ["B", "T", "V"],
             &logits.dims(),
-            &[("B", b), ("T", t), ("V", self.vocab_size)]
+            &[("B", b), ("T", t), ("V", self.vocab_size())]
         );
         logits
     }
@@ -949,7 +938,7 @@ mod tests {
             .with_n_embed(16)
             .with_init_seq_len(8)
             .init(&device);
-        assert!(gpt.lm_head.bias.is_none());
+        assert!(gpt.lm_head.proj.as_ref().is_some_and(|p| p.bias.is_none()));
         assert_eq!(gpt.wte.norm_eps, Some(1e-6));
         assert!(gpt.resid_lambdas.is_none() && gpt.x0_lambdas.is_none());
         assert!(gpt.value_embeds.iter().all(Option::is_none));
@@ -963,7 +952,7 @@ mod tests {
         let structure = NanoChatGptContractConfig::new().to_structure();
         assert_eq!(structure.stack.rotary.base, 10000);
         assert_eq!(structure.stack.rotary.table_dtype, Some(FloatDType::BF16));
-        assert_eq!(structure.vocab_size, 50304);
+        assert_eq!(structure.vocab_size(), 50304);
     }
 
     /// Upstream's `has_ve`: every other layer, the last always.
@@ -1011,7 +1000,7 @@ mod tests {
         assert_eq!(structure.stack.rotary.base, 100000);
         assert_eq!(structure.stack.rotary.table_dtype, None);
         assert_eq!(structure.wte.n_vocab, 64);
-        assert_eq!(structure.vocab_size, 60);
+        assert_eq!(structure.vocab_size(), 60);
         assert_eq!(
             structure
                 .stack

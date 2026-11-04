@@ -32,7 +32,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto a
 /// [`Qwen3Model`]'s module paths: under `model.`, the layers by
 /// [`text_layer_rekey`], and the embedding and final norm as they are; and
-/// `lm_head.weight`, the head's, as it is. Anything else is dropped.
+/// `lm_head.weight`, the head's projection. Anything else is dropped.
 ///
 /// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
 /// (`Qwen3-0.6B` carries a copy of the embedding there) is then unused, as
@@ -49,7 +49,7 @@ pub fn hf_rekey() -> Rekey {
                 .mount_indexed("layers.", "stack.layers.", text_layer_rekey())
                 .rename("norm.", "stack.norm."),
         )
-        .exact("lm_head.weight", "lm_head.weight")
+        .exact("lm_head.weight", "lm_head.proj.weight")
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
@@ -181,7 +181,7 @@ mod tests {
                 Some("stack.layers.3.mlp.up_proj.weight"),
             ),
             ("model.norm.weight", Some("stack.norm.weight")),
-            ("lm_head.weight", Some("lm_head.weight")),
+            ("lm_head.weight", Some("lm_head.proj.weight")),
             ("lm_head.bias", None),
         ] {
             assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");

@@ -32,16 +32,17 @@ use crate::{
                 RotaryEmbedding,
                 RotaryEmbeddingConfig,
             },
+            head::{
+                LmHead,
+                LmHeadConfig,
+            },
             mlp::GatedMlpConfig,
         },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
     ops::{
-        embedding::{
-            timestep_embedding,
-            unembed,
-        },
+        embedding::timestep_embedding,
         transformers::attention::{
             KVCache,
             KVCacheConfig,
@@ -215,6 +216,7 @@ impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
     ) -> BunsenResult<VoxtralTextModel> {
         Ok(VoxtralTextModel {
             embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
+            lm_head: LmHeadConfig::new(self.d_model, self.n_vocab).try_init(device)?,
             stack: self.stack().try_init(device)?,
         })
     }
@@ -239,8 +241,11 @@ impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
 /// Implements [`VoxtralTextMeta`].
 #[derive(Module, Debug)]
 pub struct VoxtralTextModel {
-    /// The token embedding, and the tied output head.
+    /// The token embedding, which the head is tied to.
     pub embed_tokens: Embedding,
+
+    /// The output head, tied to the embedding.
+    pub lm_head: LmHead,
 
     /// The decoder: its layers, final norm and rotary embedding.
     pub stack: DecoderStack,
@@ -381,7 +386,7 @@ impl VoxtralTextModel {
             &[("d_model", self.d_model())],
         );
 
-        let y = unembed(&self.embed_tokens, hidden);
+        let y = self.lm_head.forward(hidden, &self.embed_tokens.weight);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(

@@ -8,13 +8,10 @@ use burn::{
     nn::{
         Embedding,
         EmbeddingConfig,
-        Linear,
-        LinearConfig,
         norm::RmsNormConfig,
     },
     prelude::Int,
     tensor::{
-        DType,
         Device,
         FloatDType,
     },
@@ -41,18 +38,19 @@ use crate::{
                 RotaryEmbedding,
                 RotaryEmbeddingConfig,
             },
+            head::{
+                LmHead,
+                LmHeadConfig,
+            },
             mlp::GatedMlpConfig,
         },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    ops::{
-        embedding::unembed,
-        transformers::attention::{
-            KVCache,
-            KVCacheConfig,
-            KVCacheModel,
-        },
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+        KVCacheModel,
     },
 };
 
@@ -200,6 +198,14 @@ impl Qwen3Config {
             .with_direction(RotaryDirection::Forward)
     }
 
+    /// The output head: tied to the embedding or a projection of its own
+    /// (`tied_head`), with no bias, its logits in `logits_dtype`.
+    pub fn head(&self) -> LmHeadConfig {
+        LmHeadConfig::new(self.d_model, self.n_vocab)
+            .with_tied(self.tied_head)
+            .with_logits_dtype(self.logits_dtype)
+    }
+
     /// The decoder stack: `n_layers` alike, each RMS norms, a `SwiGLU`, and
     /// grouped-query attention with QK-norm before the rotary embedding.
     pub fn stack(&self) -> UniformStackConfig {
@@ -248,16 +254,10 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
         &self,
         device: &Device,
     ) -> BunsenResult<Qwen3Model> {
-        let lm_head = (!self.tied_head).then(|| {
-            LinearConfig::new(self.d_model, self.n_vocab)
-                .with_bias(false)
-                .init(device)
-        });
         Ok(Qwen3Model {
             embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
-            lm_head,
+            lm_head: self.head().try_init(device)?,
             stack: self.stack().try_init(device)?,
-            logits_dtype: self.logits_dtype,
         })
     }
 }
@@ -280,16 +280,13 @@ pub struct Qwen3Model {
     /// The token embedding, and the output head when it is tied.
     pub embed_tokens: Embedding,
 
-    /// The output head when it is not tied: `[d_model] -> [n_vocab]`, no
-    /// bias.
-    pub lm_head: Option<Linear>,
+    /// The output head ([`Qwen3Config::head`]): tied, or a projection of
+    /// its own with no bias; the logits leave it in the config's
+    /// `logits_dtype`.
+    pub lm_head: LmHead,
 
     /// The decoder: its layers, final norm and rotary embedding.
     pub stack: DecoderStack,
-
-    /// The dtype the logits leave the model in; `None`, the model's.
-    #[module(skip)]
-    pub logits_dtype: Option<FloatDType>,
 }
 
 impl Qwen3Meta for Qwen3Model {
@@ -418,14 +415,7 @@ impl Qwen3Model {
             &[("d_model", self.d_model())],
         );
 
-        let y = match &self.lm_head {
-            Some(head) => head.forward(hidden),
-            None => unembed(&self.embed_tokens, hidden),
-        };
-        let y = match self.logits_dtype {
-            Some(dtype) => y.cast(DType::from(dtype)),
-            None => y,
-        };
+        let y = self.lm_head.forward(hidden, &self.embed_tokens.weight);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -441,7 +431,11 @@ impl Qwen3Model {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        blocks::transformers::head::LmHeadMeta,
+        ops::embedding::unembed,
+        support::testing::cpu_device,
+    };
 
     /// A config non-default in every field, and the model built from it,
     /// answer the meta alike; a cached decode's hidden states are the
@@ -460,7 +454,7 @@ mod tests {
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.stack.rotary.base, config.rope_theta);
         assert_eq!(model.stack.layers[0].attn.c_q.weight.dims(), [12, 18]);
-        assert!(model.lm_head.is_none(), "tied by default");
+        assert!(model.lm_head.is_tied(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
         let embeds = model.embed(tokens);
@@ -485,7 +479,7 @@ mod tests {
         let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20)
             .with_tied_head(false)
             .init(&device);
-        let head = model.lm_head.as_ref().expect("an untied head");
+        let head = model.lm_head.proj.as_ref().expect("an untied head");
         assert_eq!(head.weight.dims(), [12, 40]);
         assert!(head.bias.is_none());
 

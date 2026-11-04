@@ -67,10 +67,10 @@ impl Toy {
         let applied =
             load_hf_tensors(&mut model, fixture.take_weights()).expect("load the toy weights");
         if config.tied_head {
-            assert_eq!(applied.unused, ["lm_head.weight"], "{name}");
+            assert_eq!(applied.unused, ["lm_head.proj.weight"], "{name}");
         } else {
             assert!(applied.unused.is_empty(), "{name}: {:?}", applied.unused);
-            assert!(applied.applied.iter().any(|p| p == "lm_head.weight"));
+            assert!(applied.applied.iter().any(|p| p == "lm_head.proj.weight"));
         }
         Self {
             model,
