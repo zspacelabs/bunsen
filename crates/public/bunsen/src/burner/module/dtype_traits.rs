@@ -107,7 +107,10 @@ pub fn assert_input_dtype<B: InputDTypes + ?Sized>(
 }
 
 /// The float dtype of `module`'s parameters, from its first float
-/// parameter; `None` for a module with none.
+/// parameter; `None` for a module with none. A lazy parameter (a module
+/// just built) is not initialized to ask: it answers with the dtype it will
+/// initialize in
+/// ([`param_float_dtype`](crate::burner::tensor::param_float_dtype)).
 pub fn module_float_dtype<M: Module>(module: &M) -> Option<FloatDType> {
     #[derive(Default)]
     struct First(Option<FloatDType>);
@@ -118,7 +121,9 @@ pub fn module_float_dtype<M: Module>(module: &M) -> Option<FloatDType> {
             param: &Param<Tensor<D>>,
         ) {
             if self.0.is_none() {
-                self.0 = Some(FloatDType::from(param.val().dtype()));
+                self.0 = Some(FloatDType::from(crate::burner::tensor::param_float_dtype(
+                    param,
+                )));
             }
         }
     }

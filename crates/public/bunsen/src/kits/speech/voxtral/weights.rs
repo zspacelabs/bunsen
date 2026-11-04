@@ -8,14 +8,14 @@ use super::blocks::{
     VoxtralTextConfig,
 };
 use crate::{
-    blocks::conv::ConvSeq1d,
-    burner::{
-        module::Rekey,
-        tensor::param_float_dtype,
+    blocks::{
+        conv::ConvSeq1d,
+        transformers::decoders::causal::CausalDecoderBlock,
     },
+    burner::module::Rekey,
     data::pretrained::{
         NamedTensorsApplied,
-        apply_rekeyed_tensors_as,
+        load_hf,
     },
     errors::BunsenResult,
     kits::{
@@ -28,22 +28,16 @@ use crate::{
 };
 
 /// `transformers`' Voxtral Realtime audio-encoder layer names onto a
-/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
+/// [`CausalDecoderBlock`]'s,
 /// relative to it: `self_attn_layer_norm` the attention's norm,
 /// `final_layer_norm` the feed-forward's, `self_attn`'s `{q,k,v,o}_proj` the
 /// attention's projections, and the `SwiGLU`'s projections as they are.
 pub fn audio_layer_rekey() -> Rekey {
-    Rekey::keep_rest()
-        .rename("self_attn_layer_norm.", "attn_norm.")
-        .rename("final_layer_norm.", "mlp_norm.")
-        .rename("self_attn.q_proj.", "attn.c_q.")
-        .rename("self_attn.k_proj.", "attn.c_k.")
-        .rename("self_attn.v_proj.", "attn.c_v.")
-        .rename("self_attn.o_proj.", "attn.c_proj.")
+    CausalDecoderBlock::hf_layer_rekey("self_attn_layer_norm", "final_layer_norm")
 }
 
 /// `transformers`' Voxtral Realtime text-layer names onto a
-/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s:
+/// [`CausalDecoderBlock`]'s:
 /// Mistral's, which are Qwen3's ([`text_layer_rekey`]), and `ada_rms_norm`
 /// the block's
 /// [`mlp_scale`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock::mlp_scale).
@@ -61,7 +55,7 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 /// tied, so nothing else is read.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`apply_rekeyed_tensors_as`] resolves to `gamma`.
+/// [`load_hf`] resolves to `gamma`.
 pub fn hf_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -84,32 +78,30 @@ pub fn hf_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
-/// `model.safetensors` names them into `model`: [`apply_rekeyed_tensors_as`]
-/// under [`hf_rekey`], every floating tensor cast to the dtype `model` was
-/// built in ([`param_float_dtype`]). The checkpoint ships `bf16`, which not
-/// every backend computes in.
+/// `model.safetensors` names them into `model`: [`load_hf`] under
+/// [`hf_rekey`], in the dtype `model` was built in. The checkpoint ships
+/// `bf16`, which not every backend computes in.
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors_as`].
+/// As [`load_hf`].
 pub fn load_hf_tensors(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let dtype = param_float_dtype(&model.multi_modal_projector.linear_2.weight);
-    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
+    load_hf(model, tensors, &hf_rekey(), None)
 }
 
 /// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
 /// policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors_as`].
+/// As [`load_hf`].
 pub fn load_hf_tensors_as(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype.into()))
+    load_hf(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`VoxtralRealtimeConfig`] of a `transformers` `VoxtralRealtime`
