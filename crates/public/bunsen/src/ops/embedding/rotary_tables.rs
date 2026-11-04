@@ -3,10 +3,23 @@
 use burn::{
     Tensor,
     tensor::{
+        DType,
         Device,
+        TensorData,
         linalg,
     },
 };
+
+/// `values` as an f32 tensor on `device`, whatever the device's default
+/// float: an integer's `float()` is the default, and in bf16 the integers
+/// past 256 round.
+fn f32_tensor(
+    values: Vec<f32>,
+    device: &Device,
+) -> Tensor<1> {
+    let n = values.len();
+    Tensor::from_data(TensorData::new(values, [n]), (device, DType::F32))
+}
 
 /// Computes the rotary embedding inverse frequency table.
 ///
@@ -19,18 +32,19 @@ use burn::{
 /// - `device`: the target device.
 ///
 /// # Returns
-/// - a `[head_dim / 2]` tensor, holding, for each even dimension index `d`, the
-///   inverse frequency `1.0 / base**(d / head_dim)`.
+/// - a `[head_dim / 2]` f32 tensor, holding, for each even dimension index `d`,
+///   the inverse frequency `1.0 / base**(d / head_dim)`; f32 whatever the
+///   device's default float.
 pub fn inverse_frequency_table(
     base: usize,
     head_dim: usize,
     device: &Device,
 ) -> Tensor<1> {
-    Tensor::from_data([base as f32], device).powf(
-        -Tensor::arange_step(0..head_dim as i64, 2, device)
-            .float()
-            .div_scalar(head_dim as f32),
-    )
+    let exponents = (0..head_dim)
+        .step_by(2)
+        .map(|d| -(d as f32) / head_dim as f32)
+        .collect();
+    f32_tensor(vec![base as f32], device).powf(f32_tensor(exponents, device))
 }
 
 /// Computes the positionally shifted frequency table.
@@ -48,7 +62,8 @@ pub fn inverse_frequency_table(
 /// - `device`: the target device.
 ///
 /// # Returns
-/// - `[T, F=D/2]` sequence x inverse frequency table.
+/// - `[T, F=D/2]` sequence x inverse frequency table, in f32 whatever the
+///   device's default float.
 pub fn positional_frequency_table(
     seq_len: usize,
     base: usize,
@@ -57,7 +72,7 @@ pub fn positional_frequency_table(
 ) -> Tensor<2> {
     let inv_freq = inverse_frequency_table(base, head_dim, device);
 
-    let t: Tensor<1> = Tensor::arange(0..seq_len as i64, device).float();
+    let t = f32_tensor((0..seq_len).map(|p| p as f32).collect(), device);
 
     linalg::outer::<1, 2, _>(t, inv_freq)
 }

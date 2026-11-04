@@ -192,6 +192,23 @@ impl CausalDecoderBlockMeta for CausalDecoderBlock {
     }
 }
 
+impl crate::burner::module::InputDTypes for CausalDecoderBlock {
+    /// Its attention's: the residual stream is in it.
+    fn preferred_dtype(&self) -> burn::tensor::FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(&self.attn)
+    }
+}
+
+impl crate::burner::module::ResultDType for CausalDecoderBlock {
+    /// Its own: the residual stream's.
+    fn result_dtype(
+        &self,
+        _input: burn::tensor::FloatDType,
+    ) -> burn::tensor::FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(self)
+    }
+}
+
 impl CausalDecoderBlock {
     /// Forward Pass.
     ///
@@ -278,6 +295,8 @@ impl CausalDecoderBlock {
         kv_cache: &mut Option<&mut KVCache>,
         sides: DecoderSideInputs,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        crate::burner::module::assert_input_dtype(self, input.dtype(), "causal decoder block");
         let DecoderSideInputs { cond, value_embed } = sides;
         let x = input.clone()
             + self.attn.forward_with_value_embed(

@@ -54,12 +54,14 @@ pub struct RotaryEmbeddingConfig {
     #[config(default = "RotaryDirection::Reverse")]
     pub direction: RotaryDirection,
 
-    /// Round the `cos` / `sin` tables to this dtype's precision (on the
-    /// host), keeping them in `f32`: for a model trained with tables kept in
-    /// a narrower dtype, as nanochat's 2025 model keeps them in bf16. `None`
-    /// keeps them exact; an `F32` or `F64` rounds nothing.
+    /// The dtype the `cos` / `sin` tables are kept in. They are computed in
+    /// f32 whatever the device's default float, then rounded to this: for a
+    /// model trained with tables in a narrower dtype, as nanochat's 2025
+    /// model keeps them in bf16. `None` keeps them in f32, exact.
+    /// [`apply`](RotaryEmbedding::apply) casts them to its input's dtype, as
+    /// `transformers` casts `cos` and `sin` to `x.dtype`.
     #[config(default = "None")]
-    pub round_tables_to: Option<FloatDType>,
+    pub table_dtype: Option<FloatDType>,
 }
 
 /// The sign convention of a rotary embedding: which way each pair of head
@@ -131,15 +133,16 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
         let freq_matrix =
             positional_frequency_table(self.seq_len, self.base, self.head_dim, device);
 
-        // TODO: possibly down-cast to the smallest available dtype.
-
-        let round = |t: Tensor<2>| match self.round_tables_to {
+        // Rounded on the host, as the reference rounds, and kept in the table
+        // dtype.
+        let round = |t: Tensor<2>| match self.table_dtype {
             Some(FloatDType::BF16) => {
-                Tensor::from_data(t.into_data().convert::<bf16>().convert::<f32>(), device)
+                Tensor::from_data(t.into_data().convert::<bf16>(), (device, DType::BF16))
             }
             Some(FloatDType::F16) => {
-                Tensor::from_data(t.into_data().convert::<f16>().convert::<f32>(), device)
+                Tensor::from_data(t.into_data().convert::<f16>(), (device, DType::F16))
             }
+            Some(FloatDType::F64) => t.cast(DType::F64),
             _ => t,
         };
 
@@ -201,6 +204,32 @@ impl RotaryEmbeddingMeta for RotaryEmbedding {
     }
 }
 
+impl crate::burner::module::InputDTypes for RotaryEmbedding {
+    /// Its tables' dtype.
+    fn preferred_dtype(&self) -> FloatDType {
+        FloatDType::from(self.cos.dtype())
+    }
+
+    /// Every float dtype: [`apply`](Self::apply) casts its tables to the
+    /// input's.
+    fn accepts_dtype(
+        &self,
+        _dtype: FloatDType,
+    ) -> bool {
+        true
+    }
+}
+
+impl crate::burner::module::ResultDType for RotaryEmbedding {
+    /// The input's.
+    fn result_dtype(
+        &self,
+        input: FloatDType,
+    ) -> FloatDType {
+        input
+    }
+}
+
 impl RotaryEmbedding {
     /// Casts the embedding to a different dtype.
     pub fn cast(
@@ -233,10 +262,11 @@ impl RotaryEmbedding {
         }
     }
 
-    /// Applies the rotary embedding to the input.
+    /// Applies the rotary embedding to the input, in the input's dtype: the
+    /// tables are cast to it (a no-op when they are in it already).
     ///
     /// # Arguments
-    /// - `input`: a `[B, T, H, D]` tensor.
+    /// - `input`: a `[B, T, H, D]` tensor, in any float dtype.
     ///
     /// # Returns
     /// - a `[B, T, H, D]` tensor.
@@ -256,9 +286,13 @@ impl RotaryEmbedding {
         let x1 = input.clone().slice_dim(3, s![..pivot]);
         let x2 = input.clone().slice_dim(3, s![pivot..]);
 
-        let (y1, y2) = self
-            .direction
-            .rotate(x1, x2, self.cos.clone(), self.sin.clone());
+        let dtype = input.dtype();
+        let (y1, y2) = self.direction.rotate(
+            x1,
+            x2,
+            self.cos.clone().cast(dtype),
+            self.sin.clone().cast(dtype),
+        );
 
         let output = Tensor::cat(vec![y1, y2], 3);
 
@@ -295,8 +329,9 @@ mod tests {
         },
     };
 
-    /// Rounded tables hold the exact tables' values rounded to bf16, still
-    /// as `f32`: within bf16's half-ulp, and each a bf16 value.
+    /// Tables kept in bf16 hold the exact f32 tables' values rounded to bf16:
+    /// within bf16's half-ulp. `apply` casts them to its input's dtype, so an
+    /// f32 input gives an f32 output.
     #[test]
     #[serial]
     fn test_tables_rounded_to_bf16() {
@@ -305,12 +340,16 @@ mod tests {
 
         let exact: RotaryEmbedding = RotaryEmbeddingConfig::new(64, 16).init(&device);
         let rounded: RotaryEmbedding = RotaryEmbeddingConfig::new(64, 16)
-            .with_round_tables_to(Some(FloatDType::BF16))
+            .with_table_dtype(Some(FloatDType::BF16))
             .init(&device);
-        assert_eq!(rounded.cos.dtype(), DType::F32);
+        assert_eq!(exact.cos.dtype(), DType::F32);
+        assert_eq!(rounded.cos.dtype(), DType::BF16);
+        let x: Tensor<4> = Tensor::ones([1, 64, 2, 16], &device);
+        assert_eq!(rounded.apply(x.clone()).dtype(), DType::F32);
+        assert_eq!(rounded.apply(x.cast(DType::BF16)).dtype(), DType::BF16);
         for (e, r) in [(exact.cos, rounded.cos), (exact.sin, rounded.sin)] {
             let e = e.into_data().try_to_vec::<f32>().unwrap();
-            let r = r.into_data().try_to_vec::<f32>().unwrap();
+            let r = r.cast(DType::F32).into_data().try_to_vec::<f32>().unwrap();
             assert!(e != r, "rounding changed nothing");
             for (e, r) in e.iter().zip(&r) {
                 assert_eq!(bf16::from_f32(*r).to_f32(), *r, "{r} is not a bf16 value");

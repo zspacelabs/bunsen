@@ -60,7 +60,11 @@ fn check_row(row: &str) {
             storage,
             &device,
         );
-        assert_eq!(steps[0].dtype(), DType::BF16, "{row}: the logits are bf16");
+        assert_eq!(
+            steps[0].dtype(),
+            DType::F32,
+            "{row}: the logits leave the model in f32"
+        );
         let error = record.last_logits.assert_matches(
             &format!("{row} {storage:?} bf16 prefill logits"),
             steps[0].clone().cast(DType::F32),

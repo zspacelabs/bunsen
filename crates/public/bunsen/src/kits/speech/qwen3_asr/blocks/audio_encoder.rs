@@ -4,7 +4,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LayerNorm,
         LayerNormConfig,
         Linear,
         LinearConfig,
@@ -29,6 +28,10 @@ use crate::{
             ConvBlock2dConfig,
             ConvSeq2d,
             ConvSeq2dConfig,
+        },
+        norm::{
+            Norm,
+            NormConfig,
         },
         transformers::encoders::residual::{
             ResidualEncoderAttentionBlock,
@@ -183,7 +186,7 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
                 .with_bias(false)
                 .init(device),
             layers,
-            ln_post: LayerNormConfig::new(self.d_model).init(device),
+            ln_post: NormConfig::from(LayerNormConfig::new(self.d_model)).init(device),
             n_window: self.n_window,
             n_window_infer: self.n_window_infer,
         })
@@ -219,7 +222,7 @@ pub struct Qwen3AsrAudioEncoder {
     pub layers: Vec<ResidualEncoderAttentionBlock>,
 
     /// The final normalization.
-    pub ln_post: LayerNorm,
+    pub ln_post: Norm,
 
     /// Half the mel frames of a convolution chunk.
     pub n_window: usize,
@@ -230,7 +233,7 @@ pub struct Qwen3AsrAudioEncoder {
 
 impl Qwen3AsrAudioEncoderMeta for Qwen3AsrAudioEncoder {
     fn d_model(&self) -> usize {
-        self.ln_post.gamma.dims()[0]
+        self.ln_post.num_features()
     }
 
     fn n_layers(&self) -> usize {

@@ -7,10 +7,7 @@ use burn::{
         PaddingConfig1d,
         activation::ActivationConfig,
         conv::Conv1dConfig,
-        norm::{
-            RmsNorm,
-            RmsNormConfig,
-        },
+        norm::RmsNormConfig,
     },
     tensor::Device,
 };
@@ -22,7 +19,10 @@ use crate::{
             ConvSeq1d,
             ConvSeq1dConfig,
         },
-        norm::NormConfig,
+        norm::{
+            Norm,
+            NormConfig,
+        },
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             decoders::causal::{
@@ -222,8 +222,7 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
             ])
             .try_init(device)?,
             layers,
-            norm: RmsNormConfig::new(self.d_model)
-                .with_epsilon(self.rms_eps)
+            norm: NormConfig::Rms(RmsNormConfig::new(self.d_model).with_epsilon(self.rms_eps))
                 .init(device),
             rope_theta: self.rope_theta,
         })
@@ -258,7 +257,7 @@ pub struct VoxtralAudioEncoder {
     pub layers: Vec<CausalDecoderBlock>,
 
     /// The final normalization.
-    pub norm: RmsNorm,
+    pub norm: Norm,
 
     /// The rotary embedding's base.
     pub rope_theta: usize,
@@ -270,7 +269,7 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
     }
 
     fn d_model(&self) -> usize {
-        self.norm.gamma.dims()[0]
+        self.norm.num_features()
     }
 
     fn n_layers(&self) -> usize {
@@ -430,7 +429,7 @@ mod tests {
         assert_eq!(encoder.head_dim(), config.head_dim());
         assert_eq!(encoder.sliding_window(), config.sliding_window());
         assert_eq!(encoder.rope_theta, config.rope_theta);
-        assert_eq!(encoder.norm.epsilon, 1e-6);
+        assert_eq!(encoder.norm.epsilon(), Some(1e-6));
         assert_eq!(config.output_len(7), 4);
         assert_eq!(encoder.kv_cache_config().num_layers, 2);
 

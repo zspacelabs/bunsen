@@ -10,6 +10,7 @@ use burn::{
     tensor::{
         DType,
         Device,
+        FloatDType,
         activation::softmax,
     },
 };
@@ -53,6 +54,13 @@ pub struct ScaledDotProductAttentionConfig {
     /// Enable dropout during inference.
     #[config(default = "true")]
     pub enable_dropout_during_inference: bool,
+
+    /// The dtype the softmax runs in: the scores are cast to it, their bias
+    /// built in it, and the weights cast back to the query's dtype after.
+    /// `None` runs it in the query's dtype. `transformers` runs it in f32
+    /// for a half model (`softmax(..., dtype=torch.float32)`).
+    #[config(default = "None")]
+    pub softmax_dtype: Option<FloatDType>,
 }
 
 /// Computes scaled dot product attention.
@@ -106,7 +114,9 @@ pub fn scaled_dot_product_attention(
 ///
 /// The weight is `softmax(q k^T * scale + bias)` over the keys, then
 /// dropout on those probabilities when the config sets a rate, as in
-/// `PyTorch`'s reference.
+/// `PyTorch`'s reference. The scores are the query's dtype; the softmax runs
+/// in the config's `softmax_dtype` when it sets one, and the weight is the
+/// query's dtype either way.
 ///
 /// # Arguments
 /// - `q`: the query tensor, as `[B, H_q, T_q, D]`.
@@ -140,10 +150,20 @@ pub fn sdpa_attn_weight(
     }
 
     let scale_factor = config.scale.unwrap_or(1.0 / (q.dims()[3] as f64).sqrt());
-    let attn_weight = q.matmul(k.swap_dims(2, 3)) * scale_factor;
+    let scores = q.matmul(k.swap_dims(2, 3)) * scale_factor;
 
-    let attn_bias = sdpa_bias(t_q, t_k, config.is_causal, bias, mask, dtype, &device);
-    let mut attn_weight = softmax(attn_weight + attn_bias.unsqueeze(), 3);
+    let softmax_dtype = config.softmax_dtype.map_or(dtype, DType::from);
+    let scores = scores.cast(softmax_dtype);
+    let attn_bias = sdpa_bias(
+        t_q,
+        t_k,
+        config.is_causal,
+        bias,
+        mask,
+        softmax_dtype,
+        &device,
+    );
+    let mut attn_weight = softmax(scores + attn_bias.unsqueeze(), 3).cast(dtype);
 
     if let Some(prob) = config.dropout
         && (config.enable_dropout_during_inference || attn_weight.device().is_autodiff())
@@ -160,7 +180,7 @@ pub fn sdpa_attn_weight(
 /// - `l`: the query time dimension.
 /// - `s`: the key time dimension.
 /// - `causal`: whether the attention is causal.
-/// - `bias`: optional additive bias.
+/// - `bias`: optional additive bias, in any float dtype: cast to `dtype`.
 /// - `mask`: optional bias mask.
 /// - `dtype`: the desired dtype of the output tensor.
 /// - `device`: the target device of the bias.
@@ -187,7 +207,7 @@ pub fn sdpa_bias(
         );
     }
     if let Some(bias) = bias {
-        attn_bias = attn_bias + bias;
+        attn_bias = attn_bias + bias.cast(dtype);
     }
     if let Some(mask) = mask {
         attn_bias = attn_bias.mask_fill(mask.bool_not(), f32::NEG_INFINITY);
@@ -203,6 +223,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
+        cpu_device,
         performance_device,
         seeded_tensor,
     };
@@ -373,5 +394,47 @@ mod tests {
             .to_data(),
             false,
         );
+    }
+
+    /// With `softmax_dtype` f32, bf16 attention keeps the query's dtype and
+    /// lands nearer the f32 attention than an all-bf16 softmax: the scores'
+    /// exponentials are where bf16 loses most.
+    #[test]
+    fn test_softmax_dtype() {
+        let device = cpu_device();
+        let q = seeded_tensor::<4>(1, [1, 2, 6, 8], Distribution::Normal(0.0, 3.0), &device);
+        let k = seeded_tensor::<4>(2, [1, 2, 6, 8], Distribution::Normal(0.0, 3.0), &device);
+        let v = seeded_tensor::<4>(3, [1, 2, 6, 8], Distribution::Default, &device);
+        let causal = ScaledDotProductAttentionConfig::new().with_is_causal(true);
+        let f32_out =
+            scaled_dot_product_attention(q.clone(), k.clone(), v.clone(), None, None, causal);
+        let half = |t: &Tensor<4>| t.clone().cast(DType::BF16);
+        let run = |config| {
+            let out =
+                scaled_dot_product_attention(half(&q), half(&k), half(&v), None, None, config);
+            assert_eq!(out.dtype(), DType::BF16);
+            (out.cast(DType::F32) - f32_out.clone())
+                .abs()
+                .max()
+                .into_scalar::<f32>()
+        };
+        let in_bf16 = run(causal);
+        let in_f32 = run(causal.with_softmax_dtype(Some(FloatDType::F32)));
+        assert!(
+            in_f32 <= in_bf16,
+            "f32 softmax {in_f32}, bf16 softmax {in_bf16}"
+        );
+
+        // A bias in another dtype is cast to the softmax's.
+        let bias = Tensor::<2>::zeros([6, 6], &device);
+        let out = scaled_dot_product_attention(
+            half(&q),
+            half(&k),
+            half(&v),
+            Some(bias),
+            None,
+            causal.with_softmax_dtype(Some(FloatDType::F32)),
+        );
+        assert_eq!(out.dtype(), DType::BF16);
     }
 }
