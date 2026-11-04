@@ -153,6 +153,15 @@ The crate's Stacked families show the variations:
   [`WhisperApiConfig`](bunsen::kits::speech::whisper::blocks::WhisperApiConfig)
   over
   [`WhisperStructureConfig`](bunsen::kits::speech::whisper::blocks::WhisperStructureConfig).
+- **The decoder stack** has two policies over one structure.
+  [`UniformStackConfig`](bunsen::blocks::transformers::decoders::stack::UniformStackConfig)
+  repeats one layer config, and
+  [`PatternedStackConfig`](bunsen::blocks::transformers::decoders::stack::PatternedStackConfig)
+  picks each layer's from a few kinds (a sliding-window layer among full
+  ones, say). Both lower to
+  [`DecoderStackStructureConfig`](bunsen::blocks::transformers::decoders::stack::DecoderStackStructureConfig),
+  one block config per layer, which a kit with its own per-layer rules
+  (nanochat's window pattern and value embeddings) builds directly.
 - **Swin Transformer V2** has a fallible lowering.
   [`SwinTransformerV2ContractConfig`](bunsen::kits::images::swin::v2::SwinTransformerV2ContractConfig)
   checks that its stages fit the input and the window, so `try_init` on a
