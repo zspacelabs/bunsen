@@ -67,13 +67,13 @@ overflow-checks = true
 opt-level = 3
 
 [workspace.dependencies]
-burn = { version = "0.22.0", default-features = false }
+burn = { version = "0.22.1", default-features = false }
 clap = "4.6.7"
 burn-onnx = "0.22.0"
 # The ONNX protos `burn-onnx` reads, for build scripts that rewrite a graph
 # before generating from it.
 onnx-ir = "0.22.0"
-burn-store = { version = "0.22.0", default-features = false }
+burn-store = { version = "0.22.1", default-features = false }
 document-features = "0.2.12"
 indexmap = "2.14.2"
 serde = "1.0.229"
