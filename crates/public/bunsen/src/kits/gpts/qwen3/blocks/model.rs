@@ -12,10 +12,7 @@ use burn::{
         LinearConfig,
         norm::RmsNormConfig,
     },
-    prelude::{
-        Int,
-        s,
-    },
+    prelude::Int,
     tensor::{
         DType,
         Device,
@@ -25,18 +22,19 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::{
-            Norm,
-            NormConfig,
-        },
+        norm::NormConfig,
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
                 QkNormPlacement,
             },
-            decoders::causal::{
-                CausalDecoderBlock,
-                CausalDecoderBlockConfig,
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    UniformStackConfig,
+                },
             },
             embedding::{
                 RotaryDirection,
@@ -85,7 +83,7 @@ impl KVCacheModel for Qwen3Config {
 
 impl KVCacheModel for Qwen3Model {
     fn kv_cache_config(&self) -> KVCacheConfig {
-        kv_cache_config(self)
+        self.stack.kv_cache_config(QWEN3_KV_CACHE_PRE_SIZE)
     }
 }
 
@@ -201,6 +199,26 @@ impl Qwen3Config {
             .with_base(self.rope_theta)
             .with_direction(RotaryDirection::Forward)
     }
+
+    /// The decoder stack: `n_layers` alike, each RMS norms, a `SwiGLU`, and
+    /// grouped-query attention with QK-norm before the rotary embedding.
+    pub fn stack(&self) -> UniformStackConfig {
+        let norm = |n| NormConfig::Rms(RmsNormConfig::new(n).with_epsilon(self.rms_eps));
+        UniformStackConfig::new(
+            self.n_layers,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
+                    .with_head_dim(Some(self.head_dim))
+                    .with_norm(Some(norm(self.head_dim)))
+                    .with_qk_norm(QkNormPlacement::BeforeRope)
+                    .with_softmax_dtype(self.softmax_dtype),
+                GatedMlpConfig::new(self.d_model, self.d_ff).into(),
+            )
+            .with_norm(norm(0)),
+            norm(0),
+            self.rotary(0),
+        )
+    }
 }
 
 impl Qwen3Meta for Qwen3Config {
@@ -230,21 +248,6 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
         &self,
         device: &Device,
     ) -> BunsenResult<Qwen3Model> {
-        let norm = |n| RmsNormConfig::new(n).with_epsilon(self.rms_eps);
-        let layers = (0..self.n_layers)
-            .map(|i| {
-                CausalDecoderBlockConfig::new(
-                    CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
-                        .with_head_dim(Some(self.head_dim))
-                        .with_norm(Some(NormConfig::Rms(norm(self.head_dim))))
-                        .with_qk_norm(QkNormPlacement::BeforeRope)
-                        .with_softmax_dtype(self.softmax_dtype),
-                    GatedMlpConfig::new(self.d_model, self.d_ff).into(),
-                )
-                .with_norm(NormConfig::Rms(norm(0)))
-                .try_init(i, device)
-            })
-            .collect::<BunsenResult<_>>()?;
         let lm_head = (!self.tied_head).then(|| {
             LinearConfig::new(self.d_model, self.n_vocab)
                 .with_bias(false)
@@ -253,9 +256,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
         Ok(Qwen3Model {
             embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
             lm_head,
-            layers,
-            norm: NormConfig::Rms(norm(self.d_model)).init(device),
-            rope_theta: self.rope_theta,
+            stack: self.stack().try_init(device)?,
             logits_dtype: self.logits_dtype,
         })
     }
@@ -265,11 +266,10 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// checkpoints, their head tied to the embedding (up to 4B) or a linear map
 /// of its own (8B), and the text model of Qwen3-ASR.
 ///
-/// Its own fields carry the names `transformers`' `Qwen3ForCausalLM` gives
-/// them;
-/// its layers are the generic
-/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
-/// (RMS norms, a `SwiGLU`, QK-norm before the rotary embedding), onto which
+/// Its embedding and head carry the names `transformers`'
+/// `Qwen3ForCausalLM` gives them; its decoder is a generic [`DecoderStack`]
+/// ([`Qwen3Config::stack`]: RMS norms, a `SwiGLU`, QK-norm before the rotary
+/// embedding), onto whose layers
 /// [`text_layer_rekey`](crate::kits::gpts::qwen3::weights::text_layer_rekey)
 /// maps the `transformers` names.
 ///
@@ -284,14 +284,8 @@ pub struct Qwen3Model {
     /// bias.
     pub lm_head: Option<Linear>,
 
-    /// The decoder layers.
-    pub layers: Vec<CausalDecoderBlock>,
-
-    /// The final normalization.
-    pub norm: Norm,
-
-    /// The rotary embedding's base.
-    pub rope_theta: usize,
+    /// The decoder: its layers, final norm and rotary embedding.
+    pub stack: DecoderStack,
 
     /// The dtype the logits leave the model in; `None`, the model's.
     #[module(skip)]
@@ -308,16 +302,15 @@ impl Qwen3Meta for Qwen3Model {
     }
 
     fn n_layers(&self) -> usize {
-        self.layers.len()
+        self.stack.n_layers()
     }
 
     fn n_kv_heads(&self) -> usize {
-        use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.layers[0].attn.n_kv_head()
+        self.stack.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.layers[0].attn.head_dim
+        self.stack.head_dim()
     }
 }
 
@@ -328,10 +321,7 @@ impl Qwen3Model {
         seq_len: usize,
         device: &Device,
     ) -> RotaryEmbedding {
-        RotaryEmbeddingConfig::new(seq_len, self.head_dim())
-            .with_base(self.rope_theta)
-            .with_direction(RotaryDirection::Forward)
-            .init(device)
+        self.stack.rotary(seq_len, device)
     }
 
     /// Embeds tokens.
@@ -376,32 +366,9 @@ impl Qwen3Model {
         &self,
         embeds: Tensor<3>,
         r_emb: &RotaryEmbedding,
-        mut kv_cache: Option<&mut KVCache>,
+        kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        let [batch, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "d_model"],
-            &embeds.dims(),
-            &["batch", "seq"],
-            &[("d_model", self.d_model())]
-        );
-        let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
-        let r_emb = r_emb.clip_range(start..start + seq);
-        let mut x = embeds;
-        for layer in &self.layers {
-            x = layer.forward(x, &r_emb, &mut kv_cache);
-        }
-        let y = self.norm.forward(x);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "d_model"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
-        );
-        #[cfg(not(any(debug_assertions, test)))]
-        let _ = batch;
-
-        y
+        self.stack.forward_hidden(embeds, r_emb, kv_cache)
     }
 
     /// The attention weights of an uncached pass over `embeds`, at `layers`,
@@ -426,34 +393,8 @@ impl Qwen3Model {
         rows: Range<usize>,
         cols: Range<usize>,
     ) -> Vec<Tensor<4>> {
-        let [_, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "d_model"],
-            &embeds.dims(),
-            &["batch", "seq"],
-            &[("d_model", self.d_model())]
-        );
-        assert!(
-            layers.iter().all(|&l| l < self.layers.len()),
-            "layers {layers:?} of {}",
-            self.layers.len()
-        );
-        let r_emb = r_emb.clip_range(0..seq);
-        let deepest = layers.iter().copied().max().map_or(0, |l| l + 1);
-        let mut weights: Vec<Option<Tensor<4>>> = vec![None; layers.len()];
-        let mut x = embeds;
-        for (index, layer) in self.layers.iter().enumerate().take(deepest) {
-            for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
-                let w = layer
-                    .attn
-                    .attention_weights(layer.attn_norm.forward(x.clone()), &r_emb);
-                weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
-            }
-            x = layer.forward(x, &r_emb, &mut None);
-        }
-        weights
-            .into_iter()
-            .map(|w| w.expect("every layer visited"))
-            .collect()
+        self.stack
+            .attention_weights(embeds, r_emb, layers, rows, cols)
     }
 
     /// The head, tied or its own: logits over the vocabulary.
@@ -517,8 +458,8 @@ mod tests {
         assert_eq!(model.n_layers(), config.n_layers());
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
-        assert_eq!(model.rope_theta, config.rope_theta);
-        assert_eq!(model.layers[0].attn.c_q.weight.dims(), [12, 18]);
+        assert_eq!(model.stack.rotary.base, config.rope_theta);
+        assert_eq!(model.stack.layers[0].attn.c_q.weight.dims(), [12, 18]);
         assert!(model.lm_head.is_none(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
@@ -560,43 +501,6 @@ mod tests {
         assert!(
             !logits.all_close(tied, None, None),
             "the logits are not the embedding's"
-        );
-    }
-
-    /// The weights at a layer are its attention's over that layer's input,
-    /// cut to the rows and columns asked for, in the order asked for.
-    #[test]
-    fn test_attention_weights() {
-        let device = cpu_device();
-        let model: Qwen3Model = Qwen3Config::new(40, 12, 3, 3, 1, 6, 20).init(&device);
-        let embeds = model.embed(Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device));
-        let r_emb = model.rotary(5, &device);
-
-        let weights = model.attention_weights(embeds.clone(), &r_emb, &[1, 0], 2..5, 0..3);
-        assert_eq!(weights.len(), 2);
-        assert_eq!(weights[0].dims(), [1, 3, 3, 3]);
-
-        let first = &model.layers[0];
-        let x0 = embeds.clone();
-        let expected0 = first
-            .attn
-            .attention_weights(first.attn_norm.forward(x0.clone()), &r_emb)
-            .slice(s![.., .., 2..5, 0..3]);
-        let second = &model.layers[1];
-        let x1 = first.forward(x0, &r_emb, &mut None);
-        let expected1 = second
-            .attn
-            .attention_weights(second.attn_norm.forward(x1), &r_emb)
-            .slice(s![.., .., 2..5, 0..3]);
-        crate::support::testing::assert_tensors_close(
-            &weights[0],
-            &expected1,
-            burn::tensor::Tolerance::default(),
-        );
-        crate::support::testing::assert_tensors_close(
-            &weights[1],
-            &expected0,
-            burn::tensor::Tolerance::default(),
         );
     }
 }

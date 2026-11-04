@@ -165,7 +165,7 @@ fn test_toy_text_model() {
     let seq = embeds.dims()[1];
     let r_emb = lm.rotary(seq, &toy.device);
 
-    let layer0 = lm.layers[0].forward(embeds.clone(), &r_emb, &mut None);
+    let layer0 = lm.stack.layers[0].forward(embeds.clone(), &r_emb, &mut None);
     assert_io_close("text layer 0", layer0, toy.io("text_layer0"));
     let hidden = lm.forward_hidden(embeds.clone(), &r_emb, None);
     assert_io_close("text hidden", hidden, toy.io("text_hidden"));
