@@ -29,8 +29,8 @@ use crate::{
             },
             embedding::{
                 RotaryDirection,
-                RotaryEmbedding,
                 RotaryEmbeddingConfig,
+                RotarySet,
             },
             head::{
                 LmHead,
@@ -283,7 +283,7 @@ impl VoxtralTextModel {
         &self,
         seq_len: usize,
         device: &Device,
-    ) -> RotaryEmbedding {
+    ) -> RotarySet {
         self.stack.rotary(seq_len, device)
     }
 
@@ -351,7 +351,7 @@ impl VoxtralTextModel {
     pub fn forward_hidden(
         &self,
         embeds: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         cond: &Tensor<3>,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {

@@ -70,10 +70,24 @@ pub fn positional_frequency_table(
     head_dim: usize,
     device: &Device,
 ) -> Tensor<2> {
-    let inv_freq = inverse_frequency_table(base, head_dim, device);
+    frequency_table(seq_len, inverse_frequency_table(base, head_dim, device))
+}
 
-    let t = f32_tensor((0..seq_len).map(|p| p as f32).collect(), device);
-
+/// The rotation angles of the positions `0..seq_len` at `inv_freq`'s
+/// frequencies: their outer product.
+///
+/// # Arguments
+/// - `seq_len`: the sequence length.
+/// - `inv_freq`: `[F]` inverse frequencies, f32 (an
+///   [`inverse_frequency_table`], perhaps scaled).
+///
+/// # Returns
+/// - `[T, F]`, in f32.
+pub fn frequency_table(
+    seq_len: usize,
+    inv_freq: Tensor<1>,
+) -> Tensor<2> {
+    let t = f32_tensor((0..seq_len).map(|p| p as f32).collect(), &inv_freq.device());
     linalg::outer::<1, 2, _>(t, inv_freq)
 }
 

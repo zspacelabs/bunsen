@@ -37,8 +37,8 @@ use crate::{
                 DecoderSideInputs,
             },
             embedding::{
-                RotaryEmbedding,
                 RotaryEmbeddingConfig,
+                RotarySet,
             },
         },
     },
@@ -115,9 +115,21 @@ pub struct DecoderStackStructureConfig {
     /// The final normalization; its feature count is the stack's width.
     pub norm: NormConfig,
 
-    /// The rotary embedding the layers share; its `seq_len` is set per call
-    /// ([`DecoderStack::rotary`]).
+    /// The rotary embedding the layers share, but those
+    /// [`layer_rotary`](Self::layer_rotary) points elsewhere; its `seq_len`
+    /// is set per call ([`DecoderStack::rotary`]).
     pub rotary: RotaryEmbeddingConfig,
+
+    /// Rotary embeddings beside [`rotary`](Self::rotary), for the layers
+    /// [`layer_rotary`](Self::layer_rotary) points at them (Gemma 3's global
+    /// table, beside its local one).
+    #[config(default = "Vec::new()")]
+    pub rotary_alts: Vec<RotaryEmbeddingConfig>,
+
+    /// Each layer's rotary embedding: `None` for [`rotary`](Self::rotary),
+    /// `Some(k)` for `rotary_alts[k]`; empty, every layer on `rotary`.
+    #[config(default = "Vec::new()")]
+    pub layer_rotary: Vec<Option<usize>>,
 }
 
 impl DecoderStackMeta for DecoderStackStructureConfig {
@@ -180,6 +192,38 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
             )
             .into());
         }
+        if !self.layer_rotary.is_empty() && self.layer_rotary.len() != self.layers.len() {
+            return Err(ConstraintError::new(
+                "DecoderStackStructureConfig",
+                "layer_rotary",
+                Rule::Relation {
+                    lhs: (
+                        "layer_rotary.len".into(),
+                        self.layer_rotary.len().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("layers.len".into(), self.layers.len().to_string()),
+                },
+            )
+            .into());
+        }
+        if let Some((i, k)) = self
+            .layer_rotary
+            .iter()
+            .enumerate()
+            .find_map(|(i, k)| k.filter(|&k| k >= self.rotary_alts.len()).map(|k| (i, k)))
+        {
+            return Err(ConstraintError::new(
+                "DecoderStackStructureConfig",
+                "layer_rotary",
+                Rule::Relation {
+                    lhs: (format!("layer_rotary[{i}]"), k.to_string()),
+                    op: "<",
+                    rhs: ("rotary_alts.len".into(), self.rotary_alts.len().to_string()),
+                },
+            )
+            .into());
+        }
         Ok(DecoderStack {
             layers: self
                 .layers
@@ -189,6 +233,8 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
                 .collect::<BunsenResult<_>>()?,
             norm: self.norm.clone().with_num_features(width).init(device),
             rotary: self.rotary.clone(),
+            rotary_alts: self.rotary_alts.clone(),
+            layer_rotary: self.layer_rotary.clone(),
         })
     }
 }
@@ -238,8 +284,19 @@ pub struct PatternedStackConfig {
     /// The final normalization.
     pub norm: NormConfig,
 
-    /// The rotary embedding the layers share.
+    /// The rotary embedding the layers share, but those of a kind
+    /// [`kind_rotary`](Self::kind_rotary) points elsewhere.
     pub rotary: RotaryEmbeddingConfig,
+
+    /// Rotary embeddings beside [`rotary`](Self::rotary)
+    /// ([`DecoderStackStructureConfig::rotary_alts`]).
+    #[config(default = "Vec::new()")]
+    pub rotary_alts: Vec<RotaryEmbeddingConfig>,
+
+    /// Each kind's rotary embedding: `None` for [`rotary`](Self::rotary),
+    /// `Some(k)` for `rotary_alts[k]`; empty, or short, `None`.
+    #[config(default = "Vec::new()")]
+    pub kind_rotary: Vec<Option<usize>>,
 }
 
 impl ToStructureConfig for PatternedStackConfig {
@@ -268,11 +325,19 @@ impl ToStructureConfig for PatternedStackConfig {
                 })
             })
             .collect::<BunsenResult<_>>()?;
-        Ok(DecoderStackStructureConfig::new(
-            layers,
-            self.norm.clone(),
-            self.rotary.clone(),
-        ))
+        let layer_rotary = if self.kind_rotary.iter().all(Option::is_none) {
+            Vec::new()
+        } else {
+            self.layer_kinds
+                .iter()
+                .map(|&kind| self.kind_rotary.get(kind).copied().flatten())
+                .collect()
+        };
+        Ok(
+            DecoderStackStructureConfig::new(layers, self.norm.clone(), self.rotary.clone())
+                .with_rotary_alts(self.rotary_alts.clone())
+                .with_layer_rotary(layer_rotary),
+        )
     }
 }
 
@@ -296,6 +361,16 @@ pub struct DecoderStack {
     /// ([`rotary`](Self::rotary)).
     #[module(skip)]
     pub rotary: RotaryEmbeddingConfig,
+
+    /// The rotary embeddings beside [`rotary`](Self::rotary)
+    /// ([`DecoderStackStructureConfig::rotary_alts`]).
+    #[module(skip)]
+    pub rotary_alts: Vec<RotaryEmbeddingConfig>,
+
+    /// Each layer's rotary embedding
+    /// ([`DecoderStackStructureConfig::layer_rotary`]).
+    #[module(skip)]
+    pub layer_rotary: Vec<Option<usize>>,
 }
 
 impl DecoderStackMeta for DecoderStack {
@@ -359,8 +434,8 @@ pub struct DecoderCache {
     /// The KV cache, one batch row per decode row.
     pub cache: KVCache,
 
-    /// The rotary table, covering the cache's capacity.
-    pub rotary: RotaryEmbedding,
+    /// The rotary tables, covering the cache's capacity.
+    pub rotary: RotarySet,
 }
 
 impl DecoderCache {
@@ -406,15 +481,30 @@ impl DecoderStack {
         self.forward_hidden(x, &cache.rotary, Some(&mut cache.cache))
     }
 
-    /// The rotary embedding for positions `0..seq_len`.
+    /// The rotary tables for positions `0..seq_len`: [`rotary`](Self::rotary)'s
+    /// first, then each of [`rotary_alts`](Self::rotary_alts), and which one
+    /// each layer applies.
     pub fn rotary(
         &self,
         seq_len: usize,
         device: &Device,
-    ) -> RotaryEmbedding {
-        let mut config = self.rotary.clone();
-        config.seq_len = seq_len;
-        config.init(device)
+    ) -> RotarySet {
+        let table = |config: &RotaryEmbeddingConfig| {
+            let mut config = config.clone();
+            config.seq_len = seq_len;
+            config.init(device)
+        };
+        RotarySet {
+            tables: std::iter::once(&self.rotary)
+                .chain(&self.rotary_alts)
+                .map(table)
+                .collect(),
+            layer_tables: self
+                .layer_rotary
+                .iter()
+                .map(|k| k.map_or(0, |k| k + 1))
+                .collect(),
+        }
     }
 
     /// Runs the layers and the final norm over `x`, at positions
@@ -422,7 +512,8 @@ impl DecoderStack {
     ///
     /// # Arguments
     /// * `x` - `[batch, seq, d_model]`.
-    /// * `r_emb` - a rotary embedding covering `start + seq` positions.
+    /// * `r_emb` - rotary tables covering `start + seq` positions
+    ///   ([`rotary`](Self::rotary)).
     /// * `kv_cache` - the cache, at position `start`; `None` means `start` is 0
     ///   and nothing is kept.
     ///
@@ -431,7 +522,7 @@ impl DecoderStack {
     pub fn forward_hidden(
         &self,
         x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
         self.forward_with(x, r_emb, kv_cache, StackSides::default())
@@ -443,7 +534,7 @@ impl DecoderStack {
     pub fn forward_with(
         &self,
         x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         mut kv_cache: Option<&mut KVCache>,
         sides: StackSides,
     ) -> Tensor<3> {
@@ -471,7 +562,7 @@ impl DecoderStack {
             let value_embed = value_embeds.get_mut(i).and_then(Option::take);
             x = layer.forward_with(
                 x,
-                &r_emb,
+                r_emb.for_layer(i),
                 &mut kv_cache,
                 DecoderSideInputs {
                     cond: cond.clone(),
@@ -504,7 +595,7 @@ impl DecoderStack {
     ///
     /// # Arguments
     /// * `x` - `[batch, seq, d_model]`, at positions `0..seq`.
-    /// * `r_emb` - a rotary embedding covering `seq` positions.
+    /// * `r_emb` - rotary tables covering `seq` positions.
     /// * `layers` - the layers, by index, in the order returned.
     /// * `rows`, `cols` - the query and key positions kept.
     ///
@@ -516,7 +607,7 @@ impl DecoderStack {
     pub fn attention_weights(
         &self,
         x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         layers: &[usize],
         rows: Range<usize>,
         cols: Range<usize>,
@@ -540,10 +631,10 @@ impl DecoderStack {
             for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
                 let w = layer
                     .attn
-                    .attention_weights(layer.attn_norm.forward(x.clone()), &r_emb);
+                    .attention_weights(layer.attn_norm.forward(x.clone()), r_emb.for_layer(index));
                 weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
             }
-            x = layer.forward(x, &r_emb, &mut None);
+            x = layer.forward(x, r_emb.for_layer(index), &mut None);
         }
         weights
             .into_iter()
@@ -657,6 +748,84 @@ mod tests {
             );
     }
 
+    /// A kind's rotary embedding is its layers': the set holds the default
+    /// table first, then the alternates, and each layer applies its kind's;
+    /// the stack's forward is each layer's forward with its own table.
+    #[test]
+    fn test_kind_rotary() {
+        let device = crate::support::testing::cpu_device();
+        let global = RotaryEmbeddingConfig::new(0, 8)
+            .with_base(1_000_000)
+            .with_scaling(
+                crate::blocks::transformers::embedding::RopeScaling::Linear { factor: 2.0 },
+            );
+        let policy = PatternedStackConfig::new(
+            vec![layer(Some(4)), layer(None)],
+            vec![0, 1, 0],
+            NormConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        )
+        .with_rotary_alts(vec![global])
+        .with_kind_rotary(vec![None, Some(0)]);
+        let structure = policy.to_structure();
+        assert_eq!(structure.layer_rotary, [None, Some(0), None]);
+        let stack: DecoderStack = structure.init(&device);
+
+        let n = 6;
+        let set = stack.rotary(n, &device);
+        assert_eq!(set.tables.len(), 2);
+        assert_eq!(set.layer_tables, [0, 1, 0]);
+        assert_eq!(set.seq_len(), n);
+        assert!(
+            !set.tables[0]
+                .cos
+                .clone()
+                .all_close(set.tables[1].cos.clone(), None, None),
+            "two tables"
+        );
+
+        let x = seeded_tensor::<3>(1, [1, n, 16], Distribution::Default, &device);
+        let mut y = x.clone();
+        for (i, layer) in stack.layers.iter().enumerate() {
+            y = layer.forward(y, set.for_layer(i), &mut None);
+        }
+        assert_tensors_close(
+            &stack.forward_hidden(x, &set, None),
+            &stack.norm.forward(y),
+            Tolerance::default(),
+        );
+
+        // Without alternates, no layer points anywhere.
+        assert!(
+            PatternedStackConfig::new(
+                vec![layer(Some(4)), layer(None)],
+                vec![0, 1],
+                NormConfig::Rms(RmsNormConfig::new(0)),
+                RotaryEmbeddingConfig::new(0, 8),
+            )
+            .to_structure()
+            .layer_rotary
+            .is_empty()
+        );
+    }
+
+    /// A layer table of the wrong length, or one naming no alternate, is
+    /// refused.
+    #[test]
+    fn test_layer_rotary_refusals() {
+        let device = crate::support::testing::cpu_device();
+        let short = uniform(2).to_structure().with_layer_rotary(vec![None]);
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("layer_rotary.len")
+            .assert_err(&ModuleInit::<DecoderStack>::try_init(&short, &device));
+        let missing = uniform(2)
+            .to_structure()
+            .with_layer_rotary(vec![None, Some(0)]);
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("layer_rotary[1]")
+            .assert_err(&ModuleInit::<DecoderStack>::try_init(&missing, &device));
+    }
+
     /// No layers, or layers of two widths, are refused.
     #[test]
     fn test_structure_refusals() {
@@ -732,13 +901,13 @@ mod tests {
         let first = &stack.layers[0];
         let expected0 = first
             .attn
-            .attention_weights(first.attn_norm.forward(x.clone()), &r_emb)
+            .attention_weights(first.attn_norm.forward(x.clone()), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let second = &stack.layers[1];
-        let x1 = first.forward(x, &r_emb, &mut None);
+        let x1 = first.forward(x, r_emb.for_layer(0), &mut None);
         let expected1 = second
             .attn
-            .attention_weights(second.attn_norm.forward(x1), &r_emb)
+            .attention_weights(second.attn_norm.forward(x1), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let tolerance = Tolerance::default();
         assert_tensors_close(&weights[0], &expected1, tolerance);
@@ -783,7 +952,7 @@ mod tests {
         for (i, layer) in stack.layers.iter().enumerate() {
             let at = |t: &Tensor<1>| t.clone().slice(s![i..i + 1]).unsqueeze::<3>();
             y = y * at(&resid) + x.clone() * at(&x0_lambdas);
-            y = layer.forward(y, &r_emb, &mut None);
+            y = layer.forward(y, r_emb.for_layer(0), &mut None);
             if i == 1 {
                 mid = Some(y.clone());
             }
@@ -813,7 +982,7 @@ mod tests {
         );
         let mut y = x;
         for layer in &stack.layers {
-            y = layer.forward_conditioned(y, &r_emb, &mut None, Some(cond.clone()));
+            y = layer.forward_conditioned(y, r_emb.for_layer(0), &mut None, Some(cond.clone()));
         }
         assert_tensors_close(&got, &stack.norm.forward(y), tolerance);
     }
