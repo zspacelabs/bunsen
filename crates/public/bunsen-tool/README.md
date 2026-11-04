@@ -445,8 +445,8 @@ better before a worse; then `multi` for `en`), logged at `INFO`.
 
 The flags choose, in this order:
 
-1. **`--language` implies `--speech`**: `en` means `en` speech, any other code `multi`. `--speech en` with another
-   language is an error.
+1. **`--language` implies `--speech`**, by the table's `language` entry: `en` means `en` speech, any other code
+   `multi`. A `--speech` that does not hear it is an error (`--speech en --language de`); `multi` hears English.
 2. **The point.** Without `--preset`, each of `--speech`, `--task` and `--quality` not given is `default`'s
    (`en`/`transcribe`/`balanced`), except that `--task translate` makes the speech `multi`; `--json` records the point
    as the ASR preset (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the

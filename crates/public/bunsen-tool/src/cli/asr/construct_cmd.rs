@@ -55,8 +55,9 @@ use crate::cli::asr::{
 ///
 /// How the flags choose, in order (the README has them as a table):
 ///
-/// 1. `--language` implies `--speech`: `en` is `en`, any other code `multi`.
-///    `--speech en` with another language is an error.
+/// 1. `--language` implies `--speech`, by the construct's `language` table:
+///    `en` is `en`, any other code `multi`. A `--speech` that does not hear it
+///    (`fallback.speech`: `multi` hears English) is an error.
 /// 2. Without `--preset`, each of `--speech`, `--task` and `--quality` not
 ///    given is `default`'s, but `--task translate` makes the speech `multi`.
 ///    With it, they are the preset's.
@@ -141,25 +142,28 @@ struct Asked {
 }
 
 impl AsrConstructArgs {
-    /// `--speech`, or the speech `--language` implies: `en` for English,
-    /// `multi` for any other.
+    /// `--speech`, or the speech `--language` implies, by the construct's
+    /// [`language`](crate::cli::asr::construct::AsrConstructConfig::language)
+    /// table (`en` for English, `multi` for any other).
     ///
     /// # Errors
-    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) for `--speech
-    /// en` with a language that is not English.
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) for a `--speech`
+    /// that does not hear the speech `--language` implies
+    /// ([`Fallback::hears`](crate::cli::asr::construct::Fallback::hears)):
+    /// `--speech en --language de`.
     fn speech(&self) -> BunsenResult<Option<Speech>> {
-        let implied = self.language.as_deref().map(|l| {
-            if l.eq_ignore_ascii_case("en") {
-                Speech::En
-            } else {
-                Speech::Multi
-            }
-        });
+        let config = construct_config();
+        let implied = self.language.as_deref().map(|l| config.language.speech(l));
         match (self.speech, implied) {
-            (Some(Speech::En), Some(Speech::Multi)) => Err(BunsenError::policy(format!(
-                "--speech en, but --language {} is not English",
-                self.language.as_deref().unwrap_or_default()
-            ))),
+            (Some(given), Some(implied)) if !config.fallback.hears(given, implied) => {
+                Err(BunsenError::policy(format!(
+                    "--speech {}, but --language {} is {} speech, which {} does not hear",
+                    value_name(given),
+                    self.language.as_deref().unwrap_or_default(),
+                    value_name(implied),
+                    value_name(given)
+                )))
+            }
             (Some(speech), _) => Ok(Some(speech)),
             (None, implied) => Ok(implied),
         }
@@ -268,8 +272,9 @@ impl AsrConstructArgs {
         };
         let preset = lookup(name)?;
         if let Some(speech) = speech
-            && speech != preset.need.speech
-            && preset.need.speech != Speech::Multi
+            && !construct_config()
+                .fallback
+                .hears(preset.need.speech, speech)
         {
             return Err(BunsenError::policy(format!(
                 "preset {} hears {}; {} needs another preset, or none",
@@ -812,7 +817,7 @@ mod tests {
             (
                 &["--speech", "en", "--language", "de"],
                 Offline,
-                Err("is not English"),
+                Err("is multi speech, which en does not hear"),
             ),
             // 2. Without `--preset`, `default`'s need under the flags given;
             // `--task translate` makes the speech `multi`.
@@ -1044,7 +1049,7 @@ mod tests {
                                     let e = e.to_string();
                                     assert!(
                                         e.contains("needs another preset")
-                                            || e.contains("is not English"),
+                                            || e.contains("does not hear"),
                                         "{line:?}: {e}"
                                     );
                                     continue;
