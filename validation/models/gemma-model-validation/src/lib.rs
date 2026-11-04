@@ -13,7 +13,9 @@
 //! [`KVCacheStorage`]; the window checks run past each row's sliding window,
 //! where a sliding layer's cache keeps only its window. The
 //! instruction-tuned rows also hold `bunsen_tool::chat`'s sessions to
-//! `transformers`' greedy replies, turn by turn.
+//! `transformers`' greedy replies, turn by turn, and bunsen's decodes at the
+//! end of a long conversation to `transformers`', in float32 and in bf16 (the
+//! bf16 ones on `--features cuda`, `gemma-2-9b-it` among them).
 //!
 //! ## This crate hosts nothing
 //!
@@ -30,7 +32,9 @@
 //!   `transformers`' own bf16 prefill logits are from its float32 ones;
 //! - `testdata/chat.json`: the tokenizer and chat template of `gemma-3-1b-it`
 //!   and `gemma-2-2b-it` on fixed texts and conversations;
-//! - `testdata/chat_replies.json`: their greedy replies in multi-turn sessions.
+//! - `testdata/chat_replies.json`: their greedy replies in multi-turn sessions;
+//! - `testdata/transformers_long.json`: a long conversation, and the float32
+//!   and bf16 decodes at its end of each of [`LONG_ROWS`].
 //!
 //! `cargo validate` (`validation/tools/validate`) runs this crate under a
 //! profile (`validation/models.yml`). Every test of a model has the model's
@@ -106,6 +110,16 @@ pub const BF16_ROWS: [&str; 1] = ["gemma-2-9b"];
 /// The rows `testdata/chat.json` and `chat_replies.json` hold.
 pub const CHAT_ROWS: [&str; 2] = ["gemma-3-1b-it", "gemma-2-2b-it"];
 
+/// The rows `testdata/transformers_long.json` holds.
+pub const LONG_ROWS: [&str; 3] = ["gemma-2-2b-it", "gemma-2-9b-it", "gemma-3-1b-it"];
+
+/// The [`LONG_ROWS`] held to `transformers` in float32: the rest fit a
+/// 24 GB device in bf16 alone.
+pub const LONG_F32_ROWS: [&str; 2] = ["gemma-3-1b-it", "gemma-2-2b-it"];
+
+/// The fewest positions the long conversation renders to.
+pub const LONG_MIN_POSITIONS: usize = 2048;
+
 /// Every [`KVCacheStorage`], [`Auto`](KVCacheStorage::Auto) first.
 pub const STORAGES: [KVCacheStorage; 4] = [
     KVCacheStorage::Auto,
@@ -167,6 +181,53 @@ pub fn transformers_window_reference() -> BTreeMap<String, GreedyRecord> {
 /// Reads `testdata/transformers_bf16.json`, by row.
 pub fn transformers_bf16_reference() -> BTreeMap<String, GreedyRecord> {
     read("transformers_bf16.json")
+}
+
+/// `testdata/transformers_long.json`: one long conversation, and each row's
+/// greedy decodes at its end, in float32 and in bf16.
+#[derive(Debug, Deserialize)]
+pub struct LongReference {
+    /// The conversation: a generated warehouse ledger, two questions and
+    /// their answers, and a last question about a line far behind.
+    pub conversation: Vec<MessageCase>,
+    /// The tokens each decode generates.
+    pub new_tokens: usize,
+    /// Each of [`LONG_ROWS`].
+    pub rows: BTreeMap<String, LongRecord>,
+}
+
+/// One row of a [`LongReference`].
+#[derive(Debug, Deserialize)]
+pub struct LongRecord {
+    /// The conversation as the row's chat template renders it, generation
+    /// prompt on, `<bos>` first.
+    pub prompt_ids: Vec<i64>,
+    /// `transformers`' greedy decode in float32.
+    pub f32: DecodeRecord,
+    /// `transformers`' greedy decode in bf16.
+    pub bf16: DecodeRecord,
+    /// How far the two prefills' last logits are apart: bf16's own error.
+    pub bf16_vs_f32_last_logits_max_abs: f64,
+    /// How many leading tokens the two decodes agree on.
+    pub bf16_f32_agree: usize,
+}
+
+/// One greedy decode, through `transformers`' own KV cache.
+#[derive(Debug, Deserialize)]
+pub struct DecodeRecord {
+    /// The generated ids.
+    pub ids: Vec<i64>,
+    /// The generated text.
+    pub text: String,
+    /// Each step's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+    /// The prefill's last-position logits, `[1, vocab]`, as float32.
+    pub last_logits: TensorRecord,
+}
+
+/// Reads `testdata/transformers_long.json`.
+pub fn transformers_long_reference() -> LongReference {
+    read("transformers_long.json")
 }
 
 /// One row of `testdata/chat.json`.
@@ -389,6 +450,11 @@ mod window;
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod chat_session;
 
+/// bunsen's float32 decodes at the end of a long conversation against
+/// `transformers`'.
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod long;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -434,6 +500,26 @@ mod tests {
         assert_eq!(chat.keys().map(String::as_str).collect::<Vec<_>>(), rows);
         for record in chat.values() {
             assert!(!record.encode.is_empty() && !record.templates.is_empty());
+        }
+        let long = transformers_long_reference();
+        assert_eq!(
+            long.rows.keys().map(String::as_str).collect::<Vec<_>>(),
+            LONG_ROWS
+        );
+        assert!(long.conversation.len() >= 5, "a multi-turn conversation");
+        for (row, record) in &long.rows {
+            assert!(record.prompt_ids.len() >= LONG_MIN_POSITIONS, "{row}");
+            assert_eq!(record.prompt_ids[0], 2, "{row}: <bos> first");
+            for decode in [&record.f32, &record.bf16] {
+                assert_eq!(decode.ids.len(), long.new_tokens, "{row}");
+                assert_eq!(decode.ids.len(), decode.margins.len(), "{row}");
+                assert_eq!(
+                    decode.last_logits.samples.len(),
+                    decode.last_logits.expected_samples(),
+                    "{row}"
+                );
+            }
+            assert!(record.bf16_f32_agree <= long.new_tokens, "{row}");
         }
         let replies = chat_replies_reference();
         assert_eq!(replies.keys().map(String::as_str).collect::<Vec<_>>(), rows);

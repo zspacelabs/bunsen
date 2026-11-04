@@ -64,9 +64,14 @@ runs turn them on
 
 | Crate | Validates |
 |---|---|
+| [`gemma-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/gemma-model-validation) | Gemma 2 and 3 against `transformers`' own greedy decodes, past each row's sliding window, at the end of a long conversation and in chat sessions, in float32 and, on CUDA, in bf16. |
 | [`nanochat-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/nanochat-model-validation) | nanochat against upstream's own code at the pinned commit of each model, on the community d20 and d18 checkpoints: prefill logits and greedy decodes, in float32 and, on CUDA, in bf16. |
-| [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/sortformer-model-validation) | Sortformer diarization against ONNX exports of the same checkpoints (`Nemotron-3-Diarization`, Sortformer v2.1), each held itself to onnxruntime's run of the published graph, and against `NeMo`'s own diarization of an AMI excerpt by each model. |
+| [`parakeet-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/parakeet-model-validation) | Parakeet TDT against an independent implementation generated from `NeMo`'s own ONNX export, stage by stage. |
+| [`qwen3-asr-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/qwen3-asr-model-validation) | Qwen3-ASR against an implementation generated from an ONNX export, and against `transformers`' own decode of real speech. |
+| [`qwen3-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/qwen3-model-validation) | Qwen3 against an implementation generated from the published ONNX export, and against `transformers`' own greedy decodes, long conversation and chat sessions, in float32 and, on CUDA, in bf16. |
 | [`silero-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/silero-model-validation) | Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace. |
+| [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/sortformer-model-validation) | Sortformer diarization against ONNX exports of the same checkpoints (`Nemotron-3-Diarization`, Sortformer v2.1), each held itself to onnxruntime's run of the published graph, and against `NeMo`'s own diarization of an AMI excerpt by each model. |
+| [`voxtral-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/voxtral-model-validation) | Voxtral Realtime against an implementation generated from the published ONNX export, and against `transformers`' own greedy decodes of real speech. |
 | [`whisper-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/whisper-model-validation) | Whisper against an ONNX export, stage by stage, and against `openai-whisper`'s own decode of real speech. |
 
 Their reference checks are not part of a normal build's test run; they are
