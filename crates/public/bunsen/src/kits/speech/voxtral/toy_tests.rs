@@ -6,18 +6,9 @@
 //! (`tools/gen_voxtral_toy_fixtures.py`). The weights load through
 //! [`load_hf_tensors`], so the loader is under test too.
 
-use std::collections::BTreeMap;
+use std::ops::Range;
 
-use burn::{
-    prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
-    tensor::Tolerance,
-};
+use burn::prelude::*;
 
 use super::{
     blocks::{
@@ -30,7 +21,18 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    support::testing::performance_device,
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+        KVCacheModel,
+    },
+    support::testing::{
+        DecoderToy,
+        ToyFixture,
+        assert_io_close,
+        check_decoder_toy,
+        performance_device,
+    },
 };
 
 /// The delays the toy's logits were recorded at; the first is its default.
@@ -46,7 +48,7 @@ fn toy_config() -> VoxtralRealtimeConfig {
 
 struct Toy {
     model: VoxtralRealtime,
-    io: BTreeMap<String, PackTensor>,
+    fixture: ToyFixture,
     device: Device,
 }
 
@@ -60,51 +62,72 @@ impl Toy {
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/voxtral/toy.safetensors"
         );
-        let mut store = SafetensorsStore::from_file(path);
-        let all = store
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone();
-        let (io, weights): (Vec<_>, Vec<_>) =
-            all.into_iter().partition(|(n, _)| n.starts_with("io."));
+        let mut fixture = ToyFixture::load(path, device);
         let device = device.clone();
         let mut model: VoxtralRealtime = toy_config().init(&device);
-        let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
-            .expect("load the toy weights");
+        let applied =
+            load_hf_tensors(&mut model, fixture.take_weights()).expect("load the toy weights");
         assert!(applied.unused.is_empty(), "unused: {:?}", applied.unused);
-        let io = io
-            .into_iter()
-            .map(|(n, t)| (n.strip_prefix("io.").unwrap().to_string(), t))
-            .collect();
-        Self { model, io, device }
+        Self {
+            model,
+            fixture,
+            device,
+        }
     }
 
     fn io<const D: usize>(
         &self,
         key: &str,
     ) -> Tensor<D> {
-        Tensor::from_data(
-            bridge::to_data(&self.io[key]).expect("read an io tensor"),
-            &self.device,
-        )
+        self.fixture.io(key)
     }
 
     fn ids(&self) -> Tensor<2, Int> {
-        let ids: Tensor<2> = self.io("input_ids");
-        ids.int()
+        self.fixture.ids()
     }
 }
 
-fn assert_close<const D: usize>(
-    what: &str,
-    actual: Tensor<D>,
-    expected: Tensor<D>,
-) {
-    assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
-    actual.to_data_as::<f32>().assert_approx_eq::<f32>(
-        &expected.to_data_as::<f32>(),
-        Tolerance::rel_abs(1e-3, 1e-4),
-    );
+/// The text model at a delay, its input the toy's tokens with the audio
+/// embeds added, position by position.
+struct TextToy<'a> {
+    toy: &'a Toy,
+    audio: Tensor<3>,
+    cond: Tensor<3>,
+}
+
+impl<'a> TextToy<'a> {
+    fn new(
+        toy: &'a Toy,
+        delay: usize,
+    ) -> Self {
+        Self {
+            toy,
+            audio: toy.model.audio_embeds(toy.io("features")),
+            cond: toy.model.language_model.delay_condition(delay, &toy.device),
+        }
+    }
+}
+
+impl DecoderToy for TextToy<'_> {
+    fn positions(&self) -> usize {
+        self.toy.ids().dims()[1]
+    }
+
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        self.toy.model.language_model.kv_cache_config()
+    }
+
+    fn logits(
+        &self,
+        range: Range<usize>,
+        cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        let lm = &self.toy.model.language_model;
+        let embeds = lm.embed(self.toy.ids().slice_dim(1, range.clone()))
+            + self.audio.clone().slice_dim(1, range);
+        let r_emb = lm.rotary(self.positions(), &self.toy.device);
+        lm.logits(lm.forward_hidden(embeds, &r_emb, &self.cond, cache))
+    }
 }
 
 #[test]
@@ -113,15 +136,15 @@ fn test_toy_audio_tower() {
     let tower = &toy.model.audio_tower;
     let features: Tensor<3> = toy.io("features");
     let stem = tower.stem(features.clone());
-    assert_close("audio stem", stem.clone(), toy.io("audio_stem"));
+    assert_io_close("audio stem", stem.clone(), toy.io("audio_stem"));
 
     let r_emb = tower.rotary(stem.dims()[1], &toy.device);
     let layer0 = tower.layers[0].forward(stem, &r_emb, &mut None);
-    assert_close("audio layer 0", layer0, toy.io("audio_layer0"));
+    assert_io_close("audio layer 0", layer0, toy.io("audio_layer0"));
 
     let audio = tower.forward(features.clone());
-    assert_close("audio tower", audio, toy.io("audio"));
-    assert_close(
+    assert_io_close("audio tower", audio, toy.io("audio"));
+    assert_io_close(
         "audio embeds",
         toy.model.audio_embeds(features),
         toy.io("audio_embeds"),
@@ -140,15 +163,28 @@ fn test_toy_text_model() {
 
     let layer0 =
         lm.layers[0].forward_conditioned(embeds.clone(), &r_emb, &mut None, Some(cond.clone()));
-    assert_close("text layer 0", layer0, toy.io("text_layer0"));
+    assert_io_close("text layer 0", layer0, toy.io("text_layer0"));
     let hidden = lm.forward_hidden(embeds, &r_emb, &cond, None);
-    assert_close("text hidden", hidden, toy.io("text_hidden"));
+    assert_io_close("text hidden", hidden, toy.io("text_hidden"));
     for delay in DELAYS {
-        assert_close(
+        assert_io_close(
             &format!("logits at delay {delay}"),
             toy.model.logits(toy.ids(), audio.clone(), delay),
             toy.io(&format!("logits_delay_{delay}")),
         );
+    }
+}
+
+/// At each delay, a prefill and then one step per token, through a cache of
+/// every storage that starts too small and grows, is `transformers`'
+/// uncached forward; the text model's sliding window (7) is shorter than
+/// the toy's eight tokens.
+#[test]
+fn test_toy_text_cached_decode() {
+    let toy = Toy::load();
+    for delay in DELAYS {
+        let expected: Tensor<3> = toy.io(&format!("logits_delay_{delay}"));
+        check_decoder_toy(&TextToy::new(&toy, delay), expected.clone(), expected, 3);
     }
 }
 

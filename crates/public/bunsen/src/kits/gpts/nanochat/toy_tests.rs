@@ -9,20 +9,11 @@
 //! loader are under test with the model.
 
 use std::{
-    collections::BTreeMap,
+    ops::Range,
     path::PathBuf,
 };
 
-use burn::{
-    prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
-    tensor::Tolerance,
-};
+use burn::prelude::*;
 use serial_test::serial;
 
 use super::{
@@ -33,9 +24,17 @@ use super::{
     },
 };
 use crate::{
-    ops::transformers::attention::KVCacheModel,
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+        KVCacheModel,
+    },
     support::testing::{
+        DecoderToy,
         DeviceMemoryGuard,
+        ToyFixture,
+        assert_io_close,
+        check_decoder_toy,
         performance_device,
     },
 };
@@ -47,8 +46,7 @@ const PREFILL: usize = 3;
 struct Toy {
     model: NanoChatGpt,
     generation: NanoChatGeneration,
-    io: BTreeMap<String, PackTensor>,
-    device: Device,
+    fixture: ToyFixture,
 }
 
 impl Toy {
@@ -65,15 +63,10 @@ impl Toy {
             device,
         )
         .expect("load the toy checkpoint");
-        let io = SafetensorsStore::from_file(dir.join("io.safetensors"))
-            .get_all_tensors()
-            .expect("read the toy's answers")
-            .clone();
         Self {
             model,
             generation,
-            io,
-            device: device.clone(),
+            fixture: ToyFixture::load_io(dir.join("io.safetensors"), device),
         }
     }
 
@@ -81,59 +74,45 @@ impl Toy {
         &self,
         key: &str,
     ) -> Tensor<D> {
-        Tensor::from_data(
-            bridge::to_data(&self.io[key]).expect("read an io tensor"),
-            &self.device,
-        )
+        self.fixture.io(key)
     }
 
     fn ids(&self) -> Tensor<2, Int> {
-        let ids: Tensor<2> = self.io("input_ids");
-        ids.int()
+        self.fixture.ids()
     }
 }
 
-fn assert_close<const D: usize>(
-    what: &str,
-    actual: Tensor<D>,
-    expected: Tensor<D>,
-) {
-    assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
-    actual.to_data_as::<f32>().assert_approx_eq::<f32>(
-        &expected.to_data_as::<f32>(),
-        Tolerance::rel_abs(1e-3, 1e-4),
-    );
+/// Upstream's engine: a step is given the token before it, which the
+/// prefill's first position has none of.
+impl DecoderToy for Toy {
+    fn positions(&self) -> usize {
+        self.ids().dims()[1]
+    }
+
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        self.model.kv_cache_config()
+    }
+
+    fn logits(
+        &self,
+        range: Range<usize>,
+        mut cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        let ids = self.ids();
+        let prev =
+            (range.start > 0).then(|| ids.clone().slice_dim(1, range.start - 1..range.start));
+        self.model
+            .forward_after(ids.slice_dim(1, range), prev, &mut cache)
+    }
 }
 
-/// The whole sequence: the head's input and the logits.
-fn check_full(toy: &Toy) {
+/// The whole sequence: the head's input and the logits; then through a KV
+/// cache, as upstream's engine decodes it: a prefill, then one token per
+/// step, each given the token before it.
+fn check(toy: &Toy) {
     let hidden = toy.model.hidden_after(toy.ids(), None, &mut None);
-    assert_close("hidden", hidden.clone(), toy.io("hidden"));
-    assert_close("logits", toy.model.logits(hidden), toy.io("logits"));
-}
-
-/// The sequence through a KV cache, as upstream's engine decodes it: a
-/// prefill, then one token per step, each given the token before it.
-fn check_cached(toy: &Toy) {
-    let ids = toy.ids();
-    let n = ids.dims()[1];
-    let mut cache = toy.model.new_kv_cache(1);
-    let mut steps = vec![
-        toy.model
-            .forward(ids.clone().slice(s![.., ..PREFILL]), &mut Some(&mut cache)),
-    ];
-    for i in PREFILL..n {
-        steps.push(toy.model.forward_after(
-            ids.clone().slice(s![.., i..i + 1]),
-            Some(ids.clone().slice(s![.., i - 1..i])),
-            &mut Some(&mut cache),
-        ));
-    }
-    assert_close(
-        "cached logits",
-        Tensor::cat(steps, 1),
-        toy.io("logits_cached"),
-    );
+    assert_io_close("hidden", hidden, toy.io("hidden"));
+    check_decoder_toy(toy, toy.io("logits"), toy.io("logits_cached"), PREFILL);
 }
 
 #[test]
@@ -144,8 +123,7 @@ fn test_toy_2025() {
     let toy = Toy::load("2025", &device);
     assert_eq!(toy.generation, NanoChatGeneration::Upstream2025);
     assert!(!toy.model.is_smeared());
-    check_full(&toy);
-    check_cached(&toy);
+    check(&toy);
 }
 
 /// The 2026 toy has every 2026 part, a long window shorter than its
@@ -158,6 +136,5 @@ fn test_toy_2026() {
     let toy = Toy::load("2026", &device);
     assert_eq!(toy.generation, NanoChatGeneration::Upstream2026);
     assert!(toy.model.is_smeared());
-    check_full(&toy);
-    check_cached(&toy);
+    check(&toy);
 }

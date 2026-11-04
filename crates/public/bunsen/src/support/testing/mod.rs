@@ -42,6 +42,16 @@
 //! To check that two backends agree with each other, or that a result has not
 //! drifted from a recorded run, use `bunsen::audit` (the `audit` feature).
 //!
+//! # Toy fixtures
+//!
+//! A kit's toy test checks a tiny seeded model against its reference
+//! implementation's answers, which `tools/toy_fixture.py` writes into one
+//! safetensors file with the weights. [`ToyFixture`] reads the file (the
+//! `store_safetensors` feature), and [`assert_io_close`] compares at the toy
+//! tolerance. A decoder is checked through [`DecoderToy`] by
+//! [`check_decoder_toy`]: its uncached logits, then a cached decode through
+//! every KV cache storage.
+//!
 //! # Seeded inputs
 //!
 //! [`seeded_tensor`] draws its values on the host from a seeded RNG, then
@@ -109,6 +119,8 @@ mod device_memory;
 mod dtype_assertions;
 mod seeded;
 mod tensor_record;
+#[cfg(feature = "store_safetensors")]
+mod toy_fixture;
 
 pub use common_assertions::*;
 pub use common_devices::*;
@@ -116,3 +128,5 @@ pub use device_memory::*;
 pub use dtype_assertions::*;
 pub use seeded::*;
 pub use tensor_record::*;
+#[cfg(feature = "store_safetensors")]
+pub use toy_fixture::*;
