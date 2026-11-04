@@ -1,0 +1,1192 @@
+{
+  "kit": "gemma",
+  "name": "well-known",
+  "description": "the Gemma checkpoints bunsen knows by name",
+  "groups": [
+    {
+      "name": "gemma",
+      "description": "Google's Gemma 1, 2 and 3 text models, from their unsloth/ mirrors",
+      "license": "Gemma Terms of Use",
+      "origin": "https://ai.google.dev/gemma",
+      "rows": [
+        {
+          "name": "gemma-3-270m",
+          "description": "Gemma 3 270M: the pretrained model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-3-270m",
+          "prefab": "gemma-3-270m",
+          "bundles": [
+            "gemma/gemma-3-270m"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "sampling": {
+                  "temperature": 1.0,
+                  "top_k": 64,
+                  "top_p": 0.95
+                },
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-3-270m-it",
+          "description": "Gemma 3 270M, instruction-tuned",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-3-270m-it",
+          "prefab": "gemma-3-270m",
+          "bundles": [
+            "gemma/gemma-3-270m-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "sampling": {
+                  "temperature": 1.0,
+                  "top_k": 64,
+                  "top_p": 0.95
+                },
+                "stop_ids": [
+                  1,
+                  106
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-3-1b-pt",
+          "description": "Gemma 3 1B: the pretrained model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-3-1b-pt",
+          "prefab": "gemma-3-1b",
+          "bundles": [
+            "gemma/gemma-3-1b-pt"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "sampling": {
+                  "temperature": 1.0,
+                  "top_k": 64,
+                  "top_p": 0.95
+                },
+                "stop_ids": [
+                  1,
+                  106
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-3-1b-it",
+          "description": "Gemma 3 1B, instruction-tuned",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-3-1b-it",
+          "prefab": "gemma-3-1b",
+          "bundles": [
+            "gemma/gemma-3-1b-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "sampling": {
+                  "temperature": 1.0,
+                  "top_k": 64,
+                  "top_p": 0.95
+                },
+                "stop_ids": [
+                  1,
+                  106
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-3-4b-pt",
+          "description": "Gemma 3 4B: the pretrained model's text model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-3-4b-pt",
+          "prefab": "gemma-3-4b",
+          "bundles": [
+            "gemma/gemma-3-4b-pt"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "sampling": {
+                  "temperature": 1.0,
+                  "top_k": 64,
+                  "top_p": 0.95
+                },
+                "stop_ids": [
+                  1,
+                  106
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-3-4b-it",
+          "description": "Gemma 3 4B, instruction-tuned: its text model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-3-4b-it",
+          "prefab": "gemma-3-4b",
+          "bundles": [
+            "gemma/gemma-3-4b-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "sampling": {
+                  "temperature": 1.0,
+                  "top_k": 64,
+                  "top_p": 0.95
+                },
+                "stop_ids": [
+                  1,
+                  106
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-2-2b",
+          "description": "Gemma 2 2B: the pretrained model, stored in f32",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-2-2b",
+          "prefab": "gemma-2-2b",
+          "bundles": [
+            "gemma/gemma-2-2b"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-2-2b-it",
+          "description": "Gemma 2 2B, instruction-tuned",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-2-2b-it",
+          "prefab": "gemma-2-2b",
+          "bundles": [
+            "gemma/gemma-2-2b-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1,
+                  107
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-2-9b",
+          "description": "Gemma 2 9B: the pretrained model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-2-9b",
+          "prefab": "gemma-2-9b",
+          "bundles": [
+            "gemma/gemma-2-9b"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-2-9b-it",
+          "description": "Gemma 2 9B, instruction-tuned",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-2-9b-it",
+          "prefab": "gemma-2-9b",
+          "bundles": [
+            "gemma/gemma-2-9b-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-2b",
+          "description": "Gemma 2B (Gemma 1): the pretrained model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-2b",
+          "prefab": "gemma-2b",
+          "bundles": [
+            "gemma/gemma-2b"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-2b-it",
+          "description": "Gemma 2B (Gemma 1), instruction-tuned",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-2b-it",
+          "prefab": "gemma-2b",
+          "bundles": [
+            "gemma/gemma-2b-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-7b",
+          "description": "Gemma 7B (Gemma 1): the pretrained model",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-7b",
+          "prefab": "gemma-7b",
+          "bundles": [
+            "gemma/gemma-7b"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        },
+        {
+          "name": "gemma-7b-it",
+          "description": "Gemma 7B (Gemma 1), instruction-tuned",
+          "license": "Gemma Terms of Use",
+          "origin": "https://huggingface.co/google/gemma-7b-it",
+          "prefab": "gemma-7b",
+          "bundles": [
+            "gemma/gemma-7b-it"
+          ],
+          "presets": {
+            "base": {
+              "generation": {
+                "stop_ids": [
+                  1
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "bundles": [
+    {
+      "name": "gemma/gemma-3-270m",
+      "description": "gemma-3-270m: model.safetensors, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-3-270m",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-270m/resolve/edcf1fe394ee1168e7c5538afd104cfb1f7947e6"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "abb58eb73aece5163624090d5383c59cbcdb9e9539ec84cb864f74386c4b21d5",
+          "kind": "safetensors",
+          "size": 536223056,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "7944b2cf8a011545b92c9158afef2cb681b076cace2e78eab350ec604a50ad82",
+          "kind": "json",
+          "size": 1372
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "4667f2089529e8e7657cfb6d1c19910ae71ff5f28aa7ab2ff2763330affad795",
+          "kind": "tokenizer.json",
+          "size": 33384568
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "1233befa02fc7be3a6504c5ad20161f2f2b64009d232c3f6ba39e52afaaa0f76",
+          "kind": "tokenizer_config.json",
+          "size": 1155346
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "7cfa915fdc8978a47413692d19f08ca9ddf20af41e5b40d313497acaa444b11c",
+          "kind": "generation_config.json",
+          "size": 214
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-3-270m-it",
+      "description": "gemma-3-270m-it: model.safetensors, config, tokenizer, generation config, chat template",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-3-270m-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-270m-it/resolve/23cf460f6bb16954176b3ddcc8d4f250501458a9"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "700b710a9a99c295ed546647aa81cacf9f81f4c573ea2be613a0e2517a44afab",
+          "kind": "safetensors",
+          "size": 536223056,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "2706d3533059c6e1086badab27cc234e8ca2228975c3f73eeaef7f57cb5ec1db",
+          "kind": "json",
+          "size": 1374
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "4667f2089529e8e7657cfb6d1c19910ae71ff5f28aa7ab2ff2763330affad795",
+          "kind": "tokenizer.json",
+          "size": 33384568
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "be2182df1ad0ea735d336418896eb06e5cc2f59136e7aaeac5de2ec2197742ac",
+          "kind": "tokenizer_config.json",
+          "size": 1157090
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "be9e552870ff18a6c6beb0f6811030509c040d641e6972ce53c2fb540bbb4ba0",
+          "kind": "generation_config.json",
+          "size": 233
+        },
+        {
+          "key": "chat_template",
+          "file": "chat_template.jinja",
+          "sha256": "af95fbef33b76a50e5f463ff9766f85ce84f5849d915c4bd6c1619d852ac3231",
+          "kind": "chat_template.jinja",
+          "size": 1654
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-3-1b-pt",
+      "description": "gemma-3-1b-pt: model.safetensors, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-3-1b-pt",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-1b-pt/resolve/34a98bf3eaecc08c699516f625eb5e56e4c5d99d"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "ee5250f6eb1aa7cfb729dfd4dc8d9964fd772324776c6d00bf2bc674c069cb27",
+          "kind": "safetensors",
+          "size": 1999811208,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "ce8142ea1ef6d036347f4dbf4a8de0ea673cf2464f5fb5a4542c90d7e58f06c1",
+          "kind": "json",
+          "size": 900
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "4667f2089529e8e7657cfb6d1c19910ae71ff5f28aa7ab2ff2763330affad795",
+          "kind": "tokenizer.json",
+          "size": 33384568
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "eccf631e4d45efa2f33aac7ae814ca3d842f9f9aa38683b0428013b68f2bb4b4",
+          "kind": "tokenizer_config.json",
+          "size": 1155347
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "3432dc3778d073ecaaaac967e69b5feb0ad6c41e69850a25a9606bef1f42840d",
+          "kind": "generation_config.json",
+          "size": 233
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-3-1b-it",
+      "description": "gemma-3-1b-it: model.safetensors, config, tokenizer, generation config, chat template",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-3-1b-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-1b-it/resolve/5b11413a10db4e486ef16a20101fd028f8f2499c"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "3d4ef8d71c14db7e448a09ebe891cfb6bf32c57a9b44499ae0d1c098e48516b6",
+          "kind": "safetensors",
+          "size": 1999811208,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "c5b2136c452797c0c52cba5793ced59d95453dfdc3444433b03e27699ff1c2cd",
+          "kind": "json",
+          "size": 902
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "4667f2089529e8e7657cfb6d1c19910ae71ff5f28aa7ab2ff2763330affad795",
+          "kind": "tokenizer.json",
+          "size": 33384568
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "a622f3103725cffe1f19deed01e8675cea4443bc3eff27680f9484e5dc4acf7b",
+          "kind": "tokenizer_config.json",
+          "size": 1158491
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "faa83f23a56aee7b9722f2a7263f6419341b62496d604a78775aeff9660701c3",
+          "kind": "generation_config.json",
+          "size": 233
+        },
+        {
+          "key": "chat_template",
+          "file": "chat_template.jinja",
+          "sha256": "7de1c58e208eda46e9c7f86397df37ec49883aeece39fb961e0a6b24088dd3c4",
+          "kind": "chat_template.jinja",
+          "size": 1532
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-3-4b-pt",
+      "description": "gemma-3-4b-pt: 2 safetensors shards, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-3-4b-pt",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-4b-pt/resolve/52aba93981c6ad7712b030eb6dd496ece1d279d6"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint.index",
+          "file": "model.safetensors.index.json",
+          "sha256": "77f4b67de084c31c7bcd373b039908108eee6c6181607e6d53da730e5f0bc659",
+          "kind": "safetensors-index",
+          "size": 90558,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00001",
+          "file": "model-00001-of-00002.safetensors",
+          "sha256": "8f5b423a203c41b5655b2e1b4c58be262cb0e403048c8116e100bdac91318320",
+          "kind": "safetensors",
+          "size": 4961251752,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00002",
+          "file": "model-00002-of-00002.safetensors",
+          "sha256": "d3d22b1ab51a03678f95f7d5e60f703a50e6554e4c731c884fc0fbf05e6e3f47",
+          "kind": "safetensors",
+          "size": 3639026128,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "61d8184220ae1f944967371d20b1f216f3a5d31e25d247cc4ebb6e984f69698f",
+          "kind": "json",
+          "size": 1657
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "4667f2089529e8e7657cfb6d1c19910ae71ff5f28aa7ab2ff2763330affad795",
+          "kind": "tokenizer.json",
+          "size": 33384568
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "92fbdb5d724566c479db3d788a78ef44c96e03849b9797a15988e7f1821cfffa",
+          "kind": "tokenizer_config.json",
+          "size": 1155388
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "940e1f58b735abdb056b6dc94653b8d79efa38a94d74c4910157fe110acca07e",
+          "kind": "generation_config.json",
+          "size": 210
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-3-4b-it",
+      "description": "gemma-3-4b-it: 2 safetensors shards, config, tokenizer, generation config, chat template",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-3-4b-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-3-4b-it/resolve/bf46152c47f5dd20b896357cb51abc4c03b8ee8c"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint.index",
+          "file": "model.safetensors.index.json",
+          "sha256": "77f4b67de084c31c7bcd373b039908108eee6c6181607e6d53da730e5f0bc659",
+          "kind": "safetensors-index",
+          "size": 90558,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00001",
+          "file": "model-00001-of-00002.safetensors",
+          "sha256": "eb5fd5e97ddd07b56778733e9653c07312529cb00980a318fc3e1c4e3b5a8f1f",
+          "kind": "safetensors",
+          "size": 4961251752,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00002",
+          "file": "model-00002-of-00002.safetensors",
+          "sha256": "fdde0e5aa5ced0fa203b3d50f4ab78168b7e3a3e08c6349f5cc9326666e1bb13",
+          "kind": "safetensors",
+          "size": 3639026128,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "6bed1ab02267c629a6937cf021c0c7bee97b5e2131d5c262e338aeac794db4df",
+          "kind": "json",
+          "size": 1659
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "4667f2089529e8e7657cfb6d1c19910ae71ff5f28aa7ab2ff2763330affad795",
+          "kind": "tokenizer.json",
+          "size": 33384568
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "8925eabb556c1897ca1bed405f0612e735a56afcd4d77e76eb90fd771e706f9c",
+          "kind": "tokenizer_config.json",
+          "size": 1158492
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "031fdd1faee68cf7e0cafd12203a08f51f86abd82877a401fc8dafad7b2f7b5c",
+          "kind": "generation_config.json",
+          "size": 210
+        },
+        {
+          "key": "chat_template",
+          "file": "chat_template.jinja",
+          "sha256": "7de1c58e208eda46e9c7f86397df37ec49883aeece39fb961e0a6b24088dd3c4",
+          "kind": "chat_template.jinja",
+          "size": 1532
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-2-2b",
+      "description": "gemma-2-2b: model.safetensors, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-2-2b",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-2-2b/resolve/25319945f7fd83b8b903e12081777b7eef2ba993"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "40f7727761523db40b475358377c9a9b0f0d8fcf7ef8b869e71ae4f0ef12a555",
+          "kind": "safetensors",
+          "size": 5228717512,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "e7fd1f5621e3956cc2795c3e69d775da31b04a5aae436fa892ab2fe75285aa11",
+          "kind": "json",
+          "size": 891
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "3f289bc05132635a8bc7aca7aa21255efd5e18f3710f43e3cdb96bcd41be4922",
+          "kind": "tokenizer.json",
+          "size": 17525357
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "380c8e594ecb8ca2b219d7ef355d6f424343eb1c5bd391251b558dbf67837c69",
+          "kind": "tokenizer_config.json",
+          "size": 46405
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "4ebdb5448f194666939265b988d4e8f6437d970dcb271e6f3133ccb70df22798",
+          "kind": "generation_config.json",
+          "size": 190
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-2-2b-it",
+      "description": "gemma-2-2b-it: model.safetensors, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-2-2b-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-2-2b-it/resolve/457f2e15bf550c227ce6ad86e2ec108d3e42c106"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "bf06a1e6cfe1610beb98a2975e5602e7fc108d902b3ff9dd62282d749c7a2394",
+          "kind": "safetensors",
+          "size": 5228717512,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "e3885c56a32ca83566f849283b402006bbb100a02c43aca3fe0c90dc62808893",
+          "kind": "json",
+          "size": 913
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "3f289bc05132635a8bc7aca7aa21255efd5e18f3710f43e3cdb96bcd41be4922",
+          "kind": "tokenizer.json",
+          "size": 17525357
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "e5ac0f1cfb5f450763d368edacbb2448a3c02c8d8f7f98d963a820751fb0ddc3",
+          "kind": "tokenizer_config.json",
+          "size": 47022
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "ebcbf26935f7b454678f1bfb7fa9142dc04f5210e73be8fccba44a9d59f5a986",
+          "kind": "generation_config.json",
+          "size": 209
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-2-9b",
+      "description": "gemma-2-9b: 4 safetensors shards, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-2-9b",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-2-9b/resolve/9145841c83add11c48155cd7bb87d8656703f997"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint.index",
+          "file": "model.safetensors.index.json",
+          "sha256": "c38b39b80b2d7aa422464a9b816af4c30d2177e471b89e5325df1336a23ad284",
+          "kind": "safetensors-index",
+          "size": 39072,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00001",
+          "file": "model-00001-of-00004.safetensors",
+          "sha256": "86a866941403ba40e8567bfb0891a7a7162604140c38f04a0e89505d79a13e91",
+          "kind": "safetensors",
+          "size": 4903351912,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00002",
+          "file": "model-00002-of-00004.safetensors",
+          "sha256": "291863614f85bf1fa59959216a472afb142c7cccaa2505a98aec4f10097554fb",
+          "kind": "safetensors",
+          "size": 4947570872,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00003",
+          "file": "model-00003-of-00004.safetensors",
+          "sha256": "9665bf83479bacea29ffceaa98c121f13030f46060a696ec51c961dc4b8571fe",
+          "kind": "safetensors",
+          "size": 4962221464,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00004",
+          "file": "model-00004-of-00004.safetensors",
+          "sha256": "fa70db0c708af63ba0ffa64b6f0f94fecfc5d1bf62bb0b05db450a14521d0eb9",
+          "kind": "safetensors",
+          "size": 3670322200,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "709470e3c0728defae28a02649409008625584d95861c3b969c9d585e986f652",
+          "kind": "json",
+          "size": 1918
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "5f7eee611703c5ce5d1eee32d9cdcfe465647b8aff0c1dfb3bed7ad7dbb05060",
+          "kind": "tokenizer.json",
+          "size": 34362873
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "aaf0596bc34f94a1d76724744c1f0bc047778941856ff2ad552d2e6f2ea2f50e",
+          "kind": "tokenizer_config.json",
+          "size": 46407
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "1d77dd9ead73995140e8199fb010623e187514281316deb47e4183c6cd386223",
+          "kind": "generation_config.json",
+          "size": 190
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-2-9b-it",
+      "description": "gemma-2-9b-it: 4 safetensors shards, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-2-9b-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-2-9b-it/resolve/fc7d4737cda11c3a19af2b722319e846670b4d89"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint.index",
+          "file": "model.safetensors.index.json",
+          "sha256": "c38b39b80b2d7aa422464a9b816af4c30d2177e471b89e5325df1336a23ad284",
+          "kind": "safetensors-index",
+          "size": 39072,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00001",
+          "file": "model-00001-of-00004.safetensors",
+          "sha256": "a0d4eb4fcbddfe01b0dc7a58386a3980826ededaf0ecd67d1ef38995b89615ba",
+          "kind": "safetensors",
+          "size": 4903351912,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00002",
+          "file": "model-00002-of-00004.safetensors",
+          "sha256": "712a589c333f49f7b6f3870838a9e0ab4b3c0260abd5130e8c54316e6c99640b",
+          "kind": "safetensors",
+          "size": 4947570872,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00003",
+          "file": "model-00003-of-00004.safetensors",
+          "sha256": "5a9f84eb9846840802200c6502ccaaebf0a146ee89dcb8822fab795c392dd667",
+          "kind": "safetensors",
+          "size": 4962221464,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00004",
+          "file": "model-00004-of-00004.safetensors",
+          "sha256": "3349b4960bbc0bf7e47a624e5c520881adb06e2da4bda6ed14b51c7f647fe26c",
+          "kind": "safetensors",
+          "size": 3670322200,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "7b881c1a317cc0ff34d36efdbd3668c10a2e7e6d5acae600a07f62bdd74d2cf8",
+          "kind": "json",
+          "size": 927
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "3f289bc05132635a8bc7aca7aa21255efd5e18f3710f43e3cdb96bcd41be4922",
+          "kind": "tokenizer.json",
+          "size": 17525357
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "e5ac0f1cfb5f450763d368edacbb2448a3c02c8d8f7f98d963a820751fb0ddc3",
+          "kind": "tokenizer_config.json",
+          "size": 47022
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "4ebdb5448f194666939265b988d4e8f6437d970dcb271e6f3133ccb70df22798",
+          "kind": "generation_config.json",
+          "size": 190
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-2b",
+      "description": "gemma-2b: model.safetensors, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-2b",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-2b/resolve/7ac9d201a57c8cdc6f939069fc0f044c60197a4a"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "d00d0537c1c6175a8cb10bf8263bc3af94e06a7ad92962a6c051f45c4eb4e68a",
+          "kind": "safetensors",
+          "size": 5012363856,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "aa31dbdc535024275edec7b3faa4822759c827147a1d3b3ea5127c1b5527ced3",
+          "kind": "json",
+          "size": 721
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "7da53ca29fb16f6b2489482fc0bc6a394162cdab14d12764a1755ebc583fea79",
+          "kind": "tokenizer.json",
+          "size": 17518525
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "a9c97d9a9e90e0f3ef7db379ad2786e030830de8d27e4d474408b44b52c1a624",
+          "kind": "tokenizer_config.json",
+          "size": 40017
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "4358ba9459393634465be72b3428013c0e946aef4c18f50f26f94443070d3f8a",
+          "kind": "generation_config.json",
+          "size": 154
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-2b-it",
+      "description": "gemma-2b-it: model.safetensors, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-2b-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-2b-it/resolve/5ae754dee0b5cbf7f7fb39a7731aefa6b7987c2d"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint",
+          "file": "model.safetensors",
+          "sha256": "8fdf067bdfd010c75d8c4c0508fe45f4567c6097f3193928501d63a05020e0e6",
+          "kind": "safetensors",
+          "size": 5012363856,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "90fd9a9035ea6cadd4fb7b3d2d0762fae249e492aa43f68b78645474c5987e88",
+          "kind": "json",
+          "size": 724
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "7da53ca29fb16f6b2489482fc0bc6a394162cdab14d12764a1755ebc583fea79",
+          "kind": "tokenizer.json",
+          "size": 17518525
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "0807d35bd578032f64c7d0f9aeff6c75905dbc4fd6dbbc347bc3533747b81060",
+          "kind": "tokenizer_config.json",
+          "size": 40634
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "4358ba9459393634465be72b3428013c0e946aef4c18f50f26f94443070d3f8a",
+          "kind": "generation_config.json",
+          "size": 154
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-7b",
+      "description": "gemma-7b: 4 safetensors shards, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-7b",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-7b/resolve/a0aa8221f534401bd60aa694dd8dd3022dbaf47a"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint.index",
+          "file": "model.safetensors.index.json",
+          "sha256": "5a380de9182b50384f31d115991a3976352fb129e4016e29715b5b25439f3684",
+          "kind": "safetensors-index",
+          "size": 20920,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00001",
+          "file": "model-00001-of-00004.safetensors",
+          "sha256": "632edaf7993dd73b33287cc34e0de0ed48c04a54834198fac5f2f78ff47e62c9",
+          "kind": "safetensors",
+          "size": 4995496656,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00002",
+          "file": "model-00002-of-00004.safetensors",
+          "sha256": "b9b0278bd4e203c50d4a1b2a29bd6061b19c48abc77f338a4de2f0dd4fba0fac",
+          "kind": "safetensors",
+          "size": 4982953168,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00003",
+          "file": "model-00003-of-00004.safetensors",
+          "sha256": "69dcacd38561f42064c81a0d8ebfd97d8a393d22e40fea327fc6c9a14205768c",
+          "kind": "safetensors",
+          "size": 4982953200,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00004",
+          "file": "model-00004-of-00004.safetensors",
+          "sha256": "1ddee49e12c7ec4ffb8ff6359a727a798ded9d6176da4bad30833f24426cb92f",
+          "kind": "safetensors",
+          "size": 2113988336,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "ea3580074b04fc9e5cd3555316faab4fdb7d070224521f7371180463d01935bc",
+          "kind": "json",
+          "size": 709
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "f559f2189f392b4555613965f089e7c4d300b41fbe080bf79da0d676e33ee7f0",
+          "kind": "tokenizer.json",
+          "size": 34356041
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "885bfdeda5b7a75bcb4aff07a655531138db218b3ca3f3c57b2f08d5910d9724",
+          "kind": "tokenizer_config.json",
+          "size": 41504
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "9f8c77dd886e6e1f39fc9d241cbb1ac69c0d15b55137efd2fb6334dffbf79183",
+          "kind": "generation_config.json",
+          "size": 154
+        }
+      ]
+    },
+    {
+      "name": "gemma/gemma-7b-it",
+      "description": "gemma-7b-it: 3 safetensors shards, config, tokenizer, generation config",
+      "license": "Gemma Terms of Use",
+      "origin": "https://huggingface.co/unsloth/gemma-7b-it",
+      "namespace": "gemma",
+      "bases": [
+        {
+          "url": "https://huggingface.co/unsloth/gemma-7b-it/resolve/09fcaf72a834aee7e71c7c42b7c04985c476d66d"
+        }
+      ],
+      "resources": [
+        {
+          "key": "checkpoint.index",
+          "file": "model.safetensors.index.json",
+          "sha256": "5b61cc79d1550a8f7eb0b7ff637a56c6cb46052f27dc5b7d6cac49fa1bb22b74",
+          "kind": "safetensors-index",
+          "size": 20920,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00001",
+          "file": "model-00001-of-00003.safetensors",
+          "sha256": "8dac2068631da269ef118fe9a89f9af11dde211304db5768c784f75525dc355d",
+          "kind": "safetensors",
+          "size": 6958471144,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00002",
+          "file": "model-00002-of-00003.safetensors",
+          "sha256": "a70c9bc6f477dff57b4c935a6c29e919861ae41a172a122fce151058422fc352",
+          "kind": "safetensors",
+          "size": 6895608952,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "checkpoint.00003",
+          "file": "model-00003-of-00003.safetensors",
+          "sha256": "a889230c5346aa3cc790a454a17e1123286008d5490a1165de2cd3f25ccd983a",
+          "kind": "safetensors",
+          "size": 3221311264,
+          "dtype": "bfloat16"
+        },
+        {
+          "key": "config",
+          "file": "config.json",
+          "sha256": "94c083894428aa44323bdf81194c306dc2099e739312263891382c9bb7c3ea92",
+          "kind": "json",
+          "size": 726
+        },
+        {
+          "key": "tokenizer",
+          "file": "tokenizer.json",
+          "sha256": "7da53ca29fb16f6b2489482fc0bc6a394162cdab14d12764a1755ebc583fea79",
+          "kind": "tokenizer.json",
+          "size": 17518525
+        },
+        {
+          "key": "tokenizer_config",
+          "file": "tokenizer_config.json",
+          "sha256": "0807d35bd578032f64c7d0f9aeff6c75905dbc4fd6dbbc347bc3533747b81060",
+          "kind": "tokenizer_config.json",
+          "size": 40634
+        },
+        {
+          "key": "generation_config",
+          "file": "generation_config.json",
+          "sha256": "4358ba9459393634465be72b3428013c0e946aef4c18f50f26f94443070d3f8a",
+          "kind": "generation_config.json",
+          "size": 154
+        }
+      ]
+    }
+  ]
+}
