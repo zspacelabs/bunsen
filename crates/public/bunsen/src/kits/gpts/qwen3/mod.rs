@@ -21,10 +21,12 @@
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //!
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].
-//! - [`Qwen3DecodeState`]: a decode's cache and rotary table; the model is a
-//!   [`CachedStep`](crate::kits::support::decoding::CachedStep), so
-//!   [`decode_cached`](crate::kits::support::decoding::decode_cached) decodes
-//!   it under any search.
+//! - Decoding: the model is a
+//!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
+//!   its stack's
+//!   [`DecoderCache`](crate::blocks::transformers::decoders::stack::DecoderCache),
+//!   so [`decode_cached`](crate::kits::support::decoding::decode_cached)
+//!   decodes it under any search.
 //! - [`Qwen3Construct`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer and generation files, unread.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
@@ -41,7 +43,6 @@ pub mod blocks;
 mod construct;
 mod decode;
 pub use construct::*;
-pub use decode::*;
 
 #[cfg(feature = "store")]
 pub mod weights;

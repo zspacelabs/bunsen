@@ -5,6 +5,7 @@ use std::{
 };
 
 use bunsen::{
+    blocks::transformers::decoders::stack::DecoderCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -14,7 +15,6 @@ use bunsen::{
             driver_support::CachedHistory,
             qwen3::{
                 Qwen3Construct,
-                Qwen3DecodeState,
                 Qwen3Meta,
                 Qwen3Model,
             },
@@ -23,6 +23,7 @@ use bunsen::{
             decoding::{
                 CachedStep,
                 LogitFilter,
+                StackedLm,
                 SuppressTokens,
             },
             model_config::GenerationPolicy,
@@ -200,7 +201,7 @@ impl Qwen3Chat {
 
 impl ChatBackend for Qwen3Chat {
     type Model = Qwen3Model;
-    type State = Qwen3DecodeState;
+    type State = DecoderCache;
 
     fn model(&self) -> &Qwen3Model {
         &self.bundle.model
@@ -240,7 +241,7 @@ impl ChatBackend for Qwen3Chat {
         positions: usize,
         storage: KVCacheStorage,
         device: &Device,
-    ) -> Qwen3DecodeState {
+    ) -> DecoderCache {
         self.bundle
             .model
             .decode_state(1, positions, storage, device)
@@ -249,7 +250,7 @@ impl ChatBackend for Qwen3Chat {
     fn rewind<'a>(
         &self,
         history: &mut CachedHistory,
-        state: &mut Qwen3DecodeState,
+        state: &mut DecoderCache,
         next: &'a [i64],
         _device: &Device,
     ) -> &'a [i64] {
@@ -259,7 +260,7 @@ impl ChatBackend for Qwen3Chat {
     fn prefill(
         &self,
         ids: &[i64],
-        state: &mut Qwen3DecodeState,
+        state: &mut DecoderCache,
         device: &Device,
     ) -> Tensor<2> {
         let model = &self.bundle.model;
