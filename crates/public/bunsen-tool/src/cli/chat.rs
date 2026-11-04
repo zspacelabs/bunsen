@@ -389,7 +389,9 @@ struct GenerateFlags {
     #[arg(long, value_enum, default_value_t = Storage::Auto)]
     kv_storage: Storage,
 
-    /// Print each reply's token counts and speeds to stderr.
+    /// Print, to stderr after each reply, the model's lookup expression
+    /// (its name and presets) on a line of its own, then the reply's token
+    /// counts and speeds.
     #[arg(long)]
     stats: bool,
 }
@@ -519,12 +521,14 @@ impl GenerateFlags {
     }
 
     /// Opens the device, and loads the checkpoint on it: `family`'s, or
-    /// outside `family` whichever `--model` names.
+    /// outside `family` whichever `--model` names. Also returns the lookup
+    /// expression it loaded: the checkpoint's name, with the presets
+    /// `--preset` and `family`'s flags add.
     fn load(
         &self,
         family: Option<Family>,
         presets: &[&str],
-    ) -> BunsenResult<(DeviceSession, Chat)> {
+    ) -> BunsenResult<(DeviceSession, Chat, String)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
@@ -542,7 +546,7 @@ impl GenerateFlags {
             name = with_presets(&name, presets)?;
         }
         let chat = family.load(&name, &cache, &device)?;
-        Ok((device, chat))
+        Ok((device, chat, name))
     }
 
     /// The session config these flags and `family`'s give, over `chat`'s
@@ -584,11 +588,14 @@ impl GenerateFlags {
     }
 
     /// Sends `user`, streaming the reply to stdout (its thinking only when
-    /// `family`'s flags show it), and reports it under `--stats`.
+    /// `family`'s flags show it), and reports it under `--stats`: `model`,
+    /// the lookup expression loaded, on a line of its own, then the reply's
+    /// numbers.
     fn reply<B: ChatBackend>(
         &self,
         session: &mut ChatSession<B>,
         family: &impl FamilyFlags,
+        model: &str,
         user: &str,
     ) -> BunsenResult<ChatReply> {
         let mut out = std::io::stdout().lock();
@@ -609,6 +616,7 @@ impl GenerateFlags {
         }
         if self.stats {
             let rate = |n: usize, t: std::time::Duration| n as f64 / t.as_secs_f64().max(1e-9);
+            eprintln!("[model {model}]");
             eprintln!(
                 "[{:?}; prompt {} tokens, {} prefilled in {:.2} s ({:.0} tok/s); reply {} tokens in {:.2} s ({:.1} tok/s); {:?}]",
                 session.model().float_dtype(),
@@ -625,25 +633,28 @@ impl GenerateFlags {
         Ok(reply)
     }
 
-    /// Answers `prompt`, once.
+    /// Answers `prompt` with `model`, the lookup expression loaded, once.
     fn run_once<B: ChatBackend>(
         &self,
         chat: &Arc<ChatModel<B>>,
         family: &impl FamilyFlags,
         device: &DeviceSession,
+        model: &str,
         prompt: &str,
     ) -> BunsenResult<()> {
         let mut session = self.session(chat, self.config(chat), device);
-        self.reply(&mut session, family, prompt)?;
+        self.reply(&mut session, family, model, prompt)?;
         Ok(())
     }
 
-    /// Holds a conversation on stdin.
+    /// Holds a conversation on stdin with `model`, the lookup expression
+    /// loaded.
     fn converse<B: ChatBackend>(
         &self,
         chat: &Arc<ChatModel<B>>,
         family: &impl FamilyFlags,
         device: &DeviceSession,
+        model: &str,
     ) -> BunsenResult<()> {
         let config = self.config(chat);
         let mut session = self.session(chat, config.clone(), device);
@@ -661,7 +672,7 @@ impl GenerateFlags {
                     eprintln!("[a new conversation]");
                 }
                 user => {
-                    self.reply(&mut session, family, user)?;
+                    self.reply(&mut session, family, model, user)?;
                 }
             }
         }
@@ -839,10 +850,16 @@ impl<F: FamilyFlags> RunCmd<F> {
             }
         };
         let prompt = prompt.trim_end();
-        let (device, chat) = self.flags.load(family, &self.family.presets())?;
+        let (device, chat, model) = self.flags.load(family, &self.family.presets())?;
         match &chat {
-            Chat::Qwen3(chat) => self.flags.run_once(chat, &self.family, &device, prompt)?,
-            Chat::NanoChat(chat) => self.flags.run_once(chat, &self.family, &device, prompt)?,
+            Chat::Qwen3(chat) => {
+                self.flags
+                    .run_once(chat, &self.family, &device, &model, prompt)?
+            }
+            Chat::NanoChat(chat) => {
+                self.flags
+                    .run_once(chat, &self.family, &device, &model, prompt)?
+            }
         }
         drop(chat);
         device.close()
@@ -856,10 +873,10 @@ impl<F: FamilyFlags> ConverseCmd<F> {
         &self,
         family: Option<Family>,
     ) -> BunsenResult<()> {
-        let (device, chat) = self.flags.load(family, &self.family.presets())?;
+        let (device, chat, model) = self.flags.load(family, &self.family.presets())?;
         match &chat {
-            Chat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device)?,
-            Chat::NanoChat(chat) => self.flags.converse(chat, &self.family, &device)?,
+            Chat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
+            Chat::NanoChat(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
         }
         drop(chat);
         device.close()
