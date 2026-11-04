@@ -31,7 +31,7 @@
 //! bunsen-tool chat run --device wgpu --no-think "What is the capital of France?"
 //! bunsen-tool chat repl --device wgpu --model qwen3-4b-instruct-2507 --stats
 //! bunsen-tool chat family nanochat list --urls
-//! bunsen-tool chat family nanochat repl --device cuda --precision half
+//! bunsen-tool chat family nanochat repl --device cuda
 //! ```
 
 mod backend;

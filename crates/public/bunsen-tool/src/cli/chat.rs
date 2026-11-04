@@ -49,10 +49,8 @@ use bunsen_app::{
         human_bytes,
     },
     device::{
-        DeviceArgs,
-        DevicePrefs,
+        BackendArgs,
         DeviceSession,
-        Precision,
     },
     logging::{
         LevelFilter,
@@ -337,11 +335,11 @@ struct GenerateFlags {
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
-    /// The device, and the precision the model loads and runs in:
-    /// `--precision half` is bf16 where the device runs it (cuda, metal),
-    /// the dtype Qwen3 ships and nanochat trains in; f16 overflows Qwen3.
+    /// The device. The checkpoint loads at the precision it ships in where
+    /// the device accelerates it, else in f32: Qwen3's bf16 on cuda and
+    /// metal, f32 on vulkan, wgpu and the CPU (`LoadPolicy::performance`).
     #[clap(flatten)]
-    device: DeviceArgs,
+    device: BackendArgs,
 
     /// The checkpoint: a name `list` shows, or `hf:org/repo`, a Qwen3. The
     /// family's default when omitted; outside `family`, the name picks the
@@ -532,9 +530,7 @@ impl GenerateFlags {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
-        let device = self
-            .device
-            .open(&DevicePrefs::new().with_half(Precision::BF16Half))?;
+        let device = self.device.open()?;
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
