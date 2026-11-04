@@ -764,4 +764,4 @@ Each family takes only the flags that apply to it: thinking (`--think`, `--no-th
 Sampling follows the checkpoint's generation defaults; `--greedy`, `--temperature`, `--top-k`, `--top-p` and `--seed`
 override them. `--precision half` runs in bf16 where the device does (cuda, metal), the dtype Qwen3 ships and
 nanochat trains in; f16 overflows Qwen3. `--context` sizes the KV cache (the checkpoint's trained length by default),
-`--kv-storage` picks how it stores its history, and `--stats` prints each reply's token counts and speeds.
+`--kv-storage` picks how it stores its history, and `--stats` prints, after each reply, the model's lookup expression (its name with the presets the flags add), then the reply's token counts and speeds.
