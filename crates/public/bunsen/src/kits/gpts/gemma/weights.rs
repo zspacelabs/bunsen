@@ -302,15 +302,7 @@ fn layer_kinds(
             None => t.usize_opt("_sliding_window_pattern")?.unwrap_or(6),
         },
     };
-    Ok((0..n_layers)
-        .map(|i| {
-            if (i + 1) % full_every == 0 {
-                GemmaLayerKind::Full
-            } else {
-                GemmaLayerKind::Sliding
-            }
-        })
-        .collect())
+    Ok(GemmaConfig::every_nth_full(n_layers, full_every))
 }
 
 #[cfg(test)]

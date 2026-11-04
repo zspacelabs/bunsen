@@ -1,0 +1,304 @@
+# The gemma kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/gpts/gemma/pretrained/catalog.json`.
+#
+# Every row is on the `unsloth/` mirror of Google's repo: Google's Gemma 1-3
+# repos are gated, the mirrors' files are not.
+kit: gemma
+out: crates/public/bunsen/src/kits/gpts/gemma/pretrained/catalog.json
+name: "well-known"
+description: "the Gemma checkpoints bunsen knows by name"
+groups:
+  - name: "gemma"
+    description: "Google's Gemma 1, 2 and 3 text models, from their unsloth/ mirrors"
+    license: "Gemma Terms of Use"
+    origin: "https://ai.google.dev/gemma"
+    rows:
+      - name: "gemma-3-270m"
+        description: "Gemma 3 270M: the pretrained model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-3-270m"
+        prefab: "gemma-3-270m"
+        bundles: ["gemma/gemma-3-270m"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-3-270m-it"
+        description: "Gemma 3 270M, instruction-tuned"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-3-270m-it"
+        prefab: "gemma-3-270m"
+        bundles: ["gemma/gemma-3-270m-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-3-1b-pt"
+        description: "Gemma 3 1B: the pretrained model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-3-1b-pt"
+        prefab: "gemma-3-1b"
+        bundles: ["gemma/gemma-3-1b-pt"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-3-1b-it"
+        description: "Gemma 3 1B, instruction-tuned"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-3-1b-it"
+        prefab: "gemma-3-1b"
+        bundles: ["gemma/gemma-3-1b-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-3-4b-pt"
+        description: "Gemma 3 4B: the pretrained model's text model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-3-4b-pt"
+        prefab: "gemma-3-4b"
+        bundles: ["gemma/gemma-3-4b-pt"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-3-4b-it"
+        description: "Gemma 3 4B, instruction-tuned: its text model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-3-4b-it"
+        prefab: "gemma-3-4b"
+        bundles: ["gemma/gemma-3-4b-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-2-2b"
+        description: "Gemma 2 2B: the pretrained model, stored in f32"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-2-2b"
+        prefab: "gemma-2-2b"
+        bundles: ["gemma/gemma-2-2b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-2-2b-it"
+        description: "Gemma 2 2B, instruction-tuned"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-2-2b-it"
+        prefab: "gemma-2-2b"
+        bundles: ["gemma/gemma-2-2b-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-2-9b"
+        description: "Gemma 2 9B: the pretrained model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-2-9b"
+        prefab: "gemma-2-9b"
+        bundles: ["gemma/gemma-2-9b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-2-9b-it"
+        description: "Gemma 2 9B, instruction-tuned"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-2-9b-it"
+        prefab: "gemma-2-9b"
+        bundles: ["gemma/gemma-2-9b-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-2b"
+        description: "Gemma 2B (Gemma 1): the pretrained model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-2b"
+        prefab: "gemma-2b"
+        bundles: ["gemma/gemma-2b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-2b-it"
+        description: "Gemma 2B (Gemma 1), instruction-tuned"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-2b-it"
+        prefab: "gemma-2b"
+        bundles: ["gemma/gemma-2b-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-7b"
+        description: "Gemma 7B (Gemma 1): the pretrained model"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-7b"
+        prefab: "gemma-7b"
+        bundles: ["gemma/gemma-7b"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+      - name: "gemma-7b-it"
+        description: "Gemma 7B (Gemma 1), instruction-tuned"
+        license: "Gemma Terms of Use"
+        origin: "https://huggingface.co/google/gemma-7b-it"
+        prefab: "gemma-7b"
+        bundles: ["gemma/gemma-7b-it"]
+        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+bundles:
+  - name: "gemma/gemma-3-270m"
+    description: "gemma-3-270m: model.safetensors, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-3-270m"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-3-270m", revision: "edcf1fe394ee1168e7c5538afd104cfb1f7947e6" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-3-270m-it"
+    description: "gemma-3-270m-it: model.safetensors, config, tokenizer, generation config, chat template"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-3-270m-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-3-270m-it", revision: "23cf460f6bb16954176b3ddcc8d4f250501458a9" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "gemma/gemma-3-1b-pt"
+    description: "gemma-3-1b-pt: model.safetensors, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-3-1b-pt"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-3-1b-pt", revision: "34a98bf3eaecc08c699516f625eb5e56e4c5d99d" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-3-1b-it"
+    description: "gemma-3-1b-it: model.safetensors, config, tokenizer, generation config, chat template"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-3-1b-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-3-1b-it", revision: "5b11413a10db4e486ef16a20101fd028f8f2499c" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "gemma/gemma-3-4b-pt"
+    description: "gemma-3-4b-pt: 2 safetensors shards, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-3-4b-pt"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-3-4b-pt", revision: "52aba93981c6ad7712b030eb6dd496ece1d279d6" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00002.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00002.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-3-4b-it"
+    description: "gemma-3-4b-it: 2 safetensors shards, config, tokenizer, generation config, chat template"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-3-4b-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-3-4b-it", revision: "bf46152c47f5dd20b896357cb51abc4c03b8ee8c" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00002.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00002.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "gemma/gemma-2-2b"
+    description: "gemma-2-2b: model.safetensors, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-2-2b"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-2-2b", revision: "25319945f7fd83b8b903e12081777b7eef2ba993" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-2-2b-it"
+    description: "gemma-2-2b-it: model.safetensors, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-2-2b-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-2-2b-it", revision: "457f2e15bf550c227ce6ad86e2ec108d3e42c106" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-2-9b"
+    description: "gemma-2-9b: 4 safetensors shards, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-2-9b"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-2-9b", revision: "9145841c83add11c48155cd7bb87d8656703f997" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model-00004-of-00004.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-2-9b-it"
+    description: "gemma-2-9b-it: 4 safetensors shards, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-2-9b-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-2-9b-it", revision: "fc7d4737cda11c3a19af2b722319e846670b4d89" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model-00004-of-00004.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-2b"
+    description: "gemma-2b: model.safetensors, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-2b"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-2b", revision: "7ac9d201a57c8cdc6f939069fc0f044c60197a4a" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-2b-it"
+    description: "gemma-2b-it: model.safetensors, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-2b-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-2b-it", revision: "5ae754dee0b5cbf7f7fb39a7731aefa6b7987c2d" }
+    resources:
+      - { key: "checkpoint", file: "model.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-7b"
+    description: "gemma-7b: 4 safetensors shards, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-7b"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-7b", revision: "a0aa8221f534401bd60aa694dd8dd3022dbaf47a" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model-00004-of-00004.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+  - name: "gemma/gemma-7b-it"
+    description: "gemma-7b-it: 3 safetensors shards, config, tokenizer, generation config"
+    license: "Gemma Terms of Use"
+    origin: "https://huggingface.co/unsloth/gemma-7b-it"
+    namespace: "gemma"
+    hub: { repo: "unsloth/gemma-7b-it", revision: "09fcaf72a834aee7e71c7c42b7c04985c476d66d" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model-00001-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model-00002-of-00003.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model-00003-of-00003.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
