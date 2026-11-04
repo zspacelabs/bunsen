@@ -40,8 +40,11 @@
 //! *published* graph on fixed ids, `testdata/transformers.json` what
 //! `transformers` decodes, and `testdata/transformers_bf16.json` what it
 //! decodes in bf16 (`validation/tools/gen_qwen3_fixtures.py` writes all
-//! three). `testdata/chat.json` records `transformers`' tokenizer and chat
-//! template on fixed texts and conversations
+//! three). `testdata/transformers_long.json` records its greedy decodes in
+//! float32 and in bf16 at the end of a long (2263-position) multi-turn
+//! conversation: the oracle bunsen's bf16 runs are measured against
+//! (`gen_qwen3_fixtures.py --long`). `testdata/chat.json` records
+//! `transformers`' tokenizer and chat template on fixed texts and conversations
 //! (`validation/tools/gen_qwen3_chat_fixtures.py`), which `bunsen_tool::chat`'s
 //! are held to, and `testdata/chat_replies.json` its greedy replies to
 //! multi-turn conversations, which `bunsen_tool::chat`'s sessions are held to.
@@ -123,6 +126,17 @@ pub const BF16_ROWS: [&str; 1] = ["qwen3-8b"];
 /// directions, so a step whose margin is under this may go either way.
 pub const BF16_NEAR_TIE: f64 = 0.5;
 
+/// The rows `testdata/transformers_long.json` holds, each in float32 and in
+/// bf16.
+pub const LONG_ROWS: [&str; 3] = ["qwen3-0.6b", "qwen3-4b", "qwen3-8b"];
+
+/// The [`LONG_ROWS`] bunsen runs in float32 on a 24 GB device: the 8B's
+/// float32 decode is only the yardstick for bf16's own error.
+pub const LONG_F32_ROWS: [&str; 2] = ["qwen3-0.6b", "qwen3-4b"];
+
+/// The positions [`LONG_ROWS`]' prompt renders to, at least.
+pub const LONG_MIN_POSITIONS: usize = 2048;
+
 /// `testdata/onnx_reference.json`: onnxruntime's run of the published graph.
 #[derive(Debug, Deserialize)]
 pub struct OnnxReference {
@@ -196,6 +210,60 @@ pub fn transformers_bf16_reference() -> BTreeMap<String, GreedyRecord> {
     );
     let text = std::fs::read_to_string(path).expect("read the transformers bf16 fixture");
     serde_json::from_str(&text).expect("parse the transformers bf16 fixture")
+}
+
+/// `testdata/transformers_long.json`: one long conversation, and each row's
+/// greedy decodes at its end, in float32 and in bf16.
+#[derive(Debug, Deserialize)]
+pub struct LongReference {
+    /// The conversation: a generated warehouse ledger, two questions and
+    /// their answers, and a last question about a line far behind.
+    pub conversation: Vec<MessageCase>,
+    /// Qwen3's thinking switch, as the template was rendered.
+    pub enable_thinking: bool,
+    /// The tokens each decode generates.
+    pub new_tokens: usize,
+    /// Each of [`LONG_ROWS`].
+    pub rows: BTreeMap<String, LongRecord>,
+}
+
+/// One row of a [`LongReference`].
+#[derive(Debug, Deserialize)]
+pub struct LongRecord {
+    /// The conversation as the row's chat template renders it, generation
+    /// prompt on.
+    pub prompt_ids: Vec<i64>,
+    /// `transformers`' greedy decode in float32.
+    pub f32: DecodeRecord,
+    /// `transformers`' greedy decode in bf16.
+    pub bf16: DecodeRecord,
+    /// How far the two prefills' last logits are apart: bf16's own error.
+    pub bf16_vs_f32_last_logits_max_abs: f64,
+    /// How many leading tokens the two decodes agree on.
+    pub bf16_f32_agree: usize,
+}
+
+/// One greedy decode, through `transformers`' own KV cache.
+#[derive(Debug, Deserialize)]
+pub struct DecodeRecord {
+    /// The generated ids.
+    pub ids: Vec<i64>,
+    /// The generated text.
+    pub text: String,
+    /// Each step's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+    /// The prefill's last-position logits, `[1, vocab]`, as float32.
+    pub last_logits: TensorRecord,
+}
+
+/// Reads `testdata/transformers_long.json`.
+pub fn transformers_long_reference() -> LongReference {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/testdata/transformers_long.json"
+    );
+    let text = std::fs::read_to_string(path).expect("read the long transformers fixture");
+    serde_json::from_str(&text).expect("parse the long transformers fixture")
 }
 
 /// `testdata/chat.json`, by row: `transformers`' tokenizer and chat template
@@ -386,6 +454,11 @@ mod chat_session;
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod greedy;
 
+/// bunsen's float32 decodes at the end of the long conversation against
+/// `transformers`', for [`LONG_F32_ROWS`].
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod long;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -444,6 +517,28 @@ mod tests {
             );
             let gap = record.f32_last_logits_max_abs.expect("bf16's own error");
             assert!(gap < BF16_NEAR_TIE / 2.0, "{row}: {gap}");
+        }
+
+        let long = transformers_long_reference();
+        assert_eq!(
+            long.rows.keys().map(String::as_str).collect::<Vec<_>>(),
+            LONG_ROWS
+        );
+        assert!(!long.enable_thinking);
+        assert!(long.conversation.len() >= 5, "a multi-turn conversation");
+        for (row, record) in &long.rows {
+            assert!(record.prompt_ids.len() >= LONG_MIN_POSITIONS, "{row}");
+            for decode in [&record.f32, &record.bf16] {
+                assert_eq!(decode.ids.len(), long.new_tokens, "{row}");
+                assert_eq!(decode.ids.len(), decode.margins.len(), "{row}");
+                assert_eq!(decode.last_logits.shape, [1, N_VOCAB], "{row}");
+                assert_eq!(
+                    decode.last_logits.samples.len(),
+                    decode.last_logits.expected_samples(),
+                    "{row}"
+                );
+            }
+            assert!(record.bf16_f32_agree <= long.new_tokens, "{row}");
         }
 
         let chat = chat_reference();

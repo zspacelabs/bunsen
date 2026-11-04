@@ -8,6 +8,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
     /tmp/pkvenv/bin/pip install transformers onnxruntime safetensors tokenizers numpy
     /tmp/pkvenv/bin/python validation/tools/gen_qwen3_fixtures.py ONNX_DIR ROW=HF_DIR...
     /tmp/pkvenv/bin/python validation/tools/gen_qwen3_fixtures.py --bf16 ROW=HF_DIR...
+    /tmp/pkvenv/bin/python validation/tools/gen_qwen3_fixtures.py --long ROW=HF_DIR...
 
 - `ONNX_DIR`: `onnx-community/Qwen3-0.6B-ONNX` at 58ca03a5e7b354b480b1a82b34bde8dc7b854cc0
   (`model.onnx` + `model.onnx_data` from its `onnx/`): the published graph, not the one
@@ -42,9 +43,24 @@ float32), one output instead:
     as the checkpoint ships them), its `last_logits` read as float32; and
     `f32_last_logits_max_abs`, how far the float32 model's prefill logits are from those, a
     bf16 run's own distance from float32 to measure bunsen's bf16 run against.
+
+With `--long`, for each of `LONG_ROWS` (`qwen3-0.6b`, `qwen3-4b`, `qwen3-8b`), one output:
+
+`transformers_long.json`
+    `conversation`: a long multi-turn conversation over a generated warehouse ledger (no
+    third-party text), its last turn a question whose answer is in the ledger, far behind it;
+    rendered by each row's chat template (generation prompt on, `enable_thinking` false) to
+    at least `LONG_MIN_POSITIONS` ids. For each row: its `prompt_ids`; the greedy decode of
+    `LONG_NEW_TOKENS` tokens through `transformers`' KV cache on the CPU in float32 (`f32`)
+    and in bfloat16 (`bf16`), each its `ids`, `text`, `margins` and prefill `last_logits`
+    (read as float32); how far the two prefills' logits are apart,
+    `bf16_vs_f32_last_logits_max_abs`; and how many leading tokens the two decodes agree on,
+    `bf16_f32_agree`. bf16's distance from float32 is what bunsen's bf16 run is measured
+    against.
 """
 
 import json
+import random
 import pathlib
 import sys
 
@@ -64,6 +80,10 @@ PROMPT = "The lighthouse keeper climbed the stairs every evening, and"
 NEW_TOKENS = 32
 ROWS = ["qwen3-0.6b", "qwen3-1.7b", "qwen3-4b", "qwen3-4b-instruct-2507"]
 BF16_ROWS = ["qwen3-8b"]
+LONG_ROWS = ["qwen3-0.6b", "qwen3-4b", "qwen3-8b"]
+LONG_NEW_TOKENS = 48
+LONG_MIN_POSITIONS = 2048
+LONG_SEED = 20261103
 
 
 def record(x) -> dict:
@@ -151,6 +171,111 @@ def greedy(row: str, hf_dir: pathlib.Path, dtype=torch.float32) -> dict:
     return entry
 
 
+def ledger_conversation(items: int) -> list[dict]:
+    """A conversation over a generated ledger of `items` lines: the ledger, two questions
+    answered from it, then a last question for the model, about lines far behind it."""
+    rng = random.Random(LONG_SEED)
+    materials = ["copper", "steel", "oak", "brass", "nylon", "cedar", "glass", "rubber",
+                 "cotton", "granite", "aluminium", "linen"]
+    goods = ["wire", "bolts", "planks", "hinges", "rope", "beams", "panes", "gaskets",
+             "thread", "tiles", "brackets", "canvas", "nails", "pipes", "springs", "valves"]
+    ledger = []
+    for i in range(1, items + 1):
+        ledger.append({
+            "item": i,
+            "what": f"{rng.choice(materials)} {rng.choice(goods)}",
+            "units": rng.randint(3, 480),
+            "price": rng.randint(25, 9999) / 100,
+            "aisle": rng.choice("ABCDEFGH"),
+            "shelf": rng.randint(1, 6),
+        })
+    lines = [f"Item {e['item']:03d}: {e['what']}, {e['units']} units at {e['price']:.2f} each, "
+             f"aisle {e['aisle']}, shelf {e['shelf']}." for e in ledger]
+    a, b = ledger[items // 5], ledger[items // 2]
+    last = ledger[3]
+    return [
+        {"role": "user", "content": "Here is the warehouse ledger. Read it carefully: I will "
+                                    "ask about it.\n\n" + "\n".join(lines)},
+        {"role": "assistant", "content": f"I have read the ledger of {items} items, and I am "
+                                         "ready for your questions."},
+        {"role": "user", "content": f"Where is item {a['item']:03d} kept?"},
+        {"role": "assistant", "content": f"Item {a['item']:03d}, the {a['what']}, is kept in "
+                                         f"aisle {a['aisle']}, shelf {a['shelf']}."},
+        {"role": "user", "content": f"How many units of item {b['item']:03d} are there, and "
+                                    "at what price?"},
+        {"role": "assistant", "content": f"There are {b['units']} units of item "
+                                         f"{b['item']:03d}, the {b['what']}, at "
+                                         f"{b['price']:.2f} each."},
+        {"role": "user", "content": f"What is item {last['item']:03d}, and where is it kept? "
+                                    "Then list every other item kept in the same aisle."},
+    ]
+
+
+def long_prompt(tok) -> tuple[list[dict], list[int]]:
+    """The fewest ledger lines (in steps of 10) whose conversation renders to at least
+    `LONG_MIN_POSITIONS` ids."""
+    for items in range(60, 400, 10):
+        conversation = ledger_conversation(items)
+        ids = tok.apply_chat_template(conversation, add_generation_prompt=True,
+                                      enable_thinking=False, tokenize=True,
+                                      return_dict=False)
+        if len(ids) >= LONG_MIN_POSITIONS:
+            return conversation, list(ids)
+    raise AssertionError("no ledger is long enough")
+
+
+def decode(model, tok, prompt_ids: list[int], new_tokens: int) -> tuple[dict, np.ndarray]:
+    """A greedy decode of `new_tokens` from `prompt_ids` through `model`'s own KV cache, and
+    the prefill's whole last-position logits, as float32."""
+    ids, margins = [], []
+    with torch.no_grad():
+        out = model(input_ids=torch.tensor([prompt_ids]), use_cache=True)
+        last = out.logits[0, -1].float()
+        last_logits = last.numpy()[None]
+        past = out.past_key_values
+        for _ in range(new_tokens):
+            top = torch.topk(last, 2)
+            ids.append(int(top.indices[0]))
+            margins.append(float(top.values[0] - top.values[1]))
+            out = model(input_ids=torch.tensor([[ids[-1]]]), past_key_values=past, use_cache=True)
+            last, past = out.logits[0, -1].float(), out.past_key_values
+    return {"ids": ids, "text": tok.decode(ids), "margins": margins,
+            "last_logits": record(last_logits)}, last_logits
+
+
+def long_main(args: list[str]) -> None:
+    dirs = dict(arg.split("=", 1) for arg in args)
+    assert sorted(dirs) == sorted(LONG_ROWS), f"need {LONG_ROWS}, got {sorted(dirs)}"
+    fixture = {"enable_thinking": False, "new_tokens": LONG_NEW_TOKENS, "rows": {}}
+    for row in LONG_ROWS:
+        hf_dir = pathlib.Path(dirs[row])
+        tok = AutoTokenizer.from_pretrained(hf_dir)
+        conversation, prompt_ids = long_prompt(tok)
+        if "conversation" in fixture:
+            assert fixture["conversation"] == conversation, f"{row}: another conversation"
+        fixture["conversation"] = conversation
+        entry = {"prompt_ids": prompt_ids}
+        logits = {}
+        for name, dtype in [("f32", torch.float32), ("bf16", torch.bfloat16)]:
+            model = AutoModelForCausalLM.from_pretrained(hf_dir, dtype=dtype).eval()
+            entry[name], logits[name] = decode(model, tok, prompt_ids, LONG_NEW_TOKENS)
+            del model
+            print(row, name, len(prompt_ids), "positions:",
+                  entry[name]["text"][:80].replace("\n", " "),
+                  "| min margin", min(entry[name]["margins"]))
+        entry["bf16_vs_f32_last_logits_max_abs"] = float(np.abs(logits["f32"] - logits["bf16"]).max())
+        agree = 0
+        for x, y in zip(entry["f32"]["ids"], entry["bf16"]["ids"]):
+            if x != y:
+                break
+            agree += 1
+        entry["bf16_f32_agree"] = agree
+        print(row, "bf16 vs f32: prefill logits max abs",
+              entry["bf16_vs_f32_last_logits_max_abs"], "| agree on", agree, "tokens")
+        fixture["rows"][row] = entry
+    (OUT / "transformers_long.json").write_text(json.dumps(fixture) + "\n")
+
+
 def prefill_logits(hf_dir: pathlib.Path, prompt_ids: list[int], dtype) -> np.ndarray:
     model = AutoModelForCausalLM.from_pretrained(hf_dir, dtype=dtype).eval()
     with torch.no_grad():
@@ -175,6 +300,9 @@ def bf16_main(args: list[str]) -> None:
 def main() -> None:
     if sys.argv[1:2] == ["--bf16"]:
         bf16_main(sys.argv[2:])
+        return
+    if sys.argv[1:2] == ["--long"]:
+        long_main(sys.argv[2:])
         return
     onnx_dir = pathlib.Path(sys.argv[1])
     dirs = dict(arg.split("=", 1) for arg in sys.argv[2:])

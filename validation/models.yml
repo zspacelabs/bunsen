@@ -39,8 +39,8 @@ crates:
         gb: 3.9
         core: true
         reference: true
-        dtypes: [f32]
-        varies: the tied head, the ONNX reference (2.4 GB), the thinking chat template and its sessions
+        dtypes: [f32, bf16]
+        varies: the tied head, the ONNX reference (2.4 GB), the thinking chat template and its sessions; the long bf16 report (`long_bf16::`)
       qwen3-1.7b:
         size: medium
         gb: 4.1
@@ -51,7 +51,7 @@ crates:
         size: medium
         gb: 8.0
         core: false
-        dtypes: [f32]
+        dtypes: [f32, bf16]
         varies: a deeper geometry of qwen3-0.6b's architecture
       qwen3-4b-instruct-2507:
         size: medium
