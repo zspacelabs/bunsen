@@ -49,6 +49,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # As ci.yml's: its `book` job's kache store, which this restores, is built
+  # with line tables alone, and the setting is in every key.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   publish:
@@ -70,8 +73,8 @@ jobs:
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache2-book
-          cache-executables: true
+          cache-key-prefix: kache3-book
+          cache-executables: false
           save-cache: false
           pr-comment: false
       # Keep these versions in step with ci.yml and `Makefile.toml`'s

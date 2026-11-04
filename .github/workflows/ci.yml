@@ -15,6 +15,12 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Debug info is most of what a dev build writes: most of `target/` (25 GB
+  # in the `test` job with full debug info) and much of the link time, and
+  # kache stores every miss a second time. Line tables keep the file and
+  # line of each frame in a test's backtrace. A change here changes every
+  # kache key: bump the `cache-key-prefix`es below with it.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   fmt:
@@ -57,8 +63,8 @@ jobs:
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache2-clippy
-          cache-executables: true
+          cache-key-prefix: kache3-clippy
+          cache-executables: false
           pr-comment: false
           save-cache: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy --no-deps -- -D warnings
@@ -81,8 +87,8 @@ jobs:
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache2-book
-          cache-executables: true
+          cache-key-prefix: kache3-book
+          cache-executables: false
           pr-comment: false
           save-cache: ${{ github.ref == 'refs/heads/main' }}
       # Keep these versions in step with `Makefile.toml`'s `ensure-mdbook-*`.
@@ -111,6 +117,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # The image ships SDKs no step here uses: Android's, .NET, GHC and
+      # CodeQL's bundle, about 30 GB. The build, with kache's store beside
+      # it, needs the room when it misses most of the store: a full disk
+      # fails a step with "No space left on device", or the linker with a
+      # bus error.
+      - name: Free disk
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - name: Install Toolchain
         run: rustup toolchain install stable --profile minimal
 
@@ -128,9 +145,9 @@ jobs:
       #   shadow the toolchain the previous step just installed.
       # - kache (https://github.com/kunobi-ninja/kache), as RUSTC_WRAPPER,
       #   keeps every compiled unit, dependencies included, in its store,
-      #   which it saves to the GitHub Actions cache. `cache-executables`
-      #   keeps proc-macros and build-script binaries too, so that they and
-      #   every crate built with them are not rebuilt each run.
+      #   which it saves to the GitHub Actions cache. It skips binaries and
+      #   test executables (`cache-executables: false`): they are the
+      #   workspace's own, which miss on most changes, and each is large.
       #
       # kache's store key holds its version and the Cargo.lock hash. An
       # Actions cache entry is immutable, so the store is written once per
@@ -156,8 +173,8 @@ jobs:
         uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache2-test
-          cache-executables: true
+          cache-key-prefix: kache3-test
+          cache-executables: false
           pr-comment: true
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
