@@ -81,6 +81,12 @@ pub struct CausalDecoderBlockConfig {
     #[config(default = "NormConfig::Rms(RmsNormConfig::new(0))")]
     pub norm: NormConfig,
 
+    /// Whether each sublayer's output is normalized too, by a `norm` of its
+    /// own, before it is added to the residual stream: the sandwich of
+    /// Gemma 2 and 3.
+    #[config(default = false)]
+    pub post_norms: bool,
+
     /// A scale on the feed-forward's normalized input, learned from a
     /// conditioning vector the forward pass is handed
     /// ([`forward_conditioned`](CausalDecoderBlock::forward_conditioned)):
@@ -141,11 +147,15 @@ impl CausalDecoderBlockConfig {
             )
             .into());
         }
+        let norm = || self.norm.clone().with_num_features(n_embed).init(device);
+        let post_norm = || self.post_norms.then(norm);
         Ok(CausalDecoderBlock {
-            attn_norm: self.norm.clone().with_num_features(n_embed).init(device),
+            attn_norm: norm(),
             attn: self.attn.try_init(layer_index, device)?,
-            mlp_norm: self.norm.clone().with_num_features(n_embed).init(device),
+            attn_post_norm: post_norm(),
+            mlp_norm: norm(),
             mlp: self.mlp.try_init(device)?,
+            mlp_post_norm: post_norm(),
             mlp_scale: self
                 .mlp_scale
                 .as_ref()
@@ -168,6 +178,11 @@ impl CausalDecoderBlockConfig {
 /// `x = x + mlp(mlp_norm(x) * (1 + f(cond)))`, it is Voxtral Realtime's
 /// decoder layer.
 ///
+/// With [`post_norms`](CausalDecoderBlockConfig::post_norms), each sublayer's
+/// output is normalized before it is added:
+/// `x = x + attn_post_norm(attn(attn_norm(x)))`, and the same for the
+/// feed-forward: Gemma 2's and 3's sandwich.
+///
 /// Built by [`CausalDecoderBlockConfig`], whose `init` also takes the block's
 /// layer index: its slot in a shared [`KVCache`].
 #[derive(Module, Debug)]
@@ -178,11 +193,17 @@ pub struct CausalDecoderBlock {
     /// Attention.
     pub attn: CausalSelfAttention,
 
+    /// The attention's output normalization, if the block has post-norms.
+    pub attn_post_norm: Option<Norm>,
+
     /// The feed-forward's input normalization.
     pub mlp_norm: Norm,
 
     /// The feed-forward.
     pub mlp: FeedForward,
+
+    /// The feed-forward's output normalization, if the block has post-norms.
+    pub mlp_post_norm: Option<Norm>,
 
     /// The scale on the feed-forward's normalized input, if the block is
     /// conditioned.
@@ -233,6 +254,33 @@ impl CausalDecoderBlock {
             .rename("self_attn.v_proj.", "attn.c_v.")
             .rename("self_attn.o_proj.", "attn.c_proj.")
             .rename("self_attn.", "attn.")
+    }
+
+    /// [`hf_layer_rekey`](Self::hf_layer_rekey) for a block with post-norms:
+    /// the layer's four norm names, the attention's input and output norms
+    /// and the feed-forward's (`input_layernorm`, `post_attention_layernorm`,
+    /// `pre_feedforward_layernorm` and `post_feedforward_layernorm` in
+    /// Gemma 2 and 3).
+    pub fn hf_sandwich_rekey(
+        attn_norm: &str,
+        attn_post_norm: &str,
+        mlp_norm: &str,
+        mlp_post_norm: &str,
+    ) -> Rekey {
+        Self::hf_layer_rekey(attn_norm, mlp_norm)
+            .rename(format!("{attn_post_norm}."), "attn_post_norm.")
+            .rename(format!("{mlp_post_norm}."), "mlp_post_norm.")
+    }
+
+    /// `norm(x)`, or `x` without a norm.
+    fn maybe_norm(
+        norm: &Option<Norm>,
+        x: Tensor<3>,
+    ) -> Tensor<3> {
+        match norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        }
     }
 
     /// Forward Pass.
@@ -323,13 +371,13 @@ impl CausalDecoderBlock {
         #[cfg(any(debug_assertions, test))]
         crate::burner::module::assert_input_dtype(self, input.dtype(), "causal decoder block");
         let DecoderSideInputs { cond, value_embed } = sides;
-        let x = input.clone()
-            + self.attn.forward_with_value_embed(
-                self.attn_norm.forward(input),
-                r_emb,
-                kv_cache,
-                value_embed,
-            );
+        let attn = self.attn.forward_with_value_embed(
+            self.attn_norm.forward(input.clone()),
+            r_emb,
+            kv_cache,
+            value_embed,
+        );
+        let x = input + Self::maybe_norm(&self.attn_post_norm, attn);
         let h = self.mlp_norm.forward(x.clone());
         let h = match (&self.mlp_scale, cond) {
             (None, None) => h,
@@ -337,7 +385,7 @@ impl CausalDecoderBlock {
             (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
             (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
         };
-        x.clone() + self.mlp.forward(h)
+        x + Self::maybe_norm(&self.mlp_post_norm, self.mlp.forward(h))
     }
 }
 
@@ -463,6 +511,80 @@ mod tests {
         block.attn.c_proj.weight = Param::from_tensor(block.attn.c_proj.weight.val().zeros_like());
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &input, Tolerance::default());
+    }
+
+    /// A block with post-norms normalizes each sublayer's output before it
+    /// adds it: `x = x + attn_post_norm(attn(attn_norm(x)))`, then
+    /// `x = x + mlp_post_norm(mlp(mlp_norm(x)))`.
+    #[test]
+    fn test_post_norms_sandwich_each_sublayer() {
+        let device = crate::support::testing::cpu_device();
+        let [batch, seq_len, n_embed] = [2, 5, 16];
+        let config = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(4, 2, n_embed),
+            crate::blocks::transformers::mlp::GatedMlpConfig::new(n_embed, 24).into(),
+        );
+        assert!(config.init(0, &device).attn_post_norm.is_none());
+        assert!(config.init(0, &device).mlp_post_norm.is_none());
+
+        let mut block: CausalDecoderBlock = config.with_post_norms(true).init(0, &device);
+        // Distinct gains, so a norm in the wrong place shows.
+        for (seed, norm) in [
+            (3, &mut block.attn_norm),
+            (4, block.attn_post_norm.as_mut().expect("a post-norm")),
+            (5, &mut block.mlp_norm),
+            (6, block.mlp_post_norm.as_mut().expect("a post-norm")),
+        ] {
+            let Norm::Rms(rms) = norm else {
+                panic!("an RMS norm");
+            };
+            rms.gamma = Param::from_tensor(seeded_tensor::<1>(
+                seed,
+                [n_embed],
+                Distribution::Uniform(0.5, 1.5),
+                &device,
+            ));
+        }
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let input =
+            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+
+        let post = |norm: &Option<Norm>, x| norm.as_ref().expect("a post-norm").forward(x);
+        let x = input.clone()
+            + post(
+                &block.attn_post_norm,
+                block
+                    .attn
+                    .forward(block.attn_norm.forward(input.clone()), &r_emb, &mut None),
+            );
+        let expected = x.clone()
+            + post(
+                &block.mlp_post_norm,
+                block.mlp.forward(block.mlp_norm.forward(x)),
+            );
+        let output = block.forward(input, &r_emb, &mut None);
+        assert_tensors_close(&output, &expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_hf_sandwich_rekey() {
+        let rekey = CausalDecoderBlock::hf_sandwich_rekey(
+            "input_layernorm",
+            "post_attention_layernorm",
+            "pre_feedforward_layernorm",
+            "post_feedforward_layernorm",
+        );
+        for (hf, bunsen) in [
+            ("input_layernorm.weight", "attn_norm.weight"),
+            ("post_attention_layernorm.weight", "attn_post_norm.weight"),
+            ("pre_feedforward_layernorm.weight", "mlp_norm.weight"),
+            ("post_feedforward_layernorm.weight", "mlp_post_norm.weight"),
+            ("self_attn.q_proj.weight", "attn.c_q.weight"),
+            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
+            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
+        ] {
+            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
+        }
     }
 
     fn conditioned(n_embed: usize) -> CausalDecoderBlockConfig {
