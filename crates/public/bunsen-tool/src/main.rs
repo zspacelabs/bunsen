@@ -39,6 +39,11 @@ enum Command {
     /// cache (`config`), and the models it knows by name (`kits`: by kind and
     /// family, a name and a description each), as YAML or JSON.
     Card(cli::card::CardCmd),
+
+    /// The backends this build can run on, each one's default device, and
+    /// what the device does with each float dtype (store, compute,
+    /// accelerate), as YAML or JSON.
+    Devices(cli::devices::DevicesCmd),
 }
 
 /// Runs the command; a failure is printed as its report, then, for a name
@@ -63,6 +68,7 @@ fn run(args: &Args) -> BunsenResult<()> {
         Command::Chat(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
         Command::Card(cmd) => cmd.run(),
+        Command::Devices(cmd) => cmd.run(),
     }
 }
 

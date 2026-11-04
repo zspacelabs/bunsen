@@ -84,6 +84,7 @@
 pub mod descriptors;
 pub mod device;
 pub mod distribution;
+pub mod dtypes;
 pub mod module;
 
 #[cfg(feature = "train")]

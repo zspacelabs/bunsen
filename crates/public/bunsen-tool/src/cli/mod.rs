@@ -3,6 +3,7 @@
 pub mod asr;
 pub mod card;
 pub mod chat;
+pub mod devices;
 pub mod did_you_mean;
 
 use bunsen::{

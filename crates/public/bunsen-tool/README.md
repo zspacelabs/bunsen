@@ -405,6 +405,11 @@ kits:
 
 <!-- /card -->
 
+`bunsen-tool devices` lists the backends the build compiled in, each one's default device, and what the device does
+with each float dtype, as burn reports it: `storage` (holds and converts it), `arithmetic` (computes in it) and
+`accelerated` (runs it on tensor cores). On an RTX 3090, CUDA accelerates f32, f16 and bf16; wgpu accelerates none and
+has no bf16; the CPU computes in each and accelerates none. `--format json` prints JSON.
+
 ## asr: speech to text
 
 Name an **ASR preset**, a model chosen by what it is for, and `bunsen-tool asr` picks the family, the model and its
