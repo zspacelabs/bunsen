@@ -36,15 +36,32 @@ pub trait Probe: Send + Sync + fmt::Debug {
     /// Its name, as a catalog row's `probe` entry names it.
     fn name(&self) -> &'static str;
 
-    /// The patch `file`'s bytes say.
+    /// The patch `file`'s bytes say; of `token`, for a probe that reads one
+    /// by name ([`CatalogProbe::token`]).
     ///
     /// # Errors
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
-    /// when the file does not read as the probe expects.
+    /// when the file does not read as the probe expects;
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a `token` the
+    /// probe takes none of.
     fn probe(
         &self,
         file: &[u8],
+        token: Option<&str>,
     ) -> BunsenResult<Value>;
+}
+
+/// Refuses a `token` for a probe that reads none by name.
+fn no_token(
+    probe: &str,
+    token: Option<&str>,
+) -> BunsenResult<()> {
+    match token {
+        None => Ok(()),
+        Some(token) => Err(BunsenError::illegal(format!(
+            "the {probe} probe reads no token by name, but was given {token:?}"
+        ))),
+    }
 }
 
 /// A pretrained's files, by resource key, for its probes to read.
@@ -111,7 +128,9 @@ impl Probe for GenerationConfigProbe {
     fn probe(
         &self,
         file: &[u8],
+        token: Option<&str>,
     ) -> BunsenResult<Value> {
+        no_token(self.name(), token)?;
         let c = read_json(file, "a generation_config.json")?;
         let mut generation = Map::new();
         match c.get("eos_token_id") {
@@ -141,8 +160,10 @@ impl Probe for GenerationConfigProbe {
     }
 }
 
-/// `tokenizer_config.json`: the stop token its `eos_token` names, by the id
-/// its `added_tokens_decoder` gives it. Its patch is under `generation`.
+/// `tokenizer_config.json`: a stop token, by the id its
+/// `added_tokens_decoder` gives it: the one its `eos_token` names, or, given
+/// a token by name, that one (the turn's end a chat template closes each
+/// turn with: Gemma's `<end_of_turn>`). Its patch is under `generation`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct TokenizerConfigProbe;
 
@@ -154,11 +175,15 @@ impl Probe for TokenizerConfigProbe {
     fn probe(
         &self,
         file: &[u8],
+        token: Option<&str>,
     ) -> BunsenResult<Value> {
         let c = read_json(file, "a tokenizer_config.json")?;
-        let eos = match c.get("eos_token") {
-            Some(Value::String(s)) => s.as_str(),
-            Some(Value::Object(o)) => o.get("content").and_then(Value::as_str).unwrap_or(""),
+        let eos = match (token, c.get("eos_token")) {
+            (Some(token), _) => token,
+            (None, Some(Value::String(s))) => s.as_str(),
+            (None, Some(Value::Object(o))) => {
+                o.get("content").and_then(Value::as_str).unwrap_or("")
+            }
             _ => {
                 return Err(BunsenError::invalid_resource(
                     "a tokenizer_config.json without an `eos_token`",
@@ -177,7 +202,7 @@ impl Probe for TokenizerConfigProbe {
             })
             .ok_or_else(|| {
                 BunsenError::invalid_resource(format!(
-                    "a tokenizer_config.json whose `eos_token` {eos:?} is no added token"
+                    "a tokenizer_config.json whose stop token {eos:?} is no added token"
                 ))
             })?;
         Ok(json!({ "generation": { "stop_ids": [id] } }))
@@ -224,11 +249,45 @@ pub fn apply_probes(
     apply_probes_with(set, family, entries, files, &probes)
 }
 
+/// `into`, with what one more probe found: what probes find accumulates.
+/// Objects join field by field, an array gains the values it lacks, in
+/// order (two probes' stop ids join: `generation_config.json`'s end of the
+/// text and `tokenizer_config.json`'s end of a turn), and anything else is
+/// the later probe's. What is laid over probes (a row's or family's own
+/// presets, a lookup's patch) is a merge patch, which replaces.
+fn accumulate(
+    into: &mut Value,
+    found: &Value,
+) {
+    match (into, found) {
+        (Value::Object(into), Value::Object(found)) => {
+            for (key, value) in found {
+                match into.get_mut(key) {
+                    Some(slot) => accumulate(slot, value),
+                    None => {
+                        into.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+        (Value::Array(into), Value::Array(found)) => {
+            for value in found {
+                if !into.contains(value) {
+                    into.push(value.clone());
+                }
+            }
+        }
+        (into, found) => *into = found.clone(),
+    }
+}
+
 /// `set` with what `entries` find in `files` beneath it: each entry's probe
 /// reads its file, and its patch goes into the set's base (`into: [base]`)
-/// or into the presets it names; then `set`'s own base and presets are laid
-/// over what was found, so a hand-written patch extends or corrects a
-/// probed one. A preset an entry names must be one `set` or its `family`
+/// or into the presets it names, accumulating with the other probes'
+/// (arrays join: two probes' stop ids together); then `set`'s own base and
+/// presets are laid over what was found, as merge patches, so a
+/// hand-written patch extends or corrects a probed one (and replaces a
+/// probed array). A preset an entry names must be one `set` or its `family`
 /// declares (empty for a row with none); one only the family declares joins
 /// `set` as the probed patch alone, with no description, to be laid over the
 /// family's ([`PresetSet::over`]).
@@ -258,11 +317,11 @@ pub fn apply_probes_with(
                 )
             })?;
         let patch = probe
-            .probe(files.get(&entry.file)?)
+            .probe(files.get(&entry.file)?, entry.token.as_deref())
             .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.file)))?;
         for into in &entry.into {
             if into == "base" {
-                merge_patch::apply(&mut base, &patch);
+                accumulate(&mut base, &patch);
                 continue;
             }
             if set.get(into).is_none() && family.get(into).is_none() {
@@ -272,7 +331,7 @@ pub fn apply_probes_with(
                 )
                 .context(format!("the {} probe's `into`", entry.probe)));
             }
-            merge_patch::apply(
+            accumulate(
                 found
                     .entry(into.clone())
                     .or_insert_with(|| Value::Object(Map::new())),
@@ -330,7 +389,7 @@ mod tests {
     #[test]
     fn test_generation_config() {
         let patch = GenerationConfigProbe
-            .probe(QWEN3_GENERATION.as_bytes())
+            .probe(QWEN3_GENERATION.as_bytes(), None)
             .unwrap();
         assert_eq!(
             probed_policy(&patch),
@@ -347,7 +406,7 @@ mod tests {
         );
 
         let greedy = GenerationConfigProbe
-            .probe(br#"{"eos_token_id": 2, "max_new_tokens": 64}"#)
+            .probe(br#"{"eos_token_id": 2, "max_new_tokens": 64}"#, None)
             .unwrap();
         let p = probed_policy(&greedy);
         assert_eq!(
@@ -356,7 +415,7 @@ mod tests {
         );
 
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
-            .assert_err(&GenerationConfigProbe.probe(b"[1]"));
+            .assert_err(&GenerationConfigProbe.probe(b"[1]", None));
     }
 
     #[test]
@@ -368,17 +427,17 @@ mod tests {
                 "151645": {"content": "<|im_end|>"}
             }
         }"#;
-        let patch = TokenizerConfigProbe.probe(config).unwrap();
+        let patch = TokenizerConfigProbe.probe(config, None).unwrap();
         assert_eq!(patch, json!({"generation": {"stop_ids": [151645]}}));
 
         let object = br#"{"eos_token": {"content": "</s>"}, "added_tokens_decoder": {"2": {"content": "</s>"}}}"#;
         assert_eq!(
-            TokenizerConfigProbe.probe(object).unwrap(),
+            TokenizerConfigProbe.probe(object, None).unwrap(),
             json!({"generation": {"stop_ids": [2]}})
         );
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("no added token")
-            .assert_err(&TokenizerConfigProbe.probe(br#"{"eos_token": "?"}"#));
+            .assert_err(&TokenizerConfigProbe.probe(br#"{"eos_token": "?"}"#, None));
     }
 
     fn entry(
@@ -390,6 +449,7 @@ mod tests {
             probe: probe.to_string(),
             file: file.to_string(),
             into: into.iter().map(|s| s.to_string()).collect(),
+            token: None,
         }
     }
 
@@ -501,5 +561,62 @@ mod tests {
         let thinking = &merged.get("thinking").unwrap().patch["generation"];
         assert_eq!(thinking["template_kwargs"]["enable_thinking"], true);
         assert_eq!(thinking["sampling"]["top_k"], 20);
+    }
+
+    /// Given a token by name, the `tokenizer_config` probe gives that added
+    /// token's id; one it lacks is refused; a probe that reads no token
+    /// refuses one.
+    #[test]
+    fn test_tokenizer_config_named_token() {
+        let config = br#"{"eos_token": "<eos>", "added_tokens_decoder": {
+            "1": {"content": "<eos>"}, "107": {"content": "<end_of_turn>"}}}"#;
+        let patch = TokenizerConfigProbe
+            .probe(config, Some("<end_of_turn>"))
+            .unwrap();
+        assert_eq!(probed_policy(&patch).stop_ids, [107]);
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("<start_of_turn>")
+            .assert_err(&TokenizerConfigProbe.probe(config, Some("<start_of_turn>")));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("reads no token")
+            .assert_err(&GenerationConfigProbe.probe(b"{}", Some("<eos>")));
+    }
+
+    /// Probes accumulate: two probes' stop ids join, in order, without a
+    /// repeat. A hand-written base laid over them replaces the array.
+    #[test]
+    fn test_probes_accumulate_and_hand_written_replaces() {
+        let files = ProbeFiles::new()
+            .with("generation_config", br#"{"eos_token_id": [1]}"#.to_vec())
+            .with(
+                "tokenizer_config",
+                br#"{"eos_token": "<eos>", "added_tokens_decoder": {
+                    "1": {"content": "<eos>"}, "107": {"content": "<end_of_turn>"}}}"#
+                    .to_vec(),
+            );
+        let turn = CatalogProbe {
+            token: Some("<end_of_turn>".to_string()),
+            ..entry("tokenizer_config", "tokenizer_config", &["base"])
+        };
+        let entries = [
+            entry("generation_config", "generation_config", &["base"]),
+            turn.clone(),
+            entry("tokenizer_config", "tokenizer_config", &["base"]),
+        ];
+        let probed = apply_probes(
+            &PresetSet::default(),
+            &PresetSet::default(),
+            &entries,
+            &files,
+        )
+        .unwrap();
+        assert_eq!(probed_policy(&probed.base).stop_ids, [1, 107]);
+
+        let hand = PresetSet {
+            base: json!({"generation": {"stop_ids": [7]}}),
+            ..PresetSet::default()
+        };
+        let over = apply_probes(&hand, &PresetSet::default(), &entries, &files).unwrap();
+        assert_eq!(probed_policy(&over.base).stop_ids, [7]);
     }
 }

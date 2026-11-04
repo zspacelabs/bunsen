@@ -26,7 +26,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-3-270m-it"
         prefab: "gemma-3-270m"
         bundles: ["gemma/gemma-3-270m-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
       - name: "gemma-3-1b-pt"
         description: "Gemma 3 1B: the pretrained model"
         license: "Gemma Terms of Use"
@@ -40,7 +42,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-3-1b-it"
         prefab: "gemma-3-1b"
         bundles: ["gemma/gemma-3-1b-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
       - name: "gemma-3-4b-pt"
         description: "Gemma 3 4B: the pretrained model's text model"
         license: "Gemma Terms of Use"
@@ -54,7 +58,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-3-4b-it"
         prefab: "gemma-3-4b"
         bundles: ["gemma/gemma-3-4b-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
       - name: "gemma-2-2b"
         description: "Gemma 2 2B: the pretrained model, stored in f32"
         license: "Gemma Terms of Use"
@@ -68,7 +74,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-2-2b-it"
         prefab: "gemma-2-2b"
         bundles: ["gemma/gemma-2-2b-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
       - name: "gemma-2-9b"
         description: "Gemma 2 9B: the pretrained model"
         license: "Gemma Terms of Use"
@@ -82,7 +90,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-2-9b-it"
         prefab: "gemma-2-9b"
         bundles: ["gemma/gemma-2-9b-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
       - name: "gemma-2b"
         description: "Gemma 2B (Gemma 1): the pretrained model"
         license: "Gemma Terms of Use"
@@ -96,7 +106,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-2b-it"
         prefab: "gemma-2b"
         bundles: ["gemma/gemma-2b-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
       - name: "gemma-7b"
         description: "Gemma 7B (Gemma 1): the pretrained model"
         license: "Gemma Terms of Use"
@@ -110,7 +122,9 @@ groups:
         origin: "https://huggingface.co/google/gemma-7b-it"
         prefab: "gemma-7b"
         bundles: ["gemma/gemma-7b-it"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<end_of_turn>", into: ["base"] }
 bundles:
   - name: "gemma/gemma-3-270m"
     description: "gemma-3-270m: model.safetensors, config, tokenizer, generation config"

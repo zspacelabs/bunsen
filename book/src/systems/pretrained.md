@@ -138,7 +138,15 @@ family's. Some presets are read from a model's own files. A catalog row
 names probes, such as one that reads `generation_config.json`, and
 `cargo validate catalog` runs them when it builds the catalog, so a
 well-known row's presets are fixed data in the build and need no probing
-when the model loads.
+when the model loads. A probe may read a token by name: Gemma's
+instruction-tuned rows read the id `tokenizer_config.json` gives
+`<end_of_turn>` into their stop tokens.
+
+What a row's probes find accumulates: two probes' stop ids join. The
+hand-written layers are merge patches, which replace. The row's own
+presets lay over what its probes found, and the family's lie under the
+row's. Then a lookup lays its selected presets (`--preset` too) over the
+row's, and last its own patch, `name{generation: {stop_ids: [1]}}`.
 
 `bunsen-tool` shows them. Each listing prints a row's axes, members and
 default; `bunsen-tool card --policies` prints the preset sets as data, and
