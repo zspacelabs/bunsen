@@ -206,7 +206,9 @@ impl InPlace {
     }
 }
 
-/// The history store a strategy grows.
+/// The history store a strategy grows: one per run, so its size is not
+/// worth an indirection.
+#[allow(clippy::large_enum_variant)]
 enum History {
     KvCache(KVCache),
     PerLayer {

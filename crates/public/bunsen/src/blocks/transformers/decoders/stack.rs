@@ -77,13 +77,17 @@ pub trait DecoderStackMeta {
     /// The head width of the first layer.
     fn head_dim(&self) -> usize;
 
+    /// Each layer's sliding attention window, if it has one.
+    fn layer_windows(&self) -> Vec<Option<usize>>;
+
     /// The [`KVCacheConfig`] the stack decodes with: its key/value heads,
     /// head width and layer count, at batch 1, `pre_size` positions up
-    /// front, uncapped.
+    /// front, uncapped; a windowed layer keeping only its window.
     fn kv_cache_config(
         &self,
         pre_size: usize,
     ) -> KVCacheConfig {
+        let windows = self.layer_windows();
         KVCacheConfig::new(
             1,
             self.n_kv_heads(),
@@ -91,6 +95,11 @@ pub trait DecoderStackMeta {
             self.head_dim(),
             self.n_layers(),
         )
+        .with_layer_windows(if windows.iter().all(Option::is_none) {
+            Vec::new()
+        } else {
+            windows
+        })
     }
 }
 
@@ -155,6 +164,10 @@ impl DecoderStackMeta for DecoderStackStructureConfig {
 
     fn head_dim(&self) -> usize {
         layers_meta(&self.layers).2
+    }
+
+    fn layer_windows(&self) -> Vec<Option<usize>> {
+        self.layers.iter().map(|l| l.attn.sliding_window).collect()
     }
 }
 
@@ -415,6 +428,10 @@ impl DecoderStackMeta for DecoderStack {
 
     fn head_dim(&self) -> usize {
         self.layers[0].attn.head_dim
+    }
+
+    fn layer_windows(&self) -> Vec<Option<usize>> {
+        self.layers.iter().map(|l| l.attn.sliding_window).collect()
     }
 }
 
