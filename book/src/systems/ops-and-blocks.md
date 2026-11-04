@@ -102,11 +102,20 @@ in one of three ways:
    the first one. [`ConvBlock1d`](bunsen::blocks::conv::ConvBlock1d) and
    [`ConvSeq1d`](bunsen::blocks::conv::ConvSeq1d) serve both Whisper and
    Silero VAD, and [`Mlp`](bunsen::blocks::transformers::mlp::Mlp) serves
-   both Whisper and NanoChat.
+   both Whisper and NanoChat. The language models share their ends:
+   [`LmHead`](bunsen::blocks::transformers::head::LmHead) (tied or its own,
+   with an optional logit soft-cap) serves Qwen3, Gemma, NanoChat and
+   Voxtral, and
+   [`TokenEmbedding`](bunsen::blocks::transformers::embedding::TokenEmbedding)
+   (with an optional scale) serves Gemma and NanoChat.
 3. **A gap in burn.** burn ships a sequence-level `Lstm`.
    [`FusedLstm`](bunsen::blocks::rnn::lstm::FusedLstm) is what a streaming
    model needs instead: one step at a time, with the caller carrying the
-   state.
+   state. And burn's activation kinds have no SiLU and no way to compose
+   two:
+   [`ActivationConfig`](bunsen::blocks::activation::ActivationConfig) keeps
+   burn's kinds under burn's names, and adds `Silu`, `Pow` and `Chain`
+   (NanoChat's `relu(x)²` is `Chain([Relu, Pow(2)])`).
 
 New blocks arrive when a kit or a downstream user needs them, and each one
 follows the [module design conventions](./conventions.md).
@@ -117,9 +126,13 @@ bunsen has two attention stacks, and both are deliberate:
 
 - **bunsen's own
   [`CausalSelfAttention`](bunsen::blocks::transformers::attention::csa::CausalSelfAttention)**
-  block (the NanoChat and Qwen3 GPT kits) has its own projections, QK-norm,
-  rotary embeddings and grouped-query attention. Use it for a decoder-only
-  model whose layers you define.
+  block (the NanoChat, Qwen3 and Gemma GPT kits) has its own projections,
+  QK-norm, rotary embeddings and grouped-query attention, with the options
+  those families differ by: a score scale, an attention logit soft-cap, a
+  sliding window, and each layer's rotary table from the stack's
+  [`RotarySet`](bunsen::blocks::transformers::embedding::RotarySet) (Gemma 3's
+  local and global tables). Use it for a decoder-only model whose layers you
+  define.
 - **Functions over burn's `MultiHeadAttention`** (the Whisper kit) keep
   burn's module, so its weights, its checkpoint loading and any
   cross-checks are unchanged, and add KV-cached decoding, cross-attention
