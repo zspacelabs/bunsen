@@ -1,6 +1,6 @@
 # The ASR construct: what `bunsen-tool asr transcribe` and `asr live` run,
 # by what the speech is for rather than which model does it. Embedded in the
-# binary and read once (`profile::catalog`).
+# binary and read once (`construct::catalog`).
 #
 # - `axes`: the points' coordinates, each with what it decides.
 # - `presets`: names for the points people ask for (`--preset`), each a

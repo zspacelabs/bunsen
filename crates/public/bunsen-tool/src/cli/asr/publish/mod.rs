@@ -26,7 +26,7 @@ use config::{
 };
 
 use crate::cli::asr::{
-    profile::Stamp,
+    construct::Stamp,
     transcribe_cmd::Transcript,
 };
 

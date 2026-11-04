@@ -19,11 +19,11 @@ use super::{
     config::Opts,
 };
 use crate::cli::asr::{
+    construct::Stamp,
     diarize::{
         recording_id,
         speaker_name,
     },
-    profile::Stamp,
     transcribe_cmd::{
         Transcript,
         millis,

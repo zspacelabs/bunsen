@@ -1,4 +1,4 @@
-//! Profiles: speech to text by what it is for, not by which model does it.
+//! Presets: speech to text by what it is for, not by which model does it.
 
 use std::{
     collections::BTreeMap,
@@ -30,7 +30,7 @@ use crate::cli::{
     with_patch,
 };
 
-/// Which of a profile's recipes a command runs.
+/// Which of a preset's recipes a command runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
@@ -42,7 +42,7 @@ pub enum Mode {
 }
 
 impl Mode {
-    /// The command that runs this recipe, a profile's or a family's.
+    /// The command that runs this recipe, a preset's or a family's.
     pub fn command(self) -> &'static str {
         match self {
             Mode::Offline => "transcribe",
@@ -128,14 +128,17 @@ impl Need {
     /// that changed it, in order.
     pub fn settled_why(self) -> (Need, Vec<&'static str>) {
         let mut reasons = Vec::new();
-        let need = catalog().implications.iter().fold(self, |need, rule| {
-            if rule.when.matches(need) && rule.then.apply(need) != need {
-                reasons.push(rule.reason.as_str());
-                rule.then.apply(need)
-            } else {
-                need
-            }
-        });
+        let need = construct_config()
+            .implications
+            .iter()
+            .fold(self, |need, rule| {
+                if rule.when.matches(need) && rule.then.apply(need) != need {
+                    reasons.push(rule.reason.as_str());
+                    rule.then.apply(need)
+                } else {
+                    need
+                }
+            });
         (need, reasons)
     }
 
@@ -144,7 +147,7 @@ impl Need {
     /// other speech, as a multilingual model also hears English. The task is
     /// never changed.
     fn candidates(self) -> Vec<Need> {
-        let fallback = &catalog().fallback;
+        let fallback = &construct_config().fallback;
         let speeches = fallback
             .speech
             .get(&self.speech)
@@ -176,7 +179,7 @@ impl Need {
 /// command `bunsen-tool asr family` runs.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Recipe {
+pub struct AsrRecipe {
     /// The engine slot: the family that runs, and its model.
     pub engine: EngineSlot,
 
@@ -196,13 +199,13 @@ pub struct EngineSlot {
     pub model: String,
 }
 
-/// One cell of the table: what runs for a need, in a mode.
+/// One point of the table: what runs for a need, in a mode.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Cell {
+pub struct AsrPoint {
     pub need: Need,
     pub mode: Mode,
-    pub recipe: Recipe,
+    pub recipe: AsrRecipe,
 }
 
 /// A named, semantic choice of model: a point of the table, as `--preset`
@@ -211,10 +214,10 @@ pub struct Cell {
 /// A preset names what the speech is for (`en`, `multi`, `translate-en`),
 /// with one recipe for files (`transcribe`) and one for the microphone
 /// (`live`). The table is this binary's data: when a better model arrives, a
-/// cell changes, and the command lines that name the preset do not.
+/// point changes, and the command lines that name the preset do not.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Profile {
+pub struct AsrPreset {
     pub name: String,
     #[serde(default)]
     pub aliases: Vec<String>,
@@ -222,23 +225,23 @@ pub struct Profile {
     pub need: Need,
 }
 
-impl Profile {
+impl AsrPreset {
     /// The recipe `mode` runs.
     pub fn recipe(
         &self,
         mode: Mode,
-    ) -> &'static Recipe {
-        &pick(self.need, mode).0.recipe
+    ) -> &'static AsrRecipe {
+        &construct_config().point(self.need, mode).0.recipe
     }
 
     /// The recipe `mode` runs, as it is, resolved.
     ///
     /// # Errors
-    /// As [`Recipe::resolve`].
+    /// As [`AsrRecipe::resolve`].
     pub fn resolve(
         &self,
         mode: Mode,
-    ) -> BunsenResult<Resolved> {
+    ) -> BunsenResult<AsrConstruct> {
         self.recipe(mode)
             .resolve(&self.name, self.need, mode, None, None)
     }
@@ -261,7 +264,7 @@ pub struct AxisMember {
     pub description: String,
 }
 
-/// Where a need without a cell looks next: per axis, each value's
+/// Where a need without a point looks next: per axis, each value's
 /// candidates in order, the value itself first.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -320,9 +323,9 @@ pub struct Implication {
 /// read once ([`catalog`]).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Catalog {
+pub struct AsrConstructConfig {
     pub axes: Vec<Axis>,
-    pub presets: Vec<Profile>,
+    pub presets: Vec<AsrPreset>,
     pub fallback: Fallback,
     pub implications: Vec<Implication>,
 
@@ -330,7 +333,7 @@ pub struct Catalog {
     /// regions of every emission but [`Offline`](Emission::Offline).
     pub vad: String,
 
-    pub points: Vec<Cell>,
+    pub points: Vec<AsrPoint>,
 }
 
 /// The table, from the binary's `asr_construct.yml`.
@@ -338,46 +341,48 @@ pub struct Catalog {
 /// # Panics
 /// If the embedded file is not a catalog: a broken build, which the tests
 /// catch.
-pub fn catalog() -> &'static Catalog {
-    static CATALOG: std::sync::OnceLock<Catalog> = std::sync::OnceLock::new();
+pub fn construct_config() -> &'static AsrConstructConfig {
+    static CATALOG: std::sync::OnceLock<AsrConstructConfig> = std::sync::OnceLock::new();
     CATALOG.get_or_init(|| {
         serde_saphyr::from_str(include_str!("asr_construct.yml"))
             .unwrap_or_else(|e| panic!("the embedded asr_construct.yml: {e}"))
     })
 }
 
-/// The cell for `need`, [settled](Need::settled), in `mode`, and, when it
-/// is not `need`'s own, a note of what stood in.
-pub fn pick(
-    need: Need,
-    mode: Mode,
-) -> (&'static Cell, Option<String>) {
-    let table = catalog();
-    for candidate in need.settled().candidates() {
-        if let Some(cell) = table
-            .points
-            .iter()
-            .find(|c| c.need == candidate && c.mode == mode)
-        {
-            let note = (candidate != need).then(|| {
-                format!(
-                    "no {} recipe for {need}: {candidate} stands in",
-                    mode.command()
-                )
-            });
-            return (cell, note);
+impl AsrConstructConfig {
+    /// The point for `need`, [settled](Need::settled), in `mode`, and, when
+    /// it is not `need`'s own, a note of what stood in.
+    pub fn point(
+        &'static self,
+        need: Need,
+        mode: Mode,
+    ) -> (&'static AsrPoint, Option<String>) {
+        for candidate in need.settled().candidates() {
+            if let Some(point) = self
+                .points
+                .iter()
+                .find(|c| c.need == candidate && c.mode == mode)
+            {
+                let note = (candidate != need).then(|| {
+                    format!(
+                        "no {} recipe for {need}: {candidate} stands in",
+                        mode.command()
+                    )
+                });
+                return (point, note);
+            }
         }
+        unreachable!("every speech and task reaches a balanced point; see asr_construct.yml")
     }
-    unreachable!("every speech and task reaches a balanced cell; see asr_construct.yml")
 }
 
 /// The preset `--preset` names when it is not given: an alias, so what it
 /// means can change too.
-pub const DEFAULT_PROFILE: &str = "default";
+pub const DEFAULT_PRESET: &str = "default";
 
 /// The presets: names for the points of the table people ask for.
-pub fn profiles() -> &'static [Profile] {
-    &catalog().presets
+pub fn presets() -> &'static [AsrPreset] {
+    &construct_config().presets
 }
 
 /// The preset `name` names, by its name or an alias.
@@ -385,12 +390,12 @@ pub fn profiles() -> &'static [Profile] {
 /// # Errors
 /// [`Lookup`](bunsen::errors::BunsenErrorKind::Lookup), with a
 /// [`LookupError`] of every name and alias, when no preset has the name.
-pub fn lookup(name: &str) -> BunsenResult<&'static Profile> {
-    profiles()
+pub fn lookup(name: &str) -> BunsenResult<&'static AsrPreset> {
+    presets()
         .iter()
         .find(|p| p.name == name || p.aliases.iter().any(|a| a == name))
         .ok_or_else(|| {
-            let names = profiles()
+            let names = presets()
                 .iter()
                 .flat_map(|p| std::iter::once(&p.name).chain(&p.aliases))
                 .cloned();
@@ -398,12 +403,12 @@ pub fn lookup(name: &str) -> BunsenResult<&'static Profile> {
         })
 }
 
-/// A profile's recipe, with the command line's choices over it: what runs.
+/// A preset's recipe, with the command line's choices over it: what runs.
 #[derive(Clone, Debug)]
-pub struct Resolved {
-    /// The profile's name, not the alias it was named by; or the need the
+pub struct AsrConstruct {
+    /// The preset's name, not the alias it was named by; or the need the
     /// table was asked for (`multi/translate/fast`).
-    pub profile: String,
+    pub preset: String,
 
     /// The need it serves, [settled](Need::settled): its task is the one
     /// the model runs.
@@ -420,8 +425,8 @@ pub struct Resolved {
     pub vad: Option<String>,
 }
 
-impl Recipe {
-    /// This recipe of `profile`, serving `need`, with `task` and `language`
+impl AsrRecipe {
+    /// This recipe of `preset`, serving `need`, with `task` and `language`
     /// set on its model.
     ///
     /// `task`, when given, is Whisper's: its `[translate]` preset in the
@@ -434,12 +439,12 @@ impl Recipe {
     /// As [`LookupExpr::parse`] on the model, and [`VadArgs::slot`].
     pub fn resolve(
         &self,
-        profile: &str,
+        preset: &str,
         need: Need,
         mode: Mode,
         task: Option<Task>,
         language: Option<&str>,
-    ) -> BunsenResult<Resolved> {
+    ) -> BunsenResult<AsrConstruct> {
         let mut model = self.engine.model.clone();
         if let Some(task) = task {
             model = with_task(&model, task)?;
@@ -449,14 +454,14 @@ impl Recipe {
                 model = with_patch(&model, &serde_json::json!({ "language": language }))?;
             } else {
                 log::info!(
-                    "profile {profile} runs {}, which finds the language itself: \
+                    "preset {preset} runs {}, which finds the language itself: \
                      --language {language} not applied",
                     self.engine.family.name()
                 );
             }
         }
-        let mut resolved = Resolved {
-            profile: profile.to_string(),
+        let mut resolved = AsrConstruct {
+            preset: preset.to_string(),
             need: need.settled(),
             mode,
             family: self.engine.family,
@@ -498,7 +503,7 @@ fn with_task(
     Ok(expr.to_string())
 }
 
-impl Resolved {
+impl AsrConstruct {
     /// The task the model runs: Whisper's, as its model's patch sets it
     /// (`{task: Translate}`), else `translate` when its box names the
     /// `translate` preset, `transcribe` without; another family transcribes.
@@ -555,13 +560,13 @@ impl Resolved {
         }
     }
 
-    /// What `--json` records of this: the profile, the need it served, and
+    /// What `--json` records of this: the preset, the need it served, and
     /// what it ran.
     pub fn stamp(&self) -> Stamp {
         Stamp {
-            profile: self.profile.clone(),
+            preset: self.preset.clone(),
             need: self.need,
-            recipe: RecipeStamp {
+            recipe: AsrRecipeStamp {
                 family: self.family.name().to_string(),
                 model: self.model.clone(),
                 emission: emission_name(self.emission).to_string(),
@@ -602,17 +607,17 @@ pub fn shell_line(words: &[String]) -> String {
 /// What chose a transcript's model, as `--json` records it.
 #[derive(Clone, Debug, Serialize)]
 pub struct Stamp {
-    pub profile: String,
+    pub preset: String,
 
     /// The need served: its task is the one the model ran.
     pub need: Need,
 
-    pub recipe: RecipeStamp,
+    pub recipe: AsrRecipeStamp,
 }
 
 /// A recipe, as `--json` records it.
 #[derive(Clone, Debug, Serialize)]
-pub struct RecipeStamp {
+pub struct AsrRecipeStamp {
     pub family: String,
     pub model: String,
     pub emission: String,
@@ -632,36 +637,36 @@ mod tests {
         mode: Mode,
         task: Option<Task>,
         language: Option<&str>,
-    ) -> BunsenResult<Resolved> {
-        let profile = lookup(name)?;
-        profile
+    ) -> BunsenResult<AsrConstruct> {
+        let preset = lookup(name)?;
+        preset
             .recipe(mode)
-            .resolve(&profile.name, profile.need, mode, task, language)
+            .resolve(&preset.name, preset.need, mode, task, language)
     }
 
-    /// Every recipe resolves, serving its profile's need; the names and
-    /// aliases are each one profile's, and the default is one of them.
+    /// Every recipe resolves, serving its preset's need; the names and
+    /// aliases are each one preset's, and the default is one of them.
     #[test]
     fn test_profiles_parse() {
         let mut names = Vec::new();
-        for profile in profiles() {
-            names.push(profile.name.as_str());
-            names.extend(profile.aliases.iter().map(String::as_str));
+        for preset in presets() {
+            names.push(preset.name.as_str());
+            names.extend(preset.aliases.iter().map(String::as_str));
             for mode in [Mode::Offline, Mode::Live] {
-                let resolved = resolve(&profile.name, mode, None, None).unwrap();
-                assert_eq!(resolved.need, profile.need.settled(), "{}", profile.name);
+                let resolved = resolve(&preset.name, mode, None, None).unwrap();
+                assert_eq!(resolved.need, preset.need.settled(), "{}", preset.name);
             }
         }
         let mut unique = names.clone();
         unique.sort();
         unique.dedup();
         assert_eq!(unique.len(), names.len(), "{names:?}");
-        assert_eq!(lookup(DEFAULT_PROFILE).unwrap().name, "en");
+        assert_eq!(lookup(DEFAULT_PRESET).unwrap().name, "en");
         assert!(lookup("klingon").is_err());
     }
 
-    /// Every need reaches a cell in each mode; a profile is its own cell,
-    /// and a missing cell falls through to the nearest.
+    /// Every need reaches a point in each mode; a preset is its own point,
+    /// and a missing point falls through to the nearest.
     #[test]
     fn test_pick() {
         use clap::ValueEnum;
@@ -674,18 +679,18 @@ mod tests {
                             task,
                             quality,
                         };
-                        let (cell, note) = pick(need, mode);
-                        assert_eq!(cell.mode, mode);
-                        assert_eq!(note.is_none(), cell.need == need);
+                        let (point, note) = construct_config().point(need, mode);
+                        assert_eq!(point.mode, mode);
+                        assert_eq!(note.is_none(), point.need == need);
                     }
                 }
             }
         }
-        for profile in profiles() {
+        for preset in presets() {
             for mode in [Mode::Offline, Mode::Live] {
-                let (cell, note) = pick(profile.need, mode);
-                assert_eq!(note, None, "{} {mode:?}", profile.name);
-                assert_eq!(cell.need, profile.need);
+                let (point, note) = construct_config().point(preset.need, mode);
+                assert_eq!(note, None, "{} {mode:?}", preset.name);
+                assert_eq!(point.need, preset.need);
             }
         }
 
@@ -695,17 +700,17 @@ mod tests {
             quality,
         };
         // A better quality before a worse.
-        let (cell, _) = pick(
+        let (point, _) = construct_config().point(
             need(Speech::Multi, Task::Transcribe, Quality::Good),
             Mode::Live,
         );
-        assert_eq!(cell.recipe.engine.model, "qwen/qwen3-asr-0.6b");
+        assert_eq!(point.recipe.engine.model, "qwen/qwen3-asr-0.6b");
         // English translated to English is transcribed.
-        let (cell, note) = pick(
+        let (point, note) = construct_config().point(
             need(Speech::En, Task::Translate, Quality::Fast),
             Mode::Offline,
         );
-        assert_eq!(cell.recipe.engine.model, "fermion/phonon-2");
+        assert_eq!(point.recipe.engine.model, "fermion/phonon-2");
         assert!(note.is_some());
     }
 
@@ -777,7 +782,7 @@ mod tests {
             stamp["recipe"]["model"],
             "openai/small[translate]{beam_size: 1}"
         );
-        assert_eq!(stamp["profile"], "translate-en");
+        assert_eq!(stamp["preset"], "translate-en");
         assert_eq!(
             stamp["need"],
             serde_json::json!({"speech": "multi", "task": "translate", "quality": "balanced"})
@@ -797,7 +802,7 @@ mod tests {
         };
         use clap::ValueEnum;
 
-        let table = catalog();
+        let table = construct_config();
         let members = |axis: &str| -> Vec<String> {
             let axis = table.axes.iter().find(|a| a.name == axis).unwrap();
             assert!(!axis.description.is_empty());
@@ -841,9 +846,9 @@ mod tests {
             )
         );
 
-        for cell in &table.points {
-            let model = &cell.recipe.engine.model;
-            let looked = match cell.recipe.engine.family {
+        for point in &table.points {
+            let model = &point.recipe.engine.model;
+            let looked = match point.recipe.engine.family {
                 Family::Parakeet => default_parakeet_factory()
                     .and_then(|f| f.lookup(model))
                     .map(drop),
@@ -857,7 +862,7 @@ mod tests {
                     .and_then(|f| f.lookup(model))
                     .map(drop),
             };
-            looked.unwrap_or_else(|e| panic!("{} {model}: {e}", cell.need));
+            looked.unwrap_or_else(|e| panic!("{} {model}: {e}", point.need));
         }
 
         // English translated to English is transcribed, and says why.

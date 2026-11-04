@@ -1,4 +1,4 @@
-//! `asr transcribe`, `live` and `presets`: speech to text by profile.
+//! `asr transcribe`, `live` and `presets`: speech to text by preset.
 use std::io::Write;
 
 use bunsen::{
@@ -21,27 +21,26 @@ use bunsen_app::{
 #[cfg(feature = "live")]
 use crate::cli::asr::live_cmd::LiveIo;
 use crate::cli::asr::{
+    construct::{
+        AsrConstruct,
+        AsrPreset,
+        DEFAULT_PRESET,
+        Mode,
+        Need,
+        Quality,
+        Speech,
+        Task,
+        construct_config,
+        lookup,
+        presets,
+        shell_line,
+    },
     family::{
         Family,
         Kit,
         fetch_with,
     },
     parakeet::ParakeetFlags,
-    profile::{
-        DEFAULT_PROFILE,
-        Mode,
-        Need,
-        Profile,
-        Quality,
-        Resolved,
-        Speech,
-        Task,
-        catalog,
-        lookup,
-        pick,
-        profiles,
-        shell_line,
-    },
     qwen3_asr::Qwen3AsrFlags,
     stream::{
         Emission,
@@ -52,7 +51,7 @@ use crate::cli::asr::{
     whisper::WhisperFlags,
 };
 
-/// The profile, and what the command line changes of it.
+/// The preset, and what the command line changes of it.
 ///
 /// How the flags choose, in order (the README has them as a table):
 ///
@@ -60,39 +59,39 @@ use crate::cli::asr::{
 ///    `--speech en` with another language is an error.
 /// 2. Without `--preset`, each of `--speech`, `--task` and `--quality` not
 ///    given is `default`'s, but `--task translate` makes the speech `multi`.
-///    With it, they are the profile's.
+///    With it, they are the preset's.
 /// 3. English speech translated to English is transcribed ([`Need::settled`]),
 ///    logged at `INFO`.
-/// 4. Without `--preset`, the table's cell for that need runs. With it, the
-///    profile's recipe runs, at `--quality`; `--speech` must be one it hears
+/// 4. Without `--preset`, the table's point for that need runs. With it, the
+///    preset's recipe runs, at `--quality`; `--speech` must be one it hears
 ///    (`multi` hears English), and a task not its own is set on its model
 ///    (Whisper's `[translate]` preset) or is an error.
 ///
-/// The task, unless a translating profile or `--task translate` asks
+/// The task, unless a translating preset or `--task translate` asks
 /// otherwise, is `transcribe`; the need served, its task the one the model
 /// runs, is logged and recorded by `--json`.
 #[derive(clap::Args, Debug)]
-pub struct ProfileArgs {
-    /// The profile, by name or alias: `presets` lists them, and what each
+pub struct AsrConstructArgs {
+    /// The preset, by name or alias: `presets` lists them, and what each
     /// runs. Without it, `--speech`, `--task`, `--quality` and `--language`
     /// choose the model, over `default`'s; with it, they may only adjust it.
     #[arg(long = "preset", value_name = "PRESET")]
-    pub profile: Option<String>,
+    pub preset: Option<String>,
 
     /// What the speech is; `--language` implies it. Without `--preset`, in
     /// place of `default`'s (`multi` with `--task translate`); with it, only
-    /// as the profile already hears it (`multi` hears English).
+    /// as the preset already hears it (`multi` hears English).
     #[arg(long, value_enum)]
     pub speech: Option<Speech>,
 
-    /// What to make of the speech: `transcribe` unless the profile
+    /// What to make of the speech: `transcribe` unless the preset
     /// translates. Without `--preset`, in place of `default`'s; with it,
     /// set on a model that takes a task (Whisper's `[translate]`), and an error
     /// on one that does not. English speech is transcribed either way.
     #[arg(long, value_enum)]
     pub task: Option<Task>,
 
-    /// How much compute to spend, in place of the profile's. A quality the
+    /// How much compute to spend, in place of the preset's. A quality the
     /// table has no model for falls through to the nearest that has one,
     /// logged at `INFO`.
     #[arg(long, value_enum)]
@@ -105,43 +104,43 @@ pub struct ProfileArgs {
     pub language: Option<String>,
 
     /// The model, as a lookup expression (`'openai/small[translate]{beam_size:
-    /// 1}'`), in place of the profile's. The family that lists it runs, the
-    /// profile's when it does; a name no family lists (`hf:`, a path) runs
-    /// in the profile's.
+    /// 1}'`), in place of the preset's. The family that lists it runs, the
+    /// preset's when it does; a name no family lists (`hf:`, a path) runs
+    /// in the preset's.
     #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 
     #[clap(flatten)]
     pub vad: VadArgs,
 
-    /// When to decode, in place of the profile's.
+    /// When to decode, in place of the preset's.
     #[arg(long, value_enum)]
     pub emission: Option<Emission>,
 
-    /// Milliseconds of audio per push, in place of the profile's.
+    /// Milliseconds of audio per push, in place of the preset's.
     #[arg(long)]
     pub chunk_ms: Option<usize>,
 }
 
 /// What the command line asks of the table: a name for it, the need it is
-/// for, the cell's need, and the task to set on its model.
+/// for, the point's need, and the task to set on its model.
 struct Asked {
-    /// The profile's name, or the need's.
+    /// The preset's name, or the need's.
     name: String,
 
     /// The need, [settled](Need::settled).
     need: Need,
 
-    /// The need whose cell runs: the profile's, at the need's quality; or
+    /// The need whose point runs: the preset's, at the need's quality; or
     /// the need itself.
-    cell: Need,
+    point: Need,
 
     /// The task to set on the model (Whisper's), when the need's is not
-    /// the cell's.
+    /// the point's.
     task: Option<Task>,
 }
 
-impl ProfileArgs {
+impl AsrConstructArgs {
     /// `--speech`, or the speech `--language` implies: `en` for English,
     /// `multi` for any other.
     ///
@@ -223,11 +222,11 @@ impl ProfileArgs {
     }
 
     /// What the flags ask of the table in `mode`, by the rules on
-    /// [`ProfileArgs`].
+    /// [`AsrConstructArgs`].
     ///
     /// # Errors
     /// As [`lookup`] and [`speech`](Self::speech);
-    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when the profile
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when the preset
     /// does not hear the speech, or its model in `mode` cannot do the task.
     fn asked(
         &self,
@@ -241,8 +240,8 @@ impl ProfileArgs {
             }
             need
         };
-        let Some(name) = &self.profile else {
-            let base = lookup(DEFAULT_PROFILE)?;
+        let Some(name) = &self.preset else {
+            let base = lookup(DEFAULT_PRESET)?;
             let task = self.task.unwrap_or(base.need.task);
             let need = settle(Need {
                 speech: speech.unwrap_or(match task {
@@ -263,40 +262,41 @@ impl ProfileArgs {
                     base.name.to_string()
                 },
                 need,
-                cell: need,
+                point: need,
                 task: None,
             });
         };
-        let profile = lookup(name)?;
+        let preset = lookup(name)?;
         if let Some(speech) = speech
-            && speech != profile.need.speech
-            && profile.need.speech != Speech::Multi
+            && speech != preset.need.speech
+            && preset.need.speech != Speech::Multi
         {
             return Err(BunsenError::policy(format!(
-                "profile {} hears {}; {} needs another profile, or none",
-                profile.name,
-                value_name(profile.need.speech),
+                "preset {} hears {}; {} needs another preset, or none",
+                preset.name,
+                value_name(preset.need.speech),
                 self.speech_flag()
             )));
         }
-        let quality = self.quality.unwrap_or(profile.need.quality);
+        let quality = self.quality.unwrap_or(preset.need.quality);
         let need = settle(Need {
-            speech: speech.unwrap_or(profile.need.speech),
-            task: self.task.unwrap_or(profile.need.task),
+            speech: speech.unwrap_or(preset.need.speech),
+            task: self.task.unwrap_or(preset.need.task),
             quality,
         });
-        let cell = Need {
+        let point = Need {
             quality,
-            ..profile.need
+            ..preset.need
         };
-        let task = if need.task != cell.task {
-            let family = self.family(pick(cell, mode).0.recipe.engine.family)?;
+        let task = if need.task != point.task {
+            let family =
+                self.family(construct_config().point(point, mode).0.recipe.engine.family)?;
             if family != Family::Whisper {
                 let task = value_name(need.task);
                 return Err(BunsenError::policy(format!(
-                    "profile {} runs {}, which cannot {task}; --task {task} needs another \
-                     profile, or none",
-                    profile.name,
+                    "preset {} runs {}, which cannot {task}; --task {task} needs another \
+                     preset, or none",
+                    preset.name,
                     family.name()
                 )));
             }
@@ -305,31 +305,31 @@ impl ProfileArgs {
             None
         };
         Ok(Asked {
-            name: profile.name.to_string(),
+            name: preset.name.to_string(),
             need,
-            cell,
+            point,
             task,
         })
     }
 
-    /// The `mode` recipe of the profile, or of the table's cell for the
+    /// The `mode` recipe of the preset, or of the table's point for the
     /// need the axis flags ask for, with the command line over it (`--model`
     /// first, then the task and `--language` set on it), logged at `INFO` as
     /// the need it serves and the family command it runs.
     ///
     /// # Errors
     /// As [`asked`](Self::asked) and
-    /// [`Recipe::resolve`](crate::cli::asr::profile::Recipe::resolve).
+    /// [`AsrRecipe::resolve`](crate::cli::asr::construct::AsrRecipe::resolve).
     pub fn resolve(
         &self,
         mode: Mode,
-    ) -> BunsenResult<Resolved> {
+    ) -> BunsenResult<AsrConstruct> {
         let asked = self.asked(mode)?;
-        let (cell, note) = pick(asked.cell, mode);
+        let (point, note) = construct_config().point(asked.point, mode);
         if let Some(note) = note {
             log::info!("{note}");
         }
-        let mut recipe = cell.recipe.clone();
+        let mut recipe = point.recipe.clone();
         if let Some(model) = &self.model {
             recipe.engine.family = self.family(recipe.engine.family)?;
             recipe.engine.model = model.clone();
@@ -349,8 +349,8 @@ impl ProfileArgs {
             resolved.chunk_ms = chunk_ms;
         }
         log::info!(
-            "profile {} ({}): {}",
-            resolved.profile,
+            "preset {} ({}): {}",
+            resolved.preset,
             resolved.need,
             shell_line(&resolved.command_line())
         );
@@ -368,7 +368,7 @@ fn value_name(value: impl clap::ValueEnum) -> String {
 }
 
 /// `$body` with `$flags` the resolved family's own flags: their defaults, as
-/// a profile sets no paths.
+/// a preset sets no paths.
 macro_rules! with_flags {
     ($resolved:expr, $flags:ident => $body:expr) => {
         match $resolved.family {
@@ -392,25 +392,25 @@ macro_rules! with_flags {
     };
 }
 
-/// Transcribes audio files with a profile's model for files.
+/// Transcribes audio files with a preset's model for files.
 ///
-/// The profile picks the family, the model and when to decode; `--model`,
+/// The preset picks the family, the model and when to decode; `--model`,
 /// `--emission` and `--vad` change them, `presets show` prints them, and `-v`
 /// logs them as the `bunsen-tool asr family` command they are. `--json` records
-/// the profile and its recipe with each transcript.
+/// the preset and its recipe with each transcript.
 #[derive(clap::Args, Debug)]
-pub struct ProfileTranscribeCmd {
+pub struct AsrTranscribeCmd {
     #[clap(flatten)]
-    pub profile: ProfileArgs,
+    pub preset: AsrConstructArgs,
 
     #[clap(flatten)]
     pub io: TranscribeIo,
 }
 
-impl ProfileTranscribeCmd {
+impl AsrTranscribeCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.io.init_logging()?;
-        let resolved = self.profile.resolve(Mode::Offline)?;
+        let resolved = self.preset.resolve(Mode::Offline)?;
         let stamp = resolved.stamp();
         with_flags!(resolved, flags => self.io.run(
             resolved.family,
@@ -422,27 +422,27 @@ impl ProfileTranscribeCmd {
     }
 }
 
-/// Transcribes the microphone, as it speaks, with a profile's model for
+/// Transcribes the microphone, as it speaks, with a preset's model for
 /// the microphone.
 ///
-/// The profile picks the family, the model and when to decode; `--model`,
+/// The preset picks the family, the model and when to decode; `--model`,
 /// `--emission` and `--vad` change them, `presets show` prints them, and `-v`
 /// logs them as the `bunsen-tool asr family` command they are.
 #[cfg(feature = "live")]
 #[derive(clap::Args, Debug)]
-pub struct ProfileLiveCmd {
+pub struct AsrLiveCmd {
     #[clap(flatten)]
-    pub profile: ProfileArgs,
+    pub preset: AsrConstructArgs,
 
     #[clap(flatten)]
     pub io: LiveIo,
 }
 
 #[cfg(feature = "live")]
-impl ProfileLiveCmd {
+impl AsrLiveCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.io.init_logging()?;
-        let resolved = self.profile.resolve(Mode::Live)?;
+        let resolved = self.preset.resolve(Mode::Live)?;
         with_flags!(resolved, flags => self.io.run(
             resolved.family,
             &resolved.model,
@@ -452,58 +452,58 @@ impl ProfileLiveCmd {
     }
 }
 
-/// The profiles' commands; `list` when none is named.
+/// The presets' commands; `list` when none is named.
 #[derive(clap::Args, Debug)]
-pub struct ProfilesCmd {
+pub struct AsrPresetsCmd {
     #[command(subcommand)]
-    action: Option<ProfilesAction>,
+    action: Option<AsrPresetsAction>,
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum ProfilesAction {
-    /// List the profiles: what each is for, and the model each runs for
+enum AsrPresetsAction {
+    /// List the presets: what each is for, and the model each runs for
     /// files and for the microphone.
     List,
 
-    /// Show profiles: each recipe, as the `bunsen-tool asr family` command it
+    /// Show presets: each recipe, as the `bunsen-tool asr family` command it
     /// runs.
     Show(ShowCmd),
 
-    /// Bring every file the named profiles run into the weights cache: both
+    /// Bring every file the named presets run into the weights cache: both
     /// recipes' models, and the VAD where a recipe finds speech regions.
     Fetch(FetchCmd),
 }
 
-impl ProfilesCmd {
+impl AsrPresetsCmd {
     pub fn run(&self) -> BunsenResult<()> {
         match &self.action {
-            None | Some(ProfilesAction::List) => list(&mut std::io::stdout().lock()),
-            Some(ProfilesAction::Show(show)) => show.run(),
-            Some(ProfilesAction::Fetch(fetch)) => fetch.run(),
+            None | Some(AsrPresetsAction::List) => list(&mut std::io::stdout().lock()),
+            Some(AsrPresetsAction::Show(show)) => show.run(),
+            Some(AsrPresetsAction::Fetch(fetch)) => fetch.run(),
         }
     }
 }
 
-/// A profile's name, and its aliases when it has any.
-fn title(profile: &Profile) -> String {
-    match profile.aliases.as_slice() {
-        [] => profile.name.clone(),
-        aliases => format!("{} ({})", profile.name, aliases.join(", ")),
+/// A preset's name, and its aliases when it has any.
+fn title(preset: &AsrPreset) -> String {
+    match preset.aliases.as_slice() {
+        [] => preset.name.clone(),
+        aliases => format!("{} ({})", preset.name, aliases.join(", ")),
     }
 }
 
-/// Writes each profile, and what each of its recipes runs; then the axes
+/// Writes each preset, and what each of its recipes runs; then the axes
 /// they are points of.
 fn list(out: &mut impl Write) -> BunsenResult<()> {
     let w = |e| sys_at("write to", "stdout")(e);
-    for (i, profile) in profiles().iter().enumerate() {
+    for (i, preset) in presets().iter().enumerate() {
         if i > 0 {
             writeln!(out).map_err(w)?;
         }
-        writeln!(out, "{}", title(profile)).map_err(w)?;
-        writeln!(out, "  {}", profile.description).map_err(w)?;
+        writeln!(out, "{}", title(preset)).map_err(w)?;
+        writeln!(out, "  {}", preset.description).map_err(w)?;
         for mode in [Mode::Offline, Mode::Live] {
-            let recipe = profile.recipe(mode);
+            let recipe = preset.recipe(mode);
             writeln!(
                 out,
                 "  {:<11} {} {}",
@@ -517,7 +517,7 @@ fn list(out: &mut impl Write) -> BunsenResult<()> {
     // The axes the presets are points of, and what each value means.
     writeln!(out).map_err(w)?;
     writeln!(out, "The axes (`--speech`, `--task`, `--quality`):").map_err(w)?;
-    for axis in &catalog().axes {
+    for axis in &construct_config().axes {
         writeln!(out, "  {}: {}", axis.name, axis.description).map_err(w)?;
         for member in &axis.members {
             writeln!(out, "    {:<11} {}", member.name, member.description).map_err(w)?;
@@ -526,18 +526,18 @@ fn list(out: &mut impl Write) -> BunsenResult<()> {
     Ok(())
 }
 
-/// Shows profiles: each recipe, as the `bunsen-tool asr family` command it
+/// Shows presets: each recipe, as the `bunsen-tool asr family` command it
 /// runs.
 #[derive(clap::Args, Debug)]
 struct ShowCmd {
-    /// Profiles, by name or alias; every profile when none is named.
+    /// Presets, by name or alias; every preset when none is named.
     names: Vec<String>,
 }
 
 impl ShowCmd {
     fn run(&self) -> BunsenResult<()> {
-        let profiles: Vec<&Profile> = if self.names.is_empty() {
-            profiles().iter().collect()
+        let presets: Vec<&AsrPreset> = if self.names.is_empty() {
+            presets().iter().collect()
         } else {
             self.names
                 .iter()
@@ -546,14 +546,14 @@ impl ShowCmd {
         };
         let mut out = std::io::stdout().lock();
         let w = |e| sys_at("write to", "stdout")(e);
-        for (i, profile) in profiles.into_iter().enumerate() {
+        for (i, preset) in presets.into_iter().enumerate() {
             if i > 0 {
                 writeln!(out).map_err(w)?;
             }
-            writeln!(out, "{}", title(profile)).map_err(w)?;
-            writeln!(out, "  {}", profile.description).map_err(w)?;
+            writeln!(out, "{}", title(preset)).map_err(w)?;
+            writeln!(out, "  {}", preset.description).map_err(w)?;
             for mode in [Mode::Offline, Mode::Live] {
-                let resolved = profile.resolve(mode)?;
+                let resolved = preset.resolve(mode)?;
                 writeln!(
                     out,
                     "  {}: {}",
@@ -567,7 +567,7 @@ impl ShowCmd {
     }
 }
 
-/// Brings every file the named profiles run into the weights cache, and
+/// Brings every file the named presets run into the weights cache, and
 /// prints where each one is: a deployment that runs offline fills its cache
 /// this way ahead of time.
 #[derive(clap::Args, Debug)]
@@ -582,7 +582,7 @@ struct FetchCmd {
     #[arg(long)]
     verify: bool,
 
-    /// Profiles, by name or alias (`presets` lists them).
+    /// Presets, by name or alias (`presets` lists them).
     #[arg(required = true)]
     names: Vec<String>,
 }
@@ -595,8 +595,8 @@ impl FetchCmd {
         let mut models: Vec<(Family, &str)> = Vec::new();
         let mut vad = false;
         for name in &self.names {
-            let profile = lookup(name)?;
-            for recipe in [Mode::Offline, Mode::Live].map(|m| profile.recipe(m)) {
+            let preset = lookup(name)?;
+            for recipe in [Mode::Offline, Mode::Live].map(|m| preset.recipe(m)) {
                 let model = (recipe.engine.family, recipe.engine.model.as_str());
                 if !models.contains(&model) {
                     models.push(model);
@@ -611,7 +611,7 @@ impl FetchCmd {
         if vad {
             fetch_with(
                 default_silero_factory()?,
-                &[catalog().vad.clone()],
+                &[construct_config().vad.clone()],
                 &cache,
                 self.verify,
                 &mut out,
@@ -631,17 +631,17 @@ mod tests {
     #[command(no_binary_name = true)]
     struct Line {
         #[command(flatten)]
-        args: ProfileArgs,
+        args: AsrConstructArgs,
     }
 
     fn resolve(
         line: &[&str],
         mode: Mode,
-    ) -> BunsenResult<Resolved> {
+    ) -> BunsenResult<AsrConstruct> {
         Line::try_parse_from(line).unwrap().args.resolve(mode)
     }
 
-    /// What `line` runs in `mode`: the profile, the need served, the model,
+    /// What `line` runs in `mode`: the preset, the need served, the model,
     /// and the task the model runs; the family's flags parse.
     fn ran(
         line: &[&str],
@@ -651,7 +651,7 @@ mod tests {
         with_flags!(r, _flags => ());
         assert_eq!(r.need.task, r.task(), "{line:?}");
         Ok((
-            r.profile.clone(),
+            r.preset.clone(),
             r.need.to_string(),
             r.model.clone(),
             r.task(),
@@ -681,7 +681,7 @@ mod tests {
         assert_eq!(r.family, Family::Whisper);
         assert_eq!(r.model, "OpenAI/Small{beam_size: 2}");
         assert_eq!(r.task(), Task::Transcribe);
-        // A task the profile's family cannot do, on a model that can.
+        // A task the preset's family cannot do, on a model that can.
         let r = resolve(
             &[
                 "--preset",
@@ -699,14 +699,14 @@ mod tests {
             (Family::Whisper, "openai/small[translate]", Task::Translate)
         );
         assert!(resolve(&["--preset", "multi", "--task", "translate"], Mode::Live).is_err());
-        // A name no family lists runs in the profile's family.
+        // A name no family lists runs in the preset's family.
         let r = resolve(&["--model", "hf:org/repo"], Mode::Offline).unwrap();
         assert_eq!(r.family, Family::Parakeet);
         let r = resolve(&["--model", "well-known:openai/tiny"], Mode::Offline).unwrap();
         assert_eq!(r.family, Family::Whisper);
 
         // Live finds speech regions: the table's VAD, or `--vad`'s.
-        let table = catalog().vad.as_str();
+        let table = construct_config().vad.as_str();
         assert_eq!(
             resolve(&[], Mode::Live).unwrap().vad.as_deref(),
             Some(table)
@@ -734,8 +734,8 @@ mod tests {
         );
     }
 
-    /// Each rule on [`ProfileArgs`], line by line: the profile recorded, the
-    /// need served, the model, and the task it runs; or the error.
+    /// Each rule on [`AsrConstructArgs`], line by line: the preset recorded,
+    /// the need served, the model, and the task it runs; or the error.
     #[test]
     fn test_rules() {
         use Mode::{
@@ -866,7 +866,7 @@ mod tests {
                     Transcribe,
                 )),
             ),
-            // No `fast` live cell: `balanced` stands in.
+            // No `fast` live point: `balanced` stands in.
             (
                 &["--speech", "multi", "--quality", "fast"],
                 Live,
@@ -954,12 +954,12 @@ mod tests {
             (
                 &["--preset", "en", "--speech", "multi"],
                 Live,
-                Err("profile en hears en"),
+                Err("preset en hears en"),
             ),
             (
                 &["--preset", "en", "--language", "de"],
                 Offline,
-                Err("--language de needs another profile"),
+                Err("--language de needs another preset"),
             ),
             // and a task set on Whisper's model, or by the model given.
             (
@@ -1001,9 +1001,9 @@ mod tests {
         for (line, mode, expect) in rows {
             let got = ran(line, *mode);
             match (expect, got) {
-                (Ok((profile, need, model, task)), Ok(got)) => assert_eq!(
+                (Ok((preset, need, model, task)), Ok(got)) => assert_eq!(
                     (got.0.as_str(), got.1.as_str(), got.2.as_str(), got.3),
-                    (*profile, *need, *model, *task),
+                    (*preset, *need, *model, *task),
                     "{line:?} {mode:?}"
                 ),
                 (Err(message), Err(e)) => {
@@ -1016,20 +1016,20 @@ mod tests {
 
     /// Over every combination of `--preset`, `--speech`, `--task` and
     /// `--language`, in each mode: the task is `transcribe` unless a
-    /// translating profile or `--task translate` asks otherwise, English
+    /// translating preset or `--task translate` asks otherwise, English
     /// speech is transcribed, a language not English is never given to an
     /// English model, and an error says what to change.
     #[test]
     fn test_rules_hold_everywhere() {
         let mut ran_lines = 0;
-        for profile in [None, Some("en"), Some("multi"), Some("translate-en")] {
+        for preset in [None, Some("en"), Some("multi"), Some("translate-en")] {
             for speech in [None, Some("en"), Some("multi")] {
                 for task in [None, Some("transcribe"), Some("translate")] {
                     for language in [None, Some("en"), Some("de")] {
                         for mode in [Mode::Offline, Mode::Live] {
                             let mut line = Vec::new();
                             for (flag, value) in [
-                                ("--preset", profile),
+                                ("--preset", preset),
                                 ("--speech", speech),
                                 ("--task", task),
                                 ("--language", language),
@@ -1043,7 +1043,7 @@ mod tests {
                                 Err(e) => {
                                     let e = e.to_string();
                                     assert!(
-                                        e.contains("needs another profile")
+                                        e.contains("needs another preset")
                                             || e.contains("is not English"),
                                         "{line:?}: {e}"
                                     );
@@ -1052,17 +1052,17 @@ mod tests {
                             };
                             ran_lines += 1;
                             // The speech, from the flags alone: `--speech`,
-                            // what `--language` implies, the profile's, or
+                            // what `--language` implies, the preset's, or
                             // `default`'s (`multi` to translate).
-                            let english = match (speech, language, profile) {
+                            let english = match (speech, language, preset) {
                                 (Some(speech), _, _) => speech == "en",
                                 (None, Some(language), _) => language == "en",
-                                (None, None, Some(profile)) => profile == "en",
+                                (None, None, Some(preset)) => preset == "en",
                                 (None, None, None) => task != Some("translate"),
                             };
-                            let asked = match (task, profile) {
+                            let asked = match (task, preset) {
                                 (Some(task), _) => task == "translate",
-                                (None, profile) => profile == Some("translate-en"),
+                                (None, preset) => preset == Some("translate-en"),
                             };
                             let want = if asked && !english {
                                 Task::Translate
@@ -1086,16 +1086,16 @@ mod tests {
         assert_eq!(ran_lines, 2 * (108 - 29));
     }
 
-    /// Every profile is listed, with both recipes.
+    /// Every preset is listed, with both recipes.
     #[test]
     fn test_list() {
         let mut out = Vec::new();
         list(&mut out).unwrap();
         let text = String::from_utf8(out).unwrap();
         assert!(text.starts_with("en (default)\n"), "{text}");
-        for profile in profiles() {
+        for preset in presets() {
             for mode in [Mode::Offline, Mode::Live] {
-                assert!(text.contains(&profile.recipe(mode).engine.model), "{text}");
+                assert!(text.contains(&preset.recipe(mode).engine.model), "{text}");
             }
         }
         assert!(
