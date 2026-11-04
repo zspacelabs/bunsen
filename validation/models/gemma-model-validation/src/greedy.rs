@@ -55,3 +55,15 @@ fn gemma_3_4b_pt() {
 fn gemma_2_2b() {
     check_row("gemma-2-2b");
 }
+
+#[test]
+#[serial_test::serial]
+fn gemma_3_1b_it() {
+    check_row("gemma-3-1b-it");
+}
+
+#[test]
+#[serial_test::serial]
+fn gemma_2_2b_it() {
+    check_row("gemma-2-2b-it");
+}

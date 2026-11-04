@@ -10,8 +10,8 @@ Run once; commit the outputs. Regenerating is not part of CI.
 
 - `ROW=HF_DIR`: a bunsen row name and a directory holding that row's pinned files under their
   repo names (`config.json`, the safetensors, `tokenizer.json`, ...), for the rows of
-  `ROWS`, `BF16_ROWS` and `CHAT_ROWS` (revisions as bunsen's rows pin them, on the
-  `unsloth/` mirrors). Each output is written when every row it needs is given.
+  `ROWS`, `IT_ROWS`, `BF16_ROWS` and `CHAT_ROWS` (revisions as bunsen's rows pin them, on
+  the `unsloth/` mirrors). Each output is written when every row it needs is given.
 
 Pinned versions used to produce the committed fixtures:
     transformers 5.19.0, torch 2.14.1+cpu, numpy 2.5.4, tokenizers 0.23.3, jinja2 3.1.6
@@ -24,7 +24,7 @@ and logits.
 Outputs, under `validation/models/gemma-model-validation/testdata/`:
 
 `transformers.json`
-    For each of `ROWS`: the row's tokenizer encoding `PROMPT` (`<bos>` added, as Gemma is
+    For each of `ROWS` and `IT_ROWS`: the row's tokenizer encoding `PROMPT` (`<bos>` added, as Gemma is
     trained) to `prompt_ids`, then `NEW_TOKENS` greedy tokens in float32 through
     `transformers`' own KV cache: the generated `ids`, their `text`, each step's `margins`
     (top-1 minus top-2 logit), and the prefill's last-position logits, `last_logits`
@@ -45,6 +45,14 @@ Outputs, under `validation/models/gemma-model-validation/testdata/`:
     tokenizer gives it (no special tokens added); and `templates`, the conversations the
     row's template accepts, under each `add_generation_prompt`, each with the text
     `apply_chat_template` renders and its ids.
+`chat_replies.json`
+    For each of `CHAT_ROWS`, its `SESSIONS`: conversations of user turns, each answered by
+    `transformers` (CPU, float32) greedily through its own KV cache from the chat-templated
+    prompt (generation prompt on), until a stop token or `budget` tokens. The stop tokens are
+    bunsen's for the row: its `generation_config.json`'s, and the id its tokenizer gives
+    `<end_of_turn>`. Each reply: its `ids` (the stop token included), its `text` (without it),
+    and each step's `margins`. The reply joins the conversation as an assistant turn of its
+    text.
 """
 
 import json
@@ -65,8 +73,10 @@ N_RECORDED = 2048
 PROMPT = "The lighthouse keeper climbed the stairs every evening, and"
 NEW_TOKENS = 32
 ROWS = ["gemma-3-270m", "gemma-3-1b-pt", "gemma-3-4b-pt", "gemma-2-2b"]
+IT_ROWS = ["gemma-3-1b-it", "gemma-2-2b-it"]
 BF16_ROWS = ["gemma-2-9b"]
 CHAT_ROWS = ["gemma-3-1b-it", "gemma-2-2b-it"]
+END_OF_TURN = "<end_of_turn>"
 WINDOW_PAST = 96
 WINDOW_NEW_TOKENS = 16
 WINDOW_SEED = 20261104
@@ -85,6 +95,18 @@ TEXTS = [
     "<start_of_turn>user\nhi<end_of_turn>\n<start_of_turn>model\n",
     "an unknown rune: \U00010330 and a control: \u0007",
 ]
+
+SESSIONS = {
+    "gemma-3-1b-it": [
+        {"name": "two_turns", "budget": 48,
+         "turns": ["Name three colours of the rainbow.", "Which of them is warmest?"]},
+        {"name": "arithmetic", "budget": 24, "turns": ["What is 17 + 25?"]},
+    ],
+    "gemma-2-2b-it": [
+        {"name": "two_turns", "budget": 32,
+         "turns": ["Write one sentence about the sea.", "Now one about the sky."]},
+    ],
+}
 
 CONVERSATIONS = {
     "one-turn": [{"role": "user", "content": "What is the capital of France?"}],
@@ -163,20 +185,21 @@ def window_prompt(tok, window: int) -> list[int]:
 
 def main() -> None:
     dirs = {row: pathlib.Path(d) for row, d in (arg.split("=", 1) for arg in sys.argv[1:])}
-    unknown = set(dirs) - set(ROWS + BF16_ROWS + CHAT_ROWS)
+    unknown = set(dirs) - set(ROWS + IT_ROWS + BF16_ROWS + CHAT_ROWS)
     assert not unknown, f"not a fixture row: {sorted(unknown)}"
     OUT.mkdir(parents=True, exist_ok=True)
-    if all(row in dirs for row in ROWS):
+    if all(row in dirs for row in ROWS + IT_ROWS):
         write_f32(dirs)
     if all(row in dirs for row in BF16_ROWS):
         write_bf16(dirs)
     if all(row in dirs for row in CHAT_ROWS):
         write_chat(dirs)
+        write_sessions(dirs)
 
 
 def write_f32(dirs: dict) -> None:
     greedy, window = {}, {}
-    for row in ROWS:
+    for row in ROWS + IT_ROWS:
         tok = AutoTokenizer.from_pretrained(dirs[row])
         model = load(dirs[row], torch.float32)
         prompt_ids = tok(PROMPT)["input_ids"]
@@ -184,6 +207,9 @@ def write_f32(dirs: dict) -> None:
         entry, _ = decode(model, tok, prompt_ids, NEW_TOKENS)
         greedy[row] = {"prompt": PROMPT, "prompt_ids": prompt_ids, **entry}
         print(row, entry["text"][:80].replace("\n", " "), "| min margin", min(entry["margins"]))
+        if row in IT_ROWS:
+            del model
+            continue
 
         config = AutoConfig.from_pretrained(dirs[row])
         text = getattr(config, "text_config", config)
@@ -238,6 +264,59 @@ def write_chat(dirs: dict) -> None:
         chat[row] = {"encode": encode, "templates": templates}
         print(row, len(encode), "texts,", len(templates), "renders")
     (OUT / "chat.json").write_text(json.dumps(chat) + "\n")
+
+
+def stop_ids(tok, hf_dir: pathlib.Path) -> list[int]:
+    """bunsen's stop tokens for a row: its `generation_config.json`'s end of text, and the id
+    its tokenizer gives a turn's end."""
+    eos = json.loads((hf_dir / "generation_config.json").read_text())["eos_token_id"]
+    stops = eos if isinstance(eos, list) else [eos]
+    end = tok.convert_tokens_to_ids(END_OF_TURN)
+    return stops + ([end] if end not in stops else [])
+
+
+def greedy_reply(model, tok, prompt_ids: list[int], stops: list[int], budget: int) -> dict:
+    ids, margins = [], []
+    with torch.no_grad():
+        out = model(input_ids=torch.tensor([prompt_ids]), use_cache=True)
+        last, past = out.logits[0, -1].float(), out.past_key_values
+        for _ in range(budget):
+            top = torch.topk(last, 2)
+            ids.append(int(top.indices[0]))
+            margins.append(float(top.values[0] - top.values[1]))
+            if ids[-1] in stops:
+                break
+            out = model(input_ids=torch.tensor([[ids[-1]]]), past_key_values=past,
+                        use_cache=True)
+            last, past = out.logits[0, -1].float(), out.past_key_values
+    body = ids[:-1] if ids and ids[-1] in stops else ids
+    return {"ids": ids, "text": tok.decode(body), "margins": margins}
+
+
+def write_sessions(dirs: dict) -> None:
+    replies = {}
+    for row in CHAT_ROWS:
+        hf_dir = pathlib.Path(dirs[row])
+        tok = AutoTokenizer.from_pretrained(hf_dir)
+        model = load(hf_dir, torch.float32)
+        stops = stop_ids(tok, hf_dir)
+        sessions = []
+        for session in SESSIONS[row]:
+            messages, turns = [], []
+            for user in session["turns"]:
+                messages.append({"role": "user", "content": user})
+                text = tok.apply_chat_template(messages, add_generation_prompt=True,
+                                               tokenize=False)
+                prompt_ids = tok(text, add_special_tokens=False)["input_ids"]
+                reply = greedy_reply(model, tok, prompt_ids, stops, session["budget"])
+                turns.append({"user": user, "prompt_ids": prompt_ids, **reply})
+                messages.append({"role": "assistant", "content": reply["text"]})
+                print(row, session["name"], repr(reply["text"][:60]), "| min margin",
+                      min(reply["margins"]))
+            sessions.append({**session, "replies": turns})
+        replies[row] = sessions
+        del model
+    (OUT / "chat_replies.json").write_text(json.dumps(replies, ensure_ascii=False) + "\n")
 
 
 if __name__ == "__main__":
