@@ -75,7 +75,8 @@ pub fn default_voxtral_factory() -> BunsenResult<PretrainedFactory<VoxtralConstr
 }
 
 impl PretrainedFactory<VoxtralConstructConfig> {
-    /// A name to a construct: [`load`](Self::load), keeping the handle.
+    /// A name to a construct under `policy`: [`load`](Self::load), keeping
+    /// the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
@@ -84,8 +85,9 @@ impl PretrainedFactory<VoxtralConstructConfig> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
-        Ok(self.load(spec, cache, device)?.handle)
+        Ok(self.load(spec, cache, device, policy)?.handle)
     }
 }
 

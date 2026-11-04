@@ -56,14 +56,20 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::gpts::qwen3::Qwen3Construct,
+    kits::{
+        gpts::qwen3::Qwen3Construct,
+        support::construct::LoadPolicy,
+    },
     ops::transformers::attention::{
         KVCacheModel,
         KVCacheStorage,
     },
     support::testing::TensorRecord,
 };
-use burn::prelude::*;
+use burn::{
+    prelude::*,
+    tensor::FloatDType,
+};
 use serde::Deserialize;
 
 /// The reference model, generated from the rewritten export.
@@ -371,14 +377,25 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 }
 
 /// A Qwen3 pretrained by name, through bunsen's factory and
-/// [`weights_cache`].
+/// [`weights_cache`], in f32 at least: what the f32 suites hold to
+/// `transformers` in f32.
 pub fn load_construct(
     name: &str,
     device: &Device,
 ) -> std::sync::Arc<Qwen3Construct> {
+    load_construct_with(name, device, LoadPolicy::at_least(FloatDType::F32))
+}
+
+/// A Qwen3 pretrained by name under `policy`: the bf16 checks load with
+/// [`LoadPolicy::performance`], bf16 on a device that accelerates it.
+pub fn load_construct_with(
+    name: &str,
+    device: &Device,
+    policy: LoadPolicy,
+) -> std::sync::Arc<Qwen3Construct> {
     bunsen::kits::gpts::qwen3::pretrained::default_qwen3_factory()
         .expect("the qwen3 factory")
-        .load_construct(name, &weights_cache(), device)
+        .load_construct(name, &weights_cache(), device, policy)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 

@@ -73,6 +73,23 @@ pub fn load_hf_tensors(
     apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
 }
 
+/// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
+/// policy's resolution, [`LoadPolicy::resolve`]) rather than the dtype the
+/// model was built in: a freshly built model's parameters are lazy, so they
+/// are never materialized in the build dtype first.
+///
+/// [`LoadPolicy::resolve`]: crate::kits::support::construct::LoadPolicy::resolve
+///
+/// # Errors
+/// As [`apply_rekeyed_tensors_as`].
+pub fn load_hf_tensors_as(
+    model: &mut Qwen3Model,
+    tensors: impl IntoIterator<Item = PackTensor>,
+    dtype: burn::tensor::FloatDType,
+) -> BunsenResult<NamedTensorsApplied> {
+    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype.into()))
+}
+
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:
 /// what an `hf:` repo's geometry is, any dense Qwen3's.
 ///

@@ -48,7 +48,8 @@ pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstr
 }
 
 impl PretrainedFactory<WhisperConstructConfig> {
-    /// A name to a construct: [`load`](Self::load), keeping the handle.
+    /// A name to a construct under `policy`: [`load`](Self::load), keeping
+    /// the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
@@ -57,8 +58,9 @@ impl PretrainedFactory<WhisperConstructConfig> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
-        Ok(self.load(spec, cache, device)?.handle)
+        Ok(self.load(spec, cache, device, policy)?.handle)
     }
 }
 
@@ -84,8 +86,9 @@ impl Deferred<WhisperConstructConfig> {
         &self,
         cache: &PretrainedCache,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
-        Ok(self.load(cache, device)?.handle)
+        Ok(self.load(cache, device, policy)?.handle)
     }
 }
 
@@ -345,7 +348,13 @@ mod hub_tests {
         assert_eq!(checkpoint.file, "model.safetensors");
         assert!(checkpoint.is_pinned(), "pinned by the hub's listing");
 
-        let loaded = model.load(&cache, &device).unwrap();
+        let loaded = model
+            .load(
+                &cache,
+                &device,
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
+            .unwrap();
         assert!(matches!(
             loaded.resources.get(CHECKPOINT).unwrap().provenance,
             Provenance::Cached | Provenance::Downloaded
@@ -366,7 +375,12 @@ mod hub_tests {
         assert_eq!(hf.ranks.as_ref().map(|r| r.len()), Some(50257));
 
         let openai = factory
-            .load_construct("openai/tiny", &cache, &device)
+            .load_construct(
+                "openai/tiny",
+                &cache,
+                &device,
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
             .unwrap();
         let close = |a: Tensor<2>, b: Tensor<2>| {
             assert_tensors_close(&a, &b, Tolerance::<f32>::default());

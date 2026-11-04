@@ -2,43 +2,37 @@
 //!
 //! `bf16::` holds the short decodes of `testdata/transformers_bf16.json`.
 //! `long_bf16::` reports how far bunsen in bf16 is from `transformers` at
-//! the end of the long conversation (`testdata/transformers_long.json`), and
-//! asserts nothing of it yet: the bf16 load does not keep `transformers`'
-//! f32 islands until `LoadPolicy` (`[s5_load_policy]`), and this is the gap
-//! it is held to from then on.
+//! the end of the long conversation (`testdata/transformers_long.json`).
 //!
-//! A test binary of its own: the CUDA device's default float dtype is set to
-//! bf16 here, once per process, and must not reach the float32 suite.
-//! Needs `checkpoints`, `gpu-tests` and `cuda`.
+//! The device is CUDA's, its default float f32; the weights load in bf16
+//! under [`LoadPolicy::performance`], as CUDA accelerates bf16, and the
+//! model keeps `transformers`' f32 islands (the softmax, the rope tables,
+//! the norms, the logits). A test binary of its own, so the f32 suites stay
+//! off CUDA. Needs `checkpoints`, `gpu-tests` and `cuda`.
 #![cfg(all(feature = "checkpoints", feature = "gpu-tests", feature = "cuda"))]
 
-use bunsen::ops::transformers::attention::KVCacheStorage;
+use bunsen::{
+    kits::support::construct::LoadPolicy,
+    ops::transformers::attention::KVCacheStorage,
+};
 use burn::{
     prelude::*,
-    tensor::{
-        DType,
-        DeviceConfig,
-        FloatDType,
-    },
+    tensor::DType,
 };
 use qwen3_model_validation::{
     BF16_NEAR_TIE,
     STORAGES,
     argmax,
     bunsen_decode,
-    load_construct,
+    load_construct_with,
     transformers_bf16_reference,
     transformers_long_reference,
 };
 
-/// The bf16 CUDA device, configured once for this process.
+/// The CUDA device, its default float f32: the weights' dtype is the load
+/// policy's.
 fn bf16_device() -> Device {
-    let mut device = Device::cuda(0);
-    match device.configure(DeviceConfig::default().float_dtype(FloatDType::BF16)) {
-        Ok(()) => {}
-        Err(_) => assert_eq!(device.settings().float_dtype, FloatDType::BF16),
-    }
-    device
+    Device::cuda(0)
 }
 
 /// bunsen in bf16, fed `transformers`' bf16 tokens, predicts each of them at
@@ -49,7 +43,12 @@ fn check_row(row: &str) {
     let device = bf16_device();
     let fixture = transformers_bf16_reference();
     let record = &fixture[row];
-    let bundle = load_construct(row, &device);
+    let bundle = load_construct_with(row, &device, LoadPolicy::performance());
+    assert_eq!(
+        bundle.model.embed_tokens.weight.val().dtype(),
+        DType::BF16,
+        "{row}: performance() keeps bf16 where CUDA accelerates it"
+    );
     assert!(bundle.model.lm_head.is_some(), "{row}: the head is its own");
 
     for storage in STORAGES {
@@ -113,7 +112,12 @@ fn report_long(row: &str) {
     let fixture = transformers_long_reference();
     let record = &fixture.rows[row];
     let reference = &record.bf16;
-    let bundle = load_construct(row, &device);
+    let bundle = load_construct_with(row, &device, LoadPolicy::performance());
+    assert_eq!(
+        bundle.model.embed_tokens.weight.val().dtype(),
+        DType::BF16,
+        "{row}: performance() keeps bf16 where CUDA accelerates it"
+    );
     let steps = bunsen_decode(
         &bundle,
         &record.prompt_ids,

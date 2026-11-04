@@ -66,7 +66,8 @@ pub fn default_nanochat_factory() -> BunsenResult<PretrainedFactory<NanoChatCons
 }
 
 impl PretrainedFactory<NanoChatConstructConfig> {
-    /// A name to a construct: [`load`](Self::load), keeping the handle.
+    /// A name to a construct under `policy`: [`load`](Self::load), keeping
+    /// the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
@@ -75,8 +76,9 @@ impl PretrainedFactory<NanoChatConstructConfig> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
-        Ok(self.load(spec, cache, device)?.handle)
+        Ok(self.load(spec, cache, device, policy)?.handle)
     }
 }
 

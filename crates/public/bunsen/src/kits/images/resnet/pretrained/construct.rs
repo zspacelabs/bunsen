@@ -116,6 +116,7 @@ impl ConstructInit for ResNetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<ResNet>> {
         let config = self.config_for(model)?;
         let resnet: ResNet = config.try_init(device)?;
@@ -227,7 +228,11 @@ mod tests {
             "mine", CHECKPOINT, &file,
         ))
         .unwrap()
-        .load(&cache, &cpu_device());
+        .load(
+            &cache,
+            &cpu_device(),
+            crate::kits::support::construct::LoadPolicy::as_stored(),
+        );
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.
         missing_config(&[BunsenErrorKind::Policy]).assert_err(&err);

@@ -127,6 +127,7 @@ impl ConstructInit for SileroConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<SileroConstruct>> {
         let policy = resolve_ref_presets(&SileroPolicy::default(), model, &PresetSet::default())?;
         let vads = match self.reader {

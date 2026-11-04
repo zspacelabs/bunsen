@@ -154,6 +154,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {

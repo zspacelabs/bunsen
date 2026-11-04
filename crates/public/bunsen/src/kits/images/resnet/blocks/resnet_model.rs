@@ -799,7 +799,12 @@ mod tests {
 
         let device = performance_device();
         let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
-        let loaded = default_resnet_factory()?.load(spec, &cache, &device)?;
+        let loaded = default_resnet_factory()?.load(
+            spec,
+            &cache,
+            &device,
+            crate::kits::support::construct::LoadPolicy::as_stored(),
+        )?;
         let _model: &ResNet = &loaded.handle;
         Ok(())
     }

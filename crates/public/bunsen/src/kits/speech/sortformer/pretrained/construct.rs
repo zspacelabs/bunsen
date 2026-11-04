@@ -236,6 +236,7 @@ impl ConstructInit for SortformerConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let bundle = match self.reader {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device)?,
@@ -313,7 +314,11 @@ mod tests {
         .unwrap();
         let bundle = Deferred::<SortformerConstructConfig>::from_resource_bundle(map)
             .unwrap()
-            .load(&cache, &cpu_device())
+            .load(
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
             .unwrap()
             .handle;
         assert_eq!(bundle.family, SortformerFamily::SortformerV2);

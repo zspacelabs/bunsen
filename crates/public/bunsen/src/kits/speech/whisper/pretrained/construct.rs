@@ -446,6 +446,7 @@ impl ConstructInit for WhisperConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
         let (whisper, cfg) = self.reader.load(loaded, device)?;
         let layout = cfg

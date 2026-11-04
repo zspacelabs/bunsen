@@ -152,6 +152,7 @@ impl ConstructInit for ParakeetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {

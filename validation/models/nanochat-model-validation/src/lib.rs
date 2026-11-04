@@ -263,7 +263,12 @@ pub fn load_construct(
 ) -> std::sync::Arc<NanoChatConstruct> {
     bunsen::kits::gpts::nanochat::pretrained::default_nanochat_factory()
         .expect("the nanochat factory")
-        .load_construct(name, &weights_cache(), device)
+        .load_construct(
+            name,
+            &weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 

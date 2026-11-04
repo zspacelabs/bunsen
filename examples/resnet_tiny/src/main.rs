@@ -249,7 +249,11 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
             let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
             let mut model = default_resnet_factory()?.resolve(pretrained, &cache)?;
             model.config = model.config.with_config(contract.clone());
-            let loaded = model.load(&cache, &device)?;
+            let loaded = model.load(
+                &cache,
+                &device,
+                bunsen::kits::support::construct::LoadPolicy::performance(),
+            )?;
 
             Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))
         }

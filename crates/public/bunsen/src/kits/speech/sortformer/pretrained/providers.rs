@@ -73,7 +73,8 @@ pub fn default_sortformer_factory() -> BunsenResult<PretrainedFactory<Sortformer
 }
 
 impl PretrainedFactory<SortformerConstructConfig> {
-    /// A name to a construct: [`load`](Self::load), keeping the handle.
+    /// A name to a construct under `policy`: [`load`](Self::load), keeping
+    /// the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
@@ -82,8 +83,9 @@ impl PretrainedFactory<SortformerConstructConfig> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
-        Ok(self.load(spec, cache, device)?.handle)
+        Ok(self.load(spec, cache, device, policy)?.handle)
     }
 }
 

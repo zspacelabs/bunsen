@@ -98,7 +98,8 @@ pub fn default_qwen3_factory() -> BunsenResult<PretrainedFactory<Qwen3ConstructC
 }
 
 impl PretrainedFactory<Qwen3ConstructConfig> {
-    /// A name to a construct: [`load`](Self::load), keeping the handle.
+    /// A name to a construct under `policy`: [`load`](Self::load), keeping
+    /// the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
@@ -107,8 +108,9 @@ impl PretrainedFactory<Qwen3ConstructConfig> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3Construct>> {
-        Ok(self.load(spec, cache, device)?.handle)
+        Ok(self.load(spec, cache, device, policy)?.handle)
     }
 }
 

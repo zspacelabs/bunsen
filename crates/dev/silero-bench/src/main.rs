@@ -56,7 +56,12 @@ fn main() -> BunsenResult<()> {
     println!("* SileroVad");
     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
     let vad: SileroVad = default_silero_factory()?
-        .load("silero/vad-16k", &cache, &device)?
+        .load(
+            "silero/vad-16k",
+            &cache,
+            &device,
+            bunsen::kits::support::construct::LoadPolicy::performance(),
+        )?
         .handle
         .try_branch(args.sample_rate)?
         .clone();

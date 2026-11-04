@@ -20,6 +20,7 @@ use serde::{
 use super::{
     ConstructInit,
     Deferred,
+    LoadPolicy,
     Loaded,
     LookupExpr,
 };
@@ -402,7 +403,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     }
 
     /// A name to what the kit builds: [`resolve`](Self::resolve), then
-    /// [`Deferred::load`]. The whole pathway.
+    /// [`Deferred::load`] under `policy`. The whole pathway.
     ///
     /// # Errors
     /// As [`resolve`](Self::resolve) and [`Deferred::load`].
@@ -411,8 +412,9 @@ impl<H: ConstructInit> PretrainedFactory<H> {
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
+        policy: LoadPolicy,
     ) -> BunsenResult<Loaded<H::Construct>> {
-        self.resolve(spec, cache)?.load(cache, device)
+        self.resolve(spec, cache)?.load(cache, device, policy)
     }
 
     /// The dispatch behind [`lookup`](Self::lookup) and
@@ -601,6 +603,7 @@ pub(crate) mod testing {
             _model: &PretrainedRef,
             loaded: &LoadedResources,
             _device: &Device,
+            _policy: LoadPolicy,
         ) -> BunsenResult<Arc<PathBuf>> {
             Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
         }
@@ -625,8 +628,9 @@ pub(crate) mod testing {
             model: &PretrainedRef,
             loaded: &LoadedResources,
             device: &Device,
+            policy: LoadPolicy,
         ) -> BunsenResult<Arc<PathBuf>> {
-            CheckpointPath.try_init(model, loaded, device)
+            CheckpointPath.try_init(model, loaded, device, policy)
         }
     }
 }
@@ -990,7 +994,14 @@ mod tests {
             .with_providers([well_known(), on_disk])
             .unwrap();
 
-        let loaded = factory.load("disk:l/ckpt", &cache, &cpu_device()).unwrap();
+        let loaded = factory
+            .load(
+                "disk:l/ckpt",
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
+            .unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, "disk:l/ckpt");
         assert_eq!(
@@ -1005,7 +1016,11 @@ mod tests {
             .unwrap()
             .with_overlay(ResourceBundle::given("mine", "checkpoint", &other))
             .unwrap()
-            .load(&cache, &cpu_device())
+            .load(
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
             .unwrap();
         assert_eq!(*loaded.handle, other);
 
@@ -1013,7 +1028,12 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .frame_contains("loading kit \"well-known:a/small\"")
             .message_contains("the cache is offline")
-            .assert_err(&factory.load("well-known:a/small", &cache, &cpu_device()));
+            .assert_err(&factory.load(
+                "well-known:a/small",
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            ));
     }
 
     #[test]
