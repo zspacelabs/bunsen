@@ -17,15 +17,15 @@ use burn::{
     nn::{
         Linear,
         LinearConfig,
-        activation::{
-            Activation,
-            ActivationConfig,
-        },
     },
     tensor::Device,
 };
 
 use crate::{
+    blocks::activation::{
+        Activation,
+        ActivationConfig,
+    },
     burner::module::ModuleInit,
     errors::BunsenResult,
 };

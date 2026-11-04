@@ -1,5 +1,4 @@
 //! Typed sections of a `NeMo` YAML config.
-use burn::nn::activation::ActivationConfig;
 use serde::Deserialize;
 
 use super::{
@@ -8,6 +7,7 @@ use super::{
 };
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         signals::DwStridingSubsamplingConfig,
         transformers::encoders::{
             conformer::{

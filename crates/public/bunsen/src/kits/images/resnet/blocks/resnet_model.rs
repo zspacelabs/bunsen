@@ -12,7 +12,6 @@ use burn::{
         Linear,
         LinearConfig,
         PaddingConfig2d,
-        activation::ActivationConfig,
         conv::Conv2dConfig,
         pool::{
             AdaptiveAvgPool2d,
@@ -30,6 +29,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         conv::{
             ConvBlock2d,
             ConvBlock2dConfig,

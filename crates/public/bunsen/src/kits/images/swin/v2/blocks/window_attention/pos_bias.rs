@@ -2,10 +2,6 @@ use burn::{
     config::Config,
     module::Module,
     nn,
-    nn::activation::{
-        Activation,
-        ActivationConfig,
-    },
     prelude::{
         Int,
         Tensor,
@@ -17,6 +13,10 @@ use burn::{
 };
 
 use crate::{
+    blocks::activation::{
+        Activation,
+        ActivationConfig,
+    },
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
     errors::BunsenResult,

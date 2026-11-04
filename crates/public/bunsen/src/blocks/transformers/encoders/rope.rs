@@ -10,15 +10,13 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        LayerNormConfig,
-        activation::ActivationConfig,
-    },
+    nn::LayerNormConfig,
     tensor::Device,
 };
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         norm::{
             Norm,
             NormConfig,

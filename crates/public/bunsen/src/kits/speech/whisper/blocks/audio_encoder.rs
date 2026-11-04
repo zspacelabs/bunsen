@@ -9,7 +9,6 @@ use burn::{
         LayerNorm,
         LayerNormConfig,
         PaddingConfig1d,
-        activation::ActivationConfig,
         conv::Conv1dConfig,
     },
     prelude::s,
@@ -23,6 +22,7 @@ use burn::{
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         conv::{
             ConvBlock1dConfig,
             ConvSeq1d,

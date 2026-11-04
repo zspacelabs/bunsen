@@ -10,6 +10,7 @@ use core::{
 use std::sync::Arc;
 
 use bunsen::{
+    blocks::activation::ActivationConfig,
     burner::module::{
         DTypeMapper,
         ModuleInit,
@@ -82,10 +83,7 @@ use burn::{
         dataset::transform::ShuffledDataset,
     },
     lr_scheduler::cosine::CosineAnnealingLrSchedulerConfig,
-    nn::{
-        activation::ActivationConfig,
-        loss::CrossEntropyLossConfig,
-    },
+    nn::loss::CrossEntropyLossConfig,
     optim::AdamWConfig,
     prelude::{
         Int,

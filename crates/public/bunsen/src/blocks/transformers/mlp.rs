@@ -7,17 +7,19 @@ use burn::{
     nn::{
         Linear,
         LinearConfig,
-        activation::{
-            Activation,
-            ActivationConfig,
-        },
     },
     prelude::Tensor,
     tensor::Device,
 };
 
 use crate::{
-    blocks::norm::Norm,
+    blocks::{
+        activation::{
+            Activation,
+            ActivationConfig,
+        },
+        norm::Norm,
+    },
     burner::module::ModuleInit,
     errors::BunsenResult,
 };
@@ -43,9 +45,6 @@ pub fn norm_mlp(
 pub trait MlpMeta {
     /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
-
-    /// Returns the post-activation exponent.
-    fn act_exponent(&self) -> Option<f64>;
 }
 
 /// Config for [`Mlp`].
@@ -58,13 +57,10 @@ pub struct MlpConfig {
     #[config(default = "4")]
     pub expansion_factor: usize,
 
-    /// Activation Config.
+    /// The activation: nanochat's `relu(x)²` is
+    /// `Chain([Relu, Pow(2)])`.
     #[config(default = "ActivationConfig::Relu")]
     pub activation: ActivationConfig,
-
-    /// Post-Activation Exponent.
-    #[config(default = "None")]
-    pub act_exponent: Option<f64>,
 
     /// Whether the projections carry a bias term.
     #[config(default = "false")]
@@ -74,10 +70,6 @@ pub struct MlpConfig {
 impl MlpMeta for MlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
-    }
-
-    fn act_exponent(&self) -> Option<f64> {
-        self.act_exponent
     }
 }
 
@@ -103,7 +95,6 @@ impl ModuleInit<Mlp> for MlpConfig {
         Ok(Mlp {
             linear1,
             act: self.activation.init(device),
-            act_exponent: self.act_exponent,
             linear2,
         })
     }
@@ -112,10 +103,9 @@ impl ModuleInit<Mlp> for MlpConfig {
 /// GPT Block MLP Module
 ///
 /// The position-wise feed-forward block of a transformer: an up-projection to
-/// an expanded hidden size, an activation (optionally raised to a configured
-/// exponent), and a down-projection back to the embedding size. Construct
-/// via [`MlpConfig`] and `.init(device)`, then call [`forward`](Mlp::forward)
-/// on a `[batch, time, embed]` input.
+/// an expanded hidden size, an activation, and a down-projection back to the
+/// embedding size. Construct via [`MlpConfig`] and `.init(device)`, then call
+/// [`forward`](Mlp::forward) on a `[batch, time, embed]` input.
 ///
 /// Built by [`MlpConfig`].
 #[derive(Module, Debug)]
@@ -126,9 +116,6 @@ pub struct Mlp {
     /// Activation.
     pub act: Activation,
 
-    /// Post-Activation Exponent.
-    pub act_exponent: Option<f64>,
-
     /// Output Projection.
     pub linear2: Linear,
 }
@@ -136,10 +123,6 @@ pub struct Mlp {
 impl MlpMeta for Mlp {
     fn n_embed(&self) -> usize {
         self.linear1.weight.dims()[0]
-    }
-
-    fn act_exponent(&self) -> Option<f64> {
-        self.act_exponent
     }
 }
 
@@ -165,11 +148,6 @@ impl Mlp {
 
         let x = self.linear1.forward(x);
         let x = self.act.forward(x);
-
-        let x = match self.act_exponent {
-            Some(exp) => x.powf_scalar(exp),
-            None => x,
-        };
 
         let x = self.linear2.forward(x);
 
@@ -214,6 +192,11 @@ pub struct GatedMlpConfig {
     /// (`Some(true)` without `bias`).
     #[config(default = "None")]
     pub down_bias: Option<bool>,
+
+    /// The gate's activation: `Silu` for a `SwiGLU`, `GeluApproximate` for
+    /// Gemma's `GeGLU`.
+    #[config(default = "ActivationConfig::Silu")]
+    pub activation: ActivationConfig,
 }
 
 impl GatedMlpConfig {
@@ -243,12 +226,14 @@ impl ModuleInit<GatedMlp> for GatedMlpConfig {
             gate_proj: linear(self.n_embed, self.d_ff, self.bias),
             up_proj: linear(self.n_embed, self.d_ff, self.bias),
             down_proj: linear(self.d_ff, self.n_embed, self.down_bias()),
+            act: self.activation.init(device),
         })
     }
 }
 
-/// The `SwiGLU` feed-forward block (Shazeer 2020): `down(silu(gate(x)) *
-/// up(x))`, the feed-forward of Llama, Qwen and their kin.
+/// The gated feed-forward block (Shazeer 2020): `down(act(gate(x)) *
+/// up(x))`. With `silu`, the `SwiGLU` of Llama, Qwen and their kin; with
+/// tanh-approximated GELU, Gemma's `GeGLU`.
 ///
 /// The fields carry the names `transformers` gives them.
 ///
@@ -264,6 +249,9 @@ pub struct GatedMlp {
 
     /// `d_ff -> n_embed`.
     pub down_proj: Linear,
+
+    /// The gate's activation.
+    pub act: Activation,
 }
 
 impl GatedMlpMeta for GatedMlp {
@@ -294,7 +282,7 @@ impl GatedMlp {
             &["batch", "seq"],
             &[("n_embed", self.n_embed())]
         );
-        let gate = burn::tensor::activation::silu(self.gate_proj.forward(x.clone()));
+        let gate = self.act.forward(self.gate_proj.forward(x.clone()));
         let y = self.down_proj.forward(gate * self.up_proj.forward(x));
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "seq", "n_embed"],
@@ -320,7 +308,7 @@ pub enum FeedForwardConfig {
     /// [`Mlp`]: expand, activate, project back.
     Mlp(MlpConfig),
 
-    /// [`GatedMlp`]: the `SwiGLU` feed-forward.
+    /// [`GatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
     Gated(GatedMlpConfig),
 }
 
@@ -440,8 +428,10 @@ mod tests {
 
                 let cfg = MlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
-                    .with_activation(activation.clone())
-                    .with_act_exponent(Some(2.0));
+                    .with_activation(ActivationConfig::Chain(vec![
+                        activation.clone(),
+                        ActivationConfig::Pow(2.0),
+                    ]));
 
                 let mlp: Mlp = cfg.init(&device);
 
@@ -464,7 +454,7 @@ mod tests {
                     &[("batch", b), ("time", t), ("hidden", ef * n_embed)]
                 );
 
-                let x = mlp.act.forward(x);
+                let x = activation.init(&device).forward(x);
                 assert_shape_contract!(
                     ["batch", "time", "hidden"],
                     &x.dims(),
@@ -495,6 +485,35 @@ mod tests {
         // silu(0) = 0, so a zero input gives the down projection's bias.
         let y = mlp.forward(Tensor::zeros([2, 3, 6], &cpu_device()));
         assert_eq!(y.dims(), [2, 3, 6]);
+    }
+
+    /// The gated block applies its configured activation to the gate:
+    /// `down(act(gate(x)) * up(x))`, `silu` by default.
+    #[test]
+    fn test_gated_mlp_activation() {
+        use crate::support::testing::{
+            assert_tensors_close,
+            cpu_device,
+            seeded_tensor,
+        };
+        let device = cpu_device();
+        let x = seeded_tensor::<3>(7, [2, 3, 6], Distribution::Default, &device);
+        for (config, act) in [
+            (
+                GatedMlpConfig::new(6, 10),
+                burn::tensor::activation::silu::<3> as fn(Tensor<3>) -> Tensor<3>,
+            ),
+            (
+                GatedMlpConfig::new(6, 10).with_activation(ActivationConfig::GeluApproximate),
+                burn::tensor::activation::gelu_approximate::<3>,
+            ),
+        ] {
+            let mlp: GatedMlp = config.init(&device);
+            let expected = mlp
+                .down_proj
+                .forward(act(mlp.gate_proj.forward(x.clone())) * mlp.up_proj.forward(x.clone()));
+            assert_tensors_close(&mlp.forward(x.clone()), &expected, Default::default());
+        }
     }
 
     /// The down projection's bias follows `bias` unless `down_bias` says

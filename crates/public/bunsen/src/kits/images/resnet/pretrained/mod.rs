@@ -32,6 +32,7 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
+//!     blocks::activation::ActivationConfig,
 //!     data::pretrained::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
@@ -45,7 +46,6 @@
 //!     },
 //!     support::testing::cpu_device,
 //! };
-//! use burn::nn::activation::ActivationConfig;
 //!
 //! let device = cpu_device();
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;

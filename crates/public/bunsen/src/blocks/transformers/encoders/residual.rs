@@ -6,7 +6,6 @@ use burn::{
     module::Module,
     nn::{
         LayerNormConfig,
-        activation::ActivationConfig,
         attention::{
             MhaInput,
             MultiHeadAttention,
@@ -18,6 +17,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         norm::{
             Norm,
             NormConfig,
