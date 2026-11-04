@@ -79,7 +79,12 @@ fn test_the_factory_builds_the_construct() {
     let cache = offline_cache();
     let loaded = default_whisper_factory()
         .unwrap()
-        .load("openai/base", &cache, &performance_device())
+        .load(
+            "openai/base",
+            &cache,
+            &performance_device(),
+            bunsen::kits::support::construct::LoadPolicy::as_stored(),
+        )
         .unwrap();
 
     assert_eq!(loaded.name, "well-known:openai/base");

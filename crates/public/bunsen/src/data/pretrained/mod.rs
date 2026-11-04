@@ -176,6 +176,7 @@
 //!         _model: &PretrainedRef,
 //!         loaded: &LoadedResources,
 //!         _device: &Device,
+//!         _policy: bunsen::kits::support::construct::LoadPolicy,
 //!     ) -> BunsenResult<Arc<String>> {
 //!         let path = loaded.expect("text")?;
 //!         let text =
@@ -244,7 +245,12 @@
 //!
 //! // The whole pathway: the alias resolves to the row, the file is used in
 //! // place, and the hook builds.
-//! let loaded = factory.load("hi", &cache, &Default::default())?;
+//! let loaded = factory.load(
+//!     "hi",
+//!     &cache,
+//!     &Default::default(),
+//!     bunsen::kits::support::construct::LoadPolicy::as_stored(),
+//! )?;
 //! assert_eq!(loaded.name, "well-known:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
 //! let text = loaded.resources.get("text").expect("the text");
@@ -255,7 +261,11 @@
 //! let given = Deferred::<Greeting>::from_resource_bundle(
 //!     ResourceBundle::given("mine", "text", upstream.join("hello.txt")),
 //! )?;
-//! let loaded = given.load(&cache, &Default::default())?;
+//! let loaded = given.load(
+//!     &cache,
+//!     &Default::default(),
+//!     bunsen::kits::support::construct::LoadPolicy::as_stored(),
+//! )?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
 //!     ("mine", "hello")

@@ -100,8 +100,12 @@
 //!     // A name to a construct: the checkpoint read through the reader its
 //!     // row names, checked against the geometry the name promises, and
 //!     // the vocabulary its token layout selects.
-//!     let construct =
-//!         default_whisper_factory()?.load_construct(name, &cache, device)?;
+//!     let construct = default_whisper_factory()?.load_construct(
+//!         name,
+//!         &cache,
+//!         device,
+//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!     )?;
 //!
 //!     WhisperStreamDriverConfig::new().init_from_construct(construct, device)
 //! }
@@ -211,7 +215,11 @@
 //!     Deferred::<WhisperConstructConfig>::from_resource_bundle(
 //!         ResourceBundle::given("mine", CHECKPOINT, path),
 //!     )?
-//!     .load_construct(cache, device)
+//!     .load_construct(
+//!         cache,
+//!         device,
+//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!     )
 //! }
 //!
 //! /// A Hugging Face repo: `transformers`' safetensors, one file or shards.
@@ -223,6 +231,7 @@
 //!         "hf:openai/whisper-large-v3",
 //!         cache,
 //!         device,
+//!         bunsen::kits::support::construct::LoadPolicy::performance(),
 //!     )
 //! }
 //!
@@ -237,7 +246,11 @@
 //!         .with_overlay(ResourceBundle::given(
 //!             "--vocab", VOCABULARY, vocabulary,
 //!         ))?
-//!         .load_construct(cache, device)
+//!         .load_construct(
+//!             cache,
+//!             device,
+//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         )
 //! }
 //!
 //! /// Conservative real time: decodes on speech endpoints as well as full
@@ -250,7 +263,12 @@
 //! ) -> BunsenResult<WhisperStreamDriver> {
 //!     // Upstream's own region policy, the row's `[silero]` preset.
 //!     let vad = default_silero_factory()?
-//!         .load("silero/vad-16k[silero]", cache, device)?
+//!         .load(
+//!             "silero/vad-16k[silero]",
+//!             cache,
+//!             device,
+//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         )?
 //!         .handle;
 //!     // The 16 kHz branch, the model's rate, and the filter the preset
 //!     // resolved to.

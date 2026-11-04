@@ -57,7 +57,12 @@
 //! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroConstruct>> {
 //!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!     Ok(default_silero_factory()?
-//!         .load("silero/vad-16k", &cache, device)?
+//!         .load(
+//!             "silero/vad-16k",
+//!             &cache,
+//!             device,
+//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         )?
 //!         .handle)
 //! }
 //!
