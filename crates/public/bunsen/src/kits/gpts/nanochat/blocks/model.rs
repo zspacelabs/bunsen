@@ -12,7 +12,6 @@ use burn::{
         Initializer,
         Linear,
         LinearConfig,
-        activation::ActivationConfig,
         norm::RmsNormConfig,
     },
     prelude::{
@@ -29,6 +28,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         norm::NormConfig,
         transformers::{
             attention::csa::{
@@ -240,7 +240,7 @@ pub struct NanoChatGptContractConfig {
     #[config(default = "4")]
     pub expansion_factor: usize,
 
-    /// MLP Activation Config.
+    /// The MLP's activation, before its square (`relu(x)²` by default).
     #[config(default = "ActivationConfig::Relu")]
     pub activation: ActivationConfig,
 
@@ -381,8 +381,10 @@ impl NanoChatGptContractConfig {
                 .with_qk_gain(self.qk_gain),
             MlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
-                .with_activation(self.activation.clone())
-                .with_act_exponent(Some(2.0))
+                .with_activation(ActivationConfig::Chain(vec![
+                    self.activation.clone(),
+                    ActivationConfig::Pow(2.0),
+                ]))
                 .into(),
         )
         .with_norm(self.norm.clone())

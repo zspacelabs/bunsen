@@ -427,7 +427,7 @@ mod tests {
 
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)).into(),
+            MlpConfig::new(n_embed).into(),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
@@ -458,7 +458,7 @@ mod tests {
 
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)).into(),
+            MlpConfig::new(n_embed).into(),
         );
 
         let block: CausalDecoderBlock = config.init(layer_index, &device);
@@ -487,7 +487,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 32];
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed),
-            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)).into(),
+            MlpConfig::new(n_embed).into(),
         );
         let mut block: CausalDecoderBlock = config.init(0, &device);
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);

@@ -4,12 +4,12 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::activation::ActivationConfig,
     tensor::Device,
 };
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         conv::{
             ConvBlock1d,
             ConvBlock1dConfig,
@@ -213,18 +213,20 @@ pub trait ConvSeq1dMeta {
 ///
 /// ```rust,no_run
 /// use bunsen::{
-///     blocks::conv::{
-///         ConvBlock1dConfig,
-///         ConvSeq1d,
-///         ConvSeq1dConfig,
-///         ConvSeq1dMeta,
+///     blocks::{
+///         activation::ActivationConfig,
+///         conv::{
+///             ConvBlock1dConfig,
+///             ConvSeq1d,
+///             ConvSeq1dConfig,
+///             ConvSeq1dMeta,
+///         },
 ///     },
 ///     burner::module::ModuleInit,
 ///     support::testing::cpu_device,
 /// };
 /// use burn::nn::{
 ///     PaddingConfig1d,
-///     activation::ActivationConfig,
 ///     conv::Conv1dConfig,
 /// };
 ///
@@ -493,7 +495,6 @@ mod tests {
     use burn::{
         nn::{
             PaddingConfig1d,
-            activation::ActivationConfig,
             conv::Conv1dConfig,
         },
         tensor::Distribution,

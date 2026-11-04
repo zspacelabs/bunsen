@@ -10,7 +10,6 @@ use burn::{
         DropoutConfig,
         Linear,
         LinearConfig,
-        activation::ActivationConfig,
     },
     prelude::Tensor,
     tensor::{
@@ -24,6 +23,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::activation::ActivationConfig,
     burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,

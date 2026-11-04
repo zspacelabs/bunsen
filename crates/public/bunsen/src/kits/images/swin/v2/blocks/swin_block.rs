@@ -10,10 +10,6 @@ use burn::{
         LayerNormConfig,
         Linear,
         LinearConfig,
-        activation::{
-            Activation,
-            ActivationConfig,
-        },
     },
     prelude::Tensor,
     tensor::{
@@ -23,9 +19,15 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::drop::drop_path::{
-        DropPath,
-        DropPathConfig,
+    blocks::{
+        activation::{
+            Activation,
+            ActivationConfig,
+        },
+        images::drop::drop_path::{
+            DropPath,
+            DropPathConfig,
+        },
     },
     burner::module::ModuleInit,
     contracts::{

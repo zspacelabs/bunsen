@@ -36,7 +36,7 @@
 //! [`Conv2d`]: burn::nn::conv::Conv2d
 //! [`Conv2dConfig`]: burn::nn::conv::Conv2dConfig
 //! [`Norm`]: crate::blocks::norm::Norm
-//! [`Activation`]: burn::nn::activation::Activation
+//! [`Activation`]: crate::blocks::activation::Activation
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
 mod conv_block_1d;

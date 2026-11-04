@@ -9,7 +9,6 @@ use burn::{
     nn::{
         Linear,
         LinearConfig,
-        activation::ActivationConfig,
     },
     tensor::Device,
 };
@@ -21,6 +20,7 @@ use super::{
 };
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         layout::AxisOrder,
         signals::{
             DwStridingSubsamplingConfig,

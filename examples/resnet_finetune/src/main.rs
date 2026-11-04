@@ -12,6 +12,7 @@ use std::{
 };
 
 use bunsen::{
+    blocks::activation::ActivationConfig,
     burner::module::{
         DTypeMapper,
         ModuleInit,
@@ -62,7 +63,6 @@ use burn::{
     nn::{
         LeakyReluConfig,
         PReluConfig,
-        activation::ActivationConfig,
         loss::BinaryCrossEntropyLossConfig,
     },
     optim::AdamWConfig,

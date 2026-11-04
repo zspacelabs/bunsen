@@ -4,7 +4,6 @@ use burn::{
     nn::{
         BatchNormConfig,
         PaddingConfig2d,
-        activation::ActivationConfig,
         conv::Conv2dConfig,
     },
     prelude::{
@@ -17,6 +16,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         conv::{
             AbstractConvBlock2dConfig,
             ConvBlock2d,
@@ -583,11 +583,11 @@ impl BottleneckBlock {
 
 #[cfg(test)]
 mod tests {
-    use burn::nn::activation::ActivationConfig;
     use serial_test::serial;
 
     use super::*;
     use crate::{
+        blocks::activation::ActivationConfig,
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,

@@ -5,10 +5,6 @@ use burn::{
     module::Module,
     nn::{
         PaddingConfig1d,
-        activation::{
-            Activation,
-            ActivationConfig,
-        },
         conv::{
             Conv1d,
             Conv1dConfig,
@@ -19,9 +15,15 @@ use burn::{
 };
 
 use crate::{
-    blocks::norm::{
-        Norm,
-        NormConfig,
+    blocks::{
+        activation::{
+            Activation,
+            ActivationConfig,
+        },
+        norm::{
+            Norm,
+            NormConfig,
+        },
     },
     burner::module::ModuleInit,
     errors::{
@@ -416,7 +418,6 @@ mod tests {
         nn::{
             BatchNormConfig,
             PaddingConfig1d,
-            activation::ActivationConfig,
         },
         tensor::Distribution,
     };

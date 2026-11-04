@@ -7,10 +7,7 @@ use alloc::{
 
 use burn::{
     config::Config,
-    nn::{
-        BatchNormConfig,
-        activation::ActivationConfig,
-    },
+    nn::BatchNormConfig,
     prelude::{
         Module,
         Tensor,
@@ -19,7 +16,10 @@ use burn::{
 };
 
 use crate::{
-    blocks::norm::NormConfig,
+    blocks::{
+        activation::ActivationConfig,
+        norm::NormConfig,
+    },
     burner::module::{
         ModuleInit,
         ToStructureConfig,

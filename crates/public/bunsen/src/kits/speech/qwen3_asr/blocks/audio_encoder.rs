@@ -8,7 +8,6 @@ use burn::{
         Linear,
         LinearConfig,
         PaddingConfig2d,
-        activation::ActivationConfig,
         conv::Conv2dConfig,
     },
     prelude::{
@@ -24,6 +23,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         conv::{
             ConvBlock2dConfig,
             ConvSeq2d,

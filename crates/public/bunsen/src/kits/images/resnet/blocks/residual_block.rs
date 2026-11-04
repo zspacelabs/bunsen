@@ -1,10 +1,7 @@
 //! # Residual Block Wrapper
 
 use burn::{
-    nn::{
-        BatchNormConfig,
-        activation::ActivationConfig,
-    },
+    nn::BatchNormConfig,
     prelude::{
         Config,
         Module,
@@ -14,7 +11,10 @@ use burn::{
 };
 
 use crate::{
-    blocks::norm::NormConfig,
+    blocks::{
+        activation::ActivationConfig,
+        norm::NormConfig,
+    },
     burner::module::{
         ModuleInit,
         ToStructureConfig,

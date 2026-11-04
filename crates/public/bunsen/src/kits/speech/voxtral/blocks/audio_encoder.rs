@@ -5,7 +5,6 @@ use burn::{
     module::Module,
     nn::{
         PaddingConfig1d,
-        activation::ActivationConfig,
         conv::Conv1dConfig,
         norm::RmsNormConfig,
     },
@@ -14,6 +13,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        activation::ActivationConfig,
         conv::{
             ConvBlock1dConfig,
             ConvSeq1d,
