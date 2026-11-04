@@ -199,7 +199,8 @@ pub fn nanochat_config(
 }
 
 /// Upstream's state-dict names onto a [`NanoChatGpt`]'s module paths: the
-/// `transformer.` prefix dropped, the feed-forward's `c_fc` / `c_proj` its
+/// `transformer.` prefix dropped, the blocks `h.{i}` the stack's
+/// `stack.layers.{i}`, the feed-forward's `c_fc` / `c_proj` its
 /// `linear1` / `linear2`, and the value gate `ve_gate` its `value_gate`;
 /// everything else (`attn.c_q`, `lm_head`, the lambdas, `value_embeds.{i}`,
 /// `smear_gate`) bunsen names as upstream does.
@@ -209,7 +210,7 @@ pub fn pt_rekey() -> Rekey {
         "",
         Rekey::keep_rest().mount_indexed(
             "h.",
-            "h.",
+            "stack.layers.",
             Rekey::keep_rest()
                 .rename("mlp.c_fc.", "mlp.linear1.")
                 .rename("mlp.c_proj.", "mlp.linear2.")
@@ -385,19 +386,25 @@ mod tests {
         let r = pt_rekey();
         for (from, to) in [
             ("transformer.wte.weight", "wte.weight"),
-            ("transformer.h.3.attn.c_q.weight", "h.3.attn.c_q.weight"),
+            (
+                "transformer.h.3.attn.c_q.weight",
+                "stack.layers.3.attn.c_q.weight",
+            ),
             (
                 "transformer.h.3.attn.c_proj.weight",
-                "h.3.attn.c_proj.weight",
+                "stack.layers.3.attn.c_proj.weight",
             ),
-            ("transformer.h.0.mlp.c_fc.weight", "h.0.mlp.linear1.weight"),
+            (
+                "transformer.h.0.mlp.c_fc.weight",
+                "stack.layers.0.mlp.linear1.weight",
+            ),
             (
                 "transformer.h.0.mlp.c_proj.weight",
-                "h.0.mlp.linear2.weight",
+                "stack.layers.0.mlp.linear2.weight",
             ),
             (
                 "transformer.h.17.attn.ve_gate.weight",
-                "h.17.attn.value_gate.weight",
+                "stack.layers.17.attn.value_gate.weight",
             ),
             ("lm_head.weight", "lm_head.weight"),
             ("value_embeds.17.weight", "value_embeds.17.weight"),

@@ -469,16 +469,18 @@ impl ParamGroups {
     /// Selects the groups from the module structure.
     ///
     /// Element names are module *type* names, and field names are `@name`:
-    /// the `gpt` field is `GptHost/NanoChatGpt`. `h` is a `Vec` of
-    /// `CausalDecoderBlock`, whose `Linear`s sit in `attn` and `mlp`, hence
-    /// `//Linear`. Stacked predicates (`[a][b]`) mean "a and b".
+    /// the `gpt` field is `GptHost/NanoChatGpt`. Its `stack`'s `layers` are a
+    /// `Vec` of `CausalDecoderBlock`, whose `Linear`s sit in `attn` and `mlp`,
+    /// hence `//Linear`. Stacked predicates (`[a][b]`) mean "a and b".
     pub fn select(host: &GptHost) -> BunsenResult<Self> {
         let mut mtree = XmlModuleTree::build(host);
         let mut select = |expr: &str| -> BunsenResult<HashSet<ParamId>> {
             Ok(mtree.select_param_ids(expr)?.into_iter().collect())
         };
 
-        let matrix = select("GptHost/NanoChatGpt/*[@name='h']//Linear/*[@name='weight'][@rank=2]")?;
+        let matrix = select(
+            "GptHost/NanoChatGpt/*[@name='stack']/*[@name='layers']//Linear/*[@name='weight'][@rank=2]",
+        )?;
 
         // TODO: value_embeds
         // TODO: resid
@@ -560,7 +562,7 @@ mod tests {
 
         // Muon gets every matrix in the blocks, not just some of them.
         let block_matrices: HashSet<ParamId> = mtree
-            .select_params("GptHost/NanoChatGpt/*[@name='h']")
+            .select_params("GptHost/NanoChatGpt/*[@name='stack']/*[@name='layers']")
             .to_param_descs()
             .unwrap()
             .iter()
