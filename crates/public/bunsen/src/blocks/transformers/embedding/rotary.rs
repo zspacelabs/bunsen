@@ -23,7 +23,10 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    ops::embedding::positional_frequency_table,
+    ops::embedding::{
+        frequency_table,
+        inverse_frequency_table,
+    },
 };
 
 /// Common meta for [`RotaryEmbedding`] and [`RotaryEmbeddingConfig`].
@@ -65,6 +68,38 @@ pub struct RotaryEmbeddingConfig {
     /// `transformers` casts `cos` and `sin` to `x.dtype`.
     #[config(default = "None")]
     pub table_dtype: Option<FloatDType>,
+
+    /// How the frequencies are scaled for a longer context.
+    #[config(default = "RopeScaling::None")]
+    pub scaling: RopeScaling,
+}
+
+/// How a rotary embedding's frequencies are scaled, as `transformers`'
+/// `rope_type` (`rope_scaling` in older configs) says.
+#[derive(Config, Copy, Debug, PartialEq)]
+pub enum RopeScaling {
+    /// None: `rope_type: default`.
+    None,
+
+    /// Every inverse frequency divided by `factor` (`rope_type: linear`):
+    /// the positions stretched `factor` times. Gemma 3's global table, at 8.
+    Linear {
+        /// The factor.
+        factor: f64,
+    },
+}
+
+impl RopeScaling {
+    /// `inv_freq`, scaled.
+    pub fn scale_inverse_frequencies(
+        self,
+        inv_freq: Tensor<1>,
+    ) -> Tensor<1> {
+        match self {
+            Self::None => inv_freq,
+            Self::Linear { factor } => inv_freq.div_scalar(factor),
+        }
+    }
 }
 
 /// The sign convention of a rotary embedding: which way each pair of head
@@ -159,8 +194,15 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
             .into());
         }
 
-        let freq_matrix =
-            positional_frequency_table(self.seq_len, self.base, self.head_dim, device);
+        let freq_matrix = frequency_table(
+            self.seq_len,
+            self.scaling
+                .scale_inverse_frequencies(inverse_frequency_table(
+                    self.base,
+                    self.head_dim,
+                    device,
+                )),
+        );
 
         // Rounded on the host, as the reference rounds, and kept as
         // `table_storage` says.
@@ -386,6 +428,41 @@ mod tests {
             performance_device,
         },
     };
+
+    /// A linear factor divides every inverse frequency: position `p` of the
+    /// scaled table is position `p / factor` of the plain one.
+    #[test]
+    fn test_linear_scaling() {
+        let device = crate::support::testing::cpu_device();
+        let plain: RotaryEmbedding = RotaryEmbeddingConfig::new(8, 16).init(&device);
+        let scaled: RotaryEmbedding = RotaryEmbeddingConfig::new(4, 16)
+            .with_scaling(RopeScaling::Linear { factor: 2.0 })
+            .init(&device);
+        // The angles are the positions times the halved inverse frequencies.
+        let inv = inverse_frequency_table(10000, 16, &device);
+        let expected = frequency_table(4, inv.div_scalar(2.0)).cos();
+        scaled
+            .cos
+            .clone()
+            .reshape([4, 8])
+            .into_data()
+            .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::default());
+        // So the scaled table's position 2 is the plain table's position 1.
+        plain
+            .cos
+            .clone()
+            .slice_dim(1, 1..2)
+            .into_data()
+            .assert_approx_eq::<f32>(
+                &scaled.cos.clone().slice_dim(1, 2..3).into_data(),
+                Tolerance::default(),
+            );
+        assert_eq!(
+            RotaryEmbeddingConfig::new(1, 2).scaling,
+            RopeScaling::None,
+            "unscaled by default"
+        );
+    }
 
     /// Tables kept in bf16 hold the exact f32 tables' values rounded to bf16:
     /// within bf16's half-ulp, kept in bf16 where the device has it (else in

@@ -32,8 +32,8 @@ use crate::{
             },
             embedding::{
                 RotaryDirection,
-                RotaryEmbedding,
                 RotaryEmbeddingConfig,
+                RotarySet,
             },
             mlp::GatedMlpConfig,
         },
@@ -318,7 +318,7 @@ impl VoxtralAudioEncoder {
         &self,
         seq_len: usize,
         device: &Device,
-    ) -> RotaryEmbedding {
+    ) -> RotarySet {
         self.stack.rotary(seq_len, device)
     }
 
@@ -371,7 +371,7 @@ impl VoxtralAudioEncoder {
     pub fn forward_frames(
         &self,
         x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
         self.stack.forward_hidden(x, r_emb, kv_cache)

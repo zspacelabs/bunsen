@@ -139,7 +139,7 @@ fn test_toy_audio_tower() {
     assert_io_close("audio stem", stem.clone(), toy.io("audio_stem"));
 
     let r_emb = tower.rotary(stem.dims()[1], &toy.device);
-    let layer0 = tower.stack.layers[0].forward(stem, &r_emb, &mut None);
+    let layer0 = tower.stack.layers[0].forward(stem, r_emb.for_layer(0), &mut None);
     assert_io_close("audio layer 0", layer0, toy.io("audio_layer0"));
 
     let audio = tower.forward(features.clone());
@@ -163,7 +163,7 @@ fn test_toy_text_model() {
 
     let layer0 = lm.stack.layers[0].forward_conditioned(
         embeds.clone(),
-        &r_emb,
+        r_emb.for_layer(0),
         &mut None,
         Some(cond.clone()),
     );

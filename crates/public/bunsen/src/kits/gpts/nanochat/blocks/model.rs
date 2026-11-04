@@ -50,6 +50,7 @@ use crate::{
                 RotaryEmbedding,
                 RotaryEmbeddingConfig,
                 RotaryEmbeddingMeta,
+                RotarySet,
                 TokenEmbedding,
                 TokenEmbeddingConfig,
                 TokenEmbeddingMeta,
@@ -787,9 +788,12 @@ impl NanoChatGpt {
             },
             ..Default::default()
         };
-        let hidden = self
-            .stack
-            .forward_with(x, &self.r_emb, kv_cache.as_deref_mut(), sides);
+        let hidden = self.stack.forward_with(
+            x,
+            &RotarySet::from(self.r_emb.clone()),
+            kv_cache.as_deref_mut(),
+            sides,
+        );
         assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &hidden.dims(),

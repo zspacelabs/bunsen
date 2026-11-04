@@ -35,8 +35,8 @@ use crate::{
             },
             embedding::{
                 RotaryDirection,
-                RotaryEmbedding,
                 RotaryEmbeddingConfig,
+                RotarySet,
             },
             head::{
                 LmHead,
@@ -317,7 +317,7 @@ impl Qwen3Model {
         &self,
         seq_len: usize,
         device: &Device,
-    ) -> RotaryEmbedding {
+    ) -> RotarySet {
         self.stack.rotary(seq_len, device)
     }
 
@@ -362,7 +362,7 @@ impl Qwen3Model {
     pub fn forward_hidden(
         &self,
         embeds: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
         self.stack.forward_hidden(embeds, r_emb, kv_cache)
@@ -385,7 +385,7 @@ impl Qwen3Model {
     pub fn attention_weights(
         &self,
         embeds: Tensor<3>,
-        r_emb: &RotaryEmbedding,
+        r_emb: &RotarySet,
         layers: &[usize],
         rows: Range<usize>,
         cols: Range<usize>,
