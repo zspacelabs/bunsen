@@ -3607,6 +3607,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gemma-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "bunsen-tool",
+ "burn",
+ "serde",
+ "serde_json",
+ "serial_test",
+]
+
+[[package]]
 name = "genawaiter"
 version = "0.99.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

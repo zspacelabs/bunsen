@@ -66,6 +66,53 @@ crates:
         dtypes: [bf16]
         varies: the untied output head (`tie_word_embeddings` false); bf16 on cuda alone, too large for float32 on 24 GB
 
+  gemma:
+    package: gemma-model-validation
+    features: [checkpoints, gpu-tests]
+    models:
+      gemma-3-270m:
+        size: small
+        gb: 0.5
+        core: true
+        dtypes: [f32]
+        varies: Gemma 3 at its smallest - the sandwich, QK-norm, the 5:1 pattern and its two rotary tables, the scaled embedding, the tied head; a decode past its window (512)
+      gemma-3-1b-pt:
+        size: medium
+        gb: 2.0
+        core: false
+        dtypes: [f32]
+        varies: a wider, deeper geometry of gemma-3-270m's architecture
+      gemma-3-4b-pt:
+        size: medium
+        gb: 8.6
+        core: true
+        dtypes: [f32]
+        varies: the linear x8 global table, grouped-query heads, the multimodal checkpoint's text model (its tower dropped), a window of 1024
+      gemma-2-2b:
+        size: large
+        gb: 10.5
+        core: true
+        dtypes: [f32]
+        varies: Gemma 2 - the attention and final soft-caps, alternating layers, one table; stored in f32 on disk; a decode past its window (4096)
+      gemma-2-9b:
+        size: large
+        gb: 18.5
+        core: true
+        dtypes: [bf16]
+        varies: Gemma 2 in bf16 on cuda alone (too large for float32 on 24 GB), where bunsen's bf16 norms are measured against transformers'
+      gemma-3-1b-it:
+        size: small
+        gb: 0.04
+        core: true
+        dtypes: [f32]
+        varies: not a model check - the tokenizer and the chat template that folds a system turn into the first user turn (tokenizer files alone)
+      gemma-2-2b-it:
+        size: small
+        gb: 0.04
+        core: true
+        dtypes: [f32]
+        varies: not a model check - Gemma 2's chat template, which refuses a system turn (tokenizer files alone)
+
   silero:
     package: silero-model-validation
     features: [checkpoints, gpu-tests]
