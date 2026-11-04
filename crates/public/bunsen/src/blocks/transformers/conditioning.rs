@@ -107,6 +107,27 @@ pub struct AdaptiveScale {
     pub linear2: Linear,
 }
 
+impl crate::burner::module::InputDTypes for AdaptiveScale {
+    /// Its projections' dtype.
+    fn preferred_dtype(&self) -> burn::tensor::FloatDType {
+        burn::tensor::FloatDType::from(self.linear1.weight.val().dtype())
+    }
+}
+
+/// [`scale`](AdaptiveScale::scale) casts its condition, which a timestep
+/// embedding makes in the device's default float.
+impl crate::burner::module::CoercesInput for AdaptiveScale {}
+
+impl crate::burner::module::ResultDType for AdaptiveScale {
+    /// Its own: the scale is in its projections' dtype.
+    fn result_dtype(
+        &self,
+        _input: burn::tensor::FloatDType,
+    ) -> burn::tensor::FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(self)
+    }
+}
+
 impl AdaptiveScaleMeta for AdaptiveScale {
     fn d_model(&self) -> usize {
         self.linear1.weight.dims()[0]
@@ -136,6 +157,7 @@ impl AdaptiveScale {
             &["batch", "seq"],
             &[("d_model", self.d_model())]
         );
+        let cond = crate::burner::module::InputDTypes::coerce_input(self, cond);
         let y = self
             .linear2
             .forward(self.act.forward(self.linear1.forward(cond)))

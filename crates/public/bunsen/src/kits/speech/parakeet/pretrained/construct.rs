@@ -152,7 +152,7 @@ impl ConstructInit for ParakeetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
@@ -166,6 +166,8 @@ impl ConstructInit for ParakeetConstructConfig {
         let policy = resolve_ref_presets(&ParakeetPolicy::default(), model, &PresetSet::default())?;
         let mut model: ParakeetTdt = config.try_init(device)?;
         load_hf_tensors(&mut model, tensors)?;
+        // The files' precision (f32), or wider as the policy asks.
+        let model = load.place(model, device, |_| true)?;
         Ok(Arc::new(
             ParakeetConstruct::new(model, vocab, device)?
                 .with_policy(policy.config.clone(), policy.applied()),

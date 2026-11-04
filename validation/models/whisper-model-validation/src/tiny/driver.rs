@@ -1,7 +1,7 @@
 //! The Whisper stream driver on `openai/tiny`, against the one-shot decode.
 
 use bunsen::{
-    burner::module::DTypeMapper,
+    burner::module::InputDTypes,
     kits::speech::{
         asr_driver::{
             LevelPolicy,
@@ -23,7 +23,6 @@ use bunsen::{
         performance_device,
     },
 };
-use burn::module::Module;
 
 use super::*;
 use crate::base::audio::{
@@ -52,10 +51,12 @@ fn tiny_model(device: &Device) -> Whisper {
         "tiny shares base's front end"
     );
     assert_eq!(bundle.model.vocab_size(), N_VOCAB, "and its vocabulary");
-    bundle
-        .model
-        .clone()
-        .map(&mut DTypeMapper::new(burn::tensor::DType::F32))
+    assert_eq!(
+        bundle.model.preferred_dtype(),
+        burn::tensor::FloatDType::F32,
+        "at_least(F32) loads tiny in f32"
+    );
+    bundle.model.clone()
 }
 
 /// Offline, with no timestamps and no previous text, the driver decodes the

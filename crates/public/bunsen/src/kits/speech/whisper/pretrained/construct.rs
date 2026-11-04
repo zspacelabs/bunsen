@@ -446,9 +446,13 @@ impl ConstructInit for WhisperConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
         let (whisper, cfg) = self.reader.load(loaded, device)?;
+        // The readers load at the files' precision (OpenAI's checkpoints ship
+        // f16); the policy may widen it, cast after loading, as Whisper's
+        // models are small.
+        let whisper = load.place(whisper, device, |_| true)?;
         let layout = cfg
             .token_layout
             .policy_for_vocab(cfg.vocab_size)

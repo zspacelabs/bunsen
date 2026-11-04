@@ -116,13 +116,13 @@ impl ConstructInit for ResNetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<ResNet>> {
         let config = self.config_for(model)?;
         let resnet: ResNet = config.try_init(device)?;
-        Ok(Arc::new(
-            resnet.load_pytorch_weights(loaded.expect(CHECKPOINT)?)?,
-        ))
+        let resnet = resnet.load_pytorch_weights(loaded.expect(CHECKPOINT)?)?;
+        // The files' precision (f32), or wider as the policy asks.
+        Ok(Arc::new(load.place(resnet, device, |_| true)?))
     }
 }
 

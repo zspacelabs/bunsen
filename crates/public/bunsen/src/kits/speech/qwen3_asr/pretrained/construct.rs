@@ -36,7 +36,7 @@ use crate::{
             Qwen3AsrFrontEndConfig,
             Qwen3AsrPolicy,
             weights::{
-                load_hf_tensors,
+                load_hf_tensors_as,
                 qwen3_asr_config_from_hf,
             },
         },
@@ -154,7 +154,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
@@ -168,8 +168,13 @@ impl ConstructInit for Qwen3AsrConstructConfig {
                 .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
         };
         let n_mels = config.audio.n_mels;
+        // The stored dtype (bf16), where the policy and the device allow it;
+        // never f16, which overflows its Qwen3 text model.
+        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+            .unwrap_or(burn::tensor::FloatDType::F32);
+        let dtype = load.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut asr: Qwen3Asr = config.try_init(device)?;
-        load_hf_tensors(&mut asr, tensors)?;
+        load_hf_tensors_as(&mut asr, tensors, dtype)?;
         let policy = resolve_ref_presets(&Qwen3AsrPolicy::default(), model, &PresetSet::default())?;
         let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
             .with_policy(policy.config.clone(), policy.applied());

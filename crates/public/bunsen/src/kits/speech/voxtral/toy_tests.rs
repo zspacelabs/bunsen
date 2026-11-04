@@ -52,6 +52,10 @@ struct Toy {
 
 impl Toy {
     fn load() -> Self {
+        Self::load_on(&performance_device())
+    }
+
+    fn load_on(device: &Device) -> Self {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/voxtral/toy.safetensors"
@@ -63,7 +67,7 @@ impl Toy {
             .clone();
         let (io, weights): (Vec<_>, Vec<_>) =
             all.into_iter().partition(|(n, _)| n.starts_with("io."));
-        let device = performance_device();
+        let device = device.clone();
         let mut model: VoxtralRealtime = toy_config().init(&device);
         let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
             .expect("load the toy weights");
@@ -146,4 +150,37 @@ fn test_toy_text_model() {
             toy.io(&format!("logits_delay_{delay}")),
         );
     }
+}
+
+/// bf16 parameters on an f32 CPU device, as a `LoadPolicy::as_stored` load
+/// places them, fed f32 features: the model runs end to end with no mixed
+/// op, which burn-flex refuses, so a missed cast fails here; the logits
+/// land near the f32 toy's.
+#[test]
+fn test_toy_mixed_dtype() {
+    use burn::{
+        module::Module,
+        tensor::DType,
+    };
+
+    use crate::{
+        burner::module::DTypeMapper,
+        support::testing::cpu_device,
+    };
+
+    let device = cpu_device();
+    let toy = Toy::load_on(&device);
+    let half = toy.model.clone().map(&mut DTypeMapper::new(DType::BF16));
+    let audio = half.audio_embeds(toy.io("features"));
+    let logits = half.logits(toy.ids(), audio, DELAYS[0]);
+    let expected: Tensor<3> = toy.io(&format!("logits_delay_{}", DELAYS[0]));
+    let gap = (logits.cast(DType::F32) - expected.clone())
+        .abs()
+        .max()
+        .into_scalar::<f32>();
+    let scale = expected.abs().max().into_scalar::<f32>();
+    assert!(
+        gap <= 0.05 * scale,
+        "bf16 logits {gap} from f32 (max {scale})"
+    );
 }
