@@ -32,6 +32,7 @@ use crate::{
             Qwen3Construct,
             Qwen3Model,
             Qwen3Policy,
+            TOKENIZER_CONFIG,
             weights::{
                 load_hf_tensors_as,
                 qwen3_config_from_hf,
@@ -41,8 +42,7 @@ use crate::{
             construct::ConstructInit,
             model_config::{
                 HfConfigJson,
-                ProbeFiles,
-                apply_probes,
+                probe_loaded,
                 resolve_ref_presets,
             },
         },
@@ -62,24 +62,18 @@ use crate::{
 pub struct Qwen3ConstructConfig;
 
 impl Qwen3ConstructConfig {
-    /// The presets of a checkpoint no row describes, an `hf:` repo's: its
-    /// `generation_config.json`, when it has one, probed into the base (the
-    /// stop tokens and sampling), as the catalog tool probes a row's.
+    /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
+    /// catalog tool probes a row's: its `generation_config.json`, when it
+    /// has one (the stop tokens and sampling), and the chat template its
+    /// `tokenizer_config.json` holds, probed into the base.
     fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
-        let Some(part) = loaded.get(GENERATION_CONFIG) else {
-            return Ok(PresetSet::default());
-        };
-        let bytes = std::fs::read(&part.path).map_err(sys_at("read", &part.path))?;
-        apply_probes(
+        probe_loaded(
+            loaded,
+            &[
+                CatalogProbe::into_base("generation_config", GENERATION_CONFIG),
+                CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
+            ],
             &PresetSet::default(),
-            &PresetSet::default(),
-            &[CatalogProbe {
-                probe: "generation_config".to_string(),
-                file: GENERATION_CONFIG.to_string(),
-                into: vec!["base".to_string()],
-                token: None,
-            }],
-            &ProbeFiles::new().with(GENERATION_CONFIG, bytes),
         )
     }
 }

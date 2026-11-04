@@ -22,7 +22,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.6,
                   "top_k": 20,
                   "top_p": 0.95
@@ -47,7 +51,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "max_new_tokens": 2048,
+                "sampling": null,
                 "stop_ids": [
                   151643
                 ]
@@ -68,7 +76,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.6,
                   "top_k": 20,
                   "top_p": 0.95
@@ -93,7 +105,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "max_new_tokens": 2048,
+                "sampling": null,
                 "stop_ids": [
                   151643
                 ]
@@ -114,7 +130,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.6,
                   "top_k": 20,
                   "top_p": 0.95
@@ -139,7 +159,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "max_new_tokens": 2048,
+                "sampling": null,
                 "stop_ids": [
                   151643
                 ]
@@ -159,7 +183,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.7,
                   "top_k": 20,
                   "top_p": 0.8
@@ -184,7 +212,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.6,
                   "top_k": 20,
                   "top_p": 0.95
@@ -210,7 +242,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.6,
                   "top_k": 20,
                   "top_p": 0.95
@@ -235,7 +271,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "max_new_tokens": 2048,
+                "sampling": null,
                 "stop_ids": [
                   151643
                 ]
@@ -256,7 +296,11 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": {
+                  "min_p": null,
                   "temperature": 0.6,
                   "top_k": 20,
                   "top_p": 0.95
@@ -281,6 +325,10 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
+                "sampling": null,
                 "stop_ids": [
                   151645,
                   151643
@@ -301,6 +349,10 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
+                "sampling": null,
                 "stop_ids": [
                   151645,
                   151643
@@ -321,6 +373,10 @@
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
+                "sampling": null,
                 "stop_ids": [
                   151645,
                   151643

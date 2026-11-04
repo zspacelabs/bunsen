@@ -4,10 +4,13 @@ use std::{
     path::Path,
 };
 
-use bunsen::errors::{
-    BunsenError,
-    BunsenResult,
-    sys_at,
+use bunsen::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+        sys_at,
+    },
+    kits::support::model_config::ChatTemplateSource,
 };
 use minijinja::Environment;
 use serde::Serialize;
@@ -132,6 +135,42 @@ impl ChatTemplate {
         Ok(Self::new(&source)
             .map_err(|e| e.context(template.display()))?
             .with_special_tokens(special_tokens(&value)))
+    }
+
+    /// The template a policy names ([`ChatTemplateSource`]): a file of the
+    /// checkpoint's, found by its key through `file`, or a source of its own;
+    /// either way, its special tokens those of `tokenizer_config_json`.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+    /// when the checkpoint lacks the file, or the template does not compile;
+    /// as [`from_file`](Self::from_file) and
+    /// [`from_jinja_file`](Self::from_jinja_file).
+    pub fn from_source<'a>(
+        source: &ChatTemplateSource,
+        file: impl Fn(&str) -> Option<&'a Path>,
+        tokenizer_config_json: &Path,
+    ) -> BunsenResult<Self> {
+        match source {
+            ChatTemplateSource::File { file: key } => {
+                let path = file(key).ok_or_else(|| {
+                    BunsenError::invalid_resource(format!(
+                        "a chat template in {key:?}, which the checkpoint does not have"
+                    ))
+                })?;
+                if path == tokenizer_config_json {
+                    Self::from_file(path)
+                } else {
+                    Self::from_jinja_file(path, tokenizer_config_json)
+                }
+            }
+            ChatTemplateSource::Inline(source) => {
+                let json = std::fs::read_to_string(tokenizer_config_json)
+                    .map_err(sys_at("read", tokenizer_config_json))?;
+                Ok(Self::new(source)?
+                    .with_special_tokens(special_tokens(&Self::parse_config(&json)?)))
+            }
+        }
     }
 
     fn parse_config(json: &str) -> BunsenResult<serde_json::Value> {

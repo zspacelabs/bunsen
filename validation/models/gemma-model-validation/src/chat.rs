@@ -12,6 +12,8 @@ use bunsen::{
             TOKENIZER,
             TOKENIZER_CONFIG,
             pretrained::{
+                GEMMA_CATALOG,
+                GEMMA_FAMILY,
                 GEMMA_KIT,
                 default_gemma_factory,
             },
@@ -53,8 +55,10 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
 
 /// Every text encodes to `transformers`' ids and decodes back to itself;
 /// every conversation renders to `transformers`' text, which encodes to its
-/// ids; and the row's stop tokens, as its presets resolve them, include the
-/// end of a turn its tokenizer spells ([`END_OF_TURN`]).
+/// ids; the [`GEMMA_FAMILY`]'s own template, which a pretrained row renders
+/// with, renders every conversation as the row's own does; and the row's
+/// stop tokens, as its presets resolve them, include the end of a turn its
+/// tokenizer spells ([`END_OF_TURN`]).
 fn check_row(row: &str) {
     let fixture = &chat_reference()[row];
     let (tokenizer, config, jinja) = tokenizer_files(row);
@@ -88,6 +92,13 @@ fn check_row(row: &str) {
         None => ChatTemplate::from_file(&config),
     }
     .unwrap();
+    let family = GEMMA_CATALOG.family_presets(GEMMA_FAMILY).base["generation"]["chat_template"]
+        .as_str()
+        .expect("the family's template")
+        .to_string();
+    let family = ChatTemplate::new(&family)
+        .unwrap()
+        .with_special_tokens([("bos_token".to_string(), "<bos>".to_string())].into());
     for case in &fixture.templates {
         let messages: Vec<ChatMessage> = case
             .messages
@@ -103,6 +114,10 @@ fn check_row(row: &str) {
             .unwrap_or_else(|e| panic!("{what}: {e}"));
         assert_eq!(text, case.text, "{what}");
         assert_eq!(tok.encode(&text).unwrap(), case.ids, "{what}");
+        let text = family
+            .render(&messages, case.add_generation_prompt, None)
+            .unwrap_or_else(|e| panic!("{what}, the family's template: {e}"));
+        assert_eq!(text, case.text, "{what}, the family's template");
     }
     eprintln!(
         "{row}: {} texts encode alike, {} renders alike",

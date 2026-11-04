@@ -5,6 +5,8 @@ use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
+    GEMMA_CATALOG,
+    GEMMA_FAMILY,
     GEMMA_KIT,
     GEMMA_PREFABS,
 };
@@ -28,6 +30,7 @@ use crate::{
     },
     kits::{
         gpts::gemma::{
+            CHAT_TEMPLATE,
             END_OF_TURN,
             GENERATION_CONFIG,
             GemmaConstruct,
@@ -43,8 +46,7 @@ use crate::{
             construct::ConstructInit,
             model_config::{
                 HfConfigJson,
-                ProbeFiles,
-                apply_probes,
+                probe_loaded,
                 resolve_ref_presets,
             },
         },
@@ -66,36 +68,23 @@ pub struct GemmaConstructConfig;
 
 impl GemmaConstructConfig {
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
-    /// catalog tool probes a row's: its `generation_config.json`, when it
-    /// has one (the stop tokens and sampling), and its
-    /// `tokenizer_config.json`'s [`END_OF_TURN`], when it has one (a turn's
-    /// end, which joins the stop tokens), probed into the base.
+    /// catalog tool probes a row's, over the [`GEMMA_FAMILY`]'s: its
+    /// `generation_config.json`, when it has one (the stop tokens and
+    /// sampling); its `tokenizer_config.json`'s [`END_OF_TURN`] (a turn's
+    /// end, which joins the stop tokens) and chat template, when it has one;
+    /// and its `chat_template.jinja`, when it has one; probed into the base.
+    /// Without a template of its own, it renders with the family's.
     fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
-        let mut entries = Vec::new();
-        let mut files = ProbeFiles::new();
-        for (key, probe, token) in [
-            (GENERATION_CONFIG, "generation_config", None),
-            (TOKENIZER_CONFIG, "tokenizer_config", Some(END_OF_TURN)),
-        ] {
-            let Some(part) = loaded.get(key) else {
-                continue;
-            };
-            files.insert(
-                key,
-                std::fs::read(&part.path).map_err(sys_at("read", &part.path))?,
-            );
-            entries.push(CatalogProbe {
-                probe: probe.to_string(),
-                file: key.to_string(),
-                into: vec!["base".to_string()],
-                token: token.map(str::to_string),
-            });
-        }
-        apply_probes(
-            &PresetSet::default(),
-            &PresetSet::default(),
-            &entries,
-            &files,
+        probe_loaded(
+            loaded,
+            &[
+                CatalogProbe::into_base("generation_config", GENERATION_CONFIG),
+                CatalogProbe::into_base("tokenizer_config", TOKENIZER_CONFIG)
+                    .with_token(END_OF_TURN),
+                CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
+                CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
+            ],
+            &GEMMA_CATALOG.family_presets(GEMMA_FAMILY),
         )
     }
 }
@@ -225,6 +214,48 @@ mod tests {
             stops("gemma/gemma-2-9b-it{generation: {stop_ids: [1]}}"),
             [1],
             "a lookup's patch replaces the probed stops"
+        );
+    }
+
+    /// A row's chat template is its own file where it has one (Gemma 3's
+    /// `chat_template.jinja`, the rest's `tokenizer_config.json`), and the
+    /// [`GEMMA_FAMILY`]'s own source where it has none (the pretrained
+    /// models); a lookup's patch replaces either.
+    #[test]
+    fn test_the_chat_templates() {
+        use crate::kits::support::model_config::ChatTemplateSource;
+
+        let factory = default_gemma_factory().unwrap();
+        let template = |spec: &str| {
+            factory
+                .resolve_presets(spec, &GemmaPolicy::default())
+                .unwrap_or_else(|e| panic!("{spec}: {e}"))
+                .config
+                .generation
+                .chat_template
+        };
+        let file = |key: &str| {
+            Some(ChatTemplateSource::File {
+                file: key.to_string(),
+            })
+        };
+        assert_eq!(template("gemma/gemma-3-1b-it"), file("chat_template"));
+        assert_eq!(template("gemma/gemma-2-9b-it"), file("tokenizer_config"));
+        let family = GEMMA_CATALOG.family_presets(GEMMA_FAMILY).base["generation"]["chat_template"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(family.contains("<start_of_turn>"));
+        for row in ["gemma/gemma-2b", "gemma/gemma-3-270m", "gemma/gemma-2-9b"] {
+            assert_eq!(
+                template(row),
+                Some(ChatTemplateSource::Inline(family.clone())),
+                "{row}"
+            );
+        }
+        assert_eq!(
+            template("gemma/gemma-3-1b-it{generation: {chat_template: \"{{ messages }}\"}}"),
+            Some(ChatTemplateSource::Inline("{{ messages }}".to_string()))
         );
     }
 }

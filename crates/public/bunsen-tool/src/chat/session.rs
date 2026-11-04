@@ -429,11 +429,17 @@ mod tests {
         ];
         let device = cpu_device();
         let model: Qwen3Model = Qwen3Config::new(310, 12, 2, 3, 1, 6, 20).init(&device);
-        // Greedy, stopping at 301: what a `generation_config.json` of
-        // `{"eos_token_id": 301}` probes to.
+        // Greedy, stopping at 301, the template its `tokenizer_config.json`'s:
+        // what a `generation_config.json` of `{"eos_token_id": 301}` and the
+        // `chat_template` probe find.
         let policy = bunsen::kits::gpts::qwen3::Qwen3Policy {
             generation: GenerationPolicy {
                 stop_ids: vec![301],
+                chat_template: Some(
+                    bunsen::kits::support::model_config::ChatTemplateSource::File {
+                        file: TOKENIZER_CONFIG.to_string(),
+                    },
+                ),
                 ..Default::default()
             },
         };

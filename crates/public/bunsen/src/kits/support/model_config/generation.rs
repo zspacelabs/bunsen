@@ -31,6 +31,30 @@ pub struct GenerationPolicy {
 
     /// The chat template's keyword arguments, as the template reads them.
     pub template_kwargs: Map<String, Value>,
+
+    /// The chat template: a file of the checkpoint's, or a template's own
+    /// source. `None`: the model has none (a pretrained model, say), and a
+    /// chat driver refuses it.
+    pub chat_template: Option<ChatTemplateSource>,
+}
+
+/// Where a chat model's template comes from: a file the checkpoint carries,
+/// or the template's Jinja source itself. As a preset patch writes it, a
+/// file is `{file: KEY}` and a source is a string, so a layer that sets one
+/// replaces the other whole.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ChatTemplateSource {
+    /// A file of the checkpoint's, by its resource key: `chat_template` (a
+    /// `chat_template.jinja`), or `tokenizer_config` (the template its
+    /// `tokenizer_config.json` holds).
+    File {
+        /// The file's resource key.
+        file: String,
+    },
+
+    /// The template's Jinja source: a family's own, or a caller's.
+    Inline(String),
 }
 
 /// How a token is sampled: a temperature, and the filters before the draw.
