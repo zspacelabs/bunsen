@@ -39,6 +39,8 @@
 //!   decoder-only layer, nanochat's and Qwen3's by config; and
 //!   [`CrossDecoderBlock`](decoders::cross::CrossDecoderBlock), the
 //!   encoder-decoder layer with cross-attention, Whisper's.
+//! - [`head`]: [`LmHead`](head::LmHead), a language model's head: tied to the
+//!   token table or its own, with an optional slice, soft-cap and logits dtype.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
 //!   activate, project back), [`norm_mlp`](mlp::norm_mlp), which runs it after
 //!   a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the gated feed-forward
@@ -52,4 +54,5 @@ pub mod conditioning;
 pub mod decoders;
 pub mod embedding;
 pub mod encoders;
+pub mod head;
 pub mod mlp;

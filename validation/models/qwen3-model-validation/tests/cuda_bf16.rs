@@ -51,7 +51,7 @@ fn check_row(row: &str) {
         DType::BF16,
         "{row}: performance() keeps bf16 where CUDA accelerates it"
     );
-    assert!(bundle.model.lm_head.is_some(), "{row}: the head is its own");
+    assert!(bundle.model.lm_head.proj.is_some(), "{row}: the head is its own");
 
     for storage in STORAGES {
         let steps = bunsen_decode(

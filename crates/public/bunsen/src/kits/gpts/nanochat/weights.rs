@@ -201,22 +201,25 @@ pub fn nanochat_config(
 /// Upstream's state-dict names onto a [`NanoChatGpt`]'s module paths: the
 /// `transformer.` prefix dropped, the blocks `h.{i}` the stack's
 /// `stack.layers.{i}`, the feed-forward's `c_fc` / `c_proj` its
-/// `linear1` / `linear2`, and the value gate `ve_gate` its `value_gate`;
-/// everything else (`attn.c_q`, `lm_head`, the lambdas, `value_embeds.{i}`,
-/// `smear_gate`) bunsen names as upstream does.
+/// `linear1` / `linear2`, the value gate `ve_gate` its `value_gate`, and the
+/// head `lm_head` its projection, `lm_head.proj`; everything else
+/// (`attn.c_q`, the lambdas, `value_embeds.{i}`, `smear_gate`) bunsen names
+/// as upstream does.
 pub fn pt_rekey() -> Rekey {
-    Rekey::keep_rest().mount(
-        "transformer.",
-        "",
-        Rekey::keep_rest().mount_indexed(
-            "h.",
-            "stack.layers.",
-            Rekey::keep_rest()
-                .rename("mlp.c_fc.", "mlp.linear1.")
-                .rename("mlp.c_proj.", "mlp.linear2.")
-                .rename("attn.ve_gate.", "attn.value_gate."),
-        ),
-    )
+    Rekey::keep_rest()
+        .rename("lm_head.", "lm_head.proj.")
+        .mount(
+            "transformer.",
+            "",
+            Rekey::keep_rest().mount_indexed(
+                "h.",
+                "stack.layers.",
+                Rekey::keep_rest()
+                    .rename("mlp.c_fc.", "mlp.linear1.")
+                    .rename("mlp.c_proj.", "mlp.linear2.")
+                    .rename("attn.ve_gate.", "attn.value_gate."),
+            ),
+        )
 }
 
 /// Loads an upstream nanochat state dict (`tensors`, under upstream's names)
@@ -406,7 +409,7 @@ mod tests {
                 "transformer.h.17.attn.ve_gate.weight",
                 "stack.layers.17.attn.value_gate.weight",
             ),
-            ("lm_head.weight", "lm_head.weight"),
+            ("lm_head.weight", "lm_head.proj.weight"),
             ("value_embeds.17.weight", "value_embeds.17.weight"),
             ("smear_gate.weight", "smear_gate.weight"),
             ("resid_lambdas", "resid_lambdas"),
