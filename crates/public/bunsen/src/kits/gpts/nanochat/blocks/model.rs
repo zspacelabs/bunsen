@@ -29,20 +29,22 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::{
-            Norm,
-            NormConfig,
-        },
+        norm::NormConfig,
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
                 CausalSelfAttentionMeta,
                 ValueResidualConfig,
             },
-            decoders::causal::{
-                CausalDecoderBlock,
-                CausalDecoderBlockConfig,
-                DecoderSideInputs,
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    DecoderStackStructureConfig,
+                    ResidualMix,
+                    StackSides,
+                },
             },
             embedding::{
                 RotaryEmbedding,
@@ -410,12 +412,14 @@ impl ToStructureConfig for NanoChatGptContractConfig {
         let kv_width = self.n_kv_head * self.head_dim();
         Ok(NanoChatGptStructureConfig {
             wte: EmbeddingConfig::new(vocab, self.n_embed),
-            h,
+            stack: DecoderStackStructureConfig::new(
+                h,
+                self.norm.clone(),
+                RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
+                    .with_base(self.rope_base)
+                    .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
+            ),
             lm_head: LinearConfig::new(self.n_embed, vocab).with_bias(self.head_bias),
-            r_emb: RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
-                .with_base(self.rope_base)
-                .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
-            norm: self.norm.clone(),
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
             norm_eps: self.norm_eps,
@@ -446,14 +450,12 @@ pub struct NanoChatGptStructureConfig {
     /// The embedding config.
     pub wte: EmbeddingConfig,
 
-    /// The main transformer block sequence.
-    pub h: Vec<CausalDecoderBlockConfig>,
+    /// The decoder stack: the blocks, the final norm, and the rotary
+    /// embedding, whose `seq_len` is the model's longest sequence.
+    pub stack: DecoderStackStructureConfig,
 
     /// The config for the final linear layer.
     pub lm_head: LinearConfig,
-
-    /// The config for the rotary embedding.
-    pub r_emb: RotaryEmbeddingConfig,
 
     /// Initial sequence Length.
     #[config(default = "1024")]
@@ -462,11 +464,6 @@ pub struct NanoChatGptStructureConfig {
     /// Softcap for the logits.
     #[config(default = "15.0")]
     pub softcap: f64,
-
-    /// Normalization.
-    /// This normalization will be adapted to the appropriate feature count.
-    #[config(default = "NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
-    pub norm: NormConfig,
 
     /// The epsilon of the parameter-free RMS norm on the token embedding.
     #[config(default = "1e-6")]
@@ -499,15 +496,15 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 
     fn n_head(&self) -> usize {
-        self.h[0].attn.n_head()
+        self.stack.layers[0].attn.n_head()
     }
 
     fn n_kv_head(&self) -> usize {
-        self.h[0].attn.n_kv_head()
+        self.stack.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.h[0].attn.head_dim()
+        self.stack.head_dim()
     }
 
     fn init_seq_len(&self) -> usize {
@@ -515,11 +512,11 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 
     fn max_seq_len(&self) -> usize {
-        self.r_emb.seq_len()
+        self.stack.rotary.seq_len()
     }
 
     fn n_layer(&self) -> usize {
-        self.h.len()
+        self.stack.n_layers()
     }
 
     fn vocab_size(&self) -> usize {
@@ -532,8 +529,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<NanoChatGpt> {
-        let n_embed = self.n_embed();
-        let n_layer = self.h.len();
+        let n_layer = self.stack.layers.len();
         if !self.value_embeds.is_empty() && self.value_embeds.len() != n_layer {
             return Err(BunsenError::illegal(format!(
                 "value_embeds has {} entries for {n_layer} layers",
@@ -551,15 +547,9 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         let scalar = |v: f32| Param::from_tensor(Tensor::<1>::from_floats([v], device));
         Ok(NanoChatGpt {
             wte: self.wte.init(device),
-            h: self
-                .h
-                .iter()
-                .enumerate()
-                .map(|(layer_idx, c)| c.try_init(layer_idx, device))
-                .collect::<BunsenResult<Vec<CausalDecoderBlock>>>()?,
-            h_norm: self.norm.clone().with_num_features(n_embed).init(device),
+            stack: self.stack.try_init(device)?,
             lm_head: self.lm_head.init(device),
-            r_emb: self.r_emb.try_init(device)?,
+            r_emb: self.stack.rotary.try_init(device)?,
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
             norm_eps: self.norm_eps,
@@ -589,9 +579,9 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 /// nanoChat GPT language model.
 ///
 /// A decoder-only transformer: token embedding, normalized by a
-/// parameter-free [`rms_norm`] as upstream's is, a stack of
-/// [`CausalDecoderBlock`] layers, a final normalization, and a linear head,
-/// not tied to the embedding, producing softcapped vocabulary logits.
+/// parameter-free [`rms_norm`] as upstream's is, a [`DecoderStack`] of
+/// causal decoder blocks and a final normalization, and a linear head, not
+/// tied to the embedding, producing softcapped vocabulary logits.
 /// The normalized embedding starts the residual stream, and each block adds
 /// its attention and MLP updates to it.
 ///
@@ -610,9 +600,10 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 #[derive(Module, Debug)]
 pub struct NanoChatGpt {
     wte: Embedding,
-    h: Vec<CausalDecoderBlock>,
-    h_norm: Norm,
+    /// The blocks and the final norm.
+    stack: DecoderStack,
     lm_head: Linear,
+    /// The rotary table, covering the longest sequence.
     r_emb: RotaryEmbedding,
 
     init_seq_len: usize,
@@ -642,15 +633,15 @@ impl NanoChatGptMeta for NanoChatGpt {
     }
 
     fn n_head(&self) -> usize {
-        self.h[0].attn.n_head()
+        self.stack.layers[0].attn.n_head()
     }
 
     fn n_kv_head(&self) -> usize {
-        self.h[0].attn.n_kv_head()
+        self.stack.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.h[0].attn.head_dim()
+        self.stack.head_dim()
     }
 
     fn init_seq_len(&self) -> usize {
@@ -662,7 +653,7 @@ impl NanoChatGptMeta for NanoChatGpt {
     }
 
     fn n_layer(&self) -> usize {
-        self.h.len()
+        self.stack.n_layers()
     }
 
     fn vocab_size(&self) -> usize {
@@ -792,7 +783,6 @@ impl NanoChatGpt {
             "Sequence position grew beyond the rotary embeddings table: {t0} + {t} > {}",
             self.r_emb.seq_len()
         );
-        let r_emb = self.r_emb.clip_range(t0..t0 + t);
 
         // As upstream (`x = norm(wte(idx))`): a parameter-free norm, so the
         // residual stream starts normalized.
@@ -802,37 +792,28 @@ impl NanoChatGpt {
             x = self.smear(x, prev, t0, gate, lambda);
         }
 
-        let x0 = x.clone();
-        let backout_layer = self.h.len() / 2;
-        let mut x_backout = None;
-        for (i, block) in self.h.iter().enumerate() {
-            if let (Some(resid), Some(x0_lambdas)) = (&self.resid_lambdas, &self.x0_lambdas) {
-                let r = resid.val().slice(s![i..i + 1]).unsqueeze::<3>();
-                let l = x0_lambdas.val().slice(s![i..i + 1]).unsqueeze::<3>();
-                x = x * r + x0.clone() * l;
-            }
-            let value_embed = self
+        let sides = StackSides {
+            value_embeds: self
                 .value_embeds
-                .get(i)
-                .and_then(Option::as_ref)
-                .map(|ve| ve.forward(idx.clone()));
-            x = block.forward_with(
-                x,
-                &r_emb,
-                kv_cache,
-                DecoderSideInputs {
-                    value_embed,
-                    ..Default::default()
-                },
-            );
-            if i == backout_layer && self.backout_lambda.is_some() {
-                x_backout = Some(x.clone());
-            }
-        }
-        if let (Some(lambda), Some(mid)) = (&self.backout_lambda, x_backout) {
-            x = x - mid * lambda.val().unsqueeze::<3>();
-        }
-        let hidden = self.h_norm.forward(x);
+                .iter()
+                .map(|ve| ve.as_ref().map(|ve| ve.forward(idx.clone())))
+                .collect(),
+            mix: ResidualMix {
+                resid_x0: self
+                    .resid_lambdas
+                    .as_ref()
+                    .zip(self.x0_lambdas.as_ref())
+                    .map(|(resid, x0)| (resid.val(), x0.val())),
+                backout: self
+                    .backout_lambda
+                    .as_ref()
+                    .map(|lambda| (self.stack.layers.len() / 2, lambda.val())),
+            },
+            ..Default::default()
+        };
+        let hidden = self
+            .stack
+            .forward_with(x, &self.r_emb, kv_cache.as_deref_mut(), sides);
         assert_shape_contract_periodically!(
             ["B", "T", "D"],
             &hidden.dims(),
@@ -995,15 +976,15 @@ mod tests {
         assert!(gpt.resid_lambdas.is_none() && gpt.x0_lambdas.is_none());
         assert!(gpt.value_embeds.iter().all(Option::is_none));
         assert!(!gpt.is_smeared() && gpt.backout_lambda.is_none());
-        assert!(gpt.h.iter().all(|b| {
+        assert!(gpt.stack.layers.iter().all(|b| {
             b.attn.qk_gain.is_none()
                 && b.attn.sliding_window.is_none()
                 && b.attn.value_gate.is_none()
         }));
 
         let structure = NanoChatGptContractConfig::new().to_structure();
-        assert_eq!(structure.r_emb.base, 10000);
-        assert_eq!(structure.r_emb.table_dtype, Some(FloatDType::BF16));
+        assert_eq!(structure.stack.rotary.base, 10000);
+        assert_eq!(structure.stack.rotary.table_dtype, Some(FloatDType::BF16));
         assert_eq!(structure.vocab_size, 50304);
     }
 
@@ -1049,13 +1030,14 @@ mod tests {
             .with_upstream_2026("SL");
         assert_eq!(policy.padded_vocab_size(), 64);
         let structure = policy.to_structure();
-        assert_eq!(structure.r_emb.base, 100000);
-        assert_eq!(structure.r_emb.table_dtype, None);
+        assert_eq!(structure.stack.rotary.base, 100000);
+        assert_eq!(structure.stack.rotary.table_dtype, None);
         assert_eq!(structure.wte.n_embedding, 64);
         assert_eq!(structure.vocab_size, 60);
         assert_eq!(
             structure
-                .h
+                .stack
+                .layers
                 .iter()
                 .map(|b| b.attn.sliding_window)
                 .collect::<Vec<_>>(),
@@ -1069,7 +1051,13 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![Some((64, 16)), None, Some((64, 16))]
         );
-        assert!(structure.h.iter().all(|b| b.attn.qk_gain == Some(1.2)));
+        assert!(
+            structure
+                .stack
+                .layers
+                .iter()
+                .all(|b| b.attn.qk_gain == Some(1.2))
+        );
         assert_eq!(structure.smear_channels, Some(24));
         assert!(structure.residual_lambdas && structure.backout);
     }
@@ -1090,7 +1078,7 @@ mod tests {
             .init(device);
         gpt.smear_lambda = Some(Param::from_tensor(Tensor::from_floats([0.7], device)));
         gpt.backout_lambda = Some(Param::from_tensor(Tensor::from_floats([0.3], device)));
-        for block in gpt.h.iter_mut() {
+        for block in gpt.stack.layers.iter_mut() {
             if let Some(gate) = block.attn.value_gate.as_mut() {
                 gate.weight = Param::from_tensor(seeded_tensor(
                     7,
@@ -1144,6 +1132,37 @@ mod tests {
         cached
             .into_data()
             .assert_approx_eq::<f32>(&full.into_data(), Tolerance::rel_abs(1e-3, 1e-4));
+    }
+
+    /// A 2026 model, every part on, saved as a `.bpk` and loaded into a
+    /// fresh one of the same config, computes the same logits: the record
+    /// follows the module tree (`stack.layers.{i}`, `stack.norm`), as
+    /// `examples/train-chat` writes it.
+    #[test]
+    #[serial]
+    fn test_bpk_round_trip() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let gpt = tiny_2026(&device);
+        let ids: Tensor<2, Int> = Tensor::from_data([[3, 1, 4, 1, 5, 9]], &device);
+        let expected = gpt.forward(ids.clone(), &mut None);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("model.bpk");
+        gpt.save_file(&path).unwrap();
+        device.seed(99);
+        let fresh = tiny_2026(&device);
+        assert!(
+            !fresh
+                .forward(ids.clone(), &mut None)
+                .all_close(expected.clone(), None, None),
+            "a fresh model computes otherwise"
+        );
+        let loaded = fresh.load_file(&path);
+        loaded
+            .forward(ids, &mut None)
+            .into_data()
+            .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::rel_abs(1e-5, 1e-6));
     }
 
     /// A chunk of several tokens after a cached prefix, given the token
@@ -1213,17 +1232,17 @@ mod tests {
         g.x0_lambdas = Some(Param::from_tensor(Tensor::zeros([3], &device)));
         differs(&g, "the x0 lambdas");
         let mut g = tiny_2026(&device);
-        for block in g.h.iter_mut() {
+        for block in g.stack.layers.iter_mut() {
             block.attn.qk_gain = None;
         }
         differs(&g, "the qk gain");
         let mut g = tiny_2026(&device);
-        for block in g.h.iter_mut() {
+        for block in g.stack.layers.iter_mut() {
             block.attn.sliding_window = None;
         }
         differs(&g, "the windows");
         let mut g = tiny_2026(&device);
-        for block in g.h.iter_mut() {
+        for block in g.stack.layers.iter_mut() {
             if let Some(gate) = block.attn.value_gate.as_mut() {
                 gate.weight = Param::from_tensor(gate.weight.val().zeros_like().sub_scalar(30.0));
             }
