@@ -471,6 +471,11 @@ pub struct AsrConstructConfig {
     pub fallback: Fallback,
     pub implications: Vec<Implication>,
 
+    /// What an axis the command line leaves unset is, by what it sets,
+    /// without `--preset` ([`fill`](Self::fill)).
+    #[serde(default)]
+    pub defaults: Vec<Implication>,
+
     /// What each family's engine takes from the command line, by family;
     /// [`engine`](Self::engine) gives a family not named none.
     #[serde(default)]
@@ -500,6 +505,42 @@ pub fn construct_config() -> &'static AsrConstructConfig {
 }
 
 impl AsrConstructConfig {
+    /// The need `given` asks for, without `--preset`: each axis it sets, then
+    /// each default whose `when` the need matches (`given` over `base`) for
+    /// the axes `given` leaves unset, then `base`'s; with the reasons of the
+    /// defaults that set an axis, in order.
+    pub fn fill(
+        &self,
+        given: NeedPattern,
+        base: Need,
+    ) -> (Need, Vec<&str>) {
+        let asked = given.apply(base);
+        let mut filled = given;
+        let mut reasons = Vec::new();
+        for rule in &self.defaults {
+            if !rule.when.matches(asked) {
+                continue;
+            }
+            let mut set = false;
+            if filled.speech.is_none() && rule.then.speech.is_some() {
+                filled.speech = rule.then.speech;
+                set = true;
+            }
+            if filled.task.is_none() && rule.then.task.is_some() {
+                filled.task = rule.then.task;
+                set = true;
+            }
+            if filled.quality.is_none() && rule.then.quality.is_some() {
+                filled.quality = rule.then.quality;
+                set = true;
+            }
+            if set {
+                reasons.push(rule.reason.as_str());
+            }
+        }
+        (filled.apply(base), reasons)
+    }
+
     /// What `family`'s engine takes from the command line: nothing, for a
     /// family `engines` does not name.
     pub fn engine(
@@ -1028,6 +1069,26 @@ mod tests {
             }
             assert!(tasks.does(tasks.default));
         }
+
+        // Without a preset, translating makes an unset speech `multi`, and
+        // says why; a speech given stays, and nothing set takes the base.
+        let base = lookup(DEFAULT_PRESET).unwrap().need;
+        let translate = NeedPattern {
+            task: Some(Task::Translate),
+            ..NeedPattern::default()
+        };
+        let (need, why) = table.fill(translate, base);
+        assert_eq!((need.speech, need.task), (Speech::Multi, Task::Translate));
+        assert_eq!(why, ["translating is from speech that is not English"]);
+        let (need, why) = table.fill(
+            NeedPattern {
+                speech: Some(Speech::En),
+                ..translate
+            },
+            base,
+        );
+        assert_eq!((need.speech, why.len()), (Speech::En, 0));
+        assert_eq!(table.fill(NeedPattern::default(), base), (base, vec![]));
 
         // `--language` by the table, case aside; what hears what by the
         // speech fallback.

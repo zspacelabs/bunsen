@@ -9,6 +9,8 @@
 #   a nearer quality before another speech, as a multilingual model also
 #   hears English. The task is never changed by a fallback.
 # - `implications`: a point that is served as another.
+# - `defaults`: without `--preset`, what an axis the command line leaves
+#   unset is, by what it sets, before the default preset's.
 # - `engines`: what a family's engine takes from the command line; a
 #   family not named finds the language itself and only transcribes.
 # - `language`: the speech `--language` implies, by its code; a `--speech`
@@ -65,6 +67,12 @@ implications:
   - when: { speech: en, task: translate }
     then: { task: transcribe }
     reason: "English speech translated to English is transcribed"
+
+defaults:
+  # Translating is to English, so the speech is not English.
+  - when: { task: translate }
+    then: { speech: multi }
+    reason: "translating is from speech that is not English"
 
 engines:
   whisper:
