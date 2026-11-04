@@ -166,9 +166,12 @@ impl Value {
 
     /// The value without its empty fields: every map entry whose value is an
     /// empty string, list or map, at any depth, once its own empty fields are
-    /// gone. A list keeps its items; a boolean is never empty.
+    /// gone; in data ([`Json`](Value::Json)), every object entry that is
+    /// `null` or an empty object or array, too. A list keeps its items; a
+    /// boolean is never empty.
     pub fn elide_empty(self) -> Value {
         match self {
+            Value::Json(json) => Value::Json(elide_empty_json(json)),
             Value::List(items) => Value::List(items.into_iter().map(Value::elide_empty).collect()),
             Value::Map(entries) => Value::Map(
                 entries
@@ -239,6 +242,29 @@ impl CardCmd {
         std::io::stdout()
             .write_all(text.as_bytes())
             .map_err(sys_at("write to", "stdout"))
+    }
+}
+
+/// `json` without its empty fields: every object entry that is `null`, or an
+/// empty object or array once its own empty fields are gone, at any depth.
+/// An array keeps its items.
+fn elide_empty_json(json: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value as J;
+    match json {
+        J::Array(items) => J::Array(items.into_iter().map(elide_empty_json).collect()),
+        J::Object(entries) => J::Object(
+            entries
+                .into_iter()
+                .map(|(k, v)| (k, elide_empty_json(v)))
+                .filter(|(_, v)| match v {
+                    J::Null => false,
+                    J::Array(items) => !items.is_empty(),
+                    J::Object(entries) => !entries.is_empty(),
+                    _ => true,
+                })
+                .collect(),
+        ),
+        other => other,
     }
 }
 
@@ -628,7 +654,7 @@ mod tests {
 
     /// YAML keeps the keys' order; JSON is one line.
     /// Empty strings, lists and maps go, at any depth, and so does a map
-    /// emptied by it; booleans and list items stay.
+    /// emptied by it, nulls in data too; booleans and list items stay.
     #[test]
     fn test_elide_empty() {
         let card = Value::map([
@@ -646,6 +672,22 @@ mod tests {
             ("offline", Value::Bool(false)),
             ("note", Value::str("")),
             ("nested", Value::map([("empty", Value::map::<&str>([]))])),
+            (
+                "policy",
+                Value::Json(serde_json::json!({
+                    "generation": {
+                        "max_new_tokens": null,
+                        "sampling": null,
+                        "stop_ids": [151645, 151643],
+                        "template_kwargs": {},
+                    },
+                    "options": {"a": null, "b": []},
+                    "flags": [null, {}],
+                    "off": false,
+                    "zero": 0,
+                })),
+            ),
+            ("unset", Value::Json(serde_json::json!({"a": null}))),
         ]);
         assert_eq!(
             card.elide_empty(),
@@ -661,6 +703,17 @@ mod tests {
                     ]),
                 ),
                 ("offline", Value::Bool(false)),
+                // Data loses its nulls and empties, at any depth; an array
+                // keeps its items, and `false` and `0` stay.
+                (
+                    "policy",
+                    Value::Json(serde_json::json!({
+                        "generation": {"stop_ids": [151645, 151643]},
+                        "flags": [null, {}],
+                        "off": false,
+                        "zero": 0,
+                    })),
+                ),
             ])
         );
     }
