@@ -33,7 +33,10 @@ use crate::{
             },
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -210,6 +213,28 @@ impl crate::burner::module::ResultDType for CausalDecoderBlock {
 }
 
 impl CausalDecoderBlock {
+    /// `transformers`' decoder-layer names onto this block's, relative to
+    /// it: `attn_norm` and `mlp_norm`, the layer's names for its two norms,
+    /// the attention's and the feed-forward's (`input_layernorm` and
+    /// `post_attention_layernorm` in Llama's line, Qwen3's and Mistral's;
+    /// `self_attn_layer_norm` and `final_layer_norm` in Voxtral's audio
+    /// tower); `self_attn`'s `{q,k,v,o}_proj` the attention's projections,
+    /// and the rest of `self_attn` (QK-norms) under `attn`; the `SwiGLU`'s
+    /// projections as they are.
+    pub fn hf_layer_rekey(
+        attn_norm: &str,
+        mlp_norm: &str,
+    ) -> Rekey {
+        Rekey::keep_rest()
+            .rename(format!("{attn_norm}."), "attn_norm.")
+            .rename(format!("{mlp_norm}."), "mlp_norm.")
+            .rename("self_attn.q_proj.", "attn.c_q.")
+            .rename("self_attn.k_proj.", "attn.c_k.")
+            .rename("self_attn.v_proj.", "attn.c_v.")
+            .rename("self_attn.o_proj.", "attn.c_proj.")
+            .rename("self_attn.", "attn.")
+    }
+
     /// Forward Pass.
     ///
     /// # Usage Note

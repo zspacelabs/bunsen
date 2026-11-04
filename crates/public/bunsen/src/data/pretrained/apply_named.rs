@@ -241,6 +241,26 @@ pub fn stored_float_dtype(tensors: &[PackTensor]) -> Option<FloatDType> {
         .map(|(dtype, _)| FloatDType::from(dtype))
 }
 
+/// Loads tensors under their checkpoint's names into `module`:
+/// [`apply_rekeyed_tensors_as`] under `rekey`, every floating tensor cast to
+/// `dtype` (a load policy's resolution), or, when `None`, to the dtype
+/// `module` was built in
+/// ([`module_float_dtype`](crate::burner::module::module_float_dtype),
+/// which leaves a freshly built module's lazy parameters uninitialized).
+/// What a kit's `transformers` loader is.
+///
+/// # Errors
+/// As [`apply_rekeyed_tensors`].
+pub fn load_hf<M: ModuleSnapshot>(
+    module: &mut M,
+    tensors: impl IntoIterator<Item = PackTensor>,
+    rekey: &Rekey,
+    dtype: Option<FloatDType>,
+) -> BunsenResult<NamedTensorsApplied> {
+    let dtype = dtype.or_else(|| crate::burner::module::module_float_dtype(module));
+    apply_rekeyed_tensors_as(module, tensors, rekey, dtype.map(DType::from))
+}
+
 /// [`apply_rekeyed_tensors`], every floating tensor cast to `float_dtype`
 /// as [`apply_named_tensors_as`] casts it.
 ///

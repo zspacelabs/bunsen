@@ -6,13 +6,11 @@ use super::{
     Qwen3Model,
 };
 use crate::{
-    burner::{
-        module::Rekey,
-        tensor::param_float_dtype,
-    },
+    blocks::transformers::decoders::causal::CausalDecoderBlock,
+    burner::module::Rekey,
     data::pretrained::{
         NamedTensorsApplied,
-        apply_rekeyed_tensors_as,
+        load_hf,
     },
     errors::BunsenResult,
     kits::support::model_config::{
@@ -22,20 +20,13 @@ use crate::{
 };
 
 /// `transformers`' Qwen3 decoder layer names onto a
-/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
+/// [`CausalDecoderBlock`]'s,
 /// relative to it: `input_layernorm` the attention's norm,
 /// `post_attention_layernorm` the feed-forward's, `self_attn`'s
 /// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
 /// QK-norms, and the `SwiGLU`'s projections as they are.
 pub fn text_layer_rekey() -> Rekey {
-    Rekey::keep_rest()
-        .rename("input_layernorm.", "attn_norm.")
-        .rename("post_attention_layernorm.", "mlp_norm.")
-        .rename("self_attn.q_proj.", "attn.c_q.")
-        .rename("self_attn.k_proj.", "attn.c_k.")
-        .rename("self_attn.v_proj.", "attn.c_v.")
-        .rename("self_attn.o_proj.", "attn.c_proj.")
-        .rename("self_attn.", "attn.")
+    CausalDecoderBlock::hf_layer_rekey("input_layernorm", "post_attention_layernorm")
 }
 
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto a
@@ -48,7 +39,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`apply_rekeyed_tensors_as`] resolves to `gamma`.
+/// [`load_hf`] resolves to `gamma`.
 pub fn hf_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -60,20 +51,16 @@ pub fn hf_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
-/// `model`: [`apply_rekeyed_tensors_as`] under [`hf_rekey`], every floating
-/// tensor cast to the dtype `model` was built in
-/// ([`param_float_dtype`], which leaves a freshly built model's lazy
-/// parameters uninitialized). The checkpoints ship `bf16`, which not every
-/// backend computes in.
+/// `model`: [`load_hf`] under [`hf_rekey`], in the dtype `model` was built
+/// in. The checkpoints ship `bf16`, which not every backend computes in.
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors_as`].
+/// As [`load_hf`].
 pub fn load_hf_tensors(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let dtype = param_float_dtype(&model.embed_tokens.weight);
-    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
+    load_hf(model, tensors, &hf_rekey(), None)
 }
 
 /// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
@@ -84,13 +71,13 @@ pub fn load_hf_tensors(
 /// [`LoadPolicy::resolve`]: crate::kits::support::construct::LoadPolicy::resolve
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors_as`].
+/// As [`load_hf`].
 pub fn load_hf_tensors_as(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype.into()))
+    load_hf(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:
