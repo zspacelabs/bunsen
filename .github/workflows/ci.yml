@@ -5,12 +5,21 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+    # `labeled` and `unlabeled` for the `ci-light` label, which skips the
+    # `test` job: a pull request in the middle of a stack carries it, so a
+    # rebase of the stack does not run every layer's full build at once. Its
+    # Format, Clippy and Book still run; the `test` job runs when the label
+    # comes off, as it does when the layer is retargeted to main before it
+    # merges. A skipped job passes a required check, so the label comes off
+    # before a merge.
+    types: [ opened, synchronize, reopened, labeled, unlabeled ]
 
 # A push to a pull request cancels that pull request's run still in
-# progress; each push to main runs in a group of its own, and is never
-# cancelled.
+# progress, as does adding or removing `ci-light`; each push to main runs in
+# a group of its own, and is never cancelled. Another label's event is a
+# group of its own too, which cancels nothing, and its jobs all skip.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 env:
@@ -25,6 +34,8 @@ env:
 jobs:
   fmt:
     name: Format
+    # Not for another label's event.
+    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +45,8 @@ jobs:
 
   clippy:
     name: Clippy
+    # Not for another label's event.
+    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,6 +84,8 @@ jobs:
 
   book:
     name: Book
+    # Not for another label's event.
+    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -103,6 +118,12 @@ jobs:
 
   test:
     name: CI
+    # Not on a pull request labelled `ci-light`, nor for another label's
+    # event.
+    if: >-
+      ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+            github.event.label.name != 'ci-light') &&
+          !contains(github.event.pull_request.labels.*.name, 'ci-light') }}
     runs-on: ubuntu-latest
     # kache posts its cache report as one PR comment, updated in place.
     permissions:
