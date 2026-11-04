@@ -50,6 +50,9 @@ use crate::{
                 RotaryEmbedding,
                 RotaryEmbeddingConfig,
                 RotaryEmbeddingMeta,
+                TokenEmbedding,
+                TokenEmbeddingConfig,
+                TokenEmbeddingMeta,
             },
             mlp::MlpConfig,
         },
@@ -66,16 +69,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    ops::{
-        norm::{
-            RmsNormOptions,
-            rms_norm,
-        },
-        transformers::attention::{
-            KVCache,
-            KVCacheConfig,
-            KVCacheModel,
-        },
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+        KVCacheModel,
     },
 };
 
@@ -413,7 +410,7 @@ impl ToStructureConfig for NanoChatGptContractConfig {
         let vocab = self.padded_vocab_size();
         let kv_width = self.n_kv_head * self.head_dim();
         Ok(NanoChatGptStructureConfig {
-            wte: EmbeddingConfig::new(vocab, self.n_embed),
+            wte: TokenEmbeddingConfig::new(vocab, self.n_embed).with_norm_eps(Some(self.norm_eps)),
             stack: DecoderStackStructureConfig::new(
                 h,
                 self.norm.clone(),
@@ -424,7 +421,6 @@ impl ToStructureConfig for NanoChatGptContractConfig {
             lm_head: LinearConfig::new(self.n_embed, vocab).with_bias(self.head_bias),
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
-            norm_eps: self.norm_eps,
             vocab_size: self.vocab_size,
             residual_lambdas: self.residual_lambdas,
             value_embeds: (0..self.n_layer)
@@ -449,8 +445,8 @@ impl ToStructureConfig for NanoChatGptContractConfig {
 /// This config has a lot of duplicate information.
 #[derive(Config, Debug)]
 pub struct NanoChatGptStructureConfig {
-    /// The embedding config.
-    pub wte: EmbeddingConfig,
+    /// The token embedding, and its parameter-free RMS norm.
+    pub wte: TokenEmbeddingConfig,
 
     /// The decoder stack: the blocks, the final norm, and the rotary
     /// embedding, whose `seq_len` is the model's longest sequence.
@@ -466,10 +462,6 @@ pub struct NanoChatGptStructureConfig {
     /// Softcap for the logits.
     #[config(default = "15.0")]
     pub softcap: f64,
-
-    /// The epsilon of the parameter-free RMS norm on the token embedding.
-    #[config(default = "1e-6")]
-    pub norm_eps: f64,
 
     /// The logits' width: the embedding's, unpadded.
     pub vocab_size: usize,
@@ -554,7 +546,6 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
             r_emb: self.stack.rotary.try_init(device)?,
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
-            norm_eps: self.norm_eps,
             vocab_size: self.vocab_size,
             resid_lambdas: self.residual_lambdas.then(|| ramp(1.15, 0.10)),
             x0_lambdas: self.residual_lambdas.then(|| ramp(0.20, 0.15)),
@@ -581,11 +572,11 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 /// nanoChat GPT language model.
 ///
 /// A decoder-only transformer: token embedding, normalized by a
-/// parameter-free [`rms_norm`] as upstream's is, a [`DecoderStack`] of
-/// causal decoder blocks and a final normalization, and a linear head, not
-/// tied to the embedding, producing softcapped vocabulary logits.
-/// The normalized embedding starts the residual stream, and each block adds
-/// its attention and MLP updates to it.
+/// parameter-free RMS norm as upstream's is ([`TokenEmbedding`]), a
+/// [`DecoderStack`] of causal decoder blocks and a final normalization, and a
+/// linear head, not tied to the embedding, producing softcapped vocabulary
+/// logits. The normalized embedding starts the residual stream, and each block
+/// adds its attention and MLP updates to it.
 ///
 /// Upstream's 2026 additions, each present only when its config option is
 /// on: the smear (the previous position's embedding mixed into each
@@ -601,7 +592,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 /// [`NanoChatGptStructureConfig`].
 #[derive(Module, Debug)]
 pub struct NanoChatGpt {
-    wte: Embedding,
+    wte: TokenEmbedding,
     /// The blocks and the final norm.
     stack: DecoderStack,
     lm_head: Linear,
@@ -610,7 +601,6 @@ pub struct NanoChatGpt {
 
     init_seq_len: usize,
     softcap: f64,
-    norm_eps: f64,
     vocab_size: usize,
 
     /// `[n_layer]`: the residual stream's scale before each block.
@@ -630,8 +620,7 @@ pub struct NanoChatGpt {
 
 impl NanoChatGptMeta for NanoChatGpt {
     fn n_embed(&self) -> usize {
-        // burn's `Embedding` weight is `[n_embedding, d_model]`.
-        self.wte.weight.dims()[1]
+        self.wte.d_model()
     }
 
     fn n_head(&self) -> usize {
@@ -666,7 +655,7 @@ impl NanoChatGptMeta for NanoChatGpt {
 impl NanoChatGpt {
     /// The token embedding: its parameter's dtype is the model's.
     #[cfg(feature = "store_pytorch")]
-    pub(crate) fn wte(&self) -> &Embedding {
+    pub(crate) fn wte(&self) -> &TokenEmbedding {
         &self.wte
     }
 
@@ -692,19 +681,6 @@ impl NanoChatGpt {
     /// ([`forward_after`](Self::forward_after)).
     pub fn is_smeared(&self) -> bool {
         self.smear_gate.is_some()
-    }
-
-    /// The parameter-free norm on the embedding (and nowhere else).
-    fn embed_norm(
-        &self,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        rms_norm(
-            x,
-            &RmsNormOptions {
-                eps: self.norm_eps as f32,
-            },
-        )
     }
 
     /// Forward Pass.
@@ -788,7 +764,7 @@ impl NanoChatGpt {
 
         // As upstream (`x = norm(wte(idx))`): a parameter-free norm, so the
         // residual stream starts normalized.
-        let mut x = self.embed_norm(self.wte.forward(idx.clone()));
+        let mut x = self.wte.forward(idx.clone());
 
         if let (Some(gate), Some(lambda)) = (&self.smear_gate, &self.smear_lambda) {
             x = self.smear(x, prev, t0, gate, lambda);
@@ -880,7 +856,7 @@ impl NanoChatGpt {
             * lambda.val().unsqueeze::<3>();
         let before = match (t0, prev) {
             (_, Some(prev)) => {
-                let p = self.embed_norm(self.wte.forward(prev));
+                let p = self.wte.forward(prev);
                 Some(Tensor::cat(vec![p, x.clone().slice(s![.., ..t - 1])], 1))
             }
             (0, None) => None,
@@ -974,7 +950,7 @@ mod tests {
             .with_init_seq_len(8)
             .init(&device);
         assert!(gpt.lm_head.bias.is_none());
-        assert_eq!(gpt.norm_eps, 1e-6);
+        assert_eq!(gpt.wte.norm_eps, Some(1e-6));
         assert!(gpt.resid_lambdas.is_none() && gpt.x0_lambdas.is_none());
         assert!(gpt.value_embeds.iter().all(Option::is_none));
         assert!(!gpt.is_smeared() && gpt.backout_lambda.is_none());
@@ -1034,7 +1010,7 @@ mod tests {
         let structure = policy.to_structure();
         assert_eq!(structure.stack.rotary.base, 100000);
         assert_eq!(structure.stack.rotary.table_dtype, None);
-        assert_eq!(structure.wte.n_embedding, 64);
+        assert_eq!(structure.wte.n_vocab, 64);
         assert_eq!(structure.vocab_size, 60);
         assert_eq!(
             structure

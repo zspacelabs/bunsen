@@ -7,6 +7,9 @@
 //!   and [`clip_range`](RotaryEmbedding::clip_range) narrows the tables to the
 //!   positions of a decode step. [`CausalSelfAttention`] takes one in its
 //!   `forward`; the `NanoChat` GPT holds one as a field of its module tree.
+//! - [`TokenEmbedding`] looks tokens up in a table, then, as its
+//!   [`TokenEmbeddingConfig`] says, normalizes and scales them: nanochat's
+//!   normed embedding, Gemma's scaled one.
 //! - [`iota_embedding`] and [`identity_embedding`] build burn [`Embedding`]s
 //!   with weights you can check by hand, as fixtures for tests.
 //!
@@ -19,7 +22,9 @@
 //! [`Embedding`]: burn::nn::Embedding
 
 mod rotary;
+mod token;
 mod trivial_builders;
 
 pub use rotary::*;
+pub use token::*;
 pub use trivial_builders::*;
