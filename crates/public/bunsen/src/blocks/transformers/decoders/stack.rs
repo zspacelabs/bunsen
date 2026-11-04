@@ -54,6 +54,7 @@ use crate::{
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,
+        KVCacheStorage,
     },
 };
 
@@ -314,7 +315,64 @@ impl DecoderStackMeta for DecoderStack {
     }
 }
 
+/// What a cached decode through a [`DecoderStack`] carries between steps:
+/// its KV cache, and the rotary table for every position it may reach.
+///
+/// Made by [`DecoderStack::decode_cache`], run through by
+/// [`DecoderStack::forward_cached`]. The stack never owns one, so one loaded
+/// model serves any number of decodes.
+#[derive(Module, Debug)]
+pub struct DecoderCache {
+    /// The KV cache, one batch row per decode row.
+    pub cache: KVCache,
+
+    /// The rotary table, covering the cache's capacity.
+    pub rotary: RotaryEmbedding,
+}
+
+impl DecoderCache {
+    /// Permutes the rows: row `r` becomes row `sources[r]` (beams
+    /// branching).
+    pub fn reorder(
+        &mut self,
+        sources: &[usize],
+    ) {
+        self.cache.reorder(sources);
+    }
+}
+
 impl DecoderStack {
+    /// A decode cache for `rows` rows of at most `positions` positions each,
+    /// under `storage`: the KV cache allocated whole and capped there, as
+    /// the rotary table is.
+    pub fn decode_cache(
+        &self,
+        rows: usize,
+        positions: usize,
+        storage: KVCacheStorage,
+        device: &Device,
+    ) -> DecoderCache {
+        DecoderCache {
+            cache: self
+                .kv_cache_config(positions)
+                .with_batch_size(rows)
+                .with_max_seq_len(Some(positions))
+                .with_storage(storage)
+                .init(),
+            rotary: self.rotary(positions, device),
+        }
+    }
+
+    /// [`forward_hidden`](Self::forward_hidden) through `cache`, at its
+    /// position, advancing it.
+    pub fn forward_cached(
+        &self,
+        x: Tensor<3>,
+        cache: &mut DecoderCache,
+    ) -> Tensor<3> {
+        self.forward_hidden(x, &cache.rotary, Some(&mut cache.cache))
+    }
+
     /// The rotary embedding for positions `0..seq_len`.
     pub fn rotary(
         &self,

@@ -37,6 +37,7 @@ mod greedy;
 mod ranker;
 mod sampling;
 mod search;
+mod stacked_lm;
 mod temperature;
 
 pub use beam::*;
@@ -46,4 +47,5 @@ pub use greedy::*;
 pub use ranker::*;
 pub use sampling::*;
 pub use search::*;
+pub use stacked_lm::*;
 pub use temperature::*;

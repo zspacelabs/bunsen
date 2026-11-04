@@ -1,109 +1,36 @@
 //! Cached decoding of a Qwen3.
 use burn::{
     Tensor,
-    module::Module,
     prelude::Int,
-    tensor::Device,
 };
 
-use super::{
-    Qwen3Meta,
-    Qwen3Model,
-};
+use super::Qwen3Model;
 use crate::{
-    blocks::transformers::embedding::RotaryEmbedding,
-    kits::support::decoding::CachedStep,
-    ops::transformers::attention::{
-        KVCache,
-        KVCacheModel,
-        KVCacheStorage,
-    },
+    blocks::transformers::decoders::stack::DecoderStack,
+    kits::support::decoding::StackedLm,
 };
 
-/// What a cached Qwen3 decode carries between steps: its KV cache, and the
-/// rotary table for every position it may reach.
-///
-/// Made by [`Qwen3Model::decode_state`], filled by
-/// [`Qwen3Model::prefill`], then stepped by
-/// [`decode_cached`](crate::kits::support::decoding::decode_cached) through the
-/// model's [`CachedStep`]. The model never owns one, so one loaded model
-/// serves any number of decodes.
-#[derive(Module, Debug)]
-pub struct Qwen3DecodeState {
-    /// The KV cache, one batch row per decode row.
-    pub cache: KVCache,
-
-    /// The rotary table, covering the cache's capacity.
-    pub rotary: RotaryEmbedding,
-}
-
-impl Qwen3Model {
-    /// A decode state for `rows` rows of at most `positions` positions each,
-    /// under `storage`: the cache allocated whole and capped there, as the
-    /// rotary table is.
-    pub fn decode_state(
-        &self,
-        rows: usize,
-        positions: usize,
-        storage: KVCacheStorage,
-        device: &Device,
-    ) -> Qwen3DecodeState {
-        Qwen3DecodeState {
-            cache: self
-                .kv_cache_config()
-                .with_batch_size(rows)
-                .with_seq_len(positions)
-                .with_max_seq_len(Some(positions))
-                .with_storage(storage)
-                .init(),
-            rotary: self.rotary(positions, device),
-        }
+/// A Qwen3 decodes through its stack's
+/// [`DecoderCache`](crate::blocks::transformers::decoders::stack::DecoderCache):
+/// [`StackedLm::decode_state`], [`StackedLm::prefill`], then
+/// [`decode_cached`](crate::kits::support::decoding::decode_cached).
+impl StackedLm for Qwen3Model {
+    fn stack(&self) -> &DecoderStack {
+        &self.stack
     }
 
-    /// Runs prompt embeddings through the model into `state`.
-    ///
-    /// # Arguments
-    /// * `embeds` - `[rows, seq, d_model]`: [`embed`](Self::embed)'s tokens, or
-    ///   a prompt with other frames in it.
-    ///
-    /// # Returns
-    /// `[rows, vocab]`, the logits that follow the prompt.
-    pub fn prefill(
-        &self,
-        embeds: Tensor<3>,
-        state: &mut Qwen3DecodeState,
-    ) -> Tensor<2> {
-        self.last_logits(self.forward_hidden(embeds, &state.rotary, Some(&mut state.cache)))
-    }
-
-    /// The logits of the last position of `hidden`, `[rows, seq, d_model]`.
-    fn last_logits(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<2> {
-        let [rows, seq, _] = hidden.dims();
-        self.logits(hidden.slice_dim(1, seq - 1..seq))
-            .reshape([rows, self.n_vocab()])
-    }
-}
-
-impl CachedStep for Qwen3Model {
-    type State = Qwen3DecodeState;
-
-    fn step(
+    fn embed(
         &self,
         ids: Tensor<2, Int>,
-        state: &mut Qwen3DecodeState,
-    ) -> Tensor<2> {
-        self.prefill(self.embed(ids), state)
+    ) -> Tensor<3> {
+        Qwen3Model::embed(self, ids)
     }
 
-    fn reorder(
+    fn head(
         &self,
-        state: &mut Qwen3DecodeState,
-        sources: &[usize],
-    ) {
-        state.cache.reorder(sources);
+        hidden: Tensor<3>,
+    ) -> Tensor<3> {
+        self.logits(hidden)
     }
 }
 
@@ -121,6 +48,7 @@ mod tests {
                 decode_cached,
             },
         },
+        ops::transformers::attention::KVCacheStorage,
         support::testing::cpu_device,
     };
 
@@ -158,7 +86,11 @@ mod tests {
         for &token in &generated {
             let r_emb = model.rotary(seen.len(), &device);
             let hidden = model.forward_hidden(model.embed(ids(&seen, 1)), &r_emb, None);
-            let expected = model.last_logits(hidden).argmax(1).into_scalar::<i64>();
+            let n = hidden.dims()[1];
+            let expected = model
+                .logits(hidden.slice_dim(1, n - 1..n))
+                .argmax(2)
+                .into_scalar::<i64>();
             assert_eq!(token, expected, "after {seen:?}");
             seen.push(token);
         }
