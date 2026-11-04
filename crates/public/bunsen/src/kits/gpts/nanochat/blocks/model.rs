@@ -13,11 +13,7 @@ use burn::{
         Linear,
         LinearConfig,
         activation::ActivationConfig,
-        norm::{
-            Normalization,
-            NormalizationConfig,
-            RmsNormConfig,
-        },
+        norm::RmsNormConfig,
     },
     prelude::{
         Config,
@@ -32,23 +28,29 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::{
-        attention::csa::{
-            CausalSelfAttentionConfig,
-            CausalSelfAttentionMeta,
-            ValueResidualConfig,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
         },
-        decoders::causal::{
-            CausalDecoderBlock,
-            CausalDecoderBlockConfig,
-            DecoderSideInputs,
+        transformers::{
+            attention::csa::{
+                CausalSelfAttentionConfig,
+                CausalSelfAttentionMeta,
+                ValueResidualConfig,
+            },
+            decoders::causal::{
+                CausalDecoderBlock,
+                CausalDecoderBlockConfig,
+                DecoderSideInputs,
+            },
+            embedding::{
+                RotaryEmbedding,
+                RotaryEmbeddingConfig,
+                RotaryEmbeddingMeta,
+            },
+            mlp::MlpConfig,
         },
-        embedding::{
-            RotaryEmbedding,
-            RotaryEmbeddingConfig,
-            RotaryEmbeddingMeta,
-        },
-        mlp::MlpConfig,
     },
     burner::module::{
         ModuleInit,
@@ -242,8 +244,8 @@ pub struct NanoChatGptContractConfig {
 
     /// Normalization.
     /// This normalization will be adapted to the appropriate feature count.
-    #[config(default = "NormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
-    pub norm: NormalizationConfig,
+    #[config(default = "NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
+    pub norm: NormConfig,
 
     /// The epsilon of the parameter-free RMS norm on the token embedding;
     /// the default [`norm`](Self::norm) uses the same.
@@ -463,8 +465,8 @@ pub struct NanoChatGptStructureConfig {
 
     /// Normalization.
     /// This normalization will be adapted to the appropriate feature count.
-    #[config(default = "NormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
-    pub norm: NormalizationConfig,
+    #[config(default = "NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
+    pub norm: NormConfig,
 
     /// The epsilon of the parameter-free RMS norm on the token embedding.
     #[config(default = "1e-6")]
@@ -609,7 +611,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 pub struct NanoChatGpt {
     wte: Embedding,
     h: Vec<CausalDecoderBlock>,
-    h_norm: Normalization,
+    h_norm: Norm,
     lm_head: Linear,
     r_emb: RotaryEmbedding,
 

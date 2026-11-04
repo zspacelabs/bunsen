@@ -5,11 +5,10 @@
 //! Whisper audio encoder and Silero VAD.
 //!
 //! - [`ConvBlock1d`] / [`ConvBlock2d`]: a burn convolution ([`Conv1d`] /
-//!   [`Conv2d`]), an optional [`Normalization`], and an optional
-//!   [`Activation`], applied in that order.
-//!   [`map_forward`](ConvBlock2d::map_forward) runs a caller's function between
-//!   the norm and the activation; `ResNet` uses it to place a `DropBlock2d`
-//!   there.
+//!   [`Conv2d`]), an optional [`Norm`], and an optional [`Activation`], applied
+//!   in that order. [`map_forward`](ConvBlock2d::map_forward) runs a caller's
+//!   function between the norm and the activation; `ResNet` uses it to place a
+//!   `DropBlock2d` there.
 //! - [`ConvSeq1d`] / [`ConvSeq2d`]: blocks run in sequence. Building one
 //!   [validates](ConvSeq2dMeta::validate) that the sequence is non-empty and
 //!   that each block's output channels match the next block's input channels.
@@ -36,7 +35,7 @@
 //! [`Conv1d`]: burn::nn::conv::Conv1d
 //! [`Conv2d`]: burn::nn::conv::Conv2d
 //! [`Conv2dConfig`]: burn::nn::conv::Conv2dConfig
-//! [`Normalization`]: burn::nn::norm::Normalization
+//! [`Norm`]: crate::blocks::norm::Norm
 //! [`Activation`]: burn::nn::activation::Activation
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 

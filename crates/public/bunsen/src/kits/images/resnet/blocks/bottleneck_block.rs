@@ -6,7 +6,6 @@ use burn::{
         PaddingConfig2d,
         activation::ActivationConfig,
         conv::Conv2dConfig,
-        norm::NormalizationConfig,
     },
     prelude::{
         Config,
@@ -34,6 +33,7 @@ use crate::{
                 DropPathConfig,
             },
         },
+        norm::NormConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -201,8 +201,8 @@ pub struct BottleneckBlockConfig {
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
-    #[config(default = "NormalizationConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: NormalizationConfig,
+    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: NormConfig,
 
     /// Activation config.
     #[config(default = "ActivationConfig::Relu")]

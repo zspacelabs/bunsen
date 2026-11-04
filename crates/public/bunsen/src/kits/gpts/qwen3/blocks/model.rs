@@ -11,7 +11,6 @@ use burn::{
         Linear,
         LinearConfig,
         norm::{
-            NormalizationConfig,
             RmsNorm,
             RmsNormConfig,
         },
@@ -24,21 +23,24 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::{
-        attention::csa::{
-            CausalSelfAttentionConfig,
-            QkNormPlacement,
+    blocks::{
+        norm::NormConfig,
+        transformers::{
+            attention::csa::{
+                CausalSelfAttentionConfig,
+                QkNormPlacement,
+            },
+            decoders::causal::{
+                CausalDecoderBlock,
+                CausalDecoderBlockConfig,
+            },
+            embedding::{
+                RotaryDirection,
+                RotaryEmbedding,
+                RotaryEmbeddingConfig,
+            },
+            mlp::GatedMlpConfig,
         },
-        decoders::causal::{
-            CausalDecoderBlock,
-            CausalDecoderBlockConfig,
-        },
-        embedding::{
-            RotaryDirection,
-            RotaryEmbedding,
-            RotaryEmbeddingConfig,
-        },
-        mlp::GatedMlpConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -218,11 +220,11 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
                 CausalDecoderBlockConfig::new(
                     CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                         .with_head_dim(Some(self.head_dim))
-                        .with_norm(Some(NormalizationConfig::Rms(norm(self.head_dim))))
+                        .with_norm(Some(NormConfig::Rms(norm(self.head_dim))))
                         .with_qk_norm(QkNormPlacement::BeforeRope),
                     GatedMlpConfig::new(self.d_model, self.d_ff).into(),
                 )
-                .with_norm(NormalizationConfig::Rms(norm(0)))
+                .with_norm(NormConfig::Rms(norm(0)))
                 .try_init(i, device)
             })
             .collect::<BunsenResult<_>>()?;

@@ -4,31 +4,33 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::norm::{
-        Normalization,
-        NormalizationConfig,
-        RmsNormConfig,
-    },
+    nn::norm::RmsNormConfig,
     tensor::Device,
 };
 
 use crate::{
-    blocks::transformers::{
-        attention::csa::{
-            CausalSelfAttention,
-            CausalSelfAttentionConfig,
-            CausalSelfAttentionMeta,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
         },
-        conditioning::{
-            AdaptiveScale,
-            AdaptiveScaleConfig,
-            AdaptiveScaleMeta,
-        },
-        embedding::RotaryEmbedding,
-        mlp::{
-            FeedForward,
-            FeedForwardConfig,
-            FeedForwardMeta,
+        transformers::{
+            attention::csa::{
+                CausalSelfAttention,
+                CausalSelfAttentionConfig,
+                CausalSelfAttentionMeta,
+            },
+            conditioning::{
+                AdaptiveScale,
+                AdaptiveScaleConfig,
+                AdaptiveScaleMeta,
+            },
+            embedding::RotaryEmbedding,
+            mlp::{
+                FeedForward,
+                FeedForwardConfig,
+                FeedForwardMeta,
+            },
         },
     },
     burner::module::ModuleInit,
@@ -73,8 +75,8 @@ pub struct CausalDecoderBlockConfig {
 
     /// The normalization before each sublayer, adapted to the width (its
     /// feature count is set at init).
-    #[config(default = "NormalizationConfig::Rms(RmsNormConfig::new(0))")]
-    pub norm: NormalizationConfig,
+    #[config(default = "NormConfig::Rms(RmsNormConfig::new(0))")]
+    pub norm: NormConfig,
 
     /// A scale on the feed-forward's normalized input, learned from a
     /// conditioning vector the forward pass is handed
@@ -154,7 +156,7 @@ impl CausalDecoderBlockConfig {
 /// self-attention, then a pre-normalized feed-forward, each residual:
 /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
 ///
-/// What tells its users apart is config: the norm ([`Normalization`]), the
+/// What tells its users apart is config: the norm ([`Norm`]), the
 /// feed-forward ([`FeedForward`]: an `Mlp` or a gated `SwiGLU`), and the
 /// attention's own options (grouped-query heads, QK-norm and where it sits).
 /// RMS norms, a `ReLU`² `Mlp` and QK-norm after the rotary embedding, it is
@@ -168,13 +170,13 @@ impl CausalDecoderBlockConfig {
 #[derive(Module, Debug)]
 pub struct CausalDecoderBlock {
     /// The attention's input normalization.
-    pub attn_norm: Normalization,
+    pub attn_norm: Norm,
 
     /// Attention.
     pub attn: CausalSelfAttention,
 
     /// The feed-forward's input normalization.
-    pub mlp_norm: Normalization,
+    pub mlp_norm: Norm,
 
     /// The feed-forward.
     pub mlp: FeedForward,

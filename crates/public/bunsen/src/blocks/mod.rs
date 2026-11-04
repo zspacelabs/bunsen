@@ -83,6 +83,7 @@
 pub mod conv;
 pub mod images;
 pub mod layout;
+pub mod norm;
 pub mod rnn;
 pub mod signals;
 pub mod transformers;

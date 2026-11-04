@@ -12,18 +12,20 @@ use burn::{
             MultiHeadAttention,
             MultiHeadAttentionConfig,
         },
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
     },
     tensor::Device,
 };
 
 use crate::{
-    blocks::transformers::mlp::{
-        Mlp,
-        MlpConfig,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
+        },
+        transformers::mlp::{
+            Mlp,
+            MlpConfig,
+        },
     },
     burner::module::{
         ModuleInit,
@@ -89,8 +91,8 @@ pub struct ResidualEncoderAttentionBlockConfig {
 
     /// The normalization of each sublayer, sized to `d_model` whatever
     /// feature count it names; `None` normalizes nothing, and builds no norm.
-    #[config(default = "Some(NormalizationConfig::Layer(LayerNormConfig::new(0)))")]
-    pub norm: Option<NormalizationConfig>,
+    #[config(default = "Some(NormConfig::Layer(LayerNormConfig::new(0)))")]
+    pub norm: Option<NormConfig>,
 
     /// Where the block normalizes, when it does.
     #[config(default = "NormPlacement::Pre")]
@@ -157,7 +159,7 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 ///
 /// Multi-head self-attention followed by an MLP, each wrapped in a residual
 /// connection and normalized (a `LayerNorm` by default; any
-/// [`Normalization`], or none) before the sublayer ([`NormPlacement::Pre`]) or
+/// [`Norm`], or none) before the sublayer ([`NormPlacement::Pre`]) or
 /// after the residual sum ([`NormPlacement::Post`]). Pre-norm with a GELU
 /// MLP, it is the encoder layer of Whisper's audio encoder, and of
 /// Qwen3-ASR's (which adds a key bias and attends within windows, through
@@ -168,13 +170,13 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 #[derive(Module, Debug)]
 pub struct ResidualEncoderAttentionBlock {
     /// Attention normalization, when the block normalizes.
-    pub attn_norm: Option<Normalization>,
+    pub attn_norm: Option<Norm>,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// MLP normalization, when the block normalizes.
-    pub mlp_norm: Option<Normalization>,
+    pub mlp_norm: Option<Norm>,
 
     /// MLP.
     pub mlp: Mlp,
@@ -186,7 +188,7 @@ pub struct ResidualEncoderAttentionBlock {
 
 /// `x` through `norm`, or as it is without one.
 fn normalize(
-    norm: &Option<Normalization>,
+    norm: &Option<Norm>,
     x: Tensor<3>,
 ) -> Tensor<3> {
     match norm {
@@ -405,9 +407,9 @@ mod tests {
     };
 
     /// The `LayerNorm` inside a block's norm.
-    fn layer_norm(norm: &Option<Normalization>) -> &burn::nn::LayerNorm {
+    fn layer_norm(norm: &Option<Norm>) -> &crate::blocks::norm::LayerNorm {
         match norm {
-            Some(Normalization::Layer(norm)) => norm,
+            Some(Norm::Layer(norm)) => norm,
             other => panic!("not a LayerNorm: {other:?}"),
         }
     }
@@ -417,7 +419,7 @@ mod tests {
     #[test]
     fn test_defaults_are_whispers() {
         let cfg = ResidualEncoderAttentionBlockConfig::new(64);
-        assert!(matches!(cfg.norm, Some(NormalizationConfig::Layer(_))));
+        assert!(matches!(cfg.norm, Some(NormConfig::Layer(_))));
         assert_eq!(cfg.norm_placement, NormPlacement::Pre);
         assert!(matches!(cfg.activation, ActivationConfig::Gelu));
         assert!(!cfg.key_bias);
@@ -439,7 +441,7 @@ mod tests {
             .with_norm(Some(RmsNormConfig::new(0).into()))
             .init(&device);
         match &rms.attn_norm {
-            Some(Normalization::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
+            Some(Norm::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
             other => panic!("not an RmsNorm: {other:?}"),
         }
 

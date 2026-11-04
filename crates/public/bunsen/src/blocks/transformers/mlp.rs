@@ -11,13 +11,13 @@ use burn::{
             Activation,
             ActivationConfig,
         },
-        norm::Normalization,
     },
     prelude::Tensor,
     tensor::Device,
 };
 
 use crate::{
+    blocks::norm::Norm,
     burner::module::ModuleInit,
     errors::BunsenResult,
 };
@@ -25,14 +25,14 @@ use crate::{
 /// Computes a normalized MLP: `mlp(norm(x))`.
 ///
 /// # Arguments
-/// * `norm` - the sublayer's [`Normalization`].
+/// * `norm` - the sublayer's [`Norm`].
 /// * `mlp` - `Mlp`.
 /// * `x` - `[batch, seq_len, n_states]` input.
 ///
 /// # Returns
 /// `[batch, seq_len, n_states]`
 pub fn norm_mlp(
-    norm: &Normalization,
+    norm: &Norm,
     mlp: &Mlp,
     x: Tensor<3>,
 ) -> Tensor<3> {
@@ -359,7 +359,7 @@ impl ModuleInit<FeedForward> for FeedForwardConfig {
 
 /// A transformer layer's position-wise feed-forward, whichever its config
 /// chose: the generic sublayer a layer holds, as
-/// [`Normalization`] is for a norm. The variant
+/// [`Norm`] is for a norm. The variant
 /// is not part of its tensors' paths for the loaders bunsen uses.
 ///
 /// Built by [`FeedForwardConfig`].

@@ -13,16 +13,16 @@ use burn::{
             Conv2d,
             Conv2dConfig,
         },
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
     },
     prelude::Tensor,
     tensor::Device,
 };
 
 use crate::{
+    blocks::norm::{
+        Norm,
+        NormConfig,
+    },
     burner::module::ModuleInit,
     errors::{
         BunsenError,
@@ -33,15 +33,15 @@ use crate::{
 
 /// Abstract policy for [`ConvBlock2d`] Config.
 ///
-/// Defines a [`NormalizationConfig`] and [`ActivationConfig`],
+/// Defines a [`NormConfig`] and [`ActivationConfig`],
 /// and can be lifted to a [`ConvBlock2dConfig`] to match a [`Conv2dConfig`].
 ///
-/// The abstract [`NormalizationConfig`] will be feature matched
+/// The abstract [`NormConfig`] will be feature matched
 /// with the target [`Conv2dConfig`].
 #[derive(Config, Debug)]
 pub struct AbstractConvBlock2dConfig {
-    /// The [`Normalization`] config.
-    pub norm: Option<NormalizationConfig>,
+    /// The [`Norm`] config.
+    pub norm: Option<NormConfig>,
 
     /// Activation Config.
     #[config(default = "Some(ActivationConfig::Relu)")]
@@ -51,7 +51,7 @@ pub struct AbstractConvBlock2dConfig {
 impl AbstractConvBlock2dConfig {
     /// Merges with a [`Conv2dConfig`] to construct a [`ConvBlock2dConfig`].
     ///
-    /// The abstract [`NormalizationConfig`] will be feature matched
+    /// The abstract [`NormConfig`] will be feature matched
     /// with the target [`Conv2dConfig`], resulting in a normalization
     /// layer sized appropriately for the input convolution.
     pub fn build_config(
@@ -164,8 +164,8 @@ pub struct ConvBlock2dConfig {
     /// The [`Conv2d`] config.
     pub conv: Conv2dConfig,
 
-    /// The [`Normalization`] config.
-    pub norm: Option<NormalizationConfig>,
+    /// The [`Norm`] config.
+    pub norm: Option<NormConfig>,
 
     /// The [`Activation`] config.
     #[config(default = "Some(ActivationConfig::Relu)")]
@@ -236,7 +236,7 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
 ///
 /// A [`ConvBlock2d`] module is:
 /// * a [`Conv2d`] layer,
-/// * an optional [`Normalization`] layer,
+/// * an optional [`Norm`] layer,
 /// * an optional [`Activation`] layer.
 ///
 /// With support for hooking the forward method,
@@ -251,7 +251,7 @@ pub struct ConvBlock2d {
     pub conv: Conv2d,
 
     /// Internal Norm Layer.
-    pub norm: Option<Normalization>,
+    pub norm: Option<Norm>,
 
     /// Activation layer.
     pub act: Option<Activation>,
@@ -425,7 +425,6 @@ mod tests {
             BatchNormConfig,
             PaddingConfig2d,
             activation::ActivationConfig,
-            norm::NormalizationConfig,
         },
         tensor::Distribution,
     };
@@ -442,7 +441,7 @@ mod tests {
     #[test]
     fn test_conv_norm_config() {
         let abstract_config = AbstractConvBlock2dConfig::new()
-            .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(0))));
+            .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))));
 
         let conv_config = Conv2dConfig::new([2, 4], [3, 3])
             .with_stride([2, 2])
@@ -537,7 +536,7 @@ mod tests {
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .with_bias(false),
         )
-        .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(0))))
+        .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))))
         .with_act(Some(ActivationConfig::Relu));
 
         let layer: ConvBlock2d = config.init(&device);

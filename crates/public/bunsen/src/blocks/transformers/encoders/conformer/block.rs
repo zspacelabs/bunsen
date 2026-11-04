@@ -3,13 +3,7 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        LayerNormConfig,
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
-    },
+    nn::LayerNormConfig,
     prelude::Bool,
     tensor::Device,
 };
@@ -21,10 +15,16 @@ use super::{
     ConformerFeedForwardConfig,
 };
 use crate::{
-    blocks::transformers::attention::rel_pos::{
-        RelPosSelfAttention,
-        RelPosSelfAttentionConfig,
-        RelPosSelfAttentionMeta,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
+        },
+        transformers::attention::rel_pos::{
+            RelPosSelfAttention,
+            RelPosSelfAttentionConfig,
+            RelPosSelfAttentionMeta,
+        },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -67,8 +67,8 @@ pub struct ConformerBlockConfig {
     /// The normalization before each module and after the block, sized to
     /// `d_model` whatever feature count it names: a `LayerNorm` by default,
     /// the Conformer's.
-    #[config(default = "NormalizationConfig::Layer(LayerNormConfig::new(0))")]
-    pub norm: NormalizationConfig,
+    #[config(default = "NormConfig::Layer(LayerNormConfig::new(0))")]
+    pub norm: NormConfig,
 }
 
 impl ConformerBlockMeta for ConformerBlockConfig {
@@ -133,31 +133,31 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 #[derive(Module, Debug)]
 pub struct ConformerBlock {
     /// The first feed-forward module's normalization.
-    pub feed_forward1_norm: Normalization,
+    pub feed_forward1_norm: Norm,
 
     /// The first feed-forward module.
     pub feed_forward1: ConformerFeedForward,
 
     /// The attention's normalization.
-    pub attn_norm: Normalization,
+    pub attn_norm: Norm,
 
     /// Relative-position self-attention.
     pub attn: RelPosSelfAttention,
 
     /// The convolution module's normalization.
-    pub conv_norm: Normalization,
+    pub conv_norm: Norm,
 
     /// The convolution module.
     pub conv: ConformerConvolution,
 
     /// The second feed-forward module's normalization.
-    pub feed_forward2_norm: Normalization,
+    pub feed_forward2_norm: Norm,
 
     /// The second feed-forward module.
     pub feed_forward2: ConformerFeedForward,
 
     /// The final normalization.
-    pub out_norm: Normalization,
+    pub out_norm: Norm,
 }
 
 impl ConformerBlockMeta for ConformerBlock {

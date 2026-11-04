@@ -7,7 +7,6 @@ use burn::{
         Embedding,
         EmbeddingConfig,
         norm::{
-            NormalizationConfig,
             RmsNorm,
             RmsNormConfig,
         },
@@ -17,19 +16,22 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::{
-        attention::csa::CausalSelfAttentionConfig,
-        conditioning::AdaptiveScaleConfig,
-        decoders::causal::{
-            CausalDecoderBlock,
-            CausalDecoderBlockConfig,
+    blocks::{
+        norm::NormConfig,
+        transformers::{
+            attention::csa::CausalSelfAttentionConfig,
+            conditioning::AdaptiveScaleConfig,
+            decoders::causal::{
+                CausalDecoderBlock,
+                CausalDecoderBlockConfig,
+            },
+            embedding::{
+                RotaryDirection,
+                RotaryEmbedding,
+                RotaryEmbeddingConfig,
+            },
+            mlp::GatedMlpConfig,
         },
-        embedding::{
-            RotaryDirection,
-            RotaryEmbedding,
-            RotaryEmbeddingConfig,
-        },
-        mlp::GatedMlpConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -188,7 +190,7 @@ impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
                 .with_sliding_window(self.sliding_window),
             GatedMlpConfig::new(self.d_model, self.d_ff).into(),
         )
-        .with_norm(NormalizationConfig::Rms(norm(0)))
+        .with_norm(NormConfig::Rms(norm(0)))
         .with_mlp_scale(Some(AdaptiveScaleConfig::new(
             self.d_model,
             VOXTRAL_ADA_HIDDEN,

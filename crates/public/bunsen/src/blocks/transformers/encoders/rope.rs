@@ -13,28 +13,30 @@ use burn::{
     nn::{
         LayerNormConfig,
         activation::ActivationConfig,
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
     },
     tensor::Device,
 };
 
 use crate::{
-    blocks::transformers::{
-        attention::rope::{
-            RopeSelfAttention,
-            RopeSelfAttentionConfig,
-            RopeSelfAttentionMeta,
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
         },
-        embedding::{
-            RotaryDirection,
-            RotaryEmbeddingConfig,
-        },
-        mlp::{
-            Mlp,
-            MlpConfig,
+        transformers::{
+            attention::rope::{
+                RopeSelfAttention,
+                RopeSelfAttentionConfig,
+                RopeSelfAttentionMeta,
+            },
+            embedding::{
+                RotaryDirection,
+                RotaryEmbeddingConfig,
+            },
+            mlp::{
+                Mlp,
+                MlpConfig,
+            },
         },
     },
     burner::module::ModuleInit,
@@ -73,8 +75,8 @@ pub struct RopeEncoderBlockConfig {
     /// The normalization before each sublayer, and the encoder's over its
     /// input and output, sized to `d_model` whatever feature count it names:
     /// a `LayerNorm` (epsilon `1e-5`) by default, `NeMo`'s.
-    #[config(default = "NormalizationConfig::Layer(LayerNormConfig::new(0))")]
-    pub norm: NormalizationConfig,
+    #[config(default = "NormConfig::Layer(LayerNormConfig::new(0))")]
+    pub norm: NormConfig,
 
     /// Whether the query, key and value projections carry a bias.
     #[config(default = "false")]
@@ -129,13 +131,13 @@ impl ModuleInit<RopeEncoderBlock> for RopeEncoderBlockConfig {
 #[derive(Module, Debug)]
 pub struct RopeEncoderBlock {
     /// The attention's normalization.
-    pub attn_norm: Normalization,
+    pub attn_norm: Norm,
 
     /// The attention.
     pub attn: RopeSelfAttention,
 
     /// The feed-forward's normalization.
-    pub mlp_norm: Normalization,
+    pub mlp_norm: Norm,
 
     /// The feed-forward.
     pub mlp: Mlp,
@@ -255,13 +257,13 @@ impl ModuleInit<RopeTransformerEncoder> for RopeTransformerEncoderConfig {
 #[derive(Module, Debug)]
 pub struct RopeTransformerEncoder {
     /// The input's normalization.
-    pub embed_norm: Normalization,
+    pub embed_norm: Norm,
 
     /// The layers.
     pub layers: Vec<RopeEncoderBlock>,
 
     /// The output's normalization.
-    pub final_norm: Normalization,
+    pub final_norm: Norm,
 
     /// The model width.
     #[module(skip)]

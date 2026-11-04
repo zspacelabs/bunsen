@@ -30,7 +30,6 @@ use bunsen::{
             Qwen3AsrStreamDriver,
             pretrained::default_qwen3_asr_factory,
         },
-        sortformer::SortformerStreamingConfig,
         testing::wer::{
             cp_word_error_rate,
             text_error_rate,
