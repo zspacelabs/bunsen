@@ -34,6 +34,7 @@ use crate::{
                 CausalDecoderBlock,
                 CausalDecoderBlockConfig,
                 CausalDecoderBlockMeta,
+                DecoderSideInputs,
             },
             embedding::{
                 RotaryEmbedding,
@@ -315,6 +316,38 @@ impl DecoderStackMeta for DecoderStack {
     }
 }
 
+/// A residual-stream mix around a [`DecoderStack`]'s layers (nanochat's):
+/// before layer `i`, `x = x * resid[i] + x0 * x0_lambdas[i]`, with `x0` the
+/// stack's input; and the residual after layer `backout.0`, scaled by
+/// `backout.1`, taken from the stream after the last layer.
+#[derive(Clone, Debug, Default)]
+pub struct ResidualMix {
+    /// Per-layer `[n_layers]` scales of the stream and of the stack's input.
+    pub resid_x0: Option<(Tensor<1>, Tensor<1>)>,
+
+    /// The layer whose output is backed out, and the `[1]` scale it is
+    /// backed out by.
+    pub backout: Option<(usize, Tensor<1>)>,
+}
+
+/// What a [`DecoderStack`]'s [`forward_with`](DecoderStack::forward_with)
+/// takes beside its input; each is only for layers configured for it.
+#[derive(Debug, Default)]
+pub struct StackSides {
+    /// The condition every layer with an
+    /// [`mlp_scale`](CausalDecoderBlock::mlp_scale) takes (Voxtral's delay):
+    /// `[B, T, D]`, or one that broadcasts to it.
+    pub cond: Option<Tensor<3>>,
+
+    /// Each layer's `[B, T, H_kv * head_dim]` value embedding, by layer
+    /// index, for the layers whose attention has a value residual; a layer
+    /// past the end takes none.
+    pub value_embeds: Vec<Option<Tensor<3>>>,
+
+    /// The residual-stream mix.
+    pub mix: ResidualMix,
+}
+
 /// What a cached decode through a [`DecoderStack`] carries between steps:
 /// its KV cache, and the rotary table for every position it may reach.
 ///
@@ -399,7 +432,20 @@ impl DecoderStack {
         &self,
         x: Tensor<3>,
         r_emb: &RotaryEmbedding,
+        kv_cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        self.forward_with(x, r_emb, kv_cache, StackSides::default())
+    }
+
+    /// [`forward_hidden`](Self::forward_hidden), with `sides`: a condition
+    /// and value embeddings for the layers that take them, and a residual
+    /// mix around the layers.
+    pub fn forward_with(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotaryEmbedding,
         mut kv_cache: Option<&mut KVCache>,
+        sides: StackSides,
     ) -> Tensor<3> {
         let [batch, seq] = crate::contracts::unpack_shape_contract!(
             ["batch", "seq", "d_model"],
@@ -409,9 +455,35 @@ impl DecoderStack {
         );
         let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
         let r_emb = r_emb.clip_range(start..start + seq);
+        let StackSides {
+            cond,
+            mut value_embeds,
+            mix,
+        } = sides;
+        let x0 = mix.resid_x0.is_some().then(|| x.clone());
+        let mut backed_out = None;
         let mut x = x;
-        for layer in &self.layers {
-            x = layer.forward(x, &r_emb, &mut kv_cache);
+        for (i, layer) in self.layers.iter().enumerate() {
+            if let (Some((resid, x0_lambdas)), Some(x0)) = (&mix.resid_x0, &x0) {
+                let at = |t: &Tensor<1>| t.clone().slice(s![i..i + 1]).unsqueeze::<3>();
+                x = x * at(resid) + x0.clone() * at(x0_lambdas);
+            }
+            let value_embed = value_embeds.get_mut(i).and_then(Option::take);
+            x = layer.forward_with(
+                x,
+                &r_emb,
+                &mut kv_cache,
+                DecoderSideInputs {
+                    cond: cond.clone(),
+                    value_embed,
+                },
+            );
+            if mix.backout.as_ref().is_some_and(|(at, _)| *at == i) {
+                backed_out = Some(x.clone());
+            }
+        }
+        if let (Some((_, lambda)), Some(mid)) = (&mix.backout, backed_out) {
+            x = x - mid * lambda.clone().unsqueeze::<3>();
         }
         let y = self.norm.forward(x);
 
@@ -671,5 +743,78 @@ mod tests {
         let tolerance = Tolerance::default();
         assert_tensors_close(&weights[0], &expected1, tolerance);
         assert_tensors_close(&weights[1], &expected0, tolerance);
+    }
+
+    /// With no sides it is the plain pass; a mix is the stream mixed before
+    /// each layer, the backout after the last; a condition reaches every
+    /// layer that takes one.
+    #[test]
+    fn test_forward_with_sides() {
+        let device = performance_device();
+        device.seed(9);
+        let stack: DecoderStack = uniform(3).init(&device);
+        let x: Tensor<3> = seeded_tensor(4, [1, 5, 16], Distribution::Default, &device);
+        let r_emb = stack.rotary(5, &device);
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-5);
+
+        assert_tensors_close(
+            &stack.forward_with(x.clone(), &r_emb, None, StackSides::default()),
+            &stack.forward_hidden(x.clone(), &r_emb, None),
+            tolerance,
+        );
+
+        let resid = Tensor::<1>::from_floats([0.9, 1.1, 0.8], &device);
+        let x0_lambdas = Tensor::<1>::from_floats([0.1, 0.0, 0.3], &device);
+        let backout = Tensor::<1>::from_floats([0.25], &device);
+        let mixed = stack.forward_with(
+            x.clone(),
+            &r_emb,
+            None,
+            StackSides {
+                mix: ResidualMix {
+                    resid_x0: Some((resid.clone(), x0_lambdas.clone())),
+                    backout: Some((1, backout.clone())),
+                },
+                ..Default::default()
+            },
+        );
+        let mut y = x.clone();
+        let mut mid = None;
+        for (i, layer) in stack.layers.iter().enumerate() {
+            let at = |t: &Tensor<1>| t.clone().slice(s![i..i + 1]).unsqueeze::<3>();
+            y = y * at(&resid) + x.clone() * at(&x0_lambdas);
+            y = layer.forward(y, &r_emb, &mut None);
+            if i == 1 {
+                mid = Some(y.clone());
+            }
+        }
+        let expected = stack
+            .norm
+            .forward(y - mid.unwrap() * backout.unsqueeze::<3>());
+        assert_tensors_close(&mixed, &expected, tolerance);
+
+        // A conditioned stack: every layer scales by the condition.
+        let scaled = UniformStackConfig {
+            layer: layer(None).with_mlp_scale(Some(
+                crate::blocks::transformers::conditioning::AdaptiveScaleConfig::new(16, 8),
+            )),
+            ..uniform(2)
+        };
+        let stack: DecoderStack = scaled.init(&device);
+        let cond: Tensor<3> = seeded_tensor(6, [1, 1, 16], Distribution::Default, &device);
+        let got = stack.forward_with(
+            x.clone(),
+            &r_emb,
+            None,
+            StackSides {
+                cond: Some(cond.clone()),
+                ..Default::default()
+            },
+        );
+        let mut y = x;
+        for layer in &stack.layers {
+            y = layer.forward_conditioned(y, &r_emb, &mut None, Some(cond.clone()));
+        }
+        assert_tensors_close(&got, &stack.norm.forward(y), tolerance);
     }
 }
