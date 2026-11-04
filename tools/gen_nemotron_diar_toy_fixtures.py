@@ -8,7 +8,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
         --index-url https://download.pytorch.org/whl/cpu torch
     uv pip install --python /tmp/tfvenv/bin/python safetensors numpy librosa \
         "transformers @ git+https://github.com/huggingface/transformers@4321355eeae7934bba83fce43269345c5f17feda"
-    /tmp/tfvenv/bin/python tools/gen_nemotron_diar_toy_fixtures.py
+    /tmp/tfvenv/bin/python -I tools/gen_nemotron_diar_toy_fixtures.py
 
 Pinned versions used to produce the committed fixtures:
     transformers 5.21.0.dev0 (4321355e), torch 2.14.1+cpu, safetensors 0.8.0,
@@ -40,17 +40,17 @@ Outputs, under `crates/public/bunsen/testdata/sortformer/`:
     times the cache was compressed.
 """
 
-import json
 import pathlib
+import sys
 
-import numpy as np
 import torch
-from safetensors.torch import save_file
 from transformers import Nemotron3DiarizationConfig, Nemotron3DiarizationForAudioFrameClassification
 from transformers.models.nemotron3_diarization import modeling_nemotron3_diarization as nm
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "crates/public/bunsen/testdata/sortformer"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from toy_fixture import TESTDATA, build, init_weights, weights, write, write_json  # noqa: E402
+
+OUT = TESTDATA / "sortformer"
 
 N_MELS = 24
 CASES = {"even": 40, "ragged": 37}
@@ -98,20 +98,12 @@ STAGES = ["stacked", "encoded", "projected", "upsampled", "probs", "pooled"]
 
 
 def build_model() -> Nemotron3DiarizationForAudioFrameClassification:
-    torch.manual_seed(1234)
-    model = Nemotron3DiarizationForAudioFrameClassification(Nemotron3DiarizationConfig(**CONFIG))
-    model = model.double().eval()
+    model = build(
+        lambda: Nemotron3DiarizationForAudioFrameClassification(Nemotron3DiarizationConfig(**CONFIG)),
+        seed=1234,
+    )
+    init_weights(model, norm_bias=0.1)
     with torch.no_grad():
-        for name, p in model.named_parameters():
-            if "norm" in name and name.endswith(".weight"):
-                p.copy_(1.0 + 0.2 * torch.randn_like(p))
-            elif "norm" in name and name.endswith(".bias"):
-                p.copy_(0.1 * torch.randn_like(p))
-            else:
-                fan_in = p.shape[1] if p.ndim >= 2 else 4
-                for d in p.shape[2:]:
-                    fan_in *= d
-                p.copy_(torch.randn_like(p) / np.sqrt(fan_in))
         # A larger head output, so the probabilities straddle 0.5.
         model.classifier.out_proj.weight.mul_(3.0)
     return model
@@ -124,11 +116,10 @@ def mels(frames: int, seed: int) -> torch.Tensor:
 
 
 def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
     model = build_model()
     tower = model.model.audio_tower
 
-    tensors = {f"weights.{k}": v.float().contiguous() for k, v in model.state_dict().items()}
+    tensors = weights(model, rename=lambda k: f"weights.{k}")
     with torch.no_grad():
         for i, (case, frames) in enumerate(CASES.items()):
             x = mels(frames, seed=10 + i)
@@ -166,17 +157,14 @@ def main() -> None:
         tensors["io.stream.mels"] = x.float().contiguous()
         tensors["io.stream.probs"] = probs.float().contiguous()
 
-    save_file(tensors, OUT / "nemotron_toy.safetensors")
-    (OUT / "nemotron_toy.json").write_text(
-        json.dumps(
-            {
-                "config": CONFIG,
-                "cases": CASES,
-                "streaming": dict(STREAMING, frames=STREAM_FRAMES, compressions=compressions),
-            },
-            indent=1,
-        )
-        + "\n"
+    write(OUT / "nemotron_toy.safetensors", tensors)
+    write_json(
+        OUT / "nemotron_toy.json",
+        {
+            "config": CONFIG,
+            "cases": CASES,
+            "streaming": dict(STREAMING, frames=STREAM_FRAMES, compressions=compressions),
+        },
     )
     print("wrote", OUT)
 

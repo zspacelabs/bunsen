@@ -6,7 +6,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
     python3 -m venv /tmp/vxvenv
     /tmp/vxvenv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
     /tmp/vxvenv/bin/pip install transformers safetensors
-    /tmp/vxvenv/bin/python tools/gen_voxtral_toy_fixtures.py
+    /tmp/vxvenv/bin/python -I tools/gen_voxtral_toy_fixtures.py
 
 Pinned versions used to produce the committed fixture:
     transformers 5.22.1, torch 2.15.0+cpu, safetensors 0.8.0
@@ -31,15 +31,18 @@ Output, `crates/public/bunsen/testdata/voxtral/toy.safetensors`:
   `logits`; and `logits_delay_{d}` for each of `DELAYS`.
 """
 
-import json
 import pathlib
+import sys
 
 import torch
-from safetensors.torch import save_file
 from transformers import VoxtralRealtimeConfig, VoxtralRealtimeForConditionalGeneration
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "crates/public/bunsen/testdata/voxtral"
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from toy_fixture import (  # noqa: E402
+    TESTDATA, Capture, build, init_weights, io_tensors, shapes, weights, write, write_json
+)
+
+OUT = TESTDATA / "voxtral"
 
 FEATURE_FRAMES = 64
 INPUT_IDS = [1, 32, 32, 33, 40, 41, 32, 50]
@@ -88,31 +91,27 @@ def file_name(name: str) -> str:
 
 
 def main() -> None:
-    torch.manual_seed(0)
     config = VoxtralRealtimeConfig(**CONFIG)
-    model = VoxtralRealtimeForConditionalGeneration(config).to(torch.float64).eval()
-    # Randomize what initializes to constants (norm weights), so a misplaced one is caught.
-    with torch.no_grad():
-        for name, p in model.named_parameters():
-            if name.endswith("norm.weight") or "layer_norm" in name:
-                p.copy_(1.0 + 0.1 * torch.randn_like(p))
-    OUT.mkdir(parents=True, exist_ok=True)
+    model = build(lambda: VoxtralRealtimeForConditionalGeneration(config), seed=0)
+    # Randomize what initializes to constants (norm weights), so a misplaced one is caught;
+    # the rest keep `transformers`' initialization.
+    init_weights(
+        model,
+        norm_gain=0.1,
+        is_norm=lambda name: name.endswith("norm.weight") or "layer_norm" in name,
+        others=False,
+    )
 
     n_mels = CONFIG["audio_config"]["num_mel_bins"]
     features = 0.5 * torch.randn(1, n_mels, FEATURE_FRAMES, dtype=torch.float64)
     input_ids = torch.tensor([INPUT_IDS])
 
     tower = model.model.audio_tower
-    captured = {}
-
-    def keep(name):
-        def hook(_m, _i, out):
-            captured[name] = out[0] if isinstance(out, tuple) else out
-        return hook
-
-    tower.embedder.register_forward_hook(keep("audio_stem"))
-    tower.layers[0].register_forward_hook(keep("audio_layer0"))
-    model.model.language_model.layers[0].register_forward_hook(keep("text_layer0"))
+    capture = Capture()
+    capture.output("audio_stem", tower.embedder)
+    capture.output("audio_layer0", tower.layers[0])
+    capture.output("text_layer0", model.model.language_model.layers[0])
+    captured = capture.values
 
     with torch.no_grad():
         audio = tower(input_features=features).last_hidden_state
@@ -135,13 +134,10 @@ def main() -> None:
         "logits": logits[DELAYS[0]],
     }
     io.update({f"logits_delay_{d}": v for d, v in logits.items()})
-    tensors = {file_name(k): v.float().contiguous()
-               for k, v in model.state_dict().items() if k != "lm_head.weight"}
-    tensors.update({f"io.{k}": v.float().contiguous() for k, v in io.items()})
-    save_file(tensors, OUT / "toy.safetensors")
-    (OUT / "toy.json").write_text(json.dumps({"config": CONFIG, "delays": DELAYS}, indent=1)
-                                  + "\n")
-    print("wrote", OUT, {k: tuple(v.shape) for k, v in io.items()})
+    write(OUT / "toy.safetensors", weights(model, drop=["lm_head.weight"], rename=file_name),
+          io_tensors(io))
+    write_json(OUT / "toy.json", {"config": CONFIG, "delays": DELAYS})
+    print("wrote", OUT, shapes(io))
 
 
 if __name__ == "__main__":
