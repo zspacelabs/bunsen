@@ -18,27 +18,55 @@ const MOST: usize = 3;
 const SHOWN: usize = 16;
 
 /// The candidates of `lookup` nearest its key, nearest first, at most
-/// [`MOST`]: within a Damerau-Levenshtein distance of a third of the key's
-/// length (at least 1), case aside. A key without a provider (`well-known:`)
-/// is matched against, and offered, the names without theirs; a name offered
-/// twice so is offered once.
+/// [`MOST`], case aside, in the form the key is written in:
+/// - a key without a provider (`well-known:`) is matched against, and offered,
+///   the names without theirs; and a key without a group either (`qwen3-1.7b`,
+///   not `qwen/qwen3-1.7b`) the names without their group, which a table
+///   answers as well, unless two groups share the name, when it is offered with
+///   its group;
+/// - a name the key extends by a word (`qwen3-1.7b` of `qwen3-1.7b-turbo`)
+///   comes first, whatever the distance;
+/// - the others within a Damerau-Levenshtein distance of a third of the key's
+///   length (at least 1), nearest first.
+///
+/// A name offered twice so is offered once.
 pub fn nearest(lookup: &LookupError) -> Vec<String> {
     let key = lookup.key.to_lowercase();
     let bare = !key.contains(':');
+    let grouped = key.contains('/');
     let most = (key.chars().count() / 3).max(1);
-    let mut ranked: Vec<(usize, String)> = Vec::new();
-    for candidate in &lookup.candidates {
+    let name_of = |candidate: &str| -> String {
         let name = match candidate.split_once(':') {
             Some((_, name)) if bare => name,
-            _ => candidate.as_str(),
+            _ => candidate,
         };
-        let distance = strsim::damerau_levenshtein(&key, &name.to_lowercase());
-        if distance <= most && !ranked.iter().any(|(_, n)| n == name) {
-            ranked.push((distance, name.to_string()));
+        name.to_string()
+    };
+    let short_of = |name: &str| -> Option<String> {
+        (bare && !grouped)
+            .then(|| name.split_once('/').map(|(_, row)| row.to_string()))
+            .flatten()
+    };
+    let names: Vec<String> = lookup.candidates.iter().map(|c| name_of(c)).collect();
+    let shorts: Vec<Option<String>> = names.iter().map(|n| short_of(n)).collect();
+    let mut ranked: Vec<(bool, usize, String)> = Vec::new();
+    for (name, short) in names.iter().zip(&shorts) {
+        let offered = match short {
+            Some(row) if shorts.iter().filter(|s| s.as_ref() == Some(row)).count() == 1 => row,
+            _ => name,
+        };
+        let compared = short.as_ref().unwrap_or(name).to_lowercase();
+        let extends = key
+            .strip_prefix(compared.as_str())
+            .and_then(|rest| rest.chars().next())
+            .is_some_and(|c| matches!(c, '-' | '_' | '.' | '/'));
+        let distance = strsim::damerau_levenshtein(&key, &compared);
+        if (extends || distance <= most) && !ranked.iter().any(|(_, _, n)| n == offered) {
+            ranked.push((!extends, distance, offered.clone()));
         }
     }
     ranked.sort();
-    ranked.into_iter().take(MOST).map(|(_, n)| n).collect()
+    ranked.into_iter().take(MOST).map(|(_, _, n)| n).collect()
 }
 
 /// What to print after `error`, when its cause is a key missing from a
@@ -108,6 +136,50 @@ mod tests {
         assert_eq!(
             nearest(&missing("mult", &["en", "multi", "translate-en"])),
             ["multi"]
+        );
+    }
+
+    /// A key without a group is matched against, and offered, the names
+    /// without theirs, as a table answers them; a name the key extends by a
+    /// word comes first, though past the distance. A name two groups share
+    /// keeps its group.
+    #[test]
+    fn test_nearest_ungrouped() {
+        let qwen3 = [
+            "well-known:qwen/qwen3-0.6b",
+            "well-known:qwen/qwen3-0.6b-base",
+            "well-known:qwen/qwen3-1.7b",
+            "well-known:qwen/qwen3-1.7b-base",
+            "well-known:qwen/qwen3-4b",
+            "well-known:qwen/qwen3-4b-base",
+            "well-known:qwen/qwen3-4b-instruct-2507",
+            "well-known:qwen/qwen3-4b-thinking-2507",
+            "well-known:qwen/qwen3-8b",
+            "well-known:qwen/qwen3-8b-base",
+            "well-known:qwen/qwen3-4b-saferl",
+            "well-known:qwen/qwen3guard-gen-0.6b",
+            "well-known:qwen/qwen3guard-gen-4b",
+            "well-known:qwen/qwen3guard-gen-8b",
+        ];
+        assert_eq!(
+            nearest(&missing("qwen3-1.7b-turbo", &qwen3)),
+            ["qwen3-1.7b", "qwen3-1.7b-base"]
+        );
+        // Within the distance, nearest first.
+        assert_eq!(
+            nearest(&missing("qwen3-8bb", &qwen3)),
+            ["qwen3-8b", "qwen3-4b", "qwen3-0.6b"]
+        );
+        // With a group, as written.
+        assert_eq!(
+            nearest(&missing("qwen/qwen3-8bb", &qwen3)),
+            ["qwen/qwen3-8b", "qwen/qwen3-4b", "qwen/qwen3-0.6b"]
+        );
+
+        let shared = ["well-known:openai/tiny", "well-known:other/tiny"];
+        assert_eq!(
+            nearest(&missing("tinny", &shared)),
+            ["openai/tiny", "other/tiny"]
         );
     }
 
