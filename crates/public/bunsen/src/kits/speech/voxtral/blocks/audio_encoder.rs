@@ -159,7 +159,9 @@ impl VoxtralAudioEncoderConfig {
                 .with_qkv_bias(true)
                 .with_key_bias(Some(false))
                 .with_output_bias(true)
-                .with_sliding_window(self.sliding_window),
+                .with_sliding_window(self.sliding_window)
+                // As `transformers`' eager attention: the softmax in f32.
+                .with_softmax_dtype(Some(burn::tensor::FloatDType::F32)),
             GatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_down_bias(Some(true))
                 .into(),
@@ -290,6 +292,28 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
     }
 }
 
+impl crate::burner::module::InputDTypes for VoxtralAudioEncoder {
+    /// Its stem's dtype: the dtype its parameters were loaded in.
+    fn preferred_dtype(&self) -> burn::tensor::FloatDType {
+        crate::burner::module::module_float_dtype(&self.stem)
+            .unwrap_or(burn::tensor::FloatDType::F32)
+    }
+}
+
+/// [`stem`](VoxtralAudioEncoder::stem) casts its features, which a front end
+/// makes in f32.
+impl crate::burner::module::CoercesInput for VoxtralAudioEncoder {}
+
+impl crate::burner::module::ResultDType for VoxtralAudioEncoder {
+    /// Its own: the encoder's features stay in the model's dtype.
+    fn result_dtype(
+        &self,
+        _input: burn::tensor::FloatDType,
+    ) -> burn::tensor::FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(self)
+    }
+}
+
 impl VoxtralAudioEncoder {
     /// The rotary embedding for encoder frames `0..seq_len`.
     pub fn rotary(
@@ -321,6 +345,7 @@ impl VoxtralAudioEncoder {
             &["batch", "frames"],
             &[("n_mels", self.n_mels())]
         );
+        let features = crate::burner::module::InputDTypes::coerce_input(self, features);
         let y = self.stem.forward(features).swap_dims(1, 2);
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(

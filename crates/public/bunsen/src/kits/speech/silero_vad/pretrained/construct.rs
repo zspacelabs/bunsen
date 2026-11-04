@@ -127,7 +127,7 @@ impl ConstructInit for SileroConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<SileroConstruct>> {
         let policy = resolve_ref_presets(&SileroPolicy::default(), model, &PresetSet::default())?;
         let vads = match self.reader {
@@ -148,6 +148,8 @@ impl ConstructInit for SileroConstructConfig {
                 ));
             }
         };
+        // The files' precision (f32), or wider as the policy asks.
+        let vads = load.place(vads, device, |_| true)?;
         Ok(Arc::new(SileroConstruct {
             presets: policy.applied(),
             policy: policy.config,

@@ -1,14 +1,23 @@
 //! The load call's dtype policy: [`LoadPolicy`].
 
-use burn::tensor::{
-    Device,
-    FloatDType,
+use burn::{
+    module::Module,
+    tensor::{
+        Device,
+        FloatDType,
+    },
 };
 
 use crate::{
-    burner::dtypes::{
-        DTypeUsage,
-        dtype_usage,
+    burner::{
+        dtypes::{
+            DTypeUsage,
+            dtype_usage,
+        },
+        module::{
+            DTypeMapper,
+            module_float_dtype,
+        },
     },
     errors::{
         BunsenError,
@@ -112,6 +121,30 @@ impl LoadPolicy {
         )))
     }
 
+    /// `module`, loaded at its files' precision, placed by the policy: its
+    /// parameters' dtype [resolved](Self::resolve), and the module cast to
+    /// the result when it differs. For a hook whose reader loads at the
+    /// stored dtype; a module with no float parameter is as it is.
+    ///
+    /// # Errors
+    /// As [`resolve`](Self::resolve).
+    pub fn place<M: Module>(
+        &self,
+        module: M,
+        device: &Device,
+        accepts: impl Fn(FloatDType) -> bool,
+    ) -> BunsenResult<M> {
+        let Some(stored) = module_float_dtype(&module) else {
+            return Ok(module);
+        };
+        let dtype = self.resolve(stored, device, accepts)?;
+        Ok(if dtype == stored {
+            module
+        } else {
+            module.map(&mut DTypeMapper::new(dtype.into()))
+        })
+    }
+
     /// Whether `device` supports `dtype` as the policy asks.
     fn device_allows(
         &self,
@@ -212,6 +245,22 @@ mod tests {
                 .unwrap(),
             FloatDType::F16
         );
+    }
+
+    /// `place` keeps a module the policy keeps, and widens one it widens.
+    #[test]
+    fn test_place() {
+        use burn::nn::LinearConfig;
+        let device = cpu_device();
+        let half = LinearConfig::new(2, 2)
+            .init(&device)
+            .map(&mut DTypeMapper::new(FloatDType::BF16.into()));
+        let kept = LoadPolicy::as_stored()
+            .place(half.clone(), &device, any)
+            .unwrap();
+        assert_eq!(module_float_dtype(&kept), Some(FloatDType::BF16));
+        let widened = LoadPolicy::performance().place(half, &device, any).unwrap();
+        assert_eq!(module_float_dtype(&widened), Some(FloatDType::F32));
     }
 
     /// On an accelerator, `performance` keeps a half dtype the device

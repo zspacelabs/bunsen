@@ -52,6 +52,13 @@ const TOYS: [&str; 2] = ["toy", "toy_untied"];
 
 impl Toy {
     fn load(name: &str) -> Self {
+        Self::load_on(name, &performance_device())
+    }
+
+    fn load_on(
+        name: &str,
+        device: &Device,
+    ) -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3");
         let json = std::fs::read_to_string(dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
@@ -63,7 +70,7 @@ impl Toy {
             .clone();
         let (io, weights): (Vec<_>, Vec<_>) =
             all.into_iter().partition(|(n, _)| n.starts_with("io."));
-        let device = performance_device();
+        let device = device.clone();
         let mut model: Qwen3Model = config.init(&device);
         let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
             .expect("load the toy weights");
@@ -172,5 +179,44 @@ fn check_cached_decode(toy: &Toy) {
         assert_eq!(cache.pos(), seq, "{storage:?}");
         let logits = model.logits(Tensor::cat(parts, 1));
         assert_close(&format!("{storage:?} logits"), logits, toy.io("logits"));
+    }
+}
+
+/// bf16 parameters on an f32 CPU device, as a `LoadPolicy::as_stored` load
+/// places them: the model runs end to end with no mixed op, which burn-flex
+/// refuses, so a missed cast fails here; the logits leave it in f32, and
+/// land near the f32 toy's.
+#[test]
+fn test_toy_mixed_dtype() {
+    use burn::{
+        module::Module,
+        tensor::DType,
+    };
+
+    use crate::{
+        burner::module::DTypeMapper,
+        support::testing::cpu_device,
+    };
+
+    let device = cpu_device();
+    for name in TOYS {
+        let toy = Toy::load_on(name, &device);
+        let half = toy.model.clone().map(&mut DTypeMapper::new(DType::BF16));
+        let embeds = half.embed(toy.ids());
+        assert_eq!(embeds.dtype(), DType::BF16, "{name}: the stream is bf16");
+        let r_emb = half.rotary(embeds.dims()[1], &device);
+        let logits = half.logits(half.forward_hidden(embeds, &r_emb, None));
+        assert_eq!(
+            logits.dtype(),
+            DType::F32,
+            "{name}: the logits leave in f32"
+        );
+        let expected: Tensor<3> = toy.io("logits");
+        let gap = (logits - expected.clone()).abs().max().into_scalar::<f32>();
+        let scale = expected.abs().max().into_scalar::<f32>();
+        assert!(
+            gap <= 0.05 * scale,
+            "{name}: bf16 logits {gap} from f32 (max {scale})"
+        );
     }
 }

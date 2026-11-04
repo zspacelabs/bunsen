@@ -187,7 +187,9 @@ impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
             CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                 .with_head_dim(Some(self.head_dim))
                 .with_norm(None)
-                .with_sliding_window(self.sliding_window),
+                .with_sliding_window(self.sliding_window)
+                // As `transformers`' eager attention: the softmax in f32.
+                .with_softmax_dtype(Some(burn::tensor::FloatDType::F32)),
             GatedMlpConfig::new(self.d_model, self.d_ff).into(),
         )
         .with_norm(NormConfig::Rms(norm(0)))

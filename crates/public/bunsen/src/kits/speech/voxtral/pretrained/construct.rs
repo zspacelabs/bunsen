@@ -35,7 +35,7 @@ use crate::{
             VoxtralRealtimeConfig,
             VoxtralTokenLayoutConfig,
             weights::{
-                load_hf_tensors,
+                load_hf_tensors_as,
                 voxtral_config_from_hf,
             },
         },
@@ -101,7 +101,7 @@ impl ConstructInit for VoxtralConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
         let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;
@@ -126,7 +126,11 @@ impl ConstructInit for VoxtralConstructConfig {
         };
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        load_hf_tensors(&mut voxtral, tensors)?;
+        // The stored dtype (bf16), where the policy and the device allow it.
+        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+            .unwrap_or(burn::tensor::FloatDType::F32);
+        let dtype = load.resolve(stored, device, |_| true)?;
+        load_hf_tensors_as(&mut voxtral, tensors, dtype)?;
         let policy = resolve_ref_presets(&VoxtralPolicy::default(), model, &PresetSet::default())?;
         Ok(Arc::new(
             VoxtralConstruct::new(voxtral, vocab, layout)?

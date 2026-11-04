@@ -59,6 +59,10 @@ struct Toy {
 
 impl Toy {
     fn load() -> Self {
+        Self::load_on(&performance_device())
+    }
+
+    fn load_on(device: &Device) -> Self {
         let path = concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/qwen3_asr/toy.safetensors"
@@ -70,7 +74,7 @@ impl Toy {
             .clone();
         let (weights, io): (Vec<_>, Vec<_>) =
             all.into_iter().partition(|(n, _)| n.starts_with("model."));
-        let device = performance_device();
+        let device = device.clone();
         let mut model: Qwen3Asr = toy_config().init(&device);
         let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
             .expect("load the toy weights");
@@ -324,4 +328,38 @@ fn test_toy_audio_attention() {
         .unwrap();
     let reply: Vec<i64> = reply.iter().map(|&t| t as i64).collect();
     assert_eq!(predicted, reply);
+}
+
+/// bf16 parameters on an f32 CPU device, as a `LoadPolicy::as_stored` load
+/// places them, fed f32 features: the model runs end to end with no mixed
+/// op, which burn-flex refuses, so a missed cast fails here; the logits
+/// land near the f32 toy's.
+#[test]
+fn test_toy_mixed_dtype() {
+    use burn::{
+        module::Module,
+        tensor::DType,
+    };
+
+    use crate::{
+        burner::module::DTypeMapper,
+        support::testing::cpu_device,
+    };
+
+    let device = cpu_device();
+    let toy = Toy::load_on(&device);
+    let half = toy.model.clone().map(&mut DTypeMapper::new(DType::BF16));
+    let audio = half.encode_audio(toy.features(), FEATURE_LEN);
+    let embeds = half.prompt_embeds(&toy.ids(), audio).unwrap();
+    let logits = half.forward_logits(embeds);
+    let expected: Tensor<3> = toy.io("logits");
+    let gap = (logits.cast(DType::F32) - expected.clone())
+        .abs()
+        .max()
+        .into_scalar::<f32>();
+    let scale = expected.abs().max().into_scalar::<f32>();
+    assert!(
+        gap <= 0.05 * scale,
+        "bf16 logits {gap} from f32 (max {scale})"
+    );
 }

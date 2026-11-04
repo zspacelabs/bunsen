@@ -249,6 +249,28 @@ impl Qwen3AsrAudioEncoderMeta for Qwen3AsrAudioEncoder {
     }
 }
 
+impl crate::burner::module::InputDTypes for Qwen3AsrAudioEncoder {
+    /// Its stem's dtype: the dtype its parameters were loaded in.
+    fn preferred_dtype(&self) -> burn::tensor::FloatDType {
+        crate::burner::module::module_float_dtype(&self.stem)
+            .unwrap_or(burn::tensor::FloatDType::F32)
+    }
+}
+
+/// [`stem`](Qwen3AsrAudioEncoder::stem) casts its features, which a front end
+/// makes in f32.
+impl crate::burner::module::CoercesInput for Qwen3AsrAudioEncoder {}
+
+impl crate::burner::module::ResultDType for Qwen3AsrAudioEncoder {
+    /// Its own: the encoder's features stay in the model's dtype.
+    fn result_dtype(
+        &self,
+        _input: burn::tensor::FloatDType,
+    ) -> burn::tensor::FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(self)
+    }
+}
+
 impl Qwen3AsrAudioEncoder {
     /// The chunked convolution stem, positions added, valid frames kept.
     ///
@@ -269,7 +291,9 @@ impl Qwen3AsrAudioEncoder {
             &features.dims(),
             &["n_mels", "frames"]
         );
+        let features = crate::burner::module::InputDTypes::coerce_input(self, features);
         let device = features.device();
+        let dtype = features.dtype();
         let chunk = self.chunk_frames();
         let chunks = valid.div_ceil(chunk).max(1);
         // Pad the frame axis to whole chunks; a chunk's padding is kept as the
@@ -278,7 +302,7 @@ impl Qwen3AsrAudioEncoder {
             Tensor::cat(
                 vec![
                     features,
-                    Tensor::zeros([n_mels, chunks * chunk - frames], &device),
+                    Tensor::zeros([n_mels, chunks * chunk - frames], (&device, dtype)),
                 ],
                 1,
             )
@@ -293,7 +317,9 @@ impl Qwen3AsrAudioEncoder {
         let [_, c, f, t] = x.dims();
         let x = x.permute([0, 3, 1, 2]).reshape([chunks, t, c * f]);
         let x = self.conv_out.forward(x)
-            + sinusoid_table(t, self.d_model(), 10000.0, &device).unsqueeze_dim::<3>(0);
+            + sinusoid_table(t, self.d_model(), 10000.0, &device)
+                .cast(dtype)
+                .unsqueeze_dim::<3>(0);
 
         let keep: Vec<i64> = (0..chunks)
             .flat_map(|k| {

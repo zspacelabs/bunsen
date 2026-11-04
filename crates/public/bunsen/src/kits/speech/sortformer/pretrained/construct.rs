@@ -124,6 +124,7 @@ impl SortformerConstructConfig {
     fn construct_safetensors(
         loaded: &LoadedResources,
         device: &Device,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         let config = match loaded.get(CONFIG) {
             Some(part) => Self::read_config(&part.path)?,
@@ -132,6 +133,8 @@ impl SortformerConstructConfig {
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let mut model: Sortformer = config.try_init(device)?;
         load_nemotron_hf_tensors(&mut model, tensors)?;
+        // The files' precision (f32), or wider as the policy asks.
+        let model = load.place(model, device, |_| true)?;
         let front_end = NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(config.n_mels);
         SortformerConstruct::new(model, SortformerFamily::Nemotron, &front_end, device)
     }
@@ -168,6 +171,7 @@ impl SortformerConstructConfig {
     fn construct_nemo(
         loaded: &LoadedResources,
         device: &Device,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         use crate::kits::speech::{
             nemo::NemoArchive,
@@ -184,6 +188,7 @@ impl SortformerConstructConfig {
         let front_end = config.front_end().map_err(in_path)?;
         let mut model: Sortformer = structure.try_init(device)?;
         archive.with_weights(|tensors| load_sortformer_v2_nemo_tensors(&mut model, tensors))?;
+        let model = load.place(model, device, |_| true)?;
         SortformerConstruct::new(model, SortformerFamily::SortformerV2, &front_end, device)
     }
 }
@@ -236,12 +241,12 @@ impl ConstructInit for SortformerConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        _policy: crate::kits::support::construct::LoadPolicy,
+        load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let bundle = match self.reader {
-            SortformerReader::Safetensors => Self::construct_safetensors(loaded, device)?,
+            SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             #[cfg(feature = "nemo")]
-            SortformerReader::Nemo => Self::construct_nemo(loaded, device)?,
+            SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
             #[cfg(not(feature = "nemo"))]
             SortformerReader::Nemo => return Err(no_nemo_feature()),
         };

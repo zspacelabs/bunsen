@@ -96,6 +96,19 @@ pub fn load_hf_tensors(
     apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
 }
 
+/// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
+/// policy's resolution) rather than the dtype the model was built in.
+///
+/// # Errors
+/// As [`apply_rekeyed_tensors_as`].
+pub fn load_hf_tensors_as(
+    model: &mut VoxtralRealtime,
+    tensors: impl IntoIterator<Item = PackTensor>,
+    dtype: burn::tensor::FloatDType,
+) -> BunsenResult<NamedTensorsApplied> {
+    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype.into()))
+}
+
 /// A section's rotary base: `rope_parameters.rope_theta`, else `rope_theta`.
 fn rope_theta(section: &HfConfigJson) -> BunsenResult<usize> {
     let theta = section
