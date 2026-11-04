@@ -140,11 +140,11 @@ pub enum Value {
 
 impl Value {
     /// A map of `entries`, in their order.
-    fn map<K: Into<String>>(entries: impl IntoIterator<Item = (K, Value)>) -> Value {
+    pub fn map<K: Into<String>>(entries: impl IntoIterator<Item = (K, Value)>) -> Value {
         Value::Map(entries.into_iter().map(|(k, v)| (k.into(), v)).collect())
     }
 
-    fn str(s: impl Into<String>) -> Value {
+    pub fn str(s: impl Into<String>) -> Value {
         Value::Str(s.into())
     }
 
