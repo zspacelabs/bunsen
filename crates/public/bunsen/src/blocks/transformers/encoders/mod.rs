@@ -11,9 +11,9 @@
 //!   transformer. And the stack of them,
 //!   [`ResidualEncoderTransformer`](residual::ResidualEncoderTransformer),
 //!   which masks padding as keys: Sortformer v2's transformer.
-//! - [`rope`]: a pre-norm encoder with rotary attention,
-//!   [`RopeTransformerEncoder`](rope::RopeTransformerEncoder), over
-//!   [`RopeEncoderBlock`](rope::RopeEncoderBlock)s: `Nemotron-3-Diarization`'s.
+//! - a [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
+//!   whose attention is bidirectional: a pre-norm encoder with rotary
+//!   attention, `Nemotron-3-Diarization`'s.
 //! - [`conformer`]: the `FastConformer` encoder,
 //!   [`ConformerEncoderConfig`](conformer::ConformerEncoderConfig), a policy
 //!   for a [`SubsampledEncoder`]: depthwise-striding subsampling, then
@@ -22,7 +22,7 @@
 //!   Parakeet's and Sortformer v2's. Its block stack, past the subsampling, is
 //!   [`ConformerTransformer`](conformer::ConformerTransformer).
 //!
-//! [`EncoderTransformer`] is any of the three stacks, chosen by config
+//! [`EncoderTransformer`] is any of these stacks, chosen by config
 //! ([`EncoderTransformerConfig`]): each keeps the frame rate and runs
 //! `[batch, frames, d_model]` to the same, padding masked by each item's
 //! length, so a model whose stack is a choice holds one field of this type.
@@ -36,7 +36,6 @@
 
 pub mod conformer;
 pub mod residual;
-pub mod rope;
 
 mod encoder_transformer;
 mod subsampled;

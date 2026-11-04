@@ -5,6 +5,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
+    prelude::Bool,
     tensor::Device,
 };
 
@@ -16,6 +17,7 @@ use crate::{
         },
         transformers::{
             attention::csa::{
+                AttentionSides,
                 CausalSelfAttention,
                 CausalSelfAttentionConfig,
                 CausalSelfAttentionMeta,
@@ -59,6 +61,10 @@ pub struct DecoderSideInputs {
     /// The `[B, T, H_kv * head_dim]` value embedding of a block whose
     /// attention has a value residual.
     pub value_embed: Option<Tensor<3>>,
+
+    /// `[B, T]`, true at the positions that are not padding, which alone
+    /// the attention's queries attend to.
+    pub key_valid: Option<Tensor<2, Bool>>,
 }
 
 /// Common meta for [`CausalDecoderBlock`] and [`CausalDecoderBlockConfig`].
@@ -370,12 +376,19 @@ impl CausalDecoderBlock {
     ) -> Tensor<3> {
         #[cfg(any(debug_assertions, test))]
         crate::burner::module::assert_input_dtype(self, input.dtype(), "causal decoder block");
-        let DecoderSideInputs { cond, value_embed } = sides;
-        let attn = self.attn.forward_with_value_embed(
+        let DecoderSideInputs {
+            cond,
+            value_embed,
+            key_valid,
+        } = sides;
+        let attn = self.attn.forward_with(
             self.attn_norm.forward(input.clone()),
             r_emb,
             kv_cache,
-            value_embed,
+            AttentionSides {
+                value_embed,
+                key_valid,
+            },
         );
         let x = input + Self::maybe_norm(&self.attn_post_norm, attn);
         let h = self.mlp_norm.forward(x.clone());

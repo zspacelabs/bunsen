@@ -68,6 +68,31 @@ pub trait CausalSelfAttentionMeta {
     }
 }
 
+/// Which keys a [`CausalSelfAttention`]'s query sees.
+#[derive(Config, Copy, Debug, PartialEq, Eq)]
+pub enum AttentionMask {
+    /// The keys at and before its own position: a decoder's attention.
+    Causal,
+
+    /// Every key: an encoder's attention, over a whole input at once (it
+    /// takes no KV cache, and no sliding window).
+    Bidirectional,
+}
+
+/// What a [`CausalSelfAttention`]'s
+/// [`forward_with`](CausalSelfAttention::forward_with) takes beside its
+/// input; each only an attention configured for it takes.
+#[derive(Debug, Default)]
+pub struct AttentionSides {
+    /// The `[B, T, H_kv * head_dim]` value embedding of the input's tokens,
+    /// for an attention with a value residual.
+    pub value_embed: Option<Tensor<3>>,
+
+    /// `[B, T]`, true at the positions that are not padding: a padding key
+    /// is attended to by no query (a padding query's output means nothing).
+    pub key_valid: Option<Tensor<2, Bool>>,
+}
+
 /// Config for [`CausalSelfAttention`].
 #[derive(Config, Debug)]
 pub struct CausalSelfAttentionConfig {
@@ -119,6 +144,11 @@ pub struct CausalSelfAttentionConfig {
     #[config(default = "None")]
     pub sliding_window: Option<usize>,
 
+    /// Which keys a query sees: the ones up to its own position (a
+    /// decoder's), or all of them (an encoder's).
+    #[config(default = "AttentionMask::Causal")]
+    pub mask: AttentionMask,
+
     /// The dtype the attention's softmax runs in
     /// ([`ScaledDotProductAttentionConfig::softmax_dtype`]); `None` runs it
     /// in the queries' dtype.
@@ -138,7 +168,7 @@ pub struct CausalSelfAttentionConfig {
 
     /// A value residual: an embedding of the input tokens, gated per KV head
     /// from the attention input, added to the values
-    /// ([`forward_with_value_embed`](CausalSelfAttention::forward_with_value_embed)).
+    /// ([`forward_with`](CausalSelfAttention::forward_with)).
     /// `None` adds nothing, and builds no gate.
     #[config(default = "None")]
     pub value_residual: Option<ValueResidualConfig>,
@@ -261,6 +291,11 @@ impl CausalSelfAttentionConfig {
             self.sliding_window != Some(0),
             "sliding_window must be > 0 when set"
         );
+        assert!(
+            self.mask == AttentionMask::Causal || self.sliding_window.is_none(),
+            "a bidirectional attention has no sliding_window; got {:?}",
+            self.sliding_window
+        );
         if let Some(vr) = &self.value_residual {
             assert!(
                 vr.gate_channels > 0 && vr.gate_channels <= self.n_embed,
@@ -294,6 +329,7 @@ impl CausalSelfAttentionConfig {
             head_dim,
             qk_norm: self.qk_norm,
             sliding_window: self.sliding_window,
+            mask: self.mask,
             softmax_dtype: self.softmax_dtype,
             c_q: linear(self.n_embed, self.n_head * head_dim, self.qkv_bias),
             q_norm: norm(),
@@ -354,6 +390,10 @@ pub struct CausalSelfAttention {
     /// The sliding attention window, in positions, if any.
     #[module(skip)]
     pub sliding_window: Option<usize>,
+
+    /// Which keys a query sees.
+    #[module(skip)]
+    pub mask: AttentionMask,
 
     /// The dtype the softmax runs in; `None`, the queries'.
     #[module(skip)]
@@ -552,7 +592,9 @@ impl CausalSelfAttention {
             k,
             None,
             window.map(|w| causal_window_visible(t, t, Some(w), &device)),
-            self.sdpa_config().with_is_causal(window.is_none()),
+            None,
+            self.sdpa_config()
+                .with_is_causal(window.is_none() && self.mask == AttentionMask::Causal),
         );
         assert_shape_contract_periodically!(
             ["B", "H", "T", "T"],
@@ -574,39 +616,43 @@ impl CausalSelfAttention {
     ///
     /// # Panics
     /// If the attention has a value residual: that needs
-    /// [`forward_with_value_embed`](Self::forward_with_value_embed).
+    /// [`forward_with`](Self::forward_with).
     pub fn forward(
         &self,
         input: Tensor<3>,
         r_emb: &RotaryEmbedding,
         kv_cache: &mut Option<&mut KVCache>,
     ) -> Tensor<3> {
-        self.forward_with_value_embed(input, r_emb, kv_cache, None)
+        self.forward_with(input, r_emb, kv_cache, AttentionSides::default())
     }
 
-    /// Forward Pass, with the value embedding an attention with a value
-    /// residual adds to its values.
+    /// Forward Pass, with the side inputs a configured attention takes.
     ///
     /// # Arguments
     /// - `input`: a `[B, T, D]` sequence.
     /// - `r_emb`: a rotary embedding with len ``T``.
     /// - `kv_cache`: optional KV cache.
-    /// - `value_embed`: the `[B, T, H_kv * head_dim]` value embedding of the
-    ///   input's tokens; `None` for an attention without a value residual.
+    /// - `sides`: the value embedding of an attention with a value residual,
+    ///   and the keys that are not padding.
     ///
     /// # Returns
     /// - `[B, T, D]` attention.
     ///
     /// # Panics
-    /// If `value_embed` is given to an attention without a value residual,
-    /// or withheld from one with a value residual.
-    pub fn forward_with_value_embed(
+    /// If a value embedding is given to an attention without a value
+    /// residual, or withheld from one with a value residual; or a KV cache
+    /// is given to a bidirectional attention.
+    pub fn forward_with(
         &self,
         input: Tensor<3>,
         r_emb: &RotaryEmbedding,
         kv_cache: &mut Option<&mut KVCache>,
-        value_embed: Option<Tensor<3>>,
+        sides: AttentionSides,
     ) -> Tensor<3> {
+        let AttentionSides {
+            value_embed,
+            key_valid,
+        } = sides;
         let [b, t_q] = unpack_shape_contract!(
             ["B", "T", "D"],
             &input.dims(),
@@ -643,7 +689,14 @@ impl CausalSelfAttention {
 
         let attn_mask: Option<Tensor<2, Bool>>;
         let is_causal: bool;
-        if let (Some(w), true) = (window, t_q > 1) {
+        if self.mask == AttentionMask::Bidirectional {
+            assert!(
+                kv_cache.is_none(),
+                "a bidirectional attention takes no KV cache"
+            );
+            attn_mask = None;
+            is_causal = false;
+        } else if let (Some(w), true) = (window, t_q > 1) {
             attn_mask = Some(causal_window_visible(t_q, t_kv, Some(w), &q.device()));
             is_causal = false;
         } else if kv_cache.is_none() || t_q == t_kv {
@@ -670,7 +723,7 @@ impl CausalSelfAttention {
 
         let cfg = self.sdpa_config().with_is_causal(is_causal);
 
-        let y = scaled_dot_product_attention(q, k, v, None, attn_mask, cfg)
+        let y = scaled_dot_product_attention(q, k, v, None, attn_mask, key_valid, cfg)
             .swap_dims(1, 2)
             .reshape([
                 b as i32,
@@ -797,6 +850,76 @@ mod tests {
             ]));
         let forward = csa.forward(input, &r_emb, &mut None);
         assert_tensors_close(&applied, &forward, Tolerance::default());
+    }
+
+    /// A bidirectional attention sees every key, the ones after a query
+    /// too, but an item's padding: the forward is the softmax over an
+    /// item's valid keys, so a valid query's output does not depend on what
+    /// the padding holds.
+    #[test]
+    fn test_bidirectional_with_padding() {
+        let device = cpu_device();
+        let (seq_len, n_embed, n_head) = (5, 16, 2);
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(n_head, n_head, n_embed)
+            .with_norm(None)
+            .with_mask(AttentionMask::Bidirectional)
+            .init(0, &device);
+        let r_emb: RotaryEmbedding =
+            RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
+        let input = seeded_tensor::<3>(4, [2, seq_len, n_embed], Distribution::Default, &device);
+
+        let weights = csa.attention_weights(input.clone(), &r_emb);
+        let upper = weights.triu(1).abs().max().into_scalar::<f32>();
+        assert!(upper > 0.0, "a query sees the keys after it");
+
+        // Item 1 is 3 long: its last two positions are padding, so changing
+        // them changes none of its first three outputs.
+        let valid =
+            crate::ops::transformers::attention::length_mask(&[seq_len, 3], seq_len, &device);
+        let forward = |x: Tensor<3>| {
+            csa.forward_with(
+                x,
+                &r_emb,
+                &mut None,
+                AttentionSides {
+                    key_valid: Some(valid.clone()),
+                    ..Default::default()
+                },
+            )
+        };
+        let noise = seeded_tensor::<3>(5, [1, 2, n_embed], Distribution::Default, &device);
+        let changed = input.clone().slice_assign([1..2, 3..5, 0..n_embed], noise);
+        assert_tensors_close(
+            &forward(input.clone()).slice([1..2, 0..3, 0..n_embed]),
+            &forward(changed.clone()).slice([1..2, 0..3, 0..n_embed]),
+            Tolerance::default(),
+        );
+        // Item 0, all valid, does depend on its last positions.
+        let changed0 = input.clone().slice_assign(
+            [0..1, 3..5, 0..n_embed],
+            seeded_tensor::<3>(6, [1, 2, n_embed], Distribution::Default, &device),
+        );
+        assert!(!forward(input).slice([0..1, 0..3, 0..n_embed]).all_close(
+            forward(changed0).slice([0..1, 0..3, 0..n_embed]),
+            None,
+            None
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "takes no KV cache")]
+    fn test_bidirectional_takes_no_cache() {
+        let device = cpu_device();
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(2, 2, 16)
+            .with_mask(AttentionMask::Bidirectional)
+            .init(0, &device);
+        let r_emb: RotaryEmbedding = RotaryEmbeddingConfig::new(3, csa.head_dim()).init(&device);
+        let mut cache = KVCacheConfig::new(1, 2, 3, csa.head_dim(), 1).init();
+        let _ = csa.forward(
+            Tensor::zeros([1, 3, 16], &device),
+            &r_emb,
+            &mut Some(&mut cache),
+        );
     }
 
     /// The scores' scale and soft-cap reach the softmax: the weights are

@@ -18,7 +18,10 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    prelude::s,
+    prelude::{
+        Bool,
+        s,
+    },
     tensor::Device,
 };
 
@@ -114,6 +117,11 @@ pub struct DecoderStackStructureConfig {
 
     /// The final normalization; its feature count is the stack's width.
     pub norm: NormConfig,
+
+    /// A normalization of the stack's input, before the first layer (an
+    /// encoder's over its front end's output); `None`, none.
+    #[config(default = "None")]
+    pub input_norm: Option<NormConfig>,
 
     /// The rotary embedding the layers share, but those
     /// [`layer_rotary`](Self::layer_rotary) points elsewhere; its `seq_len`
@@ -232,6 +240,10 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
                 .map(|(i, layer)| layer.try_init(i, device))
                 .collect::<BunsenResult<_>>()?,
             norm: self.norm.clone().with_num_features(width).init(device),
+            input_norm: self
+                .input_norm
+                .as_ref()
+                .map(|n| n.clone().with_num_features(width).init(device)),
             rotary: self.rotary.clone(),
             rotary_alts: self.rotary_alts.clone(),
             layer_rotary: self.layer_rotary.clone(),
@@ -255,6 +267,11 @@ pub struct UniformStackConfig {
 
     /// The rotary embedding the layers share.
     pub rotary: RotaryEmbeddingConfig,
+
+    /// A normalization of the stack's input
+    /// ([`DecoderStackStructureConfig::input_norm`]).
+    #[config(default = "None")]
+    pub input_norm: Option<NormConfig>,
 }
 
 impl ToStructureConfig for UniformStackConfig {
@@ -265,7 +282,8 @@ impl ToStructureConfig for UniformStackConfig {
             vec![self.layer.clone(); self.n_layers],
             self.norm.clone(),
             self.rotary.clone(),
-        ))
+        )
+        .with_input_norm(self.input_norm.clone()))
     }
 }
 
@@ -297,6 +315,11 @@ pub struct PatternedStackConfig {
     /// `Some(k)` for `rotary_alts[k]`; empty, or short, `None`.
     #[config(default = "Vec::new()")]
     pub kind_rotary: Vec<Option<usize>>,
+
+    /// A normalization of the stack's input
+    /// ([`DecoderStackStructureConfig::input_norm`]).
+    #[config(default = "None")]
+    pub input_norm: Option<NormConfig>,
 }
 
 impl ToStructureConfig for PatternedStackConfig {
@@ -336,7 +359,8 @@ impl ToStructureConfig for PatternedStackConfig {
         Ok(
             DecoderStackStructureConfig::new(layers, self.norm.clone(), self.rotary.clone())
                 .with_rotary_alts(self.rotary_alts.clone())
-                .with_layer_rotary(layer_rotary),
+                .with_layer_rotary(layer_rotary)
+                .with_input_norm(self.input_norm.clone()),
         )
     }
 }
@@ -356,6 +380,9 @@ pub struct DecoderStack {
 
     /// The final normalization.
     pub norm: Norm,
+
+    /// The input's normalization, if the stack has one.
+    pub input_norm: Option<Norm>,
 
     /// The rotary embedding the layers share, but its length
     /// ([`rotary`](Self::rotary)).
@@ -421,6 +448,10 @@ pub struct StackSides {
 
     /// The residual-stream mix.
     pub mix: ResidualMix,
+
+    /// `[B, T]`, true at the positions that are not padding, which alone
+    /// every layer's queries attend to (an encoder's padded batch).
+    pub key_valid: Option<Tensor<2, Bool>>,
 }
 
 /// What a cached decode through a [`DecoderStack`] carries between steps:
@@ -550,7 +581,12 @@ impl DecoderStack {
             cond,
             mut value_embeds,
             mix,
+            key_valid,
         } = sides;
+        let x = match &self.input_norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
         let x0 = mix.resid_x0.is_some().then(|| x.clone());
         let mut backed_out = None;
         let mut x = x;
@@ -567,6 +603,7 @@ impl DecoderStack {
                 DecoderSideInputs {
                     cond: cond.clone(),
                     value_embed,
+                    key_valid: key_valid.clone(),
                 },
             );
             if mix.backout.as_ref().is_some_and(|(at, _)| *at == i) {
@@ -624,6 +661,10 @@ impl DecoderStack {
             self.layers.len()
         );
         let r_emb = r_emb.clip_range(0..seq);
+        let x = match &self.input_norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
         let deepest = layers.iter().copied().max().map_or(0, |l| l + 1);
         let mut weights: Vec<Option<Tensor<4>>> = vec![None; layers.len()];
         let mut x = x;

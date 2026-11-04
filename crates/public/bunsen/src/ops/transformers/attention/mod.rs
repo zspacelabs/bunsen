@@ -17,13 +17,14 @@
 //! - **bunsen's [`CausalSelfAttention`]** block (the `NanoChat` and Qwen3 GPT
 //!   kits): its own bias-free projections, QK-norm, rotary embeddings and
 //!   grouped-query attention, computed with [`scaled_dot_product_attention`]
-//!   over a [`KVCache`].
+//!   over a [`KVCache`]; or, bidirectional, without one, over a padded batch's
+//!   valid keys (the `Nemotron-3-Diarization` encoder).
 //!
-//! Use `CausalSelfAttention` for a decoder-only model whose layers you
-//! define. Use the `MultiHeadAttention` functions when the model is built on
-//! burn's module (a ported checkpoint in that layout, or encoder-decoder
-//! cross-attention) and you want KV-cached decoding without replacing the
-//! module.
+//! Use `CausalSelfAttention` for a decoder-only model, or a rotary encoder,
+//! whose layers you define. Use the `MultiHeadAttention` functions when the
+//! model is built on burn's module (a ported checkpoint in that layout, or
+//! encoder-decoder cross-attention) and you want KV-cached decoding without
+//! replacing the module.
 //!
 //! ## Relative positions
 //!

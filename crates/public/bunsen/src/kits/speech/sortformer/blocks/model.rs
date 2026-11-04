@@ -7,6 +7,7 @@ use burn::{
         Param,
     },
     nn::{
+        LayerNormConfig,
         Linear,
         LinearConfig,
     },
@@ -22,6 +23,7 @@ use crate::{
     blocks::{
         activation::ActivationConfig,
         layout::AxisOrder,
+        norm::NormConfig,
         signals::{
             DwStridingSubsamplingConfig,
             FeatureStackingConfig,
@@ -30,25 +32,36 @@ use crate::{
             SubpixelUpsample1dMeta,
             SubsamplingConfig,
         },
-        transformers::encoders::{
-            SubsampledEncoder,
-            SubsampledEncoderConfig,
-            SubsampledEncoderMeta,
-            conformer::{
-                ConformerBlockConfig,
-                ConformerEncoderConfig,
+        transformers::{
+            attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
             },
-            residual::{
-                NormPlacement,
-                ResidualEncoderAttentionBlockConfig,
-                ResidualEncoderTransformer,
-                ResidualEncoderTransformerConfig,
-                ResidualEncoderTransformerMeta,
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::UniformStackConfig,
             },
-            rope::{
-                RopeEncoderBlockConfig,
-                RopeTransformerEncoderConfig,
+            embedding::{
+                RotaryDirection,
+                RotaryEmbeddingConfig,
             },
+            encoders::{
+                SubsampledEncoder,
+                SubsampledEncoderConfig,
+                SubsampledEncoderMeta,
+                conformer::{
+                    ConformerBlockConfig,
+                    ConformerEncoderConfig,
+                },
+                residual::{
+                    NormPlacement,
+                    ResidualEncoderAttentionBlockConfig,
+                    ResidualEncoderTransformer,
+                    ResidualEncoderTransformerConfig,
+                    ResidualEncoderTransformerMeta,
+                },
+            },
+            mlp::MlpConfig,
         },
     },
     burner::module::{
@@ -251,6 +264,36 @@ impl NemotronDiarizationConfig {
     pub fn nemotron_3_diarization() -> Self {
         Self::new()
     }
+
+    /// The encoder: `NeMo`'s pre-norm rotary `TransformerEncoder`, a
+    /// `LayerNorm` over its input, before each sublayer and after the last
+    /// layer; bidirectional attention with unbiased query, key and value
+    /// projections and a biased output, its rotary table in the
+    /// `rotate_half` convention; a biased `Linear -> GELU -> Linear`
+    /// feed-forward.
+    pub fn encoder_stack(&self) -> UniformStackConfig {
+        let norm = NormConfig::Layer(LayerNormConfig::new(0));
+        UniformStackConfig::new(
+            self.n_layers,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(self.n_heads, self.n_heads, self.d_model)
+                    .with_norm(None)
+                    .with_output_bias(true)
+                    .with_mask(AttentionMask::Bidirectional),
+                MlpConfig::new(self.d_model)
+                    .with_expansion_factor(self.ff_expansion)
+                    .with_activation(ActivationConfig::Gelu)
+                    .with_bias(true)
+                    .into(),
+            )
+            .with_norm(norm.clone()),
+            norm.clone(),
+            RotaryEmbeddingConfig::new(0, self.d_model / self.n_heads)
+                .with_base(self.rope_base)
+                .with_direction(RotaryDirection::Forward),
+        )
+        .with_input_norm(Some(norm))
+    }
 }
 
 impl SortformerMeta for NemotronDiarizationConfig {
@@ -289,13 +332,7 @@ impl ToStructureConfig for NemotronDiarizationConfig {
                 FeatureStackingConfig::new(self.n_mels, self.d_model)
                     .with_factor(self.subsampling_factor),
             ),
-            RopeTransformerEncoderConfig::new(
-                RopeEncoderBlockConfig::new(self.d_model, self.n_heads)
-                    .with_ff_expansion(self.ff_expansion),
-                self.n_layers,
-            )
-            .with_rope_base(self.rope_base)
-            .into(),
+            self.encoder_stack().to_structure().into(),
         );
         Ok(SortformerStructureConfig::new(
             encoder,

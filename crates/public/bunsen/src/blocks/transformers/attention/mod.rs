@@ -1,9 +1,10 @@
 //! # Attention blocks
 //!
 //! [`rel_pos::RelPosSelfAttention`] is Transformer-XL relative-position
-//! self-attention, the Conformer's, and [`rope::RopeSelfAttention`] is
-//! bidirectional self-attention with rotary embeddings, an encoder's; the
-//! rest of this page is about the causal stack.
+//! self-attention, the Conformer's; the rest of this page is about
+//! [`CausalSelfAttention`], whose
+//! [`AttentionMask`](csa::AttentionMask) makes it a decoder's (causal) or an
+//! encoder's (bidirectional, every key seen, padding keys masked).
 //!
 //! [`CausalSelfAttention`] is bunsen's own multi-head causal self-attention
 //! layer, the one the [`NanoChatGpt`] kit stacks. It is a part of a module
@@ -82,4 +83,3 @@
 
 pub mod csa;
 pub mod rel_pos;
-pub mod rope;

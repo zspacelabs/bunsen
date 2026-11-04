@@ -130,12 +130,13 @@ Both decode through one
 [`KVCache`](bunsen::ops::transformers::attention::KVCache), which a model
 hands out sized for itself.
 
-An encoder's attention is neither: it decodes nothing, so it carries no
-cache.
+An encoder's attention decodes nothing, so it carries no cache.
+[`CausalSelfAttention`](bunsen::blocks::transformers::attention::csa::CausalSelfAttention)
+with a bidirectional
+[`AttentionMask`](bunsen::blocks::transformers::attention::csa::AttentionMask)
+is one (every key seen, padding keys masked, rotary embeddings kept);
 [`RelPosSelfAttention`](bunsen::blocks::transformers::attention::rel_pos::RelPosSelfAttention)
-(the Conformer's) and
-[`RopeSelfAttention`](bunsen::blocks::transformers::attention::rope::RopeSelfAttention)
-(bidirectional, with rotary embeddings) are blocks of their own.
+(the Conformer's) is a block of its own.
 
 [The ops attention docs](bunsen::ops::transformers::attention#two-attention-stacks)
 say when to use which, and
