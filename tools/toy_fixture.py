@@ -70,6 +70,7 @@ def init_weights(
     model: torch.nn.Module,
     *,
     norm_gain: float = 0.2,
+    norm_center: float = 1.0,
     norm_bias: Optional[float] = None,
     is_norm: Callable[[str], bool] = is_norm_weight,
     others: bool = True,
@@ -78,7 +79,8 @@ def init_weights(
     each: what initializes to constants (norm gains, which `_init_weights` sets to one) as
     random, so a misplaced one is caught.
 
-    - A norm gain (`is_norm`) is `1 + norm_gain * N(0, 1)`.
+    - A norm gain (`is_norm`) is `norm_center + norm_gain * N(0, 1)`: about one for a
+      gain applied as stored, about zero for one applied as `1 + w` (Gemma's).
     - A norm shift, when `norm_bias` is given, is `norm_bias * N(0, 1)`; otherwise it is
       one of the others.
     - The others, when `others`, are `N(0, 1) / sqrt(fan_in)`; otherwise they keep the
@@ -86,7 +88,7 @@ def init_weights(
     """
     for name, p in model.named_parameters():
         if is_norm(name):
-            p.copy_(1.0 + norm_gain * torch.randn_like(p))
+            p.copy_(norm_center + norm_gain * torch.randn_like(p))
         elif norm_bias is not None and is_norm_bias(name):
             p.copy_(norm_bias * torch.randn_like(p))
         elif others:
