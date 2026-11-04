@@ -448,7 +448,7 @@ The flags choose, in this order:
 1. **`--language` implies `--speech`**, by the table's `language` entry: `en` means `en` speech, any other code
    `multi`. A `--speech` that does not hear it is an error (`--speech en --language de`); `multi` hears English.
 2. **The point.** Without `--preset`, each of `--speech`, `--task` and `--quality` not given is `default`'s
-   (`en`/`transcribe`/`balanced`), except that `--task translate` makes the speech `multi`; `--json` records the point
+   (`en`/`transcribe`/`balanced`), except where the table's `defaults` say otherwise (`--task translate` makes the speech `multi`); `--json` records the point
    as the ASR preset (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
    ones not given are the ASR preset's.
 3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its

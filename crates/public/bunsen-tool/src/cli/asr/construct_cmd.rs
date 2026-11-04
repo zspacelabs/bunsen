@@ -27,6 +27,7 @@ use crate::cli::asr::{
         DEFAULT_PRESET,
         Mode,
         Need,
+        NeedPattern,
         Quality,
         Speech,
         Task,
@@ -59,8 +60,10 @@ use crate::cli::asr::{
 ///    `en` is `en`, any other code `multi`. A `--speech` that does not hear it
 ///    (`fallback.speech`: `multi` hears English) is an error.
 /// 2. Without `--preset`, each of `--speech`, `--task` and `--quality` not
-///    given is `default`'s, but `--task translate` makes the speech `multi`.
-///    With it, they are the preset's.
+///    given is what the construct's `defaults` say, by those given
+///    ([`AsrConstructConfig::fill`](crate::cli::asr::construct::AsrConstructConfig::fill):
+///    `--task translate` makes the speech `multi`), else `default`'s. With it,
+///    they are the preset's.
 /// 3. English speech translated to English is transcribed ([`Need::settled`]),
 ///    logged at `INFO`.
 /// 4. Without `--preset`, the table's point for that need runs. With it, the
@@ -246,15 +249,16 @@ impl AsrConstructArgs {
         };
         let Some(name) = &self.preset else {
             let base = lookup(DEFAULT_PRESET)?;
-            let task = self.task.unwrap_or(base.need.task);
-            let need = settle(Need {
-                speech: speech.unwrap_or(match task {
-                    Task::Translate => Speech::Multi,
-                    Task::Transcribe => base.need.speech,
-                }),
-                task,
-                quality: self.quality.unwrap_or(base.need.quality),
-            });
+            let given = NeedPattern {
+                speech,
+                task: self.task,
+                quality: self.quality,
+            };
+            let (filled, reasons) = construct_config().fill(given, base.need);
+            for reason in reasons {
+                log::info!("{filled}: {reason}");
+            }
+            let need = settle(filled);
             let named = self.speech.is_some()
                 || self.task.is_some()
                 || self.quality.is_some()
