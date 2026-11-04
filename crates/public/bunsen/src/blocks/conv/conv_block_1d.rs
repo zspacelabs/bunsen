@@ -547,8 +547,7 @@ mod tests {
             let expected = {
                 let x = layer.conv.forward(input.clone());
                 let x = layer.norm.as_ref().unwrap().forward(x);
-                let x = layer.act.as_ref().unwrap().forward(x);
-                x
+                layer.act.as_ref().unwrap().forward(x)
             };
             output.to_data().assert_eq(&expected.to_data(), true);
         }
@@ -561,8 +560,7 @@ mod tests {
                 let x = layer.conv.forward(input.clone());
                 let x = layer.norm.as_ref().unwrap().forward(x);
                 let x = hook(x);
-                let x = layer.act.as_ref().unwrap().forward(x);
-                x
+                layer.act.as_ref().unwrap().forward(x)
             };
             output.to_data().assert_eq(&expected.to_data(), true);
         }
