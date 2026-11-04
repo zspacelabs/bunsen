@@ -240,7 +240,12 @@ pub fn load_construct(
 ) -> std::sync::Arc<bunsen::kits::speech::qwen3_asr::Qwen3AsrConstruct> {
     bunsen::kits::speech::qwen3_asr::pretrained::default_qwen3_asr_factory()
         .expect("the qwen3-asr factory")
-        .load_construct(name, &weights_cache(), device)
+        .load_construct(
+            name,
+            &weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 

@@ -101,6 +101,7 @@ impl ConstructInit for VoxtralConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        _policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
         let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;

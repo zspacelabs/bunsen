@@ -374,7 +374,11 @@ pub fn load_logged<H: ConstructInit>(
     device: &Device,
 ) -> BunsenResult<Arc<H::Construct>> {
     let t0 = Instant::now();
-    let loaded = deferred.load(cache, device)?;
+    let loaded = deferred.load(
+        cache,
+        device,
+        bunsen::kits::support::construct::LoadPolicy::performance(),
+    )?;
     log::info!("model: {}", deferred.id());
     if let Some((_, row)) = deferred.model.named() {
         log::info!("  {}", row.description);

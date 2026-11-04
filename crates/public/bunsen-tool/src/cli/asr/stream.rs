@@ -115,7 +115,14 @@ pub fn with_vad<E: AsrEngine>(
     let Some(vad) = vad else {
         return Ok(driver);
     };
-    let vad = default_silero_factory()?.load(vad, cache, device)?.handle;
+    let vad = default_silero_factory()?
+        .load(
+            vad,
+            cache,
+            device,
+            bunsen::kits::support::construct::LoadPolicy::performance(),
+        )?
+        .handle;
     let rate = driver.sample_rate();
     driver.with_vad(
         Arc::new(vad.expect_branch(rate).clone()),

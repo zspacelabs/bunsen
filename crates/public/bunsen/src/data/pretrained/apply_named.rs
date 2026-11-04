@@ -9,7 +9,10 @@ use burn::{
         PyTorchToBurnAdapter,
         burn_pack::Tensor as PackTensor,
     },
-    tensor::DType,
+    tensor::{
+        DType,
+        FloatDType,
+    },
 };
 
 use crate::{
@@ -214,6 +217,28 @@ pub fn apply_rekeyed_tensors<M: ModuleSnapshot>(
     rekey: &Rekey,
 ) -> BunsenResult<NamedTensorsApplied> {
     apply_rekeyed_tensors_as(module, tensors, rekey, None)
+}
+
+/// The float dtype most of `tensors`' float elements are stored in: what a
+/// checkpoint's floats are, for a hook to resolve its
+/// [`LoadPolicy`](crate::kits::support::construct::LoadPolicy) against; `None`
+/// for a checkpoint with no float tensor.
+pub fn stored_float_dtype(tensors: &[PackTensor]) -> Option<FloatDType> {
+    let mut counts: Vec<(DType, usize)> = Vec::new();
+    for tensor in tensors {
+        if !tensor.dtype.is_float() {
+            continue;
+        }
+        let n = tensor.shape.iter().product::<usize>();
+        match counts.iter_mut().find(|(d, _)| *d == tensor.dtype) {
+            Some((_, count)) => *count += n,
+            None => counts.push((tensor.dtype, n)),
+        }
+    }
+    counts
+        .into_iter()
+        .max_by_key(|(_, n)| *n)
+        .map(|(dtype, _)| FloatDType::from(dtype))
 }
 
 /// [`apply_rekeyed_tensors`], every floating tensor cast to `float_dtype`

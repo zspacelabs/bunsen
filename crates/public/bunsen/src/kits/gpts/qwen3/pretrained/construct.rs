@@ -33,7 +33,7 @@ use crate::{
             Qwen3Model,
             Qwen3Policy,
             weights::{
-                load_hf_tensors,
+                load_hf_tensors_as,
                 qwen3_config_from_hf,
             },
         },
@@ -109,6 +109,7 @@ impl ConstructInit for Qwen3ConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3Construct>> {
         let (config, max_positions) = match loaded.get(CONFIG) {
             Some(part) => {
@@ -132,8 +133,13 @@ impl ConstructInit for Qwen3ConstructConfig {
             },
         };
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
+        // The stored dtype (bf16), where the policy and the device allow it;
+        // never f16, which overflows Qwen3's activations.
+        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+            .unwrap_or(burn::tensor::FloatDType::F32);
+        let dtype = policy.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut qwen3: Qwen3Model = config.try_init(device)?;
-        load_hf_tensors(&mut qwen3, tensors)?;
+        load_hf_tensors_as(&mut qwen3, tensors, dtype)?;
         let policy = resolve_ref_presets(&Qwen3Policy::default(), model, &Self::probed(loaded)?)?;
         let mut bundle = Qwen3Construct::new(qwen3)
             .with_max_positions(max_positions)

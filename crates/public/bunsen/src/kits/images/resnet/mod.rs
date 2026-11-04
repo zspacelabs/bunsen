@@ -44,6 +44,7 @@
 //!     "torchvision/resnet18",
 //!     &cache,
 //!     &device,
+//!     bunsen::kits::support::construct::LoadPolicy::performance(),
 //! )?;
 //!
 //! let model: ResNet = Arc::unwrap_or_clone(loaded.handle)

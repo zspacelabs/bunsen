@@ -39,7 +39,12 @@ use crate::base::audio::{
 fn tiny_model(device: &Device) -> Whisper {
     let bundle = default_whisper_factory()
         .expect("the whisper factory")
-        .load_construct("openai/tiny", &crate::weights_cache(), device)
+        .load_construct(
+            "openai/tiny",
+            &crate::weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .expect("load openai/tiny");
     assert_eq!(
         bundle.model.n_mels(),

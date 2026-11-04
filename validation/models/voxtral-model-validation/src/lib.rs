@@ -290,7 +290,12 @@ pub fn load_construct(
     };
     default_voxtral_factory()
         .expect("the voxtral factory")
-        .load_construct(DEFAULT_VOXTRAL_MODEL, &weights_cache(), device)
+        .load_construct(
+            DEFAULT_VOXTRAL_MODEL,
+            &weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .unwrap_or_else(|e| panic!("load {DEFAULT_VOXTRAL_MODEL}: {e}"))
 }
 

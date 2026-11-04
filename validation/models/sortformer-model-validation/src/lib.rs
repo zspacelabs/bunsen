@@ -385,7 +385,12 @@ pub fn load_named_construct(
 ) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerConstruct> {
     bunsen::kits::speech::sortformer::pretrained::default_sortformer_factory()
         .expect("the sortformer factory")
-        .load_construct(model, &weights_cache(), device)
+        .load_construct(
+            model,
+            &weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .unwrap_or_else(|e| panic!("load {model}: {e}"))
 }
 

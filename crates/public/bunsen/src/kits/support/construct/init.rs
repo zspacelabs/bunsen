@@ -79,7 +79,9 @@ pub trait ConstructInit: Sized {
     }
 
     /// Builds from every part local. Never fetches. `model` is the ref
-    /// [`plan`](Self::plan) saw.
+    /// [`plan`](Self::plan) saw; `policy` is the call's dtype policy, by
+    /// which the hook places its float parameters
+    /// ([`LoadPolicy::resolve`](super::LoadPolicy::resolve)).
     ///
     /// # Errors
     /// The kit's: a part the resource bundle lacks
@@ -90,6 +92,7 @@ pub trait ConstructInit: Sized {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
+        policy: super::LoadPolicy,
     ) -> BunsenResult<Arc<Self::Construct>>;
 }
 
@@ -186,6 +189,7 @@ mod tests {
             _model: &PretrainedRef,
             loaded: &LoadedResources,
             _device: &Device,
+            _policy: crate::kits::support::construct::LoadPolicy,
         ) -> BunsenResult<Arc<Vec<PathBuf>>> {
             loaded.expect("checkpoint")?;
             Ok(Arc::new(
@@ -212,6 +216,7 @@ mod tests {
             _model: &PretrainedRef,
             loaded: &LoadedResources,
             _device: &Device,
+            _policy: crate::kits::support::construct::LoadPolicy,
         ) -> BunsenResult<Arc<()>> {
             loaded.expect("config")?;
             Ok(Arc::new(()))
@@ -250,7 +255,11 @@ mod tests {
             model: PretrainedRef::from(ResourceBundle::given("mine", "checkpoint", &checkpoint)),
             config,
         }
-        .load(&cache, &cpu_device())
+        .load(
+            &cache,
+            &cpu_device(),
+            crate::kits::support::construct::LoadPolicy::as_stored(),
+        )
         .unwrap();
 
         assert_eq!(loaded.name, "mine");
@@ -292,14 +301,24 @@ mod tests {
             model: model.clone(),
             config,
         }
-        .load(&cache, &cpu_device())
+        .load(
+            &cache,
+            &cpu_device(),
+            crate::kits::support::construct::LoadPolicy::as_stored(),
+        )
         .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
 
         // The hook a resource bundle calls for, with no rule of its own.
         let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
         assert!(no_rule.config.vocabulary.is_none());
-        let loaded = no_rule.load(&cache, &cpu_device()).unwrap();
+        let loaded = no_rule
+            .load(
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
+            .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
 
         assert_eq!(
@@ -324,7 +343,11 @@ mod tests {
             &checkpoint,
         ))
         .unwrap()
-        .load(&cache, &cpu_device())
+        .load(
+            &cache,
+            &cpu_device(),
+            crate::kits::support::construct::LoadPolicy::as_stored(),
+        )
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .frame_contains("loading paths \"mine\"")
@@ -340,7 +363,11 @@ mod tests {
             &absent,
         ))
         .unwrap()
-        .load(&cache, &cpu_device())
+        .load(
+            &cache,
+            &cpu_device(),
+            crate::kits::support::construct::LoadPolicy::as_stored(),
+        )
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .cause(predicate("the absent path", move |c: &LookupError| {

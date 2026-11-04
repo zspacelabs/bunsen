@@ -124,8 +124,9 @@ impl<H: ConstructInit> Deferred<H> {
     }
 
     /// Loads: [`ConstructInit::plan`], [`PretrainedCache::load`],
-    /// [`ConstructInit::try_init`]. The whole pathway once a model is in hand,
-    /// whether it came from a factory, a path, or a manifest.
+    /// [`ConstructInit::try_init`] under `policy`. The whole pathway once a
+    /// model is in hand, whether it came from a factory, a path, or a
+    /// manifest.
     ///
     /// # Errors
     /// As [`ConstructInit::plan`], [`PretrainedCache::load`] and
@@ -137,11 +138,14 @@ impl<H: ConstructInit> Deferred<H> {
         &self,
         cache: &PretrainedCache,
         device: &Device,
+        policy: super::LoadPolicy,
     ) -> BunsenResult<Loaded<H::Construct>> {
         let load = || -> BunsenResult<Loaded<H::Construct>> {
             let planned = self.config.plan(&self.model, cache)?;
             let resources = cache.load(H::KIT, &planned)?;
-            let handle = self.config.try_init(&self.model, &resources, device)?;
+            let handle = self
+                .config
+                .try_init(&self.model, &resources, device, policy)?;
             Ok(Loaded {
                 name: resources.map.name.clone(),
                 handle,
@@ -238,7 +242,13 @@ mod tests {
         assert_eq!(given.id(), spec);
         assert_eq!(given.status(&cache)["checkpoint"], CacheStatus::LocalDir);
         assert_eq!(given.plan(&cache).unwrap(), given.to_resource_bundle());
-        let loaded = given.load(&cache, &cpu_device()).unwrap();
+        let loaded = given
+            .load(
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
+            .unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, spec);
         assert_eq!(
@@ -253,7 +263,11 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .frame_contains("loading kit \"well-known:a/small\"")
             .message_contains("the cache is offline")
-            .assert_err(&named.load(&cache, &cpu_device()));
+            .assert_err(&named.load(
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            ));
     }
 
     /// An overlay replaces by key and keeps the hook the model was given.
@@ -273,7 +287,13 @@ mod tests {
             model.to_resource_bundle().get("checkpoint").unwrap().file,
             "other.pt"
         );
-        let loaded = model.load(&cache, &cpu_device()).unwrap();
+        let loaded = model
+            .load(
+                &cache,
+                &cpu_device(),
+                crate::kits::support::construct::LoadPolicy::as_stored(),
+            )
+            .unwrap();
         assert_eq!(*loaded.handle, other);
         assert_eq!(loaded.name, "well-known:a/small");
     }

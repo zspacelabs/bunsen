@@ -315,7 +315,11 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     // the checkpoint is read into that model.
     model_ref.config = model_ref.config.with_config(resnet_config.clone());
     let loaded = model_ref
-        .load(&cache, &device)
+        .load(
+            &cache,
+            &device,
+            bunsen::kits::support::construct::LoadPolicy::performance(),
+        )
         .context("loading pretrained weights")?;
 
     let mut model: ResNet = Arc::unwrap_or_clone(loaded.handle)

@@ -103,7 +103,12 @@ pub fn load_base(
 ) -> std::sync::Arc<bunsen::kits::speech::whisper::driver::WhisperConstruct> {
     bunsen::kits::speech::whisper::pretrained::default_whisper_factory()
         .expect("the whisper factory")
-        .load_construct("openai/base", &weights_cache(), device)
+        .load_construct(
+            "openai/base",
+            &weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .expect("load openai/base")
 }
 

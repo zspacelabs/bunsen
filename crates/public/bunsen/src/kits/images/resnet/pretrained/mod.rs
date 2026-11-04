@@ -58,8 +58,15 @@
 //! let mut model =
 //!     default_resnet_factory()?.resolve("timm/resnet18_a1", &cache)?;
 //! model.config = model.config.with_config(config);
-//! let resnet: ResNet =
-//!     Arc::unwrap_or_clone(model.load(&cache, &device)?.handle);
+//! let resnet: ResNet = Arc::unwrap_or_clone(
+//!     model
+//!         .load(
+//!             &cache,
+//!             &device,
+//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         )?
+//!         .handle,
+//! );
 //! # }
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```

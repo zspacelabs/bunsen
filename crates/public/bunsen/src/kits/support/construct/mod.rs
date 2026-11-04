@@ -19,9 +19,11 @@
 mod deferred;
 mod factory;
 mod init;
+mod load_policy;
 mod lookup;
 
 pub use deferred::*;
 pub use factory::*;
 pub use init::*;
+pub use load_policy::*;
 pub use lookup::*;

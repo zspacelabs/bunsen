@@ -239,7 +239,12 @@ pub fn load_construct(
 ) -> std::sync::Arc<bunsen::kits::speech::parakeet::ParakeetConstruct> {
     bunsen::kits::speech::parakeet::pretrained::default_parakeet_factory()
         .expect("the parakeet factory")
-        .load_construct(name, &weights_cache(), device)
+        .load_construct(
+            name,
+            &weights_cache(),
+            device,
+            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        )
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 
