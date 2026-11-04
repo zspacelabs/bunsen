@@ -258,7 +258,7 @@ fn take(
 }
 
 /// Sorts a failure to enumerate the host's input devices.
-fn list_error(e: cpal::DevicesError) -> BunsenError {
+fn list_error(e: cpal::Error) -> BunsenError {
     BunsenError::sys("could not list the input devices").with_cause(e)
 }
 
@@ -275,7 +275,7 @@ fn device_name(device: &Device) -> String {
 fn device_id(device: &Device) -> String {
     device
         .id()
-        .map(|id| id.1)
+        .map(|id| id.id().to_string())
         .unwrap_or_else(|_| "?".to_string())
 }
 
@@ -373,18 +373,18 @@ fn build_stream(
         let capture = info.timestamp().capture;
         let origin = *origin.get_or_insert(capture);
         let time = capture
-            .duration_since(&origin)
+            .checked_duration_since(origin)
             .map(|since| since.as_secs_f64());
         let mut samples = Vec::with_capacity(data.len() / channels);
         downmix(data, channels, &mut samples);
         // A closed receiver means the main loop has stopped: nothing to do.
         let _ = tx.send(Block { time, samples });
     };
-    let error_callback = |err: cpal::StreamError| log::error!("capture: {err}");
+    let error_callback = |err: cpal::Error| log::error!("capture: {err}");
 
     device
         .build_input_stream_raw(
-            &config,
+            config,
             supported.sample_format(),
             data_callback,
             error_callback,
