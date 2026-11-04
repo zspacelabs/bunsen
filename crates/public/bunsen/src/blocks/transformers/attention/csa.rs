@@ -133,6 +133,16 @@ pub struct CausalSelfAttentionConfig {
     #[config(default = "None")]
     pub qk_gain: Option<f64>,
 
+    /// The scores' scale; `None`, `1 / sqrt(head_dim)`. Gemma's is
+    /// `query_pre_attn_scalar^-0.5`, which need not be the head width's.
+    #[config(default = "None")]
+    pub score_scale: Option<f64>,
+
+    /// A soft-cap on the scaled scores before the mask, `c · tanh(s / c)`
+    /// (Gemma 2's 50); `None`, none.
+    #[config(default = "None")]
+    pub attn_softcap: Option<f64>,
+
     /// A value residual: an embedding of the input tokens, gated per KV head
     /// from the attention input, added to the values
     /// ([`forward_with_value_embed`](CausalSelfAttention::forward_with_value_embed)).
@@ -299,6 +309,8 @@ impl CausalSelfAttentionConfig {
             c_v: linear(self.n_embed, self.n_kv_head * head_dim, self.qkv_bias),
             c_proj: linear(self.n_head * head_dim, self.n_embed, self.output_bias),
             qk_gain: self.qk_gain,
+            score_scale: self.score_scale,
+            attn_softcap: self.attn_softcap,
             value_gate: self.value_residual.as_ref().map(|vr| {
                 // As upstream's init: a small positive gate, near half open.
                 LinearConfig::new(vr.gate_channels, self.n_kv_head)
@@ -377,6 +389,14 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub qk_gain: Option<f64>,
 
+    /// The scores' scale; `None`, `1 / sqrt(head_dim)`.
+    #[module(skip)]
+    pub score_scale: Option<f64>,
+
+    /// The soft-cap on the scaled scores, if any.
+    #[module(skip)]
+    pub attn_softcap: Option<f64>,
+
     /// The value residual's gate: the attention input's first channels to
     /// one scalar per KV head. `None` without a value residual.
     pub value_gate: Option<Linear>,
@@ -452,6 +472,16 @@ impl CausalSelfAttention {
             .gained(self.qk_norm.apply(k, self.k_norm.as_ref(), r_emb))
             .swap_dims(1, 2);
         (q, k)
+    }
+
+    /// The attention's own sdpa options: the head grouping, the softmax's
+    /// dtype, the scores' scale and soft-cap.
+    fn sdpa_config(&self) -> ScaledDotProductAttentionConfig {
+        ScaledDotProductAttentionConfig::new()
+            .with_enable_gqa(self.gqa_enabled())
+            .with_softmax_dtype(self.softmax_dtype)
+            .with_scale(self.score_scale)
+            .with_softcap(self.attn_softcap)
     }
 
     /// `x` times the query/key gain, or `x` without one.
@@ -544,10 +574,7 @@ impl CausalSelfAttention {
             k,
             None,
             window.map(|w| causal_window_visible(t, t, Some(w), &device)),
-            ScaledDotProductAttentionConfig::new()
-                .with_is_causal(window.is_none())
-                .with_enable_gqa(self.gqa_enabled())
-                .with_softmax_dtype(self.softmax_dtype),
+            self.sdpa_config().with_is_causal(window.is_none()),
         );
         assert_shape_contract_periodically!(
             ["B", "H", "T", "T"],
@@ -663,10 +690,7 @@ impl CausalSelfAttention {
             is_causal = false;
         };
 
-        let cfg = ScaledDotProductAttentionConfig::new()
-            .with_is_causal(is_causal)
-            .with_enable_gqa(self.gqa_enabled())
-            .with_softmax_dtype(self.softmax_dtype);
+        let cfg = self.sdpa_config().with_is_causal(is_causal);
 
         let y = scaled_dot_product_attention(q, k, v, None, attn_mask, cfg)
             .swap_dims(1, 2)
@@ -795,6 +819,49 @@ mod tests {
             ]));
         let forward = csa.forward(input, &r_emb, &mut None);
         assert_tensors_close(&applied, &forward, Tolerance::default());
+    }
+
+    /// The scores' scale and soft-cap reach the softmax: the weights are
+    /// `softmax(c · tanh(q kᵀ · scale / c))` over the visible keys, and the
+    /// forward still applies them.
+    #[test]
+    fn test_score_scale_and_softcap() {
+        let device = cpu_device();
+        let (batch, seq_len, n_embed, n_head, n_kv_head) = (1, 5, 16, 2, 1);
+        let (scale, cap) = (0.9, 0.7);
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed)
+            .with_score_scale(Some(scale))
+            .with_attn_softcap(Some(cap))
+            .init(0, &device);
+        let r_emb: RotaryEmbedding =
+            RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
+        let input =
+            seeded_tensor::<3>(3, [batch, seq_len, n_embed], Distribution::Default, &device);
+
+        let (q, k) = csa.queries_keys(input.clone(), &r_emb);
+        let k = crate::ops::repeat::repeat_interleave::<4, 5, _>(k, n_head / n_kv_head, 1);
+        let scores = q.matmul(k.swap_dims(2, 3)).mul_scalar(scale);
+        assert!(
+            scores.clone().abs().max().into_scalar::<f32>() > cap as f32,
+            "the cap binds"
+        );
+        let capped = scores.div_scalar(cap).tanh().mul_scalar(cap);
+        let visible = Tensor::<2, Int>::ones([seq_len, seq_len], &device)
+            .tril(0)
+            .bool();
+        let expected = burn::tensor::activation::softmax(
+            capped.mask_fill(visible.bool_not().unsqueeze::<4>(), f32::NEG_INFINITY),
+            3,
+        );
+        assert_tensors_close(
+            &csa.attention_weights(input.clone(), &r_emb),
+            &expected,
+            Tolerance::default(),
+        );
+
+        let plain: CausalSelfAttention =
+            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).init(0, &device);
+        assert!(plain.score_scale.is_none() && plain.attn_softcap.is_none());
     }
 
     /// A chunk of several new tokens after a cached prefix attends as the
