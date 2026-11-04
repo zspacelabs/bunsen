@@ -1,8 +1,10 @@
 //! bunsen's Qwen3 held in bf16 on CUDA, against `transformers`' bf16 decodes.
 //!
 //! `bf16::` holds the short decodes of `testdata/transformers_bf16.json`.
-//! `long_bf16::` reports how far bunsen in bf16 is from `transformers` at
-//! the end of the long conversation (`testdata/transformers_long.json`).
+//! `long_bf16::` holds bunsen in bf16 to `transformers` at the end of the
+//! long conversation (`testdata/transformers_long.json`): its prefill's
+//! logits within twice `transformers`' own bf16 error from f32, and all but
+//! [`LONG_BF16_MISSES`] of the tokens.
 //!
 //! The device is CUDA's, its default float f32; the weights load in bf16
 //! under [`LoadPolicy::performance`], as CUDA accelerates bf16, and the
@@ -102,12 +104,17 @@ mod bf16 {
     }
 }
 
+/// The tokens bunsen in bf16 may predict otherwise than `transformers` in
+/// bf16 at the end of the long conversation: two bf16 implementations round
+/// differently, and a near-tie late in the decode may go either way.
+const LONG_BF16_MISSES: usize = 2;
+
 /// bunsen in bf16 at the end of the long conversation, fed `transformers`'
-/// bf16 tokens: how far its prefill's last logits are from `transformers`'
-/// bf16 and float32 ones, beside `transformers`' own bf16 error, and how many
-/// of the tokens it predicts as `transformers` in bf16 does. Reported, not
-/// asserted (the module's docs).
-fn report_long(row: &str) {
+/// bf16 tokens: its prefill's last logits are within twice `transformers`'
+/// own bf16 error (its bf16 logits' distance from its f32 ones) of
+/// `transformers`' bf16 logits, and it predicts all but
+/// [`LONG_BF16_MISSES`] of the tokens as `transformers` in bf16 does.
+fn check_long(row: &str) {
     let device = bf16_device();
     let fixture = transformers_long_reference();
     let record = &fixture.rows[row];
@@ -148,6 +155,16 @@ fn report_long(row: &str) {
         predicted.len(),
         record.bf16_f32_agree,
     );
+    assert!(
+        vs_bf16.abs <= 2.0 * record.bf16_vs_f32_last_logits_max_abs,
+        "{row}: prefill logits {vs_bf16} from transformers' bf16, over twice its own bf16 error {}",
+        record.bf16_vs_f32_last_logits_max_abs
+    );
+    assert!(
+        agree + LONG_BF16_MISSES >= predicted.len(),
+        "{row}: {agree} of {} tokens as transformers' bf16",
+        predicted.len()
+    );
 }
 
 /// Each of the long fixture's rows in bf16, under its id.
@@ -156,12 +173,12 @@ mod long_bf16 {
 
     #[test]
     fn qwen3_0_6b() {
-        report_long("qwen3-0.6b");
+        check_long("qwen3-0.6b");
     }
 
     #[test]
     fn qwen3_4b() {
-        report_long("qwen3-4b");
+        check_long("qwen3-4b");
     }
 
     /// The 8B's weights and a 2263-position prefill fill a 24 GB card: run
@@ -169,6 +186,6 @@ mod long_bf16 {
     /// 1.4 GB is enough to run it out of memory.
     #[test]
     fn qwen3_8b() {
-        report_long("qwen3-8b");
+        check_long("qwen3-8b");
     }
 }
