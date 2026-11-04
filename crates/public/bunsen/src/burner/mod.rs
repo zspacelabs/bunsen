@@ -42,15 +42,20 @@
 //! - [`device`] &mdash; [`DeviceSession`](device::DeviceSession), a device that
 //!   waits for its queued work when it goes away, so a program exits with its
 //!   device idle.
+//! - [`dtypes`] &mdash; what a device does with each float dtype (store,
+//!   compute, accelerate), and what burn does with an op on mixed float dtypes.
 //! - [`descriptors`] &mdash; serializable, generics-free descriptors of
 //!   tensors, parameters, and comparison tolerances: the vocabulary that
 //!   reflection, audit, and [`tensor::dynamic`] use to describe tensors.
 //! - [`module`] &mdash; module-side helpers: [`ModuleInit`](module::ModuleInit)
 //!   and [`ToStructureConfig`](module::ToStructureConfig) (the config
-//!   lifecycle), [`HasDType`](module::HasDType),
-//!   [`DTypeMapper`](module::DTypeMapper) (cast a module's float parameters to
-//!   one `DType`), and (under `features = ["reflection"]`) the XML/XPath
-//!   reflection layer.
+//!   lifecycle), a block's float dtypes ([`InputDTypes`](module::InputDTypes),
+//!   [`CoercesInput`](module::CoercesInput),
+//!   [`ResultDType`](module::ResultDType) and
+//!   [`DTypeWrapped`](module::DTypeWrapped)), [`HasDType`](module::HasDType)
+//!   for the values that are not blocks, [`DTypeMapper`](module::DTypeMapper)
+//!   (cast a module's float parameters to one `DType`), and (under `features =
+//!   ["reflection"]`) the XML/XPath reflection layer.
 //! - [`optim`] &mdash; optimizer extensions (under `features = ["train"]`).
 //!   Headlined by `GroupOptimizerPlan` and the `OptimizerGroup` / `LrSelector`
 //!   building blocks.
