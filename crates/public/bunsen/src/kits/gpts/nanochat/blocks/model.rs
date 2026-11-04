@@ -303,7 +303,8 @@ pub struct NanoChatGptContractConfig {
     #[config(default = "false")]
     pub backout: bool,
 
-    /// 2026: the queries' and keys' gain after their norm (upstream's 1.2).
+    /// 2026: the queries' and keys' gain after their norm (upstream's 1.2):
+    /// the attention's score scale `g² / sqrt(head_dim)`.
     #[config(default = "None")]
     pub qk_gain: Option<f64>,
 
@@ -381,7 +382,10 @@ impl NanoChatGptContractConfig {
         CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
                 .with_norm(Some(self.norm.clone()))
-                .with_qk_gain(self.qk_gain),
+                .with_score_scale(
+                    self.qk_gain
+                        .map(|g| g * g / (self.head_dim() as f64).sqrt()),
+                ),
             MlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
                 .with_activation(ActivationConfig::Chain(vec![
@@ -948,7 +952,7 @@ mod tests {
         assert!(gpt.value_embeds.iter().all(Option::is_none));
         assert!(!gpt.is_smeared() && gpt.backout_lambda.is_none());
         assert!(gpt.stack.layers.iter().all(|b| {
-            b.attn.qk_gain.is_none()
+            b.attn.score_scale.is_none()
                 && b.attn.sliding_window.is_none()
                 && b.attn.value_gate.is_none()
         }));
@@ -1027,7 +1031,8 @@ mod tests {
                 .stack
                 .layers
                 .iter()
-                .all(|b| b.attn.qk_gain == Some(1.2))
+                .all(|b| b.attn.score_scale
+                    == Some(1.2 * 1.2 / (structure.head_dim() as f64).sqrt()))
         );
         assert_eq!(structure.smear_channels, Some(24));
         assert!(structure.residual_lambdas && structure.backout);
@@ -1204,7 +1209,7 @@ mod tests {
         differs(&g, "the x0 lambdas");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            block.attn.qk_gain = None;
+            block.attn.score_scale = None;
         }
         differs(&g, "the qk gain");
         let mut g = tiny_2026(&device);

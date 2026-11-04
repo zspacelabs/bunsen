@@ -61,6 +61,11 @@ pub struct ScaledDotProductAttentionConfig {
     /// for a half model (`softmax(..., dtype=torch.float32)`).
     #[config(default = "None")]
     pub softmax_dtype: Option<FloatDType>,
+
+    /// A soft-cap on the scaled scores, `c · tanh(s / c)`, before the bias
+    /// and mask (Gemma 2's 50); `None`, none.
+    #[config(default = "None")]
+    pub softcap: Option<f64>,
 }
 
 /// Computes scaled dot product attention.
@@ -112,7 +117,8 @@ pub fn scaled_dot_product_attention(
 
 /// Builds the Attention Weight for [`scaled_dot_product_attention`].
 ///
-/// The weight is `softmax(q k^T * scale + bias)` over the keys, then
+/// The weight is `softmax(cap(q k^T * scale) + bias)` over the keys, `cap`
+/// the config's soft-cap if it has one (`c · tanh(s / c)`), then
 /// dropout on those probabilities when the config sets a rate, as in
 /// `PyTorch`'s reference. The scores are the query's dtype; the softmax runs
 /// in the config's `softmax_dtype` when it sets one, and the weight is the
@@ -151,6 +157,12 @@ pub fn sdpa_attn_weight(
 
     let scale_factor = config.scale.unwrap_or(1.0 / (q.dims()[3] as f64).sqrt());
     let scores = q.matmul(k.swap_dims(2, 3)) * scale_factor;
+    // Capped in the scores' dtype, before the softmax's cast, as
+    // `transformers`' eager attention caps them.
+    let scores = match config.softcap {
+        Some(cap) => scores.div_scalar(cap).tanh().mul_scalar(cap),
+        None => scores,
+    };
 
     let softmax_dtype = config.softmax_dtype.map_or(dtype, DType::from);
     let scores = scores.cast(softmax_dtype);
@@ -227,6 +239,33 @@ mod tests {
         performance_device,
         seeded_tensor,
     };
+
+    /// The soft-cap bounds the scaled scores before the causal mask:
+    /// `softmax(c · tanh(q kᵀ · scale / c) + bias)`.
+    #[test]
+    fn test_sdpa_attn_weight_softcap() {
+        let device = cpu_device();
+        let shape = [1, 2, 4, 8];
+        let q = seeded_tensor::<4>(1, shape, Distribution::Default, &device);
+        let k = seeded_tensor::<4>(2, shape, Distribution::Default, &device);
+        let (scale, cap) = (0.5, 0.4);
+        let config = ScaledDotProductAttentionConfig::new()
+            .with_is_causal(true)
+            .with_scale(Some(scale))
+            .with_softcap(Some(cap));
+        let scores = q
+            .clone()
+            .matmul(k.clone().swap_dims(2, 3))
+            .mul_scalar(scale);
+        let capped = scores.div_scalar(cap).tanh().mul_scalar(cap);
+        let bias = sdpa_bias(4, 4, true, None, None, DType::F32, &device);
+        let expected = softmax(capped + bias.unsqueeze(), 3);
+        crate::support::testing::assert_tensors_close(
+            &sdpa_attn_weight(q, k, None, None, config),
+            &expected,
+            burn::tensor::Tolerance::default(),
+        );
+    }
 
     /// Dropout acts on the attention probabilities, after the softmax, as in
     /// PyTorch's reference: each weight is either dropped (zero) or the
