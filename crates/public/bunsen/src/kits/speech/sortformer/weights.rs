@@ -42,7 +42,7 @@ pub fn embedder_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
 }
 
 /// `transformers`' `Nemotron3DiarizationEncoderLayer` names onto a
-/// [`RopeEncoderBlock`](crate::blocks::transformers::encoders::rope::RopeEncoderBlock)'s,
+/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
 /// relative to it: `layer_norm{1,2}` its norms, `self_attn`'s
 /// `{q,k,v,o}_proj` the attention, `mlp.fc{1,2}` the MLP. Anything else is
 /// dropped.
@@ -50,23 +50,23 @@ pub fn encoder_layer_rekey() -> Rekey {
     Rekey::drop_rest()
         .rename("layer_norm1.", "attn_norm.")
         .rename("layer_norm2.", "mlp_norm.")
-        .rename("self_attn.q_proj.", "attn.query.")
-        .rename("self_attn.k_proj.", "attn.key.")
-        .rename("self_attn.v_proj.", "attn.value.")
-        .rename("self_attn.o_proj.", "attn.output.")
+        .rename("self_attn.q_proj.", "attn.c_q.")
+        .rename("self_attn.k_proj.", "attn.c_k.")
+        .rename("self_attn.v_proj.", "attn.c_v.")
+        .rename("self_attn.o_proj.", "attn.c_proj.")
         .rename("mlp.fc1.", "mlp.linear1.")
         .rename("mlp.fc2.", "mlp.linear2.")
 }
 
 /// `transformers`' `Nemotron3DiarizationEncoder` names onto a
-/// [`RopeTransformerEncoder`](crate::blocks::transformers::encoders::rope::RopeTransformerEncoder)'s,
-/// relative to it: `input_layer_norm` the embedding norm, `layer_norm` the
-/// final one, each `layers.{n}` by [`encoder_layer_rekey`]. Anything else
-/// (the rotary table's `inv_freq`, a buffer) is dropped.
+/// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s,
+/// relative to it: `input_layer_norm` its input norm, `layer_norm` its final
+/// one, each `layers.{n}` by [`encoder_layer_rekey`]. Anything else (the
+/// rotary table's `inv_freq`, a buffer) is dropped.
 pub fn encoder_rekey() -> Rekey {
     Rekey::drop_rest()
-        .rename("input_layer_norm.", "embed_norm.")
-        .rename("layer_norm.", "final_norm.")
+        .rename("input_layer_norm.", "input_norm.")
+        .rename("layer_norm.", "norm.")
         .mount_indexed("layers.", "layers.", encoder_layer_rekey())
 }
 
@@ -231,15 +231,15 @@ mod tests {
             ),
             (
                 "model.audio_tower.input_layer_norm.bias",
-                "encoder.transformer.embed_norm.bias",
+                "encoder.transformer.input_norm.bias",
             ),
             (
                 "model.audio_tower.layer_norm.weight",
-                "encoder.transformer.final_norm.weight",
+                "encoder.transformer.norm.weight",
             ),
             (
                 "model.audio_tower.layers.30.self_attn.o_proj.bias",
-                "encoder.transformer.layers.30.attn.output.bias",
+                "encoder.transformer.layers.30.attn.c_proj.bias",
             ),
             (
                 "model.audio_tower.layers.0.mlp.fc2.weight",

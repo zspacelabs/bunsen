@@ -79,6 +79,8 @@ pub struct ScaledDotProductAttentionConfig {
 /// - `v`: the value tensor, as `[B, H_v, T_kv, D]`.
 /// - `bias`: optional additive bias, as `[T_q, T_kv]`.
 /// - `mask`: optional boolean mask, as `[T_q, T_kv]`; `true` means attend.
+/// - `key_valid`: optional per-item key mask, as `[B, T_kv]`; `true` at the
+///   keys that are not padding, which alone are attended to.
 /// - `config`: attention config.
 ///
 /// # Returns
@@ -89,6 +91,7 @@ pub fn scaled_dot_product_attention(
     v: Tensor<4>,
     bias: Option<Tensor<2>>,
     mask: Option<Tensor<2, Bool>>,
+    key_valid: Option<Tensor<2, Bool>>,
     config: ScaledDotProductAttentionConfig,
 ) -> Tensor<4> {
     let [b, h_q, _t_q, d] = unpack_shape_contract!(["B", "H_q", "T_q", "D"], &q.dims());
@@ -104,7 +107,7 @@ pub fn scaled_dot_product_attention(
         &[("B", b), ("H_kv", h_kv), ("D", d)]
     );
 
-    let attn_weight = sdpa_attn_weight(q, k, bias, mask, config);
+    let attn_weight = sdpa_attn_weight(q, k, bias, mask, key_valid, config);
 
     let mut v = v;
     if config.enable_gqa {
@@ -129,12 +132,15 @@ pub fn scaled_dot_product_attention(
 /// - `k`: the key tensor, as `[B, H_k, T_k, D]`.
 /// - `bias`: optional additive bias, as `[T_q, T_k]`.
 /// - `mask`: optional bias mask, as `[T_q, T_k]`.
+/// - `key_valid`: optional per-item key mask, as `[B, T_k]`; `true` at the keys
+///   that are not padding.
 /// - `config`: attention config.
 pub fn sdpa_attn_weight(
     q: Tensor<4>,
     k: Tensor<4>,
     bias: Option<Tensor<2>>,
     mask: Option<Tensor<2, Bool>>,
+    key_valid: Option<Tensor<2, Bool>>,
     config: ScaledDotProductAttentionConfig,
 ) -> Tensor<4> {
     let [b, h_q, t_q, d] = unpack_shape_contract!(["B", "H_q", "T_q", "D"], &q.dims());
@@ -175,7 +181,16 @@ pub fn sdpa_attn_weight(
         softmax_dtype,
         &device,
     );
-    let mut attn_weight = softmax(scores + attn_bias.unsqueeze(), 3).cast(dtype);
+    let mut scores = scores + attn_bias.unsqueeze();
+    if let Some(valid) = key_valid {
+        crate::contracts::assert_shape_contract_periodically!(
+            ["B", "T_k"],
+            &valid.dims(),
+            &[("B", b), ("T_k", t_k)]
+        );
+        scores = scores.mask_fill(valid.bool_not().reshape([b, 1, 1, t_k]), f32::NEG_INFINITY);
+    }
+    let mut attn_weight = softmax(scores, 3).cast(dtype);
 
     if let Some(prob) = config.dropout
         && (config.enable_dropout_during_inference || attn_weight.device().is_autodiff())
@@ -261,8 +276,44 @@ mod tests {
         let bias = sdpa_bias(4, 4, true, None, None, DType::F32, &device);
         let expected = softmax(capped + bias.unsqueeze(), 3);
         crate::support::testing::assert_tensors_close(
-            &sdpa_attn_weight(q, k, None, None, config),
+            &sdpa_attn_weight(q, k, None, None, None, config),
             &expected,
+            burn::tensor::Tolerance::default(),
+        );
+    }
+
+    /// A padding key is attended to by no query of its item: its weight is
+    /// zero, and the rest of the row is the softmax over the valid keys.
+    #[test]
+    fn test_sdpa_key_valid() {
+        let device = cpu_device();
+        let shape = [2, 1, 3, 4];
+        let q = seeded_tensor::<4>(1, shape, Distribution::Default, &device);
+        let k = seeded_tensor::<4>(2, shape, Distribution::Default, &device);
+        let valid = crate::ops::transformers::attention::length_mask(&[3, 2], 3, &device);
+        let w = sdpa_attn_weight(
+            q.clone(),
+            k.clone(),
+            None,
+            None,
+            Some(valid),
+            ScaledDotProductAttentionConfig::new(),
+        );
+        // Item 1's last key is padding.
+        let padded = w.clone().slice([1..2, 0..1, 0..3, 2..3]);
+        assert_eq!(padded.abs().max().into_scalar::<f32>(), 0.0);
+        // Item 1's rows are the softmax over its first two keys alone.
+        let alone = sdpa_attn_weight(
+            q.slice([1..2, 0..1, 0..3, 0..4]),
+            k.slice([1..2, 0..1, 0..2, 0..4]),
+            None,
+            None,
+            None,
+            ScaledDotProductAttentionConfig::new(),
+        );
+        crate::support::testing::assert_tensors_close(
+            &w.slice([1..2, 0..1, 0..3, 0..2]),
+            &alone,
             burn::tensor::Tolerance::default(),
         );
     }
@@ -283,10 +334,18 @@ mod tests {
         let p = 0.5;
         let config = ScaledDotProductAttentionConfig::new();
         let read = |t: Tensor<4>| t.into_data().try_to_vec_as::<f32>().unwrap();
-        let kept = read(sdpa_attn_weight(q.clone(), k.clone(), None, None, config));
+        let kept = read(sdpa_attn_weight(
+            q.clone(),
+            k.clone(),
+            None,
+            None,
+            None,
+            config,
+        ));
         let dropped = read(sdpa_attn_weight(
             q,
             k,
+            None,
             None,
             None,
             config.with_dropout(Some(p)),
@@ -446,11 +505,18 @@ mod tests {
         let v = seeded_tensor::<4>(3, [1, 2, 6, 8], Distribution::Default, &device);
         let causal = ScaledDotProductAttentionConfig::new().with_is_causal(true);
         let f32_out =
-            scaled_dot_product_attention(q.clone(), k.clone(), v.clone(), None, None, causal);
+            scaled_dot_product_attention(q.clone(), k.clone(), v.clone(), None, None, None, causal);
         let half = |t: &Tensor<4>| t.clone().cast(DType::BF16);
         let run = |config| {
-            let out =
-                scaled_dot_product_attention(half(&q), half(&k), half(&v), None, None, config);
+            let out = scaled_dot_product_attention(
+                half(&q),
+                half(&k),
+                half(&v),
+                None,
+                None,
+                None,
+                config,
+            );
             assert_eq!(out.dtype(), DType::BF16);
             (out.cast(DType::F32) - f32_out.clone())
                 .abs()
@@ -471,6 +537,7 @@ mod tests {
             half(&k),
             half(&v),
             Some(bias),
+            None,
             None,
             causal.with_softmax_dtype(Some(FloatDType::F32)),
         );

@@ -7,25 +7,29 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::encoders::{
-        conformer::{
-            ConformerTransformer,
-            ConformerTransformerConfig,
-            ConformerTransformerMeta,
+    blocks::transformers::{
+        decoders::stack::{
+            DecoderStack,
+            DecoderStackMeta,
+            DecoderStackStructureConfig,
+            StackSides,
         },
-        residual::{
-            ResidualEncoderTransformer,
-            ResidualEncoderTransformerConfig,
-            ResidualEncoderTransformerMeta,
-        },
-        rope::{
-            RopeTransformerEncoder,
-            RopeTransformerEncoderConfig,
-            RopeTransformerEncoderMeta,
+        encoders::{
+            conformer::{
+                ConformerTransformer,
+                ConformerTransformerConfig,
+                ConformerTransformerMeta,
+            },
+            residual::{
+                ResidualEncoderTransformer,
+                ResidualEncoderTransformerConfig,
+                ResidualEncoderTransformerMeta,
+            },
         },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
+    ops::transformers::attention::length_mask,
 };
 
 /// Common meta for [`EncoderTransformer`] and [`EncoderTransformerConfig`].
@@ -46,8 +50,10 @@ pub enum EncoderTransformerConfig {
     /// without position embeddings.
     Residual(ResidualEncoderTransformerConfig),
 
-    /// [`RopeTransformerEncoder`]: pre-norm blocks with rotary attention.
-    Rope(RopeTransformerEncoderConfig),
+    /// [`DecoderStack`]: its blocks' attention bidirectional, its rotary
+    /// table over the whole input (`Nemotron-3-Diarization`'s pre-norm rotary
+    /// encoder, an input norm before the layers).
+    Stack(DecoderStackStructureConfig),
 
     /// [`ConformerTransformer`]: Conformer blocks over one relative-position
     /// table.
@@ -60,9 +66,9 @@ impl From<ResidualEncoderTransformerConfig> for EncoderTransformerConfig {
     }
 }
 
-impl From<RopeTransformerEncoderConfig> for EncoderTransformerConfig {
-    fn from(config: RopeTransformerEncoderConfig) -> Self {
-        Self::Rope(config)
+impl From<DecoderStackStructureConfig> for EncoderTransformerConfig {
+    fn from(config: DecoderStackStructureConfig) -> Self {
+        Self::Stack(config)
     }
 }
 
@@ -76,7 +82,7 @@ impl EncoderTransformerMeta for EncoderTransformerConfig {
     fn d_model(&self) -> usize {
         match self {
             Self::Residual(c) => c.d_model(),
-            Self::Rope(c) => c.d_model(),
+            Self::Stack(c) => c.d_model(),
             Self::Conformer(c) => c.d_model(),
         }
     }
@@ -84,7 +90,7 @@ impl EncoderTransformerMeta for EncoderTransformerConfig {
     fn n_layers(&self) -> usize {
         match self {
             Self::Residual(c) => c.n_layers(),
-            Self::Rope(c) => c.n_layers(),
+            Self::Stack(c) => c.n_layers(),
             Self::Conformer(c) => c.n_layers(),
         }
     }
@@ -97,7 +103,7 @@ impl ModuleInit<EncoderTransformer> for EncoderTransformerConfig {
     ) -> BunsenResult<EncoderTransformer> {
         Ok(match self {
             Self::Residual(c) => EncoderTransformer::Residual(c.try_init(device)?),
-            Self::Rope(c) => EncoderTransformer::Rope(c.try_init(device)?),
+            Self::Stack(c) => EncoderTransformer::Stack(c.try_init(device)?),
             Self::Conformer(c) => EncoderTransformer::Conformer(c.try_init(device)?),
         })
     }
@@ -125,8 +131,8 @@ pub enum EncoderTransformer {
     /// [`ResidualEncoderTransformer`].
     Residual(ResidualEncoderTransformer),
 
-    /// [`RopeTransformerEncoder`].
-    Rope(RopeTransformerEncoder),
+    /// [`DecoderStack`], bidirectional.
+    Stack(DecoderStack),
 
     /// [`ConformerTransformer`].
     Conformer(ConformerTransformer),
@@ -138,9 +144,9 @@ impl From<ResidualEncoderTransformer> for EncoderTransformer {
     }
 }
 
-impl From<RopeTransformerEncoder> for EncoderTransformer {
-    fn from(module: RopeTransformerEncoder) -> Self {
-        Self::Rope(module)
+impl From<DecoderStack> for EncoderTransformer {
+    fn from(module: DecoderStack) -> Self {
+        Self::Stack(module)
     }
 }
 
@@ -154,7 +160,7 @@ impl EncoderTransformerMeta for EncoderTransformer {
     fn d_model(&self) -> usize {
         match self {
             Self::Residual(m) => m.d_model(),
-            Self::Rope(m) => m.d_model(),
+            Self::Stack(m) => m.d_model(),
             Self::Conformer(m) => m.d_model(),
         }
     }
@@ -162,7 +168,7 @@ impl EncoderTransformerMeta for EncoderTransformer {
     fn n_layers(&self) -> usize {
         match self {
             Self::Residual(m) => m.n_layers(),
-            Self::Rope(m) => m.n_layers(),
+            Self::Stack(m) => m.n_layers(),
             Self::Conformer(m) => m.n_layers(),
         }
     }
@@ -186,10 +192,83 @@ impl EncoderTransformer {
     ) -> Tensor<3> {
         match self {
             Self::Residual(m) => m.forward(x, lengths),
-            Self::Rope(m) => m.forward(x, lengths),
+            Self::Stack(m) => stack_forward(m, x, lengths),
             Self::Conformer(m) => m.forward(x, lengths),
         }
     }
+}
+
+/// A [`DecoderStack`] as an encoder: its rotary table over the whole input,
+/// each item's padding masked by its length.
+fn stack_forward(
+    stack: &DecoderStack,
+    x: Tensor<3>,
+    lengths: Option<&[usize]>,
+) -> Tensor<3> {
+    let time = x.dims()[1];
+    let device = x.device();
+    let key_valid = lengths.map(|lengths| length_mask(lengths, time, &device));
+    stack.forward_with(
+        x,
+        &stack.rotary(time, &device),
+        None,
+        StackSides {
+            key_valid,
+            ..Default::default()
+        },
+    )
+}
+
+/// A pre-norm rotary encoder stack, for tests: `n_layers` bidirectional
+/// layers of `heads` heads, a `LayerNorm` before each sublayer, over the
+/// input and after the last layer.
+#[cfg(test)]
+pub(crate) fn test_rope_stack(
+    d_model: usize,
+    heads: usize,
+    n_layers: usize,
+) -> DecoderStackStructureConfig {
+    use burn::nn::LayerNormConfig;
+
+    use crate::blocks::{
+        activation::ActivationConfig,
+        norm::NormConfig,
+        transformers::{
+            attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
+            },
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::UniformStackConfig,
+            },
+            embedding::{
+                RotaryDirection,
+                RotaryEmbeddingConfig,
+            },
+            mlp::MlpConfig,
+        },
+    };
+    let norm = NormConfig::Layer(LayerNormConfig::new(0));
+    crate::burner::module::ToStructureConfig::to_structure(
+        &UniformStackConfig::new(
+            n_layers,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(heads, heads, d_model)
+                    .with_norm(None)
+                    .with_output_bias(true)
+                    .with_mask(AttentionMask::Bidirectional),
+                MlpConfig::new(d_model)
+                    .with_activation(ActivationConfig::Gelu)
+                    .with_bias(true)
+                    .into(),
+            )
+            .with_norm(norm.clone()),
+            norm.clone(),
+            RotaryEmbeddingConfig::new(0, d_model / heads).with_direction(RotaryDirection::Forward),
+        )
+        .with_input_norm(Some(norm)),
+    )
 }
 
 #[cfg(test)]
@@ -204,7 +283,6 @@ mod tests {
         blocks::transformers::encoders::{
             conformer::ConformerBlockConfig,
             residual::ResidualEncoderAttentionBlockConfig,
-            rope::RopeEncoderBlockConfig,
         },
         support::testing::cpu_device,
     };
@@ -216,7 +294,7 @@ mod tests {
                 2,
             )
             .into(),
-            RopeTransformerEncoderConfig::new(RopeEncoderBlockConfig::new(8, 2), 2).into(),
+            test_rope_stack(8, 2, 2).into(),
             ConformerTransformerConfig::new(ConformerBlockConfig::new(8, 2, 16, 3), 2).into(),
         ]
     }
@@ -236,7 +314,7 @@ mod tests {
             let x = Tensor::<3>::random([2, 6, 8], Distribution::Default, &device);
             let direct = match &encoder {
                 EncoderTransformer::Residual(m) => m.forward(x.clone(), Some(&[6, 4])),
-                EncoderTransformer::Rope(m) => m.forward(x.clone(), Some(&[6, 4])),
+                EncoderTransformer::Stack(m) => stack_forward(m, x.clone(), Some(&[6, 4])),
                 EncoderTransformer::Conformer(m) => m.forward(x.clone(), Some(&[6, 4])),
             };
             encoder
@@ -259,7 +337,7 @@ mod tests {
             let encoder: EncoderTransformer = config.init(&device);
             let inner: Vec<String> = match &encoder {
                 EncoderTransformer::Residual(m) => m.collect(None, None, true),
-                EncoderTransformer::Rope(m) => m.collect(None, None, true),
+                EncoderTransformer::Stack(m) => m.collect(None, None, true),
                 EncoderTransformer::Conformer(m) => m.collect(None, None, true),
             }
             .into_iter()

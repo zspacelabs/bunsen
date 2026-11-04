@@ -28,7 +28,7 @@
 //!   the pre- or post-norm layer of Whisper's, Qwen3-ASR's and Sortformer v2's
 //!   encoders, and its stack,
 //!   [`ResidualEncoderTransformer`](encoders::residual::ResidualEncoderTransformer);
-//!   [`RopeTransformerEncoder`](encoders::rope::RopeTransformerEncoder), a
+//!   a bidirectional [`DecoderStack`](decoders::stack::DecoderStack), a
 //!   pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s; and
 //!   [`ConformerEncoderConfig`](encoders::conformer::ConformerEncoderConfig),
 //!   the `FastConformer`, Parakeet's and Sortformer v2's.
