@@ -127,7 +127,7 @@ fn check_forward(toy: &Toy) {
     let seq = embeds.dims()[1];
     let r_emb = model.rotary(seq, &toy.device);
 
-    let layer0 = model.layers[0].forward(embeds.clone(), &r_emb, &mut None);
+    let layer0 = model.stack.layers[0].forward(embeds.clone(), &r_emb, &mut None);
     assert_io_close("layer 0", layer0, toy.io("layer0"));
     let hidden = model.forward_hidden(embeds, &r_emb, None);
     assert_io_close("hidden", hidden.clone(), toy.io("hidden"));

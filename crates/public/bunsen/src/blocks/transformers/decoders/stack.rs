@@ -1,0 +1,617 @@
+//! # The decoder stack
+//!
+//! [`DecoderStack`]: a stack of [`CausalDecoderBlock`]s and a final norm,
+//! with the rotary embedding they share and their KV cache's geometry: the
+//! decoder of a causal language model, without its embedding or head, or a
+//! causal encoder (Voxtral's audio tower) as it stands.
+//!
+//! It has the Stacked config shape. [`DecoderStackStructureConfig`] is the
+//! unrolled tree, one block config per layer; two policies lower to it:
+//!
+//! - [`UniformStackConfig`]: one block config, repeated;
+//! - [`PatternedStackConfig`]: a few block configs, the stack's *kinds*, and
+//!   each layer's kind (a sliding-window layer among full ones, say).
+
+use std::ops::Range;
+
+use burn::{
+    Tensor,
+    config::Config,
+    module::Module,
+    prelude::s,
+    tensor::Device,
+};
+
+use crate::{
+    blocks::{
+        norm::{
+            Norm,
+            NormConfig,
+        },
+        transformers::{
+            attention::csa::CausalSelfAttentionMeta,
+            decoders::causal::{
+                CausalDecoderBlock,
+                CausalDecoderBlockConfig,
+                CausalDecoderBlockMeta,
+            },
+            embedding::{
+                RotaryEmbedding,
+                RotaryEmbeddingConfig,
+            },
+        },
+    },
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        ConstraintError,
+        Rule,
+    },
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+    },
+};
+
+/// Common meta for [`DecoderStack`] and its configs.
+pub trait DecoderStackMeta {
+    /// The model width.
+    fn d_model(&self) -> usize;
+
+    /// The layer count.
+    fn n_layers(&self) -> usize;
+
+    /// The key/value head count of the first layer, which a shared KV cache
+    /// is shaped for.
+    fn n_kv_heads(&self) -> usize;
+
+    /// The head width of the first layer.
+    fn head_dim(&self) -> usize;
+
+    /// The [`KVCacheConfig`] the stack decodes with: its key/value heads,
+    /// head width and layer count, at batch 1, `pre_size` positions up
+    /// front, uncapped.
+    fn kv_cache_config(
+        &self,
+        pre_size: usize,
+    ) -> KVCacheConfig {
+        KVCacheConfig::new(
+            1,
+            self.n_kv_heads(),
+            pre_size,
+            self.head_dim(),
+            self.n_layers(),
+        )
+    }
+}
+
+/// The meta of a stack whose layers are `layers`.
+fn layers_meta(layers: &[CausalDecoderBlockConfig]) -> (usize, usize, usize) {
+    let first = &layers[0];
+    (
+        first.n_embed(),
+        first.attn.n_kv_head(),
+        first.attn.head_dim(),
+    )
+}
+
+/// Config for [`DecoderStack`]: the unrolled tree, one block config per
+/// layer.
+///
+/// Implements [`DecoderStackMeta`] (it has at least one layer once
+/// [`try_init`](ModuleInit::try_init) has accepted it).
+#[derive(Config, Debug)]
+pub struct DecoderStackStructureConfig {
+    /// The layers, in order; each one's index is its slot in a shared
+    /// [`KVCache`].
+    pub layers: Vec<CausalDecoderBlockConfig>,
+
+    /// The final normalization; its feature count is the stack's width.
+    pub norm: NormConfig,
+
+    /// The rotary embedding the layers share; its `seq_len` is set per call
+    /// ([`DecoderStack::rotary`]).
+    pub rotary: RotaryEmbeddingConfig,
+}
+
+impl DecoderStackMeta for DecoderStackStructureConfig {
+    fn d_model(&self) -> usize {
+        layers_meta(&self.layers).0
+    }
+
+    fn n_layers(&self) -> usize {
+        self.layers.len()
+    }
+
+    fn n_kv_heads(&self) -> usize {
+        layers_meta(&self.layers).1
+    }
+
+    fn head_dim(&self) -> usize {
+        layers_meta(&self.layers).2
+    }
+}
+
+impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
+    /// Initializes each layer at its index, and the final norm at the
+    /// stack's width.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, for a stack of no layers or of layers of
+    /// different widths; as each block's own `try_init`.
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<DecoderStack> {
+        if self.layers.is_empty() {
+            return Err(ConstraintError::new(
+                "DecoderStackStructureConfig",
+                "layers",
+                Rule::Relation {
+                    lhs: ("layers.len".into(), "0".into()),
+                    op: ">",
+                    rhs: ("0".into(), "0".into()),
+                },
+            )
+            .into());
+        }
+        let width = self.d_model();
+        if let Some((i, layer)) = self
+            .layers
+            .iter()
+            .enumerate()
+            .find(|(_, l)| l.n_embed() != width)
+        {
+            return Err(ConstraintError::new(
+                "DecoderStackStructureConfig",
+                "layers",
+                Rule::Relation {
+                    lhs: (format!("layers[{i}].n_embed"), layer.n_embed().to_string()),
+                    op: "==",
+                    rhs: ("layers[0].n_embed".into(), width.to_string()),
+                },
+            )
+            .into());
+        }
+        Ok(DecoderStack {
+            layers: self
+                .layers
+                .iter()
+                .enumerate()
+                .map(|(i, layer)| layer.try_init(i, device))
+                .collect::<BunsenResult<_>>()?,
+            norm: self.norm.clone().with_num_features(width).init(device),
+            rotary: self.rotary.clone(),
+        })
+    }
+}
+
+/// A [`DecoderStack`] of `n_layers` copies of one block config.
+///
+/// Lowers to [`DecoderStackStructureConfig`].
+#[derive(Config, Debug)]
+pub struct UniformStackConfig {
+    /// The layer count.
+    pub n_layers: usize,
+
+    /// Every layer's config.
+    pub layer: CausalDecoderBlockConfig,
+
+    /// The final normalization.
+    pub norm: NormConfig,
+
+    /// The rotary embedding the layers share.
+    pub rotary: RotaryEmbeddingConfig,
+}
+
+impl ToStructureConfig for UniformStackConfig {
+    type Structure = DecoderStackStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<DecoderStackStructureConfig> {
+        Ok(DecoderStackStructureConfig::new(
+            vec![self.layer.clone(); self.n_layers],
+            self.norm.clone(),
+            self.rotary.clone(),
+        ))
+    }
+}
+
+/// A [`DecoderStack`] of a few block configs, its *kinds*, and each layer's
+/// kind, by index: a sliding-window kind among full-attention ones, say.
+///
+/// Lowers to [`DecoderStackStructureConfig`].
+#[derive(Config, Debug)]
+pub struct PatternedStackConfig {
+    /// The kinds of layer.
+    pub kinds: Vec<CausalDecoderBlockConfig>,
+
+    /// Each layer's kind: an index into [`kinds`](Self::kinds).
+    pub layer_kinds: Vec<usize>,
+
+    /// The final normalization.
+    pub norm: NormConfig,
+
+    /// The rotary embedding the layers share.
+    pub rotary: RotaryEmbeddingConfig,
+}
+
+impl ToStructureConfig for PatternedStackConfig {
+    type Structure = DecoderStackStructureConfig;
+
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause naming the layer, for a layer whose kind is
+    /// not one of [`kinds`](Self::kinds).
+    fn try_to_structure(&self) -> BunsenResult<DecoderStackStructureConfig> {
+        let layers = self
+            .layer_kinds
+            .iter()
+            .enumerate()
+            .map(|(i, &kind)| {
+                self.kinds.get(kind).cloned().ok_or_else(|| {
+                    BunsenError::from(ConstraintError::new(
+                        "PatternedStackConfig",
+                        "layer_kinds",
+                        Rule::Relation {
+                            lhs: (format!("layer_kinds[{i}]"), kind.to_string()),
+                            op: "<",
+                            rhs: ("kinds.len".into(), self.kinds.len().to_string()),
+                        },
+                    ))
+                })
+            })
+            .collect::<BunsenResult<_>>()?;
+        Ok(DecoderStackStructureConfig::new(
+            layers,
+            self.norm.clone(),
+            self.rotary.clone(),
+        ))
+    }
+}
+
+/// A stack of [`CausalDecoderBlock`]s and a final norm: the decoder of a
+/// causal language model, between its embedding and its head, or a causal
+/// encoder.
+///
+/// Built by [`DecoderStackStructureConfig`], or a policy that lowers to it
+/// ([`UniformStackConfig`], [`PatternedStackConfig`]).
+/// Implements [`DecoderStackMeta`].
+#[derive(Module, Debug)]
+pub struct DecoderStack {
+    /// The layers, in order; each one's index is its slot in a shared
+    /// [`KVCache`].
+    pub layers: Vec<CausalDecoderBlock>,
+
+    /// The final normalization.
+    pub norm: Norm,
+
+    /// The rotary embedding the layers share, but its length
+    /// ([`rotary`](Self::rotary)).
+    #[module(skip)]
+    pub rotary: RotaryEmbeddingConfig,
+}
+
+impl DecoderStackMeta for DecoderStack {
+    fn d_model(&self) -> usize {
+        self.layers[0].n_embed()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.layers.len()
+    }
+
+    fn n_kv_heads(&self) -> usize {
+        self.layers[0].attn.n_kv_head()
+    }
+
+    fn head_dim(&self) -> usize {
+        self.layers[0].attn.head_dim
+    }
+}
+
+impl DecoderStack {
+    /// The rotary embedding for positions `0..seq_len`.
+    pub fn rotary(
+        &self,
+        seq_len: usize,
+        device: &Device,
+    ) -> RotaryEmbedding {
+        let mut config = self.rotary.clone();
+        config.seq_len = seq_len;
+        config.init(device)
+    }
+
+    /// Runs the layers and the final norm over `x`, at positions
+    /// `start..start + seq`, through the cache when there is one.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, seq, d_model]`.
+    /// * `r_emb` - a rotary embedding covering `start + seq` positions.
+    /// * `kv_cache` - the cache, at position `start`; `None` means `start` is 0
+    ///   and nothing is kept.
+    ///
+    /// # Returns
+    /// `[batch, seq, d_model]`, normalized.
+    pub fn forward_hidden(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        mut kv_cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        let [batch, seq] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq", "d_model"],
+            &x.dims(),
+            &["batch", "seq"],
+            &[("d_model", self.d_model())]
+        );
+        let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
+        let r_emb = r_emb.clip_range(start..start + seq);
+        let mut x = x;
+        for layer in &self.layers {
+            x = layer.forward(x, &r_emb, &mut kv_cache);
+        }
+        let y = self.norm.forward(x);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "d_model"],
+            &y.dims(),
+            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+
+        y
+    }
+
+    /// The attention weights of an uncached pass over `x`, at `layers`, each
+    /// cut to the queries `rows` and the keys `cols`.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, seq, d_model]`, at positions `0..seq`.
+    /// * `r_emb` - a rotary embedding covering `seq` positions.
+    /// * `layers` - the layers, by index, in the order returned.
+    /// * `rows`, `cols` - the query and key positions kept.
+    ///
+    /// # Returns
+    /// For each of `layers`, `[batch, n_heads, rows.len(), cols.len()]`.
+    ///
+    /// # Panics
+    /// If a layer index is past the last layer.
+    pub fn attention_weights(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        layers: &[usize],
+        rows: Range<usize>,
+        cols: Range<usize>,
+    ) -> Vec<Tensor<4>> {
+        let [_, seq] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq", "d_model"],
+            &x.dims(),
+            &["batch", "seq"],
+            &[("d_model", self.d_model())]
+        );
+        assert!(
+            layers.iter().all(|&l| l < self.layers.len()),
+            "layers {layers:?} of {}",
+            self.layers.len()
+        );
+        let r_emb = r_emb.clip_range(0..seq);
+        let deepest = layers.iter().copied().max().map_or(0, |l| l + 1);
+        let mut weights: Vec<Option<Tensor<4>>> = vec![None; layers.len()];
+        let mut x = x;
+        for (index, layer) in self.layers.iter().enumerate().take(deepest) {
+            for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
+                let w = layer
+                    .attn
+                    .attention_weights(layer.attn_norm.forward(x.clone()), &r_emb);
+                weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
+            }
+            x = layer.forward(x, &r_emb, &mut None);
+        }
+        weights
+            .into_iter()
+            .map(|w| w.expect("every layer visited"))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::{
+        nn::norm::RmsNormConfig,
+        tensor::{
+            Distribution,
+            Tolerance,
+        },
+    };
+    use serial_test::serial;
+
+    use super::*;
+    use crate::{
+        blocks::transformers::{
+            attention::csa::CausalSelfAttentionConfig,
+            mlp::GatedMlpConfig,
+        },
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        support::testing::{
+            DeviceMemoryGuard,
+            assert_tensors_close,
+            performance_device,
+            seeded_tensor,
+        },
+    };
+
+    fn layer(window: Option<usize>) -> CausalDecoderBlockConfig {
+        CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(4, 2, 16)
+                .with_head_dim(Some(8))
+                .with_sliding_window(window),
+            GatedMlpConfig::new(16, 32).into(),
+        )
+    }
+
+    fn uniform(n: usize) -> UniformStackConfig {
+        UniformStackConfig::new(
+            n,
+            layer(None),
+            NormConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        )
+    }
+
+    /// The policy and its structure build the same stack, and the meta
+    /// agrees across all three.
+    #[test]
+    fn test_uniform_pathways_agree() {
+        let device = performance_device();
+        let policy = uniform(3);
+        let structure = policy.to_structure();
+        let a: DecoderStack = policy.init(&device);
+        let b: DecoderStack = structure.init(&device);
+        for meta in [&a as &dyn DecoderStackMeta, &b, &structure] {
+            assert_eq!(
+                (
+                    meta.d_model(),
+                    meta.n_layers(),
+                    meta.n_kv_heads(),
+                    meta.head_dim()
+                ),
+                (16, 3, 2, 8)
+            );
+        }
+        assert_eq!(a.num_params(), b.num_params());
+        assert_eq!(
+            a.kv_cache_config(64).seq_len,
+            64,
+            "the cache's pre-size is the caller's"
+        );
+    }
+
+    /// Each layer is its kind's; a kind that is not one is refused, naming
+    /// the layer.
+    #[test]
+    fn test_patterned_lowering() {
+        let kinds = vec![layer(Some(4)), layer(None)];
+        let policy = PatternedStackConfig::new(
+            kinds,
+            vec![0, 0, 1, 0],
+            NormConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        );
+        let windows: Vec<_> = policy
+            .to_structure()
+            .layers
+            .iter()
+            .map(|l| l.attn.sliding_window)
+            .collect();
+        assert_eq!(windows, [Some(4), Some(4), None, Some(4)]);
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("layer_kinds[1]")
+            .assert_err(
+                &PatternedStackConfig {
+                    layer_kinds: vec![1, 2],
+                    ..policy
+                }
+                .try_to_structure(),
+            );
+    }
+
+    /// No layers, or layers of two widths, are refused.
+    #[test]
+    fn test_structure_refusals() {
+        let device = performance_device();
+        let empty = uniform(0).to_structure();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("layers")
+            .assert_err(&ModuleInit::<DecoderStack>::try_init(&empty, &device));
+        let mut mixed = uniform(2).to_structure();
+        mixed.layers[1] = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(4, 2, 24).with_head_dim(Some(8)),
+            GatedMlpConfig::new(24, 32).into(),
+        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("layers[1].n_embed")
+            .assert_err(&ModuleInit::<DecoderStack>::try_init(&mixed, &device));
+    }
+
+    /// A prefill and then one position per step, through a cache, is the
+    /// uncached pass, for a uniform stack and a patterned one whose window is
+    /// shorter than the sequence.
+    #[test]
+    #[serial]
+    fn test_cached_matches_uncached() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let patterned = PatternedStackConfig::new(
+            vec![layer(Some(3)), layer(None)],
+            vec![0, 1, 0],
+            NormConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        )
+        .to_structure();
+        for structure in [uniform(2).to_structure(), patterned] {
+            device.seed(5);
+            let stack: DecoderStack = structure.init(&device);
+            let n = 7;
+            let x: Tensor<3> = seeded_tensor(11, [1, n, 16], Distribution::Default, &device);
+            let r_emb = stack.rotary(n, &device);
+            let whole = stack.forward_hidden(x.clone(), &r_emb, None);
+
+            let mut cache = stack.kv_cache_config(2).with_chunk_size(2).init();
+            let mut parts =
+                vec![stack.forward_hidden(x.clone().slice_dim(1, 0..3), &r_emb, Some(&mut cache))];
+            for pos in 3..n {
+                parts.push(stack.forward_hidden(
+                    x.clone().slice_dim(1, pos..pos + 1),
+                    &r_emb,
+                    Some(&mut cache),
+                ));
+            }
+            assert_tensors_close(
+                &Tensor::cat(parts, 1),
+                &whole,
+                Tolerance::rel_abs(1e-4, 1e-4),
+            );
+        }
+    }
+
+    /// The weights at a layer are its attention's over that layer's input,
+    /// cut to the rows and columns asked for, in the order asked for.
+    #[test]
+    fn test_attention_weights() {
+        let device = performance_device();
+        let stack: DecoderStack = uniform(3).init(&device);
+        let x: Tensor<3> = seeded_tensor(3, [1, 5, 16], Distribution::Default, &device);
+        let r_emb = stack.rotary(5, &device);
+
+        let weights = stack.attention_weights(x.clone(), &r_emb, &[1, 0], 2..5, 0..3);
+        assert_eq!(weights.len(), 2);
+        assert_eq!(weights[0].dims(), [1, 4, 3, 3]);
+
+        let first = &stack.layers[0];
+        let expected0 = first
+            .attn
+            .attention_weights(first.attn_norm.forward(x.clone()), &r_emb)
+            .slice(s![.., .., 2..5, 0..3]);
+        let second = &stack.layers[1];
+        let x1 = first.forward(x, &r_emb, &mut None);
+        let expected1 = second
+            .attn
+            .attention_weights(second.attn_norm.forward(x1), &r_emb)
+            .slice(s![.., .., 2..5, 0..3]);
+        let tolerance = Tolerance::default();
+        assert_tensors_close(&weights[0], &expected1, tolerance);
+        assert_tensors_close(&weights[1], &expected0, tolerance);
+    }
+}

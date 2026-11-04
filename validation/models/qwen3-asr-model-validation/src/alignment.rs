@@ -10,10 +10,13 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::speech::qwen3_asr::{
-        QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
-        Qwen3AsrConstruct,
-        Qwen3AsrFrontEndMeta,
+    kits::{
+        gpts::qwen3::Qwen3Meta,
+        speech::qwen3_asr::{
+            QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
+            Qwen3AsrConstruct,
+            Qwen3AsrFrontEndMeta,
+        },
     },
     support::testing::{
         DeviceMemoryGuard,
@@ -124,7 +127,7 @@ fn decode_window(
         .transcribe_features(features.clone(), valid)
         .unwrap()
         .tokens;
-    let layers: Vec<usize> = (0..bundle.model.language_model.layers.len()).collect();
+    let layers: Vec<usize> = (0..bundle.model.language_model.n_layers()).collect();
     let attention = bundle
         .audio_attention(features.clone(), valid, &reply, &layers)
         .unwrap();

@@ -58,9 +58,10 @@ pub fn hf_rekey() -> Rekey {
             )
             .mount_indexed(
                 "language_model.layers.",
-                "language_model.layers.",
+                "language_model.stack.layers.",
                 text_layer_rekey(),
-            ),
+            )
+            .rename("language_model.norm.", "language_model.stack.norm."),
     )
 }
 
@@ -194,19 +195,19 @@ mod tests {
             ),
             (
                 "model.language_model.layers.0.self_attn.o_proj.weight",
-                Some("language_model.layers.0.attn.c_proj.weight"),
+                Some("language_model.stack.layers.0.attn.c_proj.weight"),
             ),
             (
                 "model.language_model.layers.0.self_attn.q_norm.weight",
-                Some("language_model.layers.0.attn.q_norm.weight"),
+                Some("language_model.stack.layers.0.attn.q_norm.weight"),
             ),
             (
                 "model.language_model.layers.0.mlp.gate_proj.weight",
-                Some("language_model.layers.0.mlp.gate_proj.weight"),
+                Some("language_model.stack.layers.0.mlp.gate_proj.weight"),
             ),
             (
                 "model.language_model.norm.weight",
-                Some("language_model.norm.weight"),
+                Some("language_model.stack.norm.weight"),
             ),
             ("lm_head.weight", None),
         ] {

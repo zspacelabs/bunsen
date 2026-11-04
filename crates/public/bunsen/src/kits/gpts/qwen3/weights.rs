@@ -45,7 +45,9 @@ pub fn hf_rekey() -> Rekey {
         .mount(
             "model.",
             "",
-            Rekey::keep_rest().mount_indexed("layers.", "layers.", text_layer_rekey()),
+            Rekey::keep_rest()
+                .mount_indexed("layers.", "stack.layers.", text_layer_rekey())
+                .rename("norm.", "stack.norm."),
         )
         .exact("lm_head.weight", "lm_head.weight")
 }
@@ -168,17 +170,17 @@ mod tests {
             ("model.embed_tokens.weight", Some("embed_tokens.weight")),
             (
                 "model.layers.0.self_attn.o_proj.weight",
-                Some("layers.0.attn.c_proj.weight"),
+                Some("stack.layers.0.attn.c_proj.weight"),
             ),
             (
                 "model.layers.27.self_attn.k_norm.weight",
-                Some("layers.27.attn.k_norm.weight"),
+                Some("stack.layers.27.attn.k_norm.weight"),
             ),
             (
                 "model.layers.3.mlp.up_proj.weight",
-                Some("layers.3.mlp.up_proj.weight"),
+                Some("stack.layers.3.mlp.up_proj.weight"),
             ),
-            ("model.norm.weight", Some("norm.weight")),
+            ("model.norm.weight", Some("stack.norm.weight")),
             ("lm_head.weight", Some("lm_head.weight")),
             ("lm_head.bias", None),
         ] {
