@@ -413,8 +413,9 @@ fn policy<H: ConstructInit, C: Default + Serialize + DeserializeOwned>(
 
 /// A row's presets, in brief: each axis and its members, the presets on no
 /// axis (`other`), and the `default` selection; under `full`, the preset
-/// set as data, in its fields' order (each preset's `name`, `description`
-/// and `patch`; each axis's `name`, `description` and `members`). Empty (and
+/// set as data, in its fields' order: `base`, `modes` (the presets, each
+/// its `name`, `description` and `patch`), `axes` (each its `name`,
+/// `description` and `members`) and `default`. Empty (and
 /// elided) for a row with none.
 fn presets(
     set: &PresetSet,
@@ -431,7 +432,7 @@ fn presets(
         return Ok(Value::map([
             ("base", Value::Json(set.base.clone())),
             (
-                "presets",
+                "modes",
                 Value::List(
                     set.presets
                         .iter()
@@ -583,8 +584,8 @@ mod tests {
             Some(&Value::List(vec![Value::str("transcribe")]))
         );
         // A preset's name comes first, then its description, then its patch.
-        let Some(Value::List(each)) = presets.get("presets") else {
-            panic!("the presets, a list");
+        let Some(Value::List(each)) = presets.get("modes") else {
+            panic!("the presets, a list under `modes`");
         };
         let Value::Map(first) = &each[0] else {
             panic!("a preset, a map");
