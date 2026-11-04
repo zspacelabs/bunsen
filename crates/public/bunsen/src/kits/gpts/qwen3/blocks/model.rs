@@ -10,21 +10,25 @@ use burn::{
         EmbeddingConfig,
         Linear,
         LinearConfig,
-        norm::{
-            RmsNorm,
-            RmsNormConfig,
-        },
+        norm::RmsNormConfig,
     },
     prelude::{
         Int,
         s,
     },
-    tensor::Device,
+    tensor::{
+        DType,
+        Device,
+        FloatDType,
+    },
 };
 
 use crate::{
     blocks::{
-        norm::NormConfig,
+        norm::{
+            Norm,
+            NormConfig,
+        },
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
@@ -142,6 +146,18 @@ pub struct Qwen3Config {
     /// `tie_word_embeddings`); otherwise it is a linear map of its own.
     #[config(default = "true")]
     pub tied_head: bool,
+
+    /// The dtype attention's softmax runs in. `transformers` runs it in f32
+    /// for a half model (`softmax(..., dtype=torch.float32)`), which this
+    /// keeps; in an f32 model it changes nothing.
+    #[config(default = "Some(FloatDType::F32)")]
+    pub softmax_dtype: Option<FloatDType>,
+
+    /// The dtype the logits leave the model in: f32, as `transformers`
+    /// generates from (`logits.float()`), whatever the model computes in.
+    /// `None` leaves them in the model's dtype.
+    #[config(default = "Some(FloatDType::F32)")]
+    pub logits_dtype: Option<FloatDType>,
 }
 
 impl Qwen3Config {
@@ -221,7 +237,8 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
                     CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                         .with_head_dim(Some(self.head_dim))
                         .with_norm(Some(NormConfig::Rms(norm(self.head_dim))))
-                        .with_qk_norm(QkNormPlacement::BeforeRope),
+                        .with_qk_norm(QkNormPlacement::BeforeRope)
+                        .with_softmax_dtype(self.softmax_dtype),
                     GatedMlpConfig::new(self.d_model, self.d_ff).into(),
                 )
                 .with_norm(NormConfig::Rms(norm(0)))
@@ -237,8 +254,9 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
             embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
             lm_head,
             layers,
-            norm: norm(self.d_model).init(device),
+            norm: NormConfig::Rms(norm(self.d_model)).init(device),
             rope_theta: self.rope_theta,
+            logits_dtype: self.logits_dtype,
         })
     }
 }
@@ -270,10 +288,14 @@ pub struct Qwen3Model {
     pub layers: Vec<CausalDecoderBlock>,
 
     /// The final normalization.
-    pub norm: RmsNorm,
+    pub norm: Norm,
 
     /// The rotary embedding's base.
     pub rope_theta: usize,
+
+    /// The dtype the logits leave the model in; `None`, the model's.
+    #[module(skip)]
+    pub logits_dtype: Option<FloatDType>,
 }
 
 impl Qwen3Meta for Qwen3Model {
@@ -441,7 +463,8 @@ impl Qwen3Model {
     ///   [`forward_hidden`](Self::forward_hidden).
     ///
     /// # Returns
-    /// `[batch, seq, n_vocab]`.
+    /// `[batch, seq, n_vocab]`, in the config's `logits_dtype` (f32 by
+    /// default) whatever the model computes in.
     pub fn logits(
         &self,
         hidden: Tensor<3>,
@@ -457,6 +480,10 @@ impl Qwen3Model {
         let y = match &self.lm_head {
             Some(head) => head.forward(hidden),
             None => unembed(&self.embed_tokens, hidden),
+        };
+        let y = match self.logits_dtype {
+            Some(dtype) => y.cast(DType::from(dtype)),
+            None => y,
         };
 
         #[cfg(any(debug_assertions, test))]

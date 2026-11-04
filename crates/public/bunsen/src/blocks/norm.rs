@@ -190,6 +190,17 @@ impl Norm {
         }
     }
 
+    /// The epsilon it adds to the variance; `None` for
+    /// [`Identity`](Self::Identity).
+    pub fn epsilon(&self) -> Option<f64> {
+        match self {
+            Self::Identity(_) => None,
+            Self::Batch(norm) => Some(norm.epsilon),
+            Self::Layer(norm) => Some(norm.epsilon),
+            Self::Rms(norm) => Some(norm.epsilon),
+        }
+    }
+
     /// The float dtype of its parameters; `None` for
     /// [`Identity`](Self::Identity).
     pub fn param_dtype(&self) -> Option<FloatDType> {

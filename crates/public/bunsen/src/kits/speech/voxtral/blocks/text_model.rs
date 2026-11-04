@@ -6,10 +6,7 @@ use burn::{
     nn::{
         Embedding,
         EmbeddingConfig,
-        norm::{
-            RmsNorm,
-            RmsNormConfig,
-        },
+        norm::RmsNormConfig,
     },
     prelude::Int,
     tensor::Device,
@@ -17,7 +14,10 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::NormConfig,
+        norm::{
+            Norm,
+            NormConfig,
+        },
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             conditioning::AdaptiveScaleConfig,
@@ -201,7 +201,7 @@ impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
         Ok(VoxtralTextModel {
             embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
             layers,
-            norm: norm(self.d_model).init(device),
+            norm: NormConfig::Rms(norm(self.d_model)).init(device),
             rope_theta: self.rope_theta,
         })
     }
@@ -232,7 +232,7 @@ pub struct VoxtralTextModel {
     pub layers: Vec<CausalDecoderBlock>,
 
     /// The final normalization.
-    pub norm: RmsNorm,
+    pub norm: Norm,
 
     /// The rotary embedding's base.
     pub rope_theta: usize,
@@ -433,7 +433,7 @@ mod tests {
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.sliding_window(), config.sliding_window());
         assert_eq!(model.rope_theta, config.rope_theta);
-        assert_eq!(model.norm.epsilon, 1e-6);
+        assert_eq!(model.norm.epsilon(), Some(1e-6));
         assert!(model.layers[0].mlp_scale.is_some());
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9, 3]], &device);

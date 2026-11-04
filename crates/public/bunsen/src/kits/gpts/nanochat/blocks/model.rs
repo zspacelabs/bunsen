@@ -414,7 +414,7 @@ impl ToStructureConfig for NanoChatGptContractConfig {
             lm_head: LinearConfig::new(self.n_embed, vocab).with_bias(self.head_bias),
             r_emb: RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
                 .with_base(self.rope_base)
-                .with_round_tables_to(self.rope_bf16_tables.then_some(FloatDType::BF16)),
+                .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
             norm: self.norm.clone(),
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
@@ -1003,7 +1003,7 @@ mod tests {
 
         let structure = NanoChatGptContractConfig::new().to_structure();
         assert_eq!(structure.r_emb.base, 10000);
-        assert_eq!(structure.r_emb.round_tables_to, Some(FloatDType::BF16));
+        assert_eq!(structure.r_emb.table_dtype, Some(FloatDType::BF16));
         assert_eq!(structure.vocab_size, 50304);
     }
 
@@ -1050,7 +1050,7 @@ mod tests {
         assert_eq!(policy.padded_vocab_size(), 64);
         let structure = policy.to_structure();
         assert_eq!(structure.r_emb.base, 100000);
-        assert_eq!(structure.r_emb.round_tables_to, None);
+        assert_eq!(structure.r_emb.table_dtype, None);
         assert_eq!(structure.wte.n_embedding, 64);
         assert_eq!(structure.vocab_size, 60);
         assert_eq!(

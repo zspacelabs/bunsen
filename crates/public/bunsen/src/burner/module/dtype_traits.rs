@@ -84,6 +84,28 @@ pub trait ResultDType {
     ) -> FloatDType;
 }
 
+/// Asserts `block` takes a float input of `dtype` as it is: the gated
+/// contract at a block's seam, run under debug assertions and tests. burn
+/// does not catch a missed cast, and on the cubecl backends the mixed op it
+/// leads to runs and is wrong.
+///
+/// # Panics
+/// If `block` does not [accept](InputDTypes::accepts_dtype) `dtype`; the
+/// message names `what`.
+#[track_caller]
+pub fn assert_input_dtype<B: InputDTypes + ?Sized>(
+    block: &B,
+    dtype: DType,
+    what: &str,
+) {
+    let dtype = FloatDType::from(dtype);
+    assert!(
+        block.accepts_dtype(dtype),
+        "{what}: a {dtype:?} input to a block that computes in {:?}; cast it first",
+        block.preferred_dtype()
+    );
+}
+
 /// The float dtype of `module`'s parameters, from its first float
 /// parameter; `None` for a module with none.
 pub fn module_float_dtype<M: Module>(module: &M) -> Option<FloatDType> {
@@ -261,5 +283,23 @@ mod tests {
         assert_eq!(Wants16.coerce_input(x.clone()).dtype(), DType::F16);
         let already = x.cast(DType::F16);
         assert_eq!(Wants16.coerce_input(already).dtype(), DType::F16);
+    }
+
+    /// The seam's contract passes an accepted dtype and refuses another,
+    /// naming the block.
+    #[test]
+    fn test_assert_input_dtype() {
+        struct Wants16;
+        impl InputDTypes for Wants16 {
+            fn preferred_dtype(&self) -> FloatDType {
+                FloatDType::F16
+            }
+        }
+        assert_input_dtype(&Wants16, DType::F16, "a block");
+        let refused =
+            std::panic::catch_unwind(|| assert_input_dtype(&Wants16, DType::F32, "a block"));
+        let message = refused.unwrap_err();
+        let message = message.downcast_ref::<String>().unwrap();
+        assert!(message.contains("a block: a F32 input"), "{message}");
     }
 }

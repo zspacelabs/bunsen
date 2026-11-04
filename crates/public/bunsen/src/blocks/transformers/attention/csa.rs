@@ -15,7 +15,10 @@ use burn::{
         Int,
         s,
     },
-    tensor::Device,
+    tensor::{
+        Device,
+        FloatDType,
+    },
 };
 
 use crate::{
@@ -115,6 +118,12 @@ pub struct CausalSelfAttentionConfig {
     /// back; `None` attends to every earlier position.
     #[config(default = "None")]
     pub sliding_window: Option<usize>,
+
+    /// The dtype the attention's softmax runs in
+    /// ([`ScaledDotProductAttentionConfig::softmax_dtype`]); `None` runs it
+    /// in the queries' dtype.
+    #[config(default = "None")]
+    pub softmax_dtype: Option<FloatDType>,
 
     /// A gain on the queries and keys after their normalization and
     /// rotation: both are multiplied by it, sharpening every score by its
@@ -282,6 +291,7 @@ impl CausalSelfAttentionConfig {
             head_dim,
             qk_norm: self.qk_norm,
             sliding_window: self.sliding_window,
+            softmax_dtype: self.softmax_dtype,
             c_q: linear(self.n_embed, self.n_head * head_dim, self.qkv_bias),
             q_norm: norm(),
             c_k: linear(self.n_embed, self.n_kv_head * head_dim, self.key_bias()),
@@ -341,6 +351,10 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub sliding_window: Option<usize>,
 
+    /// The dtype the softmax runs in; `None`, the queries'.
+    #[module(skip)]
+    pub softmax_dtype: Option<FloatDType>,
+
     /// Query Linear.
     pub c_q: Linear,
 
@@ -387,6 +401,23 @@ impl CausalSelfAttentionMeta for CausalSelfAttention {
 
     fn head_dim(&self) -> usize {
         self.head_dim
+    }
+}
+
+impl crate::burner::module::InputDTypes for CausalSelfAttention {
+    /// Its projections' dtype.
+    fn preferred_dtype(&self) -> FloatDType {
+        FloatDType::from(self.c_q.weight.val().dtype())
+    }
+}
+
+impl crate::burner::module::ResultDType for CausalSelfAttention {
+    /// Its own: the output projection's.
+    fn result_dtype(
+        &self,
+        _input: FloatDType,
+    ) -> FloatDType {
+        crate::burner::module::InputDTypes::preferred_dtype(self)
     }
 }
 
@@ -515,7 +546,8 @@ impl CausalSelfAttention {
             window.map(|w| causal_window_visible(t, t, Some(w), &device)),
             ScaledDotProductAttentionConfig::new()
                 .with_is_causal(window.is_none())
-                .with_enable_gqa(self.gqa_enabled()),
+                .with_enable_gqa(self.gqa_enabled())
+                .with_softmax_dtype(self.softmax_dtype),
         );
         assert_shape_contract_periodically!(
             ["B", "H", "T", "T"],
@@ -577,6 +609,9 @@ impl CausalSelfAttention {
             &[("D", self.n_embed())]
         );
 
+        #[cfg(any(debug_assertions, test))]
+        crate::burner::module::assert_input_dtype(self, input.dtype(), "causal self-attention");
+
         let (q, k) = self.queries_keys(input.clone(), r_emb);
 
         let v = self.values(input, value_embed);
@@ -630,7 +665,8 @@ impl CausalSelfAttention {
 
         let cfg = ScaledDotProductAttentionConfig::new()
             .with_is_causal(is_causal)
-            .with_enable_gqa(self.gqa_enabled());
+            .with_enable_gqa(self.gqa_enabled())
+            .with_softmax_dtype(self.softmax_dtype);
 
         let y = scaled_dot_product_attention(q, k, v, None, attn_mask, cfg)
             .swap_dims(1, 2)
