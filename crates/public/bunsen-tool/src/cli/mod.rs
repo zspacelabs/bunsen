@@ -195,7 +195,7 @@ mod tests {
         );
         assert_eq!(
             args.presets.apply("openai/small[a]{beam_size: 1}").unwrap(),
-            r#"openai/small[a,translate,fast,good]{"beam_size":1}"#
+            "openai/small[a,translate,fast,good]{beam_size: 1}"
         );
         assert_eq!(
             PresetArgs::default().apply("openai/small").unwrap(),

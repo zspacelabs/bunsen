@@ -41,7 +41,8 @@ use crate::{
 /// On a shell command line, quote the whole expression: `[` and `]` glob, and
 /// braces with commas brace-expand.
 ///
-/// `Display` writes it back with an unspaced box and the patch as JSON.
+/// `Display` writes it back with an unspaced box and the patch as a YAML flow
+/// mapping, which parses back to the same expression.
 ///
 /// ```
 /// # #[cfg(feature = "cache")] {
@@ -52,7 +53,7 @@ use crate::{
 /// assert_eq!(expr.name, "openai/small");
 /// assert_eq!(expr.selection.presets, ["translate"]);
 /// assert_eq!(expr.selection.patch, Some(json!({"beam_size": 1})));
-/// assert_eq!(expr.to_string(), r#"openai/small[translate]{"beam_size":1}"#);
+/// assert_eq!(expr.to_string(), "openai/small[translate]{beam_size: 1}");
 ///
 /// let bare = LookupExpr::parse("hf:Qwen/Qwen3-0.6B")?;
 /// assert_eq!(bare.name, "hf:Qwen/Qwen3-0.6B");
@@ -208,9 +209,39 @@ mod tests {
         assert_eq!(e.name, "foo/bar");
         assert_eq!(e.selection.presets, ["translate"]);
         assert_eq!(e.selection.patch, Some(json!({"vad": {"check_ms": 120}})));
+        assert_eq!(e.to_string(), "foo/bar[translate]{vad: {check_ms: 120}}");
+        assert_eq!(LookupExpr::parse(&e.to_string()).unwrap(), e);
+    }
+
+    /// The patch is written as a YAML flow mapping, a string quoted only
+    /// where YAML would read it as another thing, and parses back to the
+    /// same expression.
+    #[test]
+    fn test_the_patch_is_written_as_yaml() {
+        let e = LookupExpr {
+            name: "openai/large-v3".to_string(),
+            selection: PresetSelection {
+                presets: vec!["translate".to_string()],
+                patch: Some(json!({
+                    "beam_size": 5,
+                    "language": "de",
+                    "temperature": 0.5,
+                    "timestamps": true,
+                    "prompt": null,
+                    "stops": [1, 2],
+                    "nested": {"a/b": "x.y-z", "empty": {}},
+                    "quoted": ["yes", "No", "null", "5", "a b", "a: b", "", "-x", "\"q\"", "ü"],
+                })),
+            },
+        };
         assert_eq!(
             e.to_string(),
-            r#"foo/bar[translate]{"vad":{"check_ms":120}}"#
+            concat!(
+                "openai/large-v3[translate]{beam_size: 5, language: de, ",
+                "nested: {a/b: x.y-z, empty: {}}, prompt: null, ",
+                r#"quoted: ["yes", "No", "null", "5", "a b", "a: b", "", "-x", "\"q\"", "ü"], "#,
+                "stops: [1, 2], temperature: 0.5, timestamps: true}",
+            )
         );
         assert_eq!(LookupExpr::parse(&e.to_string()).unwrap(), e);
     }

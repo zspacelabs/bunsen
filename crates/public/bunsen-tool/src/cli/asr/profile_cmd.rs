@@ -670,11 +670,10 @@ mod tests {
         const QWEN_LIVE: &str = "qwen/qwen3-asr-0.6b";
         const LARGE: &str = "openai/large-v3[translate]{beam_size: 5}";
         const SMALL: &str = "openai/small[translate]{beam_size: 1}";
-        // A model's patch, merged, is written as JSON.
-        const LARGE_DE: &str = r#"openai/large-v3[translate]{"beam_size":5,"language":"de"}"#;
-        const LARGE_TRANSCRIBE: &str = r#"openai/large-v3{"beam_size":5}"#;
-        const SMALL_TRANSCRIBE: &str = r#"openai/small{"beam_size":1}"#;
-        const SMALL_EN: &str = r#"openai/small{"beam_size":1,"language":"en"}"#;
+        const LARGE_DE: &str = "openai/large-v3[translate]{beam_size: 5, language: de}";
+        const LARGE_TRANSCRIBE: &str = "openai/large-v3{beam_size: 5}";
+        const SMALL_TRANSCRIBE: &str = "openai/small{beam_size: 1}";
+        const SMALL_EN: &str = "openai/small{beam_size: 1, language: en}";
         type Ran<'a> = Result<(&'a str, &'a str, &'a str, Task), &'a str>;
         let rows: &[(&[&str], Mode, Ran)] = &[
             // Nothing given: `default`, which transcribes.
