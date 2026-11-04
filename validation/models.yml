@@ -101,17 +101,17 @@ crates:
         dtypes: [bf16]
         varies: Gemma 2 in bf16 on cuda alone (too large for float32 on 24 GB), where bunsen's bf16 norms are measured against transformers'
       gemma-3-1b-it:
-        size: small
-        gb: 0.04
+        size: medium
+        gb: 2.0
         core: true
         dtypes: [f32]
-        varies: not a model check - the tokenizer and the chat template that folds a system turn into the first user turn (tokenizer files alone)
+        varies: the instruction-tuned Gemma 3 - its greedy decode, chat sessions against transformers' replies (stopping at the end of a turn), the tokenizer and the chat template that folds a system turn into the first user turn
       gemma-2-2b-it:
-        size: small
-        gb: 0.04
+        size: medium
+        gb: 5.2
         core: true
         dtypes: [f32]
-        varies: not a model check - Gemma 2's chat template, which refuses a system turn (tokenizer files alone)
+        varies: the instruction-tuned Gemma 2 - its greedy decode (on the CPU, as its table binds no wgpu buffer), chat sessions against transformers' replies, Gemma 2's chat template, which refuses a system turn
 
   silero:
     package: silero-model-validation

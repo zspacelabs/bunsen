@@ -4,13 +4,16 @@
 //! own greedy decodes, in float32, of `gemma-3-270m`, `gemma-3-1b-pt`,
 //! `gemma-3-4b-pt` (its text model, run through
 //! `Gemma3ForConditionalGeneration`; the smallest Gemma 3 with the linearly
-//! scaled global table) and `gemma-2-2b` (Gemma 2's caps and alternating
-//! layers, stored in float32), and in bf16 of `gemma-2-9b` (on `--features
+//! scaled global table), `gemma-2-2b` (Gemma 2's caps and alternating
+//! layers, stored in float32) and the instruction-tuned `gemma-3-1b-it` and
+//! `gemma-2-2b-it`, and in bf16 of `gemma-2-9b` (on `--features
 //! cuda`, which runs bunsen in bf16 too: in float32 it does not fit a 24 GB
 //! device). Every comparison runs bunsen through its
 //! [`KVCache`](bunsen::ops::transformers::attention::KVCache), under each
 //! [`KVCacheStorage`]; the window checks run past each row's sliding window,
-//! where a sliding layer's cache keeps only its window.
+//! where a sliding layer's cache keeps only its window. The
+//! instruction-tuned rows also hold `bunsen_tool::chat`'s sessions to
+//! `transformers`' greedy replies, turn by turn.
 //!
 //! ## This crate hosts nothing
 //!
@@ -20,13 +23,14 @@
 //! Gemma file is committed: the fixtures are ids, texts and logits
 //! (`validation/tools/gen_gemma_fixtures.py` writes them):
 //!
-//! - `testdata/transformers.json`: the float32 greedy decodes;
+//! - `testdata/transformers.json`: the float32 greedy decodes, of [`ROWS`];
 //! - `testdata/transformers_window.json`: the float32 decodes after a prompt
 //!   longer than the row's window;
 //! - `testdata/transformers_bf16.json`: `gemma-2-9b`'s bf16 decode, and how far
 //!   `transformers`' own bf16 prefill logits are from its float32 ones;
 //! - `testdata/chat.json`: the tokenizer and chat template of `gemma-3-1b-it`
-//!   and `gemma-2-2b-it` on fixed texts and conversations.
+//!   and `gemma-2-2b-it` on fixed texts and conversations;
+//! - `testdata/chat_replies.json`: their greedy replies in multi-turn sessions.
 //!
 //! `cargo validate` (`validation/tools/validate`) runs this crate under a
 //! profile (`validation/models.yml`). Every test of a model has the model's
@@ -58,9 +62,19 @@ use burn::{
 };
 use serde::Deserialize;
 
-/// The rows `testdata/transformers.json` and `transformers_window.json` hold,
-/// in the order the tests run them.
-pub const ROWS: [&str; 4] = [
+/// The rows `testdata/transformers.json` holds, in the order the tests run
+/// them: [`WINDOW_ROWS`], then the instruction-tuned [`CHAT_ROWS`].
+pub const ROWS: [&str; 6] = [
+    "gemma-3-270m",
+    "gemma-3-1b-pt",
+    "gemma-3-4b-pt",
+    "gemma-2-2b",
+    "gemma-3-1b-it",
+    "gemma-2-2b-it",
+];
+
+/// The rows `testdata/transformers_window.json` holds: one of each window.
+pub const WINDOW_ROWS: [&str; 4] = [
     "gemma-3-270m",
     "gemma-3-1b-pt",
     "gemma-3-4b-pt",
@@ -69,10 +83,11 @@ pub const ROWS: [&str; 4] = [
 
 /// The [`ROWS`] whose float32 checks run on the CPU: their embedding table,
 /// in float32, is larger than the 2 GiB a wgpu buffer binding may hold
-/// (`gemma-3-4b-pt`'s 262208 by 2560, 2.7 GB; `gemma-2-2b`'s 256000 by 2304,
-/// 2.4 GB), and CUDA's float32 matmuls are not exact enough to hold
-/// `transformers`' float32 logits to the same tolerance.
-pub const CPU_ROWS: [&str; 2] = ["gemma-3-4b-pt", "gemma-2-2b"];
+/// (`gemma-3-4b-pt`'s 262208 by 2560, 2.7 GB; Gemma 2's 256000 by 2304,
+/// 2.4 GB), and CUDA's float32 matmuls (TF32 on its tensor cores) are not
+/// exact enough to hold `transformers`' float32 logits to the same
+/// tolerance.
+pub const CPU_ROWS: [&str; 3] = ["gemma-3-4b-pt", "gemma-2-2b", "gemma-2-2b-it"];
 
 /// The device a float32 check of `row` runs on: the CPU for [`CPU_ROWS`],
 /// else the performance device.
@@ -88,7 +103,7 @@ pub fn f32_device(row: &str) -> Device {
 /// for a float32 run on a 24 GB device.
 pub const BF16_ROWS: [&str; 1] = ["gemma-2-9b"];
 
-/// The rows `testdata/chat.json` holds.
+/// The rows `testdata/chat.json` and `chat_replies.json` hold.
 pub const CHAT_ROWS: [&str; 2] = ["gemma-3-1b-it", "gemma-2-2b-it"];
 
 /// Every [`KVCacheStorage`], [`Auto`](KVCacheStorage::Auto) first.
@@ -199,6 +214,37 @@ pub struct MessageCase {
 /// Reads `testdata/chat.json`, by row.
 pub fn chat_reference() -> BTreeMap<String, ChatRecord> {
     read("chat.json")
+}
+
+/// One session of `testdata/chat_replies.json`.
+#[derive(Debug, Deserialize)]
+pub struct SessionRecord {
+    /// The session's name.
+    pub name: String,
+    /// The most tokens a reply generates.
+    pub budget: usize,
+    /// Each turn and `transformers`' reply.
+    pub replies: Vec<ReplyRecord>,
+}
+
+/// One turn of a [`SessionRecord`].
+#[derive(Debug, Deserialize)]
+pub struct ReplyRecord {
+    /// The user's message.
+    pub user: String,
+    /// The rendered conversation's ids.
+    pub prompt_ids: Vec<i64>,
+    /// The reply's ids, its stop token included.
+    pub ids: Vec<i64>,
+    /// The reply's text, without it.
+    pub text: String,
+    /// Each step's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+}
+
+/// Reads `testdata/chat_replies.json`, by row.
+pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
+    read("chat_replies.json")
 }
 
 /// The weights cache the tests load the checkpoints through: bunsen's own,
@@ -339,6 +385,10 @@ mod greedy;
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod window;
 
+/// `bunsen_tool::chat`'s sessions against `transformers`' greedy replies.
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod chat_session;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -348,12 +398,12 @@ mod tests {
     /// longer than its window.
     #[test]
     fn test_fixture_integrity() {
-        let mut rows = ROWS.to_vec();
-        rows.sort_unstable();
-        for (fixture, window) in [
-            (transformers_reference(), false),
-            (transformers_window_reference(), true),
+        for (fixture, window, rows) in [
+            (transformers_reference(), false, ROWS.to_vec()),
+            (transformers_window_reference(), true, WINDOW_ROWS.to_vec()),
         ] {
+            let mut rows = rows;
+            rows.sort_unstable();
             assert_eq!(fixture.keys().map(String::as_str).collect::<Vec<_>>(), rows);
             for (row, record) in &fixture {
                 assert_eq!(record.ids.len(), record.margins.len(), "{row}");
@@ -384,6 +434,18 @@ mod tests {
         assert_eq!(chat.keys().map(String::as_str).collect::<Vec<_>>(), rows);
         for record in chat.values() {
             assert!(!record.encode.is_empty() && !record.templates.is_empty());
+        }
+        let replies = chat_replies_reference();
+        assert_eq!(replies.keys().map(String::as_str).collect::<Vec<_>>(), rows);
+        for (row, sessions) in &replies {
+            assert!(!sessions.is_empty(), "{row}");
+            for session in sessions {
+                for reply in &session.replies {
+                    assert_eq!(reply.ids.len(), reply.margins.len(), "{row}");
+                    assert!(reply.ids.len() <= session.budget, "{row}");
+                    assert_eq!(reply.prompt_ids[0], 2, "{row}: <bos> first");
+                }
+            }
         }
     }
 }
