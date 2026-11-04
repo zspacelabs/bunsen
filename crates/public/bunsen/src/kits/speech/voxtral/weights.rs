@@ -20,7 +20,10 @@ use crate::{
     errors::BunsenResult,
     kits::{
         gpts::qwen3::weights::text_layer_rekey,
-        support::model_config::HfConfigJson,
+        support::model_config::{
+            HfConfigJson,
+            HfDecoderSection,
+        },
     },
 };
 
@@ -109,15 +112,6 @@ pub fn load_hf_tensors_as(
     apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype.into()))
 }
 
-/// A section's rotary base: `rope_parameters.rope_theta`, else `rope_theta`.
-fn rope_theta(section: &HfConfigJson) -> BunsenResult<usize> {
-    let theta = section
-        .section("rope_parameters")
-        .and_then(|rope| rope.f64("rope_theta"))
-        .or_else(|_| section.f64("rope_theta"))?;
-    Ok(theta as usize)
-}
-
 /// The [`VoxtralRealtimeConfig`] of a `transformers` `VoxtralRealtime`
 /// `config.json`.
 ///
@@ -139,27 +133,28 @@ pub fn voxtral_config_from_hf(json: &str) -> BunsenResult<VoxtralRealtimeConfig>
 
     let a = c.section("audio_config")?;
     a.expect_str("activation_function", "gelu")?;
-    a.expect_str("hidden_act", "silu")?;
-    let heads = a.usize("num_attention_heads")?;
+    let ad = HfDecoderSection::read(&a)?;
+    a.expect_eq("hidden_act", ad.hidden_act.as_str(), "silu")?;
     a.expect_eq(
         "num_key_value_heads",
-        a.usize("num_key_value_heads")?,
-        heads,
+        ad.num_key_value_heads,
+        ad.num_attention_heads,
     )?;
     let audio = VoxtralAudioEncoderConfig::new(
         a.usize("num_mel_bins")?,
-        a.usize("hidden_size")?,
-        heads,
-        a.usize("head_dim")?,
-        a.usize("intermediate_size")?,
-        a.usize("num_hidden_layers")?,
+        ad.hidden_size,
+        ad.num_attention_heads,
+        ad.head_dim,
+        ad.intermediate_size,
+        ad.num_hidden_layers,
     )
-    .with_rms_eps(a.f64("rms_norm_eps")?)
-    .with_rope_theta(rope_theta(&a)?)
-    .with_sliding_window(a.usize("sliding_window").ok());
+    .with_rms_eps(ad.rms_norm_eps)
+    .with_rope_theta(ad.rope_theta as usize)
+    .with_sliding_window(ad.sliding_window);
 
     let t = c.section("text_config")?;
-    t.expect_str("hidden_act", "silu")?;
+    let td = HfDecoderSection::read(&t)?;
+    t.expect_eq("hidden_act", td.hidden_act.as_str(), "silu")?;
     t.expect_eq(
         "tie_word_embeddings",
         t.bool_or(
@@ -170,16 +165,16 @@ pub fn voxtral_config_from_hf(json: &str) -> BunsenResult<VoxtralRealtimeConfig>
     )?;
     let text = VoxtralTextConfig::new(
         t.usize("vocab_size")?,
-        t.usize("hidden_size")?,
-        t.usize("num_hidden_layers")?,
-        t.usize("num_attention_heads")?,
-        t.usize("num_key_value_heads")?,
-        t.usize("head_dim")?,
-        t.usize("intermediate_size")?,
+        td.hidden_size,
+        td.num_hidden_layers,
+        td.num_attention_heads,
+        td.num_key_value_heads,
+        td.head_dim,
+        td.intermediate_size,
     )
-    .with_rms_eps(t.f64("rms_norm_eps")?)
-    .with_rope_theta(rope_theta(&t)?)
-    .with_sliding_window(t.usize("sliding_window").ok());
+    .with_rms_eps(td.rms_norm_eps)
+    .with_rope_theta(td.rope_theta as usize)
+    .with_sliding_window(td.sliding_window);
 
     Ok(VoxtralRealtimeConfig::new(audio, text).with_downsample(c.usize("downsample_factor")?))
 }
