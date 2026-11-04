@@ -8,6 +8,7 @@
 //! table of that corpus as a [`data::shards`](crate::data::shards) shard
 //! set.
 //!
+//! - [`gemma`]: Google's Gemma, generations 1 to 3 (their text models).
 //! - [`nanochat`]: the GPT in karpathy's nanochat, upstream's 2025 and 2026
 //!   models: the community checkpoints of both, loaded from upstream's own
 //!   files, and the corpus it trains on.
@@ -23,5 +24,6 @@
 //! [`NanoChatGpt`](nanochat::NanoChatGpt).
 
 pub mod driver_support;
+pub mod gemma;
 pub mod nanochat;
 pub mod qwen3;

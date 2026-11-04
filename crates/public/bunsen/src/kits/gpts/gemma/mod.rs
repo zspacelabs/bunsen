@@ -1,0 +1,39 @@
+//! # Gemma
+//!
+//! Google's Gemma decoder-only language models, generations 1, 2 and 3
+//! (their text models), as `transformers`' `GemmaModel`, `Gemma2Model` and
+//! `Gemma3TextModel` define them. One [`GemmaModel`], built from a
+//! [`GemmaConfig`], covers the three: a
+//! [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
+//! of `GeGLU` layers with `1 + w` RMS norms; from Gemma 2, a norm on each
+//! sublayer's output too (the sandwich), sliding-window layers among full
+//! ones, and a `query_pre_attn_scalar`; Gemma 2's attention and final
+//! soft-caps; Gemma 3's QK-norm and its two rotary tables, a local one for
+//! the sliding layers and a global one, linearly scaled in the larger
+//! models. Every generation scales its embedding by `√d_model` and ties its
+//! head to it.
+//!
+//! - [`blocks`]: the model, built from a [`GemmaConfig`].
+//! - Decoding: the model is a
+//!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
+//!   its stack's
+//!   [`DecoderCache`](crate::blocks::transformers::decoders::stack::DecoderCache),
+//!   whose sliding layers keep only their window.
+//! - [`weights`] (feature `store`): loading tensors named as a `transformers`
+//!   Gemma state dict (a causal LM's, or a multimodal Gemma 3's text model's,
+//!   its vision tower dropped), and reading its `config.json`.
+//!
+//! A tokenizer and a chat template are not part of the kit; the searches are
+//! [`kits::support::decoding`](crate::kits::support::decoding)'s.
+
+pub mod blocks;
+
+mod decode;
+
+#[cfg(feature = "store")]
+pub mod weights;
+
+pub use blocks::model::*;
+
+#[cfg(all(test, feature = "store_safetensors"))]
+mod toy_tests;

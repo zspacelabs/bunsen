@@ -160,6 +160,51 @@ impl HfConfigJson {
         }
     }
 
+    /// The number at `name`, or `None` when it is absent or `null`.
+    ///
+    /// # Errors
+    /// As [`section`](Self::section), for a field that is present and not a
+    /// number.
+    pub fn f64_opt(
+        &self,
+        name: &str,
+    ) -> BunsenResult<Option<f64>> {
+        match self.get(name) {
+            None => Ok(None),
+            Some(_) => self.f64(name).map(Some),
+        }
+    }
+
+    /// The object at `name`, or `None` when it is absent or `null`.
+    ///
+    /// # Errors
+    /// As [`section`](Self::section), for a field that is present and not an
+    /// object.
+    pub fn section_opt(
+        &self,
+        name: &str,
+    ) -> BunsenResult<Option<Self>> {
+        match self.get(name) {
+            None => Ok(None),
+            Some(_) => self.section(name).map(Some),
+        }
+    }
+
+    /// The string at `name`, or `None` when it is absent or `null`.
+    ///
+    /// # Errors
+    /// As [`section`](Self::section), for a field that is present and not a
+    /// string.
+    pub fn str_opt(
+        &self,
+        name: &str,
+    ) -> BunsenResult<Option<&str>> {
+        match self.get(name) {
+            None => Ok(None),
+            Some(_) => self.str(name).map(Some),
+        }
+    }
+
     /// The array of strings at `name`, or `None` when it is absent or `null`.
     ///
     /// # Errors
@@ -281,5 +326,35 @@ mod tests {
             .message_contains("`sub.d` is 8")
             .assert_err(&sub.expect_eq("d", 8, 16));
         assert!(HfConfigJson::parse("[1]").is_err());
+    }
+
+    /// The optional accessors: `None` for an absent or `null` field, the
+    /// value for a present one, an error for one of the wrong type.
+    #[test]
+    fn test_optional_fields() {
+        let c = HfConfigJson::parse(
+            r#"{"cap": 30.0, "none": null, "name": "linear", "rope": {"factor": 8}}"#,
+        )
+        .unwrap();
+        assert_eq!(c.f64_opt("cap").unwrap(), Some(30.0));
+        assert_eq!(c.f64_opt("none").unwrap(), None);
+        assert_eq!(c.f64_opt("absent").unwrap(), None);
+        assert_eq!(c.str_opt("name").unwrap(), Some("linear"));
+        assert_eq!(c.str_opt("none").unwrap(), None);
+        assert_eq!(
+            c.section_opt("rope")
+                .unwrap()
+                .unwrap()
+                .f64("factor")
+                .unwrap(),
+            8.0
+        );
+        assert!(c.section_opt("none").unwrap().is_none());
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("`name`")
+            .assert_err(&c.f64_opt("name"));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("`cap`")
+            .assert_err(&c.section_opt("cap"));
     }
 }
