@@ -10,20 +10,11 @@
 //! [`load_hf_tensors`], so the loader is under test too.
 
 use std::{
-    collections::BTreeMap,
+    ops::Range,
     path::PathBuf,
 };
 
-use burn::{
-    prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
-    tensor::Tolerance,
-};
+use burn::prelude::*;
 
 use super::{
     Qwen3Model,
@@ -35,15 +26,22 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
         KVCacheModel,
-        KVCacheStorage,
     },
-    support::testing::performance_device,
+    support::testing::{
+        DecoderToy,
+        ToyFixture,
+        assert_io_close,
+        check_decoder_toy,
+        performance_device,
+    },
 };
 
 struct Toy {
     model: Qwen3Model,
-    io: BTreeMap<String, PackTensor>,
+    fixture: ToyFixture,
     device: Device,
 }
 
@@ -63,55 +61,55 @@ impl Toy {
         let json = std::fs::read_to_string(dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
         let config = qwen3_config_from_hf(&json).expect("parse the toy config");
-        let mut store = SafetensorsStore::from_file(dir.join(format!("{name}.safetensors")));
-        let all = store
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone();
-        let (io, weights): (Vec<_>, Vec<_>) =
-            all.into_iter().partition(|(n, _)| n.starts_with("io."));
+        let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
         let device = device.clone();
         let mut model: Qwen3Model = config.init(&device);
-        let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
-            .expect("load the toy weights");
+        let applied =
+            load_hf_tensors(&mut model, fixture.take_weights()).expect("load the toy weights");
         if config.tied_head {
             assert_eq!(applied.unused, ["lm_head.weight"], "{name}");
         } else {
             assert!(applied.unused.is_empty(), "{name}: {:?}", applied.unused);
             assert!(applied.applied.iter().any(|p| p == "lm_head.weight"));
         }
-        let io = io
-            .into_iter()
-            .map(|(n, t)| (n.strip_prefix("io.").unwrap().to_string(), t))
-            .collect();
-        Self { model, io, device }
+        Self {
+            model,
+            fixture,
+            device,
+        }
     }
 
     fn io<const D: usize>(
         &self,
         key: &str,
     ) -> Tensor<D> {
-        Tensor::from_data(
-            bridge::to_data(&self.io[key]).expect("read an io tensor"),
-            &self.device,
-        )
+        self.fixture.io(key)
     }
 
     fn ids(&self) -> Tensor<2, Int> {
-        self.io::<2>("input_ids").int()
+        self.fixture.ids()
     }
 }
 
-fn assert_close<const D: usize>(
-    what: &str,
-    actual: Tensor<D>,
-    expected: Tensor<D>,
-) {
-    assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
-    actual.to_data_as::<f32>().assert_approx_eq::<f32>(
-        &expected.to_data_as::<f32>(),
-        Tolerance::rel_abs(1e-3, 1e-4),
-    );
+impl DecoderToy for Toy {
+    fn positions(&self) -> usize {
+        self.ids().dims()[1]
+    }
+
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        self.model.kv_cache_config()
+    }
+
+    fn logits(
+        &self,
+        range: Range<usize>,
+        cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        let embeds = self.model.embed(self.ids().slice_dim(1, range));
+        let r_emb = self.model.rotary(self.positions(), &self.device);
+        self.model
+            .logits(self.model.forward_hidden(embeds, &r_emb, cache))
+    }
 }
 
 /// An uncached pass is `transformers`' forward: the first layer, the
@@ -130,10 +128,10 @@ fn check_forward(toy: &Toy) {
     let r_emb = model.rotary(seq, &toy.device);
 
     let layer0 = model.layers[0].forward(embeds.clone(), &r_emb, &mut None);
-    assert_close("layer 0", layer0, toy.io("layer0"));
+    assert_io_close("layer 0", layer0, toy.io("layer0"));
     let hidden = model.forward_hidden(embeds, &r_emb, None);
-    assert_close("hidden", hidden.clone(), toy.io("hidden"));
-    assert_close("logits", model.logits(hidden), toy.io("logits"));
+    assert_io_close("hidden", hidden.clone(), toy.io("hidden"));
+    assert_io_close("logits", model.logits(hidden), toy.io("logits"));
 }
 
 /// A prefill and then one step per token, through a cache of every storage
@@ -141,44 +139,8 @@ fn check_forward(toy: &Toy) {
 #[test]
 fn test_toy_cached_decode() {
     for name in TOYS {
-        check_cached_decode(&Toy::load(name));
-    }
-}
-
-fn check_cached_decode(toy: &Toy) {
-    let model = &toy.model;
-    let embeds = model.embed(toy.ids());
-    let seq = embeds.dims()[1];
-    let r_emb = model.rotary(seq, &toy.device);
-    let prefill = 3;
-
-    for storage in [
-        KVCacheStorage::Auto,
-        KVCacheStorage::Concat,
-        KVCacheStorage::PerLayer,
-        KVCacheStorage::MultiLayer,
-    ] {
-        let mut cache = model
-            .kv_cache_config()
-            .with_seq_len(2)
-            .with_chunk_size(2)
-            .with_storage(storage)
-            .init();
-        let mut parts = vec![model.forward_hidden(
-            embeds.clone().slice_dim(1, 0..prefill),
-            &r_emb,
-            Some(&mut cache),
-        )];
-        for pos in prefill..seq {
-            parts.push(model.forward_hidden(
-                embeds.clone().slice_dim(1, pos..pos + 1),
-                &r_emb,
-                Some(&mut cache),
-            ));
-        }
-        assert_eq!(cache.pos(), seq, "{storage:?}");
-        let logits = model.logits(Tensor::cat(parts, 1));
-        assert_close(&format!("{storage:?} logits"), logits, toy.io("logits"));
+        let toy = Toy::load(name);
+        check_decoder_toy(&toy, toy.io("logits"), toy.io("logits"), 3);
     }
 }
 

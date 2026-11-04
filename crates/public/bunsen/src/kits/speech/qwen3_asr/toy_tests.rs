@@ -5,18 +5,9 @@
 //! float64 (`tools/gen_qwen3_asr_toy_fixtures.py`). The weights load through
 //! [`load_hf_tensors`], so the loader is under test too.
 
-use std::collections::BTreeMap;
+use std::ops::Range;
 
-use burn::{
-    prelude::*,
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
-    tensor::Tolerance,
-};
+use burn::prelude::*;
 
 use super::{
     Qwen3AsrConstruct,
@@ -33,7 +24,18 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     kits::gpts::qwen3::Qwen3Config,
-    support::testing::performance_device,
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+        KVCacheModel,
+    },
+    support::testing::{
+        DecoderToy,
+        ToyFixture,
+        assert_io_close,
+        check_decoder_toy,
+        performance_device,
+    },
 };
 
 /// The audio placeholder of the toy's prompt.
@@ -53,7 +55,7 @@ fn toy_config() -> Qwen3AsrConfig {
 
 struct Toy {
     model: Qwen3Asr,
-    io: BTreeMap<String, PackTensor>,
+    fixture: ToyFixture,
     device: Device,
 }
 
@@ -67,33 +69,24 @@ impl Toy {
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/qwen3_asr/toy.safetensors"
         );
-        let mut store = SafetensorsStore::from_file(path);
-        let all = store
-            .get_all_tensors()
-            .expect("read the toy fixture")
-            .clone();
-        let (weights, io): (Vec<_>, Vec<_>) =
-            all.into_iter().partition(|(n, _)| n.starts_with("model."));
+        let mut fixture = ToyFixture::load(path, device);
         let device = device.clone();
         let mut model: Qwen3Asr = toy_config().init(&device);
-        let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
-            .expect("load the toy weights");
+        let applied =
+            load_hf_tensors(&mut model, fixture.take_weights()).expect("load the toy weights");
         assert!(applied.unused.is_empty(), "unused: {:?}", applied.unused);
-        let io = io
-            .into_iter()
-            .map(|(n, t)| (n.strip_prefix("io.").unwrap().to_string(), t))
-            .collect();
-        Self { model, io, device }
+        Self {
+            model,
+            fixture,
+            device,
+        }
     }
 
     fn io<const D: usize>(
         &self,
         key: &str,
     ) -> Tensor<D> {
-        Tensor::from_data(
-            bridge::to_data(&self.io[key]).expect("read an io tensor"),
-            &self.device,
-        )
+        self.fixture.io(key)
     }
 
     fn features(&self) -> Tensor<2> {
@@ -113,17 +106,30 @@ impl Toy {
     }
 }
 
-fn assert_close<const D: usize>(
-    what: &str,
-    actual: Tensor<D>,
-    expected: Tensor<D>,
-) {
-    assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
-    eprintln!("checking {what}");
-    actual.to_data_as::<f32>().assert_approx_eq::<f32>(
-        &expected.to_data_as::<f32>(),
-        Tolerance::rel_abs(1e-3, 1e-4),
-    );
+/// The text model over the toy's prompt, its audio frames placed.
+struct PromptToy<'a> {
+    toy: &'a Toy,
+    embeds: Tensor<3>,
+}
+
+impl DecoderToy for PromptToy<'_> {
+    fn positions(&self) -> usize {
+        self.embeds.dims()[1]
+    }
+
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        self.toy.model.language_model.kv_cache_config()
+    }
+
+    fn logits(
+        &self,
+        range: Range<usize>,
+        cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        let lm = &self.toy.model.language_model;
+        let r_emb = lm.rotary(self.positions(), &self.toy.device);
+        lm.logits(lm.forward_hidden(self.embeds.clone().slice_dim(1, range), &r_emb, cache))
+    }
 }
 
 #[test]
@@ -131,19 +137,19 @@ fn test_toy_audio_tower() {
     let toy = Toy::load();
     let tower = &toy.model.audio_tower;
     let stem = tower.stem(toy.features(), FEATURE_LEN);
-    assert_close("conv stem", stem.clone(), toy.io("conv"));
+    assert_io_close("conv stem", stem.clone(), toy.io("conv"));
 
     let mask = tower.window_mask(stem.dims()[0], &toy.device);
     let layer0 = tower.layers[0].forward_masked(stem.unsqueeze_dim(0), Some(mask));
-    assert_close(
+    assert_io_close(
         "audio layer 0",
         layer0.squeeze_dim::<2>(0),
         toy.io("audio_layer0"),
     );
 
     let audio = tower.forward(toy.features(), FEATURE_LEN);
-    assert_close("audio tower", audio.clone(), toy.io("audio"));
-    assert_close(
+    assert_io_close("audio tower", audio.clone(), toy.io("audio"));
+    assert_io_close(
         "projector",
         toy.model.multi_modal_projector.forward(audio),
         toy.io("audio_projected"),
@@ -160,10 +166,10 @@ fn test_toy_text_model() {
     let r_emb = lm.rotary(seq, &toy.device);
 
     let layer0 = lm.layers[0].forward(embeds.clone(), &r_emb, &mut None);
-    assert_close("text layer 0", layer0, toy.io("text_layer0"));
+    assert_io_close("text layer 0", layer0, toy.io("text_layer0"));
     let hidden = lm.forward_hidden(embeds.clone(), &r_emb, None);
-    assert_close("text hidden", hidden, toy.io("text_hidden"));
-    assert_close("logits", toy.model.forward_logits(embeds), toy.io("logits"));
+    assert_io_close("text hidden", hidden, toy.io("text_hidden"));
+    assert_io_close("logits", toy.model.forward_logits(embeds), toy.io("logits"));
 }
 
 /// A prompt with the wrong number of placeholders is refused.
@@ -176,6 +182,18 @@ fn test_prompt_must_match_audio() {
             .prompt_embeds(&[1, AUDIO_TOKEN, 2], audio)
             .is_err()
     );
+}
+
+/// A prefill and then one step per position, through a cache of every
+/// storage that starts too small and grows, is `transformers`' uncached
+/// forward over the prompt.
+#[test]
+fn test_toy_text_cached_decode() {
+    let toy = Toy::load();
+    let audio = toy.model.encode_audio(toy.features(), FEATURE_LEN);
+    let embeds = toy.model.prompt_embeds(&toy.ids(), audio).unwrap();
+    let logits: Tensor<3> = toy.io("logits");
+    check_decoder_toy(&PromptToy { toy: &toy, embeds }, logits.clone(), logits, 3);
 }
 
 /// The cached decode chooses, at every step, the argmax an uncached forward
