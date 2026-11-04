@@ -15,7 +15,10 @@ use crate::{
         apply_rekeyed_tensors_as,
     },
     errors::BunsenResult,
-    kits::support::model_config::HfConfigJson,
+    kits::support::model_config::{
+        HfConfigJson,
+        HfDecoderSection,
+    },
 };
 
 /// `transformers`' Qwen3 decoder layer names onto a
@@ -124,35 +127,23 @@ pub fn qwen3_config_from_hf_section(
     tie_default: bool,
 ) -> BunsenResult<Qwen3Config> {
     t.expect_str("model_type", "qwen3")?;
-    t.expect_str("hidden_act", "silu")?;
-    t.expect_eq("attention_bias", t.bool_or("attention_bias", false)?, false)?;
-    t.expect_eq(
-        "use_sliding_window",
-        t.bool_or("use_sliding_window", false)?,
-        false,
-    )?;
-    let tied = t.bool_or("tie_word_embeddings", tie_default)?;
-    for rope in ["rope_parameters", "rope_scaling"] {
-        if let Ok(rope) = t.section(rope) {
-            rope.expect_str("rope_type", "default")?;
-        }
-    }
-    let rope_theta = t
-        .section("rope_parameters")
-        .and_then(|rope| rope.f64("rope_theta"))
-        .or_else(|_| t.f64("rope_theta"))?;
+    let d = HfDecoderSection::read(t)?;
+    t.expect_eq("hidden_act", d.hidden_act.as_str(), "silu")?;
+    t.expect_eq("attention_bias", d.attention_bias, false)?;
+    t.expect_eq("sliding_window", d.sliding_window, None)?;
+    t.expect_eq("rope_parameters.rope_type", d.rope_type.as_str(), "default")?;
     Ok(Qwen3Config::new(
         t.usize("vocab_size")?,
-        t.usize("hidden_size")?,
-        t.usize("num_hidden_layers")?,
-        t.usize("num_attention_heads")?,
-        t.usize("num_key_value_heads")?,
-        t.usize("head_dim")?,
-        t.usize("intermediate_size")?,
+        d.hidden_size,
+        d.num_hidden_layers,
+        d.num_attention_heads,
+        d.num_key_value_heads,
+        d.head_dim,
+        d.intermediate_size,
     )
-    .with_rms_eps(t.f64("rms_norm_eps")?)
-    .with_rope_theta(rope_theta as usize)
-    .with_tied_head(tied))
+    .with_rms_eps(d.rms_norm_eps)
+    .with_rope_theta(d.rope_theta as usize)
+    .with_tied_head(t.bool_or("tie_word_embeddings", tie_default)?))
 }
 
 #[cfg(test)]
@@ -307,11 +298,6 @@ mod tests {
                 "model_type",
             ),
             (
-                "\"use_sliding_window\": false",
-                "\"use_sliding_window\": true",
-                "use_sliding_window",
-            ),
-            (
                 "\"rope_scaling\": null",
                 "\"rope_scaling\": {\"rope_type\": \"yarn\", \"factor\": 4.0}",
                 "rope_type",
@@ -322,6 +308,17 @@ mod tests {
                 .message_contains(field)
                 .assert_err(&qwen3_config_from_hf(&small.replace(from, to)));
         }
+
+        // A window in force is refused; `use_sliding_window: false` switches
+        // a stated one off, as `transformers` reads it.
+        let windowed = small.replace("\"sliding_window\": null", "\"sliding_window\": 4096");
+        assert!(qwen3_config_from_hf(&windowed).is_ok(), "switched off");
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_contains("sliding_window")
+            .assert_err(&qwen3_config_from_hf(&windowed.replace(
+                "\"use_sliding_window\": false",
+                "\"use_sliding_window\": true",
+            )));
 
         // The head is untied where the file says so, or says nothing.
         let untied = small.replace(

@@ -144,6 +144,45 @@ impl HfConfigJson {
         }
     }
 
+    /// The non-negative integer at `name`, or `None` when it is absent or
+    /// `null`.
+    ///
+    /// # Errors
+    /// As [`section`](Self::section), for a field that is present and not a
+    /// non-negative integer.
+    pub fn usize_opt(
+        &self,
+        name: &str,
+    ) -> BunsenResult<Option<usize>> {
+        match self.get(name) {
+            None => Ok(None),
+            Some(_) => self.usize(name).map(Some),
+        }
+    }
+
+    /// The array of strings at `name`, or `None` when it is absent or `null`.
+    ///
+    /// # Errors
+    /// As [`section`](Self::section), for a field that is present and not an
+    /// array of strings.
+    pub fn strs_opt(
+        &self,
+        name: &str,
+    ) -> BunsenResult<Option<Vec<String>>> {
+        match self.get(name) {
+            None => Ok(None),
+            Some(v) => v
+                .as_array()
+                .and_then(|a| {
+                    a.iter()
+                        .map(|v| v.as_str().map(str::to_string))
+                        .collect::<Option<Vec<_>>>()
+                })
+                .map(Some)
+                .ok_or_else(|| self.missing(name, "an array of strings")),
+        }
+    }
+
     /// The array of non-negative integers at `name`.
     ///
     /// # Errors
