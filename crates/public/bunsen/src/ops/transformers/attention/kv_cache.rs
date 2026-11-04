@@ -235,6 +235,13 @@ pub struct KVCacheConfig {
     /// best-known storage for the device, by default.
     #[config(default = "KVCacheStorage::Auto")]
     pub storage: KVCacheStorage,
+
+    /// Each layer's sliding attention window, if it has one: a query sees
+    /// itself and the `window - 1` positions before it, so the cache keeps
+    /// only that layer's last `window - 1` positions between steps (in a
+    /// history of its own, whatever the storage). Empty, no layer has one.
+    #[config(default = "Vec::new()")]
+    pub layer_windows: Vec<Option<usize>>,
 }
 
 impl KVCacheConfig {
@@ -302,6 +309,21 @@ impl KVCacheConfig {
                 self.seq_len
             );
         }
+        assert!(
+            self.layer_windows.is_empty() || self.layer_windows.len() == self.num_layers,
+            "a KV cache's layer_windows has {} entries for {} layers",
+            self.layer_windows.len(),
+            self.num_layers
+        );
+        assert!(
+            self.layer_windows.iter().flatten().all(|&w| w > 0),
+            "a KV cache layer's window must be positive"
+        );
+        let layer_windows = if self.layer_windows.is_empty() {
+            vec![None; self.num_layers]
+        } else {
+            self.layer_windows
+        };
         KVCache {
             batch_size: self.batch_size,
             num_heads: self.num_heads,
@@ -320,6 +342,8 @@ impl KVCacheConfig {
             cross_keys: vec![None; self.num_layers],
             cross_values: vec![None; self.num_layers],
             group: 1,
+            window_start: vec![0; self.num_layers],
+            layer_windows,
         }
     }
 }
@@ -397,6 +421,12 @@ pub struct KVCache {
     cross_values: Vec<Option<Tensor<4>>>,
     /// Decode rows per cross-attention row.
     group: usize,
+
+    /// Each layer's sliding window, if any.
+    #[module(skip)]
+    layer_windows: Vec<Option<usize>>,
+    /// Each windowed layer's first retained position.
+    window_start: Vec<usize>,
 }
 
 impl KVCacheMeta for KVCache {
@@ -437,6 +467,7 @@ impl KVCache {
     /// output without projecting it again.
     pub fn reset(&mut self) {
         self.pos = 0;
+        self.window_start.fill(0);
     }
 
     /// Rewinds to position `pos`: the history keeps its first `pos`
@@ -448,8 +479,15 @@ impl KVCache {
     /// [`reset`](Self::reset) is `truncate(0)`. As there, nothing is
     /// reallocated, and the cross-attention keys and values are kept.
     ///
+    /// A layer with a sliding window keeps only its window's last positions,
+    /// so the cache can rewind no further back than
+    /// [`retained_from`](Self::retained_from)
+    /// ([`can_truncate`](Self::can_truncate)); a decode that must go further
+    /// resets and runs its prefix again.
+    ///
     /// # Panics
-    /// If `pos` is past the current position.
+    /// If `pos` is past the current position, or before what a windowed
+    /// layer retains.
     pub fn truncate(
         &mut self,
         pos: usize,
@@ -459,7 +497,36 @@ impl KVCache {
             "cannot truncate a KV cache at {} to {pos}",
             self.pos
         );
+        assert!(
+            pos == 0 || pos >= self.retained_from(),
+            "cannot truncate a KV cache to {pos}: a sliding window keeps positions from {} on",
+            self.retained_from()
+        );
+        if pos == 0 {
+            self.window_start.fill(0);
+        }
         self.pos = pos;
+    }
+
+    /// The earliest position every layer still holds: 0, but for a layer
+    /// with a sliding window, which drops what its window has passed.
+    pub fn retained_from(&self) -> usize {
+        self.window_start.iter().copied().max().unwrap_or(0)
+    }
+
+    /// Whether [`truncate`](Self::truncate) can rewind to `pos`: at or
+    /// before the current position, and either 0 (a reset) or no earlier
+    /// than [`retained_from`](Self::retained_from).
+    pub fn can_truncate(
+        &self,
+        pos: usize,
+    ) -> bool {
+        pos <= self.pos && (pos == 0 || pos >= self.retained_from())
+    }
+
+    /// Each layer's sliding window, if it has one.
+    pub fn layer_windows(&self) -> &[Option<usize>] {
+        &self.layer_windows
     }
 
     /// Returns the current position.
@@ -637,11 +704,22 @@ impl KVCache {
         }
         assert!(self.seq_len >= other.seq_len);
 
+        assert_eq!(
+            self.layer_windows, other.layer_windows,
+            "a KV cache prefills from one with the same windows"
+        );
         if other.pos > 0 {
             for layer in 0..self.num_layers {
                 let (k, v) = other.history(layer);
-                let shape = [self.batch_size, self.num_heads, other.pos, self.head_dim];
-                self.write(layer, 0, k.expand(shape), v.expand(shape));
+                let start = other.window_start[layer];
+                let shape = [
+                    self.batch_size,
+                    self.num_heads,
+                    other.pos - start,
+                    self.head_dim,
+                ];
+                self.window_start[layer] = start;
+                self.write(layer, start, k.expand(shape), v.expand(shape));
             }
         }
         self.pos = other.pos;
@@ -653,6 +731,15 @@ impl KVCache {
         layer: usize,
     ) -> (Tensor<4>, Tensor<4>) {
         let t = self.pos;
+        if self.layer_windows[layer].is_some() {
+            let held = t - self.window_start[layer];
+            let retained = |slot: &Option<Tensor<4>>| {
+                slot.clone()
+                    .expect("an allocated cache holds every layer")
+                    .slice(s![.., .., ..held])
+            };
+            return (retained(&self.keys[layer]), retained(&self.values[layer]));
+        }
         match &self.cache {
             Some(cache) => (
                 cache
@@ -746,6 +833,9 @@ impl KVCache {
         k: Tensor<4>,
         v: Tensor<4>,
     ) -> (Tensor<4>, Tensor<4>) {
+        if let Some(window) = self.layer_windows[layer] {
+            return self.write_window(layer, window, t0, k, v);
+        }
         let t1 = t0 + k.dims()[2];
         let configured = self.storage;
         let storage = *self
@@ -771,6 +861,34 @@ impl KVCache {
             }
             KVCacheStorage::Auto => unreachable!("resolved above"),
         }
+    }
+
+    /// A windowed layer's write: its retained history (from its
+    /// `window_start`, cut back to `t0`) with `(k, v)` appended, which the
+    /// step attends over; then only the last `window - 1` positions kept.
+    fn write_window(
+        &mut self,
+        layer: usize,
+        window: usize,
+        t0: usize,
+        k: Tensor<4>,
+        v: Tensor<4>,
+    ) -> (Tensor<4>, Tensor<4>) {
+        let start = self.window_start[layer];
+        assert!(
+            t0 >= start,
+            "a KV cache layer's window starts at {start}, past a write at {t0}"
+        );
+        let held = t0 - start;
+        let k = Self::concat(self.keys[layer].take(), held, k);
+        let v = Self::concat(self.values[layer].take(), held, v);
+        let len = k.dims()[2];
+        let keep = len.min(window - 1);
+        self.window_start[layer] = start + (len - keep);
+        let tail = |x: &Tensor<4>| x.clone().slice(s![.., .., len - keep..]);
+        self.keys[layer] = Some(tail(&k));
+        self.values[layer] = Some(tail(&v));
+        (k, v)
     }
 
     /// [`KVCacheStorage::PerLayer`]'s write: `x` into `buffer` (allocated,
@@ -1053,6 +1171,100 @@ mod tests {
             }
             assert_eq!(cache.pos(), 5, "{storage:?}");
         }
+    }
+
+    /// A windowed layer returns its retained window with the step, and keeps
+    /// only its last `window - 1` positions, under every storage; a layer
+    /// without a window keeps everything.
+    #[test]
+    fn test_window_retention() {
+        let device = cpu_device();
+        let [batch, heads, head_dim] = [1, 1, 2];
+        for storage in STORAGES {
+            let mut cache = KVCacheConfig::new(batch, heads, 4, head_dim, 2)
+                .with_storage(storage)
+                .with_layer_windows(vec![Some(3), None])
+                .init();
+            let step = |cache: &mut KVCache, at: usize, n: usize| {
+                let x = |layer: usize| {
+                    Tensor::<1, Int>::arange(at as i64..(at + n) as i64, &device)
+                        .float()
+                        .add_scalar(100.0 * layer as f32)
+                        .reshape([1, 1, n, 1])
+                        .repeat_dim(3, head_dim)
+                };
+                let out: Vec<Vec<f32>> = (0..2)
+                    .map(|layer| {
+                        let (k, _) = cache.insert_kv(layer, x(layer), x(layer));
+                        k.slice(s![.., .., .., 0..1])
+                            .into_data()
+                            .convert::<f32>()
+                            .try_into_vec::<f32>()
+                            .unwrap()
+                    })
+                    .collect();
+                out
+            };
+            let out = step(&mut cache, 0, 4);
+            assert_eq!(out[0], [0.0, 1.0, 2.0, 3.0], "{storage:?}");
+            assert_eq!(cache.retained_from(), 2, "{storage:?}: keeps 2, 3");
+            let out = step(&mut cache, 4, 1);
+            assert_eq!(out[0], [2.0, 3.0, 4.0], "{storage:?}: the window");
+            assert_eq!(out[1], [100.0, 101.0, 102.0, 103.0, 104.0], "{storage:?}");
+            assert_eq!(cache.retained_from(), 3, "{storage:?}");
+            let out = step(&mut cache, 5, 2);
+            assert_eq!(out[0], [3.0, 4.0, 5.0, 6.0], "{storage:?}");
+            assert_eq!(cache.retained_from(), 5, "{storage:?}");
+        }
+    }
+
+    /// A windowed cache rewinds within what it retains, or to 0, and refuses
+    /// anything between; a reorder and a prefill carry the windows along.
+    #[test]
+    fn test_window_truncate_reorder_prefill() {
+        let device = cpu_device();
+        let config = KVCacheConfig::new(2, 1, 4, 2, 1).with_layer_windows(vec![Some(3)]);
+        let mut cache = config.clone().init();
+        let rows = |values: [f32; 2], n: usize| {
+            Tensor::<1>::from_floats(values, &device)
+                .reshape([2, 1, 1, 1])
+                .repeat_dim(2, n)
+                .repeat_dim(3, 2)
+        };
+        cache.insert_kv(0, rows([1.0, 2.0], 5), rows([1.0, 2.0], 5));
+        assert_eq!((cache.pos(), cache.retained_from()), (5, 3));
+        assert!(cache.can_truncate(4) && cache.can_truncate(3) && cache.can_truncate(0));
+        assert!(!cache.can_truncate(2) && !cache.can_truncate(6));
+
+        cache.reorder(&[1, 1]);
+        let mut copy = config.clone().with_batch_size(2).init();
+        copy.prefill(&cache);
+        assert_eq!((copy.pos(), copy.retained_from()), (5, 3));
+        let (k, _) = copy.insert_kv(0, rows([7.0, 7.0], 1), rows([7.0, 7.0], 1));
+        let firsts: Vec<f32> = k
+            .slice(s![.., .., .., 0..1])
+            .into_data()
+            .convert::<f32>()
+            .try_into_vec::<f32>()
+            .unwrap();
+        assert_eq!(firsts, [2.0, 2.0, 7.0, 2.0, 2.0, 7.0], "row 1 in both");
+
+        cache.truncate(4);
+        assert_eq!(cache.pos(), 4);
+        cache.truncate(0);
+        assert_eq!((cache.pos(), cache.retained_from()), (0, 0));
+    }
+
+    #[test]
+    #[should_panic(expected = "a sliding window keeps positions from 3")]
+    fn test_window_truncate_past_the_window_panics() {
+        let device = cpu_device();
+        let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1)
+            .with_layer_windows(vec![Some(3)])
+            .init();
+        let x = Tensor::<4>::zeros([1, 1, 5, 2], &device);
+        cache.insert_kv(0, x.clone(), x);
+        cache.truncate(2);
     }
 
     #[test]

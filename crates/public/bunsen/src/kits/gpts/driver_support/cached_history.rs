@@ -8,8 +8,10 @@ use crate::ops::transformers::attention::KVCache;
 /// most of it is what the cache already holds. [`rewind`](Self::rewind)
 /// keeps the prefix the new rendering shares with the history, truncates
 /// the cache to it ([`KVCache::truncate`]), and returns the rest, which is
-/// all the session has to prefill. At least one token is always left to
-/// prefill, since a decode starts from the logits of the last prompt
+/// all the session has to prefill. Where the cache cannot rewind that far
+/// (a sliding window has dropped the positions it would keep), it resets,
+/// and the whole rendering is left to prefill. At least one token is always
+/// left to prefill, since a decode starts from the logits of the last prompt
 /// position.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CachedHistory {
@@ -60,6 +62,11 @@ impl CachedHistory {
             .take_while(|(a, b)| a == b)
             .count()
             .min(next.len() - 1);
+        let shared = if cache.can_truncate(shared) {
+            shared
+        } else {
+            0
+        };
         cache.truncate(shared);
         self.tokens.truncate(shared);
         &next[shared..]
@@ -109,5 +116,26 @@ mod tests {
         let todo = history.rewind(&mut cache, &next);
         assert_eq!(todo, [9]);
         assert_eq!(cache.pos(), 4);
+    }
+
+    /// Where a sliding window has dropped the shared prefix, the cache
+    /// resets and the whole rendering is left to prefill.
+    #[test]
+    fn test_rewind_past_a_window_resets() {
+        let mut cache = KVCacheConfig::new(1, 1, 8, 2, 1)
+            .with_layer_windows(vec![Some(2)])
+            .init();
+        let mut history = CachedHistory::new();
+        let first = [1, 2, 3, 4];
+        let todo = history.rewind(&mut cache, &first);
+        advance(&mut cache, todo.len());
+        history.extend(todo);
+        assert_eq!(cache.retained_from(), 3);
+
+        let next = [1, 2, 9, 9];
+        let todo = history.rewind(&mut cache, &next);
+        assert_eq!(todo, next, "position 2 is gone");
+        assert_eq!(cache.pos(), 0);
+        assert!(history.tokens().is_empty());
     }
 }
