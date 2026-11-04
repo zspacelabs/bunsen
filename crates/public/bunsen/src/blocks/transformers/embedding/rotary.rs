@@ -57,7 +57,10 @@ pub struct RotaryEmbeddingConfig {
     /// The dtype the `cos` / `sin` tables are kept in. They are computed in
     /// f32 whatever the device's default float, then rounded to this: for a
     /// model trained with tables in a narrower dtype, as nanochat's 2025
-    /// model keeps them in bf16. `None` keeps them in f32, exact.
+    /// model keeps them in bf16. `None` keeps them in f32, exact. On a device
+    /// without the dtype (wgpu has no bf16), a narrower one's rounded values
+    /// are kept in f32, which holds them exactly, and a wider one is not
+    /// kept ([`table_storage`]).
     /// [`apply`](RotaryEmbedding::apply) casts them to its input's dtype, as
     /// `transformers` casts `cos` and `sin` to `x.dtype`.
     #[config(default = "None")]
@@ -103,6 +106,32 @@ impl RotaryDirection {
     }
 }
 
+/// How tables wanted in `table_dtype` are made on a device that supports
+/// the dtypes `supports` accepts: the dtype their values are rounded to,
+/// and the dtype they are kept in.
+///
+/// - `None` (or `F32`): exact, in f32.
+/// - A narrower dtype (bf16, f16): rounded to it, and kept in it where the
+///   device has it, else in f32, which holds each rounded value exactly.
+/// - `F64`: in f64 where the device has it, else exact in f32.
+pub fn table_storage(
+    table_dtype: Option<FloatDType>,
+    supports: impl Fn(DType) -> bool,
+) -> (Option<FloatDType>, FloatDType) {
+    match table_dtype {
+        Some(d @ (FloatDType::BF16 | FloatDType::F16)) => (
+            Some(d),
+            if supports(d.into()) {
+                d
+            } else {
+                FloatDType::F32
+            },
+        ),
+        Some(FloatDType::F64) if supports(DType::F64) => (None, FloatDType::F64),
+        _ => (None, FloatDType::F32),
+    }
+}
+
 impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
     fn seq_len(&self) -> usize {
         self.seq_len
@@ -133,17 +162,17 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
         let freq_matrix =
             positional_frequency_table(self.seq_len, self.base, self.head_dim, device);
 
-        // Rounded on the host, as the reference rounds, and kept in the table
-        // dtype.
-        let round = |t: Tensor<2>| match self.table_dtype {
-            Some(FloatDType::BF16) => {
-                Tensor::from_data(t.into_data().convert::<bf16>(), (device, DType::BF16))
-            }
-            Some(FloatDType::F16) => {
-                Tensor::from_data(t.into_data().convert::<f16>(), (device, DType::F16))
-            }
-            Some(FloatDType::F64) => t.cast(DType::F64),
-            _ => t,
+        // Rounded on the host, as the reference rounds, and kept as
+        // `table_storage` says.
+        let (rounded, kept) = table_storage(self.table_dtype, |d| device.supports_dtype(d));
+        let round = |t: Tensor<2>| {
+            let data = t.into_data();
+            let data = match rounded {
+                Some(FloatDType::BF16) => data.convert::<bf16>(),
+                Some(FloatDType::F16) => data.convert::<f16>(),
+                _ => data,
+            };
+            Tensor::<2>::from_data(data, (device, DType::from(kept)))
         };
 
         let cos = round(freq_matrix.clone().cos())
@@ -321,6 +350,35 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
+
+    /// A narrower dtype is kept where the device has it, else its rounded
+    /// values in f32; f64 only where the device has it.
+    #[test]
+    fn test_table_storage() {
+        let all = |_: DType| true;
+        let no_half_no_f64 = |d: DType| !matches!(d, DType::BF16 | DType::F16 | DType::F64);
+        assert_eq!(table_storage(None, all), (None, FloatDType::F32));
+        assert_eq!(
+            table_storage(Some(FloatDType::BF16), all),
+            (Some(FloatDType::BF16), FloatDType::BF16)
+        );
+        assert_eq!(
+            table_storage(Some(FloatDType::BF16), no_half_no_f64),
+            (Some(FloatDType::BF16), FloatDType::F32)
+        );
+        assert_eq!(
+            table_storage(Some(FloatDType::F16), no_half_no_f64),
+            (Some(FloatDType::F16), FloatDType::F32)
+        );
+        assert_eq!(
+            table_storage(Some(FloatDType::F64), all),
+            (None, FloatDType::F64)
+        );
+        assert_eq!(
+            table_storage(Some(FloatDType::F64), no_half_no_f64),
+            (None, FloatDType::F32)
+        );
+    }
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
@@ -330,8 +388,9 @@ mod tests {
     };
 
     /// Tables kept in bf16 hold the exact f32 tables' values rounded to bf16:
-    /// within bf16's half-ulp. `apply` casts them to its input's dtype, so an
-    /// f32 input gives an f32 output.
+    /// within bf16's half-ulp, kept in bf16 where the device has it (else in
+    /// f32). `apply` casts them to its input's dtype, so an f32 input gives an
+    /// f32 output.
     #[test]
     #[serial]
     fn test_tables_rounded_to_bf16() {
@@ -342,11 +401,18 @@ mod tests {
         let rounded: RotaryEmbedding = RotaryEmbeddingConfig::new(64, 16)
             .with_table_dtype(Some(FloatDType::BF16))
             .init(&device);
+        let has_bf16 = device.supports_dtype(DType::BF16);
         assert_eq!(exact.cos.dtype(), DType::F32);
-        assert_eq!(rounded.cos.dtype(), DType::BF16);
+        assert_eq!(
+            rounded.cos.dtype(),
+            if has_bf16 { DType::BF16 } else { DType::F32 },
+            "kept in bf16 where the device has it"
+        );
         let x: Tensor<4> = Tensor::ones([1, 64, 2, 16], &device);
         assert_eq!(rounded.apply(x.clone()).dtype(), DType::F32);
-        assert_eq!(rounded.apply(x.cast(DType::BF16)).dtype(), DType::BF16);
+        if has_bf16 {
+            assert_eq!(rounded.apply(x.cast(DType::BF16)).dtype(), DType::BF16);
+        }
         for (e, r) in [(exact.cos, rounded.cos), (exact.sin, rounded.sin)] {
             let e = e.into_data().try_to_vec::<f32>().unwrap();
             let r = r.cast(DType::F32).into_data().try_to_vec::<f32>().unwrap();
