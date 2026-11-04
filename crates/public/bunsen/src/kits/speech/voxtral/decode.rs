@@ -17,29 +17,23 @@ use super::{
     },
 };
 use crate::{
-    blocks::transformers::embedding::RotaryEmbedding,
+    blocks::transformers::decoders::stack::DecoderCache,
     kits::support::decoding::{
         CachedStep,
         GreedySearch,
         decode_cached,
     },
-    ops::transformers::attention::{
-        KVCache,
-        KVCacheModel,
-        KVCacheStorage,
-    },
+    ops::transformers::attention::KVCacheStorage,
 };
 
 /// What a Voxtral Realtime decode carries between steps: the text model's
-/// cache, the rotary table and the delay condition it decodes under, and the
-/// audio embeddings, one per position, that each step adds to its token's.
+/// stack cache (its KV cache and rotary table, covering every position of
+/// the audio), the delay condition it decodes under, and the audio
+/// embeddings, one per position, that each step adds to its token's.
 #[derive(Module, Debug)]
 pub struct VoxtralDecodeState {
-    /// The text model's cache; its position is the next step's.
-    pub cache: KVCache,
-
-    /// The rotary table, covering every position of the audio.
-    pub rotary: RotaryEmbedding,
+    /// The text model's stack cache; its position is the next step's.
+    pub cache: DecoderCache,
 
     /// `[1, 1, d_text]`: the delay condition.
     pub cond: Tensor<3>,
@@ -66,13 +60,13 @@ impl CachedStep for VoxtralDecodeStep<'_> {
         state: &mut VoxtralDecodeState,
     ) -> Tensor<2> {
         let lm = &self.model.language_model;
-        let pos = state.cache.pos();
+        let pos = state.cache.cache.pos();
         let audio = state.audio.clone().slice_dim(1, pos..pos + 1);
         let hidden = lm.forward_hidden(
             lm.embed(ids) + audio,
-            &state.rotary,
+            &state.cache.rotary,
             &state.cond,
-            Some(&mut state.cache),
+            Some(&mut state.cache.cache),
         );
         last_logits(lm.logits(hidden))
     }
@@ -133,13 +127,7 @@ impl VoxtralGreedyDecoder {
         let lm = &model.language_model;
         let positions = audio.dims()[1];
         VoxtralDecodeState {
-            cache: lm
-                .kv_cache_config()
-                .with_seq_len(positions)
-                .with_max_seq_len(Some(positions))
-                .with_storage(self.storage)
-                .init(),
-            rotary: lm.rotary(positions, device),
+            cache: lm.stack.decode_cache(1, positions, self.storage, device),
             cond: lm.delay_condition(layout.delay_positions(), device),
             audio,
         }
@@ -188,9 +176,9 @@ impl VoxtralGreedyDecoder {
         let embeds = lm.embed(ids) + audio.slice_dim(1, 0..prompt.len());
         let first = last_logits(lm.logits(lm.forward_hidden(
             embeds,
-            &state.rotary,
+            &state.cache.rotary,
             &state.cond,
-            Some(&mut state.cache),
+            Some(&mut state.cache.cache),
         )));
         let eos = layout.config().eos as i64;
         let mut search = GreedySearch::new([eos], eos);

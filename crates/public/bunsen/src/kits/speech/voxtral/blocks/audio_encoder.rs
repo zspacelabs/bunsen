@@ -19,15 +19,16 @@ use crate::{
             ConvSeq1d,
             ConvSeq1dConfig,
         },
-        norm::{
-            Norm,
-            NormConfig,
-        },
+        norm::NormConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
-            decoders::causal::{
-                CausalDecoderBlock,
-                CausalDecoderBlockConfig,
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    UniformStackConfig,
+                },
             },
             embedding::{
                 RotaryDirection,
@@ -100,7 +101,7 @@ impl KVCacheModel for VoxtralAudioEncoderConfig {
 
 impl KVCacheModel for VoxtralAudioEncoder {
     fn kv_cache_config(&self) -> KVCacheConfig {
-        kv_cache_config(self)
+        self.stack.kv_cache_config(VOXTRAL_AUDIO_KV_CACHE_PRE_SIZE)
     }
 }
 
@@ -150,6 +151,19 @@ impl VoxtralAudioEncoderConfig {
         Self::new(128, 1280, 32, 64, 5120, 32)
     }
 
+    /// The layer stack: `n_layers` alike, after the stem.
+    pub fn stack(&self) -> UniformStackConfig {
+        let norm = NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
+        UniformStackConfig::new(
+            self.n_layers,
+            self.layer().with_norm(norm.clone()),
+            norm,
+            RotaryEmbeddingConfig::new(0, self.head_dim)
+                .with_base(self.rope_theta)
+                .with_direction(RotaryDirection::Forward),
+        )
+    }
+
     /// The layer config.
     fn layer(&self) -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
@@ -166,9 +180,6 @@ impl VoxtralAudioEncoderConfig {
                 .with_down_bias(Some(true))
                 .into(),
         )
-        .with_norm(NormConfig::Rms(
-            RmsNormConfig::new(0).with_epsilon(self.rms_eps),
-        ))
     }
 }
 
@@ -213,20 +224,13 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
             )
             .with_act(Some(ActivationConfig::Gelu))
         };
-        let layer = self.layer();
-        let layers = (0..self.n_layers)
-            .map(|i| layer.try_init(i, device))
-            .collect::<BunsenResult<_>>()?;
         Ok(VoxtralAudioEncoder {
             stem: ConvSeq1dConfig::new(vec![
                 conv(self.n_mels, 1),
                 conv(self.d_model, VOXTRAL_STEM_STRIDE),
             ])
             .try_init(device)?,
-            layers,
-            norm: NormConfig::Rms(RmsNormConfig::new(self.d_model).with_epsilon(self.rms_eps))
-                .init(device),
-            rope_theta: self.rope_theta,
+            stack: self.stack().try_init(device)?,
         })
     }
 }
@@ -236,10 +240,10 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
 ///
 /// The stem's two convolutions (kernel 3, GELU, the second of stride 2) see
 /// only the frames before them, so 100 Hz log-mels become 50 Hz encoder
-/// frames that never look ahead. The layers are the generic
-/// [`CausalDecoderBlock`]: pre-norm RMS, causal self-attention with rotary
-/// embeddings, biased queries, values and output but unbiased keys, no
-/// QK-norm, a sliding window; a `SwiGLU` whose down projection alone is
+/// frames that never look ahead. The layers are a generic [`DecoderStack`]
+/// ([`VoxtralAudioEncoderConfig::stack`]): pre-norm RMS, causal self-attention
+/// with rotary embeddings, biased queries, values and output but unbiased keys,
+/// no QK-norm, a sliding window; a `SwiGLU` whose down projection alone is
 /// biased. A final RMS norm closes it. Because every part is causal, the
 /// encoder streams: a caller that runs it chunk by chunk through a
 /// [`KVCache`] gets the frames a whole-utterance pass gets.
@@ -255,14 +259,8 @@ pub struct VoxtralAudioEncoder {
     /// The causal convolution stem: `n_mels -> d_model -> d_model`.
     pub stem: ConvSeq1d,
 
-    /// The layers.
-    pub layers: Vec<CausalDecoderBlock>,
-
-    /// The final normalization.
-    pub norm: Norm,
-
-    /// The rotary embedding's base.
-    pub rope_theta: usize,
+    /// The layers, their final norm and their rotary embedding.
+    pub stack: DecoderStack,
 }
 
 impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
@@ -271,24 +269,24 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
     }
 
     fn d_model(&self) -> usize {
-        self.norm.num_features()
+        self.stack.d_model()
     }
 
     fn n_layers(&self) -> usize {
-        self.layers.len()
+        self.stack.n_layers()
     }
 
     fn n_heads(&self) -> usize {
         use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.layers[0].attn.n_head()
+        self.stack.layers[0].attn.n_head()
     }
 
     fn head_dim(&self) -> usize {
-        self.layers[0].attn.head_dim
+        self.stack.head_dim()
     }
 
     fn sliding_window(&self) -> Option<usize> {
-        self.layers[0].attn.sliding_window
+        self.stack.layers[0].attn.sliding_window
     }
 }
 
@@ -321,10 +319,7 @@ impl VoxtralAudioEncoder {
         seq_len: usize,
         device: &Device,
     ) -> RotaryEmbedding {
-        RotaryEmbeddingConfig::new(seq_len, self.head_dim())
-            .with_base(self.rope_theta)
-            .with_direction(RotaryDirection::Forward)
-            .init(device)
+        self.stack.rotary(seq_len, device)
     }
 
     /// The convolution stem.
@@ -377,30 +372,9 @@ impl VoxtralAudioEncoder {
         &self,
         x: Tensor<3>,
         r_emb: &RotaryEmbedding,
-        mut kv_cache: Option<&mut KVCache>,
+        kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        let [batch, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "d_model"],
-            &x.dims(),
-            &["batch", "seq"],
-            &[("d_model", self.d_model())]
-        );
-        let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
-        let r_emb = r_emb.clip_range(start..start + seq);
-        let mut x = x;
-        for layer in &self.layers {
-            x = layer.forward(x, &r_emb, &mut kv_cache);
-        }
-        let y = self.norm.forward(x);
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "d_model"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())]
-        );
-        #[cfg(not(any(debug_assertions, test)))]
-        let _ = batch;
-        y
+        self.stack.forward_hidden(x, r_emb, kv_cache)
     }
 
     /// Encodes a whole utterance: the stem, then the layers.
@@ -453,8 +427,8 @@ mod tests {
         assert_eq!(encoder.n_heads(), config.n_heads());
         assert_eq!(encoder.head_dim(), config.head_dim());
         assert_eq!(encoder.sliding_window(), config.sliding_window());
-        assert_eq!(encoder.rope_theta, config.rope_theta);
-        assert_eq!(encoder.norm.epsilon(), Some(1e-6));
+        assert_eq!(encoder.stack.rotary.base, config.rope_theta);
+        assert_eq!(encoder.stack.norm.epsilon(), Some(1e-6));
         assert_eq!(config.output_len(7), 4);
         assert_eq!(encoder.kv_cache_config().num_layers, 2);
 

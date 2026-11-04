@@ -63,7 +63,8 @@ pub fn hf_rekey() -> Rekey {
             "audio_tower.",
             Rekey::keep_rest()
                 .mount("embedder.conv", "stem.", ConvSeq1d::one_based_rekey())
-                .mount_indexed("layers.", "layers.", audio_layer_rekey()),
+                .mount_indexed("layers.", "stack.layers.", audio_layer_rekey())
+                .rename("norm.", "stack.norm."),
         )
         .mount(
             "multi_modal_projector.",
@@ -73,7 +74,9 @@ pub fn hf_rekey() -> Rekey {
         .mount(
             "language_model.model.",
             "language_model.",
-            Rekey::keep_rest().mount_indexed("layers.", "layers.", text_layer_rekey_voxtral()),
+            Rekey::keep_rest()
+                .mount_indexed("layers.", "stack.layers.", text_layer_rekey_voxtral())
+                .rename("norm.", "stack.norm."),
         )
 }
 
@@ -200,21 +203,24 @@ mod tests {
             ),
             (
                 "audio_tower.layers.31.self_attn_layer_norm.weight",
-                Some("audio_tower.layers.31.attn_norm.weight"),
+                Some("audio_tower.stack.layers.31.attn_norm.weight"),
             ),
             (
                 "audio_tower.layers.0.final_layer_norm.weight",
-                Some("audio_tower.layers.0.mlp_norm.weight"),
+                Some("audio_tower.stack.layers.0.mlp_norm.weight"),
             ),
             (
                 "audio_tower.layers.0.self_attn.o_proj.bias",
-                Some("audio_tower.layers.0.attn.c_proj.bias"),
+                Some("audio_tower.stack.layers.0.attn.c_proj.bias"),
             ),
             (
                 "audio_tower.layers.0.mlp.down_proj.bias",
-                Some("audio_tower.layers.0.mlp.down_proj.bias"),
+                Some("audio_tower.stack.layers.0.mlp.down_proj.bias"),
             ),
-            ("audio_tower.norm.weight", Some("audio_tower.norm.weight")),
+            (
+                "audio_tower.norm.weight",
+                Some("audio_tower.stack.norm.weight"),
+            ),
             (
                 "multi_modal_projector.linear_1.weight",
                 Some("multi_modal_projector.stacking.projection.weight"),
@@ -229,19 +235,19 @@ mod tests {
             ),
             (
                 "language_model.model.layers.25.ada_rms_norm.linear1.weight",
-                Some("language_model.layers.25.mlp_scale.linear1.weight"),
+                Some("language_model.stack.layers.25.mlp_scale.linear1.weight"),
             ),
             (
                 "language_model.model.layers.3.self_attn.k_proj.weight",
-                Some("language_model.layers.3.attn.c_k.weight"),
+                Some("language_model.stack.layers.3.attn.c_k.weight"),
             ),
             (
                 "language_model.model.layers.3.post_attention_layernorm.weight",
-                Some("language_model.layers.3.mlp_norm.weight"),
+                Some("language_model.stack.layers.3.mlp_norm.weight"),
             ),
             (
                 "language_model.model.norm.weight",
-                Some("language_model.norm.weight"),
+                Some("language_model.stack.norm.weight"),
             ),
             ("lm_head.weight", None),
         ] {
