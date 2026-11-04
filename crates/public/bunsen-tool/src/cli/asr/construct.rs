@@ -65,7 +65,9 @@ pub enum Speech {
 }
 
 /// What to make of the speech.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Task {
     /// Text in the language spoken.
@@ -285,6 +287,112 @@ impl Fallback {
     }
 }
 
+/// What a family's engine takes from the command line: the patch key
+/// `--language` joins (none: the engine finds the language itself), and the
+/// tasks its models do (none: it only transcribes).
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EngineTraits {
+    #[serde(default)]
+    pub language: Option<String>,
+    #[serde(default)]
+    pub tasks: Option<EngineTasks>,
+}
+
+/// The tasks a family's models do, and how a model's expression sets one:
+/// a preset in its box, or a value under a key in its patch.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EngineTasks {
+    /// The task axis's default: its preset is left out of a box.
+    pub default: Task,
+
+    /// Each task's preset.
+    pub presets: BTreeMap<Task, String>,
+
+    /// The patch key, and each task's value under it.
+    pub patch: TaskPatch,
+}
+
+/// The patch key that sets a task, and each task's value under it.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaskPatch {
+    pub key: String,
+    pub values: BTreeMap<Task, String>,
+}
+
+impl EngineTasks {
+    /// Whether the family's models do `task`.
+    pub fn does(
+        &self,
+        task: Task,
+    ) -> bool {
+        self.presets.contains_key(&task)
+    }
+
+    /// `model` set to `task`: its box's task presets replaced by `task`'s
+    /// (by none for the default), and a task its patch sets removed.
+    ///
+    /// # Errors
+    /// As [`LookupExpr::parse`].
+    pub fn set(
+        &self,
+        model: &str,
+        task: Task,
+    ) -> BunsenResult<String> {
+        let mut expr = LookupExpr::parse(model)?;
+        expr.selection
+            .presets
+            .retain(|p| !self.presets.values().any(|t| t == p));
+        if task != self.default
+            && let Some(preset) = self.presets.get(&task)
+        {
+            expr.selection.presets.push(preset.clone());
+        }
+        if let Some(patch) = expr
+            .selection
+            .patch
+            .as_mut()
+            .and_then(|p| p.as_object_mut())
+        {
+            patch.remove(&self.patch.key);
+        }
+        Ok(expr.to_string())
+    }
+
+    /// The task `model` runs: as its patch sets it, else as its box names
+    /// it, else the default.
+    pub fn read(
+        &self,
+        model: &str,
+    ) -> Task {
+        let Ok(expr) = LookupExpr::parse(model) else {
+            return self.default;
+        };
+        let patched = expr
+            .selection
+            .patch
+            .as_ref()
+            .and_then(|p| p.get(&self.patch.key))
+            .and_then(|t| t.as_str());
+        if let Some(value) = patched {
+            return self
+                .patch
+                .values
+                .iter()
+                .find(|(_, v)| v.as_str() == value)
+                .map_or(self.default, |(task, _)| *task);
+        }
+        self.presets
+            .iter()
+            .find(|(task, preset)| {
+                **task != self.default && expr.selection.presets.contains(preset)
+            })
+            .map_or(self.default, |(task, _)| *task)
+    }
+}
+
 /// What `--language` implies: the speech each listed code is, case aside,
 /// and `otherwise` for any code not listed.
 #[derive(Clone, Debug, Deserialize)]
@@ -363,6 +471,11 @@ pub struct AsrConstructConfig {
     pub fallback: Fallback,
     pub implications: Vec<Implication>,
 
+    /// What each family's engine takes from the command line, by family;
+    /// [`engine`](Self::engine) gives a family not named none.
+    #[serde(default)]
+    pub engines: BTreeMap<Family, EngineTraits>,
+
     /// What `--language` implies.
     pub language: LanguageRule,
 
@@ -387,6 +500,19 @@ pub fn construct_config() -> &'static AsrConstructConfig {
 }
 
 impl AsrConstructConfig {
+    /// What `family`'s engine takes from the command line: nothing, for a
+    /// family `engines` does not name.
+    pub fn engine(
+        &self,
+        family: Family,
+    ) -> &EngineTraits {
+        static NONE: EngineTraits = EngineTraits {
+            language: None,
+            tasks: None,
+        };
+        self.engines.get(&family).unwrap_or(&NONE)
+    }
+
     /// The point for `need`, [settled](Need::settled), in `mode`, and, when
     /// it is not `need`'s own, a note of what stood in.
     pub fn point(
@@ -466,11 +592,13 @@ impl AsrRecipe {
     /// This recipe of `preset`, serving `need`, with `task` and `language`
     /// set on its model.
     ///
-    /// `task`, when given, is Whisper's: its `[translate]` preset in the
-    /// model's box, or none for `transcribe`. `language` is Whisper's
-    /// `{language: ...}` in the model's patch; a family that finds the
-    /// language itself is logged, at `INFO`, as not taking it. The task the
-    /// model runs, as it ends, is the need's.
+    /// `task`, when given, is set as the family's [`EngineTasks`] say
+    /// (Whisper's `[translate]` preset, or none for `transcribe`).
+    /// `language` joins the model's patch under the family's
+    /// [`language`](EngineTraits::language) key (Whisper's
+    /// `{language: ...}`); a family with none, which finds the language
+    /// itself, is logged, at `INFO`, as not taking it. The task the model
+    /// runs, as it ends, is the need's.
     ///
     /// # Errors
     /// As [`LookupExpr::parse`] on the model, and [`VadArgs::slot`].
@@ -482,13 +610,18 @@ impl AsrRecipe {
         task: Option<Task>,
         language: Option<&str>,
     ) -> BunsenResult<AsrConstruct> {
+        let engine = construct_config().engine(self.engine.family);
         let mut model = self.engine.model.clone();
-        if let Some(task) = task {
-            model = with_task(&model, task)?;
+        if let Some(task) = task
+            && let Some(tasks) = &engine.tasks
+        {
+            model = tasks.set(&model, task)?;
         }
         if let Some(language) = language {
-            if self.engine.family == Family::Whisper {
-                model = with_patch(&model, &serde_json::json!({ "language": language }))?;
+            if let Some(key) = &engine.language {
+                let mut patch = serde_json::Map::new();
+                patch.insert(key.clone(), serde_json::Value::from(language));
+                model = with_patch(&model, &serde_json::Value::Object(patch))?;
             } else {
                 log::info!(
                     "preset {preset} runs {}, which finds the language itself: \
@@ -512,57 +645,16 @@ impl AsrRecipe {
     }
 }
 
-/// Whisper's `model` set to `task`: its box's `translate` and `transcribe`
-/// presets replaced by `translate`, or by none for `transcribe` (the task
-/// axis's default), and a `task` its patch sets removed.
-///
-/// # Errors
-/// As [`LookupExpr::parse`].
-fn with_task(
-    model: &str,
-    task: Task,
-) -> BunsenResult<String> {
-    let mut expr = LookupExpr::parse(model)?;
-    expr.selection
-        .presets
-        .retain(|p| p != "translate" && p != "transcribe");
-    if task == Task::Translate {
-        expr.selection.presets.push("translate".to_string());
-    }
-    if let Some(patch) = expr
-        .selection
-        .patch
-        .as_mut()
-        .and_then(|p| p.as_object_mut())
-    {
-        patch.remove("task");
-    }
-    Ok(expr.to_string())
-}
-
 impl AsrConstruct {
-    /// The task the model runs: Whisper's, as its model's patch sets it
-    /// (`{task: Translate}`), else `translate` when its box names the
-    /// `translate` preset, `transcribe` without; another family transcribes.
+    /// The task the model runs, as its family's [`EngineTasks`] read its
+    /// expression (Whisper's: `{task: Translate}`, else `[translate]`, else
+    /// `transcribe`); a family without tasks transcribes.
     pub fn task(&self) -> Task {
-        if self.family != Family::Whisper {
-            return Task::Transcribe;
-        }
-        let Ok(expr) = LookupExpr::parse(&self.model) else {
-            return Task::Transcribe;
-        };
-        let patched = expr
-            .selection
-            .patch
+        construct_config()
+            .engine(self.family)
+            .tasks
             .as_ref()
-            .and_then(|p| p.get("task"))
-            .and_then(|t| t.as_str());
-        match patched {
-            Some("Translate") => Task::Translate,
-            Some(_) => Task::Transcribe,
-            None if expr.selection.presets.iter().any(|p| p == "translate") => Task::Translate,
-            None => Task::Transcribe,
-        }
+            .map_or(Task::Transcribe, |tasks| tasks.read(&self.model))
     }
 
     /// The `bunsen-tool asr family` command this runs, word by word.
@@ -792,14 +884,28 @@ mod tests {
         assert_eq!(r.task(), Task::Transcribe);
         r.model = "openai/small{task: Translate}".to_string();
         assert_eq!(r.task(), Task::Translate);
+        let tasks = construct_config()
+            .engine(Family::Whisper)
+            .tasks
+            .as_ref()
+            .unwrap();
         assert_eq!(
-            selection(&with_task(&r.model, Task::Transcribe).unwrap()),
+            selection(&tasks.set(&r.model, Task::Transcribe).unwrap()),
             (vec![], Some(json!({})))
         );
         assert_eq!(
-            selection(&with_task("openai/small[transcribe]", Task::Translate).unwrap()).0,
+            selection(
+                &tasks
+                    .set("openai/small[transcribe]", Task::Translate)
+                    .unwrap()
+            )
+            .0,
             ["translate"]
         );
+        // A family the construct names no engine traits for transcribes, and
+        // takes no language.
+        let parakeet = construct_config().engine(Family::Parakeet);
+        assert!(parakeet.tasks.is_none() && parakeet.language.is_none());
     }
 
     #[test]
@@ -900,6 +1006,27 @@ mod tests {
                     .map(drop),
             };
             looked.unwrap_or_else(|e| panic!("{} {model}: {e}", point.need));
+        }
+
+        // Every engine's task presets are presets its family's rows have.
+        for (family, engine) in &table.engines {
+            let Some(tasks) = &engine.tasks else {
+                continue;
+            };
+            let listing = crate::cli::asr::family::Kit::Asr(*family)
+                .listing()
+                .unwrap();
+            for preset in tasks.presets.values() {
+                assert!(
+                    listing
+                        .rows
+                        .iter()
+                        .any(|(_, row)| row.presets.get(preset).is_some()),
+                    "{} {preset}",
+                    family.name()
+                );
+            }
+            assert!(tasks.does(tasks.default));
         }
 
         // `--language` by the table, case aside; what hears what by the
