@@ -12,6 +12,10 @@ use bunsen::{
     },
     kits::{
         gpts::{
+            gemma::{
+                GemmaPolicy,
+                pretrained::default_gemma_factory,
+            },
             nanochat::pretrained::default_nanochat_factory,
             qwen3::{
                 Qwen3Policy,
@@ -385,6 +389,7 @@ fn kits(policies: bool) -> BunsenResult<Value> {
             "chat",
             Value::map([
                 ("qwen3", family!(default_qwen3_factory()?, Qwen3Policy)),
+                ("gemma", family!(default_gemma_factory()?, GemmaPolicy)),
                 // nanochat has no policy to resolve.
                 (
                     "nanochat",

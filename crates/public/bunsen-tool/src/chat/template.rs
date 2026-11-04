@@ -1,5 +1,8 @@
 //! A checkpoint's chat template.
-use std::path::Path;
+use std::{
+    collections::BTreeMap,
+    path::Path,
+};
 
 use bunsen::errors::{
     BunsenError,
@@ -71,11 +74,30 @@ const NAME: &str = "chat";
 /// Rendered by `minijinja` as `transformers`' `apply_chat_template` renders
 /// it: blocks trimmed and left-stripped, Python's string methods
 /// (`startswith`, `split`, `strip`, ...) available, an undefined variable
-/// falsy. A Qwen3 template reads `enable_thinking` (absent unless given) and
-/// `add_generation_prompt`; it renders no tools here.
+/// falsy, `raise_exception` failing the render. A template sees the
+/// tokenizer's special tokens (`bos_token`, `eos_token`, `pad_token`,
+/// `unk_token`) as `transformers` passes them: Gemma's opens with
+/// `{{ bos_token }}`. A Qwen3 template reads `enable_thinking` (absent unless
+/// given) and `add_generation_prompt`; it renders no tools here.
 #[derive(Debug)]
 pub struct ChatTemplate {
     env: Environment<'static>,
+    special_tokens: BTreeMap<String, String>,
+}
+
+/// A `tokenizer_config.json`'s special tokens, by their template names: each
+/// a string, or an added token's `content`.
+fn special_tokens(config: &serde_json::Value) -> BTreeMap<String, String> {
+    ["bos_token", "eos_token", "pad_token", "unk_token"]
+        .into_iter()
+        .filter_map(|key| {
+            let value = config.get(key)?;
+            let content = value
+                .as_str()
+                .or_else(|| value.get("content").and_then(serde_json::Value::as_str))?;
+            Some((key.to_string(), content.to_string()))
+        })
+        .collect()
 }
 
 impl ChatTemplate {
@@ -91,22 +113,59 @@ impl ChatTemplate {
         Self::from_tokenizer_config(&json).map_err(|e| e.context(tokenizer_config_json.display()))
     }
 
-    /// The template of a `tokenizer_config.json`.
+    /// The template in a file of its own (`chat_template.jinja`), its special
+    /// tokens those of a `tokenizer_config.json`.
+    ///
+    /// # Errors
+    /// [`Sys`](bunsen::errors::BunsenErrorKind::Sys) or
+    /// [`Lookup`](bunsen::errors::BunsenErrorKind::Lookup) when a file cannot
+    /// be read; [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+    /// when the config does not parse or the template does not compile.
+    pub fn from_jinja_file(
+        template: &Path,
+        tokenizer_config_json: &Path,
+    ) -> BunsenResult<Self> {
+        let source = std::fs::read_to_string(template).map_err(sys_at("read", template))?;
+        let json = std::fs::read_to_string(tokenizer_config_json)
+            .map_err(sys_at("read", tokenizer_config_json))?;
+        let value = Self::parse_config(&json)?;
+        Ok(Self::new(&source)
+            .map_err(|e| e.context(template.display()))?
+            .with_special_tokens(special_tokens(&value)))
+    }
+
+    fn parse_config(json: &str) -> BunsenResult<serde_json::Value> {
+        serde_json::from_str(json)
+            .map_err(|e| BunsenError::invalid_resource("a tokenizer_config.json").with_cause(e))
+    }
+
+    /// The template of a `tokenizer_config.json`, with its special tokens.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when it does not parse, has no `chat_template`, or the template does
     /// not compile.
     pub fn from_tokenizer_config(json: &str) -> BunsenResult<Self> {
-        let value: serde_json::Value = serde_json::from_str(json)
-            .map_err(|e| BunsenError::invalid_resource("a tokenizer_config.json").with_cause(e))?;
+        let value = Self::parse_config(json)?;
         let source = value
             .get("chat_template")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| {
                 BunsenError::invalid_resource("a tokenizer_config.json without a chat_template")
             })?;
-        Self::new(source)
+        Ok(Self::new(source)?.with_special_tokens(special_tokens(&value)))
+    }
+
+    /// This template, seeing `special_tokens` (`bos_token` and its kin) by
+    /// name.
+    pub fn with_special_tokens(
+        self,
+        special_tokens: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            special_tokens,
+            ..self
+        }
     }
 
     /// A template from its Jinja source.
@@ -119,9 +178,21 @@ impl ChatTemplate {
         env.set_trim_blocks(true);
         env.set_lstrip_blocks(true);
         env.set_unknown_method_callback(minijinja_contrib::pycompat::unknown_method_callback);
+        env.add_function(
+            "raise_exception",
+            |message: String| -> Result<String, minijinja::Error> {
+                Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    message,
+                ))
+            },
+        );
         env.add_template_owned(NAME, source.to_string())
             .map_err(|e| BunsenError::invalid_resource("a chat template").with_cause(e))?;
-        Ok(Self { env })
+        Ok(Self {
+            env,
+            special_tokens: BTreeMap::new(),
+        })
     }
 
     /// Renders a conversation.
@@ -142,16 +213,14 @@ impl ChatTemplate {
         enable_thinking: Option<bool>,
     ) -> BunsenResult<String> {
         let template = self.env.get_template(NAME).expect("added at construction");
+        let base = minijinja::context! {
+            messages,
+            add_generation_prompt,
+            ..minijinja::Value::from_serialize(&self.special_tokens)
+        };
         let context = match enable_thinking {
-            Some(enable_thinking) => minijinja::context! {
-                messages,
-                add_generation_prompt,
-                enable_thinking,
-            },
-            None => minijinja::context! {
-                messages,
-                add_generation_prompt,
-            },
+            Some(enable_thinking) => minijinja::context! { enable_thinking, ..base },
+            None => base,
         };
         template
             .render(context)
@@ -204,5 +273,40 @@ mod tests {
         let json = serde_json::json!({ "chat_template": TOY }).to_string();
         ChatTemplate::from_tokenizer_config(&json).unwrap();
         assert!(ChatTemplate::from_tokenizer_config("{}").is_err());
+    }
+
+    /// Gemma 2's template, as its `tokenizer_config.json` has it: the special
+    /// tokens reach it, a model's turn is `model`, and a system turn is
+    /// refused through `raise_exception`.
+    const GEMMA2: &str = "{{ bos_token }}{% if messages[0]['role'] == 'system' %}{{ raise_exception('System role not supported') }}{% endif %}{% for message in messages %}{% if (message['role'] == 'assistant') %}{% set role = 'model' %}{% else %}{% set role = message['role'] %}{% endif %}{{ '<start_of_turn>' + role + '\n' + message['content'] | trim + '<end_of_turn>\n' }}{% endfor %}{% if add_generation_prompt %}{{'<start_of_turn>model\n'}}{% endif %}";
+
+    #[test]
+    fn test_special_tokens_and_raise_exception() {
+        let json = serde_json::json!({
+            "chat_template": GEMMA2,
+            "bos_token": "<bos>",
+            "eos_token": {"content": "<eos>", "special": true},
+        })
+        .to_string();
+        let template = ChatTemplate::from_tokenizer_config(&json).unwrap();
+        let text = template
+            .render(
+                &[ChatMessage::user(" hi "), ChatMessage::assistant("hello")],
+                true,
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            text,
+            "<bos><start_of_turn>user\nhi<end_of_turn>\n<start_of_turn>model\nhello<end_of_turn>\n\
+             <start_of_turn>model\n"
+        );
+        let err = template
+            .render(&[ChatMessage::system("be brief")], true, None)
+            .unwrap_err();
+        assert!(
+            format!("{err:?}").contains("System role not supported"),
+            "{err:?}"
+        );
     }
 }

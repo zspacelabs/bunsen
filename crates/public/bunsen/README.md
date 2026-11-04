@@ -404,6 +404,81 @@ kits:
         description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         size: 16.39 GB
         dtype: bfloat16
+    gemma:
+    - provider:
+        name: well-known
+    - provider:
+        name: hf
+    - model:
+        name: gemma/gemma-3-270m
+        description: "Gemma 3 270M: the pretrained model"
+        size: 570.8 MB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-3-270m-it
+        description: Gemma 3 270M, instruction-tuned
+        size: 570.8 MB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-3-1b-pt
+        description: "Gemma 3 1B: the pretrained model"
+        size: 2.03 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-3-1b-it
+        description: Gemma 3 1B, instruction-tuned
+        size: 2.03 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-3-4b-pt
+        description: "Gemma 3 4B: the pretrained model's text model"
+        size: 8.63 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-3-4b-it
+        description: "Gemma 3 4B, instruction-tuned: its text model"
+        size: 8.63 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-2-2b
+        description: "Gemma 2 2B: the pretrained model, stored in f32"
+        size: 5.25 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-2-2b-it
+        description: Gemma 2 2B, instruction-tuned
+        size: 5.25 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-2-9b
+        description: "Gemma 2 9B: the pretrained model"
+        size: 18.52 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-2-9b-it
+        description: Gemma 2 9B, instruction-tuned
+        size: 18.50 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-2b
+        description: "Gemma 2B (Gemma 1): the pretrained model"
+        size: 5.03 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-2b-it
+        description: Gemma 2B (Gemma 1), instruction-tuned
+        size: 5.03 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-7b
+        description: "Gemma 7B (Gemma 1): the pretrained model"
+        size: 17.11 GB
+        dtype: bfloat16
+    - model:
+        name: gemma/gemma-7b-it
+        description: Gemma 7B (Gemma 1), instruction-tuned
+        size: 17.09 GB
+        dtype: bfloat16
     nanochat:
     - provider:
         name: well-known
