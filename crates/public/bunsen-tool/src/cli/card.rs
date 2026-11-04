@@ -413,8 +413,9 @@ fn policy<H: ConstructInit, C: Default + Serialize + DeserializeOwned>(
 
 /// A row's presets, in brief: each axis and its members, the presets on no
 /// axis (`other`), and the `default` selection; under `full`, the preset
-/// set as data, its descriptions and patches included. Empty (and elided)
-/// for a row with none.
+/// set as data, in its fields' order (each preset's `name`, `description`
+/// and `patch`; each axis's `name`, `description` and `members`). Empty (and
+/// elided) for a row with none.
 fn presets(
     set: &PresetSet,
     full: bool,
@@ -422,10 +423,45 @@ fn presets(
     if set.presets.is_empty() {
         return Ok(Value::map::<&str>([]));
     }
+    let strs =
+        |names: &[String]| Value::List(names.iter().map(|n| Value::str(n.as_str())).collect());
     if full {
-        return serde_json::to_value(set)
-            .map(Value::Json)
-            .map_err(|e| BunsenError::internal(format!("a preset set as data: {e}")));
+        // In the structs' field order, each preset's and axis's name first,
+        // rather than a JSON map's sorted keys; the patches as data.
+        return Ok(Value::map([
+            ("base", Value::Json(set.base.clone())),
+            (
+                "presets",
+                Value::List(
+                    set.presets
+                        .iter()
+                        .map(|p| {
+                            Value::map([
+                                ("name", Value::str(p.name.as_str())),
+                                ("description", Value::str(p.description.as_str())),
+                                ("patch", Value::Json(p.patch.clone())),
+                            ])
+                        })
+                        .collect(),
+                ),
+            ),
+            (
+                "axes",
+                Value::List(
+                    set.axes
+                        .iter()
+                        .map(|a| {
+                            Value::map([
+                                ("name", Value::str(a.name.as_str())),
+                                ("description", Value::str(a.description.as_str())),
+                                ("members", strs(&a.members)),
+                            ])
+                        })
+                        .collect(),
+                ),
+            ),
+            ("default", strs(&set.default)),
+        ]));
     }
     let names = |names: &mut dyn Iterator<Item = &String>| {
         Value::List(names.map(|n| Value::str(n.as_str())).collect())
@@ -541,10 +577,21 @@ mod tests {
             .filter_map(|e| e.get("model"))
             .find(|m| m.get("name") == Some(&Value::str("openai/small")))
             .unwrap();
-        let Some(Value::Json(presets)) = small.get("presets") else {
-            panic!("presets as data");
+        let presets = small.get("presets").unwrap();
+        assert_eq!(
+            presets.get("default"),
+            Some(&Value::List(vec![Value::str("transcribe")]))
+        );
+        // A preset's name comes first, then its description, then its patch.
+        let Some(Value::List(each)) = presets.get("presets") else {
+            panic!("the presets, a list");
         };
-        assert_eq!(presets["default"], serde_json::json!(["transcribe"]));
+        let Value::Map(first) = &each[0] else {
+            panic!("a preset, a map");
+        };
+        let keys: Vec<&str> = first.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(keys, ["name", "description", "patch"]);
+        assert_eq!(first[0].1, Value::str("transcribe"));
         let Some(Value::Json(policy)) = small.get("policy") else {
             panic!("a policy as data");
         };
