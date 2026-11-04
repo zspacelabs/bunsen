@@ -82,6 +82,10 @@ time = { workspace = true }
 unicode-normalization-alignments = "=0.1.12"
 ureq = { workspace = true, optional = true }
 wordchipper = { workspace = true, features = ["std", "fast-hash"] }
+# Gemma's tokenizer (SentencePiece-style BPE, byte fallback), which
+# wordchipper does not read: `transformers`' own encoder, from the same
+# `tokenizer.json`.
+tokenizers = { workspace = true }
 
 [dev-dependencies]
 bunsen = { path = "../bunsen", features = ["testing"] }

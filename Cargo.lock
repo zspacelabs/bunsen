@@ -1329,6 +1329,7 @@ dependencies = [
  "strsim",
  "tempfile",
  "time",
+ "tokenizers",
  "unicode-normalization-alignments",
  "ureq 3.5.1",
  "wordchipper",

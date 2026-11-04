@@ -13,6 +13,11 @@ use bunsen::{
     kits::{
         gpts::{
             driver_support::CachedHistory,
+            gemma::{
+                GemmaConstruct,
+                GemmaMeta,
+                GemmaModel,
+            },
             qwen3::{
                 Qwen3Construct,
                 Qwen3Meta,
@@ -20,6 +25,7 @@ use bunsen::{
             },
         },
         support::{
+            construct::LmConstruct,
             decoding::{
                 CachedStep,
                 LogitFilter,
@@ -47,6 +53,8 @@ use burn::{
 use crate::chat::{
     ChatMessage,
     ChatTemplate,
+    ChatTokenizer,
+    HfTokenizer,
     Qwen3Tokenizer,
 };
 
@@ -54,7 +62,7 @@ use crate::chat::{
 /// with: its model, as a cached step, and what turns a conversation into the
 /// ids it reads and its ids back into text.
 ///
-/// [`Qwen3Chat`] is Qwen3's.
+/// [`LmChat`] is a stacked language model's: [`Qwen3Chat`], [`GemmaChat`].
 pub trait ChatBackend: Debug + Send + Sync + 'static {
     /// The decode state a session keeps between turns.
     type State: Debug + Send;
@@ -133,23 +141,108 @@ pub fn row(
     Tensor::from_data(TensorData::new(ids.to_vec(), [1, ids.len()]), device)
 }
 
-/// A loaded Qwen3 with what a conversation needs around it: its tokenizer,
-/// chat template and generation defaults.
+/// A language model a chat drives: a [`StackedLm`], with what the chat reads
+/// of it beside.
+pub trait ChatLm: StackedLm + Debug + Send + Sync + 'static {
+    /// The head's width: the ids a reply may choose among.
+    fn n_vocab(&self) -> usize;
+
+    /// The float dtype its weights are held, and computed, in.
+    fn float_dtype(&self) -> DType;
+}
+
+impl ChatLm for Qwen3Model {
+    fn n_vocab(&self) -> usize {
+        Qwen3Meta::n_vocab(self)
+    }
+
+    fn float_dtype(&self) -> DType {
+        bunsen::burner::tensor::param_float_dtype(&self.embed_tokens.weight)
+    }
+}
+
+impl ChatLm for GemmaModel {
+    fn n_vocab(&self) -> usize {
+        GemmaMeta::n_vocab(self)
+    }
+
+    fn float_dtype(&self) -> DType {
+        bunsen::burner::tensor::param_float_dtype(&self.embed_tokens.weight)
+    }
+}
+
+/// A loaded stacked language model with what a conversation needs around
+/// it: its tokenizer, chat template and generation policy.
 ///
-/// A Qwen3's head is wider than its tokenizer (151936 rows, 151669 tokens);
-/// a reply never chooses an id the tokenizer cannot spell.
+/// A model's head may be wider than its tokenizer (Qwen3's 151936 rows over
+/// 151669 tokens; Gemma 3 4B's 262208 over 262144); a reply never chooses an
+/// id the tokenizer cannot spell.
 #[derive(Debug)]
-pub struct Qwen3Chat {
-    bundle: Arc<Qwen3Construct>,
-    tokenizer: Arc<Qwen3Tokenizer>,
+pub struct LmChat<M> {
+    bundle: Arc<LmConstruct<M>>,
+    tokenizer: Arc<dyn ChatTokenizer>,
     template: ChatTemplate,
     generation: GenerationPolicy,
     unspelled: Arc<dyn LogitFilter>,
 }
 
-impl Qwen3Chat {
-    /// A chat over a loaded checkpoint, from the tokenizer and template files
-    /// it carries, under the generation policy its presets resolved to.
+/// A chat over a loaded Qwen3.
+pub type Qwen3Chat = LmChat<Qwen3Model>;
+
+/// A chat over a loaded Gemma.
+pub type GemmaChat = LmChat<GemmaModel>;
+
+/// An `InvalidResource` for a checkpoint without `what`.
+fn missing(what: &str) -> BunsenError {
+    BunsenError::invalid_resource(format!("a checkpoint without {what}"))
+}
+
+impl<M: ChatLm> LmChat<M> {
+    /// A chat over `bundle`, through `tokenizer` and `template`, under
+    /// `generation`.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+    /// when `generation` names no stop token.
+    pub fn new(
+        bundle: Arc<LmConstruct<M>>,
+        tokenizer: Arc<dyn ChatTokenizer>,
+        template: ChatTemplate,
+        generation: GenerationPolicy,
+    ) -> BunsenResult<Self> {
+        if generation.stop_ids.is_empty() {
+            return Err(missing("a stop token (no generation_config.json)"));
+        }
+        let unspelled = (0..bundle.model.n_vocab() as i64).filter(|&id| !tokenizer.contains(id));
+        Ok(Self {
+            unspelled: Arc::new(SuppressTokens::new(unspelled)),
+            bundle,
+            tokenizer,
+            template,
+            generation,
+        })
+    }
+
+    /// The model and its files.
+    pub fn bundle(&self) -> &Arc<LmConstruct<M>> {
+        &self.bundle
+    }
+
+    /// The tokenizer.
+    pub fn tokenizer(&self) -> &Arc<dyn ChatTokenizer> {
+        &self.tokenizer
+    }
+
+    /// The chat template.
+    pub fn template(&self) -> &ChatTemplate {
+        &self.template
+    }
+}
+
+impl LmChat<Qwen3Model> {
+    /// A chat over a loaded Qwen3, from the tokenizer and template files it
+    /// carries ([`Qwen3Tokenizer`]), under the generation policy its presets
+    /// resolved to.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
@@ -157,8 +250,6 @@ impl Qwen3Chat {
     /// or its policy names no stop token (a repo without a
     /// `generation_config.json`); as each file's reader.
     pub fn from_construct(bundle: Arc<Qwen3Construct>) -> BunsenResult<Self> {
-        let missing =
-            |what: &str| BunsenError::invalid_resource(format!("a checkpoint without {what}"));
         let config = bundle
             .tokenizer_config()
             .ok_or_else(|| missing("tokenizer_config.json"))?;
@@ -170,40 +261,56 @@ impl Qwen3Chat {
         )?;
         let template = ChatTemplate::from_file(config)?;
         let generation = bundle.policy.generation.clone();
-        if generation.stop_ids.is_empty() {
-            return Err(missing("a stop token (no generation_config.json)"));
-        }
-        let unspelled = (0..bundle.model.n_vocab() as i64).filter(|&id| !tokenizer.contains(id));
-        Ok(Self {
-            unspelled: Arc::new(SuppressTokens::new(unspelled)),
-            bundle,
-            tokenizer: Arc::new(tokenizer),
-            template,
-            generation,
-        })
-    }
-
-    /// The model and its files.
-    pub fn bundle(&self) -> &Arc<Qwen3Construct> {
-        &self.bundle
-    }
-
-    /// The tokenizer.
-    pub fn tokenizer(&self) -> &Arc<Qwen3Tokenizer> {
-        &self.tokenizer
-    }
-
-    /// The chat template.
-    pub fn template(&self) -> &ChatTemplate {
-        &self.template
+        Self::new(bundle, Arc::new(tokenizer), template, generation)
     }
 }
 
-impl ChatBackend for Qwen3Chat {
-    type Model = Qwen3Model;
+/// What ends a Gemma's turn in its chat template.
+pub const GEMMA_END_OF_TURN: &str = "<end_of_turn>";
+
+impl LmChat<GemmaModel> {
+    /// A chat over a loaded Gemma, through its `tokenizer.json`
+    /// ([`HfTokenizer`]) and its chat template (`chat_template.jinja` where
+    /// the checkpoint keeps it apart, else its `tokenizer_config.json`'s),
+    /// under the generation policy its presets resolved to.
+    ///
+    /// A reply also stops at the template's end of a turn,
+    /// [`GEMMA_END_OF_TURN`]: the `generation_config.json` of Gemma 1's and
+    /// some of Gemma 2's instruction-tuned checkpoints names only the end of
+    /// the text.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+    /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
+    /// or names no stop token; as each file's reader.
+    pub fn from_construct(bundle: Arc<GemmaConstruct>) -> BunsenResult<Self> {
+        let config = bundle
+            .tokenizer_config()
+            .ok_or_else(|| missing("tokenizer_config.json"))?;
+        let tokenizer = HfTokenizer::from_file(
+            bundle
+                .tokenizer()
+                .ok_or_else(|| missing("tokenizer.json"))?,
+        )?;
+        let template = match bundle.chat_template() {
+            Some(jinja) => ChatTemplate::from_jinja_file(jinja, config)?,
+            None => ChatTemplate::from_file(config)?,
+        };
+        let mut generation = bundle.policy.generation.clone();
+        if let Some(end) = tokenizer.token_id(GEMMA_END_OF_TURN)
+            && !generation.stop_ids.contains(&end)
+        {
+            generation.stop_ids.push(end);
+        }
+        Self::new(bundle, Arc::new(tokenizer), template, generation)
+    }
+}
+
+impl<M: ChatLm> ChatBackend for LmChat<M> {
+    type Model = M;
     type State = DecoderCache;
 
-    fn model(&self) -> &Qwen3Model {
+    fn model(&self) -> &M {
         &self.bundle.model
     }
 
@@ -233,7 +340,7 @@ impl ChatBackend for Qwen3Chat {
     }
 
     fn float_dtype(&self) -> DType {
-        bunsen::burner::tensor::param_float_dtype(&self.bundle.model.embed_tokens.weight)
+        self.bundle.model.float_dtype()
     }
 
     fn decode_state(

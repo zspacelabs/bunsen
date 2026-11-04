@@ -1,4 +1,5 @@
-//! Chat with bunsen's Qwen3 ([`bunsen::kits::gpts::qwen3`]) or nanochat
+//! Chat with bunsen's Qwen3 ([`bunsen::kits::gpts::qwen3`]), Gemma
+//! ([`bunsen::kits::gpts::gemma`]) or nanochat
 //! ([`bunsen::kits::gpts::nanochat`]): what turns a conversation into the ids
 //! the model reads and its ids back into text, and the driver that holds a
 //! conversation on the KV cache.
@@ -7,13 +8,16 @@
 //!   loaded checkpoint and its files) and one conversation (its messages and
 //!   the cache that holds them), over a [`ChatBackend`]: the checkpoint's
 //!   model, and what turns a conversation into its ids and its ids into text
-//!   ([`Qwen3Chat`], Qwen3's). [`send`](ChatSession::send) streams a reply
-//!   through [`decode_cached_observed`](bunsen::kits::support::decoding::decode_cached_observed),
+//!   ([`LmChat`], a stacked language model's: [`Qwen3Chat`], [`GemmaChat`]).
+//!   [`send`](ChatSession::send) streams a reply through
+//!   [`decode_cached_observed`](bunsen::kits::support::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
 //! - [`search_config`]: the search a checkpoint's generation policy says.
-//! - [`Qwen3Tokenizer`]: a checkpoint's tokenizer, text to ids and back, as
-//!   `transformers` encodes; a
+//! - [`ChatTokenizer`]: a checkpoint's tokenizer as a chat uses it, text to ids
+//!   and back, as `transformers` encodes; a
 //!   [`Detokenizer`](bunsen::kits::support::tokens::Detokenizer).
+//!   [`HfTokenizer`] reads any `tokenizer.json` on the `tokenizers` crate
+//!   (Gemma's); [`Qwen3Tokenizer`] reads Qwen3's on wordchipper.
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
 //! - [`NanoChatChat`], [`NanoChatTokenizer`] and [`NanoChatLayout`]: a nanochat
@@ -21,9 +25,9 @@
 //!   upstream's conversation layout, each as upstream encodes and renders.
 //!
 //! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `repl` take
-//! a checkpoint of any family by its name; `family qwen3` and `family
-//! nanochat` have the same commands for one family, its own default by
-//! default, with only the flags that apply to it:
+//! a checkpoint of any family by its name; `family qwen3`, `family gemma`
+//! and `family nanochat` have the same commands for one family, its own
+//! default by default, with only the flags that apply to it:
 //!
 //! ```text
 //! bunsen-tool chat list
@@ -35,6 +39,7 @@
 //! ```
 
 mod backend;
+mod chat_tokenizer;
 mod generation;
 mod nanochat_chat;
 mod nanochat_layout;
@@ -44,6 +49,7 @@ mod template;
 mod tokenizer;
 
 pub use backend::*;
+pub use chat_tokenizer::*;
 pub use generation::*;
 pub use nanochat_chat::*;
 pub use nanochat_layout::*;
