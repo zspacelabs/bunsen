@@ -77,6 +77,7 @@ impl Qwen3ConstructConfig {
                 probe: "generation_config".to_string(),
                 file: GENERATION_CONFIG.to_string(),
                 into: vec!["base".to_string()],
+                token: None,
             }],
             &ProbeFiles::new().with(GENERATION_CONFIG, bytes),
         )

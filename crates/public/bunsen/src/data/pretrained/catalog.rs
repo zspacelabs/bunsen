@@ -159,6 +159,12 @@ pub struct CatalogProbe {
 
     /// Where its patch goes: `base`, the set's base, or presets by name.
     pub into: Vec<String>,
+
+    /// The token it reads, for a probe that reads one by name (the
+    /// `tokenizer_config` probe's added token: `<end_of_turn>`, say); `None`,
+    /// the probe's own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }
 
 /// One resource bundle of a [`PretrainedCatalog`]: a [`ResourceBundle`] before

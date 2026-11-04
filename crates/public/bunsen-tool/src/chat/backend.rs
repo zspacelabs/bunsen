@@ -265,19 +265,12 @@ impl LmChat<Qwen3Model> {
     }
 }
 
-/// What ends a Gemma's turn in its chat template.
-pub const GEMMA_END_OF_TURN: &str = "<end_of_turn>";
-
 impl LmChat<GemmaModel> {
     /// A chat over a loaded Gemma, through its `tokenizer.json`
     /// ([`HfTokenizer`]) and its chat template (`chat_template.jinja` where
     /// the checkpoint keeps it apart, else its `tokenizer_config.json`'s),
     /// under the generation policy its presets resolved to.
     ///
-    /// A reply also stops at the template's end of a turn,
-    /// [`GEMMA_END_OF_TURN`]: the `generation_config.json` of Gemma 1's and
-    /// some of Gemma 2's instruction-tuned checkpoints names only the end of
-    /// the text.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
@@ -296,12 +289,7 @@ impl LmChat<GemmaModel> {
             Some(jinja) => ChatTemplate::from_jinja_file(jinja, config)?,
             None => ChatTemplate::from_file(config)?,
         };
-        let mut generation = bundle.policy.generation.clone();
-        if let Some(end) = tokenizer.token_id(GEMMA_END_OF_TURN)
-            && !generation.stop_ids.contains(&end)
-        {
-            generation.stop_ids.push(end);
-        }
+        let generation = bundle.policy.generation.clone();
         Self::new(bundle, Arc::new(tokenizer), template, generation)
     }
 }

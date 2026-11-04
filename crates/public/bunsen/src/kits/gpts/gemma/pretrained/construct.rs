@@ -28,10 +28,12 @@ use crate::{
     },
     kits::{
         gpts::gemma::{
+            END_OF_TURN,
             GENERATION_CONFIG,
             GemmaConstruct,
             GemmaModel,
             GemmaPolicy,
+            TOKENIZER_CONFIG,
             weights::{
                 gemma_config_from_hf,
                 load_hf_tensors_as,
@@ -63,23 +65,37 @@ use crate::{
 pub struct GemmaConstructConfig;
 
 impl GemmaConstructConfig {
-    /// The presets of a checkpoint no row describes, an `hf:` repo's: its
-    /// `generation_config.json`, when it has one, probed into the base (the
-    /// stop tokens and sampling), as the catalog tool probes a row's.
+    /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
+    /// catalog tool probes a row's: its `generation_config.json`, when it
+    /// has one (the stop tokens and sampling), and its
+    /// `tokenizer_config.json`'s [`END_OF_TURN`], when it has one (a turn's
+    /// end, which joins the stop tokens), probed into the base.
     fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
-        let Some(part) = loaded.get(GENERATION_CONFIG) else {
-            return Ok(PresetSet::default());
-        };
-        let bytes = std::fs::read(&part.path).map_err(sys_at("read", &part.path))?;
+        let mut entries = Vec::new();
+        let mut files = ProbeFiles::new();
+        for (key, probe, token) in [
+            (GENERATION_CONFIG, "generation_config", None),
+            (TOKENIZER_CONFIG, "tokenizer_config", Some(END_OF_TURN)),
+        ] {
+            let Some(part) = loaded.get(key) else {
+                continue;
+            };
+            files.insert(
+                key,
+                std::fs::read(&part.path).map_err(sys_at("read", &part.path))?,
+            );
+            entries.push(CatalogProbe {
+                probe: probe.to_string(),
+                file: key.to_string(),
+                into: vec!["base".to_string()],
+                token: token.map(str::to_string),
+            });
+        }
         apply_probes(
             &PresetSet::default(),
             &PresetSet::default(),
-            &[CatalogProbe {
-                probe: "generation_config".to_string(),
-                file: GENERATION_CONFIG.to_string(),
-                into: vec!["base".to_string()],
-            }],
-            &ProbeFiles::new().with(GENERATION_CONFIG, bytes),
+            &entries,
+            &files,
         )
     }
 }
@@ -179,24 +195,36 @@ mod tests {
             .assert_err(&GemmaConstructConfig::for_resource_bundle(&gguf));
     }
 
-    /// Every row stops where its `generation_config.json` says, probed when
-    /// the catalog was built: the instruction-tuned Gemma 3s at the end of a
-    /// turn as well as at the end of the text.
+    /// Every row stops where its files say: the end of the text its
+    /// `generation_config.json` names, and, for an instruction-tuned row, the
+    /// end of a turn its `tokenizer_config.json` gives [`END_OF_TURN`] (106 in
+    /// Gemma 3, 107 in Gemma 1 and 2), the two probes' ids joined. A lookup's
+    /// patch is an explicit layer over them, which replaces.
     #[test]
     fn test_the_generation_presets() {
         let factory = default_gemma_factory().unwrap();
-        let policy = |spec: &str| {
+        let stops = |spec: &str| {
             factory
                 .resolve_presets(spec, &GemmaPolicy::default())
-                .unwrap()
+                .unwrap_or_else(|e| panic!("{spec}: {e}"))
+                .config
+                .generation
+                .stop_ids
         };
-        assert_eq!(
-            policy("gemma/gemma-3-1b-it").config.generation.stop_ids,
-            [1, 106]
-        );
-        assert_eq!(policy("gemma/gemma-3-270m").config.generation.stop_ids, [1]);
-        for row in ["gemma/gemma-2-2b-it", "gemma/gemma-7b"] {
-            assert!(!policy(row).config.generation.stop_ids.is_empty(), "{row}");
+        assert_eq!(stops("gemma/gemma-3-1b-it"), [1, 106]);
+        assert_eq!(stops("gemma/gemma-3-270m"), [1]);
+        for row in [
+            "gemma/gemma-2-2b-it",
+            "gemma/gemma-2-9b-it",
+            "gemma/gemma-2b-it",
+            "gemma/gemma-7b-it",
+        ] {
+            assert_eq!(stops(row), [1, 107], "{row}");
         }
+        assert_eq!(
+            stops("gemma/gemma-2-9b-it{generation: {stop_ids: [1]}}"),
+            [1],
+            "a lookup's patch replaces the probed stops"
+        );
     }
 }

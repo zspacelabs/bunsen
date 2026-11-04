@@ -22,6 +22,7 @@
             "base": {
               "generation": {
                 "sampling": {
+                  "min_p": null,
                   "temperature": 1.0,
                   "top_k": 64,
                   "top_p": 0.95
@@ -46,6 +47,7 @@
             "base": {
               "generation": {
                 "sampling": {
+                  "min_p": null,
                   "temperature": 1.0,
                   "top_k": 64,
                   "top_p": 0.95
@@ -71,6 +73,7 @@
             "base": {
               "generation": {
                 "sampling": {
+                  "min_p": null,
                   "temperature": 1.0,
                   "top_k": 64,
                   "top_p": 0.95
@@ -96,6 +99,7 @@
             "base": {
               "generation": {
                 "sampling": {
+                  "min_p": null,
                   "temperature": 1.0,
                   "top_k": 64,
                   "top_p": 0.95
@@ -121,6 +125,7 @@
             "base": {
               "generation": {
                 "sampling": {
+                  "min_p": null,
                   "temperature": 1.0,
                   "top_k": 64,
                   "top_p": 0.95
@@ -146,6 +151,7 @@
             "base": {
               "generation": {
                 "sampling": {
+                  "min_p": null,
                   "temperature": 1.0,
                   "top_k": 64,
                   "top_p": 0.95
@@ -170,6 +176,7 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
                   1
                 ]
@@ -189,6 +196,7 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
                   1,
                   107
@@ -209,6 +217,7 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
                   1
                 ]
@@ -228,8 +237,10 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
-                  1
+                  1,
+                  107
                 ]
               }
             }
@@ -247,6 +258,7 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
                   1
                 ]
@@ -266,8 +278,10 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
-                  1
+                  1,
+                  107
                 ]
               }
             }
@@ -285,6 +299,7 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
                   1
                 ]
@@ -304,8 +319,10 @@
           "presets": {
             "base": {
               "generation": {
+                "sampling": null,
                 "stop_ids": [
-                  1
+                  1,
+                  107
                 ]
               }
             }
