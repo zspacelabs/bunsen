@@ -140,7 +140,12 @@ names probes, such as one that reads `generation_config.json`, and
 well-known row's presets are fixed data in the build and need no probing
 when the model loads. A probe may read a token by name: Gemma's
 instruction-tuned rows read the id `tokenizer_config.json` gives
-`<end_of_turn>` into their stop tokens.
+`<end_of_turn>` into their stop tokens. A chat model's template is a preset
+field too (`generation.chat_template`): a file of the checkpoint's, which
+the `chat_template` probe finds, or a template's source. Gemma's family
+states its own rendering of Gemma's turn format, which a row's probed
+template lies over, so the pretrained rows, which ship none, chat through
+the family's.
 
 What a row's probes find accumulates: two probes' stop ids join. The
 hand-written layers are merge patches, which replace. The row's own

@@ -197,6 +197,31 @@ fn missing(what: &str) -> BunsenError {
     BunsenError::invalid_resource(format!("a checkpoint without {what}"))
 }
 
+/// The refusal of a checkpoint, `name`, none of whose presets names a chat
+/// template.
+pub fn no_chat_template(name: &str) -> BunsenError {
+    BunsenError::invalid_resource(format!(
+        "{name} has no chat template: none of its presets names one (it is a pretrained model, \
+         say); give one with `NAME{{generation: {{chat_template: ...}}}}`"
+    ))
+}
+
+/// The chat template `bundle`'s policy names
+/// ([`GenerationPolicy::chat_template`]), its special tokens its
+/// `tokenizer_config.json`'s.
+fn template_of<M>(bundle: &LmConstruct<M>) -> BunsenResult<ChatTemplate> {
+    let config = bundle
+        .tokenizer_config()
+        .ok_or_else(|| missing("tokenizer_config.json"))?;
+    let source = bundle
+        .policy
+        .generation
+        .chat_template
+        .as_ref()
+        .ok_or_else(|| no_chat_template("the checkpoint"))?;
+    ChatTemplate::from_source(source, |key| bundle.file(key), config)
+}
+
 impl<M: ChatLm> LmChat<M> {
     /// A chat over `bundle`, through `tokenizer` and `template`, under
     /// `generation`.
@@ -240,15 +265,15 @@ impl<M: ChatLm> LmChat<M> {
 }
 
 impl LmChat<Qwen3Model> {
-    /// A chat over a loaded Qwen3, from the tokenizer and template files it
-    /// carries ([`Qwen3Tokenizer`]), under the generation policy its presets
+    /// A chat over a loaded Qwen3, through its tokenizer files
+    /// ([`Qwen3Tokenizer`]) and the chat template and stop tokens its presets
     /// resolved to.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
-    /// or its policy names no stop token (a repo without a
-    /// `generation_config.json`); as each file's reader.
+    /// or its policy names no chat template or no stop token (a repo without
+    /// a `generation_config.json`); as each file's reader.
     pub fn from_construct(bundle: Arc<Qwen3Construct>) -> BunsenResult<Self> {
         let config = bundle
             .tokenizer_config()
@@ -259,7 +284,7 @@ impl LmChat<Qwen3Model> {
                 .ok_or_else(|| missing("tokenizer.json"))?,
             Some(config),
         )?;
-        let template = ChatTemplate::from_file(config)?;
+        let template = template_of(&bundle)?;
         let generation = bundle.policy.generation.clone();
         Self::new(bundle, Arc::new(tokenizer), template, generation)
     }
@@ -267,28 +292,21 @@ impl LmChat<Qwen3Model> {
 
 impl LmChat<GemmaModel> {
     /// A chat over a loaded Gemma, through its `tokenizer.json`
-    /// ([`HfTokenizer`]) and its chat template (`chat_template.jinja` where
-    /// the checkpoint keeps it apart, else its `tokenizer_config.json`'s),
-    /// under the generation policy its presets resolved to.
-    ///
+    /// ([`HfTokenizer`]) and the chat template and stop tokens its presets
+    /// resolved to: its own template where it has one, else its family's.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
-    /// or names no stop token; as each file's reader.
+    /// or its policy names no chat template or no stop token; as each
+    /// file's reader.
     pub fn from_construct(bundle: Arc<GemmaConstruct>) -> BunsenResult<Self> {
-        let config = bundle
-            .tokenizer_config()
-            .ok_or_else(|| missing("tokenizer_config.json"))?;
         let tokenizer = HfTokenizer::from_file(
             bundle
                 .tokenizer()
                 .ok_or_else(|| missing("tokenizer.json"))?,
         )?;
-        let template = match bundle.chat_template() {
-            Some(jinja) => ChatTemplate::from_jinja_file(jinja, config)?,
-            None => ChatTemplate::from_file(config)?,
-        };
+        let template = template_of(&bundle)?;
         let generation = bundle.policy.generation.clone();
         Self::new(bundle, Arc::new(tokenizer), template, generation)
     }

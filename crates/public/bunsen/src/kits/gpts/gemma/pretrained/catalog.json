@@ -18,6 +18,7 @@
           "bundles": [
             "gemma/gemma-3-270m"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -43,9 +44,13 @@
           "bundles": [
             "gemma/gemma-3-270m-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "chat_template"
+                },
                 "sampling": {
                   "min_p": null,
                   "temperature": 1.0,
@@ -69,6 +74,7 @@
           "bundles": [
             "gemma/gemma-3-1b-pt"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -95,9 +101,13 @@
           "bundles": [
             "gemma/gemma-3-1b-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "chat_template"
+                },
                 "sampling": {
                   "min_p": null,
                   "temperature": 1.0,
@@ -121,6 +131,7 @@
           "bundles": [
             "gemma/gemma-3-4b-pt"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -147,9 +158,13 @@
           "bundles": [
             "gemma/gemma-3-4b-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "chat_template"
+                },
                 "sampling": {
                   "min_p": null,
                   "temperature": 1.0,
@@ -173,6 +188,7 @@
           "bundles": [
             "gemma/gemma-2-2b"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -193,9 +209,13 @@
           "bundles": [
             "gemma/gemma-2-2b-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": null,
                 "stop_ids": [
                   1,
@@ -214,6 +234,7 @@
           "bundles": [
             "gemma/gemma-2-9b"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -234,9 +255,13 @@
           "bundles": [
             "gemma/gemma-2-9b-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": null,
                 "stop_ids": [
                   1,
@@ -255,6 +280,7 @@
           "bundles": [
             "gemma/gemma-2b"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -275,9 +301,13 @@
           "bundles": [
             "gemma/gemma-2b-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": null,
                 "stop_ids": [
                   1,
@@ -296,6 +326,7 @@
           "bundles": [
             "gemma/gemma-7b"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
@@ -316,9 +347,13 @@
           "bundles": [
             "gemma/gemma-7b-it"
           ],
+          "family": "gemma",
           "presets": {
             "base": {
               "generation": {
+                "chat_template": {
+                  "file": "tokenizer_config"
+                },
                 "sampling": null,
                 "stop_ids": [
                   1,
@@ -1204,6 +1239,19 @@
           "size": 154
         }
       ]
+    }
+  ],
+  "families": [
+    {
+      "name": "gemma",
+      "description": "Google's Gemma models: a row's own chat template where it has one, else bunsen's rendering of Gemma's turn format",
+      "presets": {
+        "base": {
+          "generation": {
+            "chat_template": "{{- bos_token -}}\n{%- if messages and messages[0]['role'] == 'system' -%}\n{%- set prefix = messages[0]['content'] | trim ~ '\\n\\n' -%}\n{%- set turns = messages[1:] -%}\n{%- else -%}\n{%- set prefix = '' -%}\n{%- set turns = messages -%}\n{%- endif -%}\n{%- for message in turns -%}\n{%- set role = 'model' if message['role'] == 'assistant' else message['role'] -%}\n{{- '<start_of_turn>' ~ role ~ '\\n' ~ (prefix if loop.first else '') ~ (message['content'] | trim) ~ '<end_of_turn>\\n' -}}\n{%- endfor -%}\n{%- if add_generation_prompt -%}\n{{- '<start_of_turn>model\\n' -}}\n{%- endif -%}"
+          }
+        }
+      }
     }
   ]
 }

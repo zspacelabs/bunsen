@@ -17,14 +17,18 @@ groups:
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3-0.6b"]
         family: "hybrid"
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-0.6b-base"
         description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3-0.6b-base"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-1.7b"
         description: "Qwen3-1.7B: thinking and non-thinking chat"
         license: "Apache-2.0"
@@ -32,14 +36,18 @@ groups:
         prefab: "qwen3-1.7b"
         bundles: ["qwen/qwen3-1.7b"]
         family: "hybrid"
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-1.7b-base"
         description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
         prefab: "qwen3-1.7b"
         bundles: ["qwen/qwen3-1.7b-base"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b"
         description: "Qwen3-4B: thinking and non-thinking chat"
         license: "Apache-2.0"
@@ -47,28 +55,36 @@ groups:
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b"]
         family: "hybrid"
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-base"
         description: "Qwen3-4B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b-base"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-instruct-2507"
         description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
         prefab: "qwen3-4b-2507"
         bundles: ["qwen/qwen3-4b-instruct-2507"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-thinking-2507"
         description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
         prefab: "qwen3-4b-2507"
         bundles: ["qwen/qwen3-4b-thinking-2507"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-8b"
         description: "Qwen3-8B: thinking and non-thinking chat"
         license: "Apache-2.0"
@@ -76,14 +92,18 @@ groups:
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3-8b"]
         family: "hybrid"
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-8b-base"
         description: "Qwen3-8B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3-8b-base"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-saferl"
         description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat"
         license: "Apache-2.0"
@@ -91,28 +111,36 @@ groups:
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3-4b-saferl"]
         family: "hybrid"
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3guard-gen-0.6b"
         description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
         prefab: "qwen3-0.6b"
         bundles: ["qwen/qwen3guard-gen-0.6b"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3guard-gen-4b"
         description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
         prefab: "qwen3-4b"
         bundles: ["qwen/qwen3guard-gen-4b"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3guard-gen-8b"
         description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
         prefab: "qwen3-8b"
         bundles: ["qwen/qwen3guard-gen-8b"]
-        probe: [{ probe: "generation_config", file: "generation_config", into: ["base"] }]
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
 bundles:
   - name: "qwen/qwen3-0.6b"
     description: "Qwen3-0.6B: model.safetensors, config, tokenizer, generation config"

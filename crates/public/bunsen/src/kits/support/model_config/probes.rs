@@ -36,8 +36,9 @@ pub trait Probe: Send + Sync + fmt::Debug {
     /// Its name, as a catalog row's `probe` entry names it.
     fn name(&self) -> &'static str;
 
-    /// The patch `file`'s bytes say; of `token`, for a probe that reads one
-    /// by name ([`CatalogProbe::token`]).
+    /// The patch `file`'s bytes say, as `entry` asks: the file's resource
+    /// key is `entry.file`, and a probe that reads a token by name reads
+    /// `entry.token`.
     ///
     /// # Errors
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
@@ -47,7 +48,7 @@ pub trait Probe: Send + Sync + fmt::Debug {
     fn probe(
         &self,
         file: &[u8],
-        token: Option<&str>,
+        entry: &CatalogProbe,
     ) -> BunsenResult<Value>;
 }
 
@@ -128,9 +129,9 @@ impl Probe for GenerationConfigProbe {
     fn probe(
         &self,
         file: &[u8],
-        token: Option<&str>,
+        entry: &CatalogProbe,
     ) -> BunsenResult<Value> {
-        no_token(self.name(), token)?;
+        no_token(self.name(), entry.token.as_deref())?;
         let c = read_json(file, "a generation_config.json")?;
         let mut generation = Map::new();
         match c.get("eos_token_id") {
@@ -175,10 +176,10 @@ impl Probe for TokenizerConfigProbe {
     fn probe(
         &self,
         file: &[u8],
-        token: Option<&str>,
+        entry: &CatalogProbe,
     ) -> BunsenResult<Value> {
         let c = read_json(file, "a tokenizer_config.json")?;
-        let eos = match (token, c.get("eos_token")) {
+        let eos = match (entry.token.as_deref(), c.get("eos_token")) {
             (Some(token), _) => token,
             (None, Some(Value::String(s))) => s.as_str(),
             (None, Some(Value::Object(o))) => {
@@ -209,6 +210,45 @@ impl Probe for TokenizerConfigProbe {
     }
 }
 
+/// A chat template's file: a `tokenizer_config.json` that holds a
+/// `chat_template`, or a template file of its own (`chat_template.jinja`),
+/// as the row's [`ChatTemplateSource::File`](super::ChatTemplateSource) by
+/// its resource key; a `tokenizer_config.json` without one says nothing.
+/// Its patch is under `generation`.
+///
+/// Probed after a `tokenizer_config.json`, a `chat_template.jinja` is the
+/// template, as `transformers` prefers it.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ChatTemplateProbe;
+
+impl Probe for ChatTemplateProbe {
+    fn name(&self) -> &'static str {
+        "chat_template"
+    }
+
+    fn probe(
+        &self,
+        file: &[u8],
+        entry: &CatalogProbe,
+    ) -> BunsenResult<Value> {
+        no_token(self.name(), entry.token.as_deref())?;
+        let holds = match serde_json::from_slice::<Value>(file) {
+            Ok(Value::Object(config)) => config.get("chat_template").is_some_and(Value::is_string),
+            _ => !std::str::from_utf8(file)
+                .map_err(|e| {
+                    BunsenError::invalid_resource("a chat template that is not UTF-8").with_cause(e)
+                })?
+                .trim()
+                .is_empty(),
+        };
+        Ok(if holds {
+            json!({ "generation": { "chat_template": { "file": entry.file } } })
+        } else {
+            json!({})
+        })
+    }
+}
+
 fn read_json(
     file: &[u8],
     what: &'static str,
@@ -230,6 +270,7 @@ pub fn builtin_probes() -> Vec<Box<dyn Probe>> {
     vec![
         Box::new(GenerationConfigProbe),
         Box::new(TokenizerConfigProbe),
+        Box::new(ChatTemplateProbe),
     ]
 }
 
@@ -317,7 +358,7 @@ pub fn apply_probes_with(
                 )
             })?;
         let patch = probe
-            .probe(files.get(&entry.file)?, entry.token.as_deref())
+            .probe(files.get(&entry.file)?, entry)
             .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.file)))?;
         for into in &entry.into {
             if into == "base" {
@@ -361,6 +402,61 @@ pub fn apply_probes_with(
     Ok(out)
 }
 
+/// The presets of a checkpoint no catalog row describes (an `hf:` repo's),
+/// as the catalog tool probes a row's: each of `entries` whose file `loaded`
+/// has, the rest skipped, into a set laid over `family`'s.
+///
+/// # Errors
+/// [`Sys`](crate::errors::BunsenErrorKind::Sys) when a file cannot be read;
+/// as [`apply_probes`].
+#[cfg(feature = "cache")]
+pub fn probe_loaded(
+    loaded: &crate::data::pretrained::LoadedResources,
+    entries: &[CatalogProbe],
+    family: &PresetSet,
+) -> BunsenResult<PresetSet> {
+    let mut files = ProbeFiles::new();
+    let mut kept = Vec::new();
+    for entry in entries {
+        let Some(part) = loaded.get(&entry.file) else {
+            continue;
+        };
+        if files.get(&entry.file).is_err() {
+            let bytes =
+                std::fs::read(&part.path).map_err(crate::errors::sys_at("read", &part.path))?;
+            files.insert(entry.file.clone(), bytes);
+        }
+        kept.push(entry.clone());
+    }
+    Ok(apply_probes(&PresetSet::default(), family, &kept, &files)?.over(family))
+}
+
+impl CatalogProbe {
+    /// The probe `probe` of the file under `file`, into the base.
+    pub fn into_base(
+        probe: impl Into<String>,
+        file: impl Into<String>,
+    ) -> Self {
+        Self {
+            probe: probe.into(),
+            file: file.into(),
+            into: vec!["base".to_string()],
+            token: None,
+        }
+    }
+
+    /// This probe, reading `token` by name.
+    pub fn with_token(
+        self,
+        token: impl Into<String>,
+    ) -> Self {
+        Self {
+            token: Some(token.into()),
+            ..self
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,6 +466,7 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::support::model_config::{
+            ChatTemplateSource,
             GenerationPolicy,
             SamplingPolicy,
         },
@@ -382,6 +479,16 @@ mod tests {
         "transformers_version": "4.51.0"
     }"#;
 
+    /// A probe's entry, under the `file` key, with `token`.
+    fn args(token: Option<&str>) -> CatalogProbe {
+        CatalogProbe {
+            probe: String::new(),
+            file: "file".to_string(),
+            into: vec!["base".to_string()],
+            token: token.map(str::to_string),
+        }
+    }
+
     fn probed_policy(patch: &Value) -> GenerationPolicy {
         serde_json::from_value(patch["generation"].clone()).unwrap()
     }
@@ -389,7 +496,7 @@ mod tests {
     #[test]
     fn test_generation_config() {
         let patch = GenerationConfigProbe
-            .probe(QWEN3_GENERATION.as_bytes(), None)
+            .probe(QWEN3_GENERATION.as_bytes(), &args(None))
             .unwrap();
         assert_eq!(
             probed_policy(&patch),
@@ -406,7 +513,7 @@ mod tests {
         );
 
         let greedy = GenerationConfigProbe
-            .probe(br#"{"eos_token_id": 2, "max_new_tokens": 64}"#, None)
+            .probe(br#"{"eos_token_id": 2, "max_new_tokens": 64}"#, &args(None))
             .unwrap();
         let p = probed_policy(&greedy);
         assert_eq!(
@@ -415,7 +522,7 @@ mod tests {
         );
 
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
-            .assert_err(&GenerationConfigProbe.probe(b"[1]", None));
+            .assert_err(&GenerationConfigProbe.probe(b"[1]", &args(None)));
     }
 
     #[test]
@@ -427,17 +534,17 @@ mod tests {
                 "151645": {"content": "<|im_end|>"}
             }
         }"#;
-        let patch = TokenizerConfigProbe.probe(config, None).unwrap();
+        let patch = TokenizerConfigProbe.probe(config, &args(None)).unwrap();
         assert_eq!(patch, json!({"generation": {"stop_ids": [151645]}}));
 
         let object = br#"{"eos_token": {"content": "</s>"}, "added_tokens_decoder": {"2": {"content": "</s>"}}}"#;
         assert_eq!(
-            TokenizerConfigProbe.probe(object, None).unwrap(),
+            TokenizerConfigProbe.probe(object, &args(None)).unwrap(),
             json!({"generation": {"stop_ids": [2]}})
         );
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("no added token")
-            .assert_err(&TokenizerConfigProbe.probe(br#"{"eos_token": "?"}"#, None));
+            .assert_err(&TokenizerConfigProbe.probe(br#"{"eos_token": "?"}"#, &args(None)));
     }
 
     fn entry(
@@ -505,11 +612,11 @@ mod tests {
         );
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_contains("no probe \"chat_template\"")
+            .message_contains("no probe \"sampling_card\"")
             .assert_err(&apply_probes(
                 &set,
                 &PresetSet::default(),
-                &[entry("chat_template", "generation_config", &["base"])],
+                &[entry("sampling_card", "generation_config", &["base"])],
                 &files,
             ));
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -571,15 +678,15 @@ mod tests {
         let config = br#"{"eos_token": "<eos>", "added_tokens_decoder": {
             "1": {"content": "<eos>"}, "107": {"content": "<end_of_turn>"}}}"#;
         let patch = TokenizerConfigProbe
-            .probe(config, Some("<end_of_turn>"))
+            .probe(config, &args(Some("<end_of_turn>")))
             .unwrap();
         assert_eq!(probed_policy(&patch).stop_ids, [107]);
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("<start_of_turn>")
-            .assert_err(&TokenizerConfigProbe.probe(config, Some("<start_of_turn>")));
+            .assert_err(&TokenizerConfigProbe.probe(config, &args(Some("<start_of_turn>"))));
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("reads no token")
-            .assert_err(&GenerationConfigProbe.probe(b"{}", Some("<eos>")));
+            .assert_err(&GenerationConfigProbe.probe(b"{}", &args(Some("<eos>"))));
     }
 
     /// Probes accumulate: two probes' stop ids join, in order, without a
@@ -618,5 +725,67 @@ mod tests {
         };
         let over = apply_probes(&hand, &PresetSet::default(), &entries, &files).unwrap();
         assert_eq!(probed_policy(&over.base).stop_ids, [7]);
+    }
+
+    /// A `tokenizer_config.json` that holds a template, or a template file,
+    /// is the row's template by its key; one without says nothing; probed
+    /// in order, the later file is the template.
+    #[test]
+    fn test_chat_template() {
+        let keyed = |file: &str| CatalogProbe {
+            file: file.to_string(),
+            ..args(None)
+        };
+        let holds = br#"{"chat_template": "{{ bos_token }}"}"#;
+        let source = |patch: Value| probed_policy(&patch).chat_template;
+        assert_eq!(
+            source(
+                ChatTemplateProbe
+                    .probe(holds, &keyed("tokenizer_config"))
+                    .unwrap()
+            ),
+            Some(ChatTemplateSource::File {
+                file: "tokenizer_config".to_string()
+            })
+        );
+        assert_eq!(
+            ChatTemplateProbe
+                .probe(br#"{"eos_token": "<eos>"}"#, &keyed("tokenizer_config"))
+                .unwrap(),
+            json!({})
+        );
+        assert_eq!(
+            source(
+                ChatTemplateProbe
+                    .probe(
+                        b"{{ bos_token }}\n{%- for m in messages -%}",
+                        &keyed("chat_template")
+                    )
+                    .unwrap()
+            ),
+            Some(ChatTemplateSource::File {
+                file: "chat_template".to_string()
+            })
+        );
+
+        let files = ProbeFiles::new()
+            .with("tokenizer_config", holds.to_vec())
+            .with("chat_template", b"{{ bos_token }}".to_vec());
+        let probed = apply_probes(
+            &PresetSet::default(),
+            &PresetSet::default(),
+            &[
+                entry("chat_template", "tokenizer_config", &["base"]),
+                entry("chat_template", "chat_template", &["base"]),
+            ],
+            &files,
+        )
+        .unwrap();
+        assert_eq!(
+            probed_policy(&probed.base).chat_template,
+            Some(ChatTemplateSource::File {
+                file: "chat_template".to_string()
+            })
+        );
     }
 }

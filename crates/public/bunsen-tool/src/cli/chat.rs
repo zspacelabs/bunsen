@@ -41,6 +41,7 @@ use bunsen::{
         support::{
             construct::{
                 ConstructInit,
+                LmPolicy,
                 PretrainedFactory,
             },
             decoding::SearchConfig,
@@ -73,6 +74,7 @@ use bunsen_tool::chat::{
     GemmaChat,
     NanoChatChat,
     Qwen3Chat,
+    no_chat_template,
     search_config,
 };
 
@@ -274,6 +276,7 @@ impl Family {
     ) -> BunsenResult<LoadedChat> {
         Ok(match self {
             Family::Qwen3 => {
+                require_template(&default_qwen3_factory()?, name)?;
                 let bundle = default_qwen3_factory()?.load_construct(
                     name,
                     cache,
@@ -283,6 +286,7 @@ impl Family {
                 LoadedChat::Qwen3(Arc::new(ChatModel::from_construct(bundle)?))
             }
             Family::Gemma => {
+                require_template(&default_gemma_factory()?, name)?;
                 let bundle = default_gemma_factory()?.load_construct(
                     name,
                     cache,
@@ -334,6 +338,24 @@ impl Family {
             println!("  {key}: {}", part.path.display());
         }
         Ok(())
+    }
+}
+
+/// Refuses a well-known checkpoint none of whose presets names a chat
+/// template, before anything of it is fetched. An `hf:` repo's template is
+/// found in its files, so it is checked when it loads.
+fn require_template<H: ConstructInit>(
+    factory: &PretrainedFactory<H>,
+    name: &str,
+) -> BunsenResult<()> {
+    let (provider, _) = factory.lookup(name)?;
+    if provider != bunsen::data::pretrained::WELL_KNOWN {
+        return Ok(());
+    }
+    let resolved = factory.resolve_presets(name, &LmPolicy::default())?;
+    match resolved.config.generation.chat_template {
+        Some(_) => Ok(()),
+        None => Err(no_chat_template(name)),
     }
 }
 
@@ -1007,6 +1029,24 @@ mod tests {
             Family::of("hf:unsloth/gemma-3-1b-it").unwrap(),
             Family::Qwen3
         );
+    }
+
+    /// Every well-known chat checkpoint has a chat template, a pretrained
+    /// Gemma its family's; a lookup's patch that takes it away is refused
+    /// before anything is fetched.
+    #[test]
+    fn test_require_template() {
+        let gemma = default_gemma_factory().unwrap();
+        for id in gemma.ids() {
+            require_template(&gemma, &id).unwrap_or_else(|e| panic!("{id}: {e}"));
+        }
+        let qwen3 = default_qwen3_factory().unwrap();
+        for id in qwen3.ids() {
+            require_template(&qwen3, &id).unwrap_or_else(|e| panic!("{id}: {e}"));
+        }
+        let err =
+            require_template(&gemma, "gemma-2b{generation: {chat_template: null}}").unwrap_err();
+        assert!(err.to_string().contains("no chat template"), "{err}");
     }
 
     /// In `family`, an omitted `--model` is the family's default; outside

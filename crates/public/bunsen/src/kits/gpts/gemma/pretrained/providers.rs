@@ -56,6 +56,11 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 pub static GEMMA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("gemma", include_str!("catalog.json"));
 
+/// The catalog family every Gemma row is of, and an `hf:` repo's presets lie
+/// over: its own chat template where it has one, else bunsen's rendering of
+/// Gemma's turn format.
+pub const GEMMA_FAMILY: &str = "gemma";
+
 /// The name [`default_gemma_factory`] loads when a caller names none.
 pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma-3-1b-it";
 
