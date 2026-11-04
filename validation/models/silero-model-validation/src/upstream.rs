@@ -187,7 +187,12 @@ mod vad_16k {
         let device = cpu_device();
         let loaded = default_silero_factory()
             .unwrap()
-            .load("silero/vad-16k", &bundled_cache(), &device)
+            .load(
+                "silero/vad-16k",
+                &bundled_cache(),
+                &device,
+                bunsen::kits::support::construct::LoadPolicy::as_stored(),
+            )
             .unwrap();
         let part = loaded.resources.get(CHECKPOINT).unwrap();
         assert_eq!(part.provenance, Provenance::Cached);

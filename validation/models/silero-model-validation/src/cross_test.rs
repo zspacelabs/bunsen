@@ -256,9 +256,14 @@ mod vad_16k {
                 .with_offline(true),
         )?;
         let upstream = default_silero_factory()?
-            .load("silero/vad-16k", &cache, &device)?
+            .load(
+                "silero/vad-16k",
+                &cache,
+                &device,
+                bunsen::kits::support::construct::LoadPolicy::as_stored(),
+            )?
             .handle;
-        assert_eq!(upstream.branches.len(), 1);
+        assert_eq!(upstream.vads.branches.len(), 1);
         let vad = upstream.try_branch(16000)?;
 
         let wav_path = bunsen_test_audio::SILERO_VAD_TEST.path();
