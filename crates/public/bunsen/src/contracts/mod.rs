@@ -166,7 +166,7 @@
 //! When a check still costs too much, sample it with
 //! [`assert_shape_contract_periodically!`], or gate it with
 //! `#[cfg(debug_assertions)]` so that release builds drop it, as
-//! [`next_interior_3d`](crate::kits::sims::conway::ops::next_interior_3d)
+//! [`next_interior_3d`](crate::sims::conway::ops::next_interior_3d)
 //! does.
 //!
 //! ## Error messages

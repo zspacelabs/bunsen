@@ -13,7 +13,7 @@ use std::{
 };
 
 use bunsen::{
-    kits::sims::lbm::d2q9::{
+    sims::lbm::d2q9::{
         LBMD2Q9Config,
         LBMD2Q9State,
         LbmTables,

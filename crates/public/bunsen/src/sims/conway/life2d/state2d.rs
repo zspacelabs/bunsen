@@ -15,7 +15,7 @@ use burn::{
 };
 
 use crate::{
-    kits::sims::conway::{
+    sims::conway::{
         ops::{
             fuzz_state_2d,
             next_state_wrapped_2d,
@@ -163,7 +163,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::sims::conway::{
+        sims::conway::{
             ops::next_interior_2d,
             util::ConwaySim,
         },

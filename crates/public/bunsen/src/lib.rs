@@ -19,7 +19,7 @@
 //! those above.
 //!
 //! ```text
-//!   kits        whole models and simulations
+//!   kits, sims  whole models; simulations
 //!   blocks      torch.nn-like components: module roots and tree parts
 //!   ops         operations; Module/Config only to hold cached tables or state
 //!   foundation  burner, contracts, errors, rust_ext, support, zspace
@@ -33,8 +33,10 @@
 //!
 //! ### Components
 //!
-//! * [`kits`]: complete models and simulations: image models, GPTs,
-//!   simulations, speech, and the token seam the speech kits share.
+//! * [`kits`]: complete models: image models, GPTs, speech, and the token seam
+//!   the speech kits share.
+//! * [`sims`]: simulations written as tensor programs: Conway's Game of Life
+//!   and a lattice-Boltzmann fluid.
 //! * [`blocks`]: reusable [`Module`](burn::module::Module) components: conv
 //!   blocks, image layers, recurrent cells, transformer parts.
 //! * [`ops`]: tensor operations, including the signal-processing front ends,
@@ -122,5 +124,6 @@ pub mod kits;
 pub mod ops;
 pub mod prelude;
 pub mod rust_ext;
+pub mod sims;
 pub mod support;
 pub mod zspace;

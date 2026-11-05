@@ -1,8 +1,8 @@
 # Kits
 
 A kit is a whole thing you can pick up and use: a model family with its
-configs, the weights it can load and a program that runs it, or a simulation
-you can step. Where [blocks and ops](../systems/ops-and-blocks.md) are parts,
+configs, the weights it can load and a program that runs it. The
+simulations, [`bunsen::sims`], are built the same way. Where [blocks and ops](../systems/ops-and-blocks.md) are parts,
 a kit is what the parts are for.
 
 The [`bunsen::kits`](bunsen::kits#the-kits) docs list the kits, and describe

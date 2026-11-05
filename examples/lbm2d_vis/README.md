@@ -10,7 +10,7 @@ tracking and re-injecting drift.
 
 ## Bunsen features exercised
 
-- `bunsen::kits::sims::lbm::d2q9` — the D2Q9 solver: `LBMD2Q9Config` /
+- `bunsen::sims::lbm::d2q9` — the D2Q9 solver: `LBMD2Q9Config` /
   `LBMD2Q9State` (`init`, `advance_step`, `solid_mask`, mass-conservation
   helpers), `RelaxationParam`, the `LbmTables` lattice constants, the
   `SPEED_OF_SOUND` constant, and `macroscopic_momentum` for deriving velocity

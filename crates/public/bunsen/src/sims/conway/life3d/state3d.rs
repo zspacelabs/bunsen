@@ -9,7 +9,7 @@ use burn::{
     tensor::Device,
 };
 
-use crate::kits::sims::conway::{
+use crate::sims::conway::{
     ops::{
         fuzz_state_3d,
         next_state_wrapped_3d,
