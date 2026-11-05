@@ -1,0 +1,31 @@
+//! # The norm seam
+//!
+//! [`NormConfig`] and [`Norm`] are bunsen's normalization layers: the kinds
+//! bunsen's blocks use ([`Identity`](Norm::Identity), [`Batch`](Norm::Batch),
+//! [`Layer`](Norm::Layer), [`Rms`](Norm::Rms)), each burn's layer, behind one
+//! seam that bunsen owns. A block that takes a norm takes a [`NormConfig`],
+//! so a norm's dtype handling, and later kinds, are bunsen's to change
+//! without waiting on burn's releases.
+//!
+//! - **Half inputs compute in f32.** [`Rms`](Norm::Rms) normalizes an f16 or
+//!   bf16 input in f32 and narrows it before the gain, as `transformers` does;
+//!   burn's `RmsNorm` divides in the input's dtype. [`Layer`](Norm::Layer)
+//!   normalizes a half input in f32 and narrows the result; burn's `LayerNorm`
+//!   widens f16 alone, as bf16 has f32's range.
+//! - **The parameters meet the input in one dtype.** Each casts its parameters
+//!   to the dtype it computes in, so a gain kept in f32 never meets a half
+//!   input in one op (burn-flex refuses that; on the cubecl backends it is
+//!   wrong: [`burner::dtypes`](crate::burner::dtypes)).
+//! - **The output is the input's dtype**
+//!   ([`ResultDType`](crate::burner::module::ResultDType)).
+//!
+//! The variants and their configs keep burn's `NormalizationConfig` names,
+//! so a config's serde form and a native record's keys are burn's. bunsen's
+//! loaders skip enum variants, so a loaded tensor's path names no variant
+//! either way.
+
+mod layer_norm;
+mod normalization;
+
+pub use layer_norm::*;
+pub use normalization::*;
