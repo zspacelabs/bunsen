@@ -13,6 +13,7 @@
 //!
 //! | Kit | What it is |
 //! |---|---|
+//! | [`decision::laya`] | Laya, an open decision model: a `ModernBERT` encoder and a head that answers typed questions with calibrated probabilities over their options. |
 //! | [`images::resnet`] | `ResNet` image classifiers, with 14 torchvision and `timm` checkpoints by name. |
 //! | [`images::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
 //! | [`language::nanochat`] | karpathy's nanochat GPT, upstream's 2025 and 2026 models: a pretrained index of community checkpoints (`nanochat-students/rl-d20` by default), upstream's own checkpoint files loaded as they are, cached decoding, and the corpus it trains on. |
@@ -26,8 +27,9 @@
 //! | [`text::encoders::modernbert`] | Answer.AI's `ModernBERT` text encoder: the model, loaded from a `transformers` `ModernBertModel` state dict and its `config.json`. |
 //! | [`support`] | Not a model: what kits of more than one family share: [`support::tokens`], the ids-to-text seam, and [`support::decoding`], the search machinery (logit filters, greedy and beam search, sampling, ranking, and the temperature ladder). |
 //!
-//! The area modules, [`images`], [`language`], [`speech`] and [`text`], group
-//! the kits by domain and say what the kits in each have in common.
+//! The area modules, [`decision`], [`images`], [`language`], [`speech`] and
+//! [`text`], group the kits by domain and say what the kits in each have in
+//! common.
 //!
 //! # Anatomy of a kit
 //!
@@ -118,6 +120,7 @@
 //! filled in. Pin a specific `bunsen` version when you need a stable
 //! API.
 
+pub mod decision;
 pub mod images;
 pub mod language;
 pub mod speech;
