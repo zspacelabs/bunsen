@@ -12,8 +12,8 @@ use std::{
 
 use crate::{
     burner::module::{
-        Adapter,
         Select,
+        TensorLoadTransform,
         TensorTransform,
     },
     errors::{
@@ -43,12 +43,12 @@ use crate::{
 /// ([`pass_rest`](Self::pass_rest)).
 ///
 /// A map can also say how a tensor's data changes on the way, by named
-/// [`Adapter`]s on the paths a [`Select`] picks ([`adapt`](Self::adapt)):
-/// a weight whose axes follow a layout the checkpoint's module chose
-/// differently from the block that loads it, or a norm gain stored as
-/// `w` for `1 + w`. [`target`](Self::target) gives the path and the change
-/// together, and names its adapters; a mounted map's adapters come along
-/// with its paths.
+/// [`TensorLoadTransform`]s on the paths a [`Select`] picks
+/// ([`transform`](Self::transform)): a weight whose axes follow a layout the
+/// checkpoint's module chose differently from the block that loads it, or a
+/// norm gain stored as `w` for `1 + w`. [`target`](Self::target) gives the path
+/// and the change together, and names its load transforms; a mounted map's come
+/// along with its paths.
 ///
 /// ```rust
 /// use bunsen::burner::module::Rekey;
@@ -80,7 +80,7 @@ use crate::{
 #[derive(Clone)]
 pub struct Rekey {
     rules: Vec<Rule>,
-    adapters: Vec<(Select, Adapter)>,
+    load_transforms: Vec<(Select, TensorLoadTransform)>,
     unclaimed: Unclaimed,
 }
 
@@ -124,11 +124,12 @@ pub struct Target {
     /// The module path.
     pub path: String,
 
-    /// The change to its data, if any: its adapters', composed in order.
+    /// The change to its data, if any: its load transforms', composed in
+    /// order.
     pub transform: Option<TensorTransform>,
 
-    /// The adapters that make the change, by name, in order.
-    pub adapters: Vec<String>,
+    /// The load transforms that make the change, by name, in order.
+    pub transform_names: Vec<String>,
 }
 
 impl fmt::Debug for Target {
@@ -138,7 +139,7 @@ impl fmt::Debug for Target {
     ) -> fmt::Result {
         f.debug_struct("Target")
             .field("path", &self.path)
-            .field("adapters", &self.adapters)
+            .field("transform_names", &self.transform_names)
             .finish()
     }
 }
@@ -153,8 +154,8 @@ pub struct RekeyPlan {
     /// Each module path more than one name loads into, with those names.
     pub collisions: Vec<(String, Vec<String>)>,
 
-    /// The adapters no name reached, each as `path (adapter)`: a map that
-    /// adapts a path its own rules never produce.
+    /// The load transforms no name reached, each as `path (transform)`: a
+    /// map that transforms a path its own rules never produce.
     pub orphan_transforms: Vec<String>,
 
     /// Rules that claimed no name, as written: shadowed by an earlier rule,
@@ -200,7 +201,7 @@ impl RekeyPlan {
         details.extend(
             self.orphan_transforms
                 .iter()
-                .map(|orphan| format!("adapter for {orphan}: no name loads there")),
+                .map(|orphan| format!("load transform for {orphan}: no name loads there")),
         );
         details.extend(
             self.index_conflicts
@@ -208,7 +209,7 @@ impl RekeyPlan {
                 .map(|conflict| format!("indices: {conflict}")),
         );
         Err(BunsenError::invalid_resource(format!(
-            "the key map loads {} paths from more than one name, has {} adapters no name \
+            "the key map loads {} paths from more than one name, has {} load transforms no name \
              reaches, and {} stacks whose indices do not match the module's",
             self.collisions.len(),
             self.orphan_transforms.len(),
@@ -244,7 +245,7 @@ fn plain(path: String) -> Target {
     Target {
         path,
         transform: None,
-        adapters: Vec::new(),
+        transform_names: Vec::new(),
     }
 }
 
@@ -325,8 +326,8 @@ fn rule_addr(rule: &Rule) -> usize {
     std::ptr::from_ref(rule) as usize
 }
 
-fn adapter_addr(adapter: &Adapter) -> usize {
-    Arc::as_ptr(&adapter.transform()).cast::<()>() as usize
+fn transform_addr(transform: &TensorLoadTransform) -> usize {
+    Arc::as_ptr(&transform.transform()).cast::<()>() as usize
 }
 
 impl Rule {
@@ -410,7 +411,7 @@ impl Rekey {
     pub fn keep_rest() -> Self {
         Self {
             rules: Vec::new(),
-            adapters: Vec::new(),
+            load_transforms: Vec::new(),
             unclaimed: Unclaimed::Keep,
         }
     }
@@ -420,7 +421,7 @@ impl Rekey {
     pub fn drop_rest() -> Self {
         Self {
             rules: Vec::new(),
-            adapters: Vec::new(),
+            load_transforms: Vec::new(),
             unclaimed: Unclaimed::Drop,
         }
     }
@@ -433,7 +434,7 @@ impl Rekey {
     pub fn pass_rest() -> Self {
         Self {
             rules: Vec::new(),
-            adapters: Vec::new(),
+            load_transforms: Vec::new(),
             unclaimed: Unclaimed::Pass,
         }
     }
@@ -541,15 +542,15 @@ impl Rekey {
     }
 
     /// Changes the data of the tensors this map sends to the paths `select`
-    /// picks (module paths, relative to this map) by `adapter`: after any
+    /// picks (module paths, relative to this map) by `transform`: after any
     /// change a mounted map made to them, and after this map's earlier
-    /// adapters of the same path.
-    pub fn adapt(
+    /// load transforms of the same path.
+    pub fn transform(
         mut self,
         select: impl Into<Select>,
-        adapter: Adapter,
+        transform: TensorLoadTransform,
     ) -> Self {
-        self.adapters.push((select.into(), adapter));
+        self.load_transforms.push((select.into(), transform));
         self
     }
 
@@ -588,7 +589,8 @@ impl Rekey {
         Some(claimed.map(|target| self.with_own_transform(target, &mut cx.trace)))
     }
 
-    /// `target`, with this map's adapters for its path composed after any
+    /// `target`, with this map's load transforms for its path composed after
+    /// any
     /// change it already carries.
     fn with_own_transform(
         &self,
@@ -596,14 +598,14 @@ impl Rekey {
         trace: &mut Trace,
     ) -> Target {
         let mut target = target;
-        for (_, adapter) in self
-            .adapters
+        for (_, transform) in self
+            .load_transforms
             .iter()
             .filter(|(select, _)| select.matches(&target.path))
         {
-            trace.transforms.insert(adapter_addr(adapter));
-            target.transform = compose(target.transform, Some(adapter.transform()));
-            target.adapters.push(adapter.name().to_string());
+            trace.transforms.insert(transform_addr(transform));
+            target.transform = compose(target.transform, Some(transform.transform()));
+            target.transform_names.push(transform.name().to_string());
         }
         target
     }
@@ -774,9 +776,9 @@ impl Rekey {
         rules: &mut Vec<String>,
         transforms: &mut Vec<String>,
     ) {
-        for (select, adapter) in &self.adapters {
-            if !trace.transforms.contains(&adapter_addr(adapter)) {
-                transforms.push(format!("{to_prefix}{select} ({})", adapter.name()));
+        for (select, transform) in &self.load_transforms {
+            if !trace.transforms.contains(&transform_addr(transform)) {
+                transforms.push(format!("{to_prefix}{select} ({})", transform.name()));
             }
         }
         for rule in &self.rules {
@@ -823,7 +825,7 @@ impl fmt::Debug for Rekey {
     ) -> fmt::Result {
         f.debug_struct("Rekey")
             .field("rules", &self.rules.len())
-            .field("adapters", &self.adapters.len())
+            .field("load_transforms", &self.load_transforms.len())
             .field("unclaimed", &self.unclaimed)
             .finish()
     }
@@ -899,7 +901,10 @@ mod tests {
                 let n: usize = n.parse().ok()?;
                 Some((n > 0).then(|| format!("blocks.{}.{rest}", n - 1)))
             })
-            .adapt("blocks.0.weight", Adapter::new("identity", |data| data));
+            .transform(
+                "blocks.0.weight",
+                TensorLoadTransform::new("identity", |data| data),
+            );
         let model = Rekey::keep_rest().mount("conv", "head.", numbered.clone());
         assert_eq!(
             model.apply("conv1.weight").as_deref(),
@@ -922,8 +927,14 @@ mod tests {
         let block = Rekey::keep_rest()
             .rename("fc1.", "mlp.linear1.")
             .rename("fc2.", "mlp.linear2.")
-            .adapt("mlp.linear1.weight", Adapter::new("identity", |data| data))
-            .adapt("mlp.nothing.weight", Adapter::new("identity", |data| data));
+            .transform(
+                "mlp.linear1.weight",
+                TensorLoadTransform::new("identity", |data| data),
+            )
+            .transform(
+                "mlp.nothing.weight",
+                TensorLoadTransform::new("identity", |data| data),
+            );
         let model = Rekey::drop_rest()
             .mount_indexed("layers.", "blocks.", block)
             .exact("head", "out.weight")
@@ -1068,36 +1079,39 @@ mod tests {
         );
     }
 
-    /// An adapter rides with its path through mounts, after the mounted
+    /// A load transform rides with its path through mounts, after the mounted
     /// map's own, and `apply` sees only the path; the target names each.
     #[test]
-    fn test_adapters_compose_through_mounts() {
+    fn test_load_transforms_compose_through_mounts() {
         use burn::tensor::TensorData;
 
         let block = Rekey::keep_rest()
             .rename("fc1.", "mlp.linear1.")
-            .adapt("mlp.linear1.weight", Adapter::scale(2.0));
+            .transform("mlp.linear1.weight", TensorLoadTransform::scale(2.0));
         let model = Rekey::drop_rest()
             .mount("tower.", "encoder.", block)
-            .adapt("encoder.mlp.linear1.weight", Adapter::zero_centered_gain());
+            .transform(
+                "encoder.mlp.linear1.weight",
+                TensorLoadTransform::zero_centered_gain(),
+            );
 
         let target = model.target("tower.fc1.weight").unwrap();
         assert_eq!(target.path, "encoder.mlp.linear1.weight");
-        assert_eq!(target.adapters, ["scale(2)", "zero_centered_gain"]);
+        assert_eq!(target.transform_names, ["scale(2)", "zero_centered_gain"]);
         let out = (target.transform.unwrap())(TensorData::new(vec![1.0f32, 3.0], [2]));
         // Doubled by the block's, then incremented by the model's.
         assert_eq!(out.try_to_vec::<f32>().unwrap(), vec![3.0, 7.0]);
 
         let plain = model.target("tower.fc1.bias").unwrap();
         assert_eq!(plain.path, "encoder.mlp.linear1.bias");
-        assert!(plain.transform.is_none() && plain.adapters.is_empty());
+        assert!(plain.transform.is_none() && plain.transform_names.is_empty());
         assert_eq!(
             model.apply("tower.fc1.weight").as_deref(),
             Some("encoder.mlp.linear1.weight")
         );
     }
 
-    /// A suffix selection adapts every path it ends, across the stacks a
+    /// A suffix selection transforms every path it ends, across the stacks a
     /// map mounts; one that ends none is an orphan.
     #[test]
     fn test_suffix_selection() {
@@ -1112,24 +1126,27 @@ mod tests {
                     .mount_indexed("layers.", "stack.layers.", layer)
                     .rename("norm.", "stack.norm."),
             )
-            .adapt(Select::suffix("norm.weight"), Adapter::zero_centered_gain())
-            .adapt(Select::suffix(".nothing"), Adapter::scale(2.0));
+            .transform(
+                Select::suffix("norm.weight"),
+                TensorLoadTransform::zero_centered_gain(),
+            )
+            .transform(Select::suffix(".nothing"), TensorLoadTransform::scale(2.0));
         let plan = model.plan([
             "model.layers.0.input_layernorm.weight",
             "model.layers.7.post_attention_layernorm.weight",
             "model.layers.7.self_attn.q_proj.weight",
             "model.norm.weight",
         ]);
-        let adapted: Vec<(&str, usize)> = plan
+        let transformed: Vec<(&str, usize)> = plan
             .targets
             .iter()
             .map(|(_, t)| {
                 let t = t.as_ref().unwrap();
-                (t.path.as_str(), t.adapters.len())
+                (t.path.as_str(), t.transform_names.len())
             })
             .collect();
         assert_eq!(
-            adapted,
+            transformed,
             [
                 ("stack.layers.0.attn_norm.weight", 1),
                 ("stack.layers.7.attn_post_norm.weight", 1),

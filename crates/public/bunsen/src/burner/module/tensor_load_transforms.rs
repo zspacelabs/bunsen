@@ -13,28 +13,31 @@ use crate::burner::tensor::{
 };
 
 /// A change to a tensor's data as it loads: a permute or reshape on the
-/// host, applied before the store's own adapter.
+/// host, applied before the store's own adapter (burn-store's
+/// `PyTorchToBurnAdapter`).
 pub type TensorTransform = Arc<dyn Fn(TensorData) -> TensorData + Send + Sync>;
 
 /// A named change to a checkpoint tensor's data as it loads, which a
 /// [`Rekey`](super::Rekey) applies to the paths it
-/// [`adapt`](super::Rekey::adapt)s.
+/// [`transform`](super::Rekey::transform)s.
 ///
 /// The named constructors are what checkpoints ask for; each says what it
 /// does to the data, and a [`RekeyPlan`](super::RekeyPlan) reports it by
 /// that name. [`new`](Self::new) names a change of a block's own.
 #[derive(Clone)]
-pub struct Adapter {
+pub struct TensorLoadTransform {
     name: String,
     f: TensorTransform,
 }
 
-impl fmt::Debug for Adapter {
+impl fmt::Debug for TensorLoadTransform {
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        f.debug_tuple("Adapter").field(&self.name).finish()
+        f.debug_tuple("TensorLoadTransform")
+            .field(&self.name)
+            .finish()
     }
 }
 
@@ -48,8 +51,8 @@ fn f32_values(data: TensorData) -> (Vec<f32>, Vec<usize>) {
     (values, shape)
 }
 
-impl Adapter {
-    /// An adapter named `name` that changes the data by `f`.
+impl TensorLoadTransform {
+    /// A load transform named `name` that changes the data by `f`.
     pub fn new(
         name: impl Into<String>,
         f: impl Fn(TensorData) -> TensorData + Send + Sync + 'static,
@@ -81,7 +84,7 @@ impl Adapter {
     /// This change, then `next`'s.
     pub fn then(
         self,
-        next: Adapter,
+        next: TensorLoadTransform,
     ) -> Self {
         let (a, b) = (self.f, next.f);
         Self {
@@ -160,7 +163,7 @@ impl Adapter {
     }
 }
 
-/// Which of a map's module paths an [`Adapter`] applies to.
+/// Which of a map's module paths an [`TensorLoadTransform`] applies to.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Select {
     /// The one path.
@@ -230,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_zero_centered_gain() {
-        let a = Adapter::zero_centered_gain();
+        let a = TensorLoadTransform::zero_centered_gain();
         assert_eq!(a.name(), "zero_centered_gain");
         assert_eq!(
             values(a.apply(data(&[0.0, -0.25, 0.5], &[3]))),
@@ -245,7 +248,7 @@ mod tests {
 
     #[test]
     fn test_scale() {
-        let a = Adapter::scale(0.5);
+        let a = TensorLoadTransform::scale(0.5);
         assert_eq!(a.name(), "scale(0.5)");
         assert_eq!(values(a.apply(data(&[2.0, -4.0], &[2]))), [1.0, -2.0]);
     }
@@ -254,10 +257,10 @@ mod tests {
     #[test]
     fn test_transpose() {
         let m = data(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0], &[2, 3]);
-        let t = Adapter::transpose().apply(m.clone());
+        let t = TensorLoadTransform::transpose().apply(m.clone());
         assert_eq!(t.shape().as_slice(), [3, 2]);
         assert_eq!(values(t.clone()), [1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
-        assert_eq!(values(Adapter::transpose().apply(t)), values(m));
+        assert_eq!(values(TensorLoadTransform::transpose().apply(t)), values(m));
     }
 
     /// Columns in `(a, b)` order are in `(b, a)` order after; regrouping back
@@ -266,9 +269,12 @@ mod tests {
     fn test_regroup_columns() {
         // One row, a = 2 by b = 3: (a0b0, a0b1, a0b2, a1b0, a1b1, a1b2).
         let m = data(&[0.0, 1.0, 2.0, 10.0, 11.0, 12.0], &[1, 6]);
-        let r = Adapter::regroup_columns(2, 3).apply(m.clone());
+        let r = TensorLoadTransform::regroup_columns(2, 3).apply(m.clone());
         assert_eq!(values(r.clone()), [0.0, 10.0, 1.0, 11.0, 2.0, 12.0]);
-        assert_eq!(values(Adapter::regroup_columns(3, 2).apply(r)), values(m));
+        assert_eq!(
+            values(TensorLoadTransform::regroup_columns(3, 2).apply(r)),
+            values(m)
+        );
     }
 
     /// Interleaved pairs become halves within each block, the further axes
@@ -281,7 +287,7 @@ mod tests {
             .flat_map(|&r| [r, r + 0.5])
             .collect();
         let m = data(&rows, &[8, 2]);
-        let h = Adapter::interleaved_to_halves(4).apply(m);
+        let h = TensorLoadTransform::interleaved_to_halves(4).apply(m);
         assert_eq!(h.shape().as_slice(), [8, 2]);
         let firsts: Vec<f32> = values(h).chunks(2).map(|r| r[0]).collect();
         assert_eq!(firsts, [0.0, 1.0, 100.0, 101.0, 2.0, 3.0, 102.0, 103.0]);
@@ -290,7 +296,7 @@ mod tests {
     /// `then` applies in order, and is named for both.
     #[test]
     fn test_then() {
-        let a = Adapter::zero_centered_gain().then(Adapter::scale(2.0));
+        let a = TensorLoadTransform::zero_centered_gain().then(TensorLoadTransform::scale(2.0));
         assert_eq!(a.name(), "zero_centered_gain then scale(2)");
         assert_eq!(values(a.apply(data(&[0.5], &[1]))), [3.0]);
     }

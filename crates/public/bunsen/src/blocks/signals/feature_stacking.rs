@@ -12,9 +12,9 @@ use burn::{
 
 use crate::{
     burner::module::{
-        Adapter,
         ModuleInit,
         Rekey,
+        TensorLoadTransform,
     },
     contracts::unpack_shape_contract,
     errors::{
@@ -79,7 +79,10 @@ pub trait FeatureStackingMeta {
             FeatureStackingOrder::FramesFeatures => (k, d),
             FeatureStackingOrder::FeaturesFrames => (d, k),
         };
-        rekey.adapt("projection.weight", Adapter::regroup_columns(a, b))
+        rekey.transform(
+            "projection.weight",
+            TensorLoadTransform::regroup_columns(a, b),
+        )
     }
 }
 

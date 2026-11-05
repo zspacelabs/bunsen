@@ -31,18 +31,18 @@
 #[cfg(feature = "reflection")]
 pub mod reflection;
 
-mod adapters;
 mod dtype_traits;
 mod has_dtype;
 mod module_init;
 mod rekey;
+mod tensor_load_transforms;
 mod to_structure_config;
 mod type_mapper;
 
-pub use adapters::*;
 pub use dtype_traits::*;
 pub use has_dtype::*;
 pub use module_init::*;
 pub use rekey::*;
+pub use tensor_load_transforms::*;
 pub use to_structure_config::*;
 pub use type_mapper::*;
