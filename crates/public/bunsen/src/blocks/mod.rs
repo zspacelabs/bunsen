@@ -60,6 +60,8 @@
 //!     "SAME" padding.
 //! - [`layout`]: `AxisOrder`, the axis permutes a block applies at its
 //!   boundary, so a caller's activation layout and the block's need not agree.
+//! - [`math`]: math operations as modules: `PowOpModule`, `x^p`, the activation
+//!   seam's `Pow` kind.
 //! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
 //!   gates, and its state type.
 //! - [`transformers`]: transformer blocks: the parts, and the layers and stacks
@@ -87,6 +89,7 @@ pub mod activation;
 pub mod conv;
 pub mod images;
 pub mod layout;
+pub mod math;
 pub mod norm;
 pub mod rnn;
 pub mod signals;

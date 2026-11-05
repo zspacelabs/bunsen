@@ -18,6 +18,11 @@ use burn::{
     prelude::*,
 };
 
+use crate::blocks::math::{
+    PowOpModule,
+    PowOpModuleConfig,
+};
+
 /// An [`Activation`]'s config: its kind, and that kind's config.
 #[derive(Config, Debug)]
 pub enum ActivationConfig {
@@ -72,21 +77,12 @@ impl ActivationConfig {
             Self::PRelu(config) => Activation::PRelu(config.init(device)),
             Self::LeakyRelu(config) => Activation::LeakyRelu(config.init()),
             Self::Silu => Activation::Silu(SiLU::new()),
-            Self::Pow(exponent) => Activation::Pow(Pow {
-                exponent: *exponent,
-            }),
+            Self::Pow(exponent) => Activation::Pow(PowOpModuleConfig::new(*exponent).init()),
             Self::Chain(kinds) => {
                 Activation::Chain(kinds.iter().map(|kind| kind.init(device)).collect())
             }
         }
     }
-}
-
-/// `x^p`: an [`Activation`] kind of bunsen's.
-#[derive(Module, Debug)]
-pub struct Pow {
-    /// The exponent `p`.
-    pub exponent: f64,
 }
 
 /// An activation layer: burn's, or bunsen's, behind bunsen's seam (the
@@ -117,8 +113,8 @@ pub enum Activation {
     /// burn's [`SiLU`].
     Silu(SiLU),
 
-    /// `x^p`.
-    Pow(Pow),
+    /// `x^p`: [`PowOpModule`].
+    Pow(PowOpModule),
 
     /// Each in turn, the first applied first.
     Chain(Vec<Activation>),
@@ -139,7 +135,7 @@ impl Activation {
             Self::PRelu(layer) => layer.forward(input),
             Self::LeakyRelu(layer) => layer.forward(input),
             Self::Silu(layer) => layer.forward(input),
-            Self::Pow(pow) => input.powf_scalar(pow.exponent),
+            Self::Pow(op) => op.forward(input),
             Self::Chain(layers) => layers.iter().fold(input, |x, layer| layer.forward(x)),
         }
     }
