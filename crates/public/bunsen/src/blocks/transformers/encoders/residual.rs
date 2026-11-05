@@ -22,9 +22,12 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::mlp::{
-            TransformerMlp,
-            TransformerMlpConfig,
+        transformers::{
+            mlp::{
+                TransformerMlp,
+                TransformerMlpConfig,
+            },
+            sublayer::SublayerNorms,
         },
     },
     burner::module::{
@@ -218,6 +221,18 @@ impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlock {
 }
 
 impl ResidualEncoderAttentionBlock {
+    /// A sublayer's norms under the block's placement: `norm` before the
+    /// branch (pre-norm) or after the add (post-norm).
+    fn sublayer_norms<'a>(
+        &self,
+        norm: &'a Option<BunsenNormalization>,
+    ) -> SublayerNorms<'a> {
+        match self.norm_placement {
+            NormPlacement::Pre => SublayerNorms::pre(norm.as_ref()),
+            NormPlacement::Post => SublayerNorms::out(norm.as_ref()),
+        }
+    }
+
     /// Forward pass of the residual encoder attention block.
     ///
     /// # Arguments
@@ -251,16 +266,12 @@ impl ResidualEncoderAttentionBlock {
             };
             self.attn.forward(input).context
         };
-        match self.norm_placement {
-            NormPlacement::Pre => {
-                let x = x.clone() + attend(normalize(&self.attn_norm, x));
-                x.clone() + self.mlp.forward(normalize(&self.mlp_norm, x))
-            }
-            NormPlacement::Post => {
-                let x = normalize(&self.attn_norm, x.clone() + attend(x));
-                normalize(&self.mlp_norm, x.clone() + self.mlp.forward(x))
-            }
-        }
+        let x = match self.norm_placement {
+            NormPlacement::Pre => x.clone() + attend(normalize(&self.attn_norm, x)),
+            NormPlacement::Post => normalize(&self.attn_norm, x.clone() + attend(x)),
+        };
+        self.sublayer_norms(&self.mlp_norm)
+            .residual_update(x, |z| self.mlp.forward(z))
     }
 }
 
@@ -455,7 +466,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::mlp::norm_mlp,
         contracts::assert_shape_contract,
         ops::transformers::attention::norm_self_attn,
         support::testing::{
@@ -595,8 +605,10 @@ mod tests {
             );
             let x = x + self_attn.context;
 
-            let mlp = norm_mlp(block.mlp_norm.as_ref().unwrap(), &block.mlp, x.clone());
-            x + mlp
+            x.clone()
+                + block
+                    .mlp
+                    .forward(block.mlp_norm.as_ref().unwrap().forward(x))
         };
 
         output

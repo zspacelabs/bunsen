@@ -28,8 +28,8 @@ use crate::{
             mlp::{
                 TransformerMlp,
                 TransformerMlpConfig,
-                norm_mlp,
             },
+            sublayer::SublayerNorms,
         },
     },
     burner::module::{
@@ -237,8 +237,8 @@ impl CrossDecoderBlock {
         let cross_attn = norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
         let x = x + cross_attn.context;
 
-        let mlp = norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
-        let x = x + mlp;
+        let x =
+            SublayerNorms::pre(Some(&self.mlp_norm)).residual_update(x, |z| self.mlp.forward(z));
 
         CrossDecoderRecord {
             output: x,
@@ -292,8 +292,7 @@ impl CrossDecoderBlock {
             layer,
         ));
 
-        let mlp = norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
-        x + mlp
+        SublayerNorms::pre(Some(&self.mlp_norm)).residual_update(x, |z| self.mlp.forward(z))
     }
 
     /// Projects the encoder output into this block's cross-attention keys and
@@ -416,8 +415,7 @@ mod tests {
             );
             let x = x + cross_attn.context;
 
-            let mlp = norm_mlp(&block.mlp_norm, &block.mlp, x.clone());
-            let x = x + mlp;
+            let x = x.clone() + block.mlp.forward(block.mlp_norm.forward(x));
 
             CrossDecoderRecord {
                 output: x,

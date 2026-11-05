@@ -33,6 +33,7 @@ use crate::{
                 TransformerFeedForwardConfig,
                 TransformerFeedForwardMeta,
             },
+            sublayer::SublayerNorms,
         },
     },
     burner::module::{
@@ -453,14 +454,17 @@ impl CausalDecoderBlock {
             },
         );
         let x = input + Self::maybe_norm(&self.attn_post_norm, attn);
-        let h = self.mlp_norm.forward(x.clone());
-        let h = match (&self.mlp_scale, cond) {
-            (None, None) => h,
-            (Some(scale), Some(cond)) => scale.forward(h, cond),
-            (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
-            (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
-        };
-        x + Self::maybe_norm(&self.mlp_post_norm, self.mlp.forward(h))
+        SublayerNorms::pre(Some(&self.mlp_norm))
+            .with_post(self.mlp_post_norm.as_ref())
+            .residual_update(x, |h| {
+                let h = match (&self.mlp_scale, cond) {
+                    (None, None) => h,
+                    (Some(scale), Some(cond)) => scale.forward(h, cond),
+                    (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
+                    (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
+                };
+                self.mlp.forward(h)
+            })
     }
 }
 
