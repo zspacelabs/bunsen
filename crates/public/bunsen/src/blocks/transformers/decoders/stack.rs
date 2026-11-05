@@ -714,7 +714,7 @@ impl DecoderStack {
             for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
                 let w = layer
                     .attn
-                    .attention_weights(layer.attn_norm.forward(x.clone()), r_emb.for_layer(index));
+                    .attention_weights(layer.attn_input(x.clone()), r_emb.for_layer(index));
                 weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
             }
             x = layer.forward(x, r_emb.for_layer(index), &mut None);
@@ -984,13 +984,13 @@ mod tests {
         let first = &stack.layers[0];
         let expected0 = first
             .attn
-            .attention_weights(first.attn_norm.forward(x.clone()), r_emb.for_layer(0))
+            .attention_weights(first.attn_input(x.clone()), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let second = &stack.layers[1];
         let x1 = first.forward(x, r_emb.for_layer(0), &mut None);
         let expected1 = second
             .attn
-            .attention_weights(second.attn_norm.forward(x1), r_emb.for_layer(0))
+            .attention_weights(second.attn_input(x1), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let tolerance = Tolerance::default();
         assert_tensors_close(&weights[0], &expected1, tolerance);
