@@ -38,15 +38,17 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::images::swin::v2::blocks::{
-        window_attention::{
+    kits::images::swin::{
+        ops::{
+            sw_attn_mask,
+            window_partition,
+            window_reverse,
+        },
+        v2::blocks::window_attention::{
             WindowAttention,
             WindowAttentionConfig,
             WindowAttentionMeta,
-            sw_attn_mask,
         },
-        window_partition,
-        window_reverse,
     },
 };
 

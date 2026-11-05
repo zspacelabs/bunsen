@@ -84,8 +84,7 @@ pub trait VoxtralTextMeta {
 }
 
 fn kv_cache_config(meta: &impl VoxtralTextMeta) -> KVCacheConfig {
-    KVCacheConfig::new(
-        1,
+    KVCacheConfig::for_decode(
         meta.n_kv_heads(),
         VOXTRAL_TEXT_KV_CACHE_PRE_SIZE,
         meta.head_dim(),

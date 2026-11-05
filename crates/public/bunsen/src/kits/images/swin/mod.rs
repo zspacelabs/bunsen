@@ -8,4 +8,5 @@
 //!
 //! - [`v2`]: Swin Transformer V2, the only version here. There is no V1.
 
+pub mod ops;
 pub mod v2;

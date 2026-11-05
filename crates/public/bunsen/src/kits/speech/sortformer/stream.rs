@@ -16,6 +16,7 @@ use super::{
     },
 };
 use crate::{
+    burner::tensor::cat_optional,
     contracts::unpack_shape_contract,
     errors::{
         BunsenError,
@@ -149,7 +150,7 @@ impl SortformerMelStream {
             return Ok(Vec::new());
         }
         self.mel_frames += frames;
-        self.mels = cat_present(self.mels.take(), Some(mels));
+        self.mels = cat_optional(self.mels.take(), Some(mels), 0);
 
         let c = self.cache.config().clone();
         let factor = self.model.subsampling_factor();
@@ -230,7 +231,7 @@ impl SortformerMelStream {
 
         let cached = self.cache.cached();
         let n_cached = cached.as_ref().map_or(0, |c| c.dims()[0]);
-        let input = cat_present(cached, Some(embs)).expect("the window is present");
+        let input = cat_optional(cached, Some(embs), 0).expect("the window is present");
         let probs = self.model.forward_pre_encoded(input.unsqueeze_dim(0), None);
 
         let up = self.model.output_upsampling();
@@ -378,7 +379,7 @@ impl SortformerStream {
         frames: Option<Tensor<3>>,
     ) {
         if let Some(frames) = frames {
-            self.held = cat_present(self.held.take(), Some(frames.squeeze_dim(0)));
+            self.held = cat_optional(self.held.take(), Some(frames.squeeze_dim(0)), 0);
         }
     }
 }
@@ -404,16 +405,5 @@ impl SpeakerActivityStream for SortformerStream {
         self.held = None;
         probs.extend(self.mels.finish()?);
         self.activity(probs)
-    }
-}
-
-/// `a` then `b` along the frames, either possibly absent.
-fn cat_present(
-    a: Option<Tensor<2>>,
-    b: Option<Tensor<2>>,
-) -> Option<Tensor<2>> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(Tensor::cat(vec![a, b], 0)),
-        (a, b) => a.or(b),
     }
 }

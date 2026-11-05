@@ -18,6 +18,7 @@ use crate::{
             DTypeMapper,
             module_float_dtype,
         },
+        tensor::float_width,
     },
     errors::{
         BunsenError,
@@ -105,10 +106,10 @@ impl LoadPolicy {
         accepts: impl Fn(FloatDType) -> bool,
     ) -> BunsenResult<FloatDType> {
         let candidates = [stored, FloatDType::F32, FloatDType::F64];
-        let floor = self.at_least.map_or(0, rank);
+        let floor = self.at_least.map_or(0, float_width);
         let mut tried = Vec::new();
         for dtype in candidates {
-            if rank(dtype) < floor || tried.contains(&dtype) {
+            if float_width(dtype) < floor || tried.contains(&dtype) {
                 continue;
             }
             tried.push(dtype);
@@ -151,27 +152,13 @@ impl LoadPolicy {
         dtype: FloatDType,
         device: &Device,
     ) -> bool {
-        let needs = if is_half(dtype) {
+        let needs = if float_width(dtype) == 16 {
             self.half_needs
         } else {
             DTypeUsage::Arithmetic
         };
         let usage = dtype_usage(device, dtype);
         usage.contains(needs) && usage.contains(DTypeUsage::Arithmetic)
-    }
-}
-
-/// Whether `dtype` is a half dtype: f16 or bf16.
-fn is_half(dtype: FloatDType) -> bool {
-    matches!(dtype, FloatDType::F16 | FloatDType::BF16)
-}
-
-/// A dtype's width, for the floor: half, then f32 (and flex32), then f64.
-fn rank(dtype: FloatDType) -> u8 {
-    match dtype {
-        FloatDType::F16 | FloatDType::BF16 => 0,
-        FloatDType::F32 | FloatDType::Flex32 => 1,
-        FloatDType::F64 => 2,
     }
 }
 

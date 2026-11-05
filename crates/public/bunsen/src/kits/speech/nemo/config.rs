@@ -34,7 +34,17 @@ fn unsupported(
     value: impl std::fmt::Debug,
     why: &str,
 ) -> BunsenError {
-    BunsenError::unsupported(format!("NeMo config: `{section}.{field}` {value:?}: {why}"))
+    unsupported_field(&format!("{section}.{field}"), value, why)
+}
+
+/// The refusal of a `NeMo` config's field, by its dotted path, that bunsen does
+/// not support: the value it holds, and why.
+pub(crate) fn unsupported_field(
+    path: &str,
+    value: impl std::fmt::Debug,
+    why: &str,
+) -> BunsenError {
+    BunsenError::unsupported(format!("NeMo config: `{path}` {value:?}: {why}"))
 }
 
 /// Checks that a section instantiates `want` (its `_target_` is `want`, or

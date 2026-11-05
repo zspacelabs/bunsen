@@ -1,4 +1,4 @@
-//! Windowing operations for Swin Transformer v2
+//! Window partitioning, and its inverse.
 
 use burn::{
     prelude::Tensor,

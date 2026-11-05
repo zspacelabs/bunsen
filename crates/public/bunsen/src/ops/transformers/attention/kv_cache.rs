@@ -245,6 +245,18 @@ pub struct KVCacheConfig {
 }
 
 impl KVCacheConfig {
+    /// The config of one decode's cache: batch 1, `num_heads` key/value
+    /// heads of `head_dim`, `seq_len` positions up front, over `num_layers`
+    /// layers. What a model's [`KVCacheModel::kv_cache_config`] starts from.
+    pub fn for_decode(
+        num_heads: usize,
+        seq_len: usize,
+        head_dim: usize,
+        num_layers: usize,
+    ) -> Self {
+        Self::new(1, num_heads, seq_len, head_dim, num_layers)
+    }
+
     /// Sets the `batch_size`.
     pub fn with_batch_size(
         self,
@@ -1294,6 +1306,29 @@ mod tests {
     #[serial]
     fn test_prefill_from_full_cache() {
         check_prefill(5, 5);
+    }
+
+    /// A decode's config is batch 1, the rest as given.
+    #[test]
+    fn test_for_decode() {
+        let config = KVCacheConfig::for_decode(2, 16, 4, 3);
+        let full = KVCacheConfig::new(1, 2, 16, 4, 3);
+        assert_eq!(
+            (
+                config.batch_size,
+                config.num_heads,
+                config.seq_len,
+                config.head_dim,
+                config.num_layers
+            ),
+            (
+                full.batch_size,
+                full.num_heads,
+                full.seq_len,
+                full.head_dim,
+                full.num_layers
+            )
+        );
     }
 
     #[test]

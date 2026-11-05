@@ -74,12 +74,14 @@ pub mod dynamic;
 
 mod bf16;
 mod float_dtype;
+mod optional;
 mod tensor_data_checks;
 mod tensor_data_layout;
 mod tensor_op_ext;
 
 pub use bf16::*;
 pub use float_dtype::*;
+pub use optional::*;
 pub use tensor_data_checks::*;
 pub use tensor_data_layout::*;
 pub use tensor_op_ext::*;

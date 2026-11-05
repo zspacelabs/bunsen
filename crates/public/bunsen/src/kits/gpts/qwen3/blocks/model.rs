@@ -64,8 +64,7 @@ pub const QWEN3_KV_CACHE_PRE_SIZE: usize = 1024;
 /// KV heads, head width and layer count, [`QWEN3_KV_CACHE_PRE_SIZE`]
 /// positions up front, uncapped.
 fn kv_cache_config(meta: &impl Qwen3Meta) -> KVCacheConfig {
-    KVCacheConfig::new(
-        1,
+    KVCacheConfig::for_decode(
         meta.n_kv_heads(),
         QWEN3_KV_CACHE_PRE_SIZE,
         meta.head_dim(),
