@@ -30,6 +30,7 @@ use crate::{
     burner::module::{
         ModuleInit,
         Rekey,
+        TensorLoadRowSplit,
     },
     contracts::unpack_shape_contract,
     errors::BunsenResult,
@@ -382,6 +383,49 @@ impl ResidualEncoderAttentionBlock {
             .rename("final_layer_norm.", "mlp_norm.")
             .rename("fc1.", "mlp.linear1.")
             .rename("fc2.", "mlp.linear2.")
+    }
+
+    /// The fused projections of a `PyTorch` `nn.TransformerEncoderLayer`,
+    /// split by rows into the attention's three: `self_attn.in_proj_weight`
+    /// and `self_attn.in_proj_bias` into
+    /// `self_attn.{q,k,v}_proj.{weight,bias}`.
+    pub fn torch_row_splits() -> [TensorLoadRowSplit; 2] {
+        [
+            TensorLoadRowSplit::equal(
+                ".self_attn.in_proj_weight",
+                [
+                    ".self_attn.q_proj.weight",
+                    ".self_attn.k_proj.weight",
+                    ".self_attn.v_proj.weight",
+                ],
+            ),
+            TensorLoadRowSplit::equal(
+                ".self_attn.in_proj_bias",
+                [
+                    ".self_attn.q_proj.bias",
+                    ".self_attn.k_proj.bias",
+                    ".self_attn.v_proj.bias",
+                ],
+            ),
+        ]
+    }
+
+    /// A `PyTorch` `nn.TransformerEncoderLayer`'s names, once
+    /// [`torch_row_splits`](Self::torch_row_splits) has split its
+    /// projections, onto this block's, relative to it: `self_attn`'s
+    /// `{q,k,v,out}_proj` the attention, `norm1` and `norm2` the norms,
+    /// `linear{1,2}` the MLP; everything else as it is. With `norm_first`, the
+    /// block is pre-norm; its `ReLU` is the block's `activation`.
+    pub fn torch_rekey() -> Rekey {
+        Rekey::keep_rest()
+            .rename("self_attn.q_proj.", "attn.query.")
+            .rename("self_attn.k_proj.", "attn.key.")
+            .rename("self_attn.v_proj.", "attn.value.")
+            .rename("self_attn.out_proj.", "attn.output.")
+            .rename("norm1.", "attn_norm.")
+            .rename("norm2.", "mlp_norm.")
+            .rename("linear1.", "mlp.linear1.")
+            .rename("linear2.", "mlp.linear2.")
     }
 }
 
