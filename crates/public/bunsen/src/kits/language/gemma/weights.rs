@@ -16,9 +16,9 @@ use crate::{
         embedding::RopeScaling,
     },
     burner::module::{
-        Adapter,
         Rekey,
         Select,
+        TensorLoadTransform,
     },
     data::pretrained::{
         NamedTensorsApplied,
@@ -63,8 +63,8 @@ pub fn text_layer_rekey(post_norms: bool) -> Rekey {
 /// paths: under any of [`GEMMA_TEXT_PREFIXES`], the layers by
 /// [`text_layer_rekey`], the embedding and the final norm; every norm's
 /// gain, stored as `w` for `1 + w`, loaded as `1 + w`
-/// ([`Adapter::zero_centered_gain`]). Anything else is dropped: a tied
-/// head's copy, a vision tower and its projector.
+/// ([`TensorLoadTransform::zero_centered_gain`]). Anything else is dropped: a
+/// tied head's copy, a vision tower and its projector.
 pub fn transformers_rekey(post_norms: bool) -> Rekey {
     let text = || {
         Rekey::keep_rest()
@@ -76,7 +76,10 @@ pub fn transformers_rekey(post_norms: bool) -> Rekey {
         .fold(Rekey::drop_rest(), |rekey, prefix| {
             rekey.mount(*prefix, "", text())
         })
-        .adapt(Select::suffix("norm.weight"), Adapter::zero_centered_gain())
+        .transform(
+            Select::suffix("norm.weight"),
+            TensorLoadTransform::zero_centered_gain(),
+        )
 }
 
 /// Loads tensors named as a `transformers` Gemma state dict into `model`:
@@ -371,9 +374,9 @@ mod tests {
         }
     }
 
-    /// Every norm loads as `1 + w`; nothing else is adapted.
+    /// Every norm loads as `1 + w`; nothing else is transformed.
     #[test]
-    fn test_transformers_rekey_adapts_the_norms() {
+    fn test_transformers_rekey_transforms_the_norms() {
         let plan = transformers_rekey(true).plan([
             "model.layers.0.input_layernorm.weight",
             "model.layers.0.post_feedforward_layernorm.weight",
@@ -382,12 +385,12 @@ mod tests {
             "model.layers.0.self_attn.q_proj.weight",
             "model.embed_tokens.weight",
         ]);
-        let adapted: Vec<bool> = plan
+        let transformed: Vec<bool> = plan
             .targets
             .iter()
-            .map(|(_, t)| !t.as_ref().unwrap().adapters.is_empty())
+            .map(|(_, t)| !t.as_ref().unwrap().transform_names.is_empty())
             .collect();
-        assert_eq!(adapted, [true, true, true, true, false, false]);
+        assert_eq!(transformed, [true, true, true, true, false, false]);
     }
 
     const GEMMA3_4B: &str = r#"{

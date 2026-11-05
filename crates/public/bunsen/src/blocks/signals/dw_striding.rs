@@ -18,9 +18,9 @@ use crate::{
         ConvBlock2dConfig,
     },
     burner::module::{
-        Adapter,
         ModuleInit,
         Rekey,
+        TensorLoadTransform,
     },
     errors::{
         BunsenResult,
@@ -123,7 +123,7 @@ pub trait DwStridingSubsamplingMeta {
             DwStridingFlattenOrder::ChannelsFreqs => (c, f),
             DwStridingFlattenOrder::FreqsChannels => (f, c),
         };
-        rekey.adapt("linear.weight", Adapter::regroup_columns(a, b))
+        rekey.transform("linear.weight", TensorLoadTransform::regroup_columns(a, b))
     }
 }
 

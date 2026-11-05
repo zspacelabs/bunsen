@@ -197,7 +197,7 @@ fn upload_batches(
 
 /// [`apply_named_tensors`] under a [`Rekey`]: each tensor loads where the
 /// map sends it, and its data first changes as the map says
-/// ([`Rekey::adapt`]), on the host, before the store's adapter.
+/// ([`Rekey::transform`]), on the host, before the store's adapter.
 ///
 /// A transformed tensor is read whole at that point; the others stay as
 /// lazy as their source.
