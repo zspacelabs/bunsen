@@ -12,8 +12,8 @@ use bunsen::{
             RttmSegment,
             SpeakerActivityModel,
             TurnFilterConfig,
+            sortformer::SortformerStreamingConfig,
         },
-        sortformer::SortformerStreamingConfig,
         testing::der::diarization_error,
     },
     support::{
@@ -56,7 +56,7 @@ fn check_preset(
 /// RTTM to [`DER_MARGIN`].
 fn check_diarization(
     what: &str,
-    bundle: &bunsen::kits::speech::sortformer::SortformerConstruct,
+    bundle: &bunsen::kits::speech::diarization::sortformer::SortformerConstruct,
     streaming: SortformerStreamingConfig,
     reference: &AmiPreset,
     atol: f64,

@@ -13,7 +13,7 @@
 //!   models: the community checkpoints of both, loaded from upstream's own
 //!   files, and the corpus it trains on.
 //! - [`qwen3`]: the Qwen3 decoder: the dense Qwen3 checkpoints, and the text
-//!   model of [`speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
+//!   model of [`speech::asr::qwen3_asr`](crate::kits::speech::asr::qwen3_asr).
 //! - [`driver`]: the model-generic parts of a driver that streams a model's
 //!   output: text deltas, stop strings, and the cached prefix a multi-turn
 //!   session keeps.

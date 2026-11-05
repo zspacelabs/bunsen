@@ -3,22 +3,24 @@ use std::sync::Arc;
 use bunsen::{
     kits::{
         speech::{
-            asr_driver::{
-                LevelPolicy,
-                StreamClock,
+            asr::{
+                driver::{
+                    LevelPolicy,
+                    StreamClock,
+                },
+                whisper::{
+                    DecodeConfig,
+                    GreedyDecodeConfig,
+                    Whisper,
+                    driver::{
+                        WhisperStreamDriverConfig,
+                        WhisperTask,
+                    },
+                    logit_filters::ApplyTimestampRules,
+                    split_mel_windows,
+                },
             },
             testing::wer::text_error_rate,
-            whisper::{
-                DecodeConfig,
-                GreedyDecodeConfig,
-                Whisper,
-                driver::{
-                    WhisperStreamDriverConfig,
-                    WhisperTask,
-                },
-                logit_filters::ApplyTimestampRules,
-                split_mel_windows,
-            },
         },
         support::decoding::{
             LogitFilter,

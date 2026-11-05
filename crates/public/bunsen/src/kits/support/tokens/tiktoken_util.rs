@@ -19,7 +19,7 @@ use crate::errors::{
 /// `<base64 bytes> <rank>` pair per line, ranks contiguous from zero.
 /// Nothing here knows about special tokens, which are not in the file; a
 /// kit's token layout spells them after the base ranks (Whisper's is
-/// [`WhisperTokenLayout::token_spans`](crate::kits::speech::whisper::driver::WhisperTokenLayout::token_spans)).
+/// [`WhisperTokenLayout::token_spans`](crate::kits::speech::asr::whisper::driver::WhisperTokenLayout::token_spans)).
 ///
 /// Ranks are the token ids the model emits for text; they run from zero
 /// without gaps. An entry is raw bytes, not text — a multi-byte character can
@@ -318,7 +318,7 @@ impl TiktokenRanks {
     /// note, plus the leading `-` and `'` that would start a word with one.
     ///
     /// Whisper-specific: the base of the Whisper kit's
-    /// [`default_suppress_tokens`](crate::kits::speech::whisper::driver::WhisperSpecialIds::default_suppress_tokens).
+    /// [`default_suppress_tokens`](crate::kits::speech::asr::whisper::driver::WhisperSpecialIds::default_suppress_tokens).
     pub fn non_speech_tokens(&self) -> Vec<i64> {
         let table = self.ids_by_bytes();
         let mut ids: Vec<i64> = [" -", " '"]
@@ -351,7 +351,7 @@ impl TiktokenRanks {
     /// The id of the single-space token, which opens a blank transcript.
     ///
     /// Whisper-specific: what the Whisper kit's
-    /// [`SuppressBlank`](crate::kits::speech::whisper::logit_filters::SuppressBlank)
+    /// [`SuppressBlank`](crate::kits::speech::asr::whisper::logit_filters::SuppressBlank)
     /// suppresses at the first step.
     pub fn blank_token(&self) -> Option<i64> {
         self.ids_by_bytes().get(b" ".as_slice()).copied()
@@ -373,7 +373,7 @@ mod tests {
             },
         },
         kits::{
-            speech::whisper::logit_filters::SuppressBlank,
+            speech::asr::whisper::logit_filters::SuppressBlank,
             support::decoding::LogitFilter,
         },
         support::testing::cpu_device,

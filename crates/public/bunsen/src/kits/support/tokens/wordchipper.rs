@@ -37,7 +37,7 @@ use crate::{
 ///
 /// [`from_spans`](Self::from_spans) is the decode-only path a kit uses,
 /// and the one Whisper's
-/// [`WhisperTokenLayout`](crate::kits::speech::whisper::driver::WhisperTokenLayout)
+/// [`WhisperTokenLayout`](crate::kits::speech::asr::whisper::driver::WhisperTokenLayout)
 /// builds through: a `{ id -> bytes }` table and a concatenation, which is
 /// `TokenDictDecoder` with no encoder, no merge table, no regex and no
 /// `UnifiedTokenVocab` behind it. That is deliberate twice over. It is the

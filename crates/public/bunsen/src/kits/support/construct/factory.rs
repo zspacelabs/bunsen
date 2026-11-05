@@ -106,8 +106,8 @@ use crate::{
 /// There is no process-wide registry. A kit ships a
 /// `default_{kit}_factory()` over its compiled-in providers
 /// ([`default_resnet_factory`](crate::kits::images::resnet::pretrained::default_resnet_factory),
-/// [`default_whisper_factory`](crate::kits::speech::whisper::pretrained::default_whisper_factory),
-/// [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory)),
+/// [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory),
+/// [`default_silero_factory`](crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory)),
 /// and a caller that wants more builds on it with
 /// [`with_provider`](Self::with_provider), or takes one away with
 /// [`remove`](Self::remove). Names are unique within a factory, since a
@@ -119,7 +119,7 @@ use crate::{
 ///
 /// ```rust
 /// # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
-/// use bunsen::kits::speech::whisper::pretrained::default_whisper_factory;
+/// use bunsen::kits::speech::asr::whisper::pretrained::default_whisper_factory;
 ///
 /// let factory = default_whisper_factory()?;
 ///

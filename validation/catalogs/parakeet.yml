@@ -1,7 +1,7 @@
 # The parakeet kit's pretrained catalog source: `cargo validate catalog` builds it into
-# `crates/public/bunsen/src/kits/speech/parakeet/pretrained/catalog.json`.
+# `crates/public/bunsen/src/kits/speech/asr/parakeet/pretrained/catalog.json`.
 kit: parakeet
-out: crates/public/bunsen/src/kits/speech/parakeet/pretrained/catalog.json
+out: crates/public/bunsen/src/kits/speech/asr/parakeet/pretrained/catalog.json
 name: "well-known"
 description: "the Parakeet TDT checkpoints bunsen knows by name"
 groups:

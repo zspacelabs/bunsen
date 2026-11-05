@@ -25,7 +25,8 @@ use bunsen::data::{
 use bunsen::{
     data::pretrained::ResourceBundle,
     kits::speech::{
-        silero_vad::{
+        testing::RecordedVoiceActivity,
+        vad::silero_vad::{
             SileroVad,
             SileroVadContextConfig,
             SileroVadMeta,
@@ -35,7 +36,6 @@ use bunsen::{
                 default_silero_factory,
             },
         },
-        testing::RecordedVoiceActivity,
     },
     support::{
         audio::load_audio_mono_sr,
@@ -152,7 +152,7 @@ mod vad_16k {
         #[test]
         #[serial_test::serial]
         fn streams_as_one_call() {
-            use bunsen::kits::speech::asr_driver::VoiceActivityModel;
+            use bunsen::kits::speech::asr::driver::VoiceActivityModel;
 
             let model = upstream(&cpu_device());
             let chunk = VoiceActivityModel::chunk_size(&model);

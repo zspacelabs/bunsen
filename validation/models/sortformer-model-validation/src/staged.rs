@@ -89,7 +89,7 @@ mod sortformer_v2_1 {
     #[test]
     #[serial_test::serial]
     fn step_matches_reference() {
-        use bunsen::kits::speech::sortformer::{
+        use bunsen::kits::speech::diarization::sortformer::{
             SortformerFamily,
             SortformerMeta,
         };

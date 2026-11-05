@@ -1,7 +1,7 @@
 # Qwen3-ASR fixtures
 
 A tiny seeded `Qwen3ASRForConditionalGeneration` and its answers, used by
-`kits::speech::qwen3_asr`'s toy tests: synthetic, random weights and random
+`kits::speech::asr::qwen3_asr`'s toy tests: synthetic, random weights and random
 inputs, written by `transformers`' own implementation, so carrying no licence
 beyond the repository's. And two `config.json` files, copied from Qwen's
 repos (Apache-2.0), which the `hf:` config reader is tested on.

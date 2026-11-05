@@ -19,41 +19,43 @@ use bunsen::{
     },
     kits::{
         speech::{
-            parakeet::{
-                ParakeetConstruct,
-                pretrained::{
-                    DEFAULT_PARAKEET_MODEL,
-                    PARAKEET_KIT,
-                    default_parakeet_factory,
+            asr::{
+                parakeet::{
+                    ParakeetConstruct,
+                    pretrained::{
+                        DEFAULT_PARAKEET_MODEL,
+                        PARAKEET_KIT,
+                        default_parakeet_factory,
+                    },
+                },
+                qwen3_asr::{
+                    Qwen3AsrConstruct,
+                    pretrained::{
+                        DEFAULT_QWEN3_ASR_MODEL,
+                        QWEN3_ASR_KIT,
+                        default_qwen3_asr_factory,
+                    },
+                },
+                voxtral::{
+                    VoxtralConstruct,
+                    pretrained::{
+                        DEFAULT_VOXTRAL_MODEL,
+                        VOXTRAL_KIT,
+                        default_voxtral_factory,
+                    },
+                },
+                whisper::{
+                    driver::WhisperConstruct,
+                    pretrained::{
+                        WHISPER_KIT,
+                        default_whisper_factory,
+                    },
                 },
             },
-            qwen3_asr::{
-                Qwen3AsrConstruct,
-                pretrained::{
-                    DEFAULT_QWEN3_ASR_MODEL,
-                    QWEN3_ASR_KIT,
-                    default_qwen3_asr_factory,
-                },
-            },
-            sortformer::pretrained::{
+            diarization::sortformer::pretrained::{
                 DEFAULT_SORTFORMER_MODEL,
                 SORTFORMER_KIT,
                 default_sortformer_factory,
-            },
-            voxtral::{
-                VoxtralConstruct,
-                pretrained::{
-                    DEFAULT_VOXTRAL_MODEL,
-                    VOXTRAL_KIT,
-                    default_voxtral_factory,
-                },
-            },
-            whisper::{
-                driver::WhisperConstruct,
-                pretrained::{
-                    WHISPER_KIT,
-                    default_whisper_factory,
-                },
             },
         },
         support::construct::{

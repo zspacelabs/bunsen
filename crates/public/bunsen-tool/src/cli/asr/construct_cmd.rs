@@ -7,7 +7,7 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::speech::silero_vad::pretrained::default_silero_factory,
+    kits::speech::vad::silero_vad::pretrained::default_silero_factory,
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,

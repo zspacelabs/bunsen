@@ -3,25 +3,27 @@ use std::sync::Arc;
 
 #[cfg(feature = "live")]
 use bunsen::kits::speech::{
-    asr_driver::{
+    asr::driver::{
         StreamClock,
         TranscriptEvent,
     },
-    parakeet::ParakeetStreamContext,
-    qwen3_asr::Qwen3AsrStreamContext,
-    voxtral::driver::VoxtralStreamContext,
-    whisper::driver::WhisperStreamContext,
+    asr::parakeet::ParakeetStreamContext,
+    asr::qwen3_asr::Qwen3AsrStreamContext,
+    asr::voxtral::driver::VoxtralStreamContext,
+    asr::whisper::driver::WhisperStreamContext,
 };
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
     kits::speech::{
-        asr_driver::TranscriptSegment,
+        asr::{
+            driver::TranscriptSegment,
+            parakeet::ParakeetStreamDriver,
+            qwen3_asr::Qwen3AsrStreamDriver,
+            voxtral::driver::VoxtralStreamDriver,
+            whisper::driver::WhisperStreamDriver,
+        },
         diarization::SpeakerActivityModel,
-        parakeet::ParakeetStreamDriver,
-        qwen3_asr::Qwen3AsrStreamDriver,
-        voxtral::driver::VoxtralStreamDriver,
-        whisper::driver::WhisperStreamDriver,
     },
 };
 use burn::tensor::Device;

@@ -20,7 +20,7 @@ use bunsen::{
         },
     },
     kits::{
-        speech::whisper::{
+        speech::asr::whisper::{
             WhisperGeometry,
             WhisperMeta,
             pretrained::{

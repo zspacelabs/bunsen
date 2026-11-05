@@ -2,7 +2,7 @@
 //! graphs, on the same synthetic input.
 
 use bunsen::{
-    kits::speech::voxtral::blocks::VoxtralRealtimeMeta,
+    kits::speech::asr::voxtral::blocks::VoxtralRealtimeMeta,
     ops::transformers::attention::KVCacheModel,
     support::testing::{
         DeviceMemoryGuard,

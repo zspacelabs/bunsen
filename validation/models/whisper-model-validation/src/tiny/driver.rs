@@ -2,8 +2,8 @@
 
 use bunsen::{
     burner::module::InputDTypes,
-    kits::speech::{
-        asr_driver::{
+    kits::speech::asr::{
+        driver::{
             LevelPolicy,
             StreamClock,
         },

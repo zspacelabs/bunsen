@@ -15,7 +15,7 @@
 mod vad_16k {
     use bunsen::{
         errors::*,
-        kits::speech::silero_vad::{
+        kits::speech::vad::silero_vad::{
             SileroVad,
             SileroVadCollection,
             SileroVadContextConfig,
@@ -242,7 +242,7 @@ mod vad_16k {
                     PretrainedCacheOptions,
                 },
             },
-            kits::speech::silero_vad::pretrained::default_silero_factory,
+            kits::speech::vad::silero_vad::pretrained::default_silero_factory,
         };
 
         let device = performance_device();

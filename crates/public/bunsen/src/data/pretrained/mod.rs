@@ -276,9 +276,9 @@
 //!
 //! The kits' factories are the full-size versions:
 //! [`default_resnet_factory`](crate::kits::images::resnet::pretrained::default_resnet_factory),
-//! [`default_whisper_factory`](crate::kits::speech::whisper::pretrained::default_whisper_factory)
+//! [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory)
 //! and
-//! [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory).
+//! [`default_silero_factory`](crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory).
 
 #[cfg(feature = "store")]
 mod apply_named;

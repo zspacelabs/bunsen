@@ -1,7 +1,7 @@
 # Voxtral Realtime fixtures
 
 A tiny seeded `VoxtralRealtimeForConditionalGeneration` and its answers, used by
-`kits::speech::voxtral`'s toy tests: synthetic, random weights and random
+`kits::speech::asr::voxtral`'s toy tests: synthetic, random weights and random
 inputs, written by `transformers`' own implementation, so carrying no licence
 beyond the repository's. And one `config.json`, copied from Mistral's repo
 (Apache-2.0), which the `config.json` reader is tested on.

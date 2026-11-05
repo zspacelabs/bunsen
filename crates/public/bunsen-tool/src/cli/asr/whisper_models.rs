@@ -6,7 +6,7 @@ use bunsen::{
         BunsenResult,
         LookupError,
     },
-    kits::speech::whisper::{
+    kits::speech::asr::whisper::{
         WhisperApiConfig,
         driver::WhisperSpecialIds,
         pretrained::{

@@ -236,8 +236,8 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 pub fn load_construct(
     name: &str,
     device: &Device,
-) -> std::sync::Arc<bunsen::kits::speech::parakeet::ParakeetConstruct> {
-    bunsen::kits::speech::parakeet::pretrained::default_parakeet_factory()
+) -> std::sync::Arc<bunsen::kits::speech::asr::parakeet::ParakeetConstruct> {
+    bunsen::kits::speech::asr::parakeet::pretrained::default_parakeet_factory()
         .expect("the parakeet factory")
         .load_construct(
             name,

@@ -135,8 +135,8 @@
 //! [`StaticPreFabMap`]: pretrained::StaticPreFabMap
 //! [`StaticShardSetMap`]: shards::StaticShardSetMap
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
-//! [`default_silero_factory`]: crate::kits::speech::silero_vad::pretrained::default_silero_factory
-//! [`default_whisper_factory`]: crate::kits::speech::whisper::pretrained::default_whisper_factory
+//! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
+//! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
 //! [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
 //! [source order]: pretrained::PretrainedCache#source-order
 

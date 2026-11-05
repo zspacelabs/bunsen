@@ -8,7 +8,7 @@
 //!   sees them; [`SuppressTokens`] is the generic one, [`TopK`], [`TopP`] and
 //!   [`MinP`] the sampling truncations, and a kit adds its own (Whisper's
 //!   timestamp grammar,
-//!   [`ApplyTimestampRules`](crate::kits::speech::whisper::logit_filters::ApplyTimestampRules)).
+//!   [`ApplyTimestampRules`](crate::kits::speech::asr::whisper::logit_filters::ApplyTimestampRules)).
 //! - [`TokenSearch`]: the search seam. It owns the sequences' bookkeeping, and
 //!   tells the loop how to permute its cache's rows when beams branch.
 //!   [`GreedySearch`] is the argmax, or sampling above temperature zero;
@@ -25,8 +25,8 @@
 //!   [`decode_cached_observed`] shows a caller each step's sequences, to stream
 //!   them or stop early.
 //!
-//! [`speech::whisper::decode`](crate::kits::speech::whisper::decode) runs
-//! its own loop over these parts (its cache is grouped across beams);
+//! [`speech::asr::whisper::decode`](crate::kits::speech::asr::whisper::decode)
+//! runs its own loop over these parts (its cache is grouped across beams);
 //! [`language::qwen3`](crate::kits::language::qwen3) is a [`CachedStep`],
 //! decoded by [`decode_cached`].
 

@@ -9,7 +9,7 @@
 //!   may be stored byte-plane split.
 //! - [`read_five_value_container`]: the `fermion-five-value-parakeet-v1`
 //!   container inside Phonon-2's archive, the weights of
-//!   [`kits::speech::parakeet`](crate::kits::speech::parakeet).
+//!   [`kits::speech::asr::parakeet`](crate::kits::speech::asr::parakeet).
 //! - [`decode_quint5`]: the `ten-base5-per-24bit-v1` codes Phonon-1 stores its
 //!   text-decoder linears in, inside safetensors members whose other records
 //!   are bf16 or MLX affine-quantized

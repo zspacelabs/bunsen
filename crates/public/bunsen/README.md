@@ -37,9 +37,9 @@ A kit is a whole model, with its configs and the weights it loads by name
   image classifiers, without pretrained weights.
 - [`language::nanochat`](https://docs.rs/bunsen/latest/bunsen/kits/language/nanochat/index.html): a port of karpathy's
   nanochat GPT, and the corpus it trains on. Work in progress.
-- [`speech::whisper`](https://docs.rs/bunsen/latest/bunsen/kits/speech/whisper/index.html): OpenAI's Whisper, with
+- [`speech::asr::whisper`](https://docs.rs/bunsen/latest/bunsen/kits/speech/asr/whisper/index.html): OpenAI's Whisper, with
   a pretrained index, decoders, and a stream driver.
-- [`speech::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/silero_vad/index.html): the Silero
+- [`speech::vad::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/vad/silero_vad/index.html): the Silero
   voice-activity detector, with weights a build can bundle.
 - [`support`](https://docs.rs/bunsen/latest/bunsen/kits/support/index.html): not a model; what kits of more than one
   family share: the ids-to-text seam, and the decoding search machinery.

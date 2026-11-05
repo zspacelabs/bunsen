@@ -349,7 +349,7 @@ pub fn row_file(
 ) -> std::path::PathBuf {
     use bunsen::{
         data::pretrained::ResourceBundle,
-        kits::speech::sortformer::pretrained::{
+        kits::speech::diarization::sortformer::pretrained::{
             SORTFORMER_KIT,
             default_sortformer_factory,
         },
@@ -372,7 +372,7 @@ pub fn row_file(
 #[cfg(feature = "checkpoints")]
 pub fn load_construct(
     device: &Device
-) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerConstruct> {
+) -> std::sync::Arc<bunsen::kits::speech::diarization::sortformer::SortformerConstruct> {
     load_named_construct("nvidia/nemotron-3-diarization", device)
 }
 
@@ -382,8 +382,8 @@ pub fn load_construct(
 pub fn load_named_construct(
     model: &str,
     device: &Device,
-) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerConstruct> {
-    bunsen::kits::speech::sortformer::pretrained::default_sortformer_factory()
+) -> std::sync::Arc<bunsen::kits::speech::diarization::sortformer::SortformerConstruct> {
+    bunsen::kits::speech::diarization::sortformer::pretrained::default_sortformer_factory()
         .expect("the sortformer factory")
         .load_construct(
             model,

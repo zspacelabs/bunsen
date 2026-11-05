@@ -11,12 +11,10 @@ use std::{
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
-    kits::speech::{
-        diarization::{
-            RttmSegment,
-            SpeakerActivityModel,
-            SpeakerTurn,
-        },
+    kits::speech::diarization::{
+        RttmSegment,
+        SpeakerActivityModel,
+        SpeakerTurn,
         sortformer::{
             SortformerConstruct,
             pretrained::{
@@ -476,7 +474,8 @@ mod tests {
             "sortformer-v2[dihard3,high]"
         );
 
-        let catalog = bunsen::kits::speech::sortformer::pretrained::SORTFORMER_CATALOG.catalog();
+        let catalog =
+            bunsen::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG.catalog();
         for family in &catalog.families {
             let axes: Vec<&str> = family
                 .presets

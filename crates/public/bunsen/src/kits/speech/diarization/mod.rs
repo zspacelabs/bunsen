@@ -17,8 +17,12 @@
 //!   and short-gap filters), streamed or over a whole recording.
 //! - [`RttmSegment`]: turns as NIST RTTM lines, written and read.
 //!
+//! The diarizer kit is [`sortformer`], NVIDIA's Sortformer.
+//!
 //! A diarizer's activity and its turns are on the stream's sample clock: a
 //! turn's times are seconds from the first frame the filter saw.
+
+pub mod sortformer;
 
 mod activity;
 mod rttm;

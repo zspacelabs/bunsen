@@ -114,10 +114,10 @@ use crate::{
 ///
 /// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig
 /// [`ResNetStructureConfig`]: crate::kits::images::resnet::ResNetStructureConfig
-/// [`SileroVadSignalConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig
-/// [`SileroVadStftConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStftConfig
-/// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
-/// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
+/// [`SileroVadSignalConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig
+/// [`SileroVadStftConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig
+/// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig
+/// [`to_stft`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig::to_stft
 /// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
 pub trait ToStructureConfig {
     /// The structure config this policy lowers to.

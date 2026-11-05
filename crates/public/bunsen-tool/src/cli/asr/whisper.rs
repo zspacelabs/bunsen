@@ -18,8 +18,8 @@ use bunsen::{
         ResultContext,
     },
     kits::{
-        speech::{
-            asr_driver::{
+        speech::asr::{
+            driver::{
                 LevelPolicy,
                 TranscriptSegment,
             },

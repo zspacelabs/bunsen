@@ -23,29 +23,31 @@ use bunsen::{
             },
         },
         speech::{
-            parakeet::{
-                ParakeetPolicy,
-                pretrained::default_parakeet_factory,
+            asr::{
+                parakeet::{
+                    ParakeetPolicy,
+                    pretrained::default_parakeet_factory,
+                },
+                qwen3_asr::{
+                    Qwen3AsrPolicy,
+                    pretrained::default_qwen3_asr_factory,
+                },
+                voxtral::{
+                    VoxtralPolicy,
+                    pretrained::default_voxtral_factory,
+                },
+                whisper::{
+                    driver::WhisperPolicy,
+                    pretrained::default_whisper_factory,
+                },
             },
-            qwen3_asr::{
-                Qwen3AsrPolicy,
-                pretrained::default_qwen3_asr_factory,
-            },
-            silero_vad::{
-                SileroPolicy,
-                pretrained::default_silero_factory,
-            },
-            sortformer::{
+            diarization::sortformer::{
                 SortformerPolicy,
                 pretrained::default_sortformer_factory,
             },
-            voxtral::{
-                VoxtralPolicy,
-                pretrained::default_voxtral_factory,
-            },
-            whisper::{
-                driver::WhisperPolicy,
-                pretrained::default_whisper_factory,
+            vad::silero_vad::{
+                SileroPolicy,
+                pretrained::default_silero_factory,
             },
         },
         support::construct::{

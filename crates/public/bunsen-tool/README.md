@@ -790,7 +790,7 @@ one its layout selects, as for a checkpoint's path.
 `bunsen-tool asr family whisper inspect NAME|PATH` prints a model's resources and where each stands, the prefab it promised, and
 the geometry its checkpoint's shapes say; on a path, which prefab, if any, that geometry is, and which vocabulary its
 layout selects; on a name whose checkpoint does not scan as its prefab, the mismatch. `transcribe` makes the same
-check before it reads any tensors. The index is bunsen's (`kits::speech::whisper::pretrained`), and this binary keeps
+check before it reads any tensors. The index is bunsen's (`kits::speech::asr::whisper::pretrained`), and this binary keeps
 none of its own.
 
 ### Benchmarks

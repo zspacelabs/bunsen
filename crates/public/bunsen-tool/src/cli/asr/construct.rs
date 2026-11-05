@@ -978,7 +978,7 @@ mod tests {
     /// its presets and patch checked, with nothing fetched.
     #[test]
     fn test_catalog() {
-        use bunsen::kits::speech::{
+        use bunsen::kits::speech::asr::{
             parakeet::pretrained::default_parakeet_factory,
             qwen3_asr::pretrained::default_qwen3_asr_factory,
             voxtral::pretrained::default_voxtral_factory,

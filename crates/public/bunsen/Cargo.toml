@@ -160,7 +160,7 @@ audio = [
 
 ## Turns token ids into text, through `wordchipper`.
 ##
-## Ids never need this: a kit's token layout (`kits::speech::whisper::WhisperTokenLayout`
+## Ids never need this: a kit's token layout (`kits::speech::asr::whisper::WhisperTokenLayout`
 ## and every special id) is derived arithmetically and always available.
 ## Only `kits::support::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
 ## `default-features = false` — no downloader, no TLS, no thread pool — so

@@ -1,6 +1,6 @@
 use bunsen::{
     data::pretrained::SafetensorsCheckpoint,
-    kits::speech::whisper::pretrained::{
+    kits::speech::asr::whisper::pretrained::{
         PytorchWhisperScanner,
         SafetensorsWhisperScanner,
     },
@@ -29,7 +29,7 @@ fn test_the_transformers_checkpoint_is_base_pt() {
         .unwrap();
     assert_eq!(hf_cfg.geometry(), pt_cfg.geometry());
 
-    let params = |m: &bunsen::kits::speech::whisper::Whisper| {
+    let params = |m: &bunsen::kits::speech::asr::whisper::Whisper| {
         let mut ps = m.collect(None, None, true);
         ps.sort_by(|a, b| a.name.cmp(&b.name));
         ps

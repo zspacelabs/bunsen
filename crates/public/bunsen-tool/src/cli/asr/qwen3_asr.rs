@@ -6,8 +6,8 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::{
-        asr_driver::{
+    kits::speech::asr::{
+        driver::{
             LevelPolicy,
             TranscriptSegment,
         },

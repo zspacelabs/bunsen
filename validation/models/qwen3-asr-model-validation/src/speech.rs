@@ -7,7 +7,7 @@
 
 use bunsen::{
     kits::speech::{
-        qwen3_asr::Qwen3AsrFrontEndMeta,
+        asr::qwen3_asr::Qwen3AsrFrontEndMeta,
         testing::wer::{
             normalize_transcript,
             word_error_rate,
@@ -162,8 +162,8 @@ mod driver {
     #[test]
     #[serial_test::serial]
     fn phonon_1_micro() {
-        use bunsen::kits::speech::{
-            asr_driver::{
+        use bunsen::kits::speech::asr::{
+            driver::{
                 EmissionPolicy,
                 LevelPolicy,
                 StreamClock,
@@ -232,8 +232,8 @@ mod stream_driver_transcribes_like_transformers {
     #[test]
     #[serial_test::serial]
     fn qwen3_asr_0_6b() {
-        use bunsen::kits::speech::{
-            asr_driver::{
+        use bunsen::kits::speech::asr::{
+            driver::{
                 EmissionPolicy,
                 LevelPolicy,
                 StreamClock,
@@ -304,8 +304,8 @@ mod stream_driver_transcribes_like_transformers {
 /// # Returns
 /// The committed texts, joined.
 fn stream_quiet_cut(name: &str) -> String {
-    use bunsen::kits::speech::{
-        asr_driver::{
+    use bunsen::kits::speech::asr::{
+        driver::{
             EmissionPolicy,
             LevelPolicy,
             StreamClock,
