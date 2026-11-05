@@ -6,20 +6,17 @@ use bunsen::{
         Provenance,
     },
     kits::{
-        speech::asr::{
-            whisper,
-            whisper::{
-                blocks::WhisperTokenLayoutConfig,
-                driver::{
-                    WhisperSpecialIds,
-                    WhisperTokenLayout,
-                },
-                pretrained::{
-                    VOCABULARY,
-                    WHISPER_KIT,
-                    WHISPER_PREFABS,
-                    WhisperVocabulary,
-                },
+        speech::asr::whisper::{
+            blocks::WhisperTokenLayoutConfig,
+            driver::{
+                WhisperSpecialIds,
+                WhisperTokenLayout,
+            },
+            pretrained::{
+                VOCABULARY,
+                WHISPER_KIT,
+                WHISPER_PREFABS,
+                WhisperVocabulary,
             },
         },
         support::tokens::Detokenizer,
