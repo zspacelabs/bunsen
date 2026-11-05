@@ -23,10 +23,11 @@
 //! | [`speech::asr::qwen3_asr`] | Qwen's Qwen3-ASR: the model, a pretrained index (`FermionResearch`'s Phonon-1 by default), the prompt, and greedy decoding. |
 //! | [`speech::asr::voxtral`] | Mistral's Voxtral Realtime: the model, a pretrained index (`mistralai/voxtral-mini-4b-realtime-2602` by default), its stream layout and delay, greedy decoding, and a stream driver. |
 //! | [`speech::vad::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
+//! | [`text::encoders::modernbert`] | Answer.AI's `ModernBERT` text encoder: the model, loaded from a `transformers` `ModernBertModel` state dict and its `config.json`. |
 //! | [`support`] | Not a model: what kits of more than one family share: [`support::tokens`], the ids-to-text seam, and [`support::decoding`], the search machinery (logit filters, greedy and beam search, sampling, ranking, and the temperature ladder). |
 //!
-//! The area modules, [`images`], [`language`] and [`speech`], group the
-//! kits by domain and say what the kits in each have in common.
+//! The area modules, [`images`], [`language`], [`speech`] and [`text`], group
+//! the kits by domain and say what the kits in each have in common.
 //!
 //! # Anatomy of a kit
 //!
@@ -121,3 +122,4 @@ pub mod images;
 pub mod language;
 pub mod speech;
 pub mod support;
+pub mod text;
