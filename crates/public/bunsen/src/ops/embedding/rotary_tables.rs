@@ -5,10 +5,49 @@ use burn::{
     tensor::{
         DType,
         Device,
+        FloatDType,
         TensorData,
         linalg,
     },
 };
+
+/// The dtypes rotary tables are made in, on a device: the dtype their
+/// values are rounded to, and the dtype they are kept in.
+///
+/// - No dtype asked for (or `F32`): exact, in f32.
+/// - A narrower dtype (bf16, f16): rounded to it, and kept in it where the
+///   device has it, else in f32, which holds each rounded value exactly.
+/// - `F64`: in f64 where the device has it, else exact in f32.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RotaryTableDTypePolicy {
+    /// The dtype the tables' values are rounded to, when narrower than f32.
+    pub round_to: Option<FloatDType>,
+    /// The dtype the tables are kept in.
+    pub keep_in: FloatDType,
+}
+
+impl RotaryTableDTypePolicy {
+    /// The policy for tables wanted in `table_dtype`, on a device that
+    /// supports the dtypes `supports` accepts.
+    pub fn init(
+        table_dtype: Option<FloatDType>,
+        supports: impl Fn(DType) -> bool,
+    ) -> Self {
+        let (round_to, keep_in) = match table_dtype {
+            Some(d @ (FloatDType::BF16 | FloatDType::F16)) => (
+                Some(d),
+                if supports(d.into()) {
+                    d
+                } else {
+                    FloatDType::F32
+                },
+            ),
+            Some(FloatDType::F64) if supports(DType::F64) => (None, FloatDType::F64),
+            _ => (None, FloatDType::F32),
+        };
+        Self { round_to, keep_in }
+    }
+}
 
 /// `values` as an f32 tensor on `device`, whatever the device's default
 /// float: an integer's `float()` is the default, and in bf16 the integers
@@ -93,6 +132,36 @@ pub fn frequency_table(
 
 #[cfg(test)]
 mod tests {
+    /// A narrower dtype is kept where the device has it, else its rounded
+    /// values in f32; f64 only where the device has it.
+    #[test]
+    fn test_rotary_table_dtype_policy() {
+        let all = |_: DType| true;
+        let no_half_no_f64 = |d: DType| !matches!(d, DType::BF16 | DType::F16 | DType::F64);
+        let policy = |table_dtype, supports: &dyn Fn(DType) -> bool| {
+            let p = RotaryTableDTypePolicy::init(table_dtype, supports);
+            (p.round_to, p.keep_in)
+        };
+        assert_eq!(policy(None, &all), (None, FloatDType::F32));
+        assert_eq!(
+            policy(Some(FloatDType::BF16), &all),
+            (Some(FloatDType::BF16), FloatDType::BF16)
+        );
+        assert_eq!(
+            policy(Some(FloatDType::BF16), &no_half_no_f64),
+            (Some(FloatDType::BF16), FloatDType::F32)
+        );
+        assert_eq!(
+            policy(Some(FloatDType::F16), &no_half_no_f64),
+            (Some(FloatDType::F16), FloatDType::F32)
+        );
+        assert_eq!(policy(Some(FloatDType::F64), &all), (None, FloatDType::F64));
+        assert_eq!(
+            policy(Some(FloatDType::F64), &no_half_no_f64),
+            (None, FloatDType::F32)
+        );
+    }
+
     use burn::tensor::Tolerance;
     use serial_test::serial;
 

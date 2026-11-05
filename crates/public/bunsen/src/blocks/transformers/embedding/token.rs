@@ -9,16 +9,13 @@ use burn::{
     },
     nn::Initializer,
     prelude::Int,
-    tensor::{
-        DType,
-        Device,
-    },
+    tensor::Device,
 };
 
 use crate::{
     burner::{
         module::ModuleInit,
-        tensor::bf16_round,
+        tensor::round_scalar_to_dtype,
     },
     errors::BunsenResult,
     ops::norm::{
@@ -116,25 +113,11 @@ impl TokenEmbeddingMeta for TokenEmbedding {
     }
 }
 
-/// `value` rounded to `dtype`'s precision; f64 and f32 values as they are in
-/// it.
-fn round_scalar(
-    value: f64,
-    dtype: DType,
-) -> f64 {
-    match dtype {
-        DType::F64 => value,
-        DType::BF16 => bf16_round(value as f32) as f64,
-        DType::F16 => burn::tensor::f16::from_f64(value).to_f64(),
-        _ => value as f32 as f64,
-    }
-}
-
 impl TokenEmbedding {
     /// The scale as applied: rounded to the table's dtype.
     pub fn applied_scale(&self) -> Option<f64> {
         let dtype = crate::burner::tensor::param_float_dtype(&self.weight);
-        self.scale.map(|scale| round_scalar(scale, dtype))
+        self.scale.map(|scale| round_scalar_to_dtype(scale, dtype))
     }
 
     /// Embeds tokens.
@@ -208,20 +191,11 @@ mod tests {
         );
     }
 
-    /// The scale is rounded to the table's dtype, as `transformers` rounds
-    /// Gemma's.
+    /// The scale is rounded to the table's dtype
+    /// ([`round_scalar_to_dtype`]), as `transformers` rounds Gemma's.
     #[test]
     fn test_scale_rounds_to_the_table_dtype() {
         let s = 1152f64.sqrt();
-        assert_eq!(round_scalar(s, DType::BF16), 34.0);
-        assert_eq!(round_scalar(3072f64.sqrt(), DType::BF16), 55.5);
-        assert_eq!(round_scalar(s, DType::F64), s);
-        assert_eq!(round_scalar(s, DType::F32), s as f32 as f64);
-        assert_eq!(
-            round_scalar(s, DType::F16),
-            burn::tensor::f16::from_f64(s).to_f64()
-        );
-
         let device = cpu_device();
         let mut embedding = table(&device);
         embedding.scale = Some(s);

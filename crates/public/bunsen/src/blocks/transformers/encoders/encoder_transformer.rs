@@ -11,7 +11,6 @@ use crate::{
         decoders::stack::{
             DecoderStack,
             DecoderStackMeta,
-            DecoderStackSides,
             DecoderStackStructureConfig,
         },
         encoders::{
@@ -29,7 +28,6 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    ops::transformers::attention::length_mask,
 };
 
 /// Common meta for [`EncoderTransformer`] and [`EncoderTransformerConfig`].
@@ -193,31 +191,10 @@ impl EncoderTransformer {
     ) -> Tensor<3> {
         match self {
             Self::Residual(m) => m.forward(x, lengths),
-            Self::Stack(m) => stack_forward(m, x, lengths),
+            Self::Stack(m) => m.encoder_forward(x, lengths),
             Self::Conformer(m) => m.forward(x, lengths),
         }
     }
-}
-
-/// A [`DecoderStack`] as an encoder: its rotary table over the whole input,
-/// each item's padding masked by its length.
-fn stack_forward(
-    stack: &DecoderStack,
-    x: Tensor<3>,
-    lengths: Option<&[usize]>,
-) -> Tensor<3> {
-    let time = x.dims()[1];
-    let device = x.device();
-    let key_valid = lengths.map(|lengths| length_mask(lengths, time, &device));
-    stack.forward_with(
-        x,
-        &stack.rotary(time, &device),
-        None,
-        DecoderStackSides {
-            key_valid,
-            ..Default::default()
-        },
-    )
 }
 
 /// A pre-norm rotary encoder stack, for tests: `n_layers` bidirectional
@@ -315,7 +292,7 @@ mod tests {
             let x = Tensor::<3>::random([2, 6, 8], Distribution::Default, &device);
             let direct = match &encoder {
                 EncoderTransformer::Residual(m) => m.forward(x.clone(), Some(&[6, 4])),
-                EncoderTransformer::Stack(m) => stack_forward(m, x.clone(), Some(&[6, 4])),
+                EncoderTransformer::Stack(m) => m.encoder_forward(x.clone(), Some(&[6, 4])),
                 EncoderTransformer::Conformer(m) => m.forward(x.clone(), Some(&[6, 4])),
             };
             encoder

@@ -24,6 +24,7 @@ use crate::{
         Rule,
     },
     ops::embedding::{
+        RotaryTableDTypePolicy,
         frequency_table,
         inverse_frequency_table,
     },
@@ -63,7 +64,7 @@ pub struct RotaryEmbeddingConfig {
     /// model keeps them in bf16. `None` keeps them in f32, exact. On a device
     /// without the dtype (wgpu has no bf16), a narrower one's rounded values
     /// are kept in f32, which holds them exactly, and a wider one is not
-    /// kept ([`table_storage`]).
+    /// kept ([`RotaryTableDTypePolicy`]).
     /// [`apply`](RotaryEmbedding::apply) casts them to its input's dtype, as
     /// `transformers` casts `cos` and `sin` to `x.dtype`.
     #[config(default = "None")]
@@ -141,32 +142,6 @@ impl RotaryDirection {
     }
 }
 
-/// How tables wanted in `table_dtype` are made on a device that supports
-/// the dtypes `supports` accepts: the dtype their values are rounded to,
-/// and the dtype they are kept in.
-///
-/// - `None` (or `F32`): exact, in f32.
-/// - A narrower dtype (bf16, f16): rounded to it, and kept in it where the
-///   device has it, else in f32, which holds each rounded value exactly.
-/// - `F64`: in f64 where the device has it, else exact in f32.
-pub fn table_storage(
-    table_dtype: Option<FloatDType>,
-    supports: impl Fn(DType) -> bool,
-) -> (Option<FloatDType>, FloatDType) {
-    match table_dtype {
-        Some(d @ (FloatDType::BF16 | FloatDType::F16)) => (
-            Some(d),
-            if supports(d.into()) {
-                d
-            } else {
-                FloatDType::F32
-            },
-        ),
-        Some(FloatDType::F64) if supports(DType::F64) => (None, FloatDType::F64),
-        _ => (None, FloatDType::F32),
-    }
-}
-
 impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
     fn seq_len(&self) -> usize {
         self.seq_len
@@ -204,17 +179,17 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
                 )),
         );
 
-        // Rounded on the host, as the reference rounds, and kept as
-        // `table_storage` says.
-        let (rounded, kept) = table_storage(self.table_dtype, |d| device.supports_dtype(d));
+        // Rounded on the host, as the reference rounds, and kept as the
+        // policy says.
+        let policy = RotaryTableDTypePolicy::init(self.table_dtype, |d| device.supports_dtype(d));
         let round = |t: Tensor<2>| {
             let data = t.into_data();
-            let data = match rounded {
+            let data = match policy.round_to {
                 Some(FloatDType::BF16) => data.convert::<bf16>(),
                 Some(FloatDType::F16) => data.convert::<f16>(),
                 _ => data,
             };
-            Tensor::<2>::from_data(data, (device, DType::from(kept)))
+            Tensor::<2>::from_data(data, (device, DType::from(policy.keep_in)))
         };
 
         let cos = round(freq_matrix.clone().cos())
@@ -392,35 +367,6 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-
-    /// A narrower dtype is kept where the device has it, else its rounded
-    /// values in f32; f64 only where the device has it.
-    #[test]
-    fn test_table_storage() {
-        let all = |_: DType| true;
-        let no_half_no_f64 = |d: DType| !matches!(d, DType::BF16 | DType::F16 | DType::F64);
-        assert_eq!(table_storage(None, all), (None, FloatDType::F32));
-        assert_eq!(
-            table_storage(Some(FloatDType::BF16), all),
-            (Some(FloatDType::BF16), FloatDType::BF16)
-        );
-        assert_eq!(
-            table_storage(Some(FloatDType::BF16), no_half_no_f64),
-            (Some(FloatDType::BF16), FloatDType::F32)
-        );
-        assert_eq!(
-            table_storage(Some(FloatDType::F16), no_half_no_f64),
-            (Some(FloatDType::F16), FloatDType::F32)
-        );
-        assert_eq!(
-            table_storage(Some(FloatDType::F64), all),
-            (None, FloatDType::F64)
-        );
-        assert_eq!(
-            table_storage(Some(FloatDType::F64), no_half_no_f64),
-            (None, FloatDType::F32)
-        );
-    }
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
