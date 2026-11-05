@@ -31,6 +31,8 @@ or supplanted by the eventual `burn` solution to that problem.
 A kit is a whole model, with its configs and the weights it loads by name
 ([Kits](https://zspacelabs.ai/bunsen/book/organization/kits.html)):
 
+- [`decision::laya`](https://docs.rs/bunsen/latest/bunsen/kits/decision/laya/index.html): Laya, an open decision
+  model: typed questions about a state answered with calibrated probabilities, with its checkpoints by name.
 - [`images::resnet`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/index.html): ResNet image classifiers,
   with torchvision's and `timm`'s checkpoints by name.
 - [`images::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/images/swin/v2/index.html): Swin Transformer V2
@@ -41,6 +43,8 @@ A kit is a whole model, with its configs and the weights it loads by name
   a pretrained index, decoders, and a stream driver.
 - [`speech::vad::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/vad/silero_vad/index.html): the Silero
   voice-activity detector, with weights a build can bundle.
+- [`text::encoders::modernbert`](https://docs.rs/bunsen/latest/bunsen/kits/text/encoders/modernbert/index.html):
+  Answer.AI's ModernBERT text encoder, which Laya is built on.
 - [`support`](https://docs.rs/bunsen/latest/bunsen/kits/support/index.html): not a model; what kits of more than one
   family share: the ids-to-text seam, and the decoding search machinery.
 
@@ -505,6 +509,27 @@ kits:
         name: nitishpandey04/nanochat-d18-sft
         description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat"
         size: 2.05 GB
+  decide:
+    laya:
+    - provider:
+        name: well-known
+    - model:
+        name: laya/laya
+        aliases:
+        - laya-en
+        description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters, prompts of 512 tokens"
+        size: 846.2 MB
+        dtype: float16
+    - model:
+        name: laya/laya-multilingual
+        description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M parameters, prompts of 1024 tokens"
+        size: 678.2 MB
+        dtype: float16
+    - model:
+        name: laya/laya-typed-decisions
+        description: "Laya, typed decisions: the English model trained on typed questions, prompts of 1024 tokens"
+        size: 846.2 MB
+        dtype: float16
 ```
 
 <!-- /card -->

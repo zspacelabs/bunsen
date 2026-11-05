@@ -1,9 +1,10 @@
 //! `bunsen-tool`: bunsen's models on the command line. `bunsen-tool asr`
 //! is speech to text, by preset or by model family, and who spoke when;
 //! `bunsen-tool chat` chats with a Qwen3 or nanochat checkpoint; `bunsen-tool
-//! cache <path|list|clear>` manages the weights cache every command loads
-//! through; `bunsen-tool card` describes the build, its cache and the models
-//! it knows.
+//! decide` answers typed questions about a context with a Laya decision
+//! model; `bunsen-tool cache <path|list|clear>` manages the weights cache every
+//! command loads through; `bunsen-tool card` describes the build, its cache and
+//! the models it knows.
 
 use std::process::ExitCode;
 
@@ -30,9 +31,16 @@ enum Command {
     /// fetch`); `chat family` for one family's.
     Chat(cli::chat::ChatCmd),
 
+    /// Typed questions about a context, answered with calibrated
+    /// probabilities by a Laya decision model: a request (YAML or JSON) in
+    /// (`decide run`), one result per question out; and the checkpoints
+    /// (`decide list`, `decide fetch`).
+    Decide(cli::decide::DecideCmd),
+
     /// The weights cache every command loads through: where it is, what it
     /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
-    /// `sortformer`, `silero_vad`, `qwen3`, `nanochat`), and clearing it.
+    /// `sortformer`, `silero_vad`, `qwen3`, `nanochat`, `laya`), and clearing
+    /// it.
     Cache(bunsen_app::cache::CacheCommand),
 
     /// What this build is (`build`: its version and features), its weights
@@ -66,6 +74,7 @@ fn run(args: &Args) -> BunsenResult<()> {
     match &args.command {
         Command::Asr(cmd) => cmd.run(),
         Command::Chat(cmd) => cmd.run(),
+        Command::Decide(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
         Command::Card(cmd) => cmd.run(),
         Command::Devices(cmd) => cmd.run(),
@@ -81,6 +90,28 @@ mod tests {
     fn test_cli_is_well_formed() {
         use clap::CommandFactory;
         Args::command().debug_assert();
+    }
+
+    /// `decide`'s commands parse.
+    #[test]
+    fn test_decide_parses() {
+        for argv in [
+            &[
+                "bunsen-tool",
+                "decide",
+                "run",
+                "--model",
+                "laya-multilingual",
+                "--format",
+                "json",
+                "req.yml",
+            ][..],
+            &["bunsen-tool", "decide", "run"],
+            &["bunsen-tool", "decide", "list", "--urls"],
+            &["bunsen-tool", "decide", "fetch", "laya"],
+        ] {
+            Args::try_parse_from(argv).unwrap_or_else(|e| panic!("{argv:?}: {e}"));
+        }
     }
 
     /// The weights cache's commands parse.
