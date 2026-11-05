@@ -25,7 +25,7 @@ use crate::{
         language::qwen3::weights::text_layer_rekey,
         support::model_config::{
             HfConfigJson,
-            HfDecoderSection,
+            TransformersDecoderSection,
         },
     },
 };
@@ -62,7 +62,7 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 ///
 /// Normalization parameters keep their `weight` spelling, which
 /// [`load_rekeyed`] resolves to `gamma`.
-pub fn hf_rekey() -> Rekey {
+pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
             "audio_tower.",
@@ -88,29 +88,29 @@ pub fn hf_rekey() -> Rekey {
 
 /// Loads tensors named as `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
 /// `model.safetensors` names them into `model`: [`load_rekeyed`] under
-/// [`hf_rekey`], in the dtype `model` was built in. The checkpoint ships
-/// `bf16`, which not every backend computes in.
+/// [`transformers_rekey`], in the dtype `model` was built in. The checkpoint
+/// ships `bf16`, which not every backend computes in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_hf_tensors(
+pub fn load_transformers_tensors(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_rekeyed(model, tensors, &hf_rekey(), None)
+    load_rekeyed(model, tensors, &transformers_rekey(), None)
 }
 
-/// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
-/// policy's resolution) rather than the dtype the model was built in.
+/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
+/// load policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_hf_tensors_as(
+pub fn load_transformers_tensors_as(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_rekeyed(model, tensors, &hf_rekey(), Some(dtype))
+    load_rekeyed(model, tensors, &transformers_rekey(), Some(dtype))
 }
 
 /// The [`VoxtralRealtimeConfig`] of a `transformers` `VoxtralRealtime`
@@ -127,14 +127,14 @@ pub fn load_hf_tensors_as(
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Voxtral Realtime is not.
-pub fn voxtral_config_from_hf(json: &str) -> BunsenResult<VoxtralRealtimeConfig> {
+pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealtimeConfig> {
     let c = HfConfigJson::parse(json)?;
     c.expect_str("model_type", "voxtral_realtime")?;
     c.expect_str("projector_hidden_act", "gelu")?;
 
     let a = c.section("audio_config")?;
     a.expect_str("activation_function", "gelu")?;
-    let ad = HfDecoderSection::read(&a)?;
+    let ad = TransformersDecoderSection::read(&a)?;
     a.expect_eq("hidden_act", ad.hidden_act.as_str(), "silu")?;
     a.expect_eq(
         "num_key_value_heads",
@@ -154,7 +154,7 @@ pub fn voxtral_config_from_hf(json: &str) -> BunsenResult<VoxtralRealtimeConfig>
     .with_sliding_window(ad.sliding_window);
 
     let t = c.section("text_config")?;
-    let td = HfDecoderSection::read(&t)?;
+    let td = TransformersDecoderSection::read(&t)?;
     t.expect_eq("hidden_act", td.hidden_act.as_str(), "silu")?;
     t.expect_eq(
         "tie_word_embeddings",
@@ -196,8 +196,8 @@ mod tests {
     };
 
     #[test]
-    fn test_hf_rekey() {
-        let rekey = hf_rekey();
+    fn test_transformers_rekey() {
+        let rekey = transformers_rekey();
         for (hf, bunsen) in [
             (
                 "audio_tower.embedder.conv1.weight",
@@ -268,8 +268,8 @@ mod tests {
 
     /// The published `config.json` is the published geometry.
     #[test]
-    fn test_config_from_hf() {
-        let config = voxtral_config_from_hf(CONFIG_JSON).unwrap();
+    fn test_config_from_transformers() {
+        let config = voxtral_config_from_transformers(CONFIG_JSON).unwrap();
         let expected = VoxtralRealtimeConfig::voxtral_mini_4b_realtime();
         assert_eq!(config.audio.n_layers(), expected.audio.n_layers());
         assert_eq!(config.audio.d_model(), expected.audio.d_model());
@@ -292,10 +292,10 @@ mod tests {
         );
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("tie_word_embeddings")
-            .assert_err(&voxtral_config_from_hf(&untied));
+            .assert_err(&voxtral_config_from_transformers(&untied));
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("model_type")
-            .assert_err(&voxtral_config_from_hf(
+            .assert_err(&voxtral_config_from_transformers(
                 &CONFIG_JSON.replace("\"voxtral_realtime\"", "\"voxtral\""),
             ));
     }

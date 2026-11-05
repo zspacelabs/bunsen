@@ -36,8 +36,8 @@ use crate::{
             Qwen3AsrFrontEndConfig,
             Qwen3AsrPolicy,
             weights::{
-                load_hf_tensors_as,
-                qwen3_asr_config_from_hf,
+                load_transformers_tensors_as,
+                qwen3_asr_config_from_transformers,
             },
         },
         support::{
@@ -108,9 +108,9 @@ impl Qwen3AsrReader {
 
 /// How a Qwen3-ASR pretrained is built: its checkpoint read by the
 /// [`Qwen3AsrReader`] its `kind` names, into the geometry its `config.json`
-/// gives ([`qwen3_asr_config_from_hf`]), or else the prefab its row names
-/// (`qwen3-asr-0.6b` when it names none), in the device's float dtype, with
-/// its vocabulary, behind a front end of the model's mel count and the
+/// gives ([`qwen3_asr_config_from_transformers`]), or else the prefab its row
+/// names (`qwen3-asr-0.6b` when it names none), in the device's float dtype,
+/// with its vocabulary, behind a front end of the model's mel count and the
 /// default prompt and decoder.
 ///
 /// The Qwen3-ASR kit's construct config: its [`ConstructInit`] hook.
@@ -161,7 +161,8 @@ impl ConstructInit for Qwen3AsrConstructConfig {
             Some(part) => {
                 let json =
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                qwen3_asr_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?
+                qwen3_asr_config_from_transformers(&json)
+                    .map_err(|e| e.context(part.path.display()))?
             }
             None => model
                 .prefab(&QWEN3_ASR_PREFABS)
@@ -174,7 +175,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut asr: Qwen3Asr = config.try_init(device)?;
-        load_hf_tensors_as(&mut asr, tensors, dtype)?;
+        load_transformers_tensors_as(&mut asr, tensors, dtype)?;
         let policy = resolve_ref_presets(&Qwen3AsrPolicy::default(), model, &PresetSet::default())?;
         let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
             .with_policy(policy.config.clone(), policy.applied());

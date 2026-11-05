@@ -90,7 +90,7 @@ pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
-pub fn hf_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
+pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     Rekey::keep_rest()
         .drop_suffix(".num_batches_tracked")
         .mount("encoder.", "encoder.", encoder_rekey(striding))
@@ -103,21 +103,21 @@ pub fn hf_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `ParakeetForTDT` state dict into
-/// `model`: [`apply_rekeyed_tensors`] under [`hf_rekey`], at `model`'s
-/// subsampling.
+/// `model`: [`apply_rekeyed_tensors`] under [`transformers_rekey`], at
+/// `model`'s subsampling.
 ///
 /// # Errors
 /// As [`apply_rekeyed_tensors`];
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
 /// `model`'s encoder does not subsample by depthwise striding.
-pub fn load_hf_tensors(
+pub fn load_transformers_tensors(
     model: &mut ParakeetTdt,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let striding = model.encoder.subsampling.dw_striding().ok_or_else(|| {
         BunsenError::invalid_resource("a Parakeet encoder subsamples by depthwise striding")
     })?;
-    let rekey = hf_rekey(striding);
+    let rekey = transformers_rekey(striding);
     apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
@@ -135,7 +135,7 @@ pub fn load_hf_tensors(
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Parakeet is not (a CTC model,
 /// another subsampling).
-pub fn parakeet_config_from_hf(json: &str) -> BunsenResult<ParakeetTdtConfig> {
+pub fn parakeet_config_from_transformers(json: &str) -> BunsenResult<ParakeetTdtConfig> {
     let c = HfConfigJson::parse(json)?;
     c.expect_str("model_type", "parakeet_tdt")?;
     let e = c.section("encoder_config")?;
@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hf_rekey() {
+    fn test_transformers_rekey() {
         for (hf, bunsen) in [
             (
                 "encoder.subsampling.layers.0.weight",
@@ -257,7 +257,7 @@ mod tests {
             ("encoder_projector.weight", Some("encoder_projector.weight")),
         ] {
             assert_eq!(
-                hf_rekey(&DwStridingSubsamplingConfig::new(128, 256, 1024))
+                transformers_rekey(&DwStridingSubsamplingConfig::new(128, 256, 1024))
                     .apply(hf)
                     .as_deref(),
                 bunsen,
@@ -269,7 +269,7 @@ mod tests {
     /// `nvidia/parakeet-tdt-0.6b-v3`'s `config.json` is the built-in
     /// geometry; a CTC model's is refused by its `model_type`.
     #[test]
-    fn test_parakeet_config_from_hf() {
+    fn test_parakeet_config_from_transformers() {
         const V3: &str = r#"{"architectures": ["ParakeetForTDT"], "blank_token_id": 8192,
             "decoder_hidden_size": 640, "durations": [0, 1, 2, 3, 4],
             "encoder_config": {"attention_bias": false, "conv_kernel_size": 9,
@@ -279,7 +279,7 @@ mod tests {
                 "subsampling_conv_channels": 256, "subsampling_conv_kernel_size": 3,
                 "subsampling_conv_stride": 2, "subsampling_factor": 8},
             "model_type": "parakeet_tdt", "num_decoder_layers": 2, "vocab_size": 8193}"#;
-        let config = parakeet_config_from_hf(V3).unwrap();
+        let config = parakeet_config_from_transformers(V3).unwrap();
         assert_eq!(
             format!("{config:?}"),
             format!("{:?}", ParakeetTdtConfig::tdt_0_6b_v3())
@@ -288,10 +288,10 @@ mod tests {
         let ctc = V3.replace("parakeet_tdt", "parakeet_ctc");
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("`model_type`")
-            .assert_err(&parakeet_config_from_hf(&ctc));
+            .assert_err(&parakeet_config_from_transformers(&ctc));
         let mels = V3.replace("\"num_mel_bins\": 128", "\"num_mel_bins\": 80");
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("`encoder_config.num_mel_bins` is 80")
-            .assert_err(&parakeet_config_from_hf(&mels));
+            .assert_err(&parakeet_config_from_transformers(&mels));
     }
 }

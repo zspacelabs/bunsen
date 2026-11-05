@@ -35,8 +35,8 @@ use crate::{
             ParakeetTdtConfig,
             ParakeetVocabulary,
             weights::{
-                load_hf_tensors,
-                parakeet_config_from_hf,
+                load_transformers_tensors,
+                parakeet_config_from_transformers,
             },
         },
         support::{
@@ -107,8 +107,8 @@ impl ParakeetReader {
 
 /// How a Parakeet pretrained is built: its checkpoint read by the
 /// [`ParakeetReader`] its `kind` names, into the geometry its `config.json`
-/// gives ([`parakeet_config_from_hf`]; `parakeet-tdt-0.6b-v3`'s when the map
-/// has none), with its vocabulary, behind the default front end.
+/// gives ([`parakeet_config_from_transformers`]; `parakeet-tdt-0.6b-v3`'s when
+/// the map has none), with its vocabulary, behind the default front end.
 ///
 /// The Parakeet kit's construct config: its [`ConstructInit`] hook.
 /// [`default_parakeet_factory`](super::default_parakeet_factory) attaches
@@ -159,13 +159,14 @@ impl ConstructInit for ParakeetConstructConfig {
             Some(part) => {
                 let json =
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                parakeet_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?
+                parakeet_config_from_transformers(&json)
+                    .map_err(|e| e.context(part.path.display()))?
             }
             None => ParakeetTdtConfig::tdt_0_6b_v3(),
         };
         let policy = resolve_ref_presets(&ParakeetPolicy::default(), model, &PresetSet::default())?;
         let mut model: ParakeetTdt = config.try_init(device)?;
-        load_hf_tensors(&mut model, tensors)?;
+        load_transformers_tensors(&mut model, tensors)?;
         // The files' precision (f32), or wider as the policy asks.
         let model = load.place(model, device, |_| true)?;
         Ok(Arc::new(

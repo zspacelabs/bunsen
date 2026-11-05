@@ -47,7 +47,7 @@ use crate::{
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
-pub fn hf_rekey() -> Rekey {
+pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest().mount(
         "model.",
         "",
@@ -92,8 +92,8 @@ pub fn hf_rekey() -> Rekey {
 /// reads that layout: the geometry from the files' headers alone
 /// ([`scan_cfg`](Self::scan_cfg)), the weights through the generic
 /// [`SafetensorsCheckpoint`] with the names mapped to bunsen's
-/// ([`hf_rekey`]). The tied output projection, when a repo carries it,
-/// is left unused: bunsen's decoder projects through its token embedding,
+/// ([`transformers_rekey`]). The tied output projection, when a repo carries
+/// it, is left unused: bunsen's decoder projects through its token embedding,
 /// as upstream's does.
 ///
 /// [`WhisperReader`](super::WhisperReader) picks this for a checkpoint
@@ -199,7 +199,7 @@ impl SafetensorsWhisperScanner {
     ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         let cfg = self.scan_cfg(checkpoint)?;
         let mut module: Whisper = cfg.try_init(device)?;
-        apply_rekeyed_tensors(&mut module, checkpoint.tensors()?, &hf_rekey())?;
+        apply_rekeyed_tensors(&mut module, checkpoint.tensors()?, &transformers_rekey())?;
         Ok((module, cfg))
     }
 }
@@ -229,8 +229,8 @@ mod tests {
     };
 
     /// The key remappings from bunsen's names to `transformers`': the inverse
-    /// of [`hf_rekey`], for writing a file in that layout.
-    const BUNSEN_TO_HF: &[(&str, &str)] = &[
+    /// of [`transformers_rekey`], for writing a file in that layout.
+    const BUNSEN_TO_TRANSFORMERS: &[(&str, &str)] = &[
         (r"^encoder\.head\.blocks\.0\.conv\.", "encoder.conv1."),
         (r"^encoder\.head\.blocks\.1\.conv\.", "encoder.conv2."),
         (r"\.positional_embedding$", ".embed_positions.weight"),
@@ -266,7 +266,7 @@ mod tests {
     /// Writes `model` as `transformers` would: its names, `PyTorch`'s
     /// weight layout; `only` keeps the parameters matching a pattern, for
     /// a shard.
-    fn write_hf(
+    fn write_transformers(
         model: &Whisper,
         path: &Path,
         only: Option<&str>,
@@ -277,7 +277,7 @@ mod tests {
         if let Some(pattern) = only {
             store = store.with_regex(pattern);
         }
-        for (from, to) in BUNSEN_TO_HF {
+        for (from, to) in BUNSEN_TO_TRANSFORMERS {
             store = store.with_key_remapping(*from, *to);
         }
         model.save_into(&mut store).unwrap();
@@ -317,8 +317,8 @@ mod tests {
     /// `transformers`' names onto bunsen's, one of each kind; a tied
     /// output projection is dropped.
     #[test]
-    fn test_hf_rekey() {
-        let rekey = hf_rekey();
+    fn test_transformers_rekey() {
+        let rekey = transformers_rekey();
         for (hf, bunsen) in [
             (
                 "model.encoder.conv1.weight",
@@ -388,7 +388,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("model.safetensors");
         let model: Whisper = toy().try_init(&device).unwrap();
-        write_hf(&model, &path, None);
+        write_transformers(&model, &path, None);
 
         let header = safetensors_header(&path).unwrap();
         assert!(header.contains_key("model.encoder.conv1.weight"));
@@ -431,8 +431,8 @@ mod tests {
         let model: Whisper = toy().try_init(&device).unwrap();
         let s1 = dir.path().join("model-00001-of-00002.safetensors");
         let s2 = dir.path().join("model-00002-of-00002.safetensors");
-        write_hf(&model, &s1, Some(r"^encoder\."));
-        write_hf(&model, &s2, Some(r"^decoder\."));
+        write_transformers(&model, &s1, Some(r"^encoder\."));
+        write_transformers(&model, &s2, Some(r"^decoder\."));
         assert!(
             safetensors_header(&s1)
                 .unwrap()

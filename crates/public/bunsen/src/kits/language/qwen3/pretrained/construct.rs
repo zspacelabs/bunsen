@@ -34,8 +34,8 @@ use crate::{
             Qwen3Policy,
             TOKENIZER_CONFIG,
             weights::{
-                load_hf_tensors_as,
-                qwen3_config_from_hf,
+                load_transformers_tensors_as,
+                qwen3_config_from_transformers,
             },
         },
         support::{
@@ -51,9 +51,9 @@ use crate::{
 
 /// How a Qwen3 pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
-/// ([`qwen3_config_from_hf`]), or else the prefab its row names, in the
-/// device's float dtype; bundled with the positions the `config.json` says it
-/// was trained on, and every file of the checkpoint by its key.
+/// ([`qwen3_config_from_transformers`]), or else the prefab its row names, in
+/// the device's float dtype; bundled with the positions the `config.json` says
+/// it was trained on, and every file of the checkpoint by its key.
 ///
 /// The Qwen3 kit's construct config: its [`ConstructInit`] hook.
 /// [`default_qwen3_factory`](super::default_qwen3_factory) attaches it; a
@@ -110,8 +110,8 @@ impl ConstructInit for Qwen3ConstructConfig {
             Some(part) => {
                 let json =
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                let config =
-                    qwen3_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?;
+                let config = qwen3_config_from_transformers(&json)
+                    .map_err(|e| e.context(part.path.display()))?;
                 let max_positions = HfConfigJson::parse(&json)?
                     .usize("max_position_embeddings")
                     .ok();
@@ -134,7 +134,7 @@ impl ConstructInit for Qwen3ConstructConfig {
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = policy.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut qwen3: Qwen3Model = config.try_init(device)?;
-        load_hf_tensors_as(&mut qwen3, tensors, dtype)?;
+        load_transformers_tensors_as(&mut qwen3, tensors, dtype)?;
         let policy = resolve_ref_presets(&Qwen3Policy::default(), model, &Self::probed(loaded)?)?;
         let mut bundle = Qwen3Construct::new(qwen3)
             .with_max_positions(max_positions)

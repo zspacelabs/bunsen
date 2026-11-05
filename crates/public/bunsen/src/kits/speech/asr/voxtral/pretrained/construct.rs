@@ -35,8 +35,8 @@ use crate::{
             VoxtralRealtimeConfig,
             VoxtralTokenLayoutConfig,
             weights::{
-                load_hf_tensors_as,
-                voxtral_config_from_hf,
+                load_transformers_tensors_as,
+                voxtral_config_from_transformers,
             },
         },
         support::{
@@ -49,7 +49,7 @@ use crate::{
 
 /// How a Voxtral Realtime pretrained is built: its safetensors checkpoint
 /// read into the geometry its `config.json` gives
-/// ([`voxtral_config_from_hf`]), or else the prefab its row names
+/// ([`voxtral_config_from_transformers`]), or else the prefab its row names
 /// (`voxtral-mini-4b-realtime-2602` when it names none), in the device's
 /// float dtype; its `tekken.json` read as the vocabulary
 /// ([`TekkenVocabulary`]) and as the stream's layout
@@ -116,7 +116,8 @@ impl ConstructInit for VoxtralConstructConfig {
             Some(part) => {
                 let json =
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                voxtral_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?
+                voxtral_config_from_transformers(&json)
+                    .map_err(|e| e.context(part.path.display()))?
             }
             None => model
                 .prefab(&VOXTRAL_PREFABS)
@@ -130,7 +131,7 @@ impl ConstructInit for VoxtralConstructConfig {
         let stored = crate::data::pretrained::stored_float_dtype(&tensors)
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |_| true)?;
-        load_hf_tensors_as(&mut voxtral, tensors, dtype)?;
+        load_transformers_tensors_as(&mut voxtral, tensors, dtype)?;
         let policy = resolve_ref_presets(&VoxtralPolicy::default(), model, &PresetSet::default())?;
         Ok(Arc::new(
             VoxtralConstruct::new(voxtral, vocab, layout)?

@@ -22,7 +22,7 @@ use crate::{
         language::qwen3::{
             Qwen3Meta,
             weights::{
-                qwen3_config_from_hf_section,
+                qwen3_config_from_transformers_section,
                 text_layer_rekey,
             },
         },
@@ -41,7 +41,7 @@ use crate::{
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`load_rekeyed`] resolves to `gamma` / `beta`.
-pub fn hf_rekey() -> Rekey {
+pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest().mount(
         "model.",
         "",
@@ -66,30 +66,30 @@ pub fn hf_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
-/// state dict into `model`: [`load_rekeyed`] under [`hf_rekey`], in the dtype
-/// `model` was built in. The checkpoints ship `bf16`, which not every
+/// state dict into `model`: [`load_rekeyed`] under [`transformers_rekey`], in
+/// the dtype `model` was built in. The checkpoints ship `bf16`, which not every
 /// backend computes in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_hf_tensors(
+pub fn load_transformers_tensors(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_rekeyed(model, tensors, &hf_rekey(), None)
+    load_rekeyed(model, tensors, &transformers_rekey(), None)
 }
 
-/// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
-/// policy's resolution) rather than the dtype the model was built in.
+/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
+/// load policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_hf_tensors_as(
+pub fn load_transformers_tensors_as(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_rekeyed(model, tensors, &hf_rekey(), Some(dtype))
+    load_rekeyed(model, tensors, &transformers_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3AsrConfig`] of a `transformers`
@@ -101,7 +101,7 @@ pub fn load_hf_tensors_as(
 /// file. What bunsen's model fixes is checked: a GELU audio tower with as
 /// many key/value heads as query heads, whose output is the text model's
 /// width; and a text model as
-/// [`qwen3_config_from_hf_section`] reads it, with its head tied: the
+/// [`qwen3_config_from_transformers_section`] reads it, with its head tied: the
 /// section or the file may say so or say nothing, as Qwen3-ASR ships no head
 /// of its own.
 ///
@@ -110,7 +110,7 @@ pub fn load_hf_tensors_as(
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Qwen3-ASR is not.
-pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
+pub fn qwen3_asr_config_from_transformers(json: &str) -> BunsenResult<Qwen3AsrConfig> {
     let c = HfConfigJson::parse(json)?;
     c.expect_str("model_type", "qwen3_asr")?;
 
@@ -139,7 +139,7 @@ pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
         a.expect_eq("max_position_embeddings", positions, audio.chunk_out())?;
     }
 
-    let text = qwen3_config_from_hf_section(
+    let text = qwen3_config_from_transformers_section(
         &c.section("text_config")?,
         c.bool_or("tie_word_embeddings", true)?,
     )?;
@@ -154,8 +154,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hf_rekey() {
-        let rekey = hf_rekey();
+    fn test_transformers_rekey() {
+        let rekey = transformers_rekey();
         for (hf, bunsen) in [
             (
                 "model.audio_tower.conv2d1.weight",
@@ -219,14 +219,14 @@ mod tests {
     /// `Qwen3-ASR-1.7B-hf`'s is the larger model's; a model bunsen's is not
     /// is refused by the field that says so.
     #[test]
-    fn test_qwen3_asr_config_from_hf() {
+    fn test_qwen3_asr_config_from_transformers() {
         use crate::kits::speech::asr::qwen3_asr::blocks::Qwen3AsrMeta;
 
         let small = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/qwen3_asr/qwen3-asr-0.6b-hf.config.json"
         ));
-        let config = qwen3_asr_config_from_hf(small).unwrap();
+        let config = qwen3_asr_config_from_transformers(small).unwrap();
         assert_eq!(
             format!("{config:?}"),
             format!("{:?}", Qwen3AsrConfig::qwen3_asr_0_6b())
@@ -236,7 +236,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/qwen3_asr/qwen3-asr-1.7b-hf.config.json"
         ));
-        let config = qwen3_asr_config_from_hf(large).unwrap();
+        let config = qwen3_asr_config_from_transformers(large).unwrap();
         assert_eq!(
             format!("{config:?}"),
             format!("{:?}", Qwen3AsrConfig::qwen3_asr_1_7b())
@@ -253,6 +253,6 @@ mod tests {
         );
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("tie_word_embeddings")
-            .assert_err(&qwen3_asr_config_from_hf(&untied));
+            .assert_err(&qwen3_asr_config_from_transformers(&untied));
     }
 }

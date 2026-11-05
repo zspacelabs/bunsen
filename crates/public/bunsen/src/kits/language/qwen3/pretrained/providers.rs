@@ -121,7 +121,7 @@ mod tests {
         data::pretrained::CONFIG,
         kits::language::qwen3::{
             pretrained::QWEN3_PREFABS,
-            weights::qwen3_config_from_hf,
+            weights::qwen3_config_from_transformers,
         },
     };
 
@@ -191,7 +191,8 @@ mod tests {
                 map.get(CONFIG).unwrap().sha256,
                 "{name}: the committed config.json is the pinned one"
             );
-            let config = qwen3_config_from_hf(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            let config =
+                qwen3_config_from_transformers(&std::fs::read_to_string(&path).unwrap()).unwrap();
             let prefab = QWEN3_PREFABS
                 .expect_lookup_prefab(row.prefab.as_deref().unwrap())
                 .to_config();

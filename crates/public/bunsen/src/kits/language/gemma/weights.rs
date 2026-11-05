@@ -65,7 +65,7 @@ pub fn text_layer_rekey(post_norms: bool) -> Rekey {
 /// gain, stored as `w` for `1 + w`, loaded as `1 + w`
 /// ([`Adapter::zero_centered_gain`]). Anything else is dropped: a tied
 /// head's copy, a vision tower and its projector.
-pub fn hf_rekey(post_norms: bool) -> Rekey {
+pub fn transformers_rekey(post_norms: bool) -> Rekey {
     let text = || {
         Rekey::keep_rest()
             .mount_indexed("layers.", "stack.layers.", text_layer_rekey(post_norms))
@@ -80,30 +80,30 @@ pub fn hf_rekey(post_norms: bool) -> Rekey {
 }
 
 /// Loads tensors named as a `transformers` Gemma state dict into `model`:
-/// [`load_rekeyed`] under [`hf_rekey`] for `model`'s generation, in the dtype
-/// `model` was built in.
+/// [`load_rekeyed`] under [`transformers_rekey`] for `model`'s generation, in
+/// the dtype `model` was built in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_hf_tensors(
+pub fn load_transformers_tensors(
     model: &mut GemmaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = hf_rekey(model.stack.layers[0].attn_post_norm.is_some());
+    let rekey = transformers_rekey(model.stack.layers[0].attn_post_norm.is_some());
     load_rekeyed(model, tensors, &rekey, None)
 }
 
-/// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
-/// policy's resolution) rather than the dtype the model was built in.
+/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
+/// load policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_hf_tensors_as(
+pub fn load_transformers_tensors_as(
     model: &mut GemmaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = hf_rekey(model.stack.layers[0].attn_post_norm.is_some());
+    let rekey = transformers_rekey(model.stack.layers[0].attn_post_norm.is_some());
     load_rekeyed(model, tensors, &rekey, Some(dtype))
 }
 
@@ -137,7 +137,7 @@ enum Generation {
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Gemma is not.
-pub fn gemma_config_from_hf(json: &str) -> BunsenResult<GemmaConfig> {
+pub fn gemma_config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
     let root = HfConfigJson::parse(json)?;
     let tie_default = root.bool_or("tie_word_embeddings", true)?;
     let (t, generation, multimodal) = match root.str("model_type")? {
@@ -318,7 +318,7 @@ mod tests {
     };
 
     #[test]
-    fn test_hf_rekey() {
+    fn test_transformers_rekey() {
         for (post_norms, hf, bunsen) in [
             (
                 true,
@@ -363,14 +363,18 @@ mod tests {
                 Some("stack.layers.0.mlp_norm.weight"),
             ),
         ] {
-            assert_eq!(hf_rekey(post_norms).apply(hf).as_deref(), bunsen, "{hf}");
+            assert_eq!(
+                transformers_rekey(post_norms).apply(hf).as_deref(),
+                bunsen,
+                "{hf}"
+            );
         }
     }
 
     /// Every norm loads as `1 + w`; nothing else is adapted.
     #[test]
-    fn test_hf_rekey_adapts_the_norms() {
-        let plan = hf_rekey(true).plan([
+    fn test_transformers_rekey_adapts_the_norms() {
+        let plan = transformers_rekey(true).plan([
             "model.layers.0.input_layernorm.weight",
             "model.layers.0.post_feedforward_layernorm.weight",
             "model.layers.0.self_attn.k_norm.weight",
@@ -405,7 +409,7 @@ mod tests {
     /// 4's spelling: the pattern, the two tables, the global scaling.
     #[test]
     fn test_gemma3_multimodal() {
-        let c = gemma_config_from_hf(GEMMA3_4B).unwrap();
+        let c = gemma_config_from_transformers(GEMMA3_4B).unwrap();
         assert_eq!(
             (
                 c.n_vocab,
@@ -435,7 +439,7 @@ mod tests {
     /// table.
     #[test]
     fn test_gemma2_and_gemma1() {
-        let c = gemma_config_from_hf(
+        let c = gemma_config_from_transformers(
             r#"{"model_type": "gemma2", "hidden_size": 16, "num_attention_heads": 2,
                 "num_key_value_heads": 1, "head_dim": 8, "intermediate_size": 32,
                 "num_hidden_layers": 4, "vocab_size": 50, "hidden_activation": "gelu_pytorch_tanh",
@@ -455,7 +459,7 @@ mod tests {
         assert_eq!((c.attn_softcap, c.final_softcap), (Some(50.0), Some(30.0)));
         assert!(c.post_norms && !c.qk_norm && c.rope_local_theta.is_none());
 
-        let c = gemma_config_from_hf(
+        let c = gemma_config_from_transformers(
             r#"{"model_type": "gemma", "hidden_size": 16, "num_attention_heads": 2,
                 "num_key_value_heads": 1, "head_dim": 8, "intermediate_size": 32,
                 "num_hidden_layers": 2, "vocab_size": 50, "hidden_act": "gelu",
@@ -469,17 +473,19 @@ mod tests {
     fn test_refusals() {
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("model_type")
-            .assert_err(&gemma_config_from_hf(r#"{"model_type": "llama"}"#));
+            .assert_err(&gemma_config_from_transformers(
+                r#"{"model_type": "llama"}"#,
+            ));
         let bidirectional = GEMMA3_4B.replace(
             r#""final_logit_softcapping": null,"#,
             r#""final_logit_softcapping": null, "use_bidirectional_attention": true,"#,
         );
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("use_bidirectional_attention")
-            .assert_err(&gemma_config_from_hf(&bidirectional));
+            .assert_err(&gemma_config_from_transformers(&bidirectional));
         let yarn = GEMMA3_4B.replace(r#""rope_type": "linear""#, r#""rope_type": "yarn""#);
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("yarn")
-            .assert_err(&gemma_config_from_hf(&yarn));
+            .assert_err(&gemma_config_from_transformers(&yarn));
     }
 }

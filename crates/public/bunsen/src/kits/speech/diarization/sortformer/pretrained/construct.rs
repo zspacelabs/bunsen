@@ -35,8 +35,8 @@ use crate::{
                 SortformerFamily,
                 SortformerPolicy,
                 weights::{
-                    load_nemotron_hf_tensors,
-                    nemotron_config_from_hf,
+                    load_nemotron_transformers_tensors,
+                    nemotron_config_from_transformers,
                 },
             },
             nemo::NemoMelFrontEndConfig,
@@ -117,7 +117,7 @@ impl SortformerConstructConfig {
     /// The geometry of a map's `config.json` at `path`.
     fn read_config(path: &std::path::Path) -> BunsenResult<NemotronDiarizationConfig> {
         let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
-        nemotron_config_from_hf(&json).map_err(|e| e.context(path.display()))
+        nemotron_config_from_transformers(&json).map_err(|e| e.context(path.display()))
     }
 
     /// A Nemotron construct from a `transformers` checkpoint.
@@ -132,7 +132,7 @@ impl SortformerConstructConfig {
         };
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let mut model: Sortformer = config.try_init(device)?;
-        load_nemotron_hf_tensors(&mut model, tensors)?;
+        load_nemotron_transformers_tensors(&mut model, tensors)?;
         // The files' precision (f32), or wider as the policy asks.
         let model = load.place(model, device, |_| true)?;
         let front_end = NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(config.n_mels);

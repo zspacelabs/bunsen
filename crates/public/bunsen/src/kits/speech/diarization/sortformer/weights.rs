@@ -80,7 +80,7 @@ pub fn encoder_rekey() -> Rekey {
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
-pub fn nemotron_hf_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
+pub fn nemotron_transformers_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
     Rekey::drop_rest()
         .exact("silence_embeds", "silence")
         .mount(
@@ -101,21 +101,21 @@ pub fn nemotron_hf_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
 
 /// Loads tensors named as `transformers`'
 /// `Nemotron3DiarizationForAudioFrameClassification` state dict into
-/// `model`: [`apply_rekeyed_tensors`] under [`nemotron_hf_rekey`], at
+/// `model`: [`apply_rekeyed_tensors`] under [`nemotron_transformers_rekey`], at
 /// `model`'s front end.
 ///
 /// # Errors
 /// As [`apply_rekeyed_tensors`];
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
 /// `model`'s encoder does not subsample by feature stacking.
-pub fn load_nemotron_hf_tensors(
+pub fn load_nemotron_transformers_tensors(
     model: &mut Sortformer,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let stacking = model.encoder.subsampling.stacking().ok_or_else(|| {
         BunsenError::invalid_resource("a Nemotron encoder subsamples by feature stacking")
     })?;
-    let rekey = nemotron_hf_rekey(stacking);
+    let rekey = nemotron_transformers_rekey(stacking);
     apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
@@ -174,7 +174,7 @@ pub fn load_sortformer_v2_nemo_tensors(
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Sortformer is not.
-pub fn nemotron_config_from_hf(json: &str) -> BunsenResult<NemotronDiarizationConfig> {
+pub fn nemotron_config_from_transformers(json: &str) -> BunsenResult<NemotronDiarizationConfig> {
     let c = HfConfigJson::parse(json)?;
     c.expect_str("model_type", "nemotron3_diarization")?;
     let a = c.section("audio_config")?;
@@ -249,7 +249,7 @@ mod tests {
             ("classifier.out_proj.bias", "head.out.bias"),
         ] {
             assert_eq!(
-                nemotron_hf_rekey(&crate::blocks::signals::FeatureStackingConfig::new(
+                nemotron_transformers_rekey(&crate::blocks::signals::FeatureStackingConfig::new(
                     128, 512
                 ))
                 .apply(hf)
@@ -259,7 +259,7 @@ mod tests {
             );
         }
         assert_eq!(
-            nemotron_hf_rekey(&crate::blocks::signals::FeatureStackingConfig::new(
+            nemotron_transformers_rekey(&crate::blocks::signals::FeatureStackingConfig::new(
                 128, 512
             ))
             .apply("model.audio_tower.rotary_emb.inv_freq"),
@@ -312,12 +312,12 @@ mod tests {
 
     /// `Nemotron-3-Diarization`'s own `config.json` is its geometry.
     #[test]
-    fn test_nemotron_config_from_hf() {
+    fn test_nemotron_config_from_transformers() {
         let json = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/testdata/sortformer/nemotron_config.json"
         ));
-        let config = nemotron_config_from_hf(json).unwrap();
+        let config = nemotron_config_from_transformers(json).unwrap();
         let want = NemotronDiarizationConfig::nemotron_3_diarization();
         assert_eq!(config.n_mels, want.n_mels);
         assert_eq!(config.d_model, want.d_model);
@@ -330,8 +330,8 @@ mod tests {
         assert_eq!(config.n_speakers, want.n_speakers);
 
         let other = json.replace("\"nemotron3_diarization\"", "\"something_else\"");
-        assert!(nemotron_config_from_hf(&other).is_err());
+        assert!(nemotron_config_from_transformers(&other).is_err());
         let relu = json.replace("\"gelu\"", "\"relu\"");
-        assert!(nemotron_config_from_hf(&relu).is_err());
+        assert!(nemotron_config_from_transformers(&relu).is_err());
     }
 }

@@ -248,7 +248,7 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
 /// [`KVCache`] gets the frames a whole-utterance pass gets.
 ///
 /// `transformers`' names map onto the fields by
-/// [`weights::hf_rekey`](crate::kits::speech::asr::voxtral::weights::hf_rekey):
+/// [`weights::transformers_rekey`](crate::kits::speech::asr::voxtral::weights::transformers_rekey):
 /// its `embedder.conv1` and `conv2` are the blocks of [`stem`](Self::stem).
 ///
 /// Built by [`VoxtralAudioEncoderConfig`].

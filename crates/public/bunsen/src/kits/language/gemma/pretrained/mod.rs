@@ -26,7 +26,7 @@
 //! Then `hf:org/repo` names any Hugging Face repo in a `transformers` Gemma's
 //! layout: its safetensors checkpoint (one file or shards), its
 //! `config.json`, which gives the geometry
-//! ([`gemma_config_from_hf`](super::weights::gemma_config_from_hf)), and
+//! ([`gemma_config_from_transformers`](super::weights::gemma_config_from_transformers)), and
 //! those of its tokenizer, generation and template files it has.
 //!
 //! Every file of a well-known row is pinned to its digest and fetched from a
@@ -47,7 +47,7 @@
 //! resolves a name to a deferred model carrying [`GemmaConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint into
 //! its geometry through
-//! [`load_hf_tensors_as`](super::weights::load_hf_tensors_as). The
+//! [`load_transformers_tensors_as`](super::weights::load_transformers_tensors_as). The
 //! tokenizer, generation and template files are handed back as paths,
 //! unread: the kit's model is ids in and logits out.
 

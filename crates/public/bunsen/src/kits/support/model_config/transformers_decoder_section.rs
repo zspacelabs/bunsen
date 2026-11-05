@@ -14,7 +14,7 @@ use crate::{
 /// rotary type) with [`HfConfigJson::expect_eq`] on the same section, which
 /// names the field in its error.
 #[derive(Clone, Debug, PartialEq)]
-pub struct HfDecoderSection {
+pub struct TransformersDecoderSection {
     /// `hidden_size`.
     pub hidden_size: usize,
 
@@ -61,7 +61,7 @@ pub struct HfDecoderSection {
     pub layer_types: Option<Vec<String>>,
 }
 
-impl HfDecoderSection {
+impl TransformersDecoderSection {
     /// Reads `section`.
     ///
     /// # Errors
@@ -129,8 +129,8 @@ mod tests {
         testing::ErrorMatcher,
     };
 
-    fn read(json: &str) -> BunsenResult<HfDecoderSection> {
-        HfDecoderSection::read(&HfConfigJson::parse(json).unwrap())
+    fn read(json: &str) -> BunsenResult<TransformersDecoderSection> {
+        TransformersDecoderSection::read(&HfConfigJson::parse(json).unwrap())
     }
 
     const QWEN3: &str = r#"{
@@ -146,7 +146,7 @@ mod tests {
     fn test_read_qwen3() {
         assert_eq!(
             read(QWEN3).unwrap(),
-            HfDecoderSection {
+            TransformersDecoderSection {
                 hidden_size: 1024,
                 num_hidden_layers: 28,
                 num_attention_heads: 16,

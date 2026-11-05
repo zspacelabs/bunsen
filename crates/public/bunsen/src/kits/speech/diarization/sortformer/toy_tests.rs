@@ -4,7 +4,7 @@
 //! `Nemotron3DiarizationForAudioFrameClassification`'s weights and its
 //! answers, stage by stage, computed in float64 by `transformers`
 //! (`tools/gen_nemotron_diar_toy_fixtures.py`). The weights load through
-//! [`load_nemotron_hf_tensors`], so the loader is under test too.
+//! [`load_nemotron_transformers_tensors`], so the loader is under test too.
 
 use std::collections::BTreeMap;
 
@@ -26,7 +26,7 @@ use super::{
         NemotronDiarizationConfig,
         Sortformer,
     },
-    weights::load_nemotron_hf_tensors,
+    weights::load_nemotron_transformers_tensors,
 };
 use crate::{
     burner::module::ModuleInit,
@@ -77,7 +77,8 @@ impl Toy {
 
         let device = performance_device();
         let mut model: Sortformer = toy_config().init(&device);
-        let applied = load_nemotron_hf_tensors(&mut model, weights).expect("load the toy weights");
+        let applied =
+            load_nemotron_transformers_tensors(&mut model, weights).expect("load the toy weights");
         assert!(applied.unused.is_empty(), "{:?}", applied.unused);
         Self { model, io, device }
     }
@@ -283,7 +284,7 @@ fn test_loads_in_either_stack_order() {
             })
             .collect()
     };
-    load_nemotron_hf_tensors(&mut flipped, weights).expect("load the toy weights");
+    load_nemotron_transformers_tensors(&mut flipped, weights).expect("load the toy weights");
 
     let mels = Tensor::<3>::random([2, 37, 24], Distribution::Default, &upstream.device);
     let (want, want_lengths) = upstream.model.pre_encode(mels.clone(), Some(&[37, 21]));

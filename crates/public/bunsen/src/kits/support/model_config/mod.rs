@@ -23,12 +23,12 @@
 
 mod generation;
 mod hf_config;
-mod hf_decoder_section;
 mod presets;
 mod probes;
+mod transformers_decoder_section;
 
 pub use generation::*;
 pub use hf_config::*;
-pub use hf_decoder_section::*;
 pub use presets::*;
 pub use probes::*;
+pub use transformers_decoder_section::*;
