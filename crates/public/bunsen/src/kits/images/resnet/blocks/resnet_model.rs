@@ -29,12 +29,12 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock2d,
             ConvBlock2dConfig,
         },
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
     },
     burner::module::{
         Indices,
@@ -107,12 +107,12 @@ pub struct ResNetContractConfig {
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
-    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: BunsenNormalizationConfig,
 
     /// Activation config.
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl ResNetContractConfig {

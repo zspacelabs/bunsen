@@ -28,8 +28,8 @@ use burn::{
 use crate::{
     blocks::{
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
         transformers::{
             attention::csa::CausalSelfAttentionMeta,
@@ -125,12 +125,12 @@ pub struct DecoderStackStructureConfig {
     pub layers: Vec<CausalDecoderBlockConfig>,
 
     /// The final normalization; its feature count is the stack's width.
-    pub norm: NormConfig,
+    pub norm: BunsenNormalizationConfig,
 
     /// A normalization of the stack's input, before the first layer (an
     /// encoder's over its front end's output); `None`, none.
     #[config(default = "None")]
-    pub input_norm: Option<NormConfig>,
+    pub input_norm: Option<BunsenNormalizationConfig>,
 
     /// The rotary embedding the layers share, but those
     /// [`layer_rotary`](Self::layer_rotary) points elsewhere; its `seq_len`
@@ -276,7 +276,7 @@ pub struct UniformStackConfig {
     pub layer: CausalDecoderBlockConfig,
 
     /// The final normalization.
-    pub norm: NormConfig,
+    pub norm: BunsenNormalizationConfig,
 
     /// The rotary embedding the layers share.
     pub rotary: RotaryEmbeddingConfig,
@@ -284,7 +284,7 @@ pub struct UniformStackConfig {
     /// A normalization of the stack's input
     /// ([`DecoderStackStructureConfig::input_norm`]).
     #[config(default = "None")]
-    pub input_norm: Option<NormConfig>,
+    pub input_norm: Option<BunsenNormalizationConfig>,
 }
 
 impl ToStructureConfig for UniformStackConfig {
@@ -313,7 +313,7 @@ pub struct PatternedStackConfig {
     pub layer_kinds: Vec<usize>,
 
     /// The final normalization.
-    pub norm: NormConfig,
+    pub norm: BunsenNormalizationConfig,
 
     /// The rotary embedding the layers share, but those of a kind
     /// [`kind_rotary`](Self::kind_rotary) points elsewhere.
@@ -332,7 +332,7 @@ pub struct PatternedStackConfig {
     /// A normalization of the stack's input
     /// ([`DecoderStackStructureConfig::input_norm`]).
     #[config(default = "None")]
-    pub input_norm: Option<NormConfig>,
+    pub input_norm: Option<BunsenNormalizationConfig>,
 }
 
 impl ToStructureConfig for PatternedStackConfig {
@@ -392,10 +392,10 @@ pub struct DecoderStack {
     pub layers: Vec<CausalDecoderBlock>,
 
     /// The final normalization.
-    pub norm: Norm,
+    pub norm: BunsenNormalization,
 
     /// The input's normalization, if the stack has one.
-    pub input_norm: Option<Norm>,
+    pub input_norm: Option<BunsenNormalization>,
 
     /// The rotary embedding the layers share, but its length
     /// ([`rotary`](Self::rotary)).
@@ -743,7 +743,7 @@ mod tests {
         UniformStackConfig::new(
             n,
             layer(None),
-            NormConfig::Rms(RmsNormConfig::new(0)),
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
             RotaryEmbeddingConfig::new(0, 8),
         )
     }
@@ -784,7 +784,7 @@ mod tests {
         let policy = PatternedStackConfig::new(
             kinds,
             vec![0, 0, 1, 0],
-            NormConfig::Rms(RmsNormConfig::new(0)),
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
             RotaryEmbeddingConfig::new(0, 8),
         );
         let windows: Vec<_> = policy
@@ -820,7 +820,7 @@ mod tests {
         let policy = PatternedStackConfig::new(
             vec![layer(Some(4)), layer(None)],
             vec![0, 1, 0],
-            NormConfig::Rms(RmsNormConfig::new(0)),
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
             RotaryEmbeddingConfig::new(0, 8),
         )
         .with_rotary_alts(vec![global])
@@ -858,7 +858,7 @@ mod tests {
             PatternedStackConfig::new(
                 vec![layer(Some(4)), layer(None)],
                 vec![0, 1],
-                NormConfig::Rms(RmsNormConfig::new(0)),
+                BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
                 RotaryEmbeddingConfig::new(0, 8),
             )
             .to_structure()
@@ -913,7 +913,7 @@ mod tests {
         let patterned = PatternedStackConfig::new(
             vec![layer(Some(3)), layer(None)],
             vec![0, 1, 0],
-            NormConfig::Rms(RmsNormConfig::new(0)),
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
             RotaryEmbeddingConfig::new(0, 8),
         )
         .to_structure();

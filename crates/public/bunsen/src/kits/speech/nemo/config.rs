@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         signals::DwStridingSubsamplingConfig,
         transformers::encoders::{
             conformer::{
@@ -470,8 +470,8 @@ impl NemoTransformerEncoderConfig {
             return Err(unsupported(S, "mask_future", true, "only bidirectional"));
         }
         let activation = match self.hidden_act.as_str() {
-            "relu" => ActivationConfig::Relu,
-            "gelu" => ActivationConfig::Gelu,
+            "relu" => BunsenActivationConfig::Relu,
+            "gelu" => BunsenActivationConfig::Gelu,
             other => return Err(unsupported(S, "hidden_act", other, "only relu or gelu")),
         };
         let (d, heads) = (self.hidden_size, self.num_attention_heads);

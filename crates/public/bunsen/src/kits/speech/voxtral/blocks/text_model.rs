@@ -14,7 +14,7 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             conditioning::AdaptiveScaleConfig,
@@ -158,7 +158,7 @@ impl VoxtralTextConfig {
     /// [`AdaptiveScale`](crate::blocks::transformers::conditioning::AdaptiveScale)
     /// on the feed-forward's input.
     pub fn stack(&self) -> UniformStackConfig {
-        let norm = NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
+        let norm = BunsenNormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
         UniformStackConfig::new(
             self.n_layers,
             CausalDecoderBlockConfig::new(

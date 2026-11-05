@@ -17,12 +17,12 @@ use burn::{
 use crate::{
     blocks::{
         activation::{
-            Activation,
-            ActivationConfig,
+            BunsenActivation,
+            BunsenActivationConfig,
         },
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
     },
     burner::module::ModuleInit,
@@ -35,25 +35,25 @@ use crate::{
 
 /// Abstract policy for [`ConvBlock1d`] Config.
 ///
-/// Defines a [`NormConfig`] and [`ActivationConfig`],
+/// Defines a [`BunsenNormalizationConfig`] and [`BunsenActivationConfig`],
 /// and can be lifted to a [`ConvBlock1dConfig`] to match a [`Conv1dConfig`].
 ///
-/// The abstract [`NormConfig`] will be feature matched
+/// The abstract [`BunsenNormalizationConfig`] will be feature matched
 /// with the target [`Conv1dConfig`].
 #[derive(Config, Debug)]
 pub struct AbstractConvBlock1dConfig {
-    /// The [`Norm`] config.
-    pub norm: Option<NormConfig>,
+    /// The [`BunsenNormalization`] config.
+    pub norm: Option<BunsenNormalizationConfig>,
 
     /// Activation Config.
-    #[config(default = "Some(ActivationConfig::Relu)")]
-    pub act: Option<ActivationConfig>,
+    #[config(default = "Some(BunsenActivationConfig::Relu)")]
+    pub act: Option<BunsenActivationConfig>,
 }
 
 impl AbstractConvBlock1dConfig {
     /// Merges with a [`Conv1dConfig`] to construct a [`ConvBlock1dConfig`].
     ///
-    /// The abstract [`NormConfig`] will be feature matched
+    /// The abstract [`BunsenNormalizationConfig`] will be feature matched
     /// with the target [`Conv1dConfig`], resulting in a normalization
     /// layer sized appropriately for the input convolution.
     pub fn build_config(
@@ -162,12 +162,12 @@ pub struct ConvBlock1dConfig {
     /// The [`Conv1d`] config.
     pub conv: Conv1dConfig,
 
-    /// The [`Norm`] config.
-    pub norm: Option<NormConfig>,
+    /// The [`BunsenNormalization`] config.
+    pub norm: Option<BunsenNormalizationConfig>,
 
-    /// The [`Activation`] config.
-    #[config(default = "Some(ActivationConfig::Relu)")]
-    pub act: Option<ActivationConfig>,
+    /// The [`BunsenActivation`] config.
+    #[config(default = "Some(BunsenActivationConfig::Relu)")]
+    pub act: Option<BunsenActivationConfig>,
 }
 
 impl ConvBlock1dMeta for ConvBlock1dConfig {
@@ -234,8 +234,8 @@ impl ModuleInit<ConvBlock1d> for ConvBlock1dConfig {
 ///
 /// A [`ConvBlock1d`] module is:
 /// * a [`Conv1d`] layer,
-/// * an optional [`Norm`] layer,
-/// * an optional [`Activation`] layer.
+/// * an optional [`BunsenNormalization`] layer,
+/// * an optional [`BunsenActivation`] layer.
 ///
 /// With support for hooking the forward method,
 /// to run code between the norm and activation layers.
@@ -249,10 +249,10 @@ pub struct ConvBlock1d {
     pub conv: Conv1d,
 
     /// Internal Norm Layer.
-    pub norm: Option<Norm>,
+    pub norm: Option<BunsenNormalization>,
 
     /// Activation layer.
-    pub act: Option<Activation>,
+    pub act: Option<BunsenActivation>,
 }
 
 impl ConvBlock1dMeta for ConvBlock1d {
@@ -433,8 +433,9 @@ mod tests {
 
     #[test]
     fn test_conv_norm_config() {
-        let abstract_config = AbstractConvBlock1dConfig::new()
-            .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))));
+        let abstract_config = AbstractConvBlock1dConfig::new().with_norm(Some(
+            BunsenNormalizationConfig::Batch(BatchNormConfig::new(0)),
+        ));
 
         let conv_config = Conv1dConfig::new(2, 4, 3)
             .with_stride(2)
@@ -523,8 +524,10 @@ mod tests {
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
                 .with_bias(false),
         )
-        .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))))
-        .with_act(Some(ActivationConfig::Relu));
+        .with_norm(Some(BunsenNormalizationConfig::Batch(
+            BatchNormConfig::new(0),
+        )))
+        .with_act(Some(BunsenActivationConfig::Relu));
 
         let layer: ConvBlock1d = config.init(&device);
         assert_eq!(layer.in_channels(), 2);

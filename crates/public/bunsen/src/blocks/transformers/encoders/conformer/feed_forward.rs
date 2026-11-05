@@ -74,7 +74,7 @@ impl ModuleInit<ConformerFeedForward> for ConformerFeedForwardConfig {
 /// The Conformer block holds two of these, macaron style, around its
 /// attention and convolution modules (see
 /// [`ConformerBlock`](super::ConformerBlock)). Its activation is fixed:
-/// burn's `ActivationConfig` has no `SiLU`, which is why this is not a
+/// burn's `BunsenActivationConfig` has no `SiLU`, which is why this is not a
 /// [`Mlp`](crate::blocks::transformers::mlp::Mlp).
 ///
 /// Built by [`ConformerFeedForwardConfig`].

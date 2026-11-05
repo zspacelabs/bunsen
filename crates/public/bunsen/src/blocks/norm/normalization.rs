@@ -22,51 +22,52 @@ use crate::burner::module::{
     ResultDType,
 };
 
-/// A [`Norm`]'s config: its kind, and that kind's burn config.
+/// A [`BunsenNormalization`]'s config: its kind, and that kind's burn config.
 #[derive(Config, Debug)]
-pub enum NormConfig {
+pub enum BunsenNormalizationConfig {
     /// No normalization: the input as it is.
     Identity,
 
     /// burn's [`BatchNorm`].
     Batch(BatchNormConfig),
 
-    /// A layer norm, by burn's [`LayerNormConfig`] ([`Norm::Layer`]).
+    /// A layer norm, by burn's [`LayerNormConfig`]
+    /// ([`BunsenNormalization::Layer`]).
     Layer(LayerNormConfig),
 
-    /// burn's [`RmsNorm`], its forward bunsen's ([`Norm::Rms`]).
+    /// burn's [`RmsNorm`], its forward bunsen's ([`BunsenNormalization::Rms`]).
     Rms(RmsNormConfig),
 }
 
-impl From<BatchNormConfig> for NormConfig {
+impl From<BatchNormConfig> for BunsenNormalizationConfig {
     fn from(config: BatchNormConfig) -> Self {
         Self::Batch(config)
     }
 }
 
-impl From<LayerNormConfig> for NormConfig {
+impl From<LayerNormConfig> for BunsenNormalizationConfig {
     fn from(config: LayerNormConfig) -> Self {
         Self::Layer(config)
     }
 }
 
-impl From<RmsNormConfig> for NormConfig {
+impl From<RmsNormConfig> for BunsenNormalizationConfig {
     fn from(config: RmsNormConfig) -> Self {
         Self::Rms(config)
     }
 }
 
-impl NormConfig {
+impl BunsenNormalizationConfig {
     /// The norm, on `device`.
     pub fn init(
         &self,
         device: &Device,
-    ) -> Norm {
+    ) -> BunsenNormalization {
         match self {
-            Self::Identity => Norm::Identity(Identity::new()),
-            Self::Batch(config) => Norm::Batch(config.init(device)),
-            Self::Layer(config) => Norm::Layer(LayerNorm::init(config, device)),
-            Self::Rms(config) => Norm::Rms(config.init(device)),
+            Self::Identity => BunsenNormalization::Identity(Identity::new()),
+            Self::Batch(config) => BunsenNormalization::Batch(config.init(device)),
+            Self::Layer(config) => BunsenNormalization::Layer(LayerNorm::init(config, device)),
+            Self::Rms(config) => BunsenNormalization::Rms(config.init(device)),
         }
     }
 
@@ -110,7 +111,7 @@ impl NormConfig {
 /// A normalization layer: burn's, behind bunsen's seam (the
 /// [module docs](super)).
 #[derive(Module, Debug)]
-pub enum Norm {
+pub enum BunsenNormalization {
     /// No normalization.
     Identity(Identity),
 
@@ -126,19 +127,19 @@ pub enum Norm {
     Rms(RmsNorm),
 }
 
-impl From<RmsNorm> for Norm {
+impl From<RmsNorm> for BunsenNormalization {
     fn from(layer: RmsNorm) -> Self {
         Self::Rms(layer)
     }
 }
 
-impl From<BatchNorm> for Norm {
+impl From<BatchNorm> for BunsenNormalization {
     fn from(layer: BatchNorm) -> Self {
         Self::Batch(layer)
     }
 }
 
-impl Norm {
+impl BunsenNormalization {
     /// `input`, normalized; in `input`'s dtype.
     ///
     /// [`Rms`](Self::Rms) and [`Layer`](Self::Layer) normalize over the last
@@ -212,7 +213,7 @@ fn rms_forward<const D: usize>(
     normed * norm.gamma.val().cast(dtype).unsqueeze()
 }
 
-impl InputDTypes for Norm {
+impl InputDTypes for BunsenNormalization {
     /// Its parameters' dtype, or f32 for [`Identity`](Self::Identity).
     fn preferred_dtype(&self) -> FloatDType {
         self.param_dtype().unwrap_or(FloatDType::F32)
@@ -228,7 +229,7 @@ impl InputDTypes for Norm {
     }
 }
 
-impl ResultDType for Norm {
+impl ResultDType for BunsenNormalization {
     /// The input's.
     fn result_dtype(
         &self,
@@ -260,10 +261,12 @@ mod tests {
     fn test_rms_f32_is_burns() {
         let device = cpu_device();
         let config = RmsNormConfig::new(4);
-        let Norm::Rms(norm) = NormConfig::from(config.clone()).init(&device) else {
+        let BunsenNormalization::Rms(norm) =
+            BunsenNormalizationConfig::from(config.clone()).init(&device)
+        else {
             unreachable!()
         };
-        let ours = Norm::Rms(norm.clone()).forward(input(&device));
+        let ours = BunsenNormalization::Rms(norm.clone()).forward(input(&device));
         let burns = norm.forward(input(&device));
         ours.into_data()
             .assert_approx_eq::<f32>(&burns.into_data(), burn::tensor::Tolerance::absolute(1e-6));
@@ -274,7 +277,7 @@ mod tests {
     #[test]
     fn test_rms_half_input_computes_in_f32() {
         let device = cpu_device();
-        let norm = NormConfig::from(RmsNormConfig::new(4)).init(&device);
+        let norm = BunsenNormalizationConfig::from(RmsNormConfig::new(4)).init(&device);
         let reference = norm.forward(input(&device));
         let half = norm.forward(input(&device).cast(DType::BF16));
         assert_eq!(half.dtype(), DType::BF16);
@@ -289,7 +292,7 @@ mod tests {
     #[test]
     fn test_rms_f32_gain_with_half_input() {
         let device = cpu_device();
-        let norm = NormConfig::from(RmsNormConfig::new(4)).init(&device);
+        let norm = BunsenNormalizationConfig::from(RmsNormConfig::new(4)).init(&device);
         assert_eq!(norm.param_dtype(), Some(FloatDType::F32));
         let out = norm.forward(input(&device).cast(DType::BF16));
         assert_eq!(out.dtype(), DType::BF16);
@@ -304,7 +307,7 @@ mod tests {
     #[test]
     fn test_kinds_and_features() {
         let device = cpu_device();
-        let identity = NormConfig::Identity;
+        let identity = BunsenNormalizationConfig::Identity;
         assert_eq!(identity.clone().with_num_features(8).num_features(), 0);
         let x = input(&device);
         identity
@@ -313,15 +316,15 @@ mod tests {
             .into_data()
             .assert_eq(&x.clone().into_data(), true);
         for config in [
-            NormConfig::from(LayerNormConfig::new(0)),
-            NormConfig::from(RmsNormConfig::new(0)),
-            NormConfig::from(BatchNormConfig::new(0)),
+            BunsenNormalizationConfig::from(LayerNormConfig::new(0)),
+            BunsenNormalizationConfig::from(RmsNormConfig::new(0)),
+            BunsenNormalizationConfig::from(BatchNormConfig::new(0)),
         ] {
             let config = config.with_num_features(4);
             assert_eq!(config.num_features(), 4);
             assert_eq!(config.init(&device).num_features(), 4);
         }
-        let layer = NormConfig::from(LayerNormConfig::new(4)).init(&device);
+        let layer = BunsenNormalizationConfig::from(LayerNormConfig::new(4)).init(&device);
         assert_eq!(
             layer.forward(x.clone().cast(DType::BF16)).dtype(),
             DType::BF16
@@ -334,7 +337,7 @@ mod tests {
     fn test_layer_matches_burn_and_widens() {
         let device = cpu_device();
         let config = LayerNormConfig::new(4);
-        let ours = NormConfig::from(config.clone()).init(&device);
+        let ours = BunsenNormalizationConfig::from(config.clone()).init(&device);
         let burns = config.init(&device);
         let x = input(&device);
         ours.forward(x.clone()).into_data().assert_approx_eq::<f32>(
@@ -354,7 +357,10 @@ mod tests {
     #[test]
     fn test_serde_form_is_burns() {
         for (ours, burns) in [
-            (NormConfig::Identity, NormalizationConfig::Identity),
+            (
+                BunsenNormalizationConfig::Identity,
+                NormalizationConfig::Identity,
+            ),
             (
                 RmsNormConfig::new(16).with_epsilon(1e-6).into(),
                 RmsNormConfig::new(16).with_epsilon(1e-6).into(),
@@ -370,7 +376,7 @@ mod tests {
         ] {
             let ours = serde_json::to_value(&ours).unwrap();
             assert_eq!(ours, serde_json::to_value(&burns).unwrap());
-            let _: NormConfig = serde_json::from_value(ours).unwrap();
+            let _: BunsenNormalizationConfig = serde_json::from_value(ours).unwrap();
         }
     }
 }

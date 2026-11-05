@@ -16,7 +16,7 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             AbstractConvBlock2dConfig,
             ConvBlock2d,
@@ -33,7 +33,7 @@ use crate::{
                 DropPathConfig,
             },
         },
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -153,12 +153,12 @@ pub struct BasicBlockConfig {
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
-    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: BunsenNormalizationConfig,
 
     /// Activation config.
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl BasicBlockMeta for BasicBlockConfig {
@@ -476,7 +476,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::activation::ActivationConfig,
+        blocks::activation::BunsenActivationConfig,
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
@@ -494,14 +494,14 @@ mod tests {
         assert_eq!(config.out_planes(), out_planes);
         assert_eq!(config.stride(), 1);
         assert_eq!(config.output_resolution([16, 16]), [16, 16]);
-        assert!(matches!(config.activation, ActivationConfig::Relu));
+        assert!(matches!(config.activation, BunsenActivationConfig::Relu));
 
         let config = config
             .with_stride(2)
-            .with_activation(ActivationConfig::Sigmoid);
+            .with_activation(BunsenActivationConfig::Sigmoid);
         assert_eq!(config.stride(), 2);
         assert_eq!(config.output_resolution([16, 16]), [8, 8]);
-        assert!(matches!(config.activation, ActivationConfig::Sigmoid));
+        assert!(matches!(config.activation, BunsenActivationConfig::Sigmoid));
     }
 
     #[test]

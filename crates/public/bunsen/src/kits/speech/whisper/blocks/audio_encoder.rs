@@ -22,7 +22,7 @@ use burn::{
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock1dConfig,
             ConvSeq1d,
@@ -93,8 +93,8 @@ pub struct AudioEncoderConfig {
     pub d_head: usize,
 
     /// Head Activation.
-    #[config(default = "ActivationConfig::Gelu")]
-    pub head_activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Gelu")]
+    pub head_activation: BunsenActivationConfig,
 }
 
 impl AudioEncoderMeta for AudioEncoderConfig {

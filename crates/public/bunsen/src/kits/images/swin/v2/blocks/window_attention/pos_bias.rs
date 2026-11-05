@@ -14,8 +14,8 @@ use burn::{
 
 use crate::{
     blocks::activation::{
-        Activation,
-        ActivationConfig,
+        BunsenActivation,
+        BunsenActivationConfig,
     },
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
@@ -70,8 +70,8 @@ pub struct OffsetGridRelativePositionBiasConfig {
     pub mlp_hidden_dim: usize,
 
     /// The activation layer configuration.
-    #[config(default = "ActivationConfig::Relu")]
-    pub mlp_activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub mlp_activation: BunsenActivationConfig,
 }
 
 impl OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBiasConfig {
@@ -238,8 +238,8 @@ pub struct ContinuousPositionBiasMlpConfig {
     pub d_hidden: usize,
 
     /// The activation layer configuration.
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlpConfig {
@@ -258,7 +258,7 @@ impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlpConfig {
 #[derive(Module, Debug)]
 pub struct ContinuousPositionBiasMlp {
     l1: nn::Linear,
-    act: Activation,
+    act: BunsenActivation,
     l2: nn::Linear,
 }
 

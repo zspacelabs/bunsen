@@ -19,7 +19,7 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
@@ -209,7 +209,8 @@ impl Qwen3Config {
     /// The decoder stack: `n_layers` alike, each RMS norms, a `SwiGLU`, and
     /// grouped-query attention with QK-norm before the rotary embedding.
     pub fn stack(&self) -> UniformStackConfig {
-        let norm = |n| NormConfig::Rms(RmsNormConfig::new(n).with_epsilon(self.rms_eps));
+        let norm =
+            |n| BunsenNormalizationConfig::Rms(RmsNormConfig::new(n).with_epsilon(self.rms_eps));
         UniformStackConfig::new(
             self.n_layers,
             CausalDecoderBlockConfig::new(

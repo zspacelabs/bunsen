@@ -17,10 +17,10 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
         transformers::mlp::{
             Mlp,
@@ -91,8 +91,8 @@ pub struct ResidualEncoderAttentionBlockConfig {
 
     /// The normalization of each sublayer, sized to `d_model` whatever
     /// feature count it names; `None` normalizes nothing, and builds no norm.
-    #[config(default = "Some(NormConfig::Layer(LayerNormConfig::new(0)))")]
-    pub norm: Option<NormConfig>,
+    #[config(default = "Some(BunsenNormalizationConfig::Layer(LayerNormConfig::new(0)))")]
+    pub norm: Option<BunsenNormalizationConfig>,
 
     /// Where the block normalizes, when it does.
     #[config(default = "NormPlacement::Pre")]
@@ -100,8 +100,8 @@ pub struct ResidualEncoderAttentionBlockConfig {
 
     /// The MLP's activation: GELU for Whisper and Qwen3-ASR, `ReLU` for
     /// Sortformer v2.
-    #[config(default = "ActivationConfig::Gelu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Gelu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
@@ -159,24 +159,24 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 ///
 /// Multi-head self-attention followed by an MLP, each wrapped in a residual
 /// connection and normalized (a `LayerNorm` by default; any
-/// [`Norm`], or none) before the sublayer ([`NormPlacement::Pre`]) or
-/// after the residual sum ([`NormPlacement::Post`]). Pre-norm with a GELU
-/// MLP, it is the encoder layer of Whisper's audio encoder, and of
-/// Qwen3-ASR's (which adds a key bias and attends within windows, through
-/// [`forward_masked`](Self::forward_masked)); post-norm with a `ReLU` MLP and
-/// a key bias, of Sortformer v2's transformer.
+/// [`BunsenNormalization`], or none) before the sublayer
+/// ([`NormPlacement::Pre`]) or after the residual sum
+/// ([`NormPlacement::Post`]). Pre-norm with a GELU MLP, it is the encoder layer
+/// of Whisper's audio encoder, and of Qwen3-ASR's (which adds a key bias and
+/// attends within windows, through [`forward_masked`](Self::forward_masked));
+/// post-norm with a `ReLU` MLP and a key bias, of Sortformer v2's transformer.
 ///
 /// Built by [`ResidualEncoderAttentionBlockConfig`].
 #[derive(Module, Debug)]
 pub struct ResidualEncoderAttentionBlock {
     /// Attention normalization, when the block normalizes.
-    pub attn_norm: Option<Norm>,
+    pub attn_norm: Option<BunsenNormalization>,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// MLP normalization, when the block normalizes.
-    pub mlp_norm: Option<Norm>,
+    pub mlp_norm: Option<BunsenNormalization>,
 
     /// MLP.
     pub mlp: Mlp,
@@ -188,7 +188,7 @@ pub struct ResidualEncoderAttentionBlock {
 
 /// `x` through `norm`, or as it is without one.
 fn normalize(
-    norm: &Option<Norm>,
+    norm: &Option<BunsenNormalization>,
     x: Tensor<3>,
 ) -> Tensor<3> {
     match norm {
@@ -407,9 +407,9 @@ mod tests {
     };
 
     /// The `LayerNorm` inside a block's norm.
-    fn layer_norm(norm: &Option<Norm>) -> &crate::blocks::norm::LayerNorm {
+    fn layer_norm(norm: &Option<BunsenNormalization>) -> &crate::blocks::norm::LayerNorm {
         match norm {
-            Some(Norm::Layer(norm)) => norm,
+            Some(BunsenNormalization::Layer(norm)) => norm,
             other => panic!("not a LayerNorm: {other:?}"),
         }
     }
@@ -419,9 +419,12 @@ mod tests {
     #[test]
     fn test_defaults_are_whispers() {
         let cfg = ResidualEncoderAttentionBlockConfig::new(64);
-        assert!(matches!(cfg.norm, Some(NormConfig::Layer(_))));
+        assert!(matches!(
+            cfg.norm,
+            Some(BunsenNormalizationConfig::Layer(_))
+        ));
         assert_eq!(cfg.norm_placement, NormPlacement::Pre);
-        assert!(matches!(cfg.activation, ActivationConfig::Gelu));
+        assert!(matches!(cfg.activation, BunsenActivationConfig::Gelu));
         assert!(!cfg.key_bias);
         let block: ResidualEncoderAttentionBlock = cfg.init(&crate::support::testing::cpu_device());
         assert_eq!(block.norm_placement(), NormPlacement::Pre);
@@ -441,7 +444,7 @@ mod tests {
             .with_norm(Some(RmsNormConfig::new(0).into()))
             .init(&device);
         match &rms.attn_norm {
-            Some(Norm::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
+            Some(BunsenNormalization::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
             other => panic!("not an RmsNorm: {other:?}"),
         }
 
@@ -474,7 +477,7 @@ mod tests {
             .with_d_head(8)
             .with_key_bias(true)
             .with_norm_placement(NormPlacement::Post)
-            .with_activation(ActivationConfig::Relu);
+            .with_activation(BunsenActivationConfig::Relu);
         let block: ResidualEncoderAttentionBlock = cfg.init(&device);
         assert!(block.attn.key.bias.is_some());
         assert_eq!(block.norm_placement(), NormPlacement::Post);

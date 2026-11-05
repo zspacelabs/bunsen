@@ -28,8 +28,8 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
-        norm::NormConfig,
+        activation::BunsenActivationConfig,
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
@@ -244,13 +244,13 @@ pub struct NanoChatGptContractConfig {
     pub expansion_factor: usize,
 
     /// The MLP's activation, before its square (`relu(x)²` by default).
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 
     /// Normalization.
     /// This normalization will be adapted to the appropriate feature count.
-    #[config(default = "NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
-    pub norm: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(1e-6))")]
+    pub norm: BunsenNormalizationConfig,
 
     /// The epsilon of the parameter-free RMS norm on the token embedding;
     /// the default [`norm`](Self::norm) uses the same.
@@ -388,9 +388,9 @@ impl NanoChatGptContractConfig {
                 ),
             MlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
-                .with_activation(ActivationConfig::Chain(vec![
+                .with_activation(BunsenActivationConfig::Chain(vec![
                     self.activation.clone(),
-                    ActivationConfig::Pow(2.0),
+                    BunsenActivationConfig::Pow(2.0),
                 ]))
                 .into(),
         )
