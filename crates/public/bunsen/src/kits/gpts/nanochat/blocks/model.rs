@@ -86,8 +86,7 @@ use crate::{
 /// its KV heads, head width and layer count, `init_seq_len` positions up
 /// front, capped at `max_seq_len` (the rotary table's length).
 fn kv_cache_config(meta: &impl NanoChatGptMeta) -> KVCacheConfig {
-    KVCacheConfig::new(
-        1,
+    KVCacheConfig::for_decode(
         meta.n_kv_head(),
         meta.init_seq_len(),
         meta.head_dim(),

@@ -10,6 +10,7 @@ use burn::{
     tensor::{
         Device,
         Slice,
+        SliceOps,
     },
 };
 
@@ -22,10 +23,7 @@ use crate::{
         },
         util::{
             ConwaySim,
-            slices::{
-                read_2d_slice,
-                slices_shape,
-            },
+            slices::read_2d_slice,
         },
     },
     support::geometry::GridShape2D,
@@ -132,7 +130,7 @@ impl ConwayLife2DState {
         R: SliceArg,
     {
         let slices: [Slice; 2] = ranges.into_slices(&self.state.shape()).try_into().unwrap();
-        let [h, w] = slices_shape(&slices);
+        let [h, w] = self.state.shape().slice(&slices).unwrap().dims();
 
         assert_eq!(data.len(), h);
         for row in data.iter() {

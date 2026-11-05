@@ -89,8 +89,7 @@ pub trait DecoderStackMeta {
         pre_size: usize,
     ) -> KVCacheConfig {
         let windows = self.layer_windows();
-        KVCacheConfig::new(
-            1,
+        KVCacheConfig::for_decode(
             self.n_kv_heads(),
             pre_size,
             self.head_dim(),

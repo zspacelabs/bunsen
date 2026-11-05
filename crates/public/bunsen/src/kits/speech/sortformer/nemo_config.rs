@@ -11,31 +11,19 @@ use crate::{
         transformers::encoders::residual::ResidualEncoderTransformerConfig,
     },
     burner::module::ToStructureConfig,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::speech::nemo::{
         NemoConformerEncoderConfig,
         NemoMelFrontEndConfig,
         NemoPreprocessorConfig,
         NemoTransformerEncoderConfig,
         parse_nemo_yaml,
+        unsupported_field,
     },
 };
 
 /// The `NeMo` class a Sortformer `.nemo` instantiates.
 const SORTFORMER_TARGET: &str = "SortformerEncLabelModel";
-
-/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
-/// field and its value.
-fn unsupported(
-    field: &str,
-    value: impl std::fmt::Debug,
-    why: &str,
-) -> BunsenError {
-    BunsenError::unsupported(format!("NeMo config: `{field}` {value:?}: {why}"))
-}
 
 /// The config of a `NeMo` `SortformerEncLabelModel` (a `.nemo`'s
 /// `model_config.yaml`): the sections bunsen builds the model and its front
@@ -66,7 +54,7 @@ fn expect_model(target: &str) -> BunsenResult<()> {
     if target == SORTFORMER_TARGET || target.ends_with(&format!(".{SORTFORMER_TARGET}")) {
         Ok(())
     } else {
-        Err(unsupported(
+        Err(unsupported_field(
             "target",
             target,
             &format!("not {SORTFORMER_TARGET}"),
@@ -150,7 +138,7 @@ impl NemoSortformerConfig {
         expect_model(&self.target)?;
         let modules = &self.sortformer_modules;
         if !modules.target.ends_with("SortformerModules") {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules._target_",
                 &modules.target,
                 "not SortformerModules",
@@ -158,21 +146,21 @@ impl NemoSortformerConfig {
         }
         let (encoder, transformer) = (&self.encoder, &self.transformer_encoder);
         if self.preprocessor.features != encoder.feat_in {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "preprocessor.features",
                 self.preprocessor.features,
                 &format!("not encoder.feat_in {}", encoder.feat_in),
             ));
         }
         if modules.fc_d_model != encoder.d_model {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules.fc_d_model",
                 modules.fc_d_model,
                 &format!("not encoder.d_model {}", encoder.d_model),
             ));
         }
         if modules.tf_d_model != transformer.hidden_size {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules.tf_d_model",
                 modules.tf_d_model,
                 &format!(
@@ -182,7 +170,7 @@ impl NemoSortformerConfig {
             ));
         }
         if modules.subsampling_factor != encoder.subsampling_factor {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules.subsampling_factor",
                 modules.subsampling_factor,
                 &format!(
@@ -192,28 +180,28 @@ impl NemoSortformerConfig {
             ));
         }
         if transformer.final_norm() {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "transformer_encoder.pre_ln_final_layer_norm",
                 true,
                 "a pre-norm stack's final norm is not built",
             ));
         }
         if modules.upsample_factor != 1 {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules.upsample_factor",
                 modules.upsample_factor,
                 "only 1",
             ));
         }
         if modules.use_learnable_sil_emb {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules.use_learnable_sil_emb",
                 true,
                 "only false",
             ));
         }
         if modules.use_activity_head {
-            return Err(unsupported(
+            return Err(unsupported_field(
                 "sortformer_modules.use_activity_head",
                 true,
                 "only false",

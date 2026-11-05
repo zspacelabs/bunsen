@@ -19,16 +19,20 @@ pub fn widen_to(
     dtype: DType,
     at_least: FloatDType,
 ) -> DType {
-    let width = |d: DType| match d {
-        DType::F64 => Some(64),
-        DType::F32 | DType::Flex32 => Some(32),
-        DType::F16 | DType::BF16 => Some(16),
-        _ => None,
-    };
-    let target = DType::from(at_least);
-    match (width(dtype), width(target)) {
-        (Some(have), Some(want)) if have < want => target,
-        _ => dtype,
+    if dtype.is_float() && float_width(dtype.into()) < float_width(at_least) {
+        at_least.into()
+    } else {
+        dtype
+    }
+}
+
+/// A float dtype's width in bits: 16 for f16 and bf16, 32 for f32 and
+/// `Flex32`, 64 for f64. The order [`widen_to`] widens along.
+pub fn float_width(dtype: FloatDType) -> u8 {
+    match dtype {
+        FloatDType::F16 | FloatDType::BF16 => 16,
+        FloatDType::F32 | FloatDType::Flex32 => 32,
+        FloatDType::F64 => 64,
     }
 }
 
@@ -96,6 +100,13 @@ mod tests {
     /// non-float, stays.
     #[test]
     fn test_widen_to() {
+        assert_eq!(float_width(FloatDType::BF16), float_width(FloatDType::F16));
+        assert!(float_width(FloatDType::F16) < float_width(FloatDType::Flex32));
+        assert_eq!(
+            float_width(FloatDType::Flex32),
+            float_width(FloatDType::F32)
+        );
+        assert!(float_width(FloatDType::F32) < float_width(FloatDType::F64));
         assert_eq!(widen_to(DType::BF16, FloatDType::F32), DType::F32);
         assert_eq!(widen_to(DType::F16, FloatDType::F64), DType::F64);
         assert_eq!(widen_to(DType::F32, FloatDType::F64), DType::F64);

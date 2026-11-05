@@ -9,9 +9,12 @@ use burn::{
 };
 
 use super::SortformerStreamingConfig;
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    burner::tensor::cat_optional,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// What a compressed cache's silence slots hold.
@@ -182,7 +185,7 @@ impl SpeakerCache {
     /// FIFO's, `[cache_frames + fifo_frames, d_model]`; `None` when both are
     /// empty.
     pub fn cached(&self) -> Option<Tensor<2>> {
-        cat_present(self.embeds.clone(), self.fifo.clone())
+        cat_optional(self.embeds.clone(), self.fifo.clone(), 0)
     }
 
     /// Records a step: the chunk joins the FIFO, an overflowing FIFO moves its
@@ -216,7 +219,7 @@ impl SpeakerCache {
             )));
         }
 
-        let fifo = cat_present(self.fifo.take(), Some(chunk)).expect("the chunk is present");
+        let fifo = cat_optional(self.fifo.take(), Some(chunk), 0).expect("the chunk is present");
         let n_fifo = fifo.dims()[0];
         let popped = self.popped_frames(n_fifo);
         if popped == 0 {
@@ -242,7 +245,7 @@ impl SpeakerCache {
             s,
             self.config.silence_threshold as f32,
         );
-        let embeds = cat_present(self.embeds.take(), Some(popped_embeds))
+        let embeds = cat_optional(self.embeds.take(), Some(popped_embeds), 0)
             .expect("the popped frames are present");
         self.fifo = (popped < n_fifo).then(|| fifo.slice_dim(0, popped..n_fifo));
 
@@ -411,17 +414,6 @@ fn boost(
     order.sort_by(|&a, &b| column[b].total_cmp(&column[a]).then(a.cmp(&b)));
     for &i in order.iter().take(count) {
         column[i] += amount;
-    }
-}
-
-/// `a` then `b` along the frames, either possibly absent.
-fn cat_present(
-    a: Option<Tensor<2>>,
-    b: Option<Tensor<2>>,
-) -> Option<Tensor<2>> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(Tensor::cat(vec![a, b], 0)),
-        (a, b) => a.or(b),
     }
 }
 

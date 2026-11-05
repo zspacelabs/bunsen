@@ -84,8 +84,7 @@ pub trait VoxtralAudioEncoderMeta {
 pub const VOXTRAL_AUDIO_KV_CACHE_PRE_SIZE: usize = 1536;
 
 fn kv_cache_config(meta: &impl VoxtralAudioEncoderMeta) -> KVCacheConfig {
-    KVCacheConfig::new(
-        1,
+    KVCacheConfig::for_decode(
         meta.n_heads(),
         VOXTRAL_AUDIO_KV_CACHE_PRE_SIZE,
         meta.head_dim(),

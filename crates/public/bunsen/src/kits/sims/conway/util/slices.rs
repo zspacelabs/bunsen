@@ -5,18 +5,11 @@ use burn::{
         Bool,
         SliceArg,
     },
-    tensor::Slice,
+    tensor::{
+        Slice,
+        SliceOps,
+    },
 };
-
-/// Range size of a [`Slice`].
-pub fn slice_size(slice: &Slice) -> usize {
-    (slice.end.unwrap() - slice.start) as usize
-}
-
-/// Full shape of a [`Slice`].
-pub fn slices_shape(slices: &[Slice; 2]) -> [usize; 2] {
-    [slice_size(&slices[0]), slice_size(&slices[1])]
-}
 
 /// Read a 2D slice from a tensor.
 pub fn read_2d_slice<R>(
@@ -27,7 +20,7 @@ where
     R: SliceArg,
 {
     let slices: [Slice; 2] = ranges.into_slices(&state.shape()).try_into().unwrap();
-    let [_, w] = slices_shape(&slices);
+    let w = state.shape().slice(&slices).unwrap()[1];
 
     state
         .slice(slices)

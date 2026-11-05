@@ -71,8 +71,7 @@ pub trait TextDecoderMeta {
 /// with: its heads, head width and layer count, pre-sized to the whole text
 /// context and capped there, since no decode may run past it.
 fn kv_cache_config(meta: &impl TextDecoderMeta) -> KVCacheConfig {
-    KVCacheConfig::new(
-        1,
+    KVCacheConfig::for_decode(
         meta.n_heads(),
         meta.max_context(),
         meta.d_model() / meta.n_heads(),

@@ -7,7 +7,7 @@ use burn::{
     tensor::Device,
 };
 
-use crate::kits::images::swin::v2::blocks::window_partition;
+use super::window_partition;
 
 /// Applies an attention mask.
 ///
