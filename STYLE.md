@@ -141,7 +141,9 @@ trait) is defined, with compiled examples, in the rustdoc of
 [`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
 and
 [`ToStructureConfig`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ToStructureConfig.html).
-This section sets what the author of a module family must do.
+This section sets what the author of a module family must do. How the `bunsen`
+crate's public items are named and placed is in its own
+[naming and placement guide](crates/public/bunsen/STYLE.md).
 
 ### Config shapes: Simple and Stacked
 
