@@ -3,8 +3,9 @@ name: Rust
 on:
   push:
     branches: [ "main" ]
+  # Every pull request, whatever its base: a layer of a stack targets the
+  # layer below it, not main, and gets its checks while it waits.
   pull_request:
-    branches: [ "main" ]
     # `labeled` and `unlabeled` for the `ci-light` label, which skips the
     # `test` job: a pull request in the middle of a stack carries it, so a
     # rebase of the stack does not run every layer's full build at once. Its
