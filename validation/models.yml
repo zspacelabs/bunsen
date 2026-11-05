@@ -277,3 +277,25 @@ crates:
         reference: true
         dtypes: [f32]
         varies: the only model - its ONNX reference (19.4 GB), the front end, the tekken vocabulary, streaming transcription
+  laya:
+    package: laya-model-validation
+    features: [checkpoints, gpu-tests]
+    models:
+      laya:
+        size: small
+        gb: 0.85
+        core: true
+        dtypes: [f32]
+        varies: the English model - ModernBERT-large (global and two-sided local layers, two rotary bases), the decision head, ModernBERT's tokenizer, a state cut to 512 tokens
+      laya-multilingual:
+        size: small
+        gb: 0.68
+        core: true
+        dtypes: [f32]
+        varies: mmBERT-base (one rotary base, a 256k vocabulary), Gemma's SentencePiece tokenizer and its `<mask>` specials, a non-English state, a state cut to 1024 tokens
+      laya-typed-decisions:
+        size: small
+        gb: 0.85
+        core: false
+        dtypes: [f32]
+        varies: the English model's architecture, trained on typed questions
