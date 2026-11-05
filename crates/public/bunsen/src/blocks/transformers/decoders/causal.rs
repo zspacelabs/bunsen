@@ -143,6 +143,12 @@ pub struct CausalDecoderBlockConfig {
     #[config(default = "BunsenNormalizationConfig::Rms(RmsNormConfig::new(0))")]
     pub norm: BunsenNormalizationConfig,
 
+    /// Whether the attention's input is normalized; without, the attention
+    /// takes the residual stream as it is (`ModernBERT`'s first layer, whose
+    /// input is the embedding's norm already).
+    #[config(default = true)]
+    pub attn_norm: bool,
+
     /// Whether each sublayer's output is normalized too, by a `norm` of its
     /// own, before it is added to the residual stream: the sandwich of
     /// Gemma 2 and 3.
@@ -212,7 +218,7 @@ impl CausalDecoderBlockConfig {
         let norm = || self.norm.clone().with_num_features(n_embed).init(device);
         let post_norm = || self.post_norms.then(norm);
         Ok(CausalDecoderBlock {
-            attn_norm: norm(),
+            attn_norm: self.attn_norm.then(norm),
             attn: self.attn.try_init(layer_index, device)?,
             attn_post_norm: post_norm(),
             mlp_norm: norm(),
@@ -240,6 +246,10 @@ impl CausalDecoderBlockConfig {
 /// feed-forward's input, `x = x + mlp(mlp_norm(x) * (1 + f(cond)))`, it is
 /// Voxtral Realtime's decoder layer.
 ///
+/// Without an [`attn_norm`](CausalDecoderBlockConfig::attn_norm), the
+/// attention takes the residual stream as it is, `x = x + attn(x)`:
+/// `ModernBERT`'s first layer.
+///
 /// With [`post_norms`](CausalDecoderBlockConfig::post_norms), each sublayer's
 /// output is normalized before it is added:
 /// `x = x + attn_post_norm(attn(attn_norm(x)))`, and the same for the
@@ -249,8 +259,8 @@ impl CausalDecoderBlockConfig {
 /// layer index: its slot in a shared [`KVCache`].
 #[derive(Module, Debug)]
 pub struct CausalDecoderBlock {
-    /// The attention's input normalization.
-    pub attn_norm: BunsenNormalization,
+    /// The attention's input normalization, if the block has one.
+    pub attn_norm: Option<BunsenNormalization>,
 
     /// Attention.
     pub attn: CausalSelfAttention,
@@ -318,6 +328,15 @@ impl CausalDecoderBlock {
             .rename(format!("{attn}.{v}."), "attn.c_v.")
             .rename(format!("{attn}.{o}."), "attn.c_proj.")
             .rename(format!("{attn}."), "attn.")
+    }
+
+    /// The attention's input: `x` through the attention's norm, or as it is
+    /// without one.
+    pub fn attn_input(
+        &self,
+        x: Tensor<3>,
+    ) -> Tensor<3> {
+        Self::maybe_norm(&self.attn_norm, x)
     }
 
     /// `norm(x)`, or `x` without a norm.
@@ -424,7 +443,7 @@ impl CausalDecoderBlock {
             key_valid,
         } = sides;
         let attn = self.attn.forward_with(
-            self.attn_norm.forward(input.clone()),
+            self.attn_input(input.clone()),
             r_emb,
             kv_cache,
             AttentionSides {
@@ -531,6 +550,45 @@ mod tests {
         );
     }
 
+    /// Without an attention norm, the block holds none (its record has no
+    /// `attn_norm` keys), and its attention takes the residual stream as it
+    /// is: `x = x + attn(x); x = x + mlp(mlp_norm(x))`.
+    #[test]
+    fn test_block_without_an_attn_norm() {
+        let device = crate::support::testing::cpu_device();
+        let [batch, seq_len, n_embed] = [2, 5, 16];
+        let config = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(4, 2, n_embed),
+            TransformerMlpConfig::new(n_embed).into(),
+        );
+        assert!(config.init(0, &device).attn_norm.is_some());
+        let block: CausalDecoderBlock = config.with_attn_norm(false).init(0, &device);
+        assert!(block.attn_norm.is_none());
+        #[cfg(feature = "store")]
+        {
+            use burn::store::ModuleSnapshot;
+
+            let paths: Vec<String> = block
+                .collect(None, None, false)
+                .into_iter()
+                .map(|t| t.name)
+                .collect();
+            assert!(
+                paths.iter().all(|p| !p.starts_with("attn_norm")),
+                "{paths:?}"
+            );
+            assert!(paths.iter().any(|p| p.starts_with("mlp_norm")), "{paths:?}");
+        }
+
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let input =
+            seeded_tensor::<3>(2, [batch, seq_len, n_embed], Distribution::Default, &device);
+        let x = input.clone() + block.attn.forward(input.clone(), &r_emb, &mut None);
+        let expected = x.clone() + block.mlp.forward(block.mlp_norm.forward(x));
+        let output = block.forward(input, &r_emb, &mut None);
+        assert_tensors_close(&output, &expected, Tolerance::default());
+    }
+
     /// The block adds each sub-layer's output back to its input:
     /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
     #[test]
@@ -557,7 +615,7 @@ mod tests {
         mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
         let attn = block
             .attn
-            .forward(block.attn_norm.forward(input.clone()), &r_emb, &mut None);
+            .forward(block.attn_input(input.clone()), &r_emb, &mut None);
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &(input.clone() + attn), Tolerance::default());
 
@@ -585,7 +643,7 @@ mod tests {
         let mut block: CausalDecoderBlock = config.with_post_norms(true).init(0, &device);
         // Distinct gains, so a norm in the wrong place shows.
         for (seed, norm) in [
-            (3, &mut block.attn_norm),
+            (3, block.attn_norm.as_mut().expect("an attention norm")),
             (4, block.attn_post_norm.as_mut().expect("a post-norm")),
             (5, &mut block.mlp_norm),
             (6, block.mlp_post_norm.as_mut().expect("a post-norm")),
@@ -611,7 +669,7 @@ mod tests {
                 &block.attn_post_norm,
                 block
                     .attn
-                    .forward(block.attn_norm.forward(input.clone()), &r_emb, &mut None),
+                    .forward(block.attn_input(input.clone()), &r_emb, &mut None),
             );
         let expected = x.clone()
             + post(
@@ -665,7 +723,7 @@ mod tests {
         let x = input.clone()
             + block
                 .attn
-                .forward(block.attn_norm.forward(input.clone()), &r_emb, &mut None);
+                .forward(block.attn_input(input.clone()), &r_emb, &mut None);
         let expected = x.clone()
             + block
                 .mlp
