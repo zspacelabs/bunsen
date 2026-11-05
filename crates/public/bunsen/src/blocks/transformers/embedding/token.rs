@@ -18,10 +18,7 @@ use crate::{
         tensor::round_scalar_to_dtype,
     },
     errors::BunsenResult,
-    ops::norm::{
-        RmsNormOptions,
-        rms_norm,
-    },
+    ops::norm::RmsNormOptions,
 };
 
 /// Common meta for [`TokenEmbedding`] and [`TokenEmbeddingConfig`].
@@ -133,7 +130,7 @@ impl TokenEmbedding {
     ) -> Tensor<3> {
         let x = burn::tensor::module::embedding(self.weight.val(), ids);
         let x = match self.norm_eps {
-            Some(eps) => rms_norm(x, &RmsNormOptions { eps: eps as f32 }),
+            Some(eps) => RmsNormOptions::default().with_eps(eps as f32).norm(x),
             None => x,
         };
         match self.applied_scale() {

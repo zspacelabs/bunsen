@@ -4,19 +4,42 @@ use burn::{
     tensor::{
         DType,
         Device,
+        FloatDType,
     },
 };
 
+/// `dtype`, widened to at least `at_least`: `at_least` when `dtype` is a
+/// narrower float, else `dtype` as it is. It never narrows.
+///
+/// Floats are ordered by width: f16 and bf16 (16 bits), then f32 and
+/// `Flex32` (32), then f64. Two floats of one width are neither wider than
+/// the other, so bf16 widened to at least f16 stays bf16. A non-float
+/// `dtype` is left as it is.
+pub fn widen_to(
+    dtype: DType,
+    at_least: FloatDType,
+) -> DType {
+    let width = |d: DType| match d {
+        DType::F64 => Some(64),
+        DType::F32 | DType::Flex32 => Some(32),
+        DType::F16 | DType::BF16 => Some(16),
+        _ => None,
+    };
+    let target = DType::from(at_least);
+    match (width(dtype), width(target)) {
+        (Some(have), Some(want)) if have < want => target,
+        _ => dtype,
+    }
+}
+
 /// The dtype a computation on `dtype` values runs in, for the operations
-/// that widen half precision: f32 for f16 and bf16; any other, its own.
+/// that widen half precision: f32 for f16 and bf16; any other, its own
+/// (`widen_to(dtype, F32)`).
 ///
 /// The norms compute in it (`transformers` normalizes a half input in f32),
 /// then narrow the result back.
 pub fn widen_half(dtype: DType) -> DType {
-    match dtype {
-        DType::F16 | DType::BF16 => DType::F32,
-        other => other,
-    }
+    widen_to(dtype, FloatDType::F32)
 }
 
 /// `value` rounded to `dtype`'s precision: to bf16 or f16 when `dtype` is
@@ -69,6 +92,20 @@ pub fn param_float_dtype<const D: usize>(param: &Param<Tensor<D>>) -> DType {
 
 #[cfg(test)]
 mod tests {
+    /// A narrower float widens to the target; one as wide or wider, and any
+    /// non-float, stays.
+    #[test]
+    fn test_widen_to() {
+        assert_eq!(widen_to(DType::BF16, FloatDType::F32), DType::F32);
+        assert_eq!(widen_to(DType::F16, FloatDType::F64), DType::F64);
+        assert_eq!(widen_to(DType::F32, FloatDType::F64), DType::F64);
+        assert_eq!(widen_to(DType::F64, FloatDType::F32), DType::F64);
+        assert_eq!(widen_to(DType::F32, FloatDType::F16), DType::F32);
+        assert_eq!(widen_to(DType::BF16, FloatDType::F16), DType::BF16);
+        assert_eq!(widen_to(DType::Flex32, FloatDType::F32), DType::Flex32);
+        assert_eq!(widen_to(DType::I32, FloatDType::F32), DType::I32);
+    }
+
     /// Half widens to f32; every other dtype stays.
     #[test]
     fn test_widen_half() {
