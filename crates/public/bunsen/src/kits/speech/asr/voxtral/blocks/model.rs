@@ -140,7 +140,7 @@ impl ModuleInit<VoxtralRealtime> for VoxtralRealtimeConfig {
 /// streams: decoder position `i` reads only the audio up to its own group.
 ///
 /// The fields carry the names `transformers`' `VoxtralRealtimeModel` gives
-/// them; [`weights::hf_rekey`](crate::kits::speech::asr::voxtral::weights::hf_rekey)
+/// them; [`weights::transformers_rekey`](crate::kits::speech::asr::voxtral::weights::transformers_rekey)
 /// maps the checkpoint's.
 ///
 /// Built by [`VoxtralRealtimeConfig`].

@@ -29,7 +29,7 @@
 //! `transformers`' `Qwen3ASRForConditionalGeneration` layout: its
 //! safetensors checkpoint (one file or shards), its `config.json`, which
 //! gives the geometry
-//! ([`qwen3_asr_config_from_hf`](super::weights::qwen3_asr_config_from_hf)),
+//! ([`qwen3_asr_config_from_transformers`](super::weights::qwen3_asr_config_from_transformers)),
 //! and its `tokenizer.json`.
 //!
 //! Every file is pinned to its digest and fetched from a fixed revision of
@@ -41,7 +41,7 @@
 //! resolves a name to a deferred model carrying [`Qwen3AsrConstructConfig`],
 //! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into the row's prefab through
-//! [`load_hf_tensors`](super::weights::load_hf_tensors).
+//! [`load_transformers_tensors`](super::weights::load_transformers_tensors).
 
 mod construct;
 mod prefabs;

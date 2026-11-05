@@ -27,7 +27,7 @@
 //! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into a `parakeet-tdt-0.6b-v3`-shaped
 //! [`ParakeetTdt`](super::ParakeetTdt) through
-//! [`load_hf_tensors`](super::weights::load_hf_tensors).
+//! [`load_transformers_tensors`](super::weights::load_transformers_tensors).
 
 mod construct;
 mod providers;

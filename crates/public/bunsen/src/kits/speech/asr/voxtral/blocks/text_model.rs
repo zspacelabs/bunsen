@@ -233,7 +233,7 @@ impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
 /// embedding ([`delay_condition`](Self::delay_condition)).
 ///
 /// Its own fields carry the names `transformers`' text model gives them;
-/// [`weights::hf_rekey`](crate::kits::speech::asr::voxtral::weights::hf_rekey)
+/// [`weights::transformers_rekey`](crate::kits::speech::asr::voxtral::weights::transformers_rekey)
 /// maps its layers'.
 ///
 /// Built by [`VoxtralTextConfig`].

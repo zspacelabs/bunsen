@@ -3,7 +3,7 @@
 //! `testdata/parakeet/toy.safetensors` holds a tiny seeded `ParakeetForTDT`'s
 //! weights and its answers, computed in float64 by `transformers`
 //! (`tools/gen_parakeet_toy_fixtures.py`). The weights load through
-//! [`load_hf_tensors`], so the loader is under test too.
+//! [`load_transformers_tensors`], so the loader is under test too.
 
 use std::collections::BTreeMap;
 
@@ -23,7 +23,7 @@ use super::{
         ParakeetTdt,
         ParakeetTdtConfig,
     },
-    weights::load_hf_tensors,
+    weights::load_transformers_tensors,
 };
 use crate::{
     blocks::{
@@ -94,7 +94,7 @@ impl Toy {
 
         let device = performance_device();
         let mut model: ParakeetTdt = toy_config().init(&device);
-        let applied = load_hf_tensors(&mut model, weights).expect("load the toy weights");
+        let applied = load_transformers_tensors(&mut model, weights).expect("load the toy weights");
         assert!(
             applied
                 .unused

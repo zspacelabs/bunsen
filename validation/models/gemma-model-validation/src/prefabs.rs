@@ -15,7 +15,7 @@ use bunsen::{
             GEMMA_PREFABS,
             default_gemma_factory,
         },
-        weights::gemma_config_from_hf,
+        weights::gemma_config_from_transformers,
     },
 };
 
@@ -35,7 +35,7 @@ fn test_every_row_is_its_prefab() {
             .load(GEMMA_KIT, &map)
             .unwrap_or_else(|e| panic!("{id}: {e}"));
         let json = std::fs::read_to_string(loaded.expect(CONFIG).unwrap()).unwrap();
-        let config = gemma_config_from_hf(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
+        let config = gemma_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
         let prefab = GEMMA_PREFABS
             .expect_lookup_prefab(row.prefab.as_deref().unwrap())
             .to_config();

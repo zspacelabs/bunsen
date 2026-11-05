@@ -38,8 +38,8 @@ use crate::{
             GemmaPolicy,
             TOKENIZER_CONFIG,
             weights::{
-                gemma_config_from_hf,
-                load_hf_tensors_as,
+                gemma_config_from_transformers,
+                load_transformers_tensors_as,
             },
         },
         support::{
@@ -55,8 +55,8 @@ use crate::{
 
 /// How a Gemma pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
-/// ([`gemma_config_from_hf`]), or else the prefab its row names, in the
-/// dtype the load policy resolves; bundled with the positions the
+/// ([`gemma_config_from_transformers`]), or else the prefab its row names, in
+/// the dtype the load policy resolves; bundled with the positions the
 /// `config.json` says it was trained on, and every file of the checkpoint by
 /// its key.
 ///
@@ -121,8 +121,8 @@ impl ConstructInit for GemmaConstructConfig {
             Some(part) => {
                 let json =
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                let config =
-                    gemma_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?;
+                let config = gemma_config_from_transformers(&json)
+                    .map_err(|e| e.context(part.path.display()))?;
                 let root = HfConfigJson::parse(&json)?;
                 let text = root.section("text_config").unwrap_or(root);
                 let max_positions = text.usize("max_position_embeddings").ok();
@@ -146,7 +146,7 @@ impl ConstructInit for GemmaConstructConfig {
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = policy.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut gemma: GemmaModel = config.try_init(device)?;
-        load_hf_tensors_as(&mut gemma, tensors, dtype)?;
+        load_transformers_tensors_as(&mut gemma, tensors, dtype)?;
         let policy = resolve_ref_presets(&GemmaPolicy::default(), model, &Self::probed(loaded)?)?;
         let mut bundle = GemmaConstruct::new(gemma)
             .with_max_positions(max_positions)

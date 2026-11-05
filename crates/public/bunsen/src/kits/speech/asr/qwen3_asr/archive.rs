@@ -212,7 +212,7 @@ fn expand_phonon1(
         )
         .map_err(|e| e.context(module.to_string()))?;
         out.push(dense(
-            hf_name(&format!("{module}.weight")),
+            transformers_name(&format!("{module}.weight")),
             values,
             vec![rows, cols],
         ));
@@ -238,7 +238,7 @@ fn expand_phonon1(
         let values = decode_quint5(&packed, rows, cols, &alpha, &residual)
             .map_err(|e| e.context(module.clone()))?;
         out.push(dense(
-            hf_name(&format!("{module}.weight")),
+            transformers_name(&format!("{module}.weight")),
             values,
             vec![rows, cols],
         ));
@@ -273,7 +273,7 @@ fn expand_phonon1(
         } else {
             data
         };
-        out.push(bridge::from_data(data, hf_name(&name), None));
+        out.push(bridge::from_data(data, transformers_name(&name), None));
     }
     Ok(out)
 }
@@ -290,7 +290,7 @@ fn take(
 
 /// A Phonon-1 tensor's `transformers` name: the audio tower and text model
 /// under `model.`, the tower's `proj1` / `proj2` as the projector.
-fn hf_name(name: &str) -> String {
+fn transformers_name(name: &str) -> String {
     if let Some(rest) = name.strip_prefix("audio_tower.proj1.") {
         format!("model.multi_modal_projector.linear_1.{rest}")
     } else if let Some(rest) = name.strip_prefix("audio_tower.proj2.") {
