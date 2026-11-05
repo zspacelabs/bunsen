@@ -191,17 +191,6 @@ pub struct ResidualEncoderAttentionBlock {
     pub norm_placement: NormPlacement,
 }
 
-/// `x` through `norm`, or as it is without one.
-fn normalize(
-    norm: &Option<BunsenNormalization>,
-    x: Tensor<3>,
-) -> Tensor<3> {
-    match norm {
-        Some(norm) => norm.forward(x),
-        None => x,
-    }
-}
-
 impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlock {
     fn d_model(&self) -> usize {
         self.attn.d_model
@@ -266,10 +255,9 @@ impl ResidualEncoderAttentionBlock {
             };
             self.attn.forward(input).context
         };
-        let x = match self.norm_placement {
-            NormPlacement::Pre => x.clone() + attend(normalize(&self.attn_norm, x)),
-            NormPlacement::Post => normalize(&self.attn_norm, x.clone() + attend(x)),
-        };
+        let x = self
+            .sublayer_norms(&self.attn_norm)
+            .residual_update(x, attend);
         self.sublayer_norms(&self.mlp_norm)
             .residual_update(x, |z| self.mlp.forward(z))
     }
@@ -467,7 +455,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        ops::transformers::attention::norm_self_attn,
+        ops::transformers::attention::self_attn,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,
@@ -597,13 +585,12 @@ mod tests {
         let output = block.forward(x.clone());
 
         let expected = {
-            let self_attn = norm_self_attn(
-                block.attn_norm.as_ref().unwrap(),
+            let attended = self_attn(
                 &block.attn,
-                x.clone(),
+                block.attn_norm.as_ref().unwrap().forward(x.clone()),
                 None,
             );
-            let x = x + self_attn.context;
+            let x = x + attended.context;
 
             x.clone()
                 + block

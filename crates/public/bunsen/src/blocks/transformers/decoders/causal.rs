@@ -332,24 +332,25 @@ impl CausalDecoderBlock {
             .rename(format!("{attn}."), "attn.")
     }
 
+    /// The attention sublayer's norms: its input norm, if the block has one,
+    /// and its output norm, if the block has post-norms.
+    pub fn attn_norms(&self) -> SublayerNorms<'_> {
+        SublayerNorms::pre(self.attn_norm.as_ref()).with_post(self.attn_post_norm.as_ref())
+    }
+
+    /// The feed-forward sublayer's norms: its input norm, and its output
+    /// norm, if the block has post-norms.
+    pub fn mlp_norms(&self) -> SublayerNorms<'_> {
+        SublayerNorms::pre(Some(&self.mlp_norm)).with_post(self.mlp_post_norm.as_ref())
+    }
+
     /// The attention's input: `x` through the attention's norm, or as it is
     /// without one.
     pub fn attn_input(
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        Self::maybe_norm(&self.attn_norm, x)
-    }
-
-    /// `norm(x)`, or `x` without a norm.
-    fn maybe_norm(
-        norm: &Option<BunsenNormalization>,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        match norm {
-            Some(norm) => norm.forward(x),
-            None => x,
-        }
+        self.attn_norms().branch_input(x)
     }
 
     /// Forward Pass.
@@ -444,27 +445,26 @@ impl CausalDecoderBlock {
             value_embed,
             key_valid,
         } = sides;
-        let attn = self.attn.forward_with(
-            self.attn_input(input.clone()),
-            r_emb,
-            kv_cache,
-            AttentionSides {
-                value_embed,
-                key_valid,
-            },
-        );
-        let x = input + Self::maybe_norm(&self.attn_post_norm, attn);
-        SublayerNorms::pre(Some(&self.mlp_norm))
-            .with_post(self.mlp_post_norm.as_ref())
-            .residual_update(x, |h| {
-                let h = match (&self.mlp_scale, cond) {
-                    (None, None) => h,
-                    (Some(scale), Some(cond)) => scale.forward(h, cond),
-                    (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
-                    (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
-                };
-                self.mlp.forward(h)
-            })
+        let x = self.attn_norms().residual_update(input, |z| {
+            self.attn.forward_with(
+                z,
+                r_emb,
+                kv_cache,
+                AttentionSides {
+                    value_embed,
+                    key_valid,
+                },
+            )
+        });
+        self.mlp_norms().residual_update(x, |h| {
+            let h = match (&self.mlp_scale, cond) {
+                (None, None) => h,
+                (Some(scale), Some(cond)) => scale.forward(h, cond),
+                (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
+                (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
+            };
+            self.mlp.forward(h)
+        })
     }
 }
 

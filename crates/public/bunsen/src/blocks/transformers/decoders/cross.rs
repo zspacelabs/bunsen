@@ -40,11 +40,11 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
-        norm_cross_attn,
-        norm_cross_attn_w_kv_cache,
-        norm_self_attn,
-        norm_self_attn_w_kv_cache,
+        cross_attn,
+        cross_attn_w_kv_cache,
         project_kv,
+        self_attn,
+        self_attn_w_kv_cache,
     },
 };
 
@@ -231,18 +231,22 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
-        let self_attn = norm_self_attn(&self.attn_norm, &self.attn, x.clone(), mask);
-        let x = x + self_attn.context;
+        let x = SublayerNorms::pre(Some(&self.attn_norm))
+            .residual_update(x, |z| self_attn(&self.attn, z, mask).context);
 
-        let cross_attn = norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
-        let x = x + cross_attn.context;
+        let mut ca_weights = None;
+        let x = SublayerNorms::pre(Some(&self.cross_attn_norm)).residual_update(x, |z| {
+            let out = cross_attn(&self.cross_attn, z, xa);
+            ca_weights = Some(out.weights);
+            out.context
+        });
 
         let x =
             SublayerNorms::pre(Some(&self.mlp_norm)).residual_update(x, |z| self.mlp.forward(z));
 
         CrossDecoderRecord {
             output: x,
-            ca_weights: cross_attn.weights,
+            ca_weights: ca_weights.expect("the cross-attention ran"),
         }
     }
 
@@ -275,22 +279,12 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = x.clone().add(norm_self_attn_w_kv_cache(
-            &self.attn_norm,
-            &self.attn,
-            x,
-            mask,
-            cache,
-            layer,
-        ));
-
-        let x = x.clone().add(norm_cross_attn_w_kv_cache(
-            &self.cross_attn_norm,
-            &self.cross_attn,
-            x,
-            cache,
-            layer,
-        ));
+        let x = SublayerNorms::pre(Some(&self.attn_norm)).residual_update(x, |z| {
+            self_attn_w_kv_cache(&self.attn, z, mask, cache, layer)
+        });
+        let x = SublayerNorms::pre(Some(&self.cross_attn_norm)).residual_update(x, |z| {
+            cross_attn_w_kv_cache(&self.cross_attn, z, cache, layer)
+        });
 
         SublayerNorms::pre(Some(&self.mlp_norm)).residual_update(x, |z| self.mlp.forward(z))
     }
@@ -399,27 +393,25 @@ mod tests {
         assert_eq!(result.seq_len(), seq_len);
 
         let expected = {
-            let self_attn = norm_self_attn(
-                &block.attn_norm,
+            let self_out = self_attn(
                 &block.attn,
-                x.clone(),
+                block.attn_norm.forward(x.clone()),
                 mask.clone().into(),
             );
-            let x = x + self_attn.context;
+            let x = x + self_out.context;
 
-            let cross_attn = norm_cross_attn(
-                &block.cross_attn_norm,
+            let cross_out = cross_attn(
                 &block.cross_attn,
-                x.clone(),
+                block.cross_attn_norm.forward(x.clone()),
                 xa.clone(),
             );
-            let x = x + cross_attn.context;
+            let x = x + cross_out.context;
 
             let x = x.clone() + block.mlp.forward(block.mlp_norm.forward(x));
 
             CrossDecoderRecord {
                 output: x,
-                ca_weights: cross_attn.weights,
+                ca_weights: cross_out.weights,
             }
         };
 

@@ -1,4 +1,4 @@
-//! Multihead normalized attention utilities.
+//! Multi-head attention over burn's `MultiHeadAttention`, cached or not.
 
 use burn::{
     Tensor,
@@ -15,21 +15,6 @@ use burn::{
 };
 
 use super::KVCache;
-use crate::blocks::norm::BunsenNormalization;
-
-/// Asserts that `norm` normalizes `d_model` features, when it counts any
-/// (an [`Identity`](Normalization::Identity) norm counts none).
-#[cfg(any(debug_assertions, test))]
-fn assert_norm_width(
-    norm: &BunsenNormalization,
-    d_model: usize,
-) {
-    let features = norm.num_features();
-    assert!(
-        features == 0 || features == d_model,
-        "norm features ({features}) != d_model ({d_model})",
-    );
-}
 
 /// Projects `[batch, seq, d_model]` into head-split keys and values:
 /// `[batch, heads, seq, d_k]` each.
@@ -58,10 +43,10 @@ pub fn split_heads(
     x.reshape([batch, seq, mha.n_heads, mha.d_k])
         .swap_dims(1, 2)
 }
-/// Computes normalized self-attention: `attn(norm(x))`.
+/// Self-attention over `x`, a sublayer's branch: its norms are the
+/// caller's ([`SublayerNorms`](crate::blocks::transformers::sublayer::SublayerNorms)).
 ///
 /// # Arguments
-/// * `norm` - the sublayer's [`BunsenNormalization`].
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - `[batch, seq_len, d_model]` input.
 /// * `mask` - Optional `[batch, seq_len, seq_len]` attention mask.
@@ -70,8 +55,7 @@ pub fn split_heads(
 /// The [`MhaOutput`]:
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, seq_len]`.
-pub fn norm_self_attn(
-    norm: &BunsenNormalization,
+pub fn self_attn(
     mh_attn: &MultiHeadAttention,
     x: Tensor<3>,
     mask: Option<Tensor<3, Bool>>,
@@ -80,7 +64,6 @@ pub fn norm_self_attn(
     {
         use crate::contracts::*;
         let d_model = mh_attn.d_model;
-        assert_norm_width(norm, d_model);
 
         let [batch, seq_len] = unpack_shape_contract!(
             ["batch", "seq_len", "d_model"],
@@ -105,7 +88,7 @@ pub fn norm_self_attn(
         }
     }
 
-    let input = MhaInput::self_attn(norm.forward(x));
+    let input = MhaInput::self_attn(x);
     let input = match mask {
         Some(mask) => input.mask_attn(mask),
         None => input,
@@ -113,10 +96,10 @@ pub fn norm_self_attn(
     mh_attn.forward(input)
 }
 
-/// Computes normalized cross-attention: `attn(norm(x), xa)`.
+/// Cross-attention of `x` over `xa`, a sublayer's branch: its norms are
+/// the caller's.
 ///
 /// # Arguments
-/// * `norm` - the sublayer's [`BunsenNormalization`].
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - `[batch, seq_len, d_model]` input.
 /// * `xa` - `[batch, cross_len, d_model]` cross-attention input.
@@ -128,8 +111,7 @@ pub fn norm_self_attn(
 /// The [`MhaOutput`]:
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, cross_len]`.
-pub fn norm_cross_attn(
-    norm: &BunsenNormalization,
+pub fn cross_attn(
     mh_attn: &MultiHeadAttention,
     x: Tensor<3>,
     xa: Tensor<3>,
@@ -138,7 +120,6 @@ pub fn norm_cross_attn(
     {
         crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "d_model"]);
         let d_model = mh_attn.d_model;
-        assert_norm_width(norm, d_model);
 
         let [batch, _seq_len] =
             CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("d_model", d_model)]);
@@ -149,7 +130,7 @@ pub fn norm_cross_attn(
         CONTRACT.assert_shape(&xa, &[("batch", batch), ("d_model", d_model)]);
     };
 
-    mh_attn.forward(MhaInput::new(norm.forward(x.clone()), xa.clone(), xa))
+    mh_attn.forward(MhaInput::new(x, xa.clone(), xa))
 }
 
 /// Scaled dot-product attention over head-split tensors, then the output
@@ -210,8 +191,7 @@ pub fn attend_q_kv_mask(
 ///
 /// # Returns
 /// `[batch, seq_new, d_model]`.
-pub fn norm_self_attn_w_kv_cache(
-    norm: &BunsenNormalization,
+pub fn self_attn_w_kv_cache(
     mha: &MultiHeadAttention,
     x: Tensor<3>,
     mask: Option<Tensor<3, Bool>>,
@@ -225,10 +205,8 @@ pub fn norm_self_attn_w_kv_cache(
         &[("d_model", mha.d_model)],
     );
 
-    let normed = norm.forward(x);
-
-    let q = split_heads(mha, mha.query.forward(normed.clone()));
-    let (k, v) = project_kv(mha, normed);
+    let q = split_heads(mha, mha.query.forward(x.clone()));
+    let (k, v) = project_kv(mha, x);
     let (k, v) = cache.insert_kv(layer, k, v);
 
     attend_q_kv_mask(mha, q, k, v, mask)
@@ -260,8 +238,7 @@ pub fn norm_self_attn_w_kv_cache(
 /// # Panics
 /// When `layer`'s cross-attention keys and values aren't set, or `x`'s rows
 /// aren't `group` per encoder row.
-pub fn norm_cross_attn_w_kv_cache(
-    norm: &BunsenNormalization,
+pub fn cross_attn_w_kv_cache(
     mha: &MultiHeadAttention,
     x: Tensor<3>,
     cache: &KVCache,
@@ -286,7 +263,7 @@ pub fn norm_cross_attn_w_kv_cache(
         "query rows ({rows}) are not {group} per encoder row ({encoded})",
     );
 
-    let q = split_heads(mha, mha.query.forward(norm.forward(x)));
+    let q = split_heads(mha, mha.query.forward(x));
     if group == 1 {
         return attend_q_kv_mask(mha, q, k, v, None);
     }
@@ -349,7 +326,7 @@ mod tests {
         let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
 
-        let out = norm_cross_attn(&ln, &attn, x, xa);
+        let out = cross_attn(&attn, ln.forward(x), xa);
 
         // The output follows the query, and the weights span query x cross.
         assert_eq!(out.context.dims(), [batch, seq_len, d_model]);
@@ -370,7 +347,7 @@ mod tests {
 
         let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
 
-        let out = norm_cross_attn(&ln, &attn, x.clone(), x);
+        let out = cross_attn(&attn, ln.forward(x.clone()), x);
         assert_eq!(out.context.dims(), [batch, seq_len, d_model]);
     }
 
@@ -389,7 +366,7 @@ mod tests {
         let x = Tensor::<3>::random([batch, 4, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, 9, d_model * 2], Distribution::Default, &device);
 
-        norm_cross_attn(&ln, &attn, x, xa);
+        cross_attn(&attn, ln.forward(x), xa);
     }
 
     /// A single-layer [`KVCache`] for `mha`, `batch` rows.
@@ -430,8 +407,12 @@ mod tests {
         let mut steps = Vec::with_capacity(seq);
         for t in 0..seq {
             let step = x.clone().slice_dim(1, t as isize..(t + 1) as isize);
-            steps.push(norm_self_attn_w_kv_cache(
-                &ln, &mha, step, None, &mut cache, 0,
+            steps.push(self_attn_w_kv_cache(
+                &mha,
+                ln.forward(step),
+                None,
+                &mut cache,
+                0,
             ));
         }
 
@@ -459,10 +440,9 @@ mod tests {
         // Prefill 4, then step the last 2.
         let split = 4;
         let mut cache = cache_for(&mha, batch, seq);
-        let prefill = norm_self_attn_w_kv_cache(
-            &ln,
+        let prefill = self_attn_w_kv_cache(
             &mha,
-            x.clone().slice_dim(1, 0..split as isize),
+            ln.forward(x.clone().slice_dim(1, 0..split as isize)),
             Some(causal_mask(split, 0, &device)),
             &mut cache,
             0,
@@ -470,18 +450,21 @@ mod tests {
         let mut parts = vec![prefill];
         for t in split..seq {
             let step = x.clone().slice_dim(1, t as isize..(t + 1) as isize);
-            parts.push(norm_self_attn_w_kv_cache(
-                &ln, &mha, step, None, &mut cache, 0,
+            parts.push(self_attn_w_kv_cache(
+                &mha,
+                ln.forward(step),
+                None,
+                &mut cache,
+                0,
             ));
         }
         let mixed: Tensor<3> = Tensor::cat(parts, 1);
 
         // All in one go.
         let mut cache2 = cache_for(&mha, batch, seq);
-        let at_once = norm_self_attn_w_kv_cache(
-            &ln,
+        let at_once = self_attn_w_kv_cache(
             &mha,
-            x,
+            ln.forward(x),
             Some(causal_mask(seq, 0, &device)),
             &mut cache2,
             0,
@@ -518,7 +501,7 @@ mod tests {
         let mut cache = cache_for(&mha, batch, seq);
         cache.set_cross_kv(0, k, v);
 
-        let cached = norm_cross_attn_w_kv_cache(&ln, &mha, x, &cache, 0);
+        let cached = cross_attn_w_kv_cache(&mha, ln.forward(x), &cache, 0);
 
         cached
             .to_data_as::<F>()
@@ -557,8 +540,8 @@ mod tests {
         repeated.set_cross_kv(0, k, v);
         assert_eq!(repeated.group(), 1);
 
-        let a = norm_cross_attn_w_kv_cache(&ln, &mha, x.clone(), &shared, 0);
-        let b = norm_cross_attn_w_kv_cache(&ln, &mha, x, &repeated, 0);
+        let a = cross_attn_w_kv_cache(&mha, ln.forward(x.clone()), &shared, 0);
+        let b = cross_attn_w_kv_cache(&mha, ln.forward(x), &repeated, 0);
         a.to_data_as::<F>()
             .assert_approx_eq::<F>(&b.to_data_as::<F>(), Tolerance::permissive());
     }

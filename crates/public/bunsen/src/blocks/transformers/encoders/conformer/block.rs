@@ -220,11 +220,10 @@ impl ConformerBlock {
         // The macaron feed-forwards: each half a step.
         let x = SublayerNorms::pre(Some(&self.feed_forward1_norm))
             .residual_update(x, |z| self.feed_forward1.forward(z).mul_scalar(0.5));
-        let x = x.clone()
-            + self
-                .attn
-                .forward(self.attn_norm.forward(x), positions, valid.clone());
-        let x = x.clone() + self.conv.forward(self.conv_norm.forward(x), valid);
+        let x = SublayerNorms::pre(Some(&self.attn_norm))
+            .residual_update(x, |z| self.attn.forward(z, positions, valid.clone()));
+        let x = SublayerNorms::pre(Some(&self.conv_norm))
+            .residual_update(x, |z| self.conv.forward(z, valid));
         let x = SublayerNorms::pre(Some(&self.feed_forward2_norm))
             .residual_update(x, |z| self.feed_forward2.forward(z).mul_scalar(0.5));
         let y = self.out_norm.forward(x);
