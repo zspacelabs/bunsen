@@ -49,6 +49,28 @@ pub fn causal_window_visible(
     }
 }
 
+/// `[t, t]`: true where key `j` is visible to query `i` under a two-sided
+/// sliding window of `window` positions, `|i - j| < window`: itself and the
+/// `window - 1` positions on each side.
+///
+/// The bidirectional form of [`causal_window_visible`]'s window, which it
+/// matches on the keys at and before a query. In
+/// [`scaled_dot_product_attention`](super::scaled_dot_product_attention)'s
+/// mask convention, `true` attends.
+///
+/// # Panics
+/// If `window` is 0.
+pub fn two_sided_window_visible(
+    t: usize,
+    window: usize,
+    device: &Device,
+) -> Tensor<2, Bool> {
+    assert!(window != 0, "a sliding window of 0 positions");
+    let rows = Tensor::<1, Int>::arange(0..t as i64, device).unsqueeze_dim::<2>(1);
+    let cols = Tensor::<1, Int>::arange(0..t as i64, device).unsqueeze_dim::<2>(0);
+    cols.sub(rows).abs().lower_elem(window as i64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +113,39 @@ mod tests {
     #[should_panic(expected = "sliding window of 0")]
     fn test_causal_window_visible_refuses_an_empty_window() {
         let _ = causal_window_visible(1, 1, Some(0), &cpu_device());
+    }
+
+    /// The two-sided window is the band `|i - j| < w`, and its lower half
+    /// is the causal window's.
+    #[test]
+    fn test_two_sided_window_visible() {
+        let device = cpu_device();
+        let visible = rows(two_sided_window_visible(5, 2, &device));
+        assert_eq!(
+            visible,
+            [
+                [true, true, false, false, false],
+                [true, true, true, false, false],
+                [false, true, true, true, false],
+                [false, false, true, true, true],
+                [false, false, false, true, true],
+            ]
+        );
+        for i in 0..5 {
+            for j in 0..5 {
+                assert_eq!(visible[i][j], (i as i64 - j as i64).abs() < 2, "({i}, {j})");
+            }
+        }
+        let causal = rows(causal_window_visible(5, 5, Some(2), &device));
+        for i in 0..5 {
+            for j in 0..=i {
+                assert_eq!(visible[i][j], causal[i][j], "({i}, {j})");
+            }
+        }
+        let wide = rows(two_sided_window_visible(4, 9, &device));
+        assert!(
+            wide.iter().flatten().all(|&v| v),
+            "a window wider than the input"
+        );
     }
 }

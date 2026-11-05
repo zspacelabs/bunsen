@@ -43,6 +43,7 @@ use crate::{
         causal_window_visible,
         scaled_dot_product_attention,
         sdpa_attn_weight,
+        two_sided_window_visible,
     },
 };
 
@@ -74,8 +75,9 @@ pub enum AttentionMask {
     /// The keys at and before its own position: a decoder's attention.
     Causal,
 
-    /// Every key: an encoder's attention, over a whole input at once (it
-    /// takes no KV cache, and no sliding window).
+    /// Every key, the ones after its position too: an encoder's attention,
+    /// over a whole input at once (it takes no KV cache). Under a sliding
+    /// window, the window is two-sided.
     Bidirectional,
 }
 
@@ -140,7 +142,12 @@ pub struct CausalSelfAttentionConfig {
 
     /// The sliding attention window, in positions: a query attends to itself
     /// and to the `sliding_window - 1` positions before it, never further
-    /// back; `None` attends to every earlier position.
+    /// back; under a [`Bidirectional`](AttentionMask::Bidirectional) mask,
+    /// also to the `sliding_window - 1` positions after it (`|i - j| <
+    /// sliding_window`). `None` attends to every key the mask shows.
+    ///
+    /// A two-sided window of `±r` positions is `r + 1` here: `ModernBERT`'s
+    /// `local_attention` of 128 (±64) is 65.
     #[config(default = "None")]
     pub sliding_window: Option<usize>,
 
@@ -291,11 +298,6 @@ impl CausalSelfAttentionConfig {
             self.sliding_window != Some(0),
             "sliding_window must be > 0 when set"
         );
-        assert!(
-            self.mask == AttentionMask::Causal || self.sliding_window.is_none(),
-            "a bidirectional attention has no sliding_window; got {:?}",
-            self.sliding_window
-        );
         if let Some(vr) = &self.value_residual {
             assert!(
                 vr.gate_channels > 0 && vr.gate_channels <= self.n_embed,
@@ -387,7 +389,9 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub qk_norm: QkNormPlacement,
 
-    /// The sliding attention window, in positions, if any.
+    /// The sliding attention window, in positions, if any: one-sided under a
+    /// causal mask, two-sided under a bidirectional one
+    /// ([`CausalSelfAttentionConfig::sliding_window`]).
     #[module(skip)]
     pub sliding_window: Option<usize>,
 
@@ -571,8 +575,9 @@ impl CausalSelfAttention {
     /// - `r_emb`: a rotary embedding with len ``T``.
     ///
     /// # Returns
-    /// - `[B, H_q, T, T]`, each row a distribution over the keys; zero above
-    ///   the diagonal.
+    /// - `[B, H_q, T, T]`, each row a distribution over the keys; zero at the
+    ///   keys the mask and the window hide (above the diagonal, under a causal
+    ///   mask).
     pub fn attention_weights(
         &self,
         input: Tensor<3>,
@@ -587,11 +592,15 @@ impl CausalSelfAttention {
         let (q, k) = self.queries_keys(input, r_emb);
         let device = q.device();
         let window = self.sliding_window.filter(|&w| w < t);
+        let visible = window.map(|w| match self.mask {
+            AttentionMask::Causal => causal_window_visible(t, t, Some(w), &device),
+            AttentionMask::Bidirectional => two_sided_window_visible(t, w, &device),
+        });
         let weights = sdpa_attn_weight(
             q,
             k,
             None,
-            window.map(|w| causal_window_visible(t, t, Some(w), &device)),
+            visible,
             None,
             self.sdpa_config()
                 .with_is_causal(window.is_none() && self.mask == AttentionMask::Causal),
@@ -694,7 +703,7 @@ impl CausalSelfAttention {
                 kv_cache.is_none(),
                 "a bidirectional attention takes no KV cache"
             );
-            attn_mask = None;
+            attn_mask = window.map(|w| two_sided_window_visible(t_q, w, &q.device()));
             is_causal = false;
         } else if let (Some(w), true) = (window, t_q > 1) {
             attn_mask = Some(causal_window_visible(t_q, t_kv, Some(w), &q.device()));
@@ -904,6 +913,101 @@ mod tests {
             None,
             None
         ));
+    }
+
+    /// A bidirectional attention under a two-sided window: each query's
+    /// output is the output an unwindowed pass computes over only the
+    /// window centred on it (`|i - j| < w`), the keys after it too; the
+    /// weights are zero outside the band.
+    #[test]
+    fn test_two_sided_window_is_the_window_alone() {
+        let device = cpu_device();
+        let (seq_len, window) = (9, 3);
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(4, 2, 16)
+            .with_norm(None)
+            .with_mask(AttentionMask::Bidirectional)
+            .with_sliding_window(Some(window))
+            .init(0, &device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
+        let input = seeded_tensor::<3>(7, [2, seq_len, 16], Distribution::Default, &device);
+        let full = csa.forward(input.clone(), &r_emb, &mut None);
+
+        let mut unwindowed = csa.clone();
+        unwindowed.sliding_window = None;
+        for i in 0..seq_len {
+            let (start, end) = ((i + 1).saturating_sub(window), (i + window).min(seq_len));
+            let alone = unwindowed.forward(
+                input.clone().slice(s![.., start..end]),
+                &r_emb.clip_range(start..end),
+                &mut None,
+            );
+            assert_tensors_close(
+                &full.clone().slice(s![.., i..=i]),
+                &alone.slice(s![.., i - start..=i - start]),
+                Tolerance::default(),
+            );
+        }
+
+        let weights = csa.attention_weights(input, &r_emb);
+        let sums = weights.clone().sum_dim(3);
+        assert_tensors_close(&sums, &Tensor::ones_like(&sums), Tolerance::default());
+        let outside = weights
+            .clone()
+            .triu(window as i64)
+            .abs()
+            .max()
+            .into_scalar::<f32>()
+            + weights
+                .clone()
+                .tril(-(window as i64))
+                .abs()
+                .max()
+                .into_scalar::<f32>();
+        assert_eq!(outside, 0.0);
+        let after = weights.triu(1).abs().max().into_scalar::<f32>();
+        assert!(after > 0.0, "a query sees the keys after it");
+    }
+
+    /// The two-sided window and an item's padding mask together: a valid
+    /// query's output is the unwindowed pass over the valid keys of its
+    /// window, whatever the padding holds.
+    #[test]
+    fn test_two_sided_window_with_padding() {
+        let device = cpu_device();
+        let (seq_len, window, valid_len) = (7, 3, 5);
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(2, 2, 16)
+            .with_norm(None)
+            .with_mask(AttentionMask::Bidirectional)
+            .with_sliding_window(Some(window))
+            .init(0, &device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
+        let input = seeded_tensor::<3>(3, [1, seq_len, 16], Distribution::Default, &device);
+        let valid =
+            crate::ops::transformers::attention::length_mask(&[valid_len], seq_len, &device);
+        let padded = csa.forward_with(
+            input.clone(),
+            &r_emb,
+            &mut None,
+            AttentionSides {
+                key_valid: Some(valid),
+                ..Default::default()
+            },
+        );
+        let mut unwindowed = csa.clone();
+        unwindowed.sliding_window = None;
+        for i in 0..valid_len {
+            let (start, end) = ((i + 1).saturating_sub(window), (i + window).min(valid_len));
+            let alone = unwindowed.forward(
+                input.clone().slice(s![.., start..end]),
+                &r_emb.clip_range(start..end),
+                &mut None,
+            );
+            assert_tensors_close(
+                &padded.clone().slice(s![.., i..=i]),
+                &alone.slice(s![.., i - start..=i - start]),
+                Tolerance::default(),
+            );
+        }
     }
 
     #[test]
