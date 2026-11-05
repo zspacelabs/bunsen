@@ -20,9 +20,8 @@
 //!   normalization), which a decoder layer can apply to its feed-forward's
 //!   input.
 //! - [`embedding`]: [`RotaryEmbedding`](embedding::RotaryEmbedding), the rotary
-//!   position embedding tables as a module, and two fixture embeddings for
-//!   tests, [`iota_embedding`](embedding::iota_embedding) and
-//!   [`identity_embedding`](embedding::identity_embedding).
+//!   position embedding tables as a module, and, in `embedding::testing`
+//!   (behind the `testing` feature), two fixture embeddings for tests.
 //! - [`encoders`]: bidirectional encoder layers and encoders:
 //!   [`ResidualEncoderAttentionBlock`](encoders::residual::ResidualEncoderAttentionBlock),
 //!   the pre- or post-norm layer of Whisper's, Qwen3-ASR's and Sortformer v2's

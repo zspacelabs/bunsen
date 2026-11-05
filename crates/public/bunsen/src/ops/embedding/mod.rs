@@ -18,7 +18,8 @@
 //! burn's [`Embedding`] module is the lookup; these are the operations around
 //! it. The embedding *modules* bunsen adds (`RotaryEmbedding`, which caches
 //! the `RoPE` tables, and the `iota_embedding` / `identity_embedding` test
-//! fixtures) are blocks, in [`crate::blocks::transformers::embedding`].
+//! fixtures, in its `testing` module) are blocks, in
+//! [`crate::blocks::transformers::embedding`].
 //!
 //! [`Embedding`]: burn::nn::Embedding
 
