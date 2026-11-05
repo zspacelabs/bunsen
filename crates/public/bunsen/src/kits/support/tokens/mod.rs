@@ -26,11 +26,11 @@
 //!
 //! # Whisper-specific helpers
 //!
-//! [`SYMBOLS`], [`MISCELLANEOUS`], [`non_speech_tokens`] and
-//! [`blank_token`] are not shared: they compute Whisper's default suppress
-//! list and blank token from its rank file, and only the Whisper kit's
-//! logit filters use them. They live here beside the rank parser they
-//! read.
+//! [`SYMBOLS`], [`MISCELLANEOUS`], [`TiktokenRanks::non_speech_tokens`] and
+//! [`TiktokenRanks::blank_token`] are not shared: they compute Whisper's
+//! default suppress list and blank token from its rank file, and only the
+//! Whisper kit's logit filters use them. They live here beside the rank parser
+//! they read.
 //!
 //! [`WhisperTokenLayout`]: crate::kits::speech::whisper::driver::WhisperTokenLayout
 

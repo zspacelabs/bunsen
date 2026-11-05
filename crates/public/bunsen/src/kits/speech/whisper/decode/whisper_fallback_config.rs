@@ -29,7 +29,7 @@ use crate::kits::{
 /// above 0.5 also [resets the prompt carry](Self::resets_prompt), so a
 /// failure does not feed the next window.
 ///
-/// The ladder is [`decode_with_fallback`], a
+/// The ladder is [`decode`](Self::decode), a
 /// [`TemperatureLadder`] climbed under these thresholds, a pure
 /// orchestration over a decode closure, so the policy is testable without a
 /// model. bunsen's default ladder is temperature zero alone: a stream driver
@@ -157,39 +157,41 @@ pub fn compression_ratio(text: &str) -> f64 {
     bytes.len() as f64 / compressed.len() as f64
 }
 
-/// Decodes one window up the ladder until a rung passes.
-///
-/// # Arguments
-/// * `fallback` - the ladder and thresholds.
-/// * `base` - the decode config at temperature zero; each rung derives from it.
-/// * `first` - the first rung's result, when the caller already has it (a
-///   batched decode at temperature zero, say); `None` decodes it.
-/// * `decode` - runs one rung.
-/// * `text_of` - the text of a decode's ids, for the compression ratio; `None`
-///   when no detokenizer is at hand, which disables that threshold.
-///
-/// # Returns
-/// The last decode run: the first that passed, or the top rung's.
-pub fn decode_with_fallback(
-    fallback: &WhisperFallbackConfig,
-    base: &DecodeConfig,
-    first: Option<DecodedTokens>,
-    mut decode: impl FnMut(&DecodeConfig) -> DecodedTokens,
-    text_of: impl Fn(&[i64]) -> Option<String>,
-) -> DecodedTokens {
-    fallback.ladder.climb(
-        &base.search,
-        first,
-        |search| decode(&base.clone().with_search(search.clone())),
-        |decoded| {
-            let ratio = text_of(&decoded.tokens).map(|t| compression_ratio(&t));
-            fallback.needs_fallback(
-                decoded.avg_logprob(),
-                ratio,
-                decoded.no_speech_prob.map(f64::from),
-            )
-        },
-    )
+impl WhisperFallbackConfig {
+    /// Decodes one window up this ladder until a rung passes.
+    ///
+    /// # Arguments
+    /// * `base` - the decode config at temperature zero; each rung derives from
+    ///   it.
+    /// * `first` - the first rung's result, when the caller already has it (a
+    ///   batched decode at temperature zero, say); `None` decodes it.
+    /// * `decode` - runs one rung.
+    /// * `text_of` - the text of a decode's ids, for the compression ratio;
+    ///   `None` when no detokenizer is at hand, which disables that threshold.
+    ///
+    /// # Returns
+    /// The last decode run: the first that passed, or the top rung's.
+    pub fn decode(
+        &self,
+        base: &DecodeConfig,
+        first: Option<DecodedTokens>,
+        mut decode: impl FnMut(&DecodeConfig) -> DecodedTokens,
+        text_of: impl Fn(&[i64]) -> Option<String>,
+    ) -> DecodedTokens {
+        self.ladder.climb(
+            &base.search,
+            first,
+            |search| decode(&base.clone().with_search(search.clone())),
+            |decoded| {
+                let ratio = text_of(&decoded.tokens).map(|t| compression_ratio(&t));
+                self.needs_fallback(
+                    decoded.avg_logprob(),
+                    ratio,
+                    decoded.no_speech_prob.map(f64::from),
+                )
+            },
+        )
+    }
 }
 
 #[cfg(test)]
@@ -348,8 +350,7 @@ mod tests {
 
         // Fails at 0 and 0.2 on logprob, passes at 0.4.
         let mut ran = Vec::new();
-        let out = decode_with_fallback(
-            &f,
+        let out = f.decode(
             &base,
             None,
             |c| {
@@ -368,8 +369,7 @@ mod tests {
 
         // A given first result stands in for the first rung.
         let mut ran = Vec::new();
-        let out = decode_with_fallback(
-            &f,
+        let out = f.decode(
             &base,
             Some(decoded(4, -20.0, Some(0.1), 0.0)),
             |c| {
@@ -382,8 +382,7 @@ mod tests {
         assert_eq!(out.temperature, 0.2);
 
         // Every rung fails: the top one comes back.
-        let out = decode_with_fallback(
-            &f,
+        let out = f.decode(
             &base,
             None,
             |c| decoded(4, -20.0, Some(0.1), c.search.temperature),
@@ -393,8 +392,7 @@ mod tests {
 
         // Repetition, seen through the text, fails the first rung.
         let mut ran = Vec::new();
-        let out = decode_with_fallback(
-            &f,
+        let out = f.decode(
             &base,
             None,
             |c| {
@@ -414,8 +412,7 @@ mod tests {
 
         // Silence at temperature zero is accepted, not climbed.
         let mut ran = Vec::new();
-        let _ = decode_with_fallback(
-            &f,
+        let _ = f.decode(
             &base,
             None,
             |c| {

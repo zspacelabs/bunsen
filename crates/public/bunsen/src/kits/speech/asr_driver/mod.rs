@@ -8,8 +8,8 @@
 //!   of a transcription and one stream in progress. The context buffers the
 //!   engine's features, runs the voice-activity gate, skips silence, decides
 //!   when to decode, commits and drafts, and places what it emits on the
-//!   stream's clock; [`advance_ready`] batches the decodes of many streams
-//!   through one engine.
+//!   stream's clock; [`AsrStreamDriver::advance_ready`] batches the decodes of
+//!   many streams through one engine.
 //! - [`AsrEngine`]: what a model gives the core: its streaming features
 //!   ([`StreamingFeatures`]; [`LogMelFeatures`] streams the log-mels the
 //!   Whisper family reads), the decode of a window ([`DecodeRequest`] to
@@ -33,7 +33,7 @@
 //!   every segment is attributed to a speaker ([`SpeakerLabel`]) by a
 //!   [`SpeakerAttribution`] rule: [`MeanActivity`], `NeMo`'s, or
 //!   [`TurnOverlap`]. An engine that decodes windows whole can cut them at a
-//!   change of speaker first ([`speaker_cut`]).
+//!   change of speaker first ([`SpeakerCutConfig::cut`]).
 //! - [`LevelPolicy`] and [`LevelStatistic`]: what a window's features are
 //!   scaled against, the window's own frames or everything the stream has seen,
 //!   summarized as the model needs ([`MaxLevel`], [`MomentsLevel`]).

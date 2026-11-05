@@ -6,28 +6,23 @@ use bunsen::{
         Provenance,
     },
     kits::{
-        speech::whisper::{
-            blocks::WhisperTokenLayoutConfig,
-            driver::{
-                WhisperSpecialIds,
-                WhisperTokenLayout,
-            },
-            logit_filters::{
-                default_filters,
-                default_suppress_tokens,
-            },
-            pretrained::{
-                VOCABULARY,
-                WHISPER_KIT,
-                WHISPER_PREFABS,
-                WhisperVocabulary,
+        speech::{
+            whisper,
+            whisper::{
+                blocks::WhisperTokenLayoutConfig,
+                driver::{
+                    WhisperSpecialIds,
+                    WhisperTokenLayout,
+                },
+                pretrained::{
+                    VOCABULARY,
+                    WHISPER_KIT,
+                    WHISPER_PREFABS,
+                    WhisperVocabulary,
+                },
             },
         },
-        support::tokens::{
-            Detokenizer,
-            blank_token,
-            non_speech_tokens,
-        },
+        support::tokens::Detokenizer,
     },
 };
 
@@ -76,9 +71,9 @@ fn test_bundled_vocabularies_resolve_offline() {
 fn test_multilingual_matches_upstream() {
     let ids = *WhisperTokenLayout::from_vocab_size(51865).unwrap().ids();
     let ranks = bundled_vocabulary(&ids);
-    assert_eq!(blank_token(&ranks), Some(220));
+    assert_eq!(ranks.blank_token(), Some(220));
     assert_eq!(
-        non_speech_tokens(&ranks),
+        ranks.non_speech_tokens(),
         vec![
             1, 2, 7, 8, 9, 10, 14, 25, 26, 27, 28, 29, 31, 58, 59, 60, 61, 62, 63, 90, 91, 92, 93,
             359, 503, 522, 542, 873, 893, 902, 918, 922, 931, 1350, 1853, 1982, 2460, 2627, 3246,
@@ -89,7 +84,7 @@ fn test_multilingual_matches_upstream() {
         ]
     );
 
-    let all = default_suppress_tokens(&ranks, &ids);
+    let all = ids.default_suppress_tokens(&ranks);
     assert!(all.windows(2).all(|w| w[0] < w[1]), "sorted and unique");
     for id in [
         ids.transcribe,
@@ -102,16 +97,16 @@ fn test_multilingual_matches_upstream() {
         assert!(all.contains(&id));
     }
     assert_eq!(all.len(), 82 + 6);
-    assert_eq!(default_filters(&ranks, &ids).len(), 2);
+    assert_eq!(ids.default_filters(&ranks).len(), 2);
 }
 
 #[test]
 fn test_english_matches_upstream() {
     let ids = *WhisperTokenLayout::from_vocab_size(51864).unwrap().ids();
     let ranks = bundled_vocabulary(&ids);
-    assert_eq!(blank_token(&ranks), Some(220));
+    assert_eq!(ranks.blank_token(), Some(220));
     assert_eq!(
-        non_speech_tokens(&ranks),
+        ranks.non_speech_tokens(),
         vec![
             1, 2, 7, 8, 9, 10, 14, 25, 26, 27, 28, 29, 31, 58, 59, 60, 61, 62, 63, 90, 91, 92, 93,
             357, 366, 438, 532, 685, 705, 796, 930, 1058, 1220, 1267, 1279, 1303, 1343, 1377, 1391,

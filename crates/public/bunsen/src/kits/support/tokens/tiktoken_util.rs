@@ -233,8 +233,8 @@ pub(crate) fn lenient_decode_base64(field: &str) -> Option<Vec<u8>> {
 /// The symbols upstream's `non_speech_tokens` suppresses when they are a
 /// single token, with or without a leading space.
 ///
-/// Whisper-specific: [`non_speech_tokens`] reads it, for the Whisper kit's
-/// default suppress list.
+/// Whisper-specific: [`TiktokenRanks::non_speech_tokens`] reads it, for the
+/// Whisper kit's default suppress list.
 pub const SYMBOLS: &[&str] = &[
     "\"",
     "#",
@@ -291,13 +291,14 @@ pub const MISCELLANEOUS: &[&str] = &[
     "\u{2669}", "\u{266a}", "\u{266b}", "\u{266c}", "\u{266d}", "\u{266e}", "\u{266f}",
 ];
 
-/// The rank file as `{ bytes -> id }`.
-pub fn lookup(ranks: &TiktokenRanks) -> HashMap<&[u8], i64> {
-    ranks
-        .iter()
-        .enumerate()
-        .map(|(id, bytes)| (bytes, id as i64))
-        .collect()
+impl TiktokenRanks {
+    /// The rank file as `{ bytes -> id }`.
+    pub fn ids_by_bytes(&self) -> HashMap<&[u8], i64> {
+        self.iter()
+            .enumerate()
+            .map(|(id, bytes)| (bytes, id as i64))
+            .collect()
+    }
 }
 
 /// The id of the longest prefix of `bytes` that is a token: what byte-level
@@ -311,46 +312,50 @@ fn first_token(
         .find_map(|n| table.get(&bytes[..n]).copied())
 }
 
-/// Upstream's `Tokenizer.non_speech_tokens`, from the rank file alone:
-/// the ids that would make a transcript say `[APPLAUSE]` or draw a music
-/// note, plus the leading `-` and `'` that would start a word with one.
-///
-/// Whisper-specific: the base of the Whisper kit's
-/// [`default_suppress_tokens`](crate::kits::speech::whisper::logit_filters::default_suppress_tokens).
-pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
-    let table = lookup(ranks);
-    let mut ids: Vec<i64> = [" -", " '"]
-        .iter()
-        .filter_map(|s| table.get(s.as_bytes()).copied())
-        .collect();
+impl TiktokenRanks {
+    /// Upstream's `Tokenizer.non_speech_tokens`, from the rank file alone:
+    /// the ids that would make a transcript say `[APPLAUSE]` or draw a music
+    /// note, plus the leading `-` and `'` that would start a word with one.
+    ///
+    /// Whisper-specific: the base of the Whisper kit's
+    /// [`default_suppress_tokens`](crate::kits::speech::whisper::driver::WhisperSpecialIds::default_suppress_tokens).
+    pub fn non_speech_tokens(&self) -> Vec<i64> {
+        let table = self.ids_by_bytes();
+        let mut ids: Vec<i64> = [" -", " '"]
+            .iter()
+            .filter_map(|s| table.get(s.as_bytes()).copied())
+            .collect();
 
-    for symbol in SYMBOLS {
-        for candidate in [symbol.to_string(), format!(" {symbol}")] {
-            if let Some(&id) = table.get(candidate.as_bytes()) {
-                ids.push(id);
+        for symbol in SYMBOLS {
+            for candidate in [symbol.to_string(), format!(" {symbol}")] {
+                if let Some(&id) = table.get(candidate.as_bytes()) {
+                    ids.push(id);
+                }
             }
         }
-    }
-    for symbol in MISCELLANEOUS {
-        for candidate in [symbol.to_string(), format!(" {symbol}")] {
-            if let Some(id) = first_token(&table, candidate.as_bytes()) {
-                ids.push(id);
+        for symbol in MISCELLANEOUS {
+            for candidate in [symbol.to_string(), format!(" {symbol}")] {
+                if let Some(id) = first_token(&table, candidate.as_bytes()) {
+                    ids.push(id);
+                }
             }
         }
-    }
 
-    ids.sort_unstable();
-    ids.dedup();
-    ids
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
 }
 
-/// The id of the single-space token, which opens a blank transcript.
-///
-/// Whisper-specific: what the Whisper kit's
-/// [`SuppressBlank`](crate::kits::speech::whisper::logit_filters::SuppressBlank)
-/// suppresses at the first step.
-pub fn blank_token(ranks: &TiktokenRanks) -> Option<i64> {
-    lookup(ranks).get(b" ".as_slice()).copied()
+impl TiktokenRanks {
+    /// The id of the single-space token, which opens a blank transcript.
+    ///
+    /// Whisper-specific: what the Whisper kit's
+    /// [`SuppressBlank`](crate::kits::speech::whisper::logit_filters::SuppressBlank)
+    /// suppresses at the first step.
+    pub fn blank_token(&self) -> Option<i64> {
+        self.ids_by_bytes().get(b" ".as_slice()).copied()
+    }
 }
 
 #[cfg(test)]
