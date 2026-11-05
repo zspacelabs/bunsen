@@ -73,6 +73,62 @@ pub trait CausalDecoderBlockMeta {
     fn n_embed(&self) -> usize;
 }
 
+/// A decoder layer's names for its parts, as a checkpoint spells them: what
+/// [`CausalDecoderBlock::layer_rekey`] maps onto the block's.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecoderLayerKeys {
+    /// The attention's input norm.
+    pub attn_norm: String,
+
+    /// The feed-forward's input norm.
+    pub mlp_norm: String,
+
+    /// The attention's and the feed-forward's output norms, for a block with
+    /// post-norms.
+    pub post_norms: Option<[String; 2]>,
+
+    /// The attention.
+    pub attn: String,
+
+    /// The attention's query, key, value and output projections, under
+    /// [`attn`](Self::attn).
+    pub attn_projs: [String; 4],
+}
+
+impl DecoderLayerKeys {
+    /// Llama's line (Qwen3, Mistral, Gemma): `self_attn` with
+    /// `{q,k,v,o}_proj`, under the layer's names for its two norms, the
+    /// attention's and the feed-forward's (`input_layernorm` and
+    /// `post_attention_layernorm` in Llama's own; `self_attn_layer_norm` and
+    /// `final_layer_norm` in Voxtral's audio tower).
+    pub fn llama(
+        attn_norm: impl Into<String>,
+        mlp_norm: impl Into<String>,
+    ) -> Self {
+        Self {
+            attn_norm: attn_norm.into(),
+            mlp_norm: mlp_norm.into(),
+            post_norms: None,
+            attn: "self_attn".to_string(),
+            attn_projs: ["q_proj", "k_proj", "v_proj", "o_proj"].map(String::from),
+        }
+    }
+
+    /// With post-norms: the attention's and the feed-forward's output norms
+    /// (`post_attention_layernorm` and `post_feedforward_layernorm` in
+    /// Gemma 2 and 3).
+    pub fn with_post_norms(
+        self,
+        attn_post_norm: impl Into<String>,
+        mlp_post_norm: impl Into<String>,
+    ) -> Self {
+        Self {
+            post_norms: Some([attn_post_norm.into(), mlp_post_norm.into()]),
+            ..self
+        }
+    }
+}
+
 /// Config for [`CausalDecoderBlock`].
 #[derive(Config, Debug)]
 pub struct CausalDecoderBlockConfig {
@@ -240,42 +296,28 @@ impl crate::burner::module::ResultDType for CausalDecoderBlock {
 }
 
 impl CausalDecoderBlock {
-    /// `transformers`' decoder-layer names onto this block's, relative to
-    /// it: `attn_norm` and `mlp_norm`, the layer's names for its two norms,
-    /// the attention's and the feed-forward's (`input_layernorm` and
-    /// `post_attention_layernorm` in Llama's line, Qwen3's and Mistral's;
-    /// `self_attn_layer_norm` and `final_layer_norm` in Voxtral's audio
-    /// tower); `self_attn`'s `{q,k,v,o}_proj` the attention's projections,
-    /// and the rest of `self_attn` (QK-norms) under `attn`; the `SwiGLU`'s
+    /// A checkpoint's decoder-layer names onto this block's, relative to it:
+    /// `keys`' two norms, the attention's and the feed-forward's, and with
+    /// post-norms their output norms; the attention's projections, and the
+    /// rest of the attention (QK-norms) under `attn`; the feed-forward's
     /// projections as they are.
-    pub fn hf_layer_rekey(
-        attn_norm: &str,
-        mlp_norm: &str,
-    ) -> Rekey {
-        Rekey::keep_rest()
-            .rename(format!("{attn_norm}."), "attn_norm.")
-            .rename(format!("{mlp_norm}."), "mlp_norm.")
-            .rename("self_attn.q_proj.", "attn.c_q.")
-            .rename("self_attn.k_proj.", "attn.c_k.")
-            .rename("self_attn.v_proj.", "attn.c_v.")
-            .rename("self_attn.o_proj.", "attn.c_proj.")
-            .rename("self_attn.", "attn.")
-    }
-
-    /// [`hf_layer_rekey`](Self::hf_layer_rekey) for a block with post-norms:
-    /// the layer's four norm names, the attention's input and output norms
-    /// and the feed-forward's (`input_layernorm`, `post_attention_layernorm`,
-    /// `pre_feedforward_layernorm` and `post_feedforward_layernorm` in
-    /// Gemma 2 and 3).
-    pub fn hf_sandwich_rekey(
-        attn_norm: &str,
-        attn_post_norm: &str,
-        mlp_norm: &str,
-        mlp_post_norm: &str,
-    ) -> Rekey {
-        Self::hf_layer_rekey(attn_norm, mlp_norm)
-            .rename(format!("{attn_post_norm}."), "attn_post_norm.")
-            .rename(format!("{mlp_post_norm}."), "mlp_post_norm.")
+    pub fn layer_rekey(keys: &DecoderLayerKeys) -> Rekey {
+        let attn = &keys.attn;
+        let [q, k, v, o] = &keys.attn_projs;
+        let mut rekey = Rekey::keep_rest()
+            .rename(format!("{}.", keys.attn_norm), "attn_norm.")
+            .rename(format!("{}.", keys.mlp_norm), "mlp_norm.");
+        if let Some([attn_post, mlp_post]) = &keys.post_norms {
+            rekey = rekey
+                .rename(format!("{attn_post}."), "attn_post_norm.")
+                .rename(format!("{mlp_post}."), "mlp_post_norm.");
+        }
+        rekey
+            .rename(format!("{attn}.{q}."), "attn.c_q.")
+            .rename(format!("{attn}.{k}."), "attn.c_k.")
+            .rename(format!("{attn}.{v}."), "attn.c_v.")
+            .rename(format!("{attn}.{o}."), "attn.c_proj.")
+            .rename(format!("{attn}."), "attn.")
     }
 
     /// `norm(x)`, or `x` without a norm.
@@ -581,14 +623,12 @@ mod tests {
     }
 
     #[test]
-    fn test_hf_sandwich_rekey() {
-        let rekey = CausalDecoderBlock::hf_sandwich_rekey(
-            "input_layernorm",
-            "post_attention_layernorm",
-            "pre_feedforward_layernorm",
-            "post_feedforward_layernorm",
+    fn test_layer_rekey_with_post_norms() {
+        let rekey = CausalDecoderBlock::layer_rekey(
+            &DecoderLayerKeys::llama("input_layernorm", "pre_feedforward_layernorm")
+                .with_post_norms("post_attention_layernorm", "post_feedforward_layernorm"),
         );
-        for (hf, bunsen) in [
+        for (stored, bunsen) in [
             ("input_layernorm.weight", "attn_norm.weight"),
             ("post_attention_layernorm.weight", "attn_post_norm.weight"),
             ("pre_feedforward_layernorm.weight", "mlp_norm.weight"),
@@ -597,7 +637,7 @@ mod tests {
             ("self_attn.q_norm.weight", "attn.q_norm.weight"),
             ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
         ] {
-            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
+            assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
         }
     }
 

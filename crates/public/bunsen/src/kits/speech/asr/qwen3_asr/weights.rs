@@ -15,7 +15,7 @@ use crate::{
     burner::module::Rekey,
     data::pretrained::{
         NamedTensorsApplied,
-        load_hf,
+        load_rekeyed,
     },
     errors::BunsenResult,
     kits::{
@@ -35,12 +35,12 @@ use crate::{
 /// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks
 /// ([`ConvSeq2d::one_based_rekey`]), its layers by
 /// `transformers`' Whisper layer names
-/// ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`]), the text model's
-/// layers by [`text_layer_rekey`], and everything else as it is. Anything
-/// outside `model.` (the tied `lm_head.weight`) is dropped.
+/// ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`]), the text
+/// model's layers by [`text_layer_rekey`], and everything else as it is.
+/// Anything outside `model.` (the tied `lm_head.weight`) is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`load_hf`] resolves to `gamma` / `beta`.
+/// [`load_rekeyed`] resolves to `gamma` / `beta`.
 pub fn hf_rekey() -> Rekey {
     Rekey::drop_rest().mount(
         "model.",
@@ -54,7 +54,7 @@ pub fn hf_rekey() -> Rekey {
             .mount_indexed(
                 "audio_tower.layers.",
                 "audio_tower.layers.",
-                ResidualEncoderAttentionBlock::whisper_hf_rekey(),
+                ResidualEncoderAttentionBlock::whisper_transformers_rekey(),
             )
             .mount_indexed(
                 "language_model.layers.",
@@ -66,30 +66,30 @@ pub fn hf_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
-/// state dict into `model`: [`load_hf`] under [`hf_rekey`], in the dtype
+/// state dict into `model`: [`load_rekeyed`] under [`hf_rekey`], in the dtype
 /// `model` was built in. The checkpoints ship `bf16`, which not every
 /// backend computes in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_hf(model, tensors, &hf_rekey(), None)
+    load_rekeyed(model, tensors, &hf_rekey(), None)
 }
 
 /// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
 /// policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors_as(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_hf(model, tensors, &hf_rekey(), Some(dtype))
+    load_rekeyed(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3AsrConfig`] of a `transformers`
