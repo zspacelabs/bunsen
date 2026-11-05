@@ -5,7 +5,7 @@ use burn::{
     prelude::Bool,
 };
 
-use crate::kits::sims::lbm::d2q9::{
+use crate::sims::lbm::d2q9::{
     LbmTables,
     OmegaSource,
     RelaxationParam,
@@ -89,7 +89,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::sims::lbm::d2q9::{
+        sims::lbm::d2q9::{
             LbmTables,
             RelaxationParam,
             density,

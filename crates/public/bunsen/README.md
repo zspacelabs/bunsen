@@ -28,7 +28,7 @@ or supplanted by the eventual `burn` solution to that problem.
 
 ## Kits
 
-A kit is a whole model or simulation, with its configs and, for a model, the weights it loads by name
+A kit is a whole model, with its configs and the weights it loads by name
 ([Kits](https://zspacelabs.ai/bunsen/book/organization/kits.html)):
 
 - [`images::resnet`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/index.html): ResNet image classifiers,
@@ -37,9 +37,6 @@ A kit is a whole model or simulation, with its configs and, for a model, the wei
   image classifiers, without pretrained weights.
 - [`gpts::nanochat`](https://docs.rs/bunsen/latest/bunsen/kits/gpts/nanochat/index.html): a port of karpathy's
   nanochat GPT, and the corpus it trains on. Work in progress.
-- [`sims::conway`](https://docs.rs/bunsen/latest/bunsen/kits/sims/conway/index.html): Conway's Game of Life on
-  toroidal 2D and 3D boards.
-- [`sims::lbm`](https://docs.rs/bunsen/latest/bunsen/kits/sims/lbm/index.html): a D2Q9 lattice-Boltzmann fluid.
 - [`speech::whisper`](https://docs.rs/bunsen/latest/bunsen/kits/speech/whisper/index.html): OpenAI's Whisper, with
   a pretrained index, decoders, and a stream driver.
 - [`speech::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/silero_vad/index.html): the Silero
@@ -511,6 +508,16 @@ kits:
 ```
 
 <!-- /card -->
+
+
+## Simulations
+
+Simulations written as tensor programs, built the way the kits are, a config and a state you step
+([`bunsen::sims`](https://docs.rs/bunsen/latest/bunsen/sims/index.html)):
+
+- [`sims::conway`](https://docs.rs/bunsen/latest/bunsen/sims/conway/index.html): Conway's Game of Life on
+  toroidal 2D and 3D boards.
+- [`sims::lbm`](https://docs.rs/bunsen/latest/bunsen/sims/lbm/index.html): a D2Q9 lattice-Boltzmann fluid.
 
 ## The workspace
 

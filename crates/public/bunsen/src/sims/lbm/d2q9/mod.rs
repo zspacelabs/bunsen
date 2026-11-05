@@ -117,7 +117,7 @@
 //!
 //! ```rust
 //! use bunsen::{
-//!     kits::sims::lbm::d2q9::{
+//!     sims::lbm::d2q9::{
 //!         LBMD2Q9Config,
 //!         LBMD2Q9State,
 //!         RelaxationParam,
@@ -194,7 +194,7 @@ mod tests {
     use serial_test::serial;
 
     use crate::{
-        kits::sims::lbm::d2q9::{
+        sims::lbm::d2q9::{
             collision::bgk_collision_with_spherical_reflection,
             relaxation::RelaxationParam,
             space,

@@ -5,7 +5,7 @@ use std::time::{
 
 use bunsen::{
     errors::BunsenResult,
-    kits::sims::conway::{
+    sims::conway::{
         life2d::{
             ConwayLife2DConfig,
             ConwayLife2DState,

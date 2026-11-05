@@ -11,10 +11,6 @@ use burn::{
 };
 
 use crate::{
-    kits::sims::conway::{
-        ops::project_wrapped_toroidal_boarders,
-        util::ConwayRules,
-    },
     prelude::{
         TensorBoolOpExt,
         TensorOrderedOpExt,
@@ -22,6 +18,10 @@ use crate::{
     rust_ext::range_util::{
         range_into,
         shift_range,
+    },
+    sims::conway::{
+        ops::project_wrapped_toroidal_boarders,
+        util::ConwayRules,
     },
 };
 

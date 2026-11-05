@@ -1,7 +1,7 @@
 //! # Thermal Equilibrium
 use burn::Tensor;
 
-use crate::kits::sims::lbm::d2q9::{
+use crate::sims::lbm::d2q9::{
     C2,
     C4,
     space,
@@ -84,7 +84,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::sims::lbm::d2q9::{
+        sims::lbm::d2q9::{
             space::{
                 LbmTables,
                 density,

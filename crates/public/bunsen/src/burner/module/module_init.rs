@@ -334,7 +334,7 @@ use crate::errors::{
 /// [`CausalDecoderBlockConfig::init`]: crate::blocks::transformers::decoders::causal::CausalDecoderBlockConfig::init
 /// [`KVCacheConfig::init`]: crate::ops::transformers::attention::KVCacheConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::silero_vad::blocks::SileroVadContextConfig::init
-/// [`LBMD2Q9Config::init`]: crate::kits::sims::lbm::d2q9::LBMD2Q9Config::init
+/// [`LBMD2Q9Config::init`]: crate::sims::lbm::d2q9::LBMD2Q9Config::init
 /// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig
 /// [`ResNetStructureConfig`]: crate::kits::images::resnet::ResNetStructureConfig
 /// [`ResNet`]: crate::kits::images::resnet::ResNet

@@ -8,7 +8,7 @@ From the top of the stack down:
 
 | Layer | Contents |
 |---|---|
-| `kits` | Whole models and simulations, with their configs, pretrained indexes and runtime drivers. |
+| `kits`, `sims` | Whole models, with their configs, pretrained indexes and runtime drivers; simulations. |
 | `blocks` | `torch.nn`-like components: module roots and tree parts. |
 | `ops` | Operations: free functions, and `Module`/`Config` types that hold cached tables or stream state. |
 | foundation | `burner` (burn extensions), `contracts` (shape checks), `errors`, `rust_ext` (Rust helpers), `support`, `zspace`. |
@@ -34,7 +34,8 @@ Each module's own docs carry its map; this table is the one-line version.
 
 | Module | What it is for |
 |---|---|
-| [`kits`](bunsen::kits) | Complete domain implementations: image models (`images`), GPTs (`gpts`), simulations (`sims`), speech (`speech`), and the shared token seam (`tokens`). See [Kits](./kits.md). |
+| [`kits`](bunsen::kits) | Complete domain implementations: image models (`images`), GPTs (`gpts`), speech (`speech`), and the shared token seam (`tokens`). See [Kits](./kits.md). |
+| [`sims`](bunsen::sims) | Simulations written as tensor programs: Conway's Game of Life (`conway`) and a lattice-Boltzmann fluid (`lbm`). |
 | [`blocks`](bunsen::blocks) | Reusable `Module` components: conv blocks, image layers, recurrent cells, transformer parts. |
 | [`ops`](bunsen::ops) | Tensor operations, including the signal-processing front ends and attention ops. |
 | [`burner`](bunsen::burner) | Extensions to burn's module machinery: the config lifecycle ([`ModuleInit`](bunsen::burner::module::ModuleInit), [`ToStructureConfig`](bunsen::burner::module::ToStructureConfig)), reflection, grouped optimizers, tensor extension traits, PyTorch-load repairs. |

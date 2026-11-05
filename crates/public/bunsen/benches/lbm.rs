@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use bunsen::{
-    kits::sims::lbm::d2q9::{
+    sims::lbm::d2q9::{
         LbmTables,
         RelaxationParam,
         bgk_collision,

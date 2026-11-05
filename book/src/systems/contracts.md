@@ -97,7 +97,7 @@ cannot make. When you do gate a check:
 - **Periodic and gated combine.** A periodic assert inside a gated block
   still keeps debug builds and test runs fast.
 
-[`next_interior_3d`](bunsen::kits::sims::conway::ops::next_interior_3d) is a
+[`next_interior_3d`](bunsen::sims::conway::ops::next_interior_3d) is a
 small example: a gated unpack of its input and a gated periodic assert of
 its shrunken output. The ResNet blocks, such as
 [`LayerBlock::forward`](bunsen::kits::images::resnet::blocks::LayerBlock::forward),

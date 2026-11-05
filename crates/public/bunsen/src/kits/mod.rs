@@ -1,13 +1,13 @@
-//! # Kits: complete models and simulations
+//! # Kits: complete models
 //!
 //! A kit is a whole thing you can pick up and use: a model family with its
-//! configs, the weights it can load and a program that runs it, or a
-//! simulation you can step. [`crate::blocks`] is a library of parts; a kit
-//! is what the parts are for. Kits are built on the rest of the crate:
-//! [`crate::blocks`] and [`crate::ops`] supply the layers and kernels,
-//! [`crate::contracts`] checks tensor shapes, [`crate::burner`] holds the
-//! module conventions, and [`crate::data`] fetches, caches and verifies the
-//! bytes a kit loads.
+//! configs, the weights it can load and a program that runs it. The
+//! simulations, built the same way, are [`crate::sims`]. [`crate::blocks`] is a
+//! library of parts; a kit is what the parts are for. Kits are built on the
+//! rest of the crate: [`crate::blocks`] and [`crate::ops`] supply the layers
+//! and kernels, [`crate::contracts`] checks tensor shapes, [`crate::burner`]
+//! holds the module conventions, and [`crate::data`] fetches, caches and
+//! verifies the bytes a kit loads.
 //!
 //! # The kits
 //!
@@ -17,8 +17,6 @@
 //! | [`images::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
 //! | [`gpts::nanochat`] | karpathy's nanochat GPT, upstream's 2025 and 2026 models: a pretrained index of community checkpoints (`nanochat-students/rl-d20` by default), upstream's own checkpoint files loaded as they are, cached decoding, and the corpus it trains on. |
 //! | [`gpts::qwen3`] | The Qwen3 decoder: a pretrained index of the dense Qwen3 checkpoints up to 8B (`qwen/qwen3-0.6b` by default), and the text model of [`speech::qwen3_asr`]. |
-//! | [`sims::conway`] | Conway's Game of Life on toroidal 2D and 3D boards. |
-//! | [`sims::lbm`] | A D2Q9 lattice-Boltzmann fluid, with a mass correction. |
 //! | [`speech::whisper`] | `OpenAI`'s Whisper: the model, a pretrained index, decoders, and a stream driver. |
 //! | [`speech::parakeet`] | NVIDIA's Parakeet TDT: the model, a pretrained index (`FermionResearch`'s Phonon-2 by default), and greedy decoding. |
 //! | [`speech::sortformer`] | NVIDIA's Sortformer speaker diarizers (`Nemotron-3-Diarization`, the streaming Sortformer v2 and v2.1): the model, its streaming through a speaker cache, and a pretrained index of `transformers` and `.nemo` checkpoints. |
@@ -27,7 +25,7 @@
 //! | [`speech::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
 //! | [`support`] | Not a model: what kits of more than one family share: [`support::tokens`], the ids-to-text seam, and [`support::decoding`], the search machinery (logit filters, greedy and beam search, sampling, ranking, and the temperature ladder). |
 //!
-//! The area modules, [`images`], [`gpts`], [`sims`] and [`speech`], group the
+//! The area modules, [`images`], [`gpts`] and [`speech`], group the
 //! kits by domain and say what the kits in each have in common.
 //!
 //! # Anatomy of a kit
@@ -101,12 +99,11 @@
 //! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` | `qwen3-asr-model-validation` | `sortformer-model-validation` | `qwen3-model-validation` | `gemma-model-validation` | `voxtral-model-validation` | `nanochat-model-validation` |
 //! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `bunsen-tool asr` | `bunsen-tool asr`, as the VAD gate | `bunsen-tool asr` | `bunsen-tool asr` | none | `bunsen-tool chat` | `bunsen-tool chat` | `bunsen-tool asr` | `examples/train-chat` |
 //!
-//! The other kits have a model or a simulation state, its configs, and an
-//! example, and no prefabs or weights. Swin is Stacked
+//! The other kits have a model, its configs, and an example, and no prefabs
+//! or weights. Swin is Stacked
 //! (`examples/swin_tiny`). `NanoChat` is Stacked too, and adds a table of
 //! the corpus it trains on, a [`data::shards`](crate::data::shards) shard
-//! set (`examples/train-chat`). The simulations step a state in place
-//! (`examples/conway`, `examples/lbm2d_vis`).
+//! set (`examples/train-chat`).
 //!
 //! Three seams are shared across kits:
 //! [`data::pretrained`](crate::data::pretrained) for loading,
@@ -122,6 +119,5 @@
 
 pub mod gpts;
 pub mod images;
-pub mod sims;
 pub mod speech;
 pub mod support;

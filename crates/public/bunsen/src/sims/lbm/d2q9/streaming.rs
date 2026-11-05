@@ -5,7 +5,7 @@ use burn::{
     prelude::s,
 };
 
-use crate::kits::sims::lbm::d2q9::space;
+use crate::sims::lbm::d2q9::space;
 
 /// Applies the streaming update step to the non-border cells of a population.
 ///

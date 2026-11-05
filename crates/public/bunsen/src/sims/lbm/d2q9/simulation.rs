@@ -326,7 +326,7 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::sims::lbm::d2q9::{
+        sims::lbm::d2q9::{
             SPEED_OF_SOUND,
             macroscopic_momentum,
         },
