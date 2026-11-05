@@ -144,7 +144,7 @@ pub fn read_five_value_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
         let values = kind
             .decode(blob, &entry.shape)
             .map_err(|why| bad(format!("`{}`: {why}", entry.n)))?;
-        let (name, shape) = hf_name_and_shape(&entry.n, kind, entry.shape);
+        let (name, shape) = state_dict_name_and_shape(&entry.n, kind, entry.shape);
         tensors.push(bridge::from_data(
             TensorData::new(values, shape),
             name,
@@ -158,7 +158,7 @@ pub fn read_five_value_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
 }
 
 /// The state-dict name and shape of a record.
-fn hf_name_and_shape(
+fn state_dict_name_and_shape(
     name: &str,
     kind: FiveValueRecordKind,
     mut shape: Vec<usize>,

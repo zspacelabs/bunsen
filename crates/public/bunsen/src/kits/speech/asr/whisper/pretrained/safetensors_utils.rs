@@ -37,10 +37,10 @@ use crate::{
 
 /// `transformers`' `WhisperForConditionalGeneration` state-dict names onto
 /// a [`Whisper`]'s module paths: under `model.`, the layers by their blocks'
-/// maps ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`],
-/// [`CrossDecoderBlock::whisper_hf_rekey`]), `layers.N` as `blocks.N`; the
-/// two convolutions, `conv1` and `conv2`, the encoder head's blocks
-/// ([`ConvSeq1d::one_based_rekey`]); the positional tables
+/// maps ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`],
+/// [`CrossDecoderBlock::whisper_transformers_rekey`]), `layers.N` as
+/// `blocks.N`; the two convolutions, `conv1` and `conv2`, the encoder head's
+/// blocks ([`ConvSeq1d::one_based_rekey`]); the positional tables
 /// without their `.weight`; `embed_tokens` the token embedding; the final
 /// norms `ln_post` and `ln`; everything else as it is. Anything outside
 /// `model.` (a tied `proj_out.weight`) is dropped.
@@ -69,12 +69,12 @@ pub fn hf_rekey() -> Rekey {
             .mount_indexed(
                 "encoder.layers.",
                 "encoder.blocks.",
-                ResidualEncoderAttentionBlock::whisper_hf_rekey(),
+                ResidualEncoderAttentionBlock::whisper_transformers_rekey(),
             )
             .mount_indexed(
                 "decoder.layers.",
                 "decoder.blocks.",
-                CrossDecoderBlock::whisper_hf_rekey(),
+                CrossDecoderBlock::whisper_transformers_rekey(),
             )
             .rename("encoder.layer_norm.", "encoder.ln_post.")
             .rename("decoder.layer_norm.", "decoder.ln."),

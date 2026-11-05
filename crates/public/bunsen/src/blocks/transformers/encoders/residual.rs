@@ -372,7 +372,7 @@ impl ResidualEncoderAttentionBlock {
     /// `self_attn`'s `{q,k,v,out}_proj` the attention,
     /// `self_attn_layer_norm` and `final_layer_norm` the norms, `fc{1,2}`
     /// the MLP; everything else as it is.
-    pub fn whisper_hf_rekey() -> Rekey {
+    pub fn whisper_transformers_rekey() -> Rekey {
         Rekey::keep_rest()
             .rename("self_attn.q_proj.", "attn.query.")
             .rename("self_attn.k_proj.", "attn.key.")

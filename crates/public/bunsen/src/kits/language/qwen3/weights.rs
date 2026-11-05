@@ -6,11 +6,14 @@ use super::{
     Qwen3Model,
 };
 use crate::{
-    blocks::transformers::decoders::causal::CausalDecoderBlock,
+    blocks::transformers::decoders::causal::{
+        CausalDecoderBlock,
+        DecoderLayerKeys,
+    },
     burner::module::Rekey,
     data::pretrained::{
         NamedTensorsApplied,
-        load_hf,
+        load_rekeyed,
     },
     errors::BunsenResult,
     kits::support::model_config::{
@@ -26,7 +29,10 @@ use crate::{
 /// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
 /// QK-norms, and the `SwiGLU`'s projections as they are.
 pub fn text_layer_rekey() -> Rekey {
-    CausalDecoderBlock::hf_layer_rekey("input_layernorm", "post_attention_layernorm")
+    CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+        "input_layernorm",
+        "post_attention_layernorm",
+    ))
 }
 
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto a
@@ -39,7 +45,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_hf`] resolves to `gamma`.
+/// [`load_rekeyed`] resolves to `gamma`.
 pub fn hf_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -53,16 +59,16 @@ pub fn hf_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
-/// `model`: [`load_hf`] under [`hf_rekey`], in the dtype `model` was built
+/// `model`: [`load_rekeyed`] under [`hf_rekey`], in the dtype `model` was built
 /// in. The checkpoints ship `bf16`, which not every backend computes in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_hf(model, tensors, &hf_rekey(), None)
+    load_rekeyed(model, tensors, &hf_rekey(), None)
 }
 
 /// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
@@ -73,13 +79,13 @@ pub fn load_hf_tensors(
 /// [`LoadPolicy::resolve`]: crate::kits::support::construct::LoadPolicy::resolve
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors_as(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_hf(model, tensors, &hf_rekey(), Some(dtype))
+    load_rekeyed(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:

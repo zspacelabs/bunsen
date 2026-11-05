@@ -251,7 +251,7 @@ pub fn stored_float_dtype(tensors: &[PackTensor]) -> Option<FloatDType> {
 ///
 /// # Errors
 /// As [`apply_rekeyed_tensors`].
-pub fn load_hf<M: ModuleSnapshot>(
+pub fn load_rekeyed<M: ModuleSnapshot>(
     module: &mut M,
     tensors: impl IntoIterator<Item = PackTensor>,
     rekey: &Rekey,

@@ -318,15 +318,19 @@ impl CrossDecoderBlock {
     /// relative to it: `encoder_attn`'s `{q,k,v,out}_proj` the
     /// cross-attention and `encoder_attn_layer_norm` its norm; the rest as
     /// an encoder layer's
-    /// ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`]).
-    pub fn whisper_hf_rekey() -> Rekey {
+    /// ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`]).
+    pub fn whisper_transformers_rekey() -> Rekey {
         Rekey::keep_rest()
             .rename("encoder_attn.q_proj.", "cross_attn.query.")
             .rename("encoder_attn.k_proj.", "cross_attn.key.")
             .rename("encoder_attn.v_proj.", "cross_attn.value.")
             .rename("encoder_attn.out_proj.", "cross_attn.output.")
             .rename("encoder_attn_layer_norm.", "cross_attn_norm.")
-            .mount("", "", ResidualEncoderAttentionBlock::whisper_hf_rekey())
+            .mount(
+                "",
+                "",
+                ResidualEncoderAttentionBlock::whisper_transformers_rekey(),
+            )
     }
 }
 

@@ -10,12 +10,15 @@ use super::blocks::{
 use crate::{
     blocks::{
         conv::ConvSeq1d,
-        transformers::decoders::causal::CausalDecoderBlock,
+        transformers::decoders::causal::{
+            CausalDecoderBlock,
+            DecoderLayerKeys,
+        },
     },
     burner::module::Rekey,
     data::pretrained::{
         NamedTensorsApplied,
-        load_hf,
+        load_rekeyed,
     },
     errors::BunsenResult,
     kits::{
@@ -33,7 +36,10 @@ use crate::{
 /// `final_layer_norm` the feed-forward's, `self_attn`'s `{q,k,v,o}_proj` the
 /// attention's projections, and the `SwiGLU`'s projections as they are.
 pub fn audio_layer_rekey() -> Rekey {
-    CausalDecoderBlock::hf_layer_rekey("self_attn_layer_norm", "final_layer_norm")
+    CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+        "self_attn_layer_norm",
+        "final_layer_norm",
+    ))
 }
 
 /// `transformers`' Voxtral Realtime text-layer names onto a
@@ -55,7 +61,7 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 /// tied, so nothing else is read.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_hf`] resolves to `gamma`.
+/// [`load_rekeyed`] resolves to `gamma`.
 pub fn hf_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -81,30 +87,30 @@ pub fn hf_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
-/// `model.safetensors` names them into `model`: [`load_hf`] under
+/// `model.safetensors` names them into `model`: [`load_rekeyed`] under
 /// [`hf_rekey`], in the dtype `model` was built in. The checkpoint ships
 /// `bf16`, which not every backend computes in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_hf(model, tensors, &hf_rekey(), None)
+    load_rekeyed(model, tensors, &hf_rekey(), None)
 }
 
 /// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
 /// policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors_as(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_hf(model, tensors, &hf_rekey(), Some(dtype))
+    load_rekeyed(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`VoxtralRealtimeConfig`] of a `transformers` `VoxtralRealtime`

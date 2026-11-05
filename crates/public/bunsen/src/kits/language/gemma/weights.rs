@@ -9,7 +9,10 @@ use super::{
 };
 use crate::{
     blocks::transformers::{
-        decoders::causal::CausalDecoderBlock,
+        decoders::causal::{
+            CausalDecoderBlock,
+            DecoderLayerKeys,
+        },
         embedding::RopeScaling,
     },
     burner::module::{
@@ -19,7 +22,7 @@ use crate::{
     },
     data::pretrained::{
         NamedTensorsApplied,
-        load_hf,
+        load_rekeyed,
     },
     errors::{
         BunsenError,
@@ -41,17 +44,18 @@ pub const GEMMA_TEXT_PREFIXES: [&str; 3] =
 /// attention's, `pre_feedforward_layernorm` and `post_feedforward_layernorm`
 /// the feed-forward's. Without (Gemma 1), Llama's two. `self_attn`'s
 /// projections and QK-norms, and the `GeGLU`'s projections, as
-/// [`CausalDecoderBlock::hf_layer_rekey`] maps them.
+/// [`CausalDecoderBlock::layer_rekey`] maps them.
 pub fn text_layer_rekey(post_norms: bool) -> Rekey {
     if post_norms {
-        CausalDecoderBlock::hf_sandwich_rekey(
-            "input_layernorm",
-            "post_attention_layernorm",
-            "pre_feedforward_layernorm",
-            "post_feedforward_layernorm",
+        CausalDecoderBlock::layer_rekey(
+            &DecoderLayerKeys::llama("input_layernorm", "pre_feedforward_layernorm")
+                .with_post_norms("post_attention_layernorm", "post_feedforward_layernorm"),
         )
     } else {
-        CausalDecoderBlock::hf_layer_rekey("input_layernorm", "post_attention_layernorm")
+        CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+            "input_layernorm",
+            "post_attention_layernorm",
+        ))
     }
 }
 
@@ -76,31 +80,31 @@ pub fn hf_rekey(post_norms: bool) -> Rekey {
 }
 
 /// Loads tensors named as a `transformers` Gemma state dict into `model`:
-/// [`load_hf`] under [`hf_rekey`] for `model`'s generation, in the dtype
+/// [`load_rekeyed`] under [`hf_rekey`] for `model`'s generation, in the dtype
 /// `model` was built in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors(
     model: &mut GemmaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let rekey = hf_rekey(model.stack.layers[0].attn_post_norm.is_some());
-    load_hf(model, tensors, &rekey, None)
+    load_rekeyed(model, tensors, &rekey, None)
 }
 
 /// [`load_hf_tensors`], every floating tensor placed in `dtype` (a load
 /// policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`load_hf`].
+/// As [`load_rekeyed`].
 pub fn load_hf_tensors_as(
     model: &mut GemmaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
     let rekey = hf_rekey(model.stack.layers[0].attn_post_norm.is_some());
-    load_hf(model, tensors, &rekey, Some(dtype))
+    load_rekeyed(model, tensors, &rekey, Some(dtype))
 }
 
 /// A Gemma generation, as a `config.json`'s `model_type` names it.
