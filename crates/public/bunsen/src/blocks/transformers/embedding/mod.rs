@@ -12,8 +12,9 @@
 //! - [`TokenEmbedding`] looks tokens up in a table, then, as its
 //!   [`TokenEmbeddingConfig`] says, normalizes and scales them: nanochat's
 //!   normed embedding, Gemma's scaled one.
-//! - [`iota_embedding`] and [`identity_embedding`] build burn [`Embedding`]s
-//!   with weights you can check by hand, as fixtures for tests.
+//! - `testing` (behind the `testing` feature) holds `iota_embedding` and
+//!   `identity_embedding`, burn `Embedding`s with weights you can check by
+//!   hand, as fixtures for tests.
 //!
 //! The table builders, and [`unembed`] for a tied output head, are operations
 //! in [`crate::ops::embedding`].
@@ -26,9 +27,10 @@
 mod rotary;
 mod rotary_set;
 mod token;
-mod trivial_builders;
 
 pub use rotary::*;
 pub use rotary_set::*;
 pub use token::*;
-pub use trivial_builders::*;
+
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;

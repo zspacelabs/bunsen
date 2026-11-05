@@ -28,8 +28,9 @@
 //!   zeroes the entire residual branch for a sample, with some probability, so
 //!   the network sees a shorter effective depth on each training step.
 //! - [`rate_table`] configures a stack of `DropPath` layers:
-//!   [`progressive_dpr`](rate_table::progressive_dpr) ramps the drop rate
-//!   linearly from 0 over the depth, as Swin Transformer V2 and `timm` do, and
+//!   [`linear_drop_path_rate_schedule`](rate_table::linear_drop_path_rate_schedule)
+//!   ramps the drop rate linearly from 0 over the depth, as Swin Transformer V2
+//!   and `timm` do, and
 //!   [`DropPathRateDepthTable`](rate_table::DropPathRateDepthTable) splits that
 //!   ramp across stages of given depths.
 //!

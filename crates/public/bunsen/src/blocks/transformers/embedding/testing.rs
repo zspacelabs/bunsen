@@ -1,4 +1,9 @@
-//! Fixture embeddings for tests.
+//! # Fixture embeddings, for tests
+//!
+//! [`iota_embedding`] and [`identity_embedding`] build burn [`Embedding`]s
+//! whose lookups can be read by hand: to check a gather, a slice, or an
+//! embedding-weight mapping. Behind the `testing` feature, and not
+//! re-exported: name them by this module's path.
 
 use burn::{
     module::Param,

@@ -19,7 +19,7 @@ use crate::ops::arange::vec_linspace;
 /// ending at `drop_path_rate`.
 #[inline(always)]
 #[must_use]
-pub fn progressive_dpr(
+pub fn linear_drop_path_rate_schedule(
     drop_path_rate: f64,
     depth: usize,
 ) -> Vec<f64> {
@@ -33,7 +33,7 @@ pub fn progressive_dpr(
 
 /// Represents a table of progressive drop path rates for each layer in a model.
 pub struct DropPathRateDepthTable {
-    progressive_dpr: Vec<f64>,
+    schedule: Vec<f64>,
     layer_depths: Vec<usize>,
 }
 
@@ -57,9 +57,9 @@ impl DropPathRateDepthTable {
         layer_depths: &[usize],
     ) -> Self {
         let layer_depths = layer_depths.to_vec();
-        let progressive_dpr = progressive_dpr(drop_path_rate, layer_depths.iter().sum());
+        let schedule = linear_drop_path_rate_schedule(drop_path_rate, layer_depths.iter().sum());
         Self {
-            progressive_dpr,
+            schedule,
             layer_depths,
         }
     }
@@ -107,11 +107,11 @@ impl DropPathRateDepthTable {
             );
         }
         let depths = &self.layer_depths;
-        let progressive_dpr1 = &self.progressive_dpr;
+        let schedule = &self.schedule;
         let start = depths[..layer_i].iter().sum::<usize>();
         let end = start + depths[layer_i];
 
-        progressive_dpr1[start..end].to_vec()
+        schedule[start..end].to_vec()
     }
 
     /// Returns the `layer_dprs` for all layers as a vector of vectors.
@@ -159,7 +159,7 @@ mod tests {
     fn test_incremental_drop_rate() {
         let drop_path_rate = 0.1;
         let depth = 9;
-        let rates = progressive_dpr(drop_path_rate, depth);
+        let rates = linear_drop_path_rate_schedule(drop_path_rate, depth);
         assert_close_to_vec(
             &rates,
             &[0.0, 0.0125, 0.025, 0.0375, 0.05, 0.0625, 0.075, 0.0875, 0.1],
