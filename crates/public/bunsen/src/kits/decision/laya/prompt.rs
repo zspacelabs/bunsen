@@ -332,6 +332,25 @@ pub fn build_prompt(
     Ok(LayaPrompt { ids, markers })
 }
 
+/// A decision request: a state, and the questions about it, each answered
+/// in turn ([`LayaModel::decide`]); what `bunsen-tool decide` reads, as YAML
+/// or JSON.
+///
+/// ```yaml
+/// context: "the call failed twice"
+/// choices:
+///   - { type: choice, question: "which next?", options: [retry, escalate, close] }
+///   - { type: noul, question: "is the user satisfied?" }
+/// ```
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LayaRequest {
+    /// The state the questions are about.
+    pub context: String,
+
+    /// The questions, answered in order.
+    pub choices: Vec<LayaQuestion>,
+}
+
 /// A question's answer: each option's calibrated probability, the most
 /// probable option, and what its kind adds.
 #[derive(Clone, Debug, PartialEq, Serialize)]

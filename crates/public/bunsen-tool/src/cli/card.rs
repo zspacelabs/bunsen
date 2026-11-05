@@ -11,6 +11,7 @@ use bunsen::{
         sys_at,
     },
     kits::{
+        decision::laya::pretrained::default_laya_factory,
         language::{
             gemma::{
                 GemmaPolicy,
@@ -347,8 +348,8 @@ fn cache_config(cache: &PretrainedCache) -> Value {
     ])
 }
 
-/// The models, by kind (`asr`, `chat`) and family: each family a list of
-/// entries, its providers (`- provider: {name}`) then its named models
+/// The models, by kind (`asr`, `chat`, `decide`) and family: each family a list
+/// of entries, its providers (`- provider: {name}`) then its named models
 /// (`- model: {name, aliases, description, size, dtype}`).
 fn kits(policies: bool) -> BunsenResult<Value> {
     // A family's rows, their policies resolved as `C` under `policies`.
@@ -398,6 +399,14 @@ fn kits(policies: bool) -> BunsenResult<Value> {
                     family(default_nanochat_factory()?, None::<fn(&_, &str) -> _>)?,
                 ),
             ]),
+        ),
+        (
+            "decide",
+            // Laya has no policy to resolve.
+            Value::map([(
+                "laya",
+                family(default_laya_factory()?, None::<fn(&_, &str) -> _>)?,
+            )]),
         ),
     ]))
 }
@@ -618,6 +627,7 @@ mod tests {
                 ][..],
             ),
             ("chat", &["qwen3", "nanochat"]),
+            ("decide", &["laya"]),
         ] {
             for family in families {
                 let Some(Value::List(entries)) = kits.get(kind).and_then(|k| k.get(family)) else {
@@ -666,7 +676,7 @@ mod tests {
                         "{kind}/{family}: every catalog file is sized"
                     );
                     // A kit with a policy resolves every row's default.
-                    if *family != "nanochat" {
+                    if !["nanochat", "laya"].contains(family) {
                         assert!(
                             fields.iter().any(|(k, v)| k == "policy" && !v.is_empty()),
                             "{kind}/{family}: a policy"

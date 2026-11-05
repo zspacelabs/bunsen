@@ -838,7 +838,7 @@ impl ListCmd {
 ///     path: model_000650.pt
 ///     url: https://huggingface.co/nanochat-students/rl-d20/resolve/22fbb6a8.../model_000650.pt
 /// ```
-fn print_row(
+pub(crate) fn print_row(
     cache: &PretrainedCache,
     kit: &str,
     id: &str,

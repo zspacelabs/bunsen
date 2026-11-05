@@ -4,6 +4,8 @@
 
 - `bunsen-tool asr`: speech to text, by ASR preset or by model family, and who spoke when ([below](#asr-speech-to-text)).
 - `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint ([below](#chat-qwen3-gemma-and-nanochat)).
+- `bunsen-tool decide`: typed questions about a context, answered with calibrated probabilities by a Laya decision
+  model ([below](#decide-typed-questions-answered-by-laya)).
 - `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by kit.
 
 `bunsen-tool` replaces `bunsen-asr`, whose last release is 0.41.0: its commands are `bunsen-tool asr`'s, and its
@@ -476,6 +478,27 @@ kits:
         name: nitishpandey04/nanochat-d18-sft
         description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat"
         size: 2.05 GB
+  decide:
+    laya:
+    - provider:
+        name: well-known
+    - model:
+        name: laya/laya
+        aliases:
+        - laya-en
+        description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters, prompts of 512 tokens"
+        size: 846.2 MB
+        dtype: float16
+    - model:
+        name: laya/laya-multilingual
+        description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M parameters, prompts of 1024 tokens"
+        size: 678.2 MB
+        dtype: float16
+    - model:
+        name: laya/laya-typed-decisions
+        description: "Laya, typed decisions: the English model trained on typed questions, prompts of 1024 tokens"
+        size: 846.2 MB
+        dtype: float16
 ```
 
 <!-- /card -->
@@ -843,3 +866,59 @@ override them. A checkpoint loads at the precision it ships in where the device 
 bf16 on cuda and metal, f32 on vulkan, wgpu and the CPU; `bunsen-tool devices` shows what a device accelerates.
 `--context` sizes the KV cache (the checkpoint's trained length by default),
 `--kv-storage` picks how it stores its history, and `--stats` prints, after each reply, the model's lookup expression (its name with the presets the flags add), then the reply's token counts and speeds.
+
+## decide: typed questions answered by Laya
+
+`bunsen-tool decide` answers questions about a context with calibrated probabilities over each question's options,
+in one forward pass of a Laya decision model (`convaiinnovations/laya`, Apache-2.0: a `ModernBERT` encoder and a
+decision head). It generates no text.
+
+```sh
+bunsen-tool decide list [--urls]                         # the Laya checkpoints, and what of each is cached
+bunsen-tool decide fetch NAME...                         # bring checkpoints into the cache
+bunsen-tool decide run [--model NAME] [--format yml|json] [REQUEST]   # the request from stdin when omitted
+```
+
+A request is a YAML (or JSON) document: a `context`, and its `choices`, each a `type`, a `question` and its
+`options`:
+
+- `choice`: a pick among named options, each a name or `{name: what it means}`;
+- `score`: a level on a scale, the options its levels in order; the answer also gives the expected level (`score`);
+- `noul`: a yes/no probability; its options, when given, say what `{false: ...}` and `{true: ...}` mean.
+
+```yaml
+context: "Customer: my kettle arrived with a cracked lid and I asked for a refund twice with no answer."
+choices:
+  - type: choice
+    question: "What should the agent do next?"
+    options: [refund, replace, {escalate: "hand the case to a supervisor"}, close]
+  - type: noul
+    question: "Is the customer satisfied?"
+```
+
+Each result has the question, its type, each option's probability (a score's by level, a yes/no question's as
+`false` and `true`), the most probable option (`answer`), the `confidence` (one less the distribution's normalized
+entropy), and the act head's probability (`act_probability`, which upstream's model card says carries no usable
+signal yet):
+
+```yaml
+- question: What should the agent do next?
+  type: choice
+  probabilities:
+    refund: 0.606
+    replace: 0.343
+    escalate: 0.024
+    close: 0.027
+  answer: refund
+  confidence: 0.383
+  act_probability: 1.0
+```
+
+```sh
+cargo run --release -p bunsen-tool --features wgpu -- decide run request.yml
+cargo run --release -p bunsen-tool --features wgpu -- decide run --model laya-multilingual --format json < request.yml
+```
+
+The checkpoints: `laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya-multilingual` (on
+`mmBERT-base`) and `laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
+device accelerates it, else in f32.
