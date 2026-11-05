@@ -251,8 +251,8 @@ fn test_loads_in_either_stack_order() {
 
     use crate::{
         blocks::signals::{
-            StackOrder,
-            SubsamplingConfig,
+            EncoderSubsamplingConfig,
+            FeatureStackingOrder,
         },
         burner::module::ToStructureConfig,
     };
@@ -260,7 +260,9 @@ fn test_loads_in_either_stack_order() {
     let upstream = Toy::load();
     let mut structure = toy_config().to_structure();
     match &mut structure.encoder.subsampling {
-        SubsamplingConfig::Stacking(stacking) => stacking.order = StackOrder::FeaturesFrames,
+        EncoderSubsamplingConfig::Stacking(stacking) => {
+            stacking.order = FeatureStackingOrder::FeaturesFrames
+        }
         other => panic!("Nemotron's front end stacks, not {other:?}"),
     }
     let mut flipped: Sortformer = structure.init(&upstream.device);

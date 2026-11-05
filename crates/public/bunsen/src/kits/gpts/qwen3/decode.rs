@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// A Qwen3 decodes through its stack's
-/// [`DecoderCache`](crate::blocks::transformers::decoders::stack::DecoderCache):
+/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache):
 /// [`StackedLm::decode_state`], [`StackedLm::prefill`], then
 /// [`decode_cached`](crate::kits::support::decoding::decode_cached).
 impl StackedLm for Qwen3Model {

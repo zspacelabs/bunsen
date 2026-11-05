@@ -7,7 +7,7 @@
 //! (`tie_word_embeddings`). [`Qwen3Model`] is built from a
 //! [`Qwen3Config`] out of the shared
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
-//! [`GatedMlp`](crate::blocks::transformers::mlp::GatedMlp) and
+//! [`TransformerGatedMlp`](crate::blocks::transformers::mlp::TransformerGatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
 //! and decodes through a
 //! [`KVCache`](crate::ops::transformers::attention::KVCache).
@@ -24,7 +24,7 @@
 //! - Decoding: the model is a
 //!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
 //!   its stack's
-//!   [`DecoderCache`](crate::blocks::transformers::decoders::stack::DecoderCache),
+//!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache),
 //!   so [`decode_cached`](crate::kits::support::decoding::decode_cached)
 //!   decodes it under any search.
 //! - [`Qwen3Construct`]: a model with the positions it was trained on and its

@@ -22,15 +22,15 @@ use super::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        layout::AxisOrder,
+        layout::BoundaryPermutes,
         norm::BunsenNormalizationConfig,
         signals::{
             DwStridingSubsamplingConfig,
+            EncoderSubsamplingConfig,
             FeatureStackingConfig,
             SubpixelUpsample1d,
             SubpixelUpsample1dConfig,
             SubpixelUpsample1dMeta,
-            SubsamplingConfig,
         },
         transformers::{
             attention::csa::{
@@ -61,7 +61,7 @@ use crate::{
                     ResidualEncoderTransformerMeta,
                 },
             },
-            mlp::MlpConfig,
+            mlp::TransformerMlpConfig,
         },
     },
     burner::module::{
@@ -280,7 +280,7 @@ impl NemotronDiarizationConfig {
                     .with_norm(None)
                     .with_output_bias(true)
                     .with_mask(AttentionMask::Bidirectional),
-                MlpConfig::new(self.d_model)
+                TransformerMlpConfig::new(self.d_model)
                     .with_expansion_factor(self.ff_expansion)
                     .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)
@@ -328,7 +328,7 @@ impl ToStructureConfig for NemotronDiarizationConfig {
     fn try_to_structure(&self) -> BunsenResult<SortformerStructureConfig> {
         // Fed `[batch, time, n_mels]`, the stacking's own layout.
         let encoder = SubsampledEncoderConfig::new(
-            SubsamplingConfig::Stacking(
+            EncoderSubsamplingConfig::Stacking(
                 FeatureStackingConfig::new(self.n_mels, self.d_model)
                     .with_factor(self.subsampling_factor),
             ),
@@ -477,7 +477,9 @@ impl ToStructureConfig for SortformerV2Config {
         Ok(SortformerStructureConfig::new(
             // Fed `[batch, time, n_mels]`; the striding reads `[batch, n_mels,
             // time]`.
-            encoder.try_to_structure()?.with_layout(AxisOrder::SWAP_IN),
+            encoder
+                .try_to_structure()?
+                .with_layout(BoundaryPermutes::SWAP_IN),
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
         .with_transformer(Some(ResidualEncoderTransformerConfig::new(

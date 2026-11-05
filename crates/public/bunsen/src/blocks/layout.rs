@@ -1,10 +1,10 @@
 //! # Activation layout
 //!
-//! [`AxisOrder`]: the axis permutes a block applies at its boundary, so that
+//! [`BoundaryPermutes`]: the axis permutes a block applies at its boundary, so that
 //! a caller's layout and the block's own need not agree.
 //!
 //! A layout is a block's choice of axis order. It is config, never a
-//! parameter: an `AxisOrder` holds no tensors, so it is never part of a
+//! parameter: an `BoundaryPermutes` holds no tensors, so it is never part of a
 //! record or a checkpoint's keys. When a block's internal layout differs from
 //! the one a checkpoint's module used, the weight transform that implies
 //! belongs in the block's own key map, not here.
@@ -19,7 +19,7 @@ use burn::Tensor;
 /// A block that masks by length counts frames along its own time axis,
 /// after `pre`; `post` only reorders what it returns.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct AxisOrder {
+pub struct BoundaryPermutes {
     /// Applied to the input, before the block runs.
     pub pre: Option<[usize; 3]>,
 
@@ -27,7 +27,7 @@ pub struct AxisOrder {
     pub post: Option<[usize; 3]>,
 }
 
-impl AxisOrder {
+impl BoundaryPermutes {
     /// No permutes: the caller's layout is the block's.
     pub const IDENTITY: Self = Self {
         pre: None,
@@ -75,18 +75,21 @@ mod tests {
         let device = cpu_device();
         let x = Tensor::<3>::random([2, 3, 5], Distribution::Default, &device);
 
-        let same = AxisOrder::IDENTITY.pre_apply(x.clone());
+        let same = BoundaryPermutes::IDENTITY.pre_apply(x.clone());
         assert_eq!(same.dims(), [2, 3, 5]);
 
-        let swapped = AxisOrder::SWAP_IN.pre_apply(x.clone());
+        let swapped = BoundaryPermutes::SWAP_IN.pre_apply(x.clone());
         assert_eq!(swapped.dims(), [2, 5, 3]);
         swapped
             .swap_dims(1, 2)
             .to_data()
             .assert_eq(&x.to_data(), true);
-        assert_eq!(AxisOrder::SWAP_IN.post_apply(x.clone()).dims(), [2, 3, 5]);
+        assert_eq!(
+            BoundaryPermutes::SWAP_IN.post_apply(x.clone()).dims(),
+            [2, 3, 5]
+        );
 
-        let order = AxisOrder {
+        let order = BoundaryPermutes {
             pre: None,
             post: Some([1, 0, 2]),
         };

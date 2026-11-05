@@ -41,7 +41,7 @@ use crate::{
                 LmHead,
                 LmHeadConfig,
             },
-            mlp::GatedMlpConfig,
+            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::ModuleInit,
@@ -366,7 +366,7 @@ impl GemmaConfig {
                 .with_score_scale(self.query_pre_attn_scalar.map(|s| s.powf(-0.5)))
                 .with_attn_softcap(self.attn_softcap)
                 .with_softmax_dtype(self.softmax_dtype),
-            GatedMlpConfig::new(self.d_model, self.d_ff)
+            TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_activation(BunsenActivationConfig::GeluApproximate)
                 .into(),
         )

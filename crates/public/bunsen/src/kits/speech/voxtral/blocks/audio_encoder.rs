@@ -35,7 +35,7 @@ use crate::{
                 RotaryEmbeddingConfig,
                 RotarySet,
             },
-            mlp::GatedMlpConfig,
+            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::ModuleInit,
@@ -176,7 +176,7 @@ impl VoxtralAudioEncoderConfig {
                 .with_sliding_window(self.sliding_window)
                 // As `transformers`' eager attention: the softmax in f32.
                 .with_softmax_dtype(Some(burn::tensor::FloatDType::F32)),
-            GatedMlpConfig::new(self.d_model, self.d_ff)
+            TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_down_bias(Some(true))
                 .into(),
         )

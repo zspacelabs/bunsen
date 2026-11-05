@@ -5,7 +5,7 @@ use std::{
 };
 
 use bunsen::{
-    blocks::transformers::decoders::stack::DecoderCache,
+    blocks::transformers::decoders::stack::DecoderStackCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -314,7 +314,7 @@ impl LmChat<GemmaModel> {
 
 impl<M: ChatLm> ChatBackend for LmChat<M> {
     type Model = M;
-    type State = DecoderCache;
+    type State = DecoderStackCache;
 
     fn model(&self) -> &M {
         &self.bundle.model
@@ -354,7 +354,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         positions: usize,
         storage: KVCacheStorage,
         device: &Device,
-    ) -> DecoderCache {
+    ) -> DecoderStackCache {
         self.bundle
             .model
             .decode_state(1, positions, storage, device)
@@ -363,7 +363,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
     fn rewind<'a>(
         &self,
         history: &mut CachedHistory,
-        state: &mut DecoderCache,
+        state: &mut DecoderStackCache,
         next: &'a [i64],
         _device: &Device,
     ) -> &'a [i64] {
@@ -373,7 +373,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
     fn prefill(
         &self,
         ids: &[i64],
-        state: &mut DecoderCache,
+        state: &mut DecoderStackCache,
         device: &Device,
     ) -> Tensor<2> {
         let model = &self.bundle.model;

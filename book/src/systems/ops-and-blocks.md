@@ -101,7 +101,7 @@ in one of three ways:
 2. **A part shared by kits.** A layer that a second kit needs moves out of
    the first one. [`ConvBlock1d`](bunsen::blocks::conv::ConvBlock1d) and
    [`ConvSeq1d`](bunsen::blocks::conv::ConvSeq1d) serve both Whisper and
-   Silero VAD, and [`Mlp`](bunsen::blocks::transformers::mlp::Mlp) serves
+   Silero VAD, and [`TransformerMlp`](bunsen::blocks::transformers::mlp::TransformerMlp) serves
    both Whisper and NanoChat. The language models share their ends:
    [`LmHead`](bunsen::blocks::transformers::head::LmHead) (tied or its own,
    with an optional logit soft-cap) serves Qwen3, Gemma, NanoChat and

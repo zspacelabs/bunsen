@@ -8,11 +8,11 @@ use burn::{
 
 use crate::{
     blocks::{
-        layout::AxisOrder,
+        layout::BoundaryPermutes,
         signals::{
-            Subsampling,
-            SubsamplingConfig,
-            SubsamplingMeta,
+            EncoderSubsampling,
+            EncoderSubsamplingConfig,
+            EncoderSubsamplingMeta,
         },
         transformers::encoders::{
             EncoderTransformer,
@@ -50,15 +50,15 @@ pub trait SubsampledEncoderMeta {
 #[derive(Config, Debug)]
 pub struct SubsampledEncoderConfig {
     /// The front end.
-    pub subsampling: SubsamplingConfig,
+    pub subsampling: EncoderSubsamplingConfig,
 
     /// The stack after it.
     pub transformer: EncoderTransformerConfig,
 
     /// The permutes from the caller's layout to the front end's, and of the
     /// stack's output back; none by default.
-    #[config(default = "AxisOrder::IDENTITY")]
-    pub layout: AxisOrder,
+    #[config(default = "BoundaryPermutes::IDENTITY")]
+    pub layout: BoundaryPermutes,
 }
 
 impl SubsampledEncoderMeta for SubsampledEncoderConfig {
@@ -110,7 +110,7 @@ impl ModuleInit<SubsampledEncoder> for SubsampledEncoderConfig {
     }
 }
 
-/// A front end that changes the frame rate ([`Subsampling`]), then an
+/// A front end that changes the frame rate ([`EncoderSubsampling`]), then an
 /// encoder stack that keeps it ([`EncoderTransformer`]): the shape of a
 /// speech encoder, whichever front end and stack its config chose.
 ///
@@ -121,22 +121,22 @@ impl ModuleInit<SubsampledEncoder> for SubsampledEncoderConfig {
 ///
 /// Its fields are `subsampling` and `transformer`, so its tensors' paths are
 /// the front end's under `subsampling.` and the stack's under
-/// `transformer.` (the enums add no segment). Its [`AxisOrder`] is config,
-/// not a tensor.
+/// `transformer.` (the enums add no segment). Its [`BoundaryPermutes`] is
+/// config, not a tensor.
 ///
 /// Built by [`SubsampledEncoderConfig`].
 /// Implements [`SubsampledEncoderMeta`].
 #[derive(Module, Debug)]
 pub struct SubsampledEncoder {
     /// The front end.
-    pub subsampling: Subsampling,
+    pub subsampling: EncoderSubsampling,
 
     /// The stack after it.
     pub transformer: EncoderTransformer,
 
     /// The permutes at its boundary.
     #[module(skip)]
-    pub layout: AxisOrder,
+    pub layout: BoundaryPermutes,
 }
 
 impl SubsampledEncoderMeta for SubsampledEncoder {
@@ -170,8 +170,8 @@ impl SubsampledEncoder {
     /// [`forward_pre_encoded`](Self::forward_pre_encoded).
     ///
     /// # Arguments
-    /// * `features` - in the caller's layout, which the config's [`AxisOrder`]
-    ///   takes to the front end's.
+    /// * `features` - in the caller's layout, which the config's
+    ///   [`BoundaryPermutes`] takes to the front end's.
     /// * `lengths` - each item's valid frame count; `None` means every item
     ///   fills its time axis.
     ///
@@ -244,9 +244,9 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    fn conformer(layout: AxisOrder) -> SubsampledEncoderConfig {
+    fn conformer(layout: BoundaryPermutes) -> SubsampledEncoderConfig {
         SubsampledEncoderConfig::new(
-            SubsamplingConfig::DwStriding(
+            EncoderSubsamplingConfig::DwStriding(
                 DwStridingSubsamplingConfig::new(16, 4, 8).with_n_stages(2),
             ),
             ConformerTransformerConfig::new(ConformerBlockConfig::new(8, 2, 16, 3), 2).into(),
@@ -261,7 +261,7 @@ mod tests {
     fn test_layout_bridges_the_callers_order() {
         let device = cpu_device();
         device.seed(5);
-        let native: SubsampledEncoder = conformer(AxisOrder::IDENTITY).init(&device);
+        let native: SubsampledEncoder = conformer(BoundaryPermutes::IDENTITY).init(&device);
         assert_eq!(native.n_mels(), 16);
         assert_eq!(native.subsampling_factor(), 4);
         assert_eq!(native.n_layers(), 2);
@@ -272,7 +272,7 @@ mod tests {
         assert_eq!(want.dims(), [2, native.output_len(20), 8]);
 
         let mut swapped = native.clone();
-        swapped.layout = AxisOrder::SWAP_IN;
+        swapped.layout = BoundaryPermutes::SWAP_IN;
         let (got, got_lengths) = swapped.forward(mels.swap_dims(1, 2), Some(&[20, 13]));
         assert_eq!(got_lengths, want_lengths);
         got.to_data()
@@ -290,10 +290,10 @@ mod tests {
 
         let device = cpu_device();
         let stacking = SubsampledEncoderConfig::new(
-            SubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 8).with_factor(2)),
+            EncoderSubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 8).with_factor(2)),
             test_rope_stack(8, 2, 1).into(),
         );
-        for config in [conformer(AxisOrder::SWAP_IN), stacking] {
+        for config in [conformer(BoundaryPermutes::SWAP_IN), stacking] {
             let encoder: SubsampledEncoder = config.init(&device);
             let paths: Vec<String> = encoder
                 .collect(None, None, true)
@@ -316,7 +316,7 @@ mod tests {
     #[serial_test::serial]
     fn test_widths_must_agree() {
         let config = SubsampledEncoderConfig::new(
-            SubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 16).with_factor(2)),
+            EncoderSubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 16).with_factor(2)),
             test_rope_stack(8, 2, 1).into(),
         );
         assert!(config.try_init(&cpu_device()).is_err());

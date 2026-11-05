@@ -29,10 +29,11 @@
 //!
 //! [`SubsampledEncoder`] is a speech encoder's shape: a front end that
 //! changes the frame rate
-//! ([`Subsampling`](crate::blocks::signals::Subsampling): feature stacking, or
-//! the `FastConformer`'s depthwise striding), then an `EncoderTransformer`,
-//! with an [`AxisOrder`](crate::blocks::layout::AxisOrder) bridging the
-//! caller's layout to the front end's.
+//! ([`EncoderSubsampling`](crate::blocks::signals::EncoderSubsampling): feature
+//! stacking, or the `FastConformer`'s depthwise striding), then an
+//! `EncoderTransformer`,
+//! with an [`BoundaryPermutes`](crate::blocks::layout::BoundaryPermutes)
+//! bridging the caller's layout to the front end's.
 
 pub mod conformer;
 pub mod residual;

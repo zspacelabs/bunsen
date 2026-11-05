@@ -26,8 +26,8 @@ use crate::{
         transformers::{
             encoders::residual::ResidualEncoderAttentionBlock,
             mlp::{
-                Mlp,
-                MlpConfig,
+                TransformerMlp,
+                TransformerMlpConfig,
                 norm_mlp,
             },
         },
@@ -114,8 +114,9 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
         let cross_attn = mha_cfg.init(device);
 
         // Whisper's MLP projections carry a bias, and it runs
-        // `Linear -> GELU -> Linear`; the `MlpConfig` default is ReLU.
-        let mlp: Mlp = MlpConfig::new(self.d_model)
+        // `Linear -> GELU -> Linear`; the `TransformerMlpConfig` default is
+        // ReLU.
+        let mlp: TransformerMlp = TransformerMlpConfig::new(self.d_model)
             .with_activation(BunsenActivationConfig::Gelu)
             .with_bias(true)
             .try_init(device)?;
@@ -166,7 +167,7 @@ pub struct CrossDecoderBlock {
     pub mlp_norm: BunsenNormalization,
 
     /// MLP.
-    pub mlp: Mlp,
+    pub mlp: TransformerMlp,
 }
 
 impl CrossDecoderBlockMeta for CrossDecoderBlock {

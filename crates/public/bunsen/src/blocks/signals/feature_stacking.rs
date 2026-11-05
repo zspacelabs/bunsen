@@ -30,7 +30,7 @@ use crate::{
 /// columns follow it, so a checkpoint stacked the other way loads through
 /// a key map that permutes them ([`FeatureStackingMeta::restack_from`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum StackOrder {
+pub enum FeatureStackingOrder {
     /// Frames outer, features inner (`[f0 | f1 | ...]`).
     #[default]
     FramesFeatures,
@@ -60,7 +60,7 @@ pub trait FeatureStackingMeta {
     }
 
     /// How a group's frames are laid side by side.
-    fn order(&self) -> StackOrder;
+    fn order(&self) -> FeatureStackingOrder;
 
     /// `rekey`, and, when `from`, the order a checkpoint stacks in, is not
     /// this one's, the projection's weight (`projection.weight`) permuted to
@@ -68,7 +68,7 @@ pub trait FeatureStackingMeta {
     /// `[d_output, b * a]`.
     fn restack_from(
         &self,
-        from: StackOrder,
+        from: FeatureStackingOrder,
         rekey: Rekey,
     ) -> Rekey {
         if from == self.order() {
@@ -76,8 +76,8 @@ pub trait FeatureStackingMeta {
         }
         let (k, d) = (self.factor(), self.d_input());
         let (a, b) = match from {
-            StackOrder::FramesFeatures => (k, d),
-            StackOrder::FeaturesFrames => (d, k),
+            FeatureStackingOrder::FramesFeatures => (k, d),
+            FeatureStackingOrder::FeaturesFrames => (d, k),
         };
         rekey.adapt("projection.weight", Adapter::regroup_columns(a, b))
     }
@@ -103,8 +103,8 @@ pub struct FeatureStackingConfig {
     pub bias: bool,
 
     /// How a group's frames are laid side by side.
-    #[config(default = "StackOrder::FramesFeatures")]
-    pub order: StackOrder,
+    #[config(default = "FeatureStackingOrder::FramesFeatures")]
+    pub order: FeatureStackingOrder,
 }
 
 impl FeatureStackingMeta for FeatureStackingConfig {
@@ -120,7 +120,7 @@ impl FeatureStackingMeta for FeatureStackingConfig {
         self.factor
     }
 
-    fn order(&self) -> StackOrder {
+    fn order(&self) -> FeatureStackingOrder {
         self.order
     }
 }
@@ -168,7 +168,7 @@ pub struct FeatureStacking {
 
     /// How a group's frames are laid side by side.
     #[module(skip)]
-    pub order: StackOrder,
+    pub order: FeatureStackingOrder,
 }
 
 impl FeatureStackingMeta for FeatureStacking {
@@ -184,7 +184,7 @@ impl FeatureStackingMeta for FeatureStacking {
         self.factor
     }
 
-    fn order(&self) -> StackOrder {
+    fn order(&self) -> FeatureStackingOrder {
         self.order
     }
 }
@@ -222,8 +222,10 @@ impl FeatureStacking {
             x
         };
         let x = match self.order {
-            StackOrder::FramesFeatures => x.reshape([batch, groups, self.factor * d_input]),
-            StackOrder::FeaturesFrames => x
+            FeatureStackingOrder::FramesFeatures => {
+                x.reshape([batch, groups, self.factor * d_input])
+            }
+            FeatureStackingOrder::FeaturesFrames => x
                 .reshape([batch, groups, self.factor, d_input])
                 .swap_dims(2, 3)
                 .reshape([batch, groups, d_input * self.factor]),

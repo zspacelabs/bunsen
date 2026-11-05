@@ -23,7 +23,7 @@ use crate::{
                 stack::{
                     DecoderStack,
                     DecoderStackMeta,
-                    StackSides,
+                    DecoderStackSides,
                     UniformStackConfig,
                 },
             },
@@ -36,7 +36,7 @@ use crate::{
                 LmHead,
                 LmHeadConfig,
             },
-            mlp::GatedMlpConfig,
+            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::ModuleInit,
@@ -168,7 +168,7 @@ impl VoxtralTextConfig {
                     .with_sliding_window(self.sliding_window)
                     // As `transformers`' eager attention: the softmax in f32.
                     .with_softmax_dtype(Some(burn::tensor::FloatDType::F32)),
-                GatedMlpConfig::new(self.d_model, self.d_ff).into(),
+                TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
             .with_norm(norm.clone())
             .with_mlp_scale(Some(AdaptiveScaleConfig::new(
@@ -359,7 +359,7 @@ impl VoxtralTextModel {
             embeds,
             r_emb,
             kv_cache,
-            StackSides {
+            DecoderStackSides {
                 cond: Some(cond.clone()),
                 ..Default::default()
             },

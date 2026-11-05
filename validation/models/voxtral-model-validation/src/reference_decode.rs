@@ -258,11 +258,11 @@ pub fn reference_embed(
 
 /// The reference decoder's per-layer key and value caches, `[1, 8, past, 128]`
 /// each, one pair per layer.
-pub type DecoderCache = Vec<(Tensor<4>, Tensor<4>)>;
+pub type VoxtralReferenceDecoderCache = Vec<(Tensor<4>, Tensor<4>)>;
 
-/// An empty [`DecoderCache`]: every layer's key and value `[1, 8, 0, 128]`,
-/// as the export reads an empty cache.
-pub fn empty_decoder_cache(device: &Device) -> DecoderCache {
+/// An empty [`VoxtralReferenceDecoderCache`]: every layer's key and value `[1,
+/// 8, 0, 128]`, as the export reads an empty cache.
+pub fn empty_decoder_cache(device: &Device) -> VoxtralReferenceDecoderCache {
     let t = Tensor::<4>::zeros([1, DECODER_KV_HEADS, 0, DECODER_HEAD_DIM], device);
     (0..DECODER_LAYERS)
         .map(|_| (t.clone(), t.clone()))
@@ -281,8 +281,8 @@ pub fn empty_decoder_cache(device: &Device) -> DecoderCache {
 pub fn reference_decode(
     model: &VoxtralDecoderOnnx,
     embeds: Tensor<3>,
-    past: &DecoderCache,
-) -> (Tensor<3>, DecoderCache) {
+    past: &VoxtralReferenceDecoderCache,
+) -> (Tensor<3>, VoxtralReferenceDecoderCache) {
     assert_eq!(past.len(), DECODER_LAYERS, "one cache per layer");
     let device = embeds.device();
     let seq = embeds.dims()[1];

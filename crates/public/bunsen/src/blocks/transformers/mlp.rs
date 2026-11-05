@@ -1,5 +1,5 @@
-//! Transformer feed-forwards: [`Mlp`], [`GatedMlp`], and [`FeedForward`],
-//! either one chosen by config.
+//! Transformer feed-forwards: [`TransformerMlp`], [`TransformerGatedMlp`], and
+//! [`TransformerFeedForward`], either one chosen by config.
 
 use burn::{
     config::Config,
@@ -28,28 +28,28 @@ use crate::{
 ///
 /// # Arguments
 /// * `norm` - the sublayer's [`BunsenNormalization`].
-/// * `mlp` - `Mlp`.
+/// * `mlp` - `TransformerMlp`.
 /// * `x` - `[batch, seq_len, n_states]` input.
 ///
 /// # Returns
 /// `[batch, seq_len, n_states]`
 pub fn norm_mlp(
     norm: &BunsenNormalization,
-    mlp: &Mlp,
+    mlp: &TransformerMlp,
     x: Tensor<3>,
 ) -> Tensor<3> {
     mlp.forward(norm.forward(x))
 }
 
-/// Common meta for [`Mlp`] and [`MlpConfig`].
-pub trait MlpMeta {
+/// Common meta for [`TransformerMlp`] and [`TransformerMlpConfig`].
+pub trait TransformerMlpMeta {
     /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`Mlp`].
+/// Config for [`TransformerMlp`].
 #[derive(Config, Debug)]
-pub struct MlpConfig {
+pub struct TransformerMlpConfig {
     /// Embedding Size.
     pub n_embed: usize,
 
@@ -67,24 +67,24 @@ pub struct MlpConfig {
     pub bias: bool,
 }
 
-impl MlpMeta for MlpConfig {
+impl TransformerMlpMeta for TransformerMlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
 }
 
-impl MlpConfig {
+impl TransformerMlpConfig {
     /// Returns the size of the hidden layer.
     pub fn hidden_size(&self) -> usize {
         self.n_embed * self.expansion_factor
     }
 }
 
-impl ModuleInit<Mlp> for MlpConfig {
+impl ModuleInit<TransformerMlp> for TransformerMlpConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<Mlp> {
+    ) -> BunsenResult<TransformerMlp> {
         let linear1 = LinearConfig::new(self.n_embed(), self.hidden_size())
             .with_bias(self.bias)
             .init(device);
@@ -92,7 +92,7 @@ impl ModuleInit<Mlp> for MlpConfig {
             .with_bias(self.bias)
             .init(device);
 
-        Ok(Mlp {
+        Ok(TransformerMlp {
             linear1,
             act: self.activation.init(device),
             linear2,
@@ -104,12 +104,13 @@ impl ModuleInit<Mlp> for MlpConfig {
 ///
 /// The position-wise feed-forward block of a transformer: an up-projection to
 /// an expanded hidden size, an activation, and a down-projection back to the
-/// embedding size. Construct via [`MlpConfig`] and `.init(device)`, then call
-/// [`forward`](Mlp::forward) on a `[batch, time, embed]` input.
+/// embedding size. Construct via [`TransformerMlpConfig`] and `.init(device)`,
+/// then call [`forward`](TransformerMlp::forward) on a `[batch, time, embed]`
+/// input.
 ///
-/// Built by [`MlpConfig`].
+/// Built by [`TransformerMlpConfig`].
 #[derive(Module, Debug)]
-pub struct Mlp {
+pub struct TransformerMlp {
     /// Feed Forward Layer.
     pub linear1: Linear,
 
@@ -120,13 +121,13 @@ pub struct Mlp {
     pub linear2: Linear,
 }
 
-impl MlpMeta for Mlp {
+impl TransformerMlpMeta for TransformerMlp {
     fn n_embed(&self) -> usize {
         self.linear1.weight.dims()[0]
     }
 }
 
-impl Mlp {
+impl TransformerMlp {
     /// MLP Forward Pass.
     ///
     /// # Arguments
@@ -162,8 +163,8 @@ impl Mlp {
     }
 }
 
-/// Common meta for [`GatedMlp`] and [`GatedMlpConfig`].
-pub trait GatedMlpMeta {
+/// Common meta for [`TransformerGatedMlp`] and [`TransformerGatedMlpConfig`].
+pub trait TransformerGatedMlpMeta {
     /// The input and output width.
     fn n_embed(&self) -> usize;
 
@@ -171,11 +172,11 @@ pub trait GatedMlpMeta {
     fn d_ff(&self) -> usize;
 }
 
-/// Config for [`GatedMlp`].
+/// Config for [`TransformerGatedMlp`].
 ///
-/// Implements [`GatedMlpMeta`].
+/// Implements [`TransformerGatedMlpMeta`].
 #[derive(Config, Debug)]
-pub struct GatedMlpConfig {
+pub struct TransformerGatedMlpConfig {
     /// The input and output width.
     pub n_embed: usize,
 
@@ -199,14 +200,14 @@ pub struct GatedMlpConfig {
     pub activation: BunsenActivationConfig,
 }
 
-impl GatedMlpConfig {
+impl TransformerGatedMlpConfig {
     /// Whether the down projection carries a bias: `down_bias`, else `bias`.
     pub fn down_bias(&self) -> bool {
         self.down_bias.unwrap_or(self.bias)
     }
 }
 
-impl GatedMlpMeta for GatedMlpConfig {
+impl TransformerGatedMlpMeta for TransformerGatedMlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
@@ -216,13 +217,13 @@ impl GatedMlpMeta for GatedMlpConfig {
     }
 }
 
-impl ModuleInit<GatedMlp> for GatedMlpConfig {
+impl ModuleInit<TransformerGatedMlp> for TransformerGatedMlpConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<GatedMlp> {
+    ) -> BunsenResult<TransformerGatedMlp> {
         let linear = |i, o, bias| LinearConfig::new(i, o).with_bias(bias).init(device);
-        Ok(GatedMlp {
+        Ok(TransformerGatedMlp {
             gate_proj: linear(self.n_embed, self.d_ff, self.bias),
             up_proj: linear(self.n_embed, self.d_ff, self.bias),
             down_proj: linear(self.d_ff, self.n_embed, self.down_bias()),
@@ -237,10 +238,10 @@ impl ModuleInit<GatedMlp> for GatedMlpConfig {
 ///
 /// The fields carry the names `transformers` gives them.
 ///
-/// Built by [`GatedMlpConfig`].
-/// Implements [`GatedMlpMeta`].
+/// Built by [`TransformerGatedMlpConfig`].
+/// Implements [`TransformerGatedMlpMeta`].
 #[derive(Module, Debug)]
-pub struct GatedMlp {
+pub struct TransformerGatedMlp {
     /// `n_embed -> d_ff`, the gate.
     pub gate_proj: Linear,
 
@@ -254,7 +255,7 @@ pub struct GatedMlp {
     pub act: BunsenActivation,
 }
 
-impl GatedMlpMeta for GatedMlp {
+impl TransformerGatedMlpMeta for TransformerGatedMlp {
     fn n_embed(&self) -> usize {
         self.gate_proj.weight.dims()[0]
     }
@@ -264,7 +265,7 @@ impl GatedMlpMeta for GatedMlp {
     }
 }
 
-impl GatedMlp {
+impl TransformerGatedMlp {
     /// Applies the block.
     ///
     /// # Arguments
@@ -293,54 +294,55 @@ impl GatedMlp {
     }
 }
 
-/// Common meta for [`FeedForward`] and [`FeedForwardConfig`].
-pub trait FeedForwardMeta {
+/// Common meta for [`TransformerFeedForward`] and
+/// [`TransformerFeedForwardConfig`].
+pub trait TransformerFeedForwardMeta {
     /// The input and output width.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`FeedForward`]: which position-wise feed-forward, and its
-/// config.
+/// Config for [`TransformerFeedForward`]: which position-wise feed-forward, and
+/// its config.
 ///
-/// Implements [`FeedForwardMeta`].
+/// Implements [`TransformerFeedForwardMeta`].
 #[derive(Config, Debug)]
-pub enum FeedForwardConfig {
-    /// [`Mlp`]: expand, activate, project back.
-    Mlp(MlpConfig),
+pub enum TransformerFeedForwardConfig {
+    /// [`TransformerMlp`]: expand, activate, project back.
+    Mlp(TransformerMlpConfig),
 
-    /// [`GatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
-    Gated(GatedMlpConfig),
+    /// [`TransformerGatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
+    Gated(TransformerGatedMlpConfig),
 }
 
-impl From<MlpConfig> for FeedForwardConfig {
-    fn from(config: MlpConfig) -> Self {
+impl From<TransformerMlpConfig> for TransformerFeedForwardConfig {
+    fn from(config: TransformerMlpConfig) -> Self {
         Self::Mlp(config)
     }
 }
 
-impl From<GatedMlpConfig> for FeedForwardConfig {
-    fn from(config: GatedMlpConfig) -> Self {
+impl From<TransformerGatedMlpConfig> for TransformerFeedForwardConfig {
+    fn from(config: TransformerGatedMlpConfig) -> Self {
         Self::Gated(config)
     }
 }
 
-impl FeedForwardMeta for FeedForwardConfig {
+impl TransformerFeedForwardMeta for TransformerFeedForwardConfig {
     fn n_embed(&self) -> usize {
         match self {
-            Self::Mlp(c) => MlpMeta::n_embed(c),
-            Self::Gated(c) => GatedMlpMeta::n_embed(c),
+            Self::Mlp(c) => TransformerMlpMeta::n_embed(c),
+            Self::Gated(c) => TransformerGatedMlpMeta::n_embed(c),
         }
     }
 }
 
-impl ModuleInit<FeedForward> for FeedForwardConfig {
+impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<FeedForward> {
+    ) -> BunsenResult<TransformerFeedForward> {
         Ok(match self {
-            Self::Mlp(c) => FeedForward::Mlp(c.try_init(device)?),
-            Self::Gated(c) => FeedForward::Gated(c.try_init(device)?),
+            Self::Mlp(c) => TransformerFeedForward::Mlp(c.try_init(device)?),
+            Self::Gated(c) => TransformerFeedForward::Gated(c.try_init(device)?),
         })
     }
 }
@@ -350,27 +352,27 @@ impl ModuleInit<FeedForward> for FeedForwardConfig {
 /// [`BunsenNormalization`] is for a norm. The variant
 /// is not part of its tensors' paths for the loaders bunsen uses.
 ///
-/// Built by [`FeedForwardConfig`].
-/// Implements [`FeedForwardMeta`].
+/// Built by [`TransformerFeedForwardConfig`].
+/// Implements [`TransformerFeedForwardMeta`].
 #[derive(Module, Debug)]
-pub enum FeedForward {
-    /// [`Mlp`].
-    Mlp(Mlp),
+pub enum TransformerFeedForward {
+    /// [`TransformerMlp`].
+    Mlp(TransformerMlp),
 
-    /// [`GatedMlp`].
-    Gated(GatedMlp),
+    /// [`TransformerGatedMlp`].
+    Gated(TransformerGatedMlp),
 }
 
-impl FeedForwardMeta for FeedForward {
+impl TransformerFeedForwardMeta for TransformerFeedForward {
     fn n_embed(&self) -> usize {
         match self {
-            Self::Mlp(m) => MlpMeta::n_embed(m),
-            Self::Gated(m) => GatedMlpMeta::n_embed(m),
+            Self::Mlp(m) => TransformerMlpMeta::n_embed(m),
+            Self::Gated(m) => TransformerGatedMlpMeta::n_embed(m),
         }
     }
 }
 
-impl FeedForward {
+impl TransformerFeedForward {
     /// The feed-forward, position by position.
     ///
     /// # Arguments
@@ -405,7 +407,7 @@ mod tests {
 
     #[test]
     fn test_mlp_config() {
-        let cfg = MlpConfig::new(3);
+        let cfg = TransformerMlpConfig::new(3);
 
         assert_eq!(cfg.n_embed, 3);
         assert_eq!(cfg.expansion_factor, 4);
@@ -426,14 +428,14 @@ mod tests {
                 let t = 3;
                 let n_embed = 10;
 
-                let cfg = MlpConfig::new(n_embed)
+                let cfg = TransformerMlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
                     .with_activation(BunsenActivationConfig::Chain(vec![
                         activation.clone(),
                         BunsenActivationConfig::Pow(2.0),
                     ]));
 
-                let mlp: Mlp = cfg.init(&device);
+                let mlp: TransformerMlp = cfg.init(&device);
 
                 assert_eq!(mlp.n_embed(), n_embed);
 
@@ -477,8 +479,8 @@ mod tests {
     #[test]
     fn test_gated_mlp() {
         use crate::support::testing::cpu_device;
-        let config = GatedMlpConfig::new(6, 10).with_bias(true);
-        let mlp: GatedMlp = config.init(&cpu_device());
+        let config = TransformerGatedMlpConfig::new(6, 10).with_bias(true);
+        let mlp: TransformerGatedMlp = config.init(&cpu_device());
         assert_eq!(mlp.n_embed(), config.n_embed());
         assert_eq!(mlp.d_ff(), config.d_ff());
         assert!(mlp.up_proj.bias.is_some());
@@ -500,15 +502,16 @@ mod tests {
         let x = seeded_tensor::<3>(7, [2, 3, 6], Distribution::Default, &device);
         for (config, act) in [
             (
-                GatedMlpConfig::new(6, 10),
+                TransformerGatedMlpConfig::new(6, 10),
                 burn::tensor::activation::silu::<3> as fn(Tensor<3>) -> Tensor<3>,
             ),
             (
-                GatedMlpConfig::new(6, 10).with_activation(BunsenActivationConfig::GeluApproximate),
+                TransformerGatedMlpConfig::new(6, 10)
+                    .with_activation(BunsenActivationConfig::GeluApproximate),
                 burn::tensor::activation::gelu_approximate::<3>,
             ),
         ] {
-            let mlp: GatedMlp = config.init(&device);
+            let mlp: TransformerGatedMlp = config.init(&device);
             let expected = mlp
                 .down_proj
                 .forward(act(mlp.gate_proj.forward(x.clone())) * mlp.up_proj.forward(x.clone()));
@@ -522,10 +525,10 @@ mod tests {
     fn test_gated_mlp_down_bias() {
         use crate::support::testing::cpu_device;
         let device = cpu_device();
-        let config = GatedMlpConfig::new(6, 10).with_down_bias(Some(true));
+        let config = TransformerGatedMlpConfig::new(6, 10).with_down_bias(Some(true));
         assert!(!config.bias);
         assert!(config.down_bias());
-        let mlp: GatedMlp = config.init(&device);
+        let mlp: TransformerGatedMlp = config.init(&device);
         assert!(mlp.gate_proj.bias.is_none());
         assert!(mlp.up_proj.bias.is_none());
         assert!(mlp.down_proj.bias.is_some());
@@ -538,10 +541,10 @@ mod tests {
             burn::tensor::Tolerance::default(),
         );
 
-        let config = GatedMlpConfig::new(6, 10)
+        let config = TransformerGatedMlpConfig::new(6, 10)
             .with_bias(true)
             .with_down_bias(Some(false));
-        let mlp: GatedMlp = config.init(&device);
+        let mlp: TransformerGatedMlp = config.init(&device);
         assert!(mlp.gate_proj.bias.is_some());
         assert!(mlp.down_proj.bias.is_none());
     }
