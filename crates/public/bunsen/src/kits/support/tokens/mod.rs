@@ -1,10 +1,11 @@
 //! # Tokens
 //!
 //! The token side of a model kit: what is shared between kits that emit ids
-//! and want text back. Today that is one seam, [`Detokenizer`], and one
-//! implementation of it, `WordchipperDetokenizer`, behind the `tokenizer`
-//! feature, plus the parser of the `.tiktoken` rank files a byte-level
-//! vocabulary ships as, [`TiktokenRanks`].
+//! and want text back, and kits that build prompts from text. Two seams,
+//! [`Detokenizer`] (ids to text) and [`Tokenizer`] (text to ids); one
+//! implementation of the first here, `WordchipperDetokenizer`, behind the
+//! `tokenizer` feature; and the parser of the `.tiktoken` rank files a
+//! byte-level vocabulary ships as, [`TiktokenRanks`].
 //!
 //! A model kit owns its own token *layout* — which ids are special, what they
 //! mean, how a prompt is built — because that is model-specific and needs no
@@ -15,9 +16,11 @@
 //! specials after the base ranks and hands the whole `{ id -> bytes }`
 //! table to `WordchipperDetokenizer::from_spans`.
 //!
-//! Only decoding is here. Encoding — the merge table, the pre-tokenizer, the
-//! special-token splitter — is `wordchipper`'s whole job, and a kit that needs
-//! it should use that crate directly.
+//! Only decoding is implemented here. Encoding — the merge table, the
+//! pre-tokenizer, the special-token splitter — is a tokenizer library's whole
+//! job, so [`Tokenizer`] is a seam alone: a kit that builds prompts takes one,
+//! and the crate that holds the library implements it (`bunsen-tool`'s
+//! `HfTokenizer`, on the `tokenizers` crate, from any `tokenizer.json`).
 //!
 //! [`ByteLevelVocabulary`] reads the other common spelling of a byte-level
 //! vocabulary, `transformers`' `vocab.json` / `tokenizer.json` (GPT-2's, and
@@ -79,6 +82,30 @@ pub trait Detokenizer: Send + Sync + Debug {
         &self,
         ids: &[i64],
     ) -> BunsenResult<String>;
+}
+
+/// Turns text into token ids: the encoding side of a checkpoint's
+/// tokenizer, as a kit that builds its own prompts uses it.
+///
+/// Ids are `i64`, as the model's token tensors are. `Debug` and `Send +
+/// Sync` are supertraits for the reasons [`Detokenizer`]'s are.
+pub trait Tokenizer: Send + Sync + Debug {
+    /// Encodes `text`, adding no special tokens of its own, an added token's
+    /// spelling anywhere in it as that token: `transformers`'
+    /// `tokenizer(text, add_special_tokens=False)`.
+    ///
+    /// # Errors
+    /// As the encoder.
+    fn encode(
+        &self,
+        text: &str,
+    ) -> BunsenResult<Vec<i64>>;
+
+    /// The id of an added token, by its content: `[MASK]`, `<end_of_turn>`.
+    fn token_id(
+        &self,
+        content: &str,
+    ) -> Option<i64>;
 }
 
 #[cfg(test)]
