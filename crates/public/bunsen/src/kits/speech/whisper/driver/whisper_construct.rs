@@ -24,7 +24,6 @@ use crate::{
                 WhisperPolicy,
                 WhisperTokenLayout,
             },
-            logit_filters::default_filters,
         },
         support::{
             decoding::LogitFilter,
@@ -153,7 +152,7 @@ impl WhisperConstruct {
     /// the non-speech suppress list. None without a vocabulary.
     pub fn default_filters(&self) -> Vec<Arc<dyn LogitFilter>> {
         match &self.ranks {
-            Some(ranks) => default_filters(ranks, self.layout.ids()),
+            Some(ranks) => self.layout.ids().default_filters(ranks),
             None => Vec::new(),
         }
     }

@@ -3,9 +3,9 @@
 //! Upstream's checkpoint manager writes a step as two files: the model's
 //! state dict, `model_<step>.pt` (`torch.save`), and its `meta_<step>.json`,
 //! whose `model_config` is the model's geometry. [`NanoChatMeta`] reads the
-//! meta, [`nanochat_generation`] tells from the state dict's names which of
-//! upstream's models it is, [`nanochat_config`] builds the config for both,
-//! and [`load_pt_tensors`] loads the state dict through [`pt_rekey`].
+//! meta, [`NanoChatMeta::generation`] tells from the state dict's names which
+//! of upstream's models it is, [`NanoChatMeta::gpt_config`] builds the config
+//! for both, and [`load_pt_tensors`] loads the state dict through [`pt_rekey`].
 
 use std::path::Path;
 
@@ -133,67 +133,73 @@ const UPSTREAM_2026_MARKERS: [&str; 5] = [
     "backout_lambda",
 ];
 
-/// Which of upstream's models the checkpoint whose state dict holds `names`
-/// and whose meta is `meta` is: the 2026 one when the state dict has its
-/// parameters and the meta its window pattern, the 2025 one when it has
-/// neither.
-///
-/// # Errors
-/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when it has
-/// some of the 2026 parameters and not others, or when the state dict and
-/// the meta disagree: a checkpoint of one of upstream's commits between the
-/// two, which bunsen does not model.
-pub fn nanochat_generation<S: AsRef<str>>(
-    meta: &NanoChatMeta,
-    names: &[S],
-) -> BunsenResult<NanoChatGeneration> {
-    let has = |name: &str| names.iter().any(|n| n.as_ref() == name);
-    let present: Vec<&str> = UPSTREAM_2026_MARKERS
-        .iter()
-        .copied()
-        .filter(|m| has(m))
-        .collect();
-    let value_embeds = names
-        .iter()
-        .any(|n| n.as_ref().starts_with("value_embeds."));
-    let windowed = meta.model_config.window_pattern.is_some();
-    match (present.len(), value_embeds, windowed) {
-        (0, false, false) => Ok(NanoChatGeneration::Upstream2025),
-        (n, true, true) if n == UPSTREAM_2026_MARKERS.len() => Ok(NanoChatGeneration::Upstream2026),
-        _ => Err(BunsenError::unsupported(format!(
-            "a nanochat checkpoint between upstream's 2025 and 2026 models: it has {} of \
-             {UPSTREAM_2026_MARKERS:?}, {} value embeddings, and {} window pattern",
-            if present.is_empty() {
-                "none".to_string()
-            } else {
-                format!("{present:?}")
-            },
-            if value_embeds { "" } else { "no" },
-            if windowed { "a" } else { "no" },
-        ))),
+impl NanoChatMeta {
+    /// Which of upstream's models the checkpoint whose state dict holds `names`
+    /// and whose meta this is: the 2026 one when the state dict has its
+    /// parameters and the meta its window pattern, the 2025 one when it has
+    /// neither.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when it has
+    /// some of the 2026 parameters and not others, or when the state dict and
+    /// the meta disagree: a checkpoint of one of upstream's commits between the
+    /// two, which bunsen does not model.
+    pub fn generation<S: AsRef<str>>(
+        &self,
+        names: &[S],
+    ) -> BunsenResult<NanoChatGeneration> {
+        let has = |name: &str| names.iter().any(|n| n.as_ref() == name);
+        let present: Vec<&str> = UPSTREAM_2026_MARKERS
+            .iter()
+            .copied()
+            .filter(|m| has(m))
+            .collect();
+        let value_embeds = names
+            .iter()
+            .any(|n| n.as_ref().starts_with("value_embeds."));
+        let windowed = self.model_config.window_pattern.is_some();
+        match (present.len(), value_embeds, windowed) {
+            (0, false, false) => Ok(NanoChatGeneration::Upstream2025),
+            (n, true, true) if n == UPSTREAM_2026_MARKERS.len() => {
+                Ok(NanoChatGeneration::Upstream2026)
+            }
+            _ => Err(BunsenError::unsupported(format!(
+                "a nanochat checkpoint between upstream's 2025 and 2026 models: it has {} of \
+                 {UPSTREAM_2026_MARKERS:?}, {} value embeddings, and {} window pattern",
+                if present.is_empty() {
+                    "none".to_string()
+                } else {
+                    format!("{present:?}")
+                },
+                if value_embeds { "" } else { "no" },
+                if windowed { "a" } else { "no" },
+            ))),
+        }
     }
 }
 
-/// The config of a checkpoint of `generation` whose meta is `meta`: its
-/// geometry, `sequence_len` the initial sequence length (the rotary table
-/// ten times it, as upstream's), and the generation's options.
-pub fn nanochat_config(
-    meta: &NanoChatMeta,
-    generation: NanoChatGeneration,
-) -> NanoChatGptContractConfig {
-    let m = &meta.model_config;
-    let config = NanoChatGptContractConfig::new()
-        .with_init_seq_len(m.sequence_len)
-        .with_max_seq_len_factor(10)
-        .with_vocab_size(m.vocab_size)
-        .with_n_layer(m.n_layer)
-        .with_n_head(m.n_head)
-        .with_n_kv_head(m.n_kv_head)
-        .with_n_embed(m.n_embd);
-    match generation {
-        NanoChatGeneration::Upstream2025 => config,
-        NanoChatGeneration::Upstream2026 => {
-            config.with_upstream_2026(m.window_pattern.clone().unwrap_or_else(|| "L".into()))
+impl NanoChatMeta {
+    /// The config of a checkpoint of `generation` whose meta is `meta`: its
+    /// geometry, `sequence_len` the initial sequence length (the rotary table
+    /// ten times it, as upstream's), and the generation's options.
+    pub fn gpt_config(
+        &self,
+        generation: NanoChatGeneration,
+    ) -> NanoChatGptContractConfig {
+        let m = &self.model_config;
+        let config = NanoChatGptContractConfig::new()
+            .with_init_seq_len(m.sequence_len)
+            .with_max_seq_len_factor(10)
+            .with_vocab_size(m.vocab_size)
+            .with_n_layer(m.n_layer)
+            .with_n_head(m.n_head)
+            .with_n_kv_head(m.n_kv_head)
+            .with_n_embed(m.n_embd);
+        match generation {
+            NanoChatGeneration::Upstream2025 => config,
+            NanoChatGeneration::Upstream2026 => {
+                config.with_upstream_2026(m.window_pattern.clone().unwrap_or_else(|| "L".into()))
+            }
         }
     }
 }
@@ -266,12 +272,12 @@ pub fn load_pt_tensors(
 /// An upstream nanochat checkpoint, its `meta_<step>.json` at `meta` and its
 /// `model_<step>.pt` at `model`, as a [`NanoChatGpt`] on `device`: its
 /// config from the meta and the state dict's names
-/// ([`nanochat_generation`], [`nanochat_config`]), built, and loaded
-/// ([`load_pt_tensors`]).
+/// ([`NanoChatMeta::generation`], [`NanoChatMeta::gpt_config`]), built, and
+/// loaded ([`load_pt_tensors`]).
 ///
 /// # Errors
 /// As [`NanoChatMeta::from_file`],
-/// [`read_pytorch_tensors`], [`nanochat_generation`] and
+/// [`read_pytorch_tensors`], [`NanoChatMeta::generation`] and
 /// [`load_pt_tensors`]; each names the file it is about.
 pub fn load_pt_checkpoint(
     meta: &Path,
@@ -281,9 +287,10 @@ pub fn load_pt_checkpoint(
     let meta_data = NanoChatMeta::from_file(meta)?;
     let tensors = read_pytorch_tensors(model)?;
     let names: Vec<&str> = tensors.iter().map(|t| t.name.as_str()).collect();
-    let generation = nanochat_generation(&meta_data, &names)
+    let generation = meta_data
+        .generation(&names)
         .with_context(|| format!("{} and {}", meta.display(), model.display()))?;
-    let mut gpt: NanoChatGpt = nanochat_config(&meta_data, generation).try_init(device)?;
+    let mut gpt: NanoChatGpt = meta_data.gpt_config(generation).try_init(device)?;
     load_pt_tensors(&mut gpt, tensors).with_context(|| model.display().to_string())?;
     Ok((gpt, generation))
 }
@@ -340,32 +347,32 @@ mod tests {
     fn test_generation() {
         let v2025 = ["transformer.wte.weight", "lm_head.weight"];
         assert_eq!(
-            nanochat_generation(&meta(None), &v2025).unwrap(),
+            meta(None).generation(&v2025).unwrap(),
             NanoChatGeneration::Upstream2025
         );
         let mut v2026: Vec<&str> = v2025.to_vec();
         v2026.extend(UPSTREAM_2026_MARKERS);
         v2026.push("value_embeds.1.weight");
         assert_eq!(
-            nanochat_generation(&meta(Some("L")), &v2026).unwrap(),
+            meta(Some("L")).generation(&v2026).unwrap(),
             NanoChatGeneration::Upstream2026
         );
 
         let unsupported = ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("between upstream's 2025 and 2026 models");
         // The meta says 2026, the state dict 2025; and the other way round.
-        unsupported.assert(&nanochat_generation(&meta(Some("L")), &v2025).unwrap_err());
-        unsupported.assert(&nanochat_generation(&meta(None), &v2026).unwrap_err());
+        unsupported.assert(&meta(Some("L")).generation(&v2025).unwrap_err());
+        unsupported.assert(&meta(None).generation(&v2026).unwrap_err());
         // Some 2026 parts and not others: an intermediate upstream commit.
         let partial = ["transformer.wte.weight", "resid_lambdas", "x0_lambdas"];
-        unsupported.assert(&nanochat_generation(&meta(Some("L")), &partial).unwrap_err());
+        unsupported.assert(&meta(Some("L")).generation(&partial).unwrap_err());
     }
 
     /// The config takes the meta's geometry, the rotary table ten times its
     /// context, and the generation's options.
     #[test]
     fn test_config() {
-        let c = nanochat_config(&meta(None), NanoChatGeneration::Upstream2025);
+        let c = meta(None).gpt_config(NanoChatGeneration::Upstream2025);
         assert_eq!(
             (
                 c.init_seq_len,
@@ -378,7 +385,7 @@ mod tests {
         );
         assert!(!c.residual_lambdas && c.window_pattern.is_none() && c.rope_base == 10000);
 
-        let c = nanochat_config(&meta(Some("SSSL")), NanoChatGeneration::Upstream2026);
+        let c = meta(Some("SSSL")).gpt_config(NanoChatGeneration::Upstream2026);
         assert_eq!(c.window_pattern.as_deref(), Some("SSSL"));
         assert!(c.residual_lambdas && c.value_embeds && c.backout && c.rope_base == 100000);
     }

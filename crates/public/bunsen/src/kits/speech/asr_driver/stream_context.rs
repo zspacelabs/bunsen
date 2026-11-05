@@ -38,59 +38,61 @@ use crate::{
     },
 };
 
-/// Advances every context that has a decode due, batching the decodes.
-///
-/// Repeats until no context has anything due, so a context with several
-/// units due (a burst of closed regions, a long write) advances through all
-/// of them. Each round takes one unit from every context that has one and
-/// hands them to the engine together; each context's events are what its
-/// own [`read`](AsrStreamContext::read) would have returned.
-///
-/// # Arguments
-/// * `driver` - the driver the contexts were opened from.
-/// * `contexts` - the streams, fed through [`write`](AsrStreamContext::write)
-///   rather than [`write_read`](AsrStreamContext::write_read), so that nothing
-///   has been decoded yet.
-///
-/// # Errors
-/// As [`AsrStreamContext::read`].
-pub fn advance_ready<E: AsrEngine>(
-    driver: &AsrStreamDriver<E>,
-    contexts: &mut [AsrStreamContext<E>],
-) -> BunsenResult<Vec<Vec<TranscriptEvent>>> {
-    let mut out: Vec<Vec<TranscriptEvent>> = vec![Vec::new(); contexts.len()];
+impl<E: AsrEngine> AsrStreamDriver<E> {
+    /// Advances every context that has a decode due, batching the decodes.
+    ///
+    /// Repeats until no context has anything due, so a context with several
+    /// units due (a burst of closed regions, a long write) advances through all
+    /// of them. Each round takes one unit from every context that has one and
+    /// hands them to the driver's engine together; each context's events are
+    /// what its own [`read`](AsrStreamContext::read) would have returned.
+    ///
+    /// # Arguments
+    /// * `contexts` - the streams opened from this driver, fed through
+    ///   [`write`](AsrStreamContext::write) rather than
+    ///   [`write_read`](AsrStreamContext::write_read), so that nothing has been
+    ///   decoded yet.
+    ///
+    /// # Errors
+    /// As [`AsrStreamContext::read`].
+    pub fn advance_ready(
+        &self,
+        contexts: &mut [AsrStreamContext<E>],
+    ) -> BunsenResult<Vec<Vec<TranscriptEvent>>> {
+        let mut out: Vec<Vec<TranscriptEvent>> = vec![Vec::new(); contexts.len()];
 
-    loop {
-        // One due unit per context: a commit if one is due, else a draft.
-        let mut due: Vec<(usize, Due, bool)> = Vec::new();
-        for (i, ctx) in contexts.iter_mut().enumerate() {
-            ctx.skip_silence();
-            if let Some(unit) = ctx.next_due() {
-                due.push((i, unit, false));
-            } else if let Some(unit) = ctx.draft_unit() {
-                due.push((i, unit, true));
-            }
-        }
-        if due.is_empty() {
+        loop {
+            // One due unit per context: a commit if one is due, else a draft.
+            let mut due: Vec<(usize, Due, bool)> = Vec::new();
             for (i, ctx) in contexts.iter_mut().enumerate() {
-                out[i].extend(ctx.release());
+                ctx.skip_silence();
+                if let Some(unit) = ctx.next_due() {
+                    due.push((i, unit, false));
+                } else if let Some(unit) = ctx.draft_unit() {
+                    due.push((i, unit, true));
+                }
             }
-            return Ok(out);
-        }
+            if due.is_empty() {
+                for (i, ctx) in contexts.iter_mut().enumerate() {
+                    out[i].extend(ctx.release());
+                }
+                return Ok(out);
+            }
 
-        let requests = due
-            .iter()
-            .map(|&(i, unit, draft)| contexts[i].request(unit, draft))
-            .collect();
-        let decodes = driver.engine().decode(requests)?;
+            let requests = due
+                .iter()
+                .map(|&(i, unit, draft)| contexts[i].request(unit, draft))
+                .collect();
+            let decodes = self.engine().decode(requests)?;
 
-        for ((i, unit, draft), decode) in due.into_iter().zip(decodes) {
-            let ctx = &mut contexts[i];
-            if draft {
-                let event = ctx.draft_from(unit, decode)?;
-                out[i].extend(event);
-            } else {
-                out[i].extend(ctx.commit_due(unit, decode)?);
+            for ((i, unit, draft), decode) in due.into_iter().zip(decodes) {
+                let ctx = &mut contexts[i];
+                if draft {
+                    let event = ctx.draft_from(unit, decode)?;
+                    out[i].extend(event);
+                } else {
+                    out[i].extend(ctx.commit_due(unit, decode)?);
+                }
             }
         }
     }
@@ -399,7 +401,7 @@ impl<E: AsrEngine> AsrStreamContext<E> {
 
     /// Takes samples in without decoding: the front end and the gate run,
     /// nothing else. Pair with [`read`](Self::read), or with
-    /// [`advance_ready`] across many streams.
+    /// [`AsrStreamDriver::advance_ready`] across many streams.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) after the stream
@@ -1380,7 +1382,8 @@ mod tests {
                     ctx.write(&s[at..(at + 10).min(s.len())]).unwrap();
                 }
             }
-            for (i, events) in advance_ready(&driver, &mut contexts)
+            for (i, events) in driver
+                .advance_ready(&mut contexts)
                 .unwrap()
                 .into_iter()
                 .enumerate()
@@ -1391,7 +1394,8 @@ mod tests {
         for ctx in contexts.iter_mut() {
             ctx.end_input().unwrap();
         }
-        for (i, events) in advance_ready(&driver, &mut contexts)
+        for (i, events) in driver
+            .advance_ready(&mut contexts)
             .unwrap()
             .into_iter()
             .enumerate()
@@ -1569,7 +1573,8 @@ mod tests {
                     ctx.write(&s[at..(at + 10).min(s.len())]).unwrap();
                 }
             }
-            for (i, events) in advance_ready(&driver, &mut contexts)
+            for (i, events) in driver
+                .advance_ready(&mut contexts)
                 .unwrap()
                 .into_iter()
                 .enumerate()
@@ -1580,7 +1585,8 @@ mod tests {
         for ctx in contexts.iter_mut() {
             ctx.end_input().unwrap();
         }
-        for (i, events) in advance_ready(&driver, &mut contexts)
+        for (i, events) in driver
+            .advance_ready(&mut contexts)
             .unwrap()
             .into_iter()
             .enumerate()

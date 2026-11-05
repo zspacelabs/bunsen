@@ -32,7 +32,7 @@ use crate::{
 /// Opens [`AsrStreamContext`]s, one per stream, each holding a clone of the
 /// driver; the clone is cheap when the engine's model is shared. So one
 /// driver serves any number of streams in one process, and
-/// [`advance_ready`](crate::kits::speech::asr_driver::advance_ready) batches
+/// [`advance_ready`](crate::kits::speech::asr_driver::AsrStreamDriver::advance_ready) batches
 /// their decodes.
 #[derive(Clone, Debug)]
 pub struct AsrStreamDriver<E: AsrEngine> {

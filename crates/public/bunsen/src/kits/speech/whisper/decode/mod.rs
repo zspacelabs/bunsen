@@ -9,7 +9,8 @@
 //!   [`SearchConfig`](crate::kits::support::decoding::SearchConfig).
 //!   [`init_decoder`](DecodeConfig::init_decoder) picks the search,
 //!   [`init_ranker`](DecodeConfig::init_ranker) the ranker.
-//! - [`WhisperFallbackConfig`] and [`decode_with_fallback`]: a
+//! - [`WhisperFallbackConfig`] and its
+//!   [`decode`](WhisperFallbackConfig::decode): a
 //!   [`TemperatureLadder`](crate::kits::support::decoding::TemperatureLadder)
 //!   that re-decodes a window that looks bad, judged by upstream's thresholds.
 //! - The loop itself is on the model: [`decode_windows`] and its siblings on

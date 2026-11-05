@@ -27,7 +27,6 @@ use crate::{
         SpeakerCutConfig,
         WindowDecode,
         quiet_cut,
-        speaker_cut,
     },
 };
 
@@ -66,9 +65,10 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 ///   phrases decoding audio past a pause.
 ///   [`with_quiet_cut`](Self::with_quiet_cut) turns this off. With a diarizer
 ///   attached, any window is first cut at a change of speaker
-///   ([`speaker_cut`]), so a window, committed whole, is one speaker's as far
-///   as the turns go; [`with_speaker_cut`](Self::with_speaker_cut) sets or
-///   turns off the thresholds.
+///   ([`SpeakerCutConfig::cut`]), so a window, committed whole, is one
+///   speaker's as far as the turns go;
+///   [`with_speaker_cut`](Self::with_speaker_cut) sets or turns off the
+///   thresholds.
 /// - **Carry:** the language, the first a committed reply names.
 ///
 /// A stream's last frame is the end padding's, and goes, as the front end's
@@ -286,13 +286,12 @@ impl AsrEngine for Qwen3AsrEngine {
                 let mut window = request.window;
                 let mut frames = window.dims()[1];
                 let turn = match (&self.speaker_cut, &request.speakers) {
-                    (Some(config), Some(activity)) => speaker_cut(
+                    (Some(config), Some(activity)) => config.cut(
                         activity,
                         request.start,
                         self.hop(),
                         frames,
                         self.sample_rate(),
-                        config,
                     ),
                     _ => None,
                 };

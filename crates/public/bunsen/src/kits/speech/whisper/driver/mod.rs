@@ -25,7 +25,7 @@
 //! Stream state is injected, never owned by the model. The context holds
 //! it, and the driver and the model are only read, so one driver serves any
 //! number of streams in one process, each in a context of its own, and
-//! [`advance_ready`](crate::kits::speech::asr_driver::advance_ready) batches
+//! [`advance_ready`](crate::kits::speech::asr_driver::AsrStreamDriver::advance_ready) batches
 //! the decodes of many contexts through the one model. The same split runs
 //! underneath: [`SileroVad`](crate::kits::speech::silero_vad::SileroVad) and
 //! its [`SileroVadContext`](crate::kits::speech::silero_vad::SileroVadContext),
@@ -75,7 +75,7 @@
 //! policy says is due, commits each, and then drafts if a draft is due. The
 //! halves are separate so that a batch of streams can be written one at a
 //! time and read together by
-//! [`advance_ready`](crate::kits::speech::asr_driver::advance_ready).
+//! [`advance_ready`](crate::kits::speech::asr_driver::AsrStreamDriver::advance_ready).
 //!
 //! The hop alignment never reaches the caller. Staging holds whatever is
 //! not yet a whole hop, so a sound card's 480- or 1024-sample buffers are

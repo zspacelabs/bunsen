@@ -94,7 +94,6 @@ mod tests {
         weights::{
             NanoChatGeneration,
             NanoChatMeta,
-            nanochat_config,
         },
     };
 
@@ -152,7 +151,7 @@ mod tests {
                 .expect_lookup_prefab(row.prefab.as_deref().unwrap())
                 .to_config();
             assert_eq!(
-                format!("{:?}", nanochat_config(&meta, generation)),
+                format!("{:?}", meta.gpt_config(generation)),
                 format!("{prefab:?}"),
                 "{name}"
             );

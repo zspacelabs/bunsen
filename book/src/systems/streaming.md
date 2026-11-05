@@ -124,7 +124,7 @@ is one stream in progress, and it is the only stateful type: the front
 end's carry, the frames not yet decoded, the committed transcript, the
 stream's clock, its level and its voice-activity state. One driver
 serves any number of contexts, and
-[`advance_ready`](bunsen::kits::speech::asr_driver::advance_ready)
+[`AsrStreamDriver::advance_ready`](bunsen::kits::speech::asr_driver::AsrStreamDriver::advance_ready)
 batches the decodes of many contexts through the one model
 ([driver and context](bunsen::kits::speech::whisper::driver#driver-and-context)).
 
@@ -242,7 +242,7 @@ sees all of it, however the audio was chunked. A draft is attributed from
 what the diarizer has finalized so far. The engine sees the window's activity
 in its decode request, and one that decodes windows whole cuts them at a
 change of speaker first
-([`speaker_cut`](bunsen::kits::speech::asr_driver::speaker_cut)), so a
+([`SpeakerCutConfig::cut`](bunsen::kits::speech::asr_driver::SpeakerCutConfig::cut)), so a
 window is one speaker's as far as the turns go. Turns on their own, without transcription, come from a
 [`TurnFilter`](bunsen::kits::speech::diarization::TurnFilter) over the
 diarizer's activity.

@@ -16,10 +16,7 @@ use bunsen::{
                     WhisperStreamDriverConfig,
                     WhisperTask,
                 },
-                logit_filters::{
-                    ApplyTimestampRules,
-                    default_filters,
-                },
+                logit_filters::ApplyTimestampRules,
                 split_mel_windows,
             },
         },
@@ -381,7 +378,7 @@ fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
     let table = vocab();
     let model = bunsen_model(&device);
     let config = DecodeConfig::from(&decode_config(&table));
-    let filters = default_filters(&table.ranks, table.policy.ids());
+    let filters = table.policy.ids().default_filters(&table.ranks);
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
@@ -430,7 +427,7 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
     let model = bunsen_model(&device);
     let config = DecodeConfig::from(&decode_config(&table))
         .with_search(SearchConfig::new().with_beam_size(5));
-    let filters = default_filters(&table.ranks, table.policy.ids());
+    let filters = table.policy.ids().default_filters(&table.ranks);
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
@@ -482,7 +479,7 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
         .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), true)
         .expect("a multilingual layout");
     let config = DecodeConfig::new(prompt, ids.eot);
-    let mut filters = default_filters(&table.ranks, ids);
+    let mut filters = ids.default_filters(&table.ranks);
     filters.push(std::sync::Arc::new(ApplyTimestampRules::new(ids, Some(50))));
 
     for fixture in FIXTURES {
@@ -534,7 +531,7 @@ fn test_bunsen_driver_transcribes_like_openai() {
         .with_timestamps(true)
         .init_with_layout(bunsen_model(&device), table.policy.clone(), &device)
         .expect("a multilingual layout with a language")
-        .with_logit_filters(default_filters(&table.ranks, table.policy.ids()));
+        .with_logit_filters(table.policy.ids().default_filters(&table.ranks));
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);

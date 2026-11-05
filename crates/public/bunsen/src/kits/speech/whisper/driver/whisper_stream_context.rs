@@ -13,7 +13,6 @@ use crate::{
             MaxLevel,
             TimedTokens,
             WindowDecode,
-            speaker_cut,
         },
         whisper::{
             blocks::WhisperMeta,
@@ -21,7 +20,6 @@ use crate::{
                 DecodeConfig,
                 DecodedTokens,
                 WhisperFallbackConfig,
-                decode_with_fallback,
             },
             driver::{
                 WhisperEngine,
@@ -180,13 +178,12 @@ impl WhisperEngine {
     ) -> Packaged {
         let mut count = request.window.dims()[1];
         if let (Some(config), Some(activity)) = (&self.config.speaker_cut, &request.speakers)
-            && let Some(cut) = speaker_cut(
+            && let Some(cut) = config.cut(
                 activity,
                 request.start,
                 self.hop(),
                 count,
                 self.sample_rate(),
-                config,
             )
         {
             count = cut;
@@ -220,8 +217,7 @@ impl WhisperEngine {
     ) -> DecodedTokens {
         let model = self.whisper_model();
         let mut xa: Option<Tensor<3>> = None;
-        decode_with_fallback(
-            &self.config.fallback,
+        self.config.fallback.decode(
             base,
             first,
             |config| {
@@ -456,7 +452,6 @@ mod tests {
                     MaxLevel,
                     StreamClock,
                     TranscriptEvent,
-                    advance_ready,
                 },
                 whisper::{
                     Whisper,
@@ -934,12 +929,12 @@ mod tests {
         for (ctx, audio) in contexts.iter_mut().zip(&clips) {
             ctx.write(audio).unwrap();
         }
-        let mut batched = advance_ready(&driver, &mut contexts).unwrap();
+        let mut batched = driver.advance_ready(&mut contexts).unwrap();
         assert_eq!(batched[0].len(), 6, "six full windows before the end");
         for ctx in contexts.iter_mut().take(2) {
             ctx.end_input().unwrap();
         }
-        let tail = advance_ready(&driver, &mut contexts).unwrap();
+        let tail = driver.advance_ready(&mut contexts).unwrap();
         for (all, more) in batched.iter_mut().zip(tail) {
             all.extend(more);
         }
@@ -990,7 +985,7 @@ mod tests {
         ctx_b.write(&audio).unwrap();
         ctx_b.end_input().unwrap();
         let mut contexts = vec![ctx_a, ctx_b];
-        let out = advance_ready(&driver, &mut contexts).unwrap();
+        let out = driver.advance_ready(&mut contexts).unwrap();
         batched_a.extend(out[0].clone());
         assert_eq!(batched_a, solo_a);
         assert_eq!(out[1], solo_b);
@@ -1412,7 +1407,7 @@ mod tests {
             ctx.write(&audio).unwrap();
             ctx.end_input().unwrap();
         }
-        let out = advance_ready(&detecting, &mut batch).unwrap();
+        let out = detecting.advance_ready(&mut batch).unwrap();
         assert_eq!(out[0], expected);
         assert_eq!(out[1], expected);
         assert_eq!(batch[1].language(), Some(only));
@@ -1903,11 +1898,11 @@ mod tests {
             for piece in audio.chunks(RATE / 10) {
                 expected.extend(solo.write_read(piece).unwrap());
                 batch[0].write(piece).unwrap();
-                got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+                got.extend(driver.advance_ready(&mut batch).unwrap().remove(0));
             }
             expected.extend(solo.end_read().unwrap());
             batch[0].end_input().unwrap();
-            got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+            got.extend(driver.advance_ready(&mut batch).unwrap().remove(0));
             assert_eq!(got, expected);
             assert!(
                 expected.iter().any(|e| !e.is_committed()),
@@ -2043,10 +2038,10 @@ mod tests {
             let mut batched = Vec::new();
             for piece in speech().chunks(RATE / 10) {
                 batch[0].write(piece).unwrap();
-                batched.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+                batched.extend(driver.advance_ready(&mut batch).unwrap().remove(0));
             }
             batch[0].end_input().unwrap();
-            batched.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+            batched.extend(driver.advance_ready(&mut batch).unwrap().remove(0));
             assert_eq!(batched, chatty);
         }
 

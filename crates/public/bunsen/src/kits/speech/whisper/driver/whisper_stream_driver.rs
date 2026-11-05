@@ -119,7 +119,7 @@ pub struct WhisperStreamDriverConfig {
 
     /// With a diarizer attached, a window is cut at a change of speaker
     /// before it is decoded
-    /// ([`speaker_cut`](crate::kits::speech::asr_driver::speaker_cut)), so a
+    /// ([`SpeakerCutConfig::cut`](crate::kits::speech::asr_driver::SpeakerCutConfig::cut)), so a
     /// segment is one speaker's as far as the turns go; `None` decodes
     /// windows as the emission policy cuts them.
     #[config(default = "Some(SpeakerCutConfig::new())")]
@@ -318,7 +318,7 @@ impl WhisperStreamDriverConfig {
 /// [`WhisperStreamContext`](super::WhisperStreamContext) holds a clone of
 /// the driver, which is cheap (the construct is an `Arc`, and tensors are
 /// shared), so one driver serves any number of streams in one process and
-/// [`advance_ready`](crate::kits::speech::asr_driver::advance_ready) batches
+/// [`advance_ready`](crate::kits::speech::asr_driver::AsrStreamDriver::advance_ready) batches
 /// their decodes.
 pub type WhisperStreamDriver = AsrStreamDriver<WhisperEngine>;
 

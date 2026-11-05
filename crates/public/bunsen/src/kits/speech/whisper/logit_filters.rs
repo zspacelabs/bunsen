@@ -3,10 +3,10 @@
 //! What a Whisper decode may and may not emit. A
 //! [`LogitFilter`] rewrites the last
 //! position's logits before the search sees them; a decode applies its
-//! filters every step, in order. [`default_filters`] is upstream's default
-//! pair over a vocabulary ([`SuppressBlank`], then
+//! filters every step, in order. [`WhisperSpecialIds::default_filters`] is
+//! upstream's default pair over a vocabulary ([`SuppressBlank`], then
 //! [`SuppressTokens`] over
-//! [`default_suppress_tokens`]), which a
+//! [`WhisperSpecialIds::default_suppress_tokens`]), which a
 //! [`WhisperConstruct`](crate::kits::speech::whisper::driver::WhisperConstruct)
 //! with a vocabulary supplies; [`ApplyTimestampRules`] is the timestamp
 //! grammar the stream driver appends when timestamps are on; and
@@ -37,7 +37,6 @@ use crate::kits::{
             SuppressTokens,
             suppress,
         },
-        tokens,
         tokens::TiktokenRanks,
     },
 };
@@ -78,41 +77,47 @@ impl LogitFilter for SuppressBlank {
     }
 }
 
-/// Upstream's default suppress list: the non-speech tokens, the control
-/// tokens a decode must never emit, and `<|nospeech|>`, whose probability
-/// is read separately.
-pub fn default_suppress_tokens(
-    ranks: &TiktokenRanks,
-    ids: &WhisperSpecialIds,
-) -> Vec<i64> {
-    let mut all = tokens::non_speech_tokens(ranks);
-    all.extend([
-        ids.transcribe,
-        ids.translate,
-        ids.sot,
-        ids.sot_prev,
-        ids.sot_lm,
-        ids.no_speech,
-    ]);
-    all.sort_unstable();
-    all.dedup();
-    all
+impl WhisperSpecialIds {
+    /// Upstream's default suppress list: the non-speech tokens, the control
+    /// tokens a decode must never emit, and `<|nospeech|>`, whose probability
+    /// is read separately.
+    pub fn default_suppress_tokens(
+        &self,
+        ranks: &TiktokenRanks,
+    ) -> Vec<i64> {
+        let mut all = ranks.non_speech_tokens();
+        all.extend([
+            self.transcribe,
+            self.translate,
+            self.sot,
+            self.sot_prev,
+            self.sot_lm,
+            self.no_speech,
+        ]);
+        all.sort_unstable();
+        all.dedup();
+        all
+    }
 }
 
-/// The two filters upstream applies by default, in its order.
-///
-/// # Panics
-/// If the vocabulary has no single-space token, which no Whisper vocabulary
-/// lacks.
-pub fn default_filters(
-    ranks: &TiktokenRanks,
-    ids: &WhisperSpecialIds,
-) -> Vec<Arc<dyn LogitFilter>> {
-    let blank = tokens::blank_token(ranks).expect("the vocabulary has a space token");
-    vec![
-        Arc::new(SuppressBlank::new(blank, ids.eot)),
-        Arc::new(SuppressTokens::new(default_suppress_tokens(ranks, ids))),
-    ]
+impl WhisperSpecialIds {
+    /// The two filters upstream applies by default, in its order.
+    ///
+    /// # Panics
+    /// If the vocabulary has no single-space token, which no Whisper vocabulary
+    /// lacks.
+    pub fn default_filters(
+        &self,
+        ranks: &TiktokenRanks,
+    ) -> Vec<Arc<dyn LogitFilter>> {
+        let blank = ranks
+            .blank_token()
+            .expect("the vocabulary has a space token");
+        vec![
+            Arc::new(SuppressBlank::new(blank, self.eot)),
+            Arc::new(SuppressTokens::new(self.default_suppress_tokens(ranks))),
+        ]
+    }
 }
 
 /// Sets, per row, the id ranges `ranges[row]` to `-inf`.
@@ -324,13 +329,7 @@ mod tests {
     use burn::tensor::Device;
 
     use super::*;
-    use crate::{
-        kits::support::tokens::{
-            blank_token,
-            non_speech_tokens,
-        },
-        support::testing::cpu_device,
-    };
+    use crate::support::testing::cpu_device;
 
     fn logits(
         rows: &[&[f32]],
@@ -531,12 +530,12 @@ mod tests {
             "YQ== 0\nKA== 1\nICg= 2\nIC0= 3\n4pk= 4\nIA== 5\nPDw= 6\n4pmq 7\n",
         )
         .unwrap();
-        assert_eq!(blank_token(&ranks), Some(5));
+        assert_eq!(ranks.blank_token(), Some(5));
         // "(" and " (" exactly; " -" exactly; "<<" exactly; the whole note
         // exactly, and every other music symbol by its shared prefix. With
         // a leading space none of the music symbols has a token prefix
         // beyond the space itself, so their first token is the blank, 5 —
         // as upstream's `encode(" ♭")[0]` would be in such a vocabulary.
-        assert_eq!(non_speech_tokens(&ranks), vec![1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(ranks.non_speech_tokens(), vec![1, 2, 3, 4, 5, 6, 7]);
     }
 }

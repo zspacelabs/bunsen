@@ -156,7 +156,7 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
 
     /// The diarizer's activity over the window, when the driver has one: for
     /// an engine that places its cuts at speaker turns
-    /// ([`speaker_cut`](crate::kits::speech::asr_driver::speaker_cut)). A
+    /// ([`SpeakerCutConfig::cut`](crate::kits::speech::asr_driver::SpeakerCutConfig::cut)). A
     /// commit's window is decoded once the diarizer has finalized all of it,
     /// so a cut does not depend on how the audio was chunked; a draft's
     /// covers what the diarizer has finalized so far. The core attributes
