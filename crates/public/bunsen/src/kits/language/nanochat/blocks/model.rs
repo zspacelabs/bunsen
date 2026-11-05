@@ -655,12 +655,6 @@ impl NanoChatGptMeta for NanoChatGpt {
 }
 
 impl NanoChatGpt {
-    /// The token embedding: its parameter's dtype is the model's.
-    #[cfg(feature = "store_pytorch")]
-    pub(crate) fn wte(&self) -> &TokenEmbedding {
-        &self.wte
-    }
-
     /// The float dtype the model's weights are held, and computed, in: its
     /// embedding's (without initializing a lazy parameter).
     pub fn float_dtype(&self) -> burn::tensor::DType {

@@ -17,6 +17,7 @@ use burn::{
     },
     tensor::{
         Device,
+        FloatDType,
         TensorData,
     },
 };
@@ -27,17 +28,15 @@ use super::{
     NanoChatGptContractConfig,
 };
 use crate::{
-    burner::{
-        module::{
-            ModuleInit,
-            Rekey,
-        },
-        tensor::param_float_dtype,
+    burner::module::{
+        ModuleInit,
+        Rekey,
     },
     data::pretrained::{
         NamedTensorsApplied,
         apply_rekeyed_tensors_as,
         read_pytorch_tensors,
+        stored_float_dtype,
     },
     errors::{
         BunsenError,
@@ -229,8 +228,8 @@ pub fn pt_rekey() -> Rekey {
 }
 
 /// Loads an upstream nanochat state dict (`tensors`, under upstream's names)
-/// into `model` by [`pt_rekey`], every floating tensor cast to the dtype
-/// `model` was built in: a bf16 model takes bf16 tensors as they are.
+/// into `model` by [`pt_rekey`], every floating tensor cast to `dtype`: a
+/// bf16 checkpoint loaded at bf16 takes its tensors as they are.
 ///
 /// Upstream's norms carry no learned scale, and bunsen's do: each norm's
 /// scale loads as ones, which is upstream's norm exactly, in any dtype.
@@ -242,8 +241,8 @@ pub fn pt_rekey() -> Rekey {
 pub fn load_pt_tensors(
     model: &mut NanoChatGpt,
     tensors: impl IntoIterator<Item = PackTensor>,
+    dtype: FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let dtype = param_float_dtype(&model.wte().weight);
     let mut tensors: Vec<PackTensor> = tensors.into_iter().collect();
     let scales: Vec<PackTensor> = model
         .collect(None, None, true)
@@ -259,7 +258,7 @@ pub fn load_pt_tensors(
         })
         .collect();
     tensors.extend(scales);
-    let applied = apply_rekeyed_tensors_as(model, tensors, &pt_rekey(), Some(dtype))?;
+    let applied = apply_rekeyed_tensors_as(model, tensors, &pt_rekey(), Some(dtype.into()))?;
     if !applied.unused.is_empty() {
         return Err(BunsenError::unsupported(format!(
             "a nanochat state dict with tensors the model has no parameter for: {}",
@@ -273,16 +272,20 @@ pub fn load_pt_tensors(
 /// `model_<step>.pt` at `model`, as a [`NanoChatGpt`] on `device`: its
 /// config from the meta and the state dict's names
 /// ([`NanoChatMeta::generation`], [`NanoChatMeta::gpt_config`]), built, and
-/// loaded ([`load_pt_tensors`]).
+/// loaded ([`load_pt_tensors`]) at the dtype `policy` resolves the state
+/// dict's stored dtype to on `device`
+/// ([`LoadPolicy::resolve`](crate::kits::support::construct::LoadPolicy::resolve)).
 ///
 /// # Errors
 /// As [`NanoChatMeta::from_file`],
-/// [`read_pytorch_tensors`], [`NanoChatMeta::generation`] and
-/// [`load_pt_tensors`]; each names the file it is about.
+/// [`read_pytorch_tensors`], [`NanoChatMeta::generation`],
+/// [`LoadPolicy::resolve`](crate::kits::support::construct::LoadPolicy::resolve)
+/// and [`load_pt_tensors`]; each names the file it is about.
 pub fn load_pt_checkpoint(
     meta: &Path,
     model: &Path,
     device: &Device,
+    policy: crate::kits::support::construct::LoadPolicy,
 ) -> BunsenResult<(NanoChatGpt, NanoChatGeneration)> {
     let meta_data = NanoChatMeta::from_file(meta)?;
     let tensors = read_pytorch_tensors(model)?;
@@ -290,8 +293,12 @@ pub fn load_pt_checkpoint(
     let generation = meta_data
         .generation(&names)
         .with_context(|| format!("{} and {}", meta.display(), model.display()))?;
+    let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);
+    let dtype = policy
+        .resolve(stored, device, |_| true)
+        .with_context(|| model.display().to_string())?;
     let mut gpt: NanoChatGpt = meta_data.gpt_config(generation).try_init(device)?;
-    load_pt_tensors(&mut gpt, tensors).with_context(|| model.display().to_string())?;
+    load_pt_tensors(&mut gpt, tensors, dtype).with_context(|| model.display().to_string())?;
     Ok((gpt, generation))
 }
 
