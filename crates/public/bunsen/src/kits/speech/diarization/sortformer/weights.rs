@@ -25,7 +25,7 @@ use crate::{
             conformer_encoder_rekey,
             transformer_encoder_rekey,
         },
-        support::model_config::HfConfigJson,
+        support::model_config::TransformersConfigJson,
     },
 };
 
@@ -175,7 +175,7 @@ pub fn load_sortformer_v2_nemo_tensors(
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Sortformer is not.
 pub fn nemotron_config_from_transformers(json: &str) -> BunsenResult<NemotronDiarizationConfig> {
-    let c = HfConfigJson::parse(json)?;
+    let c = TransformersConfigJson::parse(json)?;
     c.expect_str("model_type", "nemotron3_diarization")?;
     let a = c.section("audio_config")?;
     a.expect_str("hidden_act", "gelu")?;

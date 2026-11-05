@@ -4,9 +4,9 @@
 //! checkpoint ships with into a kit's own. Building a model from its config
 //! is `construct`'s (feature `cache`).
 //!
-//! - [`HfConfigJson`]: a `transformers` `config.json`, or one section of it,
-//!   read field by field, each error naming the field's dotted path. The kits'
-//!   `hf:` readers map it onto their configs.
+//! - [`TransformersConfigJson`]: a `transformers` `config.json`, or one section
+//!   of it, read field by field, each error naming the field's dotted path. The
+//!   kits' `hf:` readers map it onto their configs.
 //! - [`resolve_presets`]: a config resolved through a pretrained's presets
 //!   ([`PresetSet`](crate::data::pretrained::PresetSet)) as a
 //!   [`PresetSelection`](crate::data::pretrained::PresetSelection) asks: the
@@ -22,13 +22,13 @@
 //!   probes find. The catalog tool runs them when it builds a catalog.
 
 mod generation;
-mod hf_config;
 mod presets;
 mod probes;
+mod transformers_config;
 mod transformers_decoder_section;
 
 pub use generation::*;
-pub use hf_config::*;
 pub use presets::*;
 pub use probes::*;
+pub use transformers_config::*;
 pub use transformers_decoder_section::*;

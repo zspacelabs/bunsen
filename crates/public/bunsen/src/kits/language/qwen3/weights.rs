@@ -17,7 +17,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::support::model_config::{
-        HfConfigJson,
+        TransformersConfigJson,
         TransformersDecoderSection,
     },
 };
@@ -100,7 +100,7 @@ pub fn load_transformers_tensors_as(
 /// # Errors
 /// As [`qwen3_config_from_transformers_section`].
 pub fn qwen3_config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
-    qwen3_config_from_transformers_section(&HfConfigJson::parse(json)?, false)
+    qwen3_config_from_transformers_section(&TransformersConfigJson::parse(json)?, false)
 }
 
 /// The [`Qwen3Config`] of a `transformers` Qwen3 text config: a whole
@@ -119,7 +119,7 @@ pub fn qwen3_config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Qwen3 is not.
 pub fn qwen3_config_from_transformers_section(
-    t: &HfConfigJson,
+    t: &TransformersConfigJson,
     tie_default: bool,
 ) -> BunsenResult<Qwen3Config> {
     t.expect_str("model_type", "qwen3")?;

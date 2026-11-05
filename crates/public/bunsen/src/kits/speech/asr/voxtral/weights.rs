@@ -24,7 +24,7 @@ use crate::{
     kits::{
         language::qwen3::weights::text_layer_rekey,
         support::model_config::{
-            HfConfigJson,
+            TransformersConfigJson,
             TransformersDecoderSection,
         },
     },
@@ -128,7 +128,7 @@ pub fn load_transformers_tensors_as(
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Voxtral Realtime is not.
 pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealtimeConfig> {
-    let c = HfConfigJson::parse(json)?;
+    let c = TransformersConfigJson::parse(json)?;
     c.expect_str("model_type", "voxtral_realtime")?;
     c.expect_str("projector_hidden_act", "gelu")?;
 

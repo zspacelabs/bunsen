@@ -41,7 +41,7 @@ use crate::{
         support::{
             construct::ConstructInit,
             model_config::{
-                HfConfigJson,
+                TransformersConfigJson,
                 probe_loaded,
                 resolve_ref_presets,
             },
@@ -112,7 +112,7 @@ impl ConstructInit for Qwen3ConstructConfig {
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
                 let config = qwen3_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?;
-                let max_positions = HfConfigJson::parse(&json)?
+                let max_positions = TransformersConfigJson::parse(&json)?
                     .usize("max_position_embeddings")
                     .ok();
                 (config, max_positions)
