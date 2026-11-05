@@ -13,11 +13,19 @@ use burn::{
 };
 
 use crate::{
+    blocks::norm::{
+        BunsenNormalization,
+        BunsenNormalizationConfig,
+    },
     burner::{
         module::ModuleInit,
         tensor::round_scalar_to_dtype,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+        Rule,
+    },
     ops::norm::RmsNormOptions,
 };
 
@@ -44,6 +52,12 @@ pub struct TokenEmbeddingConfig {
     #[config(default = "None")]
     pub norm_eps: Option<f64>,
 
+    /// A norm with parameters on each looked-up row, sized to `d_model` at
+    /// init (`ModernBERT`'s `LayerNorm` without a bias); `None`, none. A
+    /// config sets at most one of it and [`norm_eps`](Self::norm_eps).
+    #[config(default = "None")]
+    pub norm: Option<BunsenNormalizationConfig>,
+
     /// A scale on each looked-up row, after any norm (Gemma's `√d_model`);
     /// `None`, no scale.
     #[config(default = "None")]
@@ -69,16 +83,31 @@ impl ModuleInit<TokenEmbedding> for TokenEmbeddingConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<TokenEmbedding> {
+        if let (Some(eps), Some(norm)) = (self.norm_eps, &self.norm) {
+            return Err(ConstraintError::new(
+                "TokenEmbeddingConfig",
+                "norm",
+                Rule::Custom(format!(
+                    "at most one of norm_eps ({eps}) and norm ({norm:?})"
+                )),
+            )
+            .into());
+        }
         Ok(TokenEmbedding {
             weight: self.initializer.init([self.n_vocab, self.d_model], device),
             norm_eps: self.norm_eps,
+            norm: self
+                .norm
+                .clone()
+                .map(|norm| norm.with_num_features(self.d_model).init(device)),
             scale: self.scale,
         })
     }
 }
 
 /// A token embedding: a table's rows looked up by id, then, as configured,
-/// normalized (a parameter-free RMS norm) and scaled.
+/// normalized (a parameter-free RMS norm, or a norm with parameters) and
+/// scaled.
 ///
 /// The table is `weight`, as in burn's `Embedding`, so a checkpoint's
 /// `embed_tokens.weight` loads as it would there. The scale is rounded to the
@@ -94,6 +123,9 @@ pub struct TokenEmbedding {
     /// The epsilon of the norm on each row, if there is one.
     #[module(skip)]
     pub norm_eps: Option<f64>,
+
+    /// The norm with parameters on each row, if there is one.
+    pub norm: Option<BunsenNormalization>,
 
     /// The scale on each row, if there is one.
     #[module(skip)]
@@ -131,6 +163,10 @@ impl TokenEmbedding {
         let x = burn::tensor::module::embedding(self.weight.val(), ids);
         let x = match self.norm_eps {
             Some(eps) => RmsNormOptions::default().with_eps(eps as f32).norm(x),
+            None => x,
+        };
+        let x = match &self.norm {
+            Some(norm) => norm.forward(x),
             None => x,
         };
         match self.applied_scale() {
@@ -197,5 +233,54 @@ mod tests {
         let mut embedding = table(&device);
         embedding.scale = Some(s);
         assert_eq!(embedding.applied_scale(), Some(s as f32 as f64));
+    }
+
+    /// A norm with parameters is the seam's on each row, sized to the
+    /// width, its gain under `norm` (a store that skips enum variants loads
+    /// a checkpoint's `norm.weight` there); a config may not ask for both
+    /// norms.
+    #[test]
+    fn test_norm_with_parameters() {
+        use burn::nn::LayerNormConfig;
+
+        let device = cpu_device();
+        let config = TokenEmbeddingConfig::new(3, 2).with_norm(Some(
+            BunsenNormalizationConfig::Layer(LayerNormConfig::new(0).with_bias(false)),
+        ));
+        let mut embedding: TokenEmbedding = config.init(&device);
+        embedding.weight = table(&device).weight;
+        let Some(BunsenNormalization::Layer(norm)) = &mut embedding.norm else {
+            panic!("a layer norm");
+        };
+        assert!(norm.beta.is_none(), "no bias");
+        norm.gamma = Param::from_tensor(Tensor::from_floats([2.0, 0.5], &device));
+        #[cfg(feature = "store")]
+        {
+            use burn::store::ModuleSnapshot;
+
+            let names: Vec<String> = embedding
+                .collect(None, None, false)
+                .into_iter()
+                .map(|t| t.name)
+                .collect();
+            assert_eq!(names, ["weight", "norm.Layer.gamma"]);
+        }
+
+        // [3, -4]: mean -0.5, variance 12.25, so (±3.5 / 3.5) · gain.
+        let ids = Tensor::<2, Int>::from_ints([[1]], &device);
+        embedding.forward(ids).into_data().assert_approx_eq::<f32>(
+            &TensorData::from([[[2.0f32, -0.5]]]),
+            Tolerance::rel_abs(1e-4, 1e-4),
+        );
+
+        let both = TokenEmbeddingConfig::new(3, 2)
+            .with_norm_eps(Some(1e-6))
+            .with_norm(Some(BunsenNormalizationConfig::Identity));
+        assert!(
+            ModuleInit::<TokenEmbedding>::try_init(&both, &device)
+                .unwrap_err()
+                .to_string()
+                .contains("at most one of norm_eps")
+        );
     }
 }
