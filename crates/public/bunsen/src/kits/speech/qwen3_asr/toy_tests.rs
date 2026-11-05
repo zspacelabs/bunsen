@@ -23,7 +23,7 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    kits::gpts::qwen3::Qwen3Config,
+    kits::language::qwen3::Qwen3Config,
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,

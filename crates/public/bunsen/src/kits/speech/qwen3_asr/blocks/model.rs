@@ -23,7 +23,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::gpts::qwen3::{
+    kits::language::qwen3::{
         Qwen3Config,
         Qwen3Meta,
         Qwen3Model,

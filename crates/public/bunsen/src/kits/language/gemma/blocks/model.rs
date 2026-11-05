@@ -455,7 +455,7 @@ impl ModuleInit<GemmaModel> for GemmaConfig {
 /// `√d_model`; the head tied to it.
 ///
 /// Its embedding carries the name `transformers`' `GemmaModel` gives it;
-/// [`hf_rekey`](crate::kits::gpts::gemma::weights::hf_rekey) maps the
+/// [`hf_rekey`](crate::kits::language::gemma::weights::hf_rekey) maps the
 /// layers' names onto the stack's, and loads each norm's `w` as `1 + w`.
 ///
 /// Built by [`GemmaConfig`].

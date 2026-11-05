@@ -12,7 +12,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        gpts::nanochat::NanoChatConstruct,
+        language::nanochat::NanoChatConstruct,
         support::construct::PretrainedFactory,
     },
 };
@@ -85,7 +85,7 @@ impl PretrainedFactory<NanoChatConstructConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::nanochat::{
+    use crate::kits::language::nanochat::{
         CHECKPOINT,
         META,
         TOKEN_BYTES,

@@ -31,7 +31,7 @@ SETS = {
         "karpathy/fineweb-edu-100b-shuffle",
         "4c8f30d6756da75362432a4d5569e1b229263b71",
         r"shard_(?P<index>\d{5})\.parquet",
-        "crates/public/bunsen/src/kits/gpts/nanochat/datasets/fineweb_edu_100b_shuffle_digests.rs",
+        "crates/public/bunsen/src/kits/language/nanochat/datasets/fineweb_edu_100b_shuffle_digests.rs",
         "FINEWEB_EDU_100B_SHUFFLE_SHA256",
     ),
 }

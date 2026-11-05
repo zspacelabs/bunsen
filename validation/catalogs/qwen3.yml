@@ -1,7 +1,7 @@
 # The qwen3 kit's pretrained catalog source: `cargo validate catalog` builds it into
-# `crates/public/bunsen/src/kits/gpts/qwen3/pretrained/catalog.json`.
+# `crates/public/bunsen/src/kits/language/qwen3/pretrained/catalog.json`.
 kit: qwen3
-out: crates/public/bunsen/src/kits/gpts/qwen3/pretrained/catalog.json
+out: crates/public/bunsen/src/kits/language/qwen3/pretrained/catalog.json
 name: "well-known"
 description: "the Qwen3 checkpoints bunsen knows by name"
 groups:

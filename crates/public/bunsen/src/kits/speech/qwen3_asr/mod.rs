@@ -7,7 +7,7 @@
 //! re-quantized derivatives with the same architecture.
 //!
 //! - [`blocks`]: the model, [`Qwen3Asr`], built from a [`Qwen3AsrConfig`]; its
-//!   text model is [`kits::gpts::qwen3`](crate::kits::gpts::qwen3).
+//!   text model is [`kits::language::qwen3`](crate::kits::language::qwen3).
 //! - [`Qwen3AsrFrontEnd`]: the feature extractor, Whisper's.
 //! - [`Qwen3AsrGreedyDecoder`]: greedy decoding through a KV cache.
 //! - [`Qwen3AsrPromptConfig`]: the chat prompt around an utterance's audio, and

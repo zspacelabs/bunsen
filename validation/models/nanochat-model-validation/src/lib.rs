@@ -1,11 +1,11 @@
 //! # nanochat cross-check against upstream nanochat
 //!
-//! Validates [`bunsen`]'s nanochat (`kits::gpts::nanochat`) against upstream
-//! nanochat's own code (`karpathy/nanochat`), on the community checkpoints of
-//! both of its models: `nanochat-students`' d20 base, mid and RL
+//! Validates [`bunsen`]'s nanochat (`kits::language::nanochat`) against
+//! upstream nanochat's own code (`karpathy/nanochat`), on the community
+//! checkpoints of both of its models: `nanochat-students`' d20 base, mid and RL
 //! (upstream's 2025 model) and `nitishpandey04`'s d18 base and SFT (its 2026
 //! model). Every comparison runs bunsen through its
-//! [`NanoChatDecodeState`](bunsen::kits::gpts::nanochat::NanoChatDecodeState),
+//! [`NanoChatDecodeState`](bunsen::kits::language::nanochat::NanoChatDecodeState),
 //! under each [`KVCacheStorage`].
 //!
 //! ## This crate hosts nothing
@@ -46,7 +46,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::gpts::nanochat::NanoChatConstruct,
+    kits::language::nanochat::NanoChatConstruct,
     ops::transformers::attention::KVCacheStorage,
     support::testing::TensorRecord,
 };
@@ -225,7 +225,7 @@ pub fn row_file(
     row: &str,
     key: &str,
 ) -> std::path::PathBuf {
-    use bunsen::kits::gpts::nanochat::pretrained::{
+    use bunsen::kits::language::nanochat::pretrained::{
         NANOCHAT_KIT,
         default_nanochat_factory,
     };
@@ -261,7 +261,7 @@ pub fn load_construct(
     name: &str,
     device: &Device,
 ) -> std::sync::Arc<NanoChatConstruct> {
-    bunsen::kits::gpts::nanochat::pretrained::default_nanochat_factory()
+    bunsen::kits::language::nanochat::pretrained::default_nanochat_factory()
         .expect("the nanochat factory")
         .load_construct(
             name,

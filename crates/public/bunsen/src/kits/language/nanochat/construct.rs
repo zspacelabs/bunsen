@@ -114,7 +114,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        kits::gpts::nanochat::{
+        kits::language::nanochat::{
             NanoChatGptContractConfig,
             weights::NanoChatModelConfig,
         },

@@ -14,8 +14,8 @@ use bunsen::{
         BunsenResult,
     },
     kits::{
-        gpts::{
-            driver_support::{
+        language::{
+            driver::{
                 CachedHistory,
                 StopStrings,
                 TextStream,
@@ -403,7 +403,7 @@ impl<B: ChatBackend> ChatSession<B> {
 mod tests {
     use bunsen::{
         burner::module::ModuleInit,
-        kits::gpts::qwen3::{
+        kits::language::qwen3::{
             Qwen3Config,
             Qwen3Model,
             TOKENIZER,
@@ -432,7 +432,7 @@ mod tests {
         // Greedy, stopping at 301, the template its `tokenizer_config.json`'s:
         // what a `generation_config.json` of `{"eos_token_id": 301}` and the
         // `chat_template` probe find.
-        let policy = bunsen::kits::gpts::qwen3::Qwen3Policy {
+        let policy = bunsen::kits::language::qwen3::Qwen3Policy {
             generation: GenerationPolicy {
                 stop_ids: vec![301],
                 chat_template: Some(

@@ -19,7 +19,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        gpts::qwen3::{
+        language::qwen3::{
             Qwen3Meta,
             weights::{
                 qwen3_config_from_hf_section,

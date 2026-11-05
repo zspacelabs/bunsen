@@ -2,7 +2,7 @@
 //!
 //! Not a model: the machinery that kits across families build on. A module
 //! shared within one family stays with that family
-//! ([`gpts::driver_support`](crate::kits::gpts::driver_support),
+//! ([`language::driver`](crate::kits::language::driver),
 //! `speech::testing`, behind the `testing` feature); one shared across
 //! families is here.
 //!

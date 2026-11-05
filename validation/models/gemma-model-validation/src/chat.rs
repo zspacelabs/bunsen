@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use bunsen::{
     data::pretrained::ResourceBundle,
     kits::{
-        gpts::gemma::{
+        language::gemma::{
             CHAT_TEMPLATE,
             END_OF_TURN,
             GemmaPolicy,

@@ -35,7 +35,7 @@ A kit is a whole model, with its configs and the weights it loads by name
   with torchvision's and `timm`'s checkpoints by name.
 - [`images::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/images/swin/v2/index.html): Swin Transformer V2
   image classifiers, without pretrained weights.
-- [`gpts::nanochat`](https://docs.rs/bunsen/latest/bunsen/kits/gpts/nanochat/index.html): a port of karpathy's
+- [`language::nanochat`](https://docs.rs/bunsen/latest/bunsen/kits/language/nanochat/index.html): a port of karpathy's
   nanochat GPT, and the corpus it trains on. Work in progress.
 - [`speech::whisper`](https://docs.rs/bunsen/latest/bunsen/kits/speech/whisper/index.html): OpenAI's Whisper, with
   a pretrained index, decoders, and a stream driver.

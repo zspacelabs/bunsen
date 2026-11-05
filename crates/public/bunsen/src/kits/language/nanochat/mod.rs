@@ -90,7 +90,7 @@
 //! ```rust
 //! use bunsen::{
 //!     burner::module::ModuleInit,
-//!     kits::gpts::nanochat::{
+//!     kits::language::nanochat::{
 //!         NanoChatGpt,
 //!         NanoChatGptContractConfig,
 //!     },

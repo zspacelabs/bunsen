@@ -4,7 +4,7 @@ use crate::{
         StaticPreFabConfig,
         StaticPreFabMap,
     },
-    kits::gpts::gemma::GemmaConfig,
+    kits::language::gemma::GemmaConfig,
 };
 
 /// The Gemma prefabs: the geometries bunsen's rows instantiate, by name,
@@ -59,7 +59,7 @@ pub static GEMMA_PREFABS: StaticPreFabMap<GemmaConfig> = StaticPreFabMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::gemma::{
+    use crate::kits::language::gemma::{
         GemmaLayerKind,
         GemmaMeta,
     };

@@ -1,8 +1,8 @@
 //! # Gemma cross-check against `transformers`.
 //!
-//! Validates [`bunsen`]'s Gemma (`kits::gpts::gemma`) against `transformers`'
-//! own greedy decodes, in float32, of `gemma-3-270m`, `gemma-3-1b-pt`,
-//! `gemma-3-4b-pt` (its text model, run through
+//! Validates [`bunsen`]'s Gemma (`kits::language::gemma`) against
+//! `transformers`' own greedy decodes, in float32, of `gemma-3-270m`,
+//! `gemma-3-1b-pt`, `gemma-3-4b-pt` (its text model, run through
 //! `Gemma3ForConditionalGeneration`; the smallest Gemma 3 with the linearly
 //! scaled global table), `gemma-2-2b` (Gemma 2's caps and alternating
 //! layers, stored in float32) and the instruction-tuned `gemma-3-1b-it` and
@@ -51,7 +51,7 @@ use std::collections::BTreeMap;
 
 use bunsen::{
     kits::{
-        gpts::gemma::GemmaConstruct,
+        language::gemma::GemmaConstruct,
         support::construct::LoadPolicy,
     },
     ops::transformers::attention::{
@@ -335,7 +335,7 @@ pub fn load_construct_with(
     device: &Device,
     policy: LoadPolicy,
 ) -> std::sync::Arc<GemmaConstruct> {
-    bunsen::kits::gpts::gemma::pretrained::default_gemma_factory()
+    bunsen::kits::language::gemma::pretrained::default_gemma_factory()
         .expect("the gemma factory")
         .load_construct(name, &weights_cache(), device, policy)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))

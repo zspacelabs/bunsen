@@ -27,7 +27,7 @@ use crate::{
         sys_at,
     },
     kits::{
-        gpts::qwen3::{
+        language::qwen3::{
             GENERATION_CONFIG,
             Qwen3Construct,
             Qwen3Model,
@@ -149,7 +149,7 @@ impl ConstructInit for Qwen3ConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::qwen3::pretrained::QWEN3_CATALOG;
+    use crate::kits::language::qwen3::pretrained::QWEN3_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -174,7 +174,7 @@ mod tests {
     #[test]
     fn test_the_generation_presets() {
         use crate::kits::{
-            gpts::qwen3::pretrained::default_qwen3_factory,
+            language::qwen3::pretrained::default_qwen3_factory,
             support::model_config::SamplingPolicy,
         };
 

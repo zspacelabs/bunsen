@@ -9,7 +9,7 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 
 ## Bunsen features exercised
 
-- `bunsen::kits::gpts::nanochat` — the `NanoChatGpt` model with
+- `bunsen::kits::language::nanochat` — the `NanoChatGpt` model with
   `NanoChatGptContractConfig` / `NanoChatGptMeta`.
 - `bunsen::burner::module::reflection::XmlModuleTree` — reflect over the module tree and select parameters by XPath-like
   queries (`select_params`,
@@ -20,7 +20,7 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 - `bunsen::public::hashbrown` — re-exported `HashSet` / `HashMap`.
 - `bunsen-arrow-dataloaders` — the `ChatDataLoader` plus dense token-block batching options (`DenseTokenBlocksOptions`,
   `TokenBatchIteratorOptions`).
-- `bunsen::data::shards` with `kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS` — the fineweb-edu shard set,
+- `bunsen::data::shards` with `kits::language::nanochat::datasets::NANOCHAT_SHARD_SETS` — the fineweb-edu shard set,
   fetched into the cache's data directory or a `--dataset-dir` of existing shards, under a `--parallel`/`--retries`/
   `--keep-going` policy with a summary report.
 

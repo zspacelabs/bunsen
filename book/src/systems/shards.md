@@ -26,7 +26,7 @@ what a set is: its name, the base URLs its files come from, how they are
 named and numbered, and whether they are pinned. It is plain data, and it
 follows the same split as [pretrained models](./pretrained.md): a static
 twin for tables compiled into a kit, such as
-[NanoChat's corpus](bunsen::kits::gpts::nanochat::datasets), and an owned
+[NanoChat's corpus](bunsen::kits::language::nanochat::datasets), and an owned
 twin for a set built at run time. A
 [`ShardSet`](bunsen::data::shards::ShardSet) binds a descriptor to a
 directory, the disk cache's or one the caller gives, and brings shards in.

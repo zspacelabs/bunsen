@@ -5,7 +5,7 @@
 //! shared
 //! [`ResidualEncoderAttentionBlock`](crate::blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock)
 //! over chunked convolutions), a [`Qwen3AsrProjector`], and a
-//! [`Qwen3Model`](crate::kits::gpts::qwen3::Qwen3Model) text model.
+//! [`Qwen3Model`](crate::kits::language::qwen3::Qwen3Model) text model.
 
 mod audio_encoder;
 mod model;

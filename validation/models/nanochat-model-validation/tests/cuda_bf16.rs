@@ -10,7 +10,7 @@ use std::sync::Arc;
 use bunsen::{
     data::pretrained::read_pytorch_tensors,
     kits::{
-        gpts::nanochat::{
+        language::nanochat::{
             CHECKPOINT,
             NanoChatConstruct,
             pretrained::DEFAULT_NANOCHAT_MODEL,

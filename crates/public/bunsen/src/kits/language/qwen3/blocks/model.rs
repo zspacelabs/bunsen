@@ -270,7 +270,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// `Qwen3ForCausalLM` gives them; its decoder is a generic [`DecoderStack`]
 /// ([`Qwen3Config::stack`]: RMS norms, a `SwiGLU`, QK-norm before the rotary
 /// embedding), onto whose layers
-/// [`text_layer_rekey`](crate::kits::gpts::qwen3::weights::text_layer_rekey)
+/// [`text_layer_rekey`](crate::kits::language::qwen3::weights::text_layer_rekey)
 /// maps the `transformers` names.
 ///
 /// Built by [`Qwen3Config`].

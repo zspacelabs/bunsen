@@ -126,7 +126,7 @@ bunsen has two attention stacks, and both are deliberate:
 
 - **bunsen's own
   [`CausalSelfAttention`](bunsen::blocks::transformers::attention::csa::CausalSelfAttention)**
-  block (the NanoChat, Qwen3 and Gemma GPT kits) has its own projections,
+  block (the NanoChat, Qwen3 and Gemma language kits) has its own projections,
   QK-norm, rotary embeddings and grouped-query attention, with the options
   those families differ by: a score scale, an attention logit soft-cap, a
   sliding window, and each layer's rotary table from the stack's

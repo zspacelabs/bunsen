@@ -34,7 +34,7 @@ Each module's own docs carry its map; this table is the one-line version.
 
 | Module | What it is for |
 |---|---|
-| [`kits`](bunsen::kits) | Complete domain implementations: image models (`images`), GPTs (`gpts`), speech (`speech`), and the shared token seam (`tokens`). See [Kits](./kits.md). |
+| [`kits`](bunsen::kits) | Complete domain implementations: image models (`images`), language models (`language`), speech (`speech`), and the shared token seam (`tokens`). See [Kits](./kits.md). |
 | [`sims`](bunsen::sims) | Simulations written as tensor programs: Conway's Game of Life (`conway`) and a lattice-Boltzmann fluid (`lbm`). |
 | [`blocks`](bunsen::blocks) | Reusable `Module` components: conv blocks, image layers, recurrent cells, transformer parts. |
 | [`ops`](bunsen::ops) | Tensor operations, including the signal-processing front ends and attention ops. |

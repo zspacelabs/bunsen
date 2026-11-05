@@ -29,7 +29,7 @@ use crate::{
         sys_at,
     },
     kits::{
-        gpts::gemma::{
+        language::gemma::{
             CHAT_TEMPLATE,
             END_OF_TURN,
             GENERATION_CONFIG,
@@ -161,7 +161,7 @@ impl ConstructInit for GemmaConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::gemma::pretrained::{
+    use crate::kits::language::gemma::pretrained::{
         GEMMA_CATALOG,
         default_gemma_factory,
     };

@@ -1,6 +1,6 @@
 # nanochat-model-validation
 
-Validates [`bunsen`](https://crates.io/crates/bunsen)'s nanochat (`kits::gpts::nanochat`) against upstream nanochat's
+Validates [`bunsen`](https://crates.io/crates/bunsen)'s nanochat (`kits::language::nanochat`) against upstream nanochat's
 own code, on the community checkpoints of both of its models: `nanochat-students`' d20 base, mid and RL (upstream's
 2025 model) and `nitishpandey04`'s d18 base and SFT (its 2026 model). Not published.
 

@@ -4,7 +4,7 @@ use crate::{
         StaticPreFabConfig,
         StaticPreFabMap,
     },
-    kits::gpts::nanochat::NanoChatGptContractConfig,
+    kits::language::nanochat::NanoChatGptContractConfig,
 };
 
 /// A nanochat of upstream's geometry rule at `depth`: `depth * 64` wide,
@@ -62,7 +62,7 @@ pub static NANOCHAT_PREFABS: StaticPreFabMap<NanoChatGptContractConfig> = Static
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::nanochat::NanoChatGptMeta;
+    use crate::kits::language::nanochat::NanoChatGptMeta;
 
     #[test]
     fn test_prefabs() {

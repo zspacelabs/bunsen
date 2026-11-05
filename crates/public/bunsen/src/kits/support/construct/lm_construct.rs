@@ -62,7 +62,7 @@ pub const CHAT_TEMPLATE: &str = "chat_template";
 /// ([`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel)).
 ///
 /// A kit's factory builds one from a name
-/// ([`default_qwen3_factory`](crate::kits::gpts::qwen3::pretrained::default_qwen3_factory),
+/// ([`default_qwen3_factory`](crate::kits::language::qwen3::pretrained::default_qwen3_factory),
 /// say).
 #[derive(Debug)]
 pub struct LmConstruct<M> {
@@ -166,7 +166,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        kits::gpts::qwen3::{
+        kits::language::qwen3::{
             Qwen3Config,
             Qwen3Model,
         },

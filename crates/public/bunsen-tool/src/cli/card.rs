@@ -11,7 +11,7 @@ use bunsen::{
         sys_at,
     },
     kits::{
-        gpts::{
+        language::{
             gemma::{
                 GemmaPolicy,
                 pretrained::default_gemma_factory,

@@ -18,7 +18,7 @@ use crate::{
         BunsenResult,
     },
     kits::{
-        gpts::nanochat::{
+        language::nanochat::{
             CHECKPOINT,
             META,
             NanoChatConstruct,
@@ -86,7 +86,7 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::gpts::nanochat::pretrained::NANOCHAT_CATALOG,
+        kits::language::nanochat::pretrained::NANOCHAT_CATALOG,
     };
 
     #[test]
