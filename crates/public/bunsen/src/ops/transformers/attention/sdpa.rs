@@ -133,7 +133,8 @@ pub fn scaled_dot_product_attention(
 /// - `bias`: optional additive bias, as `[T_q, T_k]`.
 /// - `mask`: optional bias mask, as `[T_q, T_k]`.
 /// - `key_valid`: optional per-item key mask, as `[B, T_k]`; `true` at the keys
-///   that are not padding.
+///   that are not padding. A query it and the other masks leave no key (a
+///   padding query whose window holds only padding) has a row of zeros.
 /// - `config`: attention config.
 pub fn sdpa_attn_weight(
     q: Tensor<4>,
@@ -182,6 +183,7 @@ pub fn sdpa_attn_weight(
         &device,
     );
     let mut scores = scores + attn_bias.unsqueeze();
+    let mut blind = None;
     if let Some(valid) = key_valid {
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T_k"],
@@ -189,8 +191,23 @@ pub fn sdpa_attn_weight(
             &[("B", b), ("T_k", t_k)]
         );
         scores = scores.mask_fill(valid.bool_not().reshape([b, 1, 1, t_k]), f32::NEG_INFINITY);
+        // A query that sees only padding (a padding query whose window holds
+        // no valid key) attends to nothing: its row is zero, not the NaN of
+        // a softmax over no keys, which the next layer's zero weights would
+        // carry into every query.
+        blind = Some(
+            scores
+                .clone()
+                .max_dim(3)
+                .equal_elem(f32::NEG_INFINITY)
+                .expand(scores.shape()),
+        );
     }
-    let mut attn_weight = softmax(scores, 3).cast(dtype);
+    let mut attn_weight = softmax(scores, 3);
+    if let Some(blind) = blind {
+        attn_weight = attn_weight.mask_fill(blind, 0.0);
+    }
+    let mut attn_weight = attn_weight.cast(dtype);
 
     if let Some(prob) = config.dropout
         && (config.enable_dropout_during_inference || attn_weight.device().is_autodiff())
@@ -279,6 +296,45 @@ mod tests {
             &sdpa_attn_weight(q, k, None, None, None, config),
             &expected,
             burn::tensor::Tolerance::default(),
+        );
+    }
+
+    /// A query that the window and the padding leave no key attends to
+    /// nothing: its row is zero, not NaN, and every other row is a
+    /// distribution.
+    #[test]
+    fn test_sdpa_query_without_keys() {
+        let device = cpu_device();
+        let shape = [1, 1, 4, 4];
+        let q = seeded_tensor::<4>(3, shape, Distribution::Default, &device);
+        let k = seeded_tensor::<4>(4, shape, Distribution::Default, &device);
+        let v = seeded_tensor::<4>(5, shape, Distribution::Default, &device);
+        // Keys 2 and 3 are padding; query 3's window, |i - j| < 2, is keys 2
+        // and 3 alone.
+        let valid = crate::ops::transformers::attention::length_mask(&[2], 4, &device);
+        let window = crate::ops::transformers::attention::two_sided_window_visible(4, 2, &device);
+        let config = ScaledDotProductAttentionConfig::new();
+        let w = sdpa_attn_weight(
+            q.clone(),
+            k.clone(),
+            None,
+            Some(window.clone()),
+            Some(valid.clone()),
+            config.clone(),
+        );
+        assert!(!w.clone().is_nan().any().into_scalar::<bool>());
+        let sums: Vec<f32> = w.clone().sum_dim(3).into_data().iter::<f32>().collect();
+        for (row, sum) in sums.iter().enumerate() {
+            let want = if row == 3 { 0.0 } else { 1.0 };
+            assert!((sum - want).abs() < 1e-5, "row {row}: {sum}");
+        }
+        let y = scaled_dot_product_attention(q, k, v, None, Some(window), Some(valid), config);
+        assert_eq!(
+            y.slice([0..1, 0..1, 3..4, 0..4])
+                .abs()
+                .max()
+                .into_scalar::<f32>(),
+            0.0
         );
     }
 
