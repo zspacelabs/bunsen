@@ -9,7 +9,7 @@ use burn::{
     prelude::*,
 };
 
-use super::normalization::compute_dtype;
+use crate::burner::tensor::widen_half;
 
 /// A layer norm,
 /// [`BunsenNormalization::Layer`](super::BunsenNormalization::Layer)'s: burn's
@@ -54,7 +54,7 @@ impl LayerNorm {
         input: Tensor<D>,
     ) -> Tensor<D> {
         let dtype = input.dtype();
-        let compute = compute_dtype(dtype);
+        let compute = widen_half(dtype);
         burn::tensor::module::layer_norm(
             input.cast(compute),
             self.gamma.val().cast(compute),

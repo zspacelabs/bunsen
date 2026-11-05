@@ -59,6 +59,7 @@ use crate::{
         KVCache,
         KVCacheConfig,
         KVCacheStorage,
+        length_mask,
     },
 };
 
@@ -103,16 +104,6 @@ pub trait DecoderStackMeta {
     }
 }
 
-/// The meta of a stack whose layers are `layers`.
-fn layers_meta(layers: &[CausalDecoderBlockConfig]) -> (usize, usize, usize) {
-    let first = &layers[0];
-    (
-        first.n_embed(),
-        first.attn.n_kv_head(),
-        first.attn.head_dim(),
-    )
-}
-
 /// Config for [`DecoderStack`]: the unrolled tree, one block config per
 /// layer.
 ///
@@ -149,9 +140,16 @@ pub struct DecoderStackStructureConfig {
     pub layer_rotary: Vec<Option<usize>>,
 }
 
+impl DecoderStackStructureConfig {
+    /// The first layer, whose geometry is the stack's.
+    fn first_layer(&self) -> &CausalDecoderBlockConfig {
+        &self.layers[0]
+    }
+}
+
 impl DecoderStackMeta for DecoderStackStructureConfig {
     fn d_model(&self) -> usize {
-        layers_meta(&self.layers).0
+        self.first_layer().n_embed()
     }
 
     fn n_layers(&self) -> usize {
@@ -159,11 +157,11 @@ impl DecoderStackMeta for DecoderStackStructureConfig {
     }
 
     fn n_kv_heads(&self) -> usize {
-        layers_meta(&self.layers).1
+        self.first_layer().attn.n_kv_head()
     }
 
     fn head_dim(&self) -> usize {
-        layers_meta(&self.layers).2
+        self.first_layer().attn.head_dim()
     }
 
     fn layer_windows(&self) -> Vec<Option<usize>> {
@@ -574,6 +572,34 @@ impl DecoderStack {
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
         self.forward_with(x, r_emb, kv_cache, DecoderStackSides::default())
+    }
+
+    /// The stack as an encoder: its rotary table over the whole input, and
+    /// each item's padding keys masked by its length.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, time, d_model]`.
+    /// * `lengths` - each item's frames; `None`, no padding.
+    ///
+    /// # Returns
+    /// `[batch, time, d_model]`.
+    pub fn encoder_forward(
+        &self,
+        x: Tensor<3>,
+        lengths: Option<&[usize]>,
+    ) -> Tensor<3> {
+        let time = x.dims()[1];
+        let device = x.device();
+        let key_valid = lengths.map(|lengths| length_mask(lengths, time, &device));
+        self.forward_with(
+            x,
+            &self.rotary(time, &device),
+            None,
+            DecoderStackSides {
+                key_valid,
+                ..Default::default()
+            },
+        )
     }
 
     /// [`forward_hidden`](Self::forward_hidden), with `sides`: a condition

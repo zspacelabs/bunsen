@@ -98,7 +98,10 @@ pub trait DwStridingSubsamplingMeta {
         let n_stages = self.n_stages();
         Rekey::keep_rest().custom(move |name| {
             let (k, param) = name.strip_prefix(prefix)?.split_once('.')?;
-            let module = k.parse().ok().and_then(|k| dw_striding_module(k, n_stages));
+            let module = k
+                .parse()
+                .ok()
+                .and_then(|k| DwStridingSubsampling::module_path(k, n_stages));
             Some(module.map(|module| format!("{module}.{param}")))
         })
     }
@@ -286,6 +289,25 @@ impl DwStridingSubsamplingMeta for DwStridingSubsampling {
 }
 
 impl DwStridingSubsampling {
+    /// The stem or stage module a flat `ModuleList` index names, under
+    /// [`DwStridingSubsampling`]'s layout: `0` is the stem's convolution; from
+    /// `2`, each stage is a depthwise convolution, a pointwise convolution and
+    /// an activation, in threes. `None` for an activation, or past the stages.
+    fn module_path(
+        k: usize,
+        n_stages: usize,
+    ) -> Option<String> {
+        match k {
+            0 => Some("stem.conv".to_string()),
+            k if k >= 2 && (k - 2) / 3 + 1 < n_stages => match (k - 2) % 3 {
+                0 => Some(format!("stages.{}.depthwise.conv", (k - 2) / 3)),
+                1 => Some(format!("stages.{}.pointwise.conv", (k - 2) / 3)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// Subsamples features.
     ///
     /// # Arguments
@@ -365,25 +387,6 @@ impl DwStridingSubsampling {
         );
 
         (y, lengths)
-    }
-}
-
-/// The stem or stage module a flat `ModuleList` index names, under
-/// [`DwStridingSubsampling`]'s layout: `0` is the stem's convolution; from
-/// `2`, each stage is a depthwise convolution, a pointwise convolution and an
-/// activation, in threes. `None` for an activation, or past the stages.
-fn dw_striding_module(
-    k: usize,
-    n_stages: usize,
-) -> Option<String> {
-    match k {
-        0 => Some("stem.conv".to_string()),
-        k if k >= 2 && (k - 2) / 3 + 1 < n_stages => match (k - 2) % 3 {
-            0 => Some(format!("stages.{}.depthwise.conv", (k - 2) / 3)),
-            1 => Some(format!("stages.{}.pointwise.conv", (k - 2) / 3)),
-            _ => None,
-        },
-        _ => None,
     }
 }
 

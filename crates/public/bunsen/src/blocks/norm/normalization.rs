@@ -10,16 +10,16 @@ use burn::{
         RmsNormConfig,
     },
     prelude::*,
-    tensor::{
-        DType,
-        FloatDType,
-    },
+    tensor::FloatDType,
 };
 
 use super::LayerNorm;
-use crate::burner::module::{
-    InputDTypes,
-    ResultDType,
+use crate::burner::{
+    module::{
+        InputDTypes,
+        ResultDType,
+    },
+    tensor::widen_half,
 };
 
 /// A [`BunsenNormalization`]'s config: its kind, and that kind's burn config.
@@ -191,14 +191,6 @@ impl BunsenNormalization {
     }
 }
 
-/// The dtype a half input is normalized in: f32; any other, its own.
-pub(super) fn compute_dtype(dtype: DType) -> DType {
-    match dtype {
-        DType::F16 | DType::BF16 => DType::F32,
-        other => other,
-    }
-}
-
 /// RMS normalization over the last axis, as `transformers`' Qwen3 and Llama
 /// norms compute it: the input widened to f32 when half, normalized there,
 /// narrowed back, then scaled by the gain in the input's dtype.
@@ -207,7 +199,7 @@ fn rms_forward<const D: usize>(
     input: Tensor<D>,
 ) -> Tensor<D> {
     let dtype = input.dtype();
-    let x = input.cast(compute_dtype(dtype));
+    let x = input.cast(widen_half(dtype));
     let rms = (x.clone().square().mean_dim(D - 1) + norm.epsilon).sqrt();
     let normed = (x / rms).cast(dtype);
     normed * norm.gamma.val().cast(dtype).unsqueeze()
@@ -241,7 +233,10 @@ impl ResultDType for BunsenNormalization {
 
 #[cfg(test)]
 mod tests {
-    use burn::nn::norm::NormalizationConfig;
+    use burn::{
+        nn::norm::NormalizationConfig,
+        tensor::DType,
+    };
 
     use super::*;
     use crate::{
