@@ -76,6 +76,71 @@ pub fn reshape_data(
     TensorData::from_bytes(bytes, shape, dtype)
 }
 
+/// `data`'s rows (its first axis) in consecutive runs of `rows[i]`, each
+/// with the further axes: the parts a checkpoint fuses into one tensor
+/// (a packed `qkv` projection's three, a gated MLP's two). Any element type;
+/// the bytes are moved, not converted. [`concat_rows_data`] is its inverse.
+///
+/// # Panics
+/// If `data` has no axes, `rows` does not sum to its rows, or it is
+/// quantized (its bytes are not whole elements).
+pub fn split_rows_data(
+    data: TensorData,
+    rows: &[usize],
+) -> Vec<TensorData> {
+    let shape = data.shape().as_slice().to_vec();
+    assert!(!shape.is_empty(), "a split of a scalar");
+    assert_eq!(
+        rows.iter().sum::<usize>(),
+        shape[0],
+        "{rows:?} does not split {} rows",
+        shape[0]
+    );
+    let n = shape.iter().product::<usize>();
+    let dtype = data.dtype();
+    let bytes = data.as_bytes();
+    let row_bytes = if n == 0 {
+        0
+    } else {
+        assert_eq!(bytes.len() % n, 0, "whole elements only");
+        bytes.len() / shape[0]
+    };
+    let mut start = 0;
+    rows.iter()
+        .map(|&r| {
+            let mut part_shape = shape.clone();
+            part_shape[0] = r;
+            let part = bytes[start * row_bytes..(start + r) * row_bytes].to_vec();
+            start += r;
+            TensorData::from_bytes_vec(part, part_shape, dtype)
+        })
+        .collect()
+}
+
+/// `parts` stacked along their rows (the first axis): the inverse of
+/// [`split_rows_data`]. Any element type; the bytes are moved.
+///
+/// # Panics
+/// If `parts` is empty, or the parts differ in dtype or in their further
+/// axes.
+pub fn concat_rows_data(parts: Vec<TensorData>) -> TensorData {
+    let first = parts.first().expect("parts to concatenate");
+    let dtype = first.dtype();
+    let rest = first.shape().as_slice()[1..].to_vec();
+    let mut rows = 0;
+    let mut bytes = Vec::new();
+    for part in &parts {
+        let shape = part.shape().as_slice();
+        assert_eq!(part.dtype(), dtype, "parts of one dtype");
+        assert_eq!(&shape[1..], rest.as_slice(), "parts of one row shape");
+        rows += shape[0];
+        bytes.extend_from_slice(part.as_bytes());
+    }
+    let mut shape = vec![rows];
+    shape.extend(rest);
+    TensorData::from_bytes_vec(bytes, shape, dtype)
+}
+
 fn shape_of(
     shape: &[usize],
     order: &[usize],
@@ -122,5 +187,29 @@ mod tests {
         let x = Tensor::<1, Int>::arange(0..6, &device);
         let got = reshape_data(x.to_data(), vec![2, 3]);
         got.assert_eq(&x.reshape([2, 3]).to_data(), true);
+    }
+
+    /// A split is the device's row slices, and concatenating the parts
+    /// gives the input back.
+    #[test]
+    fn test_split_rows_and_back() {
+        let device = cpu_device();
+        let x = Tensor::<1, Int>::arange(0..24, &device).reshape([6, 2, 2]);
+        let parts = split_rows_data(x.to_data(), &[1, 3, 2]);
+        for (part, range) in parts.iter().zip([0..1, 1..4, 4..6]) {
+            part.assert_eq(&x.clone().slice(range).to_data(), true);
+        }
+        concat_rows_data(parts).assert_eq(&x.to_data(), true);
+
+        let f = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
+        let parts = split_rows_data(f.to_data(), &[2, 1, 0]);
+        assert_eq!(parts[2].shape().as_slice(), [0]);
+        concat_rows_data(parts).assert_eq(&f.to_data(), true);
+    }
+
+    #[test]
+    #[should_panic(expected = "does not split 3 rows")]
+    fn test_split_rows_must_cover() {
+        let _ = split_rows_data(TensorData::new(vec![0f32; 6], [3, 2]), &[1, 1]);
     }
 }

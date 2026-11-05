@@ -10,6 +10,7 @@ use burn::tensor::TensorData;
 use crate::burner::tensor::{
     permute_data,
     reshape_data,
+    split_rows_data,
 };
 
 /// A change to a tensor's data as it loads: a permute or reshape on the
@@ -216,6 +217,110 @@ impl From<String> for Select {
     }
 }
 
+/// A checkpoint tensor that fuses several of a module's parameters along its
+/// rows, split into them as it loads: every tensor whose name ends in
+/// [`suffix`](Self::suffix) becomes one tensor per part, its rows in order,
+/// named with the part's suffix in place of it. A [`Rekey`](super::Rekey)
+/// then maps the parts' names as any others
+/// ([`split_rows`](crate::data::pretrained::split_rows)).
+///
+/// A packed `qkv` projection's weight, `[3·d, d]`, and its bias, `[3·d]`,
+/// split the same way: each part takes its run of the first axis.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TensorLoadRowSplit {
+    suffix: String,
+    parts: Vec<(String, Option<usize>)>,
+}
+
+impl TensorLoadRowSplit {
+    /// A split of each tensor ending in `suffix` into equal runs of rows,
+    /// one per part suffix, in order.
+    pub fn equal<S: Into<String>>(
+        suffix: impl Into<String>,
+        parts: impl IntoIterator<Item = S>,
+    ) -> Self {
+        Self {
+            suffix: suffix.into(),
+            parts: parts.into_iter().map(|p| (p.into(), None)).collect(),
+        }
+    }
+
+    /// A split of each tensor ending in `suffix` into runs of the rows each
+    /// part names, in order (a grouped-query `qkv`: more query rows than key
+    /// or value rows).
+    pub fn sized<S: Into<String>>(
+        suffix: impl Into<String>,
+        parts: impl IntoIterator<Item = (S, usize)>,
+    ) -> Self {
+        Self {
+            suffix: suffix.into(),
+            parts: parts
+                .into_iter()
+                .map(|(p, r)| (p.into(), Some(r)))
+                .collect(),
+        }
+    }
+
+    /// The suffix of the fused tensors' names.
+    pub fn suffix(&self) -> &str {
+        &self.suffix
+    }
+
+    /// What it is called in a report: `split_rows(*suffix -> a, b, …)`.
+    pub fn name(&self) -> String {
+        let parts: Vec<&str> = self.parts.iter().map(|(p, _)| p.as_str()).collect();
+        format!("split_rows(*{} -> {})", self.suffix, parts.join(", "))
+    }
+
+    /// The parts of `name`'s tensor, each with its name, when `name` is one
+    /// this split takes; `None` when it is not.
+    ///
+    /// # Errors
+    /// A message naming the tensor when its rows do not split as the parts
+    /// say.
+    pub fn split(
+        &self,
+        name: &str,
+        data: TensorData,
+    ) -> Option<Result<Vec<(String, TensorData)>, String>> {
+        let stem = name.strip_suffix(self.suffix.as_str())?;
+        let shape = data.shape().as_slice().to_vec();
+        let Some(&total) = shape.first() else {
+            return Some(Err(format!("{name}: {} of a scalar", self.name())));
+        };
+        let rows: Vec<usize> = if self.parts.iter().all(|(_, r)| r.is_none()) {
+            let n = self.parts.len();
+            if n == 0 || !total.is_multiple_of(n) {
+                return Some(Err(format!(
+                    "{name}: {total} rows do not split into {n} equal parts"
+                )));
+            }
+            vec![total / n; n]
+        } else {
+            match self
+                .parts
+                .iter()
+                .map(|(_, r)| *r)
+                .collect::<Option<Vec<_>>>()
+            {
+                Some(rows) if rows.iter().sum::<usize>() == total => rows,
+                _ => {
+                    return Some(Err(format!(
+                        "{name}: {total} rows do not split as {}",
+                        self.name()
+                    )));
+                }
+            }
+        };
+        Some(Ok(self
+            .parts
+            .iter()
+            .zip(split_rows_data(data, &rows))
+            .map(|((part, _), data)| (format!("{stem}{part}"), data))
+            .collect()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,5 +415,71 @@ mod tests {
         assert!(norms.matches("stack.norm.weight"));
         assert!(!norms.matches("stack.layers.3.attn.c_q.weight"));
         assert_eq!(norms.to_string(), "*norm.weight");
+    }
+
+    /// An equal split takes each part's run of rows, the bias's as the
+    /// weight's, and names each part in place of the suffix; the parts
+    /// stacked back are the fused tensor.
+    #[test]
+    fn test_row_split_equal() {
+        let split =
+            TensorLoadRowSplit::equal(".Wqkv.weight", [".Wq.weight", ".Wk.weight", ".Wv.weight"]);
+        assert_eq!(
+            split.name(),
+            "split_rows(*.Wqkv.weight -> .Wq.weight, .Wk.weight, .Wv.weight)"
+        );
+        let fused = data(&(0..12).map(|v| v as f32).collect::<Vec<_>>(), &[6, 2]);
+        let parts = split
+            .split("layers.0.attn.Wqkv.weight", fused.clone())
+            .unwrap()
+            .unwrap();
+        let names: Vec<&str> = parts.iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "layers.0.attn.Wq.weight",
+                "layers.0.attn.Wk.weight",
+                "layers.0.attn.Wv.weight"
+            ]
+        );
+        assert_eq!(values(parts[1].1.clone()), [4.0, 5.0, 6.0, 7.0]);
+        let back =
+            crate::burner::tensor::concat_rows_data(parts.into_iter().map(|(_, d)| d).collect());
+        assert_eq!(values(back), values(fused.clone()));
+
+        let bias = TensorLoadRowSplit::equal(".in_proj_bias", [".q.bias", ".k.bias", ".v.bias"]);
+        let parts = bias
+            .split("attn.in_proj_bias", data(&[1.0, 2.0, 3.0], &[3]))
+            .unwrap()
+            .unwrap();
+        assert_eq!(values(parts[2].1.clone()), [3.0]);
+        assert!(split.split("layers.0.attn.Wo.weight", fused).is_none());
+    }
+
+    /// A sized split takes the rows each part names; rows that do not split
+    /// as the parts say are an error naming the tensor.
+    #[test]
+    fn test_row_split_sized() {
+        let split = TensorLoadRowSplit::sized(
+            ".qkv.weight",
+            [(".q.weight", 4), (".k.weight", 1), (".v.weight", 1)],
+        );
+        let parts = split
+            .split("a.qkv.weight", data(&[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], &[6]))
+            .unwrap()
+            .unwrap();
+        assert_eq!(values(parts[0].1.clone()), [0.0, 1.0, 2.0, 3.0]);
+        assert_eq!(values(parts[2].1.clone()), [5.0]);
+
+        let err = split
+            .split("a.qkv.weight", data(&[0.0; 5], &[5]))
+            .unwrap()
+            .unwrap_err();
+        assert!(err.starts_with("a.qkv.weight: 5 rows"), "{err}");
+        let err = TensorLoadRowSplit::equal(".w", [".a", ".b"])
+            .split("x.w", data(&[0.0; 3], &[3]))
+            .unwrap()
+            .unwrap_err();
+        assert_eq!(err, "x.w: 3 rows do not split into 2 equal parts");
     }
 }
