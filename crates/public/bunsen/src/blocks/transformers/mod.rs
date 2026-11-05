@@ -45,6 +45,9 @@
 //!   [`norm_mlp`](mlp::norm_mlp), which runs it after a `LayerNorm`, and
 //!   [`TransformerGatedMlp`](mlp::TransformerGatedMlp), the gated feed-forward
 //!   (`SwiGLU`, `GeGLU`).
+//! - [`sublayer`]: [`SublayerNorms`](sublayer::SublayerNorms), the
+//!   normalizations of a residual sublayer (input, pre, post, out), borrowed
+//!   from its block, applied around a branch.
 //!
 //! The operations these layers call, and the key/value cache state, are in
 //! [`crate::ops::transformers`].
@@ -56,3 +59,4 @@ pub mod embedding;
 pub mod encoders;
 pub mod head;
 pub mod mlp;
+pub mod sublayer;
