@@ -1,0 +1,130 @@
+//! # Laya pretrained providers and factory
+use std::sync::Arc;
+
+use burn::tensor::Device;
+
+use super::LayaConstructConfig;
+use crate::{
+    data::pretrained::{
+        EmbeddedCatalog,
+        PretrainedCache,
+        PretrainedProvider,
+    },
+    errors::BunsenResult,
+    kits::{
+        decision::laya::LayaConstruct,
+        support::construct::PretrainedFactory,
+    },
+};
+
+/// The kit segment of a Laya resource's path in the cache:
+/// `<cache>/pretrained/laya/<namespace>/<sha256>/<file>`.
+pub const LAYA_KIT: &str = "laya";
+
+/// The key of the checkpoint in a Laya resource bundle: its
+/// `model.safetensors`.
+pub const CHECKPOINT: &str = "checkpoint";
+
+/// The key of the encoder's `config.json`.
+pub const ENCODER_CONFIG: &str = "encoder_config";
+
+/// The key of the head's `rl_agent_config.json`.
+pub const AGENT_CONFIG: &str = "agent_config";
+
+/// The Laya checkpoints bunsen knows by name, behind the
+/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
+/// `laya`: `convaiinnovations/laya`'s three (`well-known:laya/laya`,
+/// `laya/laya`, or `laya`).
+///
+/// Built from `validation/catalogs/laya.yml` by `cargo validate catalog`.
+pub static LAYA_CATALOG: EmbeddedCatalog =
+    EmbeddedCatalog::new("laya", include_str!("catalog.json"));
+
+/// The name [`default_laya_factory`] loads when a caller names none.
+pub const DEFAULT_LAYA_MODEL: &str = "laya/laya";
+
+/// Laya's compiled-in providers: the well-known table.
+pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+    vec![Arc::new(LAYA_CATALOG.table())]
+}
+
+/// Laya's factory over [`default_laya_providers`], building through
+/// [`LayaConstructConfig`].
+///
+/// # Errors
+/// As [`PretrainedFactory::with_providers`].
+pub fn default_laya_factory() -> BunsenResult<PretrainedFactory<LayaConstructConfig>> {
+    PretrainedFactory::new().with_providers(default_laya_providers())
+}
+
+impl PretrainedFactory<LayaConstructConfig> {
+    /// A name to a construct under `policy`: [`load`](Self::load), keeping
+    /// the handle.
+    ///
+    /// # Errors
+    /// As [`load`](Self::load).
+    pub fn load_construct(
+        &self,
+        spec: &str,
+        cache: &PretrainedCache,
+        device: &Device,
+        policy: crate::kits::support::construct::LoadPolicy,
+    ) -> BunsenResult<Arc<LayaConstruct>> {
+        Ok(self.load(spec, cache, device, policy)?.handle)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::kits::support::construct::{
+        TOKENIZER,
+        TOKENIZER_CONFIG,
+    };
+
+    /// The rows, by name, every file pinned to one URL on the repo's fixed
+    /// revision, each row with all five of its files.
+    #[test]
+    fn test_rows_are_pinned() {
+        LAYA_CATALOG.catalog().validate(&[]).unwrap();
+        let factory = default_laya_factory().unwrap();
+        assert_eq!(factory.kit(), LAYA_KIT);
+        let names = ["laya", "laya-multilingual", "laya-typed-decisions"];
+        assert_eq!(
+            factory.ids(),
+            names
+                .iter()
+                .map(|n| format!("well-known:laya/{n}"))
+                .collect::<Vec<_>>()
+        );
+        for name in names {
+            let (_, row) = factory.lookup(name).unwrap();
+            let map = &row.resources;
+            map.validate().unwrap();
+            for resource in map.resources.values() {
+                assert!(resource.is_pinned(), "{name}: {}", resource.key);
+                let urls = resource.urls();
+                assert_eq!(urls.len(), 1, "{name}: {}", resource.key);
+                assert!(
+                    urls[0].starts_with("https://huggingface.co/convaiinnovations/laya/resolve/"),
+                    "{name}: {}",
+                    urls[0]
+                );
+            }
+            for key in [
+                CHECKPOINT,
+                ENCODER_CONFIG,
+                AGENT_CONFIG,
+                TOKENIZER,
+                TOKENIZER_CONFIG,
+            ] {
+                assert!(map.get(key).is_some(), "{name}: {key}");
+            }
+        }
+        assert_eq!(factory.lookup("laya-en").unwrap().1.name, "laya/laya");
+        assert_eq!(
+            factory.lookup(DEFAULT_LAYA_MODEL).unwrap().1.name,
+            "laya/laya"
+        );
+    }
+}
