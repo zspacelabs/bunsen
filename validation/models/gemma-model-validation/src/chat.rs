@@ -18,13 +18,15 @@ use bunsen::{
                 default_gemma_factory,
             },
         },
-        support::tokens::Detokenizer,
+        support::tokens::{
+            Detokenizer,
+            Tokenizer,
+        },
     },
 };
 use bunsen_tool::chat::{
     ChatMessage,
     ChatTemplate,
-    ChatTokenizer,
     HfTokenizer,
 };
 

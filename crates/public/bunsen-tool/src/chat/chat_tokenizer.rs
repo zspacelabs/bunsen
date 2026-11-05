@@ -9,27 +9,21 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::tokens::Detokenizer,
+    kits::support::tokens::{
+        Detokenizer,
+        Tokenizer,
+    },
 };
 
 use crate::chat::Qwen3Tokenizer;
 
-/// A checkpoint's tokenizer, as a chat uses it: a rendered prompt to ids,
-/// its ids back to text ([`Detokenizer`]), and its tokens by name.
+/// A checkpoint's tokenizer, as a chat uses it: a rendered prompt to ids and
+/// its tokens by name ([`Tokenizer`]), its ids back to text
+/// ([`Detokenizer`]).
 ///
 /// [`HfTokenizer`] reads any `tokenizer.json` (Gemma's); [`Qwen3Tokenizer`]
 /// reads Qwen3's on wordchipper.
-pub trait ChatTokenizer: Detokenizer {
-    /// Encodes text, an added token's spelling anywhere in it as that token:
-    /// what a rendered chat prompt is encoded with.
-    ///
-    /// # Errors
-    /// As the encoder.
-    fn encode(
-        &self,
-        text: &str,
-    ) -> BunsenResult<Vec<i64>>;
-
+pub trait ChatTokenizer: Detokenizer + Tokenizer {
     /// Encodes text with its special tokens' spellings as text.
     ///
     /// # Errors
@@ -38,12 +32,6 @@ pub trait ChatTokenizer: Detokenizer {
         &self,
         text: &str,
     ) -> BunsenResult<Vec<i64>>;
-
-    /// The id of an added token, by its content: `<end_of_turn>`, say.
-    fn token_id(
-        &self,
-        content: &str,
-    ) -> Option<i64>;
 
     /// Whether `id` is a token.
     fn contains(
@@ -60,7 +48,7 @@ pub trait ChatTokenizer: Detokenizer {
     }
 }
 
-impl ChatTokenizer for Qwen3Tokenizer {
+impl Tokenizer for Qwen3Tokenizer {
     fn encode(
         &self,
         text: &str,
@@ -68,18 +56,20 @@ impl ChatTokenizer for Qwen3Tokenizer {
         Qwen3Tokenizer::encode(self, text)
     }
 
-    fn encode_plain(
-        &self,
-        text: &str,
-    ) -> BunsenResult<Vec<i64>> {
-        Qwen3Tokenizer::encode_plain(self, text)
-    }
-
     fn token_id(
         &self,
         content: &str,
     ) -> Option<i64> {
         Qwen3Tokenizer::token_id(self, content)
+    }
+}
+
+impl ChatTokenizer for Qwen3Tokenizer {
+    fn encode_plain(
+        &self,
+        text: &str,
+    ) -> BunsenResult<Vec<i64>> {
+        Qwen3Tokenizer::encode_plain(self, text)
     }
 
     fn contains(
@@ -195,7 +185,7 @@ impl Detokenizer for HfTokenizer {
     }
 }
 
-impl ChatTokenizer for HfTokenizer {
+impl Tokenizer for HfTokenizer {
     fn encode(
         &self,
         text: &str,
@@ -203,18 +193,20 @@ impl ChatTokenizer for HfTokenizer {
         Self::encode_with(&self.tokenizer, text)
     }
 
-    fn encode_plain(
-        &self,
-        text: &str,
-    ) -> BunsenResult<Vec<i64>> {
-        Self::encode_with(&self.plain, text)
-    }
-
     fn token_id(
         &self,
         content: &str,
     ) -> Option<i64> {
         self.tokenizer.token_to_id(content).map(i64::from)
+    }
+}
+
+impl ChatTokenizer for HfTokenizer {
+    fn encode_plain(
+        &self,
+        text: &str,
+    ) -> BunsenResult<Vec<i64>> {
+        Self::encode_with(&self.plain, text)
     }
 
     fn contains(
