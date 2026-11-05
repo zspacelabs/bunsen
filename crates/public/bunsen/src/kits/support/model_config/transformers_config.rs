@@ -1,4 +1,4 @@
-//! `HfConfigJson`: reading a `transformers` `config.json` field by field.
+//! `TransformersConfigJson`: a `transformers` `config.json`, by field.
 use serde_json::Value;
 
 use crate::errors::{
@@ -13,12 +13,12 @@ use crate::errors::{
 /// Every accessor names the field's dotted path in its error, so a repo
 /// whose config a kit cannot read says which field.
 #[derive(Clone, Debug)]
-pub struct HfConfigJson {
+pub struct TransformersConfigJson {
     path: String,
     value: Value,
 }
 
-impl HfConfigJson {
+impl TransformersConfigJson {
     /// Parses a `config.json`.
     ///
     /// # Errors
@@ -302,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_fields_and_errors() {
-        let c = HfConfigJson::parse(
+        let c = TransformersConfigJson::parse(
             r#"{"model_type": "x", "n": 3, "eps": 1e-6, "flag": true,
                 "durations": [0, 1, 2], "sub": {"d": 8, "missing": null}}"#,
         )
@@ -325,14 +325,14 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("`sub.d` is 8")
             .assert_err(&sub.expect_eq("d", 8, 16));
-        assert!(HfConfigJson::parse("[1]").is_err());
+        assert!(TransformersConfigJson::parse("[1]").is_err());
     }
 
     /// The optional accessors: `None` for an absent or `null` field, the
     /// value for a present one, an error for one of the wrong type.
     #[test]
     fn test_optional_fields() {
-        let c = HfConfigJson::parse(
+        let c = TransformersConfigJson::parse(
             r#"{"cap": 30.0, "none": null, "name": "linear", "rope": {"factor": 8}}"#,
         )
         .unwrap();

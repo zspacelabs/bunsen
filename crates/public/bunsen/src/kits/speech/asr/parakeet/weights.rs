@@ -27,7 +27,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::model_config::HfConfigJson,
+    kits::support::model_config::TransformersConfigJson,
 };
 
 /// `transformers`' `ParakeetEncoderSubsampling` names onto a
@@ -136,7 +136,7 @@ pub fn load_transformers_tensors(
 /// field and its value, for a model bunsen's Parakeet is not (a CTC model,
 /// another subsampling).
 pub fn parakeet_config_from_transformers(json: &str) -> BunsenResult<ParakeetTdtConfig> {
-    let c = HfConfigJson::parse(json)?;
+    let c = TransformersConfigJson::parse(json)?;
     c.expect_str("model_type", "parakeet_tdt")?;
     let e = c.section("encoder_config")?;
     e.expect_eq("num_mel_bins", e.usize("num_mel_bins")?, 128)?;

@@ -26,7 +26,7 @@ use crate::{
                 text_layer_rekey,
             },
         },
-        support::model_config::HfConfigJson,
+        support::model_config::TransformersConfigJson,
     },
 };
 
@@ -111,7 +111,7 @@ pub fn load_transformers_tensors_as(
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Qwen3-ASR is not.
 pub fn qwen3_asr_config_from_transformers(json: &str) -> BunsenResult<Qwen3AsrConfig> {
-    let c = HfConfigJson::parse(json)?;
+    let c = TransformersConfigJson::parse(json)?;
     c.expect_str("model_type", "qwen3_asr")?;
 
     let a = c.section("audio_config")?;

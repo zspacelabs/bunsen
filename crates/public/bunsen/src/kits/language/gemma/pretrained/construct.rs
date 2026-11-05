@@ -45,7 +45,7 @@ use crate::{
         support::{
             construct::ConstructInit,
             model_config::{
-                HfConfigJson,
+                TransformersConfigJson,
                 probe_loaded,
                 resolve_ref_presets,
             },
@@ -123,7 +123,7 @@ impl ConstructInit for GemmaConstructConfig {
                     std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
                 let config = gemma_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?;
-                let root = HfConfigJson::parse(&json)?;
+                let root = TransformersConfigJson::parse(&json)?;
                 let text = root.section("text_config").unwrap_or(root);
                 let max_positions = text.usize("max_position_embeddings").ok();
                 (config, max_positions)

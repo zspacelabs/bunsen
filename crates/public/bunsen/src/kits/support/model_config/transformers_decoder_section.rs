@@ -2,7 +2,7 @@
 
 use crate::{
     errors::BunsenResult,
-    kits::support::model_config::HfConfigJson,
+    kits::support::model_config::TransformersConfigJson,
 };
 
 /// What a `transformers` decoder stack's config section says, in the
@@ -11,8 +11,8 @@ use crate::{
 ///
 /// A kit reads its sections through [`read`](Self::read), then checks what
 /// its model fixes (`model_type`, the activation, biases, a window, the
-/// rotary type) with [`HfConfigJson::expect_eq`] on the same section, which
-/// names the field in its error.
+/// rotary type) with [`TransformersConfigJson::expect_eq`] on the same section,
+/// which names the field in its error.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TransformersDecoderSection {
     /// `hidden_size`.
@@ -68,7 +68,7 @@ impl TransformersDecoderSection {
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
     /// naming the field, when the section lacks a required one or one does
     /// not parse.
-    pub fn read(section: &HfConfigJson) -> BunsenResult<Self> {
+    pub fn read(section: &TransformersConfigJson) -> BunsenResult<Self> {
         let hidden_size = section.usize("hidden_size")?;
         let num_attention_heads = section.usize("num_attention_heads")?;
         let rope = section.section("rope_parameters").ok();
@@ -130,7 +130,7 @@ mod tests {
     };
 
     fn read(json: &str) -> BunsenResult<TransformersDecoderSection> {
-        TransformersDecoderSection::read(&HfConfigJson::parse(json).unwrap())
+        TransformersDecoderSection::read(&TransformersConfigJson::parse(json).unwrap())
     }
 
     const QWEN3: &str = r#"{

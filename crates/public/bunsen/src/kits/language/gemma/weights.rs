@@ -28,7 +28,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::model_config::HfConfigJson,
+    kits::support::model_config::TransformersConfigJson,
 };
 
 /// The prefixes a Gemma's text model sits under: `transformers` 5's
@@ -138,7 +138,7 @@ enum Generation {
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Gemma is not.
 pub fn gemma_config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
-    let root = HfConfigJson::parse(json)?;
+    let root = TransformersConfigJson::parse(json)?;
     let tie_default = root.bool_or("tie_word_embeddings", true)?;
     let (t, generation, multimodal) = match root.str("model_type")? {
         "gemma" => (root, Generation::Gemma, false),
@@ -242,7 +242,7 @@ pub fn gemma_config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
 /// A rotary table's base and scaling: from `rope_parameters` (its `kind`
 /// entry, for a per-kind table), else `rope_theta` and `rope_scaling`.
 fn rope_of(
-    t: &HfConfigJson,
+    t: &TransformersConfigJson,
     kind: Option<&str>,
 ) -> BunsenResult<(f64, RopeScaling)> {
     let params = match (t.section_opt("rope_parameters")?, kind) {
@@ -282,7 +282,7 @@ fn rope_of(
 /// Each layer's kind: `layer_types`, else `transformers`' pattern for the
 /// generation.
 fn layer_kinds(
-    t: &HfConfigJson,
+    t: &TransformersConfigJson,
     generation: Generation,
     n_layers: usize,
 ) -> BunsenResult<Vec<GemmaLayerKind>> {

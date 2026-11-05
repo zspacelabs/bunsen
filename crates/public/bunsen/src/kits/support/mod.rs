@@ -17,7 +17,7 @@
 //!   and the temperature ladder.
 //! - [`model_config`]: the config side, apart from building: reading the
 //!   configs a checkpoint ships with, such as a `transformers` `config.json`
-//!   ([`HfConfigJson`](model_config::HfConfigJson)).
+//!   ([`TransformersConfigJson`](model_config::TransformersConfigJson)).
 
 pub mod construct;
 pub mod decoding;
