@@ -67,9 +67,7 @@ impl ConstructInit for NanoChatConstructConfig {
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
         let meta = loaded.expect(META)?;
         let checkpoint = loaded.expect(CHECKPOINT)?;
-        let (model, generation) = load_pt_checkpoint(meta, checkpoint, device)?;
-        // The model as loaded, or wider as the policy asks.
-        let model = load.place(model, device, |_| true)?;
+        let (model, generation) = load_pt_checkpoint(meta, checkpoint, device, load)?;
         let mut bundle = NanoChatConstruct::new(model, generation, NanoChatMeta::from_file(meta)?);
         for (key, part) in &loaded.parts {
             bundle = bundle.with_file(key, &part.path);

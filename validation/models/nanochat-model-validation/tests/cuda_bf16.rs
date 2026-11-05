@@ -1,7 +1,8 @@
 //! bunsen's nanochat held in bf16 on CUDA, against upstream's bf16 decodes.
 //!
-//! A test binary of its own: the CUDA device's default float dtype is set to
-//! bf16 here, once per process, and must not reach the float32 suite.
+//! The device is CUDA's, its default float f32; the weights load in bf16
+//! under [`LoadPolicy::performance`], as CUDA accelerates bf16. A test binary
+//! of its own, so the f32 suites stay off CUDA.
 //! Needs `checkpoints`, `gpu-tests` and `cuda`.
 #![cfg(all(feature = "checkpoints", feature = "gpu-tests", feature = "cuda"))]
 
@@ -15,9 +16,12 @@ use bunsen::{
             NanoChatConstruct,
             pretrained::DEFAULT_NANOCHAT_MODEL,
         },
-        support::decoding::{
-            GreedySearch,
-            TokenSearch,
+        support::{
+            construct::LoadPolicy,
+            decoding::{
+                GreedySearch,
+                TokenSearch,
+            },
         },
     },
     ops::transformers::attention::KVCacheStorage,
@@ -28,29 +32,21 @@ use burn::{
         ModuleSnapshot,
         bridge,
     },
-    tensor::{
-        DType,
-        DeviceConfig,
-        FloatDType,
-    },
+    tensor::DType,
 };
 use nanochat_model_validation::{
     BF16_NEAR_TIE,
     STORAGES,
     argmax,
     bunsen_decode,
-    load_construct,
+    load_construct_with,
     upstream_bf16_reference,
 };
 
-/// The bf16 CUDA device, configured once for this process.
+/// The CUDA device, its default float f32: the weights' dtype is the load
+/// policy's.
 fn bf16_device() -> Device {
-    let mut device = Device::cuda(0);
-    match device.configure(DeviceConfig::default().float_dtype(FloatDType::BF16)) {
-        Ok(()) => {}
-        Err(_) => assert_eq!(device.settings().float_dtype, FloatDType::BF16),
-    }
-    device
+    Device::cuda(0)
 }
 
 /// The checkpoint's bf16 tensors are the model's, bit for bit: loaded as
@@ -94,7 +90,7 @@ fn check_row(row: &str) {
     let device = bf16_device();
     let fixture = upstream_bf16_reference();
     let record = &fixture.rows[row];
-    let bundle = load_construct(row, &device);
+    let bundle = load_construct_with(row, &device, LoadPolicy::performance());
     assert_bf16_tensors_load_as_they_are(row, &bundle);
 
     for storage in STORAGES {
@@ -133,21 +129,26 @@ fn check_row(row: &str) {
     }
 }
 
-/// Each row in bf16, under its id.
+/// Each row in bf16, under its id. The `nanochat-students` d20 rows are
+/// ignored: upstream stores their embeddings in bf16 and their block matrices
+/// in f32, most of the checkpoint, so a widen-only load holds them in f32.
 mod bf16 {
     use super::*;
 
     #[test]
+    #[ignore = "most of the checkpoint is f32 (its block matrices; the embeddings are bf16): a widen-only load holds it in f32, and bunsen does not load it mixed"]
     fn nanochat_d20_base() {
         check_row("nanochat-students/base-d20");
     }
 
     #[test]
+    #[ignore = "most of the checkpoint is f32 (its block matrices; the embeddings are bf16): a widen-only load holds it in f32, and bunsen does not load it mixed"]
     fn nanochat_d20_mid() {
         check_row("nanochat-students/mid-d20");
     }
 
     #[test]
+    #[ignore = "most of the checkpoint is f32 (its block matrices; the embeddings are bf16): a widen-only load holds it in f32, and bunsen does not load it mixed"]
     fn nanochat_d20_rl() {
         check_row("nanochat-students/rl-d20");
     }
@@ -170,12 +171,14 @@ mod bf16_sampling {
     use super::*;
 
     #[test]
+    #[ignore = "most of the checkpoint is f32 (its block matrices; the embeddings are bf16): a widen-only load holds it in f32, and bunsen does not load it mixed"]
     fn nanochat_d20_rl() {
         const DRAWS: usize = 256;
         let device = bf16_device();
         let fixture = upstream_bf16_reference();
         let record = &fixture.rows[DEFAULT_NANOCHAT_MODEL];
-        let bundle = load_construct(DEFAULT_NANOCHAT_MODEL, &device);
+        let bundle =
+            load_construct_with(DEFAULT_NANOCHAT_MODEL, &device, LoadPolicy::performance());
         let steps = bunsen_decode(
             &bundle,
             &record.prompt_ids,

@@ -256,19 +256,30 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 }
 
 /// A nanochat pretrained by name, through bunsen's factory and
-/// [`weights_cache`].
+/// [`weights_cache`], in f32 at least: what the f32 suites hold to upstream
+/// in f32.
 pub fn load_construct(
     name: &str,
     device: &Device,
 ) -> std::sync::Arc<NanoChatConstruct> {
+    load_construct_with(
+        name,
+        device,
+        bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+    )
+}
+
+/// A nanochat pretrained by name under `policy`: the bf16 checks load with
+/// [`LoadPolicy::performance`](bunsen::kits::support::construct::LoadPolicy::performance),
+/// bf16 on a device that accelerates it.
+pub fn load_construct_with(
+    name: &str,
+    device: &Device,
+    policy: bunsen::kits::support::construct::LoadPolicy,
+) -> std::sync::Arc<NanoChatConstruct> {
     bunsen::kits::language::nanochat::pretrained::default_nanochat_factory()
         .expect("the nanochat factory")
-        .load_construct(
-            name,
-            &weights_cache(),
-            device,
-            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
-        )
+        .load_construct(name, &weights_cache(), device, policy)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 

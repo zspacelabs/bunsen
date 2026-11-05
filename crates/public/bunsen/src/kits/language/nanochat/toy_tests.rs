@@ -61,6 +61,7 @@ impl Toy {
             &dir.join("meta_000001.json"),
             &dir.join("model_000001.pt"),
             device,
+            crate::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
         )
         .expect("load the toy checkpoint");
         Self {
@@ -137,4 +138,41 @@ fn test_toy_2026() {
     assert_eq!(toy.generation, NanoChatGeneration::Upstream2026);
     assert!(toy.model.is_smeared());
     check(&toy);
+}
+
+/// The load's dtype is the policy's, never the device's default: on the CPU,
+/// whose default float is f32, the f32 toy keeps its stored f32 under
+/// `as_stored`, and its tensors loaded at bf16 make a bf16 model.
+#[test]
+fn test_the_load_dtype_is_the_policy_s() {
+    use burn::tensor::{
+        DType,
+        FloatDType,
+    };
+
+    use super::weights::{
+        NanoChatMeta,
+        load_pt_tensors,
+    };
+    use crate::{
+        burner::module::ModuleInit,
+        data::pretrained::read_pytorch_tensors,
+        kits::support::construct::LoadPolicy,
+        support::testing::cpu_device,
+    };
+
+    let device = cpu_device();
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/nanochat/toy_2025");
+    let (meta, model) = (dir.join("meta_000001.json"), dir.join("model_000001.pt"));
+    let (stored, _) = load_pt_checkpoint(&meta, &model, &device, LoadPolicy::as_stored())
+        .expect("load the toy as stored");
+    assert_eq!(stored.float_dtype(), DType::F32);
+
+    let meta = NanoChatMeta::from_file(&meta).unwrap();
+    let tensors = read_pytorch_tensors(&model).unwrap();
+    let names: Vec<&str> = tensors.iter().map(|t| t.name.as_str()).collect();
+    let config = meta.gpt_config(meta.generation(&names).unwrap());
+    let mut half: NanoChatGpt = config.try_init(&device).unwrap();
+    load_pt_tensors(&mut half, tensors, FloatDType::BF16).unwrap();
+    assert_eq!(half.float_dtype(), DType::BF16);
 }
