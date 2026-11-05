@@ -1,7 +1,7 @@
 # The whisper kit's pretrained catalog source: `cargo validate catalog` builds it into
-# `crates/public/bunsen/src/kits/speech/whisper/pretrained/catalog.json`.
+# `crates/public/bunsen/src/kits/speech/asr/whisper/pretrained/catalog.json`.
 kit: whisper
-out: crates/public/bunsen/src/kits/speech/whisper/pretrained/catalog.json
+out: crates/public/bunsen/src/kits/speech/asr/whisper/pretrained/catalog.json
 name: "well-known"
 description: "the Whisper checkpoints bunsen knows by name"
 groups:

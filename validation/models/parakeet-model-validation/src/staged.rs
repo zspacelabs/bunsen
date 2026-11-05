@@ -1,7 +1,7 @@
 //! bunsen's Parakeet TDT against the generated reference, stage by stage.
 
 use bunsen::{
-    kits::speech::parakeet::blocks::TdtPredictionState,
+    kits::speech::asr::parakeet::blocks::TdtPredictionState,
     support::testing::{
         DeviceMemoryGuard,
         performance_device,

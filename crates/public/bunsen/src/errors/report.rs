@@ -13,10 +13,10 @@ use crate::errors::BunsenError;
 ///
 /// ```text
 /// error[InvalidResource]: 51864 is not a Whisper vocabulary size
-///   at src/kits/speech/whisper/driver/whisper_token_layout.rs:228:13
+///   at src/kits/speech/asr/whisper/driver/whisper_token_layout.rs:228:13
 ///   | <the error's details>
 ///   re-marked Illegal -> Policy at src/data/pretrained/deferred.rs:122:9
-///   while token layout (src/kits/speech/whisper/pretrained/construct.rs:308:17)
+///   while token layout (src/kits/speech/asr/whisper/pretrained/construct.rs:308:17)
 ///   | <the frame's details>
 ///   while loading whisper "openai/base" (src/data/pretrained/deferred.rs:122:9)
 /// caused by: <the source chain, one line each>

@@ -17,7 +17,7 @@ use std::time::Instant;
 use bunsen::{
     burner::module::ModuleInit,
     kits::{
-        speech::whisper::{
+        speech::asr::whisper::{
             DecodeConfig,
             Whisper,
             WhisperApiConfig,

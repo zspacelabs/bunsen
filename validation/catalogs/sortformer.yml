@@ -1,7 +1,7 @@
 # The sortformer kit's pretrained catalog source: `cargo validate catalog` builds it into
-# `crates/public/bunsen/src/kits/speech/sortformer/pretrained/catalog.json`.
+# `crates/public/bunsen/src/kits/speech/diarization/sortformer/pretrained/catalog.json`.
 kit: sortformer
-out: crates/public/bunsen/src/kits/speech/sortformer/pretrained/catalog.json
+out: crates/public/bunsen/src/kits/speech/diarization/sortformer/pretrained/catalog.json
 name: "well-known"
 description: "the Sortformer diarizers bunsen knows by name"
 groups:

@@ -28,7 +28,7 @@ namespace above it, and sits beside burn's wherever a kit glob-imports both.
   of that type.
 * A function with a natural home in `ops` (a tensor operation, a table) or in `burner` (dtype,
   tensor and module machinery) lives there, not in `blocks`.
-* An operation specific to one kit lives in that kit's own `ops` submodule (`conway::ops`),
+* An operation specific to one kit lives in that kit's own `ops` submodule (`swin::ops`, `conway::ops`),
   not in the crate's `ops`.
 * Two names for one concept become one when the concept is unambiguously the same. When the
   parts do not line up, they stay apart, each named for its owner.
@@ -38,6 +38,16 @@ namespace above it, and sits beside burn's wherever a kit glob-imports both.
 * A module whose natural name would collide with a function or an `ops` value object (`ClampOp`,
   a parameter set that embeds in configs) spells out `Module`: `PowOpModule`, with
   `PowOpModuleConfig` and `PowOpModuleMeta`.
+
+## Kit layout
+
+* `kits` groups the model kits by domain: `images`, `language`, `speech`. `kits::support` holds
+  the machinery shared across domains. Simulations are not model kits: they are `bunsen::sims`.
+* A domain whose kits serve different tasks groups them by task: `speech::{asr, diarization,
+  vad}`, each with its own model-independent parts (`asr::driver`) and its models. A family
+  layer that crosses tasks (`speech::nemo`) and the domain's `testing` sit beside the tasks.
+* A kit's module is named for its model, as close to the model's own name as a Rust identifier
+  allows, even when that repeats the group: `speech::asr::qwen3_asr`, `speech::vad::silero_vad`.
 
 ## Test fixtures
 

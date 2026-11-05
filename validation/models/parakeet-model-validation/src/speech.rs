@@ -6,7 +6,7 @@
 
 use bunsen::{
     kits::speech::{
-        parakeet::{
+        asr::parakeet::{
             ParakeetConstruct,
             ParakeetFrontEndMeta,
             pretrained::DEFAULT_PARAKEET_MODEL,
@@ -57,7 +57,7 @@ fn wer(
 fn transcribe(
     bundle: &ParakeetConstruct,
     device: &Device,
-) -> bunsen::kits::speech::parakeet::ParakeetTranscript {
+) -> bunsen::kits::speech::asr::parakeet::ParakeetTranscript {
     let samples = speech_clip(CLIP);
     let n = samples.len();
     let waveform = Tensor::<2>::from_data(TensorData::new(samples, [1, n]), device);
@@ -80,9 +80,9 @@ mod reference_graphs_behind_bunsen_front_end {
         let _memory = DeviceMemoryGuard::new(&device);
         let fixture = onnx_reference().speech;
 
-        let front_end: bunsen::kits::speech::parakeet::ParakeetFrontEnd =
+        let front_end: bunsen::kits::speech::asr::parakeet::ParakeetFrontEnd =
             bunsen::burner::module::ModuleInit::init(
-                &bunsen::kits::speech::parakeet::ParakeetFrontEndConfig::new(),
+                &bunsen::kits::speech::asr::parakeet::ParakeetFrontEndConfig::new(),
                 &device,
             );
         let samples = speech_clip(CLIP);
@@ -221,8 +221,8 @@ fn stream(
     bundle: std::sync::Arc<ParakeetConstruct>,
     window_seconds: f64,
 ) -> (Vec<usize>, String, Vec<(String, f64, f64)>) {
-    use bunsen::kits::speech::{
-        asr_driver::{
+    use bunsen::kits::speech::asr::{
+        driver::{
             EmissionPolicy,
             LevelPolicy,
             StreamClock,

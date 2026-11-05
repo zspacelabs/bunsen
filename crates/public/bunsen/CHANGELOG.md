@@ -109,7 +109,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(lstm)* remove ExtLstmState and related utilities, pending upstream adoption ([#297](https://github.com/zspacelabs/bunsen/pull/297))
 - *(asr_driver)* Whisper's streaming log-mels are asr_driver::LogMelFeatures ([#277](https://github.com/zspacelabs/bunsen/pull/277))
 - *(whisper)* [**breaking**] the Whisper stream driver runs on the asr_driver core ([#276](https://github.com/zspacelabs/bunsen/pull/276))
-- *(speech)* [**breaking**] lift the model-independent driver parts into kits::speech::asr_driver ([#272](https://github.com/zspacelabs/bunsen/pull/272))
+- *(speech)* [**breaking**] lift the model-independent driver parts into kits::speech::asr::driver ([#272](https://github.com/zspacelabs/bunsen/pull/272))
 - *(qwen3-asr)* the audio encoder's convolution stem is a ConvSeq2d ([#270](https://github.com/zspacelabs/bunsen/pull/270))
 - *(silero-vad)* [**breaking**] ship no Silero weights; upstream's safetensors is the model ([#265](https://github.com/zspacelabs/bunsen/pull/265))
 - *(fetch)* one fetch implementation for the cache and the build scripts ([#263](https://github.com/zspacelabs/bunsen/pull/263))

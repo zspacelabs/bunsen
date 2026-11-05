@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use bunsen::{
     kits::{
         language::qwen3::Qwen3Meta,
-        speech::qwen3_asr::{
+        speech::asr::qwen3_asr::{
             QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
             Qwen3AsrConstruct,
             Qwen3AsrFrontEndMeta,

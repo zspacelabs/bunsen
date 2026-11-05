@@ -85,7 +85,7 @@ pub fn cache_dir() -> &'static std::path::Path {
 ///
 /// Nothing here loads a model; that needs bunsen's Whisper kit, which depends
 /// on this crate rather than the other way round. Reach for
-/// `bunsen::kits::speech::whisper::pretrained::default_whisper_factory()`
+/// `bunsen::kits::speech::asr::whisper::pretrained::default_whisper_factory()`
 /// and its `load("openai/base", …)`, with a cache rooted at [`cache_dir`].
 ///
 /// # Panics
@@ -116,7 +116,7 @@ pub fn base_safetensors() -> &'static std::path::Path {
 /// multilingual Whisper checkpoint, `base_pt()` included.
 ///
 /// A `tiktoken` rank file — one `<base64 bytes> <rank>` per line, 50257 of
-/// them. bunsen's `kits::speech::whisper::TiktokenRanks` parses it; its
+/// them. bunsen's `kits::speech::asr::whisper::TiktokenRanks` parses it; its
 /// last line, `= 50256`, is a genuinely empty token that a strict base64
 /// reader rejects, which is why that parser exists.
 ///

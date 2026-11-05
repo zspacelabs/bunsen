@@ -6,7 +6,7 @@
 
 use bunsen::{
     burner::module::DTypeMapper,
-    kits::speech::whisper::{
+    kits::speech::asr::whisper::{
         WhisperMeta,
         blocks::Whisper,
     },

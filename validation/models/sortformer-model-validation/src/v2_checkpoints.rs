@@ -10,18 +10,18 @@ use bunsen::{
         ToStructureConfig,
     },
     kits::speech::{
-        nemo::{
-            FeatureNormalization,
-            NEMO_WEIGHTS_MEMBER,
-            NemoArchive,
-            read_nemo_weights,
-        },
-        sortformer::{
+        diarization::sortformer::{
             NemoSortformerConfig,
             Sortformer,
             SortformerV2Config,
             pretrained::CHECKPOINT,
             weights::load_sortformer_v2_nemo_tensors,
+        },
+        nemo::{
+            FeatureNormalization,
+            NEMO_WEIGHTS_MEMBER,
+            NemoArchive,
+            read_nemo_weights,
         },
     },
     support::testing::cpu_device,

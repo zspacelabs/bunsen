@@ -36,8 +36,7 @@ use bunsen::{
     },
     kits::{
         speech::{
-            testing::wer::text_error_rate,
-            whisper::{
+            asr::whisper::{
                 Whisper,
                 WhisperMeta,
                 blocks::WhisperFrontEndConfig,
@@ -47,6 +46,7 @@ use bunsen::{
                 },
                 pretrained::WhisperVocabulary,
             },
+            testing::wer::text_error_rate,
         },
         support::tokens::{
             Detokenizer,

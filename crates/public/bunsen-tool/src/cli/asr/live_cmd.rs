@@ -5,7 +5,7 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::speech::asr_driver::{
+    kits::speech::asr::driver::{
         TranscriptEvent,
         TranscriptSegment,
     },

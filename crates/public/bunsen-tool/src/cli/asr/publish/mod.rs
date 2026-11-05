@@ -14,7 +14,7 @@ use std::time::{
 
 use bunsen::{
     errors::BunsenResult,
-    kits::speech::asr_driver::{
+    kits::speech::asr::driver::{
         SpeakerLabel,
         TranscriptSegment,
     },

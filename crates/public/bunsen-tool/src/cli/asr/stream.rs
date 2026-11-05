@@ -8,7 +8,7 @@ use bunsen::{
         BunsenResult,
     },
     kits::speech::{
-        asr_driver::{
+        asr::driver::{
             AsrEngine,
             AsrStreamContext,
             AsrStreamDriver,
@@ -21,7 +21,7 @@ use bunsen::{
             TranscriptSegment,
         },
         diarization::SpeakerActivityModel,
-        silero_vad::pretrained::default_silero_factory,
+        vad::silero_vad::pretrained::default_silero_factory,
     },
 };
 use burn::tensor::Device;

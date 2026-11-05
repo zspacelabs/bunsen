@@ -1,7 +1,7 @@
 # The voxtral kit's pretrained catalog source: `cargo validate catalog` builds it into
-# `crates/public/bunsen/src/kits/speech/voxtral/pretrained/catalog.json`.
+# `crates/public/bunsen/src/kits/speech/asr/voxtral/pretrained/catalog.json`.
 kit: voxtral
-out: crates/public/bunsen/src/kits/speech/voxtral/pretrained/catalog.json
+out: crates/public/bunsen/src/kits/speech/asr/voxtral/pretrained/catalog.json
 name: "well-known"
 description: "the Voxtral Realtime checkpoints bunsen knows by name"
 groups:

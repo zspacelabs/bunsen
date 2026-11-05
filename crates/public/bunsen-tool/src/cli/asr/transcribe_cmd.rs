@@ -16,7 +16,7 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::speech::asr_driver::TranscriptSegment,
+    kits::speech::asr::driver::TranscriptSegment,
     support::audio::load_audio_mono_sr,
 };
 use bunsen_app::{
@@ -354,7 +354,7 @@ pub fn millis(seconds: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::kits::speech::asr_driver::SpeakerLabel;
+    use bunsen::kits::speech::asr::driver::SpeakerLabel;
 
     use super::*;
 

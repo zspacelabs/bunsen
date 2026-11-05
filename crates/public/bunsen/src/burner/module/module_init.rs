@@ -333,15 +333,15 @@ use crate::errors::{
 /// [`CausalSelfAttentionConfig::init`]: crate::blocks::transformers::attention::csa::CausalSelfAttentionConfig::init
 /// [`CausalDecoderBlockConfig::init`]: crate::blocks::transformers::decoders::causal::CausalDecoderBlockConfig::init
 /// [`KVCacheConfig::init`]: crate::ops::transformers::attention::KVCacheConfig::init
-/// [`SileroVadContextConfig::init`]: crate::kits::speech::silero_vad::blocks::SileroVadContextConfig::init
+/// [`SileroVadContextConfig::init`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::sims::lbm::d2q9::LBMD2Q9Config::init
 /// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig
 /// [`ResNetStructureConfig`]: crate::kits::images::resnet::ResNetStructureConfig
 /// [`ResNet`]: crate::kits::images::resnet::ResNet
-/// [`SileroVadSignalConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig
-/// [`SileroVadStftConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStftConfig
-/// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
-/// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
+/// [`SileroVadSignalConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig
+/// [`SileroVadStftConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig
+/// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig
+/// [`to_stft`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig::to_stft
 /// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
 /// [style-module-design]: https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design
 pub trait ModuleInit<M: Module> {

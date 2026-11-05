@@ -6,7 +6,7 @@ use serde::{
     Serialize,
 };
 
-use crate::kits::speech::asr_driver::{
+use crate::kits::speech::asr::driver::{
     VoiceActivityModel,
     VoiceActivityStream,
 };

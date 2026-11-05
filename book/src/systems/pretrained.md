@@ -14,9 +14,9 @@ The kits show three sizes of the same machinery.
 [`default_resnet_factory`](bunsen::kits::images::resnet::pretrained::default_resnet_factory)
 is the simple case: one compiled-in table of `torchvision` and `timm`
 checkpoints.
-[`default_whisper_factory`](bunsen::kits::speech::whisper::pretrained::default_whisper_factory)
+[`default_whisper_factory`](bunsen::kits::speech::asr::whisper::pretrained::default_whisper_factory)
 is the full one: a compiled-in table, and Hugging Face repos.
-[`default_silero_factory`](bunsen::kits::speech::silero_vad::pretrained::default_silero_factory)
+[`default_silero_factory`](bunsen::kits::speech::vad::silero_vad::pretrained::default_silero_factory)
 is the smallest: one compiled-in row, upstream's 16 kHz checkpoint.
 
 ## The pathway

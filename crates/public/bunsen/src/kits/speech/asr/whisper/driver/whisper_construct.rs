@@ -1,0 +1,293 @@
+//! # The Whisper construct
+
+use std::{
+    fmt,
+    sync::Arc,
+};
+
+use crate::{
+    data::pretrained::PresetSelection,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+        Rule,
+    },
+    kits::{
+        speech::asr::whisper::{
+            Whisper,
+            WhisperMeta,
+            blocks::{
+                AudioEncoderMeta,
+                TextDecoderMeta,
+            },
+            driver::{
+                WhisperPolicy,
+                WhisperTokenLayout,
+            },
+        },
+        support::{
+            decoding::LogitFilter,
+            tokens::TiktokenRanks,
+        },
+    },
+};
+
+/// A loaded Whisper model with its token layout and, when it has one, its
+/// vocabulary.
+///
+/// What a Whisper pretrained builds
+/// ([`WhisperConstructConfig`](crate::kits::speech::asr::whisper::pretrained::WhisperConstructConfig)'s
+/// `Built`, through `load_construct` on the factory), and what the driver
+/// holds behind an `Arc`: the model, its token layout, and, when the
+/// pretrained has one, the base vocabulary a decode needs for text and for
+/// upstream's default suppress list.
+/// [`WhisperStreamDriverConfig::init_from_construct`](super::WhisperStreamDriverConfig::init_from_construct)
+/// builds a driver over one; several drivers over one loaded model share
+/// the `Arc`.
+///
+/// A construct without a vocabulary is ids only, which is still a complete
+/// result: the layout needs no file, and a driver over it emits ids and
+/// applies no suppress list.
+#[derive(Debug)]
+pub struct WhisperConstruct {
+    /// The model.
+    pub model: Whisper,
+
+    /// The token layout the model's vocabulary follows.
+    pub layout: WhisperTokenLayout,
+
+    /// The base vocabulary, when the construct has one. `None` is ids only: no
+    /// text, and no default suppress list.
+    pub ranks: Option<TiktokenRanks>,
+
+    /// How it decodes: what its presets resolved to; the default until
+    /// [`with_policy`](Self::with_policy). A driver takes it with
+    /// [`WhisperStreamDriverConfig::with_policy`](super::WhisperStreamDriverConfig::with_policy).
+    pub policy: WhisperPolicy,
+
+    /// The presets applied, and the lookup's patch.
+    pub presets: PresetSelection,
+}
+
+impl WhisperConstruct {
+    /// A construct over a model with an explicit token layout, and no
+    /// vocabulary.
+    pub fn new(
+        model: Whisper,
+        layout: WhisperTokenLayout,
+    ) -> Self {
+        Self {
+            model,
+            layout,
+            ranks: None,
+            policy: WhisperPolicy::default(),
+            presets: PresetSelection::default(),
+        }
+    }
+
+    /// Sets the decode policy, and the presets that resolved it.
+    pub fn with_policy(
+        mut self,
+        policy: WhisperPolicy,
+        presets: PresetSelection,
+    ) -> Self {
+        self.policy = policy;
+        self.presets = presets;
+        self
+    }
+
+    /// A construct over a model, deriving the token layout from the model's
+    /// vocabulary size, and no vocabulary.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the vocabulary size is not a Whisper
+    /// layout. A caller that loaded the model from a checkpoint re-marks it.
+    pub fn from_model(model: Whisper) -> BunsenResult<Self> {
+        let layout = model.token_layout().policy_for_vocab(model.vocab_size())?;
+        Ok(Self::new(model, layout))
+    }
+
+    /// Attaches the base vocabulary.
+    pub fn with_ranks(
+        mut self,
+        ranks: TiktokenRanks,
+    ) -> Self {
+        self.ranks = Some(ranks);
+        self
+    }
+
+    /// Checks the parts agree: every id of the layout is inside the
+    /// model's vocabulary, and the vocabulary, if there is one, has the
+    /// layout's base ranks.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause naming the disagreement. A caller that
+    /// loaded the parts from a checkpoint re-marks it.
+    pub fn validate(&self) -> BunsenResult<()> {
+        let ids = self.layout.ids();
+        if ids.n_vocab() > self.model.vocab_size() {
+            return Err(ConstraintError::new(
+                "WhisperConstruct",
+                "",
+                Rule::Relation {
+                    lhs: ("layout.ids().n_vocab()".into(), ids.n_vocab().to_string()),
+                    op: "<=",
+                    rhs: (
+                        "model.vocab_size()".into(),
+                        self.model.vocab_size().to_string(),
+                    ),
+                },
+            )
+            .into());
+        }
+        if let Some(ranks) = &self.ranks {
+            self.layout.token_spans(ranks)?;
+        }
+        Ok(())
+    }
+
+    /// Upstream's default logit filters over the vocabulary: the blank and
+    /// the non-speech suppress list. None without a vocabulary.
+    pub fn default_filters(&self) -> Vec<Arc<dyn LogitFilter>> {
+        match &self.ranks {
+            Some(ranks) => self.layout.ids().default_filters(ranks),
+            None => Vec::new(),
+        }
+    }
+
+    /// A detokenizer over the vocabulary, if there is one.
+    ///
+    /// # Errors
+    /// As [`WhisperTokenLayout::detokenizer`].
+    #[cfg(feature = "tokenizer")]
+    pub fn detokenizer(
+        &self
+    ) -> BunsenResult<Option<crate::kits::support::tokens::WordchipperDetokenizer<u16>>> {
+        self.ranks
+            .as_ref()
+            .map(|ranks| self.layout.detokenizer(ranks))
+            .transpose()
+    }
+}
+
+impl fmt::Display for WhisperConstruct {
+    /// One line of what was loaded: `80 mels, vocabulary 51865, d_model
+    /// 512, 6 + 6 layers, 50257 ranks`, or `ids only` in place of the
+    /// ranks for a construct without a vocabulary.
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} mels, vocabulary {}, d_model {}, {} + {} layers",
+            self.model.n_mels(),
+            self.model.vocab_size(),
+            self.model.d_model(),
+            self.model.encoder().n_layers(),
+            self.model.decoder().n_layers(),
+        )?;
+        match &self.ranks {
+            Some(ranks) => write!(f, ", {} ranks", ranks.len()),
+            None => f.write_str(", ids only"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        burner::module::ModuleInit,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        kits::speech::asr::whisper::{
+            WhisperGeometry,
+            blocks::WhisperTokenLayoutConfig,
+        },
+        support::testing::cpu_device,
+    };
+
+    /// A model with a 64-id vocabulary, which is not a Whisper layout.
+    fn tiny_model() -> Whisper {
+        WhisperGeometry::openai(8, 64, 64, 1, 1)
+            .to_api_config()
+            .try_init(&cpu_device())
+            .unwrap()
+    }
+
+    /// A layout that fits 64 ids: two base ranks, one language, one
+    /// timestamp.
+    fn tiny_layout() -> WhisperTokenLayout {
+        WhisperTokenLayoutConfig::new()
+            .with_languages(vec!["en".to_string()])
+            .with_timestamp_tokens(1)
+            .policy(2, 1)
+            .unwrap()
+    }
+
+    /// Without a vocabulary the construct is ids only: no filters, no text.
+    #[test]
+    fn test_ids_only() {
+        let bundle = WhisperConstruct::new(tiny_model(), tiny_layout());
+        let shown = bundle.to_string();
+        assert!(shown.contains(" mels, vocabulary "), "{shown}");
+        assert!(shown.ends_with(" layers, ids only"), "{shown}");
+        bundle.validate().unwrap();
+        assert!(bundle.ranks.is_none());
+        assert!(bundle.default_filters().is_empty());
+        #[cfg(feature = "tokenizer")]
+        assert!(bundle.detokenizer().unwrap().is_none());
+    }
+
+    /// A vocabulary with the layout's base ranks gives filters and text; one
+    /// with another count is refused.
+    #[test]
+    fn test_with_a_vocabulary() {
+        let ranks = TiktokenRanks::parse("IA== 0\nb2s= 1\n").unwrap();
+        let bundle = WhisperConstruct::new(tiny_model(), tiny_layout()).with_ranks(ranks);
+        assert!(bundle.to_string().ends_with(" ranks"), "{bundle}");
+        bundle.validate().unwrap();
+        assert!(!bundle.default_filters().is_empty());
+        #[cfg(feature = "tokenizer")]
+        {
+            use crate::kits::support::tokens::Detokenizer;
+            assert_eq!(
+                bundle
+                    .detokenizer()
+                    .unwrap()
+                    .unwrap()
+                    .detokenize(&[1])
+                    .unwrap(),
+                "ok"
+            );
+        }
+
+        let short = WhisperConstruct::new(tiny_model(), tiny_layout())
+            .with_ranks(TiktokenRanks::parse("IA== 0\n").unwrap());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&short.validate());
+    }
+
+    /// A layout with more ids than the model has is refused, and a model
+    /// whose vocabulary is not a Whisper size cannot derive one.
+    #[test]
+    fn test_layout_must_fit_the_model() {
+        let too_big = WhisperConstruct::new(
+            tiny_model(),
+            WhisperTokenLayout::from_vocab_size(51865).unwrap(),
+        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .message_contains("51865")
+            .assert_err(&too_big.validate());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&WhisperConstruct::from_model(tiny_model()));
+    }
+}

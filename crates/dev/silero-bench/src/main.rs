@@ -10,7 +10,7 @@ use bunsen::{
         ParseError,
         sys_at,
     },
-    kits::speech::silero_vad::{
+    kits::speech::vad::silero_vad::{
         SileroVad,
         SileroVadContextConfig,
         SileroVadMeta,

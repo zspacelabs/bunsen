@@ -5,7 +5,7 @@ use std::{
 };
 
 use bunsen::kits::speech::{
-    asr_driver::SpeakerLabel,
+    asr::driver::SpeakerLabel,
     diarization::RttmSegment,
 };
 use serde::Serialize;

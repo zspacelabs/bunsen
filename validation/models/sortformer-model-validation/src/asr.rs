@@ -11,32 +11,34 @@ use std::sync::Arc;
 
 use bunsen::{
     kits::speech::{
-        asr_driver::{
-            AsrEngine,
-            AsrStreamDriver,
-            EmissionPolicy,
-            LevelPolicy,
-            MeanActivity,
-            StreamClock,
-            TranscriptEvent,
-        },
-        parakeet::{
-            ParakeetEngine,
-            ParakeetStreamDriver,
-            pretrained::default_parakeet_factory,
-        },
-        qwen3_asr::{
-            Qwen3AsrEngine,
-            Qwen3AsrStreamDriver,
-            pretrained::default_qwen3_asr_factory,
+        asr::{
+            driver::{
+                AsrEngine,
+                AsrStreamDriver,
+                EmissionPolicy,
+                LevelPolicy,
+                MeanActivity,
+                StreamClock,
+                TranscriptEvent,
+            },
+            parakeet::{
+                ParakeetEngine,
+                ParakeetStreamDriver,
+                pretrained::default_parakeet_factory,
+            },
+            qwen3_asr::{
+                Qwen3AsrEngine,
+                Qwen3AsrStreamDriver,
+                pretrained::default_qwen3_asr_factory,
+            },
+            whisper::{
+                driver::WhisperStreamDriverConfig,
+                pretrained::default_whisper_factory,
+            },
         },
         testing::wer::{
             cp_word_error_rate,
             text_error_rate,
-        },
-        whisper::{
-            driver::WhisperStreamDriverConfig,
-            pretrained::default_whisper_factory,
         },
     },
     support::{

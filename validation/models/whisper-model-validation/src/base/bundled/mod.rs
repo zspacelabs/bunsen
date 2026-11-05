@@ -17,7 +17,7 @@ use bunsen::{
         },
     },
     kits::{
-        speech::whisper::{
+        speech::asr::whisper::{
             driver::WhisperSpecialIds,
             pretrained::{
                 CHECKPOINT,

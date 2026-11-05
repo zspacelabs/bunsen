@@ -2,7 +2,7 @@
 //! decodes: the published `tekken.json`, no model.
 
 use bunsen::kits::{
-    speech::voxtral::{
+    speech::asr::voxtral::{
         VoxtralTokenLayoutConfig,
         VoxtralTranscript,
     },
@@ -15,7 +15,7 @@ use super::*;
 fn tekken_json() -> String {
     use bunsen::{
         data::pretrained::ResourceBundle,
-        kits::speech::voxtral::pretrained::{
+        kits::speech::asr::voxtral::pretrained::{
             DEFAULT_VOXTRAL_MODEL,
             VOCABULARY,
             VOXTRAL_KIT,

@@ -142,17 +142,17 @@ The crate's Stacked families show the variations:
   bottleneck), and the enum, not its callers, dispatches each method to the
   variant it holds.
 - **Silero VAD** has two chained policies.
-  [`SileroVadSignalConfig`](bunsen::kits::speech::silero_vad::blocks::SileroVadSignalConfig)
+  [`SileroVadSignalConfig`](bunsen::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig)
   refines into
-  [`SileroVadStftConfig`](bunsen::kits::speech::silero_vad::blocks::SileroVadStftConfig)
+  [`SileroVadStftConfig`](bunsen::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig)
   through an inherent
-  [`to_stft`](bunsen::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft),
+  [`to_stft`](bunsen::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig::to_stft),
   and both lower straight to
-  [`SileroVadStructureConfig`](bunsen::kits::speech::silero_vad::blocks::SileroVadStructureConfig).
+  [`SileroVadStructureConfig`](bunsen::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig).
 - **Whisper** has
-  [`WhisperApiConfig`](bunsen::kits::speech::whisper::blocks::WhisperApiConfig)
+  [`WhisperApiConfig`](bunsen::kits::speech::asr::whisper::blocks::WhisperApiConfig)
   over
-  [`WhisperStructureConfig`](bunsen::kits::speech::whisper::blocks::WhisperStructureConfig).
+  [`WhisperStructureConfig`](bunsen::kits::speech::asr::whisper::blocks::WhisperStructureConfig).
 - **The decoder stack** has two policies over one structure.
   [`UniformStackConfig`](bunsen::blocks::transformers::decoders::stack::UniformStackConfig)
   repeats one layer config, and

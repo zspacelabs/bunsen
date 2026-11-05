@@ -1,0 +1,136 @@
+//! # Silero VAD
+//!
+//! The Silero voice-activity detector as a burn module: a small recurrent
+//! model that gives, for each chunk of audio (512 samples at 16 kHz, 256
+//! at 8 kHz), the probability that it holds speech, carrying its state
+//! from one chunk to the next.
+//!
+//! - [`blocks`]: the model, [`SileroVad`], for one sample rate; the two-rate
+//!   [`SileroVadCollection`] a checkpoint holds; and the [`SileroVadContext`]
+//!   that carries what a stream needs between chunks (the tail of the last
+//!   chunk and the recurrent state). The model holds no stream state, so one
+//!   loaded model serves any number of streams, a context each.
+//! - [`pretrained`] (features `store` and `cache`, both default): how the
+//!   weights arrive.
+//!   [`default_silero_factory`](pretrained::default_silero_factory) is the
+//!   index: one row, `silero/vad-16k`, upstream's 16 kHz safetensors, fetched
+//!   into the cache on first use. The loaders in [`pretrained::load`] read a
+//!   file with no cache at all, for a binary that wants nothing else.
+//!
+//! The ONNX reference this was transliterated from, and the cross-checks
+//! against it, live in the `silero-model-validation` crate. There is
+//! *some* bug in the burn CUDA backend, which we see by model divergence
+//! from the golden tests on that backend alone.
+//!
+//! # Example
+//!
+//! The default pathway, over any backend: a cache, the factory, the
+//! collection by name, the branch for the stream's rate (16 kHz), and a
+//! context fed chunk by chunk.
+//!
+//! ```rust,no_run
+//! # #[cfg(all(feature = "store_safetensors", feature = "cache"))] {
+//! use std::sync::Arc;
+//!
+//! use bunsen::{
+//!     data::pretrained::{
+//!         PretrainedCache,
+//!         PretrainedCacheOptions,
+//!     },
+//!     errors::BunsenResult,
+//!     kits::speech::vad::silero_vad::{
+//!         SileroConstruct,
+//!         SileroVad,
+//!         SileroVadContextConfig,
+//!         SileroVadMeta,
+//!         pretrained::default_silero_factory,
+//!     },
+//! };
+//! use burn::tensor::{
+//!     Device,
+//!     ElementConversion,
+//!     Tensor,
+//! };
+//!
+//! /// Upstream's 16 kHz model on `device`: from the cache, or fetched into
+//! /// it on first use.
+//! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroConstruct>> {
+//!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+//!     Ok(default_silero_factory()?
+//!         .load(
+//!             "silero/vad-16k",
+//!             &cache,
+//!             device,
+//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         )?
+//!         .handle)
+//! }
+//!
+//! /// One stream through one branch: mono samples at the branch's rate,
+//! /// a chunk at a time, each answered with the probability it holds
+//! /// speech.
+//! fn speech_probabilities(
+//!     vad: &SileroVad,
+//!     samples: &[f32],
+//!     device: &Device,
+//! ) -> Vec<f32> {
+//!     // One stream at the branch's rate, and the tail the model looks back
+//!     // over: 64 samples at 16 kHz, 32 at 8 kHz.
+//!     let mut ctx =
+//!         SileroVadContextConfig::new(vad.sample_rate()).init(vad, device);
+//!     let mut probabilities = Vec::new();
+//!     for chunk in samples.chunks_exact(vad.chunk_size()) {
+//!         let chunk: Tensor<2> =
+//!             Tensor::<1>::from_floats(chunk, device).unsqueeze();
+//!         let (probability, next) = vad.context_forward(chunk, ctx);
+//!         ctx = next;
+//!         probabilities.push(probability.into_scalar::<f32>());
+//!     }
+//!     probabilities
+//! }
+//!
+//! fn run(
+//!     device: &Device,
+//!     samples: &[f32],
+//! ) -> BunsenResult<()> {
+//!     let vad = load_vad(device)?;
+//!     let branch = vad.expect_branch(16000);
+//!     for (i, p) in speech_probabilities(branch, samples, device)
+//!         .iter()
+//!         .enumerate()
+//!     {
+//!         let at = i * branch.chunk_size();
+//!         println!("{at:>8}: {p:.3}");
+//!     }
+//!     Ok(())
+//! }
+//! # }
+//! ```
+//!
+//! A loaded pretrained is a [`SileroConstruct`]: the models, and the policy
+//! that turns their probabilities into speech regions, a
+//! [`VoiceActivityFilterConfig`](crate::kits::speech::asr::driver::VoiceActivityFilterConfig)
+//! ([`SileroConstruct::vad_filter`]). The policy comes from the row's
+//! presets: `silero/vad-16k` has a `vad-policy` axis, with `[silero]`
+//! (upstream's `get_speech_timestamps` defaults, the row's default) and
+//! `[faster-whisper]` (`faster-whisper`'s `VadOptions`), so
+//! `silero/vad-16k[faster-whisper]` loads the same weights under the other
+//! policy.
+//!
+//! The Whisper stream driver's real-time emission presets take the model
+//! the same way, attached with
+//! [`with_vad`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriver::with_vad):
+//! the 16 kHz branch, cloned out of the collection, and the construct's
+//! filter. The Whisper kit's
+//! [other ways in](crate::kits::speech::asr::whisper#other-ways-in) show it
+//! whole.
+
+#[cfg(all(feature = "store", feature = "cache"))]
+pub mod pretrained;
+
+pub mod blocks;
+mod construct;
+
+#[doc(inline)]
+pub use blocks::*;
+pub use construct::*;

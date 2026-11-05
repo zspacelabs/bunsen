@@ -20,7 +20,7 @@
 //! caches or streams in one process.
 //! [`KVCache`](transformers::attention::KVCache),
 //! [`SlidingStftContext`](signal::SlidingStftContext) and
-//! [`WhisperStreamContext`](crate::kits::speech::whisper::driver::WhisperStreamContext)
+//! [`WhisperStreamContext`](crate::kits::speech::asr::whisper::driver::WhisperStreamContext)
 //! are examples.
 //!
 //! In practice `ops` is mostly free functions plus small configuration

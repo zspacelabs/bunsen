@@ -6,7 +6,7 @@ use bunsen::{
         Provenance,
     },
     kits::{
-        speech::{
+        speech::asr::{
             whisper,
             whisper::{
                 blocks::WhisperTokenLayoutConfig,

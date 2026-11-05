@@ -32,7 +32,7 @@
 //! Whisper kit's logit filters use them. They live here beside the rank parser
 //! they read.
 //!
-//! [`WhisperTokenLayout`]: crate::kits::speech::whisper::driver::WhisperTokenLayout
+//! [`WhisperTokenLayout`]: crate::kits::speech::asr::whisper::driver::WhisperTokenLayout
 
 use std::fmt::Debug;
 

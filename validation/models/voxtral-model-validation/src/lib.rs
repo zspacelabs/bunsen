@@ -1,7 +1,7 @@
 //! # Voxtral Realtime cross-check against pretrained references.
 //!
-//! Validates [`bunsen`]'s Voxtral Realtime (`kits::speech::voxtral`) against
-//! an independent implementation, generated from
+//! Validates [`bunsen`]'s Voxtral Realtime (`kits::speech::asr::voxtral`)
+//! against an independent implementation, generated from
 //! `onnx-community/Voxtral-Mini-4B-Realtime-2602-ONNX` (an export of
 //! `mistralai/Voxtral-Mini-4B-Realtime-2602`) by `burn_onnx::ModelGen`, and
 //! against `transformers`' own greedy decodes of real speech.
@@ -283,8 +283,8 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 /// The published model, through bunsen's factory and [`weights_cache`].
 pub fn load_construct(
     device: &Device
-) -> std::sync::Arc<bunsen::kits::speech::voxtral::VoxtralConstruct> {
-    use bunsen::kits::speech::voxtral::pretrained::{
+) -> std::sync::Arc<bunsen::kits::speech::asr::voxtral::VoxtralConstruct> {
+    use bunsen::kits::speech::asr::voxtral::pretrained::{
         DEFAULT_VOXTRAL_MODEL,
         default_voxtral_factory,
     };

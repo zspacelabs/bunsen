@@ -7,7 +7,7 @@ use bunsen::{
         Fuse,
         Provenance,
     },
-    kits::speech::whisper::pretrained::{
+    kits::speech::asr::whisper::pretrained::{
         CHECKPOINT,
         PYTORCH_FP16,
         TIKTOKEN,
