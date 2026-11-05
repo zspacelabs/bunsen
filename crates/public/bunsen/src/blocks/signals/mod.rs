@@ -13,8 +13,8 @@
 //!   frame's channels then split into `factor` frames, a learned upsampling
 //!   (sub-pixel convolution, Shi et al. 2016).
 //!
-//! And [`Subsampling`], an encoder's front end chosen by config, over the
-//! two downsamplings: what a
+//! And [`EncoderSubsampling`], an encoder's front end chosen by config, over
+//! the two downsamplings: what a
 //! [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder)
 //! runs before its stack. Each keeps the input layout its upstream used.
 //!

@@ -9,9 +9,9 @@ use crate::{
     blocks::{
         rnn::lstm::FusedLstm,
         signals::{
+            DwStridingFlattenOrder,
             DwStridingSubsamplingConfig,
             DwStridingSubsamplingMeta,
-            FlattenOrder,
         },
         transformers::encoders::conformer::{
             ConformerBlockConfig,
@@ -38,7 +38,7 @@ use crate::{
 /// `striding` flattens otherwise than `transformers` does (channels outer).
 pub fn subsampling_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     striding.reflatten_from(
-        FlattenOrder::ChannelsFreqs,
+        DwStridingFlattenOrder::ChannelsFreqs,
         striding.sequential_rekey("layers."),
     )
 }

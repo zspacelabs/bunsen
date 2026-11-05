@@ -8,15 +8,15 @@ use burn::{
 
 use crate::{
     blocks::transformers::decoders::stack::{
-        DecoderCache,
         DecoderStack,
+        DecoderStackCache,
     },
     kits::support::decoding::CachedStep,
     ops::transformers::attention::KVCacheStorage,
 };
 
 /// A language model that is an embedding, a [`DecoderStack`] and a head:
-/// what decodes through a [`DecoderCache`], with no state of its own.
+/// what decodes through a [`DecoderStackCache`], with no state of its own.
 ///
 /// A model gives the three pieces; the decode is the trait's:
 /// [`decode_state`](Self::decode_state), [`prefill`](Self::prefill), and
@@ -46,7 +46,7 @@ pub trait StackedLm {
         positions: usize,
         storage: KVCacheStorage,
         device: &Device,
-    ) -> DecoderCache {
+    ) -> DecoderStackCache {
         self.stack().decode_cache(rows, positions, storage, device)
     }
 
@@ -61,7 +61,7 @@ pub trait StackedLm {
     fn prefill(
         &self,
         embeds: Tensor<3>,
-        state: &mut DecoderCache,
+        state: &mut DecoderStackCache,
     ) -> Tensor<2> {
         let hidden = self.stack().forward_cached(embeds, state);
         let [rows, seq, _] = hidden.dims();
@@ -72,19 +72,19 @@ pub trait StackedLm {
 }
 
 impl<M: StackedLm> CachedStep for M {
-    type State = DecoderCache;
+    type State = DecoderStackCache;
 
     fn step(
         &self,
         ids: Tensor<2, Int>,
-        state: &mut DecoderCache,
+        state: &mut DecoderStackCache,
     ) -> Tensor<2> {
         self.prefill(self.embed(ids), state)
     }
 
     fn reorder(
         &self,
-        state: &mut DecoderCache,
+        state: &mut DecoderStackCache,
         sources: &[usize],
     ) {
         state.reorder(sources);

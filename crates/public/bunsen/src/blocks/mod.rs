@@ -49,8 +49,8 @@
 //!   [`ops::signal`](crate::ops::signal)'s fixed front ends: the frame-rate
 //!   changes `FeatureStacking` (frames stacked and projected),
 //!   `DwStridingSubsampling` (the `FastConformer`'s strided convolutions) and
-//!   `SubpixelUpsample1d` (a sub-pixel convolution), and `Subsampling`, an
-//!   encoder front end chosen by config.
+//!   `SubpixelUpsample1d` (a sub-pixel convolution), and `EncoderSubsampling`,
+//!   an encoder front end chosen by config.
 //! - [`images`]: vision blocks.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
 //!     and the drop-path rate tables.
@@ -58,7 +58,7 @@
 //!     embedding.
 //!   - [`images::pool`]: `AvgPool2dSame`, average pooling with TensorFlow-style
 //!     "SAME" padding.
-//! - [`layout`]: `AxisOrder`, the axis permutes a block applies at its
+//! - [`layout`]: `BoundaryPermutes`, the axis permutes a block applies at its
 //!   boundary, so a caller's activation layout and the block's need not agree.
 //! - [`math`]: math operations as modules: `PowOpModule`, `x^p`, the activation
 //!   seam's `Pow` kind.
@@ -71,8 +71,8 @@
 //!     encoders' bidirectional attentions, relative-position and rotary.
 //!   - [`transformers::embedding`]: `RotaryEmbedding`, and fixture embeddings
 //!     for tests.
-//!   - [`transformers::mlp`]: `Mlp` and `GatedMlp`, the transformer
-//!     feed-forward blocks.
+//!   - [`transformers::mlp`]: `TransformerMlp` and `TransformerGatedMlp`, the
+//!     transformer feed-forward blocks.
 //!   - [`transformers::encoders`]: bidirectional encoder layers and stacks: the
 //!     residual layer, the rotary encoder, and the `FastConformer` encoder with
 //!     its relative-position attention, convolution and feed-forward modules

@@ -41,9 +41,9 @@ use crate::{
                 stack::{
                     DecoderStack,
                     DecoderStackMeta,
+                    DecoderStackResidualMix,
+                    DecoderStackSides,
                     DecoderStackStructureConfig,
-                    ResidualMix,
-                    StackSides,
                 },
             },
             embedding::{
@@ -60,7 +60,7 @@ use crate::{
                 LmHeadConfig,
                 LmHeadMeta,
             },
-            mlp::MlpConfig,
+            mlp::TransformerMlpConfig,
         },
     },
     burner::module::{
@@ -386,7 +386,7 @@ impl NanoChatGptContractConfig {
                     self.qk_gain
                         .map(|g| g * g / (self.head_dim() as f64).sqrt()),
                 ),
-            MlpConfig::new(self.n_embed)
+            TransformerMlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
                 .with_activation(BunsenActivationConfig::Chain(vec![
                     self.activation.clone(),
@@ -773,13 +773,13 @@ impl NanoChatGpt {
             x = self.smear(x, prev, t0, gate, lambda);
         }
 
-        let sides = StackSides {
+        let sides = DecoderStackSides {
             value_embeds: self
                 .value_embeds
                 .iter()
                 .map(|ve| ve.as_ref().map(|ve| ve.forward(idx.clone())))
                 .collect(),
-            mix: ResidualMix {
+            mix: DecoderStackResidualMix {
                 resid_x0: self
                     .resid_lambdas
                     .as_ref()

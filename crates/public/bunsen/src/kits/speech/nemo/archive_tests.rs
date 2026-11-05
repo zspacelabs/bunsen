@@ -271,13 +271,13 @@ fn test_conformer_loads_in_either_flatten_order() {
     };
 
     use crate::{
-        blocks::signals::FlattenOrder,
+        blocks::signals::DwStridingFlattenOrder,
         data::pretrained::apply_rekeyed_tensors,
     };
 
     let device = cpu_device();
     let config: ToyConfig = toy().config().unwrap();
-    let load = |flatten: FlattenOrder| {
+    let load = |flatten: DwStridingFlattenOrder| {
         let mut conformer = config.encoder.conformer().unwrap();
         conformer.subsampling.flatten = flatten;
         let mut encoder: SubsampledEncoder = conformer.init(&device);
@@ -292,8 +292,8 @@ fn test_conformer_loads_in_either_flatten_order() {
         apply_rekeyed_tensors(&mut encoder, tensors, &rekey).unwrap();
         (conformer, encoder)
     };
-    let (conformer, upstream) = load(FlattenOrder::ChannelsFreqs);
-    let (_, flipped) = load(FlattenOrder::FreqsChannels);
+    let (conformer, upstream) = load(DwStridingFlattenOrder::ChannelsFreqs);
+    let (_, flipped) = load(DwStridingFlattenOrder::FreqsChannels);
 
     let mels = Tensor::<3>::random(
         [2, conformer.subsampling.n_mels, 40],

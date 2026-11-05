@@ -1,8 +1,8 @@
 //! `NeMo`'s state-dict names as bunsen's module paths.
 use crate::{
     blocks::signals::{
+        DwStridingFlattenOrder,
         DwStridingSubsamplingMeta,
-        FlattenOrder,
     },
     burner::module::Rekey,
 };
@@ -19,7 +19,7 @@ use crate::{
 pub fn conv_subsampling_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     let conv = striding.sequential_rekey("conv.");
     striding.reflatten_from(
-        FlattenOrder::ChannelsFreqs,
+        DwStridingFlattenOrder::ChannelsFreqs,
         Rekey::drop_rest()
             .custom(move |name| name.starts_with("conv.").then(|| conv.apply(name)))
             .rename("out.", "linear."),

@@ -17,7 +17,7 @@ use super::{
     },
 };
 use crate::{
-    blocks::transformers::decoders::stack::DecoderCache,
+    blocks::transformers::decoders::stack::DecoderStackCache,
     kits::support::decoding::{
         CachedStep,
         GreedySearch,
@@ -33,7 +33,7 @@ use crate::{
 #[derive(Module, Debug)]
 pub struct VoxtralDecodeState {
     /// The text model's stack cache; its position is the next step's.
-    pub cache: DecoderCache,
+    pub cache: DecoderStackCache,
 
     /// `[1, 1, d_text]`: the delay condition.
     pub cond: Tensor<3>,

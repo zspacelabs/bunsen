@@ -29,9 +29,9 @@ of the workspace, so it can't drift from the API:
 
 Three things to notice, each with its own chapter:
 
-- `MlpConfig::init` comes from
+- `TransformerMlpConfig::init` comes from
   [`ModuleInit`](bunsen::burner::module::ModuleInit), which
-  [`bunsen::prelude`] brings into scope, and the binding's type (`Mlp`)
+  [`bunsen::prelude`] brings into scope, and the binding's type (`TransformerMlp`)
   names the module it builds. See
   [Module design conventions](../systems/conventions.md).
 - [`unpack_shape_contract!`](bunsen::contracts#macros-and-methods) both

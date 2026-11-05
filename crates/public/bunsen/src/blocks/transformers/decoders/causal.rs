@@ -29,9 +29,9 @@ use crate::{
             },
             embedding::RotaryEmbedding,
             mlp::{
-                FeedForward,
-                FeedForwardConfig,
-                FeedForwardMeta,
+                TransformerFeedForward,
+                TransformerFeedForwardConfig,
+                TransformerFeedForwardMeta,
             },
         },
     },
@@ -80,7 +80,7 @@ pub struct CausalDecoderBlockConfig {
     pub attn: CausalSelfAttentionConfig,
 
     /// The feed-forward's config.
-    pub mlp: FeedForwardConfig,
+    pub mlp: TransformerFeedForwardConfig,
 
     /// The normalization before each sublayer, adapted to the width (its
     /// feature count is set at init).
@@ -176,13 +176,13 @@ impl CausalDecoderBlockConfig {
 /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
 ///
 /// What tells its users apart is config: the norm ([`BunsenNormalization`]),
-/// the feed-forward ([`FeedForward`]: an `Mlp` or a gated `SwiGLU`), and the
-/// attention's own options (grouped-query heads, QK-norm and where it sits).
-/// RMS norms, a `ReLU`² `Mlp` and QK-norm after the rotary embedding, it is
-/// nanochat's `Block`; RMS norms, a `SwiGLU` and QK-norm before it, Qwen3's
-/// decoder layer. With an [`AdaptiveScale`] on the feed-forward's input,
-/// `x = x + mlp(mlp_norm(x) * (1 + f(cond)))`, it is Voxtral Realtime's
-/// decoder layer.
+/// the feed-forward ([`TransformerFeedForward`]: an `TransformerMlp` or a gated
+/// `SwiGLU`), and the attention's own options (grouped-query heads, QK-norm and
+/// where it sits). RMS norms, a `ReLU`² `TransformerMlp` and QK-norm after the
+/// rotary embedding, it is nanochat's `Block`; RMS norms, a `SwiGLU` and
+/// QK-norm before it, Qwen3's decoder layer. With an [`AdaptiveScale`] on the
+/// feed-forward's input, `x = x + mlp(mlp_norm(x) * (1 + f(cond)))`, it is
+/// Voxtral Realtime's decoder layer.
 ///
 /// With [`post_norms`](CausalDecoderBlockConfig::post_norms), each sublayer's
 /// output is normalized before it is added:
@@ -206,7 +206,7 @@ pub struct CausalDecoderBlock {
     pub mlp_norm: BunsenNormalization,
 
     /// The feed-forward.
-    pub mlp: FeedForward,
+    pub mlp: TransformerFeedForward,
 
     /// The feed-forward's output normalization, if the block has post-norms.
     pub mlp_post_norm: Option<BunsenNormalization>,
@@ -417,7 +417,7 @@ mod tests {
     use crate::{
         blocks::transformers::{
             embedding::RotaryEmbeddingConfig,
-            mlp::MlpConfig,
+            mlp::TransformerMlpConfig,
         },
         contracts::assert_shape_contract,
         support::testing::{
@@ -440,14 +440,14 @@ mod tests {
 
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).into(),
+            TransformerMlpConfig::new(n_embed).into(),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
         assert_eq!(config.attn.n_head(), n_head);
         assert_eq!(config.attn.n_kv_head(), n_kv_head);
 
-        assert_eq!(FeedForwardMeta::n_embed(&config.mlp), n_embed);
+        assert_eq!(TransformerFeedForwardMeta::n_embed(&config.mlp), n_embed);
 
         let layer_index = 12;
         let block: CausalDecoderBlock = config.init(layer_index, &device);
@@ -471,7 +471,7 @@ mod tests {
 
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).into(),
+            TransformerMlpConfig::new(n_embed).into(),
         );
 
         let block: CausalDecoderBlock = config.init(layer_index, &device);
@@ -500,7 +500,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 32];
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed),
-            MlpConfig::new(n_embed).into(),
+            TransformerMlpConfig::new(n_embed).into(),
         );
         let mut block: CausalDecoderBlock = config.init(0, &device);
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
@@ -509,7 +509,7 @@ mod tests {
 
         // With the MLP's output projection zeroed, the block is
         // `x + attn(norm(x))`.
-        let FeedForward::Mlp(mlp) = &mut block.mlp else {
+        let TransformerFeedForward::Mlp(mlp) = &mut block.mlp else {
             panic!("an Mlp feed-forward");
         };
         mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
@@ -535,7 +535,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed),
-            crate::blocks::transformers::mlp::GatedMlpConfig::new(n_embed, 24).into(),
+            crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
         );
         assert!(config.init(0, &device).attn_post_norm.is_none());
         assert!(config.init(0, &device).mlp_post_norm.is_none());
@@ -604,7 +604,7 @@ mod tests {
     fn conditioned(n_embed: usize) -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed).with_norm(None),
-            crate::blocks::transformers::mlp::GatedMlpConfig::new(n_embed, 24).into(),
+            crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
         )
         .with_mlp_scale(Some(AdaptiveScaleConfig::new(n_embed, 4)))
     }

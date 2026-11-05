@@ -5,8 +5,8 @@ pub fn first_use() {
     // ANCHOR: first_use
     use bunsen::{
         blocks::transformers::mlp::{
-            Mlp,
-            MlpConfig,
+            TransformerMlp,
+            TransformerMlpConfig,
         },
         prelude::*,
         support::testing::cpu_device,
@@ -16,7 +16,7 @@ pub fn first_use() {
     let device = cpu_device();
 
     // `init` comes from `ModuleInit`; the binding's type names the module.
-    let mlp: Mlp = MlpConfig::new(16).init(&device);
+    let mlp: TransformerMlp = TransformerMlpConfig::new(16).init(&device);
 
     let x = Tensor::<3>::zeros([2, 5, 16], &device);
     let y = mlp.forward(x);

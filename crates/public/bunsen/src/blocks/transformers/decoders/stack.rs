@@ -440,7 +440,7 @@ impl DecoderStackMeta for DecoderStack {
 /// stack's input; and the residual after layer `backout.0`, scaled by
 /// `backout.1`, taken from the stream after the last layer.
 #[derive(Clone, Debug, Default)]
-pub struct ResidualMix {
+pub struct DecoderStackResidualMix {
     /// Per-layer `[n_layers]` scales of the stream and of the stack's input.
     pub resid_x0: Option<(Tensor<1>, Tensor<1>)>,
 
@@ -452,7 +452,7 @@ pub struct ResidualMix {
 /// What a [`DecoderStack`]'s [`forward_with`](DecoderStack::forward_with)
 /// takes beside its input; each is only for layers configured for it.
 #[derive(Debug, Default)]
-pub struct StackSides {
+pub struct DecoderStackSides {
     /// The condition every layer with an
     /// [`mlp_scale`](CausalDecoderBlock::mlp_scale) takes (Voxtral's delay):
     /// `[B, T, D]`, or one that broadcasts to it.
@@ -464,7 +464,7 @@ pub struct StackSides {
     pub value_embeds: Vec<Option<Tensor<3>>>,
 
     /// The residual-stream mix.
-    pub mix: ResidualMix,
+    pub mix: DecoderStackResidualMix,
 
     /// `[B, T]`, true at the positions that are not padding, which alone
     /// every layer's queries attend to (an encoder's padded batch).
@@ -478,7 +478,7 @@ pub struct StackSides {
 /// [`DecoderStack::forward_cached`]. The stack never owns one, so one loaded
 /// model serves any number of decodes.
 #[derive(Module, Debug)]
-pub struct DecoderCache {
+pub struct DecoderStackCache {
     /// The KV cache, one batch row per decode row.
     pub cache: KVCache,
 
@@ -486,7 +486,7 @@ pub struct DecoderCache {
     pub rotary: RotarySet,
 }
 
-impl DecoderCache {
+impl DecoderStackCache {
     /// Permutes the rows: row `r` becomes row `sources[r]` (beams
     /// branching).
     pub fn reorder(
@@ -507,8 +507,8 @@ impl DecoderStack {
         positions: usize,
         storage: KVCacheStorage,
         device: &Device,
-    ) -> DecoderCache {
-        DecoderCache {
+    ) -> DecoderStackCache {
+        DecoderStackCache {
             cache: self
                 .kv_cache_config(positions)
                 .with_batch_size(rows)
@@ -524,7 +524,7 @@ impl DecoderStack {
     pub fn forward_cached(
         &self,
         x: Tensor<3>,
-        cache: &mut DecoderCache,
+        cache: &mut DecoderStackCache,
     ) -> Tensor<3> {
         self.forward_hidden(x, &cache.rotary, Some(&mut cache.cache))
     }
@@ -573,7 +573,7 @@ impl DecoderStack {
         r_emb: &RotarySet,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        self.forward_with(x, r_emb, kv_cache, StackSides::default())
+        self.forward_with(x, r_emb, kv_cache, DecoderStackSides::default())
     }
 
     /// [`forward_hidden`](Self::forward_hidden), with `sides`: a condition
@@ -584,7 +584,7 @@ impl DecoderStack {
         x: Tensor<3>,
         r_emb: &RotarySet,
         mut kv_cache: Option<&mut KVCache>,
-        sides: StackSides,
+        sides: DecoderStackSides,
     ) -> Tensor<3> {
         let [batch, seq] = crate::contracts::unpack_shape_contract!(
             ["batch", "seq", "d_model"],
@@ -594,7 +594,7 @@ impl DecoderStack {
         );
         let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
         let r_emb = r_emb.clip_range(start..start + seq);
-        let StackSides {
+        let DecoderStackSides {
             cond,
             mut value_embeds,
             mix,
@@ -716,7 +716,7 @@ mod tests {
     use crate::{
         blocks::transformers::{
             attention::csa::CausalSelfAttentionConfig,
-            mlp::GatedMlpConfig,
+            mlp::TransformerGatedMlpConfig,
         },
         errors::{
             BunsenErrorKind,
@@ -735,7 +735,7 @@ mod tests {
             CausalSelfAttentionConfig::new(4, 2, 16)
                 .with_head_dim(Some(8))
                 .with_sliding_window(window),
-            GatedMlpConfig::new(16, 32).into(),
+            TransformerGatedMlpConfig::new(16, 32).into(),
         )
     }
 
@@ -895,7 +895,7 @@ mod tests {
         let mut mixed = uniform(2).to_structure();
         mixed.layers[1] = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, 24).with_head_dim(Some(8)),
-            GatedMlpConfig::new(24, 32).into(),
+            TransformerGatedMlpConfig::new(24, 32).into(),
         );
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("layers[1].n_embed")
@@ -985,7 +985,7 @@ mod tests {
         let tolerance = Tolerance::rel_abs(1e-4, 1e-5);
 
         assert_tensors_close(
-            &stack.forward_with(x.clone(), &r_emb, None, StackSides::default()),
+            &stack.forward_with(x.clone(), &r_emb, None, DecoderStackSides::default()),
             &stack.forward_hidden(x.clone(), &r_emb, None),
             tolerance,
         );
@@ -997,8 +997,8 @@ mod tests {
             x.clone(),
             &r_emb,
             None,
-            StackSides {
-                mix: ResidualMix {
+            DecoderStackSides {
+                mix: DecoderStackResidualMix {
                     resid_x0: Some((resid.clone(), x0_lambdas.clone())),
                     backout: Some((1, backout.clone())),
                 },
@@ -1033,7 +1033,7 @@ mod tests {
             x.clone(),
             &r_emb,
             None,
-            StackSides {
+            DecoderStackSides {
                 cond: Some(cond.clone()),
                 ..Default::default()
             },

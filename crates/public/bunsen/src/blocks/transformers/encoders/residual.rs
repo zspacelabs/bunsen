@@ -23,8 +23,8 @@ use crate::{
             BunsenNormalizationConfig,
         },
         transformers::mlp::{
-            Mlp,
-            MlpConfig,
+            TransformerMlp,
+            TransformerMlpConfig,
         },
     },
     burner::module::{
@@ -139,7 +139,7 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
         let attn = mha_cfg.init(device);
 
         // The MLP projections carry a bias: `Linear -> act -> Linear`.
-        let mlp: Mlp = MlpConfig::new(self.d_model)
+        let mlp: TransformerMlp = TransformerMlpConfig::new(self.d_model)
             .with_expansion_factor(self.expansion_factor)
             .with_activation(self.activation.clone())
             .with_bias(true)
@@ -179,7 +179,7 @@ pub struct ResidualEncoderAttentionBlock {
     pub mlp_norm: Option<BunsenNormalization>,
 
     /// MLP.
-    pub mlp: Mlp,
+    pub mlp: TransformerMlp,
 
     /// Where the block normalizes, when it does.
     #[module(skip)]

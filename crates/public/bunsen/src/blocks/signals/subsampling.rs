@@ -1,4 +1,4 @@
-//! `Subsampling`: an encoder front end, chosen by config.
+//! `EncoderSubsampling`: an encoder front end, chosen by config.
 use burn::{
     Tensor,
     config::Config,
@@ -19,8 +19,8 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// Common meta for [`Subsampling`] and [`SubsamplingConfig`].
-pub trait SubsamplingMeta {
+/// Common meta for [`EncoderSubsampling`] and [`EncoderSubsamplingConfig`].
+pub trait EncoderSubsamplingMeta {
     /// The features per input frame: the mel bins.
     fn n_input(&self) -> usize;
 
@@ -37,11 +37,11 @@ pub trait SubsamplingMeta {
     ) -> usize;
 }
 
-/// Config for [`Subsampling`]: which front end, and its config.
+/// Config for [`EncoderSubsampling`]: which front end, and its config.
 ///
-/// Implements [`SubsamplingMeta`].
+/// Implements [`EncoderSubsamplingMeta`].
 #[derive(Config, Debug)]
-pub enum SubsamplingConfig {
+pub enum EncoderSubsamplingConfig {
     /// [`FeatureStacking`]: frames stacked and projected.
     Stacking(FeatureStackingConfig),
 
@@ -49,7 +49,7 @@ pub enum SubsamplingConfig {
     DwStriding(DwStridingSubsamplingConfig),
 }
 
-impl SubsamplingMeta for SubsamplingConfig {
+impl EncoderSubsamplingMeta for EncoderSubsamplingConfig {
     fn n_input(&self) -> usize {
         match self {
             Self::Stacking(c) => c.d_input(),
@@ -82,14 +82,14 @@ impl SubsamplingMeta for SubsamplingConfig {
     }
 }
 
-impl ModuleInit<Subsampling> for SubsamplingConfig {
+impl ModuleInit<EncoderSubsampling> for EncoderSubsamplingConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<Subsampling> {
+    ) -> BunsenResult<EncoderSubsampling> {
         Ok(match self {
-            Self::Stacking(c) => Subsampling::Stacking(c.try_init(device)?),
-            Self::DwStriding(c) => Subsampling::DwStriding(c.try_init(device)?),
+            Self::Stacking(c) => EncoderSubsampling::Stacking(c.try_init(device)?),
+            Self::DwStriding(c) => EncoderSubsampling::DwStriding(c.try_init(device)?),
         })
     }
 }
@@ -102,14 +102,14 @@ impl ModuleInit<Subsampling> for SubsamplingConfig {
 /// layout its upstream did: [`FeatureStacking`] `[batch, time, n_input]`,
 /// [`DwStridingSubsampling`] `[batch, n_input, time]`. A
 /// [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder)'s
-/// [`AxisOrder`](crate::blocks::layout::AxisOrder) bridges a caller's layout
-/// to it.
+/// [`BoundaryPermutes`](crate::blocks::layout::BoundaryPermutes) bridges a
+/// caller's layout to it.
 ///
-/// Built by [`SubsamplingConfig`].
-/// Implements [`SubsamplingMeta`].
+/// Built by [`EncoderSubsamplingConfig`].
+/// Implements [`EncoderSubsamplingMeta`].
 #[derive(Module, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum Subsampling {
+pub enum EncoderSubsampling {
     /// [`FeatureStacking`].
     Stacking(FeatureStacking),
 
@@ -117,7 +117,7 @@ pub enum Subsampling {
     DwStriding(DwStridingSubsampling),
 }
 
-impl SubsamplingMeta for Subsampling {
+impl EncoderSubsamplingMeta for EncoderSubsampling {
     fn n_input(&self) -> usize {
         match self {
             Self::Stacking(m) => m.d_input(),
@@ -150,7 +150,7 @@ impl SubsamplingMeta for Subsampling {
     }
 }
 
-impl Subsampling {
+impl EncoderSubsampling {
     /// The depthwise striding, when that is the front end.
     pub fn dw_striding(&self) -> Option<&DwStridingSubsampling> {
         match self {

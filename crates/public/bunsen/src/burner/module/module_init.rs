@@ -27,15 +27,15 @@ use crate::errors::{
 /// ```
 /// # use bunsen::{
 /// #     blocks::transformers::mlp::{
-/// #         Mlp,
-/// #         MlpConfig,
+/// #         TransformerMlp,
+/// #         TransformerMlpConfig,
 /// #     },
 /// #     prelude::*,
 /// #     support::testing::cpu_device,
 /// # };
 /// # let device = cpu_device();
-/// # let config = MlpConfig::new(16);
-/// let mlp: Mlp = config.init(&device);
+/// # let config = TransformerMlpConfig::new(16);
+/// let mlp: TransformerMlp = config.init(&device);
 /// ```
 ///
 /// # Why it is fallible
@@ -72,8 +72,9 @@ use crate::errors::{
 ///
 /// One config builds the module: `FooConfig` builds `Foo`, and implements
 /// `ModuleInit` directly. In the crate,
-/// [`MlpConfig`](crate::blocks::transformers::mlp::MlpConfig) →
-/// [`Mlp`](crate::blocks::transformers::mlp::Mlp) has this shape.
+/// [`TransformerMlpConfig`](crate::blocks::transformers::mlp::TransformerMlpConfig) →
+/// [`TransformerMlp`](crate::blocks::transformers::mlp::TransformerMlp) has
+/// this shape.
 ///
 /// ```
 /// use bunsen::{

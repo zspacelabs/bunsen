@@ -42,7 +42,7 @@ use crate::{
                 LmHead,
                 LmHeadConfig,
             },
-            mlp::GatedMlpConfig,
+            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::ModuleInit,
@@ -219,7 +219,7 @@ impl Qwen3Config {
                     .with_norm(Some(norm(self.head_dim)))
                     .with_qk_norm(QkNormPlacement::BeforeRope)
                     .with_softmax_dtype(self.softmax_dtype),
-                GatedMlpConfig::new(self.d_model, self.d_ff).into(),
+                TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
             .with_norm(norm(0)),
             norm(0),

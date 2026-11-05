@@ -10,7 +10,7 @@ use crate::{
         signals::{
             DwStridingSubsamplingConfig,
             DwStridingSubsamplingMeta,
-            SubsamplingConfig,
+            EncoderSubsamplingConfig,
         },
         transformers::encoders::SubsampledEncoderConfig,
     },
@@ -88,7 +88,7 @@ impl ToStructureConfig for ConformerEncoderConfig {
 
     fn try_to_structure(&self) -> BunsenResult<SubsampledEncoderConfig> {
         Ok(SubsampledEncoderConfig::new(
-            SubsamplingConfig::DwStriding(self.subsampling.clone()),
+            EncoderSubsamplingConfig::DwStriding(self.subsampling.clone()),
             self.transformer().into(),
         ))
     }

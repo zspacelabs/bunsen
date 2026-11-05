@@ -11,8 +11,8 @@ use crate::{
         decoders::stack::{
             DecoderStack,
             DecoderStackMeta,
+            DecoderStackSides,
             DecoderStackStructureConfig,
-            StackSides,
         },
         encoders::{
             conformer::{
@@ -213,7 +213,7 @@ fn stack_forward(
         x,
         &stack.rotary(time, &device),
         None,
-        StackSides {
+        DecoderStackSides {
             key_valid,
             ..Default::default()
         },
@@ -247,7 +247,7 @@ pub(crate) fn test_rope_stack(
                 RotaryDirection,
                 RotaryEmbeddingConfig,
             },
-            mlp::MlpConfig,
+            mlp::TransformerMlpConfig,
         },
     };
     let norm = BunsenNormalizationConfig::Layer(LayerNormConfig::new(0));
@@ -259,7 +259,7 @@ pub(crate) fn test_rope_stack(
                     .with_norm(None)
                     .with_output_bias(true)
                     .with_mask(AttentionMask::Bidirectional),
-                MlpConfig::new(d_model)
+                TransformerMlpConfig::new(d_model)
                     .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),

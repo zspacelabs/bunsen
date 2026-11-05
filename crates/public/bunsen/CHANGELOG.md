@@ -17,7 +17,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(attention)* [**breaking**] `KVCacheModel`, a model hands out its own `KVCacheConfig` ([#364](https://github.com/zspacelabs/bunsen/pull/364))
 - *(blocks)* [**breaking**] `CausalDecoderBlock`, the generic decoder-only layer; NanoChat's and Qwen3's layers are one ([#358](https://github.com/zspacelabs/bunsen/pull/358))
 - *(blocks)* [**breaking**] layout orders are block config, and a block's key map permutes a weight to match ([#357](https://github.com/zspacelabs/bunsen/pull/357))
-- *(blocks)* [**breaking**] `SubsampledEncoder`, a front end then an encoder stack, with `AxisOrder` at its boundary; Sortformer's encoder is one ([#354](https://github.com/zspacelabs/bunsen/pull/354))
+- *(blocks)* [**breaking**] `SubsampledEncoder`, a front end then an encoder stack, with `BoundaryPermutes` at its boundary; Sortformer's encoder is one ([#354](https://github.com/zspacelabs/bunsen/pull/354))
 - *(blocks)* [**breaking**] `EncoderTransformer`, any encoder stack chosen by config; the Conformer's stack is its own type ([#352](https://github.com/zspacelabs/bunsen/pull/352))
 - *(bunsen-asr)* [**breaking**] profiles, speech to text by what it is for; the families under `family` ([#344](https://github.com/zspacelabs/bunsen/pull/344))
 - *(sortformer)* `hf:` repos that hold a `.nemo`, their config read first ([#339](https://github.com/zspacelabs/bunsen/pull/339))

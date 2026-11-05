@@ -7,7 +7,7 @@ use super::blocks::{
 };
 use crate::{
     blocks::{
-        layout::AxisOrder,
+        layout::BoundaryPermutes,
         transformers::encoders::residual::ResidualEncoderTransformerConfig,
     },
     burner::module::ToStructureConfig,
@@ -223,7 +223,7 @@ impl NemoSortformerConfig {
             encoder
                 .conformer()?
                 .try_to_structure()?
-                .with_layout(AxisOrder::SWAP_IN),
+                .with_layout(BoundaryPermutes::SWAP_IN),
             SortformerHeadConfig::new(modules.tf_d_model, modules.num_spks),
         )
         .with_transformer(Some(ResidualEncoderTransformerConfig::new(

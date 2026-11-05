@@ -17,7 +17,7 @@
 //! - Decoding: the model is a
 //!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
 //!   its stack's
-//!   [`DecoderCache`](crate::blocks::transformers::decoders::stack::DecoderCache),
+//!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache),
 //!   whose sliding layers keep only their window.
 //! - [`GemmaConstruct`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer, generation and template files, unread.

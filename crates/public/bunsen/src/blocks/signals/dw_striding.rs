@@ -38,7 +38,7 @@ use crate::{
 /// through a key map that permutes them
 /// ([`DwStridingSubsamplingMeta::reflatten_from`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum FlattenOrder {
+pub enum DwStridingFlattenOrder {
     /// Channels outer, frequencies inner.
     #[default]
     ChannelsFreqs,
@@ -83,7 +83,7 @@ pub trait DwStridingSubsamplingMeta {
     fn n_freq_out(&self) -> usize;
 
     /// How the last convolution's output is flattened for the projection.
-    fn flatten(&self) -> FlattenOrder;
+    fn flatten(&self) -> DwStridingFlattenOrder;
 
     /// A flat list of its layers' tensors, `{prefix}{k}.*` as a `PyTorch`
     /// `nn.Sequential` of them indexes them, onto its module paths, relative
@@ -109,7 +109,7 @@ pub trait DwStridingSubsamplingMeta {
     /// `[d_model, b * a]`.
     fn reflatten_from(
         &self,
-        from: FlattenOrder,
+        from: DwStridingFlattenOrder,
         rekey: Rekey,
     ) -> Rekey {
         if from == self.flatten() {
@@ -117,8 +117,8 @@ pub trait DwStridingSubsamplingMeta {
         }
         let (c, f) = (self.channels(), self.n_freq_out());
         let (a, b) = match from {
-            FlattenOrder::ChannelsFreqs => (c, f),
-            FlattenOrder::FreqsChannels => (f, c),
+            DwStridingFlattenOrder::ChannelsFreqs => (c, f),
+            DwStridingFlattenOrder::FreqsChannels => (f, c),
         };
         rekey.adapt("linear.weight", Adapter::regroup_columns(a, b))
     }
@@ -143,8 +143,8 @@ pub struct DwStridingSubsamplingConfig {
     pub n_stages: usize,
 
     /// How the last convolution's output is flattened for the projection.
-    #[config(default = "FlattenOrder::ChannelsFreqs")]
-    pub flatten: FlattenOrder,
+    #[config(default = "DwStridingFlattenOrder::ChannelsFreqs")]
+    pub flatten: DwStridingFlattenOrder,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
@@ -168,7 +168,7 @@ impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
         self.output_len(self.n_mels)
     }
 
-    fn flatten(&self) -> FlattenOrder {
+    fn flatten(&self) -> DwStridingFlattenOrder {
         self.flatten
     }
 }
@@ -256,7 +256,7 @@ pub struct DwStridingSubsampling {
 
     /// How the last convolution's output is flattened for the projection.
     #[module(skip)]
-    pub flatten: FlattenOrder,
+    pub flatten: DwStridingFlattenOrder,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsampling {
@@ -280,7 +280,7 @@ impl DwStridingSubsamplingMeta for DwStridingSubsampling {
         self.linear.weight.dims()[0] / self.channels()
     }
 
-    fn flatten(&self) -> FlattenOrder {
+    fn flatten(&self) -> DwStridingFlattenOrder {
         self.flatten
     }
 }
@@ -346,8 +346,10 @@ impl DwStridingSubsampling {
         );
         let [_, c, t, f] = x.dims();
         let x = match self.flatten {
-            FlattenOrder::ChannelsFreqs => x.swap_dims(1, 2).reshape([batch, t, c * f]),
-            FlattenOrder::FreqsChannels => x.permute([0, 2, 3, 1]).reshape([batch, t, f * c]),
+            DwStridingFlattenOrder::ChannelsFreqs => x.swap_dims(1, 2).reshape([batch, t, c * f]),
+            DwStridingFlattenOrder::FreqsChannels => {
+                x.permute([0, 2, 3, 1]).reshape([batch, t, f * c])
+            }
         };
         let y = self.linear.forward(x);
 

@@ -9,7 +9,7 @@ use crate::{
     blocks::signals::{
         DwStridingSubsamplingMeta,
         FeatureStackingMeta,
-        StackOrder,
+        FeatureStackingOrder,
     },
     burner::module::Rekey,
     data::pretrained::{
@@ -36,7 +36,7 @@ use crate::{
 /// dropped.
 pub fn embedder_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
     stacking.restack_from(
-        StackOrder::FramesFeatures,
+        FeatureStackingOrder::FramesFeatures,
         Rekey::drop_rest().rename("projection.", "projection."),
     )
 }
