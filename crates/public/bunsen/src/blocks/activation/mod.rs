@@ -14,8 +14,22 @@
 //!   [`Sigmoid`](BunsenActivationConfig::Sigmoid),
 //!   [`Tanh`](BunsenActivationConfig::Tanh),
 //!   [`PRelu`](BunsenActivationConfig::PRelu),
-//!   [`LeakyRelu`](BunsenActivationConfig::LeakyRelu)), so a config's serde
-//!   form and a native record's keys are burn's.
+//!   [`LeakyRelu`](BunsenActivationConfig::LeakyRelu),
+//!   [`Selu`](BunsenActivationConfig::Selu),
+//!   [`HardSigmoid`](BunsenActivationConfig::HardSigmoid),
+//!   [`HardSwish`](BunsenActivationConfig::HardSwish),
+//!   [`Softplus`](BunsenActivationConfig::Softplus),
+//!   [`Softsign`](BunsenActivationConfig::Softsign),
+//!   [`Elu`](BunsenActivationConfig::Elu),
+//!   [`Celu`](BunsenActivationConfig::Celu),
+//!   [`ThresholdedRelu`](BunsenActivationConfig::ThresholdedRelu),
+//!   [`HardShrink`](BunsenActivationConfig::HardShrink),
+//!   [`SoftShrink`](BunsenActivationConfig::SoftShrink),
+//!   [`Shrink`](BunsenActivationConfig::Shrink)): every weightless, elementwise
+//!   kind of burn's `ActivationConfig`, so a config's serde form and a native
+//!   record's keys are burn's. Not burn's `SwiGlu`: it owns two `Linear`s and
+//!   changes the width, a gated MLP rather than an activation (bunsen's is the
+//!   gated MLP with [`Silu`](BunsenActivationConfig::Silu)).
 //! - **bunsen's kinds**: [`Silu`](BunsenActivationConfig::Silu), which burn has
 //!   as a layer but not as a kind; [`Pow`](BunsenActivationConfig::Pow), `x^p`;
 //!   and [`Chain`](BunsenActivationConfig::Chain), kinds applied in order:
