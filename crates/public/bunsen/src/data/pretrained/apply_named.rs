@@ -19,6 +19,7 @@ use crate::{
     burner::module::{
         Rekey,
         Target,
+        TensorLoadRowSplit,
     },
     errors::{
         BunsenError,
@@ -241,6 +242,41 @@ pub fn stored_float_dtype(tensors: &[PackTensor]) -> Option<FloatDType> {
         .map(|(dtype, _)| FloatDType::from(dtype))
 }
 
+/// `tensors` with each one a [`TensorLoadRowSplit`] takes split into its parts,
+/// in place, in the checkpoint's names: the pass before a [`Rekey`] for a
+/// checkpoint that fuses what a module holds apart (a packed `qkv`
+/// projection, a gated MLP's two projections). The first split whose suffix
+/// a name ends in takes it; every other tensor passes as it is.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
+/// a tensor cannot be read, or its rows do not split as its split says.
+pub fn split_rows(
+    tensors: impl IntoIterator<Item = PackTensor>,
+    splits: &[TensorLoadRowSplit],
+) -> BunsenResult<Vec<PackTensor>> {
+    let mut out = Vec::new();
+    for tensor in tensors {
+        let Some(split) = splits.iter().find(|s| tensor.name.ends_with(s.suffix())) else {
+            out.push(tensor);
+            continue;
+        };
+        let name = tensor.name.clone();
+        let data = burn::store::bridge::into_data(tensor)
+            .map_err(|e| BunsenError::invalid_resource(format!("cannot read {name}: {e:?}")))?;
+        let parts = split
+            .split(&name, data)
+            .expect("the split's suffix matched")
+            .map_err(BunsenError::invalid_resource)?;
+        out.extend(
+            parts
+                .into_iter()
+                .map(|(part, data)| burn::store::bridge::from_data(data, part, None)),
+        );
+    }
+    Ok(out)
+}
+
 /// Loads tensors under their checkpoint's names into `module`:
 /// [`apply_rekeyed_tensors_as`] under `rekey`, every floating tensor cast to
 /// `dtype` (a load policy's resolution), or, when `None`, to the dtype
@@ -434,6 +470,103 @@ mod tests {
                 |n| Some(n.to_string()),
                 None,
                 1,
+            ));
+    }
+
+    #[derive(Module, Debug)]
+    struct Qkv {
+        q: Linear,
+        k: Linear,
+        v: Linear,
+    }
+
+    /// A fused `qkv` weight and bias, split by rows, load into three
+    /// projections, each its run of rows; a tensor no split takes passes as
+    /// it is.
+    #[test]
+    fn test_split_rows_loads_the_parts() {
+        let device = cpu_device();
+        let fused: Vec<f32> = (0..24).map(|v| v as f32).collect();
+        let tensors = vec![
+            bridge::from_data(
+                TensorData::new(fused.clone(), [6, 4]),
+                "attn.qkv.weight".to_string(),
+                None,
+            ),
+            bridge::from_data(
+                TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [6]),
+                "attn.qkv.bias".to_string(),
+                None,
+            ),
+            bias("attn.other", 2, 9.0),
+        ];
+        let splits = [
+            TensorLoadRowSplit::equal(".qkv.weight", [".q.weight", ".k.weight", ".v.weight"]),
+            TensorLoadRowSplit::equal(".qkv.bias", [".q.bias", ".k.bias", ".v.bias"]),
+        ];
+        let split = split_rows(tensors, &splits).unwrap();
+        let names: Vec<&str> = split.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "attn.q.weight",
+                "attn.k.weight",
+                "attn.v.weight",
+                "attn.q.bias",
+                "attn.k.bias",
+                "attn.v.bias",
+                "attn.other",
+            ]
+        );
+
+        let mut module = Qkv {
+            q: LinearConfig::new(4, 2).init(&device),
+            k: LinearConfig::new(4, 2).init(&device),
+            v: LinearConfig::new(4, 2).init(&device),
+        };
+        let applied = load_rekeyed(
+            &mut module,
+            split,
+            &Rekey::keep_rest().rename("attn.", ""),
+            None,
+        )
+        .unwrap();
+        assert_eq!(applied.unused, ["other"]);
+        // The `PyTorch` layout's `[out, in]` rows, as burn's `[in, out]`.
+        let rows = Tensor::<2>::from_floats(TensorData::new(fused, [6, 4]), &device);
+        for (linear, (range, b)) in [&module.q, &module.k, &module.v].into_iter().zip([
+            (0..2, [1.0f32, 2.0]),
+            (2..4, [3.0, 4.0]),
+            (4..6, [5.0, 6.0]),
+        ]) {
+            linear
+                .weight
+                .val()
+                .into_data()
+                .assert_eq(&rows.clone().slice(range).transpose().into_data(), true);
+            linear
+                .bias
+                .as_ref()
+                .unwrap()
+                .val()
+                .into_data()
+                .assert_eq(&TensorData::from(b), true);
+        }
+    }
+
+    /// A tensor whose rows do not split as its split says is refused, by
+    /// name.
+    #[test]
+    fn test_split_rows_refuses_a_bad_split() {
+        let splits = [TensorLoadRowSplit::equal(
+            ".qkv.weight",
+            [".q.weight", ".k.weight", ".v.weight"],
+        )];
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("attn.qkv.weight: 4 rows")
+            .assert_err(&split_rows(
+                vec![tensor("attn.qkv.weight", 4, 2, 0.0)],
+                &splits,
             ));
     }
 }
