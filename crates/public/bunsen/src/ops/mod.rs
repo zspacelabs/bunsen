@@ -85,8 +85,9 @@
 //!   training are in [`crate::blocks::images::drop`].
 //!
 //! ### Normalization
-//! - [`norm`]: [`rms_norm`](norm::rms_norm), RMS normalization without
-//!   trainable parameters. For the parametric layer use burn's `RmsNorm`.
+//! - [`norm`]: [`RmsNormOptions::norm`](norm::RmsNormOptions::norm), RMS
+//!   normalization without trainable parameters. For the parametric layer use
+//!   burn's `RmsNorm`, or bunsen's norm seam.
 //!
 //! ### Shape transforms
 //! - [`repeat`]: [`repeat_interleave`](repeat::repeat_interleave) along a

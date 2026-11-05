@@ -14,12 +14,12 @@ use burn::{
 };
 
 use super::LayerNorm;
-use crate::burner::{
-    module::{
+use crate::{
+    burner::module::{
         InputDTypes,
         ResultDType,
     },
-    tensor::widen_half,
+    ops::norm::RmsNormOptions,
 };
 
 /// A [`BunsenNormalization`]'s config: its kind, and that kind's burn config.
@@ -153,7 +153,15 @@ impl BunsenNormalization {
             Self::Identity(norm) => norm.forward(input),
             Self::Batch(norm) => norm.forward(input),
             Self::Layer(norm) => norm.forward(input),
-            Self::Rms(norm) => rms_forward(norm, input),
+            Self::Rms(norm) => {
+                let dtype = input.dtype();
+                RmsNormOptions::default()
+                    .with_eps(norm.epsilon as f32)
+                    .with_widen_input(Some(FloatDType::F32))
+                    .with_widen_sum(None)
+                    .norm(input)
+                    * norm.gamma.val().cast(dtype).unsqueeze()
+            }
         }
     }
 
@@ -189,20 +197,6 @@ impl BunsenNormalization {
         };
         Some(FloatDType::from(gamma.dtype()))
     }
-}
-
-/// RMS normalization over the last axis, as `transformers`' Qwen3 and Llama
-/// norms compute it: the input widened to f32 when half, normalized there,
-/// narrowed back, then scaled by the gain in the input's dtype.
-fn rms_forward<const D: usize>(
-    norm: &RmsNorm,
-    input: Tensor<D>,
-) -> Tensor<D> {
-    let dtype = input.dtype();
-    let x = input.cast(widen_half(dtype));
-    let rms = (x.clone().square().mean_dim(D - 1) + norm.epsilon).sqrt();
-    let normed = (x / rms).cast(dtype);
-    normed * norm.gamma.val().cast(dtype).unsqueeze()
 }
 
 impl InputDTypes for BunsenNormalization {

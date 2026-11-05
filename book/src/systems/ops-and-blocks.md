@@ -60,7 +60,7 @@ at the call site:
   [`bunsen::prelude`] brings them into scope.
 - **`ops`** holds free functions: operations you would name as a step in a
   model, often with settings of their own, such as
-  [`rms_norm`](bunsen::ops::norm::rms_norm),
+  [`drop_path`](bunsen::ops::drop::drop_path),
   [`scaled_dot_product_attention`](bunsen::ops::transformers::attention::scaled_dot_product_attention)
   or [`repeat_interleave`](bunsen::ops::repeat::repeat_interleave).
 
