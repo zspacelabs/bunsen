@@ -26,7 +26,7 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock1dConfig,
             ConvBlock1dMeta,
@@ -295,7 +295,7 @@ pub fn encoder_config(
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
                 .with_bias(true),
         )
-        .with_act(Some(ActivationConfig::Relu))
+        .with_act(Some(BunsenActivationConfig::Relu))
     };
     ConvSeq1dConfig::new(vec![
         block(n_freq, d_hidden, 1),

@@ -21,8 +21,8 @@ use burn::{
 use crate::{
     blocks::{
         activation::{
-            Activation,
-            ActivationConfig,
+            BunsenActivation,
+            BunsenActivationConfig,
         },
         images::drop::drop_path::{
             DropPath,
@@ -84,8 +84,8 @@ pub struct BlockMlpConfig {
     drop: f64,
 
     /// The activation layer configuration.
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl BlockMlpMeta for BlockMlpConfig {
@@ -139,7 +139,7 @@ pub struct BlockMlp {
     fc2: Linear,
 
     /// Activation function.
-    act: Activation,
+    act: BunsenActivation,
 
     /// Dropout layer.
     drop: Dropout,
@@ -368,8 +368,8 @@ pub struct ShiftedWindowTransformerBlockConfig {
     pub attn_rpb_mlp_hidden_dim: usize,
 
     /// The activation layer configuration.
-    #[config(default = "ActivationConfig::Relu")]
-    pub attn_rpb_mlp_activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub attn_rpb_mlp_activation: BunsenActivationConfig,
 
     /// Drop path rate for stochastic depth.
     #[config(default = 0.0)]

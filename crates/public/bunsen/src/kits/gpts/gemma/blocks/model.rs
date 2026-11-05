@@ -13,8 +13,8 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
-        norm::NormConfig,
+        activation::BunsenActivationConfig,
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
@@ -351,7 +351,8 @@ impl GemmaConfig {
         &self,
         kind: GemmaLayerKind,
     ) -> CausalDecoderBlockConfig {
-        let norm = |n| NormConfig::Rms(RmsNormConfig::new(n).with_epsilon(self.rms_eps));
+        let norm =
+            |n| BunsenNormalizationConfig::Rms(RmsNormConfig::new(n).with_epsilon(self.rms_eps));
         let window = match kind {
             GemmaLayerKind::Sliding => self.sliding_window,
             GemmaLayerKind::Full => None,
@@ -366,7 +367,7 @@ impl GemmaConfig {
                 .with_attn_softcap(self.attn_softcap)
                 .with_softmax_dtype(self.softmax_dtype),
             GatedMlpConfig::new(self.d_model, self.d_ff)
-                .with_activation(ActivationConfig::GeluApproximate)
+                .with_activation(BunsenActivationConfig::GeluApproximate)
                 .into(),
         )
         .with_norm(norm(0))
@@ -415,7 +416,7 @@ impl GemmaConfig {
             Some(theta) => (vec![self.rotary(theta, RopeScaling::None)], Some(0)),
             None => (Vec::new(), None),
         };
-        let norm = NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
+        let norm = BunsenNormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
         Ok(PatternedStackConfig::new(
             vec![
                 self.layer(GemmaLayerKind::Full),

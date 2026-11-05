@@ -13,13 +13,13 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock1dConfig,
             ConvSeq1d,
             ConvSeq1dConfig,
         },
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             decoders::{
@@ -153,7 +153,7 @@ impl VoxtralAudioEncoderConfig {
 
     /// The layer stack: `n_layers` alike, after the stem.
     pub fn stack(&self) -> UniformStackConfig {
-        let norm = NormConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
+        let norm = BunsenNormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
         UniformStackConfig::new(
             self.n_layers,
             self.layer().with_norm(norm.clone()),
@@ -222,7 +222,7 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
                     .with_stride(stride)
                     .with_padding(PaddingConfig1d::Explicit(3 - stride, 0)),
             )
-            .with_act(Some(ActivationConfig::Gelu))
+            .with_act(Some(BunsenActivationConfig::Gelu))
         };
         Ok(VoxtralAudioEncoder {
             stem: ConvSeq1dConfig::new(vec![

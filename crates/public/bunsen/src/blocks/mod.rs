@@ -40,9 +40,9 @@
 //!
 //! ## Map of the module
 //!
-//! - [`activation`]: the activation seam, `ActivationConfig` and `Activation`:
-//!   burn's activations, and bunsen's (`Silu`, `Pow`, `Chain`), behind one seam
-//!   bunsen owns.
+//! - [`activation`]: the activation seam, `BunsenActivationConfig` and
+//!   `BunsenActivation`: burn's activations, and bunsen's (`Silu`, `Pow`,
+//!   `Chain`), behind one seam bunsen owns.
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
 //!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
 //! - [`signals`]: learned layers over a signal's time axis, the counterpart of

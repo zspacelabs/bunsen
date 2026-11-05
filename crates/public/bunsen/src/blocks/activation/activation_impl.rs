@@ -23,9 +23,9 @@ use crate::blocks::math::{
     PowOpModuleConfig,
 };
 
-/// An [`Activation`]'s config: its kind, and that kind's config.
+/// An [`BunsenActivation`]'s config: its kind, and that kind's config.
 #[derive(Config, Debug)]
-pub enum ActivationConfig {
+pub enum BunsenActivationConfig {
     /// No activation: the input as it is.
     Identity,
 
@@ -58,28 +58,28 @@ pub enum ActivationConfig {
     Pow(f64),
 
     /// Each kind in turn, the first applied first; empty, the identity.
-    Chain(Vec<ActivationConfig>),
+    Chain(Vec<BunsenActivationConfig>),
 }
 
-impl ActivationConfig {
+impl BunsenActivationConfig {
     /// The activation, on `device` (where a kind has parameters).
     pub fn init(
         &self,
         device: &Device,
-    ) -> Activation {
+    ) -> BunsenActivation {
         match self {
-            Self::Identity => Activation::Identity(Identity::new()),
-            Self::Relu => Activation::Relu(Relu::new()),
-            Self::Gelu => Activation::Gelu(Gelu::new()),
-            Self::GeluApproximate => Activation::Gelu(Gelu::new_approximate()),
-            Self::Sigmoid => Activation::Sigmoid(Sigmoid::new()),
-            Self::Tanh => Activation::Tanh(Tanh::new()),
-            Self::PRelu(config) => Activation::PRelu(config.init(device)),
-            Self::LeakyRelu(config) => Activation::LeakyRelu(config.init()),
-            Self::Silu => Activation::Silu(SiLU::new()),
-            Self::Pow(exponent) => Activation::Pow(PowOpModuleConfig::new(*exponent).init()),
+            Self::Identity => BunsenActivation::Identity(Identity::new()),
+            Self::Relu => BunsenActivation::Relu(Relu::new()),
+            Self::Gelu => BunsenActivation::Gelu(Gelu::new()),
+            Self::GeluApproximate => BunsenActivation::Gelu(Gelu::new_approximate()),
+            Self::Sigmoid => BunsenActivation::Sigmoid(Sigmoid::new()),
+            Self::Tanh => BunsenActivation::Tanh(Tanh::new()),
+            Self::PRelu(config) => BunsenActivation::PRelu(config.init(device)),
+            Self::LeakyRelu(config) => BunsenActivation::LeakyRelu(config.init()),
+            Self::Silu => BunsenActivation::Silu(SiLU::new()),
+            Self::Pow(exponent) => BunsenActivation::Pow(PowOpModuleConfig::new(*exponent).init()),
             Self::Chain(kinds) => {
-                Activation::Chain(kinds.iter().map(|kind| kind.init(device)).collect())
+                BunsenActivation::Chain(kinds.iter().map(|kind| kind.init(device)).collect())
             }
         }
     }
@@ -88,7 +88,7 @@ impl ActivationConfig {
 /// An activation layer: burn's, or bunsen's, behind bunsen's seam (the
 /// [module docs](super)).
 #[derive(Module, Debug)]
-pub enum Activation {
+pub enum BunsenActivation {
     /// No activation.
     Identity(Identity),
 
@@ -117,10 +117,10 @@ pub enum Activation {
     Pow(PowOpModule),
 
     /// Each in turn, the first applied first.
-    Chain(Vec<Activation>),
+    Chain(Vec<BunsenActivation>),
 }
 
-impl Activation {
+impl BunsenActivation {
     /// `input`, activated elementwise; in `input`'s dtype.
     pub fn forward<const D: usize>(
         &self,
@@ -152,7 +152,7 @@ mod tests {
     use crate::support::testing::cpu_device;
 
     fn apply(
-        config: ActivationConfig,
+        config: BunsenActivationConfig,
         values: [f32; 5],
     ) -> TensorData {
         let device = cpu_device();
@@ -169,31 +169,37 @@ mod tests {
     fn test_kinds() {
         let tolerance = Tolerance::rel_abs(1e-5, 1e-6);
         for (config, expected) in [
-            (ActivationConfig::Identity, X),
-            (ActivationConfig::Relu, [0.0, 0.0, 0.0, 1.0, 3.0]),
+            (BunsenActivationConfig::Identity, X),
+            (BunsenActivationConfig::Relu, [0.0, 0.0, 0.0, 1.0, 3.0]),
             (
-                ActivationConfig::Gelu,
+                BunsenActivationConfig::Gelu,
                 [-0.04550026, -0.1542688, 0.0, 0.8413447, 2.99595],
             ),
             (
-                ActivationConfig::GeluApproximate,
+                BunsenActivationConfig::GeluApproximate,
                 [-0.04540231, -0.154286, 0.0, 0.841192, 2.996363],
             ),
             (
-                ActivationConfig::Silu,
+                BunsenActivationConfig::Silu,
                 [-0.2384058, -0.1887703, 0.0, 0.7310586, 2.857722],
             ),
-            (ActivationConfig::Pow(2.0), [4.0, 0.25, 0.0, 1.0, 9.0]),
+            (BunsenActivationConfig::Pow(2.0), [4.0, 0.25, 0.0, 1.0, 9.0]),
             (
-                ActivationConfig::Chain(vec![ActivationConfig::Relu, ActivationConfig::Pow(2.0)]),
+                BunsenActivationConfig::Chain(vec![
+                    BunsenActivationConfig::Relu,
+                    BunsenActivationConfig::Pow(2.0),
+                ]),
                 [0.0, 0.0, 0.0, 1.0, 9.0],
             ),
             (
                 // Order matters: squared, then rectified.
-                ActivationConfig::Chain(vec![ActivationConfig::Pow(2.0), ActivationConfig::Relu]),
+                BunsenActivationConfig::Chain(vec![
+                    BunsenActivationConfig::Pow(2.0),
+                    BunsenActivationConfig::Relu,
+                ]),
                 [4.0, 0.25, 0.0, 1.0, 9.0],
             ),
-            (ActivationConfig::Chain(vec![]), X),
+            (BunsenActivationConfig::Chain(vec![]), X),
         ] {
             apply(config.clone(), X)
                 .assert_approx_eq::<f32>(&TensorData::from(expected), tolerance);
@@ -204,10 +210,10 @@ mod tests {
     /// by their own names.
     #[test]
     fn test_serde_names() {
-        let json = serde_json::to_string(&ActivationConfig::Chain(vec![
-            ActivationConfig::Relu,
-            ActivationConfig::GeluApproximate,
-            ActivationConfig::Pow(2.0),
+        let json = serde_json::to_string(&BunsenActivationConfig::Chain(vec![
+            BunsenActivationConfig::Relu,
+            BunsenActivationConfig::GeluApproximate,
+            BunsenActivationConfig::Pow(2.0),
         ]))
         .expect("serialize");
         assert_eq!(json, r#"{"Chain":["Relu","GeluApproximate",{"Pow":2.0}]}"#);

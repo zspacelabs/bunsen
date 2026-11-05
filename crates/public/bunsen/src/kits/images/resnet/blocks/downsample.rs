@@ -11,7 +11,7 @@ use burn::{
 use crate::{
     blocks::{
         conv::ConvBlock2dConfig,
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
     },
     ops::conv::{
         build_square_conv2d_padding_config,
@@ -107,11 +107,11 @@ pub struct ResNetDownsampleConfig {
     #[config(default = 1)]
     dilation: usize,
 
-    /// The [`Norm`] config.
+    /// The [`BunsenNormalization`] config.
     ///
     /// The feature size will be auto-matched.
-    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
-    norm: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Batch(BatchNormConfig::new(0))")]
+    norm: BunsenNormalizationConfig,
 }
 
 impl ResNetDownsampleMeta for ResNetDownsampleConfig {
@@ -194,7 +194,7 @@ mod tests {
         assert!(conv_block.act.is_none());
 
         match &conv_block.norm {
-            Some(NormConfig::Batch(bc)) => {
+            Some(BunsenNormalizationConfig::Batch(bc)) => {
                 assert_eq!(bc.num_features, 4);
             }
             _ => panic!("Expected BatchNormConfig"),

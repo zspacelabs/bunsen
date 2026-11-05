@@ -23,15 +23,15 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock2dConfig,
             ConvSeq2d,
             ConvSeq2dConfig,
         },
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
         transformers::encoders::residual::{
             ResidualEncoderAttentionBlock,
@@ -164,7 +164,7 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
                     .with_stride([2, 2])
                     .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1)),
             )
-            .with_act(Some(ActivationConfig::Gelu))
+            .with_act(Some(BunsenActivationConfig::Gelu))
         };
         let layers = (0..self.n_layers)
             .map(|_| {
@@ -186,7 +186,8 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
                 .with_bias(false)
                 .init(device),
             layers,
-            ln_post: NormConfig::from(LayerNormConfig::new(self.d_model)).init(device),
+            ln_post: BunsenNormalizationConfig::from(LayerNormConfig::new(self.d_model))
+                .init(device),
             n_window: self.n_window,
             n_window_infer: self.n_window_infer,
         })
@@ -222,7 +223,7 @@ pub struct Qwen3AsrAudioEncoder {
     pub layers: Vec<ResidualEncoderAttentionBlock>,
 
     /// The final normalization.
-    pub ln_post: Norm,
+    pub ln_post: BunsenNormalization,
 
     /// Half the mel frames of a convolution chunk.
     pub n_window: usize,

@@ -12,8 +12,8 @@ use burn::{
 use crate::{
     blocks::{
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
         transformers::{
             attention::csa::{
@@ -84,8 +84,8 @@ pub struct CausalDecoderBlockConfig {
 
     /// The normalization before each sublayer, adapted to the width (its
     /// feature count is set at init).
-    #[config(default = "NormConfig::Rms(RmsNormConfig::new(0))")]
-    pub norm: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Rms(RmsNormConfig::new(0))")]
+    pub norm: BunsenNormalizationConfig,
 
     /// Whether each sublayer's output is normalized too, by a `norm` of its
     /// own, before it is added to the residual stream: the sandwich of
@@ -175,8 +175,8 @@ impl CausalDecoderBlockConfig {
 /// self-attention, then a pre-normalized feed-forward, each residual:
 /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
 ///
-/// What tells its users apart is config: the norm ([`Norm`]), the
-/// feed-forward ([`FeedForward`]: an `Mlp` or a gated `SwiGLU`), and the
+/// What tells its users apart is config: the norm ([`BunsenNormalization`]),
+/// the feed-forward ([`FeedForward`]: an `Mlp` or a gated `SwiGLU`), and the
 /// attention's own options (grouped-query heads, QK-norm and where it sits).
 /// RMS norms, a `ReLU`² `Mlp` and QK-norm after the rotary embedding, it is
 /// nanochat's `Block`; RMS norms, a `SwiGLU` and QK-norm before it, Qwen3's
@@ -194,22 +194,22 @@ impl CausalDecoderBlockConfig {
 #[derive(Module, Debug)]
 pub struct CausalDecoderBlock {
     /// The attention's input normalization.
-    pub attn_norm: Norm,
+    pub attn_norm: BunsenNormalization,
 
     /// Attention.
     pub attn: CausalSelfAttention,
 
     /// The attention's output normalization, if the block has post-norms.
-    pub attn_post_norm: Option<Norm>,
+    pub attn_post_norm: Option<BunsenNormalization>,
 
     /// The feed-forward's input normalization.
-    pub mlp_norm: Norm,
+    pub mlp_norm: BunsenNormalization,
 
     /// The feed-forward.
     pub mlp: FeedForward,
 
     /// The feed-forward's output normalization, if the block has post-norms.
-    pub mlp_post_norm: Option<Norm>,
+    pub mlp_post_norm: Option<BunsenNormalization>,
 
     /// The scale on the feed-forward's normalized input, if the block is
     /// conditioned.
@@ -280,7 +280,7 @@ impl CausalDecoderBlock {
 
     /// `norm(x)`, or `x` without a norm.
     fn maybe_norm(
-        norm: &Option<Norm>,
+        norm: &Option<BunsenNormalization>,
         x: Tensor<3>,
     ) -> Tensor<3> {
         match norm {
@@ -548,7 +548,7 @@ mod tests {
             (5, &mut block.mlp_norm),
             (6, block.mlp_post_norm.as_mut().expect("a post-norm")),
         ] {
-            let Norm::Rms(rms) = norm else {
+            let BunsenNormalization::Rms(rms) = norm else {
                 panic!("an RMS norm");
             };
             rms.gamma = Param::from_tensor(seeded_tensor::<1>(
@@ -562,7 +562,8 @@ mod tests {
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
-        let post = |norm: &Option<Norm>, x| norm.as_ref().expect("a post-norm").forward(x);
+        let post =
+            |norm: &Option<BunsenNormalization>, x| norm.as_ref().expect("a post-norm").forward(x);
         let x = input.clone()
             + post(
                 &block.attn_post_norm,

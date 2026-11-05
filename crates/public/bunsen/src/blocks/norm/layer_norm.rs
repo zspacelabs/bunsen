@@ -11,9 +11,10 @@ use burn::{
 
 use super::normalization::compute_dtype;
 
-/// A layer norm, [`Norm::Layer`](super::Norm::Layer)'s: burn's `LayerNorm`'s
-/// parameters (`gamma`, and `beta` with a bias) and epsilon, under bunsen's
-/// forward.
+/// A layer norm,
+/// [`BunsenNormalization::Layer`](super::BunsenNormalization::Layer)'s: burn's
+/// `LayerNorm`'s parameters (`gamma`, and `beta` with a bias) and epsilon,
+/// under bunsen's forward.
 ///
 /// It is named `LayerNorm`, as burn's is, because burn-store's adapters
 /// recognize a layer norm by its type's name (`Struct:LayerNorm`): the

@@ -9,13 +9,13 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         conv::{
             ConvBlock1d,
             ConvBlock1dConfig,
             ConvBlock1dMeta,
         },
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
     },
     burner::module::{
         Indices,
@@ -214,7 +214,7 @@ pub trait ConvSeq1dMeta {
 /// ```rust,no_run
 /// use bunsen::{
 ///     blocks::{
-///         activation::ActivationConfig,
+///         activation::BunsenActivationConfig,
 ///         conv::{
 ///             ConvBlock1dConfig,
 ///             ConvSeq1d,
@@ -244,7 +244,7 @@ pub trait ConvSeq1dMeta {
 ///     ),
 /// ])
 /// // Apply a shared activation to every block:
-/// .with_act(ActivationConfig::Gelu);
+/// .with_act(BunsenActivationConfig::Gelu);
 ///
 /// // Predict the output shape before building:
 /// // [batch, 80, 3000] -> [batch, 512, 1500].
@@ -272,8 +272,8 @@ impl ConvSeq1dMeta for ConvSeq1dConfig {
 }
 
 impl ConvSeq1dConfig {
-    /// Set the [`Option<ActivationConfig>`] for all blocks.
-    pub fn with_act<A: Into<Option<ActivationConfig>>>(
+    /// Set the [`Option<BunsenActivationConfig>`] for all blocks.
+    pub fn with_act<A: Into<Option<BunsenActivationConfig>>>(
         self,
         act: A,
     ) -> Self {
@@ -287,8 +287,8 @@ impl ConvSeq1dConfig {
         }
     }
 
-    /// Set the [`Option<NormConfig>`] for all blocks.
-    pub fn with_norm<N: Into<Option<NormConfig>>>(
+    /// Set the [`Option<BunsenNormalizationConfig>`] for all blocks.
+    pub fn with_norm<N: Into<Option<BunsenNormalizationConfig>>>(
         self,
         norm: N,
     ) -> Self {
@@ -526,7 +526,7 @@ mod tests {
                 .with_bias(false),
         )
         .with_norm(None)
-        .with_act(Some(ActivationConfig::Relu))
+        .with_act(Some(BunsenActivationConfig::Relu))
     }
 
     /// Builds a "same"-padded `ConvBlock1d` (`out_length = in_length /

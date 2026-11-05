@@ -242,7 +242,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
             swin: swin_config,
         },
         AdamWConfig::new(), /* .with_weight_decay(0.01)
-                             * .with_grad_clipping(Some(GradientClippingConfig::Norm(5.0))), */
+                             * .with_grad_clipping(Some(GradientClippingConfig::BunsenNormalization(5.0))), */
     );
 
     let artifact_dir = args.artifact_dir.as_ref().unwrap().as_ref();

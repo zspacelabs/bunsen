@@ -24,8 +24,8 @@ use burn::{
 use crate::{
     blocks::{
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
         transformers::embedding::RotaryEmbedding,
     },
@@ -107,8 +107,8 @@ pub struct CausalSelfAttentionConfig {
 
     /// The query/key normalization (QK-norm), sized to `head_dim` whatever
     /// feature count it names; `None` normalizes nothing, and builds no norm.
-    #[config(default = "Some(NormConfig::Rms(RmsNormConfig::new(0)))")]
-    pub norm: Option<NormConfig>,
+    #[config(default = "Some(BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)))")]
+    pub norm: Option<BunsenNormalizationConfig>,
 
     /// The width of each head; `None` is `n_embed / n_head`.
     ///
@@ -212,7 +212,7 @@ impl QkNormPlacement {
     pub fn apply(
         self,
         x: Tensor<4>,
-        norm: Option<&Norm>,
+        norm: Option<&BunsenNormalization>,
         r_emb: &RotaryEmbedding,
     ) -> Tensor<4> {
         let Some(norm) = norm else {
@@ -403,13 +403,13 @@ pub struct CausalSelfAttention {
     pub c_q: Linear,
 
     /// Query Normalization; `None` without QK-norm.
-    pub q_norm: Option<Norm>,
+    pub q_norm: Option<BunsenNormalization>,
 
     /// Key Linear.
     pub c_k: Linear,
 
     /// Key Normalization; `None` without QK-norm.
-    pub k_norm: Option<Norm>,
+    pub k_norm: Option<BunsenNormalization>,
 
     /// Value Linear.
     pub c_v: Linear,

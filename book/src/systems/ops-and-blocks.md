@@ -113,7 +113,7 @@ in one of three ways:
    model needs instead: one step at a time, with the caller carrying the
    state. And burn's activation kinds have no SiLU and no way to compose
    two:
-   [`ActivationConfig`](bunsen::blocks::activation::ActivationConfig) keeps
+   [`BunsenActivationConfig`](bunsen::blocks::activation::BunsenActivationConfig) keeps
    burn's kinds under burn's names, and adds `Silu`, `Pow` and `Chain`
    (NanoChat's `relu(x)²` is `Chain([Relu, Pow(2)])`).
 

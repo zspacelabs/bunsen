@@ -21,9 +21,9 @@ use super::{
 };
 use crate::{
     blocks::{
-        activation::ActivationConfig,
+        activation::BunsenActivationConfig,
         layout::AxisOrder,
-        norm::NormConfig,
+        norm::BunsenNormalizationConfig,
         signals::{
             DwStridingSubsamplingConfig,
             FeatureStackingConfig,
@@ -272,7 +272,7 @@ impl NemotronDiarizationConfig {
     /// `rotate_half` convention; a biased `Linear -> GELU -> Linear`
     /// feed-forward.
     pub fn encoder_stack(&self) -> UniformStackConfig {
-        let norm = NormConfig::Layer(LayerNormConfig::new(0));
+        let norm = BunsenNormalizationConfig::Layer(LayerNormConfig::new(0));
         UniformStackConfig::new(
             self.n_layers,
             CausalDecoderBlockConfig::new(
@@ -282,7 +282,7 @@ impl NemotronDiarizationConfig {
                     .with_mask(AttentionMask::Bidirectional),
                 MlpConfig::new(self.d_model)
                     .with_expansion_factor(self.ff_expansion)
-                    .with_activation(ActivationConfig::Gelu)
+                    .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )
@@ -473,7 +473,7 @@ impl ToStructureConfig for SortformerV2Config {
             .with_expansion_factor(self.transformer_ff_expansion)
             .with_key_bias(true)
             .with_norm_placement(NormPlacement::Post)
-            .with_activation(ActivationConfig::Relu);
+            .with_activation(BunsenActivationConfig::Relu);
         Ok(SortformerStructureConfig::new(
             // Fed `[batch, time, n_mels]`; the striding reads `[batch, n_mels,
             // time]`.

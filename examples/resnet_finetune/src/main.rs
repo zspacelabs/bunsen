@@ -12,7 +12,7 @@ use std::{
 };
 
 use bunsen::{
-    blocks::activation::ActivationConfig,
+    blocks::activation::BunsenActivationConfig,
     burner::module::{
         DTypeMapper,
         ModuleInit,
@@ -290,18 +290,18 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     if let Some(option) = &args.replace_activation {
         match option {
             ReplaceActivationOption::Relu => {
-                resnet_config = resnet_config.with_activation(ActivationConfig::Relu);
+                resnet_config = resnet_config.with_activation(BunsenActivationConfig::Relu);
             }
             ReplaceActivationOption::Gelu => {
-                resnet_config = resnet_config.with_activation(ActivationConfig::Gelu);
+                resnet_config = resnet_config.with_activation(BunsenActivationConfig::Gelu);
             }
             ReplaceActivationOption::PRelu => {
-                resnet_config =
-                    resnet_config.with_activation(ActivationConfig::PRelu(PReluConfig::new()));
+                resnet_config = resnet_config
+                    .with_activation(BunsenActivationConfig::PRelu(PReluConfig::new()));
             }
             ReplaceActivationOption::LeakyRelu => {
                 resnet_config = resnet_config
-                    .with_activation(ActivationConfig::LeakyRelu(LeakyReluConfig::new()));
+                    .with_activation(BunsenActivationConfig::LeakyRelu(LeakyReluConfig::new()));
             }
         }
     }

@@ -15,10 +15,10 @@ use burn::{
 use crate::{
     blocks::{
         activation::{
-            Activation,
-            ActivationConfig,
+            BunsenActivation,
+            BunsenActivationConfig,
         },
-        norm::Norm,
+        norm::BunsenNormalization,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -27,14 +27,14 @@ use crate::{
 /// Computes a normalized MLP: `mlp(norm(x))`.
 ///
 /// # Arguments
-/// * `norm` - the sublayer's [`Norm`].
+/// * `norm` - the sublayer's [`BunsenNormalization`].
 /// * `mlp` - `Mlp`.
 /// * `x` - `[batch, seq_len, n_states]` input.
 ///
 /// # Returns
 /// `[batch, seq_len, n_states]`
 pub fn norm_mlp(
-    norm: &Norm,
+    norm: &BunsenNormalization,
     mlp: &Mlp,
     x: Tensor<3>,
 ) -> Tensor<3> {
@@ -59,8 +59,8 @@ pub struct MlpConfig {
 
     /// The activation: nanochat's `relu(x)²` is
     /// `Chain([Relu, Pow(2)])`.
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 
     /// Whether the projections carry a bias term.
     #[config(default = "false")]
@@ -114,7 +114,7 @@ pub struct Mlp {
     pub linear1: Linear,
 
     /// Activation.
-    pub act: Activation,
+    pub act: BunsenActivation,
 
     /// Output Projection.
     pub linear2: Linear,
@@ -195,8 +195,8 @@ pub struct GatedMlpConfig {
 
     /// The gate's activation: `Silu` for a `SwiGLU`, `GeluApproximate` for
     /// Gemma's `GeGLU`.
-    #[config(default = "ActivationConfig::Silu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Silu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl GatedMlpConfig {
@@ -251,7 +251,7 @@ pub struct GatedMlp {
     pub down_proj: Linear,
 
     /// The gate's activation.
-    pub act: Activation,
+    pub act: BunsenActivation,
 }
 
 impl GatedMlpMeta for GatedMlp {
@@ -347,7 +347,7 @@ impl ModuleInit<FeedForward> for FeedForwardConfig {
 
 /// A transformer layer's position-wise feed-forward, whichever its config
 /// chose: the generic sublayer a layer holds, as
-/// [`Norm`] is for a norm. The variant
+/// [`BunsenNormalization`] is for a norm. The variant
 /// is not part of its tensors' paths for the loaders bunsen uses.
 ///
 /// Built by [`FeedForwardConfig`].
@@ -420,7 +420,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        for activation in [ActivationConfig::Relu, ActivationConfig::Gelu] {
+        for activation in [BunsenActivationConfig::Relu, BunsenActivationConfig::Gelu] {
             for ef in [4, 3] {
                 let b = 2;
                 let t = 3;
@@ -428,9 +428,9 @@ mod tests {
 
                 let cfg = MlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
-                    .with_activation(ActivationConfig::Chain(vec![
+                    .with_activation(BunsenActivationConfig::Chain(vec![
                         activation.clone(),
-                        ActivationConfig::Pow(2.0),
+                        BunsenActivationConfig::Pow(2.0),
                     ]));
 
                 let mlp: Mlp = cfg.init(&device);
@@ -504,7 +504,7 @@ mod tests {
                 burn::tensor::activation::silu::<3> as fn(Tensor<3>) -> Tensor<3>,
             ),
             (
-                GatedMlpConfig::new(6, 10).with_activation(ActivationConfig::GeluApproximate),
+                GatedMlpConfig::new(6, 10).with_activation(BunsenActivationConfig::GeluApproximate),
                 burn::tensor::activation::gelu_approximate::<3>,
             ),
         ] {

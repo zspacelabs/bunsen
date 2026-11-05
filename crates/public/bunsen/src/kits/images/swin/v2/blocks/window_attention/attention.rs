@@ -23,7 +23,7 @@ use burn::{
 };
 
 use crate::{
-    blocks::activation::ActivationConfig,
+    blocks::activation::BunsenActivationConfig,
     burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
@@ -162,8 +162,8 @@ pub struct WindowAttentionConfig {
     pub rpb_mlp_hidden_dim: usize,
 
     /// The activation layer configuration.
-    #[config(default = "ActivationConfig::Relu")]
-    pub rpb_mlp_activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub rpb_mlp_activation: BunsenActivationConfig,
 }
 
 /// The `WindowAttention` module.

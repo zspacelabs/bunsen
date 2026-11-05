@@ -111,7 +111,8 @@ impl ModuleInit<EncoderTransformer> for EncoderTransformerConfig {
 
 /// A bidirectional encoder stack, whichever its config chose: the generic
 /// encoder a model holds when the stack is a choice, as
-/// [`Norm`](crate::blocks::norm::Norm) is for a norm.
+/// [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization) is for a
+/// norm.
 ///
 /// Every variant keeps the frame rate and shares one contract,
 /// [`forward`](Self::forward): `[batch, frames, d_model]` in and out, each
@@ -231,8 +232,8 @@ pub(crate) fn test_rope_stack(
     use burn::nn::LayerNormConfig;
 
     use crate::blocks::{
-        activation::ActivationConfig,
-        norm::NormConfig,
+        activation::BunsenActivationConfig,
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
                 AttentionMask,
@@ -249,7 +250,7 @@ pub(crate) fn test_rope_stack(
             mlp::MlpConfig,
         },
     };
-    let norm = NormConfig::Layer(LayerNormConfig::new(0));
+    let norm = BunsenNormalizationConfig::Layer(LayerNormConfig::new(0));
     crate::burner::module::ToStructureConfig::to_structure(
         &UniformStackConfig::new(
             n_layers,
@@ -259,7 +260,7 @@ pub(crate) fn test_rope_stack(
                     .with_output_bias(true)
                     .with_mask(AttentionMask::Bidirectional),
                 MlpConfig::new(d_model)
-                    .with_activation(ActivationConfig::Gelu)
+                    .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),
             )

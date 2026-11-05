@@ -32,7 +32,7 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
-//!     blocks::activation::ActivationConfig,
+//!     blocks::activation::BunsenActivationConfig,
 //!     data::pretrained::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
@@ -53,7 +53,7 @@
 //! let config = RESNET_PREFABS
 //!     .expect_lookup_prefab("resnet18")
 //!     .to_config()
-//!     .with_activation(ActivationConfig::Gelu);
+//!     .with_activation(BunsenActivationConfig::Gelu);
 //!
 //! let mut model =
 //!     default_resnet_factory()?.resolve("timm/resnet18_a1", &cache)?;

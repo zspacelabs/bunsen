@@ -17,8 +17,8 @@ use super::{
 use crate::{
     blocks::{
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
         transformers::attention::rel_pos::{
             RelPosSelfAttention,
@@ -67,8 +67,8 @@ pub struct ConformerBlockConfig {
     /// The normalization before each module and after the block, sized to
     /// `d_model` whatever feature count it names: a `LayerNorm` by default,
     /// the Conformer's.
-    #[config(default = "NormConfig::Layer(LayerNormConfig::new(0))")]
-    pub norm: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Layer(LayerNormConfig::new(0))")]
+    pub norm: BunsenNormalizationConfig,
 }
 
 impl ConformerBlockMeta for ConformerBlockConfig {
@@ -133,31 +133,31 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 #[derive(Module, Debug)]
 pub struct ConformerBlock {
     /// The first feed-forward module's normalization.
-    pub feed_forward1_norm: Norm,
+    pub feed_forward1_norm: BunsenNormalization,
 
     /// The first feed-forward module.
     pub feed_forward1: ConformerFeedForward,
 
     /// The attention's normalization.
-    pub attn_norm: Norm,
+    pub attn_norm: BunsenNormalization,
 
     /// Relative-position self-attention.
     pub attn: RelPosSelfAttention,
 
     /// The convolution module's normalization.
-    pub conv_norm: Norm,
+    pub conv_norm: BunsenNormalization,
 
     /// The convolution module.
     pub conv: ConformerConvolution,
 
     /// The second feed-forward module's normalization.
-    pub feed_forward2_norm: Norm,
+    pub feed_forward2_norm: BunsenNormalization,
 
     /// The second feed-forward module.
     pub feed_forward2: ConformerFeedForward,
 
     /// The final normalization.
-    pub out_norm: Norm,
+    pub out_norm: BunsenNormalization,
 }
 
 impl ConformerBlockMeta for ConformerBlock {

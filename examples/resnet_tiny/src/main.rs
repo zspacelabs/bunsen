@@ -10,7 +10,7 @@ use core::{
 use std::sync::Arc;
 
 use bunsen::{
-    blocks::activation::ActivationConfig,
+    blocks::activation::BunsenActivationConfig,
     burner::module::{
         DTypeMapper,
         ModuleInit,
@@ -234,7 +234,9 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
 
     let prefab = RESNET_PREFABS.expect_lookup_prefab(&args.resnet_prefab);
 
-    let contract = prefab.to_config().with_activation(ActivationConfig::Gelu);
+    let contract = prefab
+        .to_config()
+        .with_activation(BunsenActivationConfig::Gelu);
     let resnet: ResNet = contract.to_structure().try_init(&device)?;
 
     let resnet: ResNet = match &args.resnet_pretrained {

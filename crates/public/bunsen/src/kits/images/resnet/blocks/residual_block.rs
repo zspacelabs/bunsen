@@ -12,8 +12,8 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::ActivationConfig,
-        norm::NormConfig,
+        activation::BunsenActivationConfig,
+        norm::BunsenNormalizationConfig,
     },
     burner::module::{
         ModuleInit,
@@ -72,12 +72,12 @@ pub struct ResidualBlockContractConfig {
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
-    #[config(default = "NormConfig::Batch(BatchNormConfig::new(0))")]
-    pub normalization: NormConfig,
+    #[config(default = "BunsenNormalizationConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: BunsenNormalizationConfig,
 
     /// Activation config.
-    #[config(default = "ActivationConfig::Relu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Relu")]
+    pub activation: BunsenActivationConfig,
 }
 
 impl ToStructureConfig for ResidualBlockContractConfig {

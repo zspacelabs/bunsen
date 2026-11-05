@@ -23,8 +23,8 @@ use burn::{
 
 use crate::{
     blocks::activation::{
-        Activation,
-        ActivationConfig,
+        BunsenActivation,
+        BunsenActivationConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -51,8 +51,8 @@ pub struct AdaptiveScaleConfig {
     pub d_hidden: usize,
 
     /// The activation between the two projections.
-    #[config(default = "ActivationConfig::Gelu")]
-    pub activation: ActivationConfig,
+    #[config(default = "BunsenActivationConfig::Gelu")]
+    pub activation: BunsenActivationConfig,
 
     /// Whether the two projections carry a bias.
     #[config(default = "false")]
@@ -101,7 +101,7 @@ pub struct AdaptiveScale {
     pub linear1: Linear,
 
     /// The activation between the projections.
-    pub act: Activation,
+    pub act: BunsenActivation,
 
     /// `d_hidden -> d_model`.
     pub linear2: Linear,
@@ -217,13 +217,13 @@ mod tests {
     #[test]
     fn test_meta() {
         let config = AdaptiveScaleConfig::new(12, 4)
-            .with_activation(ActivationConfig::Relu)
+            .with_activation(BunsenActivationConfig::Relu)
             .with_bias(true);
         let block: AdaptiveScale = config.init(&cpu_device());
         assert_eq!(block.d_model(), config.d_model());
         assert_eq!(block.d_hidden(), config.d_hidden());
         assert!(block.linear1.bias.is_some() && block.linear2.bias.is_some());
-        assert!(matches!(block.act, Activation::Relu(_)));
+        assert!(matches!(block.act, BunsenActivation::Relu(_)));
     }
 
     /// The scale is `1 + linear2(gelu(linear1(cond)))`, broadcast over the

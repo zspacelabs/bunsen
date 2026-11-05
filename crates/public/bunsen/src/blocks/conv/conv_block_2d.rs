@@ -17,12 +17,12 @@ use burn::{
 use crate::{
     blocks::{
         activation::{
-            Activation,
-            ActivationConfig,
+            BunsenActivation,
+            BunsenActivationConfig,
         },
         norm::{
-            Norm,
-            NormConfig,
+            BunsenNormalization,
+            BunsenNormalizationConfig,
         },
     },
     burner::module::ModuleInit,
@@ -35,25 +35,25 @@ use crate::{
 
 /// Abstract policy for [`ConvBlock2d`] Config.
 ///
-/// Defines a [`NormConfig`] and [`ActivationConfig`],
+/// Defines a [`BunsenNormalizationConfig`] and [`BunsenActivationConfig`],
 /// and can be lifted to a [`ConvBlock2dConfig`] to match a [`Conv2dConfig`].
 ///
-/// The abstract [`NormConfig`] will be feature matched
+/// The abstract [`BunsenNormalizationConfig`] will be feature matched
 /// with the target [`Conv2dConfig`].
 #[derive(Config, Debug)]
 pub struct AbstractConvBlock2dConfig {
-    /// The [`Norm`] config.
-    pub norm: Option<NormConfig>,
+    /// The [`BunsenNormalization`] config.
+    pub norm: Option<BunsenNormalizationConfig>,
 
     /// Activation Config.
-    #[config(default = "Some(ActivationConfig::Relu)")]
-    pub act: Option<ActivationConfig>,
+    #[config(default = "Some(BunsenActivationConfig::Relu)")]
+    pub act: Option<BunsenActivationConfig>,
 }
 
 impl AbstractConvBlock2dConfig {
     /// Merges with a [`Conv2dConfig`] to construct a [`ConvBlock2dConfig`].
     ///
-    /// The abstract [`NormConfig`] will be feature matched
+    /// The abstract [`BunsenNormalizationConfig`] will be feature matched
     /// with the target [`Conv2dConfig`], resulting in a normalization
     /// layer sized appropriately for the input convolution.
     pub fn build_config(
@@ -166,12 +166,12 @@ pub struct ConvBlock2dConfig {
     /// The [`Conv2d`] config.
     pub conv: Conv2dConfig,
 
-    /// The [`Norm`] config.
-    pub norm: Option<NormConfig>,
+    /// The [`BunsenNormalization`] config.
+    pub norm: Option<BunsenNormalizationConfig>,
 
-    /// The [`Activation`] config.
-    #[config(default = "Some(ActivationConfig::Relu)")]
-    pub act: Option<ActivationConfig>,
+    /// The [`BunsenActivation`] config.
+    #[config(default = "Some(BunsenActivationConfig::Relu)")]
+    pub act: Option<BunsenActivationConfig>,
 }
 
 impl ConvBlock2dMeta for ConvBlock2dConfig {
@@ -238,8 +238,8 @@ impl ModuleInit<ConvBlock2d> for ConvBlock2dConfig {
 ///
 /// A [`ConvBlock2d`] module is:
 /// * a [`Conv2d`] layer,
-/// * an optional [`Norm`] layer,
-/// * an optional [`Activation`] layer.
+/// * an optional [`BunsenNormalization`] layer,
+/// * an optional [`BunsenActivation`] layer.
 ///
 /// With support for hooking the forward method,
 /// to run code between the norm and activation layers.
@@ -253,10 +253,10 @@ pub struct ConvBlock2d {
     pub conv: Conv2d,
 
     /// Internal Norm Layer.
-    pub norm: Option<Norm>,
+    pub norm: Option<BunsenNormalization>,
 
     /// Activation layer.
-    pub act: Option<Activation>,
+    pub act: Option<BunsenActivation>,
 }
 
 impl ConvBlock2dMeta for ConvBlock2d {
@@ -441,8 +441,9 @@ mod tests {
 
     #[test]
     fn test_conv_norm_config() {
-        let abstract_config = AbstractConvBlock2dConfig::new()
-            .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))));
+        let abstract_config = AbstractConvBlock2dConfig::new().with_norm(Some(
+            BunsenNormalizationConfig::Batch(BatchNormConfig::new(0)),
+        ));
 
         let conv_config = Conv2dConfig::new([2, 4], [3, 3])
             .with_stride([2, 2])
@@ -537,8 +538,10 @@ mod tests {
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .with_bias(false),
         )
-        .with_norm(Some(NormConfig::Batch(BatchNormConfig::new(0))))
-        .with_act(Some(ActivationConfig::Relu));
+        .with_norm(Some(BunsenNormalizationConfig::Batch(
+            BatchNormConfig::new(0),
+        )))
+        .with_act(Some(BunsenActivationConfig::Relu));
 
         let layer: ConvBlock2d = config.init(&device);
         assert_eq!(layer.in_channels(), 2);
