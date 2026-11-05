@@ -1,7 +1,7 @@
 # The nanochat kit's pretrained catalog source: `cargo validate catalog` builds it into
-# `crates/public/bunsen/src/kits/gpts/nanochat/pretrained/catalog.json`.
+# `crates/public/bunsen/src/kits/language/nanochat/pretrained/catalog.json`.
 kit: nanochat
-out: crates/public/bunsen/src/kits/gpts/nanochat/pretrained/catalog.json
+out: crates/public/bunsen/src/kits/language/nanochat/pretrained/catalog.json
 name: "well-known"
 description: "the nanochat checkpoints bunsen knows by name"
 groups:

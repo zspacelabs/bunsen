@@ -9,7 +9,7 @@ use bunsen::{
         CONFIG,
         ResourceBundle,
     },
-    kits::gpts::gemma::{
+    kits::language::gemma::{
         pretrained::{
             GEMMA_KIT,
             GEMMA_PREFABS,

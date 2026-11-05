@@ -78,7 +78,7 @@
 //! [`scaled_dot_product_attention`]: crate::ops::transformers::attention::scaled_dot_product_attention
 //! [`MultiHeadAttention`]: burn::nn::attention::MultiHeadAttention
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
-//! [`NanoChatGpt`]: crate::kits::gpts::nanochat::NanoChatGpt
+//! [`NanoChatGpt`]: crate::kits::language::nanochat::NanoChatGpt
 //! [`KVCacheModel::new_kv_cache`]: crate::ops::transformers::attention::KVCacheModel::new_kv_cache
 
 pub mod csa;

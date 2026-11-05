@@ -357,7 +357,7 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            gpts::qwen3::Qwen3Config,
+            language::qwen3::Qwen3Config,
             speech::{
                 asr_driver::{
                     EmissionPolicy,

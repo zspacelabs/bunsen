@@ -150,7 +150,7 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            gpts::nanochat::NanoChatGptContractConfig,
+            language::nanochat::NanoChatGptContractConfig,
             support::decoding::{
                 SearchConfig,
                 decode_cached,

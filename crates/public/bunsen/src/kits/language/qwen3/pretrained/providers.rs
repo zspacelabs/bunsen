@@ -13,7 +13,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        gpts::qwen3::{
+        language::qwen3::{
             GENERATION_CONFIG,
             Qwen3Construct,
             TOKENIZER,
@@ -119,7 +119,7 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::CONFIG,
-        kits::gpts::qwen3::{
+        kits::language::qwen3::{
             pretrained::QWEN3_PREFABS,
             weights::qwen3_config_from_hf,
         },

@@ -5,7 +5,7 @@ use std::sync::{
 
 use bunsen::{
     data::cache::BunsenDiskCache,
-    kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
+    kits::language::nanochat::datasets::NANOCHAT_SHARD_SETS,
     support::testing::performance_device,
 };
 use bunsen_app::{

@@ -19,7 +19,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        gpts::qwen3::weights::text_layer_rekey,
+        language::qwen3::weights::text_layer_rekey,
         support::model_config::{
             HfConfigJson,
             HfDecoderSection,

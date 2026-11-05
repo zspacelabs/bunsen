@@ -4,7 +4,7 @@ use crate::{
         StaticPreFabConfig,
         StaticPreFabMap,
     },
-    kits::gpts::qwen3::Qwen3Config,
+    kits::language::qwen3::Qwen3Config,
 };
 
 /// The Qwen3 prefabs: the geometries bunsen's rows instantiate, by name,
@@ -47,7 +47,7 @@ pub static QWEN3_PREFABS: StaticPreFabMap<Qwen3Config> = StaticPreFabMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::gpts::qwen3::Qwen3Meta;
+    use crate::kits::language::qwen3::Qwen3Meta;
 
     #[test]
     fn test_prefabs() {

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use bunsen::{
     data::pretrained::ResourceBundle,
-    kits::gpts::qwen3::{
+    kits::language::qwen3::{
         TOKENIZER,
         TOKENIZER_CONFIG,
         pretrained::{

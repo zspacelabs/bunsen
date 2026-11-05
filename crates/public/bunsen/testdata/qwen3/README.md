@@ -1,6 +1,6 @@
 # Qwen3 fixtures
 
-Two tiny seeded `Qwen3ForCausalLM`s and their answers, used by `kits::gpts::qwen3`'s
+Two tiny seeded `Qwen3ForCausalLM`s and their answers, used by `kits::language::qwen3`'s
 toy tests: synthetic, random weights and random inputs, written by
 `transformers`' own implementation, so carrying no licence beyond the
 repository's. And the `config.json` of each checkpoint bunsen pins, copied

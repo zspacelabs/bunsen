@@ -13,7 +13,7 @@
 //! and an owned twin built at runtime or converted from the static one
 //! ([`ShardSetDescriptor`], [`ShardSetMap`]). Sets of interest live with the
 //! kit that trains on them, such as
-//! [`kits::gpts::nanochat::datasets`](crate::kits::gpts::nanochat::datasets).
+//! [`kits::language::nanochat::datasets`](crate::kits::language::nanochat::datasets).
 //!
 //! ## Lifecycle
 //!

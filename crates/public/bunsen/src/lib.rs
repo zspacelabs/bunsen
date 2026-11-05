@@ -33,8 +33,8 @@
 //!
 //! ### Components
 //!
-//! * [`kits`]: complete models: image models, GPTs, speech, and the token seam
-//!   the speech kits share.
+//! * [`kits`]: complete models: image models, language models, speech, and the
+//!   token seam the speech kits share.
 //! * [`sims`]: simulations written as tensor programs: Conway's Game of Life
 //!   and a lattice-Boltzmann fluid.
 //! * [`blocks`]: reusable [`Module`](burn::module::Module) components: conv

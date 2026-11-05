@@ -13,7 +13,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        gpts::gemma::{
+        language::gemma::{
             CHAT_TEMPLATE,
             GENERATION_CONFIG,
             GemmaConstruct,
@@ -123,7 +123,7 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::CONFIG,
-        kits::gpts::gemma::pretrained::GEMMA_PREFABS,
+        kits::language::gemma::pretrained::GEMMA_PREFABS,
     };
 
     /// The rows, by name, every file pinned to one URL on its mirror, each

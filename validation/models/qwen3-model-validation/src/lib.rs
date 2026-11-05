@@ -1,8 +1,8 @@
 //! # Qwen3 cross-check against pretrained references.
 //!
-//! Validates [`bunsen`]'s Qwen3 (`kits::gpts::qwen3`) against an independent
-//! implementation, generated from `onnx-community/Qwen3-0.6B-ONNX` (an export
-//! of `Qwen/Qwen3-0.6B`) by `burn_onnx::ModelGen`, and against
+//! Validates [`bunsen`]'s Qwen3 (`kits::language::qwen3`) against an
+//! independent implementation, generated from `onnx-community/Qwen3-0.6B-ONNX`
+//! (an export of `Qwen/Qwen3-0.6B`) by `burn_onnx::ModelGen`, and against
 //! `transformers`' own greedy decodes of the 0.6B, 1.7B, 4B and
 //! 4B-Instruct-2507 checkpoints in float32, and of the 8B in bf16 (on
 //! `--features cuda`, which runs bunsen in bf16 too: in float32 the 8B does
@@ -57,7 +57,7 @@ use std::collections::BTreeMap;
 
 use bunsen::{
     kits::{
-        gpts::qwen3::Qwen3Construct,
+        language::qwen3::Qwen3Construct,
         support::construct::LoadPolicy,
     },
     ops::transformers::attention::{
@@ -393,7 +393,7 @@ pub fn load_construct_with(
     device: &Device,
     policy: LoadPolicy,
 ) -> std::sync::Arc<Qwen3Construct> {
-    bunsen::kits::gpts::qwen3::pretrained::default_qwen3_factory()
+    bunsen::kits::language::qwen3::pretrained::default_qwen3_factory()
         .expect("the qwen3 factory")
         .load_construct(name, &weights_cache(), device, policy)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))

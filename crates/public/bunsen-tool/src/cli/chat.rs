@@ -21,7 +21,7 @@ use bunsen::{
         sys_at,
     },
     kits::{
-        gpts::{
+        language::{
             gemma::pretrained::{
                 DEFAULT_GEMMA_MODEL,
                 GEMMA_KIT,
