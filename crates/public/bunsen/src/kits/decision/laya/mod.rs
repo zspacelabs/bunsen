@@ -21,6 +21,10 @@
 //!   ([`LayaSpecials`]) from the checkpoint's `tokenizer_config.json`.
 //! - [`LayaModel::decide`]: questions about a state answered, in one padded
 //!   batch.
+//! - [`LayaConstruct`]: a model with its head's config and its checkpoint's
+//!   tokenizer files, unread.
+//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
+//!   checkpoints, `laya/laya` the default, and the factory that loads one.
 //! - [`weights`] (feature `store`): loading a checkpoint's `model.safetensors`
 //!   (the encoder under `encoder.`, the fused projections split), and the
 //!   config from its two files.
@@ -31,6 +35,7 @@
 
 mod agent_config;
 pub mod blocks;
+mod construct;
 mod prompt;
 
 #[cfg(feature = "store")]
@@ -38,7 +43,11 @@ pub mod weights;
 
 pub use agent_config::*;
 pub use blocks::model::*;
+pub use construct::*;
 pub use prompt::*;
+
+#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+pub mod pretrained;
 
 #[cfg(all(test, feature = "store_safetensors"))]
 mod toy_tests;
