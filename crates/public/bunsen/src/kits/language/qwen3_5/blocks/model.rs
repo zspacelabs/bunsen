@@ -13,7 +13,10 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenNormalizationConfig,
+            GatedNormConfig,
+        },
         transformers::{
             attention::csa::{
                 CausalSelfAttentionConfig,
@@ -339,7 +342,7 @@ impl Qwen3_5Config {
                 self.linear_value_dim,
             )
             .with_conv_kernel(self.linear_conv_kernel)
-            .with_norm_eps(self.rms_eps)
+            .with_norm(GatedNormConfig::rms(0, self.rms_eps))
             .into(),
         };
         CausalDecoderBlockConfig::new(

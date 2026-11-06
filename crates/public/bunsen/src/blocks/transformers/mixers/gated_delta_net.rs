@@ -30,12 +30,13 @@ use burn::{
 
 use crate::{
     blocks::norm::{
-        GatedRmsNorm,
-        GatedRmsNormConfig,
+        GatedNorm,
+        GatedNormConfig,
     },
     burner::{
         module::{
             InputDTypes,
+            ModuleInit,
             ResultDType,
         },
         tensor::Widening,
@@ -122,9 +123,10 @@ pub struct GatedDeltaNetConfig {
     #[config(default = 4)]
     pub conv_kernel: usize,
 
-    /// The output norm's epsilon.
-    #[config(default = 1e-6)]
-    pub norm_eps: f64,
+    /// The gated output norm, over each value head; its features are
+    /// [`value_dim`](Self::value_dim)'s, whatever it says.
+    #[config(default = "GatedNormConfig::rms(0, 1e-6)")]
+    pub norm: GatedNormConfig,
 
     /// The delta rule's options.
     #[config(default = "GatedDeltaRule::default()")]
@@ -221,9 +223,11 @@ impl GatedDeltaNetConfig {
             }
             .init([heads], device),
             dt_bias: Initializer::Ones.init([heads], device),
-            norm: GatedRmsNormConfig::new(self.value_dim)
-                .with_epsilon(self.norm_eps)
-                .init(device),
+            norm: self
+                .norm
+                .clone()
+                .with_num_features(self.value_dim)
+                .try_init(device)?,
             out_proj: LinearConfig::new(heads * self.value_dim, self.n_embed)
                 .with_bias(false)
                 .init(device),
@@ -304,7 +308,7 @@ pub struct GatedDeltaNet {
     pub dt_bias: Param<Tensor<1>>,
 
     /// The gated output norm, over each value head.
-    pub norm: GatedRmsNorm,
+    pub norm: GatedNorm,
 
     /// The output projection, `[H_v d_v, D]`.
     pub out_proj: Linear,
