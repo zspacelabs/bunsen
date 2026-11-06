@@ -14,6 +14,8 @@
 //!   files, and the corpus it trains on.
 //! - [`qwen3`]: the Qwen3 decoder: the dense Qwen3 checkpoints, and the text
 //!   model of [`speech::asr::qwen3_asr`](crate::kits::speech::asr::qwen3_asr).
+//! - [`qwen3_5`]: the dense Qwen3.5 decoder, a hybrid of gated `DeltaNet`
+//!   (linear-attention) and gated full-attention layers.
 //! - [`driver`]: the model-generic parts of a driver that streams a model's
 //!   output: text deltas, stop strings, and the cached prefix a multi-turn
 //!   session keeps.
@@ -27,3 +29,4 @@ pub mod driver;
 pub mod gemma;
 pub mod nanochat;
 pub mod qwen3;
+pub mod qwen3_5;
