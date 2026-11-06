@@ -16,6 +16,7 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
         Rekey,
     },
@@ -243,6 +244,8 @@ fn test_conformer_loads() {
         "",
         conformer_encoder_rekey(&conformer.subsampling),
     );
+    // The archive's names onto canonical ones, then onto the module's.
+    let rekey = rekey.then(encoder.canonical_rekey());
     let applied = apply_named_tensors(&mut encoder, tensors, rekey.as_fn()).unwrap();
     assert!(!applied.applied.is_empty());
     assert!(
@@ -286,6 +289,8 @@ fn test_conformer_loads_in_either_flatten_order() {
             "",
             conformer_encoder_rekey(&conformer.subsampling),
         );
+        // The archive's names onto canonical ones, then onto the module's.
+        let rekey = rekey.then(encoder.canonical_rekey());
         let tensors = weights()
             .into_iter()
             .filter(|t| t.name.starts_with("encoder."));
@@ -320,6 +325,8 @@ fn test_transformer_loads() {
         .into_iter()
         .filter(|t| t.name.starts_with("transformer_encoder."));
     let rekey = Rekey::drop_rest().mount("transformer_encoder.", "", transformer_encoder_rekey());
+    // The archive's names onto canonical ones, then onto the module's.
+    let rekey = rekey.then(stack.canonical_rekey());
     let applied = apply_named_tensors(&mut stack, tensors, rekey.as_fn()).unwrap();
     assert!(applied.unused.is_empty(), "{:?}", applied.unused);
 }
