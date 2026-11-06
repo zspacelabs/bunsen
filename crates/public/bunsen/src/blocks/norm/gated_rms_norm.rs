@@ -17,7 +17,7 @@ use crate::{
             InputDTypes,
             ResultDType,
         },
-        tensor::widen_half,
+        tensor::Widening,
     },
     ops::norm::RmsNormOptions,
 };
@@ -119,8 +119,7 @@ impl GatedRmsNorm {
             .with_widen_sum(None)
             .norm(x);
         let y = x_hat * self.weight.val().cast(dtype).unsqueeze();
-        let compute = widen_half(dtype);
-        (y.cast(compute) * silu(gate.cast(compute))).cast(dtype)
+        Widening::F32.around(dtype, |w| w.widen(y) * silu(w.widen(gate)))
     }
 }
 

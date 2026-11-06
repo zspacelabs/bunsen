@@ -6,11 +6,13 @@ use burn::{
         Bool,
         s,
     },
-    tensor::DType,
 };
 
 use crate::{
-    burner::tensor::widen_half,
+    burner::tensor::{
+        Widening,
+        WideningScope,
+    },
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -70,6 +72,9 @@ impl Default for GatedDeltaRule {
 /// The rule's inputs, `[B, H, T, ·]` in the dtype it runs in: the queries
 /// normalized and scaled, the keys normalized.
 struct Prepared {
+    /// The rule's dtypes: the one it runs in, and the queries', which its
+    /// outputs are narrowed to.
+    scope: WideningScope,
     q: Tensor<4>,
     k: Tensor<4>,
     v: Tensor<4>,
@@ -137,12 +142,13 @@ impl GatedDeltaRule {
         for (name, x) in [("g", &g), ("beta", &beta)] {
             assert_eq!(x.dims(), [b, t, h], "the rule's `{name}` is [B, T, H]");
         }
-        let compute = widen_half(q.dtype());
-        let to = |x: Tensor<4>| x.cast(compute).swap_dims(1, 2);
+        let scope = Widening::F32.scope(q.dtype());
+        let to = |x: Tensor<4>| scope.widen(x).swap_dims(1, 2);
         let q = self.l2norm(to(q)).div_scalar((d_k as f64).sqrt());
         let k = self.l2norm(to(k));
-        let gates = |x: Tensor<3>| x.cast(compute).swap_dims(1, 2);
+        let gates = |x: Tensor<3>| scope.widen(x).swap_dims(1, 2);
         let prepared = Prepared {
+            scope,
             q,
             k,
             v: to(v),
@@ -176,7 +182,6 @@ impl GatedDeltaRule {
         beta: Tensor<3>,
         state: Option<Tensor<4>>,
     ) -> (Tensor<4>, Tensor<4>) {
-        let dtype = q.dtype();
         let (dims @ [_, t, ..], p) = self.prepare(q, k, v, g, beta);
         let mut s = initial_state(state, dims, &p);
         let decay = p.g.clone().exp();
@@ -193,7 +198,7 @@ impl GatedDeltaRule {
             s = s + k_t.swap_dims(2, 3).matmul(delta);
             outputs.push(q_t.matmul(s.clone()));
         }
-        let out = Tensor::cat(outputs, 2).swap_dims(1, 2).cast(dtype);
+        let out = p.scope.narrow(Tensor::cat(outputs, 2).swap_dims(1, 2));
         (out, s)
     }
 
@@ -220,8 +225,8 @@ impl GatedDeltaRule {
     ) -> (Tensor<4>, Tensor<4>) {
         let c = self.chunk_size;
         assert!(c > 0, "a chunk of at least one position");
-        let dtype = q.dtype();
         let (dims @ [b, t, h, ..], p) = self.prepare(q, k, v, g, beta);
+        let scope = p.scope;
         let mut s = initial_state(state, dims, &p);
         let device = p.q.device();
         let n = t.div_ceil(c);
@@ -290,10 +295,11 @@ impl GatedDeltaRule {
             outputs.push(at(&q, i).matmul(s.clone()) + at(&intra, i).matmul(v_new.clone()));
             s = s * at(&chunk_decay, i) + at(&k, i).swap_dims(2, 3).matmul(v_new);
         }
-        let out = Tensor::cat(outputs, 2)
-            .slice(s![.., .., ..t, ..])
-            .swap_dims(1, 2)
-            .cast(dtype);
+        let out = scope.narrow(
+            Tensor::cat(outputs, 2)
+                .slice(s![.., .., ..t, ..])
+                .swap_dims(1, 2),
+        );
         (out, s)
     }
 }
@@ -305,7 +311,7 @@ fn initial_state(
     [b, _, h, d_k, d_v]: [usize; 5],
     p: &Prepared,
 ) -> Tensor<4> {
-    let compute: DType = p.q.dtype();
+    let compute = p.scope.compute();
     match state {
         Some(state) => {
             assert_shape_contract_periodically!(
