@@ -33,6 +33,10 @@ use crate::{
                 TransformerFeedForwardConfig,
                 TransformerFeedForwardMeta,
             },
+            sublayer::{
+                ResidualSublayer,
+                ResidualSublayerConfig,
+            },
         },
     },
     burner::module::{
@@ -222,9 +226,9 @@ impl CausalDecoderBlockConfig {
             attn_norm: self.attn_norm.then(norm),
             attn: self.attn.try_init(layer_index, device)?,
             attn_post_norm: post_norm(),
-            mlp_norm: norm(),
-            mlp: self.mlp.try_init(device)?,
-            mlp_post_norm: post_norm(),
+            mlp: ResidualSublayerConfig::pre_norm(Some(self.norm.clone()))
+                .with_post(self.post_norms.then(|| self.norm.clone()))
+                .init(self.mlp.try_init(device)?, n_embed, device),
             mlp_scale: self
                 .mlp_scale
                 .as_ref()
@@ -236,7 +240,7 @@ impl CausalDecoderBlockConfig {
 
 /// The decoder-only transformer layer: pre-normalized causal
 /// self-attention, then a pre-normalized feed-forward, each residual:
-/// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
+/// `x = x + attn(attn_norm(x)); x = x + mlp(mlp.pre(x))`.
 ///
 /// What tells its users apart is config: the norm ([`BunsenNormalization`]),
 /// the feed-forward ([`TransformerFeedForward`]: an `TransformerMlp` or a gated
@@ -244,7 +248,7 @@ impl CausalDecoderBlockConfig {
 /// where it sits). RMS norms, a `ReLU`² `TransformerMlp` and QK-norm after the
 /// rotary embedding, it is nanochat's `Block`; RMS norms, a `SwiGLU` and
 /// QK-norm before it, Qwen3's decoder layer. With an [`AdaptiveScale`] on the
-/// feed-forward's input, `x = x + mlp(mlp_norm(x) * (1 + f(cond)))`, it is
+/// feed-forward's input, `x = x + mlp(mlp.pre(x) * (1 + f(cond)))`, it is
 /// Voxtral Realtime's decoder layer.
 ///
 /// Without an [`attn_norm`](CausalDecoderBlockConfig::attn_norm), the
@@ -269,14 +273,9 @@ pub struct CausalDecoderBlock {
     /// The attention's output normalization, if the block has post-norms.
     pub attn_post_norm: Option<BunsenNormalization>,
 
-    /// The feed-forward's input normalization.
-    pub mlp_norm: BunsenNormalization,
-
-    /// The feed-forward.
-    pub mlp: TransformerFeedForward,
-
-    /// The feed-forward's output normalization, if the block has post-norms.
-    pub mlp_post_norm: Option<BunsenNormalization>,
+    /// The feed-forward sublayer: its input norm (`pre`), the feed-forward
+    /// (`branch`), and its output norm (`post`), if the block has post-norms.
+    pub mlp: ResidualSublayer<TransformerFeedForward>,
 
     /// The scale on the feed-forward's normalized input, if the block is
     /// conditioned.
@@ -453,21 +452,26 @@ impl CausalDecoderBlock {
             },
         );
         let x = input + Self::maybe_norm(&self.attn_post_norm, attn);
-        let h = self.mlp_norm.forward(x.clone());
-        let h = match (&self.mlp_scale, cond) {
-            (None, None) => h,
-            (Some(scale), Some(cond)) => scale.forward(h, cond),
-            (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
-            (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
-        };
-        x + Self::maybe_norm(&self.mlp_post_norm, self.mlp.forward(h))
+        self.mlp.residual_update(x, |mlp, h| {
+            let h = match (&self.mlp_scale, cond) {
+                (None, None) => h,
+                (Some(scale), Some(cond)) => scale.forward(h, cond),
+                (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
+                (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
+            };
+            mlp.forward(h)
+        })
     }
 }
 
 impl CanonicalKeys for CausalDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The canonical names are the record's paths.
+        // The feed-forward's sublayer is a `ResidualSublayer`: its norms
+        // are its `pre` and `post`, the feed-forward its `branch`.
         Rekey::keep_rest()
+            .rename("mlp_norm.", "mlp.pre.")
+            .rename("mlp_post_norm.", "mlp.post.")
+            .rename("mlp.", "mlp.branch.")
     }
 }
 
@@ -560,7 +564,7 @@ mod tests {
 
     /// Without an attention norm, the block holds none (its record has no
     /// `attn_norm` keys), and its attention takes the residual stream as it
-    /// is: `x = x + attn(x); x = x + mlp(mlp_norm(x))`.
+    /// is: `x = x + attn(x); x = x + mlp(mlp.pre(x))`.
     #[test]
     fn test_block_without_an_attn_norm() {
         let device = crate::support::testing::cpu_device();
@@ -585,20 +589,24 @@ mod tests {
                 paths.iter().all(|p| !p.starts_with("attn_norm")),
                 "{paths:?}"
             );
-            assert!(paths.iter().any(|p| p.starts_with("mlp_norm")), "{paths:?}");
+            assert!(paths.iter().any(|p| p.starts_with("mlp.pre")), "{paths:?}");
         }
 
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
         let input =
             seeded_tensor::<3>(2, [batch, seq_len, n_embed], Distribution::Default, &device);
         let x = input.clone() + block.attn.forward(input.clone(), &r_emb, &mut None);
-        let expected = x.clone() + block.mlp.forward(block.mlp_norm.forward(x));
+        let expected = x.clone()
+            + block
+                .mlp
+                .branch
+                .forward(block.mlp.pre.as_ref().unwrap().forward(x));
         let output = block.forward(input, &r_emb, &mut None);
         assert_tensors_close(&output, &expected, Tolerance::default());
     }
 
     /// The block adds each sub-layer's output back to its input:
-    /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
+    /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp.pre(x))`.
     #[test]
     #[serial]
     fn test_gpt_block_adds_sublayers_to_residual() {
@@ -617,7 +625,7 @@ mod tests {
 
         // With the MLP's output projection zeroed, the block is
         // `x + attn(norm(x))`.
-        let TransformerFeedForward::Mlp(mlp) = &mut block.mlp else {
+        let TransformerFeedForward::Mlp(mlp) = &mut block.mlp.branch else {
             panic!("an Mlp feed-forward");
         };
         mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
@@ -636,7 +644,7 @@ mod tests {
 
     /// A block with post-norms normalizes each sublayer's output before it
     /// adds it: `x = x + attn_post_norm(attn(attn_norm(x)))`, then
-    /// `x = x + mlp_post_norm(mlp(mlp_norm(x)))`.
+    /// `x = x + mlp.post(mlp(mlp.pre(x)))`.
     #[test]
     fn test_post_norms_sandwich_each_sublayer() {
         let device = crate::support::testing::cpu_device();
@@ -646,15 +654,15 @@ mod tests {
             crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
         );
         assert!(config.init(0, &device).attn_post_norm.is_none());
-        assert!(config.init(0, &device).mlp_post_norm.is_none());
+        assert!(config.init(0, &device).mlp.post.is_none());
 
         let mut block: CausalDecoderBlock = config.with_post_norms(true).init(0, &device);
         // Distinct gains, so a norm in the wrong place shows.
         for (seed, norm) in [
             (3, block.attn_norm.as_mut().expect("an attention norm")),
             (4, block.attn_post_norm.as_mut().expect("a post-norm")),
-            (5, &mut block.mlp_norm),
-            (6, block.mlp_post_norm.as_mut().expect("a post-norm")),
+            (5, block.mlp.pre.as_mut().expect("a pre-norm")),
+            (6, block.mlp.post.as_mut().expect("a post-norm")),
         ] {
             let BunsenNormalization::Rms(rms) = norm else {
                 panic!("an RMS norm");
@@ -681,8 +689,11 @@ mod tests {
             );
         let expected = x.clone()
             + post(
-                &block.mlp_post_norm,
-                block.mlp.forward(block.mlp_norm.forward(x)),
+                &block.mlp.post,
+                block
+                    .mlp
+                    .branch
+                    .forward(block.mlp.pre.as_ref().unwrap().forward(x)),
             );
         let output = block.forward(input, &r_emb, &mut None);
         assert_tensors_close(&output, &expected, Tolerance::default());
@@ -716,7 +727,7 @@ mod tests {
     }
 
     /// A conditioned block scales its feed-forward's normalized input:
-    /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x) * (1 + f(cond)))`.
+    /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp.pre(x) * (1 + f(cond)))`.
     #[test]
     fn test_conditioned_block_scales_the_mlp_input() {
         let device = crate::support::testing::cpu_device();
@@ -735,7 +746,8 @@ mod tests {
         let expected = x.clone()
             + block
                 .mlp
-                .forward(scale.forward(block.mlp_norm.forward(x), cond.clone()));
+                .branch
+                .forward(scale.forward(block.mlp.pre.as_ref().unwrap().forward(x), cond.clone()));
         let output = block.forward_conditioned(input, &r_emb, &mut None, Some(cond));
         assert_tensors_close(&output, &expected, Tolerance::default());
     }
