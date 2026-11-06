@@ -363,7 +363,7 @@ mod tests {
             .stack
             .layers
             .iter()
-            .map(|l| l.attn_norm.is_some())
+            .map(|l| l.attn.pre.is_some())
             .collect();
         assert_eq!(norms, [false, true, true, true, true]);
         assert_eq!(

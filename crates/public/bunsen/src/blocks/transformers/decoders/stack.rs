@@ -422,15 +422,18 @@ impl DecoderStackMeta for DecoderStack {
     }
 
     fn n_kv_heads(&self) -> usize {
-        self.layers[0].attn.n_kv_head()
+        self.layers[0].attn.branch.n_kv_head()
     }
 
     fn head_dim(&self) -> usize {
-        self.layers[0].attn.head_dim
+        self.layers[0].attn.branch.head_dim
     }
 
     fn layer_windows(&self) -> Vec<Option<usize>> {
-        self.layers.iter().map(|l| l.attn.sliding_window).collect()
+        self.layers
+            .iter()
+            .map(|l| l.attn.branch.sliding_window)
+            .collect()
     }
 }
 
@@ -716,6 +719,7 @@ impl DecoderStack {
             for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
                 let w = layer
                     .attn
+                    .branch
                     .attention_weights(layer.attn_input(x.clone()), r_emb.for_layer(index));
                 weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
             }
@@ -992,12 +996,14 @@ mod tests {
         let first = &stack.layers[0];
         let expected0 = first
             .attn
+            .branch
             .attention_weights(first.attn_input(x.clone()), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let second = &stack.layers[1];
         let x1 = first.forward(x, r_emb.for_layer(0), &mut None);
         let expected1 = second
             .attn
+            .branch
             .attention_weights(second.attn_input(x1), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let tolerance = Tolerance::default();

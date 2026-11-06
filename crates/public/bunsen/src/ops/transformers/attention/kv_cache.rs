@@ -389,8 +389,8 @@ impl KVCacheConfig {
 /// it to the model's forward, so one model can run several decodes at once.
 /// It is a `Module` over bare tensors, not parameters.
 /// [`CausalSelfAttention`] and the `MultiHeadAttention` functions
-/// ([`norm_self_attn_w_kv_cache`](super::norm_self_attn_w_kv_cache),
-/// [`norm_cross_attn_w_kv_cache`](super::norm_cross_attn_w_kv_cache))
+/// ([`self_attn_w_kv_cache`](super::self_attn_w_kv_cache),
+/// [`cross_attn_w_kv_cache`](super::cross_attn_w_kv_cache))
 /// are its consumers.
 ///
 /// Built by [`KVCacheConfig`], whose `init` takes no device; a model hands

@@ -238,16 +238,16 @@ mod tests {
         (r"\.positional_embedding$", ".embed_positions.weight"),
         (r"\.token_embedding\.", ".embed_tokens."),
         (r"\.blocks\.(\d+)\.", ".layers.$1."),
-        (r"\.attn\.query\.", ".self_attn.q_proj."),
-        (r"\.attn\.key\.", ".self_attn.k_proj."),
-        (r"\.attn\.value\.", ".self_attn.v_proj."),
-        (r"\.attn\.output\.", ".self_attn.out_proj."),
-        (r"\.cross_attn\.query\.", ".encoder_attn.q_proj."),
-        (r"\.cross_attn\.key\.", ".encoder_attn.k_proj."),
-        (r"\.cross_attn\.value\.", ".encoder_attn.v_proj."),
-        (r"\.cross_attn\.output\.", ".encoder_attn.out_proj."),
-        (r"\.attn_norm\.", ".self_attn_layer_norm."),
-        (r"\.cross_attn_norm\.", ".encoder_attn_layer_norm."),
+        (r"\.attn\.branch\.query\.", ".self_attn.q_proj."),
+        (r"\.attn\.branch\.key\.", ".self_attn.k_proj."),
+        (r"\.attn\.branch\.value\.", ".self_attn.v_proj."),
+        (r"\.attn\.branch\.output\.", ".self_attn.out_proj."),
+        (r"\.cross_attn\.branch\.query\.", ".encoder_attn.q_proj."),
+        (r"\.cross_attn\.branch\.key\.", ".encoder_attn.k_proj."),
+        (r"\.cross_attn\.branch\.value\.", ".encoder_attn.v_proj."),
+        (r"\.cross_attn\.branch\.output\.", ".encoder_attn.out_proj."),
+        (r"\.attn\.pre\.", ".self_attn_layer_norm."),
+        (r"\.cross_attn\.pre\.", ".encoder_attn_layer_norm."),
         (r"\.mlp\.pre\.", ".final_layer_norm."),
         (r"\.mlp\.branch\.linear1\.", ".fc1."),
         (r"\.mlp\.branch\.linear2\.", ".fc2."),
@@ -295,12 +295,12 @@ mod tests {
             x.into_data().assert_eq(&y.into_data(), false);
         };
         same(
-            a.encoder.blocks[0].attn.query.weight.val(),
-            b.encoder.blocks[0].attn.query.weight.val(),
+            a.encoder.blocks[0].attn.branch.query.weight.val(),
+            b.encoder.blocks[0].attn.branch.query.weight.val(),
         );
         same(
-            a.decoder.blocks[2].cross_attn.output.weight.val(),
-            b.decoder.blocks[2].cross_attn.output.weight.val(),
+            a.decoder.blocks[2].cross_attn.branch.output.weight.val(),
+            b.decoder.blocks[2].cross_attn.branch.output.weight.val(),
         );
         same(
             a.decoder.blocks[1].mlp.branch.linear2.weight.val(),

@@ -110,14 +110,20 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
         let ff_sublayer = ResidualSublayerConfig::pre_norm(Some(self.norm.clone()));
         Ok(ConformerBlock {
             feed_forward1: ff_sublayer.init(ff()?, self.d_model, device),
-            attn_norm: norm(),
-            attn: RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
-                .with_bias(self.bias)
-                .try_init(device)?,
-            conv_norm: norm(),
-            conv: ConformerConvolutionConfig::new(self.d_model, self.conv_kernel_size)
-                .with_bias(self.conv_bias)
-                .try_init(device)?,
+            attn: ff_sublayer.init(
+                RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
+                    .with_bias(self.bias)
+                    .try_init(device)?,
+                self.d_model,
+                device,
+            ),
+            conv: ff_sublayer.init(
+                ConformerConvolutionConfig::new(self.d_model, self.conv_kernel_size)
+                    .with_bias(self.conv_bias)
+                    .try_init(device)?,
+                self.d_model,
+                device,
+            ),
             feed_forward2: ff_sublayer.init(ff()?, self.d_model, device),
             out_norm: norm(),
         })
@@ -145,17 +151,13 @@ pub struct ConformerBlock {
     /// (`branch`).
     pub feed_forward1: ResidualSublayer<ConformerFeedForward>,
 
-    /// The attention's normalization.
-    pub attn_norm: BunsenNormalization,
+    /// The attention sublayer: its norm (`pre`) and relative-position
+    /// self-attention (`branch`).
+    pub attn: ResidualSublayer<RelPosSelfAttention>,
 
-    /// Relative-position self-attention.
-    pub attn: RelPosSelfAttention,
-
-    /// The convolution module's normalization.
-    pub conv_norm: BunsenNormalization,
-
-    /// The convolution module.
-    pub conv: ConformerConvolution,
+    /// The convolution sublayer: its norm (`pre`) and the convolution module
+    /// (`branch`).
+    pub conv: ResidualSublayer<ConformerConvolution>,
 
     /// The second feed-forward sublayer: its norm (`pre`) and the module
     /// (`branch`).
@@ -167,11 +169,11 @@ pub struct ConformerBlock {
 
 impl ConformerBlockMeta for ConformerBlock {
     fn d_model(&self) -> usize {
-        self.attn.d_model()
+        self.attn.branch.d_model()
     }
 
     fn n_heads(&self) -> usize {
-        self.attn.n_heads()
+        self.attn.branch.n_heads()
     }
 }
 
@@ -219,11 +221,12 @@ impl ConformerBlock {
         let x = self
             .feed_forward1
             .residual_update(x, |ff, z| ff.forward(z).mul_scalar(0.5));
-        let x = x.clone()
-            + self
-                .attn
-                .forward(self.attn_norm.forward(x), positions, valid.clone());
-        let x = x.clone() + self.conv.forward(self.conv_norm.forward(x), valid);
+        let x = self
+            .attn
+            .residual_update(x, |attn, z| attn.forward(z, positions, valid.clone()));
+        let x = self
+            .conv
+            .residual_update(x, |conv, z| conv.forward(z, valid));
         let x = self
             .feed_forward2
             .residual_update(x, |ff, z| ff.forward(z).mul_scalar(0.5));
@@ -246,11 +249,15 @@ impl ConformerBlock {
 
 impl CanonicalKeys for ConformerBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // Each macaron feed-forward is a `ResidualSublayer`: its norm is its
-        // `pre`, the feed-forward its `branch`.
+        // Each sublayer is a `ResidualSublayer`: its norm is its `pre`, its
+        // module its `branch`.
         Rekey::keep_rest()
             .rename("feed_forward1_norm.", "feed_forward1.pre.")
             .rename("feed_forward1.", "feed_forward1.branch.")
+            .rename("attn_norm.", "attn.pre.")
+            .rename("attn.", "attn.branch.")
+            .rename("conv_norm.", "conv.pre.")
+            .rename("conv.", "conv.branch.")
             .rename("feed_forward2_norm.", "feed_forward2.pre.")
             .rename("feed_forward2.", "feed_forward2.branch.")
     }

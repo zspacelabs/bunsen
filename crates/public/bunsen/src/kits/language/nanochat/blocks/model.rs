@@ -628,7 +628,7 @@ impl NanoChatGptMeta for NanoChatGpt {
     }
 
     fn n_head(&self) -> usize {
-        self.stack.layers[0].attn.n_head()
+        self.stack.layers[0].attn.branch.n_head()
     }
 
     fn n_kv_head(&self) -> usize {
@@ -953,9 +953,9 @@ mod tests {
         assert!(gpt.value_embeds.iter().all(Option::is_none));
         assert!(!gpt.is_smeared() && gpt.backout_lambda.is_none());
         assert!(gpt.stack.layers.iter().all(|b| {
-            b.attn.score_scale.is_none()
-                && b.attn.sliding_window.is_none()
-                && b.attn.value_gate.is_none()
+            b.attn.branch.score_scale.is_none()
+                && b.attn.branch.sliding_window.is_none()
+                && b.attn.branch.value_gate.is_none()
         }));
 
         let structure = NanoChatGptContractConfig::new().to_structure();
@@ -1056,7 +1056,7 @@ mod tests {
         gpt.smear_lambda = Some(Param::from_tensor(Tensor::from_floats([0.7], device)));
         gpt.backout_lambda = Some(Param::from_tensor(Tensor::from_floats([0.3], device)));
         for block in gpt.stack.layers.iter_mut() {
-            if let Some(gate) = block.attn.value_gate.as_mut() {
+            if let Some(gate) = block.attn.branch.value_gate.as_mut() {
                 gate.weight = Param::from_tensor(seeded_tensor(
                     7,
                     gate.weight.dims(),
@@ -1210,17 +1210,17 @@ mod tests {
         differs(&g, "the x0 lambdas");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            block.attn.score_scale = None;
+            block.attn.branch.score_scale = None;
         }
         differs(&g, "the qk gain");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            block.attn.sliding_window = None;
+            block.attn.branch.sliding_window = None;
         }
         differs(&g, "the windows");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            if let Some(gate) = block.attn.value_gate.as_mut() {
+            if let Some(gate) = block.attn.branch.value_gate.as_mut() {
                 gate.weight = Param::from_tensor(gate.weight.val().zeros_like().sub_scalar(30.0));
             }
         }

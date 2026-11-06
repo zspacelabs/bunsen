@@ -19,10 +19,7 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::{
-            BunsenNormalization,
-            BunsenNormalizationConfig,
-        },
+        norm::BunsenNormalizationConfig,
         transformers::{
             encoders::residual::ResidualEncoderAttentionBlock,
             mlp::{
@@ -43,11 +40,11 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
-        norm_cross_attn,
-        norm_cross_attn_w_kv_cache,
-        norm_self_attn,
-        norm_self_attn_w_kv_cache,
+        cross_attn,
+        cross_attn_w_kv_cache,
         project_kv,
+        self_attn,
+        self_attn_w_kv_cache,
     },
 };
 
@@ -107,12 +104,7 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
         let mha_cfg = MultiHeadAttentionConfig::new(self.d_model, self.n_heads())
             .with_dropout(self.dropout)
             .with_key_bias(false);
-        let norm = || {
-            self.norm
-                .clone()
-                .with_num_features(self.d_model)
-                .init(device)
-        };
+        let sublayer = ResidualSublayerConfig::pre_norm(Some(self.norm.clone()));
 
         let attn = mha_cfg.init(device);
         let cross_attn = mha_cfg.init(device);
@@ -126,15 +118,9 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
             .try_init(device)?;
 
         Ok(CrossDecoderBlock {
-            attn_norm: norm(),
-            attn,
-            cross_attn_norm: norm(),
-            cross_attn,
-            mlp: ResidualSublayerConfig::pre_norm(Some(self.norm.clone())).init(
-                mlp,
-                self.d_model,
-                device,
-            ),
+            attn: sublayer.init(attn, self.d_model, device),
+            cross_attn: sublayer.init(cross_attn, self.d_model, device),
+            mlp: sublayer.init(mlp, self.d_model, device),
         })
     }
 }
@@ -145,10 +131,10 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 ///
 /// Whisper's text decoder is a stack of these. The attention is burn's
 /// [`MultiHeadAttention`] (without a key bias), and the norms are any
-/// [`BunsenNormalization`], `LayerNorm`s by default: what the ported
-/// checkpoints hold. The fields are named by
-/// role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, and the MLP
-/// sublayer, `mlp` (its norm `mlp.pre`, the MLP `mlp.branch`).
+/// [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization),
+/// `LayerNorm`s by default: what the ported checkpoints hold. The fields are
+/// named by role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, and the
+/// MLP sublayer, `mlp` (its norm `mlp.pre`, the MLP `mlp.branch`).
 ///
 /// [`forward`](Self::forward) runs a whole sequence, and returns its
 /// cross-attention weights too ([`CrossDecoderRecord`]), which alignment needs;
@@ -158,17 +144,13 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 /// Built by [`CrossDecoderBlockConfig`].
 #[derive(Module, Debug)]
 pub struct CrossDecoderBlock {
-    /// Attention Normalization.
-    pub attn_norm: BunsenNormalization,
+    /// The self-attention sublayer: its norm (`pre`) and the attention
+    /// (`branch`).
+    pub attn: ResidualSublayer<MultiHeadAttention>,
 
-    /// Attention.
-    pub attn: MultiHeadAttention,
-
-    /// Cross Attention Normalization.
-    pub cross_attn_norm: BunsenNormalization,
-
-    /// Cross Attention.
-    pub cross_attn: MultiHeadAttention,
+    /// The cross-attention sublayer: its norm (`pre`) and the attention
+    /// (`branch`).
+    pub cross_attn: ResidualSublayer<MultiHeadAttention>,
 
     /// The MLP sublayer: its norm (`pre`) and the MLP (`branch`).
     pub mlp: ResidualSublayer<TransformerMlp>,
@@ -176,15 +158,15 @@ pub struct CrossDecoderBlock {
 
 impl CrossDecoderBlockMeta for CrossDecoderBlock {
     fn d_model(&self) -> usize {
-        self.attn.d_model
+        self.attn.branch.d_model
     }
 
     fn n_heads(&self) -> usize {
-        self.attn.n_heads
+        self.attn.branch.n_heads
     }
 
     fn dropout(&self) -> f64 {
-        self.attn.dropout.prob
+        self.attn.branch.dropout.prob
     }
 }
 
@@ -234,17 +216,22 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
-        let self_attn = norm_self_attn(&self.attn_norm, &self.attn, x.clone(), mask);
-        let x = x + self_attn.context;
+        let x = self
+            .attn
+            .residual_update(x, |attn, z| self_attn(attn, z, mask).context);
 
-        let cross_attn = norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
-        let x = x + cross_attn.context;
+        let mut ca_weights = None;
+        let x = self.cross_attn.residual_update(x, |attn, z| {
+            let out = cross_attn(attn, z, xa);
+            ca_weights = Some(out.weights);
+            out.context
+        });
 
         let x = self.mlp.residual_update(x, |mlp, z| mlp.forward(z));
 
         CrossDecoderRecord {
             output: x,
-            ca_weights: cross_attn.weights,
+            ca_weights: ca_weights.expect("the cross-attention ran"),
         }
     }
 
@@ -277,22 +264,12 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = x.clone().add(norm_self_attn_w_kv_cache(
-            &self.attn_norm,
-            &self.attn,
-            x,
-            mask,
-            cache,
-            layer,
-        ));
-
-        let x = x.clone().add(norm_cross_attn_w_kv_cache(
-            &self.cross_attn_norm,
-            &self.cross_attn,
-            x,
-            cache,
-            layer,
-        ));
+        let x = self.attn.residual_update(x, |attn, z| {
+            self_attn_w_kv_cache(attn, z, mask, cache, layer)
+        });
+        let x = self
+            .cross_attn
+            .residual_update(x, |attn, z| cross_attn_w_kv_cache(attn, z, cache, layer));
 
         self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
     }
@@ -313,7 +290,7 @@ impl CrossDecoderBlock {
         &self,
         xa: Tensor<3>,
     ) -> (Tensor<4>, Tensor<4>) {
-        project_kv(&self.cross_attn, xa)
+        project_kv(&self.cross_attn.branch, xa)
     }
 
     /// `transformers`' Whisper decoder layer names onto this block's,
@@ -338,9 +315,13 @@ impl CrossDecoderBlock {
 
 impl CanonicalKeys for CrossDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The feed-forward's sublayer is a `ResidualSublayer`: its norm is
-        // its `pre`, the feed-forward its `branch`.
+        // Each sublayer is a `ResidualSublayer`: its norm is its `pre`, its
+        // module its `branch`.
         Rekey::keep_rest()
+            .rename("attn_norm.", "attn.pre.")
+            .rename("attn.", "attn.branch.")
+            .rename("cross_attn_norm.", "cross_attn.pre.")
+            .rename("cross_attn.", "cross_attn.branch.")
             .rename("mlp_norm.", "mlp.pre.")
             .rename("mlp.", "mlp.branch.")
     }
@@ -379,7 +360,7 @@ mod tests {
         assert_eq!(block.d_model(), d_model);
         assert_eq!(block.n_heads(), n_heads);
         // Whisper's attention has no key bias; every other projection has one.
-        for attn in [&block.attn, &block.cross_attn] {
+        for attn in [&block.attn.branch, &block.cross_attn.branch] {
             assert!(attn.key.bias.is_none());
             assert!(attn.query.bias.is_some());
             assert!(attn.value.bias.is_some());
@@ -404,21 +385,22 @@ mod tests {
         assert_eq!(result.seq_len(), seq_len);
 
         let expected = {
-            let self_attn = norm_self_attn(
-                &block.attn_norm,
-                &block.attn,
-                x.clone(),
+            let pre = |s: &ResidualSublayer<MultiHeadAttention>, x: Tensor<3>| {
+                s.pre.as_ref().unwrap().forward(x)
+            };
+            let self_out = self_attn(
+                &block.attn.branch,
+                pre(&block.attn, x.clone()),
                 mask.clone().into(),
             );
-            let x = x + self_attn.context;
+            let x = x + self_out.context;
 
-            let cross_attn = norm_cross_attn(
-                &block.cross_attn_norm,
-                &block.cross_attn,
-                x.clone(),
+            let cross_out = cross_attn(
+                &block.cross_attn.branch,
+                pre(&block.cross_attn, x.clone()),
                 xa.clone(),
             );
-            let x = x + cross_attn.context;
+            let x = x + cross_out.context;
 
             let x = x.clone()
                 + block
@@ -428,7 +410,7 @@ mod tests {
 
             CrossDecoderRecord {
                 output: x,
-                ca_weights: cross_attn.weights,
+                ca_weights: cross_out.weights,
             }
         };
 
