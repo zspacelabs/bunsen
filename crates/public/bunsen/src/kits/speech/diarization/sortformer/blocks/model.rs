@@ -65,7 +65,9 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
+        Rekey,
         ToStructureConfig,
     },
     contracts::{
@@ -684,6 +686,14 @@ impl Sortformer {
         let padded = lengths.is_some();
         let (embs, lengths) = self.pre_encode(mels, lengths);
         self.forward_pre_encoded(embs, padded.then_some(lengths.as_slice()))
+    }
+}
+
+impl CanonicalKeys for Sortformer {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest()
+            .mount_canonical("encoder.", &self.encoder)
+            .mount_canonical("transformer.", &self.transformer)
     }
 }
 

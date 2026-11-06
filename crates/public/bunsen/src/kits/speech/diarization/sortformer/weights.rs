@@ -11,7 +11,10 @@ use crate::{
         FeatureStackingMeta,
         FeatureStackingOrder,
     },
-    burner::module::Rekey,
+    burner::module::{
+        CanonicalKeys,
+        Rekey,
+    },
     data::pretrained::{
         NamedTensorsApplied,
         apply_rekeyed_tensors,
@@ -116,6 +119,7 @@ pub fn load_nemotron_transformers_tensors(
         BunsenError::invalid_resource("a Nemotron encoder subsamples by feature stacking")
     })?;
     let rekey = nemotron_transformers_rekey(stacking);
+    let rekey = rekey.then(model.canonical_rekey());
     apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
@@ -157,6 +161,7 @@ pub fn load_sortformer_v2_nemo_tensors(
         BunsenError::invalid_resource("a Sortformer v2 encoder subsamples by depthwise striding")
     })?;
     let rekey = sortformer_v2_nemo_rekey(striding);
+    let rekey = rekey.then(model.canonical_rekey());
     apply_rekeyed_tensors(model, tensors, &rekey)
 }
 

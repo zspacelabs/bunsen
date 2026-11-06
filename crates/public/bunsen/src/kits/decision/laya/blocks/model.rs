@@ -42,7 +42,11 @@ use crate::{
         },
     },
     burner::{
-        module::ModuleInit,
+        module::{
+            CanonicalKeys,
+            ModuleInit,
+            Rekey,
+        },
         tensor::param_float_dtype,
     },
     contracts::unpack_shape_contract,
@@ -327,5 +331,13 @@ impl LayaModel {
             .forward(gelu(self.act_head.dense.forward(act_in)))
             .cast(DType::F32);
         LayaOutput { logits, act_logits }
+    }
+}
+
+impl CanonicalKeys for LayaModel {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest()
+            .mount_canonical("encoder.", &self.encoder)
+            .mount_canonical("head.", &self.head)
     }
 }

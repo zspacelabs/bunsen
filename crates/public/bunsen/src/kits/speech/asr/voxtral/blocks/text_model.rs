@@ -39,7 +39,11 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
     ops::{
         embedding::timestep_embedding,
@@ -395,6 +399,12 @@ impl VoxtralTextModel {
         );
 
         y
+    }
+}
+
+impl CanonicalKeys for VoxtralTextModel {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

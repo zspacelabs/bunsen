@@ -28,6 +28,7 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
         Rekey,
         TensorLoadRowSplit,
@@ -426,6 +427,19 @@ impl ResidualEncoderAttentionBlock {
             .rename("norm2.", "mlp_norm.")
             .rename("linear1.", "mlp.linear1.")
             .rename("linear2.", "mlp.linear2.")
+    }
+}
+
+impl CanonicalKeys for ResidualEncoderAttentionBlock {
+    fn canonical_rekey(&self) -> Rekey {
+        // The canonical names are the record's paths.
+        Rekey::keep_rest()
+    }
+}
+
+impl CanonicalKeys for ResidualEncoderTransformer {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("layers.", &self.layers)
     }
 }
 

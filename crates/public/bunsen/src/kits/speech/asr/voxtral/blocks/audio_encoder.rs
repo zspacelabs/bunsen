@@ -38,7 +38,11 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
@@ -390,6 +394,12 @@ impl VoxtralAudioEncoder {
         let x = self.stem(features);
         let r_emb = self.rotary(x.dims()[1], &x.device());
         self.forward_frames(x, &r_emb, None)
+    }
+}
+
+impl CanonicalKeys for VoxtralAudioEncoder {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

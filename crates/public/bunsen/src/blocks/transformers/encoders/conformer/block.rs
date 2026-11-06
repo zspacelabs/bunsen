@@ -26,7 +26,11 @@ use crate::{
             RelPosSelfAttentionMeta,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
 };
 
@@ -239,6 +243,13 @@ impl ConformerBlock {
         );
 
         y
+    }
+}
+
+impl CanonicalKeys for ConformerBlock {
+    fn canonical_rekey(&self) -> Rekey {
+        // The canonical names are the record's paths.
+        Rekey::keep_rest()
     }
 }
 

@@ -35,7 +35,11 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -328,6 +332,12 @@ impl ModernBertModel {
     ) -> Tensor<3> {
         self.stack
             .encoder_forward(self.embeddings.forward(ids), lengths)
+    }
+}
+
+impl CanonicalKeys for ModernBertModel {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

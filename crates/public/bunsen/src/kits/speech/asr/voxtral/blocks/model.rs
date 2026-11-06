@@ -20,7 +20,11 @@ use super::{
     VoxtralTextModel,
 };
 use crate::{
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -256,6 +260,14 @@ impl VoxtralRealtime {
             None,
         );
         lm.logits(hidden)
+    }
+}
+
+impl CanonicalKeys for VoxtralRealtime {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest()
+            .mount_canonical("audio_tower.", &self.audio_tower)
+            .mount_canonical("language_model.", &self.language_model)
     }
 }
 

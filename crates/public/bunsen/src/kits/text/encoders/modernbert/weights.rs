@@ -13,6 +13,7 @@ use crate::{
         DecoderLayerKeys,
     },
     burner::module::{
+        CanonicalKeys,
         Rekey,
         TensorLoadRowSplit,
     },
@@ -107,6 +108,7 @@ pub fn load_transformers_tensors(
     let prefix = transformers_prefix(&tensors);
     let tensors = split_rows(tensors, &transformers_row_splits())?;
     let rekey = Rekey::drop_rest().mount(prefix, "", transformers_rekey());
+    let rekey = rekey.then(model.canonical_rekey());
     load_rekeyed(model, tensors, &rekey, dtype)
 }
 

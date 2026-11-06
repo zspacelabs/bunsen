@@ -46,7 +46,9 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
+        Rekey,
         ToStructureConfig,
     },
     errors::{
@@ -723,6 +725,12 @@ impl DecoderStack {
             .into_iter()
             .map(|w| w.expect("every layer visited"))
             .collect()
+    }
+}
+
+impl CanonicalKeys for DecoderStack {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("layers.", &self.layers)
     }
 }
 

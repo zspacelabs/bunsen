@@ -20,7 +20,11 @@ use crate::{
             EncoderTransformerMeta,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -216,6 +220,12 @@ impl SubsampledEncoder {
     ) -> Tensor<3> {
         self.layout
             .post_apply(self.transformer.forward(embs, lengths))
+    }
+}
+
+impl CanonicalKeys for SubsampledEncoder {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("transformer.", &self.transformer)
     }
 }
 

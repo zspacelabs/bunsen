@@ -18,7 +18,10 @@ use crate::{
             ConformerEncoderConfig,
         },
     },
-    burner::module::Rekey,
+    burner::module::{
+        CanonicalKeys,
+        Rekey,
+    },
     data::pretrained::{
         NamedTensorsApplied,
         apply_rekeyed_tensors,
@@ -118,6 +121,7 @@ pub fn load_transformers_tensors(
         BunsenError::invalid_resource("a Parakeet encoder subsamples by depthwise striding")
     })?;
     let rekey = transformers_rekey(striding);
+    let rekey = rekey.then(model.canonical_rekey());
     apply_rekeyed_tensors(model, tensors, &rekey)
 }
 

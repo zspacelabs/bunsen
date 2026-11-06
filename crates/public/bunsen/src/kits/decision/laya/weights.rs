@@ -9,7 +9,10 @@ use super::{
 };
 use crate::{
     blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock,
-    burner::module::Rekey,
+    burner::module::{
+        CanonicalKeys,
+        Rekey,
+    },
     data::pretrained::{
         NamedTensorsApplied,
         load_rekeyed,
@@ -80,7 +83,8 @@ pub fn load_laya_tensors(
         .chain(ResidualEncoderAttentionBlock::torch_row_splits())
         .collect();
     let tensors = split_rows(tensors, &splits)?;
-    load_rekeyed(model, tensors, &laya_rekey(), dtype)
+    let rekey = laya_rekey().then(model.canonical_rekey());
+    load_rekeyed(model, tensors, &rekey, dtype)
 }
 
 #[cfg(test)]

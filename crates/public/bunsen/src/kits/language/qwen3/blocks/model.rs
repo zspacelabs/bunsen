@@ -45,7 +45,11 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
@@ -425,6 +429,12 @@ impl Qwen3Model {
         );
 
         y
+    }
+}
+
+impl CanonicalKeys for Qwen3Model {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

@@ -26,7 +26,11 @@ use crate::{
             },
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
 };
 
@@ -193,6 +197,17 @@ impl EncoderTransformer {
             Self::Residual(m) => m.forward(x, lengths),
             Self::Stack(m) => m.encoder_forward(x, lengths),
             Self::Conformer(m) => m.forward(x, lengths),
+        }
+    }
+}
+
+impl CanonicalKeys for EncoderTransformer {
+    fn canonical_rekey(&self) -> Rekey {
+        // The variant is not in the paths.
+        match self {
+            Self::Residual(t) => t.canonical_rekey(),
+            Self::Stack(t) => t.canonical_rekey(),
+            Self::Conformer(t) => t.canonical_rekey(),
         }
     }
 }
