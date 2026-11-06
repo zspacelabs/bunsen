@@ -1,0 +1,2843 @@
+{
+ "qwen3.5-0.8b": {
+  "encode": [
+   {
+    "text": "",
+    "ids": []
+   },
+   {
+    "text": "Hello, world!",
+    "ids": [
+     9419,
+     11,
+     1814,
+     0
+    ]
+   },
+   {
+    "text": "The lighthouse keeper climbed the stairs every evening, and",
+    "ids": [
+     760,
+     324,
+     55965,
+     51624,
+     42942,
+     279,
+     30129,
+     1396,
+     11129,
+     11,
+     321
+    ]
+   },
+   {
+    "text": "  leading spaces, trailing spaces   ",
+    "ids": [
+     220,
+     6187,
+     12258,
+     11,
+     26849,
+     12258,
+     262
+    ]
+   },
+   {
+    "text": "tabs\tand\nnewlines\r\n\n\nand more",
+    "ids": [
+     29975,
+     50711,
+     198,
+     902,
+     7718,
+     201,
+     1358,
+     429,
+     777
+    ]
+   },
+   {
+    "text": "numbers: 12345 3.14159 -42 1e10 0x7fff",
+    "ids": [
+     36142,
+     25,
+     220,
+     16,
+     17,
+     18,
+     19,
+     20,
+     220,
+     18,
+     13,
+     16,
+     19,
+     16,
+     20,
+     24,
+     471,
+     19,
+     17,
+     220,
+     16,
+     68,
+     16,
+     15,
+     220,
+     15,
+     87,
+     22,
+     13688
+    ]
+   },
+   {
+    "text": "fn main() {\n    println!(\"{}\", 1 + 2);\n}\n",
+    "ids": [
+     8556,
+     1822,
+     363,
+     313,
+     198,
+     262,
+     13356,
+     77127,
+     220,
+     16,
+     478,
+     220,
+     17,
+     1174,
+     198,
+     92,
+     198
+    ]
+   },
+   {
+    "text": "Ünïcödé façade naïve résumé",
+    "ids": [
+     50724,
+     77,
+     245787,
+     2862,
+     164497,
+     218894,
+     91603,
+     571,
+     238976
+    ]
+   },
+   {
+    "text": "é versus é versus Ȩ́",
+    "ids": [
+     933,
+     18468,
+     3825,
+     18468,
+     220,
+     132,
+     101,
+     52033
+    ]
+   },
+   {
+    "text": "हिन्दी पाठ और संयुक्ताक्षर",
+    "ids": [
+     215989,
+     150127,
+     177453,
+     160211,
+     151356,
+     170729,
+     172281,
+     148355,
+     70184,
+     149567,
+     149833,
+     151858,
+     42710
+    ]
+   },
+   {
+    "text": "ภาษาไทย ผสม วรรณยุกต์",
+    "ids": [
+     229936,
+     150430,
+     148674,
+     220,
+     165249,
+     168921
+    ]
+   },
+   {
+    "text": "áb̂c̃ d⃝ e̶",
+    "ids": [
+     56581,
+     136,
+     224,
+     66,
+     136,
+     225,
+     293,
+     158,
+     28429,
+     378,
+     136,
+     114
+    ]
+   },
+   {
+    "text": "中文测试：你好，世界！",
+    "ids": [
+     99986,
+     99449,
+     4960,
+     109266,
+     3709,
+     96748,
+     6115
+    ]
+   },
+   {
+    "text": "日本語のテキストです。カタカナとひらがな。",
+    "ids": [
+     247359,
+     15303,
+     210342,
+     36298,
+     1710,
+     167281,
+     221215,
+     18602,
+     149989,
+     203338,
+     24950,
+     1710
+    ]
+   },
+   {
+    "text": "emoji 🎉🚀👩‍💻 and flags 🇺🇸🇯🇵",
+    "ids": [
+     36280,
+     10838,
+     236,
+     231,
+     9008,
+     248,
+     222,
+     9008,
+     239,
+     102,
+     373,
+     235,
+     88995,
+     119,
+     321,
+     7789,
+     10838,
+     229,
+     118,
+     9008,
+     229,
+     116,
+     9008,
+     229,
+     107,
+     9008,
+     229,
+     113
+    ]
+   },
+   {
+    "text": "<|im_start|>user\nhi<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     5834,
+     248046,
+     198
+    ]
+   },
+   {
+    "text": "<think>\nreasoning\n</think>\n\nanswer",
+    "ids": [
+     248068,
+     198,
+     19290,
+     286,
+     198,
+     248069,
+     271,
+     8944
+    ]
+   },
+   {
+    "text": "glued<|im_end|>text<|endoftext|>more",
+    "ids": [
+     5882,
+     3155,
+     248046,
+     1272,
+     248044,
+     6183
+    ]
+   },
+   {
+    "text": "<tool_call>\n{\"name\": \"f\"}\n</tool_call>",
+    "ids": [
+     248058,
+     198,
+     4754,
+     591,
+     763,
+     328,
+     69,
+     8934,
+     198,
+     248059
+    ]
+   },
+   {
+    "text": "don't won't I'm you're they've we'll he'd",
+    "ids": [
+     14572,
+     914,
+     2677,
+     914,
+     353,
+     2688,
+     488,
+     2224,
+     781,
+     2908,
+     567,
+     3172,
+     551,
+     4035
+    ]
+   },
+   {
+    "text": "     ",
+    "ids": [
+     406
+    ]
+   },
+   {
+    "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ids": [
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     27528
+    ]
+   }
+  ],
+  "templates": [
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198
+    ]
+   }
+  ]
+ },
+ "qwen3.5-4b": {
+  "encode": [
+   {
+    "text": "",
+    "ids": []
+   },
+   {
+    "text": "Hello, world!",
+    "ids": [
+     9419,
+     11,
+     1814,
+     0
+    ]
+   },
+   {
+    "text": "The lighthouse keeper climbed the stairs every evening, and",
+    "ids": [
+     760,
+     324,
+     55965,
+     51624,
+     42942,
+     279,
+     30129,
+     1396,
+     11129,
+     11,
+     321
+    ]
+   },
+   {
+    "text": "  leading spaces, trailing spaces   ",
+    "ids": [
+     220,
+     6187,
+     12258,
+     11,
+     26849,
+     12258,
+     262
+    ]
+   },
+   {
+    "text": "tabs\tand\nnewlines\r\n\n\nand more",
+    "ids": [
+     29975,
+     50711,
+     198,
+     902,
+     7718,
+     201,
+     1358,
+     429,
+     777
+    ]
+   },
+   {
+    "text": "numbers: 12345 3.14159 -42 1e10 0x7fff",
+    "ids": [
+     36142,
+     25,
+     220,
+     16,
+     17,
+     18,
+     19,
+     20,
+     220,
+     18,
+     13,
+     16,
+     19,
+     16,
+     20,
+     24,
+     471,
+     19,
+     17,
+     220,
+     16,
+     68,
+     16,
+     15,
+     220,
+     15,
+     87,
+     22,
+     13688
+    ]
+   },
+   {
+    "text": "fn main() {\n    println!(\"{}\", 1 + 2);\n}\n",
+    "ids": [
+     8556,
+     1822,
+     363,
+     313,
+     198,
+     262,
+     13356,
+     77127,
+     220,
+     16,
+     478,
+     220,
+     17,
+     1174,
+     198,
+     92,
+     198
+    ]
+   },
+   {
+    "text": "Ünïcödé façade naïve résumé",
+    "ids": [
+     50724,
+     77,
+     245787,
+     2862,
+     164497,
+     218894,
+     91603,
+     571,
+     238976
+    ]
+   },
+   {
+    "text": "é versus é versus Ȩ́",
+    "ids": [
+     933,
+     18468,
+     3825,
+     18468,
+     220,
+     132,
+     101,
+     52033
+    ]
+   },
+   {
+    "text": "हिन्दी पाठ और संयुक्ताक्षर",
+    "ids": [
+     215989,
+     150127,
+     177453,
+     160211,
+     151356,
+     170729,
+     172281,
+     148355,
+     70184,
+     149567,
+     149833,
+     151858,
+     42710
+    ]
+   },
+   {
+    "text": "ภาษาไทย ผสม วรรณยุกต์",
+    "ids": [
+     229936,
+     150430,
+     148674,
+     220,
+     165249,
+     168921
+    ]
+   },
+   {
+    "text": "áb̂c̃ d⃝ e̶",
+    "ids": [
+     56581,
+     136,
+     224,
+     66,
+     136,
+     225,
+     293,
+     158,
+     28429,
+     378,
+     136,
+     114
+    ]
+   },
+   {
+    "text": "中文测试：你好，世界！",
+    "ids": [
+     99986,
+     99449,
+     4960,
+     109266,
+     3709,
+     96748,
+     6115
+    ]
+   },
+   {
+    "text": "日本語のテキストです。カタカナとひらがな。",
+    "ids": [
+     247359,
+     15303,
+     210342,
+     36298,
+     1710,
+     167281,
+     221215,
+     18602,
+     149989,
+     203338,
+     24950,
+     1710
+    ]
+   },
+   {
+    "text": "emoji 🎉🚀👩‍💻 and flags 🇺🇸🇯🇵",
+    "ids": [
+     36280,
+     10838,
+     236,
+     231,
+     9008,
+     248,
+     222,
+     9008,
+     239,
+     102,
+     373,
+     235,
+     88995,
+     119,
+     321,
+     7789,
+     10838,
+     229,
+     118,
+     9008,
+     229,
+     116,
+     9008,
+     229,
+     107,
+     9008,
+     229,
+     113
+    ]
+   },
+   {
+    "text": "<|im_start|>user\nhi<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     5834,
+     248046,
+     198
+    ]
+   },
+   {
+    "text": "<think>\nreasoning\n</think>\n\nanswer",
+    "ids": [
+     248068,
+     198,
+     19290,
+     286,
+     198,
+     248069,
+     271,
+     8944
+    ]
+   },
+   {
+    "text": "glued<|im_end|>text<|endoftext|>more",
+    "ids": [
+     5882,
+     3155,
+     248046,
+     1272,
+     248044,
+     6183
+    ]
+   },
+   {
+    "text": "<tool_call>\n{\"name\": \"f\"}\n</tool_call>",
+    "ids": [
+     248058,
+     198,
+     4754,
+     591,
+     763,
+     328,
+     69,
+     8934,
+     198,
+     248059
+    ]
+   },
+   {
+    "text": "don't won't I'm you're they've we'll he'd",
+    "ids": [
+     14572,
+     914,
+     2677,
+     914,
+     353,
+     2688,
+     488,
+     2224,
+     781,
+     2908,
+     567,
+     3172,
+     551,
+     4035
+    ]
+   },
+   {
+    "text": "     ",
+    "ids": [
+     406
+    ]
+   },
+   {
+    "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ids": [
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     27528
+    ]
+   }
+  ],
+  "templates": [
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "one_turn",
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2 + 2?"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nWhat is 2 + 2?<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     3710,
+     369,
+     220,
+     17,
+     478,
+     220,
+     17,
+     30,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "system",
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a terse assistant."
+     },
+     {
+      "role": "user",
+      "content": "Name a prime number."
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>system\nYou are a terse assistant.<|im_end|>\n<|im_start|>user\nName a prime number.<|im_end|>\n",
+    "ids": [
+     248045,
+     8678,
+     198,
+     2523,
+     513,
+     264,
+     48834,
+     17313,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     657,
+     264,
+     9944,
+     1324,
+     13,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "multi_turn_thinking",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a colour."
+     },
+     {
+      "role": "assistant",
+      "content": "<think>\nBlue is common.\n</think>\n\nBlue."
+     },
+     {
+      "role": "user",
+      "content": "Another?"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a colour.<|im_end|>\n<|im_start|>assistant\nBlue.<|im_end|>\n<|im_start|>user\nAnother?<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     12106,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     10025,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     13634,
+     30,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "reasoning_content",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Pick a number."
+     },
+     {
+      "role": "assistant",
+      "content": "Seven.",
+      "reasoning_content": "Seven is lucky."
+     },
+     {
+      "role": "user",
+      "content": "Why?"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nPick a number.<|im_end|>\n<|im_start|>assistant\nSeven.<|im_end|>\n<|im_start|>user\nWhy?<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     35728,
+     264,
+     1324,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     57517,
+     13,
+     248046,
+     198,
+     248045,
+     846,
+     198,
+     9930,
+     30,
+     248046,
+     198
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": true,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n<|im_start|>assistant\n<think>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     198
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": true,
+    "enable_thinking": false,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271
+    ]
+   },
+   {
+    "name": "ends_with_assistant",
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say hi."
+     },
+     {
+      "role": "assistant",
+      "content": "Hi!"
+     }
+    ],
+    "add_generation_prompt": false,
+    "enable_thinking": null,
+    "text": "<|im_start|>user\nSay hi.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\nHi!<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     44240,
+     15131,
+     13,
+     248046,
+     198,
+     248045,
+     74455,
+     198,
+     248068,
+     271,
+     248069,
+     271,
+     12675,
+     0,
+     248046,
+     198
+    ]
+   }
+  ]
+ },
+ "qwen3.5-0.8b-base": {
+  "encode": [
+   {
+    "text": "",
+    "ids": []
+   },
+   {
+    "text": "Hello, world!",
+    "ids": [
+     9419,
+     11,
+     1814,
+     0
+    ]
+   },
+   {
+    "text": "The lighthouse keeper climbed the stairs every evening, and",
+    "ids": [
+     760,
+     324,
+     55965,
+     51624,
+     42942,
+     279,
+     30129,
+     1396,
+     11129,
+     11,
+     321
+    ]
+   },
+   {
+    "text": "  leading spaces, trailing spaces   ",
+    "ids": [
+     220,
+     6187,
+     12258,
+     11,
+     26849,
+     12258,
+     262
+    ]
+   },
+   {
+    "text": "tabs\tand\nnewlines\r\n\n\nand more",
+    "ids": [
+     29975,
+     50711,
+     198,
+     902,
+     7718,
+     201,
+     1358,
+     429,
+     777
+    ]
+   },
+   {
+    "text": "numbers: 12345 3.14159 -42 1e10 0x7fff",
+    "ids": [
+     36142,
+     25,
+     220,
+     16,
+     17,
+     18,
+     19,
+     20,
+     220,
+     18,
+     13,
+     16,
+     19,
+     16,
+     20,
+     24,
+     471,
+     19,
+     17,
+     220,
+     16,
+     68,
+     16,
+     15,
+     220,
+     15,
+     87,
+     22,
+     13688
+    ]
+   },
+   {
+    "text": "fn main() {\n    println!(\"{}\", 1 + 2);\n}\n",
+    "ids": [
+     8556,
+     1822,
+     363,
+     313,
+     198,
+     262,
+     13356,
+     77127,
+     220,
+     16,
+     478,
+     220,
+     17,
+     1174,
+     198,
+     92,
+     198
+    ]
+   },
+   {
+    "text": "Ünïcödé façade naïve résumé",
+    "ids": [
+     50724,
+     77,
+     245787,
+     2862,
+     164497,
+     218894,
+     91603,
+     571,
+     238976
+    ]
+   },
+   {
+    "text": "é versus é versus Ȩ́",
+    "ids": [
+     933,
+     18468,
+     3825,
+     18468,
+     220,
+     132,
+     101,
+     52033
+    ]
+   },
+   {
+    "text": "हिन्दी पाठ और संयुक्ताक्षर",
+    "ids": [
+     215989,
+     150127,
+     177453,
+     160211,
+     151356,
+     170729,
+     172281,
+     148355,
+     70184,
+     149567,
+     149833,
+     151858,
+     42710
+    ]
+   },
+   {
+    "text": "ภาษาไทย ผสม วรรณยุกต์",
+    "ids": [
+     229936,
+     150430,
+     148674,
+     220,
+     165249,
+     168921
+    ]
+   },
+   {
+    "text": "áb̂c̃ d⃝ e̶",
+    "ids": [
+     56581,
+     136,
+     224,
+     66,
+     136,
+     225,
+     293,
+     158,
+     28429,
+     378,
+     136,
+     114
+    ]
+   },
+   {
+    "text": "中文测试：你好，世界！",
+    "ids": [
+     99986,
+     99449,
+     4960,
+     109266,
+     3709,
+     96748,
+     6115
+    ]
+   },
+   {
+    "text": "日本語のテキストです。カタカナとひらがな。",
+    "ids": [
+     247359,
+     15303,
+     210342,
+     36298,
+     1710,
+     167281,
+     221215,
+     18602,
+     149989,
+     203338,
+     24950,
+     1710
+    ]
+   },
+   {
+    "text": "emoji 🎉🚀👩‍💻 and flags 🇺🇸🇯🇵",
+    "ids": [
+     36280,
+     10838,
+     236,
+     231,
+     9008,
+     248,
+     222,
+     9008,
+     239,
+     102,
+     373,
+     235,
+     88995,
+     119,
+     321,
+     7789,
+     10838,
+     229,
+     118,
+     9008,
+     229,
+     116,
+     9008,
+     229,
+     107,
+     9008,
+     229,
+     113
+    ]
+   },
+   {
+    "text": "<|im_start|>user\nhi<|im_end|>\n",
+    "ids": [
+     248045,
+     846,
+     198,
+     5834,
+     248046,
+     198
+    ]
+   },
+   {
+    "text": "<think>\nreasoning\n</think>\n\nanswer",
+    "ids": [
+     248068,
+     198,
+     19290,
+     286,
+     198,
+     248069,
+     271,
+     8944
+    ]
+   },
+   {
+    "text": "glued<|im_end|>text<|endoftext|>more",
+    "ids": [
+     5882,
+     3155,
+     248046,
+     1272,
+     248044,
+     6183
+    ]
+   },
+   {
+    "text": "<tool_call>\n{\"name\": \"f\"}\n</tool_call>",
+    "ids": [
+     248058,
+     198,
+     4754,
+     591,
+     763,
+     328,
+     69,
+     8934,
+     198,
+     248059
+    ]
+   },
+   {
+    "text": "don't won't I'm you're they've we'll he'd",
+    "ids": [
+     14572,
+     914,
+     2677,
+     914,
+     353,
+     2688,
+     488,
+     2224,
+     781,
+     2908,
+     567,
+     3172,
+     551,
+     4035
+    ]
+   },
+   {
+    "text": "     ",
+    "ids": [
+     406
+    ]
+   },
+   {
+    "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "ids": [
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     67089,
+     27528
+    ]
+   }
+  ],
+  "templates": []
+ }
+}

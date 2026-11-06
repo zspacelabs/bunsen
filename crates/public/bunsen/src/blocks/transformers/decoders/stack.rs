@@ -574,6 +574,52 @@ impl DecoderStackCache {
         self.cache.reorder(sources);
         self.linear.reorder(sources);
     }
+
+    /// The position the next step writes at: the KV cache's.
+    pub fn pos(&self) -> usize {
+        self.cache.pos()
+    }
+
+    /// Whether [`truncate`](Self::truncate) can rewind to `pos`: the KV cache
+    /// can ([`KVCache::can_truncate`]), and, with linear-attention layers,
+    /// `pos` is the current position or 0. A linear layer's state summarizes
+    /// the whole prefix; it can stay where it is, or start over, but not
+    /// rewind.
+    pub fn can_truncate(
+        &self,
+        pos: usize,
+    ) -> bool {
+        self.cache.can_truncate(pos)
+            && (self.linear.is_empty() || pos == 0 || pos == self.cache.pos())
+    }
+
+    /// Rewinds to position `pos`, as [`KVCache::truncate`]; a rewind with
+    /// linear-attention layers, which must be to 0, resets their states too.
+    ///
+    /// # Panics
+    /// If it [cannot](Self::can_truncate) rewind to `pos`.
+    pub fn truncate(
+        &mut self,
+        pos: usize,
+    ) {
+        assert!(
+            self.can_truncate(pos),
+            "cannot truncate a decode cache at {} to {pos}: its linear-attention states \
+             only reset",
+            self.cache.pos()
+        );
+        if pos < self.cache.pos() {
+            self.linear.reset();
+        }
+        self.cache.truncate(pos);
+    }
+
+    /// Back to the start: the KV cache's position 0, and the linear states
+    /// zeros.
+    pub fn reset(&mut self) {
+        self.cache.reset();
+        self.linear.reset();
+    }
 }
 
 impl DecoderStack {

@@ -1,6 +1,7 @@
-//! `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint.
-//! `chat <list|fetch|run|chat>` takes a checkpoint of any family, by its name;
-//! `chat family <qwen3|gemma|nanochat> <list|fetch|run|chat>` runs one
+//! `bunsen-tool chat`: chat with a Qwen3, Qwen3.5, Gemma or nanochat
+//! checkpoint. `chat <list|fetch|run|chat>` takes a checkpoint of any family,
+//! by its name; `chat family <qwen3|qwen3.5|gemma|nanochat>
+//! <list|fetch|run|chat>` runs one
 //! family's, its own default by default, with only the flags that apply to it.
 use std::{
     io::{
@@ -36,6 +37,11 @@ use bunsen::{
                 DEFAULT_QWEN3_MODEL,
                 QWEN3_KIT,
                 default_qwen3_factory,
+            },
+            qwen3_5::pretrained::{
+                DEFAULT_QWEN3_5_MODEL,
+                QWEN3_5_KIT,
+                default_qwen3_5_factory,
             },
         },
         support::{
@@ -73,6 +79,7 @@ use bunsen_tool::chat::{
     ChatSessionConfig,
     GemmaChat,
     NanoChatChat,
+    Qwen3_5Chat,
     Qwen3Chat,
     no_chat_template,
     search_config,
@@ -130,6 +137,11 @@ enum FamilySub {
     /// its layout.
     Qwen3(KitCmd<ThinkFlags>),
 
+    /// Qwen's dense Qwen3.5 (its text models): `qwen/qwen3.5-0.8b` by
+    /// default, or any `hf:org/repo` in its layout.
+    #[command(name = "qwen3.5")]
+    Qwen3_5(KitCmd<ThinkFlags>),
+
     /// Google's Gemma, generations 1 to 3: `gemma/gemma-3-1b-it` by
     /// default, each from its `unsloth/` mirror.
     Gemma(KitCmd<PlainFlags>),
@@ -144,6 +156,7 @@ impl FamilyCmd {
     fn run(&self) -> BunsenResult<()> {
         match &self.family {
             FamilySub::Qwen3(cmd) => cmd.action.run(Family::Qwen3),
+            FamilySub::Qwen3_5(cmd) => cmd.action.run(Family::Qwen3_5),
             FamilySub::Gemma(cmd) => cmd.action.run(Family::Gemma),
             FamilySub::NanoChat(cmd) => cmd.action.run(Family::NanoChat),
         }
@@ -195,6 +208,9 @@ enum Family {
     /// Qwen's Qwen3.
     Qwen3,
 
+    /// Qwen's dense Qwen3.5.
+    Qwen3_5,
+
     /// Google's Gemma.
     Gemma,
 
@@ -204,19 +220,26 @@ enum Family {
 
 impl Family {
     /// Every family.
-    const ALL: [Family; 3] = [Family::Qwen3, Family::Gemma, Family::NanoChat];
+    const ALL: [Family; 4] = [
+        Family::Qwen3,
+        Family::Qwen3_5,
+        Family::Gemma,
+        Family::NanoChat,
+    ];
 
     /// The family whose checkpoint `name` is: nanochat's when the nanochat
-    /// factory knows it, Gemma's when Gemma's well-known table does, Qwen3's
-    /// otherwise (an `hf:` repo among them).
+    /// factory knows it, Gemma's or Qwen3.5's when its well-known table does,
+    /// Qwen3's otherwise (an `hf:` repo among them).
     fn of(name: &str) -> BunsenResult<Family> {
-        let gemma = default_gemma_factory()?
-            .lookup(name)
-            .is_ok_and(|(provider, _)| provider == bunsen::data::pretrained::WELL_KNOWN);
+        let well_known = |found: BunsenResult<(String, Pretrained)>| {
+            found.is_ok_and(|(provider, _)| provider == bunsen::data::pretrained::WELL_KNOWN)
+        };
         Ok(if default_nanochat_factory()?.lookup(name).is_ok() {
             Family::NanoChat
-        } else if gemma {
+        } else if well_known(default_gemma_factory()?.lookup(name)) {
             Family::Gemma
+        } else if well_known(default_qwen3_5_factory()?.lookup(name)) {
+            Family::Qwen3_5
         } else {
             Family::Qwen3
         })
@@ -226,6 +249,7 @@ impl Family {
     fn name(self) -> &'static str {
         match self {
             Family::Qwen3 => "qwen3",
+            Family::Qwen3_5 => "qwen3.5",
             Family::Gemma => "gemma",
             Family::NanoChat => "nanochat",
         }
@@ -235,6 +259,7 @@ impl Family {
     fn default_model(self) -> &'static str {
         match self {
             Family::Qwen3 => DEFAULT_QWEN3_MODEL,
+            Family::Qwen3_5 => DEFAULT_QWEN3_5_MODEL,
             Family::Gemma => DEFAULT_GEMMA_MODEL,
             Family::NanoChat => DEFAULT_NANOCHAT_MODEL,
         }
@@ -244,6 +269,7 @@ impl Family {
     fn cache_kit(self) -> &'static str {
         match self {
             Family::Qwen3 => QWEN3_KIT,
+            Family::Qwen3_5 => QWEN3_5_KIT,
             Family::Gemma => GEMMA_KIT,
             Family::NanoChat => NANOCHAT_KIT,
         }
@@ -262,6 +288,7 @@ impl Family {
         }
         match self {
             Family::Qwen3 => rows_of(&default_qwen3_factory()?),
+            Family::Qwen3_5 => rows_of(&default_qwen3_5_factory()?),
             Family::Gemma => rows_of(&default_gemma_factory()?),
             Family::NanoChat => rows_of(&default_nanochat_factory()?),
         }
@@ -284,6 +311,18 @@ impl Family {
                     bunsen::kits::support::construct::LoadPolicy::performance(),
                 )?;
                 LoadedChat::Qwen3(Arc::new(ChatModel::from_construct(bundle)?))
+            }
+            Family::Qwen3_5 => {
+                require_template(&default_qwen3_5_factory()?, name)?;
+                let bundle = default_qwen3_5_factory()?.load_construct(
+                    name,
+                    cache,
+                    device,
+                    bunsen::kits::support::construct::LoadPolicy::performance(),
+                )?;
+                LoadedChat::Qwen3_5(Arc::new(ChatModel::new(Qwen3_5Chat::from_construct(
+                    bundle,
+                )?)))
             }
             Family::Gemma => {
                 require_template(&default_gemma_factory()?, name)?;
@@ -321,6 +360,11 @@ impl Family {
                 let model = default_qwen3_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
                 (model.id(), cache.load(QWEN3_KIT, &map)?)
+            }
+            Family::Qwen3_5 => {
+                let model = default_qwen3_5_factory()?.resolve(name, cache)?;
+                let map = model.plan(cache)?;
+                (model.id(), cache.load(QWEN3_5_KIT, &map)?)
             }
             Family::Gemma => {
                 let model = default_gemma_factory()?.resolve(name, cache)?;
@@ -471,9 +515,10 @@ trait FamilyFlags: clap::Args + std::fmt::Debug {
 /// Thinking: Qwen3's own flags.
 #[derive(clap::Args, Debug)]
 struct ThinkFlags {
-    /// Let the model think first: a Qwen3 checkpoint's `[thinking]` preset,
-    /// the hybrid models' default, under the card's thinking sampling.
-    /// nanochat does not think.
+    /// Let the model think first: a Qwen3 or Qwen3.5 checkpoint's
+    /// `[thinking]` preset (Qwen3's hybrid models' default; Qwen3.5 answers at
+    /// once by default), under the card's thinking sampling. nanochat does
+    /// not think.
     #[arg(long, conflicts_with = "no_think")]
     think: bool,
 
@@ -553,6 +598,7 @@ struct ConverseCmd<F: clap::Args> {
 /// A loaded chat, of whichever kit its checkpoint is.
 enum LoadedChat {
     Qwen3(Arc<ChatModel<Qwen3Chat>>),
+    Qwen3_5(Arc<ChatModel<Qwen3_5Chat>>),
     Gemma(Arc<ChatModel<GemmaChat>>),
     NanoChat(Arc<ChatModel<NanoChatChat>>),
 }
@@ -811,6 +857,13 @@ impl ListCmd {
                         "hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout"
                     );
                 }
+                Family::Qwen3_5 => {
+                    println!();
+                    println!(
+                        "hf:org/repo (under `family qwen3.5`): any Hugging Face repo in a \
+                         transformers Qwen3.5's layout"
+                    );
+                }
                 Family::Gemma => {
                     println!();
                     println!(
@@ -923,6 +976,10 @@ impl<F: FamilyFlags> RunCmd<F> {
                 self.flags
                     .run_once(chat, &self.family, &device, &model, prompt)?
             }
+            LoadedChat::Qwen3_5(chat) => {
+                self.flags
+                    .run_once(chat, &self.family, &device, &model, prompt)?
+            }
             LoadedChat::Gemma(chat) => {
                 self.flags
                     .run_once(chat, &self.family, &device, &model, prompt)?
@@ -947,6 +1004,9 @@ impl<F: FamilyFlags> ConverseCmd<F> {
         let (device, chat, model) = self.flags.load(family, &self.family.presets())?;
         match &chat {
             LoadedChat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
+            LoadedChat::Qwen3_5(chat) => {
+                self.flags.converse(chat, &self.family, &device, &model)?
+            }
             LoadedChat::Gemma(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
             LoadedChat::NanoChat(chat) => {
                 self.flags.converse(chat, &self.family, &device, &model)?
@@ -1008,6 +1068,7 @@ mod tests {
         assert!(parse(&["family", "qwen3", "run", "--no-think", "hi"]).is_ok());
         assert!(parse(&["family", "nanochat", "run", "hi"]).is_ok());
         assert!(parse(&["family", "gemma", "run", "hi"]).is_ok());
+        assert!(parse(&["family", "qwen3.5", "run", "--think", "hi"]).is_ok());
         assert!(parse(&["family", "gemma", "run", "--think", "hi"]).is_err());
         assert!(parse(&["family", "nanochat", "run", "--think", "hi"]).is_err());
         assert!(parse(&["family", "nanochat", "repl", "--show-thinking"]).is_err());
@@ -1016,7 +1077,8 @@ mod tests {
     }
 
     /// Each family's default is its own; a nanochat name or alias is
-    /// nanochat's, and any other name Qwen3's.
+    /// nanochat's, a well-known Gemma's or Qwen3.5's name its family's, and
+    /// any other name Qwen3's.
     #[test]
     fn test_family_of() {
         for family in Family::ALL {
@@ -1024,6 +1086,8 @@ mod tests {
         }
         assert_eq!(Family::of("nanochat-d20-rl").unwrap(), Family::NanoChat);
         assert_eq!(Family::of("gemma-2-2b-it").unwrap(), Family::Gemma);
+        assert_eq!(Family::of("qwen3.5-9b").unwrap(), Family::Qwen3_5);
+        assert_eq!(Family::of("qwen/qwen3.5-2b-base").unwrap(), Family::Qwen3_5);
         assert_eq!(Family::of("hf:Qwen/Qwen3-0.6B").unwrap(), Family::Qwen3);
         assert_eq!(
             Family::of("hf:unsloth/gemma-3-1b-it").unwrap(),
@@ -1043,6 +1107,10 @@ mod tests {
         let qwen3 = default_qwen3_factory().unwrap();
         for id in qwen3.ids() {
             require_template(&qwen3, &id).unwrap_or_else(|e| panic!("{id}: {e}"));
+        }
+        let qwen3_5 = default_qwen3_5_factory().unwrap();
+        for id in qwen3_5.ids() {
+            require_template(&qwen3_5, &id).unwrap_or_else(|e| panic!("{id}: {e}"));
         }
         let err =
             require_template(&gemma, "gemma-2b{generation: {chat_template: null}}").unwrap_err();

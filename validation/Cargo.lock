@@ -6551,6 +6551,7 @@ name = "qwen3-5-model-validation"
 version = "0.41.0"
 dependencies = [
  "bunsen",
+ "bunsen-tool",
  "burn",
  "serde",
  "serde_json",

@@ -14,14 +14,16 @@ use bunsen::{
         language::{
             driver::CachedHistory,
             gemma::{
-                GemmaConstruct,
                 GemmaMeta,
                 GemmaModel,
             },
             qwen3::{
-                Qwen3Construct,
                 Qwen3Meta,
                 Qwen3Model,
+            },
+            qwen3_5::{
+                Qwen3_5Meta,
+                Qwen3_5Model,
             },
         },
         support::{
@@ -61,7 +63,8 @@ use crate::chat::{
 /// with: its model, as a cached step, and what turns a conversation into the
 /// ids it reads and its ids back into text.
 ///
-/// [`LmChat`] is a stacked language model's: [`Qwen3Chat`], [`GemmaChat`].
+/// [`LmChat`] is a stacked language model's: [`Qwen3Chat`], [`GemmaChat`],
+/// [`Qwen3_5Chat`].
 pub trait ChatBackend: Debug + Send + Sync + 'static {
     /// The decode state a session keeps between turns.
     type State: Debug + Send;
@@ -170,6 +173,16 @@ impl ChatLm for GemmaModel {
     }
 }
 
+impl ChatLm for Qwen3_5Model {
+    fn n_vocab(&self) -> usize {
+        Qwen3_5Meta::n_vocab(self)
+    }
+
+    fn float_dtype(&self) -> DType {
+        bunsen::burner::tensor::param_float_dtype(&self.embed_tokens.weight)
+    }
+}
+
 /// A loaded stacked language model with what a conversation needs around
 /// it: its tokenizer, chat template and generation policy.
 ///
@@ -190,6 +203,11 @@ pub type Qwen3Chat = LmChat<Qwen3Model>;
 
 /// A chat over a loaded Gemma.
 pub type GemmaChat = LmChat<GemmaModel>;
+
+/// A chat over a loaded dense Qwen3.5: its decode state carries the linear
+/// layers' states, so a turn whose rendering parts from the last one's
+/// prefills the whole conversation again ([`CachedHistory::rewind`]).
+pub type Qwen3_5Chat = LmChat<Qwen3_5Model>;
 
 /// An `InvalidResource` for a checkpoint without `what`.
 fn missing(what: &str) -> BunsenError {
@@ -263,34 +281,8 @@ impl<M: ChatLm> LmChat<M> {
     }
 }
 
-impl LmChat<Qwen3Model> {
-    /// A chat over a loaded Qwen3, through its `tokenizer.json` and
-    /// `tokenizer_config.json` ([`HfTokenizer`]) and the chat template and stop
-    /// tokens its presets resolved to.
-    ///
-    /// # Errors
-    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
-    /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
-    /// or its policy names no chat template or no stop token (a repo without
-    /// a `generation_config.json`); as each file's reader.
-    pub fn from_construct(bundle: Arc<Qwen3Construct>) -> BunsenResult<Self> {
-        let config = bundle
-            .tokenizer_config()
-            .ok_or_else(|| missing("tokenizer_config.json"))?;
-        let tokenizer = HfTokenizer::from_files(
-            bundle
-                .tokenizer()
-                .ok_or_else(|| missing("tokenizer.json"))?,
-            Some(config),
-        )?;
-        let template = template_of(&bundle)?;
-        let generation = bundle.policy.generation.clone();
-        Self::new(bundle, Arc::new(tokenizer), template, generation)
-    }
-}
-
-impl LmChat<GemmaModel> {
-    /// A chat over a loaded Gemma, through its `tokenizer.json` and
+impl<M: ChatLm> LmChat<M> {
+    /// A chat over a loaded model, through its `tokenizer.json` and
     /// `tokenizer_config.json` ([`HfTokenizer`]) and the chat template and stop
     /// tokens its presets resolved to: its own template where it has one, else
     /// its family's.
@@ -298,9 +290,10 @@ impl LmChat<GemmaModel> {
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
-    /// or its policy names no chat template or no stop token; as each
+    /// or its policy names no chat template or no stop token (a repo without
+    /// a `generation_config.json` and no presets that give one); as each
     /// file's reader.
-    pub fn from_construct(bundle: Arc<GemmaConstruct>) -> BunsenResult<Self> {
+    pub fn from_construct(bundle: Arc<LmConstruct<M>>) -> BunsenResult<Self> {
         let tokenizer = HfTokenizer::from_files(
             bundle
                 .tokenizer()
@@ -372,7 +365,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         next: &'a [i64],
         _device: &Device,
     ) -> &'a [i64] {
-        history.rewind(&mut state.cache, next)
+        history.rewind(state, next)
     }
 
     fn prefill(

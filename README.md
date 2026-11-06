@@ -404,6 +404,86 @@ kits:
         description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         size: 16.39 GB
         dtype: bfloat16
+    qwen3.5:
+    - provider:
+        name: well-known
+    - provider:
+        name: hf
+    - model:
+        name: qwen/qwen3.5-0.8b
+        description: "Qwen3.5-0.8B: thinking and non-thinking chat (its text model)"
+        size: 1.76 GB
+        dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - no-thinking
+    - model:
+        name: qwen/qwen3.5-0.8b-base
+        description: "Qwen3.5-0.8B-Base: the pretrained model, no chat tuning (its text model)"
+        size: 1.76 GB
+        dtype: bfloat16
+    - model:
+        name: qwen/qwen3.5-2b
+        description: "Qwen3.5-2B: thinking and non-thinking chat (its text model)"
+        size: 4.56 GB
+        dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - no-thinking
+    - model:
+        name: qwen/qwen3.5-2b-base
+        description: "Qwen3.5-2B-Base: the pretrained model, no chat tuning (its text model)"
+        size: 4.56 GB
+        dtype: bfloat16
+    - model:
+        name: qwen/qwen3.5-4b
+        description: "Qwen3.5-4B: thinking and non-thinking chat (its text model)"
+        size: 9.33 GB
+        dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
+    - model:
+        name: qwen/qwen3.5-4b-base
+        description: "Qwen3.5-4B-Base: the pretrained model, no chat tuning (its text model)"
+        size: 9.33 GB
+        dtype: bfloat16
+    - model:
+        name: qwen/qwen3.5-9b
+        description: "Qwen3.5-9B: thinking and non-thinking chat (its text model)"
+        size: 19.32 GB
+        dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
+    - model:
+        name: qwen/qwen3.5-9b-base
+        description: "Qwen3.5-9B-Base: the pretrained model, no chat tuning (its text model)"
+        size: 19.32 GB
+        dtype: bfloat16
+    - model:
+        name: qwen/qwen3.5-27b
+        description: "Qwen3.5-27B: thinking and non-thinking chat (its text model); 54 GB in bf16, more than a card holds"
+        size: 55.58 GB
+        dtype: bfloat16
+        presets:
+          thinking-mode:
+          - thinking
+          - no-thinking
+          default:
+          - thinking
     gemma:
     - provider:
         name: well-known

@@ -22,6 +22,10 @@ use bunsen::{
                 Qwen3Policy,
                 pretrained::default_qwen3_factory,
             },
+            qwen3_5::{
+                Qwen3_5Policy,
+                pretrained::default_qwen3_5_factory,
+            },
         },
         speech::{
             asr::{
@@ -392,6 +396,10 @@ fn kits(policies: bool) -> BunsenResult<Value> {
             "chat",
             Value::map([
                 ("qwen3", family!(default_qwen3_factory()?, Qwen3Policy)),
+                (
+                    "qwen3.5",
+                    family!(default_qwen3_5_factory()?, Qwen3_5Policy),
+                ),
                 ("gemma", family!(default_gemma_factory()?, GemmaPolicy)),
                 // nanochat has no policy to resolve.
                 (

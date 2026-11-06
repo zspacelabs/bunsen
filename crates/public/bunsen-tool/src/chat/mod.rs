@@ -8,8 +8,8 @@
 //!   loaded checkpoint and its files) and one conversation (its messages and
 //!   the cache that holds them), over a [`ChatBackend`]: the checkpoint's
 //!   model, and what turns a conversation into its ids and its ids into text
-//!   ([`LmChat`], a stacked language model's: [`Qwen3Chat`], [`GemmaChat`]).
-//!   [`send`](ChatSession::send) streams a reply through
+//!   ([`LmChat`], a stacked language model's: [`Qwen3Chat`], [`GemmaChat`],
+//!   [`Qwen3_5Chat`]). [`send`](ChatSession::send) streams a reply through
 //!   [`decode_cached_observed`](bunsen::kits::support::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
 //! - [`search_config`]: the search a checkpoint's generation policy says.
