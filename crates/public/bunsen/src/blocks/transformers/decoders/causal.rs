@@ -11,10 +11,7 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::{
-            BunsenNormalization,
-            BunsenNormalizationConfig,
-        },
+        norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
                 AttentionSides,
@@ -220,12 +217,10 @@ impl CausalDecoderBlockConfig {
             )
             .into());
         }
-        let norm = || self.norm.clone().with_num_features(n_embed).init(device);
-        let post_norm = || self.post_norms.then(norm);
         Ok(CausalDecoderBlock {
-            attn_norm: self.attn_norm.then(norm),
-            attn: self.attn.try_init(layer_index, device)?,
-            attn_post_norm: post_norm(),
+            attn: ResidualSublayerConfig::pre_norm(self.attn_norm.then(|| self.norm.clone()))
+                .with_post(self.post_norms.then(|| self.norm.clone()))
+                .init(self.attn.try_init(layer_index, device)?, n_embed, device),
             mlp: ResidualSublayerConfig::pre_norm(Some(self.norm.clone()))
                 .with_post(self.post_norms.then(|| self.norm.clone()))
                 .init(self.mlp.try_init(device)?, n_embed, device),
@@ -242,7 +237,8 @@ impl CausalDecoderBlockConfig {
 /// self-attention, then a pre-normalized feed-forward, each residual:
 /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp.pre(x))`.
 ///
-/// What tells its users apart is config: the norm ([`BunsenNormalization`]),
+/// What tells its users apart is config: the norm
+/// ([`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)),
 /// the feed-forward ([`TransformerFeedForward`]: an `TransformerMlp` or a gated
 /// `SwiGLU`), and the attention's own options (grouped-query heads, QK-norm and
 /// where it sits). RMS norms, a `ReLU`² `TransformerMlp` and QK-norm after the
@@ -264,14 +260,10 @@ impl CausalDecoderBlockConfig {
 /// layer index: its slot in a shared [`KVCache`].
 #[derive(Module, Debug)]
 pub struct CausalDecoderBlock {
-    /// The attention's input normalization, if the block has one.
-    pub attn_norm: Option<BunsenNormalization>,
-
-    /// Attention.
-    pub attn: CausalSelfAttention,
-
-    /// The attention's output normalization, if the block has post-norms.
-    pub attn_post_norm: Option<BunsenNormalization>,
+    /// The attention sublayer: its input norm (`pre`), if the block has one,
+    /// the attention (`branch`), and its output norm (`post`), if the block
+    /// has post-norms.
+    pub attn: ResidualSublayer<CausalSelfAttention>,
 
     /// The feed-forward sublayer: its input norm (`pre`), the feed-forward
     /// (`branch`), and its output norm (`post`), if the block has post-norms.
@@ -284,14 +276,14 @@ pub struct CausalDecoderBlock {
 
 impl CausalDecoderBlockMeta for CausalDecoderBlock {
     fn n_embed(&self) -> usize {
-        self.attn.n_embed()
+        self.attn.branch.n_embed()
     }
 }
 
 impl crate::burner::module::InputDTypes for CausalDecoderBlock {
     /// Its attention's: the residual stream is in it.
     fn preferred_dtype(&self) -> burn::tensor::FloatDType {
-        crate::burner::module::InputDTypes::preferred_dtype(&self.attn)
+        crate::burner::module::InputDTypes::preferred_dtype(&self.attn.branch)
     }
 }
 
@@ -336,18 +328,7 @@ impl CausalDecoderBlock {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        Self::maybe_norm(&self.attn_norm, x)
-    }
-
-    /// `norm(x)`, or `x` without a norm.
-    fn maybe_norm(
-        norm: &Option<BunsenNormalization>,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        match norm {
-            Some(norm) => norm.forward(x),
-            None => x,
-        }
+        self.attn.branch_input(x)
     }
 
     /// Forward Pass.
@@ -442,16 +423,17 @@ impl CausalDecoderBlock {
             value_embed,
             key_valid,
         } = sides;
-        let attn = self.attn.forward_with(
-            self.attn_input(input.clone()),
-            r_emb,
-            kv_cache,
-            AttentionSides {
-                value_embed,
-                key_valid,
-            },
-        );
-        let x = input + Self::maybe_norm(&self.attn_post_norm, attn);
+        let x = self.attn.residual_update(input, |attn, z| {
+            attn.forward_with(
+                z,
+                r_emb,
+                kv_cache,
+                AttentionSides {
+                    value_embed,
+                    key_valid,
+                },
+            )
+        });
         self.mlp.residual_update(x, |mlp, h| {
             let h = match (&self.mlp_scale, cond) {
                 (None, None) => h,
@@ -466,9 +448,12 @@ impl CausalDecoderBlock {
 
 impl CanonicalKeys for CausalDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The feed-forward's sublayer is a `ResidualSublayer`: its norms
-        // are its `pre` and `post`, the feed-forward its `branch`.
+        // Each sublayer is a `ResidualSublayer`: its norms are its `pre` and
+        // `post`, its module its `branch`.
         Rekey::keep_rest()
+            .rename("attn_norm.", "attn.pre.")
+            .rename("attn_post_norm.", "attn.post.")
+            .rename("attn.", "attn.branch.")
             .rename("mlp_norm.", "mlp.pre.")
             .rename("mlp_post_norm.", "mlp.post.")
             .rename("mlp.", "mlp.branch.")
@@ -488,9 +473,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::{
-            embedding::RotaryEmbeddingConfig,
-            mlp::TransformerMlpConfig,
+        blocks::{
+            norm::BunsenNormalization,
+            transformers::{
+                embedding::RotaryEmbeddingConfig,
+                mlp::TransformerMlpConfig,
+            },
         },
         contracts::assert_shape_contract,
         support::testing::{
@@ -551,7 +539,7 @@ mod tests {
 
         let input = Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
 
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
         let mut kv_cache: Option<&mut KVCache> = None;
 
         let output = block.forward(input.clone(), &r_emb, &mut kv_cache);
@@ -573,9 +561,9 @@ mod tests {
             CausalSelfAttentionConfig::new(4, 2, n_embed),
             TransformerMlpConfig::new(n_embed).into(),
         );
-        assert!(config.init(0, &device).attn_norm.is_some());
+        assert!(config.init(0, &device).attn.pre.is_some());
         let block: CausalDecoderBlock = config.with_attn_norm(false).init(0, &device);
-        assert!(block.attn_norm.is_none());
+        assert!(block.attn.pre.is_none());
         #[cfg(feature = "store")]
         {
             use burn::store::ModuleSnapshot;
@@ -592,10 +580,10 @@ mod tests {
             assert!(paths.iter().any(|p| p.starts_with("mlp.pre")), "{paths:?}");
         }
 
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
         let input =
             seeded_tensor::<3>(2, [batch, seq_len, n_embed], Distribution::Default, &device);
-        let x = input.clone() + block.attn.forward(input.clone(), &r_emb, &mut None);
+        let x = input.clone() + block.attn.branch.forward(input.clone(), &r_emb, &mut None);
         let expected = x.clone()
             + block
                 .mlp
@@ -619,7 +607,7 @@ mod tests {
             TransformerMlpConfig::new(n_embed).into(),
         );
         let mut block: CausalDecoderBlock = config.init(0, &device);
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
@@ -631,13 +619,15 @@ mod tests {
         mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
         let attn = block
             .attn
+            .branch
             .forward(block.attn_input(input.clone()), &r_emb, &mut None);
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &(input.clone() + attn), Tolerance::default());
 
         // With the attention's output projection zeroed too, the block is the
         // identity.
-        block.attn.c_proj.weight = Param::from_tensor(block.attn.c_proj.weight.val().zeros_like());
+        block.attn.branch.c_proj.weight =
+            Param::from_tensor(block.attn.branch.c_proj.weight.val().zeros_like());
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &input, Tolerance::default());
     }
@@ -653,14 +643,14 @@ mod tests {
             CausalSelfAttentionConfig::new(4, 2, n_embed),
             crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
         );
-        assert!(config.init(0, &device).attn_post_norm.is_none());
+        assert!(config.init(0, &device).attn.post.is_none());
         assert!(config.init(0, &device).mlp.post.is_none());
 
         let mut block: CausalDecoderBlock = config.with_post_norms(true).init(0, &device);
         // Distinct gains, so a norm in the wrong place shows.
         for (seed, norm) in [
-            (3, block.attn_norm.as_mut().expect("an attention norm")),
-            (4, block.attn_post_norm.as_mut().expect("a post-norm")),
+            (3, block.attn.pre.as_mut().expect("an attention norm")),
+            (4, block.attn.post.as_mut().expect("a post-norm")),
             (5, block.mlp.pre.as_mut().expect("a pre-norm")),
             (6, block.mlp.post.as_mut().expect("a post-norm")),
         ] {
@@ -674,7 +664,7 @@ mod tests {
                 &device,
             ));
         }
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
@@ -682,9 +672,10 @@ mod tests {
             |norm: &Option<BunsenNormalization>, x| norm.as_ref().expect("a post-norm").forward(x);
         let x = input.clone()
             + post(
-                &block.attn_post_norm,
+                &block.attn.post,
                 block
                     .attn
+                    .branch
                     .forward(block.attn_input(input.clone()), &r_emb, &mut None),
             );
         let expected = x.clone()
@@ -734,7 +725,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let block: CausalDecoderBlock = conditioned(n_embed).init(0, &device);
         let scale = block.mlp_scale.as_ref().expect("a conditioned block");
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
         let cond = seeded_tensor::<3>(2, [1, 1, n_embed], Distribution::Default, &device);
@@ -742,6 +733,7 @@ mod tests {
         let x = input.clone()
             + block
                 .attn
+                .branch
                 .forward(block.attn_input(input.clone()), &r_emb, &mut None);
         let expected = x.clone()
             + block
@@ -757,7 +749,7 @@ mod tests {
     fn test_conditioned_block_needs_its_condition() {
         let device = crate::support::testing::cpu_device();
         let block: CausalDecoderBlock = conditioned(16).init(0, &device);
-        let r_emb = RotaryEmbeddingConfig::new(3, block.attn.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(3, block.attn.branch.head_dim()).init(&device);
         let _ = block.forward(Tensor::zeros([1, 3, 16], &device), &r_emb, &mut None);
     }
 

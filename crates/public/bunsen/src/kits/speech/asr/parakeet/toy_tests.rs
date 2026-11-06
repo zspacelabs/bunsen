@@ -179,12 +179,17 @@ fn test_toy_block_modules() {
         .forward(layer.feed_forward1.pre.as_ref().unwrap().forward(x.clone()));
     assert_close("feed_forward1", ff1, toy.io("block.ff1"));
 
-    let attn = layer
-        .attn
-        .forward(layer.attn_norm.forward(x.clone()), positions, None);
+    let attn = layer.attn.branch.forward(
+        layer.attn.pre.as_ref().unwrap().forward(x.clone()),
+        positions,
+        None,
+    );
     assert_close("self_attn", attn, toy.io("block.attn"));
 
-    let conv = layer.conv.forward(layer.conv_norm.forward(x), None);
+    let conv = layer
+        .conv
+        .branch
+        .forward(layer.conv.pre.as_ref().unwrap().forward(x), None);
     assert_close("conv", conv, toy.io("block.conv"));
 }
 

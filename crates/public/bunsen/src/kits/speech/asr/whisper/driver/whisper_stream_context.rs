@@ -1958,7 +1958,7 @@ mod tests {
                 .map(&mut DTypeMapper::new(device_float_dtype(&device)));
             let positions = &mut model.encoder.positional_embedding;
             *positions = positions.clone().map(|p| p.zeros_like());
-            let cross = &mut model.decoder.blocks[0].cross_attn.output;
+            let cross = &mut model.decoder.blocks[0].cross_attn.branch.output;
             cross.weight = cross.weight.clone().map(|w| w * 300.0);
 
             let vad = RecordedVoiceActivity::silero_jfk_moon_4s();

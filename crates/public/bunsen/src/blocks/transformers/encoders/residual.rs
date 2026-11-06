@@ -18,10 +18,7 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::{
-            BunsenNormalization,
-            BunsenNormalizationConfig,
-        },
+        norm::BunsenNormalizationConfig,
         transformers::{
             mlp::{
                 TransformerMlp,
@@ -138,13 +135,6 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
         let mha_cfg = MultiHeadAttentionConfig::new(self.d_model, self.n_heads())
             .with_dropout(self.dropout)
             .with_key_bias(self.key_bias);
-        let norm = || {
-            self.norm
-                .as_ref()
-                .map(|n| n.clone().with_num_features(self.d_model).init(device))
-        };
-
-        let attn = mha_cfg.init(device);
 
         // The MLP projections carry a bias: `Linear -> act -> Linear`.
         let mlp: TransformerMlp = TransformerMlpConfig::new(self.d_model)
@@ -153,13 +143,13 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             .with_bias(true)
             .try_init(device)?;
 
+        let attn = mha_cfg.init(device);
         let sublayer = match self.norm_placement {
             NormPlacement::Pre => ResidualSublayerConfig::pre_norm(self.norm.clone()),
             NormPlacement::Post => ResidualSublayerConfig::post_norm(self.norm.clone()),
         };
         Ok(ResidualEncoderAttentionBlock {
-            attn_norm: norm(),
-            attn,
+            attn: sublayer.init(attn, self.d_model, device),
             mlp: sublayer.init(mlp, self.d_model, device),
             norm_placement: self.norm_placement,
         })
@@ -170,8 +160,8 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 ///
 /// Multi-head self-attention followed by an MLP, each wrapped in a residual
 /// connection and normalized (a `LayerNorm` by default; any
-/// [`BunsenNormalization`], or none) before the sublayer
-/// ([`NormPlacement::Pre`]) or after the residual sum
+/// [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization), or none)
+/// before the sublayer ([`NormPlacement::Pre`]) or after the residual sum
 /// ([`NormPlacement::Post`]). Pre-norm with a GELU MLP, it is the encoder layer
 /// of Whisper's audio encoder, and of Qwen3-ASR's (which adds a key bias and
 /// attends within windows, through [`forward_masked`](Self::forward_masked));
@@ -180,11 +170,10 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 /// Built by [`ResidualEncoderAttentionBlockConfig`].
 #[derive(Module, Debug)]
 pub struct ResidualEncoderAttentionBlock {
-    /// Attention normalization, when the block normalizes.
-    pub attn_norm: Option<BunsenNormalization>,
-
-    /// Attention.
-    pub attn: MultiHeadAttention,
+    /// The attention sublayer: the attention (`branch`), and its norm, when
+    /// the block normalizes: before it (`pre`) or after the add (`out`), by
+    /// the block's placement.
+    pub attn: ResidualSublayer<MultiHeadAttention>,
 
     /// The MLP sublayer: the MLP (`branch`), and its norm, when the block
     /// normalizes: before it (`pre`) or after the add (`out`), by the
@@ -196,28 +185,17 @@ pub struct ResidualEncoderAttentionBlock {
     pub norm_placement: NormPlacement,
 }
 
-/// `x` through `norm`, or as it is without one.
-fn normalize(
-    norm: &Option<BunsenNormalization>,
-    x: Tensor<3>,
-) -> Tensor<3> {
-    match norm {
-        Some(norm) => norm.forward(x),
-        None => x,
-    }
-}
-
 impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlock {
     fn d_model(&self) -> usize {
-        self.attn.d_model
+        self.attn.branch.d_model
     }
 
     fn n_heads(&self) -> usize {
-        self.attn.n_heads
+        self.attn.branch.n_heads
     }
 
     fn dropout(&self) -> f64 {
-        self.attn.dropout.prob
+        self.attn.branch.dropout.prob
     }
 
     fn norm_placement(&self) -> NormPlacement {
@@ -251,24 +229,16 @@ impl ResidualEncoderAttentionBlock {
         x: Tensor<3>,
         mask: Option<Tensor<3, burn::prelude::Bool>>,
     ) -> Tensor<3> {
-        let attend = |x: Tensor<3>| {
+        let attend = |attn: &MultiHeadAttention, x: Tensor<3>| {
             let input = MhaInput::self_attn(x);
             let input = match mask {
                 Some(mask) => input.mask_attn(mask),
                 None => input,
             };
-            self.attn.forward(input).context
+            attn.forward(input).context
         };
-        match self.norm_placement {
-            NormPlacement::Pre => {
-                let x = x.clone() + attend(normalize(&self.attn_norm, x));
-                self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
-            }
-            NormPlacement::Post => {
-                let x = normalize(&self.attn_norm, x.clone() + attend(x));
-                self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
-            }
-        }
+        let x = self.attn.residual_update(x, attend);
+        self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
     }
 }
 
@@ -440,16 +410,16 @@ impl ResidualEncoderAttentionBlock {
 
 impl CanonicalKeys for ResidualEncoderAttentionBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The feed-forward's sublayer is a `ResidualSublayer`: its norm is
-        // its `pre`, or its `out` in a post-norm block; the feed-forward its
-        // `branch`.
-        let mlp_norm = if self.mlp.out.is_some() {
-            "mlp.out."
-        } else {
-            "mlp.pre."
+        // Each sublayer is a `ResidualSublayer`: its norm is its `pre`, or its
+        // `out` in a post-norm block; its module its `branch`.
+        let norm = match self.norm_placement {
+            NormPlacement::Pre => "pre",
+            NormPlacement::Post => "out",
         };
         Rekey::keep_rest()
-            .rename("mlp_norm.", mlp_norm)
+            .rename("attn_norm.", format!("attn.{norm}."))
+            .rename("attn.", "attn.branch.")
+            .rename("mlp_norm.", format!("mlp.{norm}."))
             .rename("mlp.", "mlp.branch.")
     }
 }
@@ -472,8 +442,9 @@ mod tests {
 
     use super::*;
     use crate::{
+        blocks::norm::BunsenNormalization,
         contracts::assert_shape_contract,
-        ops::transformers::attention::norm_self_attn,
+        ops::transformers::attention::self_attn,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,
@@ -502,9 +473,9 @@ mod tests {
         assert!(!cfg.key_bias);
         let block: ResidualEncoderAttentionBlock = cfg.init(&crate::support::testing::cpu_device());
         assert_eq!(block.norm_placement(), NormPlacement::Pre);
-        assert_eq!(layer_norm(&block.attn_norm).gamma.dims(), [64]);
+        assert_eq!(layer_norm(&block.attn.pre).gamma.dims(), [64]);
         assert_eq!(layer_norm(&block.mlp.pre).gamma.dims(), [64]);
-        assert!(block.attn.key.bias.is_none());
+        assert!(block.attn.branch.key.bias.is_none());
     }
 
     /// Another normalization is sized to the model too, and `None` builds no
@@ -517,7 +488,7 @@ mod tests {
             .with_d_head(8)
             .with_norm(Some(RmsNormConfig::new(0).into()))
             .init(&device);
-        match &rms.attn_norm {
+        match &rms.attn.pre {
             Some(BunsenNormalization::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
             other => panic!("not an RmsNorm: {other:?}"),
         }
@@ -530,12 +501,20 @@ mod tests {
                 .with_norm_placement(placement)
                 .init(&device);
             assert!(
-                block.attn_norm.is_none() && block.mlp.pre.is_none() && block.mlp.out.is_none()
+                block.attn.pre.is_none()
+                    && block.attn.out.is_none()
+                    && block.mlp.pre.is_none()
+                    && block.mlp.out.is_none()
             );
             assert!(block.num_params() < rms.num_params());
 
             let expected = {
-                let x = x.clone() + block.attn.forward(MhaInput::self_attn(x.clone())).context;
+                let x = x.clone()
+                    + block
+                        .attn
+                        .branch
+                        .forward(MhaInput::self_attn(x.clone()))
+                        .context;
                 x.clone() + block.mlp.branch.forward(x)
             };
             block
@@ -555,7 +534,7 @@ mod tests {
             .with_norm_placement(NormPlacement::Post)
             .with_activation(BunsenActivationConfig::Relu);
         let block: ResidualEncoderAttentionBlock = cfg.init(&device);
-        assert!(block.attn.key.bias.is_some());
+        assert!(block.attn.branch.key.bias.is_some());
         assert_eq!(block.norm_placement(), NormPlacement::Post);
 
         let x: Tensor<3> = Tensor::random([2, 7, 32], Distribution::Default, &device);
@@ -566,9 +545,10 @@ mod tests {
         let expected = {
             let context = block
                 .attn
+                .branch
                 .forward(MhaInput::self_attn(x.clone()).mask_attn(mask))
                 .context;
-            let x = layer_norm(&block.attn_norm).forward(x + context);
+            let x = layer_norm(&block.attn.out).forward(x + context);
             layer_norm(&block.mlp.out).forward(x.clone() + block.mlp.branch.forward(x))
         };
         output
@@ -605,13 +585,12 @@ mod tests {
         let output = block.forward(x.clone());
 
         let expected = {
-            let self_attn = norm_self_attn(
-                block.attn_norm.as_ref().unwrap(),
-                &block.attn,
-                x.clone(),
+            let attended = self_attn(
+                &block.attn.branch,
+                block.attn.pre.as_ref().unwrap().forward(x.clone()),
                 None,
             );
-            let x = x + self_attn.context;
+            let x = x + attended.context;
 
             x.clone()
                 + block

@@ -93,7 +93,7 @@ pub fn load_transformers_tensors(
     model: &mut GemmaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey(model.stack.layers[0].attn_post_norm.is_some());
+    let rekey = transformers_rekey(model.stack.layers[0].attn.post.is_some());
     let rekey = rekey.then(model.canonical_rekey());
     load_rekeyed(model, tensors, &rekey, None)
 }
@@ -108,7 +108,7 @@ pub fn load_transformers_tensors_as(
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey(model.stack.layers[0].attn_post_norm.is_some());
+    let rekey = transformers_rekey(model.stack.layers[0].attn.post.is_some());
     let rekey = rekey.then(model.canonical_rekey());
     load_rekeyed(model, tensors, &rekey, Some(dtype))
 }
