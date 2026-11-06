@@ -35,10 +35,33 @@ use crate::{
     support::testing::{
         KV_CACHE_STORAGES,
         ToyFixture,
-        assert_io_close,
+        assert_io_close_within,
         performance_device,
     },
 };
+
+/// The toys' tolerance: relative `1e-3`, absolute `5e-4`. `transformers`
+/// runs the norms, the delta rule and the rotary angles in float32 whatever
+/// the model's dtype, so the reference is float32's, not float64's, and the
+/// toys' 72 positions of random recurrence carry its rounding: the worst
+/// value is off by 8.2e-5 on one CPU, 1.03e-4 on another (GitHub's runner),
+/// over the shared `1e-4`.
+const TOLERANCE: (f32, f32) = (1e-3, 5e-4);
+
+/// [`assert_io_close_within`] the toys' [`TOLERANCE`].
+fn close<const D: usize>(
+    what: &str,
+    actual: Tensor<D>,
+    expected: Tensor<D>,
+) {
+    let (rel, abs) = TOLERANCE;
+    assert_io_close_within(
+        what,
+        actual,
+        expected,
+        burn::tensor::Tolerance::rel_abs(rel, abs),
+    );
+}
 
 struct Toy {
     model: Qwen3_5Model,
@@ -115,25 +138,25 @@ fn test_toy_forward() {
         for (i, layer) in model.stack.layers.iter().enumerate().take(full + 1) {
             x = layer.forward(x, r_emb.for_layer(i), &mut None);
             if i == 0 {
-                assert_io_close(
+                close(
                     &format!("{name} layer 0"),
                     x.clone(),
                     toy.fixture.io("layer0"),
                 );
             }
         }
-        assert_io_close(
+        close(
             &format!("{name} full layer {full}"),
             x,
             toy.fixture.io("full0"),
         );
         let hidden = model.forward_hidden(embeds, &r_emb);
-        assert_io_close(
+        close(
             &format!("{name} hidden"),
             hidden.clone(),
             toy.fixture.io("hidden"),
         );
-        assert_io_close(
+        close(
             &format!("{name} logits"),
             model.logits(hidden),
             toy.fixture.io("logits"),
@@ -173,10 +196,10 @@ fn check_cached_decode(
         &mut state,
     );
     let at = |pos: usize| expected.clone().slice_dim(1, pos..=pos).reshape([1, -1]);
-    assert_io_close(&format!("{storage:?} prefill"), first, at(prefill - 1));
+    close(&format!("{storage:?} prefill"), first, at(prefill - 1));
     for pos in prefill..n {
         let logits = model.step(ids.clone().slice_dim(1, pos..=pos), &mut state);
-        assert_io_close(&format!("{storage:?} step {pos}"), logits, at(pos));
+        close(&format!("{storage:?} step {pos}"), logits, at(pos));
     }
 }
 
