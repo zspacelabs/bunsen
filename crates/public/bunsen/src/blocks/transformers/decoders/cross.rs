@@ -27,8 +27,12 @@ use crate::{
                 TransformerMlpConfig,
             },
             sublayer::{
+                CrossAttnCall,
+                CrossAttnKvCall,
                 ResidualSublayer,
                 ResidualSublayerConfig,
+                SelfAttnCall,
+                SelfAttnKvCall,
             },
         },
     },
@@ -40,11 +44,7 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
-        cross_attn,
-        cross_attn_w_kv_cache,
         project_kv,
-        self_attn,
-        self_attn_w_kv_cache,
     },
 };
 
@@ -216,15 +216,11 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
-        let x = self
-            .attn
-            .residual_update_with(x, |attn, z| self_attn(attn, z, mask).context);
+        let x = self.attn.residual_update(x, SelfAttnCall { mask });
 
-        let (x, ca_weights) = self
-            .cross_attn
-            .residual_update_with(x, |attn, z| cross_attn(attn, z, xa));
+        let (x, ca_weights) = self.cross_attn.residual_update(x, CrossAttnCall { xa });
 
-        let x = self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z));
+        let x = self.mlp.residual_update(x, ());
 
         CrossDecoderRecord {
             output: x,
@@ -261,14 +257,14 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = self.attn.residual_update_with(x, |attn, z| {
-            self_attn_w_kv_cache(attn, z, mask, cache, layer)
-        });
+        let x = self
+            .attn
+            .residual_update(x, SelfAttnKvCall { mask, cache, layer });
         let x = self
             .cross_attn
-            .residual_update_with(x, |attn, z| cross_attn_w_kv_cache(attn, z, cache, layer));
+            .residual_update(x, CrossAttnKvCall { cache, layer });
 
-        self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z))
+        self.mlp.residual_update(x, ())
     }
 
     /// Projects the encoder output into this block's cross-attention keys and
@@ -334,6 +330,10 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
+        ops::transformers::attention::{
+            cross_attn,
+            self_attn,
+        },
         support::testing::DeviceMemoryGuard,
     };
 
