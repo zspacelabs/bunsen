@@ -67,7 +67,7 @@ impl Qwen3AsrPromptConfig {
     ) -> Vec<usize> {
         let mut ids = Vec::with_capacity(self.prefix.len() + n_audio + self.suffix.len());
         ids.extend_from_slice(&self.prefix);
-        ids.extend(std::iter::repeat_n(audio_token, n_audio));
+        ids.extend(core::iter::repeat_n(audio_token, n_audio));
         ids.extend_from_slice(&self.suffix);
         ids
     }

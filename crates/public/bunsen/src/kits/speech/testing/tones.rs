@@ -30,8 +30,8 @@ impl ToneConfig {
         (0..samples)
             .map(|i| {
                 let t = i as f32 / samples as f32;
-                let s = 2.0 * std::f32::consts::PI * i as f32 / 16_000.0;
-                (std::f32::consts::PI * t).sin()
+                let s = 2.0 * core::f32::consts::PI * i as f32 / 16_000.0;
+                (core::f32::consts::PI * t).sin()
                     * ((440.0 * s).sin() + 0.3 * (1_730.0 * s).sin())
                     * 0.4
             })

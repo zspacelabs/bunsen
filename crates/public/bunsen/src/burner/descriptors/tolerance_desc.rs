@@ -42,12 +42,12 @@ pub fn unpack_tolerance<F: Float + Sized>(tolerance: Tolerance<F>) -> (F, F) {
     // without that static check; guard it with a runtime size assertion to
     // preserve safety in case burn's `Tolerance<F>` layout ever changes.
     assert_eq!(
-        std::mem::size_of::<Tolerance<F>>(),
-        std::mem::size_of::<ToleranceShim<F>>(),
+        core::mem::size_of::<Tolerance<F>>(),
+        core::mem::size_of::<ToleranceShim<F>>(),
     );
-    let tolerance = std::mem::ManuallyDrop::new(tolerance);
+    let tolerance = core::mem::ManuallyDrop::new(tolerance);
     let shim: ToleranceShim<F> =
-        unsafe { std::mem::transmute_copy::<Tolerance<F>, ToleranceShim<F>>(&tolerance) };
+        unsafe { core::mem::transmute_copy::<Tolerance<F>, ToleranceShim<F>>(&tolerance) };
     (shim.relative, shim.absolute)
 }
 

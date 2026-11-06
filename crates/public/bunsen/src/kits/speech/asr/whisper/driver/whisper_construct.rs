@@ -1,6 +1,6 @@
 //! # The Whisper construct
 
-use std::{
+use alloc::{
     fmt,
     sync::Arc,
 };

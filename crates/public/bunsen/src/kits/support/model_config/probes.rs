@@ -1,6 +1,6 @@
 //! Probes: readers of a pretrained's files that find its presets' values.
 
-use std::{
+use alloc::{
     collections::BTreeMap,
     fmt,
 };
@@ -234,7 +234,7 @@ impl Probe for ChatTemplateProbe {
         no_token(self.name(), entry.token.as_deref())?;
         let holds = match serde_json::from_slice::<Value>(file) {
             Ok(Value::Object(config)) => config.get("chat_template").is_some_and(Value::is_string),
-            _ => !std::str::from_utf8(file)
+            _ => !core::str::from_utf8(file)
                 .map_err(|e| {
                     BunsenError::invalid_resource("a chat template that is not UTF-8").with_cause(e)
                 })?

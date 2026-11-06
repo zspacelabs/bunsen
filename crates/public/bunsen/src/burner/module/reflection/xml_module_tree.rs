@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use std::{
+use core::{
     fmt::{
         Debug,
         Display,
@@ -76,8 +76,8 @@ pub struct XmlModuleTree {
 impl Debug for XmlModuleTree {
     fn fmt(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         f.write_str("XmlModuleTree {")?;
         if f.alternate() {
             f.write_str("\n")?;

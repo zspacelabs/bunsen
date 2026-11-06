@@ -28,7 +28,7 @@
 //! }
 //! ```
 
-use std::ops::Deref;
+use core::ops::Deref;
 
 use burn::tensor::Device;
 

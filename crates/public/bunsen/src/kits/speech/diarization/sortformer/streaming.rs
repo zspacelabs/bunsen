@@ -161,11 +161,11 @@ impl SortformerFamily {
     }
 }
 
-impl std::fmt::Display for SortformerFamily {
+impl core::fmt::Display for SortformerFamily {
     fn fmt(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         f.write_str(match self {
             Self::Nemotron => "Nemotron-3-Diarization",
             Self::SortformerV2 => "Sortformer v2",

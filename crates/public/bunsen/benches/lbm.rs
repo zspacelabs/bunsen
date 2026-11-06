@@ -1,4 +1,4 @@
-use std::hint::black_box;
+use core::hint::black_box;
 
 use bunsen::{
     sims::lbm::d2q9::{

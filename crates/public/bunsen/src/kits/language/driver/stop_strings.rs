@@ -62,7 +62,7 @@ impl StopStrings {
     /// The text still held back, now final: the stream ended without its
     /// tail becoming a stop string.
     pub fn finish(&mut self) -> String {
-        std::mem::take(&mut self.held)
+        core::mem::take(&mut self.held)
     }
 
     /// The length of the longest tail of the held text that a stop string

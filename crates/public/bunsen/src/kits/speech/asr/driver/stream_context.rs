@@ -1,6 +1,6 @@
 //! # The stream context: one stream in progress.
 
-use std::{
+use alloc::{
     collections::VecDeque,
     sync::Arc,
 };
@@ -916,13 +916,11 @@ impl VoiceActivity {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{
-            Arc,
-            atomic::{
-                AtomicUsize,
-                Ordering,
-            },
+    use alloc::sync::Arc;
+    use core::{
+        sync::atomic::{
+            AtomicUsize,
+            Ordering,
         },
         time::Duration,
     };
@@ -996,7 +994,7 @@ mod tests {
         }
 
         fn finish(&mut self) -> BunsenResult<Option<Tensor<3>>> {
-            let mut samples = std::mem::take(&mut self.staging);
+            let mut samples = core::mem::take(&mut self.staging);
             if !samples.is_empty() {
                 samples.resize(HOP, 0.0);
             }

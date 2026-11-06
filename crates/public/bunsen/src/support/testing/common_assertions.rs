@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use burn::{
     prelude::{
@@ -28,7 +28,7 @@ pub fn assert_close_to_vec<T>(
     expected: &[T],
     tolerance: T,
 ) where
-    T: Float + std::ops::Sub<Output = T> + std::ops::Add<Output = T> + Copy + Debug,
+    T: Float + core::ops::Sub<Output = T> + core::ops::Add<Output = T> + Copy + Debug,
 {
     let mut pass = actual.len() == expected.len();
     for (&a, &e) in actual.iter().zip(expected.iter()) {

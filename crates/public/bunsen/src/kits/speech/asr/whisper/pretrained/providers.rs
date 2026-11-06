@@ -1,6 +1,6 @@
 //! # Whisper pretrained providers
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use crate::{
     data::pretrained::{
@@ -152,7 +152,7 @@ mod tests {
                 .items
                 .iter()
                 .flat_map(|p| {
-                    std::iter::once(p.name.as_str()).chain(p.aliases.iter().map(String::as_str))
+                    core::iter::once(p.name.as_str()).chain(p.aliases.iter().map(String::as_str))
                 })
                 .collect();
             let n = names.len();

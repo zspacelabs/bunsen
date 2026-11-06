@@ -1,6 +1,6 @@
 //! # Emission: what a stream says, and when.
 
-use std::time::Duration;
+use core::time::Duration;
 
 use burn::config::Config;
 

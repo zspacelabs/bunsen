@@ -1,10 +1,8 @@
 //! Toy-model fixtures and the decoder toy checks.
 
-use std::{
-    collections::BTreeMap,
-    ops::Range,
-    path::Path,
-};
+use alloc::collections::BTreeMap;
+use core::ops::Range;
+use std::path::Path;
 
 use burn::{
     prelude::*,

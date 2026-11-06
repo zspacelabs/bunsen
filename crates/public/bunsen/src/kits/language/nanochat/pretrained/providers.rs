@@ -1,5 +1,5 @@
 //! # nanochat pretrained providers and factory
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::tensor::Device;
 

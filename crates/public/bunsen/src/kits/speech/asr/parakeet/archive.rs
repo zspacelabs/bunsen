@@ -40,7 +40,7 @@ pub fn read_phonon2_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, Parak
                 "a Phonon-2 archive without `{PHONON_2_CONTAINER}`"
             ))
         })?;
-        let config = std::str::from_utf8(archive.expect(PHONON_2_CONFIG)?).map_err(|e| {
+        let config = core::str::from_utf8(archive.expect(PHONON_2_CONFIG)?).map_err(|e| {
             BunsenError::invalid_resource("a config that is not UTF-8").with_cause(e)
         })?;
         Ok((

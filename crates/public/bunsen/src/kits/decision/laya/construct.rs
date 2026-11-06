@@ -1,10 +1,8 @@
 //! A loaded Laya model, with the files a prompt reads beside it.
-use std::{
-    collections::BTreeMap,
-    path::{
-        Path,
-        PathBuf,
-    },
+use alloc::collections::BTreeMap;
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 use super::{

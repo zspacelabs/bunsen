@@ -1,5 +1,5 @@
 //! Mistral's tekken vocabularies.
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use serde::Deserialize;
 

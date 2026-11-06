@@ -423,7 +423,7 @@ impl StreamingFeatures for NemoMelFeatures {
         }
         self.finished = true;
         let half = self.front_end.config.win_length / 2;
-        self.pending.extend(std::iter::repeat_n(0.0, half));
+        self.pending.extend(core::iter::repeat_n(0.0, half));
         Ok(self.frames())
     }
 }
@@ -544,7 +544,7 @@ mod tests {
     /// `testdata/nemo/front_end.safetensors`
     /// (`tools/gen_nemo_front_end_fixtures.py`).
     #[cfg(feature = "store_safetensors")]
-    fn nemotron_fixture() -> std::collections::BTreeMap<String, burn::tensor::TensorData> {
+    fn nemotron_fixture() -> alloc::collections::BTreeMap<String, burn::tensor::TensorData> {
         use burn::store::{
             ModuleStore,
             SafetensorsStore,

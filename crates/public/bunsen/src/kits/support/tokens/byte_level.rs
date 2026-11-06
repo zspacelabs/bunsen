@@ -1,5 +1,5 @@
 //! Byte-level BPE vocabularies, as `transformers` stores them.
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use crate::errors::{
     BunsenError,
@@ -224,7 +224,7 @@ mod tests {
         // Space and newline are not printable in GPT-2's alphabet.
         assert_eq!(table[b' ' as usize], '\u{120}');
         assert_eq!(table[b'\n' as usize], '\u{10a}');
-        let distinct: std::collections::BTreeSet<char> = table.iter().copied().collect();
+        let distinct: alloc::collections::BTreeSet<char> = table.iter().copied().collect();
         assert_eq!(distinct.len(), 256);
     }
 

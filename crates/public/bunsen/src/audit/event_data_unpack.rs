@@ -242,7 +242,7 @@ macro_rules! __unpack_audit_probe_event_data {
     }};
 
     (@ty $lt:lifetime,) => { &$lt ::burn::prelude::TensorData };
-    (@ty $lt:lifetime, [..]) => { ::std::vec::Vec<&$lt ::burn::prelude::TensorData> };
+    (@ty $lt:lifetime, [..]) => { ::alloc::vec::Vec<&$lt ::burn::prelude::TensorData> };
     (@ty $lt:lifetime, [$n:literal]) => { [&$lt ::burn::prelude::TensorData; $n] };
 
     (@take $target:expr, $view:expr, $key:expr,) => {

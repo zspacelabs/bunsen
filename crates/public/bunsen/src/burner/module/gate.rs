@@ -213,8 +213,8 @@ mod tests {
         assert_eq!(gate.preferred_dtype(), FloatDType::BF16);
         assert!(gate.accepts_dtype(FloatDType::F32));
         assert_eq!(gate.result_dtype(FloatDType::F16), FloatDType::F16);
-        assert!(std::ptr::eq(gate.a(), &norm));
-        assert!(std::ptr::eq(gate.b(), &silu_act));
+        assert!(core::ptr::eq(gate.a(), &norm));
+        assert!(core::ptr::eq(gate.b(), &silu_act));
     }
 
     #[test]

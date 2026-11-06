@@ -1,6 +1,6 @@
 //! # Speaker attribution: which speaker a transcript segment belongs to.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use crate::kits::speech::diarization::{
     SpeakerActivity,
@@ -48,7 +48,7 @@ fn overlapping(
     start: usize,
     end: usize,
     lead: usize,
-) -> std::ops::Range<usize> {
+) -> core::ops::Range<usize> {
     if activity.is_empty() || end <= start {
         return 0..0;
     }

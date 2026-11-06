@@ -14,10 +14,10 @@
 //! object, so a caller's own rule is one more implementor, set with
 //! [`with_logit_filters`](crate::kits::speech::asr::whisper::driver::WhisperStreamDriver::with_logit_filters).
 
-use std::{
+use alloc::sync::Arc;
+use core::{
     fmt::Debug,
     ops::Range,
-    sync::Arc,
 };
 
 use burn::{
@@ -276,7 +276,7 @@ impl LogitFilter for ApplyTimestampRules {
         let ranges: Vec<Vec<Range<usize>>> = (0..rows)
             .map(|row| {
                 if prefer[row] {
-                    std::iter::once(0..tb).collect()
+                    core::iter::once(0..tb).collect()
                 } else {
                     Vec::new()
                 }

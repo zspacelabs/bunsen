@@ -18,7 +18,7 @@
 //! Each layer's mixer takes the next slot of its own kind's cache, so a KV
 //! cache holds the attention layers alone.
 
-use std::ops::Range;
+use core::ops::Range;
 
 use burn::{
     Tensor,
@@ -725,7 +725,7 @@ impl DecoderStack {
             config.init(device)
         };
         RotarySet {
-            tables: std::iter::once(&self.rotary)
+            tables: core::iter::once(&self.rotary)
                 .chain(&self.rotary_alts)
                 .map(table)
                 .collect(),

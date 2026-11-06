@@ -1,8 +1,6 @@
 //! The cached decode loop.
-use std::{
-    ops::ControlFlow,
-    sync::Arc,
-};
+use alloc::sync::Arc;
+use core::ops::ControlFlow;
 
 use burn::{
     Tensor,

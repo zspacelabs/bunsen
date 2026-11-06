@@ -170,7 +170,7 @@ fn test_decide_batches_alike() {
                 &specials,
                 &agent,
                 state,
-                std::slice::from_ref(q),
+                core::slice::from_ref(q),
                 &device,
             )
             .unwrap();

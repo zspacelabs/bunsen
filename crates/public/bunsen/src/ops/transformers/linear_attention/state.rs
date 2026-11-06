@@ -340,7 +340,7 @@ mod tests {
         );
         cache.reset();
         assert_eq!(cache.snapshot_pos(), None);
-        let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let refused = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
             let _ = cache.layer_mut(2);
         }));
         assert!(refused.is_err());

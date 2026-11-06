@@ -1,8 +1,6 @@
 //! The search seam, and the value object that picks a search.
-use std::{
-    fmt::Debug,
-    sync::Arc,
-};
+use alloc::sync::Arc;
+use core::fmt::Debug;
 
 use burn::{
     Tensor,

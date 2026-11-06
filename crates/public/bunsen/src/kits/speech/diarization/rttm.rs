@@ -94,11 +94,11 @@ impl RttmSegment {
     }
 }
 
-impl std::fmt::Display for RttmSegment {
+impl core::fmt::Display for RttmSegment {
     fn fmt(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(
             f,
             "SPEAKER {} {} {:.3} {:.3} <NA> <NA> {} <NA> <NA>",

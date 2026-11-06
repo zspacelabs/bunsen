@@ -1,8 +1,8 @@
-use core::fmt::Debug;
-use std::{
-    collections::HashMap,
+use core::{
+    fmt::Debug,
     panic::Location,
 };
+use std::collections::HashMap;
 
 use burn::{
     Tensor,

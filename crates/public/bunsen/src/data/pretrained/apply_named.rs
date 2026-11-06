@@ -1,5 +1,5 @@
 //! Loading named tensors into a module.
-use std::collections::BTreeSet;
+use alloc::collections::BTreeSet;
 
 use burn::{
     store::{

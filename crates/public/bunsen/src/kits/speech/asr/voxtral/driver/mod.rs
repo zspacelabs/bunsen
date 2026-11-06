@@ -43,7 +43,7 @@ pub use engine::*;
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use alloc::sync::Arc;
 
     use burn::tensor::Device;
 
@@ -145,7 +145,7 @@ mod tests {
             for k in 0..=chunk.len() {
                 out.push(ALPHABET[(n >> (18 - 6 * k) & 63) as usize] as char);
             }
-            out.extend(std::iter::repeat_n('=', 3 - chunk.len()));
+            out.extend(core::iter::repeat_n('=', 3 - chunk.len()));
         }
         out
     }

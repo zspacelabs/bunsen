@@ -1,5 +1,5 @@
 //! A loaded Sortformer, with what it needs to diarize.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::tensor::Device;
 use serde::{
@@ -194,11 +194,11 @@ impl SortformerConstruct {
     }
 }
 
-impl std::fmt::Display for SortformerConstruct {
+impl core::fmt::Display for SortformerConstruct {
     fn fmt(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         let m = &self.model;
         write!(
             f,

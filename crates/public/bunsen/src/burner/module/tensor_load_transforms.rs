@@ -1,6 +1,6 @@
 //! Named changes to a checkpoint's tensors as they load.
 
-use std::{
+use alloc::{
     fmt,
     sync::Arc,
 };

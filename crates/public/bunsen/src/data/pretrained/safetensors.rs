@@ -1,10 +1,10 @@
 //! Safetensors checkpoints: one file, or the shards of one.
 
+use alloc::collections::{
+    BTreeMap,
+    BTreeSet,
+};
 use std::{
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
     io::Read,
     path::{
         Path,

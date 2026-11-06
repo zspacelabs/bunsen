@@ -11,10 +11,8 @@
 //! [`load_transformers_tensors`], so the reader and the loader are under test
 //! too.
 
-use std::{
-    ops::Range,
-    path::PathBuf,
-};
+use core::ops::Range;
+use std::path::PathBuf;
 
 use burn::prelude::*;
 

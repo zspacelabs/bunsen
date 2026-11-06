@@ -1,5 +1,5 @@
 //! # Constructing a Qwen3 pretrained
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::tensor::Device;
 

@@ -6,7 +6,7 @@
 //! (`tools/gen_voxtral_toy_fixtures.py`). The weights load through
 //! [`load_transformers_tensors`], so the loader is under test too.
 
-use std::ops::Range;
+use core::ops::Range;
 
 use burn::prelude::*;
 

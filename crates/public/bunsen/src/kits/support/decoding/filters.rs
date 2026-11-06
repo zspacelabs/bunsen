@@ -1,5 +1,5 @@
 //! Logit filters: rewriting the logits a search chooses from.
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use burn::{
     Tensor,

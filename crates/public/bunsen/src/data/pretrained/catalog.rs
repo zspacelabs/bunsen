@@ -835,7 +835,7 @@ mod tests {
         static EMBEDDED: EmbeddedCatalog = EmbeddedCatalog::new("toy", CATALOG);
         assert_eq!(EMBEDDED.table().groups[1].items.len(), 1);
         assert_eq!(EMBEDDED.resource_bundle("a/vocab").keys(), ["vocabulary"]);
-        assert!(std::ptr::eq(EMBEDDED.catalog(), EMBEDDED.catalog()));
+        assert!(core::ptr::eq(EMBEDDED.catalog(), EMBEDDED.catalog()));
     }
 
     /// A template resolves `~` and `$NAME` segments, and does not resolve

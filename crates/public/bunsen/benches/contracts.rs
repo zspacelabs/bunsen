@@ -125,7 +125,7 @@ fn bench_assert_shape_every_nth(c: &mut Criterion) {
     let env = [("p", PADDING), ("c", CHANNELS)];
 
     let mut group = c.benchmark_group("assert_shape_every_nth");
-    group.warm_up_time(std::time::Duration::from_nanos(1));
+    group.warm_up_time(core::time::Duration::from_nanos(1));
 
     group.bench_function("assert_shape_every_nth", |b| {
         b.iter(|| {

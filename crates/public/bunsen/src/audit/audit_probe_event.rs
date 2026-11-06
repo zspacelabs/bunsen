@@ -1,10 +1,10 @@
-use alloc::vec::Vec;
+use alloc::{
+    collections::BTreeSet,
+    vec::Vec,
+};
 use core::fmt::Debug;
 use std::{
-    collections::{
-        BTreeSet,
-        HashMap,
-    },
+    collections::HashMap,
     time::SystemTime,
 };
 
@@ -40,7 +40,7 @@ use crate::{
 pub trait AuditProbeEventHandler: Debug {
     /// Handler name.
     fn name(&self) -> &str {
-        std::any::type_name::<Self>()
+        core::any::type_name::<Self>()
     }
 
     /// Handle an audit log event.
@@ -290,7 +290,7 @@ impl<'a> AuditProbeEventView for AuditProbeEventStub<'a> {
 
 #[cfg(test)]
 mod test {
-    use std::panic::Location;
+    use core::panic::Location;
 
     use super::*;
     use crate::burner::descriptors::{

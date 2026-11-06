@@ -1,5 +1,5 @@
 //! Laya's questions, prompts and answers.
-use std::{
+use alloc::{
     collections::BTreeMap,
     fmt,
 };
