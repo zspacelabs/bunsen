@@ -44,7 +44,11 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -558,6 +562,12 @@ impl GemmaModel {
         hidden: Tensor<3>,
     ) -> Tensor<3> {
         self.lm_head.forward(hidden, &self.embed_tokens.weight)
+    }
+}
+
+impl CanonicalKeys for GemmaModel {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

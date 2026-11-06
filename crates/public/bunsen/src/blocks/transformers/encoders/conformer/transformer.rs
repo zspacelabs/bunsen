@@ -12,7 +12,11 @@ use super::{
     ConformerBlockMeta,
 };
 use crate::{
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
     ops::transformers::attention::{
         length_mask,
@@ -143,5 +147,11 @@ impl ConformerTransformer {
         let _ = batch;
 
         x
+    }
+}
+
+impl CanonicalKeys for ConformerTransformer {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("layers.", &self.layers)
     }
 }

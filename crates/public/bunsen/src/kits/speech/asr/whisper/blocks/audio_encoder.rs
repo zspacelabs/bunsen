@@ -36,9 +36,11 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         CoercesInput,
         InputDTypes,
         ModuleInit,
+        Rekey,
         ResultDType,
     },
     errors::BunsenResult,
@@ -331,6 +333,12 @@ impl AudioEncoder {
             .val()
             .slice(s![0..k])
             .unsqueeze::<3>()
+    }
+}
+
+impl CanonicalKeys for AudioEncoder {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("blocks.", &self.blocks)
     }
 }
 

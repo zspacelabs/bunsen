@@ -30,9 +30,11 @@ use crate::{
     },
     burner::{
         module::{
+            CanonicalKeys,
             CoercesInput,
             InputDTypes,
             ModuleInit,
+            Rekey,
             ResultDType,
         },
         tensor::device_float_dtype,
@@ -431,6 +433,12 @@ impl TextDecoder {
                 .val()
                 .slice(s![offset..offset + seq_len])
                 .unsqueeze::<3>()
+    }
+}
+
+impl CanonicalKeys for TextDecoder {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("blocks.", &self.blocks)
     }
 }
 

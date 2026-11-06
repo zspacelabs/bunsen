@@ -29,7 +29,11 @@ use crate::{
             },
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -241,6 +245,12 @@ impl ParakeetTdt {
         );
 
         (y, lengths)
+    }
+}
+
+impl CanonicalKeys for ParakeetTdt {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("encoder.", &self.encoder)
     }
 }
 

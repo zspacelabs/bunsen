@@ -18,7 +18,11 @@ use super::{
     Qwen3AsrProjectorConfig,
 };
 use crate::{
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -283,6 +287,14 @@ impl Qwen3Asr {
         );
 
         logits
+    }
+}
+
+impl CanonicalKeys for Qwen3Asr {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest()
+            .mount_canonical("audio_tower.", &self.audio_tower)
+            .mount_canonical("language_model.", &self.language_model)
     }
 }
 

@@ -36,6 +36,7 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
         Rekey,
     },
@@ -460,6 +461,13 @@ impl CausalDecoderBlock {
             (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
         };
         x + Self::maybe_norm(&self.mlp_post_norm, self.mlp.forward(h))
+    }
+}
+
+impl CanonicalKeys for CausalDecoderBlock {
+    fn canonical_rekey(&self) -> Rekey {
+        // The canonical names are the record's paths.
+        Rekey::keep_rest()
     }
 }
 

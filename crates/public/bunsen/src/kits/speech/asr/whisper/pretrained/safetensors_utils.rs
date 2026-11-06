@@ -14,6 +14,7 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
         Rekey,
     },
@@ -199,7 +200,8 @@ impl SafetensorsWhisperScanner {
     ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         let cfg = self.scan_cfg(checkpoint)?;
         let mut module: Whisper = cfg.try_init(device)?;
-        apply_rekeyed_tensors(&mut module, checkpoint.tensors()?, &transformers_rekey())?;
+        let rekey = transformers_rekey().then(module.canonical_rekey());
+        apply_rekeyed_tensors(&mut module, checkpoint.tensors()?, &rekey)?;
         Ok((module, cfg))
     }
 }

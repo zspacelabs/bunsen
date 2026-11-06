@@ -16,9 +16,11 @@ use super::{
 };
 use crate::{
     burner::module::{
+        CanonicalKeys,
         CoercesInput,
         InputDTypes,
         ModuleInit,
+        Rekey,
         ResultDType,
         ToStructureConfig,
     },
@@ -386,6 +388,14 @@ impl Whisper {
         encoder_output: Tensor<3>,
     ) -> Tensor<3> {
         self.decoder.forward(tokens, encoder_output)
+    }
+}
+
+impl CanonicalKeys for Whisper {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest()
+            .mount_canonical("encoder.", &self.encoder)
+            .mount_canonical("decoder.", &self.decoder)
     }
 }
 

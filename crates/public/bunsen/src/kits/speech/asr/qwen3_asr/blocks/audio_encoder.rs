@@ -38,7 +38,11 @@ use crate::{
             ResidualEncoderAttentionBlockConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
     ops::embedding::sinusoid_table,
 };
@@ -471,6 +475,12 @@ impl Qwen3AsrProjector {
             &[("n", n), ("d_text", self.d_text())]
         );
         y
+    }
+}
+
+impl CanonicalKeys for Qwen3AsrAudioEncoder {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("layers.", &self.layers)
     }
 }
 

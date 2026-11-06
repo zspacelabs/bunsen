@@ -64,7 +64,9 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
+        Rekey,
         ToStructureConfig,
     },
     contracts::{
@@ -887,6 +889,12 @@ impl NanoChatGpt {
         let t = self.init_seq_len;
 
         6 * nparams + 12 * l * h * q * t
+    }
+}
+
+impl CanonicalKeys for NanoChatGpt {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 

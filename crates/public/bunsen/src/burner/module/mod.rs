@@ -25,12 +25,16 @@
 //! - [`Rekey`] &mdash; a checkpoint's tensor names to a module's paths, built
 //!   from rules: a kit routes a checkpoint's prefixes onto its model's fields
 //!   and mounts each block's own map for the checkpoint's format there.
+//! - [`CanonicalKeys`] &mdash; a module's canonical weight names, and the map
+//!   from them onto its record paths: a kit's map lands a checkpoint on the
+//!   canonical names, and [`Rekey::then`] the module's map takes them on.
 //!
 //! `ModuleInit` and `ToStructureConfig` are also in [`crate::prelude`].
 
 #[cfg(feature = "reflection")]
 pub mod reflection;
 
+mod canonical_keys;
 mod dtype_traits;
 mod has_dtype;
 mod module_init;
@@ -39,6 +43,7 @@ mod tensor_load_transforms;
 mod to_structure_config;
 mod type_mapper;
 
+pub use canonical_keys::*;
 pub use dtype_traits::*;
 pub use has_dtype::*;
 pub use module_init::*;

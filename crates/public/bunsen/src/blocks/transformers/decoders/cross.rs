@@ -33,6 +33,7 @@ use crate::{
         },
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
         Rekey,
     },
@@ -331,6 +332,13 @@ impl CrossDecoderBlock {
                 "",
                 ResidualEncoderAttentionBlock::whisper_transformers_rekey(),
             )
+    }
+}
+
+impl CanonicalKeys for CrossDecoderBlock {
+    fn canonical_rekey(&self) -> Rekey {
+        // The canonical names are the record's paths.
+        Rekey::keep_rest()
     }
 }
 

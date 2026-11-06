@@ -10,7 +10,10 @@ use crate::{
         CausalDecoderBlock,
         DecoderLayerKeys,
     },
-    burner::module::Rekey,
+    burner::module::{
+        CanonicalKeys,
+        Rekey,
+    },
     data::pretrained::{
         NamedTensorsApplied,
         load_rekeyed,
@@ -69,7 +72,8 @@ pub fn load_transformers_tensors(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_rekeyed(model, tensors, &transformers_rekey(), None)
+    let rekey = transformers_rekey().then(model.canonical_rekey());
+    load_rekeyed(model, tensors, &rekey, None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
@@ -86,7 +90,8 @@ pub fn load_transformers_tensors_as(
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_rekeyed(model, tensors, &transformers_rekey(), Some(dtype))
+    let rekey = transformers_rekey().then(model.canonical_rekey());
+    load_rekeyed(model, tensors, &rekey, Some(dtype))
 }
 
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:
