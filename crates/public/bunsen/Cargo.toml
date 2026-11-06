@@ -44,7 +44,7 @@ required-features = ["sims"]
 [[bench]]
 name = "whisper_decode"
 harness = false
-required-features = ["kits"]
+required-features = ["speech"]
 
 
 [features]
@@ -53,6 +53,7 @@ required-features = ["kits"]
 # audio decoding, a tokenizer and the tracing-test stack.
 default = [
     "kits",
+    "speech",
     "sims",
     "reflection",
     "train",
@@ -66,6 +67,14 @@ default = [
 ## the `store_*` and `cache` features they read with.
 kits = [
     "std",
+]
+
+## The speech kits, `kits::speech`: speech recognition (Whisper, Parakeet,
+## Qwen3-ASR, Voxtral and their stream driver), diarization (Sortformer) and
+## voice activity (Silero), with `audio` to read the recordings they take.
+speech = [
+    "kits",
+    "audio",
     "dep:flate2",
     "dep:dyn-clone",
 ]
@@ -115,7 +124,7 @@ store_safetensors = [
 ## the burn-store's `PyTorch` reader, from a copy extracted to a temporary
 ## directory).
 nemo = [
-    "kits",
+    "speech",
     "store_pytorch",
     "dep:tar",
     "dep:serde-saphyr",

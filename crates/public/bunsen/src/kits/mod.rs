@@ -124,6 +124,7 @@
 pub mod decision;
 pub mod images;
 pub mod language;
+#[cfg(feature = "speech")]
 pub mod speech;
 pub mod support;
 pub mod text;

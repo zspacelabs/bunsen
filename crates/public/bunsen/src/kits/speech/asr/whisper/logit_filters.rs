@@ -538,4 +538,31 @@ mod tests {
         // as upstream's `encode(" ♭")[0]` would be in such a vocabulary.
         assert_eq!(ranks.non_speech_tokens(), vec![1, 2, 3, 4, 5, 6, 7]);
     }
+
+    /// Only at the first sampled position: once anything has been sampled,
+    /// the blank and the stop token are allowed again.
+    #[test]
+    fn test_suppress_blank() {
+        let device = cpu_device();
+
+        let filter = SuppressBlank::new(2, 4);
+        let first = to_rows(LogitFilter::apply(
+            &filter,
+            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
+            &[vec![9, 9]],
+            2,
+        ));
+        assert_eq!(
+            first[0],
+            vec![0.0, 1.0, f32::NEG_INFINITY, 3.0, f32::NEG_INFINITY]
+        );
+
+        let later = to_rows(LogitFilter::apply(
+            &filter,
+            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
+            &[vec![9, 9, 1]],
+            2,
+        ));
+        assert_eq!(later[0], vec![0.0, 1.0, 2.0, 3.0, 4.0]);
+    }
 }
