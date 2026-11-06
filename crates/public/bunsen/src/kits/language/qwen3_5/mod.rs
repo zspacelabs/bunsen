@@ -21,6 +21,9 @@
 //!   decode step one position.
 //! - [`Qwen3_5Construct`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer and template files, unread.
+//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
+//!   checkpoints, `qwen/qwen3.5-0.8b` the default, and the factory that loads
+//!   one.
 //! - [`weights`] (feature `store`): loading tensors named as a `transformers`
 //!   Qwen3.5 state dict (a multimodal checkpoint's text model, its vision tower
 //!   and multi-token-prediction head dropped), and reading its `config.json`.
@@ -36,6 +39,9 @@ pub use construct::*;
 
 #[cfg(feature = "store")]
 pub mod weights;
+
+#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+pub mod pretrained;
 
 pub use blocks::model::*;
 

@@ -1,0 +1,284 @@
+# The qwen3.5 kit's pretrained catalog source: `cargo validate catalog` builds it into
+# `crates/public/bunsen/src/kits/language/qwen3_5/pretrained/catalog.json`.
+#
+# The dense repos carry no `generation_config.json` (but the 27B's): a row's
+# stop tokens come from its `tokenizer_config.json` (its `eos_token`, and a
+# chat row's `<|endoftext|>`), and a chat row's sampling from its family's
+# presets, as the model card recommends.
+#
+# Two families, by what the checkpoint's own template does without
+# `enable_thinking`: the 4B, 9B and 27B think first (`qwen3.5`, "Qwen3.5
+# models operate in thinking mode by default"), the 0.8B and 2B answer at
+# once (`qwen3.5-small`, "Qwen3.5-0.8B operates in non-thinking mode by
+# default"). Each family's default preset is what its template does unset.
+kit: qwen3.5
+out: crates/public/bunsen/src/kits/language/qwen3_5/pretrained/catalog.json
+name: "well-known"
+description: "the Qwen3.5 checkpoints bunsen knows by name"
+groups:
+  - name: "qwen"
+    description: "Qwen's dense Qwen3.5 language models (their text models), as transformers ships them"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen"
+    rows:
+      - name: "qwen3.5-0.8b"
+        description: "Qwen3.5-0.8B: thinking and non-thinking chat (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-0.8B"
+        prefab: "qwen3.5-0.8b"
+        bundles: ["qwen/qwen3.5-0.8b"]
+        family: "qwen3.5-small"
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<|endoftext|>", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "chat_template", into: ["base"] }
+      - name: "qwen3.5-0.8b-base"
+        description: "Qwen3.5-0.8B-Base: the pretrained model, no chat tuning (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-0.8B-Base"
+        prefab: "qwen3.5-0.8b"
+        bundles: ["qwen/qwen3.5-0.8b-base"]
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+      - name: "qwen3.5-2b"
+        description: "Qwen3.5-2B: thinking and non-thinking chat (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-2B"
+        prefab: "qwen3.5-2b"
+        bundles: ["qwen/qwen3.5-2b"]
+        family: "qwen3.5-small"
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<|endoftext|>", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "chat_template", into: ["base"] }
+      - name: "qwen3.5-2b-base"
+        description: "Qwen3.5-2B-Base: the pretrained model, no chat tuning (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-2B-Base"
+        prefab: "qwen3.5-2b"
+        bundles: ["qwen/qwen3.5-2b-base"]
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+      - name: "qwen3.5-4b"
+        description: "Qwen3.5-4B: thinking and non-thinking chat (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-4B"
+        prefab: "qwen3.5-4b"
+        bundles: ["qwen/qwen3.5-4b"]
+        family: "qwen3.5"
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<|endoftext|>", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "chat_template", into: ["base"] }
+      - name: "qwen3.5-4b-base"
+        description: "Qwen3.5-4B-Base: the pretrained model, no chat tuning (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-4B-Base"
+        prefab: "qwen3.5-4b"
+        bundles: ["qwen/qwen3.5-4b-base"]
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+      - name: "qwen3.5-9b"
+        description: "Qwen3.5-9B: thinking and non-thinking chat (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-9B"
+        prefab: "qwen3.5-9b"
+        bundles: ["qwen/qwen3.5-9b"]
+        family: "qwen3.5"
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<|endoftext|>", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "chat_template", into: ["base"] }
+      - name: "qwen3.5-9b-base"
+        description: "Qwen3.5-9B-Base: the pretrained model, no chat tuning (its text model)"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-9B-Base"
+        prefab: "qwen3.5-9b"
+        bundles: ["qwen/qwen3.5-9b-base"]
+        probe:
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+      - name: "qwen3.5-27b"
+        description: "Qwen3.5-27B: thinking and non-thinking chat (its text model); 54 GB in bf16, more than a card holds"
+        license: "Apache-2.0"
+        origin: "https://huggingface.co/Qwen/Qwen3.5-27B"
+        prefab: "qwen3.5-27b"
+        bundles: ["qwen/qwen3.5-27b"]
+        family: "qwen3.5"
+        probe:
+          - { probe: "generation_config", file: "generation_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
+          - { probe: "tokenizer_config", file: "tokenizer_config", token: "<|endoftext|>", into: ["base"] }
+          - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
+          - { probe: "chat_template", file: "chat_template", into: ["base"] }
+families:
+  - name: "qwen3.5"
+    description: "The Qwen3.5 chat models that think before answering unless the chat template's `enable_thinking` is false: the 4B and up"
+    presets:
+      presets:
+        - name: "thinking"
+          description: "think before answering, under the card's thinking sampling for text: temperature 1.0, top-p 0.95, top-k 20, min-p 0 (its presence penalty of 1.5 is not one of bunsen's knobs)"
+          patch: { generation: { template_kwargs: { enable_thinking: true }, sampling: { temperature: 1.0, top_p: 0.95, top_k: 20, min_p: 0.0 } } }
+        - name: "no-thinking"
+          description: "answer at once, under the card's non-thinking sampling for text: temperature 1.0, top-p 1.0, top-k 20, min-p 0 (its presence penalty of 2.0 is not one of bunsen's knobs)"
+          patch: { generation: { template_kwargs: { enable_thinking: false }, sampling: { temperature: 1.0, top_p: 1.0, top_k: 20, min_p: 0.0 } } }
+      axes:
+        - name: "thinking-mode"
+          description: "whether the model thinks before it answers"
+          members: ["thinking", "no-thinking"]
+      default: ["thinking"]
+  - name: "qwen3.5-small"
+    description: "The small Qwen3.5 chat models, which answer at once unless the chat template's `enable_thinking` is true: the 0.8B and 2B"
+    presets:
+      presets:
+        - name: "thinking"
+          description: "think before answering, under the card's thinking sampling for text: temperature 1.0, top-p 0.95, top-k 20, min-p 0 (its presence penalty of 1.5 is not one of bunsen's knobs)"
+          patch: { generation: { template_kwargs: { enable_thinking: true }, sampling: { temperature: 1.0, top_p: 0.95, top_k: 20, min_p: 0.0 } } }
+        - name: "no-thinking"
+          description: "answer at once, under the card's non-thinking sampling for text: temperature 1.0, top-p 1.0, top-k 20, min-p 0 (its presence penalty of 2.0 is not one of bunsen's knobs)"
+          patch: { generation: { template_kwargs: { enable_thinking: false }, sampling: { temperature: 1.0, top_p: 1.0, top_k: 20, min_p: 0.0 } } }
+      axes:
+        - name: "thinking-mode"
+          description: "whether the model thinks before it answers"
+          members: ["thinking", "no-thinking"]
+      default: ["no-thinking"]
+bundles:
+  - name: "qwen/qwen3.5-0.8b"
+    description: "Qwen3.5-0.8B: 1 safetensors shard, config, tokenizer, chat template"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-0.8B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-0.8B", revision: "2fc06364715b967f1860aea9cf38778875588b17" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00001.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "qwen/qwen3.5-0.8b-base"
+    description: "Qwen3.5-0.8B-Base: 1 safetensors shard, config, tokenizer"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-0.8B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-0.8B-Base", revision: "dc7cdfe2ee4154fa7e30f5b51ca41bfa40174e68" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00001.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+  - name: "qwen/qwen3.5-2b"
+    description: "Qwen3.5-2B: 1 safetensors shard, config, tokenizer, chat template"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-2B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-2B", revision: "15852e8c16360a2fea060d615a32b45270f8a8fc" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00001.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "qwen/qwen3.5-2b-base"
+    description: "Qwen3.5-2B-Base: 1 safetensors shard, config, tokenizer"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-2B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-2B-Base", revision: "b1485b2fa6dfa1287294f269f5fb618e03d52d7c" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00001.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+  - name: "qwen/qwen3.5-4b"
+    description: "Qwen3.5-4B: 2 safetensors shards, config, tokenizer, chat template"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-4B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-4B", revision: "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00002.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model.safetensors-00002-of-00002.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "qwen/qwen3.5-4b-base"
+    description: "Qwen3.5-4B-Base: 2 safetensors shards, config, tokenizer"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-4B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-4B-Base", revision: "1001bb4d826a52d1f399e183466143f4da7b741b" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00002.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model.safetensors-00002-of-00002.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+  - name: "qwen/qwen3.5-9b"
+    description: "Qwen3.5-9B: 4 safetensors shards, config, tokenizer, chat template"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-9B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-9B", revision: "c202236235762e1c871ad0ccb60c8ee5ba337b9a" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model.safetensors-00002-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model.safetensors-00003-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model.safetensors-00004-of-00004.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }
+  - name: "qwen/qwen3.5-9b-base"
+    description: "Qwen3.5-9B-Base: 4 safetensors shards, config, tokenizer"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-9B-Base"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-9B-Base", revision: "68c46c4b3498877f3ef123c856ecfde50c39f404" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model.safetensors-00002-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model.safetensors-00003-of-00004.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model.safetensors-00004-of-00004.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+  - name: "qwen/qwen3.5-27b"
+    description: "Qwen3.5-27B: 11 safetensors shards, config, tokenizer, generation config, chat template"
+    license: "Apache-2.0"
+    origin: "https://huggingface.co/Qwen/Qwen3.5-27B"
+    namespace: "qwen"
+    hub: { repo: "Qwen/Qwen3.5-27B", revision: "fc05daec18b0a78c049392ed2e771dde82bdf654" }
+    resources:
+      - { key: "checkpoint.index", file: "model.safetensors.index.json", kind: "safetensors-index" }
+      - { key: "checkpoint.00001", file: "model.safetensors-00001-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00002", file: "model.safetensors-00002-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00003", file: "model.safetensors-00003-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00004", file: "model.safetensors-00004-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00005", file: "model.safetensors-00005-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00006", file: "model.safetensors-00006-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00007", file: "model.safetensors-00007-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00008", file: "model.safetensors-00008-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00009", file: "model.safetensors-00009-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00010", file: "model.safetensors-00010-of-00011.safetensors", kind: "safetensors" }
+      - { key: "checkpoint.00011", file: "model.safetensors-00011-of-00011.safetensors", kind: "safetensors" }
+      - { key: "config", file: "config.json", kind: "json" }
+      - { key: "tokenizer", file: "tokenizer.json", kind: "tokenizer.json" }
+      - { key: "tokenizer_config", file: "tokenizer_config.json", kind: "tokenizer_config.json" }
+      - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
+      - { key: "chat_template", file: "chat_template.jinja", kind: "chat_template.jinja" }

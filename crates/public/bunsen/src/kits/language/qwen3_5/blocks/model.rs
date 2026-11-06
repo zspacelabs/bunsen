@@ -195,6 +195,66 @@ impl Qwen3_5Meta for Qwen3_5Config {
 }
 
 impl Qwen3_5Config {
+    /// A published dense Qwen3.5's text model: 248320 tokens, full-attention
+    /// heads of width 256 over `heads` (query, key/value), 16 linear key
+    /// heads and `linear_value_heads` value heads of width 128, every fourth
+    /// layer full, a rotary base of 10^7 over a quarter of each head.
+    fn published(
+        d_model: usize,
+        n_layers: usize,
+        heads: [usize; 2],
+        d_ff: usize,
+        linear_value_heads: usize,
+        tied_head: bool,
+    ) -> Self {
+        let [n_heads, n_kv_heads] = heads;
+        Self::new(
+            248_320,
+            d_model,
+            n_layers,
+            n_heads,
+            n_kv_heads,
+            256,
+            d_ff,
+            16,
+            linear_value_heads,
+            128,
+            128,
+        )
+        .with_layer_kinds(Self::every_nth_full(n_layers, 4))
+        .with_tied_head(tied_head)
+    }
+
+    /// `Qwen3.5-0.8B`'s geometry: 24 layers of width 1024, 8 query and 2
+    /// key/value heads, 16 linear value heads, a tied head.
+    pub fn qwen3_5_0_8b() -> Self {
+        Self::published(1024, 24, [8, 2], 3584, 16, true)
+    }
+
+    /// `Qwen3.5-2B`'s geometry: 24 layers of width 2048, 8 query and 2
+    /// key/value heads, 16 linear value heads, a tied head.
+    pub fn qwen3_5_2b() -> Self {
+        Self::published(2048, 24, [8, 2], 6144, 16, true)
+    }
+
+    /// `Qwen3.5-4B`'s geometry: 32 layers of width 2560, 16 query and 4
+    /// key/value heads, 32 linear value heads, a tied head.
+    pub fn qwen3_5_4b() -> Self {
+        Self::published(2560, 32, [16, 4], 9216, 32, true)
+    }
+
+    /// `Qwen3.5-9B`'s geometry: 32 layers of width 4096, 16 query and 4
+    /// key/value heads, 32 linear value heads, a head of its own.
+    pub fn qwen3_5_9b() -> Self {
+        Self::published(4096, 32, [16, 4], 12288, 32, false)
+    }
+
+    /// `Qwen3.5-27B`'s geometry: 64 layers of width 5120, 24 query and 4
+    /// key/value heads, 48 linear value heads, a head of its own.
+    pub fn qwen3_5_27b() -> Self {
+        Self::published(5120, 64, [24, 4], 17408, 48, false)
+    }
+
     /// `n` layers, every `interval`-th full and the rest linear:
     /// `transformers`' pattern from `full_attention_interval`.
     pub fn every_nth_full(
