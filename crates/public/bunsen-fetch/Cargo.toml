@@ -17,6 +17,9 @@ ureq = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# This crate's own tests build with its `testing`. Path only: an unpublished
+# dev-dependency is dropped from the published manifest.
+bunsen-fetch = { path = ".", features = ["testing"] }
 
 # docs.rs builds the network side and the test support too; without them
 # `fetch_file`, `fetch_verified`, `Asset` and `testing` are not on the page.
@@ -38,4 +41,6 @@ fetch = ["dep:ureq"]
 
 ## Test support for crates built on this one: a recording observer,
 ## loopback HTTP servers (with `fetch`), and a known digest, in `testing`.
+## Not a default; this crate's own tests turn it on through a dev-dependency
+## on this crate itself, and bunsen's `testing` turns it on.
 testing = []
