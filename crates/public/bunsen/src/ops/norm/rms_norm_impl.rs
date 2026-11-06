@@ -3,7 +3,7 @@ use burn::{
     tensor::FloatDType,
 };
 
-use crate::burner::tensor::widen_to;
+use crate::burner::tensor::Widening;
 
 /// Options for root-mean-square norm: `x / sqrt(mean(x²) + eps)` over the
 /// last axis, with no trainable parameters, the result in the input's dtype.
@@ -12,7 +12,7 @@ use crate::burner::tensor::widen_to;
 /// ([`widen_input`](Self::widen_input)), and the one its mean of squares is
 /// taken in ([`widen_sum`](Self::widen_sum)). Each widens to at least the
 /// dtype it names, and never narrows
-/// ([`widen_to`](crate::burner::tensor::widen_to)):
+/// ([`Widening`](crate::burner::tensor::Widening)):
 ///
 /// | `widen_input` | `widen_sum` | |
 /// |---|---|---|
@@ -85,22 +85,17 @@ impl RmsNormOptions {
         &self,
         x: Tensor<R>,
     ) -> Tensor<R> {
-        let dtype = x.dtype();
-        let x = match self.widen_input {
-            Some(d) => x.cast(widen_to(dtype, d)),
-            None => x,
-        };
-        let z = match self.widen_sum {
-            Some(d) => x.clone().cast(widen_to(x.dtype(), d)),
-            None => x.clone(),
-        };
-        let rms = z
-            .square()
-            .mean_dim(R - 1)
-            .add_scalar(self.eps)
-            .sqrt()
-            .cast(x.dtype());
-        (x / rms).cast(dtype)
+        Widening::from(self.widen_input).around(x.dtype(), |input| {
+            let x = input.widen(x);
+            let rms = Widening::from(self.widen_sum).around(x.dtype(), |sum| {
+                sum.widen(x.clone())
+                    .square()
+                    .mean_dim(R - 1)
+                    .add_scalar(self.eps)
+                    .sqrt()
+            });
+            x / rms
+        })
     }
 }
 

@@ -9,7 +9,7 @@ use burn::{
     prelude::*,
 };
 
-use crate::burner::tensor::widen_half;
+use crate::burner::tensor::Widening;
 
 /// A layer norm,
 /// [`BunsenNormalization::Layer`](super::BunsenNormalization::Layer)'s: burn's
@@ -53,14 +53,13 @@ impl LayerNorm {
         &self,
         input: Tensor<D>,
     ) -> Tensor<D> {
-        let dtype = input.dtype();
-        let compute = widen_half(dtype);
-        burn::tensor::module::layer_norm(
-            input.cast(compute),
-            self.gamma.val().cast(compute),
-            self.beta.as_ref().map(|b| b.val().cast(compute)),
-            self.epsilon,
-        )
-        .cast(dtype)
+        Widening::F32.around(input.dtype(), |w| {
+            burn::tensor::module::layer_norm(
+                w.widen(input),
+                w.widen(self.gamma.val()),
+                self.beta.as_ref().map(|b| w.widen(b.val())),
+                self.epsilon,
+            )
+        })
     }
 }

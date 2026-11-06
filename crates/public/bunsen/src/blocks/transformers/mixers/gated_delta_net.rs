@@ -38,7 +38,7 @@ use crate::{
             InputDTypes,
             ResultDType,
         },
-        tensor::widen_half,
+        tensor::Widening,
     },
     contracts::unpack_shape_contract,
     errors::{
@@ -411,12 +411,9 @@ impl GatedDeltaNet {
 
         let beta = sigmoid(self.in_proj_b.forward(x.clone()));
         let a = self.in_proj_a.forward(x.clone());
-        let compute = widen_half(a.dtype());
-        let g = self.a_log.val().cast(compute).exp().neg().unsqueeze::<3>()
-            * softplus(
-                a.cast(compute) + self.dt_bias.val().cast(compute).unsqueeze(),
-                1.0,
-            );
+        let w = Widening::F32.scope(a.dtype());
+        let g = w.widen(self.a_log.val()).exp().neg().unsqueeze::<3>()
+            * softplus(w.widen(a) + w.widen(self.dt_bias.val()).unsqueeze(), 1.0);
 
         let initial = state.as_deref().map(|s| s.recurrent.clone());
         let (core, recurrent) = if t == 1 {

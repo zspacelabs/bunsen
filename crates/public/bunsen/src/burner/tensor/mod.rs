@@ -57,6 +57,11 @@
 //! holds, a lazy one's without initializing it: what a loader casts a
 //! checkpoint's tensors to.
 //!
+//! [`widen_to`] and [`widen_half`] — the dtype a computation widens a
+//! narrower float to; [`Widening`], that widening as a value, and its
+//! [`WideningScope`], which widens a computation's inputs and narrows its
+//! results back.
+//!
 //! [`bf16_round`] and [`round_to_bf16`] — values rounded to `bf16`
 //! precision and kept in `f32`, on the host: what a table stored in `bf16` and
 //! computed with in `f32` holds.
@@ -78,6 +83,7 @@ mod optional;
 mod tensor_data_checks;
 mod tensor_data_layout;
 mod tensor_op_ext;
+mod widening;
 
 pub use bf16::*;
 pub use float_dtype::*;
@@ -85,3 +91,4 @@ pub use optional::*;
 pub use tensor_data_checks::*;
 pub use tensor_data_layout::*;
 pub use tensor_op_ext::*;
+pub use widening::*;
