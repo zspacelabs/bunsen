@@ -37,6 +37,12 @@ pub trait RotaryEmbeddingMeta {
 
     /// Returns the head dimension.
     fn head_dim(&self) -> usize;
+
+    /// Returns the number of leading head dimensions rotated; the rest pass
+    /// through unrotated.
+    fn rotary_dim(&self) -> usize {
+        self.head_dim()
+    }
 }
 
 /// Config for [`RotaryEmbedding`].
@@ -49,6 +55,15 @@ pub struct RotaryEmbeddingConfig {
     ///
     /// This must be even.
     pub head_dim: usize,
+
+    /// The leading head dimensions rotated, `[..rotary_dim]`; the rest,
+    /// `[rotary_dim..]`, pass through unrotated (partial rotary: Qwen3.5's
+    /// `partial_rotary_factor` of 0.25 rotates 64 of 256). The frequencies
+    /// are spread over `rotary_dim`, as `transformers`' are over
+    /// `head_dim * partial_rotary_factor`. `None` rotates all of
+    /// `head_dim`. It must be even and at most `head_dim`.
+    #[config(default = "None")]
+    pub rotary_dim: Option<usize>,
 
     /// Base.
     #[config(default = 10000)]
@@ -150,6 +165,10 @@ impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
     fn head_dim(&self) -> usize {
         self.head_dim
     }
+
+    fn rotary_dim(&self) -> usize {
+        self.rotary_dim.unwrap_or(self.head_dim)
+    }
 }
 
 impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
@@ -168,15 +187,34 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
             )
             .into());
         }
+        let rotary_dim = self.rotary_dim();
+        if !rotary_dim.is_multiple_of(2) {
+            return Err(ConstraintError::new(
+                "RotaryEmbeddingConfig",
+                "rotary_dim",
+                Rule::NotMultiple {
+                    value: rotary_dim,
+                    of: "2".into(),
+                },
+            )
+            .into());
+        }
+        if rotary_dim == 0 || rotary_dim > self.head_dim {
+            return Err(ConstraintError::new(
+                "RotaryEmbeddingConfig",
+                "rotary_dim",
+                Rule::OutOfRange {
+                    value: rotary_dim.to_string(),
+                    range: format!("1..={}", self.head_dim),
+                },
+            )
+            .into());
+        }
 
         let freq_matrix = frequency_table(
             self.seq_len,
             self.scaling
-                .scale_inverse_frequencies(inverse_frequency_table(
-                    self.base,
-                    self.head_dim,
-                    device,
-                )),
+                .scale_inverse_frequencies(inverse_frequency_table(self.base, rotary_dim, device)),
         );
 
         // Rounded on the host, as the reference rounds, and kept as the
@@ -202,7 +240,7 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
             .unsqueeze_dim::<3>(1)
             .unsqueeze_dim(0);
 
-        // [1, T, 1, D/2]
+        // [1, T, 1, R/2]
 
         Ok(RotaryEmbedding {
             head_dim: self.head_dim,
@@ -221,7 +259,9 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
 /// [`clip_range`](RotaryEmbedding::clip_range) to restrict it to a
 /// sub-range of positions. Construct via [`RotaryEmbeddingConfig`] and
 /// `.init(device)`, then call [`apply`](RotaryEmbedding::apply) on a
-/// `[B, T, H, D]` tensor.
+/// `[B, T, H, D]` tensor. A partial rotary rotates the leading `R` head
+/// dimensions ([`rotary_dim`](RotaryEmbeddingMeta::rotary_dim)) and passes
+/// the rest through.
 ///
 /// Built by [`RotaryEmbeddingConfig`].
 #[derive(Module, Debug)]
@@ -233,10 +273,10 @@ pub struct RotaryEmbedding {
     #[module(skip)]
     pub direction: RotaryDirection,
 
-    /// a `[1, T, 1, D/2]` tensor.
+    /// a `[1, T, 1, R/2]` tensor, `R` the rotated dimensions.
     pub cos: Tensor<4>,
 
-    /// a `[1, T, 1, D/2]` tensor.
+    /// a `[1, T, 1, R/2]` tensor, `R` the rotated dimensions.
     pub sin: Tensor<4>,
 }
 
@@ -247,6 +287,10 @@ impl RotaryEmbeddingMeta for RotaryEmbedding {
 
     fn head_dim(&self) -> usize {
         self.head_dim
+    }
+
+    fn rotary_dim(&self) -> usize {
+        2 * self.cos.dims()[3]
     }
 }
 
@@ -309,7 +353,9 @@ impl RotaryEmbedding {
     }
 
     /// Applies the rotary embedding to the input, in the input's dtype: the
-    /// tables are cast to it (a no-op when they are in it already).
+    /// tables are cast to it (a no-op when they are in it already). The
+    /// leading [`rotary_dim`](RotaryEmbeddingMeta::rotary_dim) head
+    /// dimensions are rotated, the rest passed through.
     ///
     /// # Arguments
     /// - `input`: a `[B, T, H, D]` tensor, in any float dtype.
@@ -328,9 +374,12 @@ impl RotaryEmbedding {
             &[("T", self.seq_len()), ("D", self.head_dim())]
         );
 
-        let pivot = self.head_dim() / 2;
+        let rotary_dim = self.rotary_dim();
+        let pass =
+            (rotary_dim < self.head_dim()).then(|| input.clone().slice_dim(3, s![rotary_dim..]));
+        let pivot = rotary_dim / 2;
         let x1 = input.clone().slice_dim(3, s![..pivot]);
-        let x2 = input.clone().slice_dim(3, s![pivot..]);
+        let x2 = input.clone().slice_dim(3, s![pivot..rotary_dim]);
 
         let dtype = input.dtype();
         let (y1, y2) = self.direction.rotate(
@@ -340,7 +389,7 @@ impl RotaryEmbedding {
             self.sin.clone().cast(dtype),
         );
 
-        let output = Tensor::cat(vec![y1, y2], 3);
+        let output = Tensor::cat([vec![y1, y2], pass.into_iter().collect()].concat(), 3);
 
         #[cfg(debug_assertions)]
         crate::contracts::assert_shape_contract_periodically!(
@@ -517,6 +566,63 @@ mod tests {
         expected
             .to_data()
             .assert_approx_eq(&output.to_data(), Tolerance::<f32>::default());
+    }
+
+    /// A partial rotary rotates the leading `rotary_dim` head dimensions as a
+    /// full rotary of that width would, frequencies and all, and passes the
+    /// rest through unchanged.
+    #[test]
+    fn test_partial_rotary() {
+        let device = crate::support::testing::cpu_device();
+        let (seq_len, head_dim, rotary_dim) = (6, 12, 4);
+        for direction in [RotaryDirection::Forward, RotaryDirection::Reverse] {
+            let cfg = RotaryEmbeddingConfig::new(seq_len, head_dim)
+                .with_rotary_dim(Some(rotary_dim))
+                .with_direction(direction);
+            assert_eq!(cfg.rotary_dim(), rotary_dim);
+            let partial: RotaryEmbedding = cfg.init(&device);
+            assert_eq!(partial.head_dim(), head_dim);
+            assert_eq!(partial.rotary_dim(), rotary_dim);
+            assert_eq!(partial.clip_range(1..3).rotary_dim(), rotary_dim);
+            let full: RotaryEmbedding = RotaryEmbeddingConfig::new(seq_len, rotary_dim)
+                .with_direction(direction)
+                .init(&device);
+
+            let x = crate::support::testing::seeded_tensor::<4>(
+                2,
+                [2, seq_len, 3, head_dim],
+                Distribution::Default,
+                &device,
+            );
+            let y = partial.apply(x.clone());
+            assert_eq!(y.dims(), [2, seq_len, 3, head_dim]);
+            y.clone()
+                .slice_dim(3, s![..rotary_dim])
+                .into_data()
+                .assert_approx_eq::<f32>(
+                    &full
+                        .apply(x.clone().slice_dim(3, s![..rotary_dim]))
+                        .into_data(),
+                    Tolerance::default(),
+                );
+            assert_eq!(
+                y.slice_dim(3, s![rotary_dim..]).into_data(),
+                x.slice_dim(3, s![rotary_dim..]).into_data(),
+                "the rest passes through"
+            );
+        }
+
+        let unset = RotaryEmbeddingConfig::new(2, 8);
+        assert_eq!(unset.rotary_dim(), 8, "all of head_dim by default");
+        for bad in [3, 0, 10] {
+            assert!(
+                RotaryEmbeddingConfig::new(2, 8)
+                    .with_rotary_dim(Some(bad))
+                    .try_init(&device)
+                    .is_err(),
+                "rotary_dim {bad}"
+            );
+        }
     }
 
     /// At position 1 the first frequency is one radian: `Forward` turns
