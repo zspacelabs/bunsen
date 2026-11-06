@@ -39,10 +39,12 @@ harness = false
 [[bench]]
 name = "lbm"
 harness = false
+required-features = ["sims"]
 
 [[bench]]
 name = "whisper_decode"
 harness = false
+required-features = ["kits"]
 
 
 [features]
@@ -50,10 +52,27 @@ harness = false
 # audit probes (`audit`) are opt-in, because they pull in a CPU backend,
 # audio decoding, a tokenizer and the tracing-test stack.
 default = [
+    "kits",
+    "sims",
     "reflection",
     "train",
     "store_pytorch",
     "store_safetensors",
+]
+
+## The model kits, `kits`: each family's config, modules, pretrained rows and
+## loaders, and the machinery they share (`kits::support`: construction and
+## load policies, decoding, model configs, tokens). The loaders still need
+## the `store_*` and `cache` features they read with.
+kits = [
+    "std",
+    "dep:flate2",
+    "dep:dyn-clone",
+]
+
+## The simulations, `sims`: Conway's life and the lattice Boltzmann solvers.
+sims = [
+    "std",
 ]
 
 ## The standard library. bunsen requires it today: it is not `no_std`, and
@@ -96,6 +115,7 @@ store_safetensors = [
 ## the burn-store's `PyTorch` reader, from a copy extracted to a temporary
 ## directory).
 nemo = [
+    "kits",
     "store_pytorch",
     "dep:tar",
     "dep:serde-saphyr",
@@ -260,7 +280,7 @@ crc = { workspace = true }
 # upstream's zlib does, and flate2's default backend, `miniz_oxide`,
 # compresses short loops far less tightly. Without the feature here, the
 # backend would depend on what else in the build enables flate2's features.
-flate2 = { workspace = true, features = ["zlib-rs"] }
+flate2 = { workspace = true, features = ["zlib-rs"], optional = true }
 
 directories-next = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }
@@ -279,7 +299,7 @@ time = { workspace = true, features = ["formatting", "macros", "local-offset"] }
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
-dyn-clone = { workspace = true }
+dyn-clone = { workspace = true, optional = true }
 
 document-features = { workspace = true }
 

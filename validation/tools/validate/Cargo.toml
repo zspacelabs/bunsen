@@ -14,7 +14,8 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-bunsen = { path = "../../../crates/public/bunsen", default-features = false }
+# The full default stack: `validate` checks the kits against their references.
+bunsen = { path = "../../../crates/public/bunsen" }
 clap = { workspace = true, features = ["derive", "env"] }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
