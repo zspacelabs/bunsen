@@ -28,7 +28,10 @@ use crate::{
             ConvBlock1dConfig,
         },
         norm::BunsenNormalizationConfig,
-        transformers::sublayer::SublayerBranch,
+        transformers::sublayer::{
+            ResidualSublayer,
+            SublayerBranch,
+        },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -200,6 +203,29 @@ impl SublayerBranch<ConformerConvCall, 3> for ConformerConvolution {
         ctx: ConformerConvCall,
     ) -> Tensor<3> {
         self.forward(z, ctx.valid)
+    }
+}
+
+/// A Conformer convolution sublayer ([`ConformerConvCall`]).
+pub trait ConformerConvSublayer {
+    /// The residual update, the branch convolving over the valid steps.
+    fn conformer_conv(
+        &self,
+        x: Tensor<3>,
+        valid: Option<Tensor<2, Bool>>,
+    ) -> Tensor<3>;
+}
+
+impl<M> ConformerConvSublayer for ResidualSublayer<M>
+where
+    M: Module + SublayerBranch<ConformerConvCall, 3, Output = Tensor<3>>,
+{
+    fn conformer_conv(
+        &self,
+        x: Tensor<3>,
+        valid: Option<Tensor<2, Bool>>,
+    ) -> Tensor<3> {
+        self.residual_update(x, ConformerConvCall { valid })
     }
 }
 

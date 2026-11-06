@@ -24,9 +24,10 @@ use crate::{
                 TransformerMlpConfig,
             },
             sublayer::{
+                PlainSublayer,
                 ResidualSublayer,
                 ResidualSublayerConfig,
-                SelfAttnCall,
+                SelfAttnSublayer,
             },
         },
     },
@@ -229,8 +230,8 @@ impl ResidualEncoderAttentionBlock {
         x: Tensor<3>,
         mask: Option<Tensor<3, burn::prelude::Bool>>,
     ) -> Tensor<3> {
-        let x = self.attn.residual_update(x, SelfAttnCall { mask });
-        self.mlp.residual_update(x, ())
+        let x = self.attn.self_attn(x, mask);
+        self.mlp.forward(x)
     }
 }
 

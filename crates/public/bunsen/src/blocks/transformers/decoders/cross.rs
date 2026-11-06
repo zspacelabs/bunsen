@@ -27,12 +27,13 @@ use crate::{
                 TransformerMlpConfig,
             },
             sublayer::{
-                CrossAttnCall,
-                CrossAttnKvCall,
+                CrossAttnKvSublayer,
+                CrossAttnSublayer,
+                PlainSublayer,
                 ResidualSublayer,
                 ResidualSublayerConfig,
-                SelfAttnCall,
-                SelfAttnKvCall,
+                SelfAttnKvSublayer,
+                SelfAttnSublayer,
             },
         },
     },
@@ -216,11 +217,11 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
-        let x = self.attn.residual_update(x, SelfAttnCall { mask });
+        let x = self.attn.self_attn(x, mask);
 
-        let (x, ca_weights) = self.cross_attn.residual_update(x, CrossAttnCall { xa });
+        let (x, ca_weights) = self.cross_attn.cross_attn(x, xa);
 
-        let x = self.mlp.residual_update(x, ());
+        let x = self.mlp.forward(x);
 
         CrossDecoderRecord {
             output: x,
@@ -257,14 +258,10 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = self
-            .attn
-            .residual_update(x, SelfAttnKvCall { mask, cache, layer });
-        let x = self
-            .cross_attn
-            .residual_update(x, CrossAttnKvCall { cache, layer });
+        let x = self.attn.self_attn_w_kv_cache(x, mask, cache, layer);
+        let x = self.cross_attn.cross_attn_w_kv_cache(x, cache, layer);
 
-        self.mlp.residual_update(x, ())
+        self.mlp.forward(x)
     }
 
     /// Projects the encoder output into this block's cross-attention keys and
