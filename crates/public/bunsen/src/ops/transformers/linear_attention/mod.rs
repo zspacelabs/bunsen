@@ -9,7 +9,9 @@
 //!   kernel per channel, continuing from the inputs a previous call saw.
 //! - [`GatedDeltaRule`]: the gated delta rule, `S ← exp(g) S + β k (v - exp(g)
 //!   S^T k)^T`, read out as `S^T q`; [`recurrent`](GatedDeltaRule::recurrent)
-//!   steps it one position at a time, from a carried state.
+//!   steps it one position at a time, from a carried state, and
+//!   [`chunked`](GatedDeltaRule::chunked) a chunk at a time (a prefill's form),
+//!   which agree.
 //! - [`DeltaNetState`]: one linear-attention layer's carried state, the
 //!   convolution's last inputs and the delta rule's matrix, made by
 //!   [`DeltaNetStateConfig`].

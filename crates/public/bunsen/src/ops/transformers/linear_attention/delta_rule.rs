@@ -2,7 +2,11 @@
 
 use burn::{
     Tensor,
-    prelude::s,
+    prelude::{
+        Bool,
+        s,
+    },
+    tensor::DType,
 };
 
 use crate::{
@@ -13,8 +17,9 @@ use crate::{
     },
 };
 
-/// The gated delta rule's options, and the rule as methods
-/// ([`recurrent`](Self::recurrent)).
+/// The gated delta rule's options, and the rule as methods: one position at
+/// a time ([`recurrent`](Self::recurrent)), or a chunk of positions at a
+/// time ([`chunked`](Self::chunked)), which agree.
 ///
 /// Per head, a `[d_k, d_v]` state `S` is decayed, corrected toward the
 /// value a key should read, and read by the query, at each position:
@@ -40,13 +45,24 @@ pub struct GatedDeltaRule {
     /// L2-normalize each query and key head, `x / sqrt(Σ x² + eps)`, with
     /// this epsilon; `None` takes them as given.
     pub qk_l2norm_eps: Option<f64>,
+
+    /// The positions [`chunked`](Self::chunked) takes at a time.
+    #[serde(default = "default_chunk_size")]
+    pub chunk_size: usize,
+}
+
+/// [`GatedDeltaRule::chunk_size`]'s default, `transformers`' and FLA's.
+fn default_chunk_size() -> usize {
+    64
 }
 
 impl Default for GatedDeltaRule {
-    /// The queries and keys L2-normalized, with FLA's epsilon of `1e-6`.
+    /// The queries and keys L2-normalized, with FLA's epsilon of `1e-6`;
+    /// chunks of 64.
     fn default() -> Self {
         Self {
             qk_l2norm_eps: Some(1e-6),
+            chunk_size: default_chunk_size(),
         }
     }
 }
@@ -57,7 +73,8 @@ struct Prepared {
     q: Tensor<4>,
     k: Tensor<4>,
     v: Tensor<4>,
-    decay: Tensor<3>,
+    /// The log decay.
+    g: Tensor<3>,
     beta: Tensor<3>,
 }
 
@@ -68,6 +85,15 @@ impl GatedDeltaRule {
         eps: Option<f64>,
     ) -> Self {
         self.qk_l2norm_eps = eps;
+        self
+    }
+
+    /// Sets [`chunk_size`](Self::chunk_size).
+    pub fn with_chunk_size(
+        mut self,
+        chunk_size: usize,
+    ) -> Self {
+        self.chunk_size = chunk_size;
         self
     }
 
@@ -120,7 +146,7 @@ impl GatedDeltaRule {
             q,
             k,
             v: to(v),
-            decay: gates(g).exp(),
+            g: gates(g),
             beta: gates(beta),
         };
         ([b, t, h, d_k, d_v], prepared)
@@ -151,27 +177,16 @@ impl GatedDeltaRule {
         state: Option<Tensor<4>>,
     ) -> (Tensor<4>, Tensor<4>) {
         let dtype = q.dtype();
-        let device = q.device();
-        let ([b, t, h, d_k, d_v], p) = self.prepare(q, k, v, g, beta);
-        let compute = p.q.dtype();
-        let mut s = match state {
-            Some(state) => {
-                assert_shape_contract_periodically!(
-                    ["B", "H", "Dk", "Dv"],
-                    &state.dims(),
-                    &[("B", b), ("H", h), ("Dk", d_k), ("Dv", d_v)]
-                );
-                state.cast(compute)
-            }
-            None => Tensor::zeros([b, h, d_k, d_v], (&device, compute)),
-        };
+        let (dims @ [_, t, ..], p) = self.prepare(q, k, v, g, beta);
+        let mut s = initial_state(state, dims, &p);
+        let decay = p.g.clone().exp();
         let mut outputs = Vec::with_capacity(t);
         for i in 0..t {
             let at = |x: &Tensor<4>| x.clone().slice(s![.., .., i..=i, ..]);
             // [B, H, 1, 1]
             let gate = |x: &Tensor<3>| x.clone().slice(s![.., .., i..=i]).unsqueeze_dim::<4>(3);
             let (q_t, k_t, v_t) = (at(&p.q), at(&p.k), at(&p.v));
-            s = s * gate(&p.decay);
+            s = s * gate(&decay);
             // [B, H, 1, d_v]: what the state reads at the key.
             let read = k_t.clone().matmul(s.clone());
             let delta = (v_t - read) * gate(&p.beta);
@@ -181,6 +196,146 @@ impl GatedDeltaRule {
         let out = Tensor::cat(outputs, 2).swap_dims(1, 2).cast(dtype);
         (out, s)
     }
+
+    /// The rule, [`chunk_size`](Self::chunk_size) positions at a time, from
+    /// `state`: the form a prefill runs, a chunk's updates condensed into a
+    /// few matmuls (the WY form of Yang et al., *Parallelizing Linear
+    /// Transformers with the Delta Rule over Sequence Length*, as
+    /// `transformers`' `torch_chunk_gated_delta_rule` computes it), and a
+    /// step per chunk, not per position. Agrees with
+    /// [`recurrent`](Self::recurrent), whose arguments and returns it
+    /// takes; the last chunk may be short.
+    ///
+    /// Within a chunk the updates solve a unit lower-triangular system,
+    /// here by forward substitution, one row at a time (`transformers`'
+    /// export path), for every chunk at once.
+    pub fn chunked(
+        &self,
+        q: Tensor<4>,
+        k: Tensor<4>,
+        v: Tensor<4>,
+        g: Tensor<3>,
+        beta: Tensor<3>,
+        state: Option<Tensor<4>>,
+    ) -> (Tensor<4>, Tensor<4>) {
+        let c = self.chunk_size;
+        assert!(c > 0, "a chunk of at least one position");
+        let dtype = q.dtype();
+        let (dims @ [b, t, h, ..], p) = self.prepare(q, k, v, g, beta);
+        let mut s = initial_state(state, dims, &p);
+        let device = p.q.device();
+        let n = t.div_ceil(c);
+        let pad = n * c - t;
+
+        // Padded to whole chunks with zeros, which neither write nor decay;
+        // then `[B, H, n, C, ·]`.
+        let chunks4 = |x: Tensor<4>| {
+            let x = if pad > 0 {
+                let [_, _, _, d] = x.dims();
+                let zeros = Tensor::zeros([b, h, pad, d], (&device, x.dtype()));
+                Tensor::cat(vec![x, zeros], 2)
+            } else {
+                x
+            };
+            let [_, _, _, d] = x.dims();
+            x.reshape([b, h, n, c, d])
+        };
+        let chunks3 = |x: Tensor<3>| {
+            let x = if pad > 0 {
+                let zeros = Tensor::zeros([b, h, pad], (&device, x.dtype()));
+                Tensor::cat(vec![x, zeros], 2)
+            } else {
+                x
+            };
+            x.reshape([b, h, n, c])
+        };
+        let beta = chunks3(p.beta).unsqueeze_dim::<5>(4);
+        let q = chunks4(p.q);
+        let k = chunks4(p.k);
+        let v_beta = chunks4(p.v) * beta.clone();
+        let k_beta = k.clone() * beta;
+
+        // [B, H, n, C]: the log of the decay from a chunk's start to each
+        // of its positions; [B, H, n, C, C]: from position j to position i,
+        // zero above the diagonal.
+        let cum = chunks3(p.g).cumsum(3);
+        let upper = Tensor::<2, Bool>::tril_mask([c, c], 0, &device).unsqueeze::<5>();
+        let pairwise = (cum.clone().unsqueeze_dim::<5>(4) - cum.clone().unsqueeze_dim::<5>(3))
+            .mask_fill(upper, f64::NEG_INFINITY)
+            .exp();
+        let k_t = k.clone().swap_dims(3, 4);
+        let system = k_beta.clone().matmul(k_t.clone()) * pairwise.clone();
+        let intra = q.clone().matmul(k_t) * pairwise;
+        let cum_exp = cum.clone().exp().unsqueeze_dim::<5>(4);
+        let decayed_k_beta = k_beta * cum_exp.clone();
+
+        let inverse = unit_lower_inverse(system, c);
+        let new_values = inverse.clone().matmul(v_beta);
+        let k_cumdecay = inverse.matmul(decayed_k_beta);
+
+        let q = q * cum_exp;
+        let last = cum.clone().slice(s![.., .., .., c - 1..c]);
+        let k = k * (last.clone() - cum).exp().unsqueeze_dim::<5>(4);
+        // [B, H, n, 1, 1]
+        let chunk_decay = last.exp().unsqueeze_dim::<5>(4);
+
+        let at = |x: &Tensor<5>, i: usize| {
+            x.clone()
+                .slice(s![.., .., i..=i, .., ..])
+                .squeeze_dim::<4>(2)
+        };
+        let mut outputs = Vec::with_capacity(n);
+        for i in 0..n {
+            let v_new = at(&new_values, i) - at(&k_cumdecay, i).matmul(s.clone());
+            outputs.push(at(&q, i).matmul(s.clone()) + at(&intra, i).matmul(v_new.clone()));
+            s = s * at(&chunk_decay, i) + at(&k, i).swap_dims(2, 3).matmul(v_new);
+        }
+        let out = Tensor::cat(outputs, 2)
+            .slice(s![.., .., ..t, ..])
+            .swap_dims(1, 2)
+            .cast(dtype);
+        (out, s)
+    }
+}
+
+/// The rule's starting state: `state`, cast to the dtype the rule runs in,
+/// or zeros.
+fn initial_state(
+    state: Option<Tensor<4>>,
+    [b, _, h, d_k, d_v]: [usize; 5],
+    p: &Prepared,
+) -> Tensor<4> {
+    let compute: DType = p.q.dtype();
+    match state {
+        Some(state) => {
+            assert_shape_contract_periodically!(
+                ["B", "H", "Dk", "Dv"],
+                &state.dims(),
+                &[("B", b), ("H", h), ("Dk", d_k), ("Dv", d_v)]
+            );
+            state.cast(compute)
+        }
+        None => Tensor::zeros([b, h, d_k, d_v], (&p.q.device(), compute)),
+    }
+}
+
+/// `(I + L)⁻¹` for `L`, `system`'s part below the diagonal (its diagonal
+/// and above ignored), over the last two axes of `[.., C, C]`: forward
+/// substitution, one row at a time.
+fn unit_lower_inverse(
+    system: Tensor<5>,
+    c: usize,
+) -> Tensor<5> {
+    let device = system.device();
+    let dtype = system.dtype();
+    let mut a = system.tril(-1).neg();
+    for i in 1..c {
+        let row = a.clone().slice(s![.., .., .., i..=i, ..i]);
+        let sub = a.clone().slice(s![.., .., .., ..i, ..i]);
+        let next = row.clone() + (row.swap_dims(3, 4) * sub).sum_dim(3);
+        a = a.slice_assign(s![.., .., .., i..=i, ..i], next);
+    }
+    a + Tensor::<2>::eye(c, &device).cast(dtype).unsqueeze::<5>()
 }
 
 #[cfg(test)]
@@ -362,6 +517,116 @@ mod tests {
             assert_tensors_close(&Tensor::cat(parts, 1), &whole, Tolerance::default());
             assert_tensors_close(&state.unwrap(), &whole_state, Tolerance::default());
         }
+    }
+
+    /// The worst absolute difference between two tensors.
+    fn worst<const D: usize>(
+        a: Tensor<D>,
+        b: Tensor<D>,
+    ) -> f64 {
+        values(a)
+            .iter()
+            .zip(values(b))
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0, f64::max)
+    }
+
+    /// The chunked form against the recurrent one, on `device`: chunks that
+    /// divide the sequence, that do not, longer than it; with and without
+    /// an initial state and the L2 norm.
+    fn check_chunked_is_recurrent(
+        device: &burn::tensor::Device,
+        tolerance: f64,
+    ) {
+        let mut largest = 0.0f64;
+        for (t, chunk) in [(8, 4), (10, 4), (3, 4), (70, 64), (1, 64)] {
+            let dims @ [b, _, h, d_k, d_v] = [2, t, 3, 4, 5];
+            let (q, k, v, g, beta) = inputs(50 + t as u64, dims);
+            let to = |x: Tensor<4>| x.to_device(device);
+            let to3 = |x: Tensor<3>| x.to_device(device);
+            let (q, k, v, g, beta) = (to(q), to(k), to(v), to3(g), to3(beta));
+            let start = seeded_tensor::<4>(60, [b, h, d_k, d_v], Distribution::Default, device);
+            for initial in [false, true] {
+                for eps in [Some(1e-6), None] {
+                    let rule = GatedDeltaRule::default()
+                        .with_qk_l2norm_eps(eps)
+                        .with_chunk_size(chunk);
+                    let run = |chunked: bool| {
+                        let args = (
+                            q.clone(),
+                            k.clone(),
+                            v.clone(),
+                            g.clone(),
+                            beta.clone(),
+                            initial.then(|| start.clone()),
+                        );
+                        if chunked {
+                            rule.chunked(args.0, args.1, args.2, args.3, args.4, args.5)
+                        } else {
+                            rule.recurrent(args.0, args.1, args.2, args.3, args.4, args.5)
+                        }
+                    };
+                    let (out_c, state_c) = run(true);
+                    let (out_r, state_r) = run(false);
+                    assert_eq!(out_c.dims(), [b, t, h, d_v]);
+                    let what = format!("T {t}, chunk {chunk}, initial {initial}, eps {eps:?}");
+                    let (o, st) = (worst(out_c, out_r), worst(state_c, state_r));
+                    assert!(o < tolerance, "{what}: outputs off by {o}");
+                    assert!(st < tolerance, "{what}: states off by {st}");
+                    largest = largest.max(o).max(st);
+                }
+            }
+        }
+        eprintln!("chunked against recurrent on {device:?}: off by at most {largest:.2e}");
+    }
+
+    /// The chunked form is the recurrent form, on the CPU.
+    #[test]
+    fn test_chunked_is_recurrent() {
+        check_chunked_is_recurrent(&cpu_device(), 1e-5);
+    }
+
+    /// The chunked form is the recurrent form, on the performance device.
+    #[test]
+    #[serial_test::serial]
+    fn test_chunked_is_recurrent_on_the_performance_device() {
+        let device = crate::support::testing::performance_device();
+        let _memory = crate::support::testing::DeviceMemoryGuard::new(&device);
+        check_chunked_is_recurrent(&device, 1e-5);
+    }
+
+    /// A chunked prefill in parts, each from the state the last left, is
+    /// the one-pass prefill: a part ending mid-chunk included.
+    #[test]
+    fn test_chunked_parts_agree_with_one_pass() {
+        let dims = [1, 13, 2, 4, 3];
+        let (q, k, v, g, beta) = inputs(70, dims);
+        let rule = GatedDeltaRule::default().with_chunk_size(4);
+        let (whole, whole_state) = rule.chunked(
+            q.clone(),
+            k.clone(),
+            v.clone(),
+            g.clone(),
+            beta.clone(),
+            None,
+        );
+        let mut state = None;
+        let mut parts = Vec::new();
+        for span in [0, 5, 6, 13].windows(2) {
+            let r = span[0]..span[1];
+            let (y, next) = rule.chunked(
+                q.clone().slice(s![.., r.clone(), .., ..]),
+                k.clone().slice(s![.., r.clone(), .., ..]),
+                v.clone().slice(s![.., r.clone(), .., ..]),
+                g.clone().slice(s![.., r.clone(), ..]),
+                beta.clone().slice(s![.., r, ..]),
+                state,
+            );
+            parts.push(y);
+            state = Some(next);
+        }
+        assert_tensors_close(&Tensor::cat(parts, 1), &whole, Tolerance::default());
+        assert_tensors_close(&state.unwrap(), &whole_state, Tolerance::default());
     }
 
     /// A zero write strength leaves the state the decayed state; a zero
