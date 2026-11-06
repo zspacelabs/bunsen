@@ -9,6 +9,10 @@
 //!
 //! An example's backend features forward here (`wgpu = ["bunsen-app/wgpu"]`),
 //! as does `tui` for the training examples.
+//!
+//! ## Crate Features
+#![doc = document_features::document_features!()]
+
 pub mod cache;
 pub mod device;
 pub mod logging;

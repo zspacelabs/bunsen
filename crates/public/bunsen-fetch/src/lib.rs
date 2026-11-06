@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 //! # bunsen-fetch
 //!
 //! Bunsen's file fetching, without the rest of bunsen: bunsen's disk cache

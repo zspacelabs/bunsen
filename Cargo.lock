@@ -1227,6 +1227,7 @@ dependencies = [
  "bunsen",
  "burn",
  "clap",
+ "document-features",
  "env_logger",
  "log",
  "tempfile",
