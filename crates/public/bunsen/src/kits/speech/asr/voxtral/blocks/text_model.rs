@@ -170,7 +170,8 @@ impl VoxtralTextConfig {
                     .with_norm(None)
                     .with_sliding_window(self.sliding_window)
                     // As `transformers`' eager attention: the softmax in f32.
-                    .with_softmax_dtype(Some(burn::tensor::FloatDType::F32)),
+                    .with_softmax_dtype(Some(burn::tensor::FloatDType::F32))
+                    .into(),
                 TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
             .with_norm(norm.clone())
@@ -276,7 +277,7 @@ impl VoxtralTextMeta for VoxtralTextModel {
     }
 
     fn sliding_window(&self) -> Option<usize> {
-        self.stack.layers[0].attn.branch.sliding_window
+        self.stack.layers[0].attn.branch.attention().sliding_window
     }
 }
 

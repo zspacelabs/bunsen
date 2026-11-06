@@ -281,7 +281,8 @@ impl NemotronDiarizationConfig {
                 CausalSelfAttentionConfig::new(self.n_heads, self.n_heads, self.d_model)
                     .with_norm(None)
                     .with_output_bias(true)
-                    .with_mask(AttentionMask::Bidirectional),
+                    .with_mask(AttentionMask::Bidirectional)
+                    .into(),
                 TransformerMlpConfig::new(self.d_model)
                     .with_expansion_factor(self.ff_expansion)
                     .with_activation(BunsenActivationConfig::Gelu)

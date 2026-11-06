@@ -386,7 +386,8 @@ impl NanoChatGptContractConfig {
                 .with_score_scale(
                     self.qk_gain
                         .map(|g| g * g / (self.head_dim() as f64).sqrt()),
-                ),
+                )
+                .into(),
             TransformerMlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
                 .with_activation(BunsenActivationConfig::Chain(vec![
@@ -411,9 +412,9 @@ impl ToStructureConfig for NanoChatGptContractConfig {
         let h = (0..self.n_layer)
             .map(|i| {
                 let mut block = self.block_config();
-                block.attn.sliding_window = windows.as_ref().map(|w| w[i]);
+                block.attn.attention_mut().sliding_window = windows.as_ref().map(|w| w[i]);
                 if self.value_embeds && has_value_embed(i, self.n_layer) {
-                    block.attn.value_residual = Some(ValueResidualConfig::new());
+                    block.attn.attention_mut().value_residual = Some(ValueResidualConfig::new());
                 }
                 block
             })
@@ -497,7 +498,7 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 
     fn n_head(&self) -> usize {
-        self.stack.layers[0].attn.n_head()
+        self.stack.layers[0].attn.attention().n_head()
     }
 
     fn n_kv_head(&self) -> usize {
@@ -628,7 +629,7 @@ impl NanoChatGptMeta for NanoChatGpt {
     }
 
     fn n_head(&self) -> usize {
-        self.stack.layers[0].attn.branch.n_head()
+        self.stack.layers[0].attn.branch.attention().n_head()
     }
 
     fn n_kv_head(&self) -> usize {
@@ -953,9 +954,9 @@ mod tests {
         assert!(gpt.value_embeds.iter().all(Option::is_none));
         assert!(!gpt.is_smeared() && gpt.backout_lambda.is_none());
         assert!(gpt.stack.layers.iter().all(|b| {
-            b.attn.branch.score_scale.is_none()
-                && b.attn.branch.sliding_window.is_none()
-                && b.attn.branch.value_gate.is_none()
+            b.attn.branch.attention().score_scale.is_none()
+                && b.attn.branch.attention().sliding_window.is_none()
+                && b.attn.branch.attention().value_gate.is_none()
         }));
 
         let structure = NanoChatGptContractConfig::new().to_structure();
@@ -1015,7 +1016,7 @@ mod tests {
                 .stack
                 .layers
                 .iter()
-                .map(|b| b.attn.sliding_window)
+                .map(|b| b.attn.attention().sliding_window)
                 .collect::<Vec<_>>(),
             vec![Some(129), Some(5), Some(5)]
         );
@@ -1032,7 +1033,7 @@ mod tests {
                 .stack
                 .layers
                 .iter()
-                .all(|b| b.attn.score_scale
+                .all(|b| b.attn.attention().score_scale
                     == Some(1.2 * 1.2 / (structure.head_dim() as f64).sqrt()))
         );
         assert_eq!(structure.smear_channels, Some(24));
@@ -1056,7 +1057,7 @@ mod tests {
         gpt.smear_lambda = Some(Param::from_tensor(Tensor::from_floats([0.7], device)));
         gpt.backout_lambda = Some(Param::from_tensor(Tensor::from_floats([0.3], device)));
         for block in gpt.stack.layers.iter_mut() {
-            if let Some(gate) = block.attn.branch.value_gate.as_mut() {
+            if let Some(gate) = block.attn.branch.attention_mut().value_gate.as_mut() {
                 gate.weight = Param::from_tensor(seeded_tensor(
                     7,
                     gate.weight.dims(),
@@ -1210,17 +1211,17 @@ mod tests {
         differs(&g, "the x0 lambdas");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            block.attn.branch.score_scale = None;
+            block.attn.branch.attention_mut().score_scale = None;
         }
         differs(&g, "the qk gain");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            block.attn.branch.sliding_window = None;
+            block.attn.branch.attention_mut().sliding_window = None;
         }
         differs(&g, "the windows");
         let mut g = tiny_2026(&device);
         for block in g.stack.layers.iter_mut() {
-            if let Some(gate) = block.attn.branch.value_gate.as_mut() {
+            if let Some(gate) = block.attn.branch.attention_mut().value_gate.as_mut() {
                 gate.weight = Param::from_tensor(gate.weight.val().zeros_like().sub_scalar(30.0));
             }
         }

@@ -221,7 +221,8 @@ impl Qwen3Config {
                     .with_head_dim(Some(self.head_dim))
                     .with_norm(Some(norm(self.head_dim)))
                     .with_qk_norm(QkNormPlacement::BeforeRope)
-                    .with_softmax_dtype(self.softmax_dtype),
+                    .with_softmax_dtype(self.softmax_dtype)
+                    .into(),
                 TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
             .with_norm(norm(0)),
@@ -464,7 +465,13 @@ mod tests {
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.stack.rotary.base, config.rope_theta);
         assert_eq!(
-            model.stack.layers[0].attn.branch.c_q.weight.dims(),
+            model.stack.layers[0]
+                .attn
+                .branch
+                .attention()
+                .c_q
+                .weight
+                .dims(),
             [12, 18]
         );
         assert!(model.lm_head.is_tied(), "tied by default");

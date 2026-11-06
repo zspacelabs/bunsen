@@ -13,19 +13,17 @@ use crate::{
     blocks::{
         norm::BunsenNormalizationConfig,
         transformers::{
-            attention::csa::{
-                AttentionSides,
-                CausalAttnSublayer,
-                CausalSelfAttention,
-                CausalSelfAttentionConfig,
-                CausalSelfAttentionMeta,
-            },
+            attention::csa::AttentionSides,
             conditioning::{
                 AdaptiveScale,
                 AdaptiveScaleConfig,
                 AdaptiveScaleMeta,
             },
             embedding::RotaryEmbedding,
+            mixers::{
+                TokenMixer,
+                TokenMixerConfig,
+            },
             mlp::{
                 TransformerFeedForward,
                 TransformerFeedForwardConfig,
@@ -48,7 +46,10 @@ use crate::{
         Rule,
         WithOkOrPanic,
     },
-    ops::transformers::attention::KVCache,
+    ops::transformers::{
+        attention::KVCache,
+        linear_attention::DeltaNetCache,
+    },
 };
 
 /// The side inputs of a [`CausalDecoderBlock`]'s
@@ -135,8 +136,10 @@ impl DecoderLayerKeys {
 /// Config for [`CausalDecoderBlock`].
 #[derive(Config, Debug)]
 pub struct CausalDecoderBlockConfig {
-    /// Causal Self-Attention Config.
-    pub attn: CausalSelfAttentionConfig,
+    /// The token mixer's config: causal self-attention (a
+    /// [`CausalSelfAttentionConfig`](crate::blocks::transformers::attention::csa::CausalSelfAttentionConfig),
+    /// `.into()`), or a gated `DeltaNet`.
+    pub attn: TokenMixerConfig,
 
     /// The feed-forward's config.
     pub mlp: TransformerFeedForwardConfig,
@@ -173,7 +176,9 @@ impl CausalDecoderBlockMeta for CausalDecoderBlockConfig {
 }
 
 impl CausalDecoderBlockConfig {
-    /// Initializes a [`CausalDecoderBlock`].
+    /// Initializes a [`CausalDecoderBlock`], its mixer at `layer_index`: its
+    /// slot in the decode's cache for its kind
+    /// ([`TokenMixerConfig::try_init`]).
     ///
     /// Panics on errors.
     pub fn init(
@@ -184,7 +189,8 @@ impl CausalDecoderBlockConfig {
         self.try_init(layer_index, device).ok_or_panic()
     }
 
-    /// Initializes a [`CausalDecoderBlock`].
+    /// Initializes a [`CausalDecoderBlock`], its mixer at `layer_index`
+    /// ([`init`](Self::init)).
     pub fn try_init(
         &self,
         layer_index: usize,
@@ -257,14 +263,20 @@ impl CausalDecoderBlockConfig {
 /// `x = x + attn_post_norm(attn(attn_norm(x)))`, and the same for the
 /// feed-forward: Gemma 2's and 3's sandwich.
 ///
+/// Its token mixer is attention, or a gated `DeltaNet` ([`TokenMixer`]): a
+/// hybrid stack's linear layers, which carry a
+/// [`DeltaNetState`](crate::ops::transformers::linear_attention::DeltaNetState)
+/// in place of a KV history.
+///
 /// Built by [`CausalDecoderBlockConfig`], whose `init` also takes the block's
-/// layer index: its slot in a shared [`KVCache`].
+/// layer index: its mixer's slot in the decode's cache for its kind (a
+/// shared [`KVCache`]'s layer, or a [`DeltaNetCache`]'s).
 #[derive(Module, Debug)]
 pub struct CausalDecoderBlock {
-    /// The attention sublayer: its input norm (`pre`), if the block has one,
-    /// the attention (`branch`), and its output norm (`post`), if the block
+    /// The token-mixer sublayer: its input norm (`pre`), if the block has
+    /// one, the mixer (`branch`), and its output norm (`post`), if the block
     /// has post-norms.
-    pub attn: ResidualSublayer<CausalSelfAttention>,
+    pub attn: ResidualSublayer<TokenMixer>,
 
     /// The feed-forward sublayer: its input norm (`pre`), the feed-forward
     /// (`branch`), and its output norm (`post`), if the block has post-norms.
@@ -409,12 +421,34 @@ impl CausalDecoderBlock {
     ///
     /// # Panics
     /// If a side input is given to a block that does not take it, or withheld
-    /// from one that does.
+    /// from one that does; or a KV cache to a linear-attention block, which
+    /// decodes through [`forward_with_caches`](Self::forward_with_caches).
     pub fn forward_with(
         &self,
         input: Tensor<3>,
         r_emb: &RotaryEmbedding,
         kv_cache: &mut Option<&mut KVCache>,
+        sides: DecoderSideInputs,
+    ) -> Tensor<3> {
+        self.forward_with_caches(input, r_emb, kv_cache, None, sides)
+    }
+
+    /// [`forward_with`](Self::forward_with), through the decode's caches of
+    /// both kinds: the KV cache an attention layer reads and writes, and the
+    /// [`DeltaNetCache`] a linear-attention layer does. Without either, a
+    /// layer starts the sequence at `input` and keeps nothing.
+    ///
+    /// # Panics
+    /// As [`forward_with`](Self::forward_with); and if a linear-attention
+    /// block is given a KV cache without a [`DeltaNetCache`] (a decode that
+    /// would lose its state), or a side input (value embeddings and key
+    /// padding are attention's).
+    pub fn forward_with_caches(
+        &self,
+        input: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        kv_cache: &mut Option<&mut KVCache>,
+        linear: Option<&mut DeltaNetCache>,
         sides: DecoderSideInputs,
     ) -> Tensor<3> {
         #[cfg(any(debug_assertions, test))]
@@ -424,15 +458,30 @@ impl CausalDecoderBlock {
             value_embed,
             key_valid,
         } = sides;
-        let x = self.attn.causal_attn(
-            input,
-            r_emb,
-            kv_cache,
-            AttentionSides {
-                value_embed,
-                key_valid,
-            },
-        );
+        let x = self
+            .attn
+            .residual_update_with(input, |mixer, z| match mixer {
+                TokenMixer::Attention(attn) => attn.forward_with(
+                    z,
+                    r_emb,
+                    kv_cache,
+                    AttentionSides {
+                        value_embed,
+                        key_valid,
+                    },
+                ),
+                TokenMixer::GatedDeltaNet(net) => {
+                    assert!(
+                        value_embed.is_none() && key_valid.is_none(),
+                        "a linear-attention block takes no value embedding or key padding"
+                    );
+                    assert!(
+                        kv_cache.is_none() || linear.is_some(),
+                        "a linear-attention block decodes through a DeltaNetCache"
+                    );
+                    net.forward(z, linear.map(|cache| cache.layer_mut(net.layer_index)))
+                }
+            });
         self.mlp.residual_update_with(x, |mlp, h| {
             let h = match (&self.mlp_scale, cond) {
                 (None, None) => h,
@@ -475,6 +524,10 @@ mod tests {
         blocks::{
             norm::BunsenNormalization,
             transformers::{
+                attention::csa::{
+                    CausalSelfAttentionConfig,
+                    CausalSelfAttentionMeta,
+                },
                 embedding::RotaryEmbeddingConfig,
                 mlp::TransformerMlpConfig,
             },
@@ -499,13 +552,13 @@ mod tests {
         let n_kv_head = 64;
 
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
+            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).into(),
             TransformerMlpConfig::new(n_embed).into(),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
-        assert_eq!(config.attn.n_head(), n_head);
-        assert_eq!(config.attn.n_kv_head(), n_kv_head);
+        assert_eq!(config.attn.attention().n_head(), n_head);
+        assert_eq!(config.attn.attention().n_kv_head(), n_kv_head);
 
         assert_eq!(TransformerFeedForwardMeta::n_embed(&config.mlp), n_embed);
 
@@ -530,7 +583,7 @@ mod tests {
         let layer_index = 12;
 
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
+            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).into(),
             TransformerMlpConfig::new(n_embed).into(),
         );
 
@@ -538,7 +591,8 @@ mod tests {
 
         let input = Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
 
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
+            .init(&device);
         let mut kv_cache: Option<&mut KVCache> = None;
 
         let output = block.forward(input.clone(), &r_emb, &mut kv_cache);
@@ -557,7 +611,7 @@ mod tests {
         let device = crate::support::testing::cpu_device();
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed),
+            CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
             TransformerMlpConfig::new(n_embed).into(),
         );
         assert!(config.init(0, &device).attn.pre.is_some());
@@ -579,10 +633,16 @@ mod tests {
             assert!(paths.iter().any(|p| p.starts_with("mlp.pre")), "{paths:?}");
         }
 
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
+            .init(&device);
         let input =
             seeded_tensor::<3>(2, [batch, seq_len, n_embed], Distribution::Default, &device);
-        let x = input.clone() + block.attn.branch.forward(input.clone(), &r_emb, &mut None);
+        let x = input.clone()
+            + block
+                .attn
+                .branch
+                .attention()
+                .forward(input.clone(), &r_emb, &mut None);
         let expected = x.clone()
             + block
                 .mlp
@@ -602,11 +662,12 @@ mod tests {
 
         let [batch, seq_len, n_embed] = [2, 5, 32];
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed),
+            CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
             TransformerMlpConfig::new(n_embed).into(),
         );
         let mut block: CausalDecoderBlock = config.init(0, &device);
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
+            .init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
@@ -616,17 +677,26 @@ mod tests {
             panic!("an Mlp feed-forward");
         };
         mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
-        let attn = block
-            .attn
-            .branch
-            .forward(block.attn_input(input.clone()), &r_emb, &mut None);
+        let attn = block.attn.branch.attention().forward(
+            block.attn_input(input.clone()),
+            &r_emb,
+            &mut None,
+        );
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &(input.clone() + attn), Tolerance::default());
 
         // With the attention's output projection zeroed too, the block is the
         // identity.
-        block.attn.branch.c_proj.weight =
-            Param::from_tensor(block.attn.branch.c_proj.weight.val().zeros_like());
+        block.attn.branch.attention_mut().c_proj.weight = Param::from_tensor(
+            block
+                .attn
+                .branch
+                .attention()
+                .c_proj
+                .weight
+                .val()
+                .zeros_like(),
+        );
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &input, Tolerance::default());
     }
@@ -639,7 +709,7 @@ mod tests {
         let device = crate::support::testing::cpu_device();
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed),
+            CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
             crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
         );
         assert!(config.init(0, &device).attn.post.is_none());
@@ -663,7 +733,8 @@ mod tests {
                 &device,
             ));
         }
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
+            .init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
@@ -672,10 +743,11 @@ mod tests {
         let x = input.clone()
             + post(
                 &block.attn.post,
-                block
-                    .attn
-                    .branch
-                    .forward(block.attn_input(input.clone()), &r_emb, &mut None),
+                block.attn.branch.attention().forward(
+                    block.attn_input(input.clone()),
+                    &r_emb,
+                    &mut None,
+                ),
             );
         let expected = x.clone()
             + post(
@@ -710,7 +782,9 @@ mod tests {
 
     fn conditioned(n_embed: usize) -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, n_embed).with_norm(None),
+            CausalSelfAttentionConfig::new(4, 2, n_embed)
+                .with_norm(None)
+                .into(),
             crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
         )
         .with_mlp_scale(Some(AdaptiveScaleConfig::new(n_embed, 4)))
@@ -724,16 +798,18 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let block: CausalDecoderBlock = conditioned(n_embed).init(0, &device);
         let scale = block.mlp_scale.as_ref().expect("a conditioned block");
-        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.head_dim()).init(&device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
+            .init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
         let cond = seeded_tensor::<3>(2, [1, 1, n_embed], Distribution::Default, &device);
 
         let x = input.clone()
-            + block
-                .attn
-                .branch
-                .forward(block.attn_input(input.clone()), &r_emb, &mut None);
+            + block.attn.branch.attention().forward(
+                block.attn_input(input.clone()),
+                &r_emb,
+                &mut None,
+            );
         let expected = x.clone()
             + block
                 .mlp
@@ -748,7 +824,8 @@ mod tests {
     fn test_conditioned_block_needs_its_condition() {
         let device = crate::support::testing::cpu_device();
         let block: CausalDecoderBlock = conditioned(16).init(0, &device);
-        let r_emb = RotaryEmbeddingConfig::new(3, block.attn.branch.head_dim()).init(&device);
+        let r_emb =
+            RotaryEmbeddingConfig::new(3, block.attn.branch.attention().head_dim()).init(&device);
         let _ = block.forward(Tensor::zeros([1, 3, 16], &device), &r_emb, &mut None);
     }
 

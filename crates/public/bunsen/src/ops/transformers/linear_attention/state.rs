@@ -119,6 +119,59 @@ impl DeltaNetState {
     }
 }
 
+/// Every linear-attention layer's [`DeltaNetState`], by its slot: what a
+/// hybrid model's decode carries beside its KV cache.
+///
+/// Each linear-attention layer reads and writes its own slot (its mixer's
+/// `layer_index`), as an attention layer does its slot of a KV cache. An
+/// attention-only model's is empty.
+#[derive(Module, Debug, Default)]
+pub struct DeltaNetCache {
+    /// The layers' states, by slot.
+    pub layers: Vec<DeltaNetState>,
+}
+
+impl DeltaNetCache {
+    /// The cache of these states, by slot.
+    pub fn new(layers: Vec<DeltaNetState>) -> Self {
+        Self { layers }
+    }
+
+    /// Whether it holds no layer's state.
+    pub fn is_empty(&self) -> bool {
+        self.layers.is_empty()
+    }
+
+    /// The state of the layer at `slot`.
+    ///
+    /// # Panics
+    /// If there is no such slot.
+    pub fn layer_mut(
+        &mut self,
+        slot: usize,
+    ) -> &mut DeltaNetState {
+        let len = self.layers.len();
+        self.layers
+            .get_mut(slot)
+            .unwrap_or_else(|| panic!("linear-attention slot {slot} of {len}"))
+    }
+
+    /// Every layer back to the start of a sequence.
+    pub fn reset(&mut self) {
+        self.layers.iter_mut().for_each(DeltaNetState::reset);
+    }
+
+    /// Permutes every layer's rows: row `r` becomes row `sources[r]`.
+    pub fn reorder(
+        &mut self,
+        sources: &[usize],
+    ) {
+        for layer in &mut self.layers {
+            layer.reorder(sources);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
@@ -184,6 +237,37 @@ mod tests {
         assert_eq!(state.conv.dims(), [3, 3, 5]);
         assert_eq!(state.conv.abs().max().into_scalar::<f32>(), 0.0);
         assert_eq!(state.recurrent.abs().max().into_scalar::<f32>(), 0.0);
+    }
+
+    /// A cache's reset and reorder reach every layer; a slot past its
+    /// layers is refused.
+    #[test]
+    fn test_cache() {
+        let mut cache = DeltaNetCache::new(vec![state(), state()]);
+        assert!(!cache.is_empty() && DeltaNetCache::default().is_empty());
+        let before = state();
+        cache.reorder(&[1, 1, 0]);
+        for layer in &cache.layers {
+            assert_eq!(
+                layer.conv.clone().slice_dim(0, 0..1).into_data(),
+                before.conv.clone().slice_dim(0, 1..2).into_data()
+            );
+        }
+        cache.reset();
+        assert_eq!(
+            cache
+                .layer_mut(1)
+                .recurrent
+                .clone()
+                .abs()
+                .max()
+                .into_scalar::<f32>(),
+            0.0
+        );
+        let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = cache.layer_mut(2);
+        }));
+        assert!(refused.is_err());
     }
 
     #[test]

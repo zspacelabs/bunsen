@@ -33,6 +33,10 @@
 //!   the `FastConformer`, Parakeet's and Sortformer v2's.
 //!   [`EncoderTransformer`](encoders::EncoderTransformer) is any of their
 //!   stacks, chosen by config.
+//! - [`mixers`]: [`TokenMixer`](mixers::TokenMixer), a decoder layer's token
+//!   mixer: causal self-attention, or a
+//!   [`GatedDeltaNet`](mixers::GatedDeltaNet), the linear attention of a hybrid
+//!   stack's (Qwen3.5's) linear layers.
 //! - [`decoders`]: causal decoder layers:
 //!   [`CausalDecoderBlock`](decoders::causal::CausalDecoderBlock), the
 //!   decoder-only layer, nanochat's and Qwen3's by config; and
@@ -57,5 +61,6 @@ pub mod decoders;
 pub mod embedding;
 pub mod encoders;
 pub mod head;
+pub mod mixers;
 pub mod mlp;
 pub mod sublayer;

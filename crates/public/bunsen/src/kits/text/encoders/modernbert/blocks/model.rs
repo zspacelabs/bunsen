@@ -186,7 +186,8 @@ impl ModernBertConfig {
             CausalSelfAttentionConfig::new(self.n_heads, self.n_heads, self.d_model)
                 .with_norm(None)
                 .with_mask(AttentionMask::Bidirectional)
-                .with_sliding_window(window),
+                .with_sliding_window(window)
+                .into(),
             TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_activation(BunsenActivationConfig::Gelu)
                 .into(),
