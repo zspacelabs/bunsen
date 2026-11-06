@@ -16,6 +16,7 @@ use burn::{
 use super::LayerNorm;
 use crate::{
     burner::module::{
+        Forward1Module,
         InputDTypes,
         ResultDType,
     },
@@ -196,6 +197,18 @@ impl BunsenNormalization {
             Self::Rms(norm) => norm.gamma.val(),
         };
         Some(FloatDType::from(gamma.dtype()))
+    }
+}
+
+impl<const D: usize> Forward1Module<Tensor<D>> for BunsenNormalization {
+    type Output = Tensor<D>;
+
+    /// [`BunsenNormalization::forward`].
+    fn forward(
+        &self,
+        input: Tensor<D>,
+    ) -> Tensor<D> {
+        BunsenNormalization::forward(self, input)
     }
 }
 

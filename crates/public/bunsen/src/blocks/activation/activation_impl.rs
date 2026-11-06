@@ -252,6 +252,18 @@ impl BunsenActivation {
     }
 }
 
+impl<const D: usize> crate::burner::module::Forward1Module<Tensor<D>> for BunsenActivation {
+    type Output = Tensor<D>;
+
+    /// [`BunsenActivation::forward`].
+    fn forward(
+        &self,
+        input: Tensor<D>,
+    ) -> Tensor<D> {
+        BunsenActivation::forward(self, input)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::{

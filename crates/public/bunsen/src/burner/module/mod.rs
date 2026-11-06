@@ -29,13 +29,40 @@
 //!   from them onto its record paths: a kit's map lands a checkpoint on the
 //!   canonical names, and [`Rekey::then`] the module's map takes them on.
 //!
+//! - [`Forward1Module`] … [`Forward4Module`] (and [`ForwardModule`], the
+//!   first's common name) &mdash; a module's forward by its number of
+//!   arguments, for code generic over the modules it calls ([Forward
+//!   modules](#forward-modules)).
+//! - [`Gate`] &mdash; a view of two modules as a gate, `a(x) ⊙ b(gate)`, its
+//!   product taken in a [`Widening`](crate::burner::tensor::Widening).
+//!
 //! `ModuleInit` and `ToStructureConfig` are also in [`crate::prelude`].
+//!
+//! ## Forward modules
+//!
+//! burn gives a module's forward no trait: each module has an inherent
+//! `forward`, of its own arguments. [`Forward1Module`] … [`Forward4Module`]
+//! name one by its number of arguments, `ForwardN<A1, …, AN>`, its result
+//! the associated `Output`; `forward` takes `&self`. They stand in for the
+//! `Fn` traits, which a type cannot implement on stable Rust; they are
+//! restricted to modules (a [`Module`](burn::module::Module) supertrait),
+//! and give way to the `Fn` traits when a module can implement those.
+//!
+//! A module implements them by delegating to its inherent `forward`, which
+//! method calls on the concrete type still resolve to first. Code bounded
+//! on two of them for one type names the trait it calls,
+//! `Forward1Module::forward(module, x)`: the method's name is the same.
+//!
+//! The norm and activation seams implement [`Forward1Module`] at every rank.
+//! A view such as [`Gate`] borrows modules, and is not one.
 
 #[cfg(feature = "reflection")]
 pub mod reflection;
 
 mod canonical_keys;
 mod dtype_traits;
+mod forward_module;
+mod gate;
 mod has_dtype;
 mod module_init;
 mod rekey;
@@ -45,6 +72,8 @@ mod type_mapper;
 
 pub use canonical_keys::*;
 pub use dtype_traits::*;
+pub use forward_module::*;
+pub use gate::*;
 pub use has_dtype::*;
 pub use module_init::*;
 pub use rekey::*;
