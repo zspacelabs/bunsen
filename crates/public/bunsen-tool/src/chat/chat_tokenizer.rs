@@ -18,14 +18,11 @@ use bunsen::{
 };
 use serde_json::Value;
 
-use crate::chat::Qwen3Tokenizer;
-
 /// A checkpoint's tokenizer, as a chat uses it: a rendered prompt to ids and
 /// its tokens by name ([`Tokenizer`]), its ids back to text
 /// ([`Detokenizer`]).
 ///
-/// [`HfTokenizer`] reads any `tokenizer.json` (Gemma's); [`Qwen3Tokenizer`]
-/// reads Qwen3's on wordchipper.
+/// [`HfTokenizer`] reads any `tokenizer.json` (Qwen3's and Gemma's).
 pub trait ChatTokenizer: Detokenizer + Tokenizer {
     /// Encodes text with its special tokens' spellings as text.
     ///
@@ -51,47 +48,12 @@ pub trait ChatTokenizer: Detokenizer + Tokenizer {
     }
 }
 
-impl Tokenizer for Qwen3Tokenizer {
-    fn encode(
-        &self,
-        text: &str,
-    ) -> BunsenResult<Vec<i64>> {
-        Qwen3Tokenizer::encode(self, text)
-    }
-
-    fn token_id(
-        &self,
-        content: &str,
-    ) -> Option<i64> {
-        Qwen3Tokenizer::token_id(self, content)
-    }
-}
-
-impl ChatTokenizer for Qwen3Tokenizer {
-    fn encode_plain(
-        &self,
-        text: &str,
-    ) -> BunsenResult<Vec<i64>> {
-        Qwen3Tokenizer::encode_plain(self, text)
-    }
-
-    fn contains(
-        &self,
-        id: i64,
-    ) -> bool {
-        Qwen3Tokenizer::contains(self, id)
-    }
-
-    fn len(&self) -> usize {
-        Qwen3Tokenizer::len(self)
-    }
-}
-
 /// A checkpoint's tokenizer, on the `tokenizers` crate: `transformers`' own
 /// encoder, reading the normalizer, the added tokens, the pre-tokenizer, the
 /// model and the decoder from one `tokenizer.json`, so it encodes as
-/// `transformers` does by construction. Gemma's SentencePiece-style BPE,
-/// with its byte fallback, reads here.
+/// `transformers` does by construction: Qwen3's byte-level BPE (an NFC
+/// normalizer, a `Split` then `ByteLevel` pre-tokenizer), and Gemma's
+/// SentencePiece-style BPE with its byte fallback.
 ///
 /// A checkpoint's `tokenizer_config.json`, when given, adds its added tokens
 /// (`added_tokens_decoder`) that the `tokenizer.json` lacks, at their ids, as
@@ -180,6 +142,7 @@ impl HfTokenizer {
         let mut tokenizer: tokenizers::Tokenizer = tokenizer_json
             .parse()
             .map_err(|e| tokenizers_error("a tokenizer.json", e))?;
+        check_added_ids(&tokenizer, tokenizer_json)?;
         if let Some(config) = tokenizer_config_json {
             add_config_tokens(&mut tokenizer, config)?;
         }
@@ -204,6 +167,39 @@ impl HfTokenizer {
             .map_err(|e| tokenizers_error("text the tokenizer cannot encode", e))?;
         Ok(encoding.get_ids().iter().map(|&id| i64::from(id)).collect())
     }
+}
+
+/// Refuses a `tokenizer.json` whose added tokens did not load at their ids:
+/// the `tokenizers` crate gives them ids in order after the model's
+/// vocabulary, whatever the file says, so a file with gaps would load
+/// shifted.
+fn check_added_ids(
+    tokenizer: &tokenizers::Tokenizer,
+    tokenizer_json: &str,
+) -> BunsenResult<()> {
+    #[derive(serde::Deserialize)]
+    struct Added {
+        id: u32,
+        content: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct File {
+        #[serde(default)]
+        added_tokens: Vec<Added>,
+    }
+    let file: File = serde_json::from_str(tokenizer_json)
+        .map_err(|e| BunsenError::invalid_resource("a tokenizer.json").with_cause(e))?;
+    for token in file.added_tokens {
+        let got = tokenizer.token_to_id(&token.content);
+        if got != Some(token.id) {
+            return Err(BunsenError::unsupported(format!(
+                "tokenizer.json's added token {} (`{}`) loads at id {got:?}: its added tokens \
+                 must follow the vocabulary without gaps",
+                token.id, token.content
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Adds the added tokens of `config_json`, a `tokenizer_config.json`, that
@@ -376,8 +372,77 @@ pub(crate) fn toy_sentencepiece_json() -> String {
     .to_string()
 }
 
+/// A toy byte-level tokenizer, as Qwen3's `tokenizer.json` is built: GPT-2's
+/// byte alphabet, a few merges, an NFC normalizer, Qwen's `Split` then
+/// `ByteLevel` pre-tokenizer, unused pieces up to 300, and two special tokens
+/// (`<|im_start|>` 300, `<|im_end|>` 301).
+#[cfg(test)]
+pub(crate) fn toy_byte_level_json() -> String {
+    // GPT-2's byte alphabet: each byte's character, its id the byte.
+    let mut alphabet = Vec::new();
+    let mut next = 256u32;
+    for b in 0..=255u8 {
+        let printable = (b'!'..=b'~').contains(&b) || (0xA1..=0xAC).contains(&b) || b >= 0xAE;
+        alphabet.push(if printable {
+            char::from(b)
+        } else {
+            let c = char::from_u32(next).unwrap();
+            next += 1;
+            c
+        });
+    }
+    let mut vocab: std::collections::HashMap<String, usize> = alphabet
+        .iter()
+        .enumerate()
+        .map(|(b, c)| (c.to_string(), b))
+        .collect();
+    let space = alphabet[b' ' as usize];
+    let merges = [
+        ("h".to_string(), "e".to_string()),
+        ("l".to_string(), "l".to_string()),
+        ("he".to_string(), "ll".to_string()),
+        ("hell".to_string(), "o".to_string()),
+        (space.to_string(), "w".to_string()),
+    ];
+    for (i, (a, b)) in merges.iter().enumerate() {
+        vocab.insert(format!("{a}{b}"), 256 + i);
+    }
+    // Unused pieces up to the added tokens, which follow without a gap.
+    for id in vocab.len()..300 {
+        vocab.insert(format!("<unused{id}>"), id);
+    }
+    let merges: Vec<String> = merges.iter().map(|(a, b)| format!("{a} {b}")).collect();
+    serde_json::json!({
+        "version": "1.0",
+        "truncation": null,
+        "padding": null,
+        "added_tokens": [
+            {"id": 300, "content": "<|im_start|>", "special": true, "lstrip": false, "rstrip": false, "single_word": false, "normalized": false},
+            {"id": 301, "content": "<|im_end|>", "special": true, "lstrip": false, "rstrip": false, "single_word": false, "normalized": false}
+        ],
+        "normalizer": {"type": "NFC"},
+        "pre_tokenizer": {"type": "Sequence", "pretokenizers": [
+            {"type": "Split", "pattern": {"Regex": "(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\\r\\n\\p{L}\\p{N}]?\\p{L}+|\\p{N}| ?[^\\s\\p{L}\\p{N}]+[\\r\\n]*|\\s*[\\r\\n]+|\\s+(?!\\S)|\\s+"}, "behavior": "Isolated", "invert": false},
+            {"type": "ByteLevel", "add_prefix_space": false, "trim_offsets": false, "use_regex": false}
+        ]},
+        "post_processor": null,
+        "decoder": {"type": "ByteLevel", "add_prefix_space": false, "trim_offsets": false, "use_regex": false},
+        "model": {
+            "type": "BPE", "dropout": null, "unk_token": null, "continuing_subword_prefix": "",
+            "end_of_word_suffix": "", "fuse_unk": false, "byte_fallback": false, "ignore_merges": false,
+            "vocab": vocab, "merges": merges
+        }
+    })
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
+    use bunsen::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
+
     use super::*;
 
     /// Special tokens' spellings are tokens in a rendered prompt and text
@@ -452,6 +517,15 @@ mod tests {
         let tok = HfTokenizer::from_json_with_config(&json, Some("{}")).unwrap();
         assert_eq!(tok.len(), n as usize);
 
+        // A tokenizer.json whose added tokens leave a gap after the
+        // vocabulary would load them shifted.
+        let gap = toy_byte_level_json().replace("\"id\":300", "\"id\":304");
+        assert!(gap.contains("\"id\":304"));
+        let gap = gap.replace("\"id\":301", "\"id\":305");
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_contains("without gaps")
+            .assert_err(&HfTokenizer::from_json(&gap));
+
         // An id the tokenizer.json spells otherwise, or one past the next
         // free id, is refused.
         assert!(
@@ -464,14 +538,37 @@ mod tests {
         );
     }
 
-    /// Qwen3's tokenizer is a `ChatTokenizer` through its own methods.
+    /// A byte-level tokenizer, as Qwen3's is built: its config's added
+    /// token counts and is matched, the merges apply, an added token's
+    /// spelling is text to `encode_plain` when it is special, and the text
+    /// between added tokens is NFC.
     #[test]
-    fn test_qwen3_is_a_chat_tokenizer() {
+    fn test_hf_tokenizer_byte_level() {
+        let config =
+            r#"{"added_tokens_decoder": {"302": {"content": "<think>", "special": false}}}"#;
         let tok: Arc<dyn ChatTokenizer> = Arc::new(
-            Qwen3Tokenizer::from_json(&crate::chat::tokenizer::toy_tokenizer_json(), None).unwrap(),
+            HfTokenizer::from_json_with_config(&toy_byte_level_json(), Some(config)).unwrap(),
         );
-        assert!(!tok.is_empty());
-        let ids = tok.encode("hi").unwrap();
-        assert_eq!(tok.detokenize(&ids).unwrap(), "hi");
+        assert_eq!(tok.len(), 303);
+
+        let ids = tok.encode("<|im_start|>hello world<|im_end|>").unwrap();
+        assert_eq!(ids[0], 300);
+        assert_eq!(ids[1], 259, "`hello` is one token");
+        assert_eq!(*ids.last().unwrap(), 301);
+        assert_eq!(
+            tok.detokenize(&ids).unwrap(),
+            "<|im_start|>hello world<|im_end|>"
+        );
+        assert!(tok.encode_plain("<|im_end|>").unwrap().len() > 1);
+
+        assert_eq!(tok.token_id("<think>"), Some(302));
+        assert_eq!(tok.encode("<think>").unwrap(), [302]);
+
+        // `e` + combining acute is `é` (C3 A9) under NFC.
+        assert_eq!(
+            tok.encode("e\u{301}").unwrap(),
+            tok.encode("\u{e9}").unwrap()
+        );
+        assert_eq!(tok.encode("e\u{301}").unwrap(), [0xC3, 0xA9]);
     }
 }

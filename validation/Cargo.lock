@@ -889,7 +889,6 @@ dependencies = [
  "strsim",
  "time",
  "tokenizers",
- "unicode-normalization-alignments",
  "wordchipper",
 ]
 

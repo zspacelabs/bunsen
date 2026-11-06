@@ -76,14 +76,9 @@ serde-pickle = { workspace = true }
 # `card`'s YAML.
 serde-saphyr = { workspace = true, features = ["serialize"] }
 time = { workspace = true }
-# Qwen3's added tokens are matched first, and the text between them is
-# NFC-normalized with the tables `transformers`' tokenizers use (Unicode
-# 9.0); wordchipper then encodes it under the checkpoint's pre-tokenizer.
-unicode-normalization-alignments = "=0.1.12"
 ureq = { workspace = true, optional = true }
 wordchipper = { workspace = true, features = ["std", "fast-hash"] }
-# Gemma's tokenizer (SentencePiece-style BPE, byte fallback), which
-# wordchipper does not read: `transformers`' own encoder, from the same
+# Qwen3's and Gemma's tokenizers: `transformers`' own encoder, from the same
 # `tokenizer.json`.
 tokenizers = { workspace = true }
 

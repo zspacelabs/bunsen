@@ -4,19 +4,22 @@ use std::path::PathBuf;
 
 use bunsen::{
     data::pretrained::ResourceBundle,
-    kits::language::qwen3::{
-        TOKENIZER,
-        TOKENIZER_CONFIG,
-        pretrained::{
-            QWEN3_KIT,
-            default_qwen3_factory,
+    kits::{
+        language::qwen3::{
+            TOKENIZER,
+            TOKENIZER_CONFIG,
+            pretrained::{
+                QWEN3_KIT,
+                default_qwen3_factory,
+            },
         },
+        support::tokens::Tokenizer,
     },
 };
 use bunsen_tool::chat::{
     ChatMessage,
     ChatTemplate,
-    Qwen3Tokenizer,
+    HfTokenizer,
 };
 
 use super::*;
@@ -47,7 +50,7 @@ fn check_tokenizer(row: &str) {
     let fixture = &chat_reference()[row];
     {
         let (tokenizer, config) = tokenizer_files(row);
-        let tok = Qwen3Tokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+        let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
         for case in &fixture.encode {
             assert_eq!(
                 tok.encode(&case.text).unwrap(),
@@ -60,13 +63,36 @@ fn check_tokenizer(row: &str) {
     }
 }
 
+/// A `-Base` row's tokenizer files encode `like`'s texts to `like`'s ids:
+/// its `tokenizer.json` has the same vocabulary and merges and omits four of
+/// its added tokens (`<tool_response>`, `</tool_response>`, `<think>`,
+/// `</think>`), which its `tokenizer_config.json` lists and `transformers`
+/// adds back.
+fn check_base_tokenizer(
+    row: &str,
+    like: &str,
+) {
+    let fixture = &chat_reference()[like];
+    let (tokenizer, config) = tokenizer_files(row);
+    let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+    for case in &fixture.encode {
+        assert_eq!(
+            tok.encode(&case.text).unwrap(),
+            case.ids,
+            "{row} (as {like}): {:?}",
+            case.text
+        );
+    }
+    eprintln!("{row}: {} texts encode as {like}'s", fixture.encode.len());
+}
+
 /// Every conversation, under every setting, renders to `transformers`'
 /// text, which encodes to its ids.
 fn check_template(row: &str) {
     let fixture = &chat_reference()[row];
     {
         let (tokenizer, config) = tokenizer_files(row);
-        let tok = Qwen3Tokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+        let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
         let template = ChatTemplate::from_file(&config).unwrap();
         for case in &fixture.templates {
             let messages: Vec<ChatMessage> = case
@@ -112,4 +138,9 @@ macro_rules! chat_row {
 }
 
 chat_row!(qwen3_0_6b, "qwen3-0.6b");
+
+#[test]
+fn qwen3_0_6b_base_tokenizer() {
+    check_base_tokenizer("qwen3-0.6b-base", "qwen3-0.6b");
+}
 chat_row!(qwen3_4b_instruct_2507, "qwen3-4b-instruct-2507");
