@@ -119,6 +119,35 @@ crates:
         dtypes: [f32, bf16]
         varies: the instruction-tuned Gemma 2 - its greedy decode and the long conversation in f32 (on the CPU, as its table binds no wgpu buffer) and bf16 (on cuda alone), chat sessions against transformers' replies, Gemma 2's chat template, which refuses a system turn
 
+  qwen3-5:
+    package: qwen3-5-model-validation
+    features: [checkpoints, gpu-tests]
+    models:
+      qwen3.5-0.8b:
+        size: medium
+        gb: 1.8
+        core: true
+        dtypes: [f32]
+        varies: the dense Qwen3.5 hybrid at its smallest - gated DeltaNet layers, every fourth layer gated full attention with partial rotary, equal linear key and value heads, the tied head; a prefill of several delta-rule chunks
+      qwen3.5-2b:
+        size: medium
+        gb: 4.6
+        core: false
+        dtypes: [f32]
+        varies: a wider geometry of qwen3.5-0.8b's architecture
+      qwen3.5-4b:
+        size: medium
+        gb: 9.4
+        core: true
+        dtypes: [f32]
+        varies: linear value heads twice the key heads (the queries and keys repeated), two shards; on the CPU, as its f32 table binds no wgpu buffer
+      qwen3.5-9b:
+        size: large
+        gb: 19.4
+        core: true
+        dtypes: [bf16]
+        varies: the untied head; in bf16 on cuda alone (too large for float32 on 24 GB)
+
   silero:
     package: silero-model-validation
     features: [checkpoints, gpu-tests]

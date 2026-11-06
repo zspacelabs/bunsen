@@ -1,0 +1,54 @@
+[package]
+name = "qwen3-5-model-validation"
+description = "Validates bunsen's dense Qwen3.5 against transformers' decodes of pretrained checkpoints. Fetches its model assets; hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Compile the tests against Qwen's checkpoints. Each fetches what it reads
+## at run time, through bunsen's pinned rows, into the weights cache
+## (`BUNSEN_CACHE_DIR`, or the user's cache directory).
+##
+## **Off by default**, so a plain `cargo test` here reaches no network.
+## Which models' tests run is the profile's (`validation/models.yml`,
+## `cargo validate`); this only compiles them.
+checkpoints = ["bunsen/fetch"]
+
+## Compile the `checkpoints` tests that run a model on a backend.
+##
+## **Off by default**, and orthogonal to the backend features: this selects
+## *whether* those tests are built, a backend feature selects *which*
+## accelerator runs them, and both are passed.
+gpu-tests = []
+
+## Run the checks on `wgpu`. The usual choice.
+wgpu = ["bunsen/wgpu"]
+
+## Run the checks on Vulkan.
+vulkan = ["bunsen/vulkan"]
+
+## Run the checks on CUDA.
+cuda = ["bunsen/cuda"]
+
+## Run the checks on Metal.
+metal = ["bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
