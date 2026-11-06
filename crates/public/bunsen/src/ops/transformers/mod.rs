@@ -1,9 +1,12 @@
 //! # Transformer operations
 //!
-//! The operations inside transformer layers, and the state they carry, in
-//! [`attention`]: scaled dot-product attention, attention over burn's
-//! [`MultiHeadAttention`] weights, and the key/value caches that decoding
-//! carries between steps.
+//! The operations inside transformer layers, and the state they carry:
+//!
+//! - [`attention`]: scaled dot-product attention, attention over burn's
+//!   [`MultiHeadAttention`] weights, and the key/value caches that decoding
+//!   carries between steps;
+//! - [`linear_attention`]: the gated `DeltaNet`'s convolution and delta rule,
+//!   and the per-layer state a hybrid model's decode carries.
 //!
 //! burn's counterpart is the [`MultiHeadAttention`] module; these are the
 //! pieces below and around a module like it. The transformer layers
@@ -12,3 +15,4 @@
 //! [`MultiHeadAttention`]: burn::nn::attention::MultiHeadAttention
 
 pub mod attention;
+pub mod linear_attention;
