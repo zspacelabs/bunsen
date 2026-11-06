@@ -6547,6 +6547,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "qwen3-5-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "burn",
+ "serde",
+ "serde_json",
+ "serial_test",
+]
+
+[[package]]
 name = "qwen3-asr-model-validation"
 version = "0.41.0"
 dependencies = [
