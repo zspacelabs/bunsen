@@ -3,7 +3,7 @@
 //! From a model's name to a loaded model, through the data layer's
 //! pretrained machinery ([`data::pretrained`](crate::data::pretrained)).
 //! The prefab map is always here: a geometry needs no features. The tables,
-//! the hook and the factory need the `store_pytorch` and `cache` features,
+//! the hook and the factory need the `store` and `cache` features,
 //! both default. Fetching a checkpoint needs `fetch`.
 //!
 //! The geometries are [`RESNET_PREFABS`]: six
@@ -28,7 +28,7 @@
 //! swaps the activation this way before the weights land:
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+//! # #[cfg(all(feature = "store", feature = "cache"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -71,18 +71,18 @@
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```
 
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 mod construct;
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 mod factory;
 mod prefabs;
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 mod providers;
 
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub use construct::*;
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub use factory::*;
 pub use prefabs::*;
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub use providers::*;

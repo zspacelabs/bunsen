@@ -8,11 +8,11 @@ use core::error::Error;
 
 use burn::tensor::Device;
 
-#[cfg(feature = "store_safetensors")]
+#[cfg(feature = "store")]
 use crate::data::pretrained::SafetensorsCheckpoint;
-#[cfg(not(feature = "store_safetensors"))]
+#[cfg(not(feature = "store"))]
 use crate::kits::speech::asr::whisper::Whisper;
-#[cfg(feature = "store_safetensors")]
+#[cfg(feature = "store")]
 use crate::kits::speech::asr::whisper::{
     Whisper,
     pretrained::SafetensorsWhisperScanner,
@@ -70,7 +70,7 @@ use crate::{
 /// [`BunsenError::find`]:
 ///
 /// ```
-/// # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+/// # #[cfg(all(feature = "store", feature = "cache"))] {
 /// use bunsen::{
 ///     errors::{
 ///         BunsenError,
@@ -158,7 +158,7 @@ pub enum WhisperReader {
     /// `transformers`' `model.safetensors`, one file or shards with an
     /// index, with its names: what a Hugging Face repo serves. The reader
     /// for any kind starting `safetensors`.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     Safetensors(SafetensorsWhisperScanner),
 }
 
@@ -172,7 +172,7 @@ impl Default for WhisperReader {
 impl WhisperReader {
     /// The reader for a checkpoint of `kind`: `None` and `pytorch…` are
     /// upstream's `.pt`; `safetensors…` is `transformers`' file, with the
-    /// `store_safetensors` feature; anything else has no reader here.
+    /// `store` feature; anything else has no reader here.
     ///
     /// # Errors
     /// [`Unsupported`](BunsenErrorKind::Unsupported) naming the kind, and the
@@ -181,13 +181,13 @@ impl WhisperReader {
         match kind {
             None => Ok(Self::default()),
             Some(kind) if kind.starts_with("pytorch") => Ok(Self::default()),
-            #[cfg(feature = "store_safetensors")]
+            #[cfg(feature = "store")]
             Some(kind) if kind.starts_with(SAFETENSORS) => {
                 Ok(Self::Safetensors(SafetensorsWhisperScanner::new()))
             }
-            #[cfg(not(feature = "store_safetensors"))]
+            #[cfg(not(feature = "store"))]
             Some(kind) if kind.starts_with(SAFETENSORS) => Err(BunsenError::unsupported(format!(
-                "no reader for a {kind:?} checkpoint without the `store_safetensors` feature"
+                "no reader for a {kind:?} checkpoint without the `store` feature"
             ))),
             Some(kind) => Err(BunsenError::unsupported(format!(
                 "no reader for a {kind:?} checkpoint; the Whisper kit reads PyTorch and safetensors checkpoints"
@@ -209,7 +209,7 @@ impl WhisperReader {
     ) -> BunsenResult<WhisperApiConfig> {
         match self {
             Self::Pytorch(scanner) => Ok(scanner.scan_cfg(loaded.expect(CHECKPOINT)?)?.1),
-            #[cfg(feature = "store_safetensors")]
+            #[cfg(feature = "store")]
             Self::Safetensors(scanner) => {
                 scanner.scan_cfg(&SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?)
             }
@@ -228,7 +228,7 @@ impl WhisperReader {
     ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         match self {
             Self::Pytorch(scanner) => scanner.load::<_>(loaded.expect(CHECKPOINT)?, device),
-            #[cfg(feature = "store_safetensors")]
+            #[cfg(feature = "store")]
             Self::Safetensors(scanner) => scanner.load(
                 &SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?,
                 device,
@@ -573,16 +573,16 @@ mod reader_tests {
         assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
 
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some(SAFETENSORS.to_string());
-        #[cfg(feature = "store_safetensors")]
+        #[cfg(feature = "store")]
         {
             let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
             assert!(matches!(hook.reader, WhisperReader::Safetensors(_)));
             assert!(Deferred::<WhisperConstructConfig>::from_resource_bundle(map.clone()).is_ok());
         }
-        #[cfg(not(feature = "store_safetensors"))]
+        #[cfg(not(feature = "store"))]
         {
             ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-                .message_contains("store_safetensors")
+                .message_contains("the `store` feature")
                 .assert_err(&WhisperConstructConfig::for_map(&map));
         }
 
@@ -597,14 +597,14 @@ mod reader_tests {
             });
             sharded.insert(r);
         }
-        #[cfg(feature = "store_safetensors")]
+        #[cfg(feature = "store")]
         assert!(matches!(
             WhisperConstructConfig::for_resource_bundle(&sharded)
                 .unwrap()
                 .reader,
             WhisperReader::Safetensors(_)
         ));
-        #[cfg(not(feature = "store_safetensors"))]
+        #[cfg(not(feature = "store"))]
         assert!(WhisperConstructConfig::for_map(&sharded).is_err());
 
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("burnpack".to_string());

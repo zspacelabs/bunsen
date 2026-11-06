@@ -98,7 +98,7 @@ pub fn read_five_value_container(path: &Path) -> BunsenResult<Vec<PackTensor>> {
 
 /// Reads a `fermion-five-value-parakeet-v1` container: the format
 /// `FermionResearch`'s Phonon-2 ships its Parakeet TDT weights in, inside a
-/// Phonon archive (`PhononArchive`, feature `fermion`).
+/// Phonon archive (`PhononArchive`, feature `store`).
 ///
 /// The layout is an 8-byte little-endian header length, a JSON header
 /// `{format, index: [{n, k, shape, b}]}`, and each record's `b` bytes in
@@ -303,7 +303,7 @@ mod tests {
 
     /// Every record kind decodes to what the format's reference reader
     /// (`fermion_container.py`) decodes it to, bit for bit.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     #[test]
     fn test_matches_the_reference_reader() {
         use burn::store::{

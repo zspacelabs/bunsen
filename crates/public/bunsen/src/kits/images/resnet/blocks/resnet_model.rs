@@ -610,7 +610,7 @@ impl ResNet {
     /// otherwise as
     /// [`apply_rekeyed_tensors`](crate::data::pretrained::apply_rekeyed_tensors),
     /// if the checkpoint does not load into the model.
-    #[cfg(feature = "store_pytorch")]
+    #[cfg(feature = "store")]
     pub fn load_pytorch_weights(
         mut self,
         path: impl Into<std::path::PathBuf>,
@@ -787,7 +787,7 @@ mod tests {
 
     /// Fetches a checkpoint through the kit's factory and reads it into
     /// its prefab's model.
-    #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
+    #[cfg(all(feature = "store", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch(spec: &str) -> BunsenResult<()> {
         use crate::{
             data::pretrained::{
@@ -811,14 +811,14 @@ mod tests {
 
     #[test]
     #[serial]
-    #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
+    #[cfg(all(feature = "store", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch_prefab() -> BunsenResult<()> {
         test_load_pytorch("torchvision/resnet18")
     }
 
     #[test]
     #[serial]
-    #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
+    #[cfg(all(feature = "store", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
         test_load_pytorch("torchvision/resnet34")
     }

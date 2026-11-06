@@ -1,7 +1,7 @@
 //! # Pretrained Silero VAD models
 //!
 //! [`default_silero_factory`] is the index: one row,
-//! `well-known:silero/vad-16k` (with `store_safetensors`), upstream's
+//! `well-known:silero/vad-16k` (with `store`), upstream's
 //! `silero_vad_16k.safetensors`: the 16 kHz model, fetched from a pinned
 //! revision of `snakers4/silero-vad` (1.2 MB, MIT).
 //!

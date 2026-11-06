@@ -97,7 +97,7 @@ mod tests {
 
     /// Every record of `testdata/fermion/quint5.safetensors` expands to the
     /// weights the reference reader's symbols select.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     #[test]
     fn test_matches_the_reference_reader() {
         use burn::store::{

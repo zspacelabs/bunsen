@@ -29,7 +29,7 @@
 //! context fed chunk by chunk.
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store_safetensors", feature = "cache"))] {
+//! # #[cfg(all(feature = "store", feature = "cache"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{

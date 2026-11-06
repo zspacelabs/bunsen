@@ -63,7 +63,7 @@
 //! there.
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+//! # #[cfg(all(feature = "store", feature = "cache"))] {
 //! use bunsen::{
 //!     data::pretrained::{
 //!         PretrainedCache,
@@ -170,7 +170,7 @@
 //! here.
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+//! # #[cfg(all(feature = "store", feature = "cache"))] {
 //! use std::{
 //!     path::Path,
 //!     sync::Arc,

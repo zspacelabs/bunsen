@@ -4,7 +4,7 @@
 //! here to plain f32 values, exactly as the format's reference reader
 //! expands it, and kits build on the results:
 //!
-//! - `PhononArchive` (feature `fermion`): the release archive of every Phonon
+//! - `PhononArchive` (feature `store`): the release archive of every Phonon
 //!   model, a zstd tar with a digest-checked manifest whose safetensors members
 //!   may be stored byte-plane split.
 //! - [`read_five_value_container`]: the `fermion-five-value-parakeet-v1`
@@ -18,12 +18,12 @@
 //! The fixtures in `testdata/fermion/` were written by
 //! `tools/gen_fermion_fixtures.py` with the formats' own readers and writer.
 
-#[cfg(feature = "fermion")]
+#[cfg(feature = "store")]
 mod archive;
 mod five_value;
 mod quint5;
 
-#[cfg(feature = "fermion")]
+#[cfg(feature = "store")]
 pub use archive::*;
 pub use five_value::*;
 pub use quint5::*;

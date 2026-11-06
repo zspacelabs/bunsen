@@ -19,6 +19,6 @@ pins the versions): a seeded toy `SortformerEncLabelModel` in Sortformer v2's la
 16, a 2-layer post-LN Transformer of width 8, 3 speakers, 24 mels), saved by `NeMo`'s own `save_to`, and every entry of
 its state dict (dtype, shape, the sum of its values). Synthetic weights: no licence question.
 
-`kits::speech::nemo`'s archive tests (feature `nemo`) read its config into typed sections, extract and read its state
+`kits::speech::nemo`'s archive tests (feature `store`) read its config into typed sections, extract and read its state
 dict through the burn-store's `PyTorch` reader against the manifest, and load its encoder and transformer into bunsen's
 blocks under the kit's `NeMo` maps (`conformer_encoder_rekey`, `transformer_encoder_rekey`).

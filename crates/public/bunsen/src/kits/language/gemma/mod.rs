@@ -21,9 +21,9 @@
 //!   whose sliding layers keep only their window.
 //! - [`GemmaConstruct`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer, generation and template files, unread.
-//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
-//!   checkpoints, on the `unsloth/` mirrors, `gemma/gemma-3-1b-it` the default,
-//!   and the factory that loads one.
+//! - [`pretrained`] (features `store` and `cache`): the named checkpoints, on
+//!   the `unsloth/` mirrors, `gemma/gemma-3-1b-it` the default, and the factory
+//!   that loads one.
 //! - [`weights`] (feature `store`): loading tensors named as a `transformers`
 //!   Gemma state dict (a causal LM's, or a multimodal Gemma 3's text model's,
 //!   its vision tower dropped), and reading its `config.json`.
@@ -40,10 +40,10 @@ pub use construct::*;
 #[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 
 pub use blocks::model::*;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;

@@ -25,7 +25,7 @@ default = []
 ## **Off by default**, so a plain `cargo test` here reaches no network.
 ## Which models' tests run is the profile's (`validation/models.yml`,
 ## `cargo validate`); this only compiles them.
-checkpoints = ["bunsen/fetch", "bunsen/fermion"]
+checkpoints = ["bunsen/fetch", "bunsen/store"]
 
 ## Fetch the `istupakov/parakeet-tdt-0.6b-v3-onnx` export and generate the
 ## reference models from it, at build time (`bind-parakeet-onnx/onnx_gen`,

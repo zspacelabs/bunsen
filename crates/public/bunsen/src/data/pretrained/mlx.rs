@@ -114,7 +114,7 @@ mod tests {
 
     /// Every record of `testdata/fermion/mlx_affine.safetensors` dequantizes
     /// to what `mlx.core.dequantize` gave for it.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     #[test]
     fn test_matches_mlx() {
         use burn::store::{

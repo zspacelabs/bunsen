@@ -24,12 +24,9 @@ workspace = true
 [features]
 default = ["speech", "live", "webhook", "mqtt"]
 ## `asr`: speech to text and diarization (`bunsen_tool::asr`), on bunsen's speech
-## kits and the readers of their checkpoints (`fermion`, `nemo`), and
-## Whisper's detokenizer (`tokenizer`).
+## kits and Whisper's detokenizer (`tokenizer`).
 speech = [
     "bunsen/speech",
-    "bunsen/fermion",
-    "bunsen/nemo",
     "bunsen/tokenizer",
 ]
 ## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
@@ -54,14 +51,12 @@ burn = { workspace = true }
 # The backend is chosen at run time with `--device`, from those compiled in
 # through this crate's backend features; the CPU is always there.
 #
-# Without bunsen's defaults: the kits, the safetensors and `PyTorch`
-# readers (Qwen3, Gemma and Laya; nanochat's `.pt`), the cache every command
-# loads through, and `indicatif`'s progress bar on every weights transfer.
-# `speech` adds the speech kits and their readers.
+# Without bunsen's defaults: the kits, the checkpoint readers (`store`), the
+# cache every command loads through, and `indicatif`'s progress bar on every
+# weights transfer. `speech` adds the speech kits.
 bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = [
     "kits",
-    "store_safetensors",
-    "store_pytorch",
+    "store",
     "cache",
     "indicatif",
 ] }

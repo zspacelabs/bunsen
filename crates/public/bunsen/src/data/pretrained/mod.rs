@@ -297,12 +297,12 @@ mod prefabs;
 mod presets;
 mod pretrained_ref;
 mod providers;
-#[cfg(feature = "store_pytorch")]
+#[cfg(feature = "store")]
 mod pytorch;
 mod resource;
 mod resource_bundle;
 mod rows;
-#[cfg(feature = "store_safetensors")]
+#[cfg(feature = "store")]
 mod safetensors;
 
 #[cfg(feature = "store")]
@@ -319,12 +319,12 @@ pub use prefabs::*;
 pub use presets::*;
 pub use pretrained_ref::*;
 pub use providers::*;
-#[cfg(feature = "store_pytorch")]
+#[cfg(feature = "store")]
 pub use pytorch::*;
 pub use resource::*;
 pub use resource_bundle::*;
 pub use rows::*;
-#[cfg(feature = "store_safetensors")]
+#[cfg(feature = "store")]
 pub use safetensors::*;
 
 /// A [`Lookup`](crate::errors::BunsenErrorKind::Lookup) error for a name a
