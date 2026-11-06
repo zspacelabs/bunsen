@@ -125,16 +125,37 @@ impl DeltaNetState {
 /// Each linear-attention layer reads and writes its own slot (its mixer's
 /// `layer_index`), as an attention layer does its slot of a KV cache. An
 /// attention-only model's is empty.
+///
+/// A state summarizes the whole prefix, so it cannot rewind; it can only
+/// reset, or go back to a [snapshot](Self::take_snapshot) of every layer
+/// taken at an earlier position. The cache keeps the most recent snapshot.
 #[derive(Module, Debug, Default)]
 pub struct DeltaNetCache {
+    /// The layers' states, by slot.
+    pub layers: Vec<DeltaNetState>,
+
+    /// The most recent snapshot, if one was taken since the last reset.
+    pub snapshot: Option<DeltaNetSnapshot>,
+}
+
+/// Every linear-attention layer's state at a position: what a
+/// [`DeltaNetCache`] goes back to.
+#[derive(Module, Debug)]
+pub struct DeltaNetSnapshot {
+    /// The position the states were taken at: the tokens they summarize.
+    pub pos: usize,
+
     /// The layers' states, by slot.
     pub layers: Vec<DeltaNetState>,
 }
 
 impl DeltaNetCache {
-    /// The cache of these states, by slot.
+    /// The cache of these states, by slot, with no snapshot.
     pub fn new(layers: Vec<DeltaNetState>) -> Self {
-        Self { layers }
+        Self {
+            layers,
+            snapshot: None,
+        }
     }
 
     /// Whether it holds no layer's state.
@@ -156,17 +177,48 @@ impl DeltaNetCache {
             .unwrap_or_else(|| panic!("linear-attention slot {slot} of {len}"))
     }
 
-    /// Every layer back to the start of a sequence.
+    /// Every layer back to the start of a sequence; the snapshot dropped.
     pub fn reset(&mut self) {
         self.layers.iter_mut().for_each(DeltaNetState::reset);
+        self.snapshot = None;
     }
 
-    /// Permutes every layer's rows: row `r` becomes row `sources[r]`.
+    /// Keeps every layer's state as it is, as the snapshot at `pos` (the
+    /// tokens the states summarize), in place of any older one. The states
+    /// are shared, not copied: a step replaces a state, it never writes into
+    /// one.
+    pub fn take_snapshot(
+        &mut self,
+        pos: usize,
+    ) {
+        self.snapshot = Some(DeltaNetSnapshot {
+            pos,
+            layers: self.layers.clone(),
+        });
+    }
+
+    /// The snapshot's position, if there is one.
+    pub fn snapshot_pos(&self) -> Option<usize> {
+        self.snapshot.as_ref().map(|s| s.pos)
+    }
+
+    /// Every layer back to the snapshot's states, which it keeps.
+    ///
+    /// # Panics
+    /// If there is no snapshot.
+    pub fn restore_snapshot(&mut self) {
+        let snapshot = self.snapshot.as_ref().expect("a snapshot to restore");
+        self.layers = snapshot.layers.clone();
+    }
+
+    /// Permutes every layer's rows, and the snapshot's: row `r` becomes row
+    /// `sources[r]`.
     pub fn reorder(
         &mut self,
         sources: &[usize],
     ) {
-        for layer in &mut self.layers {
+        let snapshot = self.snapshot.iter_mut().flat_map(|s| s.layers.iter_mut());
+        for layer in self.layers.iter_mut().chain(snapshot) {
             layer.reorder(sources);
         }
     }
@@ -264,6 +316,30 @@ mod tests {
                 .into_scalar::<f32>(),
             0.0
         );
+        // A snapshot keeps the states as they were; a restore brings them
+        // back; a reset drops it.
+        let mut cache = DeltaNetCache::new(vec![state()]);
+        cache.take_snapshot(5);
+        let kept = cache.layer_mut(0).recurrent.clone();
+        cache.layer_mut(0).reset();
+        assert_eq!(cache.snapshot_pos(), Some(5));
+        cache.restore_snapshot();
+        assert_eq!(
+            cache.layer_mut(0).recurrent.clone().into_data(),
+            kept.clone().into_data()
+        );
+        cache.reorder(&[2, 1, 0]);
+        assert_eq!(
+            cache.snapshot.as_ref().unwrap().layers[0]
+                .recurrent
+                .clone()
+                .slice_dim(0, 0..1)
+                .into_data(),
+            kept.slice_dim(0, 2..3).into_data(),
+            "the snapshot's rows reorder too"
+        );
+        cache.reset();
+        assert_eq!(cache.snapshot_pos(), None);
         let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _ = cache.layer_mut(2);
         }));

@@ -22,9 +22,10 @@ use super::*;
 /// before its budget stops on a stop token, as `transformers`' did.
 ///
 /// A turn's rendering drops the last reply's empty thinking, so it parts
-/// from what the cache holds inside the last reply; the linear layers'
-/// states cannot rewind there, so the turn prefills its whole prompt again,
-/// from a reset cache.
+/// from what the cache holds inside the last reply. The linear layers'
+/// states cannot rewind there; they go back to their snapshot, taken where
+/// the last prompt's user turn ended, so every turn after the first
+/// prefills from there: less than its whole prompt.
 fn check_row(row: &str) {
     let device = f32_device(row);
     let _memory = DeviceMemoryGuard::new(&device);
@@ -48,6 +49,9 @@ fn check_row(row: &str) {
                 .unwrap_or_else(|e| panic!("{what}: {e}"));
             assert_eq!(streamed, reply.text, "{what}: the stream is the reply");
             assert_eq!(reply.prompt_tokens, expected.prompt_ids.len(), "{what}");
+            if turn > 0 {
+                assert!(reply.prefilled_tokens < reply.prompt_tokens, "{what}");
+            }
             for (k, (&got, &want)) in reply.ids.iter().zip(&expected.ids).enumerate() {
                 if got != want {
                     assert!(

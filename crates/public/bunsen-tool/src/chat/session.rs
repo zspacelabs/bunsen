@@ -305,11 +305,25 @@ impl<B: ChatBackend> ChatSession<B> {
             )));
         }
 
+        let snapshot_at = backend.snapshot_point(&self.messages, enable_thinking)?;
         let start = Instant::now();
         let todo = backend
             .rewind(&mut self.history, &mut self.state, &prompt, &self.device)
             .to_vec();
-        let first = backend.prefill(&todo, &mut self.state, &self.device);
+        // A state that cannot rewind is kept at the end of the conversation
+        // before the assistant's turn opens: the prefill stops there for a
+        // snapshot, then goes on.
+        let from = prompt.len() - todo.len();
+        let first = match snapshot_at.filter(|&at| from <= at && at < prompt.len()) {
+            Some(at) => {
+                if at > from {
+                    let _ = backend.prefill(&prompt[from..at], &mut self.state, &self.device);
+                }
+                backend.snapshot(&mut self.state);
+                backend.prefill(&prompt[at..], &mut self.state, &self.device)
+            }
+            None => backend.prefill(&todo, &mut self.state, &self.device),
+        };
         self.history.extend(&todo);
         let prefill_time = start.elapsed();
 
