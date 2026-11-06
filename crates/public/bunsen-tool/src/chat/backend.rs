@@ -55,7 +55,6 @@ use crate::chat::{
     ChatTemplate,
     ChatTokenizer,
     HfTokenizer,
-    Qwen3Tokenizer,
 };
 
 /// A checkpoint a [`ChatModel`](crate::chat::ChatModel) holds a conversation
@@ -265,9 +264,9 @@ impl<M: ChatLm> LmChat<M> {
 }
 
 impl LmChat<Qwen3Model> {
-    /// A chat over a loaded Qwen3, through its tokenizer files
-    /// ([`Qwen3Tokenizer`]) and the chat template and stop tokens its presets
-    /// resolved to.
+    /// A chat over a loaded Qwen3, through its `tokenizer.json` and
+    /// `tokenizer_config.json` ([`HfTokenizer`]) and the chat template and stop
+    /// tokens its presets resolved to.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
@@ -278,7 +277,7 @@ impl LmChat<Qwen3Model> {
         let config = bundle
             .tokenizer_config()
             .ok_or_else(|| missing("tokenizer_config.json"))?;
-        let tokenizer = Qwen3Tokenizer::from_files(
+        let tokenizer = HfTokenizer::from_files(
             bundle
                 .tokenizer()
                 .ok_or_else(|| missing("tokenizer.json"))?,

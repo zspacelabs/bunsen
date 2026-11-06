@@ -17,7 +17,7 @@
 //!   and back, as `transformers` encodes; a
 //!   [`Detokenizer`](bunsen::kits::support::tokens::Detokenizer).
 //!   [`HfTokenizer`] reads any `tokenizer.json` on the `tokenizers` crate
-//!   (Gemma's); [`Qwen3Tokenizer`] reads Qwen3's on wordchipper.
+//!   (Qwen3's and Gemma's).
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
 //! - [`NanoChatChat`], [`NanoChatTokenizer`] and [`NanoChatLayout`]: a nanochat
@@ -46,7 +46,6 @@ mod nanochat_layout;
 mod nanochat_tokenizer;
 mod session;
 mod template;
-mod tokenizer;
 
 pub use backend::*;
 pub use chat_tokenizer::*;
@@ -56,4 +55,3 @@ pub use nanochat_layout::*;
 pub use nanochat_tokenizer::*;
 pub use session::*;
 pub use template::*;
-pub use tokenizer::*;

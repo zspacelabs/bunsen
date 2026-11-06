@@ -413,14 +413,14 @@ mod tests {
     };
 
     use super::*;
-    use crate::chat::tokenizer::toy_tokenizer_json;
+    use crate::chat::toy_byte_level_json;
 
     /// A chat over an untrained toy Qwen3, with the toy tokenizer, a `ChatML`
     /// template, and greedy defaults, its files in `dir`.
     fn toy_chat(dir: &std::path::Path) -> Arc<ChatModel> {
         let template = "{%- for m in messages %}{{- '<|im_start|>' + m.role + '\\n' + m.content + '<|im_end|>\\n' }}{%- endfor %}{%- if add_generation_prompt %}{{- '<|im_start|>assistant\\n' }}{%- endif %}";
         let files = [
-            (TOKENIZER, "tokenizer.json", toy_tokenizer_json()),
+            (TOKENIZER, "tokenizer.json", toy_byte_level_json()),
             (
                 TOKENIZER_CONFIG,
                 "tokenizer_config.json",
