@@ -463,7 +463,10 @@ mod tests {
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.stack.rotary.base, config.rope_theta);
-        assert_eq!(model.stack.layers[0].attn.c_q.weight.dims(), [12, 18]);
+        assert_eq!(
+            model.stack.layers[0].attn.branch.c_q.weight.dims(),
+            [12, 18]
+        );
         assert!(model.lm_head.is_tied(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);

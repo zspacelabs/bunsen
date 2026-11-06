@@ -386,13 +386,24 @@ mod hub_tests {
             assert_tensors_close(&a, &b, Tolerance::<f32>::default());
         };
         close(
-            hf.model.encoder.blocks[0].attn.query.weight.val(),
-            openai.model.encoder.blocks[0].attn.query.weight.val(),
+            hf.model.encoder.blocks[0].attn.branch.query.weight.val(),
+            openai.model.encoder.blocks[0]
+                .attn
+                .branch
+                .query
+                .weight
+                .val(),
         );
         close(
-            hf.model.decoder.blocks[3].cross_attn.output.weight.val(),
+            hf.model.decoder.blocks[3]
+                .cross_attn
+                .branch
+                .output
+                .weight
+                .val(),
             openai.model.decoder.blocks[3]
                 .cross_attn
+                .branch
                 .output
                 .weight
                 .val(),

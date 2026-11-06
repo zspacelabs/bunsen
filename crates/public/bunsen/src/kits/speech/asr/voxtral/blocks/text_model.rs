@@ -276,7 +276,7 @@ impl VoxtralTextMeta for VoxtralTextModel {
     }
 
     fn sliding_window(&self) -> Option<usize> {
-        self.stack.layers[0].attn.sliding_window
+        self.stack.layers[0].attn.branch.sliding_window
     }
 }
 
