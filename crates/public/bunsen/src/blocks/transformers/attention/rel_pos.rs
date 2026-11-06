@@ -22,7 +22,10 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::sublayer::SublayerBranch,
+    blocks::transformers::sublayer::{
+        ResidualSublayer,
+        SublayerBranch,
+    },
     burner::module::ModuleInit,
     errors::{
         BunsenResult,
@@ -270,6 +273,32 @@ impl SublayerBranch<RelPosAttnCall, 3> for RelPosSelfAttention {
         ctx: RelPosAttnCall,
     ) -> Tensor<3> {
         self.forward(z, ctx.positions, ctx.valid)
+    }
+}
+
+/// A relative-position self-attention sublayer ([`RelPosAttnCall`]).
+pub trait RelPosAttnSublayer {
+    /// The residual update, the branch attending under the relative
+    /// positions' embedding, over the valid steps.
+    fn rel_pos_attn(
+        &self,
+        x: Tensor<3>,
+        positions: Tensor<3>,
+        valid: Option<Tensor<2, Bool>>,
+    ) -> Tensor<3>;
+}
+
+impl<M> RelPosAttnSublayer for ResidualSublayer<M>
+where
+    M: Module + SublayerBranch<RelPosAttnCall, 3, Output = Tensor<3>>,
+{
+    fn rel_pos_attn(
+        &self,
+        x: Tensor<3>,
+        positions: Tensor<3>,
+        valid: Option<Tensor<2, Bool>>,
+    ) -> Tensor<3> {
+        self.residual_update(x, RelPosAttnCall { positions, valid })
     }
 }
 

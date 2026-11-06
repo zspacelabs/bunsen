@@ -15,7 +15,7 @@ use crate::{
         transformers::{
             attention::csa::{
                 AttentionSides,
-                CausalAttnCall,
+                CausalAttnSublayer,
                 CausalSelfAttention,
                 CausalSelfAttentionConfig,
                 CausalSelfAttentionMeta,
@@ -424,15 +424,13 @@ impl CausalDecoderBlock {
             value_embed,
             key_valid,
         } = sides;
-        let x = self.attn.residual_update(
+        let x = self.attn.causal_attn(
             input,
-            CausalAttnCall {
-                r_emb,
-                kv_cache,
-                sides: AttentionSides {
-                    value_embed,
-                    key_valid,
-                },
+            r_emb,
+            kv_cache,
+            AttentionSides {
+                value_embed,
+                key_valid,
             },
         );
         self.mlp.residual_update_with(x, |mlp, h| {
