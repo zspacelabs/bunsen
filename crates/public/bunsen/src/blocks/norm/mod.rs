@@ -22,13 +22,19 @@
 //! - **The output is the input's dtype**
 //!   ([`ResultDType`](crate::burner::module::ResultDType)).
 //!
+//! Beside the seam, [`GatedRmsNorm`] is a root-mean-square norm gated by a
+//! second input, `w · x̂ · silu(z)` (the gated `DeltaNet`'s output norm): it
+//! takes two inputs, so it is a block of its own, not a seam kind.
+//!
 //! The variants and their configs keep burn's `NormalizationConfig` names,
 //! so a config's serde form and a native record's keys are burn's. bunsen's
 //! loaders skip enum variants, so a loaded tensor's path names no variant
 //! either way.
 
+mod gated_rms_norm;
 mod layer_norm;
 mod normalization;
 
+pub use gated_rms_norm::*;
 pub use layer_norm::*;
 pub use normalization::*;
