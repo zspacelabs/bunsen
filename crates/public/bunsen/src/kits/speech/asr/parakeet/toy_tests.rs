@@ -175,7 +175,8 @@ fn test_toy_block_modules() {
 
     let ff1 = layer
         .feed_forward1
-        .forward(layer.feed_forward1_norm.forward(x.clone()));
+        .branch
+        .forward(layer.feed_forward1.pre.as_ref().unwrap().forward(x.clone()));
     assert_close("feed_forward1", ff1, toy.io("block.ff1"));
 
     let attn = layer

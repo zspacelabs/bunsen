@@ -248,9 +248,9 @@ mod tests {
         (r"\.cross_attn\.output\.", ".encoder_attn.out_proj."),
         (r"\.attn_norm\.", ".self_attn_layer_norm."),
         (r"\.cross_attn_norm\.", ".encoder_attn_layer_norm."),
-        (r"\.mlp_norm\.", ".final_layer_norm."),
-        (r"\.mlp\.linear1\.", ".fc1."),
-        (r"\.mlp\.linear2\.", ".fc2."),
+        (r"\.mlp\.pre\.", ".final_layer_norm."),
+        (r"\.mlp\.branch\.linear1\.", ".fc1."),
+        (r"\.mlp\.branch\.linear2\.", ".fc2."),
         (r"^encoder\.ln_post\.", "encoder.layer_norm."),
         (r"^decoder\.ln\.", "decoder.layer_norm."),
         (r"^", "model."),
@@ -303,8 +303,8 @@ mod tests {
             b.decoder.blocks[2].cross_attn.output.weight.val(),
         );
         same(
-            a.decoder.blocks[1].mlp.linear2.weight.val(),
-            b.decoder.blocks[1].mlp.linear2.weight.val(),
+            a.decoder.blocks[1].mlp.branch.linear2.weight.val(),
+            b.decoder.blocks[1].mlp.branch.linear2.weight.val(),
         );
         same(
             a.encoder.positional_embedding.val(),

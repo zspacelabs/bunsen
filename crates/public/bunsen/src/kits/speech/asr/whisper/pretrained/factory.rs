@@ -398,8 +398,13 @@ mod hub_tests {
                 .val(),
         );
         close(
-            hf.model.decoder.blocks[1].mlp.linear2.weight.val(),
-            openai.model.decoder.blocks[1].mlp.linear2.weight.val(),
+            hf.model.decoder.blocks[1].mlp.branch.linear2.weight.val(),
+            openai.model.decoder.blocks[1]
+                .mlp
+                .branch
+                .linear2
+                .weight
+                .val(),
         );
         close(
             hf.model.encoder.positional_embedding.val(),

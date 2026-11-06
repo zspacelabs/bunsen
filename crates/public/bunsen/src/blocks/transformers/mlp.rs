@@ -13,33 +13,13 @@ use burn::{
 };
 
 use crate::{
-    blocks::{
-        activation::{
-            BunsenActivation,
-            BunsenActivationConfig,
-        },
-        norm::BunsenNormalization,
+    blocks::activation::{
+        BunsenActivation,
+        BunsenActivationConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
 };
-
-/// Computes a normalized MLP: `mlp(norm(x))`.
-///
-/// # Arguments
-/// * `norm` - the sublayer's [`BunsenNormalization`].
-/// * `mlp` - `TransformerMlp`.
-/// * `x` - `[batch, seq_len, n_states]` input.
-///
-/// # Returns
-/// `[batch, seq_len, n_states]`
-pub fn norm_mlp(
-    norm: &BunsenNormalization,
-    mlp: &TransformerMlp,
-    x: Tensor<3>,
-) -> Tensor<3> {
-    mlp.forward(norm.forward(x))
-}
 
 /// Common meta for [`TransformerMlp`] and [`TransformerMlpConfig`].
 pub trait TransformerMlpMeta {
@@ -349,8 +329,9 @@ impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
 
 /// A transformer layer's position-wise feed-forward, whichever its config
 /// chose: the generic sublayer a layer holds, as
-/// [`BunsenNormalization`] is for a norm. The variant
-/// is not part of its tensors' paths for the loaders bunsen uses.
+/// [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization) is for a
+/// norm. The variant is not part of its tensors' paths for the loaders bunsen
+/// uses.
 ///
 /// Built by [`TransformerFeedForwardConfig`].
 /// Implements [`TransformerFeedForwardMeta`].
