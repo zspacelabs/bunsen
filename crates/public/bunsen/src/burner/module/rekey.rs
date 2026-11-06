@@ -82,6 +82,9 @@ pub struct Rekey {
     rules: Vec<Rule>,
     load_transforms: Vec<(Select, TensorLoadTransform)>,
     unclaimed: Unclaimed,
+    /// The stage after this one ([`then`](Rekey::then)), which maps this
+    /// stage's output.
+    next: Option<Box<Rekey>>,
 }
 
 /// What a [`Rekey`] does with a name none of its rules claims.
@@ -220,6 +223,21 @@ impl RekeyPlan {
 }
 
 /// `first`, then `then`.
+/// `first` through a later stage's `then`: `then`'s path, both changes in
+/// order, both stages' transform names.
+fn chain(
+    first: Target,
+    then: Target,
+) -> Target {
+    let mut transform_names = first.transform_names;
+    transform_names.extend(then.transform_names);
+    Target {
+        path: then.path,
+        transform: compose(first.transform, then.transform),
+        transform_names,
+    }
+}
+
 fn compose(
     first: Option<TensorTransform>,
     then: Option<TensorTransform>,
@@ -413,6 +431,7 @@ impl Rekey {
             rules: Vec::new(),
             load_transforms: Vec::new(),
             unclaimed: Unclaimed::Keep,
+            next: None,
         }
     }
 
@@ -423,6 +442,7 @@ impl Rekey {
             rules: Vec::new(),
             load_transforms: Vec::new(),
             unclaimed: Unclaimed::Drop,
+            next: None,
         }
     }
 
@@ -436,6 +456,7 @@ impl Rekey {
             rules: Vec::new(),
             load_transforms: Vec::new(),
             unclaimed: Unclaimed::Pass,
+            next: None,
         }
     }
 
@@ -554,13 +575,52 @@ impl Rekey {
         self
     }
 
+    /// This map, then `next`: a name goes through this map's rules, and
+    /// what it maps to through `next`'s, each stage's load transforms after
+    /// the one before's. A stage's rules see only the previous stage's
+    /// output, so one map can name a checkpoint's tensors in a scheme of its
+    /// own (a family's names onto canonical ones), and another map that
+    /// scheme onto a module's paths. A map that already has a next stage
+    /// gets `next` after its last.
+    ///
+    /// Only the last stage is planned against the module
+    /// ([`plan_for`](Self::plan_for)): an
+    /// [`Indices::Module`] stack in an earlier stage keeps the checkpoint's
+    /// indices.
+    ///
+    /// ```rust
+    /// use bunsen::burner::module::Rekey;
+    ///
+    /// let family = Rekey::keep_rest().rename("model.layers.", "layers.");
+    /// let module = Rekey::keep_rest().rename("layers.", "stack.layers.");
+    /// let rekey = family.then(module);
+    /// assert_eq!(
+    ///     rekey.apply("model.layers.3.mlp.weight").as_deref(),
+    ///     Some("stack.layers.3.mlp.weight")
+    /// );
+    /// ```
+    pub fn then(
+        mut self,
+        next: Rekey,
+    ) -> Self {
+        self.next = Some(Box::new(match self.next.take() {
+            Some(after) => after.then(next),
+            None => next,
+        }));
+        self
+    }
+
     /// Where `name` loads and how its data changes on the way, or `None` to
-    /// drop it.
+    /// drop it: through every stage.
     pub fn target(
         &self,
         name: &str,
     ) -> Option<Target> {
-        self.claim(name, "", "", &mut Cx::default()).flatten()
+        let first = self.claim(name, "", "", &mut Cx::default()).flatten()?;
+        match &self.next {
+            None => Some(first),
+            Some(next) => next.target(&first.path).map(|then| chain(first, then)),
+        }
     }
 
     /// `None` when this map does not claim `name` (only a
@@ -698,6 +758,82 @@ impl Rekey {
         names: impl IntoIterator<Item = S>,
         module: Option<&BTreeSet<String>>,
     ) -> RekeyPlan {
+        let Some(next) = &self.next else {
+            return self.plan_stage(names, module);
+        };
+        // This stage alone sees the checkpoint's names; the stages after it,
+        // its output, and the last of them, the module.
+        let first = self.plan_stage(names, None);
+        let outputs: Vec<String> = first
+            .targets
+            .iter()
+            .filter_map(|(_, t)| t.as_ref().map(|t| t.path.clone()))
+            .collect();
+        let rest = next.plan_in(&outputs, module);
+        let mut by_output: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        let mut rest_targets = rest.targets.into_iter();
+        let targets: Vec<(String, Option<Target>)> = first
+            .targets
+            .into_iter()
+            .map(|(name, target)| {
+                let target = target.and_then(|t| {
+                    by_output
+                        .entry(t.path.clone())
+                        .or_default()
+                        .push(name.clone());
+                    let (_, then) = rest_targets.next().expect("one target per output");
+                    then.map(|then| chain(t, then))
+                });
+                (name, target)
+            })
+            .collect();
+        let original = |output: &str| {
+            by_output
+                .get(output)
+                .and_then(|names| names.first().cloned())
+                .unwrap_or_else(|| output.to_string())
+        };
+        let mut by_path: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for (name, target) in &targets {
+            if let Some(target) = target {
+                by_path.entry(&target.path).or_default().push(name.clone());
+            }
+        }
+        let collisions = by_path
+            .into_iter()
+            .filter(|(_, names)| names.len() > 1)
+            .map(|(path, names)| (path.to_string(), names))
+            .collect();
+        let mut unused_rules = first.unused_rules;
+        unused_rules.extend(rest.unused_rules.into_iter().map(|r| format!("then {r}")));
+        let mut orphan_transforms = first.orphan_transforms;
+        orphan_transforms.extend(
+            rest.orphan_transforms
+                .into_iter()
+                .map(|t| format!("then {t}")),
+        );
+        let mut index_conflicts = first.index_conflicts;
+        index_conflicts.extend(rest.index_conflicts);
+        RekeyPlan {
+            targets,
+            collisions,
+            orphan_transforms,
+            unused_rules,
+            index_conflicts,
+            unknown_paths: rest
+                .unknown_paths
+                .into_iter()
+                .map(|(output, path)| (original(&output), path))
+                .collect(),
+        }
+    }
+
+    /// [`plan_in`](Self::plan_in) for this stage's rules alone.
+    fn plan_stage<S: AsRef<str>>(
+        &self,
+        names: impl IntoIterator<Item = S>,
+        module: Option<&BTreeSet<String>>,
+    ) -> RekeyPlan {
         let names: Vec<String> = names.into_iter().map(|n| n.as_ref().to_string()).collect();
         let mut cx = Cx {
             module,
@@ -827,6 +963,7 @@ impl fmt::Debug for Rekey {
             .field("rules", &self.rules.len())
             .field("load_transforms", &self.load_transforms.len())
             .field("unclaimed", &self.unclaimed)
+            .field("next", &self.next)
             .finish()
     }
 }
@@ -1155,5 +1292,132 @@ mod tests {
             ]
         );
         assert_eq!(plan.orphan_transforms, ["*.nothing (scale(2))"]);
+    }
+
+    /// Stages compose: the second sees the first's output, the transforms
+    /// run in stage order, and a plan's targets are `target`'s.
+    #[test]
+    fn test_then_composes_stages() {
+        let family = Rekey::keep_rest()
+            .drop_suffix(".rotary.inv_freq")
+            .rename("model.layers.", "layers.")
+            .transform(
+                Select::suffix("norm.weight"),
+                TensorLoadTransform::scale(2.0),
+            );
+        let module = Rekey::keep_rest()
+            .mount_indexed(
+                "layers.",
+                "stack.layers.",
+                Rekey::keep_rest().rename("norm.", "norms.pre."),
+            )
+            .transform(
+                Select::suffix("pre.weight"),
+                TensorLoadTransform::zero_centered_gain(),
+            );
+        let rekey = family.then(module);
+
+        let t = rekey.target("model.layers.2.norm.weight").unwrap();
+        assert_eq!(t.path, "stack.layers.2.norms.pre.weight");
+        assert_eq!(t.transform_names, ["scale(2)", "zero_centered_gain"]);
+        // `2 w`, then `1 + (2 w)`.
+        let data = (t.transform.unwrap())(burn::tensor::TensorData::new(vec![0.25f32], [1]));
+        assert_eq!(data.convert::<f32>().try_into_vec::<f32>().unwrap(), [1.5]);
+        assert_eq!(rekey.apply("model.layers.0.rotary.inv_freq"), None);
+
+        let names = ["model.layers.0.norm.weight", "model.layers.1.mlp.weight"];
+        let plan = rekey.plan(names);
+        for (name, target) in &plan.targets {
+            assert_eq!(
+                target.as_ref().map(|t| &t.path),
+                rekey.apply(name).as_ref(),
+                "{name}"
+            );
+        }
+        plan.check().unwrap();
+    }
+
+    /// A plan reports each stage's unused rules and orphaned transforms,
+    /// the later stage's marked, and collisions by the checkpoint's names.
+    #[test]
+    fn test_then_plan_reports_each_stage() {
+        let rekey = Rekey::keep_rest()
+            .rename("a.", "x.")
+            .rename("unused.", "never.")
+            .then(
+                Rekey::keep_rest()
+                    .rename("x.", "y.")
+                    .rename("b.", "y.")
+                    .rename("idle.", "never.")
+                    .transform("never.weight", TensorLoadTransform::scale(2.0)),
+            );
+        let plan = rekey.plan(["a.weight", "b.weight"]);
+        assert_eq!(
+            plan.unused_rules,
+            [
+                "rename(\"unused.\" -> \"never.\")",
+                "then rename(\"idle.\" -> \"never.\")"
+            ]
+        );
+        assert_eq!(plan.orphan_transforms, ["then never.weight (scale(2))"]);
+        assert_eq!(
+            plan.collisions,
+            [(
+                "y.weight".to_string(),
+                vec!["a.weight".to_string(), "b.weight".to_string()]
+            )]
+        );
+        assert!(plan.check().is_err());
+    }
+
+    /// The last stage alone sees the module: a module-indexed stack there
+    /// lays the checkpoint's indices onto the module's, and an unknown path
+    /// is reported by the checkpoint's name.
+    #[test]
+    fn test_then_last_stage_sees_the_module() {
+        let rekey = Rekey::keep_rest().rename("model.fc.", "fc.").then(
+            Rekey::keep_rest().mount_indexed_with(
+                "fc.",
+                "fc.",
+                Indices::Module,
+                Rekey::keep_rest(),
+            ),
+        );
+        let module: BTreeSet<String> = ["fc.0.weight", "fc.1.weight"].map(String::from).into();
+        let plan = rekey.plan_for(
+            ["model.fc.0.weight", "model.fc.2.weight", "model.odd.weight"],
+            &module,
+        );
+        let paths: Vec<_> = plan
+            .targets
+            .iter()
+            .map(|(_, t)| t.as_ref().unwrap().path.as_str())
+            .collect();
+        assert_eq!(paths, ["fc.0.weight", "fc.1.weight", "model.odd.weight"]);
+        assert_eq!(
+            plan.unknown_paths,
+            [(
+                "model.odd.weight".to_string(),
+                "model.odd.weight".to_string()
+            )]
+        );
+    }
+
+    /// Chaining a third stage puts it after the last.
+    #[test]
+    fn test_then_chains_in_order() {
+        let rekey = Rekey::keep_rest()
+            .rename("a.", "b.")
+            .then(Rekey::keep_rest().rename("b.", "c."))
+            .then(Rekey::keep_rest().rename("c.", "d."));
+        assert_eq!(rekey.apply("a.w").as_deref(), Some("d.w"));
+        assert_eq!(rekey.apply("b.w").as_deref(), Some("d.w"));
+        assert_eq!(
+            Rekey::drop_rest()
+                .rename("a.", "b.")
+                .then(Rekey::keep_rest())
+                .apply("z.w"),
+            None
+        );
     }
 }
