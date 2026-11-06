@@ -7,7 +7,6 @@ use burn::{
     nn::{
         LayerNormConfig,
         attention::{
-            MhaInput,
             MultiHeadAttention,
             MultiHeadAttentionConfig,
         },
@@ -27,6 +26,7 @@ use crate::{
             sublayer::{
                 ResidualSublayer,
                 ResidualSublayerConfig,
+                SelfAttnCall,
             },
         },
     },
@@ -229,16 +229,8 @@ impl ResidualEncoderAttentionBlock {
         x: Tensor<3>,
         mask: Option<Tensor<3, burn::prelude::Bool>>,
     ) -> Tensor<3> {
-        let attend = |attn: &MultiHeadAttention, x: Tensor<3>| {
-            let input = MhaInput::self_attn(x);
-            let input = match mask {
-                Some(mask) => input.mask_attn(mask),
-                None => input,
-            };
-            attn.forward(input).context
-        };
-        let x = self.attn.residual_update_with(x, attend);
-        self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z))
+        let x = self.attn.residual_update(x, SelfAttnCall { mask });
+        self.mlp.residual_update(x, ())
     }
 }
 
@@ -433,6 +425,7 @@ impl CanonicalKeys for ResidualEncoderTransformer {
 #[cfg(test)]
 mod tests {
     use burn::{
+        nn::attention::MhaInput,
         prelude::Shape,
         tensor::{
             Distribution,

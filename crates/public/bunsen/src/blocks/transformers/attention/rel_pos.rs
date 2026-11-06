@@ -22,6 +22,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::transformers::sublayer::SublayerBranch,
     burner::module::ModuleInit,
     errors::{
         BunsenResult,
@@ -246,6 +247,29 @@ impl RelPosSelfAttention {
         );
 
         y
+    }
+}
+
+/// [`RelPosSelfAttention`]'s call ([`forward`](RelPosSelfAttention::forward)):
+/// the relative positions' embedding and the valid steps.
+#[derive(Debug, Clone)]
+pub struct RelPosAttnCall {
+    /// The relative positions' embedding.
+    pub positions: Tensor<3>,
+
+    /// `[batch, seq]`, true at a valid step; `None` for all.
+    pub valid: Option<Tensor<2, Bool>>,
+}
+
+impl SublayerBranch<RelPosAttnCall, 3> for RelPosSelfAttention {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        ctx: RelPosAttnCall,
+    ) -> Tensor<3> {
+        self.forward(z, ctx.positions, ctx.valid)
     }
 }
 

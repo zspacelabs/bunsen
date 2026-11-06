@@ -13,9 +13,12 @@ use burn::{
 };
 
 use crate::{
-    blocks::activation::{
-        BunsenActivation,
-        BunsenActivationConfig,
+    blocks::{
+        activation::{
+            BunsenActivation,
+            BunsenActivationConfig,
+        },
+        transformers::sublayer::SublayerBranch,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -369,6 +372,45 @@ impl TransformerFeedForward {
             Self::Mlp(m) => m.forward(x),
             Self::Gated(m) => m.forward(x),
         }
+    }
+}
+
+/// Takes only the stream.
+impl SublayerBranch<(), 3> for TransformerMlp {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        (): (),
+    ) -> Tensor<3> {
+        self.forward(z)
+    }
+}
+
+/// Takes only the stream.
+impl SublayerBranch<(), 3> for TransformerGatedMlp {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        (): (),
+    ) -> Tensor<3> {
+        self.forward(z)
+    }
+}
+
+/// Takes only the stream.
+impl SublayerBranch<(), 3> for TransformerFeedForward {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        (): (),
+    ) -> Tensor<3> {
+        self.forward(z)
     }
 }
 

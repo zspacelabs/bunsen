@@ -14,6 +14,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::transformers::sublayer::SublayerBranch,
     burner::module::ModuleInit,
     errors::BunsenResult,
 };
@@ -132,6 +133,19 @@ impl ConformerFeedForward {
         );
 
         y
+    }
+}
+
+/// Takes only the stream.
+impl SublayerBranch<(), 3> for ConformerFeedForward {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        (): (),
+    ) -> Tensor<3> {
+        self.forward(z)
     }
 }
 

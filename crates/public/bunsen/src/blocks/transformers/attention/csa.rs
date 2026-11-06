@@ -27,7 +27,10 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::embedding::RotaryEmbedding,
+        transformers::{
+            embedding::RotaryEmbedding,
+            sublayer::SublayerBranch,
+        },
     },
     contracts::{
         assert_shape_contract_periodically,
@@ -749,6 +752,33 @@ impl CausalSelfAttention {
         );
 
         y
+    }
+}
+
+/// [`CausalSelfAttention`]'s call
+/// ([`forward_with`](CausalSelfAttention::forward_with)): the rotary table, the
+/// decode's cache if any, and the side inputs.
+#[derive(Debug)]
+pub struct CausalAttnCall<'a, 'c> {
+    /// The rotary table.
+    pub r_emb: &'a RotaryEmbedding,
+
+    /// The decode's cache, or `None` for a prefill without one.
+    pub kv_cache: &'a mut Option<&'c mut KVCache>,
+
+    /// The side inputs.
+    pub sides: AttentionSides,
+}
+
+impl SublayerBranch<CausalAttnCall<'_, '_>, 3> for CausalSelfAttention {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        ctx: CausalAttnCall<'_, '_>,
+    ) -> Tensor<3> {
+        self.forward_with(z, ctx.r_emb, ctx.kv_cache, ctx.sides)
     }
 }
 

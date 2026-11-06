@@ -28,6 +28,7 @@ use crate::{
             ConvBlock1dConfig,
         },
         norm::BunsenNormalizationConfig,
+        transformers::sublayer::SublayerBranch,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -179,6 +180,26 @@ impl ConformerConvolution {
         );
 
         y
+    }
+}
+
+/// [`ConformerConvolution`]'s call
+/// ([`forward`](ConformerConvolution::forward)): the valid steps.
+#[derive(Debug, Clone)]
+pub struct ConformerConvCall {
+    /// `[batch, seq]`, true at a valid step; `None` for all.
+    pub valid: Option<Tensor<2, Bool>>,
+}
+
+impl SublayerBranch<ConformerConvCall, 3> for ConformerConvolution {
+    type Output = Tensor<3>;
+
+    fn call_branch(
+        &self,
+        z: Tensor<3>,
+        ctx: ConformerConvCall,
+    ) -> Tensor<3> {
+        self.forward(z, ctx.valid)
     }
 }
 
