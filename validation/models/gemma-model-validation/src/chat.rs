@@ -64,7 +64,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
 fn check_row(row: &str) {
     let fixture = &chat_reference()[row];
     let (tokenizer, config, jinja) = tokenizer_files(row);
-    let tok = HfTokenizer::from_file(&tokenizer).unwrap();
+    let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
     let stops = default_gemma_factory()
         .unwrap()
         .resolve_presets(row, &GemmaPolicy::default())
