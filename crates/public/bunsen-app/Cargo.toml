@@ -15,8 +15,9 @@ categories = ["command-line-interface"]
 publish = true
 
 [dependencies]
-burn = { workspace = true, features = ["std", "flex"] }
-bunsen = { version = "0.41.0", path = "../bunsen", features = ["std", "fetch", "cache"] }
+# `autodiff`: `DevicePrefs::autodiff` wraps the device for training.
+burn = { workspace = true, features = ["std", "flex", "autodiff"] }
+bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = ["std", "fetch", "cache"] }
 
 clap = { workspace = true, features = ["derive"] }
 document-features = { workspace = true }

@@ -731,7 +731,9 @@ its times, where a target shows them, the wall clock's; under `--emission drafti
 on stderr, redrawn in place on a terminal. A family's `--emission` defaults to `conservative` here, `--chunk-ms`
 to 250; `--seconds` stops after that much audio, Ctrl-C otherwise, and either way the speech past the last commit is
 decoded before the process exits. The default `live` feature builds it: it captures through `cpal`, which on Linux
-links ALSA (`libasound2-dev`); `--no-default-features` builds without it.
+links ALSA (`libasound2-dev`); `--no-default-features --features speech` builds `asr` without it. The default `speech`
+feature builds `asr` itself; `--no-default-features` alone builds a tool with only `chat`, `decide`, `cache`, `card`
+and `devices`.
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet live --emission drafting

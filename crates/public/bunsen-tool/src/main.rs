@@ -9,8 +9,9 @@
 use std::process::ExitCode;
 
 use bunsen::errors::BunsenResult;
+#[cfg(feature = "speech")]
+use bunsen_tool::asr;
 use bunsen_tool::{
-    asr,
     card,
     chat,
     decide,
@@ -30,6 +31,7 @@ struct Args {
 enum Command {
     /// Speech to text, by preset (`asr transcribe`, `asr live`) or by model
     /// family (`asr family`), and who spoke when (`asr diarize`).
+    #[cfg(feature = "speech")]
     Asr(asr::cli::AsrCmd),
 
     /// Chat with a Qwen3 or nanochat checkpoint: one prompt (`chat run`), a
@@ -78,6 +80,7 @@ fn main() -> ExitCode {
 fn run(args: &Args) -> BunsenResult<()> {
     bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
     match &args.command {
+        #[cfg(feature = "speech")]
         Command::Asr(cmd) => cmd.run(),
         Command::Chat(cmd) => cmd.run(),
         Command::Decide(cmd) => cmd.run(),
