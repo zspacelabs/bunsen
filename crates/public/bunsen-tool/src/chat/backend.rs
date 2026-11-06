@@ -291,9 +291,10 @@ impl LmChat<Qwen3Model> {
 }
 
 impl LmChat<GemmaModel> {
-    /// A chat over a loaded Gemma, through its `tokenizer.json`
-    /// ([`HfTokenizer`]) and the chat template and stop tokens its presets
-    /// resolved to: its own template where it has one, else its family's.
+    /// A chat over a loaded Gemma, through its `tokenizer.json` and
+    /// `tokenizer_config.json` ([`HfTokenizer`]) and the chat template and stop
+    /// tokens its presets resolved to: its own template where it has one, else
+    /// its family's.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
@@ -301,10 +302,15 @@ impl LmChat<GemmaModel> {
     /// or its policy names no chat template or no stop token; as each
     /// file's reader.
     pub fn from_construct(bundle: Arc<GemmaConstruct>) -> BunsenResult<Self> {
-        let tokenizer = HfTokenizer::from_file(
+        let tokenizer = HfTokenizer::from_files(
             bundle
                 .tokenizer()
                 .ok_or_else(|| missing("tokenizer.json"))?,
+            Some(
+                bundle
+                    .tokenizer_config()
+                    .ok_or_else(|| missing("tokenizer_config.json"))?,
+            ),
         )?;
         let template = template_of(&bundle)?;
         let generation = bundle.policy.generation.clone();
