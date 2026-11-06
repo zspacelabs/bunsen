@@ -23,7 +23,12 @@
 //! - `testdata/transformers_chunks.json`: the float32 decodes after a prompt of
 //!   several of the delta rule's chunks;
 //! - `testdata/transformers_bf16.json`: `qwen3.5-9b`'s bf16 decode, and how far
-//!   `transformers`' own bf16 prefill logits are from its float32 ones.
+//!   `transformers`' own bf16 prefill logits are from its float32 ones;
+//! - `testdata/chat.json`: the tokenizers and chat templates of [`CHAT_ROWS`]
+//!   on fixed texts and conversations
+//!   (`validation/tools/gen_qwen3_5_chat_fixtures.py`);
+//! - `testdata/chat_replies.json`: `qwen3.5-0.8b`'s greedy replies in
+//!   multi-turn sessions, which `bunsen_tool::chat`'s sessions are held to.
 //!
 //! `cargo validate` (`validation/tools/validate`) runs this crate under a
 //! profile (`validation/models.yml`). Every test of a model has the model's
@@ -143,6 +148,99 @@ pub fn transformers_bf16_reference() -> BTreeMap<String, GreedyRecord> {
     read("transformers_bf16.json")
 }
 
+/// The rows `testdata/chat.json` holds: one of each chat template (the
+/// 0.8B's, which the 2B shares, and the 4B's, which the 9B and 27B share),
+/// and the `-base` rows' tokenizer.
+pub const CHAT_ROWS: [&str; 3] = ["qwen3.5-0.8b", "qwen3.5-4b", "qwen3.5-0.8b-base"];
+
+/// The rows `testdata/chat_replies.json` holds.
+pub const SESSION_ROWS: [&str; 1] = ["qwen3.5-0.8b"];
+
+/// One row of `testdata/chat.json`.
+#[derive(Debug, Deserialize)]
+pub struct ChatRecord {
+    /// Texts, and the ids `transformers` encodes them to.
+    pub encode: Vec<EncodeCase>,
+    /// Conversations rendered and encoded; none for a `-base` row.
+    pub templates: Vec<TemplateCase>,
+}
+
+/// One text and its ids.
+#[derive(Debug, Deserialize)]
+pub struct EncodeCase {
+    /// The text.
+    pub text: String,
+    /// Its ids, no special tokens added.
+    pub ids: Vec<i64>,
+}
+
+/// One conversation, rendered.
+#[derive(Debug, Deserialize)]
+pub struct TemplateCase {
+    /// The conversation's name.
+    pub name: String,
+    /// The conversation.
+    pub messages: Vec<MessageCase>,
+    /// Whether the assistant's next turn is opened.
+    pub add_generation_prompt: bool,
+    /// The thinking switch; `None` when it was not passed.
+    pub enable_thinking: Option<bool>,
+    /// What `apply_chat_template` rendered.
+    pub text: String,
+    /// The text's ids.
+    pub ids: Vec<i64>,
+}
+
+/// One turn of a [`TemplateCase`].
+#[derive(Debug, Deserialize)]
+pub struct MessageCase {
+    /// The role.
+    pub role: String,
+    /// The content.
+    pub content: String,
+    /// An assistant's thinking, kept apart.
+    #[serde(default)]
+    pub reasoning_content: Option<String>,
+}
+
+/// Reads `testdata/chat.json`, by row.
+pub fn chat_reference() -> BTreeMap<String, ChatRecord> {
+    read("chat.json")
+}
+
+/// One session of `testdata/chat_replies.json`.
+#[derive(Debug, Deserialize)]
+pub struct SessionRecord {
+    /// The session's name.
+    pub name: String,
+    /// The thinking switch; `None` when it was not passed.
+    pub enable_thinking: Option<bool>,
+    /// The most tokens a reply generates.
+    pub budget: usize,
+    /// Each turn and `transformers`' reply.
+    pub replies: Vec<ReplyRecord>,
+}
+
+/// One turn of a [`SessionRecord`].
+#[derive(Debug, Deserialize)]
+pub struct ReplyRecord {
+    /// The user's message.
+    pub user: String,
+    /// The rendered conversation's ids.
+    pub prompt_ids: Vec<i64>,
+    /// The reply's ids, its stop token included.
+    pub ids: Vec<i64>,
+    /// The reply's text, without it.
+    pub text: String,
+    /// Each step's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+}
+
+/// Reads `testdata/chat_replies.json`, by row.
+pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
+    read("chat_replies.json")
+}
+
 /// The weights cache the tests load the checkpoints through: bunsen's own,
 /// offline when `BUNSEN_VALIDATE_OFFLINE` is set, for a run on a warm cache.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
@@ -253,6 +351,15 @@ pub fn check_decode(
 #[cfg(all(test, feature = "checkpoints"))]
 mod prefabs;
 
+/// `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
+/// Fetches each row's tokenizer files alone.
+#[cfg(all(test, feature = "checkpoints"))]
+mod chat;
+
+/// `bunsen_tool::chat`'s sessions against `transformers`' greedy replies.
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod chat_session;
+
 /// bunsen's float32 greedy decodes against `transformers`', for every row.
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod greedy;
@@ -299,6 +406,27 @@ mod tests {
         for (row, record) in &bf16 {
             let gap = record.f32_last_logits_max_abs.expect("bf16's own error");
             assert!(gap < BF16_NEAR_TIE * 4.0, "{row}: {gap}");
+        }
+        let chat = chat_reference();
+        let mut rows = CHAT_ROWS.to_vec();
+        rows.sort_unstable();
+        assert_eq!(chat.keys().map(String::as_str).collect::<Vec<_>>(), rows);
+        for (row, record) in &chat {
+            assert!(!record.encode.is_empty(), "{row}");
+            assert_eq!(record.templates.is_empty(), row.ends_with("-base"), "{row}");
+        }
+        let replies = chat_replies_reference();
+        assert_eq!(
+            replies.keys().map(String::as_str).collect::<Vec<_>>(),
+            SESSION_ROWS
+        );
+        for (row, sessions) in &replies {
+            for session in sessions {
+                for reply in &session.replies {
+                    assert_eq!(reply.ids.len(), reply.margins.len(), "{row}");
+                    assert!(reply.ids.len() <= session.budget, "{row}");
+                }
+            }
         }
     }
 }

@@ -51,6 +51,15 @@ The pairs in the tree:
   and [`KVCache`](bunsen::ops::transformers::attention::KVCache): one
   multi-layer cache per decode, shared by every layer of the model
   ([decode modes](bunsen::blocks::transformers::attention#kv-cache-decode-modes)).
+- [`GatedDeltaNet`](bunsen::blocks::transformers::mixers::GatedDeltaNet) and
+  [`DeltaNetState`](bunsen::ops::transformers::linear_attention::DeltaNetState):
+  a linear-attention layer's carried state, its convolution's last inputs
+  and its delta rule's matrix. A hybrid model (Qwen3.5) decodes through a
+  [`DecoderStackCache`](bunsen::blocks::transformers::decoders::stack::DecoderStackCache)
+  that holds both kinds, a KV cache for its attention layers and a
+  [`DeltaNetCache`](bunsen::ops::transformers::linear_attention::DeltaNetCache)
+  for its linear ones. Unlike a KV history the state summarizes the whole
+  prefix: it cannot rewind, only reset.
 - [`SileroVad`](bunsen::kits::speech::vad::silero_vad::SileroVad) and
   [`SileroVadContext`](bunsen::kits::speech::vad::silero_vad::SileroVadContext):
   the recurrent state and the tail of the last chunk
