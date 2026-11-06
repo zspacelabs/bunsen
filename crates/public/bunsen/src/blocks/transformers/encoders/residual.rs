@@ -22,9 +22,15 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::mlp::{
-            TransformerMlp,
-            TransformerMlpConfig,
+        transformers::{
+            mlp::{
+                TransformerMlp,
+                TransformerMlpConfig,
+            },
+            sublayer::{
+                ResidualSublayer,
+                ResidualSublayerConfig,
+            },
         },
     },
     burner::module::{
@@ -147,11 +153,14 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             .with_bias(true)
             .try_init(device)?;
 
+        let sublayer = match self.norm_placement {
+            NormPlacement::Pre => ResidualSublayerConfig::pre_norm(self.norm.clone()),
+            NormPlacement::Post => ResidualSublayerConfig::post_norm(self.norm.clone()),
+        };
         Ok(ResidualEncoderAttentionBlock {
             attn_norm: norm(),
             attn,
-            mlp_norm: norm(),
-            mlp,
+            mlp: sublayer.init(mlp, self.d_model, device),
             norm_placement: self.norm_placement,
         })
     }
@@ -177,11 +186,10 @@ pub struct ResidualEncoderAttentionBlock {
     /// Attention.
     pub attn: MultiHeadAttention,
 
-    /// MLP normalization, when the block normalizes.
-    pub mlp_norm: Option<BunsenNormalization>,
-
-    /// MLP.
-    pub mlp: TransformerMlp,
+    /// The MLP sublayer: the MLP (`branch`), and its norm, when the block
+    /// normalizes: before it (`pre`) or after the add (`out`), by the
+    /// block's placement.
+    pub mlp: ResidualSublayer<TransformerMlp>,
 
     /// Where the block normalizes, when it does.
     #[module(skip)]
@@ -254,11 +262,11 @@ impl ResidualEncoderAttentionBlock {
         match self.norm_placement {
             NormPlacement::Pre => {
                 let x = x.clone() + attend(normalize(&self.attn_norm, x));
-                x.clone() + self.mlp.forward(normalize(&self.mlp_norm, x))
+                self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
             }
             NormPlacement::Post => {
                 let x = normalize(&self.attn_norm, x.clone() + attend(x));
-                normalize(&self.mlp_norm, x.clone() + self.mlp.forward(x))
+                self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
             }
         }
     }
@@ -432,8 +440,17 @@ impl ResidualEncoderAttentionBlock {
 
 impl CanonicalKeys for ResidualEncoderAttentionBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The canonical names are the record's paths.
+        // The feed-forward's sublayer is a `ResidualSublayer`: its norm is
+        // its `pre`, or its `out` in a post-norm block; the feed-forward its
+        // `branch`.
+        let mlp_norm = if self.mlp.out.is_some() {
+            "mlp.out."
+        } else {
+            "mlp.pre."
+        };
         Rekey::keep_rest()
+            .rename("mlp_norm.", mlp_norm)
+            .rename("mlp.", "mlp.branch.")
     }
 }
 
@@ -455,7 +472,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::mlp::norm_mlp,
         contracts::assert_shape_contract,
         ops::transformers::attention::norm_self_attn,
         support::testing::{
@@ -487,7 +503,7 @@ mod tests {
         let block: ResidualEncoderAttentionBlock = cfg.init(&crate::support::testing::cpu_device());
         assert_eq!(block.norm_placement(), NormPlacement::Pre);
         assert_eq!(layer_norm(&block.attn_norm).gamma.dims(), [64]);
-        assert_eq!(layer_norm(&block.mlp_norm).gamma.dims(), [64]);
+        assert_eq!(layer_norm(&block.mlp.pre).gamma.dims(), [64]);
         assert!(block.attn.key.bias.is_none());
     }
 
@@ -513,12 +529,14 @@ mod tests {
                 .with_norm(None)
                 .with_norm_placement(placement)
                 .init(&device);
-            assert!(block.attn_norm.is_none() && block.mlp_norm.is_none());
+            assert!(
+                block.attn_norm.is_none() && block.mlp.pre.is_none() && block.mlp.out.is_none()
+            );
             assert!(block.num_params() < rms.num_params());
 
             let expected = {
                 let x = x.clone() + block.attn.forward(MhaInput::self_attn(x.clone())).context;
-                x.clone() + block.mlp.forward(x)
+                x.clone() + block.mlp.branch.forward(x)
             };
             block
                 .forward(x.clone())
@@ -551,7 +569,7 @@ mod tests {
                 .forward(MhaInput::self_attn(x.clone()).mask_attn(mask))
                 .context;
             let x = layer_norm(&block.attn_norm).forward(x + context);
-            layer_norm(&block.mlp_norm).forward(x.clone() + block.mlp.forward(x))
+            layer_norm(&block.mlp.out).forward(x.clone() + block.mlp.branch.forward(x))
         };
         output
             .into_data()
@@ -595,8 +613,11 @@ mod tests {
             );
             let x = x + self_attn.context;
 
-            let mlp = norm_mlp(block.mlp_norm.as_ref().unwrap(), &block.mlp, x.clone());
-            x + mlp
+            x.clone()
+                + block
+                    .mlp
+                    .branch
+                    .forward(block.mlp.pre.as_ref().unwrap().forward(x))
         };
 
         output

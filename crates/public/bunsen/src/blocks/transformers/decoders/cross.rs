@@ -28,7 +28,10 @@ use crate::{
             mlp::{
                 TransformerMlp,
                 TransformerMlpConfig,
-                norm_mlp,
+            },
+            sublayer::{
+                ResidualSublayer,
+                ResidualSublayerConfig,
             },
         },
     },
@@ -127,8 +130,11 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
             attn,
             cross_attn_norm: norm(),
             cross_attn,
-            mlp_norm: norm(),
-            mlp,
+            mlp: ResidualSublayerConfig::pre_norm(Some(self.norm.clone())).init(
+                mlp,
+                self.d_model,
+                device,
+            ),
         })
     }
 }
@@ -141,8 +147,8 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 /// [`MultiHeadAttention`] (without a key bias), and the norms are any
 /// [`BunsenNormalization`], `LayerNorm`s by default: what the ported
 /// checkpoints hold. The fields are named by
-/// role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, `mlp_norm`,
-/// `mlp`.
+/// role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, and the MLP
+/// sublayer, `mlp` (its norm `mlp.pre`, the MLP `mlp.branch`).
 ///
 /// [`forward`](Self::forward) runs a whole sequence, and returns its
 /// cross-attention weights too ([`CrossDecoderRecord`]), which alignment needs;
@@ -164,11 +170,8 @@ pub struct CrossDecoderBlock {
     /// Cross Attention.
     pub cross_attn: MultiHeadAttention,
 
-    /// MLP Normalization.
-    pub mlp_norm: BunsenNormalization,
-
-    /// MLP.
-    pub mlp: TransformerMlp,
+    /// The MLP sublayer: its norm (`pre`) and the MLP (`branch`).
+    pub mlp: ResidualSublayer<TransformerMlp>,
 }
 
 impl CrossDecoderBlockMeta for CrossDecoderBlock {
@@ -237,8 +240,7 @@ impl CrossDecoderBlock {
         let cross_attn = norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
         let x = x + cross_attn.context;
 
-        let mlp = norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
-        let x = x + mlp;
+        let x = self.mlp.residual_update(x, |mlp, z| mlp.forward(z));
 
         CrossDecoderRecord {
             output: x,
@@ -292,8 +294,7 @@ impl CrossDecoderBlock {
             layer,
         ));
 
-        let mlp = norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
-        x + mlp
+        self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
     }
 
     /// Projects the encoder output into this block's cross-attention keys and
@@ -337,8 +338,11 @@ impl CrossDecoderBlock {
 
 impl CanonicalKeys for CrossDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The canonical names are the record's paths.
+        // The feed-forward's sublayer is a `ResidualSublayer`: its norm is
+        // its `pre`, the feed-forward its `branch`.
         Rekey::keep_rest()
+            .rename("mlp_norm.", "mlp.pre.")
+            .rename("mlp.", "mlp.branch.")
     }
 }
 
@@ -416,8 +420,11 @@ mod tests {
             );
             let x = x + cross_attn.context;
 
-            let mlp = norm_mlp(&block.mlp_norm, &block.mlp, x.clone());
-            let x = x + mlp;
+            let x = x.clone()
+                + block
+                    .mlp
+                    .branch
+                    .forward(block.mlp.pre.as_ref().unwrap().forward(x));
 
             CrossDecoderRecord {
                 output: x,

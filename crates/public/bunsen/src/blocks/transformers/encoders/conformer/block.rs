@@ -20,10 +20,16 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::attention::rel_pos::{
-            RelPosSelfAttention,
-            RelPosSelfAttentionConfig,
-            RelPosSelfAttentionMeta,
+        transformers::{
+            attention::rel_pos::{
+                RelPosSelfAttention,
+                RelPosSelfAttentionConfig,
+                RelPosSelfAttentionMeta,
+            },
+            sublayer::{
+                ResidualSublayer,
+                ResidualSublayerConfig,
+            },
         },
     },
     burner::module::{
@@ -101,9 +107,9 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
                 .with_bias(self.bias)
                 .try_init(device)
         };
+        let ff_sublayer = ResidualSublayerConfig::pre_norm(Some(self.norm.clone()));
         Ok(ConformerBlock {
-            feed_forward1_norm: norm(),
-            feed_forward1: ff()?,
+            feed_forward1: ff_sublayer.init(ff()?, self.d_model, device),
             attn_norm: norm(),
             attn: RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
                 .with_bias(self.bias)
@@ -112,8 +118,7 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
             conv: ConformerConvolutionConfig::new(self.d_model, self.conv_kernel_size)
                 .with_bias(self.conv_bias)
                 .try_init(device)?,
-            feed_forward2_norm: norm(),
-            feed_forward2: ff()?,
+            feed_forward2: ff_sublayer.init(ff()?, self.d_model, device),
             out_norm: norm(),
         })
     }
@@ -136,11 +141,9 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 /// Implements [`ConformerBlockMeta`].
 #[derive(Module, Debug)]
 pub struct ConformerBlock {
-    /// The first feed-forward module's normalization.
-    pub feed_forward1_norm: BunsenNormalization,
-
-    /// The first feed-forward module.
-    pub feed_forward1: ConformerFeedForward,
+    /// The first feed-forward sublayer: its norm (`pre`) and the module
+    /// (`branch`).
+    pub feed_forward1: ResidualSublayer<ConformerFeedForward>,
 
     /// The attention's normalization.
     pub attn_norm: BunsenNormalization,
@@ -154,11 +157,9 @@ pub struct ConformerBlock {
     /// The convolution module.
     pub conv: ConformerConvolution,
 
-    /// The second feed-forward module's normalization.
-    pub feed_forward2_norm: BunsenNormalization,
-
-    /// The second feed-forward module.
-    pub feed_forward2: ConformerFeedForward,
+    /// The second feed-forward sublayer: its norm (`pre`) and the module
+    /// (`branch`).
+    pub feed_forward2: ResidualSublayer<ConformerFeedForward>,
 
     /// The final normalization.
     pub out_norm: BunsenNormalization,
@@ -214,21 +215,18 @@ impl ConformerBlock {
             );
         }
 
-        let x = x.clone()
-            + self
-                .feed_forward1
-                .forward(self.feed_forward1_norm.forward(x))
-                .mul_scalar(0.5);
+        // The macaron feed-forwards: each half a step.
+        let x = self
+            .feed_forward1
+            .residual_update(x, |ff, z| ff.forward(z).mul_scalar(0.5));
         let x = x.clone()
             + self
                 .attn
                 .forward(self.attn_norm.forward(x), positions, valid.clone());
         let x = x.clone() + self.conv.forward(self.conv_norm.forward(x), valid);
-        let x = x.clone()
-            + self
-                .feed_forward2
-                .forward(self.feed_forward2_norm.forward(x))
-                .mul_scalar(0.5);
+        let x = self
+            .feed_forward2
+            .residual_update(x, |ff, z| ff.forward(z).mul_scalar(0.5));
         let y = self.out_norm.forward(x);
 
         #[cfg(any(debug_assertions, test))]
@@ -248,8 +246,13 @@ impl ConformerBlock {
 
 impl CanonicalKeys for ConformerBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // The canonical names are the record's paths.
+        // Each macaron feed-forward is a `ResidualSublayer`: its norm is its
+        // `pre`, the feed-forward its `branch`.
         Rekey::keep_rest()
+            .rename("feed_forward1_norm.", "feed_forward1.pre.")
+            .rename("feed_forward1.", "feed_forward1.branch.")
+            .rename("feed_forward2_norm.", "feed_forward2.pre.")
+            .rename("feed_forward2.", "feed_forward2.branch.")
     }
 }
 
