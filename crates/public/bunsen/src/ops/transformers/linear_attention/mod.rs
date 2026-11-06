@@ -14,7 +14,8 @@
 //!   which agree.
 //! - [`DeltaNetState`]: one linear-attention layer's carried state, the
 //!   convolution's last inputs and the delta rule's matrix, made by
-//!   [`DeltaNetStateConfig`].
+//!   [`DeltaNetStateConfig`]; [`DeltaNetCache`], every such layer's, by slot,
+//!   beside a hybrid model's KV cache.
 //!
 //! As a KV cache is, the state is *injected*: the caller makes it, passes it
 //! in, and the model never owns it. Unlike a KV cache it is a summary of the

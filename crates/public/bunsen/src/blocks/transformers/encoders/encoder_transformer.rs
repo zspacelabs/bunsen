@@ -250,7 +250,8 @@ pub(crate) fn test_rope_stack(
                 CausalSelfAttentionConfig::new(heads, heads, d_model)
                     .with_norm(None)
                     .with_output_bias(true)
-                    .with_mask(AttentionMask::Bidirectional),
+                    .with_mask(AttentionMask::Bidirectional)
+                    .into(),
                 TransformerMlpConfig::new(d_model)
                     .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)

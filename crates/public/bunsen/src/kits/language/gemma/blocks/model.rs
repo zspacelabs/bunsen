@@ -369,7 +369,8 @@ impl GemmaConfig {
                 .with_sliding_window(window)
                 .with_score_scale(self.query_pre_attn_scalar.map(|s| s.powf(-0.5)))
                 .with_attn_softcap(self.attn_softcap)
-                .with_softmax_dtype(self.softmax_dtype),
+                .with_softmax_dtype(self.softmax_dtype)
+                .into(),
             TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_activation(BunsenActivationConfig::GeluApproximate)
                 .into(),
@@ -600,10 +601,10 @@ mod tests {
         let config = config();
         let stack = config.stack().unwrap();
         assert_eq!(stack.layer_kinds, [1, 0, 1]);
-        assert_eq!(stack.kinds[0].attn.sliding_window, None);
-        assert_eq!(stack.kinds[1].attn.sliding_window, Some(4));
-        assert_eq!(stack.kinds[0].attn.score_scale, Some(0.25));
-        assert!(stack.kinds[0].attn.norm.is_some() && stack.kinds[0].post_norms);
+        assert_eq!(stack.kinds[0].attn.attention().sliding_window, None);
+        assert_eq!(stack.kinds[1].attn.attention().sliding_window, Some(4));
+        assert_eq!(stack.kinds[0].attn.attention().score_scale, Some(0.25));
+        assert!(stack.kinds[0].attn.attention().norm.is_some() && stack.kinds[0].post_norms);
         assert_eq!(stack.rotary.base, 1_000_000);
         assert_eq!(stack.rotary.scaling, RopeScaling::Linear { factor: 2.0 });
         assert_eq!(stack.rotary_alts[0].base, 10_000);

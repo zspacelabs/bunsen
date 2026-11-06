@@ -178,7 +178,8 @@ impl VoxtralAudioEncoderConfig {
                 .with_output_bias(true)
                 .with_sliding_window(self.sliding_window)
                 // As `transformers`' eager attention: the softmax in f32.
-                .with_softmax_dtype(Some(burn::tensor::FloatDType::F32)),
+                .with_softmax_dtype(Some(burn::tensor::FloatDType::F32))
+                .into(),
             TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_down_bias(Some(true))
                 .into(),
@@ -281,7 +282,7 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
 
     fn n_heads(&self) -> usize {
         use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.stack.layers[0].attn.branch.n_head()
+        self.stack.layers[0].attn.branch.attention().n_head()
     }
 
     fn head_dim(&self) -> usize {
@@ -289,7 +290,7 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
     }
 
     fn sliding_window(&self) -> Option<usize> {
-        self.stack.layers[0].attn.branch.sliding_window
+        self.stack.layers[0].attn.branch.attention().sliding_window
     }
 }
 

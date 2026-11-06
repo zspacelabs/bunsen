@@ -11,6 +11,12 @@
 //! - [`UniformStackConfig`]: one block config, repeated;
 //! - [`PatternedStackConfig`]: a few block configs, the stack's *kinds*, and
 //!   each layer's kind (a sliding-window layer among full ones, say).
+//!
+//! A hybrid stack mixes its layers' token mixers ([`TokenMixer`]): attention
+//! layers, which keep a history in the decode's [`KVCache`], and
+//! linear-attention layers, which carry a state in its [`DeltaNetCache`].
+//! Each layer's mixer takes the next slot of its own kind's cache, so a KV
+//! cache holds the attention layers alone.
 
 use std::ops::Range;
 
@@ -32,7 +38,6 @@ use crate::{
             BunsenNormalizationConfig,
         },
         transformers::{
-            attention::csa::CausalSelfAttentionMeta,
             decoders::causal::{
                 CausalDecoderBlock,
                 CausalDecoderBlockConfig,
@@ -42,6 +47,11 @@ use crate::{
             embedding::{
                 RotaryEmbeddingConfig,
                 RotarySet,
+            },
+            mixers::{
+                GatedDeltaNetMeta,
+                TokenMixer,
+                TokenMixerConfig,
             },
         },
     },
@@ -57,11 +67,14 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    ops::transformers::attention::{
-        KVCache,
-        KVCacheConfig,
-        KVCacheStorage,
-        length_mask,
+    ops::transformers::{
+        attention::{
+            KVCache,
+            KVCacheConfig,
+            KVCacheStorage,
+            length_mask,
+        },
+        linear_attention::DeltaNetCache,
     },
 };
 
@@ -73,36 +86,62 @@ pub trait DecoderStackMeta {
     /// The layer count.
     fn n_layers(&self) -> usize;
 
-    /// The key/value head count of the first layer, which a shared KV cache
-    /// is shaped for.
+    /// The key/value head count of the first attention layer, which a
+    /// shared KV cache is shaped for.
+    ///
+    /// # Panics
+    /// If no layer attends.
     fn n_kv_heads(&self) -> usize;
 
-    /// The head width of the first layer.
+    /// The head width of the first attention layer.
+    ///
+    /// # Panics
+    /// If no layer attends.
     fn head_dim(&self) -> usize;
 
-    /// Each layer's sliding attention window, if it has one.
+    /// Each layer's sliding attention window, if it has one; `None` for a
+    /// layer that does not attend.
     fn layer_windows(&self) -> Vec<Option<usize>>;
 
+    /// Whether each layer's token mixer attends (else, it is linear
+    /// attention).
+    fn layer_attends(&self) -> Vec<bool>;
+
     /// The [`KVCacheConfig`] the stack decodes with: its key/value heads,
-    /// head width and layer count, at batch 1, `pre_size` positions up
-    /// front, uncapped; a windowed layer keeping only its window.
+    /// head width and attention-layer count, at batch 1, `pre_size`
+    /// positions up front, uncapped; a windowed layer keeping only its
+    /// window.
     fn kv_cache_config(
         &self,
         pre_size: usize,
     ) -> KVCacheConfig {
-        let windows = self.layer_windows();
-        KVCacheConfig::for_decode(
-            self.n_kv_heads(),
-            pre_size,
-            self.head_dim(),
-            self.n_layers(),
-        )
-        .with_layer_windows(if windows.iter().all(Option::is_none) {
-            Vec::new()
-        } else {
-            windows
-        })
+        let windows: Vec<_> = self
+            .layer_windows()
+            .into_iter()
+            .zip(self.layer_attends())
+            .filter_map(|(w, attends)| attends.then_some(w))
+            .collect();
+        KVCacheConfig::for_decode(self.n_kv_heads(), pre_size, self.head_dim(), windows.len())
+            .with_layer_windows(if windows.iter().all(Option::is_none) {
+                Vec::new()
+            } else {
+                windows
+            })
     }
+}
+
+/// Each layer's slot in the decode's cache for its mixer's kind: the count
+/// of the layers of its kind before it.
+fn mixer_slots(attends: &[bool]) -> Vec<usize> {
+    let mut counts = [0, 0];
+    attends
+        .iter()
+        .map(|&a| {
+            let count = &mut counts[usize::from(a)];
+            *count += 1;
+            *count - 1
+        })
+        .collect()
 }
 
 /// Config for [`DecoderStack`]: the unrolled tree, one block config per
@@ -142,9 +181,20 @@ pub struct DecoderStackStructureConfig {
 }
 
 impl DecoderStackStructureConfig {
-    /// The first layer, whose geometry is the stack's.
+    /// The first layer, whose width is the stack's.
     fn first_layer(&self) -> &CausalDecoderBlockConfig {
         &self.layers[0]
+    }
+
+    /// The first attention layer's attention, whose geometry the stack's KV
+    /// cache takes.
+    fn first_attention(
+        &self
+    ) -> &crate::blocks::transformers::attention::csa::CausalSelfAttentionConfig {
+        self.layers
+            .iter()
+            .find_map(|l| l.attn.as_attention())
+            .expect("a stack with an attention layer")
     }
 }
 
@@ -158,21 +208,34 @@ impl DecoderStackMeta for DecoderStackStructureConfig {
     }
 
     fn n_kv_heads(&self) -> usize {
-        self.first_layer().attn.n_kv_head()
+        use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
+        self.first_attention().n_kv_head()
     }
 
     fn head_dim(&self) -> usize {
-        self.first_layer().attn.head_dim()
+        use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
+        self.first_attention().head_dim()
     }
 
     fn layer_windows(&self) -> Vec<Option<usize>> {
-        self.layers.iter().map(|l| l.attn.sliding_window).collect()
+        self.layers
+            .iter()
+            .map(|l| l.attn.as_attention().and_then(|a| a.sliding_window))
+            .collect()
+    }
+
+    fn layer_attends(&self) -> Vec<bool> {
+        self.layers
+            .iter()
+            .map(|l| matches!(l.attn, TokenMixerConfig::Attention(_)))
+            .collect()
     }
 }
 
 impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
-    /// Initializes each layer at its index, and the final norm at the
-    /// stack's width.
+    /// Initializes each layer at its slot ([`DecoderStackMeta`]'s kinds: the
+    /// count of the layers of its mixer's kind before it, its index in a
+    /// stack that only attends), and the final norm at the stack's width.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
@@ -244,12 +307,13 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
             )
             .into());
         }
+        let slots = mixer_slots(&self.layer_attends());
         Ok(DecoderStack {
             layers: self
                 .layers
                 .iter()
-                .enumerate()
-                .map(|(i, layer)| layer.try_init(i, device))
+                .zip(slots)
+                .map(|(layer, slot)| layer.try_init(slot, device))
                 .collect::<BunsenResult<_>>()?,
             norm: self.norm.clone().with_num_features(width).init(device),
             input_norm: self
@@ -422,17 +486,25 @@ impl DecoderStackMeta for DecoderStack {
     }
 
     fn n_kv_heads(&self) -> usize {
-        self.layers[0].attn.branch.n_kv_head()
+        use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
+        self.first_attention().n_kv_head()
     }
 
     fn head_dim(&self) -> usize {
-        self.layers[0].attn.branch.head_dim
+        self.first_attention().head_dim
     }
 
     fn layer_windows(&self) -> Vec<Option<usize>> {
         self.layers
             .iter()
-            .map(|l| l.attn.branch.sliding_window)
+            .map(|l| l.attn.branch.as_attention().and_then(|a| a.sliding_window))
+            .collect()
+    }
+
+    fn layer_attends(&self) -> Vec<bool> {
+        self.layers
+            .iter()
+            .map(|l| matches!(l.attn.branch, TokenMixer::Attention(_)))
             .collect()
     }
 }
@@ -474,15 +546,19 @@ pub struct DecoderStackSides {
 }
 
 /// What a cached decode through a [`DecoderStack`] carries between steps:
-/// its KV cache, and the rotary table for every position it may reach.
+/// its KV cache, its linear-attention layers' states (none in a stack that
+/// only attends), and the rotary table for every position it may reach.
 ///
 /// Made by [`DecoderStack::decode_cache`], run through by
 /// [`DecoderStack::forward_cached`]. The stack never owns one, so one loaded
 /// model serves any number of decodes.
 #[derive(Module, Debug)]
 pub struct DecoderStackCache {
-    /// The KV cache, one batch row per decode row.
+    /// The KV cache, one batch row per decode row: the attention layers'.
     pub cache: KVCache,
+
+    /// The linear-attention layers' states, one row per decode row.
+    pub linear: DeltaNetCache,
 
     /// The rotary tables, covering the cache's capacity.
     pub rotary: RotarySet,
@@ -496,13 +572,24 @@ impl DecoderStackCache {
         sources: &[usize],
     ) {
         self.cache.reorder(sources);
+        self.linear.reorder(sources);
     }
 }
 
 impl DecoderStack {
+    /// The first attention layer's attention, whose geometry the stack's KV
+    /// cache takes.
+    fn first_attention(&self) -> &crate::blocks::transformers::attention::csa::CausalSelfAttention {
+        self.layers
+            .iter()
+            .find_map(|l| l.attn.branch.as_attention())
+            .expect("a stack with an attention layer")
+    }
+
     /// A decode cache for `rows` rows of at most `positions` positions each,
     /// under `storage`: the KV cache allocated whole and capped there, as
-    /// the rotary table is.
+    /// the rotary table is; and a zero state for each linear-attention
+    /// layer.
     pub fn decode_cache(
         &self,
         rows: usize,
@@ -517,6 +604,13 @@ impl DecoderStack {
                 .with_max_seq_len(Some(positions))
                 .with_storage(storage)
                 .init(),
+            linear: DeltaNetCache::new(
+                self.layers
+                    .iter()
+                    .filter_map(|l| l.attn.branch.as_gated_delta_net())
+                    .map(|net| net.state_config(rows).init(device))
+                    .collect(),
+            ),
             rotary: self.rotary(positions, device),
         }
     }
@@ -528,7 +622,13 @@ impl DecoderStack {
         x: Tensor<3>,
         cache: &mut DecoderStackCache,
     ) -> Tensor<3> {
-        self.forward_hidden(x, &cache.rotary, Some(&mut cache.cache))
+        self.forward_with_caches(
+            x,
+            &cache.rotary,
+            Some(&mut cache.cache),
+            Some(&mut cache.linear),
+            DecoderStackSides::default(),
+        )
     }
 
     /// The rotary tables for positions `0..seq_len`: [`rotary`](Self::rotary)'s
@@ -609,11 +709,32 @@ impl DecoderStack {
     /// [`forward_hidden`](Self::forward_hidden), with `sides`: a condition
     /// and value embeddings for the layers that take them, and a residual
     /// mix around the layers.
+    ///
+    /// # Panics
+    /// If the stack has linear-attention layers and a KV cache is given: a
+    /// hybrid stack decodes through
+    /// [`forward_with_caches`](Self::forward_with_caches) (or
+    /// [`forward_cached`](Self::forward_cached)), which carries their state.
     pub fn forward_with(
         &self,
         x: Tensor<3>,
         r_emb: &RotarySet,
+        kv_cache: Option<&mut KVCache>,
+        sides: DecoderStackSides,
+    ) -> Tensor<3> {
+        self.forward_with_caches(x, r_emb, kv_cache, None, sides)
+    }
+
+    /// [`forward_with`](Self::forward_with), through the decode's caches of
+    /// both kinds: the attention layers' KV cache, and the linear-attention
+    /// layers' [`DeltaNetCache`]. Without them, each layer starts the
+    /// sequence at `x` and keeps nothing.
+    pub fn forward_with_caches(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotarySet,
         mut kv_cache: Option<&mut KVCache>,
+        mut linear: Option<&mut DeltaNetCache>,
         sides: DecoderStackSides,
     ) -> Tensor<3> {
         let [batch, seq] = crate::contracts::unpack_shape_contract!(
@@ -643,10 +764,11 @@ impl DecoderStack {
                 x = x * at(resid) + x0.clone() * at(x0_lambdas);
             }
             let value_embed = value_embeds.get_mut(i).and_then(Option::take);
-            x = layer.forward_with(
+            x = layer.forward_with_caches(
                 x,
                 r_emb.for_layer(i),
                 &mut kv_cache,
+                linear.as_deref_mut(),
                 DecoderSideInputs {
                     cond: cond.clone(),
                     value_embed,
@@ -687,7 +809,8 @@ impl DecoderStack {
     /// For each of `layers`, `[batch, n_heads, rows.len(), cols.len()]`.
     ///
     /// # Panics
-    /// If a layer index is past the last layer.
+    /// If a layer index is past the last layer, or names a layer that does
+    /// not attend.
     pub fn attention_weights(
         &self,
         x: Tensor<3>,
@@ -720,6 +843,7 @@ impl DecoderStack {
                 let w = layer
                     .attn
                     .branch
+                    .attention()
                     .attention_weights(layer.attn_input(x.clone()), r_emb.for_layer(index));
                 weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
             }
@@ -771,7 +895,8 @@ mod tests {
         CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, 16)
                 .with_head_dim(Some(8))
-                .with_sliding_window(window),
+                .with_sliding_window(window)
+                .into(),
             TransformerGatedMlpConfig::new(16, 32).into(),
         )
     }
@@ -828,7 +953,7 @@ mod tests {
             .to_structure()
             .layers
             .iter()
-            .map(|l| l.attn.sliding_window)
+            .map(|l| l.attn.attention().sliding_window)
             .collect();
         assert_eq!(windows, [Some(4), Some(4), None, Some(4)]);
 
@@ -931,7 +1056,9 @@ mod tests {
             .assert_err(&ModuleInit::<DecoderStack>::try_init(&empty, &device));
         let mut mixed = uniform(2).to_structure();
         mixed.layers[1] = CausalDecoderBlockConfig::new(
-            CausalSelfAttentionConfig::new(4, 2, 24).with_head_dim(Some(8)),
+            CausalSelfAttentionConfig::new(4, 2, 24)
+                .with_head_dim(Some(8))
+                .into(),
             TransformerGatedMlpConfig::new(24, 32).into(),
         );
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -980,6 +1107,119 @@ mod tests {
         }
     }
 
+    fn linear_layer() -> CausalDecoderBlockConfig {
+        CausalDecoderBlockConfig::new(
+            crate::blocks::transformers::mixers::GatedDeltaNetConfig::new(16, 2, 4, 4, 3).into(),
+            TransformerGatedMlpConfig::new(16, 32).into(),
+        )
+    }
+
+    /// Linear, linear, attention, linear, attention.
+    fn hybrid() -> DecoderStackStructureConfig {
+        PatternedStackConfig::new(
+            vec![linear_layer(), layer(None)],
+            vec![0, 0, 1, 0, 1],
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        )
+        .to_structure()
+    }
+
+    /// Each layer's mixer takes the next slot of its kind's cache: the KV
+    /// cache holds the attention layers alone, and a decode cache a state
+    /// for each linear layer.
+    #[test]
+    fn test_hybrid_slots_and_caches() {
+        let device = crate::support::testing::cpu_device();
+        let config = hybrid();
+        assert_eq!(config.layer_attends(), [false, false, true, false, true]);
+        assert_eq!(config.layer_windows(), [None; 5]);
+        assert_eq!((config.n_kv_heads(), config.head_dim()), (2, 8));
+        let stack: DecoderStack = config.init(&device);
+        assert_eq!(stack.layer_attends(), config.layer_attends());
+        let slots: Vec<_> = stack
+            .layers
+            .iter()
+            .map(|l| match &l.attn.branch {
+                TokenMixer::Attention(a) => (true, a.layer_index),
+                TokenMixer::GatedDeltaNet(n) => (false, n.layer_index),
+            })
+            .collect();
+        assert_eq!(
+            slots,
+            [(false, 0), (false, 1), (true, 0), (false, 2), (true, 1)]
+        );
+        use crate::ops::transformers::attention::KVCacheMeta;
+        assert_eq!(stack.kv_cache_config(4).init().num_layers(), 2);
+        let cache = stack.decode_cache(3, 8, KVCacheStorage::Auto, &device);
+        assert_eq!(cache.linear.layers.len(), 3);
+        assert_eq!(cache.linear.layers[0].rows(), 3);
+        assert!(
+            uniform(2)
+                .to_structure()
+                .init(&device)
+                .decode_cache(1, 4, KVCacheStorage::Auto, &device)
+                .linear
+                .is_empty()
+        );
+    }
+
+    /// A hybrid stack's cached decode, a prefill and then a token at a time,
+    /// is its uncached pass; with its rows reordered mid-decode (beams
+    /// branching), the uncached pass of the reordered rows.
+    #[test]
+    #[serial]
+    fn test_hybrid_cached_matches_uncached() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        device.seed(9);
+        let stack: DecoderStack = hybrid().init(&device);
+        let n = 7;
+        let x: Tensor<3> = seeded_tensor(12, [2, n, 16], Distribution::Default, &device);
+        let swapped = Tensor::cat(
+            vec![x.clone().slice_dim(0, 1..2), x.clone().slice_dim(0, 0..1)],
+            0,
+        );
+        let r_emb = stack.rotary(n, &device);
+        let whole = stack.forward_hidden(x.clone(), &r_emb, None);
+        let whole_swapped = stack.forward_hidden(swapped.clone(), &r_emb, None);
+
+        let mut cache = stack.decode_cache(2, n, KVCacheStorage::Auto, &device);
+        let mut parts = vec![stack.forward_cached(x.clone().slice_dim(1, 0..3), &mut cache)];
+        for pos in 3..n {
+            parts.push(stack.forward_cached(x.clone().slice_dim(1, pos..pos + 1), &mut cache));
+        }
+        let tolerance = Tolerance::rel_abs(1e-4, 1e-4);
+        assert_tensors_close(&Tensor::cat(parts, 1), &whole, tolerance);
+
+        let mut cache = stack.decode_cache(2, n, KVCacheStorage::Auto, &device);
+        let _ = stack.forward_cached(x.clone().slice_dim(1, 0..3), &mut cache);
+        cache.reorder(&[1, 0]);
+        let rest: Vec<_> = (3..n)
+            .map(|pos| stack.forward_cached(swapped.clone().slice_dim(1, pos..pos + 1), &mut cache))
+            .collect();
+        assert_tensors_close(
+            &Tensor::cat(rest, 1),
+            &whole_swapped.slice_dim(1, 3..n),
+            tolerance,
+        );
+    }
+
+    /// A hybrid stack refuses a KV cache without its linear layers' states:
+    /// that decode would drop them.
+    #[test]
+    #[should_panic(expected = "decodes through a DeltaNetCache")]
+    fn test_hybrid_refuses_a_kv_cache_alone() {
+        let device = crate::support::testing::cpu_device();
+        let stack: DecoderStack = hybrid().init(&device);
+        let mut cache = stack.kv_cache_config(4).init();
+        let _ = stack.forward_hidden(
+            Tensor::zeros([1, 2, 16], &device),
+            &stack.rotary(4, &device),
+            Some(&mut cache),
+        );
+    }
+
     /// The weights at a layer are its attention's over that layer's input,
     /// cut to the rows and columns asked for, in the order asked for.
     #[test]
@@ -997,6 +1237,7 @@ mod tests {
         let expected0 = first
             .attn
             .branch
+            .attention()
             .attention_weights(first.attn_input(x.clone()), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let second = &stack.layers[1];
@@ -1004,6 +1245,7 @@ mod tests {
         let expected1 = second
             .attn
             .branch
+            .attention()
             .attention_weights(second.attn_input(x1), r_emb.for_layer(0))
             .slice(s![.., .., 2..5, 0..3]);
         let tolerance = Tolerance::default();
