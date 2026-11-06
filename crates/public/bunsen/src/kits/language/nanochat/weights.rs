@@ -12,6 +12,7 @@ use std::path::Path;
 use burn::{
     store::{
         ModuleSnapshot,
+        PathFilter,
         bridge,
         burn_pack::Tensor as PackTensor,
     },
@@ -232,7 +233,11 @@ pub fn pt_rekey() -> Rekey {
 /// bf16 checkpoint loaded at bf16 takes its tensors as they are.
 ///
 /// Upstream's norms carry no learned scale, and bunsen's do: each norm's
-/// scale loads as ones, which is upstream's norm exactly, in any dtype.
+/// scale (a [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)'s
+/// `gamma`, found by type) loads as ones, which is upstream's norm exactly,
+/// in any dtype. The ones are named by their record paths, which the map's
+/// last stage loads them at as they are, ahead of the model's
+/// [`canonical_rekey`](crate::burner::module::CanonicalKeys::canonical_rekey).
 ///
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) naming any
@@ -245,9 +250,12 @@ pub fn load_pt_tensors(
 ) -> BunsenResult<NamedTensorsApplied> {
     let mut tensors: Vec<PackTensor> = tensors.into_iter().collect();
     let scales: Vec<PackTensor> = model
-        .collect(None, None, true)
+        .collect(
+            Some(PathFilter::new().with_predicate(is_norm_scale)),
+            None,
+            true,
+        )
         .into_iter()
-        .filter(|t| t.name.ends_with(".gamma") && t.name.contains("norm"))
         .map(|t| {
             let n: usize = t.shape.iter().product();
             bridge::from_data(
@@ -257,8 +265,15 @@ pub fn load_pt_tensors(
             )
         })
         .collect();
+    let last = scales
+        .iter()
+        .fold(Rekey::keep_rest(), |rekey, t| {
+            rekey.exact(t.name.clone(), t.name.clone())
+        })
+        .mount_canonical("", model);
     tensors.extend(scales);
-    let applied = apply_rekeyed_tensors_as(model, tensors, &pt_rekey(), Some(dtype.into()))?;
+    let rekey = pt_rekey().then(last);
+    let applied = apply_rekeyed_tensors_as(model, tensors, &rekey, Some(dtype.into()))?;
     if !applied.unused.is_empty() {
         return Err(BunsenError::unsupported(format!(
             "a nanochat state dict with tensors the model has no parameter for: {}",
@@ -266,6 +281,18 @@ pub fn load_pt_tensors(
         )));
     }
     Ok(applied)
+}
+
+/// Whether the parameter at `path`, under the module types `containers`
+/// (`Struct:NanoChatGpt.…`), is a norm's scale.
+fn is_norm_scale(
+    path: &str,
+    containers: &str,
+) -> bool {
+    path.ends_with(".gamma")
+        && containers
+            .split('.')
+            .any(|c| c == "Enum:BunsenNormalization")
 }
 
 /// An upstream nanochat checkpoint, its `meta_<step>.json` at `meta` and its

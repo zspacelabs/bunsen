@@ -6,7 +6,6 @@ use std::path::{
 use burn::{
     config::Config,
     store::{
-        ModuleSnapshot,
         ModuleStore,
         PytorchStore,
     },
@@ -15,8 +14,14 @@ use burn::{
 
 use crate::{
     blocks::conv::ConvSeq1d,
-    burner::module::ModuleInit,
-    data::pretrained::pytorch_store_error,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+    },
+    data::pretrained::{
+        apply_rekeyed_tensors,
+        pytorch_store_error,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -88,6 +93,9 @@ impl PytorchWhisperScanner {
         let path = path.as_ref();
         let path: PathBuf = path.to_path_buf();
 
+        // The remaps name the tensors canonically ([`CanonicalKeys`]): the
+        // scan reads those names, and `load` takes them onto the model's
+        // record paths.
         let store = PytorchStore::from_file(path.clone())
             .map_indices_contiguous(false)
             // PyTorch's 1-based `conv1`/`conv2` map to the 0-based
@@ -167,11 +175,15 @@ impl PytorchWhisperScanner {
         ))
     }
 
-    /// Loads a pytorch whisper model from a checkpoint.
+    /// Loads a pytorch whisper model from a checkpoint: the store's remaps
+    /// name its tensors canonically, and the model's
+    /// [`canonical_rekey`](CanonicalKeys::canonical_rekey) takes them onto
+    /// its record paths.
     ///
     /// # Errors
-    /// As [`scan_cfg`](Self::scan_cfg), and for loading the weights;
-    /// as [`ModuleInit::try_init`] for the scanned config.
+    /// As [`scan_cfg`](Self::scan_cfg), and for loading the weights
+    /// ([`apply_rekeyed_tensors`]); as [`ModuleInit::try_init`] for the
+    /// scanned config.
     pub fn load<P: AsRef<Path>>(
         &self,
         path: P,
@@ -182,9 +194,18 @@ impl PytorchWhisperScanner {
 
         let mut module: Whisper = cfg.try_init(device)?;
 
-        module
-            .load_from(&mut store)
-            .map_err(pytorch_store_error(path))?;
+        let tensors: Vec<_> = store
+            .get_all_tensors()
+            .map_err(pytorch_store_error(path))?
+            .iter()
+            .map(|(name, tensor)| {
+                let mut tensor = tensor.clone();
+                tensor.name = name.clone();
+                tensor
+            })
+            .collect();
+        let rekey = module.canonical_rekey();
+        apply_rekeyed_tensors(&mut module, tensors, &rekey)?;
 
         Ok((module, cfg))
     }
