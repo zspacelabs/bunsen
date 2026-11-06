@@ -10,11 +10,16 @@
 //! In the field's terms, the *residual* is the branch's contribution,
 //! `post(f(pre(x)))`, and the *residual update* is the stream after it,
 //! `out(x + residual)`, with `x` the stream after the `input` norm.
+//!
+//! A branch may return more than its residual (an attention's weights): its
+//! output is a [`BranchOutput`], which says where the residual is and what
+//! the update gives back, the stream alone or the stream with the rest.
 
 use burn::{
     Tensor,
     config::Config,
     module::Module,
+    nn::attention::MhaOutput,
     tensor::Device,
 };
 
@@ -137,16 +142,71 @@ impl<M: Module> ResidualSublayer<M> {
         Self::apply(&self.post, f(&self.branch, self.branch_input(x)))
     }
 
-    /// The residual update: `out(x + post(f(branch, pre(x))))`, with `x`
-    /// first through `input`.
-    pub fn residual_update<const D: usize>(
+    /// The residual update: `out(x + post(r))`, with `x` first through
+    /// `input`, and `r` the residual in `f(branch, pre(x))`'s output; the
+    /// output's [`Updated`](BranchOutput::Updated) form, the new stream in the
+    /// residual's place.
+    pub fn residual_update_with<const D: usize, O: BranchOutput<D>>(
         &self,
         x: Tensor<D>,
-        f: impl FnOnce(&M, Tensor<D>) -> Tensor<D>,
-    ) -> Tensor<D> {
+        f: impl FnOnce(&M, Tensor<D>) -> O,
+    ) -> O::Updated {
         let x = Self::apply(&self.input, x);
-        let residual = self.residual(x.clone(), f);
-        Self::apply(&self.out, x + residual)
+        f(&self.branch, self.branch_input(x.clone()))
+            .into_updated(|residual| Self::apply(&self.out, x + Self::apply(&self.post, residual)))
+    }
+
+    /// [`residual_update_with`](Self::residual_update_with), `f` also given
+    /// `ctx`: a call's context, for an `f` written once and passed around.
+    pub fn residual_update_with_ctx<const D: usize, C, O: BranchOutput<D>>(
+        &self,
+        x: Tensor<D>,
+        ctx: C,
+        f: impl FnOnce(&M, Tensor<D>, C) -> O,
+    ) -> O::Updated {
+        self.residual_update_with(x, |branch, z| f(branch, z, ctx))
+    }
+}
+
+/// What a [`ResidualSublayer`]'s branch returns: its residual, and anything
+/// that comes with it.
+///
+/// A residual update takes the residual out, and gives back
+/// [`Updated`](Self::Updated): the new stream alone for a plain tensor, or
+/// the new stream with the rest of the output (a tuple, a struct).
+pub trait BranchOutput<const D: usize> {
+    /// What the residual update returns.
+    type Updated;
+
+    /// This output, its residual `r` replaced by `update(r)`, the new stream.
+    fn into_updated(
+        self,
+        update: impl FnOnce(Tensor<D>) -> Tensor<D>,
+    ) -> Self::Updated;
+}
+
+/// The residual alone: the update returns the stream.
+impl<const D: usize> BranchOutput<D> for Tensor<D> {
+    type Updated = Tensor<D>;
+
+    fn into_updated(
+        self,
+        update: impl FnOnce(Tensor<D>) -> Tensor<D>,
+    ) -> Tensor<D> {
+        update(self)
+    }
+}
+
+/// An attention's output: the update returns the stream (in the context's
+/// place) and the attention weights, `(stream, weights)`.
+impl BranchOutput<3> for MhaOutput {
+    type Updated = (Tensor<3>, Tensor<4>);
+
+    fn into_updated(
+        self,
+        update: impl FnOnce(Tensor<3>) -> Tensor<3>,
+    ) -> (Tensor<3>, Tensor<4>) {
+        (update(self.context), self.weights)
     }
 }
 
@@ -210,7 +270,7 @@ mod tests {
 
         let s = sublayer(ResidualSublayerConfig::new());
         assert_tensors_close(
-            &s.residual_update(x.clone(), f),
+            &s.residual_update_with(x.clone(), f),
             &(x.clone() + s.branch.forward(x.clone())),
             tol,
         );
@@ -227,14 +287,14 @@ mod tests {
 
         let s = sublayer(ResidualSublayerConfig::pre_norm(rms()).with_post(rms()));
         assert_tensors_close(
-            &s.residual_update(x.clone(), f),
+            &s.residual_update_with(x.clone(), f),
             &(x.clone() + n(&s.post, s.branch.forward(n(&s.pre, x.clone())))),
             tol,
         );
 
         let s = sublayer(ResidualSublayerConfig::post_norm(rms()));
         assert_tensors_close(
-            &s.residual_update(x.clone(), f),
+            &s.residual_update_with(x.clone(), f),
             &n(&s.out, x.clone() + s.branch.forward(x.clone())),
             tol,
         );
@@ -248,12 +308,57 @@ mod tests {
         );
         let xi = n(&s.input, x.clone());
         assert_tensors_close(
-            &s.residual_update(x.clone(), f),
+            &s.residual_update_with(x.clone(), f),
             &n(
                 &s.out,
                 xi.clone() + n(&s.post, s.branch.forward(n(&s.pre, xi.clone()))),
             ),
             tol,
         );
+    }
+
+    /// A branch output with a side output: the stream, and what rides along.
+    struct WithAux {
+        residual: Tensor<2>,
+        aux: f32,
+    }
+
+    impl BranchOutput<2> for WithAux {
+        type Updated = (Tensor<2>, f32);
+
+        fn into_updated(
+            self,
+            update: impl FnOnce(Tensor<2>) -> Tensor<2>,
+        ) -> (Tensor<2>, f32) {
+            (update(self.residual), self.aux)
+        }
+    }
+
+    /// A side output comes back beside the stream, untouched; the stream is
+    /// the plain form's; the context form passes its context to `f`.
+    #[test]
+    fn test_branch_outputs() {
+        let tol = Tolerance::default();
+        let x = x();
+        let s = sublayer(
+            ResidualSublayerConfig::new()
+                .with_input(rms())
+                .with_pre(rms())
+                .with_post(rms())
+                .with_out(rms()),
+        );
+        let plain = s.residual_update_with(x.clone(), |l, z| l.forward(z));
+
+        let (stream, aux) = s.residual_update_with(x.clone(), |l, z| WithAux {
+            residual: l.forward(z),
+            aux: 7.0,
+        });
+        assert_tensors_close(&stream, &plain, tol);
+        assert_eq!(aux, 7.0);
+
+        let scaled =
+            s.residual_update_with_ctx(x.clone(), 2.0, |l, z, k| l.forward(z).mul_scalar(k));
+        let expected = s.residual_update_with(x, |l, z| l.forward(z).mul_scalar(2.0));
+        assert_tensors_close(&scaled, &expected, tol);
     }
 }

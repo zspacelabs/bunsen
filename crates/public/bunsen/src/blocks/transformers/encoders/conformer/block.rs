@@ -220,16 +220,16 @@ impl ConformerBlock {
         // The macaron feed-forwards: each half a step.
         let x = self
             .feed_forward1
-            .residual_update(x, |ff, z| ff.forward(z).mul_scalar(0.5));
+            .residual_update_with(x, |ff, z| ff.forward(z).mul_scalar(0.5));
         let x = self
             .attn
-            .residual_update(x, |attn, z| attn.forward(z, positions, valid.clone()));
+            .residual_update_with(x, |attn, z| attn.forward(z, positions, valid.clone()));
         let x = self
             .conv
-            .residual_update(x, |conv, z| conv.forward(z, valid));
+            .residual_update_with(x, |conv, z| conv.forward(z, valid));
         let x = self
             .feed_forward2
-            .residual_update(x, |ff, z| ff.forward(z).mul_scalar(0.5));
+            .residual_update_with(x, |ff, z| ff.forward(z).mul_scalar(0.5));
         let y = self.out_norm.forward(x);
 
         #[cfg(any(debug_assertions, test))]

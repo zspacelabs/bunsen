@@ -423,7 +423,7 @@ impl CausalDecoderBlock {
             value_embed,
             key_valid,
         } = sides;
-        let x = self.attn.residual_update(input, |attn, z| {
+        let x = self.attn.residual_update_with(input, |attn, z| {
             attn.forward_with(
                 z,
                 r_emb,
@@ -434,7 +434,7 @@ impl CausalDecoderBlock {
                 },
             )
         });
-        self.mlp.residual_update(x, |mlp, h| {
+        self.mlp.residual_update_with(x, |mlp, h| {
             let h = match (&self.mlp_scale, cond) {
                 (None, None) => h,
                 (Some(scale), Some(cond)) => scale.forward(h, cond),

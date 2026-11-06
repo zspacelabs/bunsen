@@ -237,8 +237,8 @@ impl ResidualEncoderAttentionBlock {
             };
             attn.forward(input).context
         };
-        let x = self.attn.residual_update(x, attend);
-        self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
+        let x = self.attn.residual_update_with(x, attend);
+        self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z))
     }
 }
 

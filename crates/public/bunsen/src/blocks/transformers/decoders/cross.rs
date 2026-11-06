@@ -218,20 +218,17 @@ impl CrossDecoderBlock {
     ) -> CrossDecoderRecord {
         let x = self
             .attn
-            .residual_update(x, |attn, z| self_attn(attn, z, mask).context);
+            .residual_update_with(x, |attn, z| self_attn(attn, z, mask).context);
 
-        let mut ca_weights = None;
-        let x = self.cross_attn.residual_update(x, |attn, z| {
-            let out = cross_attn(attn, z, xa);
-            ca_weights = Some(out.weights);
-            out.context
-        });
+        let (x, ca_weights) = self
+            .cross_attn
+            .residual_update_with(x, |attn, z| cross_attn(attn, z, xa));
 
-        let x = self.mlp.residual_update(x, |mlp, z| mlp.forward(z));
+        let x = self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z));
 
         CrossDecoderRecord {
             output: x,
-            ca_weights: ca_weights.expect("the cross-attention ran"),
+            ca_weights,
         }
     }
 
@@ -264,14 +261,14 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = self.attn.residual_update(x, |attn, z| {
+        let x = self.attn.residual_update_with(x, |attn, z| {
             self_attn_w_kv_cache(attn, z, mask, cache, layer)
         });
         let x = self
             .cross_attn
-            .residual_update(x, |attn, z| cross_attn_w_kv_cache(attn, z, cache, layer));
+            .residual_update_with(x, |attn, z| cross_attn_w_kv_cache(attn, z, cache, layer));
 
-        self.mlp.residual_update(x, |mlp, z| mlp.forward(z))
+        self.mlp.residual_update_with(x, |mlp, z| mlp.forward(z))
     }
 
     /// Projects the encoder output into this block's cross-attention keys and
