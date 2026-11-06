@@ -39,7 +39,7 @@ pub const QWEN3_5_TEXT_PREFIXES: [&str; 2] = ["model.language_model.", "model."]
 
 /// The `1 + w` norms, by their paths under a layer of the canonical scheme:
 /// the two sublayers' and the attention's QK-norms. The `DeltaNet`'s gated norm
-/// (`attn.norm`) applies its gain as stored.
+/// (`attn.norm.norm`) applies its gain as stored.
 const ZERO_CENTERED_LAYER_NORMS: [&str; 4] = [
     "attn_norm.weight",
     "mlp_norm.weight",
@@ -52,13 +52,15 @@ const ZERO_CENTERED_LAYER_NORMS: [&str; 4] = [
 /// `post_attention_layernorm`) and a full layer's `self_attn`, as
 /// [`CausalDecoderBlock::layer_rekey`] maps them; a linear layer's
 /// `linear_attn` the mixer's fields under their own names, but `A_log`,
-/// which is `a_log`; and the `SwiGLU`'s projections as they are.
+/// which is `a_log`, and the gated norm's gain, which is its norm's
+/// (`norm.norm.weight`); and the `SwiGLU`'s projections as they are.
 pub fn text_layer_rekey() -> Rekey {
     CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
         "input_layernorm",
         "post_attention_layernorm",
     ))
     .rename("linear_attn.A_log", "attn.a_log")
+    .rename("linear_attn.norm.", "attn.norm.norm.")
     .rename("linear_attn.", "attn.")
 }
 
@@ -267,7 +269,7 @@ mod tests {
             ),
             (
                 "model.language_model.layers.0.linear_attn.norm.weight",
-                Some("stack.layers.0.attn.norm.weight"),
+                Some("stack.layers.0.attn.norm.norm.weight"),
             ),
             (
                 "model.language_model.layers.3.self_attn.q_proj.weight",
