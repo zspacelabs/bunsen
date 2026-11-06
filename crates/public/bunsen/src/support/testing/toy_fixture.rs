@@ -133,11 +133,35 @@ pub fn assert_io_close<const D: usize>(
     actual: Tensor<D>,
     expected: Tensor<D>,
 ) {
+    assert_io_close_within(what, actual, expected, Tolerance::rel_abs(1e-3, 1e-4));
+}
+
+/// [`assert_io_close`] within `tolerance`: for a toy whose reference is
+/// computed partly in float32 (a `transformers` model that widens some steps
+/// to float32 only). Prints the largest absolute difference, the measure a
+/// tolerance is set from.
+///
+/// # Returns
+/// The largest absolute difference.
+///
+/// # Panics
+/// When they differ; the message names `what`.
+pub fn assert_io_close_within<const D: usize>(
+    what: &str,
+    actual: Tensor<D>,
+    expected: Tensor<D>,
+    tolerance: Tolerance<f32>,
+) -> f32 {
     assert_eq!(actual.dims(), expected.dims(), "{what}: shape");
-    actual.to_data_as::<f32>().assert_approx_eq::<f32>(
-        &expected.to_data_as::<f32>(),
-        Tolerance::rel_abs(1e-3, 1e-4),
-    );
+    let (actual, expected) = (actual.to_data_as::<f32>(), expected.to_data_as::<f32>());
+    let gap = actual
+        .iter::<f32>()
+        .zip(expected.iter::<f32>())
+        .map(|(a, e)| (a - e).abs())
+        .fold(0.0, f32::max);
+    eprintln!("{what}: off by at most {gap:.2e}");
+    actual.assert_approx_eq::<f32>(&expected, tolerance);
+    gap
 }
 
 /// A decoder with its toy input, as [`check_decoder_toy`] runs it: the
