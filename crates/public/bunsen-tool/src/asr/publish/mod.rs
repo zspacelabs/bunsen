@@ -25,9 +25,9 @@ use config::{
     Opts,
 };
 
-use crate::cli::asr::{
+use crate::asr::{
     construct::Stamp,
-    transcribe_cmd::Transcript,
+    transcript::Transcript,
 };
 
 /// A run of committed text one speaker spoke; undiarized, a run of text.

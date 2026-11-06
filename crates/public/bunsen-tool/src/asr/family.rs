@@ -11,6 +11,7 @@ use bunsen::{
         pretrained::{
             Pretrained,
             PretrainedCache,
+            PretrainedCacheOptions,
         },
     },
     errors::{
@@ -67,8 +68,10 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::cli::asr::{
-    transcribe_cmd::FamilyFlags,
+use crate::asr::{
+    parakeet::ParakeetFlags,
+    qwen3_asr::Qwen3AsrFlags,
+    voxtral::VoxtralFlags,
     whisper,
 };
 
@@ -397,6 +400,37 @@ pub fn load_logged<H: ConstructInit>(
     log::info!("  device: {device:?}; loaded in {:.1?}", t0.elapsed());
     Ok(loaded.handle)
 }
+
+/// A family's own transcription flags: paths, not policy.
+pub trait FamilyFlags: std::fmt::Debug {
+    /// Whisper's, when these are Whisper's.
+    fn whisper(&self) -> Option<&whisper::WhisperFlags> {
+        None
+    }
+
+    /// The cache options these flags call for, over `options`.
+    fn cache_options(
+        &self,
+        options: PretrainedCacheOptions,
+    ) -> PretrainedCacheOptions {
+        match self.whisper() {
+            Some(whisper) => whisper.cache_options(options),
+            None => options,
+        }
+    }
+}
+
+impl FamilyFlags for whisper::WhisperFlags {
+    fn whisper(&self) -> Option<&whisper::WhisperFlags> {
+        Some(self)
+    }
+}
+
+impl FamilyFlags for ParakeetFlags {}
+
+impl FamilyFlags for Qwen3AsrFlags {}
+
+impl FamilyFlags for VoxtralFlags {}
 
 #[cfg(test)]
 mod tests {

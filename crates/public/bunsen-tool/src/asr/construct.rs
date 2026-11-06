@@ -18,7 +18,7 @@ use serde::{
     Serialize,
 };
 
-use crate::cli::{
+use crate::{
     asr::{
         family::Family,
         stream::{
@@ -27,7 +27,7 @@ use crate::cli::{
             VadArgs,
         },
     },
-    with_patch,
+    support::with_patch,
 };
 
 /// Which of a preset's recipes a command runs.
@@ -462,7 +462,7 @@ pub struct Implication {
 }
 
 /// The ASR construct's table, as data: `asr_construct.yml`, embedded and
-/// read once ([`catalog`]).
+/// read once ([`construct_config`]).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AsrConstructConfig {
@@ -1054,9 +1054,7 @@ mod tests {
             let Some(tasks) = &engine.tasks else {
                 continue;
             };
-            let listing = crate::cli::asr::family::Kit::Asr(*family)
-                .listing()
-                .unwrap();
+            let listing = crate::asr::family::Kit::Asr(*family).listing().unwrap();
             for preset in tasks.presets.values() {
                 assert!(
                     listing

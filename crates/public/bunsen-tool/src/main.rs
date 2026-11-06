@@ -9,9 +9,15 @@
 use std::process::ExitCode;
 
 use bunsen::errors::BunsenResult;
+use bunsen_tool::{
+    asr,
+    card,
+    chat,
+    decide,
+    devices,
+    support::did_you_mean,
+};
 use clap::Parser;
-
-mod cli;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -24,18 +30,18 @@ struct Args {
 enum Command {
     /// Speech to text, by preset (`asr transcribe`, `asr live`) or by model
     /// family (`asr family`), and who spoke when (`asr diarize`).
-    Asr(cli::asr::AsrCmd),
+    Asr(asr::cli::AsrCmd),
 
     /// Chat with a Qwen3 or nanochat checkpoint: one prompt (`chat run`), a
     /// conversation (`chat repl`), and the checkpoints (`chat list`, `chat
     /// fetch`); `chat family` for one family's.
-    Chat(cli::chat::ChatCmd),
+    Chat(chat::cli::ChatCmd),
 
     /// Typed questions about a context, answered with calibrated
     /// probabilities by a Laya decision model: a request (YAML or JSON) in
     /// (`decide run`), one result per question out; and the checkpoints
     /// (`decide list`, `decide fetch`).
-    Decide(cli::decide::DecideCmd),
+    Decide(decide::cli::DecideCmd),
 
     /// The weights cache every command loads through: where it is, what it
     /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
@@ -46,22 +52,22 @@ enum Command {
     /// What this build is (`build`: its version and features), its weights
     /// cache (`config`), and the models it knows by name (`kits`: by kind and
     /// family, a name and a description each), as YAML or JSON.
-    Card(cli::card::CardCmd),
+    Card(card::CardCmd),
 
     /// The backends this build can run on, each one's default device, and
     /// what the device does with each float dtype (store, compute,
     /// accelerate), as YAML or JSON.
-    Devices(cli::devices::DevicesCmd),
+    Devices(devices::DevicesCmd),
 }
 
 /// Runs the command; a failure is printed as its report, then, for a name
-/// a table does not have, the names nearest it ([`cli::did_you_mean`]).
+/// a table does not have, the names nearest it ([`did_you_mean`]).
 fn main() -> ExitCode {
     match run(&Args::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("Error: {error:?}");
-            if let Some(hint) = cli::did_you_mean::hint(&error) {
+            if let Some(hint) = did_you_mean::hint(&error) {
                 eprintln!("{hint}");
             }
             ExitCode::FAILURE

@@ -70,24 +70,26 @@ use bunsen_app::{
         LogPolicy,
     },
 };
-use bunsen_tool::chat::{
-    ChatBackend,
-    ChatMessage,
-    ChatModel,
-    ChatReply,
-    ChatSession,
-    ChatSessionConfig,
-    GemmaChat,
-    NanoChatChat,
-    Qwen3_5Chat,
-    Qwen3Chat,
-    no_chat_template,
-    search_config,
-};
 
-use crate::cli::{
-    PresetArgs,
-    with_presets,
+use crate::{
+    chat::{
+        ChatBackend,
+        ChatMessage,
+        ChatModel,
+        ChatReply,
+        ChatSession,
+        ChatSessionConfig,
+        GemmaChat,
+        NanoChatChat,
+        Qwen3_5Chat,
+        Qwen3Chat,
+        no_chat_template,
+        search_config,
+    },
+    support::{
+        PresetArgs,
+        with_presets,
+    },
 };
 
 /// `bunsen-tool chat`'s commands.
@@ -920,7 +922,7 @@ pub(crate) fn print_row(
     if let Some(origin) = &row.origin {
         println!("  origin: {origin}");
     }
-    for line in crate::cli::preset_lines(&row.presets) {
+    for line in crate::support::preset_lines(&row.presets) {
         println!("{line}");
     }
     for (key, r) in &row.resources.resources {

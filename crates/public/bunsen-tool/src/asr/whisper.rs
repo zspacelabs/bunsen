@@ -43,12 +43,10 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::cli::asr::{
-    stream::{
-        self,
-        Emission,
-    },
-    transcribe_cmd::{
+use crate::asr::{
+    stream,
+    stream::Emission,
+    transcript::{
         Segment,
         Transcript,
         segment_speaker,

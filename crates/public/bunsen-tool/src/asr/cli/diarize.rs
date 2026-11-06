@@ -1,9 +1,6 @@
 //! `asr diarize`: who spoke when, through Sortformer.
 use std::{
-    path::{
-        Path,
-        PathBuf,
-    },
+    path::PathBuf,
     sync::Arc,
     time::Instant,
 };
@@ -38,18 +35,24 @@ use burn::tensor::Device;
 use serde::Serialize;
 
 #[cfg(feature = "live")]
-use crate::cli::asr::capture::CaptureArgs;
-use crate::cli::{
-    PresetArgs,
+use crate::asr::capture::CaptureArgs;
+use crate::{
     asr::{
+        cli::{
+            fetch_cmd::FetchCmd,
+            list_cmd::ListCmd,
+        },
         family::{
             Kit,
             load_logged,
         },
-        fetch_cmd::FetchCmd,
-        list_cmd::ListCmd,
-        transcribe_cmd::millis,
+        transcript::{
+            millis,
+            recording_id,
+            speaker_name,
+        },
     },
+    support::PresetArgs,
 };
 
 /// The diarizer's commands.
@@ -226,11 +229,6 @@ struct JsonDiarization {
     speakers: Vec<JsonSpeaker>,
 }
 
-/// A speaker's name, as `NeMo` and the RTTM output name it.
-pub fn speaker_name(index: usize) -> String {
-    format!("speaker_{index}")
-}
-
 /// A turn as a text line: `{start} {end} speaker_{k}`, in seconds.
 fn text_line(turn: &SpeakerTurn) -> String {
     format!(
@@ -239,13 +237,6 @@ fn text_line(turn: &SpeakerTurn) -> String {
         turn.end,
         speaker_name(turn.speaker)
     )
-}
-
-/// The recording id `--rttm` gives `path`: its stem.
-pub fn recording_id(path: &Path) -> String {
-    path.file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| path.display().to_string())
 }
 
 /// Each speaker's total speech and turn count, by speaker.
@@ -430,8 +421,10 @@ impl LiveCmd {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
-    use crate::cli::with_presets;
+    use crate::support::with_presets;
 
     /// Text lines and JSON name speakers as `NeMo` and the RTTM do, and
     /// round times to the millisecond.

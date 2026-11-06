@@ -22,12 +22,10 @@ use bunsen::{
     },
 };
 
-use crate::cli::asr::{
-    stream::{
-        self,
-        Emission,
-    },
-    transcribe_cmd::{
+use crate::asr::{
+    stream,
+    stream::Emission,
+    transcript::{
         Transcript,
         Word,
         millis,

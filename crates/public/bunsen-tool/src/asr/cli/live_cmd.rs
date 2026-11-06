@@ -20,16 +20,18 @@ use bunsen_app::{
     },
 };
 
-use crate::cli::{
-    PresetArgs,
+use crate::{
     asr::{
         capture::CaptureArgs,
-        diarize::SpeakerArgs,
+        cli::diarize::SpeakerArgs,
         driver::{
             Driver,
             Stream,
         },
-        family::Family,
+        family::{
+            Family,
+            FamilyFlags,
+        },
         publish::{
             Clock,
             Event,
@@ -42,8 +44,8 @@ use crate::cli::{
             Streaming,
             VadArgs,
         },
-        transcribe_cmd::FamilyFlags,
     },
+    support::PresetArgs,
 };
 
 /// Transcribes the microphone, as it speaks, through the family's stream

@@ -34,9 +34,11 @@ use bunsen_app::{
         LogPolicy,
     },
 };
-use bunsen_tool::chat::HfTokenizer;
 
-use crate::cli::card::Format;
+use crate::{
+    card::Format,
+    chat::HfTokenizer,
+};
 
 /// `bunsen-tool decide`'s commands.
 #[derive(clap::Args, Debug)]
@@ -225,7 +227,7 @@ impl ListCmd {
         let factory = default_laya_factory()?;
         for id in factory.ids() {
             let (_, row) = factory.lookup(&id)?;
-            crate::cli::chat::print_row(&cache, LAYA_KIT, &id, &row, DEFAULT_LAYA_MODEL, self.urls);
+            crate::chat::cli::print_row(&cache, LAYA_KIT, &id, &row, DEFAULT_LAYA_MODEL, self.urls);
         }
         Ok(())
     }

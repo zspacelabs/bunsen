@@ -19,7 +19,7 @@ use bunsen_app::device::{
 use burn::tensor::FloatDType;
 use clap::ValueEnum;
 
-use crate::cli::card::{
+use crate::card::{
     Format,
     Value,
     render,
