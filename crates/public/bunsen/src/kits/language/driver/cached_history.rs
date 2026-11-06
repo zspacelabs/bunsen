@@ -10,13 +10,14 @@ pub trait RewindableCache {
     /// The position the next step writes at: the tokens held.
     fn pos(&self) -> usize;
 
-    /// Whether [`truncate`](Self::truncate) can rewind to `pos`.
-    fn can_truncate(
+    /// The furthest position at or before `pos` that
+    /// [`truncate`](Self::truncate) can rewind to; 0, a reset, at worst.
+    fn rewind_point(
         &self,
         pos: usize,
-    ) -> bool;
+    ) -> usize;
 
-    /// Rewinds to `pos`, which [`can_truncate`](Self::can_truncate) allows.
+    /// Rewinds to `pos`, a [`rewind_point`](Self::rewind_point).
     fn truncate(
         &mut self,
         pos: usize,
@@ -30,11 +31,15 @@ impl RewindableCache for KVCache {
         KVCache::pos(self)
     }
 
-    fn can_truncate(
+    fn rewind_point(
         &self,
         pos: usize,
-    ) -> bool {
-        KVCache::can_truncate(self, pos)
+    ) -> usize {
+        if KVCache::can_truncate(self, pos) {
+            pos
+        } else {
+            0
+        }
     }
 
     fn truncate(
@@ -46,17 +51,18 @@ impl RewindableCache for KVCache {
 }
 
 /// A decoder stack's cache rewinds as its KV cache does, but its
-/// linear-attention states only reset ([`DecoderStackCache::truncate`]).
+/// linear-attention states go back only to their snapshot, or reset
+/// ([`DecoderStackCache::rewind_point`]).
 impl RewindableCache for DecoderStackCache {
     fn pos(&self) -> usize {
         DecoderStackCache::pos(self)
     }
 
-    fn can_truncate(
+    fn rewind_point(
         &self,
         pos: usize,
-    ) -> bool {
-        DecoderStackCache::can_truncate(self, pos)
+    ) -> usize {
+        DecoderStackCache::rewind_point(self, pos)
     }
 
     fn truncate(
@@ -74,11 +80,13 @@ impl RewindableCache for DecoderStackCache {
 /// A multi-turn session renders its whole conversation for each turn, and
 /// most of it is what the cache already holds. [`rewind`](Self::rewind)
 /// keeps the prefix the new rendering shares with the history, truncates
-/// the cache to it ([`KVCache::truncate`]), and returns the rest, which is
-/// all the session has to prefill. Where the cache cannot rewind that far
-/// (a sliding window has dropped the positions it would keep, or a hybrid
-/// model's linear-attention states, which summarize the whole prefix, would
-/// have to rewind), it resets, and the whole rendering is left to prefill. At
+/// the cache to it, and returns the rest, which is all the session has to
+/// prefill. Where the cache cannot rewind that far, it goes back as far as it
+/// can ([`RewindableCache::rewind_point`]): a KV cache whose sliding window
+/// dropped the positions it would keep resets; a hybrid model's
+/// linear-attention states, which summarize the whole prefix, go back to
+/// their snapshot when it lies in the shared prefix, else reset. What the
+/// cache gave back is left to prefill with the rest. At
 /// least one token is always left to prefill, since a decode starts from the
 /// logits of the last prompt position.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -130,11 +138,7 @@ impl CachedHistory {
             .take_while(|(a, b)| a == b)
             .count()
             .min(next.len() - 1);
-        let shared = if cache.can_truncate(shared) {
-            shared
-        } else {
-            0
-        };
+        let shared = cache.rewind_point(shared);
         cache.truncate(shared);
         self.tokens.truncate(shared);
         &next[shared..]
@@ -246,6 +250,31 @@ mod tests {
         assert_eq!(cache.pos(), 0);
         assert!(linear_is_zero(&mut cache), "the states reset");
         assert!(history.tokens().is_empty());
+    }
+
+    /// With a snapshot in the shared prefix, a hybrid cache goes back to it,
+    /// and what follows it is left to prefill.
+    #[test]
+    fn test_rewind_a_hybrid_cache_to_its_snapshot() {
+        let mut cache = hybrid_cache();
+        let mut history = CachedHistory::new();
+        advance(&mut cache.cache, 2);
+        fill_linear(&mut cache);
+        cache.snapshot();
+        history.extend(&[1, 2]);
+        advance(&mut cache.cache, 2);
+        cache.linear.layer_mut(0).reset();
+        history.extend(&[3, 4]);
+
+        let next = [1, 2, 3, 9];
+        let todo = history.rewind(&mut cache, &next);
+        assert_eq!(todo, [3, 9], "back to the snapshot at 2");
+        assert_eq!(cache.pos(), 2);
+        assert!(
+            !linear_is_zero(&mut cache),
+            "the snapshot's states restored"
+        );
+        assert_eq!(history.tokens(), [1, 2]);
     }
 
     /// Where a sliding window has dropped the shared prefix, the cache

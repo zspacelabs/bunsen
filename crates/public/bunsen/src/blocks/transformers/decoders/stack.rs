@@ -580,21 +580,41 @@ impl DecoderStackCache {
         self.cache.pos()
     }
 
-    /// Whether [`truncate`](Self::truncate) can rewind to `pos`: the KV cache
-    /// can ([`KVCache::can_truncate`]), and, with linear-attention layers,
-    /// `pos` is the current position or 0. A linear layer's state summarizes
-    /// the whole prefix; it can stay where it is, or start over, but not
-    /// rewind.
+    /// The furthest position at or before `pos` that
+    /// [`truncate`](Self::truncate) can rewind to: `pos` itself where the KV
+    /// cache can rewind there ([`KVCache::can_truncate`]) and the stack has
+    /// no linear-attention layers, else 0. A linear layer's state summarizes
+    /// the whole prefix: it can stay where it is, go back to its
+    /// [snapshot](Self::snapshot), or start over.
+    pub fn rewind_point(
+        &self,
+        pos: usize,
+    ) -> usize {
+        let kv = if self.cache.can_truncate(pos) { pos } else { 0 };
+        if self.linear.is_empty() {
+            return kv;
+        }
+        let here = self.cache.pos();
+        [Some(here), self.linear.snapshot_pos()]
+            .into_iter()
+            .flatten()
+            .filter(|&p| p <= kv && self.cache.can_truncate(p))
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Whether [`truncate`](Self::truncate) can rewind to `pos`
+    /// ([`rewind_point`](Self::rewind_point)).
     pub fn can_truncate(
         &self,
         pos: usize,
     ) -> bool {
-        self.cache.can_truncate(pos)
-            && (self.linear.is_empty() || pos == 0 || pos == self.cache.pos())
+        self.rewind_point(pos) == pos
     }
 
-    /// Rewinds to position `pos`, as [`KVCache::truncate`]; a rewind with
-    /// linear-attention layers, which must be to 0, resets their states too.
+    /// Rewinds to position `pos`, as [`KVCache::truncate`]: a rewind with
+    /// linear-attention layers to their snapshot's position restores it,
+    /// and one to 0 resets them.
     ///
     /// # Panics
     /// If it [cannot](Self::can_truncate) rewind to `pos`.
@@ -605,13 +625,27 @@ impl DecoderStackCache {
         assert!(
             self.can_truncate(pos),
             "cannot truncate a decode cache at {} to {pos}: its linear-attention states \
-             only reset",
-            self.cache.pos()
+             go back only to their snapshot ({:?}) or to 0",
+            self.cache.pos(),
+            self.linear.snapshot_pos()
         );
-        if pos < self.cache.pos() {
-            self.linear.reset();
+        if pos < self.cache.pos() && !self.linear.is_empty() {
+            if pos == 0 {
+                self.linear.reset();
+            } else {
+                self.linear.restore_snapshot();
+            }
         }
         self.cache.truncate(pos);
+    }
+
+    /// Keeps the linear-attention layers' states as they are now, at the
+    /// cache's position, for a later [`truncate`](Self::truncate) to go back
+    /// to (a chat's turn boundary); a no-op for a stack that only attends.
+    pub fn snapshot(&mut self) {
+        if !self.linear.is_empty() {
+            self.linear.take_snapshot(self.cache.pos());
+        }
     }
 
     /// Back to the start: the KV cache's position 0, and the linear states
@@ -1249,6 +1283,44 @@ mod tests {
             &whole_swapped.slice_dim(1, 3..n),
             tolerance,
         );
+    }
+
+    /// A hybrid decode rewound to its snapshot goes on as though the
+    /// positions after it were never run: fed another continuation, it is
+    /// the uncached pass of that conversation. Without a snapshot it can
+    /// rewind only to 0, and past one only to it.
+    #[test]
+    #[serial]
+    fn test_hybrid_rewinds_to_its_snapshot() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        device.seed(10);
+        let stack: DecoderStack = hybrid().init(&device);
+        let n = 7;
+        let x: Tensor<3> = seeded_tensor(13, [1, n, 16], Distribution::Default, &device);
+        let y: Tensor<3> = seeded_tensor(14, [1, n, 16], Distribution::Default, &device);
+        let joined = Tensor::cat(
+            vec![x.clone().slice_dim(1, 0..3), y.clone().slice_dim(1, 3..n)],
+            1,
+        );
+        let r_emb = stack.rotary(n, &device);
+        let expected = stack
+            .forward_hidden(joined, &r_emb, None)
+            .slice_dim(1, 3..n);
+
+        let mut cache = stack.decode_cache(1, n, KVCacheStorage::Auto, &device);
+        let _ = stack.forward_cached(x.clone().slice_dim(1, 0..2), &mut cache);
+        assert_eq!(cache.rewind_point(1), 0, "no snapshot: only a reset");
+        let _ = stack.forward_cached(x.clone().slice_dim(1, 2..3), &mut cache);
+        cache.snapshot();
+        let _ = stack.forward_cached(x.slice_dim(1, 3..5), &mut cache);
+        assert_eq!(cache.rewind_point(4), 3, "back to the snapshot at most");
+        assert_eq!(cache.rewind_point(2), 0, "before the snapshot: a reset");
+        assert!(cache.can_truncate(5) && cache.can_truncate(3));
+        cache.truncate(3);
+        assert_eq!(cache.pos(), 3);
+        let got = stack.forward_cached(y.slice_dim(1, 3..n), &mut cache);
+        assert_tensors_close(&got, &expected, Tolerance::rel_abs(1e-4, 1e-4));
     }
 
     /// A hybrid stack refuses a KV cache without its linear layers' states:

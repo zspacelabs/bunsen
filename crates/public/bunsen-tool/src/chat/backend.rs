@@ -5,7 +5,10 @@ use std::{
 };
 
 use bunsen::{
-    blocks::transformers::decoders::stack::DecoderStackCache,
+    blocks::transformers::decoders::stack::{
+        DecoderStackCache,
+        DecoderStackMeta,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -86,6 +89,32 @@ pub trait ChatBackend: Debug + Send + Sync + 'static {
         messages: &[ChatMessage],
         enable_thinking: Option<bool>,
     ) -> BunsenResult<Vec<i64>>;
+
+    /// Where, in the prompt [`render`](Self::render) gives for `messages`,
+    /// the decode state should be [snapshot](Self::snapshot): the end of the
+    /// conversation before the assistant's turn opens, where the next turn's
+    /// rendering will part from what the state holds (a template that
+    /// drops a reply's thinking parts inside it). `None` (the default) for a
+    /// backend whose state rewinds to any position, or a prompt that does
+    /// not split there.
+    ///
+    /// # Errors
+    /// As the checkpoint's renderer.
+    fn snapshot_point(
+        &self,
+        _messages: &[ChatMessage],
+        _enable_thinking: Option<bool>,
+    ) -> BunsenResult<Option<usize>> {
+        Ok(None)
+    }
+
+    /// Keeps `state` as it is now, for a later [`rewind`](Self::rewind) to
+    /// go back to; a no-op by default.
+    fn snapshot(
+        &self,
+        _state: &mut Self::State,
+    ) {
+    }
 
     /// What turns the reply's ids into text.
     fn detokenizer(&self) -> Arc<dyn Detokenizer>;
@@ -325,6 +354,36 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
     ) -> BunsenResult<Vec<i64>> {
         let text = self.template.render(messages, true, enable_thinking)?;
         self.tokenizer.encode(&text)
+    }
+
+    /// For a model with linear-attention layers, whose states cannot rewind:
+    /// the length of the conversation rendered without a generation prompt,
+    /// where its rendering with one is that and more.
+    fn snapshot_point(
+        &self,
+        messages: &[ChatMessage],
+        enable_thinking: Option<bool>,
+    ) -> BunsenResult<Option<usize>> {
+        if self.bundle.model.stack().layer_attends().iter().all(|&a| a) {
+            return Ok(None);
+        }
+        let open = self.template.render(messages, true, enable_thinking)?;
+        let closed = self.template.render(messages, false, enable_thinking)?;
+        if !open.starts_with(&closed) || open.len() == closed.len() {
+            return Ok(None);
+        }
+        let (open, closed) = (
+            self.tokenizer.encode(&open)?,
+            self.tokenizer.encode(&closed)?,
+        );
+        Ok(open.starts_with(&closed).then_some(closed.len()))
+    }
+
+    fn snapshot(
+        &self,
+        state: &mut DecoderStackCache,
+    ) {
+        state.snapshot();
     }
 
     fn detokenizer(&self) -> Arc<dyn Detokenizer> {
