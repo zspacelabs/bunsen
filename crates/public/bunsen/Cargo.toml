@@ -56,11 +56,11 @@ default = [
     "store_safetensors",
 ]
 
-## Use the standard library (`burn/std`). Every other feature except the
-## backends turns this on.
-std = [
-    "burn/std",
-]
+## The standard library. bunsen requires it today: it is not `no_std`, and
+## it builds burn with `std` whatever features are on. Every other feature
+## except the backends turns this on, so it names what needs `std` when the
+## `no_std` work gates those parts behind it.
+std = []
 
 ## Enable the XmlModuleTree reflection api for querying and transforming modules.
 reflection = [
@@ -239,7 +239,9 @@ tracing = { workspace = true, optional = true }
 tracing-test = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
-burn = { workspace = true, features = ["linalg", "signal"] }
+# `std` always: bunsen uses the standard library throughout, so a build
+# without `burn/std` would compile bunsen against a burn it cannot run on.
+burn = { workspace = true, features = ["std", "linalg", "signal"] }
 # `Backend::name` of a device's dispatch backend, which names the backend stack
 # (`dispatch<fusion<cubecl<...>>>`): how bunsen sees whether burn's fusion is
 # on, however a dependent enabled it. burn keeps `Dispatch` out of its own API;
