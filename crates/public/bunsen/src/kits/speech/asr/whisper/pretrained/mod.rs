@@ -69,7 +69,7 @@
 //! The index answers without loading anything:
 //!
 //! ```rust
-//! # #[cfg(all(feature = "store", feature = "cache"))] {
+//! # #[cfg(feature = "store")] {
 //! use bunsen::kits::speech::asr::whisper::{
 //!     driver::WhisperSpecialIds,
 //!     pretrained::{
@@ -102,28 +102,28 @@
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod construct;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod factory;
 mod prefabs;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod providers;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod resource_bundles;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod vocab;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use construct::*;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use factory::*;
 pub use prefabs::*;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use providers::*;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use resource_bundles::*;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use vocab::*;
 
 #[cfg(feature = "store")]

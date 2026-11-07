@@ -303,7 +303,6 @@ mod tests {
 
     /// Every record kind decodes to what the format's reference reader
     /// (`fermion_container.py`) decodes it to, bit for bit.
-    #[cfg(feature = "store")]
     #[test]
     fn test_matches_the_reference_reader() {
         use burn::store::{

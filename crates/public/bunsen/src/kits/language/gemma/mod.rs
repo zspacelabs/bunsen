@@ -40,7 +40,7 @@ pub use construct::*;
 #[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 pub use blocks::model::*;

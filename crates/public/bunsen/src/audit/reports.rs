@@ -5,7 +5,6 @@
 //! writes a constructor for its own default options:
 //!
 //! ```
-//! # #[cfg(feature = "audit")] {
 //! use bunsen::{
 //!     audit::reports::{
 //!         BaselineMode,
@@ -23,7 +22,6 @@
 //!     Ok(ReportsOptions::new(root)
 //!         .with_mode(BaselineMode::from_env("MY_REPORTS_MODE")?))
 //! }
-//! # }
 //! ```
 //!
 //! Reports are not meant to be tracked in git.

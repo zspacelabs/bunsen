@@ -1551,7 +1551,7 @@ mod tests {
     /// Against Silero's recorded probabilities over a real clip: regions
     /// become segments in the parent stream's frame of reference, and
     /// silence is never decoded.
-    #[cfg(all(feature = "store", feature = "cache"))]
+    #[cfg(feature = "store")]
     mod voice_activity {
         use burn::module::Module;
 

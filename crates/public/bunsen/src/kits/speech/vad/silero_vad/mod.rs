@@ -29,7 +29,7 @@
 //! context fed chunk by chunk.
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store", feature = "cache"))] {
+//! # #[cfg(feature = "store")] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -125,7 +125,7 @@
 //! [other ways in](crate::kits::speech::asr::whisper#other-ways-in) show it
 //! whole.
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 pub mod blocks;

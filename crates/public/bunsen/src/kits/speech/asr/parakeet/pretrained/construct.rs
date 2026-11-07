@@ -64,14 +64,10 @@ impl ParakeetReader {
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
-    /// kind there is no reader for, or a Phonon archive in a build without
-    /// the `store` feature.
+    /// kind there is no reader for.
     pub fn for_kind(kind: Option<&str>) -> BunsenResult<Self> {
         match kind {
-            Some(PHONON_ARCHIVE) if cfg!(feature = "store") => Ok(Self::PhononArchive),
-            Some(PHONON_ARCHIVE) => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `store` feature",
-            )),
+            Some(PHONON_ARCHIVE) => Ok(Self::PhononArchive),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
                 "no Parakeet reader for a checkpoint of kind {other:?}"
@@ -85,14 +81,9 @@ impl ParakeetReader {
         loaded: &LoadedResources,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ParakeetVocabulary)> {
         match self {
-            #[cfg(feature = "store")]
             Self::PhononArchive => {
                 crate::kits::speech::asr::parakeet::read_phonon2_archive(loaded.expect(CHECKPOINT)?)
             }
-            #[cfg(not(feature = "store"))]
-            Self::PhononArchive => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `store` feature",
-            )),
             Self::Safetensors => {
                 let tokenizer = loaded.expect(VOCABULARY)?;
                 let json = std::fs::read_to_string(tokenizer).map_err(sys_at("read", tokenizer))?;
@@ -193,11 +184,7 @@ mod tests {
         let phonon = ParakeetConstructConfig::for_resource_bundle(
             &PARAKEET_CATALOG.resource_bundle("fermion/phonon-2.bps.tar.zst"),
         );
-        if cfg!(feature = "store") {
-            assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
-        } else {
-            assert!(phonon.is_err());
-        }
+        assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());
         assert!(ParakeetReader::for_kind(None).is_err());
     }

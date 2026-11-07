@@ -45,7 +45,6 @@ use crate::{
 /// mapping, which parses back to the same expression.
 ///
 /// ```
-/// # #[cfg(feature = "cache")] {
 /// use bunsen::kits::support::construct::LookupExpr;
 /// use serde_json::json;
 ///
@@ -58,7 +57,6 @@ use crate::{
 /// let bare = LookupExpr::parse("hf:Qwen/Qwen3-0.6B")?;
 /// assert_eq!(bare.name, "hf:Qwen/Qwen3-0.6B");
 /// assert!(bare.selection.is_empty());
-/// # }
 /// # Ok::<(), bunsen::errors::BunsenError>(())
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]

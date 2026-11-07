@@ -1079,7 +1079,7 @@ mod tests {
     /// once, the row is pinned by it, and an offline cache that has the
     /// listing resolves the ref again without the network; a hub that
     /// answers 401 is reported with the ref and what 401 means.
-    #[cfg(all(feature = "cache", feature = "fetch"))]
+    #[cfg(feature = "fetch")]
     #[test]
     fn test_resolve_fetches_the_listing_once_and_keeps_it() {
         use crate::data::{

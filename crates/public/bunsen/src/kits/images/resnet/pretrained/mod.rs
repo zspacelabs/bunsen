@@ -28,7 +28,7 @@
 //! swaps the activation this way before the weights land:
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store", feature = "cache"))] {
+//! # #[cfg(feature = "store")] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -71,18 +71,18 @@
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod construct;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod factory;
 mod prefabs;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 mod providers;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use construct::*;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use factory::*;
 pub use prefabs::*;
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub use providers::*;

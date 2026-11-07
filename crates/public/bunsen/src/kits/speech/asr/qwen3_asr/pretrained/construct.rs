@@ -65,14 +65,10 @@ impl Qwen3AsrReader {
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
-    /// kind there is no reader for, or a Phonon archive in a build without
-    /// the `store` feature.
+    /// kind there is no reader for.
     pub fn for_kind(kind: Option<&str>) -> BunsenResult<Self> {
         match kind {
-            Some(PHONON_ARCHIVE) if cfg!(feature = "store") => Ok(Self::PhononArchive),
-            Some(PHONON_ARCHIVE) => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `store` feature",
-            )),
+            Some(PHONON_ARCHIVE) => Ok(Self::PhononArchive),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
                 "no Qwen3-ASR reader for a checkpoint of kind {other:?}"
@@ -86,14 +82,9 @@ impl Qwen3AsrReader {
         loaded: &LoadedResources,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ByteLevelVocabulary)> {
         match self {
-            #[cfg(feature = "store")]
             Self::PhononArchive => crate::kits::speech::asr::qwen3_asr::read_phonon1_archive(
                 loaded.expect(CHECKPOINT)?,
             ),
-            #[cfg(not(feature = "store"))]
-            Self::PhononArchive => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `store` feature",
-            )),
             Self::Safetensors => {
                 let tokenizer = loaded.expect(VOCABULARY)?;
                 let json = std::fs::read_to_string(tokenizer).map_err(sys_at("read", tokenizer))?;
@@ -205,11 +196,7 @@ mod tests {
         let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
             &QWEN3_ASR_CATALOG.resource_bundle("fermion/phonon-audio6.bps.tar.zst"),
         );
-        if cfg!(feature = "store") {
-            assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
-        } else {
-            assert!(phonon.is_err());
-        }
+        assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());
         assert!(Qwen3AsrReader::for_kind(None).is_err());
     }

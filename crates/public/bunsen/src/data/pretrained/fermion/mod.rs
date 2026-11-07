@@ -18,12 +18,10 @@
 //! The fixtures in `testdata/fermion/` were written by
 //! `tools/gen_fermion_fixtures.py` with the formats' own readers and writer.
 
-#[cfg(feature = "store")]
 mod archive;
 mod five_value;
 mod quint5;
 
-#[cfg(feature = "store")]
 pub use archive::*;
 pub use five_value::*;
 pub use quint5::*;

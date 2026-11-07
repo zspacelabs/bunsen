@@ -241,7 +241,6 @@ pub fn upstream_rekey() -> Rekey {
         .mount("conv", "encoder.", ConvSeq1d::one_based_rekey())
 }
 
-#[cfg(feature = "store")]
 impl SileroVad {
     /// Load the 16khz model from tensors named as upstream's
     /// `silero_vad_16k.safetensors` names them ([`upstream_rekey`]).
@@ -329,7 +328,6 @@ mod tests {
 
     /// A state dict with upstream's names and shapes loads into every
     /// parameter, the LSTM's linears transposed as `PyTorch`'s are.
-    #[cfg(feature = "store")]
     #[test]
     fn test_load_upstream_tensors() {
         use burn::{

@@ -66,12 +66,10 @@ impl SortformerReader {
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
-    /// kind there is no reader for, or a `.nemo` in a build without the
-    /// `store` feature.
+    /// kind there is no reader for.
     pub fn for_kind(kind: Option<&str>) -> BunsenResult<Self> {
         match kind {
-            Some(NEMO) if cfg!(feature = "store") => Ok(Self::Nemo),
-            Some(NEMO) => Err(no_nemo_feature()),
+            Some(NEMO) => Ok(Self::Nemo),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
                 "no Sortformer reader for a checkpoint of kind {other:?}"
@@ -84,10 +82,6 @@ impl SortformerReader {
 /// from: `NeMo` writes the config, a few kilobytes, before the weights, and
 /// after a tokenizer's files when the model has them.
 pub const NEMO_CONFIG_PREFIX: u64 = 1024 * 1024;
-
-fn no_nemo_feature() -> BunsenError {
-    BunsenError::unsupported("a .nemo checkpoint needs bunsen's `store` feature")
-}
 
 /// How a Sortformer pretrained is built, by the [`SortformerReader`] its
 /// checkpoint's `kind` names:
@@ -145,7 +139,6 @@ impl SortformerConstructConfig {
     /// whose config is not in its first [`NEMO_CONFIG_PREFIX`] bytes, or a
     /// gzipped one, is checked once it is fetched, in
     /// [`try_init`](ConstructInit::try_init).
-    #[cfg(feature = "store")]
     fn check_nemo_config(
         map: &ResourceBundle,
         cache: &PretrainedCache,
@@ -167,7 +160,6 @@ impl SortformerConstructConfig {
     }
 
     /// A Sortformer v2 construct from a `.nemo`.
-    #[cfg(feature = "store")]
     fn construct_nemo(
         loaded: &LoadedResources,
         device: &Device,
@@ -225,10 +217,7 @@ impl ConstructInit for SortformerConstructConfig {
                     Self::read_config(&resolved.path)?;
                 }
             }
-            #[cfg(feature = "store")]
             SortformerReader::Nemo => Self::check_nemo_config(&map, cache)?,
-            #[cfg(not(feature = "store"))]
-            SortformerReader::Nemo => return Err(no_nemo_feature()),
         }
         Ok(map)
     }
@@ -245,10 +234,7 @@ impl ConstructInit for SortformerConstructConfig {
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let bundle = match self.reader {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
-            #[cfg(feature = "store")]
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
-            #[cfg(not(feature = "store"))]
-            SortformerReader::Nemo => return Err(no_nemo_feature()),
         };
         let family = SORTFORMER_CATALOG.family_presets(bundle.family.catalog_family());
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
@@ -278,13 +264,12 @@ mod tests {
         assert!(SortformerReader::for_kind(None).is_err());
         assert_eq!(
             SortformerReader::for_kind(Some(NEMO)).ok(),
-            cfg!(feature = "store").then_some(SortformerReader::Nemo)
+            Some(SortformerReader::Nemo)
         );
     }
 
     /// A `.nemo` builds a Sortformer v2 construct: the model and the front end
     /// from its config, every parameter from its weights.
-    #[cfg(feature = "store")]
     #[test]
     fn test_a_nemo_builds_a_v2_bundle() {
         use crate::{
@@ -438,7 +423,7 @@ mod tests {
     /// A `.nemo`'s config is checked in `plan` from the archive's head:
     /// a local one from its file, a remote one by a range request that
     /// fetches nothing else, a model bunsen does not build refused there.
-    #[cfg(all(feature = "store", feature = "fetch"))]
+    #[cfg(feature = "fetch")]
     #[test]
     fn test_plan_checks_a_nemo_config_from_its_head() {
         use crate::{

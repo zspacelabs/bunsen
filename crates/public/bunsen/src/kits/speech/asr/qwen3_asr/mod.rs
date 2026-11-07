@@ -50,7 +50,7 @@ pub use engine::*;
 pub use front_end::*;
 pub use prompt::*;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 #[cfg(feature = "store")]
