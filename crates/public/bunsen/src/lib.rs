@@ -1,3 +1,4 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(feature = "wgpu", recursion_limit = "512")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
