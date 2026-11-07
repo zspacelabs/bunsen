@@ -206,12 +206,14 @@ flex = ["burn/flex"]
 
 ## Test support: `support::testing` (test devices, seeded
 ## tensors, device memory, assertion helpers), with the `audio`, `tokenizer`
-## and `flex` features it needs. Not a default; bunsen's own tests turn it on
-## through a dev-dependency on bunsen itself.
+## and `flex` features it needs, and `bunsen-fetch`'s test support when the
+## cache is on. Not a default; bunsen's own tests turn it on through a
+## dev-dependency on bunsen itself.
 testing = [
     "audio",
     "tokenizer",
     "flex",
+    "bunsen-fetch?/testing",
     "dep:rand",
     "dep:tracing",
     "dep:tracing-test",

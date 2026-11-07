@@ -1261,6 +1261,7 @@ dependencies = [
 name = "bunsen-fetch"
 version = "0.41.0"
 dependencies = [
+ "bunsen-fetch",
  "document-features",
  "sha2 0.11.1",
  "tempfile",
@@ -1289,6 +1290,7 @@ version = "0.41.0"
 dependencies = [
  "bunsen",
  "bunsen-firehose",
+ "bunsen-firehose-image",
  "burn",
  "image",
  "image-compare",

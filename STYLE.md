@@ -246,11 +246,46 @@ not: dev-dependencies and crate-private test helpers.
   crate's, for verification alone, under its validation crate's `reference`.
 * `tui` — burn's terminal training dashboard; on by default in the training
   examples.
+* `testing` — a library's test support, for its own tests and its dependents'
+  (see [Test support features](#test-support-features)).
 
 These names are **reserved** across the workspace. No crate is obliged to
 offer one; a crate that offers one means this, and nothing else. Most crates
 predate the list, so this is an interim expectation — new features are named
 *to* it rather than around it.
+
+### Test support features
+
+A library in this repository that depends on bunsen, directly or through
+another of the repository's libraries, takes bunsen's test support as a
+**dev-dependency**, never as a normal one:
+
+```toml
+[dev-dependencies]
+bunsen = { path = "../bunsen", features = ["testing"] }
+```
+
+A library that exports test support of its own does it the way bunsen does:
+
+- a `testing` feature, which turns on `testing` in every library of the
+  repository it depends on (`testing = ["dep:image-compare", "bunsen/testing"]`;
+  `"crate?/testing"` for an optional one), so test support chains through
+  the whole local dependency line;
+- a dev-dependency on itself with that feature, path only (an unpublished
+  dev-dependency is dropped from the published manifest), so its own tests
+  build with it:
+
+```toml
+[dev-dependencies]
+bunsen-firehose-image = { path = ".", features = ["testing"] }
+```
+
+`testing` is never a default feature.
+
+The exception is a crate that picks its device at run time through
+`support::testing` (`cpu_device()`, `performance_device()`): the benches, the
+book's snippets, `burn_bug_repro` and the validation crates' libraries. They
+take `bunsen[testing]` as a normal dependency.
 
 ### Backend selection
 

@@ -19,9 +19,10 @@ workspace = true
 
 [features]
 ## Test support: the `test_util` module (a deterministic test image and an
-## image-similarity assertion), with the `image-compare` dependency it needs.
-## Not a default; this crate's own tests compile the module without it.
-testing = ["dep:image-compare"]
+## image-similarity assertion), with the `image-compare` dependency it needs,
+## and bunsen's `testing`. Not a default; this crate's own tests turn it on
+## through a dev-dependency on this crate itself.
+testing = ["dep:image-compare", "bunsen/testing"]
 
 [dependencies]
 burn = { workspace = true, features = ["std", "dataset", "vision"] }
@@ -45,5 +46,7 @@ image-compare = { workspace = true, optional = true }
 tempfile = { workspace = true }
 bunsen = { features = ["testing"], path = "../bunsen" }
 serial_test = { workspace = true }
-# `test_util` is compiled into this crate's tests, `testing` or not.
-image-compare = { workspace = true }
+# This crate's own tests build with its `testing`, and through it bunsen's.
+# Path only: an unpublished dev-dependency is dropped from the published
+# manifest.
+bunsen-firehose-image = { path = ".", features = ["testing"] }
