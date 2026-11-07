@@ -2,9 +2,10 @@
 """Check that `validation/Cargo.lock` builds bunsen's crates against the root lock's versions.
 
 The validation workspace depends on the bunsen workspace's crates by path, and has a lockfile of its
-own. Every package those crates reach in `validation/Cargo.lock` must be one `Cargo.lock` has, at
-the same version, or the validation suites test a dependency set the bunsen workspace never
-builds. Packages only the validation crates reach (`burn-onnx`, the protobuf crates) are theirs
+own. Every registry or git package those crates reach in `validation/Cargo.lock` must be one
+`Cargo.lock` has, at the same version, or the validation suites test a dependency set the bunsen
+workspace never builds. bunsen's own path crates are exempt: a release bumps them in `Cargo.lock`
+alone. Packages only the validation crates reach (`burn-onnx`, the protobuf crates) are theirs
 to choose.
 
 Stdlib only; run from the repository root.
@@ -52,7 +53,11 @@ def main() -> int:
         seen.add(key)
         stack.extend(resolve(d) for d in p.get("dependencies", []))
 
-    missing = sorted(seen - root)
+    # bunsen's own crates are locked by path, at whatever version the manifests say: a release
+    # bumps them in `Cargo.lock` alone, and cargo rewrites them here on the next resolve. Only what
+    # comes from a registry or git has a version to hold in step.
+    sourced = {(p["name"], p["version"]) for p in validation if "source" in p}
+    missing = sorted((seen & sourced) - root)
     for name, version in missing:
         print(f"validation/Cargo.lock: {name} {version} is not in Cargo.lock")
     if missing:
