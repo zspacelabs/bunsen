@@ -18,6 +18,12 @@ ureq = { workspace = true, optional = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 
+# docs.rs builds the network side and the test support too; without them
+# `fetch_file`, `fetch_verified`, `Asset` and `testing` are not on the page.
+# docs.rs sets `--cfg docsrs` itself.
+[package.metadata.docs.rs]
+features = ["fetch", "testing"]
+
 [lints]
 workspace = true
 

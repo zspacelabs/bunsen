@@ -18,7 +18,7 @@ description = "bunsen is a batteries included common library for burn"
 # `build.docs-rs`), and so do CI's isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
 # itself, so there are no `rustdoc-args` here.
 [package.metadata.docs.rs]
-features = ["fetch", "indicatif", "testing", "audit"]
+features = ["fetch", "indicatif", "nemo", "fermion", "testing", "audit"]
 
 [lints]
 workspace = true
