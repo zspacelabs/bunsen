@@ -3,10 +3,7 @@
 use std::sync::Arc;
 
 use crate::{
-    data::pretrained::{
-        EmbeddedCatalog,
-        PretrainedProvider,
-    },
+    data::pretrained::PretrainedProvider,
     errors::BunsenResult,
     kits::{
         speech::vad::silero_vad::pretrained::SileroConstructConfig,
@@ -41,8 +38,8 @@ pub const SILERO_NAMESPACE: &str = "silero";
 ///
 /// Built from `validation/catalogs/silero.yml` by `cargo validate catalog`.
 #[cfg(feature = "store_safetensors")]
-pub static SILERO_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("silero", include_str!("catalog.json"));
+pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
+    crate::data::pretrained::EmbeddedCatalog::new("silero", include_str!("catalog.json"));
 
 /// Silero's compiled-in providers: the well-known table (with
 /// `store_safetensors`), and none without it.

@@ -241,11 +241,21 @@ jobs:
       - name: No features at all.
         run: cargo check -p bunsen --no-default-features
 
-      - name: Cache without fetch.
-        run: cargo check -p bunsen --no-default-features --features cache
-
-      - name: Train without reflection.
-        run: cargo check -p bunsen --no-default-features --features train
+      # Each feature alone, so a feature that leans on another it does not
+      # name (an import used only under a sibling feature, a gate that names
+      # the wrong one) fails here. Not the backends: they only pass through
+      # to burn, `cuda` pulls in an LLVM-based toolchain, and `metal` builds
+      # only on macOS.
+      - name: Each feature alone.
+        run: |
+          features=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "bunsen") | .features | keys[]
+                     | select(. != "default" and (IN("cuda", "metal", "vulkan", "wgpu", "flex") | not))')
+          for feature in $features; do
+            echo "::group::$feature"
+            cargo check -p bunsen --no-default-features --features "$feature"
+            echo "::endgroup::"
+          done
 
       # `cargo publish` verifies each crate outside the workspace, with only
       # its own dependencies. Every other step here builds several crates at
