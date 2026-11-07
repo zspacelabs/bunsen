@@ -64,7 +64,7 @@ pub type ParakeetFeatures = crate::kits::speech::nemo::NemoMelFeatures;
 
 pub use crate::kits::speech::nemo::NemoMelFrontEndMeta as ParakeetFrontEndMeta;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub mod pretrained;
 #[cfg(feature = "store")]
 pub mod weights;

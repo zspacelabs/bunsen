@@ -37,7 +37,6 @@ pub const SILERO_NAMESPACE: &str = "silero";
 /// pinned revision of `snakers4/silero-vad`.
 ///
 /// Built from `validation/catalogs/silero.yml` by `cargo validate catalog`.
-#[cfg(feature = "store")]
 pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
     crate::data::pretrained::EmbeddedCatalog::new("silero", include_str!("catalog.json"));
 
@@ -48,10 +47,7 @@ pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
 /// `silero_vad_16k.safetensors`, the 16 kHz model, fetched from a pinned
 /// revision of `snakers4/silero-vad`.
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![
-        #[cfg(feature = "store")]
-        Arc::new(SILERO_CATALOG.table()),
-    ];
+    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(SILERO_CATALOG.table())];
     providers
 }
 
@@ -78,7 +74,6 @@ mod tests {
     };
 
     /// The embedded catalog hangs together.
-    #[cfg(feature = "store")]
     #[test]
     fn test_catalog() {
         SILERO_CATALOG.catalog().validate(&[]).unwrap();
@@ -86,7 +81,6 @@ mod tests {
 
     /// Upstream's row is the factory's only one, and the old bare names
     /// are not found.
-    #[cfg(feature = "store")]
     #[test]
     fn test_only_upstream_is_listed() {
         let factory = default_silero_factory().unwrap();
@@ -97,7 +91,6 @@ mod tests {
 
     /// Upstream's row is pinned to one URL, and answers by its qualified and
     /// short names.
-    #[cfg(feature = "store")]
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
         let map = SILERO_CATALOG.resource_bundle("silero/vad-16k");

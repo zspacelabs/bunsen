@@ -52,7 +52,7 @@ pub use front_end::*;
 pub use layout::*;
 pub use transcript::*;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 #[cfg(feature = "store")]

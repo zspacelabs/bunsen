@@ -118,7 +118,7 @@ use crate::{
 /// Whisper's factory dispatches without loading anything:
 ///
 /// ```rust
-/// # #[cfg(all(feature = "speech", feature = "store", feature = "cache"))] {
+/// # #[cfg(all(feature = "speech", feature = "store"))] {
 /// use bunsen::kits::speech::asr::whisper::pretrained::default_whisper_factory;
 ///
 /// let factory = default_whisper_factory()?;

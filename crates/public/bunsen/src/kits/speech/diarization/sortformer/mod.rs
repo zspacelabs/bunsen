@@ -50,7 +50,7 @@ pub use construct::*;
 pub use stream::*;
 pub use streaming::*;
 
-#[cfg(all(feature = "store", feature = "cache"))]
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 #[cfg(feature = "store")]

@@ -95,8 +95,6 @@ impl Deferred<WhisperConstructConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "store")]
-    use crate::kits::speech::asr::whisper::pretrained::WhisperReader;
     use crate::{
         data::{
             cache::BunsenDiskCacheOptions,
@@ -116,6 +114,7 @@ mod tests {
                 CHECKPOINT,
                 WHISPER_CATALOG,
                 WHISPER_KIT,
+                WhisperReader,
             },
             support::construct::testing::ListsNothing,
         },
@@ -279,15 +278,10 @@ mod tests {
         // without the feature it is refused naming the feature.
         let dir = tempfile::tempdir().unwrap();
         let resolved = factory.resolve("hub:openai/whisper-base", &offline_cache_in(dir.path()));
-        #[cfg(feature = "store")]
         assert!(matches!(
             resolved.unwrap().config.reader,
             WhisperReader::Safetensors(_)
         ));
-        #[cfg(not(feature = "store"))]
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .message_contains("the `store` feature")
-            .assert_err(&resolved);
     }
 
     /// Registering the defaults twice is the error a duplicate name is.
@@ -304,7 +298,7 @@ mod tests {
 /// Against the hub: the smallest repo, fetched once into the default
 /// cache, read whole, and checked against `OpenAI`'s own `tiny.pt`, which
 /// it was converted from.
-#[cfg(all(test, feature = "store", feature = "fetch"))]
+#[cfg(all(test, feature = "fetch"))]
 mod hub_tests {
     use burn::tensor::{
         Tensor,

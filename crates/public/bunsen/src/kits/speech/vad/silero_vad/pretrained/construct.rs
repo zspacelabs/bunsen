@@ -96,12 +96,7 @@ impl ConstructInit for SileroConstructConfig {
             }
         } else if let Some(r) = map.get(CHECKPOINT) {
             match r.kind.as_deref() {
-                Some(SAFETENSORS_KIND) if cfg!(feature = "store") => SileroReader::Safetensors,
-                Some(SAFETENSORS_KIND) => {
-                    return Err(BunsenError::unsupported(
-                        "a safetensors checkpoint needs bunsen's `store` feature",
-                    ));
-                }
+                Some(SAFETENSORS_KIND) => SileroReader::Safetensors,
                 other => {
                     return Err(BunsenError::unsupported(format!(
                         "no Silero reader for a checkpoint of kind {other:?}"
@@ -132,19 +127,12 @@ impl ConstructInit for SileroConstructConfig {
             SileroReader::Burnpack => {
                 SileroVadCollection::load_from_burnpack_file(loaded.expect(BURNPACK)?, device)?
             }
-            #[cfg(feature = "store")]
             SileroReader::Safetensors => SileroVadCollection::from_16khz(
                 crate::kits::speech::vad::silero_vad::SileroVad::load_16khz_from_safetensors_file(
                     loaded.expect(CHECKPOINT)?,
                     device,
                 )?,
             ),
-            #[cfg(not(feature = "store"))]
-            SileroReader::Safetensors => {
-                return Err(BunsenError::unsupported(
-                    "a safetensors checkpoint needs bunsen's `store` feature",
-                ));
-            }
         };
         // The files' precision (f32), or wider as the policy asks.
         let vads = load.place(vads, device, |_| true)?;
@@ -166,7 +154,6 @@ mod tests {
         assert_eq!(<SileroConstructConfig as ConstructInit>::KIT, "silero_vad");
         assert_eq!(SileroConstructConfig::new().reader, SileroReader::Burnpack);
 
-        #[cfg(feature = "store")]
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
                 &super::super::SILERO_CATALOG.resource_bundle("silero/vad-16k")

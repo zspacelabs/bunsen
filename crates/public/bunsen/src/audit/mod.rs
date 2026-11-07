@@ -67,7 +67,6 @@
 //! rather than `Tensor::random`.
 //!
 //! ```
-//! # #[cfg(feature = "audit")] {
 //! use bunsen::{
 //!     audit::AuditProbe,
 //!     burner::descriptors::TolerancePolicy,
@@ -96,7 +95,6 @@
 //!     )?;
 //!     Ok(())
 //! }
-//! # }
 //! ```
 //!
 //! ## Compare two backends
@@ -111,7 +109,6 @@
 //! [Test devices](crate::support::testing#test-devices).
 //!
 //! ```
-//! # #[cfg(feature = "audit")] {
 //! # use bunsen::{audit::AuditProbe, errors::BunsenResult};
 //! # use burn::tensor::Device;
 //! # fn softmax(_: &mut AuditProbe<'_>, _: &Device) -> BunsenResult<()> { Ok(()) }
@@ -124,7 +121,6 @@
 //! };
 //!
 //! audit_across(&cpu_device(), &performance_device(), &softmax).unwrap();
-//! # }
 //! ```
 //!
 //! ## Pin a baseline
@@ -133,7 +129,6 @@
 //! site says where the reports live; see [Configuration](#configuration).
 //!
 //! ```
-//! # #[cfg(feature = "audit")] {
 //! # use bunsen::{audit::AuditProbe, errors::BunsenResult};
 //! # use burn::tensor::Device;
 //! # fn softmax(_: &mut AuditProbe<'_>, _: &Device) -> BunsenResult<()> { Ok(()) }
@@ -157,7 +152,6 @@
 //! // From here on, runs are verified against it.
 //! let second = audit_baseline(&options, &device, "softmax", &softmax).unwrap();
 //! assert!(matches!(second, BaselineOutcome::Verified(_)));
-//! # }
 //! ```
 //!
 //! ## Drive a probe by hand
@@ -167,7 +161,6 @@
 //! probes yourself:
 //!
 //! ```
-//! # #[cfg(feature = "audit")] {
 //! use bunsen::{
 //!     audit::{
 //!         AuditProbe,
@@ -194,7 +187,6 @@
 //!         .unwrap();
 //! }
 //! verifier.finish().unwrap();
-//! # }
 //! ```
 //!
 //! # Configuration
@@ -225,7 +217,6 @@
 //! default options, and its tests call that:
 //!
 //! ```
-//! # #[cfg(feature = "audit")] {
 //! use bunsen::{
 //!     audit::reports::{
 //!         BaselineMode,
@@ -243,7 +234,6 @@
 //!     Ok(ReportsOptions::new(root)
 //!         .with_mode(BaselineMode::from_env("MY_REPORTS_MODE")?))
 //! }
-//! # }
 //! ```
 //!
 //! [`cargo_target_dir`](reports::cargo_target_dir) is
