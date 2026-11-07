@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-arrow-dataloaders-v0.41.0...bunsen-arrow-dataloaders-v0.42.0) - 2026-11-07
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-arrow-dataloaders-v0.37.0...bunsen-arrow-dataloaders-v0.38.0) - 2026-10-07
 
 ### Added
