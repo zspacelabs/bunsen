@@ -22,15 +22,24 @@ path = "src/main.rs"
 workspace = true
 
 [features]
-default = ["live", "webhook", "mqtt"]
+default = ["speech", "live", "webhook", "mqtt"]
+## `asr`: speech to text and diarization (`bunsen_tool::asr`), on bunsen's speech
+## kits and the readers of their checkpoints (`fermion`, `nemo`), and
+## Whisper's detokenizer (`tokenizer`).
+speech = [
+    "bunsen/speech",
+    "bunsen/fermion",
+    "bunsen/nemo",
+    "bunsen/tokenizer",
+]
 ## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
-live = ["dep:cpal", "dep:ctrlc"]
+live = ["speech", "dep:cpal", "dep:ctrlc"]
 ## `--publish` to a `webhook` target: each record POSTed as JSON (`ureq`).
-webhook = ["dep:ureq"]
+webhook = ["speech", "dep:ureq"]
 ## `--publish` to an `mqtt` target: each record published to a broker
 ## (`rumqttc`, plain TCP).
-mqtt = ["dep:rumqttc"]
+mqtt = ["speech", "dep:rumqttc"]
 ## Make `--device cuda` available.
 cuda = ["bunsen-app/cuda"]
 ## Make `--device metal` available.
@@ -45,16 +54,14 @@ burn = { workspace = true }
 # The backend is chosen at run time with `--device`, from those compiled in
 # through this crate's backend features; the CPU is always there.
 #
-# `fermion` reads the Phonon archives; `cache` is the chat checkpoints'
-# loading; `indicatif` puts bunsen's progress bar on every weights transfer.
-bunsen = { version = "0.41.0", path = "../bunsen", features = [
-    "store",
+# Without bunsen's defaults: the kits, the safetensors and `PyTorch`
+# readers (Qwen3, Gemma and Laya; nanochat's `.pt`), the cache every command
+# loads through, and `indicatif`'s progress bar on every weights transfer.
+# `speech` adds the speech kits and their readers.
+bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = [
+    "kits",
     "store_safetensors",
     "store_pytorch",
-    "audio",
-    "tokenizer",
-    "fermion",
-    "nemo",
     "cache",
     "indicatif",
 ] }

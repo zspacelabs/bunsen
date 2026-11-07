@@ -1,5 +1,34 @@
 //! `bunsen-tool card`: what this build is, its cache, and the models it knows.
 
+#[cfg(feature = "speech")]
+use bunsen::kits::speech::{
+    asr::{
+        parakeet::{
+            ParakeetPolicy,
+            pretrained::default_parakeet_factory,
+        },
+        qwen3_asr::{
+            Qwen3AsrPolicy,
+            pretrained::default_qwen3_asr_factory,
+        },
+        voxtral::{
+            VoxtralPolicy,
+            pretrained::default_voxtral_factory,
+        },
+        whisper::{
+            driver::WhisperPolicy,
+            pretrained::default_whisper_factory,
+        },
+    },
+    diarization::sortformer::{
+        SortformerPolicy,
+        pretrained::default_sortformer_factory,
+    },
+    vad::silero_vad::{
+        SileroPolicy,
+        pretrained::default_silero_factory,
+    },
+};
 use bunsen::{
     data::pretrained::{
         PresetSet,
@@ -25,34 +54,6 @@ use bunsen::{
             qwen3_5::{
                 Qwen3_5Policy,
                 pretrained::default_qwen3_5_factory,
-            },
-        },
-        speech::{
-            asr::{
-                parakeet::{
-                    ParakeetPolicy,
-                    pretrained::default_parakeet_factory,
-                },
-                qwen3_asr::{
-                    Qwen3AsrPolicy,
-                    pretrained::default_qwen3_asr_factory,
-                },
-                voxtral::{
-                    VoxtralPolicy,
-                    pretrained::default_voxtral_factory,
-                },
-                whisper::{
-                    driver::WhisperPolicy,
-                    pretrained::default_whisper_factory,
-                },
-            },
-            diarization::sortformer::{
-                SortformerPolicy,
-                pretrained::default_sortformer_factory,
-            },
-            vad::silero_vad::{
-                SileroPolicy,
-                pretrained::default_silero_factory,
             },
         },
         support::construct::{
@@ -316,6 +317,7 @@ pub fn card(
 /// The build: the package, its version, and the features compiled in.
 fn build() -> Value {
     let features = [
+        ("speech", cfg!(feature = "speech")),
         ("live", cfg!(feature = "live")),
         ("webhook", cfg!(feature = "webhook")),
         ("mqtt", cfg!(feature = "mqtt")),
@@ -362,36 +364,38 @@ fn kits(policies: bool) -> BunsenResult<Value> {
             family($factory, policies.then_some(policy::<_, $policy>))?
         };
     }
-    Ok(Value::map([
-        (
-            "asr",
-            Value::map([
-                (
-                    "parakeet",
-                    family!(default_parakeet_factory()?, ParakeetPolicy),
-                ),
-                (
-                    "qwen3-asr",
-                    family!(default_qwen3_asr_factory()?, Qwen3AsrPolicy),
-                ),
-                (
-                    "voxtral",
-                    family!(default_voxtral_factory()?, VoxtralPolicy),
-                ),
-                (
-                    "whisper",
-                    family!(default_whisper_factory()?, WhisperPolicy),
-                ),
-                (
-                    "sortformer",
-                    family!(default_sortformer_factory()?, SortformerPolicy),
-                ),
-                (
-                    "silero-vad",
-                    family!(default_silero_factory()?, SileroPolicy),
-                ),
-            ]),
-        ),
+    let mut kinds = Vec::new();
+    #[cfg(feature = "speech")]
+    kinds.push((
+        "asr",
+        Value::map([
+            (
+                "parakeet",
+                family!(default_parakeet_factory()?, ParakeetPolicy),
+            ),
+            (
+                "qwen3-asr",
+                family!(default_qwen3_asr_factory()?, Qwen3AsrPolicy),
+            ),
+            (
+                "voxtral",
+                family!(default_voxtral_factory()?, VoxtralPolicy),
+            ),
+            (
+                "whisper",
+                family!(default_whisper_factory()?, WhisperPolicy),
+            ),
+            (
+                "sortformer",
+                family!(default_sortformer_factory()?, SortformerPolicy),
+            ),
+            (
+                "silero-vad",
+                family!(default_silero_factory()?, SileroPolicy),
+            ),
+        ]),
+    ));
+    kinds.extend([
         (
             "chat",
             Value::map([
@@ -416,7 +420,8 @@ fn kits(policies: bool) -> BunsenResult<Value> {
                 family(default_laya_factory()?, None::<fn(&_, &str) -> _>)?,
             )]),
         ),
-    ]))
+    ]);
+    Ok(Value::map(kinds))
 }
 
 /// The policy `C` the row `name` resolves to under its default selection,
@@ -562,6 +567,7 @@ fn family<H: ConstructInit>(
 mod tests {
     use super::*;
 
+    #[cfg(feature = "speech")]
     fn offline_cache() -> PretrainedCache {
         WeightsCacheArgs {
             cache_dir: Some(std::env::temp_dir().join("bunsen-tool-card-test")),
@@ -575,6 +581,7 @@ mod tests {
     /// one-key entries, its providers first (the well-known table first of
     /// them), then its models, each a name, its aliases, a description, a
     /// size and its dtypes, in that order; every model's size is known.
+    #[cfg(feature = "speech")]
     #[test]
     fn test_card_shape() {
         let card = card(&offline_cache(), true).unwrap();
@@ -697,6 +704,7 @@ mod tests {
 
     /// Without `--policies`, a row's presets are in brief, its axes and
     /// default, and there is no policy.
+    #[cfg(feature = "speech")]
     #[test]
     fn test_card_presets_in_brief() {
         let card = card(&offline_cache(), false).unwrap().elide_empty();
