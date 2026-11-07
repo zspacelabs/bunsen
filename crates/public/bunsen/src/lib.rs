@@ -127,10 +127,12 @@ pub mod burner;
 pub mod contracts;
 pub mod data;
 pub mod errors;
+#[cfg(feature = "kits")]
 pub mod kits;
 pub mod ops;
 pub mod prelude;
 pub mod rust_ext;
+#[cfg(feature = "sims")]
 pub mod sims;
 pub mod support;
 pub mod zspace;

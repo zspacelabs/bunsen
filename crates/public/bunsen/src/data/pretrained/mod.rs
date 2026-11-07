@@ -123,7 +123,7 @@
 //! temporary directory. Nothing here reaches the network.
 //!
 //! ```rust
-//! # #[cfg(feature = "cache")] {
+//! # #[cfg(all(feature = "cache", feature = "kits"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
