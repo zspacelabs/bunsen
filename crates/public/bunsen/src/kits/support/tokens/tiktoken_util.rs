@@ -1,9 +1,8 @@
 //! # The `.tiktoken` rank file.
 
-use std::{
-    collections::HashMap,
-    path::Path,
-};
+use std::path::Path;
+
+use hashbrown::HashMap;
 
 use crate::errors::{
     BunsenError,

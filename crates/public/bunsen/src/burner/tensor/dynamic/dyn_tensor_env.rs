@@ -5,13 +5,13 @@ use alloc::{
     },
     sync::Arc,
 };
-use std::collections::HashSet;
 
 use burn::{
     Tensor,
     tensor::kind::Basic,
 };
 use dashmap::DashMap;
+use hashbrown::HashSet;
 
 use crate::prelude::dynamic::DynTensor;
 

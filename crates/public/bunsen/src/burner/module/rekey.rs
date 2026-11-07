@@ -13,7 +13,8 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use std::collections::{
+
+use hashbrown::{
     HashMap,
     HashSet,
 };

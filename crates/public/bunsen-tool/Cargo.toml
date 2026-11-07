@@ -85,5 +85,7 @@ wordchipper = { workspace = true, features = ["std", "fast-hash"] }
 tokenizers = { workspace = true }
 
 [dev-dependencies]
+# `serde`: the toy tokenizer JSON the tests build.
+hashbrown = { workspace = true, features = ["serde"] }
 bunsen = { path = "../bunsen", features = ["testing"] }
 tempfile = { workspace = true }

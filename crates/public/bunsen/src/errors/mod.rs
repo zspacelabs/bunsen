@@ -299,6 +299,7 @@ mod bunsen_error;
 mod constraint_error;
 mod detailed;
 mod digest_mismatch;
+#[cfg(feature = "std")]
 mod foreign;
 mod frame;
 mod kind;
@@ -314,6 +315,7 @@ pub use bunsen_error::*;
 pub use constraint_error::*;
 pub use detailed::*;
 pub use digest_mismatch::*;
+#[cfg(feature = "std")]
 pub use foreign::*;
 pub use frame::*;
 pub use kind::*;

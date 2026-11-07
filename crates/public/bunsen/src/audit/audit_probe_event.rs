@@ -3,15 +3,13 @@ use alloc::{
     vec::Vec,
 };
 use core::fmt::Debug;
-use std::{
-    collections::HashMap,
-    time::SystemTime,
-};
+use std::time::SystemTime;
 
 use burn::prelude::{
     Shape,
     TensorData,
 };
+use hashbrown::HashMap;
 
 use crate::{
     audit::audit_probe::AuditProbeEventParams,

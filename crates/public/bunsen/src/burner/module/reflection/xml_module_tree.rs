@@ -389,9 +389,8 @@ impl XmlModuleTree {
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
     /// # let device = bunsen::support::testing::cpu_device();
-    /// use std::collections::HashSet;
-    ///
     /// use burn::module::ParamId;
+    /// use hashbrown::HashSet;
     ///
     /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);

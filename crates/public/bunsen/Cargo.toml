@@ -130,7 +130,6 @@ store = [
 train = [
     "std",
     "burn/train",
-    "dep:hashbrown",
 ]
 
 ## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
@@ -265,7 +264,7 @@ burn-backend = { version = "0.22.1", default-features = false }
 burn-dispatch = { version = "0.22.1", default-features = false }
 
 # burner-locked public deps:
-hashbrown = { workspace = true, optional = true }
+hashbrown = { workspace = true }
 # The dependencies the core shares with a `no_std` build take `std` only
 # through bunsen's `std` feature (the workspace's entries carry their
 # defaults, which a member cannot turn off).
