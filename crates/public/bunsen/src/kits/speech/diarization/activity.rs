@@ -1,6 +1,6 @@
 //! # Speaker activity, and the diarizer seam.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use dyn_clone::DynClone;
 

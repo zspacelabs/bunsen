@@ -1,12 +1,12 @@
 //! What a pretrained cache holds, and removing it.
+use alloc::fmt;
+use core::str::FromStr;
 use std::{
-    fmt,
     fs,
     path::{
         Path,
         PathBuf,
     },
-    str::FromStr,
     time::SystemTime,
 };
 

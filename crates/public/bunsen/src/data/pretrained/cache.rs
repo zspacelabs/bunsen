@@ -1,8 +1,10 @@
 //! The pretrained cache: digest-pinned resources under the disk cache.
 
-use std::{
+use alloc::{
     collections::BTreeMap,
     fmt,
+};
+use std::{
     fs,
     io::Write,
     path::{
@@ -1145,10 +1147,8 @@ mod tests {
     /// they were. A file the process cannot write loads, its times kept.
     #[test]
     fn test_a_load_marks_a_cached_file_used() {
-        use std::time::{
-            Duration,
-            SystemTime,
-        };
+        use core::time::Duration;
+        use std::time::SystemTime;
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path(), true);
         let r = res(

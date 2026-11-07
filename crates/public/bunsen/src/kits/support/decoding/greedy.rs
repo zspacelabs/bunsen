@@ -161,7 +161,7 @@ impl TokenSearch for GreedySearch {
         prompt_len: usize,
     ) -> Vec<Vec<Candidate>> {
         let group = self.group.max(1);
-        let stopped = std::mem::take(&mut self.stopped);
+        let stopped = core::mem::take(&mut self.stopped);
         tokens
             .into_iter()
             .zip(sum_logprobs)

@@ -1,6 +1,6 @@
 //! # Constructing a Silero VAD pretrained
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::tensor::Device;
 

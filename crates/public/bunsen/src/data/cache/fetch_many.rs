@@ -1,7 +1,12 @@
 //! Parallel fetch: many files at once, under a policy.
 
+use alloc::fmt;
+use core::sync::atomic::{
+    AtomicBool,
+    AtomicUsize,
+    Ordering,
+};
 use std::{
-    fmt,
     path::{
         Path,
         PathBuf,
@@ -9,11 +14,6 @@ use std::{
     sync::{
         Mutex,
         PoisonError,
-        atomic::{
-            AtomicBool,
-            AtomicUsize,
-            Ordering,
-        },
     },
     thread,
 };

@@ -1,5 +1,5 @@
 //! # Constructing a Voxtral Realtime pretrained
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::tensor::Device;
 

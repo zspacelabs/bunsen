@@ -1,4 +1,4 @@
-use std::{
+use alloc::{
     borrow::Cow,
     fmt,
     sync::Arc,
@@ -102,7 +102,7 @@ impl OptimizerGroup {
     {
         Self {
             params: params.into_iter().collect(),
-            optimizer_name: std::any::type_name::<O>(),
+            optimizer_name: core::any::type_name::<O>(),
             add: Arc::new(move |module_optim, group, grad_clipping| {
                 module_optim.with_group(group, optim.clone(), grad_clipping)
             }),
@@ -619,10 +619,8 @@ impl GroupOptimizerPlan {
 
 #[cfg(test)]
 mod tests {
-    use std::panic::{
-        AssertUnwindSafe,
-        catch_unwind,
-    };
+    use core::panic::AssertUnwindSafe;
+    use std::panic::catch_unwind;
 
     use burn::{
         nn::{
@@ -858,7 +856,7 @@ mod tests {
         assert!(groups[1].1.matches(&fresh, Some("head.bias")));
         assert_eq!(
             groups[1].0.optimizer_name(),
-            std::any::type_name::<burn::optim::AdamW>()
+            core::any::type_name::<burn::optim::AdamW>()
         );
     }
 

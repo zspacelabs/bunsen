@@ -1,8 +1,6 @@
 //! The `.nemo` reader on a toy Sortformer v2 that `NeMo` saved itself.
-use std::{
-    collections::BTreeMap,
-    path::PathBuf,
-};
+use alloc::collections::BTreeMap;
+use std::path::PathBuf;
 
 use serde::Deserialize;
 

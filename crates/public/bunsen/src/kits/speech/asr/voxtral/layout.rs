@@ -193,8 +193,8 @@ impl VoxtralTokenLayout {
     /// delay position.
     pub fn prompt(&self) -> Vec<i64> {
         let pads = self.config.left_pad_positions + self.delay_positions();
-        std::iter::once(self.config.bos as i64)
-            .chain(std::iter::repeat_n(self.config.streaming_pad as i64, pads))
+        core::iter::once(self.config.bos as i64)
+            .chain(core::iter::repeat_n(self.config.streaming_pad as i64, pads))
             .collect()
     }
 

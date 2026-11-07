@@ -1,5 +1,5 @@
 //! A voice-activity model that replays a recording.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use serde::{
     Deserialize,

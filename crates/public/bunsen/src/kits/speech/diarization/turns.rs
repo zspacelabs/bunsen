@@ -436,7 +436,7 @@ mod tests {
         }
         let mut segments = Vec::new();
         let mut start = None;
-        for (i, &a) in above.iter().chain(std::iter::once(&false)).enumerate() {
+        for (i, &a) in above.iter().chain(core::iter::once(&false)).enumerate() {
             match (start, a) {
                 (None, true) => start = Some(i),
                 (Some(s), false) => {

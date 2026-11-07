@@ -1,6 +1,6 @@
 //! # The Whisper pretrained factory
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::tensor::Device;
 

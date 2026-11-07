@@ -1,5 +1,5 @@
 //! `rl_agent_config.json`: a Laya checkpoint's head and calibration.
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use serde::Deserialize;
 

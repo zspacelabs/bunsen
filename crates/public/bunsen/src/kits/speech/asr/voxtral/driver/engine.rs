@@ -1,5 +1,5 @@
 //! Voxtral Realtime as the stream driver core's engine.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::{
     module::Module,

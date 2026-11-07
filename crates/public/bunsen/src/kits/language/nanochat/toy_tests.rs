@@ -8,10 +8,8 @@
 //! [`load_pt_checkpoint`], so the generation's detection, its config and the
 //! loader are under test with the model.
 
-use std::{
-    ops::Range,
-    path::PathBuf,
-};
+use core::ops::Range;
+use std::path::PathBuf;
 
 use burn::prelude::*;
 use serial_test::serial;

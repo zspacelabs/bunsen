@@ -31,7 +31,7 @@ use crate::{
 fn unsupported(
     section: &str,
     field: &str,
-    value: impl std::fmt::Debug,
+    value: impl core::fmt::Debug,
     why: &str,
 ) -> BunsenError {
     unsupported_field(&format!("{section}.{field}"), value, why)
@@ -41,7 +41,7 @@ fn unsupported(
 /// not support: the value it holds, and why.
 pub(crate) fn unsupported_field(
     path: &str,
-    value: impl std::fmt::Debug,
+    value: impl core::fmt::Debug,
     why: &str,
 ) -> BunsenError {
     BunsenError::unsupported(format!("NeMo config: `{path}` {value:?}: {why}"))

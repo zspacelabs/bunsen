@@ -1,17 +1,14 @@
 //! # Disk Cache Management
 
-use std::{
-    path::{
-        Path,
-        PathBuf,
-    },
-    sync::Arc,
+use alloc::sync::Arc;
+#[cfg(feature = "fetch")]
+use core::time::Duration;
+use std::path::{
+    Path,
+    PathBuf,
 };
 #[cfg(feature = "fetch")]
-use std::{
-    thread,
-    time::Duration,
-};
+use std::thread;
 
 use crate::{
     data::cache::{

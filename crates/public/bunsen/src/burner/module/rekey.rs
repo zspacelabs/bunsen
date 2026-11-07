@@ -1,13 +1,15 @@
 //! Mapping a checkpoint's tensor names onto a module's paths.
-use std::{
+use alloc::{
     collections::{
         BTreeMap,
         BTreeSet,
-        HashMap,
-        HashSet,
     },
     fmt,
     sync::Arc,
+};
+use std::collections::{
+    HashMap,
+    HashSet,
 };
 
 use crate::{
@@ -341,7 +343,7 @@ impl Cx<'_> {
 }
 
 fn rule_addr(rule: &Rule) -> usize {
-    std::ptr::from_ref(rule) as usize
+    core::ptr::from_ref(rule) as usize
 }
 
 fn transform_addr(transform: &TensorLoadTransform) -> usize {
@@ -855,7 +857,7 @@ impl Rekey {
                 (name, target)
             })
             .collect();
-        let trace = std::mem::take(&mut cx.trace);
+        let trace = core::mem::take(&mut cx.trace);
         let index_conflicts = cx.index_conflicts.into_iter().collect();
 
         let unknown_paths = match module {

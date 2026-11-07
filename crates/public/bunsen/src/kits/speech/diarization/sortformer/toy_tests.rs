@@ -6,7 +6,7 @@
 //! (`tools/gen_nemotron_diar_toy_fixtures.py`). The weights load through
 //! [`load_nemotron_transformers_tensors`], so the loader is under test too.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use burn::{
     prelude::*,
@@ -152,7 +152,7 @@ fn test_silence_embedding_loads() {
 #[serial_test::serial]
 fn test_streaming_matches_transformers() {
     let toy = Toy::load();
-    let model = std::sync::Arc::new(toy.model.clone());
+    let model = alloc::sync::Arc::new(toy.model.clone());
     let mels: Tensor<3> = toy.get("stream.mels");
     let want: Tensor<3> = toy.get("stream.probs");
     let [_, frames, n_mels] = mels.dims();
@@ -191,7 +191,7 @@ fn test_sample_stream_is_the_mel_stream() {
     };
 
     let toy = Toy::load();
-    let model = std::sync::Arc::new(toy.model.clone());
+    let model = alloc::sync::Arc::new(toy.model.clone());
     let config = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
     let front_end: crate::kits::speech::nemo::NemoMelFrontEnd =
         NemoMelFrontEndConfig::nemotron_diarization()
@@ -201,7 +201,7 @@ fn test_sample_stream_is_the_mel_stream() {
     let samples: Vec<f32> = (0..16_000 * 2 + 777)
         .map(|n| {
             let t = n as f32 / 16_000.0;
-            0.3 * (2.0 * std::f32::consts::PI * 300.0 * t).sin()
+            0.3 * (2.0 * core::f32::consts::PI * 300.0 * t).sin()
                 + 0.05 * (((n * 7919) % 1009) as f32 / 504.5 - 1.0)
         })
         .collect();

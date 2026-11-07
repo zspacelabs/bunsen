@@ -1,6 +1,6 @@
 //! A stack's rotary tables.
 
-use std::ops::Range;
+use core::ops::Range;
 
 use burn::module::Module;
 

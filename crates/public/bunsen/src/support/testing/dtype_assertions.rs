@@ -112,7 +112,7 @@ mod tests {
             }
         }
         let bare = Bare(linear);
-        let refused = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let refused = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
             assert_coerces_input(&bare, x, |b, x| b.0.forward(x), 0.0)
         }));
         assert!(

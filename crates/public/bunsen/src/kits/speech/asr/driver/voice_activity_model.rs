@@ -1,6 +1,6 @@
 //! # Voice-activity models: per-chunk speech probabilities for the driver.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use burn::{
     Tensor,

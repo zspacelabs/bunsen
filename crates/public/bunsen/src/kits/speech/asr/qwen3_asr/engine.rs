@@ -1,5 +1,5 @@
 //! Qwen3-ASR as the stream driver core's engine.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::{
     Tensor,

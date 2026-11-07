@@ -1,6 +1,6 @@
 //! Shard-set descriptors: what a shard set is.
 
-use std::{
+use alloc::{
     collections::BTreeSet,
     fmt,
 };

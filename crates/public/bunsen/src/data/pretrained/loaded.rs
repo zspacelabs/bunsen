@@ -1,7 +1,7 @@
 //! Loaded resources: a resource bundle with every file local.
 
+use alloc::collections::BTreeMap;
 use std::{
-    collections::BTreeMap,
     fs,
     path::{
         Path,

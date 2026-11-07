@@ -9,10 +9,8 @@
 //! [`qwen3_config_from_transformers`], and the weights load through
 //! [`load_transformers_tensors`], so the loader is under test too.
 
-use std::{
-    ops::Range,
-    path::PathBuf,
-};
+use core::ops::Range;
+use std::path::PathBuf;
 
 use burn::prelude::*;
 

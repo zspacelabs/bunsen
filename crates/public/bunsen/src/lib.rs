@@ -1,6 +1,13 @@
 #![cfg_attr(feature = "wgpu", recursion_limit = "512")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
+// The paths that name `core` or `alloc` where those hold the item, so the
+// `std::` paths left are the uses the `no_std` work has to gate.
+#![warn(
+    clippy::std_instead_of_core,
+    clippy::std_instead_of_alloc,
+    clippy::alloc_instead_of_core
+)]
 //! # bunsen
 //!
 //! A "batteries included" community standard library for the

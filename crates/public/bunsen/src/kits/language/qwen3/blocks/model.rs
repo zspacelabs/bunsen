@@ -1,5 +1,5 @@
 //! The Qwen3 decoder.
-use std::ops::Range;
+use core::ops::Range;
 
 use burn::{
     Tensor,

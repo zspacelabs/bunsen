@@ -1,10 +1,8 @@
 //! Checking slices against a shape.
-use std::{
-    fmt::{
-        Display,
-        Formatter,
-    },
-    string::ToString,
+use alloc::string::ToString;
+use core::fmt::{
+    Display,
+    Formatter,
 };
 
 use burn::{

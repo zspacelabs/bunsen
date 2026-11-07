@@ -65,7 +65,7 @@ mod tests {
         Panicked(String),
     }
 
-    fn run(op: impl FnOnce() -> Tensor<2> + std::panic::UnwindSafe) -> Mixed {
+    fn run(op: impl FnOnce() -> Tensor<2> + core::panic::UnwindSafe) -> Mixed {
         match std::panic::catch_unwind(op) {
             Ok(t) => Mixed::Ran {
                 dtype: t.dtype(),

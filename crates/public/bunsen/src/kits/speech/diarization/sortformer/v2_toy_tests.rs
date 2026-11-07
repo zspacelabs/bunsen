@@ -7,7 +7,7 @@
 //! through [`load_sortformer_v2_nemo_tensors`], so the loader is under test
 //! too.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use burn::{
     prelude::*,
@@ -264,7 +264,7 @@ fn test_stages_match_nemo() {
 #[serial_test::serial]
 fn test_streaming_matches_nemo() {
     let toy = Toy::load();
-    let model = std::sync::Arc::new(toy.model);
+    let model = alloc::sync::Arc::new(toy.model);
     let mels: Tensor<3> = {
         let data = bridge::to_data(&toy.io["stream.mels"]).unwrap();
         Tensor::from_data(data, &toy.device)

@@ -1,5 +1,5 @@
 //! A Sortformer, streamed: chunks, look-ahead, and the speaker cache.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::{
     Tensor,

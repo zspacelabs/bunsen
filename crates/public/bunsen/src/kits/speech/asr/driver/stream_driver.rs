@@ -1,6 +1,6 @@
 //! # The stream driver: the shared, immutable half of a transcription.
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use crate::{
     errors::{

@@ -1,5 +1,5 @@
 //! A reply's text, one delta per token.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use crate::{
     errors::BunsenResult,

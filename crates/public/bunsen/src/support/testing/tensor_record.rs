@@ -144,11 +144,11 @@ pub struct SampleError {
     pub element: usize,
 }
 
-impl std::fmt::Display for SampleError {
+impl core::fmt::Display for SampleError {
     fn fmt(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{:.1e} at element {}", self.abs, self.element)
     }
 }

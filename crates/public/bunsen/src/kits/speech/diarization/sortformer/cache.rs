@@ -233,7 +233,7 @@ impl SpeakerCache {
         // the only ones.
         let fifo_probs = &step_probs[n_cache * s..(n_cache + n_fifo) * s];
         let mut probs = if self.compressed {
-            std::mem::take(&mut self.probs)
+            core::mem::take(&mut self.probs)
         } else {
             step_probs[..n_cache * s].to_vec()
         };
@@ -320,7 +320,7 @@ impl SpeakerCache {
             if frame < n {
                 kept.extend_from_slice(&probs[frame * s..(frame + 1) * s]);
             } else {
-                kept.extend(std::iter::repeat_n(0.0, s));
+                kept.extend(core::iter::repeat_n(0.0, s));
             }
         }
         (embeds, kept)
@@ -383,7 +383,7 @@ impl SpeakerCache {
         let slots = n + c.silence_frames_per_speaker;
         let mut flat: Vec<(f32, usize)> = Vec::with_capacity(s * slots);
         for (k, column) in scores.iter().enumerate() {
-            let silence = std::iter::repeat_n(f32::INFINITY, c.silence_frames_per_speaker);
+            let silence = core::iter::repeat_n(f32::INFINITY, c.silence_frames_per_speaker);
             for (f, v) in column.iter().copied().chain(silence).enumerate() {
                 flat.push((v, k * slots + f));
             }

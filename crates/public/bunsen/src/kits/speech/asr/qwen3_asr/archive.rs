@@ -1,8 +1,6 @@
 //! Reading `FermionResearch`'s Phonon-1 archives.
-use std::{
-    collections::BTreeMap,
-    path::Path,
-};
+use alloc::collections::BTreeMap;
+use std::path::Path;
 
 use burn::{
     prelude::TensorData,
@@ -328,7 +326,7 @@ fn f32_values(t: PackTensor) -> BunsenResult<Vec<f32>> {
         .map_err(|e| BunsenError::invalid_resource(format!("`{name}`: {e:?}")))
 }
 
-fn pack_error(e: impl std::error::Error + Send + Sync + 'static) -> BunsenError {
+fn pack_error(e: impl core::error::Error + Send + Sync + 'static) -> BunsenError {
     BunsenError::invalid_resource("a tensor the store cannot read").with_cause(e)
 }
 

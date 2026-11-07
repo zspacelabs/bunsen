@@ -1,7 +1,7 @@
 //! A pretrained's presets: named, described merge patches over its config.
 
+use alloc::collections::BTreeSet;
 use core::fmt;
-use std::collections::BTreeSet;
 
 use serde::{
     Deserialize,

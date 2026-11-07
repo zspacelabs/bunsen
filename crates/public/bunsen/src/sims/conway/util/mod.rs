@@ -2,7 +2,7 @@
 //! the [`ConwayRules`] a 3D sim steps by, and [`slices`], helpers that read
 //! and write rectangles of a 2D board.
 
-use std::ops::Range;
+use core::ops::Range;
 
 use burn::tensor::Device;
 use serde::{

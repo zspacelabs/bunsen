@@ -1,6 +1,6 @@
 //! # The engine: what a model gives the stream driver core.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use burn::Tensor;
 

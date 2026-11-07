@@ -42,7 +42,7 @@ pub fn word_errors(
             let cost = usize::from(refr != hyp);
             cur[h + 1] = (prev[h] + cost).min(prev[h + 1] + 1).min(cur[h] + 1);
         }
-        std::mem::swap(&mut prev, &mut cur);
+        core::mem::swap(&mut prev, &mut cur);
     }
     prev[hypothesis.len()]
 }
