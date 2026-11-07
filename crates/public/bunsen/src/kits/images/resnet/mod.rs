@@ -20,7 +20,7 @@
 //! (fetching needs the `fetch` feature):
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))] {
+//! # #[cfg(all(feature = "store", feature = "cache", feature = "fetch"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{

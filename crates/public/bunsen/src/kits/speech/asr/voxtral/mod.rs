@@ -32,9 +32,9 @@
 //!   [`VoxtralStreamDriver`](driver::VoxtralStreamDriver) streams audio through
 //!   it, under any
 //!   [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
-//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
-//!   checkpoint, `mistralai/voxtral-mini-4b-realtime-2602` the default, `hf:`
-//!   repos, and the factory that loads one into a construct.
+//! - [`pretrained`] (features `store` and `cache`): the named checkpoint,
+//!   `mistralai/voxtral-mini-4b-realtime-2602` the default, `hf:` repos, and
+//!   the factory that loads one into a construct.
 //! - [`weights`] (feature `store`): loading tensors named as the published
 //!   `model.safetensors` names them, and reading its `config.json`.
 
@@ -52,13 +52,13 @@ pub use front_end::*;
 pub use layout::*;
 pub use transcript::*;
 
-#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 
 #[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;
 
 #[doc(inline)]

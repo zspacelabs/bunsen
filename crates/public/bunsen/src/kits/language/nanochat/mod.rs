@@ -131,18 +131,18 @@ pub mod datasets;
 mod decode;
 pub use decode::*;
 
-#[cfg(feature = "store_pytorch")]
+#[cfg(feature = "store")]
 mod construct;
-#[cfg(feature = "store_pytorch")]
+#[cfg(feature = "store")]
 pub use construct::*;
 
-#[cfg(feature = "store_pytorch")]
+#[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 
-#[cfg(all(test, feature = "store_pytorch", feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;
 
 pub use blocks::model::*;

@@ -28,7 +28,7 @@ default = []
 ## **Off by default**, so a plain `cargo test` here reaches no network.
 ## Which models' tests run is the profile's (`validation/models.yml`,
 ## `cargo validate`); this only compiles them.
-checkpoints = ["bunsen/fetch", "bunsen/fermion", "bunsen-test-audio/ami"]
+checkpoints = ["bunsen/fetch", "bunsen/store", "bunsen-test-audio/ami"]
 
 ## Fetch the ONNX exports of `Nemotron-3-Diarization` (`altunenes/parakeet-rs`)
 ## and of v2.1 (`Scrybl`) and generate the reference models from them, at
@@ -62,7 +62,7 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "nemo"] }
+bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "store"] }
 bind-sortformer-onnx = {
     path = "../../onnx/bind-sortformer-onnx",
     optional = true

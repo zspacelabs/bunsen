@@ -3,7 +3,7 @@
 //! From a model's name to a loaded
 //! [`Qwen3_5Construct`](super::Qwen3_5Construct), through the data layer's
 //! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
-//! whole module needs the `store_safetensors` and `cache` features.
+//! whole module needs the `store` and `cache` features.
 //!
 //! # The index
 //!

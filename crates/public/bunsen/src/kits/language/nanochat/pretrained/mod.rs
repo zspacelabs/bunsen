@@ -3,7 +3,7 @@
 //! From a model's name to a loaded
 //! [`NanoChatConstruct`](super::NanoChatConstruct), through the data layer's
 //! pretrained machinery ([`data::pretrained`](crate::data::pretrained)). The
-//! whole module needs the `store_pytorch` and `cache` features.
+//! whole module needs the `store` and `cache` features.
 //!
 //! # The index
 //!

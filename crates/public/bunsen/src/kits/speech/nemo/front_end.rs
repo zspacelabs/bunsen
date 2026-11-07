@@ -543,7 +543,7 @@ mod tests {
 
     /// `testdata/nemo/front_end.safetensors`
     /// (`tools/gen_nemo_front_end_fixtures.py`).
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     fn nemotron_fixture() -> alloc::collections::BTreeMap<String, burn::tensor::TensorData> {
         use burn::store::{
             ModuleStore,
@@ -569,7 +569,7 @@ mod tests {
     /// `Nemotron-3-Diarization`'s front end, its tables in `f32`, is what
     /// `transformers`' `NemotronAsrStreamingFeatureExtractor` computes: two
     /// waveforms of different lengths, padded as one batch.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     #[test]
     fn test_nemotron_matches_transformers() {
         use burn::tensor::Tolerance;
@@ -614,7 +614,7 @@ mod tests {
     /// The `bf16` tables are the ones `Nemotron-3-Diarization`'s checkpoint
     /// stores, bit for bit: the window, then zeros to the FFT size, and the
     /// filterbank, transposed.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     #[test]
     fn test_bf16_tables_are_the_checkpoints() {
         let fixture = nemotron_fixture();
@@ -653,7 +653,7 @@ mod tests {
 
     /// The fixture `transformers`' `ParakeetFeatureExtractor` wrote: two
     /// waveforms of different lengths, padded as one batch.
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     #[test]
     fn test_matches_transformers() {
         use burn::{

@@ -95,7 +95,7 @@ impl Deferred<WhisperConstructConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "store_safetensors")]
+    #[cfg(feature = "store")]
     use crate::kits::speech::asr::whisper::pretrained::WhisperReader;
     use crate::{
         data::{
@@ -279,14 +279,14 @@ mod tests {
         // without the feature it is refused naming the feature.
         let dir = tempfile::tempdir().unwrap();
         let resolved = factory.resolve("hub:openai/whisper-base", &offline_cache_in(dir.path()));
-        #[cfg(feature = "store_safetensors")]
+        #[cfg(feature = "store")]
         assert!(matches!(
             resolved.unwrap().config.reader,
             WhisperReader::Safetensors(_)
         ));
-        #[cfg(not(feature = "store_safetensors"))]
+        #[cfg(not(feature = "store"))]
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
-            .message_contains("store_safetensors")
+            .message_contains("the `store` feature")
             .assert_err(&resolved);
     }
 
@@ -304,7 +304,7 @@ mod tests {
 /// Against the hub: the smallest repo, fetched once into the default
 /// cache, read whole, and checked against `OpenAI`'s own `tiny.pt`, which
 /// it was converted from.
-#[cfg(all(test, feature = "store_safetensors", feature = "fetch"))]
+#[cfg(all(test, feature = "store", feature = "fetch"))]
 mod hub_tests {
     use burn::tensor::{
         Tensor,

@@ -4,7 +4,7 @@
 //! [`SortformerConstruct`](super::SortformerConstruct), through the data
 //! layer's pretrained machinery
 //! ([`data::pretrained`](crate::data::pretrained)). The whole module needs the
-//! `store_safetensors` and `cache` features.
+//! `store` and `cache` features.
 //!
 //! # The index
 //!
@@ -17,7 +17,7 @@
 //! - `nvidia/diar_streaming_sortformer_4spk-v2` (`sortformer-v2`) and
 //!   `nvidia/diar_streaming_sortformer_4spk-v2.1` (`sortformer-v2.1`): the
 //!   streaming Sortformer v2 and v2.1, 4 speakers, 80 ms frames, each a 471 MB
-//!   `.nemo` whose config gives the model and its front end. Needs the `nemo`
+//!   `.nemo` whose config gives the model and its front end. Needs the `store`
 //!   feature.
 //! - `hf:org/repo`: a repo in `transformers`' `Nemotron3Diarization` layout,
 //!   whose `config.json` gives the geometry, or one holding a Sortformer v2

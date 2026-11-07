@@ -50,7 +50,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ParakeetReader {
     /// A Phonon archive ([`PHONON_ARCHIVE`]): the weights and the
-    /// vocabulary in one file. Needs the `fermion` feature.
+    /// vocabulary in one file. Needs the `store` feature.
     PhononArchive,
 
     /// A `transformers` safetensors checkpoint ([`SAFETENSORS`], or the
@@ -65,12 +65,12 @@ impl ParakeetReader {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
     /// kind there is no reader for, or a Phonon archive in a build without
-    /// the `fermion` feature.
+    /// the `store` feature.
     pub fn for_kind(kind: Option<&str>) -> BunsenResult<Self> {
         match kind {
-            Some(PHONON_ARCHIVE) if cfg!(feature = "fermion") => Ok(Self::PhononArchive),
+            Some(PHONON_ARCHIVE) if cfg!(feature = "store") => Ok(Self::PhononArchive),
             Some(PHONON_ARCHIVE) => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `fermion` feature",
+                "a Phonon archive needs bunsen's `store` feature",
             )),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
@@ -85,13 +85,13 @@ impl ParakeetReader {
         loaded: &LoadedResources,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ParakeetVocabulary)> {
         match self {
-            #[cfg(feature = "fermion")]
+            #[cfg(feature = "store")]
             Self::PhononArchive => {
                 crate::kits::speech::asr::parakeet::read_phonon2_archive(loaded.expect(CHECKPOINT)?)
             }
-            #[cfg(not(feature = "fermion"))]
+            #[cfg(not(feature = "store"))]
             Self::PhononArchive => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `fermion` feature",
+                "a Phonon archive needs bunsen's `store` feature",
             )),
             Self::Safetensors => {
                 let tokenizer = loaded.expect(VOCABULARY)?;
@@ -193,7 +193,7 @@ mod tests {
         let phonon = ParakeetConstructConfig::for_resource_bundle(
             &PARAKEET_CATALOG.resource_bundle("fermion/phonon-2.bps.tar.zst"),
         );
-        if cfg!(feature = "fermion") {
+        if cfg!(feature = "store") {
             assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         } else {
             assert!(phonon.is_err());

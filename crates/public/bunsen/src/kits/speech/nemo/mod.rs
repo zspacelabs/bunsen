@@ -9,7 +9,7 @@
 //!   ([`parakeet_tdt`](NemoMelFrontEndConfig::parakeet_tdt),
 //!   [`nemotron_diarization`](NemoMelFrontEndConfig::nemotron_diarization));
 //!   [`NemoMelFeatures`] streams it.
-//! - `NemoArchive` (feature `nemo`): a `.nemo` checkpoint, `NeMo`'s tar of a
+//! - `NemoArchive` (feature `store`): a `.nemo` checkpoint, `NeMo`'s tar of a
 //!   YAML config and a `PyTorch` state dict; `read_nemo_weights` reads the
 //!   state dict, and `parse_nemo_yaml` the config, into typed sections
 //!   (`NemoPreprocessorConfig`, `NemoConformerEncoderConfig`,
@@ -26,19 +26,19 @@
 //! The `.nemo` fixture in `testdata/nemo/` is a toy Sortformer v2 that `NeMo`
 //! saved itself, written by `tools/gen_nemo_fixtures.py`.
 
-#[cfg(feature = "nemo")]
+#[cfg(feature = "store")]
 mod archive;
-#[cfg(feature = "nemo")]
+#[cfg(feature = "store")]
 mod config;
 mod front_end;
 mod rekey;
 
-#[cfg(all(test, feature = "nemo"))]
+#[cfg(all(test, feature = "store"))]
 mod archive_tests;
 
-#[cfg(feature = "nemo")]
+#[cfg(feature = "store")]
 pub use archive::*;
-#[cfg(feature = "nemo")]
+#[cfg(feature = "store")]
 pub use config::*;
 pub use front_end::*;
 pub use rekey::*;

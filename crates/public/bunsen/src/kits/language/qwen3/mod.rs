@@ -31,9 +31,8 @@
 //!   checkpoint's tokenizer and generation files, unread.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Qwen3ForCausalLM` state dict, and reading its `config.json`.
-//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
-//!   checkpoints, `qwen/qwen3-0.6b` the default, and the factory that loads
-//!   one.
+//! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
+//!   `qwen/qwen3-0.6b` the default, and the factory that loads one.
 //!
 //! A tokenizer and a chat template are not part of the kit; the searches are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
@@ -47,10 +46,10 @@ pub use construct::*;
 #[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 
 pub use blocks::model::*;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;

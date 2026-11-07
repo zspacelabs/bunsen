@@ -23,8 +23,8 @@
 //!   batch.
 //! - [`LayaConstruct`]: a model with its head's config and its checkpoint's
 //!   tokenizer files, unread.
-//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
-//!   checkpoints, `laya/laya` the default, and the factory that loads one.
+//! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
+//!   `laya/laya` the default, and the factory that loads one.
 //! - [`weights`] (feature `store`): loading a checkpoint's `model.safetensors`
 //!   (the encoder under `encoder.`, the fused projections split), and the
 //!   config from its two files.
@@ -46,8 +46,8 @@ pub use blocks::model::*;
 pub use construct::*;
 pub use prompt::*;
 
-#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;

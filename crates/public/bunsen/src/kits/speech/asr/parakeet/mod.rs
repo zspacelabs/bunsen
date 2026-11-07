@@ -27,10 +27,10 @@
 //!   [`ParakeetFeatures`], its front end streamed; a [`ParakeetStreamDriver`]
 //!   streams audio through it, under any
 //!   [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
-//! - [`pretrained`] (features `store_safetensors` and `cache`): the index of
-//!   named checkpoints, `fermion/phonon-2` the default, and the factory that
-//!   loads one into a construct. `read_phonon2_archive` (feature `fermion`)
-//!   reads Phonon-2's archive through the shared
+//! - [`pretrained`] (features `store` and `cache`): the index of named
+//!   checkpoints, `fermion/phonon-2` the default, and the factory that loads
+//!   one into a construct. `read_phonon2_archive` (feature `store`) reads
+//!   Phonon-2's archive through the shared
 //!   [`fermion`](crate::data::pretrained::fermion) readers.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `ParakeetForTDT` state dict, the names every Parakeet checkpoint format
@@ -38,13 +38,13 @@
 
 pub mod blocks;
 
-#[cfg(feature = "fermion")]
+#[cfg(feature = "store")]
 mod archive;
 mod construct;
 mod decode;
 mod engine;
 mod vocab;
-#[cfg(feature = "fermion")]
+#[cfg(feature = "store")]
 pub use archive::*;
 pub use construct::*;
 pub use decode::*;
@@ -64,12 +64,12 @@ pub type ParakeetFeatures = crate::kits::speech::nemo::NemoMelFeatures;
 
 pub use crate::kits::speech::nemo::NemoMelFrontEndMeta as ParakeetFrontEndMeta;
 
-#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 #[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;
 
 #[doc(inline)]

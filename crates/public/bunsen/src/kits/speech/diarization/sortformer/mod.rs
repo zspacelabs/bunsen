@@ -25,13 +25,13 @@
 //!   [`SpeakerActivityModel`](crate::kits::speech::diarization::SpeakerActivityModel)
 //!   under a streaming config, [`diarize`](SortformerConstruct::diarize) runs a
 //!   whole recording to speaker turns.
-//! - [`pretrained`] (features `store_safetensors` and `cache`): the index of
-//!   named checkpoints, `nvidia/nemotron-3-diarization` the default, `hf:`
-//!   repos, and the factory that loads one into a construct.
+//! - [`pretrained`] (features `store` and `cache`): the index of named
+//!   checkpoints, `nvidia/nemotron-3-diarization` the default, `hf:` repos, and
+//!   the factory that loads one into a construct.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Nemotron3DiarizationForAudioFrameClassification` state dict, or as a
 //!   Sortformer v2 `.nemo`'s.
-//! - `NemoSortformerConfig` (feature `nemo`): a Sortformer `.nemo`'s config,
+//! - `NemoSortformerConfig` (feature `store`): a Sortformer `.nemo`'s config,
 //!   which gives the model's [`SortformerStructureConfig`] and its front end's
 //!   config.
 //!
@@ -50,21 +50,21 @@ pub use construct::*;
 pub use stream::*;
 pub use streaming::*;
 
-#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+#[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
 
 #[cfg(feature = "store")]
 pub mod weights;
 
-#[cfg(feature = "nemo")]
+#[cfg(feature = "store")]
 mod nemo_config;
-#[cfg(feature = "nemo")]
+#[cfg(feature = "store")]
 pub use nemo_config::*;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod v2_toy_tests;
 
 #[doc(inline)]

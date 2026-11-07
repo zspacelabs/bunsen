@@ -218,10 +218,9 @@ caller's resource wins by key. `bunsen-tool asr family whisper`'s `--vocab` flag
 
 ## PyTorch checkpoints
 
-An OpenAI `.pt` checkpoint is read through burn-store's PyTorch reader,
-behind the `store_pytorch` feature, and a Hugging Face safetensors repo
-through its safetensors reader, behind `store_safetensors`
-([features](../organization/features.md)). The PyTorch reader honours each
+An OpenAI `.pt` checkpoint is read through burn-store's PyTorch reader, and
+a Hugging Face safetensors repo through its safetensors reader, both behind
+the `store` feature ([features](../organization/features.md)). The PyTorch reader honours each
 tensor's strides, so a weight that PyTorch saved as a transposed view of
 another tensor loads as the weight it is.
 

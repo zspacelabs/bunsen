@@ -46,7 +46,7 @@ pub enum SileroReader {
     /// Upstream's 16 kHz state dict under [`CHECKPOINT`]
     /// ([`SAFETENSORS_KIND`]), read through
     /// [`upstream_rekey`](super::load::upstream_rekey).
-    /// Needs the `store_safetensors` feature.
+    /// Needs the `store` feature.
     Safetensors,
 }
 
@@ -96,12 +96,10 @@ impl ConstructInit for SileroConstructConfig {
             }
         } else if let Some(r) = map.get(CHECKPOINT) {
             match r.kind.as_deref() {
-                Some(SAFETENSORS_KIND) if cfg!(feature = "store_safetensors") => {
-                    SileroReader::Safetensors
-                }
+                Some(SAFETENSORS_KIND) if cfg!(feature = "store") => SileroReader::Safetensors,
                 Some(SAFETENSORS_KIND) => {
                     return Err(BunsenError::unsupported(
-                        "a safetensors checkpoint needs bunsen's `store_safetensors` feature",
+                        "a safetensors checkpoint needs bunsen's `store` feature",
                     ));
                 }
                 other => {
@@ -134,17 +132,17 @@ impl ConstructInit for SileroConstructConfig {
             SileroReader::Burnpack => {
                 SileroVadCollection::load_from_burnpack_file(loaded.expect(BURNPACK)?, device)?
             }
-            #[cfg(feature = "store_safetensors")]
+            #[cfg(feature = "store")]
             SileroReader::Safetensors => SileroVadCollection::from_16khz(
                 crate::kits::speech::vad::silero_vad::SileroVad::load_16khz_from_safetensors_file(
                     loaded.expect(CHECKPOINT)?,
                     device,
                 )?,
             ),
-            #[cfg(not(feature = "store_safetensors"))]
+            #[cfg(not(feature = "store"))]
             SileroReader::Safetensors => {
                 return Err(BunsenError::unsupported(
-                    "a safetensors checkpoint needs bunsen's `store_safetensors` feature",
+                    "a safetensors checkpoint needs bunsen's `store` feature",
                 ));
             }
         };
@@ -168,7 +166,7 @@ mod tests {
         assert_eq!(<SileroConstructConfig as ConstructInit>::KIT, "silero_vad");
         assert_eq!(SileroConstructConfig::new().reader, SileroReader::Burnpack);
 
-        #[cfg(feature = "store_safetensors")]
+        #[cfg(feature = "store")]
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
                 &super::super::SILERO_CATALOG.resource_bundle("silero/vad-16k")

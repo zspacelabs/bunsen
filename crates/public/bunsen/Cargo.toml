@@ -57,16 +57,13 @@ default = [
     "sims",
     "reflection",
     "train",
-    "store_pytorch",
-    "store_safetensors",
-    "nemo",
-    "fermion",
+    "store",
 ]
 
 ## The model kits, `kits`: each family's config, modules, pretrained rows and
 ## loaders, and the machinery they share (`kits::support`: construction and
 ## load policies, decoding, model configs, tokens). The loaders still need
-## the `store_*` and `cache` features they read with.
+## the `store` and `cache` features they read with.
 kits = [
     "std",
 ]
@@ -100,46 +97,24 @@ reflection = [
     "dep:spanned_error_message",
 ]
 
-## Enable the burn-store, including burn's own burnpack (`.bpk`) files:
-## what Silero VAD's weights ship as.
+## Read checkpoints, every format bunsen knows, through the burn-store:
+## burn's own burnpack (`.bpk`, what Silero VAD's weights ship as);
+## `PyTorch` `.pt` state dicts; `transformers`' `model.safetensors` (what a
+## Hugging Face repo serves); NVIDIA `NeMo`'s `.nemo` archives (a tar of the
+## model's YAML config, through `serde-saphyr`, and its `PyTorch` state dict,
+## from a copy extracted to a temporary directory); and `FermionResearch`'s
+## Phonon archives (`.bps.tar.zst`, the `fermion/phonon-2` Parakeet TDT
+## checkpoint, through `ruzstd` and `tar`). Pure Rust throughout.
 store = [
     "std",
     "cache",
     "burn/store",
-]
-
-## Read PyTorch `.pt` checkpoints through the burn-store.
-store_pytorch = [
-    "store",
     "burn/pytorch",
-]
-
-## Read `transformers`' `model.safetensors` through the burn-store: what a
-## Hugging Face repo serves.
-store_safetensors = [
-    "store",
     "burn/safetensors",
-]
-
-## Read NVIDIA `NeMo`'s `.nemo` checkpoints: a tar of the model's YAML config
-## (through `serde-saphyr`, pure Rust) and its `PyTorch` state dict (through
-## the burn-store's `PyTorch` reader, from a copy extracted to a temporary
-## directory).
-nemo = [
-    "speech",
-    "store_pytorch",
     "dep:tar",
     "dep:serde-saphyr",
     "dep:tempfile",
-]
-
-## Read `FermionResearch`'s Phonon archives (`.bps.tar.zst`): the
-## `fermion/phonon-2` Parakeet TDT checkpoint. Pure Rust: `ruzstd` and
-## `tar`.
-fermion = [
-    "store",
     "dep:ruzstd",
-    "dep:tar",
 ]
 
 ## Enable features to use with `burn/train`.

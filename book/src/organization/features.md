@@ -23,8 +23,11 @@ Without a backend feature, `performance_device()` is the CPU. A plain
 ## Which parts of bunsen?
 
 Some modules are optional because they pull in dependencies most users don't
-need:
+need, or code most users don't compile:
 
+- `kits`, `speech` and `sims`: the model kits; the speech kits among them
+  (speech recognition, diarization, voice activity), which turn on `kits` and
+  `audio`; and the simulations. All three are default.
 - `reflection`: the XML/XPath module reflection behind
   [parameter groups](../systems/param-groups.md).
 - `train`: the grouped optimizers and other `burn/train` integration.
@@ -33,9 +36,9 @@ need:
 - `testing` and `audit`: the test support in
   [`support::testing`](bunsen::support::testing) and the
   [audit probes](../development/audit.md).
-- `store`, `store_pytorch` and `store_safetensors`: reading burnpacks,
-  PyTorch checkpoints and safetensors through burn-store. `store` includes
-  burnpack; the other two turn on burn's `pytorch` and `safetensors`.
+- `store`: reading checkpoints through burn-store, in every format bunsen
+  knows: burnpacks, PyTorch `.pt` state dicts, safetensors, NeMo's `.nemo`
+  archives and Phonon archives. Default.
 
 The crate docs say which are on by default. `default-features = false` plus
 the features you use gives the smallest build; the no-default-features

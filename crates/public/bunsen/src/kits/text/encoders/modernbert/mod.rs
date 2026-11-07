@@ -25,5 +25,5 @@ pub mod weights;
 
 pub use blocks::model::*;
 
-#[cfg(all(test, feature = "store_safetensors"))]
+#[cfg(all(test, feature = "store"))]
 mod toy_tests;

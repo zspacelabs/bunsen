@@ -52,7 +52,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Qwen3AsrReader {
     /// A Phonon-1 archive ([`PHONON_ARCHIVE`]): the packed weights and the
-    /// vocabulary in one file. Needs the `fermion` feature.
+    /// vocabulary in one file. Needs the `store` feature.
     PhononArchive,
 
     /// A `transformers` `model.safetensors` ([`SAFETENSORS`]), with its
@@ -66,12 +66,12 @@ impl Qwen3AsrReader {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
     /// kind there is no reader for, or a Phonon archive in a build without
-    /// the `fermion` feature.
+    /// the `store` feature.
     pub fn for_kind(kind: Option<&str>) -> BunsenResult<Self> {
         match kind {
-            Some(PHONON_ARCHIVE) if cfg!(feature = "fermion") => Ok(Self::PhononArchive),
+            Some(PHONON_ARCHIVE) if cfg!(feature = "store") => Ok(Self::PhononArchive),
             Some(PHONON_ARCHIVE) => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `fermion` feature",
+                "a Phonon archive needs bunsen's `store` feature",
             )),
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
@@ -86,13 +86,13 @@ impl Qwen3AsrReader {
         loaded: &LoadedResources,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ByteLevelVocabulary)> {
         match self {
-            #[cfg(feature = "fermion")]
+            #[cfg(feature = "store")]
             Self::PhononArchive => crate::kits::speech::asr::qwen3_asr::read_phonon1_archive(
                 loaded.expect(CHECKPOINT)?,
             ),
-            #[cfg(not(feature = "fermion"))]
+            #[cfg(not(feature = "store"))]
             Self::PhononArchive => Err(BunsenError::unsupported(
-                "a Phonon archive needs bunsen's `fermion` feature",
+                "a Phonon archive needs bunsen's `store` feature",
             )),
             Self::Safetensors => {
                 let tokenizer = loaded.expect(VOCABULARY)?;
@@ -205,7 +205,7 @@ mod tests {
         let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
             &QWEN3_ASR_CATALOG.resource_bundle("fermion/phonon-audio6.bps.tar.zst"),
         );
-        if cfg!(feature = "fermion") {
+        if cfg!(feature = "store") {
             assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         } else {
             assert!(phonon.is_err());
