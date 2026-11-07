@@ -246,6 +246,14 @@ jobs:
       - name: No features at all.
         run: cargo check -p bunsen --no-default-features
 
+      # Without `std`, bunsen is `no_std`. The host target links `std` for
+      # other crates, which hides a use of it (`f32::sqrt` and the like are
+      # `std`'s), so the check builds for a target with no `std` at all.
+      - name: No std.
+        run: |
+          rustup target add thumbv7m-none-eabi
+          cargo check -p bunsen --no-default-features --target thumbv7m-none-eabi
+
       # Each feature alone, so a feature that leans on another it does not
       # name (an import used only under a sibling feature, a gate that names
       # the wrong one) fails here. Not the backends: they only pass through
