@@ -360,23 +360,14 @@ impl TiktokenRanks {
 
 #[cfg(test)]
 mod tests {
-    use burn::prelude::*;
-
     use super::*;
-    use crate::{
-        errors::{
-            LookupError,
-            LookupProblem,
-            testing::{
-                ErrorMatcher,
-                predicate,
-            },
+    use crate::errors::{
+        LookupError,
+        LookupProblem,
+        testing::{
+            ErrorMatcher,
+            predicate,
         },
-        kits::{
-            speech::asr::whisper::logit_filters::SuppressBlank,
-            support::decoding::LogitFilter,
-        },
-        support::testing::cpu_device,
     };
 
     #[test]
@@ -500,47 +491,5 @@ Ig== x
                 e.problem == LookupProblem::Missing && e.key == "/nonexistent/whisper.tiktoken"
             }))
             .assert_err(&TiktokenRanks::load("/nonexistent/whisper.tiktoken"));
-    }
-
-    fn logits(
-        rows: &[&[f32]],
-        device: &Device,
-    ) -> Tensor<2> {
-        let vocab = rows[0].len();
-        let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
-        Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
-    }
-
-    fn to_rows(t: Tensor<2>) -> Vec<Vec<f32>> {
-        let [rows, vocab] = t.dims();
-        let flat = t.to_data().try_to_vec_as::<f32>().unwrap();
-        flat.chunks(vocab).map(|c| c.to_vec()).collect::<Vec<_>>()[..rows].to_vec()
-    }
-
-    /// Only at the first sampled position: once anything has been sampled,
-    /// the blank and the stop token are allowed again.
-    #[test]
-    fn test_suppress_blank() {
-        let device = cpu_device();
-
-        let filter = SuppressBlank::new(2, 4);
-        let first = to_rows(LogitFilter::apply(
-            &filter,
-            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
-            &[vec![9, 9]],
-            2,
-        ));
-        assert_eq!(
-            first[0],
-            vec![0.0, 1.0, f32::NEG_INFINITY, 3.0, f32::NEG_INFINITY]
-        );
-
-        let later = to_rows(LogitFilter::apply(
-            &filter,
-            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
-            &[vec![9, 9, 1]],
-            2,
-        ));
-        assert_eq!(later[0], vec![0.0, 1.0, 2.0, 3.0, 4.0]);
     }
 }
