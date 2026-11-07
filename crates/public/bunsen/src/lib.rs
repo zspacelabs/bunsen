@@ -125,6 +125,7 @@ pub mod audit;
 pub mod blocks;
 pub mod burner;
 pub mod contracts;
+#[cfg(feature = "std")]
 pub mod data;
 pub mod errors;
 #[cfg(feature = "kits")]

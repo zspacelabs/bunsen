@@ -86,8 +86,17 @@ sims = [
 ## The standard library. bunsen requires it today: it is not `no_std`, and
 ## it builds burn with `std` whatever features are on. Every other feature
 ## except the backends turns this on, so it names what needs `std` when the
-## `no_std` work gates those parts behind it.
-std = []
+## `no_std` work gates those parts behind it. It turns on the dependencies'
+## own `std`, and the dependencies only `std` has (`dashmap`, `time`).
+std = [
+    "serde/std",
+    "serde_json/std",
+    "num-traits/std",
+    "strum/std",
+    "thiserror/std",
+    "dep:dashmap",
+    "dep:time",
+]
 
 ## Enable the XmlModuleTree reflection api for querying and transforming modules.
 reflection = [
@@ -257,8 +266,11 @@ burn-dispatch = { version = "0.22.1", default-features = false }
 
 # burner-locked public deps:
 hashbrown = { workspace = true, optional = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
+# The dependencies the core shares with a `no_std` build take `std` only
+# through bunsen's `std` feature (the workspace's entries carry their
+# defaults, which a member cannot turn off).
+serde = { version = "1.0.229", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0.151", default-features = false, features = ["alloc"] }
 ciborium = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 crc = { workspace = true }
@@ -273,18 +285,18 @@ indicatif = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 ureq = { workspace = true, optional = true }
 
-dashmap = { workspace = true }
+dashmap = { workspace = true, optional = true }
 
 ruzstd = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
 serde-saphyr = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 
-time = { workspace = true, features = ["formatting", "macros", "local-offset"] }
+time = { workspace = true, features = ["formatting", "macros", "local-offset"], optional = true }
 
-num-traits = { workspace = true }
-strum = { workspace = true, features = ["derive"] }
-thiserror = { workspace = true }
+num-traits = { version = "0.2.19", default-features = false, features = ["libm"] }
+strum = { version = "0.28.0", default-features = false, features = ["derive"] }
+thiserror = { version = "2.0.20", default-features = false }
 dyn-clone = { workspace = true, optional = true }
 
 document-features = { workspace = true }
