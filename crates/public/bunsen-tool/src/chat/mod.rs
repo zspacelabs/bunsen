@@ -40,6 +40,7 @@
 
 mod backend;
 mod chat_tokenizer;
+pub mod cli;
 mod generation;
 mod nanochat_chat;
 mod nanochat_layout;

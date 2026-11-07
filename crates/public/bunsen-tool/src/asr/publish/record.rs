@@ -18,15 +18,13 @@ use super::{
     Statement,
     config::Opts,
 };
-use crate::cli::asr::{
+use crate::asr::{
     construct::Stamp,
-    diarize::{
-        recording_id,
-        speaker_name,
-    },
-    transcribe_cmd::{
+    transcript::{
         Transcript,
         millis,
+        recording_id,
+        speaker_name,
     },
 };
 
@@ -274,7 +272,7 @@ mod tests {
     use std::time::UNIX_EPOCH;
 
     use super::*;
-    use crate::cli::asr::publish::config::EventKind;
+    use crate::asr::publish::config::EventKind;
 
     fn opts(
         times: bool,

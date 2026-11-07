@@ -29,7 +29,7 @@ use bunsen_app::{
     },
 };
 
-use crate::cli::asr::whisper;
+use crate::asr::whisper;
 
 /// Scans a Whisper checkpoint and checks it against its prefab: its
 /// resources and where each stands, the geometry it promised, and the one

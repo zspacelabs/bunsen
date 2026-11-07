@@ -26,7 +26,7 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::cli::asr::construct::construct_config;
+use crate::asr::construct::construct_config;
 
 /// When the driver decodes.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]

@@ -28,15 +28,13 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::cli::asr::{
+use crate::asr::{
     family::Loaded,
     parakeet,
     qwen3_asr,
-    stream::{
-        self,
-        Emission,
-    },
-    transcribe_cmd::Transcript,
+    stream,
+    stream::Emission,
+    transcript::Transcript,
     voxtral,
     whisper,
 };

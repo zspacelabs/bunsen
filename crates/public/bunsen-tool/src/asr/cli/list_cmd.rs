@@ -12,9 +12,9 @@ use bunsen_app::{
     },
 };
 
-use crate::cli::{
+use crate::{
     asr::family::Kit,
-    preset_lines,
+    support::preset_lines,
 };
 
 /// Lists the models `--model` can name, their licences, their presets, and

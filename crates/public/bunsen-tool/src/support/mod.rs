@@ -1,10 +1,7 @@
-//! `bunsen-tool`'s command trees, one per branch.
+//! What the command trees share: a lookup expression with presets or a patch
+//! added, a row's presets as the listings print them, the `--preset` flags, and
+//! "did you mean?" on a failed lookup ([`did_you_mean`]).
 
-pub mod asr;
-pub mod card;
-pub mod chat;
-pub mod decide;
-pub mod devices;
 pub mod did_you_mean;
 
 use bunsen::{

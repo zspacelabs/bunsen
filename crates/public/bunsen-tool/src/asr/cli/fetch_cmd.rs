@@ -9,7 +9,7 @@ use bunsen_app::{
     },
 };
 
-use crate::cli::asr::family::Kit;
+use crate::asr::family::Kit;
 
 /// Brings every file of the named models into the weights cache, fetching
 /// what is not local, and prints where each one is: a deployment that

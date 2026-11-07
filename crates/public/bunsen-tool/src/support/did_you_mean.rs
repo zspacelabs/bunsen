@@ -18,7 +18,7 @@ const MOST: usize = 3;
 const SHOWN: usize = 16;
 
 /// The candidates of `lookup` nearest its key, nearest first, at most
-/// [`MOST`], case aside, in the form the key is written in:
+/// `MOST` (3), case aside, in the form the key is written in:
 /// - a key without a provider (`well-known:`) is matched against, and offered,
 ///   the names without theirs; and a key without a group either (`qwen3-1.7b`,
 ///   not `qwen/qwen3-1.7b`) the names without their group, which a table

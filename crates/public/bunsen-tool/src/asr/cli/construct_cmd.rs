@@ -19,8 +19,9 @@ use bunsen_app::{
 };
 
 #[cfg(feature = "live")]
-use crate::cli::asr::live_cmd::LiveIo;
-use crate::cli::asr::{
+use crate::asr::cli::live_cmd::LiveIo;
+use crate::asr::{
+    cli::transcribe_cmd::TranscribeIo,
     construct::{
         AsrConstruct,
         AsrPreset,
@@ -47,7 +48,6 @@ use crate::cli::asr::{
         Emission,
         VadArgs,
     },
-    transcribe_cmd::TranscribeIo,
     voxtral::VoxtralFlags,
     whisper::WhisperFlags,
 };
@@ -61,7 +61,7 @@ use crate::cli::asr::{
 ///    (`fallback.speech`: `multi` hears English) is an error.
 /// 2. Without `--preset`, each of `--speech`, `--task` and `--quality` not
 ///    given is what the construct's `defaults` say, by those given
-///    ([`AsrConstructConfig::fill`](crate::cli::asr::construct::AsrConstructConfig::fill):
+///    ([`AsrConstructConfig::fill`](crate::asr::construct::AsrConstructConfig::fill):
 ///    `--task translate` makes the speech `multi`), else `default`'s. With it,
 ///    they are the preset's.
 /// 3. English speech translated to English is transcribed ([`Need::settled`]),
@@ -146,13 +146,13 @@ struct Asked {
 
 impl AsrConstructArgs {
     /// `--speech`, or the speech `--language` implies, by the construct's
-    /// [`language`](crate::cli::asr::construct::AsrConstructConfig::language)
+    /// [`language`](crate::asr::construct::AsrConstructConfig::language)
     /// table (`en` for English, `multi` for any other).
     ///
     /// # Errors
     /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) for a `--speech`
     /// that does not hear the speech `--language` implies
-    /// ([`Fallback::hears`](crate::cli::asr::construct::Fallback::hears)):
+    /// ([`Fallback::hears`](crate::asr::construct::Fallback::hears)):
     /// `--speech en --language de`.
     fn speech(&self) -> BunsenResult<Option<Speech>> {
         let config = construct_config();
@@ -333,7 +333,7 @@ impl AsrConstructArgs {
     ///
     /// # Errors
     /// As [`asked`](Self::asked) and
-    /// [`AsrRecipe::resolve`](crate::cli::asr::construct::AsrRecipe::resolve).
+    /// [`AsrRecipe::resolve`](crate::asr::construct::AsrRecipe::resolve).
     pub fn resolve(
         &self,
         mode: Mode,
