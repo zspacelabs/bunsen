@@ -17,7 +17,7 @@ publish = true
 [dependencies]
 # `autodiff`: `DevicePrefs::autodiff` wraps the device for training.
 burn = { workspace = true, features = ["std", "flex", "autodiff"] }
-bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = ["std", "fetch", "cache"] }
+bunsen = { version = "0.42.0", path = "../bunsen", default-features = false, features = ["std", "fetch", "cache"] }
 
 clap = { workspace = true, features = ["derive"] }
 document-features = { workspace = true }
