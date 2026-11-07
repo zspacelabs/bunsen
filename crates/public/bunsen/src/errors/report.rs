@@ -4,6 +4,7 @@ use core::{
     error::Error,
     fmt,
 };
+#[cfg(feature = "std")]
 use std::backtrace::BacktraceStatus;
 
 use crate::errors::BunsenError;
@@ -89,6 +90,7 @@ impl fmt::Display for Report<'_> {
             write!(f, "caused by: {cause}")?;
             source = cause.source();
         }
+        #[cfg(feature = "std")]
         if let Some(backtrace) = e.backtrace()
             && backtrace.status() == BacktraceStatus::Captured
         {

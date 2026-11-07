@@ -1,8 +1,3 @@
-use std::collections::{
-    HashMap,
-    HashSet,
-};
-
 use bunsen::errors::{
     BunsenError,
     BunsenErrorKind,
@@ -10,6 +5,10 @@ use bunsen::errors::{
     io_error_kind,
 };
 use burn::data::dataset::InMemDataset;
+use hashbrown::{
+    HashMap,
+    HashSet,
+};
 
 /// Scan a folder of ``$ROOT/$CLASS/$IMG.{jpg,png}`` into an `InMemDataset`.
 ///

@@ -11,6 +11,7 @@ use core::{
     fmt,
     panic::Location,
 };
+#[cfg(feature = "std")]
 use std::backtrace::Backtrace;
 
 use crate::errors::{
@@ -60,6 +61,7 @@ struct Inner {
     /// The message already says what the cause says: set when the message is
     /// built from the cause, so the cause is not printed twice.
     message_is_cause: bool,
+    #[cfg(feature = "std")]
     backtrace: Option<Arc<Backtrace>>,
     remarks: Vec<Remark>,
 }
@@ -84,6 +86,7 @@ impl BunsenError {
         message_is_cause: bool,
         location: &'static Location<'static>,
     ) -> Self {
+        #[cfg(feature = "std")]
         let backtrace = kind.is_bug().then(|| Arc::new(Backtrace::capture()));
         Self(Arc::new(Inner {
             kind,
@@ -93,6 +96,7 @@ impl BunsenError {
             context: Vec::new(),
             cause,
             message_is_cause,
+            #[cfg(feature = "std")]
             backtrace,
             remarks: Vec::new(),
         }))
@@ -363,6 +367,7 @@ impl BunsenError {
         let inner = self.inner_mut();
         inner.remarks.push(Remark::new(inner.kind, to, location));
         inner.kind = to;
+        #[cfg(feature = "std")]
         if to.is_bug() && inner.backtrace.is_none() {
             inner.backtrace = Some(Arc::new(Backtrace::capture()));
         }
@@ -412,6 +417,7 @@ impl BunsenError {
     /// ([`Illegal`](BunsenErrorKind::Illegal) or
     /// [`Internal`](BunsenErrorKind::Internal)), if any. Whether it holds
     /// frames depends on `RUST_BACKTRACE`.
+    #[cfg(feature = "std")]
     pub fn backtrace(&self) -> Option<&Backtrace> {
         self.0.backtrace.as_deref()
     }

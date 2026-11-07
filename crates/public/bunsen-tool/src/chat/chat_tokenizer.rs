@@ -391,7 +391,7 @@ pub(crate) fn toy_byte_level_json() -> String {
             c
         });
     }
-    let mut vocab: std::collections::HashMap<String, usize> = alphabet
+    let mut vocab: hashbrown::HashMap<String, usize> = alphabet
         .iter()
         .enumerate()
         .map(|(b, c)| (c.to_string(), b))

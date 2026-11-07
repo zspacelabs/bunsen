@@ -2,7 +2,6 @@ use core::{
     fmt::Debug,
     panic::Location,
 };
-use std::collections::HashMap;
 
 use burn::{
     Tensor,
@@ -15,6 +14,7 @@ use burn::{
         kind::Basic,
     },
 };
+use hashbrown::HashMap;
 use num_traits::Float;
 use time::{
     OffsetDateTime,

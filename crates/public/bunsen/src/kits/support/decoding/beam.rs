@@ -1,11 +1,10 @@
 //! Beam search, as `openai-whisper`'s `BeamSearchDecoder` does it.
 
-use std::collections::HashMap;
-
 use burn::{
     Tensor,
     tensor::activation::log_softmax,
 };
+use hashbrown::HashMap;
 
 use super::{
     Candidate,

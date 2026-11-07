@@ -1,8 +1,7 @@
 //! Exact unpacking of audit event data maps.
 
-use std::collections::HashMap;
-
 use burn::prelude::TensorData;
+use hashbrown::HashMap;
 
 use crate::errors::{
     BunsenError,

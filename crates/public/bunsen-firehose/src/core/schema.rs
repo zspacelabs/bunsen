@@ -1,8 +1,5 @@
 use std::{
-    collections::{
-        BTreeMap,
-        HashSet,
-    },
+    collections::BTreeMap,
     ops::{
         Index,
         IndexMut,
@@ -16,6 +13,7 @@ use bunsen::errors::{
     LookupError,
     WithOkOrPanic,
 };
+use hashbrown::HashSet;
 use serde::{
     Deserialize,
     Serialize,
@@ -659,13 +657,16 @@ impl FirehoseTableSchema {
         plan: BuildPlan,
         output_columns: &BTreeMap<String, ColumnSchema>,
     ) -> BunsenResult<()> {
-        let all_plan_output_cnames = plan.outputs.values().collect::<HashSet<_>>();
-        let all_output_cnames = output_columns.keys().collect::<HashSet<_>>();
+        {
+            // A scope: the sets borrow `plan`, which moves below.
+            let all_plan_output_cnames = plan.outputs.values().collect::<HashSet<_>>();
+            let all_output_cnames = output_columns.keys().collect::<HashSet<_>>();
 
-        if all_plan_output_cnames != all_output_cnames {
-            return Err(BunsenError::illegal(format!(
-                "Output columns in plan do not match provided output columns: {all_plan_output_cnames:?} != {all_output_cnames:?}"
-            )));
+            if all_plan_output_cnames != all_output_cnames {
+                return Err(BunsenError::illegal(format!(
+                    "Output columns in plan do not match provided output columns: {all_plan_output_cnames:?} != {all_output_cnames:?}"
+                )));
+            }
         }
 
         for column in output_columns.values() {

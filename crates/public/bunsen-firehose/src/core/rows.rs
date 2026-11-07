@@ -1,6 +1,5 @@
 use std::{
     any::Any,
-    collections::HashMap,
     fmt::Debug,
     ops::{
         Index,
@@ -16,6 +15,7 @@ use bunsen::errors::{
     BunsenResult,
     LookupError,
 };
+use hashbrown::HashMap;
 use serde::{
     Serialize,
     de::DeserializeOwned,
@@ -278,7 +278,7 @@ impl<K> IntoColumns for HashMap<K, FirehoseValue>
 where
     K: AsRef<str>,
 {
-    type Iter = std::collections::hash_map::IntoIter<K, FirehoseValue>;
+    type Iter = hashbrown::hash_map::IntoIter<K, FirehoseValue>;
     type Key = K;
 
     fn into_columns(self) -> Self::Iter {

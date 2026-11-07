@@ -23,6 +23,8 @@ num-traits = { workspace = true }
 
 globwalk = { workspace = true }
 
+hashbrown = { workspace = true }
+
 bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = ["std"] }
 
 inventory = { workspace = true }
