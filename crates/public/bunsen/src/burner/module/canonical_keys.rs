@@ -1,5 +1,10 @@
 //! A module's canonical weight names.
 
+use alloc::{
+    string::String,
+    vec::Vec,
+};
+
 use super::Rekey;
 
 /// A module's canonical weight names: the scheme its loaders map a

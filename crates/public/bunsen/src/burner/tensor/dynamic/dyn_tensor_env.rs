@@ -1,4 +1,10 @@
-use alloc::sync::Arc;
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    sync::Arc,
+};
 use std::collections::HashSet;
 
 use burn::{

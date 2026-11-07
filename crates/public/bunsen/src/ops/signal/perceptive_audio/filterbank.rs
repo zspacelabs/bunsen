@@ -1,8 +1,16 @@
 //! Mel scale and triangular filterbank.
 
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
 use core::ops::Range;
 
 use burn::config::Config;
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use crate::{
     errors::{

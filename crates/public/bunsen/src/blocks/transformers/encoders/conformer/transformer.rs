@@ -1,10 +1,16 @@
 //! The Conformer's block stack, past its subsampling.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,
     module::Module,
     tensor::Device,
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use super::{
     ConformerBlock,

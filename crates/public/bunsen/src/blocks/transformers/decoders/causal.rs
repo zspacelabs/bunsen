@@ -1,5 +1,10 @@
 //! The causal decoder layer.
 
+use alloc::string::{
+    String,
+    ToString,
+};
+
 use burn::{
     Tensor,
     config::Config,

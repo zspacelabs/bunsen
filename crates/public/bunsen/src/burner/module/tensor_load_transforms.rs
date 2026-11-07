@@ -2,7 +2,12 @@
 
 use alloc::{
     fmt,
+    string::{
+        String,
+        ToString,
+    },
     sync::Arc,
+    vec::Vec,
 };
 
 use burn::tensor::TensorData;

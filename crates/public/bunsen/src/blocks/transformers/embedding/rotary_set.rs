@@ -1,5 +1,6 @@
 //! A stack's rotary tables.
 
+use alloc::vec::Vec;
 use core::ops::Range;
 
 use burn::module::Module;

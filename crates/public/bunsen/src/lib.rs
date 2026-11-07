@@ -103,6 +103,9 @@
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
+// Without `std`, `alloc` brings `vec!` and `format!`, which `std`'s
+// prelude has.
+#[cfg_attr(not(feature = "std"), macro_use)]
 extern crate alloc;
 extern crate core;
 

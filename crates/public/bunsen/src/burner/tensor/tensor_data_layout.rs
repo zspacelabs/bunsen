@@ -1,4 +1,6 @@
 //! Rearranging [`TensorData`] on the host, without a device.
+use alloc::vec::Vec;
+
 use burn::tensor::TensorData;
 
 /// `data`'s axes in a new order, as

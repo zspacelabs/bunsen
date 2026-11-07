@@ -10,6 +10,8 @@
 //! backend then does, since a missed cast in bunsen's blocks looks like
 //! that, not like an error.
 
+use alloc::vec::Vec;
+
 use burn::tensor::{
     DType,
     Device,

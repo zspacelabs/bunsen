@@ -1,6 +1,10 @@
 //! A pretrained's presets: named, described merge patches over its config.
 
-use alloc::collections::BTreeSet;
+use alloc::{
+    collections::BTreeSet,
+    string::String,
+    vec::Vec,
+};
 use core::fmt;
 
 use serde::{

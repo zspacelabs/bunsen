@@ -1,5 +1,11 @@
 //! Checking slices against a shape.
-use alloc::string::ToString;
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
 use core::fmt::{
     Display,
     Formatter,

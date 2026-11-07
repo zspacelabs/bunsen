@@ -1,3 +1,9 @@
+use alloc::{
+    boxed::Box,
+    string::ToString,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     prelude::{

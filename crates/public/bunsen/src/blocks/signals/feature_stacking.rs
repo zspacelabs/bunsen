@@ -1,4 +1,6 @@
 //! Stacking frames into fewer, wider ones.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,

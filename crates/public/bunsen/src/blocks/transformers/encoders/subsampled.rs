@@ -1,4 +1,9 @@
 //! `SubsampledEncoder`: a frame-rate-changing front end, then an encoder stack.
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

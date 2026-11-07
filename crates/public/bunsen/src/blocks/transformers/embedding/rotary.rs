@@ -1,5 +1,6 @@
 //! # Rotary Embedding
 
+use alloc::string::ToString;
 use core::ops::Range;
 
 use burn::{

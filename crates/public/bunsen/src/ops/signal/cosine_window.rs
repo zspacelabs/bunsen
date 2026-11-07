@@ -1,8 +1,14 @@
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,
     tensor::TensorCreationOptions,
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use crate::ops::{
     arange::tensor_arange_start_step,

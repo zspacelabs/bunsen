@@ -1,6 +1,10 @@
 //! Shard-set maps: named collections of shard sets.
 
-use alloc::collections::BTreeMap;
+use alloc::{
+    collections::BTreeMap,
+    string::String,
+    vec::Vec,
+};
 
 use super::{
     ShardSetDescriptor,

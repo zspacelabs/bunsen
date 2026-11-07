@@ -1,5 +1,7 @@
 //! The language-model head.
 
+use alloc::string::ToString;
+
 use burn::{
     Tensor,
     config::Config,

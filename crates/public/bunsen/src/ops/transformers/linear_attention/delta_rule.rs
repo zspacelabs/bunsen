@@ -1,5 +1,7 @@
 //! The gated delta rule.
 
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::{
@@ -7,6 +9,10 @@ use burn::{
         s,
     },
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use crate::{
     burner::tensor::{

@@ -1,5 +1,7 @@
 //! The residual transformer encoder: its block, pre- or post-norm, and a stack
 //! of them.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,

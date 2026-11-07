@@ -3,6 +3,8 @@
 use alloc::{
     collections::BTreeSet,
     fmt,
+    string::String,
+    vec::Vec,
 };
 
 use burn::tensor::Slice;

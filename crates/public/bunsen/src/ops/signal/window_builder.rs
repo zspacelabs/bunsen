@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::TensorData,
