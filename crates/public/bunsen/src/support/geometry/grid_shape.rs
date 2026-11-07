@@ -1,5 +1,6 @@
 //! # Grid shapes
 
+use alloc::vec::Vec;
 use core::str::FromStr;
 
 use serde::{

@@ -1,5 +1,7 @@
 //! A multi-layer key/value cache, stored as its config's policy says.
 
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,

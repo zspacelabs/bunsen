@@ -1,5 +1,10 @@
 //! Waveform to log-mel conversion.
 
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,
@@ -7,6 +12,10 @@ use burn::{
     prelude::TensorData,
     tensor::Device,
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use crate::{
     burner::module::ModuleInit,

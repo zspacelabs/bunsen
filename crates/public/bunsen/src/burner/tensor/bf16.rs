@@ -1,4 +1,6 @@
 //! Rounding to `bf16` precision, kept in `f32`.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::TensorData,

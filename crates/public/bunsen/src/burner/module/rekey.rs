@@ -1,11 +1,17 @@
 //! Mapping a checkpoint's tensor names onto a module's paths.
 use alloc::{
+    boxed::Box,
     collections::{
         BTreeMap,
         BTreeSet,
     },
     fmt,
+    string::{
+        String,
+        ToString,
+    },
     sync::Arc,
+    vec::Vec,
 };
 use std::collections::{
     HashMap,

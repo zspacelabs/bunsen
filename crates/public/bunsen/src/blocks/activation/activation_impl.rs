@@ -1,5 +1,7 @@
 //! The activation seam's enum and its config.
 
+use alloc::vec::Vec;
+
 use burn::{
     nn::{
         Identity,

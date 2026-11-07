@@ -1,9 +1,15 @@
 //! Sinusoidal position tables.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::TensorData,
     tensor::Device,
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 /// The sinusoidal position table of Whisper's audio encoder and its
 /// descendants (Qwen3-ASR's): `length` rows of `channels`, the sines of every

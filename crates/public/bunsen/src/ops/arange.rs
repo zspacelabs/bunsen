@@ -14,6 +14,8 @@
 //! The `arange` forms take a point count `num` rather than an end value, and a
 //! `None` step means `1.0`. The `linspace` forms include both ends.
 
+use alloc::vec::Vec;
+
 use burn::{
     prelude::Tensor,
     tensor::TensorCreationOptions,

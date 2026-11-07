@@ -25,6 +25,13 @@
 //!
 //! [RFC 7386]: https://www.rfc-editor.org/rfc/rfc7386
 
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
 use core::fmt;
 
 use serde_json::{

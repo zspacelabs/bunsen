@@ -1,5 +1,7 @@
 //! One linear-attention layer's carried state.
 
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,

@@ -18,6 +18,10 @@
 //! Each layer's mixer takes the next slot of its own kind's cache, so a KV
 //! cache holds the attention layers alone.
 
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
 use core::ops::Range;
 
 use burn::{

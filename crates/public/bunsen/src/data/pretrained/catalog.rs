@@ -1,5 +1,9 @@
 //! Catalogues: a kit's pretrained table as data, loaded at run time.
 
+use alloc::{
+    string::String,
+    vec::Vec,
+};
 use std::{
     path::PathBuf,
     sync::OnceLock,

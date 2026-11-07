@@ -1,4 +1,6 @@
 //! `EncoderSubsampling`: an encoder front end, chosen by config.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,

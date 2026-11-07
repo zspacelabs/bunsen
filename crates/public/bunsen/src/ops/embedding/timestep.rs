@@ -1,9 +1,15 @@
 //! Sinusoidal embeddings of a scalar.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::TensorData,
     tensor::Device,
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 /// The sinusoidal embedding of one scalar, `t`: the cosines of `t` at every
 /// frequency, then their sines.

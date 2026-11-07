@@ -2,6 +2,10 @@ use burn::{
     Tensor,
     config::Config,
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 /// The base of a logarithm.
 ///

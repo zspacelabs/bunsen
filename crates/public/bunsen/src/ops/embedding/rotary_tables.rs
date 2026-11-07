@@ -1,5 +1,7 @@
 //! Rotary-embedding frequency tables.
 
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     tensor::{

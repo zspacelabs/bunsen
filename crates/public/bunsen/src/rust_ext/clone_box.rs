@@ -1,4 +1,5 @@
 //! # `CloneBox`
+use alloc::boxed::Box;
 use core::{
     any::Any,
     fmt::Debug,

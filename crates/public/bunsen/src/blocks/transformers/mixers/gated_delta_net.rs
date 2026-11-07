@@ -1,5 +1,7 @@
 //! The gated `DeltaNet`, a linear-attention token mixer.
 
+use alloc::string::ToString;
+
 use burn::{
     Tensor,
     config::Config,
@@ -27,6 +29,10 @@ use burn::{
         },
     },
 };
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
 
 use crate::{
     blocks::norm::{
