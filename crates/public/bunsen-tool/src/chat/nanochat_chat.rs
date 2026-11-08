@@ -13,6 +13,7 @@ use bunsen::{
                 NanoChatConstruct,
                 NanoChatDecodeState,
                 NanoChatGpt,
+                NanoChatGptMeta,
             },
         },
         support::{
@@ -37,13 +38,17 @@ use burn::{
 use crate::chat::{
     ChatBackend,
     ChatMessage,
+    ChatTokenizer,
+    HfTokenizer,
     NanoChatLayout,
-    NanoChatTokenizer,
     row,
+    unspelled,
 };
 
 /// A loaded nanochat with what a conversation needs around it: its
-/// tokenizer, its conversation layout, and upstream's chat defaults.
+/// tokenizer (its `tokenizer.pkl`, as an [`HfTokenizer`]), its conversation
+/// layout, and upstream's chat defaults. A reply never chooses an id the
+/// tokenizer cannot spell.
 ///
 /// nanochat's checkpoints carry no generation config; the defaults are
 /// upstream's chat scripts': temperature 0.6, top-k 50, a reply ending at
@@ -51,9 +56,10 @@ use crate::chat::{
 #[derive(Debug)]
 pub struct NanoChatChat {
     bundle: Arc<NanoChatConstruct>,
-    tokenizer: Arc<NanoChatTokenizer>,
+    tokenizer: Arc<dyn ChatTokenizer>,
     layout: NanoChatLayout,
     generation: GenerationPolicy,
+    unspelled: Arc<dyn LogitFilter>,
 }
 
 impl NanoChatChat {
@@ -62,13 +68,15 @@ impl NanoChatChat {
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.pkl`, or its tokenizer the
-    /// layout's special tokens; as [`NanoChatTokenizer::from_file`].
+    /// layout's special tokens; as
+    /// [`HfTokenizer::from_tiktoken_pickle_file`].
     pub fn from_construct(bundle: Arc<NanoChatConstruct>) -> BunsenResult<Self> {
         let path = bundle
             .tokenizer()
             .ok_or_else(|| BunsenError::invalid_resource("a checkpoint without tokenizer.pkl"))?;
-        let tokenizer = NanoChatTokenizer::from_file(path)?;
-        let layout = NanoChatLayout::from_tokenizer(&tokenizer)?;
+        let tokenizer: Arc<dyn ChatTokenizer> =
+            Arc::new(HfTokenizer::from_tiktoken_pickle_file(path)?);
+        let layout = NanoChatLayout::from_tokenizer(tokenizer.as_ref())?;
         let generation = GenerationPolicy {
             stop_ids: layout.stop_ids(),
             sampling: Some(SamplingPolicy {
@@ -80,8 +88,9 @@ impl NanoChatChat {
             ..Default::default()
         };
         Ok(Self {
+            unspelled: unspelled(bundle.model.vocab_size(), tokenizer.as_ref()),
             bundle,
-            tokenizer: Arc::new(tokenizer),
+            tokenizer,
             layout,
             generation,
         })
@@ -93,7 +102,7 @@ impl NanoChatChat {
     }
 
     /// The tokenizer.
-    pub fn tokenizer(&self) -> &Arc<NanoChatTokenizer> {
+    pub fn tokenizer(&self) -> &Arc<dyn ChatTokenizer> {
         &self.tokenizer
     }
 
@@ -116,7 +125,7 @@ impl ChatBackend for NanoChatChat {
         messages: &[ChatMessage],
         _enable_thinking: Option<bool>,
     ) -> BunsenResult<Vec<i64>> {
-        self.layout.render(&self.tokenizer, messages)
+        self.layout.render(self.tokenizer.as_ref(), messages)
     }
 
     fn detokenizer(&self) -> Arc<dyn Detokenizer> {
@@ -128,7 +137,7 @@ impl ChatBackend for NanoChatChat {
     }
 
     fn filters(&self) -> Vec<Arc<dyn LogitFilter>> {
-        Vec::new()
+        vec![self.unspelled.clone()]
     }
 
     fn trained_context(&self) -> Option<usize> {

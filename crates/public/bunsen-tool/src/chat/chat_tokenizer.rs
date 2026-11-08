@@ -22,7 +22,8 @@ use serde_json::Value;
 /// its tokens by name ([`Tokenizer`]), its ids back to text
 /// ([`Detokenizer`]).
 ///
-/// [`HfTokenizer`] reads any `tokenizer.json` (Qwen3's and Gemma's).
+/// [`HfTokenizer`] reads any `tokenizer.json` (Qwen3's and Gemma's), and a
+/// pickled `tiktoken` `Encoding` (nanochat's `tokenizer.pkl`).
 pub trait ChatTokenizer: Detokenizer + Tokenizer {
     /// Encodes text with its special tokens' spellings as text.
     ///
@@ -53,7 +54,9 @@ pub trait ChatTokenizer: Detokenizer + Tokenizer {
 /// model and the decoder from one `tokenizer.json`, so it encodes as
 /// `transformers` does by construction: Qwen3's byte-level BPE (an NFC
 /// normalizer, a `Split` then `ByteLevel` pre-tokenizer), and Gemma's
-/// SentencePiece-style BPE with its byte fallback.
+/// SentencePiece-style BPE with its byte fallback. A pickled `tiktoken`
+/// `Encoding` reads as the `tokenizer.json` written for it
+/// ([`from_tiktoken_pickle`](Self::from_tiktoken_pickle)): nanochat's.
 ///
 /// A checkpoint's `tokenizer_config.json`, when given, adds its added tokens
 /// (`added_tokens_decoder`) that the `tokenizer.json` lacks, at their ids, as
@@ -379,18 +382,7 @@ pub(crate) fn toy_sentencepiece_json() -> String {
 #[cfg(test)]
 pub(crate) fn toy_byte_level_json() -> String {
     // GPT-2's byte alphabet: each byte's character, its id the byte.
-    let mut alphabet = Vec::new();
-    let mut next = 256u32;
-    for b in 0..=255u8 {
-        let printable = (b'!'..=b'~').contains(&b) || (0xA1..=0xAC).contains(&b) || b >= 0xAE;
-        alphabet.push(if printable {
-            char::from(b)
-        } else {
-            let c = char::from_u32(next).unwrap();
-            next += 1;
-            c
-        });
-    }
+    let alphabet = crate::chat::tiktoken_pickle::byte_alphabet();
     let mut vocab: hashbrown::HashMap<String, usize> = alphabet
         .iter()
         .enumerate()

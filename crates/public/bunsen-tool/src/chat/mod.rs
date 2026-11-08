@@ -17,12 +17,15 @@
 //!   and back, as `transformers` encodes; a
 //!   [`Detokenizer`](bunsen::kits::support::tokens::Detokenizer).
 //!   [`HfTokenizer`] reads any `tokenizer.json` on the `tokenizers` crate
-//!   (Qwen3's and Gemma's).
+//!   (Qwen3's and Gemma's);
+//!   [`from_tiktoken_pickle`](HfTokenizer::from_tiktoken_pickle) reads a
+//!   pickled `tiktoken` `Encoding` (nanochat's `tokenizer.pkl`) through
+//!   `serde_pickle`, as the `tokenizer.json` written for it.
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
-//! - [`NanoChatChat`], [`NanoChatTokenizer`] and [`NanoChatLayout`]: a nanochat
-//!   checkpoint's chat: its `tokenizer.pkl`, read through `serde_pickle`, and
-//!   upstream's conversation layout, each as upstream encodes and renders.
+//! - [`NanoChatChat`] and [`NanoChatLayout`]: a nanochat checkpoint's chat,
+//!   through its tokenizer, and upstream's conversation layout, as upstream
+//!   renders it.
 //!
 //! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `repl` take
 //! a checkpoint of any family by its name; `family qwen3`, `family gemma`
@@ -45,9 +48,9 @@ mod chat_tokenizer;
 mod generation;
 mod nanochat_chat;
 mod nanochat_layout;
-mod nanochat_tokenizer;
 mod session;
 mod template;
+mod tiktoken_pickle;
 
 pub use backend::*;
 pub use chat_command_group::*;
@@ -56,6 +59,5 @@ pub use chat_tokenizer::*;
 pub use generation::*;
 pub use nanochat_chat::*;
 pub use nanochat_layout::*;
-pub use nanochat_tokenizer::*;
 pub use session::*;
 pub use template::*;

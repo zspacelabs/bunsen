@@ -74,15 +74,17 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 # "did you mean?" on a failed lookup.
 strsim = { workspace = true }
+# nanochat's `tokenizer.pkl`, a pickled `tiktoken` `Encoding`.
 serde-pickle = { workspace = true }
 # `card`'s YAML.
 serde-saphyr = { workspace = true, features = ["serialize"] }
 time = { workspace = true }
 ureq = { workspace = true, optional = true }
-wordchipper = { workspace = true, features = ["std", "fast-hash"] }
-# Qwen3's and Gemma's tokenizers: `transformers`' own encoder, from the same
-# `tokenizer.json`.
+# Every chat tokenizer: `transformers`' own encoder, from a `tokenizer.json`
+# (Qwen3's and Gemma's), or one written for a `tokenizer.pkl` (nanochat's).
 tokenizers = { workspace = true }
+# The maps the tokenizer readers build, as bunsen's are.
+hashbrown = { workspace = true }
 
 [dev-dependencies]
 # `serde`: the toy tokenizer JSON the tests build.

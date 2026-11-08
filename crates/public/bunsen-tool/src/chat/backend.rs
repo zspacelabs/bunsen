@@ -238,6 +238,17 @@ pub type GemmaChat = LmChat<GemmaModel>;
 /// prefills the whole conversation again ([`CachedHistory::rewind`]).
 pub type Qwen3_5Chat = LmChat<Qwen3_5Model>;
 
+/// The filter that keeps a reply off the ids of a head `n_vocab` wide that
+/// `tokenizer` cannot spell: a head may be wider than its tokenizer.
+pub fn unspelled(
+    n_vocab: usize,
+    tokenizer: &dyn ChatTokenizer,
+) -> Arc<dyn LogitFilter> {
+    Arc::new(SuppressTokens::new(
+        (0..n_vocab as i64).filter(|&id| !tokenizer.contains(id)),
+    ))
+}
+
 /// An `InvalidResource` for a checkpoint without `what`.
 fn missing(what: &str) -> BunsenError {
     BunsenError::invalid_resource(format!("a checkpoint without {what}"))
@@ -284,9 +295,8 @@ impl<M: ChatLm> LmChat<M> {
         if generation.stop_ids.is_empty() {
             return Err(missing("a stop token (no generation_config.json)"));
         }
-        let unspelled = (0..bundle.model.n_vocab() as i64).filter(|&id| !tokenizer.contains(id));
         Ok(Self {
-            unspelled: Arc::new(SuppressTokens::new(unspelled)),
+            unspelled: unspelled(bundle.model.n_vocab(), tokenizer.as_ref()),
             bundle,
             tokenizer,
             template,

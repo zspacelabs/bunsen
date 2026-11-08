@@ -880,6 +880,7 @@ dependencies = [
  "bunsen-app",
  "burn",
  "clap",
+ "hashbrown 0.17.1",
  "log",
  "minijinja",
  "minijinja-contrib",
@@ -890,7 +891,6 @@ dependencies = [
  "strsim",
  "time",
  "tokenizers",
- "wordchipper",
 ]
 
 [[package]]
@@ -9450,7 +9450,6 @@ dependencies = [
  "cfg-if",
  "document-features",
  "fancy-regex",
- "foldhash 0.2.0",
  "hashbrown 0.16.1",
  "indoc",
  "inventory",

@@ -1336,7 +1336,6 @@ dependencies = [
  "time",
  "tokenizers",
  "ureq 3.5.1",
- "wordchipper",
 ]
 
 [[package]]
