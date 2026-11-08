@@ -40,7 +40,7 @@ use cpal::{
     },
 };
 
-use crate::asr::resample::Resampler;
+use crate::asr::Resampler;
 
 /// How long the capture loop waits for a callback before checking whether
 /// it has been asked to stop.

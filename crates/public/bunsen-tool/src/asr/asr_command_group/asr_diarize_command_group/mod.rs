@@ -1,15 +1,18 @@
-//! `asr diarize`: who spoke when, through Sortformer.
-use std::{
-    path::PathBuf,
-    sync::Arc,
-    time::Instant,
-};
+//! `asr diarize`: the command group.
 
+#[cfg(feature = "live")]
+mod asr_diarize_live;
+mod asr_diarize_run;
+
+use std::sync::Arc;
+
+#[cfg(feature = "live")]
+pub use asr_diarize_live::*;
+pub use asr_diarize_run::*;
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
     kits::speech::diarization::{
-        RttmSegment,
         SpeakerActivityModel,
         SpeakerTurn,
         sortformer::{
@@ -20,73 +23,54 @@ use bunsen::{
             },
         },
     },
-    support::audio::load_audio_mono_sr,
-};
-use bunsen_app::{
-    cache::WeightsCacheArgs,
-    device::BackendArgs,
-    logging::{
-        LevelFilter,
-        LogArgs,
-        LogPolicy,
-    },
 };
 use burn::tensor::Device;
 use serde::Serialize;
 
-#[cfg(feature = "live")]
-use crate::asr::capture::CaptureArgs;
 use crate::{
     asr::{
-        cli::{
-            fetch_cmd::FetchCmd,
-            list_cmd::ListCmd,
-        },
-        family::{
-            Kit,
-            load_logged,
-        },
-        transcript::{
-            millis,
-            recording_id,
-            speaker_name,
-        },
+        AsrKitFetchCommand,
+        AsrKitListCommand,
+        Kit,
+        load_logged,
+        millis,
+        speaker_name,
     },
     support::PresetArgs,
 };
 
 /// The diarizer's commands.
 #[derive(clap::Args, Debug)]
-pub struct DiarizeCmd {
+pub struct AsrDiarizeCommandGroup {
     #[command(subcommand)]
-    action: DiarizeAction,
+    action: AsrDiarizeSubCommand,
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum DiarizeAction {
+enum AsrDiarizeSubCommand {
     /// List the models `--model` can name, their licences and files, and
     /// whether each file is cached.
-    List(ListCmd),
+    List(AsrKitListCommand),
 
     /// Bring every file of the named models into the weights cache.
-    Fetch(FetchCmd),
+    Fetch(AsrKitFetchCommand),
 
     /// Diarize audio files: each one's speaker turns.
-    Run(RunCmd),
+    Run(AsrDiarizeRunCommand),
 
     /// Diarize the microphone: each speaker turn as it closes.
     #[cfg(feature = "live")]
-    Live(LiveCmd),
+    Live(AsrDiarizeLiveCommand),
 }
 
-impl DiarizeCmd {
+impl AsrDiarizeCommandGroup {
     pub fn run(&self) -> BunsenResult<()> {
         match &self.action {
-            DiarizeAction::List(list) => list.run(Kit::Diarizer),
-            DiarizeAction::Fetch(fetch) => fetch.run(Kit::Diarizer),
-            DiarizeAction::Run(run) => run.run(),
+            AsrDiarizeSubCommand::List(list) => list.run(Kit::Diarizer),
+            AsrDiarizeSubCommand::Fetch(fetch) => fetch.run(Kit::Diarizer),
+            AsrDiarizeSubCommand::Run(run) => run.run(),
             #[cfg(feature = "live")]
-            DiarizeAction::Live(live) => live.run(),
+            AsrDiarizeSubCommand::Live(live) => live.run(),
         }
     }
 }
@@ -96,7 +80,7 @@ impl DiarizeCmd {
 /// becomes turns (`postprocess`: `--preset dihard3`); `diarize list` shows
 /// each model's.
 #[derive(clap::Args, Debug)]
-pub struct DiarizerArgs {
+pub struct AsrDiarizerArgs {
     /// The model, as a lookup expression: `diarize list` shows them;
     /// `nvidia/nemotron-3-diarization` when omitted.
     #[arg(long)]
@@ -106,12 +90,12 @@ pub struct DiarizerArgs {
     pub presets: PresetArgs,
 }
 
-impl DiarizerArgs {
+impl AsrDiarizerArgs {
     /// Loads the model through `cache` under its presets, logging its info
     /// card.
     ///
     /// # Errors
-    /// As [`load_construct`].
+    /// As [`load_diarizer`].
     pub fn load(
         &self,
         cache: &PretrainedCache,
@@ -120,7 +104,7 @@ impl DiarizerArgs {
         let model = self
             .presets
             .apply(self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL))?;
-        load_construct(&model, cache, device)
+        load_diarizer(&model, cache, device)
     }
 }
 
@@ -128,7 +112,7 @@ impl DiarizerArgs {
 ///
 /// # Errors
 /// As the factory resolving the name, and the load.
-pub fn load_construct(
+pub fn load_diarizer(
     model: &str,
     cache: &PretrainedCache,
     device: &Device,
@@ -145,7 +129,7 @@ pub fn load_construct(
 /// A speech recognizer's diarizer: `--diarize` on every family's
 /// `transcribe` and `live`.
 #[derive(clap::Args, Debug)]
-pub struct SpeakerArgs {
+pub struct AsrSpeakerArgs {
     /// Label each word or segment with its speaker, through a diarizer:
     /// `--diarize` alone for `nvidia/nemotron-3-diarization`, `--diarize=EXPR`
     /// for another, or its presets
@@ -161,12 +145,12 @@ pub struct SpeakerArgs {
     pub diarize: Option<String>,
 }
 
-impl SpeakerArgs {
+impl AsrSpeakerArgs {
     /// The diarizer `--diarize` names, loaded through `cache`; `None`
     /// without the flag. The recognizers see only the trait object.
     ///
     /// # Errors
-    /// As [`load_construct`].
+    /// As [`load_diarizer`].
     pub fn diarizer(
         &self,
         cache: &PretrainedCache,
@@ -175,7 +159,7 @@ impl SpeakerArgs {
         let Some(model) = &self.diarize else {
             return Ok(None);
         };
-        let bundle = load_construct(model, cache, device)?;
+        let bundle = load_diarizer(model, cache, device)?;
         Ok(Some(Arc::new(bundle.diarizer(bundle.streaming()?)?)))
     }
 }
@@ -183,7 +167,7 @@ impl SpeakerArgs {
 /// How turns are printed.
 #[derive(clap::Args, Debug)]
 #[group(multiple = false)]
-pub struct OutputArgs {
+pub struct AsrDiarizeOutputArgs {
     /// Print NIST RTTM: a `SPEAKER` line per turn, the file's stem as its
     /// recording id.
     #[arg(long)]
@@ -257,174 +241,17 @@ fn speaker_totals(turns: &[SpeakerTurn]) -> Vec<JsonSpeaker> {
         .collect()
 }
 
-/// Diarizes audio files: each one's speaker turns, as lines of
-/// `{start} {end} speaker_{k}` (seconds), RTTM, or JSON.
-///
-/// Each file is decoded at the model's rate (16 kHz, mono) and streamed
-/// through the diarizer at its `latency` preset; speakers are numbered in the
-/// order they first speak. The model's info card, and after each file how
-/// long it took, are logged at `INFO` (`-v`).
-#[derive(clap::Args, Debug)]
-pub struct RunCmd {
-    #[clap(flatten)]
-    pub logging: LogArgs,
-
-    #[clap(flatten)]
-    pub diarizer: DiarizerArgs,
-
-    #[clap(flatten)]
-    pub cache: WeightsCacheArgs,
-
-    #[clap(flatten)]
-    pub device: BackendArgs,
-
-    #[clap(flatten)]
-    pub output: OutputArgs,
-
-    /// The audio files.
-    #[arg(required = true)]
-    pub files: Vec<PathBuf>,
-}
-
-impl RunCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        self.logging
-            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
-        let device = self.device.open()?;
-        let cache = self.cache.init()?;
-        let bundle = self.diarizer.load(&cache, &device)?;
-        let streaming = bundle.streaming()?;
-        let filter = bundle.turns().clone();
-        let rate = bundle.sample_rate();
-
-        for path in &self.files {
-            let samples = load_audio_mono_sr(path, rate)?;
-            let t0 = Instant::now();
-            let turns = bundle.diarize(&samples, streaming.clone(), &filter)?;
-            let elapsed = t0.elapsed();
-
-            if self.output.json {
-                let json = JsonDiarization {
-                    file: path.display().to_string(),
-                    turns: turns.iter().map(JsonTurn::from).collect(),
-                    speakers: speaker_totals(&turns),
-                };
-                println!(
-                    "{}",
-                    serde_json::to_string(&json).expect("a diarization serializes")
-                );
-            } else if self.output.rttm {
-                let id = recording_id(path);
-                for turn in &turns {
-                    println!("{}", RttmSegment::from_turn(&id, turn));
-                }
-            } else {
-                if self.files.len() > 1 {
-                    println!("{}:", path.display());
-                }
-                for turn in &turns {
-                    println!("{}", text_line(turn));
-                }
-            }
-
-            let seconds = samples.len() as f64 / rate as f64;
-            log::info!(
-                "{}: {seconds:.1} s of audio in {elapsed:.2?} ({:.1}x realtime)",
-                path.display(),
-                seconds / elapsed.as_secs_f64()
-            );
-        }
-        Ok(())
-    }
-}
-
-/// Diarizes the microphone: each speaker turn printed as it closes, as a
-/// text line, an RTTM line (recording id `live`), or a JSON object.
-///
-/// Times are seconds from the start of capture. The input device is opened
-/// as `<family> live` opens it; Ctrl-C, or `--seconds`, ends the stream
-/// cleanly, closing the turns still open.
-#[cfg(feature = "live")]
-#[derive(clap::Args, Debug)]
-pub struct LiveCmd {
-    #[clap(flatten)]
-    pub logging: LogArgs,
-
-    #[clap(flatten)]
-    pub diarizer: DiarizerArgs,
-
-    #[clap(flatten)]
-    pub cache: WeightsCacheArgs,
-
-    #[clap(flatten)]
-    pub device: BackendArgs,
-
-    #[clap(flatten)]
-    pub output: OutputArgs,
-
-    /// Milliseconds of audio per push.
-    #[arg(long, default_value_t = 250)]
-    pub chunk_ms: usize,
-
-    #[clap(flatten)]
-    pub capture: CaptureArgs,
-}
-
-#[cfg(feature = "live")]
-impl LiveCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        use bunsen::kits::speech::diarization::SpeakerActivityStream;
-
-        self.logging
-            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
-        let Some(capture) = self.capture.open()? else {
-            return Ok(());
-        };
-        let device = self.device.open()?;
-        let cache = self.cache.init()?;
-        let bundle = self.diarizer.load(&cache, &device)?;
-        let diarizer = bundle.diarizer(bundle.streaming()?)?;
-        let rate = bundle.sample_rate();
-        let frame_seconds =
-            bunsen::kits::speech::diarization::SpeakerActivityModel::frame_samples(&diarizer)
-                as f64
-                / rate as f64;
-        let mut filter = bundle.turns().init(diarizer.max_speakers(), frame_seconds);
-        let mut stream = diarizer.stream()?;
-        let chunk = (rate * self.chunk_ms / 1000).max(1);
-
-        let print = |turns: Vec<SpeakerTurn>| {
-            for turn in &turns {
-                if self.output.json {
-                    println!(
-                        "{}",
-                        serde_json::to_string(&JsonTurn::from(turn)).expect("a turn serializes")
-                    );
-                } else if self.output.rttm {
-                    println!("{}", RttmSegment::from_turn("live", turn));
-                } else {
-                    println!("{}", text_line(turn));
-                }
-            }
-        };
-        capture.run(rate, chunk, |samples, _time| {
-            let activity = stream.push(samples)?;
-            print(filter.push(&activity.probs));
-            Ok(())
-        })?;
-        let activity = stream.finish()?;
-        print(filter.push(&activity.probs));
-        print(filter.finish());
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::Path;
 
+    use bunsen::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG;
+
     use super::*;
-    use crate::support::with_presets;
+    use crate::{
+        asr::recording_id,
+        support::with_presets,
+    };
 
     /// Text lines and JSON name speakers as `NeMo` and the RTTM do, and
     /// round times to the millisecond.
@@ -467,8 +294,7 @@ mod tests {
             "sortformer-v2[dihard3,high]"
         );
 
-        let catalog =
-            bunsen::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG.catalog();
+        let catalog = SORTFORMER_CATALOG.catalog();
         for family in &catalog.families {
             let axes: Vec<&str> = family
                 .presets

@@ -39,8 +39,9 @@
 //! ```
 
 mod backend;
+mod chat_command_group;
+mod chat_model_family_flags;
 mod chat_tokenizer;
-pub mod cli;
 mod generation;
 mod nanochat_chat;
 mod nanochat_layout;
@@ -49,6 +50,8 @@ mod session;
 mod template;
 
 pub use backend::*;
+pub use chat_command_group::*;
+pub use chat_model_family_flags::*;
 pub use chat_tokenizer::*;
 pub use generation::*;
 pub use nanochat_chat::*;

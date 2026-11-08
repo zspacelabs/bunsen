@@ -1,4 +1,5 @@
 //! `asr family <family> list` and `asr diarize list`.
+
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::{
@@ -13,14 +14,14 @@ use bunsen_app::{
 };
 
 use crate::{
-    asr::family::Kit,
+    asr::Kit,
     support::preset_lines,
 };
 
 /// Lists the models `--model` can name, their licences, their presets, and
 /// their files, and whether each file is cached.
 #[derive(clap::Args, Debug)]
-pub struct ListCmd {
+pub struct AsrKitListCommand {
     #[clap(flatten)]
     pub logging: LogArgs,
 
@@ -28,7 +29,7 @@ pub struct ListCmd {
     pub cache: WeightsCacheArgs,
 }
 
-impl ListCmd {
+impl AsrKitListCommand {
     pub fn run(
         &self,
         kit: Kit,

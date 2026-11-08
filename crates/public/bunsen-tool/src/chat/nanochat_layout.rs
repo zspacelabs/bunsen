@@ -136,7 +136,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::chat::nanochat_tokenizer::toy_pickle;
+    use crate::chat::toy_pickle;
 
     fn toy() -> (NanoChatTokenizer, NanoChatLayout) {
         let tok = NanoChatTokenizer::from_pickle(&toy_pickle()).unwrap();

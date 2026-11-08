@@ -1,4 +1,5 @@
 //! `asr family <family> fetch` and `asr diarize fetch`.
+
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
@@ -9,13 +10,13 @@ use bunsen_app::{
     },
 };
 
-use crate::asr::family::Kit;
+use crate::asr::Kit;
 
 /// Brings every file of the named models into the weights cache, fetching
 /// what is not local, and prints where each one is: a deployment that
 /// runs offline fills its cache this way ahead of time.
 #[derive(clap::Args, Debug)]
-pub struct FetchCmd {
+pub struct AsrKitFetchCommand {
     #[clap(flatten)]
     pub logging: LogArgs,
 
@@ -31,7 +32,7 @@ pub struct FetchCmd {
     pub names: Vec<String>,
 }
 
-impl FetchCmd {
+impl AsrKitFetchCommand {
     pub fn run(
         &self,
         kit: Kit,

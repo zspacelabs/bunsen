@@ -19,13 +19,11 @@ use super::{
     config::Opts,
 };
 use crate::asr::{
-    construct::Stamp,
-    transcript::{
-        Transcript,
-        millis,
-        recording_id,
-        speaker_name,
-    },
+    Stamp,
+    Transcript,
+    millis,
+    recording_id,
+    speaker_name,
 };
 
 /// A time as a record carries it: seconds from the start of a file's audio,

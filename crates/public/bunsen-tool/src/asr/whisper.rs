@@ -44,14 +44,12 @@ use bunsen::{
 use burn::tensor::Device;
 
 use crate::asr::{
+    Emission,
+    Segment,
+    Transcript,
+    segment_speaker,
+    speaker_turns,
     stream,
-    stream::Emission,
-    transcript::{
-        Segment,
-        Transcript,
-        segment_speaker,
-        speaker_turns,
-    },
 };
 
 /// Whisper's own transcription flags: paths, not policy. The policy is the

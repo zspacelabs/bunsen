@@ -20,12 +20,10 @@ use serde::{
 
 use crate::{
     asr::{
-        family::Family,
-        stream::{
-            Emission,
-            Streaming,
-            VadArgs,
-        },
+        Emission,
+        Family,
+        Streaming,
+        VadArgs,
     },
     support::with_patch,
 };
@@ -801,6 +799,7 @@ pub struct AsrRecipeStamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asr::Kit;
 
     fn resolve(
         name: &str,
@@ -1054,7 +1053,7 @@ mod tests {
             let Some(tasks) = &engine.tasks else {
                 continue;
             };
-            let listing = crate::asr::family::Kit::Asr(*family).listing().unwrap();
+            let listing = Kit::Asr(*family).listing().unwrap();
             for preset in tasks.presets.values() {
                 assert!(
                     listing

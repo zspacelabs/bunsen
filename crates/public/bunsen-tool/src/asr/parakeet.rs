@@ -20,15 +20,13 @@ use bunsen::{
 };
 
 use crate::asr::{
+    Emission,
+    Transcript,
+    Word,
+    millis,
+    segment_speaker,
+    speaker_turns,
     stream,
-    stream::Emission,
-    transcript::{
-        Transcript,
-        Word,
-        millis,
-        segment_speaker,
-        speaker_turns,
-    },
 };
 
 /// Parakeet's own transcription flags: none. The policy is the model's, its
