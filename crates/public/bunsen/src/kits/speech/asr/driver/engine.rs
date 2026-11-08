@@ -93,7 +93,10 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
     /// as it can. It must not let one request's result depend on another's.
     ///
     /// # Errors
-    /// As the decode.
+    /// As the decode. Returning other than one decode per request is an
+    /// error the core reports in turn:
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause.
     fn decode(
         &self,
         requests: Vec<DecodeRequest<'_, Self>>,
@@ -255,6 +258,11 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
 }
 
 /// Ids over a run of frames, relative to the start of their window.
+///
+/// The core places `start` and `end` on the stream's clock as they are. A
+/// segment belongs inside its window, but one the model puts past its end
+/// (a Whisper timestamp in the padding) is passed through, not clamped;
+/// only a decode's [`advance`](WindowDecode::advance) is held to the window.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimedTokens {
     /// The first frame.
