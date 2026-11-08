@@ -32,6 +32,7 @@ use crate::{
         WindowDecode,
         WordSpan,
         pause_cut,
+        window_frames_in,
         word_segments,
     },
 };
@@ -96,7 +97,11 @@ pub struct ParakeetEngine {
 impl ParakeetEngine {
     /// The engine of `bundle`, on the model's device, with windows of at most
     /// its policy's [`window_seconds`](super::ParakeetPolicy::window_seconds).
-    pub fn new(bundle: Arc<ParakeetConstruct>) -> Self {
+    ///
+    /// # Errors
+    /// As [`with_window_seconds`](Self::with_window_seconds), for the
+    /// policy's window.
+    pub fn new(bundle: Arc<ParakeetConstruct>) -> BunsenResult<Self> {
         let device = bundle.model.devices()[0].clone();
         let seconds = bundle.policy.window_seconds;
         let engine = Self {
@@ -110,22 +115,24 @@ impl ParakeetEngine {
     /// The engine with windows of at most `seconds`, rounded down to whole
     /// encoder frames.
     ///
-    /// # Panics
-    /// If that is under one encoder frame.
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError) cause, if that is
+    /// under one encoder frame.
     pub fn with_window_seconds(
         mut self,
         seconds: f64,
-    ) -> Self {
+    ) -> BunsenResult<Self> {
         let front_end = &self.bundle.front_end;
-        let subsampling = self.bundle.model.subsampling_factor();
-        let frames = (seconds * front_end.sample_rate() as f64 / front_end.hop() as f64) as usize;
-        let frames = frames / subsampling * subsampling;
-        assert!(
-            frames > 0,
-            "a window of {seconds} s is under one encoder frame"
-        );
-        self.window_frames = frames;
-        self
+        self.window_frames = window_frames_in(
+            "ParakeetEngine::with_window_seconds",
+            seconds,
+            front_end.sample_rate(),
+            front_end.hop(),
+            self.bundle.model.subsampling_factor(),
+            None,
+        )?;
+        Ok(self)
     }
 
     /// The construct.
@@ -428,7 +435,9 @@ mod tests {
     #[test]
     fn test_lay_out() {
         let device = performance_device();
-        let engine = ParakeetEngine::new(Arc::new(toy_construct(&device))).with_window_seconds(2.0);
+        let engine = ParakeetEngine::new(Arc::new(toy_construct(&device)))
+            .and_then(|e| e.with_window_seconds(2.0))
+            .unwrap();
         assert_eq!(engine.window_frames(), 200);
         assert_eq!(engine.grid_frames(), 8);
         let full = engine.window_frames();
@@ -518,7 +527,9 @@ mod tests {
     #[test]
     fn test_streams_through_the_core() {
         let device = performance_device();
-        let engine = ParakeetEngine::new(Arc::new(toy_construct(&device))).with_window_seconds(1.0);
+        let engine = ParakeetEngine::new(Arc::new(toy_construct(&device)))
+            .and_then(|e| e.with_window_seconds(1.0))
+            .unwrap();
         let driver = ParakeetStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
