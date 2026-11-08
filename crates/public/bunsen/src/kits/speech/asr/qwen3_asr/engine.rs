@@ -67,7 +67,8 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 ///   ([`SpeakerCutConfig::cut`]), so a window, committed whole, is one
 ///   speaker's as far as the turns go;
 ///   [`with_speaker_cut`](Self::with_speaker_cut) sets or turns off the
-///   thresholds.
+///   thresholds. A draft is never cut: it shows all the audio since the last
+///   commit, over which the core times it.
 /// - **Carry:** the language, the first a committed reply names.
 ///
 /// A stream's last frame is the end padding's, and goes, as the front end's
@@ -279,8 +280,11 @@ impl AsrEngine for Qwen3AsrEngine {
             .map(|request| {
                 let mut window = request.window;
                 let mut frames = window.dims()[1];
-                let turn = match (&self.speaker_cut, &request.speakers) {
-                    (Some(config), Some(activity)) => config.cut(
+                // A draft shows all the audio since the last commit, which it
+                // is timed over: it is never cut.
+                let cutting = !request.draft;
+                let turn = match (cutting, &self.speaker_cut, &request.speakers) {
+                    (true, Some(config), Some(activity)) => config.cut(
                         activity,
                         request.start,
                         self.hop(),
@@ -292,7 +296,7 @@ impl AsrEngine for Qwen3AsrEngine {
                 if let Some(cut) = turn {
                     frames = cut;
                     window = window.slice_dim(1, 0..frames);
-                } else if self.quiet_cut && frames >= self.window_frames {
+                } else if cutting && self.quiet_cut && frames >= self.window_frames {
                     let loudness: Vec<f32> = window
                         .clone()
                         .mean_dim(2)
@@ -693,5 +697,75 @@ mod tests {
             1,
             "a turn before the minimum does not cut: {late:?}"
         );
+    }
+
+    /// A draft is decoded whole, over the span the core times it to: neither
+    /// the quiet cut nor the speaker cut applies. A commit of the same window
+    /// is cut. Either way the decode advances by the frames it decoded,
+    /// whatever the toy model makes of them.
+    #[test]
+    fn test_drafts_are_never_cut() {
+        use crate::kits::speech::diarization::SpeakerActivity;
+
+        let device = performance_device();
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)))
+            .unwrap()
+            .with_speaker_cut(Some(SpeakerCutConfig::new().with_min_window_seconds(1.0)));
+        let state = Qwen3AsrStreamState::default();
+        let features = |samples: &[f32], frames: usize| {
+            let mut front_end = engine.new_features().unwrap();
+            let mut out: Vec<_> = front_end.push(samples).unwrap().into_iter().collect();
+            out.extend(front_end.finish().unwrap());
+            Tensor::cat(out, 1).slice_dim(1, 0..frames)
+        };
+        let advances =
+            |engine: &Qwen3AsrEngine, window: &Tensor<3>, speakers: Option<SpeakerActivity>| {
+                let request = |draft| DecodeRequest {
+                    state: &state,
+                    transcript: &[],
+                    start: 0,
+                    window: window.clone(),
+                    level: MaxLevel::of(window.clone()),
+                    draft,
+                    speakers: speakers.clone(),
+                };
+                let decodes = engine.decode(vec![request(false), request(true)]).unwrap();
+                (decodes[0].advance, decodes[1].advance)
+            };
+
+        // A full 1 s window, silent from 0.8 s to 0.9 s: the commit is cut
+        // quiet there.
+        let mut samples = ToneConfig::Duration {
+            seconds: 1.6,
+            hz: 16_000.0,
+        }
+        .build();
+        samples[12_800..14_400].fill(0.0);
+        let quiet = engine.clone().with_window_seconds(1.0).unwrap();
+        let window = features(&samples, 100);
+        let (commit, draft) = advances(&quiet, &window, None);
+        assert!((80..=90).contains(&commit), "{commit}");
+        assert_eq!(draft, 100);
+
+        // 4 s, a turn at 1.5 s: the commit is cut at the turn.
+        let samples = ToneConfig::Duration {
+            seconds: 4.0,
+            hz: 16_000.0,
+        }
+        .build();
+        let window = features(&samples, 400);
+        let turn = 150;
+        let probs = (0..400)
+            .flat_map(|frame| if frame < turn { [1.0, 0.0] } else { [0.0, 1.0] })
+            .collect();
+        let activity = SpeakerActivity {
+            start: 0,
+            frame_samples: 160,
+            n_speakers: 2,
+            probs,
+        };
+        let (commit, draft) = advances(&engine, &window, Some(activity));
+        assert_eq!(commit, turn);
+        assert_eq!(draft, 400);
     }
 }
