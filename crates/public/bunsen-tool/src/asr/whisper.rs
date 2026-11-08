@@ -19,10 +19,7 @@ use bunsen::{
     },
     kits::{
         speech::asr::{
-            driver::{
-                LevelPolicy,
-                TranscriptSegment,
-            },
+            driver::TranscriptSegment,
             whisper::{
                 driver::{
                     WhisperConstruct,
@@ -135,17 +132,13 @@ pub fn driver(
     Ok(driver)
 }
 
-/// What each window's features are scaled against: each window floored against
-/// the loudest the stream has been.
-pub const LEVEL: LevelPolicy = LevelPolicy::Running;
-
 /// Transcribes one recording through `driver`.
 pub fn transcribe(
     driver: &WhisperStreamDriver,
     samples: &[f32],
     chunk: usize,
 ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
-    let (committed, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
+    let (committed, ctx) = stream::stream(driver, samples, chunk)?;
     let segments = committed
         .iter()
         .map(|s| Segment {

@@ -13,10 +13,7 @@ use super::{
     Qwen3AsrTranscript,
 };
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::speech::asr::driver::{
         AsrEngine,
         AsrStreamContext,
@@ -27,6 +24,7 @@ use crate::{
         SpeakerCutConfig,
         WindowDecode,
         quiet_cut,
+        token_ids,
         window_frames_in,
     },
 };
@@ -213,14 +211,7 @@ impl Qwen3AsrEngine {
             language: reply.language,
         };
         if tokens.is_empty() {
-            return WindowDecode {
-                tokens,
-                skip: true,
-                segments: Vec::new(),
-                advance: frames,
-                tail: None,
-                carry,
-            };
+            return WindowDecode::skipped(frames, carry);
         }
         WindowDecode::whole(frames, tokens, carry)
     }
@@ -335,22 +326,16 @@ impl AsrEngine for Qwen3AsrEngine {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>> {
-        let ids = tokens
-            .iter()
-            .map(|&t| {
-                usize::try_from(t).map_err(|_| {
-                    BunsenError::invalid_resource(format!("{t} is not a Qwen3-ASR token id"))
-                })
-            })
-            .collect::<BunsenResult<Vec<usize>>>()?;
+        let ids = token_ids(tokens.iter().copied(), "Qwen3-ASR")?;
         Ok(Some(self.bundle.vocab.text(&ids)?))
     }
-}
 
-impl AsrStreamContext<Qwen3AsrEngine> {
-    /// The language of the stream, once a committed reply names one.
-    pub fn language(&self) -> Option<&str> {
-        self.engine_state().language.as_deref()
+    /// The first language a committed reply names.
+    fn language<'s>(
+        &self,
+        state: &'s Qwen3AsrStreamState,
+    ) -> Option<&'s str> {
+        state.language.as_deref()
     }
 }
 

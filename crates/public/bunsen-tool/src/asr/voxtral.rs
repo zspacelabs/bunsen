@@ -7,10 +7,7 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::asr::{
-        driver::{
-            LevelPolicy,
-            TranscriptSegment,
-        },
+        driver::TranscriptSegment,
         voxtral::{
             VoxtralConstruct,
             driver::{
@@ -59,11 +56,6 @@ pub fn driver(
     Ok(driver)
 }
 
-/// What each window's features are scaled against: nothing the stream
-/// measures, as Voxtral's front end floors under a fixed level; the window's
-/// own, which is not read.
-pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
-
 /// Transcribes one recording through `driver`: each committed segment is a
 /// word.
 pub fn transcribe(
@@ -71,7 +63,7 @@ pub fn transcribe(
     samples: &[f32],
     chunk: usize,
 ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
-    let (segments, _) = stream::stream(driver, samples, LEVEL, chunk)?;
+    let (segments, _) = stream::stream(driver, samples, chunk)?;
     let words = segments
         .iter()
         .filter_map(|s| {

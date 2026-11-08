@@ -18,22 +18,17 @@ use super::{
     WORD_MARK,
 };
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::speech::asr::driver::{
         AsrEngine,
         AsrStreamContext,
         AsrStreamDriver,
         DecodeRequest,
         MomentsLevel,
-        TimedTokens,
         WindowDecode,
         WordSpan,
-        pause_cut,
+        token_ids,
         window_frames_in,
-        word_segments,
     },
 };
 
@@ -173,37 +168,22 @@ impl ParakeetEngine {
             .collect()
     }
 
-    /// Lays a hypothesis out for the core: a segment per word.
-    ///
-    /// A window of `window_frames` was cut by length: it commits the words
-    /// before its [`pause_cut`], on the encoder grid, and what follows is the
-    /// tail. Any other window, or one without a cut, commits every word. A
-    /// window with no tokens is skipped.
+    /// Lays a hypothesis out for the core: a segment per word, a full window
+    /// cut at a pause on the encoder grid ([`WindowDecode::from_words`]).
     fn lay_out(
         &self,
-        hypothesis: TdtHypothesis,
+        hypothesis: &TdtHypothesis,
         frames: usize,
     ) -> WindowDecode<()> {
         let tokens: Vec<i64> = hypothesis.tokens.iter().map(|&t| t as i64).collect();
-        let words = self.spans(&hypothesis);
-        let grid = self.bundle.model.subsampling_factor();
-        let cut = (frames >= self.window_frames)
-            .then(|| pause_cut(&words, frames, grid))
-            .flatten();
-        let (advance, count) = cut.unwrap_or((frames, words.len()));
-        let committed = words.get(count).map_or(tokens.len(), |w| w.first_token);
-        WindowDecode {
-            segments: word_segments(&words[..count], &tokens[..committed], advance),
-            tail: cut.map(|(cut, _)| TimedTokens {
-                start: cut,
-                end: frames,
-                tokens: tokens[committed..].to_vec(),
-            }),
-            skip: tokens.is_empty(),
+        WindowDecode::from_words(
+            &self.spans(hypothesis),
             tokens,
-            advance,
-            carry: (),
-        }
+            frames,
+            self.window_frames,
+            self.bundle.model.subsampling_factor(),
+            (),
+        )
     }
 }
 
@@ -286,7 +266,7 @@ impl AsrEngine for ParakeetEngine {
         Ok(hypotheses
             .into_iter()
             .zip(lengths)
-            .map(|(hypothesis, frames)| self.lay_out(hypothesis, frames))
+            .map(|(hypothesis, frames)| self.lay_out(&hypothesis, frames))
             .collect())
     }
 
@@ -302,14 +282,7 @@ impl AsrEngine for ParakeetEngine {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>> {
-        let ids = tokens
-            .iter()
-            .map(|&t| {
-                usize::try_from(t).map_err(|_| {
-                    BunsenError::invalid_resource(format!("{t} is not a Parakeet token id"))
-                })
-            })
-            .collect::<BunsenResult<Vec<usize>>>()?;
+        let ids = token_ids(tokens.iter().copied(), "Parakeet")?;
         Ok(Some(self.bundle.vocab.transcript(&ids)?))
     }
 }
@@ -339,6 +312,7 @@ mod tests {
                     LevelStatistic,
                     StreamClock,
                     StreamingFeatures,
+                    TimedTokens,
                     TranscriptEvent,
                 },
                 parakeet::{
@@ -452,7 +426,7 @@ mod tests {
         // 18, so the cut is at 12. Each word before it is a segment, from
         // its first token's frame to the end of its last.
         let spread = hypothesis(vec![1, 2, 3, 5, 6, 7], vec![2, 5, 6, 18, 20, 23]);
-        let decode = engine.lay_out(spread, full);
+        let decode = engine.lay_out(&spread, full);
         assert_eq!(decode.tokens, [1, 2, 3, 5, 6, 7]);
         assert_eq!(
             decode.segments,
@@ -482,7 +456,7 @@ mod tests {
         // "the moon. why we gos", all early: before the last word, "we",
         // where "why" ends at frame 6.
         let words = hypothesis(vec![1, 2, 3, 4, 5, 6, 8], vec![0, 2, 3, 3, 5, 7, 8]);
-        let decode = engine.lay_out(words.clone(), full);
+        let decode = engine.lay_out(&words, full);
         let spans = |d: &WindowDecode<()>| {
             d.segments
                 .iter()
@@ -498,7 +472,7 @@ mod tests {
 
         // Uncut, every word commits; the last ends a frame past its last
         // token.
-        let short = engine.lay_out(words, full - 1);
+        let short = engine.lay_out(&words, full - 1);
         assert_eq!(short.segments.len(), 4);
         assert_eq!(short.segments[3].tokens, [6, 8]);
         assert_eq!((short.segments[3].start, short.segments[3].end), (56, 72));
@@ -508,14 +482,14 @@ mod tests {
         // there.
         let mut overlap = hypothesis(vec![1, 5], vec![2, 3]);
         overlap.durations = vec![4, 1];
-        let decode = engine.lay_out(overlap, full - 1);
+        let decode = engine.lay_out(&overlap, full - 1);
         assert_eq!(spans(&decode)[0], (16, 24, vec![1]));
 
-        let one_word = engine.lay_out(hypothesis(vec![2, 3], vec![4, 5]), full);
+        let one_word = engine.lay_out(&hypothesis(vec![2, 3], vec![4, 5]), full);
         assert_eq!(spans(&one_word), [(32, 48, vec![2, 3])]);
         assert_eq!((one_word.advance, one_word.tail), (full, None));
 
-        let silent = engine.lay_out(hypothesis(vec![], vec![]), full - 1);
+        let silent = engine.lay_out(&hypothesis(vec![], vec![]), full - 1);
         assert!(silent.skip && silent.segments.is_empty());
 
         assert_eq!(engine.text(&[5, 6]).unwrap().as_deref(), Some("why we"));

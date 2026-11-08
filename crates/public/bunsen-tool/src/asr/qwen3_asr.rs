@@ -7,10 +7,7 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::asr::{
-        driver::{
-            LevelPolicy,
-            TranscriptSegment,
-        },
+        driver::TranscriptSegment,
         qwen3_asr::{
             Qwen3AsrConstruct,
             Qwen3AsrEngine,
@@ -53,17 +50,13 @@ pub fn driver(
     Ok(driver)
 }
 
-/// What each window's features are scaled against: each window packaged as the
-/// front end packages a whole utterance.
-pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
-
 /// Transcribes one recording through `driver`.
 pub fn transcribe(
     driver: &Qwen3AsrStreamDriver,
     samples: &[f32],
     chunk: usize,
 ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
-    let (segments, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
+    let (segments, ctx) = stream::stream(driver, samples, chunk)?;
     let transcript = Transcript {
         text: stream::join_text(&segments),
         turns: driver.speakers().map(|_| speaker_turns(&segments)),

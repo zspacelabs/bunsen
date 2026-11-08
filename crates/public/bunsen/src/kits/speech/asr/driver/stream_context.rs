@@ -308,6 +308,12 @@ impl<E: AsrEngine> AsrStreamContext<E> {
         &self.state
     }
 
+    /// The language of the stream, once the engine knows it
+    /// ([`AsrEngine::language`]). Only a commit changes it, never a draft.
+    pub fn language(&self) -> Option<&str> {
+        self.driver.engine().language(&self.state)
+    }
+
     /// Every committed id, in order.
     pub fn transcript(&self) -> &[i64] {
         &self.transcript
@@ -1089,14 +1095,7 @@ mod tests {
                     let values = request.window.into_data().try_to_vec::<f32>().unwrap();
                     let silent = values.iter().take_while(|&&v| v <= 0.0).count();
                     if self.cut_silence && silent > 0 {
-                        return WindowDecode {
-                            tokens: Vec::new(),
-                            skip: true,
-                            segments: Vec::new(),
-                            advance: silent,
-                            tail: None,
-                            carry: level,
-                        };
+                        return WindowDecode::skipped(silent, level);
                     }
                     let tokens: Vec<i64> =
                         values.iter().map(|v| (v * 10.0).round() as i64).collect();
