@@ -30,6 +30,19 @@ pub trait LevelStatistic: Clone + Debug + Send + Sync {
     ) -> Self;
 }
 
+/// No level: for an engine that packages every window against fixed
+/// constants, so no statistic of the stream enters. Summarizing costs
+/// nothing.
+impl LevelStatistic for () {
+    fn of(_frames: Tensor<3>) -> Self {}
+
+    fn merge(
+        self,
+        _later: Self,
+    ) -> Self {
+    }
+}
+
 /// The maximum over each row's frames and features: `[batch]`.
 #[derive(Clone, Debug)]
 pub struct MaxLevel {

@@ -7,10 +7,7 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::asr::{
-        driver::{
-            LevelPolicy,
-            TranscriptSegment,
-        },
+        driver::TranscriptSegment,
         parakeet::{
             ParakeetConstruct,
             ParakeetEngine,
@@ -50,10 +47,6 @@ pub fn driver(
     Ok(driver)
 }
 
-/// What each window's features are scaled against: each window normalized as
-/// the extractor normalizes a whole item.
-pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
-
 /// Transcribes one recording through `driver`: each committed segment is a
 /// word.
 pub fn transcribe(
@@ -61,7 +54,7 @@ pub fn transcribe(
     samples: &[f32],
     chunk: usize,
 ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
-    let (segments, _) = stream::stream(driver, samples, LEVEL, chunk)?;
+    let (segments, _) = stream::stream(driver, samples, chunk)?;
     let words = segments
         .iter()
         .filter_map(|s| {

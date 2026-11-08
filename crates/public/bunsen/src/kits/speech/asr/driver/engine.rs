@@ -10,11 +10,15 @@ use num_traits::{
 
 use crate::{
     errors::{
+        BunsenError,
         BunsenResult,
         ConstraintError,
     },
     kits::speech::{
-        asr::driver::LevelStatistic,
+        asr::driver::{
+            LevelPolicy,
+            LevelStatistic,
+        },
         diarization::SpeakerActivity,
     },
 };
@@ -67,6 +71,13 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
         0
     }
 
+    /// Which frames a stream's level covers unless its opener says
+    /// otherwise: what the model's reference packages a clip against.
+    /// [`PerWindow`](LevelPolicy::PerWindow) by default.
+    fn level_policy(&self) -> LevelPolicy {
+        LevelPolicy::PerWindow
+    }
+
     /// Opens a stream's feature front end.
     ///
     /// # Errors
@@ -111,6 +122,39 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>>;
+
+    /// The language of a stream, from its carry, once the engine knows it.
+    /// `None` by default: an engine that names no language.
+    fn language<'s>(
+        &self,
+        _state: &'s Self::StreamState,
+    ) -> Option<&'s str> {
+        None
+    }
+}
+
+/// Decoded ids as indices into a vocabulary, for an engine's
+/// [`text`](AsrEngine::text).
+///
+/// # Arguments
+/// * `tokens` - the ids.
+/// * `model` - the model the ids are from, for the error.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for
+/// an id that is no index: a negative one.
+pub fn token_ids(
+    tokens: impl IntoIterator<Item = i64>,
+    model: &str,
+) -> BunsenResult<Vec<usize>> {
+    tokens
+        .into_iter()
+        .map(|t| {
+            usize::try_from(t).map_err(|_| {
+                BunsenError::invalid_resource(alloc::format!("{t} is not a {model} token id"))
+            })
+        })
+        .collect()
 }
 
 /// The frames in a window of `seconds`, rounded down to whole multiples of
@@ -272,6 +316,27 @@ impl<C> WindowDecode<C> {
             }],
             tokens,
             skip: false,
+            advance: frames,
+            tail: None,
+            carry,
+        }
+    }
+
+    /// A decode with no speech: nothing in it, and the stream moves past the
+    /// frames decoded.
+    ///
+    /// # Arguments
+    /// * `frames` - the frames decoded: the window's, or as far as the engine
+    ///   cut it.
+    /// * `carry` - for [`AsrEngine::commit`].
+    pub fn skipped(
+        frames: usize,
+        carry: C,
+    ) -> Self {
+        Self {
+            tokens: Vec::new(),
+            skip: true,
+            segments: Vec::new(),
             advance: frames,
             tail: None,
             carry,

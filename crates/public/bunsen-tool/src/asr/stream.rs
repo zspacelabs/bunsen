@@ -17,7 +17,6 @@ use bunsen::{
             AsrStreamDriver,
             EmissionMode,
             EmissionPolicy,
-            LevelPolicy,
             MeanActivity,
             StreamClock,
             TranscriptEvent,
@@ -171,18 +170,33 @@ pub fn push_samples<E: AsrEngine>(
         * grain
 }
 
-/// Streams one recording through a new context of `driver`, `chunk`
-/// samples a push.
+/// Opens a stream of `driver`: its clock at the model's rate from 0, its
+/// windows packaged against the level the engine's reference uses
+/// ([`level_policy`](AsrEngine::level_policy)).
+///
+/// # Errors
+/// As [`AsrStreamDriver::new_context`].
+pub fn open<E: AsrEngine>(driver: &AsrStreamDriver<E>) -> BunsenResult<AsrStreamContext<E>> {
+    driver.new_context(
+        StreamClock::uniform(driver.sample_rate()),
+        driver.engine().level_policy(),
+    )
+}
+
+/// Streams one recording through a new context of `driver` ([`open`]),
+/// `chunk` samples a push.
 ///
 /// # Returns
 /// The committed segments, in order, and the finished context.
+///
+/// # Errors
+/// As [`open`], and the context's writes and reads.
 pub fn stream<E: AsrEngine>(
     driver: &AsrStreamDriver<E>,
     samples: &[f32],
-    level: LevelPolicy,
     chunk: usize,
 ) -> BunsenResult<(Vec<TranscriptSegment>, AsrStreamContext<E>)> {
-    let mut ctx = driver.new_context(StreamClock::uniform(driver.sample_rate()), level)?;
+    let mut ctx = open(driver)?;
 
     let mut segments = Vec::new();
     let mut keep = |events: Vec<TranscriptEvent>| {

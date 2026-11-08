@@ -1,6 +1,55 @@
 //! Timed words: a full window's cut between them, and each as a segment.
 
-use crate::kits::speech::asr::driver::TimedTokens;
+use crate::kits::speech::asr::driver::{
+    TimedTokens,
+    WindowDecode,
+};
+
+impl<C> WindowDecode<C> {
+    /// A decode timed word by word, laid out for the core: a segment per
+    /// word.
+    ///
+    /// A window of `window_frames` or more was cut by length: it commits the
+    /// words before its [`pause_cut`], and what follows is the tail, decoded
+    /// again with the audio after it. Any other window, or one without a cut,
+    /// commits every word. A window with no tokens is skipped.
+    ///
+    /// # Arguments
+    /// * `words` - the decode's words, in order, in frames of the window.
+    /// * `tokens` - every id decoded; the words index into them.
+    /// * `frames` - the window's frames.
+    /// * `window_frames` - the engine's
+    ///   [`window_frames`](crate::kits::speech::asr::driver::AsrEngine::window_frames).
+    /// * `grid` - the frames a word's start and end fall on multiples of.
+    /// * `carry` - for
+    ///   [`AsrEngine::commit`](crate::kits::speech::asr::driver::AsrEngine::commit).
+    pub fn from_words(
+        words: &[WordSpan],
+        tokens: Vec<i64>,
+        frames: usize,
+        window_frames: usize,
+        grid: usize,
+        carry: C,
+    ) -> Self {
+        let cut = (frames >= window_frames)
+            .then(|| pause_cut(words, frames, grid))
+            .flatten();
+        let (advance, count) = cut.unwrap_or((frames, words.len()));
+        let committed = words.get(count).map_or(tokens.len(), |w| w.first_token);
+        Self {
+            segments: word_segments(&words[..count], &tokens[..committed], advance),
+            tail: cut.map(|(cut, _)| TimedTokens {
+                start: cut,
+                end: frames,
+                tokens: tokens[committed..].to_vec(),
+            }),
+            skip: tokens.is_empty(),
+            tokens,
+            advance,
+            carry,
+        }
+    }
+}
 
 /// A word of a decode: its first token, and the frames it spans in the
 /// window.

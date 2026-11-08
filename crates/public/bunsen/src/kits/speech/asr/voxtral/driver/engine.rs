@@ -7,10 +7,7 @@ use burn::{
 };
 
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::speech::asr::{
         driver::{
             AsrEngine,
@@ -18,13 +15,10 @@ use crate::{
             AsrStreamDriver,
             DecodeRequest,
             LogMelFeatures,
-            MaxLevel,
-            TimedTokens,
             WindowDecode,
             WordSpan,
-            pause_cut,
+            token_ids,
             window_frames_in,
-            word_segments,
         },
         voxtral::{
             VoxtralConstruct,
@@ -48,8 +42,8 @@ pub type VoxtralStreamContext = AsrStreamContext<VoxtralEngine>;
 ///
 /// - **Features:** the construct's log-mels, streamed ([`LogMelFeatures`]), and
 ///   packaged per window under the front end's fixed level: no statistic of the
-///   stream enters, so the window's [`MaxLevel`] is not read. A window is at
-///   most the construct's policy's window of frames by default
+///   stream enters, so the engine's level is `()`, which costs nothing. A
+///   window is at most the construct's policy's window of frames by default
 ///   ([`with_window_seconds`](Self::with_window_seconds)).
 /// - **Decode:**
 ///   [`transcribe_features`](VoxtralConstruct::transcribe_features), one window
@@ -59,9 +53,10 @@ pub type VoxtralStreamContext = AsrStreamContext<VoxtralEngine>;
 ///   the left padding and the delay, and ends where its last text id is
 ///   written, less the same: on the decoder's grid, 8 mel frames. Each word is
 ///   a segment. A window the core cut at its full length commits the words
-///   before a pause in its last third ([`pause_cut`]), and the rest is decoded
-///   again with the audio after it; any other window is committed whole. A
-///   window with no words is skipped.
+///   before a pause in its last third
+///   ([`pause_cut`](crate::kits::speech::asr::driver::pause_cut)), and the rest
+///   is decoded again with the audio after it; any other window is committed
+///   whole. A window with no words is skipped.
 ///
 /// A stream's last frame is the end padding's, and goes, as the front end's
 /// extractor drops it.
@@ -145,38 +140,29 @@ impl VoxtralEngine {
         (words, tokens)
     }
 
-    /// Lays a transcript out for the core: a segment per word.
+    /// Lays a transcript out for the core: a segment per word, a full window
+    /// cut at a pause on the decoder's grid ([`WindowDecode::from_words`]).
     fn lay_out(
         &self,
         transcript: &VoxtralTranscript,
         frames: usize,
     ) -> WindowDecode<()> {
         let (words, tokens) = self.spans(transcript);
-        let grid = self.grid_frames();
-        let cut = (frames >= self.window_frames)
-            .then(|| pause_cut(&words, frames, grid))
-            .flatten();
-        let (advance, count) = cut.unwrap_or((frames, words.len()));
-        let committed = words.get(count).map_or(tokens.len(), |w| w.first_token);
-        WindowDecode {
-            segments: word_segments(&words[..count], &tokens[..committed], advance),
-            tail: cut.map(|(cut, _)| TimedTokens {
-                start: cut,
-                end: frames,
-                tokens: tokens[committed..].to_vec(),
-            }),
-            skip: tokens.is_empty(),
+        WindowDecode::from_words(
+            &words,
             tokens,
-            advance,
-            carry: (),
-        }
+            frames,
+            self.window_frames,
+            self.grid_frames(),
+            (),
+        )
     }
 }
 
 impl AsrEngine for VoxtralEngine {
     type Carry = ();
     type Features = LogMelFeatures;
-    type Level = MaxLevel;
+    type Level = ();
     type StreamState = ();
 
     fn sample_rate(&self) -> usize {
@@ -238,15 +224,11 @@ impl AsrEngine for VoxtralEngine {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>> {
-        let ids = tokens
+        let text = tokens
             .iter()
-            .filter(|&&t| !self.bundle.layout.is_control(t))
-            .map(|&t| {
-                usize::try_from(t).map_err(|_| {
-                    BunsenError::invalid_resource(format!("{t} is not a Voxtral token id"))
-                })
-            })
-            .collect::<BunsenResult<Vec<usize>>>()?;
+            .copied()
+            .filter(|&t| !self.bundle.layout.is_control(t));
+        let ids = token_ids(text, "Voxtral")?;
         Ok(Some(self.bundle.vocab.text(&ids)?))
     }
 }
