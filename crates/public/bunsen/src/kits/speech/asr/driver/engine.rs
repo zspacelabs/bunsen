@@ -183,8 +183,9 @@ pub struct WindowDecode<C> {
     /// Everything decoded, in order: what a draft of the window shows.
     pub tokens: Vec<i64>,
 
-    /// The window holds no speech: nothing is committed, and the stream
-    /// moves past it whole.
+    /// What was decoded holds no speech: nothing is committed, and the
+    /// stream moves past it by `advance`, the whole window unless the engine
+    /// decoded less of it.
     pub skip: bool,
 
     /// The complete segments, in order.
