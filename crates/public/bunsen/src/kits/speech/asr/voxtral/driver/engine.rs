@@ -23,6 +23,7 @@ use crate::{
             WindowDecode,
             WordSpan,
             pause_cut,
+            window_frames_in,
             word_segments,
         },
         voxtral::{
@@ -75,7 +76,11 @@ impl VoxtralEngine {
     /// The engine of `bundle`, on the model's device, with windows of at most
     /// its policy's
     /// [`window_seconds`](crate::kits::speech::asr::voxtral::VoxtralPolicy::window_seconds).
-    pub fn new(bundle: Arc<VoxtralConstruct>) -> Self {
+    ///
+    /// # Errors
+    /// As [`with_window_seconds`](Self::with_window_seconds), for the
+    /// policy's window.
+    pub fn new(bundle: Arc<VoxtralConstruct>) -> BunsenResult<Self> {
         let device = bundle.model.devices()[0].clone();
         let seconds = bundle.policy.window_seconds;
         let engine = Self {
@@ -89,19 +94,24 @@ impl VoxtralEngine {
     /// The engine with windows of at most `seconds`, rounded down to whole
     /// decoder positions.
     ///
-    /// # Panics
-    /// If that is under one position.
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError) cause, if that is
+    /// under one position.
     pub fn with_window_seconds(
         mut self,
         seconds: f64,
-    ) -> Self {
+    ) -> BunsenResult<Self> {
         let front_end = &self.bundle.front_end;
-        let per = self.bundle.model.mel_frames_per_position();
-        let frames = (seconds * front_end.sample_rate() as f64 / front_end.hop() as f64) as usize;
-        let frames = frames / per * per;
-        assert!(frames > 0, "a window of {seconds} s is under one position");
-        self.window_frames = frames;
-        self
+        self.window_frames = window_frames_in(
+            "VoxtralEngine::with_window_seconds",
+            seconds,
+            front_end.sample_rate(),
+            front_end.hop(),
+            self.bundle.model.mel_frames_per_position(),
+            None,
+        )?;
+        Ok(self)
     }
 
     /// The construct.

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use bunsen::{
     errors::{
-        BunsenError,
         BunsenResult,
+        ResultContext,
     },
     kits::speech::asr::{
         driver::{
@@ -39,21 +39,15 @@ pub struct ParakeetFlags {}
 /// The driver for `bundle` under its policy and `emission`.
 ///
 /// # Errors
-/// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
-/// the policy's `window_seconds` is under one encoder frame; as the driver and
-/// the VAD.
+/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
+/// `window_seconds` is under one encoder frame; as the driver and the VAD.
 pub fn driver(
     bundle: Arc<ParakeetConstruct>,
     emission: Emission,
 ) -> BunsenResult<ParakeetStreamDriver> {
-    let frame = bundle.frame_seconds();
-    let window_seconds = bundle.policy.window_seconds;
-    if window_seconds.is_nan() || window_seconds < frame {
-        return Err(BunsenError::illegal(format!(
-            "window_seconds {window_seconds} is under one encoder frame, {frame} s"
-        )));
-    }
-    let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);
+    let engine = ParakeetEngine::new(bundle)
+        .context("the model policy's window_seconds")
+        .as_policy()?;
     let driver = ParakeetStreamDriver::new(engine, emission.into())?;
     Ok(driver)
 }

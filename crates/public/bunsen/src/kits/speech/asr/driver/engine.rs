@@ -3,9 +3,16 @@
 use core::fmt::Debug;
 
 use burn::Tensor;
+use num_traits::{
+    Float,
+    ToPrimitive,
+};
 
 use crate::{
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+    },
     kits::speech::{
         asr::driver::LevelStatistic,
         diarization::SpeakerActivity,
@@ -104,6 +111,45 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>>;
+}
+
+/// The frames in a window of `seconds`, rounded down to whole multiples of
+/// `grid`: what an engine's `with_window_seconds` keeps.
+///
+/// # Arguments
+/// * `owner` - the function the window was given to, for the error.
+/// * `seconds` - the window.
+/// * `sample_rate` - the engine's rate, in Hz.
+/// * `hop` - samples per frame.
+/// * `grid` - the frames a window is a whole number of.
+/// * `most` - the most frames a window may hold, if any.
+///
+/// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+/// [`ConstraintError`] cause, when `seconds` is not finite, holds no whole
+/// `grid`, or holds more than `most` frames.
+pub(crate) fn window_frames_in(
+    owner: &'static str,
+    seconds: f64,
+    sample_rate: usize,
+    hop: usize,
+    grid: usize,
+    most: Option<usize>,
+) -> BunsenResult<usize> {
+    let float = |n: usize| n.to_f64().unwrap_or(f64::NAN);
+    // A negative, non-finite or overflowing window has no frames.
+    let frames = Float::floor(seconds * float(sample_rate))
+        .to_usize()
+        .map_or(0, |samples| samples / hop / grid * grid);
+    if frames == 0 || most.is_some_and(|most| frames > most) {
+        let least = float(grid * hop) / float(sample_rate);
+        let range = match most {
+            Some(most) => alloc::format!("[{least}, {}] s", float(most * hop) / float(sample_rate)),
+            None => alloc::format!(">= {least} s"),
+        };
+        return Err(ConstraintError::out_of_range(owner, "seconds", seconds, range).into());
+    }
+    Ok(frames)
 }
 
 /// A front end that turns audio, arriving in pieces of any size, into
