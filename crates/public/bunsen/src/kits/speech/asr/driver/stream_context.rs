@@ -711,11 +711,12 @@ impl<E: AsrEngine> AsrStreamContext<E> {
     /// pointer, drops the consumed frames and regions, places the segments
     /// on the clock, and hands the engine its carry.
     ///
-    /// A skipped decode commits nothing, and the seek moves past the unit.
-    /// Otherwise each complete segment is committed and the seek advances by
-    /// the decode's `advance`, at least one frame and at most the unit; the
-    /// unfinished tail is decoded again with more audio behind it, and under
-    /// [`CommitRule::LastTimestamp`] emitted first as a draft.
+    /// A skipped decode commits nothing. Otherwise each complete segment is
+    /// committed; the unfinished tail is decoded again with more audio behind
+    /// it, and under [`CommitRule::LastTimestamp`] emitted first as a draft.
+    /// Either way the seek advances by the decode's `advance`, at least one
+    /// frame and at most the unit: a skip of a window the engine cut short
+    /// moves only past what it decoded.
     fn commit_due(
         &mut self,
         unit: Due,
@@ -724,9 +725,7 @@ impl<E: AsrEngine> AsrStreamContext<E> {
         let hop = self.hop();
         let mut out = Vec::new();
 
-        if decode.skip {
-            self.seek = unit.start + unit.count;
-        } else {
+        if !decode.skip {
             for segment in decode.segments {
                 let (start, end) = (unit.start + segment.start, unit.start + segment.end);
                 let emission = self.segment_at(start, end, segment.tokens)?;
@@ -742,9 +741,9 @@ impl<E: AsrEngine> AsrStreamContext<E> {
                 let draft = self.segment_at(start, end, tail.tokens)?;
                 out.push((start * hop, end * hop, TranscriptEvent::Draft(draft)));
             }
-            // Always forward, never past the unit.
-            self.seek = unit.start + decode.advance.clamp(1, unit.count);
         }
+        // Always forward, never past the unit.
+        self.seek = unit.start + decode.advance.clamp(1, unit.count);
 
         self.driver
             .engine()
@@ -1017,6 +1016,10 @@ mod tests {
         device: Device,
         split: Option<usize>,
         decodes: Arc<AtomicUsize>,
+        /// Decodes a window that opens on silence only as far as the silence
+        /// runs, and skips it: as Qwen3-ASR cuts a window, then finds no
+        /// speech before the cut.
+        cut_silence: bool,
     }
 
     impl ToyEngine {
@@ -1025,6 +1028,14 @@ mod tests {
                 device: cpu_device(),
                 split,
                 decodes: Arc::new(AtomicUsize::new(0)),
+                cut_silence: false,
+            }
+        }
+
+        fn cut_silence(self) -> Self {
+            Self {
+                cut_silence: true,
+                ..self
             }
         }
 
@@ -1076,6 +1087,17 @@ mod tests {
                     self.decodes.fetch_add(1, Ordering::SeqCst);
                     let level = request.level.max.into_data().try_to_vec::<f32>().unwrap()[0];
                     let values = request.window.into_data().try_to_vec::<f32>().unwrap();
+                    let silent = values.iter().take_while(|&&v| v <= 0.0).count();
+                    if self.cut_silence && silent > 0 {
+                        return WindowDecode {
+                            tokens: Vec::new(),
+                            skip: true,
+                            segments: Vec::new(),
+                            advance: silent,
+                            tail: None,
+                            carry: level,
+                        };
+                    }
                     let tokens: Vec<i64> =
                         values.iter().map(|v| (v * 10.0).round() as i64).collect();
                     let count = tokens.len();
@@ -1652,6 +1674,36 @@ mod tests {
                 Arc::new(Elsewhere),
                 Arc::new(crate::kits::speech::asr::driver::MeanActivity::default()),
             ));
+    }
+
+    /// A skip moves the stream only past what the engine decoded: a window
+    /// cut short before its decode, with nothing in what was decoded, loses
+    /// none of the audio after the cut.
+    #[test]
+    fn test_a_skip_of_a_cut_window_moves_only_past_the_cut() {
+        let tokens = |events: &[TranscriptEvent]| -> Vec<i64> {
+            committed(events)
+                .into_iter()
+                .flat_map(|s| s.tokens)
+                .collect()
+        };
+
+        // Four silent frames, then speech: the first window is cut at four.
+        let mut samples = vec![0.0; 4 * HOP];
+        samples.extend(ramp(40));
+        let cutting = driver(
+            ToyEngine::new(None).cut_silence(),
+            EmissionPolicy::offline(),
+        );
+        let events = run(&mut open(&cutting), &samples, &[10]);
+
+        let plain = driver(ToyEngine::new(None), EmissionPolicy::offline());
+        let speech = run(&mut open(&plain), &ramp(40), &[10]);
+        assert_eq!(tokens(&events), tokens(&speech), "every speech frame");
+
+        let first = &committed(&events)[0];
+        let at = StreamClock::uniform(RATE).time_at(4 * HOP);
+        assert!((first.start - at).abs() < 1e-9, "{first:?}");
     }
 
     #[test]
