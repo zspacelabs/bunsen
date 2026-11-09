@@ -43,6 +43,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
+        BunsenError,
         BunsenResult,
         ConstraintError,
         Rule,
@@ -361,17 +362,21 @@ impl Qwen3_5Config {
             self.rotary(),
         ))
     }
+}
 
-    /// The language model: [`embedding`](Self::embedding),
-    /// [`head`](Self::head) and [`stack`](Self::stack).
-    ///
-    /// # Errors
-    /// As [`stack`](Self::stack).
-    pub fn lm(&self) -> BunsenResult<LmDecoderVariantConfig> {
+/// The language model: [`embedding`](Qwen3_5Config::embedding),
+/// [`head`](Qwen3_5Config::head) and [`stack`](Qwen3_5Config::stack).
+///
+/// # Errors
+/// As [`stack`](Qwen3_5Config::stack).
+impl TryFrom<&Qwen3_5Config> for LmDecoderVariantConfig {
+    type Error = BunsenError;
+
+    fn try_from(config: &Qwen3_5Config) -> BunsenResult<Self> {
         Ok(LmDecoderVariantConfig::new(
-            self.embedding(),
-            self.head(),
-            self.stack()?.into(),
+            config.embedding(),
+            config.head(),
+            config.stack()?.into(),
         ))
     }
 }
@@ -382,7 +387,7 @@ impl ModuleInit<Qwen3_5Model> for Qwen3_5Config {
         device: &Device,
     ) -> BunsenResult<Qwen3_5Model> {
         Ok(Qwen3_5Model {
-            lm: self.lm()?.try_init(device)?,
+            lm: LmDecoderVariantConfig::try_from(self)?.try_init(device)?,
         })
     }
 }
