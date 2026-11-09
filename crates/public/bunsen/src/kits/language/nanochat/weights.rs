@@ -205,26 +205,32 @@ impl NanoChatMeta {
 }
 
 /// Upstream's state-dict names onto a [`NanoChatGpt`]'s module paths: the
-/// `transformer.` prefix dropped, the blocks `h.{i}` the stack's
-/// `stack.layers.{i}`, the feed-forward's `c_fc` / `c_proj` its
-/// `linear1` / `linear2`, the value gate `ve_gate` its `value_gate`, and the
-/// head `lm_head` its projection, `lm_head.proj`; everything else
+/// `transformer.` prefix dropped; onto its language model's (`lm.`), the
+/// embedding `wte` its `lm.embedding`, the blocks `h.{i}` the stack's
+/// `lm.stack.layers.{i}` (the feed-forward's `c_fc` / `c_proj` its
+/// `linear1` / `linear2`, the value gate `ve_gate` its `value_gate`), and the
+/// head `lm_head` its projection, `lm.head.proj`; everything else
 /// (`attn.c_q`, the lambdas, `value_embeds.{i}`, `smear_gate`) bunsen names
 /// as upstream does.
+///
+/// Unlike the wrappers' rekeys, it names the [`NanoChatGpt`]'s paths, not its
+/// language model's alone: the 2026 additions sit beside the language model.
 pub fn pt_rekey() -> Rekey {
     Rekey::keep_rest()
-        .rename("lm_head.", "lm_head.proj.")
+        .rename("lm_head.", "lm.head.proj.")
         .mount(
             "transformer.",
             "",
-            Rekey::keep_rest().mount_indexed(
-                "h.",
-                "stack.layers.",
-                Rekey::keep_rest()
-                    .rename("mlp.c_fc.", "mlp.linear1.")
-                    .rename("mlp.c_proj.", "mlp.linear2.")
-                    .rename("attn.ve_gate.", "attn.value_gate."),
-            ),
+            Rekey::keep_rest()
+                .rename("wte.", "lm.embedding.")
+                .mount_indexed(
+                    "h.",
+                    "lm.stack.layers.",
+                    Rekey::keep_rest()
+                        .rename("mlp.c_fc.", "mlp.linear1.")
+                        .rename("mlp.c_proj.", "mlp.linear2.")
+                        .rename("attn.ve_gate.", "attn.value_gate."),
+                ),
         )
 }
 
@@ -429,28 +435,28 @@ mod tests {
     fn test_pt_rekey() {
         let r = pt_rekey();
         for (from, to) in [
-            ("transformer.wte.weight", "wte.weight"),
+            ("transformer.wte.weight", "lm.embedding.weight"),
             (
                 "transformer.h.3.attn.c_q.weight",
-                "stack.layers.3.attn.c_q.weight",
+                "lm.stack.layers.3.attn.c_q.weight",
             ),
             (
                 "transformer.h.3.attn.c_proj.weight",
-                "stack.layers.3.attn.c_proj.weight",
+                "lm.stack.layers.3.attn.c_proj.weight",
             ),
             (
                 "transformer.h.0.mlp.c_fc.weight",
-                "stack.layers.0.mlp.linear1.weight",
+                "lm.stack.layers.0.mlp.linear1.weight",
             ),
             (
                 "transformer.h.0.mlp.c_proj.weight",
-                "stack.layers.0.mlp.linear2.weight",
+                "lm.stack.layers.0.mlp.linear2.weight",
             ),
             (
                 "transformer.h.17.attn.ve_gate.weight",
-                "stack.layers.17.attn.value_gate.weight",
+                "lm.stack.layers.17.attn.value_gate.weight",
             ),
-            ("lm_head.weight", "lm_head.proj.weight"),
+            ("lm_head.weight", "lm.head.proj.weight"),
             ("value_embeds.17.weight", "value_embeds.17.weight"),
             ("smear_gate.weight", "smear_gate.weight"),
             ("resid_lambdas", "resid_lambdas"),
