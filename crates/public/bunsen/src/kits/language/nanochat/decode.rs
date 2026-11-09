@@ -13,7 +13,13 @@ use super::{
     NanoChatGptMeta,
 };
 use crate::{
-    kits::support::decoding::CachedStep,
+    kits::{
+        language::driver::{
+            CachedHistory,
+            CachedLm,
+        },
+        support::decoding::CachedStep,
+    },
     ops::transformers::attention::{
         KVCache,
         KVCacheModel,
@@ -141,6 +147,46 @@ impl CachedStep for NanoChatGpt {
     }
 }
 
+/// A nanochat decode by ids: its own state, and a rewind that carries the
+/// token before what is left to prefill, which a smeared model mixes in.
+impl CachedLm for NanoChatGpt {
+    fn decode_state(
+        &self,
+        rows: usize,
+        positions: usize,
+        storage: KVCacheStorage,
+        _device: &burn::tensor::Device,
+    ) -> NanoChatDecodeState {
+        NanoChatGpt::decode_state(self, rows, positions, storage)
+    }
+
+    fn prefill_ids(
+        &self,
+        ids: Tensor<2, Int>,
+        state: &mut NanoChatDecodeState,
+    ) -> Tensor<2> {
+        NanoChatGpt::prefill(self, ids, state)
+    }
+
+    fn rewind<'a>(
+        &self,
+        history: &mut CachedHistory,
+        state: &mut NanoChatDecodeState,
+        next: &'a [i64],
+        device: &burn::tensor::Device,
+    ) -> &'a [i64] {
+        let todo = history.rewind(&mut state.cache, next);
+        let shared = next.len() - todo.len();
+        state.last = (shared > 0).then(|| {
+            Tensor::from_data(
+                TensorData::new(next[shared - 1..shared].to_vec(), [1, 1]),
+                device,
+            )
+        });
+        todo
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::Device;
@@ -243,6 +289,36 @@ mod tests {
         assert_eq!(out.len(), 1, "one group");
         assert_eq!(out[0].len(), 3);
         assert!(out[0].iter().all(|c| c.tokens.len() <= budget));
+    }
+
+    /// A rewind by a history keeps the prefix the next prompt shares with
+    /// it, and carries the token before what is left, which the smear mixes
+    /// in: the rest prefills as the whole prompt would, fresh.
+    #[test]
+    #[serial]
+    fn test_rewind_by_history() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let model = model(&device);
+
+        let mut history = CachedHistory::new();
+        let mut state = CachedLm::decode_state(&model, 1, 12, KVCacheStorage::Auto, &device);
+        let first = [3, 1, 4, 1, 5];
+        let todo = CachedLm::rewind(&model, &mut history, &mut state, &first, &device);
+        model.prefill_ids(ids(todo, 1, &device), &mut state);
+        history.extend(todo);
+
+        let next = [3, 1, 4, 2, 6];
+        let todo = CachedLm::rewind(&model, &mut history, &mut state, &next, &device);
+        assert_eq!(todo, [2, 6], "the shared prefix kept");
+        let rewound = model.prefill_ids(ids(todo, 1, &device), &mut state);
+
+        let mut fresh = model.decode_state(1, 12, KVCacheStorage::Auto);
+        let expected = model.prefill(ids(&next, 1, &device), &mut fresh);
+        rewound.into_data().assert_approx_eq::<f32>(
+            &expected.into_data(),
+            burn::tensor::Tolerance::rel_abs(1e-3, 1e-4),
+        );
     }
 
     /// A rewound decode, given the token before its new end, runs on as

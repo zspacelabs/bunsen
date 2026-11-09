@@ -33,9 +33,12 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    kits::support::decoding::{
-        CachedStep,
-        StackedLm,
+    kits::{
+        language::driver::CachedLm,
+        support::decoding::{
+            CachedStep,
+            StackedLm,
+        },
     },
     ops::transformers::attention::KVCacheStorage,
     support::testing::{

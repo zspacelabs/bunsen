@@ -6,10 +6,13 @@ use burn::{
 
 use super::blocks::Qwen3Asr;
 use crate::{
-    kits::support::decoding::{
-        GreedySearch,
-        StackedLm,
-        decode_cached,
+    kits::{
+        language::driver::CachedLm,
+        support::decoding::{
+            GreedySearch,
+            StackedLm,
+            decode_cached,
+        },
     },
     ops::transformers::attention::KVCacheStorage,
 };
