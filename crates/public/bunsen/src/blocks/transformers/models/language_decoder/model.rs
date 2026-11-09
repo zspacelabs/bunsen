@@ -49,6 +49,13 @@ pub trait LmDecoderMeta {
     /// The token count: the embedding's rows.
     fn n_vocab(&self) -> usize;
 
+    /// The logits' width: the head's output, which a head that slices its
+    /// table (a padded vocabulary) narrows below [`n_vocab`](Self::n_vocab);
+    /// by default, `n_vocab`.
+    fn n_logits(&self) -> usize {
+        self.n_vocab()
+    }
+
     /// The model width.
     fn d_model(&self) -> usize;
 
@@ -103,6 +110,11 @@ pub struct LmDecoderModel<K: LmDecodeKind = LmAttentionOnlyKind> {
 impl<K: LmDecodeKind> LmDecoderMeta for LmDecoderModel<K> {
     fn n_vocab(&self) -> usize {
         self.embedding.n_vocab()
+    }
+
+    fn n_logits(&self) -> usize {
+        use crate::blocks::transformers::head::LmHeadMeta;
+        self.head.n_vocab()
     }
 
     fn d_model(&self) -> usize {

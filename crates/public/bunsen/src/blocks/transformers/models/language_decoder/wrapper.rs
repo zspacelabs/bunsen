@@ -69,6 +69,10 @@ impl<W: LmDecoderWrapper> LmDecoderMeta for W {
         self.lm().n_vocab()
     }
 
+    fn n_logits(&self) -> usize {
+        self.lm().n_logits()
+    }
+
     fn d_model(&self) -> usize {
         self.lm().d_model()
     }

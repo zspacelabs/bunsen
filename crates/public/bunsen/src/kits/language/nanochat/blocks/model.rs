@@ -922,11 +922,15 @@ impl crate::blocks::transformers::models::language_decoder::LmDecoderOps for Nan
     }
 }
 
-/// Its language model's meta: `n_vocab` is the padded table's rows, not
-/// [`vocab_size`](NanoChatGptMeta::vocab_size).
+/// Its language model's meta: `n_vocab` is the padded table's rows, and
+/// `n_logits` its head's, [`vocab_size`](NanoChatGptMeta::vocab_size).
 impl crate::blocks::transformers::models::language_decoder::LmDecoderMeta for NanoChatGpt {
     fn n_vocab(&self) -> usize {
         self.lm.n_vocab()
+    }
+
+    fn n_logits(&self) -> usize {
+        self.lm.n_logits()
     }
 
     fn d_model(&self) -> usize {
@@ -1464,6 +1468,7 @@ mod tests {
             burn::tensor::Tolerance::default(),
         );
         assert_eq!(LmDecoderMeta::n_vocab(&gpt), 64, "the padded table");
+        assert_eq!(LmDecoderMeta::n_logits(&gpt), 30, "the head's slice");
         assert_eq!(gpt.vocab_size(), 30);
         assert_eq!(
             LmDecoderOps::rotary(&gpt, 5, &device).tables[0].cos.dims()[1],

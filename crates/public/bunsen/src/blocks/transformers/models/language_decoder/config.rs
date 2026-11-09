@@ -103,6 +103,11 @@ impl LmDecoderMeta for LmDecoderStructureConfig {
         self.embedding.n_vocab
     }
 
+    fn n_logits(&self) -> usize {
+        use crate::blocks::transformers::head::LmHeadMeta;
+        self.head.n_vocab()
+    }
+
     fn d_model(&self) -> usize {
         self.embedding.d_model
     }
