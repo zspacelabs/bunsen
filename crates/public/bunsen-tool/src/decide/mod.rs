@@ -2,6 +2,13 @@
 //! a Laya decision model ([`bunsen::kits::decision::laya`]), as `bunsen-tool
 //! decide` runs them.
 //!
-//! - [`cli`]: the `decide` command tree.
+//! - [`DecideCommandGroup`]: the `decide` command tree, `decide
+//!   <run|list|fetch>`.
+//! - [`choose_decide_model`]: the checkpoint `--select` chooses
+//!   ([`decide_selection`]).
 
-pub mod cli;
+mod decide_command_group;
+mod decide_select;
+
+pub use decide_command_group::*;
+pub use decide_select::*;

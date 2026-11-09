@@ -2,6 +2,10 @@
 //! onnxruntime's run of the export on the same synthetic input.
 
 use bunsen::{
+    blocks::transformers::models::language_decoder::{
+        LmDecoderOps,
+        LmKvForwardHidden,
+    },
     ops::transformers::attention::KVCacheModel,
     support::testing::{
         DeviceMemoryGuard,

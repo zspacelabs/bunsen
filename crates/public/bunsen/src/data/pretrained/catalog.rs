@@ -23,7 +23,9 @@ use super::{
     Resource,
     ResourceBundle,
     Source,
+    Tags,
     not_found,
+    tags::KIT,
 };
 use crate::errors::{
     BunsenError,
@@ -78,6 +80,11 @@ pub struct CatalogFamily {
 
     /// The family's presets, and its default selection.
     pub presets: PresetSet,
+
+    /// The tags every model of the family has, which its rows' tags are laid
+    /// over ([`PretrainedCatalog::row_tags`]).
+    #[serde(default, skip_serializing_if = "Tags::is_empty")]
+    pub tags: Tags,
 }
 
 /// One group of a [`PretrainedCatalog`]: its listing fields, and its rows by
@@ -98,6 +105,11 @@ pub struct CatalogGroup {
     /// Where its rows are published.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
+
+    /// The tags its rows share, laid under theirs and over their family's
+    /// ([`PretrainedCatalog::row_tags`]).
+    #[serde(default, skip_serializing_if = "Tags::is_empty")]
+    pub tags: Tags,
 
     /// Its rows, in listing order; a name is unique within the group.
     pub rows: Vec<CatalogRow>,
@@ -142,6 +154,11 @@ pub struct CatalogRow {
     /// ([`PresetSet::over`]).
     #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
     pub presets: PresetSet,
+
+    /// Its own tags, laid over its group's and its family's
+    /// ([`PretrainedCatalog::row_tags`]).
+    #[serde(default, skip_serializing_if = "Tags::is_empty")]
+    pub tags: Tags,
 
     /// The probes the catalog tool runs over the row's files, whose results
     /// its presets are laid over. The tool's input: a built catalog has
@@ -421,6 +438,34 @@ impl PretrainedCatalog {
         }
     }
 
+    /// A row's tags, as its owned row carries them: its own over its
+    /// group's, over its family's when it names one ([`Tags::over`]), and the
+    /// catalog's [`KIT`] tag.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a family the
+    /// catalog does not have.
+    pub fn row_tags(
+        &self,
+        group: &CatalogGroup,
+        row: &CatalogRow,
+    ) -> BunsenResult<Tags> {
+        let family = match &row.family {
+            None => Tags::new(),
+            Some(name) => self
+                .family(name)
+                .ok_or_else(|| {
+                    let names: Vec<&str> = self.families.iter().map(|f| f.name.as_str()).collect();
+                    not_found(Some(&row.name), "family", name, &names)
+                })?
+                .tags
+                .clone(),
+        };
+        let mut tags = row.tags.over(&group.tags.over(&family));
+        tags.insert(KIT, self.kit.clone());
+        Ok(tags)
+    }
+
     /// The bundle called `name`.
     pub fn bundle(
         &self,
@@ -430,7 +475,8 @@ impl PretrainedCatalog {
     }
 
     /// The owned row: its bundles fused strictly under its own name and
-    /// listing fields, with its presets ([`row_presets`](Self::row_presets)).
+    /// listing fields, with its presets ([`row_presets`](Self::row_presets))
+    /// and its tags ([`row_tags`](Self::row_tags)), as a row of `group`.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a bundle or a
@@ -440,9 +486,11 @@ impl PretrainedCatalog {
     /// ([`PresetSet::validate`]).
     pub fn to_pretrained(
         &self,
+        group: &CatalogGroup,
         row: &CatalogRow,
     ) -> BunsenResult<Pretrained> {
         let presets = self.row_presets(row)?;
+        let tags = self.row_tags(group, row)?;
         presets
             .validate()
             .with_context(|| format!("the row {:?}'s presets", row.name))?;
@@ -466,6 +514,7 @@ impl PretrainedCatalog {
             prefab: row.prefab.clone(),
             resources,
             presets,
+            tags,
         })
     }
 
@@ -484,7 +533,7 @@ impl PretrainedCatalog {
                 let items = group
                     .rows
                     .iter()
-                    .map(|row| self.to_pretrained(row))
+                    .map(|row| self.to_pretrained(group, row))
                     .collect::<BunsenResult<_>>()?;
                 Ok(PretrainedGroup {
                     name: group.name.clone(),
@@ -600,6 +649,22 @@ impl EmbeddedCatalog {
             .bundle(name)
             .unwrap_or_else(|| panic!("the {} kit's catalog has no bundle {name:?}", self.kit))
             .to_resource_bundle()
+    }
+
+    /// The tags of the family called `name`: what a model of the family that
+    /// no row describes has.
+    ///
+    /// # Panics
+    /// As [`catalog`](Self::catalog), and if there is no such family.
+    pub fn family_tags(
+        &self,
+        name: &str,
+    ) -> Tags {
+        self.catalog()
+            .family(name)
+            .unwrap_or_else(|| panic!("the {} kit's catalog has no family {name:?}", self.kit))
+            .tags
+            .clone()
     }
 
     /// The presets of the family called `name`: what a kit gives a model of
@@ -776,6 +841,69 @@ mod tests {
         assert_eq!(
             b_small.resources.get("checkpoint").unwrap().file,
             "large.pt"
+        );
+    }
+
+    /// A row's tags are its own over its group's over its family's, a `null`
+    /// removing an inherited one, with the catalog's kit; the JSON carries
+    /// tags only where they are.
+    #[test]
+    fn test_row_tags() {
+        use serde_json::json;
+
+        let mut catalog = PretrainedCatalog::from_json(CATALOG).unwrap();
+        let table = catalog.to_table().unwrap();
+        assert_eq!(
+            table.groups[0].items[0].tags,
+            Tags::new().with(KIT, "toy"),
+            "the kit, and nothing else"
+        );
+        assert!(
+            !serde_json::to_string(&catalog)
+                .unwrap()
+                .contains("\"tags\"")
+        );
+
+        catalog.families = vec![CatalogFamily {
+            name: "chatty".to_string(),
+            description: "models that chat".to_string(),
+            presets: PresetSet::default(),
+            tags: serde_json::from_value(json!({
+                "thinking": "never", "base": false, "scores": {"a": 1.0}
+            }))
+            .unwrap(),
+        }];
+        catalog.groups[0].tags = serde_json::from_value(json!({
+            "license_kind": "open", "scores": {"b": 2.0}
+        }))
+        .unwrap();
+        let row = &mut catalog.groups[0].rows[0];
+        row.family = Some("chatty".to_string());
+        row.tags = serde_json::from_value(json!({"thinking": "switch", "base": null})).unwrap();
+
+        let table = catalog.to_table().unwrap();
+        assert_eq!(
+            table.groups[0].items[0].tags,
+            serde_json::from_value::<Tags>(json!({
+                "kit": "toy",
+                "thinking": "switch",
+                "license_kind": "open",
+                "scores": {"a": 1.0, "b": 2.0},
+            }))
+            .unwrap()
+        );
+        // The group's tags reach its rows with no family too.
+        assert_eq!(
+            table.groups[0].items[1].tags.text("license_kind"),
+            Some("open")
+        );
+        assert!(!table.groups[1].items[0].tags.contains_key("license_kind"));
+
+        let json = serde_json::to_string(&catalog).unwrap();
+        assert_eq!(PretrainedCatalog::from_json(&json).unwrap(), catalog);
+        assert_eq!(
+            EmbeddedCatalog::new("toy", Box::leak(json.into_boxed_str())).family_tags("chatty"),
+            catalog.families[0].tags
         );
     }
 
@@ -969,6 +1097,7 @@ mod tests {
                 default: vec!["good".to_string()],
                 ..Default::default()
             },
+            tags: Tags::new(),
         }];
         let json = serde_json::to_string(&catalog).unwrap();
         assert_eq!(PretrainedCatalog::from_json(&json).unwrap(), catalog);

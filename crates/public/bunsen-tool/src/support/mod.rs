@@ -1,15 +1,23 @@
 //! What the command trees share: a lookup expression with presets or a patch
-//! added, a row's presets as the listings print them, the `--preset` flags, and
-//! "did you mean?" on a failed lookup ([`did_you_mean`]).
+//! added, a row's presets and a checkpoint's row as the listings print them
+//! ([`print_model_row`]), the `--preset` flags, the `--format` choice
+//! ([`Format`]), and "did you mean?" on a failed lookup ([`did_you_mean`]).
 
 pub mod did_you_mean;
+mod model_row;
+mod output_format;
 
 use bunsen::{
     data::pretrained::PresetSet,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     kits::support::construct::LookupExpr,
     support::merge_patch,
 };
+pub use model_row::*;
+pub use output_format::*;
 
 /// `model`, a lookup expression, with `presets` added to its box.
 ///
@@ -118,7 +126,7 @@ impl PresetArgs {
             return Ok(model.to_string());
         }
         if std::path::Path::new(model).is_file() {
-            return Err(bunsen::errors::BunsenError::policy(format!(
+            return Err(BunsenError::policy(format!(
                 "--preset names a model's presets; the checkpoint file {model} has none"
             )));
         }

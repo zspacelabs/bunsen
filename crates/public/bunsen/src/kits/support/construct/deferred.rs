@@ -217,6 +217,7 @@ mod tests {
                     sources: vec![Source::Url("https://a.example/small.pt".to_string())],
                 }),
                 presets: Default::default(),
+                tags: Default::default(),
             }),
             selection: Default::default(),
         }

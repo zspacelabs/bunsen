@@ -11,12 +11,14 @@ groups:
     origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
     rows:
       - name: "tiny.en"
+        tags: { parameters: 39000000, language: ["en"], translate: false }
         description: "39 M parameters, English-only"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "tiny.en"
         bundles: ["openai/tiny.en.pt", "openai/gpt2.tiktoken"]
       - name: "tiny"
+        tags: { parameters: 39000000 }
         description: "39 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
@@ -24,12 +26,14 @@ groups:
         family: "multilingual"
         bundles: ["openai/tiny.pt", "openai/multilingual.tiktoken"]
       - name: "base.en"
+        tags: { parameters: 74000000, language: ["en"], translate: false }
         description: "74 M parameters, English-only"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "base.en"
         bundles: ["openai/base.en.pt", "openai/gpt2.tiktoken"]
       - name: "base"
+        tags: { parameters: 74000000 }
         description: "74 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
@@ -37,12 +41,14 @@ groups:
         family: "multilingual"
         bundles: ["openai/base.pt", "openai/multilingual.tiktoken"]
       - name: "small.en"
+        tags: { parameters: 244000000, language: ["en"], translate: false }
         description: "244 M parameters, English-only"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "small.en"
         bundles: ["openai/small.en.pt", "openai/gpt2.tiktoken"]
       - name: "small"
+        tags: { parameters: 244000000 }
         description: "244 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
@@ -50,12 +56,14 @@ groups:
         family: "multilingual"
         bundles: ["openai/small.pt", "openai/multilingual.tiktoken"]
       - name: "medium.en"
+        tags: { parameters: 769000000, language: ["en"], translate: false }
         description: "769 M parameters, English-only"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
         prefab: "medium.en"
         bundles: ["openai/medium.en.pt", "openai/gpt2.tiktoken"]
       - name: "medium"
+        tags: { parameters: 769000000 }
         description: "769 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
@@ -63,6 +71,7 @@ groups:
         family: "multilingual"
         bundles: ["openai/medium.pt", "openai/multilingual.tiktoken"]
       - name: "large-v1"
+        tags: { parameters: 1550000000, version: { group: whisper-large, version: "1.0.0" } }
         description: "1550 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
@@ -70,6 +79,7 @@ groups:
         family: "multilingual"
         bundles: ["openai/large-v1.pt", "openai/multilingual.tiktoken"]
       - name: "large-v2"
+        tags: { parameters: 1550000000, version: { group: whisper-large, version: "2.0.0" } }
         description: "1550 M parameters, multilingual"
         license: "MIT"
         origin: "https://github.com/openai/whisper/blob/main/whisper/__init__.py"
@@ -77,6 +87,8 @@ groups:
         family: "multilingual"
         bundles: ["openai/large-v2.pt", "openai/multilingual.tiktoken"]
       - name: "large-v3"
+        # wer.en: Open ASR Leaderboard paper (arXiv 2510.06961), Table 3, short-form English average.
+        tags: { parameters: 1550000000, version: { group: whisper-large, version: "3.0.0" }, scores: { wer.en: 7.44 } }
         aliases: ["large"]
         description: "1550 M parameters, multilingual, 128 mels"
         license: "MIT"
@@ -85,6 +97,8 @@ groups:
         family: "multilingual"
         bundles: ["openai/large-v3.pt", "openai/multilingual.tiktoken"]
       - name: "large-v3-turbo"
+        # wer.en: Open ASR Leaderboard paper (arXiv 2510.06961), Table 3, short-form English average.
+        tags: { parameters: 809000000, language: ["en", "*"], translate: false, scores: { wer.en: 7.83 } }
         aliases: ["turbo"]
         description: "809 M parameters, multilingual, 128 mels, four-layer decoder"
         license: "MIT"
@@ -206,6 +220,7 @@ bundles:
       - { key: "checkpoint", file: "large-v3-turbo.pt", kind: "pytorch fp16", sha256: "aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a", dtype: "float16" }
 families:
   - name: "multilingual"
+    tags: { language: ["en", "*"], translate: true }
     description: "The multilingual checkpoints that translate: transcribe in the speech's own language, or translate to English"
     presets:
       presets:

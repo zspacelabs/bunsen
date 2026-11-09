@@ -19,7 +19,14 @@
           "origin": "https://huggingface.co/convaiinnovations/laya",
           "bundles": [
             "laya/laya"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 421000000
+          }
         },
         {
           "name": "laya-multilingual",
@@ -28,7 +35,15 @@
           "origin": "https://huggingface.co/convaiinnovations/laya",
           "bundles": [
             "laya/laya-multilingual"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en",
+              "*"
+            ],
+            "parameters": 322000000
+          }
         },
         {
           "name": "laya-typed-decisions",
@@ -37,7 +52,14 @@
           "origin": "https://huggingface.co/convaiinnovations/laya",
           "bundles": [
             "laya/laya-typed-decisions"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 421000000
+          }
         }
       ]
     }

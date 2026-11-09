@@ -17,7 +17,17 @@
           "prefab": "qwen3-asr-0.6b",
           "bundles": [
             "fermion/phonon-audio6.bps.tar.zst"
-          ]
+          ],
+          "tags": {
+            "language": [
+              "en"
+            ],
+            "parameters": 800000000,
+            "scores": {
+              "wer.en": 6.56
+            },
+            "translate": false
+          }
         },
         {
           "name": "phonon-1-micro",
@@ -27,7 +37,14 @@
           "prefab": "qwen3-asr-0.6b",
           "bundles": [
             "fermion/phonon-micro.bps.tar.zst"
-          ]
+          ],
+          "tags": {
+            "language": [
+              "en"
+            ],
+            "parameters": 800000000,
+            "translate": false
+          }
         },
         {
           "name": "phonon-1-big",
@@ -37,7 +54,14 @@
           "prefab": "qwen3-asr-0.6b",
           "bundles": [
             "fermion/phonon-parity.bps.tar.zst"
-          ]
+          ],
+          "tags": {
+            "language": [
+              "en"
+            ],
+            "parameters": 800000000,
+            "translate": false
+          }
         }
       ]
     },
@@ -55,7 +79,20 @@
           "prefab": "qwen3-asr-0.6b",
           "bundles": [
             "qwen/qwen3-asr-0.6b"
-          ]
+          ],
+          "tags": {
+            "dtype": "bf16",
+            "language": [
+              "en",
+              "zh",
+              "*"
+            ],
+            "parameters": 800000000,
+            "scores": {
+              "wer.en": 6.31
+            },
+            "translate": false
+          }
         },
         {
           "name": "qwen3-asr-1.7b",
@@ -65,7 +102,20 @@
           "prefab": "qwen3-asr-1.7b",
           "bundles": [
             "qwen/qwen3-asr-1.7b"
-          ]
+          ],
+          "tags": {
+            "dtype": "bf16",
+            "language": [
+              "en",
+              "zh",
+              "*"
+            ],
+            "parameters": 2000000000,
+            "scores": {
+              "wer.en": 5.76
+            },
+            "translate": false
+          }
         }
       ]
     }

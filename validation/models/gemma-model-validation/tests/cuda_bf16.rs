@@ -41,7 +41,7 @@ fn check_row(row: &str) {
     let own = record.f32_last_logits_max_abs.expect("bf16's own error");
     let bundle = load_construct_with(row, &device, LoadPolicy::performance());
     assert_eq!(
-        bundle.model.embed_tokens.weight.val().dtype(),
+        bundle.model.lm.embedding.weight.val().dtype(),
         DType::BF16,
         "{row}: performance() keeps bf16 where CUDA accelerates it"
     );
@@ -96,7 +96,7 @@ fn check_long(row: &str) {
     let reference = &record.bf16;
     let bundle = load_construct_with(row, &device, LoadPolicy::performance());
     assert_eq!(
-        bundle.model.embed_tokens.weight.val().dtype(),
+        bundle.model.lm.embedding.weight.val().dtype(),
         DType::BF16,
         "{row}: performance() keeps bf16 where CUDA accelerates it"
     );

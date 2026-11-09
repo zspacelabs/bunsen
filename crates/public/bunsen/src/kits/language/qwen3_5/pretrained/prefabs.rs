@@ -49,9 +49,9 @@ pub static QWEN3_5_PREFABS: StaticPreFabMap<Qwen3_5Config> = StaticPreFabMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::language::qwen3_5::{
-        Qwen3_5LayerKind,
-        Qwen3_5Meta,
+    use crate::{
+        blocks::transformers::models::language_decoder::LmDecoderMeta,
+        kits::language::qwen3_5::Qwen3_5LayerKind,
     };
 
     /// Every prefab is a hybrid of every fourth layer full, a quarter of each

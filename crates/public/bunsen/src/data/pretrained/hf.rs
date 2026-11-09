@@ -566,6 +566,7 @@ impl HfProvider {
             prefab: None,
             resources,
             presets: Default::default(),
+            tags: Default::default(),
         })
     }
 

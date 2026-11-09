@@ -10,18 +10,15 @@ use crate::{
         CausalDecoderBlock,
         DecoderLayerKeys,
     },
-    burner::module::{
-        CanonicalKeys,
-        Rekey,
-    },
-    data::pretrained::{
-        NamedTensorsApplied,
-        load_rekeyed,
-    },
+    burner::module::Rekey,
+    data::pretrained::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::support::model_config::{
-        TransformersConfigJson,
-        TransformersDecoderSection,
+    kits::support::{
+        construct::load_lm_rekeyed,
+        model_config::{
+            TransformersConfigJson,
+            TransformersDecoderSection,
+        },
     },
 };
 
@@ -38,9 +35,11 @@ pub fn text_layer_rekey() -> Rekey {
     ))
 }
 
-/// `transformers`' `Qwen3ForCausalLM` state-dict names onto a
-/// [`Qwen3Model`]'s module paths: under `model.`, the layers by
-/// [`text_layer_rekey`], and the embedding and final norm as they are; and
+/// `transformers`' `Qwen3ForCausalLM` state-dict names onto the module paths
+/// of a [`Qwen3Model`]'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
+/// under `model.`, the layers by [`text_layer_rekey`], the embedding
+/// (`embed_tokens`, the model's `embedding`) and the final norm; and
 /// `lm_head.weight`, the head's projection. Anything else is dropped.
 ///
 /// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
@@ -48,7 +47,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_rekeyed`] resolves to `gamma`.
+/// [`load_rekeyed`](crate::data::pretrained::load_rekeyed) resolves to `gamma`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -56,24 +55,25 @@ pub fn transformers_rekey() -> Rekey {
             "",
             Rekey::keep_rest()
                 .mount_indexed("layers.", "stack.layers.", text_layer_rekey())
+                .rename("embed_tokens.", "embedding.")
                 .rename("norm.", "stack.norm."),
         )
-        .exact("lm_head.weight", "lm_head.proj.weight")
+        .exact("lm_head.weight", "head.proj.weight")
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
-/// `model`: [`load_rekeyed`] under [`transformers_rekey`], in the dtype `model`
+/// `model`'s [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): [`load_lm_rekeyed`] under
+/// [`transformers_rekey`], in the dtype `model`
 /// was built in. The checkpoints ship `bf16`, which not every backend computes
 /// in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`load_lm_rekeyed`].
 pub fn load_transformers_tensors(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, None)
+    load_lm_rekeyed(model, tensors, transformers_rekey(), None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
@@ -84,14 +84,13 @@ pub fn load_transformers_tensors(
 /// [`LoadPolicy::resolve`]: crate::kits::support::construct::LoadPolicy::resolve
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`load_lm_rekeyed`].
 pub fn load_transformers_tensors_as(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, Some(dtype))
+    load_lm_rekeyed(model, tensors, transformers_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:
@@ -179,7 +178,7 @@ mod tests {
     fn test_transformers_rekey() {
         let rekey = transformers_rekey();
         for (hf, bunsen) in [
-            ("model.embed_tokens.weight", Some("embed_tokens.weight")),
+            ("model.embed_tokens.weight", Some("embedding.weight")),
             (
                 "model.layers.0.self_attn.o_proj.weight",
                 Some("stack.layers.0.attn.c_proj.weight"),
@@ -193,7 +192,7 @@ mod tests {
                 Some("stack.layers.3.mlp.up_proj.weight"),
             ),
             ("model.norm.weight", Some("stack.norm.weight")),
-            ("lm_head.weight", Some("lm_head.proj.weight")),
+            ("lm_head.weight", Some("head.proj.weight")),
             ("lm_head.bias", None),
         ] {
             assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");

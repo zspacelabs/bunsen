@@ -9,8 +9,9 @@
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
 //! [`TransformerGatedMlp`](crate::blocks::transformers::mlp::TransformerGatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
-//! and decodes through a
-//! [`KVCache`](crate::ops::transformers::attention::KVCache).
+//! wrapping an attention-only
+//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel), and
+//! decodes through a [`KVCache`](crate::ops::transformers::attention::KVCache).
 //!
 //! It is the model of the dense Qwen3 checkpoints up to 8B: `Qwen3-0.6B`,
 //! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds and `Qwen3-4B`'s `2507`
@@ -40,7 +41,6 @@
 pub mod blocks;
 
 mod construct;
-mod decode;
 pub use construct::*;
 
 #[cfg(feature = "store")]

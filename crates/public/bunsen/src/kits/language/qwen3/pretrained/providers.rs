@@ -1,21 +1,17 @@
 //! # Qwen3 pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::Qwen3ConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
     kits::{
         language::qwen3::{
             GENERATION_CONFIG,
-            Qwen3Construct,
             TOKENIZER,
             TOKENIZER_CONFIG,
         },
@@ -54,6 +50,21 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 pub static QWEN3_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("qwen3", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a chat model's: what a chat chooses its
+/// checkpoint by.
+pub const QWEN3_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::BASE.key,
+            crate::data::pretrained::tags::THINKING.key,
+            crate::data::pretrained::tags::REASONING.key,
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_qwen3_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3-0.6b";
 
@@ -88,30 +99,13 @@ pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 ///
 /// [`load_construct`](PretrainedFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
-/// [`Qwen3Construct`].
+/// [`Qwen3Construct`](crate::kits::language::qwen3::Qwen3Construct).
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
 pub fn default_qwen3_factory() -> BunsenResult<PretrainedFactory<Qwen3ConstructConfig>> {
     PretrainedFactory::new().with_providers(default_qwen3_providers())
-}
-
-impl PretrainedFactory<Qwen3ConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<Qwen3Construct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

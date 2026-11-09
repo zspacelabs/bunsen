@@ -1,4 +1,5 @@
-//! `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
+//! bunsen's tokenizer (`BunsenTokenizer`) and `bunsen_tool::chat`'s chat
+//! template against `transformers`'.
 
 use std::path::PathBuf;
 
@@ -13,13 +14,15 @@ use bunsen::{
                 default_qwen3_factory,
             },
         },
-        support::tokens::Tokenizer,
+        support::tokens::{
+            BunsenTokenizer,
+            Tokenizer,
+        },
     },
 };
 use bunsen_tool::chat::{
     ChatMessage,
     ChatTemplate,
-    HfTokenizer,
 };
 
 use super::*;
@@ -50,7 +53,7 @@ fn check_tokenizer(row: &str) {
     let fixture = &chat_reference()[row];
     {
         let (tokenizer, config) = tokenizer_files(row);
-        let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+        let tok = BunsenTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
         for case in &fixture.encode {
             assert_eq!(
                 tok.encode(&case.text).unwrap(),
@@ -74,7 +77,7 @@ fn check_base_tokenizer(
 ) {
     let fixture = &chat_reference()[like];
     let (tokenizer, config) = tokenizer_files(row);
-    let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+    let tok = BunsenTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
     for case in &fixture.encode {
         assert_eq!(
             tok.encode(&case.text).unwrap(),
@@ -92,7 +95,7 @@ fn check_template(row: &str) {
     let fixture = &chat_reference()[row];
     {
         let (tokenizer, config) = tokenizer_files(row);
-        let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+        let tok = BunsenTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
         let template = ChatTemplate::from_file(&config).unwrap();
         for case in &fixture.templates {
             let messages: Vec<ChatMessage> = case

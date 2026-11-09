@@ -1,20 +1,14 @@
 //! # Laya pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::LayaConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        decision::laya::LayaConstruct,
-        support::construct::PretrainedFactory,
-    },
+    kits::support::construct::PretrainedFactory,
 };
 
 /// The kit segment of a Laya resource's path in the cache:
@@ -40,6 +34,17 @@ pub const AGENT_CONFIG: &str = "agent_config";
 pub static LAYA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("laya", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, what `decide` chooses its model by.
+pub const LAYA_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_laya_factory`] loads when a caller names none.
 pub const DEFAULT_LAYA_MODEL: &str = "laya/laya";
 
@@ -55,23 +60,6 @@ pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// As [`PretrainedFactory::with_providers`].
 pub fn default_laya_factory() -> BunsenResult<PretrainedFactory<LayaConstructConfig>> {
     PretrainedFactory::new().with_providers(default_laya_providers())
-}
-
-impl PretrainedFactory<LayaConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<LayaConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

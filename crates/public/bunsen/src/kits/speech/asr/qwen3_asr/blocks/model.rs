@@ -18,6 +18,11 @@ use super::{
     Qwen3AsrProjectorConfig,
 };
 use crate::{
+    blocks::transformers::models::language_decoder::{
+        LmDecoderMeta,
+        LmDecoderOps,
+        LmKvForwardHidden,
+    },
     burner::module::{
         CanonicalKeys,
         ModuleInit,
@@ -29,7 +34,6 @@ use crate::{
     },
     kits::language::qwen3::{
         Qwen3Config,
-        Qwen3Meta,
         Qwen3Model,
     },
 };
@@ -294,7 +298,7 @@ impl CanonicalKeys for Qwen3Asr {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest()
             .mount_canonical("audio_tower.", &self.audio_tower)
-            .mount_canonical("language_model.", &self.language_model)
+            .mount_canonical("language_model.lm.", &self.language_model.lm)
     }
 }
 

@@ -1,20 +1,14 @@
 //! # nanochat pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::NanoChatConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        language::nanochat::NanoChatConstruct,
-        support::construct::PretrainedFactory,
-    },
+    kits::support::construct::PretrainedFactory,
 };
 
 /// The kit segment of a nanochat resource's path in the cache:
@@ -43,6 +37,21 @@ pub const TIKTOKEN_PICKLE: &str = "tiktoken-pickle";
 pub static NANOCHAT_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("nanochat", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a chat model's: what a chat chooses its
+/// checkpoint by.
+pub const NANOCHAT_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::BASE.key,
+            crate::data::pretrained::tags::THINKING.key,
+            crate::data::pretrained::tags::REASONING.key,
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_nanochat_factory`] loads when a caller names none.
 pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
 
@@ -56,30 +65,13 @@ pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 ///
 /// [`load_construct`](PretrainedFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
-/// [`NanoChatConstruct`].
+/// [`NanoChatConstruct`](crate::kits::language::nanochat::NanoChatConstruct).
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
 pub fn default_nanochat_factory() -> BunsenResult<PretrainedFactory<NanoChatConstructConfig>> {
     PretrainedFactory::new().with_providers(default_nanochat_providers())
-}
-
-impl PretrainedFactory<NanoChatConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<NanoChatConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

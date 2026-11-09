@@ -1,6 +1,7 @@
 //! # Gemma blocks.
 //!
-//! The model, [`GemmaModel`] with its [`GemmaConfig`] and [`GemmaMeta`]. Its
+//! The model, [`GemmaModel`] with its [`GemmaConfig`], both
+//! [`LmDecoderMeta`](crate::blocks::transformers::models::language_decoder::LmDecoderMeta). Its
 //! layers are the generic
 //! [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
 //! in a [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)

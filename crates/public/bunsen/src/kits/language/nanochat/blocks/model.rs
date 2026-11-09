@@ -39,7 +39,6 @@ use crate::{
             decoders::{
                 causal::CausalDecoderBlockConfig,
                 stack::{
-                    DecoderStack,
                     DecoderStackMeta,
                     DecoderStackResidualMix,
                     DecoderStackSides,
@@ -51,16 +50,18 @@ use crate::{
                 RotaryEmbeddingConfig,
                 RotaryEmbeddingMeta,
                 RotarySet,
-                TokenEmbedding,
                 TokenEmbeddingConfig,
                 TokenEmbeddingMeta,
             },
             head::{
-                LmHead,
                 LmHeadConfig,
                 LmHeadMeta,
             },
             mlp::TransformerMlpConfig,
+            models::language_decoder::{
+                LmDecoderModel,
+                LmDecoderStructureConfig,
+            },
         },
     },
     burner::module::{
@@ -422,20 +423,22 @@ impl ToStructureConfig for NanoChatGptContractConfig {
         let vocab = self.padded_vocab_size();
         let kv_width = self.n_kv_head * self.head_dim();
         Ok(NanoChatGptStructureConfig {
-            wte: TokenEmbeddingConfig::new(vocab, self.n_embed).with_norm_eps(Some(self.norm_eps)),
-            stack: DecoderStackStructureConfig::new(
-                h,
-                self.norm.clone(),
-                RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
-                    .with_base(self.rope_base)
-                    .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
-            ),
-            lm_head: LmHeadConfig::new(self.n_embed, vocab)
-                .with_tied(false)
-                .with_bias(self.head_bias)
-                .with_softcap(Some(self.softcap))
-                .with_vocab(Some(self.vocab_size)),
-            init_seq_len: self.init_seq_len,
+            lm: LmDecoderStructureConfig::new(
+                TokenEmbeddingConfig::new(vocab, self.n_embed).with_norm_eps(Some(self.norm_eps)),
+                LmHeadConfig::new(self.n_embed, vocab)
+                    .with_tied(false)
+                    .with_bias(self.head_bias)
+                    .with_softcap(Some(self.softcap))
+                    .with_vocab(Some(self.vocab_size)),
+                DecoderStackStructureConfig::new(
+                    h,
+                    self.norm.clone(),
+                    RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
+                        .with_base(self.rope_base)
+                        .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
+                ),
+            )
+            .with_kv_cache_pre_size(self.init_seq_len),
             residual_lambdas: self.residual_lambdas,
             value_embeds: (0..self.n_layer)
                 .map(|i| {
@@ -451,28 +454,22 @@ impl ToStructureConfig for NanoChatGptContractConfig {
 
 /// Low-level GPT Structure Config.
 ///
-/// The fully-expanded structural configuration for the [`NanoChatGpt`] module,
-/// holding the explicit sub-configs (embedding, per-layer blocks, head, rotary
-/// embedding). [`NanoChatGptContractConfig`] lowers to it. Directly builds the
+/// The fully-expanded structural configuration for the [`NanoChatGpt`] module:
+/// its language model's (embedding, per-layer blocks, head, rotary
+/// embedding), and upstream's 2026 additions around it.
+/// [`NanoChatGptContractConfig`] lowers to it. Directly builds the
 /// [`NanoChatGpt`] module via [`ModuleInit`].
 ///
 /// This config has a lot of duplicate information.
 #[derive(Config, Debug)]
 pub struct NanoChatGptStructureConfig {
-    /// The token embedding, and its parameter-free RMS norm.
-    pub wte: TokenEmbeddingConfig,
-
-    /// The decoder stack: the blocks, the final norm, and the rotary
-    /// embedding, whose `seq_len` is the model's longest sequence.
-    pub stack: DecoderStackStructureConfig,
-
-    /// The head: a projection of its own onto the padded vocabulary, the
-    /// logits sliced back to `vocab_size` and soft-capped.
-    pub lm_head: LmHeadConfig,
-
-    /// Initial sequence Length.
-    #[config(default = "1024")]
-    pub init_seq_len: usize,
+    /// The language model: the token embedding and its parameter-free RMS
+    /// norm; the decoder stack (the blocks, the final norm, and the rotary
+    /// embedding, whose `seq_len` is the model's longest sequence); the head,
+    /// a projection of its own onto the padded vocabulary, the logits sliced
+    /// back to `vocab_size` and soft-capped; and the initial sequence length,
+    /// its `kv_cache_pre_size`.
+    pub lm: LmDecoderStructureConfig,
 
     /// Whether the residual stream is rescaled and mixed with the
     /// embedding before each block.
@@ -494,35 +491,35 @@ pub struct NanoChatGptStructureConfig {
 
 impl NanoChatGptMeta for NanoChatGptStructureConfig {
     fn n_embed(&self) -> usize {
-        self.wte.d_model
+        self.lm.embedding.d_model
     }
 
     fn n_head(&self) -> usize {
-        self.stack.layers[0].attn.attention().n_head()
+        self.lm.stack.layers[0].attn.attention().n_head()
     }
 
     fn n_kv_head(&self) -> usize {
-        self.stack.n_kv_heads()
+        self.lm.stack.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.stack.head_dim()
+        self.lm.stack.head_dim()
     }
 
     fn init_seq_len(&self) -> usize {
-        self.init_seq_len
+        self.lm.kv_cache_pre_size
     }
 
     fn max_seq_len(&self) -> usize {
-        self.stack.rotary.seq_len()
+        self.lm.stack.rotary.seq_len()
     }
 
     fn n_layer(&self) -> usize {
-        self.stack.n_layers()
+        self.lm.stack.n_layers()
     }
 
     fn vocab_size(&self) -> usize {
-        self.lm_head.n_vocab()
+        self.lm.head.n_vocab()
     }
 }
 
@@ -531,7 +528,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<NanoChatGpt> {
-        let n_layer = self.stack.layers.len();
+        let n_layer = self.lm.stack.layers.len();
         if !self.value_embeds.is_empty() && self.value_embeds.len() != n_layer {
             return Err(BunsenError::illegal(format!(
                 "value_embeds has {} entries for {n_layer} layers",
@@ -548,11 +545,8 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         };
         let scalar = |v: f32| Param::from_tensor(Tensor::<1>::from_floats([v], device));
         Ok(NanoChatGpt {
-            wte: self.wte.init(device),
-            stack: self.stack.try_init(device)?,
-            lm_head: self.lm_head.try_init(device)?,
-            r_emb: self.stack.rotary.try_init(device)?,
-            init_seq_len: self.init_seq_len,
+            lm: self.lm.try_init(device)?,
+            r_emb: self.lm.stack.rotary.try_init(device)?,
             resid_lambdas: self.residual_lambdas.then(|| ramp(1.15, 0.10)),
             x0_lambdas: self.residual_lambdas.then(|| ramp(0.20, 0.15)),
             value_embeds: self
@@ -577,11 +571,12 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 
 /// nanoChat GPT language model.
 ///
-/// A decoder-only transformer: token embedding, normalized by a
-/// parameter-free RMS norm as upstream's is ([`TokenEmbedding`]), a
-/// [`DecoderStack`] of causal decoder blocks and a final normalization, and a
-/// linear head, not tied to the embedding, producing softcapped vocabulary
-/// logits. The normalized embedding starts the residual stream, and each block
+/// A decoder-only transformer, an [`LmDecoderModel`]: token embedding,
+/// normalized by a parameter-free RMS norm as upstream's is, a
+/// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
+/// of causal decoder blocks and a final normalization, and a linear head,
+/// not tied to the embedding, producing softcapped vocabulary logits. The
+/// normalized embedding starts the residual stream, and each block
 /// adds its attention and MLP updates to it.
 ///
 /// Upstream's 2026 additions, each present only when its config option is
@@ -590,7 +585,11 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 /// value embeddings on every other layer, the mid-stack backout, a
 /// query/key gain, sliding windows, and a padded vocabulary.
 ///
-/// Incremental decoding takes a [`KVCache`] the caller holds, from
+/// Its forward is its own, the 2026 additions around the stack's
+/// ([`DecoderStackSides`]), so it is not an
+/// [`LmDecoderWrapper`](crate::blocks::transformers::models::language_decoder::LmDecoderWrapper):
+/// no blanket forward or decode skips them. Incremental decoding takes a
+/// [`KVCache`] the caller holds, from
 /// [`new_kv_cache`](KVCacheModel::new_kv_cache) (it implements
 /// [`KVCacheModel`], as its configs do).
 ///
@@ -598,15 +597,12 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 /// [`NanoChatGptStructureConfig`].
 #[derive(Module, Debug)]
 pub struct NanoChatGpt {
-    wte: TokenEmbedding,
-    /// The blocks and the final norm.
-    stack: DecoderStack,
-    /// The head, its own projection, sliced and soft-capped.
-    lm_head: LmHead,
+    /// The language model: the embedding, the blocks and the final norm,
+    /// and the head (its own projection, sliced and soft-capped); its
+    /// `kv_cache_pre_size` the initial sequence length.
+    lm: LmDecoderModel,
     /// The rotary table, covering the longest sequence.
     r_emb: RotaryEmbedding,
-
-    init_seq_len: usize,
 
     /// `[n_layer]`: the residual stream's scale before each block.
     resid_lambdas: Option<Param<Tensor<1>>>,
@@ -625,23 +621,23 @@ pub struct NanoChatGpt {
 
 impl NanoChatGptMeta for NanoChatGpt {
     fn n_embed(&self) -> usize {
-        self.wte.d_model()
+        self.lm.embedding.d_model()
     }
 
     fn n_head(&self) -> usize {
-        self.stack.layers[0].attn.branch.attention().n_head()
+        self.lm.stack.layers[0].attn.branch.attention().n_head()
     }
 
     fn n_kv_head(&self) -> usize {
-        self.stack.n_kv_heads()
+        self.lm.stack.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.stack.head_dim()
+        self.lm.stack.head_dim()
     }
 
     fn init_seq_len(&self) -> usize {
-        self.init_seq_len
+        self.lm.kv_cache_pre_size()
     }
 
     fn max_seq_len(&self) -> usize {
@@ -649,11 +645,11 @@ impl NanoChatGptMeta for NanoChatGpt {
     }
 
     fn n_layer(&self) -> usize {
-        self.stack.n_layers()
+        self.lm.stack.n_layers()
     }
 
     fn vocab_size(&self) -> usize {
-        self.lm_head.n_vocab()
+        self.lm.head.n_vocab()
     }
 }
 
@@ -661,7 +657,7 @@ impl NanoChatGpt {
     /// The float dtype the model's weights are held, and computed, in: its
     /// embedding's (without initializing a lazy parameter).
     pub fn float_dtype(&self) -> burn::tensor::DType {
-        crate::burner::tensor::param_float_dtype(&self.wte.weight)
+        self.lm.float_dtype()
     }
 
     /// Sets a smeared model's smear strength: tests of the smear set it away
@@ -763,7 +759,7 @@ impl NanoChatGpt {
 
         // As upstream (`x = norm(wte(idx))`): a parameter-free norm, so the
         // residual stream starts normalized.
-        let mut x = self.wte.forward(idx.clone());
+        let mut x = self.lm.embedding.forward(idx.clone());
 
         if let (Some(gate), Some(lambda)) = (&self.smear_gate, &self.smear_lambda) {
             x = self.smear(x, prev, t0, gate, lambda);
@@ -784,11 +780,11 @@ impl NanoChatGpt {
                 backout: self
                     .backout_lambda
                     .as_ref()
-                    .map(|lambda| (self.stack.layers.len() / 2, lambda.val())),
+                    .map(|lambda| (self.lm.stack.layers.len() / 2, lambda.val())),
             },
             ..Default::default()
         };
-        let hidden = self.stack.forward_with(
+        let hidden = self.lm.stack.forward_with(
             x,
             &RotarySet::from(self.r_emb.clone()),
             kv_cache.as_deref_mut(),
@@ -821,7 +817,7 @@ impl NanoChatGpt {
             &["B", "T"],
             &[("D", self.n_embed())]
         );
-        let logits = self.lm_head.forward(hidden, &self.wte.weight);
+        let logits = self.lm.head.forward(hidden, &self.lm.embedding.weight);
 
         assert_shape_contract_periodically!(
             ["B", "T", "V"],
@@ -849,7 +845,7 @@ impl NanoChatGpt {
             * lambda.val().unsqueeze::<3>();
         let before = match (t0, prev) {
             (_, Some(prev)) => {
-                let p = self.wte.forward(prev);
+                let p = self.lm.embedding.forward(prev);
                 Some(Tensor::cat(vec![p, x.clone().slice(s![.., ..t - 1])], 1))
             }
             (0, None) => None,
@@ -875,7 +871,7 @@ impl NanoChatGpt {
     /// Ref: <https://arxiv.org/abs/2204.02311>
     pub fn estimate_flops_per_token(&self) -> usize {
         let nparams = self.num_params();
-        let nparams_embedding = self.wte.num_params()
+        let nparams_embedding = self.lm.embedding.num_params()
             + self
                 .value_embeds
                 .iter()
@@ -887,15 +883,76 @@ impl NanoChatGpt {
         let l = self.n_layer();
         let h = self.n_head();
         let q = self.head_dim();
-        let t = self.init_seq_len;
+        let t = self.init_seq_len();
 
         6 * nparams + 12 * l * h * q * t
     }
 }
 
+/// The call API that says nothing of the forward: the token embedding alone
+/// (the smear is the forward's), the head, the rotary tables and the dtype.
+/// A [`NanoChatGpt`]'s forward is its own
+/// ([`hidden_after`](NanoChatGpt::hidden_after)), so it is not a
+/// [`LmPlainStackOps`](crate::blocks::transformers::models::language_decoder::LmPlainStackOps).
+impl crate::blocks::transformers::models::language_decoder::LmDecoderOps for NanoChatGpt {
+    fn float_dtype(&self) -> burn::tensor::DType {
+        NanoChatGpt::float_dtype(self)
+    }
+
+    fn rotary(
+        &self,
+        seq_len: usize,
+        device: &Device,
+    ) -> RotarySet {
+        self.lm.rotary(seq_len, device)
+    }
+
+    fn embed(
+        &self,
+        tokens: Tensor<2, Int>,
+    ) -> Tensor<3> {
+        self.lm.embed(tokens)
+    }
+
+    fn logits(
+        &self,
+        hidden: Tensor<3>,
+    ) -> Tensor<3> {
+        NanoChatGpt::logits(self, hidden)
+    }
+}
+
+/// Its language model's meta: `n_vocab` is the padded table's rows, and
+/// `n_logits` its head's, [`vocab_size`](NanoChatGptMeta::vocab_size).
+impl crate::blocks::transformers::models::language_decoder::LmDecoderMeta for NanoChatGpt {
+    fn n_vocab(&self) -> usize {
+        self.lm.n_vocab()
+    }
+
+    fn n_logits(&self) -> usize {
+        self.lm.n_logits()
+    }
+
+    fn d_model(&self) -> usize {
+        self.lm.d_model()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.lm.n_layers()
+    }
+
+    fn n_kv_heads(&self) -> usize {
+        self.lm.n_kv_heads()
+    }
+
+    fn head_dim(&self) -> usize {
+        self.lm.head_dim()
+    }
+}
+
 impl CanonicalKeys for NanoChatGpt {
     fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
+        Rekey::keep_rest().mount_canonical("lm.", &self.lm)
     }
 }
 
@@ -948,20 +1005,23 @@ mod tests {
             .with_n_embed(16)
             .with_init_seq_len(8)
             .init(&device);
-        assert!(gpt.lm_head.proj.as_ref().is_some_and(|p| p.bias.is_none()));
-        assert_eq!(gpt.wte.norm_eps, Some(1e-6));
+        assert!(gpt.lm.head.proj.as_ref().is_some_and(|p| p.bias.is_none()));
+        assert_eq!(gpt.lm.embedding.norm_eps, Some(1e-6));
         assert!(gpt.resid_lambdas.is_none() && gpt.x0_lambdas.is_none());
         assert!(gpt.value_embeds.iter().all(Option::is_none));
         assert!(!gpt.is_smeared() && gpt.backout_lambda.is_none());
-        assert!(gpt.stack.layers.iter().all(|b| {
+        assert!(gpt.lm.stack.layers.iter().all(|b| {
             b.attn.branch.attention().score_scale.is_none()
                 && b.attn.branch.attention().sliding_window.is_none()
                 && b.attn.branch.attention().value_gate.is_none()
         }));
 
         let structure = NanoChatGptContractConfig::new().to_structure();
-        assert_eq!(structure.stack.rotary.base, 10000);
-        assert_eq!(structure.stack.rotary.table_dtype, Some(FloatDType::BF16));
+        assert_eq!(structure.lm.stack.rotary.base, 10000);
+        assert_eq!(
+            structure.lm.stack.rotary.table_dtype,
+            Some(FloatDType::BF16)
+        );
         assert_eq!(structure.vocab_size(), 50304);
     }
 
@@ -1007,12 +1067,13 @@ mod tests {
             .with_upstream_2026("SL");
         assert_eq!(policy.padded_vocab_size(), 64);
         let structure = policy.to_structure();
-        assert_eq!(structure.stack.rotary.base, 100000);
-        assert_eq!(structure.stack.rotary.table_dtype, None);
-        assert_eq!(structure.wte.n_vocab, 64);
+        assert_eq!(structure.lm.stack.rotary.base, 100000);
+        assert_eq!(structure.lm.stack.rotary.table_dtype, None);
+        assert_eq!(structure.lm.embedding.n_vocab, 64);
         assert_eq!(structure.vocab_size(), 60);
         assert_eq!(
             structure
+                .lm
                 .stack
                 .layers
                 .iter()
@@ -1030,6 +1091,7 @@ mod tests {
         );
         assert!(
             structure
+                .lm
                 .stack
                 .layers
                 .iter()
@@ -1056,7 +1118,7 @@ mod tests {
             .init(device);
         gpt.smear_lambda = Some(Param::from_tensor(Tensor::from_floats([0.7], device)));
         gpt.backout_lambda = Some(Param::from_tensor(Tensor::from_floats([0.3], device)));
-        for block in gpt.stack.layers.iter_mut() {
+        for block in gpt.lm.stack.layers.iter_mut() {
             if let Some(gate) = block.attn.branch.attention_mut().value_gate.as_mut() {
                 gate.weight = Param::from_tensor(seeded_tensor(
                     7,
@@ -1210,17 +1272,17 @@ mod tests {
         g.x0_lambdas = Some(Param::from_tensor(Tensor::zeros([3], &device)));
         differs(&g, "the x0 lambdas");
         let mut g = tiny_2026(&device);
-        for block in g.stack.layers.iter_mut() {
+        for block in g.lm.stack.layers.iter_mut() {
             block.attn.branch.attention_mut().score_scale = None;
         }
         differs(&g, "the qk gain");
         let mut g = tiny_2026(&device);
-        for block in g.stack.layers.iter_mut() {
+        for block in g.lm.stack.layers.iter_mut() {
             block.attn.branch.attention_mut().sliding_window = None;
         }
         differs(&g, "the windows");
         let mut g = tiny_2026(&device);
-        for block in g.stack.layers.iter_mut() {
+        for block in g.lm.stack.layers.iter_mut() {
             if let Some(gate) = block.attn.branch.attention_mut().value_gate.as_mut() {
                 gate.weight = Param::from_tensor(gate.weight.val().zeros_like().sub_scalar(30.0));
             }
@@ -1369,14 +1431,48 @@ mod tests {
         let table: Tensor<2> = Tensor::random([16, 16], Distribution::Normal(0.0, 1.0), &device);
         let tokens: Tensor<2, Int> = Tensor::from_data([[3, 1, 4, 1, 5, 9]], &device);
 
-        gpt.wte.weight = Param::from_tensor(table.clone());
+        gpt.lm.embedding.weight = Param::from_tensor(table.clone());
         let logits = gpt.forward(tokens.clone(), &mut None);
 
-        gpt.wte.weight = Param::from_tensor(table.mul_scalar(8.0));
+        gpt.lm.embedding.weight = Param::from_tensor(table.mul_scalar(8.0));
         let scaled = gpt.forward(tokens, &mut None);
 
         scaled
             .into_data()
             .assert_approx_eq::<f32>(&logits.into_data(), Tolerance::rel_abs(1e-3, 1e-4));
+    }
+
+    /// The forward-free call API is the model's own: the head over its hidden
+    /// states gives its forward's logits, and the embedding is the table's,
+    /// unsmeared.
+    #[test]
+    #[serial]
+    fn test_lm_decoder_ops() {
+        use crate::blocks::transformers::models::language_decoder::{
+            LmDecoderMeta,
+            LmDecoderOps,
+        };
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let gpt = tiny_2026(&device);
+        let ids: Tensor<2, Int> = Tensor::from_data([[3, 1, 4, 1, 5]], &device);
+        let hidden = gpt.hidden_after(ids.clone(), None, &mut None);
+        crate::support::testing::assert_tensors_close(
+            &LmDecoderOps::logits(&gpt, hidden),
+            &gpt.forward(ids.clone(), &mut None),
+            burn::tensor::Tolerance::default(),
+        );
+        crate::support::testing::assert_tensors_close(
+            &LmDecoderOps::embed(&gpt, ids.clone()),
+            &gpt.lm.embedding.forward(ids),
+            burn::tensor::Tolerance::default(),
+        );
+        assert_eq!(LmDecoderMeta::n_vocab(&gpt), 64, "the padded table");
+        assert_eq!(LmDecoderMeta::n_logits(&gpt), 30, "the head's slice");
+        assert_eq!(gpt.vocab_size(), 30);
+        assert_eq!(
+            LmDecoderOps::rotary(&gpt, 5, &device).tables[0].cos.dims()[1],
+            5
+        );
     }
 }

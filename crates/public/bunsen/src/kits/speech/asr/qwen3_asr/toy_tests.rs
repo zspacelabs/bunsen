@@ -22,6 +22,10 @@ use super::{
     weights::load_transformers_tensors,
 };
 use crate::{
+    blocks::transformers::models::language_decoder::{
+        LmDecoderOps,
+        LmKvForwardHidden,
+    },
     burner::module::ModuleInit,
     kits::language::qwen3::Qwen3Config,
     ops::transformers::attention::{
@@ -165,7 +169,7 @@ fn test_toy_text_model() {
     let seq = embeds.dims()[1];
     let r_emb = lm.rotary(seq, &toy.device);
 
-    let layer0 = lm.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
+    let layer0 = lm.lm.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
     assert_io_close("text layer 0", layer0, toy.io("text_layer0"));
     let hidden = lm.forward_hidden(embeds.clone(), &r_emb, None);
     assert_io_close("text hidden", hidden, toy.io("text_hidden"));

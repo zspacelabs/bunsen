@@ -175,17 +175,26 @@ audio = [
     "dep:symphonia",
 ]
 
-## Turns token ids into text, through `wordchipper`.
+## Every tokenizer dependency, for the kits' tokenizers
+## (`kits::support::tokens`):
+##
+## - `wordchipper`, decode-only, for `WordchipperDetokenizer` (Whisper's
+##   text); without its defaults: no downloader, no TLS, no thread pool.
+## - `tokenizers` (`transformers`' own encoder), for `BunsenTokenizer`, text to
+##   ids and back, from a `tokenizer.json`; without its defaults (no progress
+##   bars, no C++ suffix array), with `onig`, the regex engine the
+##   checkpoints' split patterns need (their lookaheads and possessive
+##   quantifiers). `onig` builds a C library.
+## - `serde-pickle`, for `BunsenTokenizer` from a pickled `tiktoken` `Encoding`
+##   (nanochat's `tokenizer.pkl`).
 ##
 ## Ids never need this: a kit's token layout (`kits::speech::asr::whisper::WhisperTokenLayout`
 ## and every special id) is derived arithmetically and always available.
-## Only `kits::support::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
-## `default-features = false` — no downloader, no TLS, no thread pool — so
-## the cost to a consumer that has nothing else from it is small; see the
-## feature's entry in `CHANGELOG.md` for the measured number.
 tokenizer = [
     "std",
     "dep:wordchipper",
+    "dep:tokenizers",
+    "dep:serde-pickle",
 ]
 
 ## Enable the cuda backend in the bunsen build.
@@ -313,6 +322,12 @@ symphonia = { workspace = true, optional = true }
 # Decode-only. `default-features = false` is the point: the default set pulls
 # a downloader, TLS and rayon, none of which turning ids into text needs.
 wordchipper = { workspace = true, default-features = false, optional = true }
+# The encoder `BunsenTokenizer` wraps. Its defaults are a trainer's (progress
+# bars, a C++ suffix array); `onig` is the regex engine the split patterns
+# need.
+tokenizers = { version = "0.22.2", default-features = false, features = ["onig"], optional = true }
+# nanochat's `tokenizer.pkl`, a pickled `tiktoken` `Encoding`, read as data.
+serde-pickle = { workspace = true, optional = true }
 
 
 [dev-dependencies]

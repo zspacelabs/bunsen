@@ -47,23 +47,6 @@ pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstr
     PretrainedFactory::new().with_providers(default_whisper_providers())
 }
 
-impl PretrainedFactory<WhisperConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<WhisperConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
-}
-
 impl Deferred<WhisperConstructConfig> {
     /// Scans the checkpoint in `loaded` for its config without loading its
     /// weights, and checks it against the geometry this model promises:

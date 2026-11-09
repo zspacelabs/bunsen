@@ -417,17 +417,19 @@ impl<B: ChatBackend> ChatSession<B> {
 mod tests {
     use bunsen::{
         burner::module::ModuleInit,
-        kits::language::qwen3::{
-            Qwen3Config,
-            Qwen3Model,
-            TOKENIZER,
-            TOKENIZER_CONFIG,
+        kits::{
+            language::qwen3::{
+                Qwen3Config,
+                Qwen3Model,
+                TOKENIZER,
+                TOKENIZER_CONFIG,
+            },
+            support::tokens::testing::toy_byte_level_json,
         },
         support::testing::cpu_device,
     };
 
     use super::*;
-    use crate::chat::toy_byte_level_json;
 
     /// A chat over an untrained toy Qwen3, with the toy tokenizer, a `ChatML`
     /// template, and greedy defaults, its files in `dir`.

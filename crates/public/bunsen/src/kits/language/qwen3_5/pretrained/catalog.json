@@ -8,6 +8,13 @@
       "description": "Qwen's dense Qwen3.5 language models (their text models), as transformers ships them",
       "license": "Apache-2.0",
       "origin": "https://huggingface.co/Qwen",
+      "tags": {
+        "language": [
+          "en",
+          "zh",
+          "*"
+        ]
+      },
       "rows": [
         {
           "name": "qwen3.5-0.8b",
@@ -31,6 +38,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 800000000
           }
         },
         {
@@ -53,6 +64,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 800000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -77,6 +95,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 2000000000
           }
         },
         {
@@ -99,6 +121,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 2000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -123,6 +152,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 4000000000
           }
         },
         {
@@ -145,6 +178,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 4000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -169,6 +209,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 9000000000
           }
         },
         {
@@ -191,6 +235,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 9000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -221,6 +272,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 27000000000
           }
         }
       ]
@@ -927,6 +982,11 @@
         "default": [
           "thinking"
         ]
+      },
+      "tags": {
+        "base": false,
+        "reasoning": true,
+        "thinking": "switch"
       }
     },
     {
@@ -982,6 +1042,11 @@
         "default": [
           "no-thinking"
         ]
+      },
+      "tags": {
+        "base": false,
+        "reasoning": true,
+        "thinking": "switch"
       }
     }
   ]

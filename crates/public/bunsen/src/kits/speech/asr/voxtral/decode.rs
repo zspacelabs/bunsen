@@ -11,13 +11,16 @@ use burn::{
 
 use super::{
     VoxtralTokenLayout,
-    blocks::{
-        VoxtralRealtime,
-        VoxtralTextMeta,
-    },
+    blocks::VoxtralRealtime,
 };
 use crate::{
-    blocks::transformers::decoders::stack::DecoderStackCache,
+    blocks::transformers::{
+        decoders::stack::DecoderStackCache,
+        models::language_decoder::{
+            LmDecoderMeta,
+            LmDecoderOps,
+        },
+    },
     kits::support::decoding::{
         CachedStep,
         GreedySearch,
@@ -127,7 +130,7 @@ impl VoxtralGreedyDecoder {
         let lm = &model.language_model;
         let positions = audio.dims()[1];
         VoxtralDecodeState {
-            cache: lm.stack.decode_cache(1, positions, self.storage, device),
+            cache: lm.lm.stack.decode_cache(1, positions, self.storage, device),
             cond: lm.delay_condition(layout.delay_positions(), device),
             audio,
         }

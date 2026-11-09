@@ -26,12 +26,12 @@ use bunsen::{
 use burn::tensor::Device;
 
 use crate::asr::{
-    family::Loaded,
+    Emission,
+    Loaded,
+    Transcript,
     parakeet,
     qwen3_asr,
     stream,
-    stream::Emission,
-    transcript::Transcript,
     voxtral,
     whisper,
 };

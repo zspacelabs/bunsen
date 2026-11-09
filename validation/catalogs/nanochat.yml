@@ -6,11 +6,14 @@ name: "well-known"
 description: "the nanochat checkpoints bunsen knows by name"
 groups:
   - name: "nanochat-students"
+    tags: { language: ["en"] }
     description: "nanochat-students' d20 run of upstream nanochat's 2025 model: base, mid and RL"
     license: "Apache-2.0"
     origin: "https://huggingface.co/nanochat-students"
     rows:
       - name: "base-d20"
+        # dtype: authored (its .pt resources record none), from the stored tensors: all bf16.
+        tags: { base: true, thinking: never, reasoning: false, parameters: 561000000, dtype: bf16 }
         aliases: ["nanochat-d20-base"]
         description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base"
         license: "Apache-2.0"
@@ -18,6 +21,8 @@ groups:
         prefab: "nanochat-d20"
         bundles: ["nanochat-students/base-d20"]
       - name: "mid-d20"
+        # dtype: authored (its .pt resources record none), from the stored tensors: all bf16.
+        tags: { base: false, thinking: never, reasoning: false, parameters: 561000000, dtype: bf16 }
         aliases: ["nanochat-d20-mid"]
         description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format"
         license: "Apache-2.0"
@@ -25,6 +30,8 @@ groups:
         prefab: "nanochat-d20"
         bundles: ["nanochat-students/mid-d20"]
       - name: "rl-d20"
+        # dtype: authored (its .pt resources record none), from the stored tensors: all bf16.
+        tags: { base: false, thinking: never, reasoning: true, parameters: 561000000, dtype: bf16 }
         aliases: ["nanochat-d20-rl"]
         description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat"
         license: "Apache-2.0"
@@ -32,17 +39,20 @@ groups:
         prefab: "nanochat-d20"
         bundles: ["nanochat-students/rl-d20"]
   - name: "nitishpandey04"
+    tags: { language: ["en"] }
     description: "nitishpandey04's d18 run of upstream nanochat's 2026 model: base and SFT"
     license: "MIT"
     origin: "https://huggingface.co/nitishpandey04"
     rows:
       - name: "nanochat-d18-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 702000000 }
         description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base"
         license: "MIT"
         origin: "https://huggingface.co/nitishpandey04/nanochat-d18-base"
         prefab: "nanochat-d18-2026"
         bundles: ["nitishpandey04/nanochat-d18-base"]
       - name: "nanochat-d18-sft"
+        tags: { base: false, thinking: never, reasoning: false, parameters: 702000000 }
         description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat"
         license: "MIT"
         origin: "https://huggingface.co/nitishpandey04/nanochat-d18-sft"

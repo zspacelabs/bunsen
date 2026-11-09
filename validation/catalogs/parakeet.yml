@@ -11,6 +11,8 @@ groups:
     origin: "https://github.com/fermionresearch/phonon"
     rows:
       - name: "phonon-2"
+        # wer.en: its model card: the average of the Open ASR Leaderboard's seven English sets.
+        tags: { parameters: 600000000, language: ["en"], translate: false, scores: { wer.en: 5.21 } }
         aliases: ["phonon"]
         description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English"
         license: "CC-BY-4.0"
@@ -22,6 +24,8 @@ groups:
     origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
     rows:
       - name: "parakeet-tdt-0.6b-v3"
+        # wer.en: Open ASR Leaderboard paper (arXiv 2510.06961), Table 3, short-form English average.
+        tags: { parameters: 600000000, language: ["en", "*"], translate: false, scores: { wer.en: 6.32 } }
         description: "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages"
         license: "CC-BY-4.0"
         origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"

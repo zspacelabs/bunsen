@@ -1,14 +1,11 @@
 //! # Gemma pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::GemmaConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
@@ -16,7 +13,6 @@ use crate::{
         language::gemma::{
             CHAT_TEMPLATE,
             GENERATION_CONFIG,
-            GemmaConstruct,
             TOKENIZER,
             TOKENIZER_CONFIG,
         },
@@ -55,6 +51,21 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 /// Built from `validation/catalogs/gemma.yml` by `cargo validate catalog`.
 pub static GEMMA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("gemma", include_str!("catalog.json"));
+
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a chat model's: what a chat chooses its
+/// checkpoint by.
+pub const GEMMA_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::BASE.key,
+            crate::data::pretrained::tags::THINKING.key,
+            crate::data::pretrained::tags::REASONING.key,
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
 
 /// The catalog family every Gemma row is of, and an `hf:` repo's presets lie
 /// over: its own chat template where it has one, else bunsen's rendering of
@@ -99,23 +110,6 @@ pub fn default_gemma_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// name, which the tests pin they do not.
 pub fn default_gemma_factory() -> BunsenResult<PretrainedFactory<GemmaConstructConfig>> {
     PretrainedFactory::new().with_providers(default_gemma_providers())
-}
-
-impl PretrainedFactory<GemmaConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<GemmaConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

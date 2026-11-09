@@ -19,7 +19,17 @@
           "origin": "https://huggingface.co/FermionResearch/Phonon-2",
           "bundles": [
             "fermion/phonon-2.bps.tar.zst"
-          ]
+          ],
+          "tags": {
+            "language": [
+              "en"
+            ],
+            "parameters": 600000000,
+            "scores": {
+              "wer.en": 5.21
+            },
+            "translate": false
+          }
         }
       ]
     },
@@ -36,7 +46,19 @@
           "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
           "bundles": [
             "nvidia/parakeet-tdt-0.6b-v3"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32",
+            "language": [
+              "en",
+              "*"
+            ],
+            "parameters": 600000000,
+            "scores": {
+              "wer.en": 6.32
+            },
+            "translate": false
+          }
         }
       ]
     }

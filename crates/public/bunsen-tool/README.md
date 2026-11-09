@@ -607,39 +607,42 @@ cargo run --release -p bunsen-tool --features wgpu -- asr live --preset translat
 cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech multi --quality fast recording.wav
 ```
 
-| ASR preset | for | `transcribe` runs | `live` runs |
-|---|---|---|---|
-| `en` (`default`) | English, each word timed | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
-| `multi` | any of 30 languages, found from the speech | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
-| `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/small[translate]{beam_size: 1}`, `conservative` |
+| ASR preset | for | selects | `transcribe` runs | `live` runs |
+|---|---|---|---|---|
+| `en` (`default`) | English | `require: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
+| `multi` | many languages, found from the speech | `require: {multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
+| `translate-en` | other speech, as English text | `require: {translate: true}` | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/tiny[translate]{beam_size: 1}`, `conservative` |
 
-The ASR presets are this binary's, and improve with it: when a better model arrives, an ASR preset's row changes, and the
-command lines that name the ASR preset do not. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
+An ASR preset's selection chooses its model among every speech family's checkpoints, by their tags ([Choosing a
+model](#choosing-a-model)), over the table's own: the newest of a release sequence, then the lowest published English
+word error rate (`scores: {wer.en}`), a model without one after those with. `multilingual` is a checkpoint whose
+`language` lists more than one language, or `"*"`. `--quality fast` and `live` add `require: {parameters: {max: 1e9}}`,
+a model small enough to keep up; `--quality good` takes the larger among equals. The ASR presets are this binary's, and
+improve with it: when a better model arrives, its tags choose it, and the command lines that name the ASR preset do not
+change. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
 command it runs, `-v` logs it before a run, and `transcribe --json` records `preset`, `need` (the point served:
 `speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model expression, emission, push size, VAD)
 with each transcript. `presets fetch NAME...` brings every file an ASR preset runs into the cache, as `family <family> fetch` does
 for a model.
 
-Each ASR preset is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
-x `--quality` (`fast`, `balanced`, `good`), with a recipe for `transcribe` and one for `live` where a model was seen to
-do the job. `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and `translate-en` is
-`multi`/`translate`/`balanced`. A point with no recipe falls through to the nearest that has one (another quality, a
-better before a worse; then `multi` for `en`), logged at `INFO`.
+Each ASR preset serves a need: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`) x `--quality`
+(`fast`, `balanced`, `good`). `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and
+`translate-en` is `multi`/`translate`/`balanced`.
 
 The flags choose, in this order:
 
 1. **`--language` implies `--speech`**, by the table's `language` entry: `en` means `en` speech, any other code
    `multi`. A `--speech` that does not hear it is an error (`--speech en --language de`); `multi` hears English.
-2. **The point.** Without `--preset`, each of `--speech`, `--task` and `--quality` not given is `default`'s
-   (`en`/`transcribe`/`balanced`), except where the table's `defaults` say otherwise (`--task translate` makes the speech `multi`); `--json` records the point
-   as the ASR preset (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
-   ones not given are the ASR preset's.
+2. **The ASR preset.** Without `--preset`, the flags name it: `translate-en` for `--task translate` (unless the
+   speech is English), else `multi` for `multi` speech, else `en`; the axes not given are its need's, and `--json`
+   records the need (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
+   axes not given are the ASR preset's, and `--speech` (or the speech `--language` implies) must be one it hears.
 3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its
-   transcript, so no point translates English.
-4. **What runs.** Without `--preset`, the table's recipe for the point. With it, the ASR preset's recipe, and the flags
-   may only adjust it: `--quality` moves along the ASR preset's row; `--speech` (or the speech `--language` implies) must
-   be one the ASR preset hears (`multi` hears English); a task other than the ASR preset's is set on a model that takes one
-   (Whisper's `[translate]` preset in its model's box). Anything else is an error that names another ASR preset, or none.
+   transcript, so nothing translates English.
+4. **What runs.** The ASR preset's selection, adjusted by the need: a translator for a need that translates
+   (`--preset multi --task translate` runs Whisper), the size cap at `--quality fast` and `live`, and `--language`
+   preferred; then its family's recipe for the mode (emission, push size, and Whisper's `beam_size`). A task other than
+   the model's default is set on it (Whisper's `[translate]` preset in its model's box).
 
 So the task is `transcribe` unless `translate-en` or `--task translate` asks to translate speech that is not English.
 
@@ -653,7 +656,7 @@ So the task is `transcribe` unless `translate-en` or `--task translate` asks to 
 | `--preset translate-en --speech en` | `translate-en`: Whisper, without `[translate]` | transcribe |
 | `--preset en --task translate` | `en`: Parakeet | transcribe |
 | `--preset en --language de` | an error: `en` hears only English | |
-| `--preset multi --task translate` | an error: Qwen3-ASR cannot translate | |
+| `--preset multi --task translate` | `multi`, translating: Whisper | translate |
 
 An ASR preset's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
 `--device`, the cache's and `live`'s capture flags), and:
@@ -920,20 +923,23 @@ or the end of input leaves), on the KV cache: each turn prefills only what the c
 ```sh
 bunsen-tool chat list [--urls]                       # every family's checkpoints, and what of each is cached
 bunsen-tool chat fetch NAME...                       # bring checkpoints into the cache
-bunsen-tool chat run  [--model NAME] [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
-bunsen-tool chat repl [--model NAME] [FLAGS]            # a conversation
+bunsen-tool chat run  [--select NAME|{..}]... [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
+bunsen-tool chat repl [--select NAME|{..}]... [FLAGS]            # a conversation
 bunsen-tool chat family (qwen3|gemma|nanochat) (list|fetch|run|repl) [FLAGS]   # one family's, its own default by default
 ```
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat repl --model qwen3-4b-instruct-2507 --stats
-cargo run --release -p bunsen-tool --features wgpu -- chat run --model gemma-3-270m-it "What is the capital of France?"
+cargo run --release -p bunsen-tool --features wgpu -- chat repl --select qwen3-4b-instruct-2507 --stats
+cargo run --release -p bunsen-tool --features wgpu -- chat run --select gemma-3-270m-it "What is the capital of France?"
+cargo run --release -p bunsen-tool --features wgpu -- chat run --select '{require: {thinking: always}}' "Why is the sky blue?"
 cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
 cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda
 ```
 
-Outside `family`, the name `--model` gives picks the family, and Qwen3's default (`qwen/qwen3-0.6b`) is the default.
+`--select` (`--model` is an alias) chooses the checkpoint, among every family's (one family's under `family`), by
+the rows' tags ([Choosing a model](#choosing-a-model)); outside `family`, the chosen checkpoint's family runs it, and
+Qwen3's default (`qwen/qwen3-0.6b`) is the default. An `hf:org/repo` is a Qwen3, or under `family` the family's.
 The families:
 
 | family | checkpoints | default |
@@ -958,8 +964,11 @@ decision head). It generates no text.
 ```sh
 bunsen-tool decide list [--urls]                         # the Laya checkpoints, and what of each is cached
 bunsen-tool decide fetch NAME...                         # bring checkpoints into the cache
-bunsen-tool decide run [--model NAME] [--format yml|json] [REQUEST]   # the request from stdin when omitted
+bunsen-tool decide run [--select NAME|{..}]... [--format yml|json] [REQUEST]   # the request from stdin when omitted
 ```
+
+`--select` (`--model` is an alias) chooses the checkpoint among Laya's, as chat's does ([Choosing a
+model](#choosing-a-model)); `laya/laya` is the default.
 
 A request is a YAML (or JSON) document: a `context`, and its `choices`, each a `type`, a `question` and its
 `options`:
@@ -998,8 +1007,32 @@ signal yet):
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- decide run request.yml
-cargo run --release -p bunsen-tool --features wgpu -- decide run --model laya-multilingual --format json < request.yml
+cargo run --release -p bunsen-tool --features wgpu -- decide run --select laya-multilingual --format json < request.yml
 ```
+
+## Choosing a model
+
+`chat` and `decide` choose their checkpoint with `--select`, repeatable: at most one name, and any number of
+selection objects, YAML. A checkpoint's facts are its tags, which its catalog row carries:
+`base`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
+others), `parameters`, `groups`, `version`, `kit`.
+
+- A name that is a checkpoint's (its full id, its bare name, or an alias) is that checkpoint, as named.
+- Any other name is a set of checkpoints: those whose names it begins (`--select qwen3`), else those of the group it
+  names, else the kit's (`--select nanochat`). The command's defaults choose within it: a tuned model
+  (`base: false`), each release sequence's newest, the heaviest first.
+- An object narrows and orders, merged over the defaults: `require` (a tag's value, one of a list, `{min, max}`, or a
+  language), `prefer` (each a tag with the score it keeps when it is not met: `{language: de, otherwise: 0.5}`),
+  `latest`, `absent` (`drop`, or `{default: value}`, for a checkpoint without the tag), `order` (`[-parameters]`),
+  `take` (the least weight taken). `null` removes a default: `{require: {base: null}}`.
+- `--preset` keeps only the checkpoints that have the preset; `--patch {..}` merges over the chosen one's config.
+
+```sh
+bunsen-tool chat run --select qwen3 --select '{require: {base: null, thinking: never}, order: [parameters]}' "Hi"
+bunsen-tool chat run --select '{require: {parameters: {max: 2e9}}, prefer: [{language: zh, otherwise: 0}]}' "你好"
+```
+
+The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
 
 The checkpoints: `laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya-multilingual` (on
 `mmBERT-base`) and `laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the

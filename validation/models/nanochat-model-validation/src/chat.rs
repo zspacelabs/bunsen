@@ -1,14 +1,18 @@
-//! `bunsen_tool::chat`'s nanochat tokenizer against upstream's
+//! nanochat's tokenizer (a `tokenizer.pkl` read as a `BunsenTokenizer`) and
+//! `bunsen_tool::chat`'s nanochat layout against upstream's
 //! `RustBPETokenizer`.
 
 use bunsen::kits::{
     language::nanochat::TOKENIZER,
-    support::tokens::Detokenizer,
+    support::tokens::{
+        BunsenTokenizer,
+        Detokenizer,
+        Tokenizer,
+    },
 };
 use bunsen_tool::chat::{
     ChatMessage,
     NanoChatLayout,
-    NanoChatTokenizer,
 };
 
 use super::*;
@@ -19,13 +23,14 @@ fn check_tokenizer(generation: &str) {
     let fixture = chat_reference();
     let record = &fixture[generation];
     let path = row_file(tokenizer_row(generation), TOKENIZER);
-    let tok = NanoChatTokenizer::from_file(&path).unwrap_or_else(|e| panic!("{e}"));
+    let tok = BunsenTokenizer::from_tiktoken_pickle_file(&path).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(tok.len(), record.vocab_size, "{generation}");
     for (name, &id) in &record.specials {
-        assert_eq!(tok.special(name), Some(id), "{generation}: {name}");
+        assert_eq!(tok.token_id(name), Some(id), "{generation}: {name}");
     }
     for case in &record.encode {
-        let ids = tok.encode(&case.text).unwrap();
+        // Upstream's `encode`, a special token's spelling text.
+        let ids = tok.encode_plain(&case.text).unwrap();
         assert_eq!(ids, case.ids, "{generation}: {:?}", case.text);
         assert_eq!(
             tok.detokenize(&ids).unwrap(),
@@ -47,7 +52,7 @@ fn check_conversations(generation: &str) {
     let fixture = chat_reference();
     let record = &fixture[generation];
     let path = row_file(tokenizer_row(generation), TOKENIZER);
-    let tok = NanoChatTokenizer::from_file(&path).unwrap_or_else(|e| panic!("{e}"));
+    let tok = BunsenTokenizer::from_tiktoken_pickle_file(&path).unwrap_or_else(|e| panic!("{e}"));
     let layout = NanoChatLayout::from_tokenizer(&tok).unwrap();
     for case in &record.conversations {
         let messages: Vec<ChatMessage> = case

@@ -8,6 +8,11 @@
       "description": "nanochat-students' d20 run of upstream nanochat's 2025 model: base, mid and RL",
       "license": "Apache-2.0",
       "origin": "https://huggingface.co/nanochat-students",
+      "tags": {
+        "language": [
+          "en"
+        ]
+      },
       "rows": [
         {
           "name": "base-d20",
@@ -20,7 +25,14 @@
           "prefab": "nanochat-d20",
           "bundles": [
             "nanochat-students/base-d20"
-          ]
+          ],
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 561000000,
+            "reasoning": false,
+            "thinking": "never"
+          }
         },
         {
           "name": "mid-d20",
@@ -33,7 +45,14 @@
           "prefab": "nanochat-d20",
           "bundles": [
             "nanochat-students/mid-d20"
-          ]
+          ],
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 561000000,
+            "reasoning": false,
+            "thinking": "never"
+          }
         },
         {
           "name": "rl-d20",
@@ -46,7 +65,14 @@
           "prefab": "nanochat-d20",
           "bundles": [
             "nanochat-students/rl-d20"
-          ]
+          ],
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 561000000,
+            "reasoning": true,
+            "thinking": "never"
+          }
         }
       ]
     },
@@ -55,6 +81,11 @@
       "description": "nitishpandey04's d18 run of upstream nanochat's 2026 model: base and SFT",
       "license": "MIT",
       "origin": "https://huggingface.co/nitishpandey04",
+      "tags": {
+        "language": [
+          "en"
+        ]
+      },
       "rows": [
         {
           "name": "nanochat-d18-base",
@@ -64,7 +95,13 @@
           "prefab": "nanochat-d18-2026",
           "bundles": [
             "nitishpandey04/nanochat-d18-base"
-          ]
+          ],
+          "tags": {
+            "base": true,
+            "parameters": 702000000,
+            "reasoning": false,
+            "thinking": "never"
+          }
         },
         {
           "name": "nanochat-d18-sft",
@@ -74,7 +111,13 @@
           "prefab": "nanochat-d18-2026",
           "bundles": [
             "nitishpandey04/nanochat-d18-sft"
-          ]
+          ],
+          "tags": {
+            "base": false,
+            "parameters": 702000000,
+            "reasoning": false,
+            "thinking": "never"
+          }
         }
       ]
     }

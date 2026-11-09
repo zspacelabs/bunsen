@@ -20,7 +20,16 @@
           "prefab": "voxtral-mini-4b-realtime-2602",
           "bundles": [
             "mistralai/voxtral-mini-4b-realtime-2602"
-          ]
+          ],
+          "tags": {
+            "dtype": "bf16",
+            "language": [
+              "en",
+              "*"
+            ],
+            "parameters": 4400000000,
+            "translate": false
+          }
         }
       ]
     }

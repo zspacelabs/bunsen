@@ -38,6 +38,19 @@ pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 pub static WHISPER_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("whisper", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a speech recognizer's: what speech to text
+/// chooses its model by.
+pub const WHISPER_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::TRANSLATE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// Whisper's compiled-in providers, in search order: the well-known table,
 /// then Hugging Face, which answers only `hf:org/repo`, through the cache,
 /// and lists nothing.

@@ -48,7 +48,8 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
+# `tokenizer`: the tokenizer reader, `BunsenTokenizer`.
+bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache", "tokenizer"] }
 # The chat driver, without the binary's audio capture and publish targets.
 bunsen-tool = { path = "../../../crates/public/bunsen-tool", default-features = false }
 serde = { workspace = true, features = ["derive"] }

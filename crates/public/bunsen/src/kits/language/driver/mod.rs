@@ -13,14 +13,18 @@
 //!   rewind to the prefix the next prompt shares with them
 //!   ([`KVCache::truncate`](crate::ops::transformers::attention::KVCache::truncate)),
 //!   so a multi-turn session prefills only what changed.
+//! - [`CachedLm`]: a language model a driver decodes by token ids, whatever its
+//!   forward: its decode state, its prefill, its rewind to a [`CachedHistory`].
 //!
 //! The searches a driver runs are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
 
 mod cached_history;
+mod cached_lm;
 mod stop_strings;
 mod text_stream;
 
 pub use cached_history::*;
+pub use cached_lm::*;
 pub use stop_strings::*;
 pub use text_stream::*;

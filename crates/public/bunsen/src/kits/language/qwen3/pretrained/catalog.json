@@ -8,6 +8,13 @@
       "description": "Qwen's dense Qwen3 language models, as transformers ships them",
       "license": "Apache-2.0",
       "origin": "https://huggingface.co/Qwen",
+      "tags": {
+        "language": [
+          "en",
+          "zh",
+          "*"
+        ]
+      },
       "rows": [
         {
           "name": "qwen3-0.6b",
@@ -37,6 +44,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 600000000
           }
         },
         {
@@ -61,6 +72,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 600000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -91,6 +109,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 1700000000
           }
         },
         {
@@ -115,6 +137,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 1700000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -145,6 +174,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 4000000000
           }
         },
         {
@@ -169,6 +202,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 4000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -198,6 +238,16 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "groups": [
+              "qwen3-2507"
+            ],
+            "parameters": 4000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -227,6 +277,16 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "groups": [
+              "qwen3-2507"
+            ],
+            "parameters": 4000000000,
+            "reasoning": true,
+            "thinking": "always"
           }
         },
         {
@@ -257,6 +317,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 8000000000
           }
         },
         {
@@ -281,6 +345,13 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 8000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -311,6 +382,10 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "dtype": "bf16",
+            "parameters": 4000000000
           }
         },
         {
@@ -335,6 +410,16 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "groups": [
+              "qwen3guard"
+            ],
+            "parameters": 600000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -359,6 +444,16 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "groups": [
+              "qwen3guard"
+            ],
+            "parameters": 4000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         },
         {
@@ -383,6 +478,16 @@
                 ]
               }
             }
+          },
+          "tags": {
+            "base": false,
+            "dtype": "bf16",
+            "groups": [
+              "qwen3guard"
+            ],
+            "parameters": 8000000000,
+            "reasoning": false,
+            "thinking": "never"
           }
         }
       ]
@@ -1418,6 +1523,11 @@
         "default": [
           "thinking"
         ]
+      },
+      "tags": {
+        "base": false,
+        "reasoning": true,
+        "thinking": "switch"
       }
     }
   ]

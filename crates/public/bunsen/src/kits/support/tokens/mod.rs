@@ -2,9 +2,10 @@
 //!
 //! The token side of a model kit: what is shared between kits that emit ids
 //! and want text back, and kits that build prompts from text. Two seams,
-//! [`Detokenizer`] (ids to text) and [`Tokenizer`] (text to ids); one
-//! implementation of the first here, `WordchipperDetokenizer`, behind the
-//! `tokenizer` feature; and the parser of the `.tiktoken` rank files a
+//! [`Detokenizer`] (ids to text) and [`Tokenizer`] (text to ids, and back);
+//! an implementation of each, behind the `tokenizer` feature:
+//! `WordchipperDetokenizer`, decode-only, and `BunsenTokenizer`, both ways;
+//! and the parser of the `.tiktoken` rank files a
 //! byte-level vocabulary ships as, [`TiktokenRanks`].
 //!
 //! A model kit owns its own token *layout* — which ids are special, what they
@@ -16,11 +17,18 @@
 //! specials after the base ranks and hands the whole `{ id -> bytes }`
 //! table to `WordchipperDetokenizer::from_spans`.
 //!
-//! Only decoding is implemented here. Encoding — the merge table, the
-//! pre-tokenizer, the special-token splitter — is a tokenizer library's whole
-//! job, so [`Tokenizer`] is a seam alone: a kit that builds prompts takes one,
-//! and the crate that holds the library implements it (`bunsen-tool`'s
-//! `HfTokenizer`, on the `tokenizers` crate, from any `tokenizer.json`).
+//! Encoding — the merge table, the pre-tokenizer, the special-token
+//! splitter — is a tokenizer library's whole job, and `BunsenTokenizer`
+//! leaves it to the `tokenizers` crate, `transformers`' own encoder, so it
+//! encodes as `transformers` does by construction. It reads a
+//! `tokenizer.json`, with the added tokens of a `tokenizer_config.json` as
+//! `transformers` loads them; or a pickled `tiktoken` `Encoding` (nanochat's
+//! `tokenizer.pkl`, through `serde_pickle`), as the `tokenizer.json`
+//! `transformers`' tiktoken converter writes for it. A kit that builds
+//! prompts takes any [`Tokenizer`].
+//!
+//! `testing` (feature `testing`) has toy tokenizer files, in the shapes real
+//! checkpoints ship, for tests of code that reads text through one.
 //!
 //! [`ByteLevelVocabulary`] reads the other common spelling of a byte-level
 //! vocabulary, `transformers`' `vocab.json` / `tokenizer.json` (GPT-2's, and
@@ -46,6 +54,17 @@ mod wordchipper;
 
 #[cfg(feature = "tokenizer")]
 pub use wordchipper::WordchipperDetokenizer;
+
+#[cfg(feature = "tokenizer")]
+mod bunsen_tokenizer;
+#[cfg(feature = "tokenizer")]
+mod tiktoken_pickle;
+
+#[cfg(feature = "tokenizer")]
+pub use bunsen_tokenizer::*;
+
+#[cfg(feature = "testing")]
+pub mod testing;
 
 mod byte_level;
 mod tekken;
@@ -84,12 +103,12 @@ pub trait Detokenizer: Send + Sync + Debug {
     ) -> BunsenResult<String>;
 }
 
-/// Turns text into token ids: the encoding side of a checkpoint's
-/// tokenizer, as a kit that builds its own prompts uses it.
+/// A checkpoint's tokenizer, text to ids and back: what a kit that builds
+/// its own prompts, or holds a conversation, reads and writes text through.
 ///
-/// Ids are `i64`, as the model's token tensors are. `Debug` and `Send +
-/// Sync` are supertraits for the reasons [`Detokenizer`]'s are.
-pub trait Tokenizer: Send + Sync + Debug {
+/// Ids are `i64`, as the model's token tensors are. It is a [`Detokenizer`],
+/// and shares its supertraits for the same reasons.
+pub trait Tokenizer: Detokenizer {
     /// Encodes `text`, adding no special tokens of its own, an added token's
     /// spelling anywhere in it as that token: `transformers`'
     /// `tokenizer(text, add_special_tokens=False)`.
@@ -101,11 +120,37 @@ pub trait Tokenizer: Send + Sync + Debug {
         text: &str,
     ) -> BunsenResult<Vec<i64>>;
 
+    /// Encodes `text` as [`encode`](Self::encode) does, but with a special
+    /// added token's spelling as text: `transformers`'
+    /// `encode_special_tokens`, `tiktoken`'s `encode_ordinary`. An added token
+    /// that is not special still encodes as itself.
+    ///
+    /// # Errors
+    /// As the encoder.
+    fn encode_plain(
+        &self,
+        text: &str,
+    ) -> BunsenResult<Vec<i64>>;
+
     /// The id of an added token, by its content: `[MASK]`, `<end_of_turn>`.
     fn token_id(
         &self,
         content: &str,
     ) -> Option<i64>;
+
+    /// Whether `id` is a token.
+    fn contains(
+        &self,
+        id: i64,
+    ) -> bool;
+
+    /// The token count, added tokens included.
+    fn len(&self) -> usize;
+
+    /// Whether there are no tokens.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 #[cfg(test)]

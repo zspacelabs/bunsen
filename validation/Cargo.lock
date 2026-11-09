@@ -815,6 +815,7 @@ dependencies = [
  "rand 0.10.3",
  "ruzstd",
  "serde",
+ "serde-pickle",
  "serde-saphyr",
  "serde_json",
  "sha2 0.11.1",
@@ -825,6 +826,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "time",
+ "tokenizers",
  "tracing",
  "tracing-subscriber",
  "tracing-test",
@@ -883,14 +885,12 @@ dependencies = [
  "log",
  "minijinja",
  "minijinja-contrib",
+ "semver",
  "serde",
- "serde-pickle",
  "serde-saphyr",
  "serde_json",
  "strsim",
  "time",
- "tokenizers",
- "wordchipper",
 ]
 
 [[package]]
@@ -3233,9 +3233,6 @@ name = "esaxx-rs"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d817e038c30374a4bcb22f94d0a8a0e216958d4c3dcde369b1439fec4bdda6e6"
-dependencies = [
- "cc",
-]
 
 [[package]]
 name = "etcetera"
@@ -4907,7 +4904,6 @@ name = "laya-model-validation"
 version = "0.41.0"
 dependencies = [
  "bunsen",
- "bunsen-tool",
  "burn",
  "serde",
  "serde_json",
@@ -8093,7 +8089,6 @@ dependencies = [
  "derive_builder",
  "esaxx-rs",
  "getrandom 0.3.4",
- "indicatif",
  "itertools 0.14.0",
  "log",
  "macro_rules_attribute",
@@ -8797,7 +8792,9 @@ version = "0.41.0"
 dependencies = [
  "bunsen",
  "clap",
+ "icu_locale",
  "indexmap",
+ "semver",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -9450,7 +9447,6 @@ dependencies = [
  "cfg-if",
  "document-features",
  "fancy-regex",
- "foldhash 0.2.0",
  "hashbrown 0.16.1",
  "indoc",
  "inventory",

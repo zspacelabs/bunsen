@@ -24,10 +24,9 @@ workspace = true
 [features]
 default = ["speech", "live", "webhook", "mqtt"]
 ## `asr`: speech to text and diarization (`bunsen_tool::asr`), on bunsen's speech
-## kits and Whisper's detokenizer (`tokenizer`).
+## kits.
 speech = [
     "bunsen/speech",
-    "bunsen/tokenizer",
 ]
 ## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
@@ -52,13 +51,15 @@ burn = { workspace = true }
 # through this crate's backend features; the CPU is always there.
 #
 # Without bunsen's defaults: the kits, the checkpoint readers (`store`), the
-# cache every command loads through, and `indicatif`'s progress bar on every
-# weights transfer. `speech` adds the speech kits.
+# cache every command loads through, `indicatif`'s progress bar on every
+# weights transfer, and the tokenizers every chat family, `decide` and Whisper
+# read text through (`tokenizer`). `speech` adds the speech kits.
 bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = [
     "kits",
     "store",
     "cache",
     "indicatif",
+    "tokenizer",
 ] }
 bunsen-app = { version = "0.41.0", path = "../bunsen-app" }
 clap = { workspace = true, features = ["derive"] }
@@ -72,20 +73,15 @@ minijinja-contrib = { version = "2", features = ["pycompat"] }
 rumqttc = { version = "0.25.1", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+# A `version` tag's release order, for the `latest` selection step.
+semver = { workspace = true }
 # "did you mean?" on a failed lookup.
 strsim = { workspace = true }
-serde-pickle = { workspace = true }
 # `card`'s YAML.
 serde-saphyr = { workspace = true, features = ["serialize"] }
 time = { workspace = true }
 ureq = { workspace = true, optional = true }
-wordchipper = { workspace = true, features = ["std", "fast-hash"] }
-# Qwen3's and Gemma's tokenizers: `transformers`' own encoder, from the same
-# `tokenizer.json`.
-tokenizers = { workspace = true }
 
 [dev-dependencies]
-# `serde`: the toy tokenizer JSON the tests build.
-hashbrown = { workspace = true, features = ["serde"] }
 bunsen = { path = "../bunsen", features = ["testing"] }
 tempfile = { workspace = true }

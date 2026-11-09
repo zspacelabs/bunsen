@@ -1,21 +1,15 @@
 //! # Parakeet pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::ParakeetConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        speech::asr::parakeet::ParakeetConstruct,
-        support::construct::PretrainedFactory,
-    },
+    kits::support::construct::PretrainedFactory,
 };
 
 /// The kit segment of a Parakeet resource's path in the cache:
@@ -48,6 +42,19 @@ pub const TOKENIZER_JSON: &str = "tokenizer.json";
 pub static PARAKEET_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("parakeet", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a speech recognizer's: what speech to text
+/// chooses its model by.
+pub const PARAKEET_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::TRANSLATE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_parakeet_factory`] loads when a caller names none.
 pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 
@@ -71,30 +78,13 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 ///
 /// [`load_construct`](PretrainedFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
-/// [`ParakeetConstruct`].
+/// [`ParakeetConstruct`](crate::kits::speech::asr::parakeet::ParakeetConstruct).
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
 pub fn default_parakeet_factory() -> BunsenResult<PretrainedFactory<ParakeetConstructConfig>> {
     PretrainedFactory::new().with_providers(default_parakeet_providers())
-}
-
-impl PretrainedFactory<ParakeetConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<ParakeetConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

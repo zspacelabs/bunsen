@@ -17,14 +17,12 @@ use bunsen::{
 };
 
 use crate::asr::{
+    Emission,
+    Segment,
+    Transcript,
+    segment_speaker,
+    speaker_turns,
     stream,
-    stream::Emission,
-    transcript::{
-        Segment,
-        Transcript,
-        segment_speaker,
-        speaker_turns,
-    },
 };
 
 /// Qwen3-ASR's own transcription flags: none. The policy is the model's, its

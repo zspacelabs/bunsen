@@ -17,9 +17,11 @@ workspace = true
 # The full default stack: `validate` checks the kits against their references.
 bunsen = { path = "../../../crates/public/bunsen" }
 clap = { workspace = true, features = ["derive", "env"] }
+icu_locale = { workspace = true }
 indexmap = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde-saphyr = { workspace = true }
+semver = { workspace = true }
 sha2 = { workspace = true }
 ureq = { workspace = true }

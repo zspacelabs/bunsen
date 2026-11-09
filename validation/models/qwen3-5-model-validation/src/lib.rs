@@ -44,8 +44,12 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
+    blocks::transformers::models::language_decoder::LmDecoderOps,
     kits::{
-        language::qwen3_5::Qwen3_5Construct,
+        language::{
+            driver::CachedLm,
+            qwen3_5::Qwen3_5Construct,
+        },
         support::{
             construct::LoadPolicy,
             decoding::{

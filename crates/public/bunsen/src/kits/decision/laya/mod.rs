@@ -30,8 +30,8 @@
 //!   config from its two files.
 //!
 //! The tokenizer is a [`Tokenizer`](crate::kits::support::tokens::Tokenizer)
-//! the caller brings: `bunsen-tool`'s `HfTokenizer` reads a checkpoint's
-//! `tokenizer.json`.
+//! the caller brings: `BunsenTokenizer` (feature `tokenizer`) reads a
+//! checkpoint's `tokenizer.json`.
 
 mod agent_config;
 pub mod blocks;

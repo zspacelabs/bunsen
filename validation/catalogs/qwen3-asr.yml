@@ -11,18 +11,22 @@ groups:
     origin: "https://github.com/fermionresearch/phonon"
     rows:
       - name: "phonon-1"
+        # wer.en: Phonon-2's model card: the average of the Open ASR Leaderboard's seven English sets.
+        tags: { parameters: 800000000, language: ["en"], translate: false, scores: { wer.en: 6.56 } }
         description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed"
         license: "Apache-2.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-1"
         prefab: "qwen3-asr-0.6b"
         bundles: ["fermion/phonon-audio6.bps.tar.zst"]
       - name: "phonon-1-micro"
+        tags: { parameters: 800000000, language: ["en"], translate: false }
         description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed"
         license: "Apache-2.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-1-Micro"
         prefab: "qwen3-asr-0.6b"
         bundles: ["fermion/phonon-micro.bps.tar.zst"]
       - name: "phonon-1-big"
+        tags: { parameters: 800000000, language: ["en"], translate: false }
         description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed"
         license: "Apache-2.0"
         origin: "https://huggingface.co/FermionResearch/Phonon-1-Big"
@@ -34,12 +38,16 @@ groups:
     origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
     rows:
       - name: "qwen3-asr-0.6b"
+        # wer.en: the Open ASR Leaderboard, its June 2026 snapshot: the English average.
+        tags: { parameters: 800000000, language: ["en", "zh", "*"], translate: false, scores: { wer.en: 6.31 } }
         description: "Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf"
         prefab: "qwen3-asr-0.6b"
         bundles: ["qwen/qwen3-asr-0.6b"]
       - name: "qwen3-asr-1.7b"
+        # wer.en: Open ASR Leaderboard paper (arXiv 2510.06961), Table 3, short-form English average.
+        tags: { parameters: 2000000000, language: ["en", "zh", "*"], translate: false, scores: { wer.en: 5.76 } }
         description: "Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf"

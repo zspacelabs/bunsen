@@ -18,7 +18,15 @@
           "bundles": [
             "openai/tiny.en.pt",
             "openai/gpt2.tiktoken"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 39000000,
+            "translate": false
+          }
         },
         {
           "name": "tiny",
@@ -30,7 +38,11 @@
             "openai/tiny.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 39000000
+          }
         },
         {
           "name": "base.en",
@@ -41,7 +53,15 @@
           "bundles": [
             "openai/base.en.pt",
             "openai/gpt2.tiktoken"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 74000000,
+            "translate": false
+          }
         },
         {
           "name": "base",
@@ -53,7 +73,11 @@
             "openai/base.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 74000000
+          }
         },
         {
           "name": "small.en",
@@ -64,7 +88,15 @@
           "bundles": [
             "openai/small.en.pt",
             "openai/gpt2.tiktoken"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 244000000,
+            "translate": false
+          }
         },
         {
           "name": "small",
@@ -76,7 +108,11 @@
             "openai/small.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 244000000
+          }
         },
         {
           "name": "medium.en",
@@ -87,7 +123,15 @@
           "bundles": [
             "openai/medium.en.pt",
             "openai/gpt2.tiktoken"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 769000000,
+            "translate": false
+          }
         },
         {
           "name": "medium",
@@ -99,7 +143,11 @@
             "openai/medium.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 769000000
+          }
         },
         {
           "name": "large-v1",
@@ -111,7 +159,15 @@
             "openai/large-v1.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 1550000000,
+            "version": {
+              "group": "whisper-large",
+              "version": "1.0.0"
+            }
+          }
         },
         {
           "name": "large-v2",
@@ -123,7 +179,15 @@
             "openai/large-v2.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 1550000000,
+            "version": {
+              "group": "whisper-large",
+              "version": "2.0.0"
+            }
+          }
         },
         {
           "name": "large-v3",
@@ -138,7 +202,18 @@
             "openai/large-v3.pt",
             "openai/multilingual.tiktoken"
           ],
-          "family": "multilingual"
+          "family": "multilingual",
+          "tags": {
+            "dtype": "f16",
+            "parameters": 1550000000,
+            "scores": {
+              "wer.en": 7.44
+            },
+            "version": {
+              "group": "whisper-large",
+              "version": "3.0.0"
+            }
+          }
         },
         {
           "name": "large-v3-turbo",
@@ -152,7 +227,19 @@
           "bundles": [
             "openai/large-v3-turbo.pt",
             "openai/multilingual.tiktoken"
-          ]
+          ],
+          "tags": {
+            "dtype": "f16",
+            "language": [
+              "en",
+              "*"
+            ],
+            "parameters": 809000000,
+            "scores": {
+              "wer.en": 7.83
+            },
+            "translate": false
+          }
         }
       ]
     }
@@ -607,6 +694,13 @@
         "default": [
           "transcribe"
         ]
+      },
+      "tags": {
+        "language": [
+          "en",
+          "*"
+        ],
+        "translate": true
       }
     }
   ]

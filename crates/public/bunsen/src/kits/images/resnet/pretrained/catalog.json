@@ -17,7 +17,10 @@
           "prefab": "resnet18",
           "bundles": [
             "torchvision/resnet18-f37072fd.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet34",
@@ -27,7 +30,10 @@
           "prefab": "resnet34",
           "bundles": [
             "torchvision/resnet34-b627a593.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet50",
@@ -37,7 +43,10 @@
           "prefab": "resnet50",
           "bundles": [
             "torchvision/resnet50-0676ba61.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet101",
@@ -47,7 +56,10 @@
           "prefab": "resnet101",
           "bundles": [
             "torchvision/resnet101-63fe2227.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet152",
@@ -57,7 +69,10 @@
           "prefab": "resnet152",
           "bundles": [
             "torchvision/resnet152-394f9c45.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         }
       ]
     },
@@ -73,7 +88,10 @@
           "prefab": "resnet18",
           "bundles": [
             "timm/resnet18_a1_0-d63eafa0.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet18_a2",
@@ -82,7 +100,10 @@
           "prefab": "resnet18",
           "bundles": [
             "timm/resnet18_a2_0-b61bd467.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet18_a3",
@@ -91,7 +112,10 @@
           "prefab": "resnet18",
           "bundles": [
             "timm/resnet18_a3_0-40c531c8.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet26",
@@ -100,7 +124,10 @@
           "prefab": "resnet26",
           "bundles": [
             "timm/resnet26-9aa10e23.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet34_a1",
@@ -109,7 +136,10 @@
           "prefab": "resnet34",
           "bundles": [
             "timm/resnet34_a1_0-46f8f793.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet34_a2",
@@ -118,7 +148,10 @@
           "prefab": "resnet34",
           "bundles": [
             "timm/resnet34_a2_0-82d47d71.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet34_a3",
@@ -127,7 +160,10 @@
           "prefab": "resnet34",
           "bundles": [
             "timm/resnet34_a3_0-a20cabb6.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet34",
@@ -136,7 +172,10 @@
           "prefab": "resnet34",
           "bundles": [
             "timm/resnet34-43635321.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "resnet101_a1",
@@ -145,7 +184,10 @@
           "prefab": "resnet101",
           "bundles": [
             "timm/resnet101_a1_0-cdcb52a9.pth"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         }
       ]
     }

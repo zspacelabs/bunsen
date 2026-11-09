@@ -7,25 +7,28 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::{
-        asr::driver::{
-            AsrEngine,
-            AsrStreamContext,
-            AsrStreamDriver,
-            EmissionMode,
-            EmissionPolicy,
-            MeanActivity,
-            StreamClock,
-            TranscriptEvent,
-            TranscriptSegment,
+    kits::{
+        speech::{
+            asr::driver::{
+                AsrEngine,
+                AsrStreamContext,
+                AsrStreamDriver,
+                EmissionMode,
+                EmissionPolicy,
+                MeanActivity,
+                StreamClock,
+                TranscriptEvent,
+                TranscriptSegment,
+            },
+            diarization::SpeakerActivityModel,
+            vad::silero_vad::pretrained::default_silero_factory,
         },
-        diarization::SpeakerActivityModel,
-        vad::silero_vad::pretrained::default_silero_factory,
+        support::construct::LoadPolicy,
     },
 };
 use burn::tensor::Device;
 
-use crate::asr::construct::construct_config;
+use crate::asr::construct_config;
 
 /// When the driver decodes.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
@@ -115,12 +118,7 @@ pub fn with_vad<E: AsrEngine>(
         return Ok(driver);
     };
     let vad = default_silero_factory()?
-        .load(
-            vad,
-            cache,
-            device,
-            bunsen::kits::support::construct::LoadPolicy::performance(),
-        )?
+        .load(vad, cache, device, LoadPolicy::performance())?
         .handle;
     let rate = driver.sample_rate();
     driver.with_vad(

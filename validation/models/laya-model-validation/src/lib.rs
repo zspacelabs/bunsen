@@ -5,7 +5,7 @@
 //! own decision model (`rl_common.py` and `rl_agent_api.py` of
 //! `convaiinnovations/laya`), in float32, on each of its three checkpoints,
 //! [`ROWS`]: for every question of every case, bunsen's prompt is upstream's
-//! (the ids and the option markers, through `bunsen_tool`'s `HfTokenizer`);
+//! (the ids and the option markers, through bunsen's `BunsenTokenizer`);
 //! its encoder's states at the first token and each marker are upstream's;
 //! its option and act logits are upstream's; and its calibrated answers,
 //! every question of a case decided in one padded batch, are upstream's

@@ -1,6 +1,8 @@
 //! `bunsen-tool devices`: what this build can run on, and what each device
 //! does with each float dtype.
 
+use std::io::Write;
+
 use bunsen::{
     burner::dtypes::{
         DTypeUsage,
@@ -19,10 +21,12 @@ use bunsen_app::device::{
 use burn::tensor::FloatDType;
 use clap::ValueEnum;
 
-use crate::card::{
-    Format,
-    Value,
-    render,
+use crate::{
+    card::{
+        Value,
+        render,
+    },
+    support::Format,
 };
 
 /// Lists each backend this build compiled in, its default device, and what
@@ -30,16 +34,15 @@ use crate::card::{
 /// `arithmetic` (computes in it) and `accelerated` (on tensor cores), as burn
 /// reports them. A dtype with none of these is listed as an empty list.
 #[derive(clap::Args, Debug)]
-pub struct DevicesCmd {
+pub struct DevicesCommand {
     /// The output's format: YAML, or JSON on one line.
     #[arg(long, value_enum, default_value_t = Format::Yml)]
     format: Format,
 }
 
-impl DevicesCmd {
+impl DevicesCommand {
     pub fn run(&self) -> BunsenResult<()> {
         let text = render(&devices()?, self.format)?;
-        use std::io::Write;
         std::io::stdout()
             .write_all(text.as_bytes())
             .map_err(sys_at("write to", "stdout"))

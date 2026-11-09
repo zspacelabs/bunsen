@@ -1,13 +1,13 @@
 //! nanochat's conversation layout: a conversation as the ids its model reads.
-use bunsen::errors::{
-    BunsenError,
-    BunsenResult,
+use bunsen::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::support::tokens::Tokenizer,
 };
 
-use crate::chat::{
-    ChatMessage,
-    NanoChatTokenizer,
-};
+use crate::chat::ChatMessage;
 
 /// nanochat's conversation layout, as upstream's tokenizer renders one
 /// (`render_conversation`, and `render_for_completion` for the assistant's
@@ -16,7 +16,8 @@ use crate::chat::{
 /// `<|assistant_end|>`, the turns alternating from a user's; a system
 /// message is folded into the first user turn, `system + "\n\n" + user`.
 /// The markers are their special tokens, and a message's text is encoded as
-/// text, a special token's spelling included.
+/// text, a special token's spelling included
+/// ([`encode_plain`](Tokenizer::encode_plain)).
 ///
 /// Upstream's own tool calls (`<|python_start|>` and the calculator's
 /// `<|output_start|>`) are its engine's, not the layout's: a reply that
@@ -41,9 +42,9 @@ impl NanoChatLayout {
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// naming a special token the tokenizer lacks.
-    pub fn from_tokenizer(tokenizer: &NanoChatTokenizer) -> BunsenResult<Self> {
+    pub fn from_tokenizer(tokenizer: &dyn Tokenizer) -> BunsenResult<Self> {
         let special = |name: &str| {
-            tokenizer.special(name).ok_or_else(|| {
+            tokenizer.token_id(name).ok_or_else(|| {
                 BunsenError::invalid_resource(format!("a nanochat tokenizer without {name}"))
             })
         };
@@ -71,7 +72,7 @@ impl NanoChatLayout {
     /// message first aside), or ends with the assistant's; as the tokenizer.
     pub fn render(
         &self,
-        tokenizer: &NanoChatTokenizer,
+        tokenizer: &dyn Tokenizer,
         messages: &[ChatMessage],
     ) -> BunsenResult<Vec<i64>> {
         let folded;
@@ -120,7 +121,7 @@ impl NanoChatLayout {
                 )));
             }
             ids.push(start);
-            ids.extend(tokenizer.encode(&message.content)?);
+            ids.extend(tokenizer.encode_plain(&message.content)?);
             ids.push(end);
         }
         ids.push(self.assistant_start);
@@ -130,16 +131,21 @@ impl NanoChatLayout {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::errors::{
-        BunsenErrorKind,
-        testing::ErrorMatcher,
+    use bunsen::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        kits::support::tokens::{
+            BunsenTokenizer,
+            testing::toy_tiktoken_pickle,
+        },
     };
 
     use super::*;
-    use crate::chat::nanochat_tokenizer::toy_pickle;
 
-    fn toy() -> (NanoChatTokenizer, NanoChatLayout) {
-        let tok = NanoChatTokenizer::from_pickle(&toy_pickle()).unwrap();
+    fn toy() -> (BunsenTokenizer, NanoChatLayout) {
+        let tok = BunsenTokenizer::from_tiktoken_pickle(&toy_tiktoken_pickle()).unwrap();
         let layout = NanoChatLayout::from_tokenizer(&tok).unwrap();
         (tok, layout)
     }

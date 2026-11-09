@@ -63,6 +63,8 @@
 //! version), `--check` fails if the checked-in catalog differs, `--update`
 //! overwrites it. Only `--verify-remote` downloads the weights, to hash them
 //! against their pins.
+//!
+//! A build holds every row's tags to bunsen's tag vocabulary ([`tags`]).
 
 use std::{
     path::PathBuf,
@@ -99,6 +101,7 @@ mod catalog;
 mod profile;
 mod run;
 mod schedule;
+pub mod tags;
 
 /// The validation workspace: `validation/`.
 pub fn validation_dir() -> PathBuf {

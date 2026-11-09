@@ -1,6 +1,7 @@
 //! # Qwen3.5 blocks.
 //!
-//! The model, [`Qwen3_5Model`] with its [`Qwen3_5Config`] and [`Qwen3_5Meta`].
+//! The model, [`Qwen3_5Model`] with its [`Qwen3_5Config`], both
+//! [`LmDecoderMeta`](crate::blocks::transformers::models::language_decoder::LmDecoderMeta).
 //! Its layers are the generic
 //! [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
 //! in a hybrid

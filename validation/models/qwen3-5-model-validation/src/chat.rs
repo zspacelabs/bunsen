@@ -1,4 +1,5 @@
-//! `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
+//! bunsen's tokenizer (`BunsenTokenizer`) and `bunsen_tool::chat`'s chat
+//! template against `transformers`'.
 
 use std::path::PathBuf;
 
@@ -15,6 +16,7 @@ use bunsen::{
             },
         },
         support::tokens::{
+            BunsenTokenizer,
             Detokenizer,
             Tokenizer,
         },
@@ -23,7 +25,6 @@ use bunsen::{
 use bunsen_tool::chat::{
     ChatMessage,
     ChatTemplate,
-    HfTokenizer,
 };
 
 use super::*;
@@ -53,13 +54,13 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
 
 /// Every text encodes to `transformers`' ids (the 248k-token vocabulary, its
 /// NFC normalizer and `\p{M}` split, and its added tokens, through
-/// `HfTokenizer`), and decodes to a text that encodes to them again; every
+/// `BunsenTokenizer`), and decodes to a text that encodes to them again; every
 /// conversation, under every setting of the thinking switch, renders to
 /// `transformers`' text, which encodes to its ids.
 fn check_row(row: &str) {
     let fixture = &chat_reference()[row];
     let (tokenizer, config, jinja) = tokenizer_files(row);
-    let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+    let tok = BunsenTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
     for case in &fixture.encode {
         let ids = tok.encode(&case.text).unwrap();
         assert_eq!(ids, case.ids, "{row}: {:?}", case.text);

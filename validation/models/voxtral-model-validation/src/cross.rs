@@ -2,6 +2,7 @@
 //! graphs, on the same synthetic input.
 
 use bunsen::{
+    blocks::transformers::models::language_decoder::LmDecoderOps,
     kits::speech::asr::voxtral::blocks::VoxtralRealtimeMeta,
     ops::transformers::attention::KVCacheModel,
     support::testing::{

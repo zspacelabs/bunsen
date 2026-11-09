@@ -16,10 +16,13 @@ use super::{
     VoxtralProjectorConfig,
     VoxtralProjectorMeta,
     VoxtralTextConfig,
-    VoxtralTextMeta,
     VoxtralTextModel,
 };
 use crate::{
+    blocks::transformers::models::language_decoder::{
+        LmDecoderMeta,
+        LmDecoderOps,
+    },
     burner::module::{
         CanonicalKeys,
         ModuleInit,
@@ -267,7 +270,7 @@ impl CanonicalKeys for VoxtralRealtime {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest()
             .mount_canonical("audio_tower.", &self.audio_tower)
-            .mount_canonical("language_model.", &self.language_model)
+            .mount_canonical("language_model.lm.", &self.language_model.lm)
     }
 }
 

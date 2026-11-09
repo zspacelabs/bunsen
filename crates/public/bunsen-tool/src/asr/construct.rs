@@ -6,6 +6,10 @@ use std::{
 };
 
 use bunsen::{
+    data::pretrained::{
+        selection::SelectionCandidate,
+        tags::LANGUAGE,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -17,21 +21,25 @@ use serde::{
     Deserialize,
     Serialize,
 };
+use serde_json::{
+    Value,
+    json,
+};
 
 use crate::{
     asr::{
-        family::Family,
-        stream::{
-            Emission,
-            Streaming,
-            VadArgs,
-        },
+        Emission,
+        Family,
+        Kit,
+        Streaming,
+        VadArgs,
     },
+    select::SelectionContext,
     support::with_patch,
 };
 
 /// Which of a preset's recipes a command runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// Files: `transcribe`.
@@ -88,7 +96,7 @@ pub enum Quality {
     Good,
 }
 
-/// A point in the table: what the speech is, what to make of it, how much
+/// A need: what the speech is, what to make of it, how much
 /// to spend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -143,35 +151,6 @@ impl Need {
             });
         (need, reasons)
     }
-
-    /// The points that can stand in for this settled one, nearest first,
-    /// this one first, by the catalog's fallback: another quality before
-    /// other speech, as a multilingual model also hears English. The task is
-    /// never changed.
-    fn candidates(self) -> Vec<Need> {
-        let fallback = &construct_config().fallback;
-        let speeches = fallback
-            .speech
-            .get(&self.speech)
-            .cloned()
-            .unwrap_or_else(|| vec![self.speech]);
-        let qualities = fallback
-            .quality
-            .get(&self.quality)
-            .cloned()
-            .unwrap_or_else(|| vec![self.quality]);
-        let mut out = Vec::new();
-        for &speech in &speeches {
-            for &quality in &qualities {
-                out.push(Need {
-                    speech,
-                    task: self.task,
-                    quality,
-                });
-            }
-        }
-        out
-    }
 }
 
 /// One way to run a family: what `bunsen-tool asr family <family>
@@ -179,8 +158,7 @@ impl Need {
 /// expression, its presets and patch included
 /// (`openai/large-v3[translate]{beam_size: 5}`), so a recipe is always a
 /// command `bunsen-tool asr family` runs.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct AsrRecipe {
     /// The engine slot: the family that runs, and its model.
     pub engine: EngineSlot,
@@ -192,8 +170,7 @@ pub struct AsrRecipe {
 }
 
 /// A recipe's engine: a family, and its model as a lookup expression.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug)]
 pub struct EngineSlot {
     pub family: Family,
 
@@ -201,22 +178,51 @@ pub struct EngineSlot {
     pub model: String,
 }
 
-/// One point of the table: what runs for a need, in a mode.
+/// How a family runs in one mode: the emission, the push size, and a patch
+/// over the chosen model (Whisper's beam).
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AsrPoint {
-    pub need: Need,
-    pub mode: Mode,
-    pub recipe: AsrRecipe,
+pub struct ModeRecipe {
+    pub emission: Emission,
+
+    /// Milliseconds of audio per push.
+    pub chunk_ms: usize,
+
+    /// Merged over the chosen model's config.
+    #[serde(default)]
+    pub patch: Option<Value>,
 }
 
-/// A named, semantic choice of model: a point of the table, as `--preset`
-/// names it.
+/// How a family runs, in each mode.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FamilyRecipes {
+    pub offline: ModeRecipe,
+    pub live: ModeRecipe,
+}
+
+impl FamilyRecipes {
+    /// The recipe of `mode`.
+    pub fn get(
+        &self,
+        mode: Mode,
+    ) -> &ModeRecipe {
+        match mode {
+            Mode::Offline => &self.offline,
+            Mode::Live => &self.live,
+        }
+    }
+}
+
+/// A named, semantic choice of model, as `--preset` names it: the need it
+/// serves, and the selection that chooses its model among every speech
+/// family's rows ([`AsrConstructConfig::pick`]).
 ///
 /// A preset names what the speech is for (`en`, `multi`, `translate-en`),
 /// with one recipe for files (`transcribe`) and one for the microphone
-/// (`live`). The table is this binary's data: when a better model arrives, a
-/// point changes, and the command lines that name the preset do not.
+/// (`live`). The table is this binary's data: when a better model arrives,
+/// its tags choose it, and the command lines that name the preset do not
+/// change.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AsrPreset {
@@ -225,26 +231,34 @@ pub struct AsrPreset {
     pub aliases: Vec<String>,
     pub description: String,
     pub need: Need,
+
+    /// The selection that chooses its model, a selection expression's object
+    /// (`{require: {language: en}}`), merged over the table's
+    /// [`selection`](AsrConstructConfig::selection).
+    pub selection: Value,
 }
 
 impl AsrPreset {
-    /// The recipe `mode` runs.
+    /// The recipe `mode` runs, for the preset's own need.
+    ///
+    /// # Errors
+    /// As [`AsrConstructConfig::pick`].
     pub fn recipe(
         &self,
         mode: Mode,
-    ) -> &'static AsrRecipe {
-        &construct_config().point(self.need, mode).0.recipe
+    ) -> BunsenResult<AsrRecipe> {
+        construct_config().pick(self, self.need.settled(), mode, None)
     }
 
     /// The recipe `mode` runs, as it is, resolved.
     ///
     /// # Errors
-    /// As [`AsrRecipe::resolve`].
+    /// As [`recipe`](Self::recipe) and [`AsrRecipe::resolve`].
     pub fn resolve(
         &self,
         mode: Mode,
     ) -> BunsenResult<AsrConstruct> {
-        self.recipe(mode)
+        self.recipe(mode)?
             .resolve(&self.name, self.need, mode, None, None)
     }
 }
@@ -266,24 +280,14 @@ pub struct AxisMember {
     pub description: String,
 }
 
-/// Where a need without a point looks next: per axis, each value's
-/// candidates in order, the value itself first.
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct Fallback {
-    pub quality: BTreeMap<Quality, Vec<Quality>>,
-    pub speech: BTreeMap<Speech, Vec<Speech>>,
-}
-
-impl Fallback {
-    /// Whether `speech` hears a need of `need`'s speech: `need`'s fallback
-    /// names it (a multilingual model also hears English), or it is `need`.
+impl Speech {
+    /// Whether a model for this speech hears `speech`: the same speech, or
+    /// English for `multi`, as a multilingual model also hears English.
     pub fn hears(
-        &self,
+        self,
         speech: Speech,
-        need: Speech,
     ) -> bool {
-        speech == need || self.speech.get(&need).is_some_and(|c| c.contains(&speech))
+        self == speech || (self == Speech::Multi && speech == Speech::En)
     }
 }
 
@@ -468,13 +472,20 @@ pub struct Implication {
 pub struct AsrConstructConfig {
     pub axes: Vec<Axis>,
     pub presets: Vec<AsrPreset>,
-    pub fallback: Fallback,
-    pub implications: Vec<Implication>,
 
-    /// What an axis the command line leaves unset is, by what it sets,
-    /// without `--preset` ([`fill`](Self::fill)).
+    /// The defaults every preset's selection merges over.
+    pub selection: Value,
+
+    /// What `--quality` adds to the selection, by quality; none for one not
+    /// named.
     #[serde(default)]
-    pub defaults: Vec<Implication>,
+    pub qualities: BTreeMap<Quality, Value>,
+
+    /// What the mode adds to the selection, by mode; none for one not named.
+    #[serde(default)]
+    pub modes: BTreeMap<Mode, Value>,
+
+    pub implications: Vec<Implication>,
 
     /// What each family's engine takes from the command line, by family;
     /// [`engine`](Self::engine) gives a family not named none.
@@ -488,7 +499,8 @@ pub struct AsrConstructConfig {
     /// regions of every emission but [`Offline`](Emission::Offline).
     pub vad: String,
 
-    pub points: Vec<AsrPoint>,
+    /// How each family runs in each mode.
+    pub recipes: BTreeMap<Family, FamilyRecipes>,
 }
 
 /// The table, from the binary's `asr_construct.yml`.
@@ -505,42 +517,6 @@ pub fn construct_config() -> &'static AsrConstructConfig {
 }
 
 impl AsrConstructConfig {
-    /// The need `given` asks for, without `--preset`: each axis it sets, then
-    /// each default whose `when` the need matches (`given` over `base`) for
-    /// the axes `given` leaves unset, then `base`'s; with the reasons of the
-    /// defaults that set an axis, in order.
-    pub fn fill(
-        &self,
-        given: NeedPattern,
-        base: Need,
-    ) -> (Need, Vec<&str>) {
-        let asked = given.apply(base);
-        let mut filled = given;
-        let mut reasons = Vec::new();
-        for rule in &self.defaults {
-            if !rule.when.matches(asked) {
-                continue;
-            }
-            let mut set = false;
-            if filled.speech.is_none() && rule.then.speech.is_some() {
-                filled.speech = rule.then.speech;
-                set = true;
-            }
-            if filled.task.is_none() && rule.then.task.is_some() {
-                filled.task = rule.then.task;
-                set = true;
-            }
-            if filled.quality.is_none() && rule.then.quality.is_some() {
-                filled.quality = rule.then.quality;
-                set = true;
-            }
-            if set {
-                reasons.push(rule.reason.as_str());
-            }
-        }
-        (filled.apply(base), reasons)
-    }
-
     /// What `family`'s engine takes from the command line: nothing, for a
     /// family `engines` does not name.
     pub fn engine(
@@ -554,37 +530,111 @@ impl AsrConstructConfig {
         self.engines.get(&family).unwrap_or(&NONE)
     }
 
-    /// The point for `need`, [settled](Need::settled), in `mode`, and, when
-    /// it is not `need`'s own, a note of what stood in.
-    pub fn point(
-        &'static self,
+    /// The recipe that serves `need` (settled) with `preset`'s selection, in
+    /// `mode`: the model chosen among every speech family's rows
+    /// ([`asr_candidates`]) by the table's [`selection`](Self::selection),
+    /// then `preset`'s, then what `need`'s quality and `mode` add
+    /// ([`qualities`](Self::qualities), [`modes`](Self::modes)), a
+    /// translator required for a need that translates, and `language`
+    /// preferred where it is given; the chosen row run by its family's
+    /// recipe for `mode`, its patch over the model. The choice, and why, is
+    /// logged at `INFO`.
+    ///
+    /// # Errors
+    /// As [`SelectionContext::choose_parsed`] and [`asr_candidates`];
+    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+    /// for a chosen family the table has no recipe for.
+    pub fn pick(
+        &self,
+        preset: &AsrPreset,
         need: Need,
         mode: Mode,
-    ) -> (&'static AsrPoint, Option<String>) {
-        for candidate in need.settled().candidates() {
-            if let Some(point) = self
-                .points
-                .iter()
-                .find(|c| c.need == candidate && c.mode == mode)
-            {
-                let note = (candidate != need).then(|| {
-                    format!(
-                        "no {} recipe for {need}: {candidate} stands in",
-                        mode.command()
-                    )
-                });
-                return (point, note);
-            }
+        language: Option<&str>,
+    ) -> BunsenResult<AsrRecipe> {
+        let mut objects = vec![preset.selection.clone()];
+        objects.extend(self.qualities.get(&need.quality).cloned());
+        objects.extend(self.modes.get(&mode).cloned());
+        if need.task == Task::Translate {
+            objects.push(json!({"require": {"translate": true}}));
         }
-        unreachable!("every speech and task reaches a balanced point; see asr_construct.yml")
+        if let Some(language) = language {
+            objects.push(json!({"prefer": [{LANGUAGE.key: language, "otherwise": 0.8}]}));
+        }
+        let context = SelectionContext {
+            defaults: self.selection.clone(),
+            named: Vec::new(),
+        };
+        let choice = context.choose_parsed(asr_candidates()?, None, objects, &[])?;
+        let family = choice
+            .candidate
+            .text(ASR_FAMILY_TAG)
+            .and_then(Family::from_name)
+            .expect("every speech candidate is tagged with its family");
+        let recipe = self.recipes.get(&family).ok_or_else(|| {
+            BunsenError::invalid_resource(format!(
+                "the ASR table has no recipe for {}",
+                family.name()
+            ))
+        })?;
+        let recipe = recipe.get(mode);
+        let mut model = choice.candidate.pretrained.name.clone();
+        if let Some(patch) = &recipe.patch {
+            model = with_patch(&model, patch)?;
+        }
+        log::info!(
+            "preset {} ({need}, {}): {}",
+            preset.name,
+            mode.command(),
+            choice.why
+        );
+        Ok(AsrRecipe {
+            engine: EngineSlot { family, model },
+            emission: recipe.emission,
+            chunk_ms: recipe.chunk_ms,
+        })
     }
+}
+
+/// The tag each speech candidate carries, set when it is built: the name of
+/// its family ([`Family::name`]).
+pub const ASR_FAMILY_TAG: &str = "asr.family";
+
+/// Every speech family's listed rows, as selection candidates: each tagged
+/// with its family ([`ASR_FAMILY_TAG`]), and with the fields the construct
+/// derives from its tags: `wer.en` (lifted from its `scores`, so `order` can
+/// read it) and `multilingual` (a `language` of more than one tag, or `"*"`).
+///
+/// # Errors
+/// As [`Kit::listing`].
+pub fn asr_candidates() -> BunsenResult<Vec<SelectionCandidate>> {
+    let mut candidates = Vec::new();
+    for family in Family::ALL {
+        for (_, row) in Kit::Asr(family).listing()?.rows {
+            let mut candidate =
+                SelectionCandidate::new(row).with_tag(ASR_FAMILY_TAG, family.name());
+            if let Some(wer) = candidate
+                .get("scores")
+                .and_then(|s| s.get("wer.en"))
+                .and_then(Value::as_f64)
+            {
+                candidate = candidate.with_tag("wer.en", wer);
+            }
+            let multilingual = candidate
+                .get(LANGUAGE)
+                .and_then(Value::as_array)
+                .is_some_and(|tags| tags.len() > 1 || tags.iter().any(|t| t == "*"));
+            candidate = candidate.with_tag("multilingual", multilingual);
+            candidates.push(candidate);
+        }
+    }
+    Ok(candidates)
 }
 
 /// The preset `--preset` names when it is not given: an alias, so what it
 /// means can change too.
 pub const DEFAULT_PRESET: &str = "default";
 
-/// The presets: names for the points of the table people ask for.
+/// The presets: names for the needs people ask for, each with its selection.
 pub fn presets() -> &'static [AsrPreset] {
     &construct_config().presets
 }
@@ -633,7 +683,8 @@ impl AsrRecipe {
     /// This recipe of `preset`, serving `need`, with `task` and `language`
     /// set on its model.
     ///
-    /// `task`, when given, is set as the family's [`EngineTasks`] say
+    /// `task` (the need's, settled, when not given), when it is not the task
+    /// the model already runs, is set as the family's [`EngineTasks`] say
     /// (Whisper's `[translate]` preset, or none for `transcribe`).
     /// `language` joins the model's patch under the family's
     /// [`language`](EngineTraits::language) key (Whisper's
@@ -653,8 +704,9 @@ impl AsrRecipe {
     ) -> BunsenResult<AsrConstruct> {
         let engine = construct_config().engine(self.engine.family);
         let mut model = self.engine.model.clone();
-        if let Some(task) = task
-            && let Some(tasks) = &engine.tasks
+        let task = task.unwrap_or(need.settled().task);
+        if let Some(tasks) = &engine.tasks
+            && tasks.read(&model) != task
         {
             model = tasks.set(&model, task)?;
         }
@@ -801,6 +853,7 @@ pub struct AsrRecipeStamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::asr::Kit;
 
     fn resolve(
         name: &str,
@@ -810,7 +863,7 @@ mod tests {
     ) -> BunsenResult<AsrConstruct> {
         let preset = lookup(name)?;
         preset
-            .recipe(mode)
+            .recipe(mode)?
             .resolve(&preset.name, preset.need, mode, task, language)
     }
 
@@ -835,53 +888,100 @@ mod tests {
         assert!(lookup("klingon").is_err());
     }
 
-    /// Every need reaches a point in each mode; a preset is its own point,
-    /// and a missing point falls through to the nearest.
+    /// What each preset's selection takes, at each quality, in each mode,
+    /// among the tagged rows: the lowest published English error rate that
+    /// fits, a model of at most 1B parameters live and at `fast`.
     #[test]
-    fn test_pick() {
-        use clap::ValueEnum;
-        for &speech in Speech::value_variants() {
-            for &task in Task::value_variants() {
-                for &quality in Quality::value_variants() {
-                    for mode in [Mode::Offline, Mode::Live] {
-                        let need = Need {
-                            speech,
-                            task,
-                            quality,
-                        };
-                        let (point, note) = construct_config().point(need, mode);
-                        assert_eq!(point.mode, mode);
-                        assert_eq!(note.is_none(), point.need == need);
-                    }
-                }
-            }
-        }
-        for preset in presets() {
-            for mode in [Mode::Offline, Mode::Live] {
-                let (point, note) = construct_config().point(preset.need, mode);
-                assert_eq!(note, None, "{} {mode:?}", preset.name);
-                assert_eq!(point.need, preset.need);
-            }
+    fn test_picks() {
+        let pick = |preset: &str, quality: Quality, mode: Mode| {
+            let preset = lookup(preset).unwrap();
+            let need = Need {
+                quality,
+                ..preset.need
+            };
+            let recipe = construct_config()
+                .pick(preset, need.settled(), mode, None)
+                .unwrap();
+            format!("{} {}", recipe.engine.family.name(), recipe.engine.model)
+        };
+        use Mode::{
+            Live,
+            Offline,
+        };
+        use Quality::{
+            Balanced,
+            Fast,
+            Good,
+        };
+        let grid = [
+            ("en", Balanced, Offline, "parakeet fermion/phonon-2"),
+            ("en", Balanced, Live, "parakeet fermion/phonon-2"),
+            ("en", Fast, Offline, "parakeet fermion/phonon-2"),
+            ("en", Good, Offline, "parakeet fermion/phonon-2"),
+            ("multi", Balanced, Offline, "qwen3-asr qwen/qwen3-asr-1.7b"),
+            ("multi", Balanced, Live, "qwen3-asr qwen/qwen3-asr-0.6b"),
+            ("multi", Fast, Offline, "qwen3-asr qwen/qwen3-asr-0.6b"),
+            ("multi", Good, Live, "qwen3-asr qwen/qwen3-asr-0.6b"),
+            (
+                "translate-en",
+                Balanced,
+                Offline,
+                "whisper openai/large-v3{beam_size: 5}",
+            ),
+            // No translator of at most 1B parameters has a published error
+            // rate: the catalog's first, the smallest, is taken.
+            (
+                "translate-en",
+                Balanced,
+                Live,
+                "whisper openai/tiny{beam_size: 1}",
+            ),
+        ];
+        for (preset, quality, mode, want) in grid {
+            assert_eq!(
+                pick(preset, quality, mode),
+                want,
+                "{preset} {quality:?} {mode:?}"
+            );
         }
 
-        let need = |speech, task, quality| Need {
-            speech,
-            task,
-            quality,
+        // A translating need requires a translator, whatever the preset.
+        let multi = lookup("multi").unwrap();
+        let translating = Need {
+            task: Task::Translate,
+            ..multi.need
         };
-        // A better quality before a worse.
-        let (point, _) = construct_config().point(
-            need(Speech::Multi, Task::Transcribe, Quality::Good),
-            Mode::Live,
-        );
-        assert_eq!(point.recipe.engine.model, "qwen/qwen3-asr-0.6b");
-        // English translated to English is transcribed.
-        let (point, note) = construct_config().point(
-            need(Speech::En, Task::Translate, Quality::Fast),
-            Mode::Offline,
-        );
-        assert_eq!(point.recipe.engine.model, "fermion/phonon-2");
-        assert!(note.is_some());
+        let recipe = construct_config()
+            .pick(multi, translating, Offline, None)
+            .unwrap();
+        assert_eq!(recipe.engine.model, "openai/large-v3{beam_size: 5}");
+
+        // A language not English is not given to an English-only model.
+        let recipe = construct_config()
+            .pick(multi, multi.need, Offline, Some("de"))
+            .unwrap();
+        assert_ne!(recipe.engine.family, Family::Parakeet);
+    }
+
+    /// Every speech candidate carries its family, and the fields the
+    /// construct derives.
+    #[test]
+    fn test_candidates() {
+        let candidates = asr_candidates().unwrap();
+        let find = |name: &str| {
+            candidates
+                .iter()
+                .find(|c| c.pretrained.name == name)
+                .unwrap_or_else(|| panic!("{name}"))
+        };
+        let phonon = find("fermion/phonon-2");
+        assert_eq!(phonon.text(ASR_FAMILY_TAG), Some("parakeet"));
+        assert_eq!(phonon.number("wer.en"), Some(5.21));
+        assert!(!phonon.is_true("multilingual"));
+        let qwen = find("qwen/qwen3-asr-1.7b");
+        assert!(qwen.is_true("multilingual"));
+        assert_eq!(find("openai/tiny").number("wer.en"), None);
+        assert!(candidates.iter().all(|c| c.text(ASR_FAMILY_TAG).is_some()));
     }
 
     /// The model's selection, parsed: its box and its patch.
@@ -954,7 +1054,7 @@ mod tests {
         let r = resolve("translate-en", Mode::Live, None, None).unwrap();
         assert_eq!(
             shell_line(&r.command_line()),
-            "bunsen-tool asr family whisper live --model 'openai/small[translate]{beam_size: 1}' \
+            "bunsen-tool asr family whisper live --model 'openai/tiny[translate]{beam_size: 1}' \
              --emission conservative --chunk-ms 250 --vad 'silero/vad-16k[faster-whisper]'"
         );
         assert_eq!(
@@ -964,7 +1064,7 @@ mod tests {
         let stamp = serde_json::to_value(r.stamp()).unwrap();
         assert_eq!(
             stamp["recipe"]["model"],
-            "openai/small[translate]{beam_size: 1}"
+            "openai/tiny[translate]{beam_size: 1}"
         );
         assert_eq!(stamp["preset"], "translate-en");
         assert_eq!(
@@ -1030,23 +1130,29 @@ mod tests {
             )
         );
 
-        for point in &table.points {
-            let model = &point.recipe.engine.model;
-            let looked = match point.recipe.engine.family {
-                Family::Parakeet => default_parakeet_factory()
-                    .and_then(|f| f.lookup(model))
-                    .map(drop),
-                Family::Qwen3Asr => default_qwen3_asr_factory()
-                    .and_then(|f| f.lookup(model))
-                    .map(drop),
-                Family::Voxtral => default_voxtral_factory()
-                    .and_then(|f| f.lookup(model))
-                    .map(drop),
-                Family::Whisper => default_whisper_factory()
-                    .and_then(|f| f.lookup(model))
-                    .map(drop),
-            };
-            looked.unwrap_or_else(|e| panic!("{} {model}: {e}", point.need));
+        for family in Family::ALL {
+            assert!(table.recipes.contains_key(&family), "{}", family.name());
+        }
+        for preset in presets() {
+            for mode in [Mode::Offline, Mode::Live] {
+                let recipe = preset.recipe(mode).unwrap();
+                let model = &recipe.engine.model;
+                let looked = match recipe.engine.family {
+                    Family::Parakeet => default_parakeet_factory()
+                        .and_then(|f| f.lookup(model))
+                        .map(drop),
+                    Family::Qwen3Asr => default_qwen3_asr_factory()
+                        .and_then(|f| f.lookup(model))
+                        .map(drop),
+                    Family::Voxtral => default_voxtral_factory()
+                        .and_then(|f| f.lookup(model))
+                        .map(drop),
+                    Family::Whisper => default_whisper_factory()
+                        .and_then(|f| f.lookup(model))
+                        .map(drop),
+                };
+                looked.unwrap_or_else(|e| panic!("{} {model}: {e}", preset.name));
+            }
         }
 
         // Every engine's task presets are presets its family's rows have.
@@ -1054,7 +1160,7 @@ mod tests {
             let Some(tasks) = &engine.tasks else {
                 continue;
             };
-            let listing = crate::asr::family::Kit::Asr(*family).listing().unwrap();
+            let listing = Kit::Asr(*family).listing().unwrap();
             for preset in tasks.presets.values() {
                 assert!(
                     listing
@@ -1068,33 +1174,12 @@ mod tests {
             assert!(tasks.does(tasks.default));
         }
 
-        // Without a preset, translating makes an unset speech `multi`, and
-        // says why; a speech given stays, and nothing set takes the base.
-        let base = lookup(DEFAULT_PRESET).unwrap().need;
-        let translate = NeedPattern {
-            task: Some(Task::Translate),
-            ..NeedPattern::default()
-        };
-        let (need, why) = table.fill(translate, base);
-        assert_eq!((need.speech, need.task), (Speech::Multi, Task::Translate));
-        assert_eq!(why, ["translating is from speech that is not English"]);
-        let (need, why) = table.fill(
-            NeedPattern {
-                speech: Some(Speech::En),
-                ..translate
-            },
-            base,
-        );
-        assert_eq!((need.speech, why.len()), (Speech::En, 0));
-        assert_eq!(table.fill(NeedPattern::default(), base), (base, vec![]));
-
-        // `--language` by the table, case aside; what hears what by the
-        // speech fallback.
+        // `--language` by the table, case aside; `multi` hears English.
         assert_eq!(table.language.speech("EN"), Speech::En);
         assert_eq!(table.language.speech("de"), Speech::Multi);
-        assert!(table.fallback.hears(Speech::Multi, Speech::En));
-        assert!(!table.fallback.hears(Speech::En, Speech::Multi));
-        assert!(table.fallback.hears(Speech::En, Speech::En));
+        assert!(Speech::Multi.hears(Speech::En));
+        assert!(!Speech::En.hears(Speech::Multi));
+        assert!(Speech::En.hears(Speech::En));
 
         // English translated to English is transcribed, and says why.
         let (need, why) = Need {

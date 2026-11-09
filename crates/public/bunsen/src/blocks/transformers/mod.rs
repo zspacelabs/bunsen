@@ -6,7 +6,8 @@
 //! layer. A layer or stack lives here when it is generic (what tells its
 //! users apart is config: norm placement, which attention, which MLP) and
 //! more than one kit builds it; a named model, with its own weights and
-//! quirks, stays in its kit and is assembled from these.
+//! quirks, stays in its kit and is assembled from these, or wraps a generic
+//! model from [`models`].
 //!
 //! The modules:
 //!
@@ -48,6 +49,10 @@
 //!   feed-forward block (expand, activate, project back), and
 //!   [`TransformerGatedMlp`](mlp::TransformerGatedMlp), the gated feed-forward
 //!   (`SwiGLU`, `GeGLU`).
+//! - [`models`]: whole models generic over their users, the decoder-only
+//!   language model among them
+//!   ([`LmDecoderModel`](models::language_decoder::LmDecoderModel): a token
+//!   embedding, a decoder stack and a head), which a named model's kit wraps.
 //! - [`sublayer`]: [`ResidualSublayer`](sublayer::ResidualSublayer), a residual
 //!   sublayer: its branch module and the normalizations around it (input, pre,
 //!   post, out).
@@ -63,4 +68,5 @@ pub mod encoders;
 pub mod head;
 pub mod mixers;
 pub mod mlp;
+pub mod models;
 pub mod sublayer;

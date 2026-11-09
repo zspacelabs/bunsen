@@ -8,14 +8,16 @@ use bunsen::{
             LayaSpecials,
             build_prompt,
         },
-        support::tokens::Tokenizer,
+        support::tokens::{
+            BunsenTokenizer,
+            Tokenizer,
+        },
     },
     support::testing::{
         DeviceMemoryGuard,
         performance_device,
     },
 };
-use bunsen_tool::chat::HfTokenizer;
 
 use super::*;
 
@@ -83,7 +85,7 @@ fn check_row(row: &str) {
     let fixture = upstream_reference();
     let record = &fixture[row];
     let construct = load_construct(row, &device);
-    let tokenizer = HfTokenizer::from_file(construct.tokenizer().expect("a tokenizer.json"))
+    let tokenizer = BunsenTokenizer::from_file(construct.tokenizer().expect("a tokenizer.json"))
         .expect("read the tokenizer");
     let config = std::fs::read_to_string(construct.tokenizer_config().expect("a config"))
         .expect("read the tokenizer config");
