@@ -102,24 +102,6 @@ impl ChatModelFamily {
         ChatModelFamily::NanoChat,
     ];
 
-    /// The family whose checkpoint `name` is: nanochat's when the nanochat
-    /// factory knows it, Gemma's or Qwen3.5's when its well-known table does,
-    /// Qwen3's otherwise (an `hf:` repo among them).
-    pub fn of(name: &str) -> BunsenResult<ChatModelFamily> {
-        let well_known = |found: BunsenResult<(String, Pretrained)>| {
-            found.is_ok_and(|(provider, _)| provider == WELL_KNOWN)
-        };
-        Ok(if default_nanochat_factory()?.lookup(name).is_ok() {
-            ChatModelFamily::NanoChat
-        } else if well_known(default_gemma_factory()?.lookup(name)) {
-            ChatModelFamily::Gemma
-        } else if well_known(default_qwen3_5_factory()?.lookup(name)) {
-            ChatModelFamily::Qwen3_5
-        } else {
-            ChatModelFamily::Qwen3
-        })
-    }
-
     /// The family's command name.
     pub fn name(self) -> &'static str {
         match self {
@@ -319,40 +301,6 @@ impl ChatModelFamilyFlags for ChatPlainFlags {}
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Each family's default is its own; a nanochat name or alias is
-    /// nanochat's, a well-known Gemma's or Qwen3.5's name its family's, and
-    /// any other name Qwen3's.
-    #[test]
-    fn test_family_of() {
-        for family in ChatModelFamily::ALL {
-            assert_eq!(ChatModelFamily::of(family.default_model()).unwrap(), family);
-        }
-        assert_eq!(
-            ChatModelFamily::of("nanochat-d20-rl").unwrap(),
-            ChatModelFamily::NanoChat
-        );
-        assert_eq!(
-            ChatModelFamily::of("gemma-2-2b-it").unwrap(),
-            ChatModelFamily::Gemma
-        );
-        assert_eq!(
-            ChatModelFamily::of("qwen3.5-9b").unwrap(),
-            ChatModelFamily::Qwen3_5
-        );
-        assert_eq!(
-            ChatModelFamily::of("qwen/qwen3.5-2b-base").unwrap(),
-            ChatModelFamily::Qwen3_5
-        );
-        assert_eq!(
-            ChatModelFamily::of("hf:Qwen/Qwen3-0.6B").unwrap(),
-            ChatModelFamily::Qwen3
-        );
-        assert_eq!(
-            ChatModelFamily::of("hf:unsloth/gemma-3-1b-it").unwrap(),
-            ChatModelFamily::Qwen3
-        );
-    }
 
     /// Every well-known chat checkpoint has a chat template, a pretrained
     /// Gemma its family's; a lookup's patch that takes it away is refused

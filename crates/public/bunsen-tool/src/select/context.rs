@@ -154,24 +154,33 @@ impl SelectionContext {
         let mut layers: Vec<Value> = Vec::new();
         let mut why = Vec::new();
         let mut defaults = true;
-        let candidates: Vec<SelectionCandidate> = match name.as_deref() {
+        // A named selection is its selection, merged first; a name in it
+        // matches rows as a `--select` name does.
+        let mut row_name = name.clone();
+        if let Some(n) = name.as_deref()
+            && let Some(named) = self.named(n)
+        {
+            why.push(format!("the selection {:?}", named.name));
+            layers.push(named.selection.clone());
+            row_name = named
+                .selection
+                .get("name")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+        }
+        let candidates: Vec<SelectionCandidate> = match row_name.as_deref() {
             None => universe,
-            Some(n) => match (self.named(n), match_name(&universe, n)) {
-                (Some(named), _) => {
-                    why.push(format!("the selection {:?}", named.name));
-                    layers.push(named.selection.clone());
-                    universe
-                }
-                (None, NameMatch::Exact(i)) => {
+            Some(n) => match match_name(&universe, n) {
+                NameMatch::Exact(i) => {
                     defaults = false;
                     why.push(format!("the row {:?}", universe[i].pretrained.name));
                     vec![universe[i].clone()]
                 }
-                (None, NameMatch::Fuzzy(found)) => {
+                NameMatch::Fuzzy(found) => {
                     why.push(format!("{} rows matching {n:?}", found.len()));
                     found.into_iter().map(|i| universe[i].clone()).collect()
                 }
-                (None, NameMatch::Missing) => {
+                NameMatch::Missing => {
                     let mut known: Vec<&str> = self.named.iter().map(|n| n.name.as_str()).collect();
                     known.extend(universe.iter().map(|c| c.pretrained.name.as_str()));
                     return Err(BunsenError::policy(format!(
@@ -351,6 +360,26 @@ mod tests {
             "openai/tiny"
         );
         assert_eq!(choose(&["{name: tiny}"]).unwrap(), "openai/tiny");
+    }
+
+    /// A named selection that names a row is that row, the defaults aside.
+    #[test]
+    fn test_a_named_selection_naming_a_row() {
+        let mut context = context();
+        context.named.push(NamedSelection {
+            name: "default".into(),
+            description: "the default".into(),
+            selection: json!({"name": "qwen3-0.6b-base"}),
+        });
+        let choice = context
+            .choose(universe(), &["default".to_string()], &[])
+            .unwrap();
+        assert_eq!(choice.candidate.pretrained.name, "qwen/qwen3-0.6b-base");
+        assert!(
+            choice.why.contains("the selection \"default\", the row"),
+            "{}",
+            choice.why
+        );
     }
 
     #[test]
