@@ -29,6 +29,7 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
+                LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -448,7 +449,7 @@ pub struct GemmaModel {
     pub lm: LmDecoderModel,
 }
 
-impl LmDecoderWrapper for GemmaModel {
+impl LmDecoderHolder for GemmaModel {
     type Kind = LmAttentionOnlyKind;
 
     fn lm(&self) -> &LmDecoderModel {
@@ -463,6 +464,8 @@ impl LmDecoderWrapper for GemmaModel {
         Self { lm }
     }
 }
+
+impl LmDecoderWrapper for GemmaModel {}
 
 #[cfg(test)]
 mod tests {

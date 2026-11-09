@@ -1,4 +1,4 @@
-//! [`LmDecoderWrapper`]: a kit's model around an [`LmDecoderModel`].
+//! [`LmDecoderHolder`] and [`LmDecoderWrapper`]: a kit's model around an [`LmDecoderModel`].
 use burn::Tensor;
 
 use super::{
@@ -19,34 +19,47 @@ use crate::{
     },
 };
 
-/// A named model that wraps an [`LmDecoderModel`]: a kit's model, which
-/// adds its own names, config and quirks around one.
+/// A named model that holds exactly an [`LmDecoderModel`]: a kit's model,
+/// its own names, config and quirks around one, and no parameters of its
+/// own.
 ///
-/// The model's API comes through blanket impls, by its kind: every wrapper
-/// is [`LmDecoderOps`](super::LmDecoderOps),
-/// [`LmPlainStackOps`](super::LmPlainStackOps), [`LmDecoderMeta`] and a
-/// [`StackedLm`](crate::kits::support::decoding::StackedLm);
-/// an [`LmAttentionOnlyKind`] one has [`LmKvForwardHidden`] and
-/// [`KVCacheModel`], an [`LmHybridKind`] one [`LmUncachedForwardHidden`].
+/// The model's forward-free API comes through blanket impls:
+/// [`LmDecoderOps`](super::LmDecoderOps), [`LmDecoderMeta`], an
+/// [`LmAttentionOnlyKind`] one's [`KVCacheModel`] (the cache's geometry is
+/// its stack's), and its build from an
+/// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig)
+/// ([`from_lm`](Self::from_lm)). Its forward is its own unless it is an
+/// [`LmDecoderWrapper`] (a model that conditions its layers on inputs
+/// beside the stack's has its own).
 ///
-/// A wrapper loads its weights into [`lm_mut`](Self::lm_mut), under a rekey
+/// A holder loads its weights into [`lm_mut`](Self::lm_mut), under a rekey
 /// onto the [`LmDecoderModel`]'s own paths.
-pub trait LmDecoderWrapper {
-    /// The wrapped model's decode kind.
+pub trait LmDecoderHolder {
+    /// The held model's decode kind.
     type Kind: LmDecodeKind;
 
-    /// The wrapped model.
+    /// The held model.
     fn lm(&self) -> &LmDecoderModel<Self::Kind>;
 
-    /// The wrapped model, to load into.
+    /// The held model, to load into.
     fn lm_mut(&mut self) -> &mut LmDecoderModel<Self::Kind>;
 
-    /// The wrapper around `lm`: what an
+    /// The holder around `lm`: what an
     /// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig) builds the
-    /// wrapper as (its blanket `ModuleInit`), so a kit's config that lowers to
+    /// holder as (its blanket `ModuleInit`), so a kit's config that lowers to
     /// one builds the kit's model.
     fn from_lm(lm: LmDecoderModel<Self::Kind>) -> Self;
 }
+
+/// An [`LmDecoderHolder`] whose forward is its [`LmDecoderModel`]'s: the
+/// bare stack, from the embedding.
+///
+/// The forward comes through blanket impls, by the kind: every wrapper is
+/// [`LmPlainStackOps`](super::LmPlainStackOps) and a
+/// [`StackedLm`](crate::kits::support::decoding::StackedLm); an
+/// [`LmAttentionOnlyKind`] one has [`LmKvForwardHidden`], an
+/// [`LmHybridKind`] one [`LmUncachedForwardHidden`].
+pub trait LmDecoderWrapper: LmDecoderHolder {}
 
 impl<W: LmDecoderWrapper<Kind = LmAttentionOnlyKind>> LmKvForwardHidden for W {
     fn forward_hidden(
@@ -69,8 +82,8 @@ impl<W: LmDecoderWrapper<Kind = LmHybridKind>> LmUncachedForwardHidden for W {
     }
 }
 
-/// The wrapped model's meta.
-impl<W: LmDecoderWrapper> LmDecoderMeta for W {
+/// The held model's meta.
+impl<W: LmDecoderHolder> LmDecoderMeta for W {
     fn n_vocab(&self) -> usize {
         self.lm().n_vocab()
     }
@@ -96,8 +109,8 @@ impl<W: LmDecoderWrapper> LmDecoderMeta for W {
     }
 }
 
-/// The wrapped model's cache.
-impl<W: LmDecoderWrapper<Kind = LmAttentionOnlyKind>> KVCacheModel for W {
+/// The held model's cache.
+impl<W: LmDecoderHolder<Kind = LmAttentionOnlyKind>> KVCacheModel for W {
     fn kv_cache_config(&self) -> KVCacheConfig {
         self.lm().kv_cache_config()
     }

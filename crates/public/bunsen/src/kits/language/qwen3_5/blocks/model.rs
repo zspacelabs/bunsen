@@ -30,6 +30,7 @@ use crate::{
             mixers::GatedDeltaNetConfig,
             mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
+                LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -403,7 +404,7 @@ pub struct Qwen3_5Model {
     pub lm: LmDecoderModel<LmHybridKind>,
 }
 
-impl LmDecoderWrapper for Qwen3_5Model {
+impl LmDecoderHolder for Qwen3_5Model {
     type Kind = LmHybridKind;
 
     fn lm(&self) -> &LmDecoderModel<LmHybridKind> {
@@ -418,6 +419,8 @@ impl LmDecoderWrapper for Qwen3_5Model {
         Self { lm }
     }
 }
+
+impl LmDecoderWrapper for Qwen3_5Model {}
 
 #[cfg(test)]
 mod tests {

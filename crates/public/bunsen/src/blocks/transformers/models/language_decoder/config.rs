@@ -41,7 +41,7 @@ pub const LM_DECODER_KV_CACHE_PRE_SIZE: usize = 1024;
 /// Config for [`LmDecoderModel`], its stack in any of its configs' shapes:
 /// what a named model's config lowers to
 /// ([`ToStructureConfig`], `Structure = LmDecoderVariantConfig`), so it
-/// builds the kit's [`LmDecoderWrapper`](super::LmDecoderWrapper) through the
+/// builds the kit's [`LmDecoderHolder`](super::LmDecoderHolder) through the
 /// blanket `ModuleInit`s.
 ///
 /// Lowers to [`LmDecoderStructureConfig`], and builds the model through it.
@@ -153,9 +153,9 @@ impl<K: LmDecodeKind> ModuleInit<LmDecoderModel<K>> for LmDecoderStructureConfig
     }
 }
 
-/// A wrapper is built around the model the config builds
-/// ([`LmDecoderWrapper::from_lm`](super::LmDecoderWrapper::from_lm)).
-impl<W: super::LmDecoderWrapper + burn::module::Module> ModuleInit<W> for LmDecoderStructureConfig {
+/// A holder is built around the model the config builds
+/// ([`LmDecoderHolder::from_lm`](super::LmDecoderHolder::from_lm)).
+impl<W: super::LmDecoderHolder + burn::module::Module> ModuleInit<W> for LmDecoderStructureConfig {
     /// # Errors
     /// As the model's build.
     fn try_init(

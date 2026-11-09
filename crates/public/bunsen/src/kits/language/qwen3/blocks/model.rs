@@ -27,6 +27,7 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
+                LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -259,7 +260,7 @@ pub struct Qwen3Model {
     pub lm: LmDecoderModel,
 }
 
-impl LmDecoderWrapper for Qwen3Model {
+impl LmDecoderHolder for Qwen3Model {
     type Kind = LmAttentionOnlyKind;
 
     fn lm(&self) -> &LmDecoderModel {
@@ -274,6 +275,8 @@ impl LmDecoderWrapper for Qwen3Model {
         Self { lm }
     }
 }
+
+impl LmDecoderWrapper for Qwen3Model {}
 
 #[cfg(test)]
 mod tests {

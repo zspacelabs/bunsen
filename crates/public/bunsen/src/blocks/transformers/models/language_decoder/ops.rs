@@ -13,6 +13,7 @@ use burn::{
 
 use super::{
     LmDecodeKind,
+    LmDecoderHolder,
     LmDecoderModel,
     LmDecoderWrapper,
 };
@@ -25,7 +26,7 @@ use crate::blocks::transformers::{
 /// forward: the embedding, the head, the rotary tables and the float dtype.
 ///
 /// Every [`LmDecoderModel`], of any [`LmDecodeKind`], implements it, and
-/// every [`LmDecoderWrapper`] through a blanket impl, as the model it wraps;
+/// every [`LmDecoderHolder`] through a blanket impl, as the model it holds;
 /// a model whose forward is its own (nanochat's, with inputs beside the
 /// stack's) implements it by hand. The forward is [`LmPlainStackOps`]' and
 /// the kind's, where it is the bare stack's.
@@ -127,8 +128,8 @@ impl<K: LmDecodeKind> LmPlainStackOps for LmDecoderModel<K> {
     }
 }
 
-/// The wrapped model's API.
-impl<W: LmDecoderWrapper> LmDecoderOps for W {
+/// The held model's API.
+impl<W: LmDecoderHolder> LmDecoderOps for W {
     fn float_dtype(&self) -> DType {
         self.lm().float_dtype()
     }
