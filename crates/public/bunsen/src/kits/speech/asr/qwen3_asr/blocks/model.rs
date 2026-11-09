@@ -18,8 +18,9 @@ use super::{
     Qwen3AsrProjectorConfig,
 };
 use crate::{
-    blocks::transformers::models::{
+    blocks::transformers::models::language_decoder::{
         LmDecoderMeta,
+        LmDecoderOps,
         LmKvForwardHidden,
     },
     burner::module::{

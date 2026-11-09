@@ -50,7 +50,7 @@ pub static QWEN3_5_PREFABS: StaticPreFabMap<Qwen3_5Config> = StaticPreFabMap {
 mod tests {
     use super::*;
     use crate::{
-        blocks::transformers::models::LmDecoderMeta,
+        blocks::transformers::models::language_decoder::LmDecoderMeta,
         kits::language::qwen3_5::Qwen3_5LayerKind,
     };
 

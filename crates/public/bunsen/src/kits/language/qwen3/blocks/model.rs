@@ -1,12 +1,8 @@
 //! The Qwen3 decoder.
-use core::ops::Range;
-
 use burn::{
-    Tensor,
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    prelude::Int,
     tensor::{
         Device,
         FloatDType,
@@ -28,12 +24,11 @@ use crate::{
             embedding::{
                 RotaryDirection,
                 RotaryEmbeddingConfig,
-                RotarySet,
                 TokenEmbeddingConfig,
             },
             head::LmHeadConfig,
             mlp::TransformerGatedMlpConfig,
-            models::{
+            models::language_decoder::{
                 LmAttentionOnlyKind,
                 LmDecoderMeta,
                 LmDecoderModel,
@@ -258,7 +253,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
 /// [`KVCache`](crate::ops::transformers::attention::KVCache)
-/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::LmKvForwardHidden),
+/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
 /// [`KVCacheModel`]).
 ///
 /// Built by [`Qwen3Config`].
@@ -281,61 +276,21 @@ impl LmDecoderWrapper for Qwen3Model {
     }
 }
 
-impl Qwen3Model {
-    /// The rotary embedding for positions `0..seq_len`
-    /// ([`LmDecoderModel::rotary`]).
-    pub fn rotary(
-        &self,
-        seq_len: usize,
-        device: &Device,
-    ) -> RotarySet {
-        self.lm.rotary(seq_len, device)
-    }
-
-    /// Embeds tokens, `[batch, seq]` to `[batch, seq, d_model]`
-    /// ([`LmDecoderModel::embed`]).
-    pub fn embed(
-        &self,
-        tokens: Tensor<2, Int>,
-    ) -> Tensor<3> {
-        self.lm.embed(tokens)
-    }
-
-    /// The attention weights of an uncached pass over `embeds`, at `layers`,
-    /// each cut to the queries `rows` and the keys `cols`
-    /// ([`LmDecoderModel::attention_weights`]).
-    ///
-    /// # Panics
-    /// If a layer index is past the last layer.
-    pub fn attention_weights(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-        layers: &[usize],
-        rows: Range<usize>,
-        cols: Range<usize>,
-    ) -> Vec<Tensor<4>> {
-        self.lm.attention_weights(embeds, r_emb, layers, rows, cols)
-    }
-
-    /// The head's logits over the vocabulary, `[batch, seq, d_model]` to
-    /// `[batch, seq, n_vocab]`, in the config's `logits_dtype` (f32 by
-    /// default) whatever the model computes in ([`LmDecoderModel::logits`]).
-    pub fn logits(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3> {
-        self.lm.logits(hidden)
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use burn::{
+        Tensor,
+        prelude::Int,
+    };
+
     use super::*;
     use crate::{
         blocks::transformers::{
             head::LmHeadMeta,
-            models::LmKvForwardHidden,
+            models::language_decoder::{
+                LmDecoderOps,
+                LmKvForwardHidden,
+            },
         },
         kits::support::decoding::{
             SearchConfig,

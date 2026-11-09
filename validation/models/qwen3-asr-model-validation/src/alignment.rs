@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    blocks::transformers::models::LmDecoderMeta,
+    blocks::transformers::models::language_decoder::LmDecoderMeta,
     kits::speech::asr::qwen3_asr::{
         QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
         Qwen3AsrConstruct,

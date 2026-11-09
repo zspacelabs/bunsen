@@ -47,7 +47,7 @@ pub static QWEN3_PREFABS: StaticPreFabMap<Qwen3Config> = StaticPreFabMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::blocks::transformers::models::LmDecoderMeta;
+    use crate::blocks::transformers::models::language_decoder::LmDecoderMeta;
 
     #[test]
     fn test_prefabs() {

@@ -60,7 +60,7 @@ pub static GEMMA_PREFABS: StaticPreFabMap<GemmaConfig> = StaticPreFabMap {
 mod tests {
     use super::*;
     use crate::{
-        blocks::transformers::models::LmDecoderMeta,
+        blocks::transformers::models::language_decoder::LmDecoderMeta,
         kits::language::gemma::GemmaLayerKind,
     };
 

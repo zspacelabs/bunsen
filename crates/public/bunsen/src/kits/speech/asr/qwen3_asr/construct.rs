@@ -22,6 +22,10 @@ use super::{
     },
 };
 use crate::{
+    blocks::transformers::models::language_decoder::{
+        LmDecoderOps,
+        LmPlainStackOps,
+    },
     burner::module::ModuleInit,
     data::pretrained::PresetSelection,
     errors::BunsenResult,

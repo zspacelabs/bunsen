@@ -70,7 +70,7 @@ fn assert_bf16_tensors_load_as_they_are(
         .model
         .collect(None, None, true)
         .into_iter()
-        .find(|t| t.name == "wte.weight")
+        .find(|t| t.name == "lm.embedding.weight")
         .expect("the model's embedding");
     let expected = bridge::to_data(wte).expect("the file's embedding");
     let actual = bridge::to_data(&model).expect("the model's embedding");

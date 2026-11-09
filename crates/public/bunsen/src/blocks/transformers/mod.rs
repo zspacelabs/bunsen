@@ -49,9 +49,10 @@
 //!   feed-forward block (expand, activate, project back), and
 //!   [`TransformerGatedMlp`](mlp::TransformerGatedMlp), the gated feed-forward
 //!   (`SwiGLU`, `GeGLU`).
-//! - [`models`]: [`LmDecoderModel`](models::LmDecoderModel), a decoder-only
-//!   language model: a token embedding, a decoder stack and a head, which a
-//!   named model's kit wraps.
+//! - [`models`]: whole models generic over their users, the decoder-only
+//!   language model among them
+//!   ([`LmDecoderModel`](models::language_decoder::LmDecoderModel): a token
+//!   embedding, a decoder stack and a head), which a named model's kit wraps.
 //! - [`sublayer`]: [`ResidualSublayer`](sublayer::ResidualSublayer), a residual
 //!   sublayer: its branch module and the normalizations around it (input, pre,
 //!   post, out).
