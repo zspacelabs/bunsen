@@ -1,7 +1,10 @@
 //! # Constructing a Qwen3 pretrained
-use alloc::sync::Arc;
+use alloc::vec::Vec;
 
-use burn::tensor::Device;
+use burn::{
+    store::burn_pack::Tensor as PackTensor,
+    tensor::FloatDType,
+};
 
 use super::{
     CHECKPOINT,
@@ -9,29 +12,19 @@ use super::{
     QWEN3_PREFABS,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::pretrained::{
-        CONFIG,
         CatalogProbe,
         LoadedResources,
+        NamedTensorsApplied,
         PresetSet,
-        PretrainedRef,
-        ResourceBundle,
-        SAFETENSORS,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+        StaticPreFabMap,
     },
-    errors::{
-        BunsenError,
-        BunsenResult,
-        sys_at,
-    },
+    errors::BunsenResult,
     kits::{
         language::qwen3::{
             GENERATION_CONFIG,
-            Qwen3Construct,
+            Qwen3Config,
             Qwen3Model,
-            Qwen3Policy,
             TOKENIZER_CONFIG,
             weights::{
                 load_transformers_tensors_as,
@@ -39,12 +32,8 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
-            model_config::{
-                TransformersConfigJson,
-                probe_loaded,
-                resolve_ref_presets,
-            },
+            construct::TransformersLmKit,
+            model_config::probe_loaded,
         },
     },
 };
@@ -52,16 +41,42 @@ use crate::{
 /// How a Qwen3 pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
 /// ([`qwen3_config_from_transformers`]), or else the prefab its row names, in
-/// the device's float dtype; bundled with the positions the `config.json` says
-/// it was trained on, and every file of the checkpoint by its key.
+/// the dtype the load policy resolves; bundled with the positions the
+/// `config.json` says it was trained on, and every file of the checkpoint by
+/// its key.
 ///
-/// The Qwen3 kit's construct config: its [`ConstructInit`] hook.
+/// The Qwen3 kit's construct config: its
+/// [`ConstructInit`](crate::kits::support::construct::ConstructInit) hook, by
+/// [`TransformersLmKit`].
 /// [`default_qwen3_factory`](super::default_qwen3_factory) attaches it; a
 /// caller never builds one.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Qwen3ConstructConfig;
 
-impl Qwen3ConstructConfig {
+impl TransformersLmKit for Qwen3ConstructConfig {
+    type Config = Qwen3Config;
+    type Model = Qwen3Model;
+
+    const CHECKPOINT: &'static str = CHECKPOINT;
+    const KIT: &'static str = QWEN3_KIT;
+    const NAME: &'static str = "Qwen3";
+
+    fn prefabs() -> &'static StaticPreFabMap<Qwen3Config> {
+        &QWEN3_PREFABS
+    }
+
+    fn config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
+        qwen3_config_from_transformers(json)
+    }
+
+    fn load_tensors(
+        model: &mut Qwen3Model,
+        tensors: Vec<PackTensor>,
+        dtype: FloatDType,
+    ) -> BunsenResult<NamedTensorsApplied> {
+        load_transformers_tensors_as(model, tensors, dtype)
+    }
+
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
     /// catalog tool probes a row's: its `generation_config.json`, when it
     /// has one (the stop tokens and sampling), and the chat template its
@@ -78,78 +93,16 @@ impl Qwen3ConstructConfig {
     }
 }
 
-impl ConstructInit for Qwen3ConstructConfig {
-    type Construct = Qwen3Construct;
-
-    const KIT: &'static str = QWEN3_KIT;
-    const RESOLVES_PRESETS: bool = true;
-
-    /// The hook for a safetensors checkpoint.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
-        let index = format!("{CHECKPOINT}.index");
-        let checkpoint = match map.get(&index) {
-            Some(index) => index,
-            None => map.try_get(CHECKPOINT)?,
-        };
-        match checkpoint.kind.as_deref() {
-            Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self),
-            other => Err(BunsenError::unsupported(format!(
-                "no Qwen3 reader for a checkpoint of kind {other:?}"
-            ))),
-        }
-    }
-
-    fn try_init(
-        &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<Qwen3Construct>> {
-        let (config, max_positions) = match loaded.get(CONFIG) {
-            Some(part) => {
-                let json =
-                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                let config = qwen3_config_from_transformers(&json)
-                    .map_err(|e| e.context(part.path.display()))?;
-                let max_positions = TransformersConfigJson::parse(&json)?
-                    .usize("max_position_embeddings")
-                    .ok();
-                (config, max_positions)
-            }
-            None => match model.prefab(&QWEN3_PREFABS) {
-                Some(prefab) => (prefab.to_config(), None),
-                None => {
-                    return Err(BunsenError::invalid_resource(
-                        "a Qwen3 checkpoint with neither a config.json nor a prefab",
-                    )
-                    .context(&loaded.map.name));
-                }
-            },
-        };
-        let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        // The stored dtype (bf16), where the policy and the device allow it;
-        // never f16, which overflows Qwen3's activations.
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
-            .unwrap_or(burn::tensor::FloatDType::F32);
-        let dtype = policy.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
-        let mut qwen3: Qwen3Model = config.try_init(device)?;
-        load_transformers_tensors_as(&mut qwen3, tensors, dtype)?;
-        let policy = resolve_ref_presets(&Qwen3Policy::default(), model, &Self::probed(loaded)?)?;
-        let mut bundle = Qwen3Construct::new(qwen3)
-            .with_max_positions(max_positions)
-            .with_policy(policy.config.clone(), policy.applied());
-        for (key, part) in &loaded.parts {
-            bundle = bundle.with_file(key, &part.path);
-        }
-        Ok(Arc::new(bundle))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::language::qwen3::pretrained::QWEN3_CATALOG;
+    use crate::kits::{
+        language::qwen3::{
+            Qwen3Policy,
+            pretrained::QWEN3_CATALOG,
+        },
+        support::construct::ConstructInit,
+    };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
