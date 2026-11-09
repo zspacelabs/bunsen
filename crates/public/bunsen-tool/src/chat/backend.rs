@@ -38,7 +38,11 @@ use bunsen::{
                 SuppressTokens,
             },
             model_config::GenerationPolicy,
-            tokens::Detokenizer,
+            tokens::{
+                BunsenTokenizer,
+                Detokenizer,
+                Tokenizer,
+            },
         },
     },
     ops::transformers::attention::KVCacheStorage,
@@ -58,8 +62,6 @@ use burn::{
 use crate::chat::{
     ChatMessage,
     ChatTemplate,
-    ChatTokenizer,
-    HfTokenizer,
 };
 
 /// A checkpoint a [`ChatModel`](crate::chat::ChatModel) holds a conversation
@@ -221,7 +223,7 @@ impl ChatLm for Qwen3_5Model {
 #[derive(Debug)]
 pub struct LmChat<M> {
     bundle: Arc<LmConstruct<M>>,
-    tokenizer: Arc<dyn ChatTokenizer>,
+    tokenizer: Arc<dyn Tokenizer>,
     template: ChatTemplate,
     generation: GenerationPolicy,
     unspelled: Arc<dyn LogitFilter>,
@@ -242,7 +244,7 @@ pub type Qwen3_5Chat = LmChat<Qwen3_5Model>;
 /// `tokenizer` cannot spell: a head may be wider than its tokenizer.
 pub fn unspelled(
     n_vocab: usize,
-    tokenizer: &dyn ChatTokenizer,
+    tokenizer: &dyn Tokenizer,
 ) -> Arc<dyn LogitFilter> {
     Arc::new(SuppressTokens::new(
         (0..n_vocab as i64).filter(|&id| !tokenizer.contains(id)),
@@ -288,7 +290,7 @@ impl<M: ChatLm> LmChat<M> {
     /// when `generation` names no stop token.
     pub fn new(
         bundle: Arc<LmConstruct<M>>,
-        tokenizer: Arc<dyn ChatTokenizer>,
+        tokenizer: Arc<dyn Tokenizer>,
         template: ChatTemplate,
         generation: GenerationPolicy,
     ) -> BunsenResult<Self> {
@@ -310,7 +312,7 @@ impl<M: ChatLm> LmChat<M> {
     }
 
     /// The tokenizer.
-    pub fn tokenizer(&self) -> &Arc<dyn ChatTokenizer> {
+    pub fn tokenizer(&self) -> &Arc<dyn Tokenizer> {
         &self.tokenizer
     }
 
@@ -322,9 +324,9 @@ impl<M: ChatLm> LmChat<M> {
 
 impl<M: ChatLm> LmChat<M> {
     /// A chat over a loaded model, through its `tokenizer.json` and
-    /// `tokenizer_config.json` ([`HfTokenizer`]) and the chat template and stop
-    /// tokens its presets resolved to: its own template where it has one, else
-    /// its family's.
+    /// `tokenizer_config.json` ([`BunsenTokenizer`]) and the chat template and
+    /// stop tokens its presets resolved to: its own template where it has one,
+    /// else its family's.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
@@ -333,7 +335,7 @@ impl<M: ChatLm> LmChat<M> {
     /// a `generation_config.json` and no presets that give one); as each
     /// file's reader.
     pub fn from_construct(bundle: Arc<LmConstruct<M>>) -> BunsenResult<Self> {
-        let tokenizer = HfTokenizer::from_files(
+        let tokenizer = BunsenTokenizer::from_files(
             bundle
                 .tokenizer()
                 .ok_or_else(|| missing("tokenizer.json"))?,

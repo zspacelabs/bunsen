@@ -6,8 +6,9 @@
 //! `speech::testing`, behind the `testing` feature); one shared across
 //! families is here.
 //!
-//! - [`tokens`]: the ids-to-text seam, [`Detokenizer`](tokens::Detokenizer),
-//!   and the vocabulary readers behind it.
+//! - [`tokens`]: the token seams, [`Detokenizer`](tokens::Detokenizer) (ids to
+//!   text) and [`Tokenizer`](tokens::Tokenizer) (text to ids, and back), their
+//!   implementations, and the vocabulary readers behind them.
 //! - [`construct`]: the construct side of the pretrained pathway: what a
 //!   language model's pretrained loads to; and, with the feature `cache`, the
 //!   hook a kit builds through, deferred models, the factory, and the loaded

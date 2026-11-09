@@ -546,6 +546,7 @@ impl LayaModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kits::support::tokens::Detokenizer;
 
     /// A tokenizer of a test's own: `[CLS]` 1, `[SEP]` 2, `[MASK]` 3, `[PAD]`
     /// 0 as whole tokens; every other character its own id, `10 +` its
@@ -555,17 +556,22 @@ mod tests {
 
     const ALPHABET: &str = " abcdefghijklmnopqrstuvwxyz:0123456789.,?";
 
-    impl Tokenizer for Chars {
-        fn encode(
-            &self,
+    const SPECIALS: [&str; 4] = ["[PAD]", "[CLS]", "[SEP]", "[MASK]"];
+
+    impl Chars {
+        /// `text`'s ids, its special tokens' spellings as those tokens when
+        /// `specials`.
+        fn ids(
             text: &str,
-        ) -> BunsenResult<Vec<i64>> {
+            specials: bool,
+        ) -> Vec<i64> {
             let mut ids = Vec::new();
             let mut rest = text;
             while let Some(c) = rest.chars().next() {
-                if let Some((id, tail)) = ["[PAD]", "[CLS]", "[SEP]", "[MASK]"]
+                if let Some((id, tail)) = SPECIALS
                     .iter()
                     .enumerate()
+                    .filter(|_| specials)
                     .find_map(|(i, s)| rest.strip_prefix(s).map(|t| (i as i64, t)))
                 {
                     ids.push(id);
@@ -575,7 +581,57 @@ mod tests {
                 ids.push(10 + ALPHABET.find(c).unwrap_or(0) as i64);
                 rest = &rest[c.len_utf8()..];
             }
-            Ok(ids)
+            ids
+        }
+    }
+
+    impl Detokenizer for Chars {
+        fn detokenize(
+            &self,
+            ids: &[i64],
+        ) -> BunsenResult<String> {
+            ids.iter()
+                .map(|&id| match id {
+                    0..4 => Ok(SPECIALS[id as usize].to_string()),
+                    _ => ALPHABET
+                        .chars()
+                        .nth((id - 10) as usize)
+                        .filter(|_| id >= 10)
+                        .map(String::from)
+                        .ok_or_else(|| {
+                            crate::errors::BunsenError::invalid_resource(format!(
+                                "token id {id} is outside the vocabulary"
+                            ))
+                        }),
+                })
+                .collect()
+        }
+    }
+
+    impl Tokenizer for Chars {
+        fn encode(
+            &self,
+            text: &str,
+        ) -> BunsenResult<Vec<i64>> {
+            Ok(Self::ids(text, true))
+        }
+
+        fn encode_plain(
+            &self,
+            text: &str,
+        ) -> BunsenResult<Vec<i64>> {
+            Ok(Self::ids(text, false))
+        }
+
+        fn contains(
+            &self,
+            id: i64,
+        ) -> bool {
+            (0..4).contains(&id) || (10..10 + ALPHABET.len() as i64).contains(&id)
+        }
+
+        fn len(&self) -> usize {
+            SPECIALS.len() + ALPHABET.len()
         }
 
         fn token_id(

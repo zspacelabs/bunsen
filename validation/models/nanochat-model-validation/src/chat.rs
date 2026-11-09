@@ -1,17 +1,17 @@
-//! `bunsen_tool::chat`'s nanochat tokenizer (a `tokenizer.pkl` read as an
-//! `HfTokenizer`) against upstream's `RustBPETokenizer`.
+//! nanochat's tokenizer (a `tokenizer.pkl` read as a `BunsenTokenizer`) and
+//! `bunsen_tool::chat`'s nanochat layout against upstream's
+//! `RustBPETokenizer`.
 
 use bunsen::kits::{
     language::nanochat::TOKENIZER,
     support::tokens::{
+        BunsenTokenizer,
         Detokenizer,
         Tokenizer,
     },
 };
 use bunsen_tool::chat::{
     ChatMessage,
-    ChatTokenizer,
-    HfTokenizer,
     NanoChatLayout,
 };
 
@@ -23,7 +23,7 @@ fn check_tokenizer(generation: &str) {
     let fixture = chat_reference();
     let record = &fixture[generation];
     let path = row_file(tokenizer_row(generation), TOKENIZER);
-    let tok = HfTokenizer::from_tiktoken_pickle_file(&path).unwrap_or_else(|e| panic!("{e}"));
+    let tok = BunsenTokenizer::from_tiktoken_pickle_file(&path).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(tok.len(), record.vocab_size, "{generation}");
     for (name, &id) in &record.specials {
         assert_eq!(tok.token_id(name), Some(id), "{generation}: {name}");
@@ -52,7 +52,7 @@ fn check_conversations(generation: &str) {
     let fixture = chat_reference();
     let record = &fixture[generation];
     let path = row_file(tokenizer_row(generation), TOKENIZER);
-    let tok = HfTokenizer::from_tiktoken_pickle_file(&path).unwrap_or_else(|e| panic!("{e}"));
+    let tok = BunsenTokenizer::from_tiktoken_pickle_file(&path).unwrap_or_else(|e| panic!("{e}"));
     let layout = NanoChatLayout::from_tokenizer(&tok).unwrap();
     for case in &record.conversations {
         let messages: Vec<ChatMessage> = case

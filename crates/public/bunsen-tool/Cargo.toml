@@ -24,10 +24,9 @@ workspace = true
 [features]
 default = ["speech", "live", "webhook", "mqtt"]
 ## `asr`: speech to text and diarization (`bunsen_tool::asr`), on bunsen's speech
-## kits and Whisper's detokenizer (`tokenizer`).
+## kits.
 speech = [
     "bunsen/speech",
-    "bunsen/tokenizer",
 ]
 ## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
@@ -52,13 +51,15 @@ burn = { workspace = true }
 # through this crate's backend features; the CPU is always there.
 #
 # Without bunsen's defaults: the kits, the checkpoint readers (`store`), the
-# cache every command loads through, and `indicatif`'s progress bar on every
-# weights transfer. `speech` adds the speech kits.
+# cache every command loads through, `indicatif`'s progress bar on every
+# weights transfer, and the tokenizers every chat family, `decide` and Whisper
+# read text through (`tokenizer`). `speech` adds the speech kits.
 bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = [
     "kits",
     "store",
     "cache",
     "indicatif",
+    "tokenizer",
 ] }
 bunsen-app = { version = "0.41.0", path = "../bunsen-app" }
 clap = { workspace = true, features = ["derive"] }
@@ -74,20 +75,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 # "did you mean?" on a failed lookup.
 strsim = { workspace = true }
-# nanochat's `tokenizer.pkl`, a pickled `tiktoken` `Encoding`.
-serde-pickle = { workspace = true }
 # `card`'s YAML.
 serde-saphyr = { workspace = true, features = ["serialize"] }
 time = { workspace = true }
 ureq = { workspace = true, optional = true }
-# Every chat tokenizer: `transformers`' own encoder, from a `tokenizer.json`
-# (Qwen3's and Gemma's), or one written for a `tokenizer.pkl` (nanochat's).
-tokenizers = { workspace = true }
-# The maps the tokenizer readers build, as bunsen's are.
-hashbrown = { workspace = true }
 
 [dev-dependencies]
-# `serde`: the toy tokenizer JSON the tests build.
-hashbrown = { workspace = true, features = ["serde"] }
 bunsen = { path = "../bunsen", features = ["testing"] }
 tempfile = { workspace = true }

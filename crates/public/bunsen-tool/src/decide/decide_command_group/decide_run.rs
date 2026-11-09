@@ -25,7 +25,10 @@ use bunsen::{
                 default_laya_factory,
             },
         },
-        support::construct::LoadPolicy,
+        support::{
+            construct::LoadPolicy,
+            tokens::BunsenTokenizer,
+        },
     },
 };
 use bunsen_app::{
@@ -39,10 +42,7 @@ use bunsen_app::{
 use burn::tensor::Device;
 use log::LevelFilter;
 
-use crate::{
-    chat::HfTokenizer,
-    support::Format,
-};
+use crate::support::Format;
 
 /// Answers a request's questions.
 #[derive(clap::Args, Debug)]
@@ -135,7 +135,7 @@ fn decide(
 ) -> BunsenResult<Vec<LayaAnswer>> {
     let missing =
         |what: &str| BunsenError::invalid_resource(format!("a Laya checkpoint without its {what}"));
-    let tokenizer = HfTokenizer::from_file(
+    let tokenizer = BunsenTokenizer::from_file(
         construct
             .tokenizer()
             .ok_or_else(|| missing("tokenizer.json"))?,

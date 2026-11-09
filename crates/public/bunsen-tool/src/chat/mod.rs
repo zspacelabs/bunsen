@@ -13,14 +13,11 @@
 //!   [`decode_cached_observed`](bunsen::kits::support::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
 //! - [`search_config`]: the search a checkpoint's generation policy says.
-//! - [`ChatTokenizer`]: a checkpoint's tokenizer as a chat uses it, text to ids
-//!   and back, as `transformers` encodes; a
-//!   [`Detokenizer`](bunsen::kits::support::tokens::Detokenizer).
-//!   [`HfTokenizer`] reads any `tokenizer.json` on the `tokenizers` crate
-//!   (Qwen3's and Gemma's);
-//!   [`from_tiktoken_pickle`](HfTokenizer::from_tiktoken_pickle) reads a
-//!   pickled `tiktoken` `Encoding` (nanochat's `tokenizer.pkl`) through
-//!   `serde_pickle`, as the `tokenizer.json` written for it.
+//! - Every family's tokenizer is a
+//!   [`BunsenTokenizer`](bunsen::kits::support::tokens::BunsenTokenizer):
+//!   Qwen3's and Gemma's from their `tokenizer.json`, nanochat's from its
+//!   `tokenizer.pkl`; a chat holds it as a
+//!   [`Tokenizer`](bunsen::kits::support::tokens::Tokenizer).
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
 //! - [`NanoChatChat`] and [`NanoChatLayout`]: a nanochat checkpoint's chat,
@@ -44,18 +41,15 @@
 mod backend;
 mod chat_command_group;
 mod chat_model_family_flags;
-mod chat_tokenizer;
 mod generation;
 mod nanochat_chat;
 mod nanochat_layout;
 mod session;
 mod template;
-mod tiktoken_pickle;
 
 pub use backend::*;
 pub use chat_command_group::*;
 pub use chat_model_family_flags::*;
-pub use chat_tokenizer::*;
 pub use generation::*;
 pub use nanochat_chat::*;
 pub use nanochat_layout::*;

@@ -1,17 +1,11 @@
-//! A pickled `tiktoken` `Encoding`, as an [`HfTokenizer`].
-use std::{
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
-    path::Path,
+//! A pickled `tiktoken` `Encoding`, as a [`BunsenTokenizer`].
+use alloc::collections::{
+    BTreeMap,
+    BTreeSet,
 };
+use std::path::Path;
 
-use bunsen::errors::{
-    BunsenError,
-    BunsenResult,
-    sys_at,
-};
+use hashbrown::HashMap;
 use serde_json::json;
 use serde_pickle::{
     DeOptions,
@@ -19,7 +13,17 @@ use serde_pickle::{
     Value,
 };
 
-use crate::chat::HfTokenizer;
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+        sys_at,
+    },
+    kits::support::tokens::{
+        BunsenTokenizer,
+        byte_level::byte_alphabet,
+    },
+};
 
 /// `key` of the pickled `Encoding`'s state, or an `InvalidResource` naming
 /// it.
@@ -42,32 +46,13 @@ fn id_of(value: &Value) -> BunsenResult<u32> {
     }
 }
 
-/// GPT-2's byte alphabet, as a byte-level `tokenizer.json` spells bytes:
-/// each printable byte its own character, the others the characters from
-/// U+0100 on, in byte order.
-pub(crate) fn byte_alphabet() -> [char; 256] {
-    let mut alphabet = ['\0'; 256];
-    let mut next = 0x100;
-    for b in 0..=255u8 {
-        let printable = (b'!'..=b'~').contains(&b) || (0xA1..=0xAC).contains(&b) || b >= 0xAE;
-        alphabet[b as usize] = if printable {
-            char::from(b)
-        } else {
-            let c = char::from_u32(next).expect("a character below U+0144");
-            next += 1;
-            c
-        };
-    }
-    alphabet
-}
-
-impl HfTokenizer {
+impl BunsenTokenizer {
     /// Reads a pickled `tiktoken` `Encoding` file: a nanochat checkpoint's
     /// `tokenizer.pkl`.
     ///
     /// # Errors
-    /// [`Sys`](bunsen::errors::BunsenErrorKind::Sys) or
-    /// [`Lookup`](bunsen::errors::BunsenErrorKind::Lookup) when it cannot be
+    /// [`Sys`](crate::errors::BunsenErrorKind::Sys) or
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when it cannot be
     /// read; as [`from_tiktoken_pickle`](Self::from_tiktoken_pickle).
     pub fn from_tiktoken_pickle_file(path: &Path) -> BunsenResult<Self> {
         let bytes = std::fs::read(path).map_err(sys_at("read", path))?;
@@ -98,10 +83,10 @@ impl HfTokenizer {
     ///
     /// Upstream's `encode` is `tiktoken`'s `encode_ordinary`, a special
     /// token's spelling in it text:
-    /// [`encode_plain`](crate::chat::ChatTokenizer::encode_plain).
+    /// [`encode_plain`](crate::kits::support::tokens::Tokenizer::encode_plain).
     ///
     /// # Errors
-    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
     /// when it does not unpickle to an `Encoding`'s state (`pat_str`,
     /// `mergeable_ranks`, `special_tokens`), when a byte has no token, or
     /// when two tokens share an id; as [`from_json`](Self::from_json).
@@ -149,7 +134,7 @@ impl HfTokenizer {
             }
             Ok(())
         };
-        let mut ranks: hashbrown::HashMap<&[u8], u32> = hashbrown::HashMap::new();
+        let mut ranks: HashMap<&[u8], u32> = HashMap::new();
         for (piece, rank) in mergeable_ranks {
             let HashableValue::Bytes(piece) = piece else {
                 return Err(BunsenError::invalid_resource(
@@ -240,68 +225,9 @@ impl HfTokenizer {
 }
 
 #[cfg(test)]
-/// A pickle as `tiktoken` writes an `Encoding`: `STACK_GLOBAL
-/// tiktoken.core Encoding`, `NEWOBJ` on no arguments, then `BUILD` with
-/// its state; the 256 bytes, the merges to `hello` (`he`, `ll`, `hell`,
-/// `hello`), and nanochat's five layout tokens.
-pub(crate) fn toy_pickle() -> Vec<u8> {
-    let mut ranks = BTreeMap::new();
-    for b in 0..=255u8 {
-        ranks.insert(HashableValue::Bytes(vec![b]), Value::I64(b as i64));
-    }
-    for (rank, piece) in ["he", "ll", "hell", "hello"].iter().enumerate() {
-        ranks.insert(
-            HashableValue::Bytes(piece.as_bytes().to_vec()),
-            Value::I64(256 + rank as i64),
-        );
-    }
-    let mut specials = BTreeMap::new();
-    for (i, name) in [
-        "<|bos|>",
-        "<|user_start|>",
-        "<|user_end|>",
-        "<|assistant_start|>",
-        "<|assistant_end|>",
-    ]
-    .iter()
-    .enumerate()
-    {
-        specials.insert(
-            HashableValue::String(name.to_string()),
-            Value::I64(260 + i as i64),
-        );
-    }
-    let mut state = BTreeMap::new();
-    state.insert(
-        HashableValue::String("name".into()),
-        Value::String("toy".into()),
-    );
-    state.insert(
-        HashableValue::String("pat_str".into()),
-        Value::String(r"'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+".into()),
-    );
-    state.insert(
-        HashableValue::String("mergeable_ranks".into()),
-        Value::Dict(ranks),
-    );
-    state.insert(
-        HashableValue::String("special_tokens".into()),
-        Value::Dict(specials),
-    );
-    let state = serde_pickle::value_to_vec(&Value::Dict(state), Default::default()).unwrap();
-    // `PROTO 2`, the class, `NEWOBJ` on `()`, the state (its own `PROTO`
-    // and `STOP` stripped), `BUILD`, `STOP`.
-    let mut out = vec![0x80, 2];
-    out.extend_from_slice(b"ctiktoken.core\nEncoding\n");
-    out.extend_from_slice(b")\x81");
-    out.extend_from_slice(&state[2..state.len() - 1]);
-    out.extend_from_slice(b"b.");
-    out
-}
-
-#[cfg(test)]
 mod tests {
-    use bunsen::{
+    use super::*;
+    use crate::{
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
@@ -309,15 +235,13 @@ mod tests {
         kits::support::tokens::{
             Detokenizer,
             Tokenizer,
+            testing::toy_tiktoken_pickle,
         },
     };
 
-    use super::*;
-    use crate::chat::ChatTokenizer;
-
     #[test]
     fn test_encode_and_decode() {
-        let tok = HfTokenizer::from_tiktoken_pickle(&toy_pickle()).unwrap();
+        let tok = BunsenTokenizer::from_tiktoken_pickle(&toy_tiktoken_pickle()).unwrap();
         assert_eq!(tok.len(), 256 + 4 + 5);
         assert_eq!(tok.token_id("<|bos|>"), Some(260));
         assert_eq!(
@@ -343,24 +267,14 @@ mod tests {
     }
 
     #[test]
-    fn test_byte_alphabet() {
-        let alphabet = byte_alphabet();
-        assert_eq!(alphabet[b'a' as usize], 'a');
-        assert_eq!(alphabet[0], '\u{100}');
-        assert_eq!(alphabet[b' ' as usize], 'Ġ');
-        let distinct: std::collections::BTreeSet<char> = alphabet.iter().copied().collect();
-        assert_eq!(distinct.len(), 256);
-    }
-
-    #[test]
     fn test_refuses_what_is_not_an_encoding() {
         let not_a_dict =
             serde_pickle::value_to_vec(&Value::List(vec![]), Default::default()).unwrap();
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("not a tiktoken Encoding")
-            .assert_err(&HfTokenizer::from_tiktoken_pickle(&not_a_dict));
+            .assert_err(&BunsenTokenizer::from_tiktoken_pickle(&not_a_dict));
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("not a pickle")
-            .assert_err(&HfTokenizer::from_tiktoken_pickle(b"junk"));
+            .assert_err(&BunsenTokenizer::from_tiktoken_pickle(b"junk"));
     }
 }

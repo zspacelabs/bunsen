@@ -22,7 +22,11 @@ use bunsen::{
                 GenerationPolicy,
                 SamplingPolicy,
             },
-            tokens::Detokenizer,
+            tokens::{
+                BunsenTokenizer,
+                Detokenizer,
+                Tokenizer,
+            },
         },
     },
     ops::transformers::attention::KVCacheStorage,
@@ -38,15 +42,13 @@ use burn::{
 use crate::chat::{
     ChatBackend,
     ChatMessage,
-    ChatTokenizer,
-    HfTokenizer,
     NanoChatLayout,
     row,
     unspelled,
 };
 
 /// A loaded nanochat with what a conversation needs around it: its
-/// tokenizer (its `tokenizer.pkl`, as an [`HfTokenizer`]), its conversation
+/// tokenizer (its `tokenizer.pkl`, as a [`BunsenTokenizer`]), its conversation
 /// layout, and upstream's chat defaults. A reply never chooses an id the
 /// tokenizer cannot spell.
 ///
@@ -56,7 +58,7 @@ use crate::chat::{
 #[derive(Debug)]
 pub struct NanoChatChat {
     bundle: Arc<NanoChatConstruct>,
-    tokenizer: Arc<dyn ChatTokenizer>,
+    tokenizer: Arc<dyn Tokenizer>,
     layout: NanoChatLayout,
     generation: GenerationPolicy,
     unspelled: Arc<dyn LogitFilter>,
@@ -69,13 +71,13 @@ impl NanoChatChat {
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// when the checkpoint lacks `tokenizer.pkl`, or its tokenizer the
     /// layout's special tokens; as
-    /// [`HfTokenizer::from_tiktoken_pickle_file`].
+    /// [`BunsenTokenizer::from_tiktoken_pickle_file`].
     pub fn from_construct(bundle: Arc<NanoChatConstruct>) -> BunsenResult<Self> {
         let path = bundle
             .tokenizer()
             .ok_or_else(|| BunsenError::invalid_resource("a checkpoint without tokenizer.pkl"))?;
-        let tokenizer: Arc<dyn ChatTokenizer> =
-            Arc::new(HfTokenizer::from_tiktoken_pickle_file(path)?);
+        let tokenizer: Arc<dyn Tokenizer> =
+            Arc::new(BunsenTokenizer::from_tiktoken_pickle_file(path)?);
         let layout = NanoChatLayout::from_tokenizer(tokenizer.as_ref())?;
         let generation = GenerationPolicy {
             stop_ids: layout.stop_ids(),
@@ -102,7 +104,7 @@ impl NanoChatChat {
     }
 
     /// The tokenizer.
-    pub fn tokenizer(&self) -> &Arc<dyn ChatTokenizer> {
+    pub fn tokenizer(&self) -> &Arc<dyn Tokenizer> {
         &self.tokenizer
     }
 
