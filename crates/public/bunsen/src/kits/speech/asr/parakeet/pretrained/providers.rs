@@ -48,6 +48,19 @@ pub const TOKENIZER_JSON: &str = "tokenizer.json";
 pub static PARAKEET_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("parakeet", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a speech recognizer's: what speech to text
+/// chooses its model by.
+pub const PARAKEET_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::TRANSLATE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_parakeet_factory`] loads when a caller names none.
 pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 

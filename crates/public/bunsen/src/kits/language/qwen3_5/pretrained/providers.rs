@@ -54,6 +54,21 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 pub static QWEN3_5_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("qwen3.5", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a chat model's: what a chat chooses its
+/// checkpoint by.
+pub const QWEN3_5_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::BASE.key,
+            crate::data::pretrained::tags::THINKING.key,
+            crate::data::pretrained::tags::REASONING.key,
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_qwen3_5_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_5_MODEL: &str = "qwen/qwen3.5-0.8b";
 

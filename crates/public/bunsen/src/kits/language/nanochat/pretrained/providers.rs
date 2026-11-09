@@ -43,6 +43,21 @@ pub const TIKTOKEN_PICKLE: &str = "tiktoken-pickle";
 pub static NANOCHAT_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("nanochat", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a chat model's: what a chat chooses its
+/// checkpoint by.
+pub const NANOCHAT_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::BASE.key,
+            crate::data::pretrained::tags::THINKING.key,
+            crate::data::pretrained::tags::REASONING.key,
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_nanochat_factory`] loads when a caller names none.
 pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
 

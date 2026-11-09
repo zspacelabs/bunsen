@@ -131,10 +131,11 @@ pub const LANGUAGE: TagDef = TagDef {
     author: TagAuthor::Row,
 };
 
-/// The total parameter count, tied weights counted once: `600000000`.
+/// The total parameter count, tied weights counted once, as the publisher
+/// states it (often rounded, as a model's name does): `600000000`.
 pub const PARAMETERS: TagDef = TagDef {
     key: "parameters",
-    description: "the total parameter count, tied weights counted once",
+    description: "the total parameter count, tied weights counted once, as the publisher states it",
     shape: TagShape::Count,
     author: TagAuthor::Row,
 };

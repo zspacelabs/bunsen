@@ -36,7 +36,34 @@ use serde_json::Value;
 
 /// Each kit's tag rules, by the kit's name: its own keys, and the keys every
 /// row carries. A kit not listed has none.
-const KIT_TAGS: &[(&str, KitTags)] = &[];
+const KIT_TAGS: &[(&str, KitTags)] = {
+    use bunsen::kits::{
+        decision::laya::pretrained::LAYA_TAGS,
+        language::{
+            gemma::pretrained::GEMMA_TAGS,
+            nanochat::pretrained::NANOCHAT_TAGS,
+            qwen3::pretrained::QWEN3_TAGS,
+            qwen3_5::pretrained::QWEN3_5_TAGS,
+        },
+        speech::asr::{
+            parakeet::pretrained::PARAKEET_TAGS,
+            qwen3_asr::pretrained::QWEN3_ASR_TAGS,
+            voxtral::pretrained::VOXTRAL_TAGS,
+            whisper::pretrained::WHISPER_TAGS,
+        },
+    };
+    &[
+        ("gemma", GEMMA_TAGS),
+        ("laya", LAYA_TAGS),
+        ("nanochat", NANOCHAT_TAGS),
+        ("parakeet", PARAKEET_TAGS),
+        ("qwen3", QWEN3_TAGS),
+        ("qwen3-asr", QWEN3_ASR_TAGS),
+        ("qwen3.5", QWEN3_5_TAGS),
+        ("voxtral", VOXTRAL_TAGS),
+        ("whisper", WHISPER_TAGS),
+    ]
+};
 
 /// The tag rules of `kit`.
 pub fn kit_tags(kit: &str) -> KitTags {

@@ -17,11 +17,13 @@ name: "well-known"
 description: "the Qwen3.5 checkpoints bunsen knows by name"
 groups:
   - name: "qwen"
+    tags: { language: ["en", "zh", "*"] }
     description: "Qwen's dense Qwen3.5 language models (their text models), as transformers ships them"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen"
     rows:
       - name: "qwen3.5-0.8b"
+        tags: { parameters: 800000000 }
         description: "Qwen3.5-0.8B: thinking and non-thinking chat (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-0.8B"
@@ -34,6 +36,7 @@ groups:
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "chat_template", into: ["base"] }
       - name: "qwen3.5-0.8b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 800000000 }
         description: "Qwen3.5-0.8B-Base: the pretrained model, no chat tuning (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-0.8B-Base"
@@ -43,6 +46,7 @@ groups:
           - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3.5-2b"
+        tags: { parameters: 2000000000 }
         description: "Qwen3.5-2B: thinking and non-thinking chat (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-2B"
@@ -55,6 +59,7 @@ groups:
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "chat_template", into: ["base"] }
       - name: "qwen3.5-2b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 2000000000 }
         description: "Qwen3.5-2B-Base: the pretrained model, no chat tuning (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-2B-Base"
@@ -64,6 +69,7 @@ groups:
           - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3.5-4b"
+        tags: { parameters: 4000000000 }
         description: "Qwen3.5-4B: thinking and non-thinking chat (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-4B"
@@ -76,6 +82,7 @@ groups:
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "chat_template", into: ["base"] }
       - name: "qwen3.5-4b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 4000000000 }
         description: "Qwen3.5-4B-Base: the pretrained model, no chat tuning (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-4B-Base"
@@ -85,6 +92,7 @@ groups:
           - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3.5-9b"
+        tags: { parameters: 9000000000 }
         description: "Qwen3.5-9B: thinking and non-thinking chat (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-9B"
@@ -97,6 +105,7 @@ groups:
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "chat_template", into: ["base"] }
       - name: "qwen3.5-9b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 9000000000 }
         description: "Qwen3.5-9B-Base: the pretrained model, no chat tuning (its text model)"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-9B-Base"
@@ -106,6 +115,7 @@ groups:
           - { probe: "tokenizer_config", file: "tokenizer_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3.5-27b"
+        tags: { parameters: 27000000000 }
         description: "Qwen3.5-27B: thinking and non-thinking chat (its text model); 54 GB in bf16, more than a card holds"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3.5-27B"
@@ -120,6 +130,7 @@ groups:
           - { probe: "chat_template", file: "chat_template", into: ["base"] }
 families:
   - name: "qwen3.5"
+    tags: { base: false, thinking: switch, reasoning: true }
     description: "The Qwen3.5 chat models that think before answering unless the chat template's `enable_thinking` is false: the 4B and up"
     presets:
       presets:
@@ -135,6 +146,7 @@ families:
           members: ["thinking", "no-thinking"]
       default: ["thinking"]
   - name: "qwen3.5-small"
+    tags: { base: false, thinking: switch, reasoning: true }
     description: "The small Qwen3.5 chat models, which answer at once unless the chat template's `enable_thinking` is true: the 0.8B and 2B"
     presets:
       presets:

@@ -15,17 +15,20 @@ groups:
     origin: "https://huggingface.co/convaiinnovations/laya"
     rows:
       - name: "laya"
+        tags: { parameters: 421000000, language: ["en"] }
         aliases: ["laya-en"]
         description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters, prompts of 512 tokens"
         license: "Apache-2.0"
         origin: "https://huggingface.co/convaiinnovations/laya"
         bundles: ["laya/laya"]
       - name: "laya-multilingual"
+        tags: { parameters: 322000000, language: ["en", "*"] }
         description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M parameters, prompts of 1024 tokens"
         license: "Apache-2.0"
         origin: "https://huggingface.co/convaiinnovations/laya"
         bundles: ["laya/laya-multilingual"]
       - name: "laya-typed-decisions"
+        tags: { parameters: 421000000, language: ["en"] }
         description: "Laya, typed decisions: the English model trained on typed questions, prompts of 1024 tokens"
         license: "Apache-2.0"
         origin: "https://huggingface.co/convaiinnovations/laya"

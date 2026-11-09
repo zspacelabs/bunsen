@@ -56,6 +56,21 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 pub static GEMMA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("gemma", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a chat model's: what a chat chooses its
+/// checkpoint by.
+pub const GEMMA_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::BASE.key,
+            crate::data::pretrained::tags::THINKING.key,
+            crate::data::pretrained::tags::REASONING.key,
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The catalog family every Gemma row is of, and an `hf:` repo's presets lie
 /// over: its own chat template where it has one, else bunsen's rendering of
 /// Gemma's turn format.

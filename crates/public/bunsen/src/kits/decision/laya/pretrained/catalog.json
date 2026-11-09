@@ -21,7 +21,11 @@
             "laya/laya"
           ],
           "tags": {
-            "dtype": "f16"
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 421000000
           }
         },
         {
@@ -33,7 +37,12 @@
             "laya/laya-multilingual"
           ],
           "tags": {
-            "dtype": "f16"
+            "dtype": "f16",
+            "language": [
+              "en",
+              "*"
+            ],
+            "parameters": 322000000
           }
         },
         {
@@ -45,7 +54,11 @@
             "laya/laya-typed-decisions"
           ],
           "tags": {
-            "dtype": "f16"
+            "dtype": "f16",
+            "language": [
+              "en"
+            ],
+            "parameters": 421000000
           }
         }
       ]

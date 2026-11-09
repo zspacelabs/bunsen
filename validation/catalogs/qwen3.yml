@@ -6,11 +6,13 @@ name: "well-known"
 description: "the Qwen3 checkpoints bunsen knows by name"
 groups:
   - name: "qwen"
+    tags: { language: ["en", "zh", "*"] }
     description: "Qwen's dense Qwen3 language models, as transformers ships them"
     license: "Apache-2.0"
     origin: "https://huggingface.co/Qwen"
     rows:
       - name: "qwen3-0.6b"
+        tags: { parameters: 600000000 }
         description: "Qwen3-0.6B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
@@ -21,6 +23,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-0.6b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 600000000 }
         description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
@@ -30,6 +33,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-1.7b"
+        tags: { parameters: 1700000000 }
         description: "Qwen3-1.7B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
@@ -40,6 +44,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-1.7b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 1700000000 }
         description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-1.7B-Base"
@@ -49,6 +54,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b"
+        tags: { parameters: 4000000000 }
         description: "Qwen3-4B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B"
@@ -59,6 +65,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 4000000000 }
         description: "Qwen3-4B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Base"
@@ -68,6 +75,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-instruct-2507"
+        tags: { base: false, thinking: never, reasoning: false, parameters: 4000000000, groups: ["qwen3-2507"] }
         description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
@@ -77,6 +85,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-thinking-2507"
+        tags: { base: false, thinking: always, reasoning: true, parameters: 4000000000, groups: ["qwen3-2507"] }
         description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
@@ -86,6 +95,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-8b"
+        tags: { parameters: 8000000000 }
         description: "Qwen3-8B: thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B"
@@ -96,6 +106,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-8b-base"
+        tags: { base: true, thinking: never, reasoning: false, parameters: 8000000000 }
         description: "Qwen3-8B-Base: the pretrained model, no chat tuning"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-8B-Base"
@@ -105,6 +116,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3-4b-saferl"
+        tags: { parameters: 4000000000 }
         description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3-4B-SafeRL"
@@ -115,6 +127,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3guard-gen-0.6b"
+        tags: { base: false, thinking: never, reasoning: false, parameters: 600000000, groups: ["qwen3guard"] }
         description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B"
@@ -124,6 +137,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3guard-gen-4b"
+        tags: { base: false, thinking: never, reasoning: false, parameters: 4000000000, groups: ["qwen3guard"] }
         description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-4B"
@@ -133,6 +147,7 @@ groups:
           - { probe: "generation_config", file: "generation_config", into: ["base"] }
           - { probe: "chat_template", file: "tokenizer_config", into: ["base"] }
       - name: "qwen3guard-gen-8b"
+        tags: { base: false, thinking: never, reasoning: false, parameters: 8000000000, groups: ["qwen3guard"] }
         description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories"
         license: "Apache-2.0"
         origin: "https://huggingface.co/Qwen/Qwen3Guard-Gen-8B"
@@ -347,6 +362,7 @@ bundles:
       - { key: "generation_config", file: "generation_config.json", kind: "generation_config.json" }
 families:
   - name: "hybrid"
+    tags: { base: false, thinking: switch, reasoning: true }
     description: "The Qwen3 chat models that think or answer at once, as the chat template's `enable_thinking` says"
     presets:
       presets:
