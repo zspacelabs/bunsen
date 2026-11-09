@@ -87,7 +87,8 @@ groups:
         family: "multilingual"
         bundles: ["openai/large-v2.pt", "openai/multilingual.tiktoken"]
       - name: "large-v3"
-        tags: { parameters: 1550000000, version: { group: whisper-large, version: "3.0.0" } }
+        # wer.en: Open ASR Leaderboard paper (arXiv 2510.06961), Table 3, short-form English average.
+        tags: { parameters: 1550000000, version: { group: whisper-large, version: "3.0.0" }, scores: { wer.en: 7.44 } }
         aliases: ["large"]
         description: "1550 M parameters, multilingual, 128 mels"
         license: "MIT"
@@ -96,7 +97,8 @@ groups:
         family: "multilingual"
         bundles: ["openai/large-v3.pt", "openai/multilingual.tiktoken"]
       - name: "large-v3-turbo"
-        tags: { parameters: 809000000, language: ["en", "*"], translate: false }
+        # wer.en: Open ASR Leaderboard paper (arXiv 2510.06961), Table 3, short-form English average.
+        tags: { parameters: 809000000, language: ["en", "*"], translate: false, scores: { wer.en: 7.83 } }
         aliases: ["turbo"]
         description: "809 M parameters, multilingual, 128 mels, four-layer decoder"
         license: "MIT"

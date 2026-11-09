@@ -206,6 +206,9 @@
           "tags": {
             "dtype": "f16",
             "parameters": 1550000000,
+            "scores": {
+              "wer.en": 7.44
+            },
             "version": {
               "group": "whisper-large",
               "version": "3.0.0"
@@ -232,6 +235,9 @@
               "*"
             ],
             "parameters": 809000000,
+            "scores": {
+              "wer.en": 7.83
+            },
             "translate": false
           }
         }
