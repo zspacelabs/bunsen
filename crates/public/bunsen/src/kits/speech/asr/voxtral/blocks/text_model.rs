@@ -3,12 +3,7 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        Embedding,
-        EmbeddingConfig,
-        norm::RmsNormConfig,
-    },
-    prelude::Int,
+    nn::norm::RmsNormConfig,
     tensor::Device,
 };
 
@@ -21,8 +16,6 @@ use crate::{
             decoders::{
                 causal::CausalDecoderBlockConfig,
                 stack::{
-                    DecoderStack,
-                    DecoderStackMeta,
                     DecoderStackSides,
                     UniformStackConfig,
                 },
@@ -31,19 +24,20 @@ use crate::{
                 RotaryDirection,
                 RotaryEmbeddingConfig,
                 RotarySet,
+                TokenEmbeddingConfig,
             },
-            head::{
-                LmHead,
-                LmHeadConfig,
-            },
+            head::LmHeadConfig,
             mlp::TransformerGatedMlpConfig,
+            models::language_decoder::{
+                LmAttentionOnlyKind,
+                LmDecoderHolder,
+                LmDecoderMeta,
+                LmDecoderModel,
+                LmDecoderVariantConfig,
+            },
         },
     },
-    burner::module::{
-        CanonicalKeys,
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ToStructureConfig,
     errors::BunsenResult,
     ops::{
         embedding::timestep_embedding,
@@ -66,52 +60,24 @@ pub const VOXTRAL_ADA_HIDDEN: usize = 32;
 /// The base of the delay's sinusoidal embedding.
 pub const VOXTRAL_TIME_THETA: f32 = 10_000.0;
 
-/// Common meta for [`VoxtralTextModel`] and [`VoxtralTextConfig`].
-pub trait VoxtralTextMeta {
-    /// The token count.
-    fn n_vocab(&self) -> usize;
-
-    /// The model width.
-    fn d_model(&self) -> usize;
-
-    /// The layer count.
-    fn n_layers(&self) -> usize;
-
-    /// The key/value head count.
-    fn n_kv_heads(&self) -> usize;
-
-    /// The head width.
-    fn head_dim(&self) -> usize;
-
-    /// The attention window, in positions, if any.
-    fn sliding_window(&self) -> Option<usize>;
-}
-
-fn kv_cache_config(meta: &impl VoxtralTextMeta) -> KVCacheConfig {
-    KVCacheConfig::for_decode(
-        meta.n_kv_heads(),
-        VOXTRAL_TEXT_KV_CACHE_PRE_SIZE,
-        meta.head_dim(),
-        meta.n_layers(),
-    )
-}
-
+/// The cache a Voxtral text model of this geometry decodes with, before it
+/// is built: its KV heads, head width and layer count,
+/// [`VOXTRAL_TEXT_KV_CACHE_PRE_SIZE`] positions up front.
 impl KVCacheModel for VoxtralTextConfig {
     fn kv_cache_config(&self) -> KVCacheConfig {
-        kv_cache_config(self)
-    }
-}
-
-impl KVCacheModel for VoxtralTextModel {
-    fn kv_cache_config(&self) -> KVCacheConfig {
-        self.stack.kv_cache_config(VOXTRAL_TEXT_KV_CACHE_PRE_SIZE)
+        KVCacheConfig::for_decode(
+            self.n_kv_heads(),
+            VOXTRAL_TEXT_KV_CACHE_PRE_SIZE,
+            self.head_dim(),
+            self.n_layers(),
+        )
     }
 }
 
 /// Config for [`VoxtralTextModel`]: `transformers`'
 /// `VoxtralRealtimeTextConfig`.
 ///
-/// Implements [`VoxtralTextMeta`].
+/// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
 pub struct VoxtralTextConfig {
     /// The token count.
@@ -156,6 +122,11 @@ impl VoxtralTextConfig {
         Self::new(131_072, 3072, 26, 32, 8, 128, 9216)
     }
 
+    /// The attention window, in positions, if any.
+    pub fn sliding_window(&self) -> Option<usize> {
+        self.sliding_window
+    }
+
     /// The decoder stack: `n_layers` alike, each RMS norms, grouped-query
     /// attention with a window and no QK-norm, a `SwiGLU`, and an
     /// [`AdaptiveScale`](crate::blocks::transformers::conditioning::AdaptiveScale)
@@ -187,7 +158,7 @@ impl VoxtralTextConfig {
     }
 }
 
-impl VoxtralTextMeta for VoxtralTextConfig {
+impl LmDecoderMeta for VoxtralTextConfig {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -207,88 +178,78 @@ impl VoxtralTextMeta for VoxtralTextConfig {
     fn head_dim(&self) -> usize {
         self.head_dim
     }
-
-    fn sliding_window(&self) -> Option<usize> {
-        self.sliding_window
-    }
 }
 
-impl ModuleInit<VoxtralTextModel> for VoxtralTextConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<VoxtralTextModel> {
-        Ok(VoxtralTextModel {
-            embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
-            lm_head: LmHeadConfig::new(self.d_model, self.n_vocab).try_init(device)?,
-            stack: self.stack().try_init(device)?,
-        })
+/// The language model: a plain token embedding, the head tied to it, and
+/// [`stack`](VoxtralTextConfig::stack); its KV cache
+/// [`VOXTRAL_TEXT_KV_CACHE_PRE_SIZE`] positions up front.
+///
+/// # Errors
+/// Never: a Voxtral text model's lowering is total.
+impl ToStructureConfig for VoxtralTextConfig {
+    type Structure = LmDecoderVariantConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
+        Ok(LmDecoderVariantConfig::new(
+            TokenEmbeddingConfig::new(self.n_vocab, self.d_model),
+            LmHeadConfig::new(self.d_model, self.n_vocab),
+            self.stack().into(),
+        )
+        .with_kv_cache_pre_size(VOXTRAL_TEXT_KV_CACHE_PRE_SIZE))
     }
 }
 
 /// Voxtral Realtime's text model: Mistral's decoder (`Ministral-3`), each
 /// layer told the transcription delay, with its head tied to its embedding.
 ///
-/// Its decoder is a generic [`DecoderStack`] ([`VoxtralTextConfig::stack`]):
-/// pre-norm RMS,
-/// grouped-query causal self-attention with rotary embeddings and a sliding
-/// window, no biases and no QK-norm, a `SwiGLU`; and an
+/// An [`LmDecoderModel`] whose stack ([`VoxtralTextConfig::stack`]) is
+/// pre-norm RMS, grouped-query causal self-attention with rotary embeddings
+/// and a sliding window, no biases and no QK-norm, a `SwiGLU`; and an
 /// [`AdaptiveScale`](crate::blocks::transformers::conditioning::AdaptiveScale)
 /// on each feed-forward's input, conditioned on the delay's sinusoidal
 /// embedding ([`delay_condition`](Self::delay_condition)).
 ///
-/// Its own fields carry the names `transformers`' text model gives them;
+/// An [`LmDecoderHolder`], not a wrapper: its forward
+/// ([`forward_hidden`](Self::forward_hidden)) takes the delay's condition
+/// beside the stack's inputs. The forward-free API
+/// ([`LmDecoderOps`](crate::blocks::transformers::models::language_decoder::LmDecoderOps):
+/// the embedding, the head, the rotary tables), its meta and its KV cache
+/// come through the holder's blanket impls;
 /// [`weights::transformers_rekey`](crate::kits::speech::asr::voxtral::weights::transformers_rekey)
-/// maps its layers'.
+/// maps the checkpoint's names onto its language model, `lm`.
 ///
 /// Built by [`VoxtralTextConfig`].
-/// Implements [`VoxtralTextMeta`].
+/// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct VoxtralTextModel {
-    /// The token embedding, which the head is tied to.
-    pub embed_tokens: Embedding,
-
-    /// The output head, tied to the embedding.
-    pub lm_head: LmHead,
-
-    /// The decoder: its layers, final norm and rotary embedding.
-    pub stack: DecoderStack,
+    /// The language model.
+    pub lm: LmDecoderModel,
 }
 
-impl VoxtralTextMeta for VoxtralTextModel {
-    fn n_vocab(&self) -> usize {
-        self.embed_tokens.weight.dims()[0]
+impl LmDecoderHolder for VoxtralTextModel {
+    type Kind = LmAttentionOnlyKind;
+
+    fn lm(&self) -> &LmDecoderModel {
+        &self.lm
     }
 
-    fn d_model(&self) -> usize {
-        self.embed_tokens.weight.dims()[1]
+    fn lm_mut(&mut self) -> &mut LmDecoderModel {
+        &mut self.lm
     }
 
-    fn n_layers(&self) -> usize {
-        self.stack.n_layers()
-    }
-
-    fn n_kv_heads(&self) -> usize {
-        self.stack.n_kv_heads()
-    }
-
-    fn head_dim(&self) -> usize {
-        self.stack.head_dim()
-    }
-
-    fn sliding_window(&self) -> Option<usize> {
-        self.stack.layers[0].attn.branch.attention().sliding_window
+    fn from_lm(lm: LmDecoderModel) -> Self {
+        Self { lm }
     }
 }
 
 impl VoxtralTextModel {
-    /// The rotary embedding for positions `0..seq_len`.
-    pub fn rotary(
-        &self,
-        seq_len: usize,
-        device: &Device,
-    ) -> RotarySet {
-        self.stack.rotary(seq_len, device)
+    /// The attention window, in positions, if any.
+    pub fn sliding_window(&self) -> Option<usize> {
+        self.lm.stack.layers[0]
+            .attn
+            .branch
+            .attention()
+            .sliding_window
     }
 
     /// The condition every layer is told a delay of `delay_tokens` decoder
@@ -309,33 +270,6 @@ impl VoxtralTextModel {
             device,
         )
         .reshape([1, 1, self.d_model()])
-    }
-
-    /// Embeds tokens.
-    ///
-    /// # Arguments
-    /// * `tokens` - `[batch, seq]`.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`.
-    pub fn embed(
-        &self,
-        tokens: Tensor<2, Int>,
-    ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, seq] =
-            crate::contracts::unpack_shape_contract!(["batch", "seq"], &tokens.dims());
-
-        let y = self.embed_tokens.forward(tokens);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "d_model"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
-        );
-
-        y
     }
 
     /// Runs the decoder over input embeddings at positions
@@ -359,7 +293,7 @@ impl VoxtralTextModel {
         cond: &Tensor<3>,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        self.stack.forward_with(
+        self.lm.stack.forward_with(
             embeds,
             r_emb,
             kv_cache,
@@ -369,54 +303,23 @@ impl VoxtralTextModel {
             },
         )
     }
-
-    /// The tied head: logits over the vocabulary.
-    ///
-    /// # Arguments
-    /// * `hidden` - `[batch, seq, d_model]`, from
-    ///   [`forward_hidden`](Self::forward_hidden).
-    ///
-    /// # Returns
-    /// `[batch, seq, n_vocab]`.
-    pub fn logits(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "d_model"],
-            &hidden.dims(),
-            &["batch", "seq"],
-            &[("d_model", self.d_model())],
-        );
-
-        let y = self.lm_head.forward(hidden, &self.embed_tokens.weight);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "n_vocab"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("n_vocab", self.n_vocab())],
-        );
-
-        y
-    }
-}
-
-impl CanonicalKeys for VoxtralTextModel {
-    fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
-    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Tolerance;
+    use burn::{
+        prelude::Int,
+        tensor::Tolerance,
+    };
 
     use super::*;
-    use crate::support::testing::{
-        assert_tensors_close,
-        cpu_device,
+    use crate::{
+        blocks::transformers::models::language_decoder::LmDecoderOps,
+        burner::module::ModuleInit,
+        support::testing::{
+            assert_tensors_close,
+            cpu_device,
+        },
     };
 
     /// A config non-default in every field, and the model built from it,
@@ -436,9 +339,9 @@ mod tests {
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.sliding_window(), config.sliding_window());
-        assert_eq!(model.stack.rotary.base, config.rope_theta);
-        assert_eq!(model.stack.norm.epsilon(), Some(1e-6));
-        assert!(model.stack.layers[0].mlp_scale.is_some());
+        assert_eq!(model.lm.stack.rotary.base, config.rope_theta);
+        assert_eq!(model.lm.stack.norm.epsilon(), Some(1e-6));
+        assert!(model.lm.stack.layers[0].mlp_scale.is_some());
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9, 3]], &device);
         let embeds = model.embed(tokens);

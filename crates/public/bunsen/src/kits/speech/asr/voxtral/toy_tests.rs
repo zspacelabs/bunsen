@@ -20,6 +20,7 @@ use super::{
     weights::load_transformers_tensors,
 };
 use crate::{
+    blocks::transformers::models::language_decoder::LmDecoderOps,
     burner::module::ModuleInit,
     ops::transformers::attention::{
         KVCache,
@@ -161,7 +162,7 @@ fn test_toy_text_model() {
     let r_emb = lm.rotary(seq, &toy.device);
     let cond = lm.delay_condition(DELAYS[0], &toy.device);
 
-    let layer0 = lm.stack.layers[0].forward_conditioned(
+    let layer0 = lm.lm.stack.layers[0].forward_conditioned(
         embeds.clone(),
         r_emb.for_layer(0),
         &mut None,

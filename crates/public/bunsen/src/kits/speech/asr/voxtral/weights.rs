@@ -59,8 +59,10 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 /// tower's `embedder.conv1` and `conv2` onto its stem's 0-based
 /// [`ConvSeq1d`] blocks ([`ConvSeq1d::one_based_rekey`]), its layers by
 /// [`audio_layer_rekey`]; the projector's `linear_1` onto its stacking's
-/// projection; the text model, under `language_model.model.`, its layers by
-/// [`text_layer_rekey_voxtral`]; and everything else as it is. The head is
+/// projection; the text model, under `language_model.model.`, onto its
+/// language model (`language_model.lm.`): its layers by
+/// [`text_layer_rekey_voxtral`], its embedding and final norm; and everything
+/// else as it is. The head is
 /// tied, so nothing else is read.
 ///
 /// Normalization parameters keep their `weight` spelling, which
@@ -82,9 +84,10 @@ pub fn transformers_rekey() -> Rekey {
         )
         .mount(
             "language_model.model.",
-            "language_model.",
+            "language_model.lm.",
             Rekey::keep_rest()
                 .mount_indexed("layers.", "stack.layers.", text_layer_rekey_voxtral())
+                .rename("embed_tokens.", "embedding.")
                 .rename("norm.", "stack.norm."),
         )
 }
@@ -189,6 +192,7 @@ pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealt
 mod tests {
     use super::*;
     use crate::{
+        blocks::transformers::models::language_decoder::LmDecoderMeta,
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
@@ -196,7 +200,6 @@ mod tests {
         kits::speech::asr::voxtral::blocks::{
             VoxtralAudioEncoderMeta,
             VoxtralRealtimeMeta,
-            VoxtralTextMeta,
         },
     };
 
@@ -242,23 +245,23 @@ mod tests {
             ),
             (
                 "language_model.model.embed_tokens.weight",
-                Some("language_model.embed_tokens.weight"),
+                Some("language_model.lm.embedding.weight"),
             ),
             (
                 "language_model.model.layers.25.ada_rms_norm.linear1.weight",
-                Some("language_model.stack.layers.25.mlp_scale.linear1.weight"),
+                Some("language_model.lm.stack.layers.25.mlp_scale.linear1.weight"),
             ),
             (
                 "language_model.model.layers.3.self_attn.k_proj.weight",
-                Some("language_model.stack.layers.3.attn.c_k.weight"),
+                Some("language_model.lm.stack.layers.3.attn.c_k.weight"),
             ),
             (
                 "language_model.model.layers.3.post_attention_layernorm.weight",
-                Some("language_model.stack.layers.3.mlp_norm.weight"),
+                Some("language_model.lm.stack.layers.3.mlp_norm.weight"),
             ),
             (
                 "language_model.model.norm.weight",
-                Some("language_model.stack.norm.weight"),
+                Some("language_model.lm.stack.norm.weight"),
             ),
             ("lm_head.weight", None),
         ] {
