@@ -7,9 +7,15 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::decoders::stack::{
-        DecoderStack,
-        DecoderStackCache,
+    blocks::transformers::{
+        decoders::stack::{
+            DecoderStack,
+            DecoderStackCache,
+        },
+        models::{
+            LmDecodeKind,
+            LmDecoderModel,
+        },
     },
     kits::support::decoding::CachedStep,
     ops::transformers::attention::KVCacheStorage,
@@ -88,5 +94,114 @@ impl<M: StackedLm> CachedStep for M {
         sources: &[usize],
     ) {
         state.reorder(sources);
+    }
+}
+
+/// Every [`LmDecoderModel`], of any kind, decodes through its stack's
+/// [`DecoderStackCache`].
+impl<K: LmDecodeKind> StackedLm for LmDecoderModel<K> {
+    fn stack(&self) -> &DecoderStack {
+        &self.stack
+    }
+
+    fn embed(
+        &self,
+        ids: Tensor<2, Int>,
+    ) -> Tensor<3> {
+        LmDecoderModel::embed(self, ids)
+    }
+
+    fn head(
+        &self,
+        hidden: Tensor<3>,
+    ) -> Tensor<3> {
+        self.logits(hidden)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::{
+        nn::norm::RmsNormConfig,
+        tensor::Tolerance,
+    };
+
+    use super::*;
+    use crate::{
+        blocks::{
+            norm::{
+                BunsenNormalizationConfig,
+                GatedNormConfig,
+            },
+            transformers::{
+                attention::csa::CausalSelfAttentionConfig,
+                decoders::{
+                    causal::CausalDecoderBlockConfig,
+                    stack::PatternedStackConfig,
+                },
+                embedding::{
+                    RotaryEmbeddingConfig,
+                    TokenEmbeddingConfig,
+                },
+                head::LmHeadConfig,
+                mixers::GatedDeltaNetConfig,
+                mlp::TransformerGatedMlpConfig,
+                models::{
+                    LmDecoderVariantConfig,
+                    LmHybridKind,
+                    LmUncachedForwardHidden,
+                },
+            },
+        },
+        burner::module::ModuleInit,
+        support::testing::{
+            assert_tensors_close,
+            cpu_device,
+        },
+    };
+
+    /// A hybrid [`LmDecoderModel`]'s prefill and step through its decode
+    /// state give the logits of the uncached forward over the whole
+    /// sequence.
+    #[test]
+    fn test_lm_decoder_model_steps_as_uncached() {
+        let device = cpu_device();
+        let norm = || BunsenNormalizationConfig::Rms(RmsNormConfig::new(0));
+        let mlp = || TransformerGatedMlpConfig::new(12, 20).into();
+        let attention = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(3, 1, 12)
+                .with_head_dim(Some(6))
+                .into(),
+            mlp(),
+        )
+        .with_norm(norm());
+        let linear = CausalDecoderBlockConfig::new(
+            GatedDeltaNetConfig::new(12, 2, 4, 4, 3)
+                .with_norm(GatedNormConfig::rms(0, 1e-6))
+                .into(),
+            mlp(),
+        )
+        .with_norm(norm());
+        let model: LmDecoderModel<LmHybridKind> = LmDecoderVariantConfig::new(
+            TokenEmbeddingConfig::new(40, 12),
+            LmHeadConfig::new(12, 40),
+            PatternedStackConfig::new(
+                vec![attention, linear],
+                vec![1, 0, 1],
+                norm(),
+                RotaryEmbeddingConfig::new(0, 6),
+            )
+            .into(),
+        )
+        .init(&device);
+
+        let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2]], &device);
+        let mut state = model.decode_state(1, 4, KVCacheStorage::Auto, &device);
+        model.prefill(model.embed(tokens.clone().slice_dim(1, 0..3)), &mut state);
+        let stepped = model.step(tokens.clone().slice_dim(1, 3..4), &mut state);
+
+        let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(4, &device));
+        let whole = model.logits(hidden.slice_dim(1, 3..4)).reshape([1, 40]);
+        assert_tensors_close(&stepped, &whole, Tolerance::rel_abs(1e-4, 1e-5));
     }
 }
