@@ -3,7 +3,6 @@
 use burn::{
     Tensor,
     prelude::Int,
-    tensor::Device,
 };
 
 use crate::{
@@ -12,7 +11,6 @@ use crate::{
         models::language_decoder::LmPlainStackOps,
     },
     kits::support::decoding::CachedStep,
-    ops::transformers::attention::KVCacheStorage,
 };
 
 /// A language model that is an embedding, a
@@ -20,27 +18,17 @@ use crate::{
 /// and a head whose forward is the stack's alone ([`LmPlainStackOps`]): what
 /// decodes through a [`DecoderStackCache`], with no state of its own.
 ///
-/// The decode is the trait's: [`decode_state`](Self::decode_state),
-/// [`prefill`](Self::prefill), and [`CachedStep`], so
+/// The decode is the trait's: [`prefill`](Self::prefill), and
+/// [`CachedStep`] and
+/// [`CachedLm`](crate::kits::language::driver::CachedLm) (whose
+/// `decode_state` is the stack's
+/// [`decode_cache`](crate::blocks::transformers::decoders::stack::DecoderStack::decode_cache)), so
 /// [`decode_cached`](super::decode_cached) steps it. Every
 /// [`LmPlainStackOps`] (an
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 /// of any kind, and every wrapper of one) is one, by a blanket impl; a model
 /// whose forward is its own is not, and steps by its own [`CachedStep`].
 pub trait StackedLm: LmPlainStackOps {
-    /// A decode state for `rows` rows of at most `positions` positions each,
-    /// under `storage`
-    /// ([`DecoderStack::decode_cache`](crate::blocks::transformers::decoders::stack::DecoderStack::decode_cache)).
-    fn decode_state(
-        &self,
-        rows: usize,
-        positions: usize,
-        storage: KVCacheStorage,
-        device: &Device,
-    ) -> DecoderStackCache {
-        self.stack().decode_cache(rows, positions, storage, device)
-    }
-
     /// Runs prompt embeddings through the model into `state`.
     ///
     /// # Arguments
@@ -121,6 +109,8 @@ mod tests {
             },
         },
         burner::module::ModuleInit,
+        kits::language::driver::CachedLm,
+        ops::transformers::attention::KVCacheStorage,
         support::testing::{
             assert_tensors_close,
             cpu_device,

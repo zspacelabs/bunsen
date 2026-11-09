@@ -304,10 +304,13 @@ mod tests {
                 LmKvForwardHidden,
             },
         },
-        kits::support::decoding::{
-            SearchConfig,
-            StackedLm,
-            decode_cached,
+        kits::{
+            language::driver::CachedLm,
+            support::decoding::{
+                SearchConfig,
+                StackedLm,
+                decode_cached,
+            },
         },
         ops::{
             embedding::unembed,

@@ -8,7 +8,10 @@ use bunsen::{
     },
     kits::{
         language::{
-            driver::CachedHistory,
+            driver::{
+                CachedHistory,
+                CachedLm,
+            },
             nanochat::{
                 NanoChatConstruct,
                 NanoChatDecodeState,
@@ -154,9 +157,9 @@ impl ChatBackend for NanoChatChat {
         &self,
         positions: usize,
         storage: KVCacheStorage,
-        _device: &Device,
+        device: &Device,
     ) -> NanoChatDecodeState {
-        self.bundle.model.decode_state(1, positions, storage)
+        CachedLm::decode_state(&self.bundle.model, 1, positions, storage, device)
     }
 
     fn rewind<'a>(
@@ -166,11 +169,7 @@ impl ChatBackend for NanoChatChat {
         next: &'a [i64],
         device: &Device,
     ) -> &'a [i64] {
-        let todo = history.rewind(&mut state.cache, next);
-        let shared = next.len() - todo.len();
-        // The token before the prefill, which a smeared model mixes in.
-        state.last = (shared > 0).then(|| row(&next[shared - 1..shared], device));
-        todo
+        CachedLm::rewind(&self.bundle.model, history, state, next, device)
     }
 
     fn prefill(
@@ -179,6 +178,6 @@ impl ChatBackend for NanoChatChat {
         state: &mut NanoChatDecodeState,
         device: &Device,
     ) -> Tensor<2> {
-        self.bundle.model.prefill(row(ids, device), state)
+        self.bundle.model.prefill_ids(row(ids, device), state)
     }
 }
