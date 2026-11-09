@@ -1,21 +1,15 @@
 //! # Qwen3-ASR pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::Qwen3AsrConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        speech::asr::qwen3_asr::Qwen3AsrConstruct,
-        support::construct::PretrainedFactory,
-    },
+    kits::support::construct::PretrainedFactory,
 };
 
 /// The kit segment of a Qwen3-ASR resource's path in the cache:
@@ -84,30 +78,13 @@ pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 ///
 /// [`load_construct`](PretrainedFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
-/// [`Qwen3AsrConstruct`].
+/// [`Qwen3AsrConstruct`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrConstruct).
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
 pub fn default_qwen3_asr_factory() -> BunsenResult<PretrainedFactory<Qwen3AsrConstructConfig>> {
     PretrainedFactory::new().with_providers(default_qwen3_asr_providers())
-}
-
-impl PretrainedFactory<Qwen3AsrConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

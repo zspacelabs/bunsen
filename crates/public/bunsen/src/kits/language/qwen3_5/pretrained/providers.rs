@@ -1,14 +1,11 @@
 //! # Qwen3.5 pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::Qwen3_5ConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
@@ -16,7 +13,6 @@ use crate::{
         language::qwen3_5::{
             CHAT_TEMPLATE,
             GENERATION_CONFIG,
-            Qwen3_5Construct,
             TOKENIZER,
             TOKENIZER_CONFIG,
         },
@@ -107,23 +103,6 @@ pub fn default_qwen3_5_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// name, which the tests pin they do not.
 pub fn default_qwen3_5_factory() -> BunsenResult<PretrainedFactory<Qwen3_5ConstructConfig>> {
     PretrainedFactory::new().with_providers(default_qwen3_5_providers())
-}
-
-impl PretrainedFactory<Qwen3_5ConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<Qwen3_5Construct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]
