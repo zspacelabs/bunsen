@@ -1,4 +1,4 @@
-//! [`TransformersLmKit`]: the pretrained hook of a `transformers` language model.
+//! [`TransformersLmKit`] and [`load_lm_rekeyed`]: loading a `transformers` LM.
 use alloc::{
     format,
     sync::Arc,
@@ -22,7 +22,12 @@ use super::{
     LoadPolicy,
 };
 use crate::{
-    burner::module::ModuleInit,
+    blocks::transformers::models::language_decoder::LmDecoderWrapper,
+    burner::module::{
+        CanonicalKeys,
+        ModuleInit,
+        Rekey,
+    },
     data::pretrained::{
         CONFIG,
         LoadedResources,
@@ -34,6 +39,7 @@ use crate::{
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
         StaticPreFabMap,
+        load_rekeyed,
         stored_float_dtype,
     },
     errors::{
@@ -170,4 +176,23 @@ impl<K: TransformersLmKit> ConstructInit for K {
         }
         Ok(Arc::new(bundle))
     }
+}
+
+/// Loads tensors under a checkpoint's names into `model`'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
+/// not its wrapper: [`load_rekeyed`] under `rekey` (onto the language model's
+/// own paths, `embedding.`, `head.`, `stack.`) then its canonical keys; every
+/// floating tensor in `dtype`, or, when `None`, the dtype it was built in.
+///
+/// # Errors
+/// As [`load_rekeyed`].
+pub fn load_lm_rekeyed<W: LmDecoderWrapper>(
+    model: &mut W,
+    tensors: impl IntoIterator<Item = PackTensor>,
+    rekey: Rekey,
+    dtype: Option<FloatDType>,
+) -> BunsenResult<NamedTensorsApplied> {
+    let lm = model.lm_mut();
+    let rekey = rekey.then(lm.canonical_rekey());
+    load_rekeyed(lm, tensors, &rekey, dtype)
 }
