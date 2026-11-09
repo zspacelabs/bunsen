@@ -55,6 +55,9 @@
             "default": [
               "silero"
             ]
+          },
+          "tags": {
+            "dtype": "f32"
           }
         }
       ]

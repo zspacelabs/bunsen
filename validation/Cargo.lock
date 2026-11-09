@@ -8791,7 +8791,9 @@ version = "0.41.0"
 dependencies = [
  "bunsen",
  "clap",
+ "icu_locale",
  "indexmap",
+ "semver",
  "serde",
  "serde-saphyr",
  "serde_json",

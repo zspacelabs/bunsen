@@ -16,6 +16,30 @@
 //! over its family's ([`Tags::over`]), and the catalog writes the row's
 //! [`KIT`] tag. A factory writes the [`KIT`] tag on a row of any provider
 //! that lacks one, an `hf:` repo's among them.
+//!
+//! ## The vocabulary
+//!
+//! Each shared key is a [`TagDef`]: its key, its description, the shape of
+//! its value ([`TagShape`]), and who writes it ([`TagAuthor`]). [`VOCABULARY`]
+//! lists them; a kit with keys of its own, or keys all its rows must carry,
+//! says so in a [`KitTags`]. They are data and docs: the catalog tool reads
+//! them to hold every row to them when it builds a kit's catalog, and bunsen
+//! runs none of those checks.
+//!
+//! | key | shape | written by |
+//! |---|---|---|
+//! | [`kit`](KIT) | text: the kit's name | the catalog, and a factory |
+//! | [`groups`](GROUPS) | a list of names: the variation groups the model is part of | the row |
+//! | [`version`](VERSION) | `{group, version}`: a release in a sequence | the row |
+//! | [`language`](LANGUAGE) | a list of canonical BCP 47 tags; `"*"` for unspecified others | the row |
+//! | [`parameters`](PARAMETERS) | a count: total parameters, tied weights once | the row |
+//! | [`active_parameters`](ACTIVE_PARAMETERS) | a count: per-token active parameters (mixture of experts) | the row |
+//! | [`dtype`](DTYPE) | `f32`, `f16` or `bf16`: the stored weights' element type | the catalog, else the row |
+//! | [`scores`](SCORES) | `{name: number}` | the row |
+//! | [`reasoning`](REASONING) | bool: trained to reason | the row |
+//! | [`thinking`](THINKING) | `always`, `switch` or `never`: a thinking block, and whether it switches | the row |
+//! | [`base`](BASE) | bool: a pretrained model, not tuned to follow instructions | the row |
+//! | [`translate`](TRANSLATE) | bool: it can translate | the row |
 
 use alloc::string::{
     String,
@@ -40,9 +64,9 @@ use crate::{
     support::merge_patch,
 };
 
-/// The key of a row's kit, written by the catalog and the factory, never by
-/// a row: `kit: "qwen3"`.
-pub const KIT: &str = "kit";
+mod vocabulary;
+
+pub use vocabulary::*;
 
 /// A pretrained row's tags: keys to JSON values.
 ///
@@ -71,17 +95,17 @@ impl Tags {
     /// The value of `key`.
     pub fn get(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> Option<&Value> {
-        self.0.get(key)
+        self.0.get(key.as_ref())
     }
 
     /// Whether `key` is present.
     pub fn contains_key(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> bool {
-        self.0.contains_key(key)
+        self.0.contains_key(key.as_ref())
     }
 
     /// Sets `key` to `value`, and returns what it was.
@@ -106,9 +130,9 @@ impl Tags {
     /// Removes `key`, and returns what it was.
     pub fn remove(
         &mut self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> Option<Value> {
-        self.0.remove(key)
+        self.0.remove(key.as_ref())
     }
 
     /// The tags, in key order.
@@ -124,8 +148,9 @@ impl Tags {
     /// is an error, not a miss.
     pub fn get_as<T: DeserializeOwned>(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> Option<BunsenResult<T>> {
+        let key = key.as_ref();
         let value = self.0.get(key)?;
         Some(serde_json::from_value(value.clone()).map_err(|e| {
             BunsenError::invalid_resource(format!("the tag {key:?}: {value}")).with_cause(e)
@@ -135,26 +160,26 @@ impl Tags {
     /// Whether `key` is `true`.
     pub fn is_true(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> bool {
-        self.0.get(key) == Some(&Value::Bool(true))
+        self.0.get(key.as_ref()) == Some(&Value::Bool(true))
     }
 
     /// The value of `key` as text, when it is a string.
     pub fn text(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> Option<&str> {
-        self.0.get(key).and_then(Value::as_str)
+        self.0.get(key.as_ref()).and_then(Value::as_str)
     }
 
     /// Whether `key` is the string `text`, or a list holding it.
     pub fn contains_text(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
         text: &str,
     ) -> bool {
-        match self.0.get(key) {
+        match self.0.get(key.as_ref()) {
             Some(Value::String(s)) => s == text,
             Some(Value::Array(items)) => items.iter().any(|v| v.as_str() == Some(text)),
             _ => false,
@@ -164,9 +189,9 @@ impl Tags {
     /// The value of `key` as a number, when it is one.
     pub fn number(
         &self,
-        key: &str,
+        key: impl AsRef<str>,
     ) -> Option<f64> {
-        self.0.get(key).and_then(Value::as_f64)
+        self.0.get(key.as_ref()).and_then(Value::as_f64)
     }
 
     /// These tags laid over `base`: an RFC 7386 merge patch

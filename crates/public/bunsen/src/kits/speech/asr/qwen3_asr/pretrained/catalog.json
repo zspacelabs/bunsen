@@ -55,7 +55,10 @@
           "prefab": "qwen3-asr-0.6b",
           "bundles": [
             "qwen/qwen3-asr-0.6b"
-          ]
+          ],
+          "tags": {
+            "dtype": "bf16"
+          }
         },
         {
           "name": "qwen3-asr-1.7b",
@@ -65,7 +68,10 @@
           "prefab": "qwen3-asr-1.7b",
           "bundles": [
             "qwen/qwen3-asr-1.7b"
-          ]
+          ],
+          "tags": {
+            "dtype": "bf16"
+          }
         }
       ]
     }
