@@ -1,7 +1,10 @@
 //! # Constructing a Gemma pretrained
-use alloc::sync::Arc;
+use alloc::vec::Vec;
 
-use burn::tensor::Device;
+use burn::{
+    store::burn_pack::Tensor as PackTensor,
+    tensor::FloatDType,
+};
 
 use super::{
     CHECKPOINT,
@@ -11,31 +14,21 @@ use super::{
     GEMMA_PREFABS,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::pretrained::{
-        CONFIG,
         CatalogProbe,
         LoadedResources,
+        NamedTensorsApplied,
         PresetSet,
-        PretrainedRef,
-        ResourceBundle,
-        SAFETENSORS,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+        StaticPreFabMap,
     },
-    errors::{
-        BunsenError,
-        BunsenResult,
-        sys_at,
-    },
+    errors::BunsenResult,
     kits::{
         language::gemma::{
             CHAT_TEMPLATE,
             END_OF_TURN,
             GENERATION_CONFIG,
-            GemmaConstruct,
+            GemmaConfig,
             GemmaModel,
-            GemmaPolicy,
             TOKENIZER_CONFIG,
             weights::{
                 gemma_config_from_transformers,
@@ -43,12 +36,8 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
-            model_config::{
-                TransformersConfigJson,
-                probe_loaded,
-                resolve_ref_presets,
-            },
+            construct::TransformersLmKit,
+            model_config::probe_loaded,
         },
     },
 };
@@ -60,13 +49,38 @@ use crate::{
 /// `config.json` says it was trained on, and every file of the checkpoint by
 /// its key.
 ///
-/// The Gemma kit's construct config: its [`ConstructInit`] hook.
+/// The Gemma kit's construct config: its
+/// [`ConstructInit`](crate::kits::support::construct::ConstructInit) hook, by
+/// [`TransformersLmKit`].
 /// [`default_gemma_factory`](super::default_gemma_factory) attaches it; a
 /// caller never builds one.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GemmaConstructConfig;
 
-impl GemmaConstructConfig {
+impl TransformersLmKit for GemmaConstructConfig {
+    type Config = GemmaConfig;
+    type Model = GemmaModel;
+
+    const CHECKPOINT: &'static str = CHECKPOINT;
+    const KIT: &'static str = GEMMA_KIT;
+    const NAME: &'static str = "Gemma";
+
+    fn prefabs() -> &'static StaticPreFabMap<GemmaConfig> {
+        &GEMMA_PREFABS
+    }
+
+    fn config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
+        gemma_config_from_transformers(json)
+    }
+
+    fn load_tensors(
+        model: &mut GemmaModel,
+        tensors: Vec<PackTensor>,
+        dtype: FloatDType,
+    ) -> BunsenResult<NamedTensorsApplied> {
+        load_transformers_tensors_as(model, tensors, dtype)
+    }
+
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
     /// catalog tool probes a row's, over the [`GEMMA_FAMILY`]'s: its
     /// `generation_config.json`, when it has one (the stop tokens and
@@ -89,81 +103,18 @@ impl GemmaConstructConfig {
     }
 }
 
-impl ConstructInit for GemmaConstructConfig {
-    type Construct = GemmaConstruct;
-
-    const KIT: &'static str = GEMMA_KIT;
-    const RESOLVES_PRESETS: bool = true;
-
-    /// The hook for a safetensors checkpoint.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
-        let index = format!("{CHECKPOINT}.index");
-        let checkpoint = match map.get(&index) {
-            Some(index) => index,
-            None => map.try_get(CHECKPOINT)?,
-        };
-        match checkpoint.kind.as_deref() {
-            Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self),
-            other => Err(BunsenError::unsupported(format!(
-                "no Gemma reader for a checkpoint of kind {other:?}"
-            ))),
-        }
-    }
-
-    fn try_init(
-        &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<GemmaConstruct>> {
-        let (config, max_positions) = match loaded.get(CONFIG) {
-            Some(part) => {
-                let json =
-                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                let config = gemma_config_from_transformers(&json)
-                    .map_err(|e| e.context(part.path.display()))?;
-                let root = TransformersConfigJson::parse(&json)?;
-                let text = root.section("text_config").unwrap_or(root);
-                let max_positions = text.usize("max_position_embeddings").ok();
-                (config, max_positions)
-            }
-            None => match model.prefab(&GEMMA_PREFABS) {
-                Some(prefab) => (prefab.to_config(), None),
-                None => {
-                    return Err(BunsenError::invalid_resource(
-                        "a Gemma checkpoint with neither a config.json nor a prefab",
-                    )
-                    .context(&loaded.map.name));
-                }
-            },
-        };
-        let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        // The stored dtype (bf16; f32 for Gemma 2's base models), where the
-        // policy and the device allow it; never f16, which overflows Gemma's
-        // activations.
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
-            .unwrap_or(burn::tensor::FloatDType::F32);
-        let dtype = policy.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
-        let mut gemma: GemmaModel = config.try_init(device)?;
-        load_transformers_tensors_as(&mut gemma, tensors, dtype)?;
-        let policy = resolve_ref_presets(&GemmaPolicy::default(), model, &Self::probed(loaded)?)?;
-        let mut bundle = GemmaConstruct::new(gemma)
-            .with_max_positions(max_positions)
-            .with_policy(policy.config.clone(), policy.applied());
-        for (key, part) in &loaded.parts {
-            bundle = bundle.with_file(key, &part.path);
-        }
-        Ok(Arc::new(bundle))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::language::gemma::pretrained::{
-        GEMMA_CATALOG,
-        default_gemma_factory,
+    use crate::kits::{
+        language::gemma::{
+            GemmaPolicy,
+            pretrained::{
+                GEMMA_CATALOG,
+                default_gemma_factory,
+            },
+        },
+        support::construct::ConstructInit,
     };
 
     #[test]
