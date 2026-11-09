@@ -3,10 +3,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    tensor::{
-        Device,
-        FloatDType,
-    },
+    tensor::FloatDType,
 };
 
 use crate::{
@@ -32,6 +29,7 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
+                LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -39,9 +37,8 @@ use crate::{
             },
         },
     },
-    burner::module::ModuleInit,
+    burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
         Rule,
@@ -416,25 +413,14 @@ impl GemmaConfig {
 ///
 /// # Errors
 /// As [`stack`](GemmaConfig::stack).
-impl TryFrom<&GemmaConfig> for LmDecoderVariantConfig {
-    type Error = BunsenError;
+impl ToStructureConfig for GemmaConfig {
+    type Structure = LmDecoderVariantConfig;
 
-    fn try_from(config: &GemmaConfig) -> BunsenResult<Self> {
+    fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
         Ok(
-            LmDecoderVariantConfig::new(config.embedding(), config.head(), config.stack()?.into())
+            LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack()?.into())
                 .with_kv_cache_pre_size(GEMMA_KV_CACHE_PRE_SIZE),
         )
-    }
-}
-
-impl ModuleInit<GemmaModel> for GemmaConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<GemmaModel> {
-        Ok(GemmaModel {
-            lm: LmDecoderVariantConfig::try_from(self)?.try_init(device)?,
-        })
     }
 }
 
@@ -463,7 +449,7 @@ pub struct GemmaModel {
     pub lm: LmDecoderModel,
 }
 
-impl LmDecoderWrapper for GemmaModel {
+impl LmDecoderHolder for GemmaModel {
     type Kind = LmAttentionOnlyKind;
 
     fn lm(&self) -> &LmDecoderModel {
@@ -473,12 +459,19 @@ impl LmDecoderWrapper for GemmaModel {
     fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
     }
+
+    fn from_lm(lm: LmDecoderModel) -> Self {
+        Self { lm }
+    }
 }
+
+impl LmDecoderWrapper for GemmaModel {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
+        burner::module::ModuleInit,
         ops::transformers::attention::KVCacheModel,
         support::testing::cpu_device,
     };
@@ -556,8 +549,6 @@ mod tests {
             .assert_err(&config().with_sliding_window(None).stack());
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("sliding_window")
-            .assert_err(&LmDecoderVariantConfig::try_from(
-                &config().with_sliding_window(None),
-            ));
+            .assert_err(&config().with_sliding_window(None).try_to_structure());
     }
 }

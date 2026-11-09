@@ -3,10 +3,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    tensor::{
-        Device,
-        FloatDType,
-    },
+    tensor::FloatDType,
 };
 
 use crate::{
@@ -30,6 +27,7 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
+                LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -37,11 +35,8 @@ use crate::{
             },
         },
     },
-    burner::module::ModuleInit,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    burner::module::ToStructureConfig,
+    errors::BunsenResult,
     ops::transformers::attention::{
         KVCacheConfig,
         KVCacheModel,
@@ -205,13 +200,13 @@ impl Qwen3Config {
 /// [`QWEN3_KV_CACHE_PRE_SIZE`] positions up front.
 ///
 /// # Errors
-/// Never: a Qwen3's lowering is total; the error is the other kits'.
-impl TryFrom<&Qwen3Config> for LmDecoderVariantConfig {
-    type Error = BunsenError;
+/// Never: a Qwen3's lowering is total.
+impl ToStructureConfig for Qwen3Config {
+    type Structure = LmDecoderVariantConfig;
 
-    fn try_from(config: &Qwen3Config) -> BunsenResult<Self> {
+    fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
         Ok(
-            LmDecoderVariantConfig::new(config.embedding(), config.head(), config.stack().into())
+            LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack().into())
                 .with_kv_cache_pre_size(QWEN3_KV_CACHE_PRE_SIZE),
         )
     }
@@ -236,17 +231,6 @@ impl LmDecoderMeta for Qwen3Config {
 
     fn head_dim(&self) -> usize {
         self.head_dim
-    }
-}
-
-impl ModuleInit<Qwen3Model> for Qwen3Config {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Qwen3Model> {
-        Ok(Qwen3Model {
-            lm: LmDecoderVariantConfig::try_from(self)?.try_init(device)?,
-        })
     }
 }
 
@@ -276,7 +260,7 @@ pub struct Qwen3Model {
     pub lm: LmDecoderModel,
 }
 
-impl LmDecoderWrapper for Qwen3Model {
+impl LmDecoderHolder for Qwen3Model {
     type Kind = LmAttentionOnlyKind;
 
     fn lm(&self) -> &LmDecoderModel {
@@ -286,7 +270,13 @@ impl LmDecoderWrapper for Qwen3Model {
     fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
     }
+
+    fn from_lm(lm: LmDecoderModel) -> Self {
+        Self { lm }
+    }
 }
+
+impl LmDecoderWrapper for Qwen3Model {}
 
 #[cfg(test)]
 mod tests {
@@ -304,6 +294,7 @@ mod tests {
                 LmKvForwardHidden,
             },
         },
+        burner::module::ModuleInit,
         kits::{
             language::driver::CachedLm,
             support::decoding::{
@@ -328,7 +319,7 @@ mod tests {
             .with_rms_eps(1e-5)
             .with_rope_theta(500);
         let device = cpu_device();
-        let lm: LmDecoderVariantConfig = (&config).try_into().unwrap();
+        let lm = config.to_structure();
         assert_eq!(lm.kv_cache_pre_size, QWEN3_KV_CACHE_PRE_SIZE);
         let model: Qwen3Model = config.init(&device);
         assert_eq!(model.n_vocab(), config.n_vocab());

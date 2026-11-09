@@ -22,7 +22,7 @@ use super::{
     LoadPolicy,
 };
 use crate::{
-    blocks::transformers::models::language_decoder::LmDecoderWrapper,
+    blocks::transformers::models::language_decoder::LmDecoderHolder,
     burner::module::{
         CanonicalKeys,
         ModuleInit,
@@ -180,13 +180,13 @@ impl<K: TransformersLmKit> ConstructInit for K {
 
 /// Loads tensors under a checkpoint's names into `model`'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
-/// not its wrapper: [`load_rekeyed`] under `rekey` (onto the language model's
+/// not its holder: [`load_rekeyed`] under `rekey` (onto the language model's
 /// own paths, `embedding.`, `head.`, `stack.`) then its canonical keys; every
 /// floating tensor in `dtype`, or, when `None`, the dtype it was built in.
 ///
 /// # Errors
 /// As [`load_rekeyed`].
-pub fn load_lm_rekeyed<W: LmDecoderWrapper>(
+pub fn load_lm_rekeyed<W: LmDecoderHolder>(
     model: &mut W,
     tensors: impl IntoIterator<Item = PackTensor>,
     rekey: Rekey,

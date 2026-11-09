@@ -211,7 +211,7 @@ struct Wrapped {
     lm: LmDecoderModel,
 }
 
-impl LmDecoderWrapper for Wrapped {
+impl LmDecoderHolder for Wrapped {
     type Kind = LmAttentionOnlyKind;
 
     fn lm(&self) -> &LmDecoderModel {
@@ -221,7 +221,13 @@ impl LmDecoderWrapper for Wrapped {
     fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
     }
+
+    fn from_lm(lm: LmDecoderModel) -> Self {
+        Self { lm }
+    }
 }
+
+impl LmDecoderWrapper for Wrapped {}
 
 /// A wrapper of a hybrid model.
 #[derive(Module, Debug)]
@@ -229,7 +235,7 @@ struct WrappedHybrid {
     lm: LmDecoderModel<LmHybridKind>,
 }
 
-impl LmDecoderWrapper for WrappedHybrid {
+impl LmDecoderHolder for WrappedHybrid {
     type Kind = LmHybridKind;
 
     fn lm(&self) -> &LmDecoderModel<LmHybridKind> {
@@ -239,7 +245,13 @@ impl LmDecoderWrapper for WrappedHybrid {
     fn lm_mut(&mut self) -> &mut LmDecoderModel<LmHybridKind> {
         &mut self.lm
     }
+
+    fn from_lm(lm: LmDecoderModel<LmHybridKind>) -> Self {
+        Self { lm }
+    }
 }
+
+impl LmDecoderWrapper for WrappedHybrid {}
 
 /// A wrapper's forward and cache are its model's, by kind.
 #[test]

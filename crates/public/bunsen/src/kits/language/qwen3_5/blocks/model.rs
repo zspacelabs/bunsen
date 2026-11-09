@@ -3,10 +3,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    tensor::{
-        Device,
-        FloatDType,
-    },
+    tensor::FloatDType,
 };
 
 use crate::{
@@ -33,6 +30,7 @@ use crate::{
             mixers::GatedDeltaNetConfig,
             mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
+                LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -41,9 +39,8 @@ use crate::{
             },
         },
     },
-    burner::module::ModuleInit,
+    burner::module::ToStructureConfig,
     errors::{
-        BunsenError,
         BunsenResult,
         ConstraintError,
         Rule,
@@ -369,26 +366,15 @@ impl Qwen3_5Config {
 ///
 /// # Errors
 /// As [`stack`](Qwen3_5Config::stack).
-impl TryFrom<&Qwen3_5Config> for LmDecoderVariantConfig {
-    type Error = BunsenError;
+impl ToStructureConfig for Qwen3_5Config {
+    type Structure = LmDecoderVariantConfig;
 
-    fn try_from(config: &Qwen3_5Config) -> BunsenResult<Self> {
+    fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
         Ok(LmDecoderVariantConfig::new(
-            config.embedding(),
-            config.head(),
-            config.stack()?.into(),
+            self.embedding(),
+            self.head(),
+            self.stack()?.into(),
         ))
-    }
-}
-
-impl ModuleInit<Qwen3_5Model> for Qwen3_5Config {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Qwen3_5Model> {
-        Ok(Qwen3_5Model {
-            lm: LmDecoderVariantConfig::try_from(self)?.try_init(device)?,
-        })
     }
 }
 
@@ -418,7 +404,7 @@ pub struct Qwen3_5Model {
     pub lm: LmDecoderModel<LmHybridKind>,
 }
 
-impl LmDecoderWrapper for Qwen3_5Model {
+impl LmDecoderHolder for Qwen3_5Model {
     type Kind = LmHybridKind;
 
     fn lm(&self) -> &LmDecoderModel<LmHybridKind> {
@@ -428,7 +414,13 @@ impl LmDecoderWrapper for Qwen3_5Model {
     fn lm_mut(&mut self) -> &mut LmDecoderModel<LmHybridKind> {
         &mut self.lm
     }
+
+    fn from_lm(lm: LmDecoderModel<LmHybridKind>) -> Self {
+        Self { lm }
+    }
 }
+
+impl LmDecoderWrapper for Qwen3_5Model {}
 
 #[cfg(test)]
 mod tests {
@@ -443,6 +435,7 @@ mod tests {
             },
             models::language_decoder::LmDecoderOps,
         },
+        burner::module::ModuleInit,
         support::testing::cpu_device,
     };
 

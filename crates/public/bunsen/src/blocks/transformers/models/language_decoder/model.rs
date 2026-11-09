@@ -43,7 +43,7 @@ use crate::{
 
 /// Common meta for [`LmDecoderModel`],
 /// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig), every
-/// [`LmDecoderWrapper`](super::LmDecoderWrapper) (as the model it wraps), and a
+/// [`LmDecoderHolder`](super::LmDecoderHolder) (as the model it holds), and a
 /// kit's config that builds one.
 pub trait LmDecoderMeta {
     /// The token count: the embedding's rows.

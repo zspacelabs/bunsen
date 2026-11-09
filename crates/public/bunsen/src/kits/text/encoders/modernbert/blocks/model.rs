@@ -22,6 +22,7 @@ use crate::{
                 stack::{
                     DecoderStack,
                     DecoderStackMeta,
+                    DecoderStackStructureConfig,
                     PatternedStackConfig,
                 },
             },
@@ -39,6 +40,7 @@ use crate::{
         CanonicalKeys,
         ModuleInit,
         Rekey,
+        ToStructureConfig,
     },
     errors::{
         BunsenResult,
@@ -269,14 +271,38 @@ impl ModernBertConfig {
     }
 }
 
-impl ModuleInit<ModernBertModel> for ModernBertConfig {
+impl ToStructureConfig for ModernBertConfig {
+    type Structure = ModernBertStructureConfig;
+
+    /// # Errors
+    /// As [`stack`](Self::stack) and its lowering.
+    fn try_to_structure(&self) -> BunsenResult<ModernBertStructureConfig> {
+        Ok(ModernBertStructureConfig::new(
+            self.embedding(),
+            self.stack()?.try_to_structure()?,
+        ))
+    }
+}
+
+/// Structure config for [`ModernBertModel`]: its token embedding and its
+/// encoder stack, unrolled. [`ModernBertConfig`] lowers to it.
+#[derive(Config, Debug)]
+pub struct ModernBertStructureConfig {
+    /// The token embedding, its rows normalized.
+    pub embedding: TokenEmbeddingConfig,
+
+    /// The encoder: its layers, final norm and rotary tables.
+    pub stack: DecoderStackStructureConfig,
+}
+
+impl ModuleInit<ModernBertModel> for ModernBertStructureConfig {
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<ModernBertModel> {
         Ok(ModernBertModel {
-            embeddings: self.embedding().try_init(device)?,
-            stack: self.stack()?.try_init(device)?,
+            embeddings: self.embedding.try_init(device)?,
+            stack: self.stack.try_init(device)?,
         })
     }
 }
@@ -290,7 +316,8 @@ impl ModuleInit<ModernBertModel> for ModernBertConfig {
 /// [`transformers_row_splits`](crate::kits::text::encoders::modernbert::weights::transformers_row_splits)
 /// has split its fused projections.
 ///
-/// Built by [`ModernBertConfig`].
+/// Built by [`ModernBertConfig`] (high-level) or
+/// [`ModernBertStructureConfig`].
 /// Implements [`ModernBertMeta`].
 #[derive(Module, Debug)]
 pub struct ModernBertModel {
