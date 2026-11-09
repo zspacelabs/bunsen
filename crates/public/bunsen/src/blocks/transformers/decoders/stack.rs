@@ -12,6 +12,9 @@
 //! - [`PatternedStackConfig`]: a few block configs, the stack's *kinds*, and
 //!   each layer's kind (a sliding-window layer among full ones, say).
 //!
+//! [`DecoderStackVariantConfig`] holds any of the three, for a model config
+//! that leaves its stack's shape to the model.
+//!
 //! A hybrid stack mixes its layers' token mixers ([`TokenMixer`]): attention
 //! layers, which keep a history in the decode's [`KVCache`], and
 //! linear-attention layers, which carry a state in its [`DeltaNetCache`].
@@ -442,6 +445,59 @@ impl ToStructureConfig for PatternedStackConfig {
                 .with_layer_rotary(layer_rotary)
                 .with_input_norm(self.input_norm.clone()),
         )
+    }
+}
+
+/// Any of a [`DecoderStack`]'s configs: a policy, or the structure itself.
+///
+/// What a model config that holds a stack holds, so each model picks the
+/// shape that says its stack best, and lowers through one step to
+/// [`DecoderStackStructureConfig`]. Each config converts into it with
+/// `.into()`.
+#[derive(Config, Debug)]
+#[allow(clippy::large_enum_variant)]
+pub enum DecoderStackVariantConfig {
+    /// One block config, repeated ([`UniformStackConfig`]).
+    Uniform(UniformStackConfig),
+
+    /// A few kinds of block, and each layer's kind
+    /// ([`PatternedStackConfig`]).
+    Patterned(PatternedStackConfig),
+
+    /// The unrolled tree ([`DecoderStackStructureConfig`]), as it is.
+    Structure(DecoderStackStructureConfig),
+}
+
+impl From<UniformStackConfig> for DecoderStackVariantConfig {
+    fn from(config: UniformStackConfig) -> Self {
+        Self::Uniform(config)
+    }
+}
+
+impl From<PatternedStackConfig> for DecoderStackVariantConfig {
+    fn from(config: PatternedStackConfig) -> Self {
+        Self::Patterned(config)
+    }
+}
+
+impl From<DecoderStackStructureConfig> for DecoderStackVariantConfig {
+    fn from(config: DecoderStackStructureConfig) -> Self {
+        Self::Structure(config)
+    }
+}
+
+impl ToStructureConfig for DecoderStackVariantConfig {
+    type Structure = DecoderStackStructureConfig;
+
+    /// # Errors
+    /// As the variant's own lowering; a
+    /// [`Structure`](DecoderStackVariantConfig::Structure) never fails.
+    fn try_to_structure(&self) -> BunsenResult<DecoderStackStructureConfig> {
+        match self {
+            Self::Uniform(config) => config.try_to_structure(),
+            Self::Patterned(config) => config.try_to_structure(),
+            Self::Structure(config) => Ok(config.clone()),
+        }
     }
 }
 
@@ -1048,6 +1104,47 @@ mod tests {
                     layer_kinds: vec![1, 2],
                     ..policy
                 }
+                .try_to_structure(),
+            );
+    }
+
+    /// Each variant lowers as its config does, and builds the same stack;
+    /// a policy's refusal comes through the variant.
+    #[test]
+    fn test_variant_lowering() {
+        let device = crate::support::testing::cpu_device();
+        let uniform = uniform(2);
+        let patterned = PatternedStackConfig::new(
+            vec![layer(Some(4)), layer(None)],
+            vec![0, 1],
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        );
+        let structure = patterned.to_structure();
+        for (variant, expected) in [
+            (
+                DecoderStackVariantConfig::from(uniform.clone()),
+                uniform.to_structure(),
+            ),
+            (patterned.clone().into(), structure.clone()),
+            (structure.clone().into(), structure),
+        ] {
+            let lowered = variant.to_structure();
+            assert_eq!(lowered.layer_windows(), expected.layer_windows());
+            assert_eq!(lowered.n_layers(), expected.n_layers());
+            let a: DecoderStack = variant.init(&device);
+            let b: DecoderStack = expected.init(&device);
+            assert_eq!(a.num_params(), b.num_params());
+            assert_eq!(a.layer_windows(), b.layer_windows());
+        }
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("layer_kinds[1]")
+            .assert_err(
+                &DecoderStackVariantConfig::from(PatternedStackConfig {
+                    layer_kinds: vec![0, 2],
+                    ..patterned
+                })
                 .try_to_structure(),
             );
     }
