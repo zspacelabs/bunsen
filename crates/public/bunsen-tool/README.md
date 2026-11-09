@@ -920,20 +920,23 @@ or the end of input leaves), on the KV cache: each turn prefills only what the c
 ```sh
 bunsen-tool chat list [--urls]                       # every family's checkpoints, and what of each is cached
 bunsen-tool chat fetch NAME...                       # bring checkpoints into the cache
-bunsen-tool chat run  [--model NAME] [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
-bunsen-tool chat repl [--model NAME] [FLAGS]            # a conversation
+bunsen-tool chat run  [--select NAME|{..}]... [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
+bunsen-tool chat repl [--select NAME|{..}]... [FLAGS]            # a conversation
 bunsen-tool chat family (qwen3|gemma|nanochat) (list|fetch|run|repl) [FLAGS]   # one family's, its own default by default
 ```
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat repl --model qwen3-4b-instruct-2507 --stats
-cargo run --release -p bunsen-tool --features wgpu -- chat run --model gemma-3-270m-it "What is the capital of France?"
+cargo run --release -p bunsen-tool --features wgpu -- chat repl --select qwen3-4b-instruct-2507 --stats
+cargo run --release -p bunsen-tool --features wgpu -- chat run --select gemma-3-270m-it "What is the capital of France?"
+cargo run --release -p bunsen-tool --features wgpu -- chat run --select '{require: {thinking: always}}' "Why is the sky blue?"
 cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
 cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda
 ```
 
-Outside `family`, the name `--model` gives picks the family, and Qwen3's default (`qwen/qwen3-0.6b`) is the default.
+`--select` (`--model` is an alias) chooses the checkpoint, among every family's (one family's under `family`), by
+the rows' tags ([Choosing a model](#choosing-a-model)); outside `family`, the chosen checkpoint's family runs it, and
+Qwen3's default (`qwen/qwen3-0.6b`) is the default. An `hf:org/repo` is a Qwen3, or under `family` the family's.
 The families:
 
 | family | checkpoints | default |
@@ -958,8 +961,11 @@ decision head). It generates no text.
 ```sh
 bunsen-tool decide list [--urls]                         # the Laya checkpoints, and what of each is cached
 bunsen-tool decide fetch NAME...                         # bring checkpoints into the cache
-bunsen-tool decide run [--model NAME] [--format yml|json] [REQUEST]   # the request from stdin when omitted
+bunsen-tool decide run [--select NAME|{..}]... [--format yml|json] [REQUEST]   # the request from stdin when omitted
 ```
+
+`--select` (`--model` is an alias) chooses the checkpoint among Laya's, as chat's does ([Choosing a
+model](#choosing-a-model)); `laya/laya` is the default.
 
 A request is a YAML (or JSON) document: a `context`, and its `choices`, each a `type`, a `question` and its
 `options`:
@@ -998,8 +1004,32 @@ signal yet):
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- decide run request.yml
-cargo run --release -p bunsen-tool --features wgpu -- decide run --model laya-multilingual --format json < request.yml
+cargo run --release -p bunsen-tool --features wgpu -- decide run --select laya-multilingual --format json < request.yml
 ```
+
+## Choosing a model
+
+`chat` and `decide` choose their checkpoint with `--select`, repeatable: at most one name, and any number of
+selection objects, YAML. A checkpoint's facts are its tags, which its catalog row carries:
+`base`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
+others), `parameters`, `groups`, `version`, `kit`.
+
+- A name that is a checkpoint's (its full id, its bare name, or an alias) is that checkpoint, as named.
+- Any other name is a set of checkpoints: those whose names it begins (`--select qwen3`), else those of the group it
+  names, else the kit's (`--select nanochat`). The command's defaults choose within it: a tuned model
+  (`base: false`), each release sequence's newest, the heaviest first.
+- An object narrows and orders, merged over the defaults: `require` (a tag's value, one of a list, `{min, max}`, or a
+  language), `prefer` (each a tag with the score it keeps when it is not met: `{language: de, otherwise: 0.5}`),
+  `latest`, `absent` (`drop`, or `{default: value}`, for a checkpoint without the tag), `order` (`[-parameters]`),
+  `take` (the least weight taken). `null` removes a default: `{require: {base: null}}`.
+- `--preset` keeps only the checkpoints that have the preset; `--patch {..}` merges over the chosen one's config.
+
+```sh
+bunsen-tool chat run --select qwen3 --select '{require: {base: null, thinking: never}, order: [parameters]}' "Hi"
+bunsen-tool chat run --select '{require: {parameters: {max: 2e9}}, prefer: [{language: zh, otherwise: 0}]}' "你好"
+```
+
+The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
 
 The checkpoints: `laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya-multilingual` (on
 `mmBERT-base`) and `laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the

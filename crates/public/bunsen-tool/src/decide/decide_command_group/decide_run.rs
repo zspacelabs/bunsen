@@ -20,10 +20,7 @@ use bunsen::{
             LayaConstruct,
             LayaRequest,
             LayaSpecials,
-            pretrained::{
-                DEFAULT_LAYA_MODEL,
-                default_laya_factory,
-            },
+            pretrained::default_laya_factory,
         },
         support::{
             construct::LoadPolicy,
@@ -42,7 +39,14 @@ use bunsen_app::{
 use burn::tensor::Device;
 use log::LevelFilter;
 
-use crate::support::Format;
+use crate::{
+    decide::choose_decide_model,
+    select::SelectArgs,
+    support::{
+        Format,
+        with_patch,
+    },
+};
 
 /// Answers a request's questions.
 #[derive(clap::Args, Debug)]
@@ -59,9 +63,11 @@ pub struct DecideRunCommand {
     #[clap(flatten)]
     device: BackendArgs,
 
-    /// The checkpoint: a name `list` shows.
-    #[arg(long, default_value = DEFAULT_LAYA_MODEL)]
-    model: String,
+    /// The checkpoint: a name `list` shows (or a prefix or group of them), a
+    /// selection object, or `hf:org/repo`; the default checkpoint when
+    /// omitted.
+    #[clap(flatten)]
+    select: SelectArgs,
 
     /// The results' format: YAML, or JSON on one line.
     #[arg(long, value_enum, default_value_t = Format::Yml)]
@@ -78,8 +84,12 @@ impl DecideRunCommand {
         let request = read_request(self.input.as_deref())?;
         let cache = self.cache.init()?;
         let device = self.device.open()?;
+        let mut model = choose_decide_model(&self.select.select)?;
+        if let Some(patch) = self.select.patch()? {
+            model = with_patch(&model, &patch)?;
+        }
         let construct = default_laya_factory()?.load_construct(
-            &self.model,
+            &model,
             &cache,
             &device,
             LoadPolicy::performance(),
