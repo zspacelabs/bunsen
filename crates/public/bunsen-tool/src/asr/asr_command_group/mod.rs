@@ -1,173 +1,65 @@
-//! `bunsen-tool asr`: speech to text. `asr <transcribe|live> [--preset
-//! NAME] [FLAGS]` runs a preset, a model chosen by what it is for, and `asr
-//! presets <list|show|fetch>` shows them; `asr family
-//! <parakeet|qwen3-asr|voxtral|whisper> <list|fetch|transcribe|live> [FLAGS]`
-//! (and `family whisper inspect|prefabs`) runs a family's model by name; `asr
-//! diarize <list|fetch|run|live>` says who spoke when.
+//! `bunsen-tool asr`: the command group.
 
-use bunsen::errors::BunsenResult;
-mod construct_cmd;
-mod diarize;
-mod fetch_cmd;
-mod list_cmd;
+mod asr_construct_args;
+mod asr_diarize_command_group;
+mod asr_family_command_group;
 #[cfg(feature = "live")]
-mod live_cmd;
-mod transcribe_cmd;
-mod whisper_models;
+mod asr_live;
+mod asr_presets_command_group;
+mod asr_transcribe;
 
-use super::family::Family;
+pub use asr_construct_args::*;
+pub use asr_diarize_command_group::*;
+pub use asr_family_command_group::*;
+#[cfg(feature = "live")]
+pub use asr_live::*;
+pub use asr_presets_command_group::*;
+pub use asr_transcribe::*;
+use bunsen::errors::BunsenResult;
 
-/// `bunsen-tool asr`'s commands.
+/// `bunsen-tool asr`'s commands: `asr <transcribe|live> [--preset NAME]
+/// [FLAGS]` runs a preset, a model chosen by what it is for, and `asr presets
+/// <list|show|fetch>` shows them; `asr family
+/// <parakeet|qwen3-asr|voxtral|whisper> <list|fetch|transcribe|live> [FLAGS]`
+/// (and `family whisper inspect|prefabs`) runs a family's model by name; `asr
+/// diarize <list|fetch|run|live>` says who spoke when.
 #[derive(clap::Args, Debug)]
-pub struct AsrCmd {
+pub struct AsrCommandGroup {
     #[clap(subcommand)]
-    command: Command,
+    command: AsrSubCommand,
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum Command {
+enum AsrSubCommand {
     /// Transcribe audio files with a preset: a model chosen by what it is
     /// for (`en` by default).
-    Transcribe(Box<construct_cmd::AsrTranscribeCmd>),
+    Transcribe(Box<AsrTranscribeCommand>),
 
     /// Transcribe the microphone, as it speaks, with a preset.
     #[cfg(feature = "live")]
-    Live(Box<construct_cmd::AsrLiveCmd>),
+    Live(Box<AsrLiveCommand>),
 
     /// The presets: what each is for, and what it runs.
-    Presets(construct_cmd::AsrPresetsCmd),
+    Presets(AsrPresetsCommandGroup),
 
     /// The model families, each with its own `list` and `transcribe`, and
     /// only the flags that apply to it.
-    Family(FamilyCmd),
+    Family(AsrFamilyCommandGroup),
 
     /// NVIDIA's Sortformer, who spoke when: `nvidia/nemotron-3-diarization`
     /// by default.
-    Diarize(diarize::DiarizeCmd),
+    Diarize(AsrDiarizeCommandGroup),
 }
 
-/// The model families' commands.
-#[derive(clap::Args, Debug)]
-struct FamilyCmd {
-    #[command(subcommand)]
-    family: FamilySub,
-}
-
-/// The model families, each with its own `list` and `transcribe`.
-#[derive(clap::Subcommand, Debug)]
-enum FamilySub {
-    /// NVIDIA's Parakeet TDT: `FermionResearch`'s Phonon-2 by default.
-    Parakeet(KitCmd<super::parakeet::ParakeetFlags>),
-
-    /// Qwen's Qwen3-ASR: `FermionResearch`'s Phonon-1 by default.
-    #[command(name = "qwen3-asr")]
-    Qwen3Asr(KitCmd<super::qwen3_asr::Qwen3AsrFlags>),
-
-    /// Mistral's Voxtral Realtime: `mistralai/voxtral-mini-4b-realtime-2602`
-    /// by default.
-    Voxtral(KitCmd<super::voxtral::VoxtralFlags>),
-
-    /// `OpenAI`'s Whisper: `openai/base` by default.
-    Whisper(WhisperCmd),
-}
-
-impl FamilyCmd {
-    fn run(&self) -> BunsenResult<()> {
-        match &self.family {
-            FamilySub::Parakeet(cmd) => cmd.run(Family::Parakeet),
-            FamilySub::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
-            FamilySub::Voxtral(cmd) => cmd.run(Family::Voxtral),
-            FamilySub::Whisper(cmd) => cmd.run(),
-        }
-    }
-}
-
-/// One family's commands; `F` is its own transcription flags.
-#[derive(clap::Args, Debug)]
-struct KitCmd<F: clap::Args> {
-    #[command(subcommand)]
-    action: Action<F>,
-}
-
-/// Whisper's commands: every family's, and its own.
-#[derive(clap::Args, Debug)]
-struct WhisperCmd {
-    #[command(subcommand)]
-    action: WhisperAction,
-}
-
-#[derive(clap::Subcommand, Debug)]
-enum WhisperAction {
-    #[command(flatten)]
-    Kit(Box<Action<super::whisper::WhisperFlags>>),
-
-    /// Scan a checkpoint and check it against its prefab.
-    Inspect(whisper_models::InspectCmd),
-
-    /// List the prefabs: the geometries, without weights.
-    Prefabs(whisper_models::PrefabsCmd),
-}
-
-impl WhisperCmd {
-    fn run(&self) -> BunsenResult<()> {
-        match &self.action {
-            WhisperAction::Kit(action) => action.run(Family::Whisper),
-            WhisperAction::Inspect(inspect) => inspect.run(),
-            WhisperAction::Prefabs(prefabs) => prefabs.run(),
-        }
-    }
-}
-
-#[derive(clap::Subcommand, Debug)]
-enum Action<F: clap::Args> {
-    /// List the models `--model` can name, their licences and files, and
-    /// whether each file is cached.
-    List(list_cmd::ListCmd),
-
-    /// Bring every file of the named models into the weights cache.
-    Fetch(fetch_cmd::FetchCmd),
-
-    /// Transcribe audio files.
-    Transcribe(transcribe_cmd::TranscribeCmd<F>),
-
-    /// Transcribe the microphone, as it speaks.
-    #[cfg(feature = "live")]
-    Live(live_cmd::LiveCmd<F>),
-}
-
-impl<F: clap::Args + super::family::FamilyFlags> KitCmd<F> {
-    fn run(
-        &self,
-        family: Family,
-    ) -> BunsenResult<()> {
-        self.action.run(family)
-    }
-}
-
-impl<F: clap::Args + super::family::FamilyFlags> Action<F> {
-    fn run(
-        &self,
-        family: Family,
-    ) -> BunsenResult<()> {
-        match self {
-            Action::List(list) => list.run(family.into()),
-            Action::Fetch(fetch) => fetch.run(family.into()),
-            Action::Transcribe(transcribe) => transcribe.run(family),
-            #[cfg(feature = "live")]
-            Action::Live(live) => live.run(family),
-        }
-    }
-}
-
-impl AsrCmd {
+impl AsrCommandGroup {
     pub fn run(&self) -> BunsenResult<()> {
         match &self.command {
-            Command::Transcribe(cmd) => cmd.run(),
+            AsrSubCommand::Transcribe(cmd) => cmd.run(),
             #[cfg(feature = "live")]
-            Command::Live(cmd) => cmd.run(),
-            Command::Presets(cmd) => cmd.run(),
-            Command::Family(cmd) => cmd.run(),
-            Command::Diarize(cmd) => cmd.run(),
+            AsrSubCommand::Live(cmd) => cmd.run(),
+            AsrSubCommand::Presets(cmd) => cmd.run(),
+            AsrSubCommand::Family(cmd) => cmd.run(),
+            AsrSubCommand::Diarize(cmd) => cmd.run(),
         }
     }
 }
@@ -177,12 +69,17 @@ mod tests {
     use clap::Parser;
 
     use super::*;
+    use crate::asr::{
+        Mode,
+        presets,
+        shell_line,
+    };
 
     /// `asr`'s commands alone, as `bunsen-tool asr` parses them.
     #[derive(clap::Parser, Debug)]
     struct Args {
         #[clap(subcommand)]
-        command: Command,
+        command: AsrSubCommand,
     }
 
     /// Each family parses its own `list` and `transcribe`.
@@ -455,23 +352,23 @@ mod tests {
     /// parses as that command.
     #[test]
     fn test_profile_command_lines_parse() {
-        for preset in crate::asr::presets() {
-            for mode in [crate::asr::Mode::Offline, crate::asr::Mode::Live] {
+        for preset in presets() {
+            for mode in [Mode::Offline, Mode::Live] {
                 #[cfg(not(feature = "live"))]
-                if mode == crate::asr::Mode::Live {
+                if mode == Mode::Live {
                     continue;
                 }
                 let resolved = preset.resolve(mode).unwrap();
                 let mut line = resolved.command_line();
-                if mode == crate::asr::Mode::Offline {
+                if mode == Mode::Offline {
                     line.push("a.wav".into());
                 }
                 // `bunsen-tool asr ...`: `asr`'s own parser takes `asr` as the
                 // program name, so the line parses from its second word.
                 assert_eq!(line[..2], ["bunsen-tool", "asr"]);
                 let Args { command } = Args::try_parse_from(&line[1..])
-                    .unwrap_or_else(|e| panic!("{}: {e}", crate::asr::shell_line(&line)));
-                assert!(matches!(&command, Command::Family(_)), "{command:?}");
+                    .unwrap_or_else(|e| panic!("{}: {e}", shell_line(&line)));
+                assert!(matches!(&command, AsrSubCommand::Family(_)), "{command:?}");
             }
         }
     }

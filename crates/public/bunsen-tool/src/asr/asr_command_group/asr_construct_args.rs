@@ -1,55 +1,29 @@
-//! `asr transcribe`, `live` and `presets`: speech to text by preset.
-use std::io::Write;
+//! The preset flags `asr transcribe` and `asr live` share.
 
 use bunsen::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
-    kits::speech::vad::silero_vad::pretrained::default_silero_factory,
-};
-use bunsen_app::{
-    cache::WeightsCacheArgs,
-    logging::{
-        LevelFilter,
-        LogArgs,
-        LogPolicy,
-    },
+    kits::support::construct::LookupExpr,
 };
 
-#[cfg(feature = "live")]
-use crate::asr::cli::live_cmd::LiveIo;
 use crate::asr::{
-    cli::transcribe_cmd::TranscribeIo,
-    construct::{
-        AsrConstruct,
-        AsrPreset,
-        DEFAULT_PRESET,
-        Mode,
-        Need,
-        NeedPattern,
-        Quality,
-        Speech,
-        Task,
-        construct_config,
-        lookup,
-        presets,
-        shell_line,
-    },
-    family::{
-        Family,
-        Kit,
-        fetch_with,
-    },
-    parakeet::ParakeetFlags,
-    qwen3_asr::Qwen3AsrFlags,
-    stream::{
-        Emission,
-        VadArgs,
-    },
-    voxtral::VoxtralFlags,
-    whisper::WhisperFlags,
+    AsrConstruct,
+    DEFAULT_PRESET,
+    Emission,
+    Family,
+    Kit,
+    Mode,
+    Need,
+    NeedPattern,
+    Quality,
+    Speech,
+    Task,
+    VadArgs,
+    construct_config,
+    lookup,
+    shell_line,
 };
 
 /// The preset, and what the command line changes of it.
@@ -178,7 +152,7 @@ impl AsrConstructArgs {
     /// checkpoint path). A switch is logged at `INFO`.
     ///
     /// # Errors
-    /// As [`LookupExpr::parse`](bunsen::kits::support::construct::LookupExpr::parse)
+    /// As [`LookupExpr::parse`]
     /// on `--model`; [`Policy`](bunsen::errors::BunsenErrorKind::Policy)
     /// when more than one other family lists it.
     fn family(
@@ -188,7 +162,7 @@ impl AsrConstructArgs {
         let Some(model) = &self.model else {
             return Ok(picked);
         };
-        let name = bunsen::kits::support::construct::LookupExpr::parse(model)?.name;
+        let name = LookupExpr::parse(model)?.name;
         if Kit::Asr(picked).lists(&name)? {
             return Ok(picked);
         }
@@ -332,8 +306,11 @@ impl AsrConstructArgs {
     /// the need it serves and the family command it runs.
     ///
     /// # Errors
-    /// As [`asked`](Self::asked) and
-    /// [`AsrRecipe::resolve`](crate::asr::construct::AsrRecipe::resolve).
+    /// As [`lookup`](crate::asr::lookup) and
+    /// [`AsrRecipe::resolve`](crate::asr::AsrRecipe::resolve);
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when `--speech`
+    /// does not hear the speech `--language` implies, the preset does not
+    /// hear the speech, or its model in `mode` cannot do the task.
     pub fn resolve(
         &self,
         mode: Mode,
@@ -386,254 +363,26 @@ fn value_name(value: impl clap::ValueEnum) -> String {
 macro_rules! with_flags {
     ($resolved:expr, $flags:ident => $body:expr) => {
         match $resolved.family {
-            Family::Parakeet => {
-                let $flags = ParakeetFlags::default();
+            $crate::asr::Family::Parakeet => {
+                let $flags = $crate::asr::parakeet::ParakeetFlags::default();
                 $body
             }
-            Family::Qwen3Asr => {
-                let $flags = Qwen3AsrFlags::default();
+            $crate::asr::Family::Qwen3Asr => {
+                let $flags = $crate::asr::qwen3_asr::Qwen3AsrFlags::default();
                 $body
             }
-            Family::Voxtral => {
-                let $flags = VoxtralFlags::default();
+            $crate::asr::Family::Voxtral => {
+                let $flags = $crate::asr::voxtral::VoxtralFlags::default();
                 $body
             }
-            Family::Whisper => {
-                let $flags = WhisperFlags::default();
+            $crate::asr::Family::Whisper => {
+                let $flags = $crate::asr::whisper::WhisperFlags::default();
                 $body
             }
         }
     };
 }
-
-/// Transcribes audio files with a preset's model for files.
-///
-/// The preset picks the family, the model and when to decode; `--model`,
-/// `--emission` and `--vad` change them, `presets show` prints them, and `-v`
-/// logs them as the `bunsen-tool asr family` command they are. `--json` records
-/// the preset and its recipe with each transcript.
-#[derive(clap::Args, Debug)]
-pub struct AsrTranscribeCmd {
-    #[clap(flatten)]
-    pub preset: AsrConstructArgs,
-
-    #[clap(flatten)]
-    pub io: TranscribeIo,
-}
-
-impl AsrTranscribeCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        self.io.init_logging()?;
-        let resolved = self.preset.resolve(Mode::Offline)?;
-        let stamp = resolved.stamp();
-        with_flags!(resolved, flags => self.io.run(
-            resolved.family,
-            &resolved.model,
-            &flags,
-            &resolved.streaming(),
-            Some(&stamp),
-        ))
-    }
-}
-
-/// Transcribes the microphone, as it speaks, with a preset's model for
-/// the microphone.
-///
-/// The preset picks the family, the model and when to decode; `--model`,
-/// `--emission` and `--vad` change them, `presets show` prints them, and `-v`
-/// logs them as the `bunsen-tool asr family` command they are.
-#[cfg(feature = "live")]
-#[derive(clap::Args, Debug)]
-pub struct AsrLiveCmd {
-    #[clap(flatten)]
-    pub preset: AsrConstructArgs,
-
-    #[clap(flatten)]
-    pub io: LiveIo,
-}
-
-#[cfg(feature = "live")]
-impl AsrLiveCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        self.io.init_logging()?;
-        let resolved = self.preset.resolve(Mode::Live)?;
-        with_flags!(resolved, flags => self.io.run(
-            resolved.family,
-            &resolved.model,
-            &flags,
-            &resolved.streaming(),
-        ))
-    }
-}
-
-/// The presets' commands; `list` when none is named.
-#[derive(clap::Args, Debug)]
-pub struct AsrPresetsCmd {
-    #[command(subcommand)]
-    action: Option<AsrPresetsAction>,
-}
-
-#[derive(clap::Subcommand, Debug)]
-enum AsrPresetsAction {
-    /// List the presets: what each is for, and the model each runs for
-    /// files and for the microphone.
-    List,
-
-    /// Show presets: each recipe, as the `bunsen-tool asr family` command it
-    /// runs.
-    Show(ShowCmd),
-
-    /// Bring every file the named presets run into the weights cache: both
-    /// recipes' models, and the VAD where a recipe finds speech regions.
-    Fetch(FetchCmd),
-}
-
-impl AsrPresetsCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        match &self.action {
-            None | Some(AsrPresetsAction::List) => list(&mut std::io::stdout().lock()),
-            Some(AsrPresetsAction::Show(show)) => show.run(),
-            Some(AsrPresetsAction::Fetch(fetch)) => fetch.run(),
-        }
-    }
-}
-
-/// A preset's name, and its aliases when it has any.
-fn title(preset: &AsrPreset) -> String {
-    match preset.aliases.as_slice() {
-        [] => preset.name.clone(),
-        aliases => format!("{} ({})", preset.name, aliases.join(", ")),
-    }
-}
-
-/// Writes each preset, and what each of its recipes runs; then the axes
-/// they are points of.
-fn list(out: &mut impl Write) -> BunsenResult<()> {
-    let w = |e| sys_at("write to", "stdout")(e);
-    for (i, preset) in presets().iter().enumerate() {
-        if i > 0 {
-            writeln!(out).map_err(w)?;
-        }
-        writeln!(out, "{}", title(preset)).map_err(w)?;
-        writeln!(out, "  {}", preset.description).map_err(w)?;
-        for mode in [Mode::Offline, Mode::Live] {
-            let recipe = preset.recipe(mode);
-            writeln!(
-                out,
-                "  {:<11} {} {}",
-                format!("{}:", mode.command()),
-                recipe.engine.family.name(),
-                recipe.engine.model
-            )
-            .map_err(w)?;
-        }
-    }
-    // The axes the presets are points of, and what each value means.
-    writeln!(out).map_err(w)?;
-    writeln!(out, "The axes (`--speech`, `--task`, `--quality`):").map_err(w)?;
-    for axis in &construct_config().axes {
-        writeln!(out, "  {}: {}", axis.name, axis.description).map_err(w)?;
-        for member in &axis.members {
-            writeln!(out, "    {:<11} {}", member.name, member.description).map_err(w)?;
-        }
-    }
-    Ok(())
-}
-
-/// Shows presets: each recipe, as the `bunsen-tool asr family` command it
-/// runs.
-#[derive(clap::Args, Debug)]
-struct ShowCmd {
-    /// Presets, by name or alias; every preset when none is named.
-    names: Vec<String>,
-}
-
-impl ShowCmd {
-    fn run(&self) -> BunsenResult<()> {
-        let presets: Vec<&AsrPreset> = if self.names.is_empty() {
-            presets().iter().collect()
-        } else {
-            self.names
-                .iter()
-                .map(|n| lookup(n))
-                .collect::<BunsenResult<_>>()?
-        };
-        let mut out = std::io::stdout().lock();
-        let w = |e| sys_at("write to", "stdout")(e);
-        for (i, preset) in presets.into_iter().enumerate() {
-            if i > 0 {
-                writeln!(out).map_err(w)?;
-            }
-            writeln!(out, "{}", title(preset)).map_err(w)?;
-            writeln!(out, "  {}", preset.description).map_err(w)?;
-            for mode in [Mode::Offline, Mode::Live] {
-                let resolved = preset.resolve(mode)?;
-                writeln!(
-                    out,
-                    "  {}: {}",
-                    mode.command(),
-                    shell_line(&resolved.command_line())
-                )
-                .map_err(w)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Brings every file the named presets run into the weights cache, and
-/// prints where each one is: a deployment that runs offline fills its cache
-/// this way ahead of time.
-#[derive(clap::Args, Debug)]
-struct FetchCmd {
-    #[clap(flatten)]
-    logging: LogArgs,
-
-    #[clap(flatten)]
-    cache: WeightsCacheArgs,
-
-    /// Re-hash each pinned file once it is local, the cached ones included.
-    #[arg(long)]
-    verify: bool,
-
-    /// Presets, by name or alias (`presets` lists them).
-    #[arg(required = true)]
-    names: Vec<String>,
-}
-
-impl FetchCmd {
-    fn run(&self) -> BunsenResult<()> {
-        self.logging
-            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
-        let cache = self.cache.init()?;
-        let mut models: Vec<(Family, &str)> = Vec::new();
-        let mut vad = false;
-        for name in &self.names {
-            let preset = lookup(name)?;
-            for recipe in [Mode::Offline, Mode::Live].map(|m| preset.recipe(m)) {
-                let model = (recipe.engine.family, recipe.engine.model.as_str());
-                if !models.contains(&model) {
-                    models.push(model);
-                }
-                vad |= recipe.emission != Emission::Offline;
-            }
-        }
-        let mut out = std::io::stdout().lock();
-        for (family, model) in models {
-            Kit::Asr(family).fetch(&[model.to_string()], &cache, self.verify, &mut out)?;
-        }
-        if vad {
-            fetch_with(
-                default_silero_factory()?,
-                &[construct_config().vad.clone()],
-                &cache,
-                self.verify,
-                &mut out,
-            )?;
-        }
-        Ok(())
-    }
-}
+pub(super) use with_flags;
 
 #[cfg(test)]
 mod tests {
@@ -1098,23 +847,5 @@ mod tests {
         // `--speech en --language de` (12), `en` asked for other speech (12),
         // and `multi` asked to translate other speech (5).
         assert_eq!(ran_lines, 2 * (108 - 29));
-    }
-
-    /// Every preset is listed, with both recipes.
-    #[test]
-    fn test_list() {
-        let mut out = Vec::new();
-        list(&mut out).unwrap();
-        let text = String::from_utf8(out).unwrap();
-        assert!(text.starts_with("en (default)\n"), "{text}");
-        for preset in presets() {
-            for mode in [Mode::Offline, Mode::Live] {
-                assert!(text.contains(&preset.recipe(mode).engine.model), "{text}");
-            }
-        }
-        assert!(
-            text.contains("  live:       qwen3-asr qwen/qwen3-asr-0.6b\n"),
-            "{text}"
-        );
     }
 }

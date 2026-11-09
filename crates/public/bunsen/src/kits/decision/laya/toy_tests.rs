@@ -24,7 +24,10 @@ use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::{
-        support::tokens::Tokenizer,
+        support::tokens::{
+            Detokenizer,
+            Tokenizer,
+        },
         text::encoders::modernbert::weights::modernbert_config_from_transformers,
     },
     support::testing::{
@@ -107,9 +110,20 @@ fn test_toy_forward() {
 }
 
 /// A tokenizer within the toy's 40 ids: `[PAD]` 0, `[CLS]` 1, `[SEP]` 2,
-/// `[MASK]` 3, and each other byte `4 + byte % 36`.
+/// `[MASK]` 3, and each other byte `4 + byte % 36`, a special token's
+/// spelling included. Ids render as their numbers: the tests read no text
+/// back.
 #[derive(Debug)]
 struct Bytes;
+
+impl Detokenizer for Bytes {
+    fn detokenize(
+        &self,
+        ids: &[i64],
+    ) -> BunsenResult<String> {
+        Ok(ids.iter().map(i64::to_string).collect::<Vec<_>>().join(" "))
+    }
+}
 
 impl Tokenizer for Bytes {
     fn encode(
@@ -117,6 +131,24 @@ impl Tokenizer for Bytes {
         text: &str,
     ) -> BunsenResult<Vec<i64>> {
         Ok(text.bytes().map(|b| 4 + i64::from(b) % 36).collect())
+    }
+
+    fn encode_plain(
+        &self,
+        text: &str,
+    ) -> BunsenResult<Vec<i64>> {
+        self.encode(text)
+    }
+
+    fn contains(
+        &self,
+        id: i64,
+    ) -> bool {
+        (0..40).contains(&id)
+    }
+
+    fn len(&self) -> usize {
+        40
     }
 
     fn token_id(

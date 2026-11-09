@@ -1,4 +1,5 @@
-//! `asr family <family> transcribe`, and what `transcribe` shares.
+//! `asr family <family> transcribe`, and what `asr transcribe` shares.
+
 use std::{
     path::PathBuf,
     time::{
@@ -27,23 +28,19 @@ use bunsen_app::{
 
 use crate::{
     asr::{
-        cli::diarize::SpeakerArgs,
-        construct::Stamp,
-        driver::Driver,
-        family::{
-            Family,
-            FamilyFlags,
-        },
+        AsrSpeakerArgs,
+        Driver,
+        Emission,
+        Family,
+        FamilyFlags,
+        Stamp,
+        Streaming,
+        VadArgs,
         publish::{
             Clock,
             Event,
             PublishArgs,
             statements,
-        },
-        stream::{
-            Emission,
-            Streaming,
-            VadArgs,
         },
     },
     support::PresetArgs,
@@ -57,7 +54,7 @@ use crate::{
 /// `transformers`' layout; the model's info card, and after each transcript
 /// how long it took, are logged at `INFO` (`-v`).
 #[derive(clap::Args, Debug)]
-pub struct TranscribeCmd<F: clap::Args> {
+pub struct AsrKitTranscribeCommand<F: clap::Args> {
     /// The model, as a lookup expression, its presets and patch its policy
     /// (`'openai/small[translate]{beam_size: 1}'`): `list` shows the names
     /// and presets; the family's default when omitted. Whisper also takes a
@@ -84,13 +81,13 @@ pub struct TranscribeCmd<F: clap::Args> {
     pub flags: F,
 
     #[clap(flatten)]
-    pub io: TranscribeIo,
+    pub io: AsrTranscribeIo,
 }
 
 /// What `transcribe` reads and prints, whichever model it runs: the
 /// options a family's command and a preset's share.
 #[derive(clap::Args, Debug)]
-pub struct TranscribeIo {
+pub struct AsrTranscribeIo {
     #[clap(flatten)]
     pub logging: LogArgs,
 
@@ -104,14 +101,14 @@ pub struct TranscribeIo {
     pub publish: PublishArgs,
 
     #[clap(flatten)]
-    pub speakers: SpeakerArgs,
+    pub speakers: AsrSpeakerArgs,
 
     /// The audio files.
     #[arg(required = true)]
     pub files: Vec<PathBuf>,
 }
 
-impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
+impl<F: clap::Args + FamilyFlags> AsrKitTranscribeCommand<F> {
     pub fn run(
         &self,
         family: Family,
@@ -130,7 +127,7 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
     }
 }
 
-impl TranscribeIo {
+impl AsrTranscribeIo {
     /// Logs as `-v`/`-q` say, warnings by default.
     pub fn init_logging(&self) -> BunsenResult<()> {
         self.logging

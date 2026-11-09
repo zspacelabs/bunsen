@@ -76,9 +76,11 @@ use serde::{
     },
 };
 
+use crate::support::Format;
+
 /// `bunsen-tool card`'s flags.
 #[derive(clap::Args, Debug)]
-pub struct CardCmd {
+pub struct CardCommand {
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
@@ -94,17 +96,6 @@ pub struct CardCmd {
     /// policy its default selection resolves to (`policy`).
     #[arg(long)]
     policies: bool,
-}
-
-/// `--format`.
-#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Format {
-    /// YAML.
-    #[value(alias = "yaml")]
-    Yml,
-
-    /// JSON, unindented.
-    Json,
 }
 
 /// `--section`.
@@ -235,7 +226,7 @@ impl Serialize for Value {
     }
 }
 
-impl CardCmd {
+impl CardCommand {
     /// Builds the card and writes it to stdout.
     pub fn run(&self) -> BunsenResult<()> {
         let cache = self.cache.init()?;

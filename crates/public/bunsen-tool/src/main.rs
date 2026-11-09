@@ -9,13 +9,14 @@
 use std::process::ExitCode;
 
 use bunsen::errors::BunsenResult;
+use bunsen_app::cache::CacheCommand;
 #[cfg(feature = "speech")]
 use bunsen_tool::asr;
 use bunsen_tool::{
-    card,
-    chat,
-    decide,
-    devices,
+    card::CardCommand,
+    chat::ChatCommandGroup,
+    decide::DecideCommandGroup,
+    devices::DevicesCommand,
     support::did_you_mean,
 };
 use clap::Parser;
@@ -32,34 +33,34 @@ enum Command {
     /// Speech to text, by preset (`asr transcribe`, `asr live`) or by model
     /// family (`asr family`), and who spoke when (`asr diarize`).
     #[cfg(feature = "speech")]
-    Asr(asr::cli::AsrCmd),
+    Asr(asr::AsrCommandGroup),
 
     /// Chat with a Qwen3 or nanochat checkpoint: one prompt (`chat run`), a
     /// conversation (`chat repl`), and the checkpoints (`chat list`, `chat
     /// fetch`); `chat family` for one family's.
-    Chat(chat::cli::ChatCmd),
+    Chat(ChatCommandGroup),
 
     /// Typed questions about a context, answered with calibrated
     /// probabilities by a Laya decision model: a request (YAML or JSON) in
     /// (`decide run`), one result per question out; and the checkpoints
     /// (`decide list`, `decide fetch`).
-    Decide(decide::cli::DecideCmd),
+    Decide(DecideCommandGroup),
 
     /// The weights cache every command loads through: where it is, what it
     /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
     /// `sortformer`, `silero_vad`, `qwen3`, `nanochat`, `laya`), and clearing
     /// it.
-    Cache(bunsen_app::cache::CacheCommand),
+    Cache(CacheCommand),
 
     /// What this build is (`build`: its version and features), its weights
     /// cache (`config`), and the models it knows by name (`kits`: by kind and
     /// family, a name and a description each), as YAML or JSON.
-    Card(card::CardCmd),
+    Card(CardCommand),
 
     /// The backends this build can run on, each one's default device, and
     /// what the device does with each float dtype (store, compute,
     /// accelerate), as YAML or JSON.
-    Devices(devices::DevicesCmd),
+    Devices(DevicesCommand),
 }
 
 /// Runs the command; a failure is printed as its report, then, for a name

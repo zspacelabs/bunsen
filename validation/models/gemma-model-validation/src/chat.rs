@@ -1,4 +1,5 @@
-//! `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
+//! bunsen's tokenizer (`BunsenTokenizer`) and `bunsen_tool::chat`'s chat
+//! template against `transformers`'.
 
 use std::path::PathBuf;
 
@@ -19,6 +20,7 @@ use bunsen::{
             },
         },
         support::tokens::{
+            BunsenTokenizer,
             Detokenizer,
             Tokenizer,
         },
@@ -27,7 +29,6 @@ use bunsen::{
 use bunsen_tool::chat::{
     ChatMessage,
     ChatTemplate,
-    HfTokenizer,
 };
 
 use super::*;
@@ -64,7 +65,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
 fn check_row(row: &str) {
     let fixture = &chat_reference()[row];
     let (tokenizer, config, jinja) = tokenizer_files(row);
-    let tok = HfTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
+    let tok = BunsenTokenizer::from_files(&tokenizer, Some(&config)).unwrap();
     let stops = default_gemma_factory()
         .unwrap()
         .resolve_presets(row, &GemmaPolicy::default())

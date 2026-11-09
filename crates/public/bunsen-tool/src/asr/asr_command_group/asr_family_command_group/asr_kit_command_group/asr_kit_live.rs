@@ -1,4 +1,5 @@
 //! `asr family <family> live`, and what `asr live` shares.
+
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::{
@@ -22,27 +23,21 @@ use bunsen_app::{
 
 use crate::{
     asr::{
-        capture::CaptureArgs,
-        cli::diarize::SpeakerArgs,
-        driver::{
-            Driver,
-            Stream,
-        },
-        family::{
-            Family,
-            FamilyFlags,
-        },
+        AsrSpeakerArgs,
+        CaptureArgs,
+        Driver,
+        Emission,
+        Family,
+        FamilyFlags,
+        Stream,
+        Streaming,
+        VadArgs,
         publish::{
             Clock,
             Event,
             PublishArgs,
             Publisher,
             statements,
-        },
-        stream::{
-            Emission,
-            Streaming,
-            VadArgs,
         },
     },
     support::PresetArgs,
@@ -64,7 +59,7 @@ use crate::{
 /// cleanly: the speech past the last commit is decoded before the process
 /// exits.
 #[derive(clap::Args, Debug)]
-pub struct LiveCmd<F: clap::Args> {
+pub struct AsrKitLiveCommand<F: clap::Args> {
     /// The model, as a lookup expression, its presets and patch its policy
     /// (`'openai/small[translate]{beam_size: 1}'`): `list` shows the names
     /// and presets; the family's default when omitted. Whisper also takes a
@@ -92,13 +87,13 @@ pub struct LiveCmd<F: clap::Args> {
     pub flags: F,
 
     #[clap(flatten)]
-    pub io: LiveIo,
+    pub io: AsrLiveIo,
 }
 
 /// What `live` listens to and runs on, whichever model it runs: the options
 /// a family's command and a preset's share.
 #[derive(clap::Args, Debug)]
-pub struct LiveIo {
+pub struct AsrLiveIo {
     #[clap(flatten)]
     pub logging: LogArgs,
 
@@ -112,13 +107,13 @@ pub struct LiveIo {
     pub publish: PublishArgs,
 
     #[clap(flatten)]
-    pub speakers: SpeakerArgs,
+    pub speakers: AsrSpeakerArgs,
 
     #[clap(flatten)]
     pub capture: CaptureArgs,
 }
 
-impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
+impl<F: clap::Args + FamilyFlags> AsrKitLiveCommand<F> {
     pub fn run(
         &self,
         family: Family,
@@ -137,7 +132,7 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
     }
 }
 
-impl LiveIo {
+impl AsrLiveIo {
     /// Logs as `-v`/`-q` say, warnings by default.
     pub fn init_logging(&self) -> BunsenResult<()> {
         self.logging

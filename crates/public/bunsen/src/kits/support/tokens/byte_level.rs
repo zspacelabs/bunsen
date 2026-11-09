@@ -9,7 +9,7 @@ use crate::errors::{
 /// GPT-2's printable spelling of each byte: the alphabet `vocab.json` writes
 /// byte-level tokens in. Bytes that print as themselves keep their code
 /// point; the rest are moved past 255, in byte order.
-fn byte_alphabet() -> [char; 256] {
+pub(crate) fn byte_alphabet() -> [char; 256] {
     let mut table = ['\0'; 256];
     let mut next = 256u32;
     for b in 0..=255u8 {
