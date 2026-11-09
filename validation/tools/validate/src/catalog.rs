@@ -29,9 +29,11 @@ use sha2::{
     Sha256,
 };
 
+use crate::tags;
+
 /// The version of the catalog the tool writes: part of the build cache's
 /// key, so a tool that writes differently rebuilds every catalog.
-const FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/catalog-1");
+const FORMAT: &str = concat!(env!("CARGO_PKG_VERSION"), "/catalog-2");
 
 /// The kinds whose files are checkpoints: their `dtype` is the one the
 /// bundle's `config.json` names.
@@ -514,7 +516,7 @@ pub fn build(
             .map_err(|e| format!("{what}: its probes: {e}"))?;
         row.probe.clear();
     }
-    let catalog = PretrainedCatalog {
+    let mut catalog = PretrainedCatalog {
         kit: source.kit.clone(),
         name: source.name.clone(),
         description: source.description.clone(),
@@ -522,9 +524,12 @@ pub fn build(
         bundles: built.into_iter().map(|b| b.bundle).collect(),
         families: source.families.clone(),
     };
+    tags::check_sources(&catalog)?;
+    tags::write_dtypes(&mut catalog)?;
     catalog
         .to_table()
         .map_err(|e| format!("{}: the catalog does not load: {e}", source.kit))?;
+    tags::check_required(&catalog)?;
     Ok(catalog)
 }
 

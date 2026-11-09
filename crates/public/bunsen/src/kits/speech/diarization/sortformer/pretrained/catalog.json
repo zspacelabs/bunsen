@@ -16,7 +16,10 @@
           "bundles": [
             "nvidia/nemotron-3-diarization"
           ],
-          "family": "nemotron"
+          "family": "nemotron",
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "diar_streaming_sortformer_4spk-v2",
@@ -29,7 +32,10 @@
           "bundles": [
             "nvidia/diar_streaming_sortformer_4spk-v2"
           ],
-          "family": "sortformer-v2"
+          "family": "sortformer-v2",
+          "tags": {
+            "dtype": "f32"
+          }
         },
         {
           "name": "diar_streaming_sortformer_4spk-v2.1",
@@ -42,7 +48,10 @@
           "bundles": [
             "nvidia/diar_streaming_sortformer_4spk-v2.1"
           ],
-          "family": "sortformer-v2"
+          "family": "sortformer-v2",
+          "tags": {
+            "dtype": "f32"
+          }
         }
       ]
     }

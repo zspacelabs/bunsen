@@ -36,7 +36,10 @@
           "origin": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3",
           "bundles": [
             "nvidia/parakeet-tdt-0.6b-v3"
-          ]
+          ],
+          "tags": {
+            "dtype": "f32"
+          }
         }
       ]
     }
