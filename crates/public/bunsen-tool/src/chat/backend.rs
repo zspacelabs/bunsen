@@ -5,9 +5,9 @@ use std::{
 };
 
 use bunsen::{
-    blocks::transformers::{
-        decoders::stack::DecoderStackCache,
-        models::language_decoder::LmDecoderMeta,
+    blocks::transformers::models::language_decoder::{
+        LmDecoderMeta,
+        LmDecoderOps,
     },
     errors::{
         BunsenError,
@@ -28,7 +28,6 @@ use bunsen::{
             decoding::{
                 CachedStep,
                 LogitFilter,
-                StackedLm,
                 SuppressTokens,
             },
             model_config::GenerationPolicy,
@@ -168,33 +167,140 @@ pub fn row(
     Tensor::from_data(TensorData::new(ids.to_vec(), [1, ids.len()]), device)
 }
 
-/// A language model a chat drives: a [`StackedLm`] (its float dtype
-/// [`LmDecoderOps::float_dtype`](bunsen::blocks::transformers::models::language_decoder::LmDecoderOps::float_dtype)'s), with what the chat reads of it beside.
-pub trait ChatLm: StackedLm + Debug + Send + Sync + 'static {
-    /// The head's width: the ids a reply may choose among.
-    fn n_vocab(&self) -> usize;
+/// How a chat turns a conversation into the ids its model reads, through
+/// its tokenizer: a chat template ([`ChatTemplate`]), or a model's own
+/// layout (nanochat's).
+pub trait ChatRenderer: Debug + Send + Sync {
+    /// The prompt for the assistant's next turn of `messages`.
+    /// `enable_thinking` is a thinking switch, for a renderer that has one.
+    ///
+    /// # Errors
+    /// As the renderer and the tokenizer.
+    fn render_prompt(
+        &self,
+        tokenizer: &dyn Tokenizer,
+        messages: &[ChatMessage],
+        enable_thinking: Option<bool>,
+    ) -> BunsenResult<Vec<i64>>;
+
+    /// The length, in ids, of `messages` rendered without the assistant's
+    /// turn opening, where [`render_prompt`](Self::render_prompt)'s prompt is
+    /// that and more; `None` (the default) where the prompt does not split
+    /// there.
+    ///
+    /// # Errors
+    /// As the renderer and the tokenizer.
+    fn closed_len(
+        &self,
+        _tokenizer: &dyn Tokenizer,
+        _messages: &[ChatMessage],
+        _enable_thinking: Option<bool>,
+    ) -> BunsenResult<Option<usize>> {
+        Ok(None)
+    }
+}
+
+impl ChatRenderer for ChatTemplate {
+    fn render_prompt(
+        &self,
+        tokenizer: &dyn Tokenizer,
+        messages: &[ChatMessage],
+        enable_thinking: Option<bool>,
+    ) -> BunsenResult<Vec<i64>> {
+        tokenizer.encode(&self.render(messages, true, enable_thinking)?)
+    }
+
+    fn closed_len(
+        &self,
+        tokenizer: &dyn Tokenizer,
+        messages: &[ChatMessage],
+        enable_thinking: Option<bool>,
+    ) -> BunsenResult<Option<usize>> {
+        let open = self.render(messages, true, enable_thinking)?;
+        let closed = self.render(messages, false, enable_thinking)?;
+        if !open.starts_with(&closed) || open.len() == closed.len() {
+            return Ok(None);
+        }
+        let (open, closed) = (tokenizer.encode(&open)?, tokenizer.encode(&closed)?);
+        Ok(open.starts_with(&closed).then_some(closed.len()))
+    }
+}
+
+/// What a chat reads a conversation and its replies through: the
+/// tokenizer, the renderer, and the generation policy (its stop tokens
+/// among it).
+#[derive(Debug)]
+pub struct ChatParts {
+    /// The tokenizer.
+    pub tokenizer: Arc<dyn Tokenizer>,
+
+    /// The renderer.
+    pub renderer: Arc<dyn ChatRenderer>,
+
+    /// The generation policy.
+    pub generation: GenerationPolicy,
+}
+
+/// A language model a chat drives: a [`CachedLm`], with its meta and its
+/// forward-free API, and the [`ChatParts`] its checkpoint's files give.
+pub trait ChatLm:
+    CachedLm + LmDecoderMeta + LmDecoderOps + Debug + Send + Sync + Sized + 'static
+{
+    /// The tokenizer, renderer and generation policy a chat over `bundle`
+    /// reads through.
+    ///
+    /// # Errors
+    /// The kit's: a checkpoint without the files they are read from.
+    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts>;
+}
+
+/// The [`ChatParts`] of a `transformers` checkpoint: its `tokenizer.json`
+/// and `tokenizer_config.json` ([`BunsenTokenizer`]), and the chat template
+/// and stop tokens its presets resolved to: its own template where it has
+/// one, else its family's.
+///
+/// # Errors
+/// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+/// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`, or
+/// its policy names no chat template; as each file's reader.
+pub fn template_chat_parts<M>(bundle: &LmConstruct<M>) -> BunsenResult<ChatParts> {
+    let tokenizer = BunsenTokenizer::from_files(
+        bundle
+            .tokenizer()
+            .ok_or_else(|| missing("tokenizer.json"))?,
+        Some(
+            bundle
+                .tokenizer_config()
+                .ok_or_else(|| missing("tokenizer_config.json"))?,
+        ),
+    )?;
+    Ok(ChatParts {
+        tokenizer: Arc::new(tokenizer),
+        renderer: Arc::new(template_of(bundle)?),
+        generation: bundle.policy.generation.clone(),
+    })
 }
 
 impl ChatLm for Qwen3Model {
-    fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_logits(self)
+    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
+        template_chat_parts(bundle)
     }
 }
 
 impl ChatLm for GemmaModel {
-    fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_logits(self)
+    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
+        template_chat_parts(bundle)
     }
 }
 
 impl ChatLm for Qwen3_5Model {
-    fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_logits(self)
+    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
+        template_chat_parts(bundle)
     }
 }
 
-/// A loaded stacked language model with what a conversation needs around
-/// it: its tokenizer, chat template and generation policy.
+/// A loaded language model with what a conversation needs around it: its
+/// tokenizer, its renderer and its generation policy ([`ChatParts`]).
 ///
 /// A model's head may be wider than its tokenizer (Qwen3's 151936 rows over
 /// 151669 tokens; Gemma 3 4B's 262208 over 262144); a reply never chooses an
@@ -203,7 +309,7 @@ impl ChatLm for Qwen3_5Model {
 pub struct LmChat<M> {
     bundle: Arc<LmConstruct<M>>,
     tokenizer: Arc<dyn Tokenizer>,
-    template: ChatTemplate,
+    renderer: Arc<dyn ChatRenderer>,
     generation: GenerationPolicy,
     unspelled: Arc<dyn LogitFilter>,
 }
@@ -231,7 +337,7 @@ pub fn unspelled(
 }
 
 /// An `InvalidResource` for a checkpoint without `what`.
-fn missing(what: &str) -> BunsenError {
+pub(crate) fn missing(what: &str) -> BunsenError {
     BunsenError::invalid_resource(format!("a checkpoint without {what}"))
 }
 
@@ -261,28 +367,40 @@ fn template_of<M>(bundle: &LmConstruct<M>) -> BunsenResult<ChatTemplate> {
 }
 
 impl<M: ChatLm> LmChat<M> {
-    /// A chat over `bundle`, through `tokenizer` and `template`, under
-    /// `generation`.
+    /// A chat over `bundle`, through `parts`.
     ///
     /// # Errors
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
-    /// when `generation` names no stop token.
+    /// when the generation policy names no stop token.
     pub fn new(
         bundle: Arc<LmConstruct<M>>,
-        tokenizer: Arc<dyn Tokenizer>,
-        template: ChatTemplate,
-        generation: GenerationPolicy,
+        parts: ChatParts,
     ) -> BunsenResult<Self> {
+        let ChatParts {
+            tokenizer,
+            renderer,
+            generation,
+        } = parts;
         if generation.stop_ids.is_empty() {
             return Err(missing("a stop token (no generation_config.json)"));
         }
         Ok(Self {
-            unspelled: unspelled(bundle.model.n_vocab(), tokenizer.as_ref()),
+            unspelled: unspelled(bundle.model.n_logits(), tokenizer.as_ref()),
             bundle,
             tokenizer,
-            template,
+            renderer,
             generation,
         })
+    }
+
+    /// A chat over a loaded model, through the parts its files give
+    /// ([`ChatLm::chat_parts`]).
+    ///
+    /// # Errors
+    /// As [`ChatLm::chat_parts`] and [`new`](Self::new).
+    pub fn from_construct(bundle: Arc<LmConstruct<M>>) -> BunsenResult<Self> {
+        let parts = M::chat_parts(&bundle)?;
+        Self::new(bundle, parts)
     }
 
     /// The model and its files.
@@ -295,44 +413,18 @@ impl<M: ChatLm> LmChat<M> {
         &self.tokenizer
     }
 
-    /// The chat template.
-    pub fn template(&self) -> &ChatTemplate {
-        &self.template
+    /// The renderer.
+    pub fn renderer(&self) -> &Arc<dyn ChatRenderer> {
+        &self.renderer
     }
 }
 
-impl<M: ChatLm> LmChat<M> {
-    /// A chat over a loaded model, through its `tokenizer.json` and
-    /// `tokenizer_config.json` ([`BunsenTokenizer`]) and the chat template and
-    /// stop tokens its presets resolved to: its own template where it has one,
-    /// else its family's.
-    ///
-    /// # Errors
-    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
-    /// when the checkpoint lacks `tokenizer.json` or `tokenizer_config.json`,
-    /// or its policy names no chat template or no stop token (a repo without
-    /// a `generation_config.json` and no presets that give one); as each
-    /// file's reader.
-    pub fn from_construct(bundle: Arc<LmConstruct<M>>) -> BunsenResult<Self> {
-        let tokenizer = BunsenTokenizer::from_files(
-            bundle
-                .tokenizer()
-                .ok_or_else(|| missing("tokenizer.json"))?,
-            Some(
-                bundle
-                    .tokenizer_config()
-                    .ok_or_else(|| missing("tokenizer_config.json"))?,
-            ),
-        )?;
-        let template = template_of(&bundle)?;
-        let generation = bundle.policy.generation.clone();
-        Self::new(bundle, Arc::new(tokenizer), template, generation)
-    }
-}
-
-impl<M: ChatLm> ChatBackend for LmChat<M> {
+impl<M: ChatLm> ChatBackend for LmChat<M>
+where
+    M::State: Debug + Send,
+{
     type Model = M;
-    type State = DecoderStackCache;
+    type State = M::State;
 
     fn model(&self) -> &M {
         &self.bundle.model
@@ -343,13 +435,14 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         messages: &[ChatMessage],
         enable_thinking: Option<bool>,
     ) -> BunsenResult<Vec<i64>> {
-        let text = self.template.render(messages, true, enable_thinking)?;
-        self.tokenizer.encode(&text)
+        self.renderer
+            .render_prompt(self.tokenizer.as_ref(), messages, enable_thinking)
     }
 
-    /// For a model with linear-attention layers, whose states cannot rewind:
-    /// the length of the conversation rendered without a generation prompt,
-    /// where its rendering with one is that and more.
+    /// For a model whose state cannot rewind to any position (one with
+    /// linear-attention layers): the length of the conversation rendered
+    /// without the assistant's turn opening, where the prompt is that and
+    /// more.
     fn snapshot_point(
         &self,
         messages: &[ChatMessage],
@@ -358,21 +451,13 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         if self.bundle.model.rewinds_anywhere() {
             return Ok(None);
         }
-        let open = self.template.render(messages, true, enable_thinking)?;
-        let closed = self.template.render(messages, false, enable_thinking)?;
-        if !open.starts_with(&closed) || open.len() == closed.len() {
-            return Ok(None);
-        }
-        let (open, closed) = (
-            self.tokenizer.encode(&open)?,
-            self.tokenizer.encode(&closed)?,
-        );
-        Ok(open.starts_with(&closed).then_some(closed.len()))
+        self.renderer
+            .closed_len(self.tokenizer.as_ref(), messages, enable_thinking)
     }
 
     fn snapshot(
         &self,
-        state: &mut DecoderStackCache,
+        state: &mut M::State,
     ) {
         CachedLm::snapshot(&self.bundle.model, state);
     }
@@ -394,7 +479,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
     }
 
     fn float_dtype(&self) -> DType {
-        self.bundle.model.float_dtype()
+        LmDecoderOps::float_dtype(&self.bundle.model)
     }
 
     fn decode_state(
@@ -402,14 +487,14 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         positions: usize,
         storage: KVCacheStorage,
         device: &Device,
-    ) -> DecoderStackCache {
+    ) -> M::State {
         CachedLm::decode_state(&self.bundle.model, 1, positions, storage, device)
     }
 
     fn rewind<'a>(
         &self,
         history: &mut CachedHistory,
-        state: &mut DecoderStackCache,
+        state: &mut M::State,
         next: &'a [i64],
         device: &Device,
     ) -> &'a [i64] {
@@ -419,7 +504,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
     fn prefill(
         &self,
         ids: &[i64],
-        state: &mut DecoderStackCache,
+        state: &mut M::State,
         device: &Device,
     ) -> Tensor<2> {
         self.bundle.model.prefill_ids(row(ids, device), state)

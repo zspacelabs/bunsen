@@ -2,182 +2,79 @@
 use std::sync::Arc;
 
 use bunsen::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::{
-        language::{
-            driver::{
-                CachedHistory,
-                CachedLm,
-            },
-            nanochat::{
-                NanoChatConstruct,
-                NanoChatDecodeState,
-                NanoChatGpt,
-                NanoChatGptMeta,
-            },
-        },
+        language::nanochat::NanoChatGpt,
         support::{
-            decoding::LogitFilter,
-            model_config::{
-                GenerationPolicy,
-                SamplingPolicy,
-            },
+            construct::LmConstruct,
+            model_config::GenerationPolicy,
             tokens::{
                 BunsenTokenizer,
-                Detokenizer,
                 Tokenizer,
             },
         },
     },
-    ops::transformers::attention::KVCacheStorage,
-};
-use burn::{
-    Tensor,
-    tensor::{
-        DType,
-        Device,
-    },
 };
 
 use crate::chat::{
-    ChatBackend,
+    ChatLm,
     ChatMessage,
+    ChatParts,
+    ChatRenderer,
+    LmChat,
     NanoChatLayout,
-    row,
-    unspelled,
+    backend::missing,
 };
 
-/// A loaded nanochat with what a conversation needs around it: its
-/// tokenizer (its `tokenizer.pkl`, as a [`BunsenTokenizer`]), its conversation
-/// layout, and upstream's chat defaults. A reply never chooses an id the
-/// tokenizer cannot spell.
+/// A chat over a loaded nanochat: its tokenizer (its `tokenizer.pkl`, as a
+/// [`BunsenTokenizer`]), its conversation layout ([`NanoChatLayout`]), and
+/// upstream's chat defaults. A reply never chooses an id the tokenizer cannot
+/// spell.
 ///
-/// nanochat's checkpoints carry no generation config; the defaults are
-/// upstream's chat scripts': temperature 0.6, top-k 50, a reply ending at
+/// nanochat's checkpoints carry no generation config: its sampling is the
+/// kit's policy
+/// ([`nanochat_default_policy`](bunsen::kits::language::nanochat::nanochat_default_policy),
+/// upstream's chat scripts'), and a reply ends at its tokenizer's
 /// `<|assistant_end|>` or `<|bos|>`. It has no thinking switch.
-#[derive(Debug)]
-pub struct NanoChatChat {
-    bundle: Arc<NanoChatConstruct>,
-    tokenizer: Arc<dyn Tokenizer>,
-    layout: NanoChatLayout,
-    generation: GenerationPolicy,
-    unspelled: Arc<dyn LogitFilter>,
-}
+pub type NanoChatChat = LmChat<NanoChatGpt>;
 
-impl NanoChatChat {
-    /// A chat over a loaded checkpoint, from the `tokenizer.pkl` it carries.
-    ///
-    /// # Errors
-    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
-    /// when the checkpoint lacks `tokenizer.pkl`, or its tokenizer the
-    /// layout's special tokens; as
-    /// [`BunsenTokenizer::from_tiktoken_pickle_file`].
-    pub fn from_construct(bundle: Arc<NanoChatConstruct>) -> BunsenResult<Self> {
-        let path = bundle
-            .tokenizer()
-            .ok_or_else(|| BunsenError::invalid_resource("a checkpoint without tokenizer.pkl"))?;
+/// nanochat's parts: its `tokenizer.pkl`, its layout, and the kit's policy
+/// with the layout's stop tokens.
+///
+/// # Errors
+/// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
+/// when the checkpoint lacks `tokenizer.pkl`, or its tokenizer the layout's
+/// special tokens; as [`BunsenTokenizer::from_tiktoken_pickle_file`].
+impl ChatLm for NanoChatGpt {
+    fn chat_parts(bundle: &LmConstruct<Self>) -> BunsenResult<ChatParts> {
+        let path = bundle.tokenizer().ok_or_else(|| missing("tokenizer.pkl"))?;
         let tokenizer: Arc<dyn Tokenizer> =
             Arc::new(BunsenTokenizer::from_tiktoken_pickle_file(path)?);
         let layout = NanoChatLayout::from_tokenizer(tokenizer.as_ref())?;
+        // The kit's policy, the sampling among it; the stops are the
+        // tokenizer's, which the layout reads.
         let generation = GenerationPolicy {
             stop_ids: layout.stop_ids(),
-            sampling: Some(SamplingPolicy {
-                temperature: 0.6,
-                top_k: Some(50),
-                top_p: None,
-                min_p: None,
-            }),
-            ..Default::default()
+            ..bundle.policy.generation.clone()
         };
-        Ok(Self {
-            unspelled: unspelled(bundle.model.vocab_size(), tokenizer.as_ref()),
-            bundle,
+        Ok(ChatParts {
             tokenizer,
-            layout,
+            renderer: Arc::new(layout),
             generation,
         })
     }
-
-    /// The model and its files.
-    pub fn bundle(&self) -> &Arc<NanoChatConstruct> {
-        &self.bundle
-    }
-
-    /// The tokenizer.
-    pub fn tokenizer(&self) -> &Arc<dyn Tokenizer> {
-        &self.tokenizer
-    }
-
-    /// The conversation layout.
-    pub fn layout(&self) -> &NanoChatLayout {
-        &self.layout
-    }
 }
 
-impl ChatBackend for NanoChatChat {
-    type Model = NanoChatGpt;
-    type State = NanoChatDecodeState;
-
-    fn model(&self) -> &NanoChatGpt {
-        &self.bundle.model
-    }
-
-    fn render(
+/// Upstream's layout renders the conversation, with no thinking switch. A
+/// nanochat's state rewinds to any position, so its prompt needs no split
+/// point ([`closed_len`](ChatRenderer::closed_len)'s default).
+impl ChatRenderer for NanoChatLayout {
+    fn render_prompt(
         &self,
+        tokenizer: &dyn Tokenizer,
         messages: &[ChatMessage],
         _enable_thinking: Option<bool>,
     ) -> BunsenResult<Vec<i64>> {
-        self.layout.render(self.tokenizer.as_ref(), messages)
-    }
-
-    fn detokenizer(&self) -> Arc<dyn Detokenizer> {
-        self.tokenizer.clone()
-    }
-
-    fn generation(&self) -> &GenerationPolicy {
-        &self.generation
-    }
-
-    fn filters(&self) -> Vec<Arc<dyn LogitFilter>> {
-        vec![self.unspelled.clone()]
-    }
-
-    fn trained_context(&self) -> Option<usize> {
-        Some(self.bundle.sequence_len())
-    }
-
-    fn float_dtype(&self) -> DType {
-        self.bundle.model.float_dtype()
-    }
-
-    fn decode_state(
-        &self,
-        positions: usize,
-        storage: KVCacheStorage,
-        device: &Device,
-    ) -> NanoChatDecodeState {
-        CachedLm::decode_state(&self.bundle.model, 1, positions, storage, device)
-    }
-
-    fn rewind<'a>(
-        &self,
-        history: &mut CachedHistory,
-        state: &mut NanoChatDecodeState,
-        next: &'a [i64],
-        device: &Device,
-    ) -> &'a [i64] {
-        CachedLm::rewind(&self.bundle.model, history, state, next, device)
-    }
-
-    fn prefill(
-        &self,
-        ids: &[i64],
-        state: &mut NanoChatDecodeState,
-        device: &Device,
-    ) -> Tensor<2> {
-        self.bundle.model.prefill_ids(row(ids, device), state)
+        self.render(tokenizer, messages)
     }
 }
