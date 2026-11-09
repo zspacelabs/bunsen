@@ -10,7 +10,10 @@ use super::blocks::{
 use crate::{
     blocks::{
         conv::ConvSeq2d,
-        transformers::encoders::residual::ResidualEncoderAttentionBlock,
+        transformers::{
+            encoders::residual::ResidualEncoderAttentionBlock,
+            models::LmDecoderMeta,
+        },
     },
     burner::module::{
         CanonicalKeys,
@@ -22,12 +25,9 @@ use crate::{
     },
     errors::BunsenResult,
     kits::{
-        language::qwen3::{
-            Qwen3Meta,
-            weights::{
-                qwen3_config_from_transformers_section,
-                text_layer_rekey,
-            },
+        language::qwen3::weights::{
+            qwen3_config_from_transformers_section,
+            text_layer_rekey,
         },
         support::model_config::TransformersConfigJson,
     },
@@ -38,8 +38,11 @@ use crate::{
 /// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks
 /// ([`ConvSeq2d::one_based_rekey`]), its layers by
 /// `transformers`' Whisper layer names
-/// ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`]), the text
-/// model's layers by [`text_layer_rekey`], and everything else as it is.
+/// ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`]); the text
+/// model onto its
+/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel)
+/// (`language_model.lm.`): its layers by [`text_layer_rekey`], its embedding
+/// and final norm; and everything else as it is.
 /// Anything outside `model.` (the tied `lm_head.weight`) is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
@@ -61,10 +64,14 @@ pub fn transformers_rekey() -> Rekey {
             )
             .mount_indexed(
                 "language_model.layers.",
-                "language_model.stack.layers.",
+                "language_model.lm.stack.layers.",
                 text_layer_rekey(),
             )
-            .rename("language_model.norm.", "language_model.stack.norm."),
+            .rename(
+                "language_model.embed_tokens.",
+                "language_model.lm.embedding.",
+            )
+            .rename("language_model.norm.", "language_model.lm.stack.norm."),
     )
 }
 
@@ -200,19 +207,23 @@ mod tests {
             ),
             (
                 "model.language_model.layers.0.self_attn.o_proj.weight",
-                Some("language_model.stack.layers.0.attn.c_proj.weight"),
+                Some("language_model.lm.stack.layers.0.attn.c_proj.weight"),
             ),
             (
                 "model.language_model.layers.0.self_attn.q_norm.weight",
-                Some("language_model.stack.layers.0.attn.q_norm.weight"),
+                Some("language_model.lm.stack.layers.0.attn.q_norm.weight"),
             ),
             (
                 "model.language_model.layers.0.mlp.gate_proj.weight",
-                Some("language_model.stack.layers.0.mlp.gate_proj.weight"),
+                Some("language_model.lm.stack.layers.0.mlp.gate_proj.weight"),
             ),
             (
                 "model.language_model.norm.weight",
-                Some("language_model.stack.norm.weight"),
+                Some("language_model.lm.stack.norm.weight"),
+            ),
+            (
+                "model.language_model.embed_tokens.weight",
+                Some("language_model.lm.embedding.weight"),
             ),
             ("lm_head.weight", None),
         ] {

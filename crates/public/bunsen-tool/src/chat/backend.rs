@@ -20,10 +20,7 @@ use bunsen::{
         language::{
             driver::CachedHistory,
             gemma::GemmaModel,
-            qwen3::{
-                Qwen3Meta,
-                Qwen3Model,
-            },
+            qwen3::Qwen3Model,
             qwen3_5::Qwen3_5Model,
         },
         support::{
@@ -183,11 +180,11 @@ pub trait ChatLm: StackedLm + Debug + Send + Sync + 'static {
 
 impl ChatLm for Qwen3Model {
     fn n_vocab(&self) -> usize {
-        Qwen3Meta::n_vocab(self)
+        LmDecoderMeta::n_vocab(self)
     }
 
     fn float_dtype(&self) -> DType {
-        bunsen::burner::tensor::param_float_dtype(&self.embed_tokens.weight)
+        self.lm.float_dtype()
     }
 }
 
