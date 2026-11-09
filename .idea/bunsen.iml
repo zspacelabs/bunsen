@@ -61,6 +61,11 @@
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/rewrite-genai-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-model-validation/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/validation/tools/validate/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/gemma-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/gemma-model-validation/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/laya-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-5-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-5-model-validation/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
