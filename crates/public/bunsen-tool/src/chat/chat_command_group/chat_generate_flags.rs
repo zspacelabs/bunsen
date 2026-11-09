@@ -13,10 +13,7 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::{
-        language::qwen3::pretrained::DEFAULT_QWEN3_MODEL,
-        support::decoding::SearchConfig,
-    },
+    kits::support::decoding::SearchConfig,
     ops::transformers::attention::KVCacheStorage,
 };
 use bunsen_app::{
@@ -43,10 +40,13 @@ use crate::{
         ChatSession,
         ChatSessionConfig,
         LoadedChat,
+        choose_checkpoint,
         search_config,
     },
+    select::SelectArgs,
     support::{
         PresetArgs,
+        with_patch,
         with_presets,
     },
 };
@@ -66,11 +66,12 @@ pub struct ChatGenerateFlags {
     #[clap(flatten)]
     device: BackendArgs,
 
-    /// The checkpoint: a name `list` shows, or `hf:org/repo`, a Qwen3. The
-    /// family's default when omitted; outside `family`, the name picks the
-    /// family, and Qwen3's default is the default.
-    #[arg(long)]
-    model: Option<String>,
+    /// The checkpoint: a name `list` shows (or a prefix, group or kit of
+    /// them), a selection object, or `hf:org/repo`, a Qwen3 outside
+    /// `family`. The family's default when omitted; outside `family`, the
+    /// chosen checkpoint's family, and Qwen3's default is the default.
+    #[clap(flatten)]
+    select: SelectArgs,
 
     #[clap(flatten)]
     presets: PresetArgs,
@@ -140,25 +141,14 @@ impl ChatKvStorage {
 }
 
 impl ChatGenerateFlags {
-    /// The checkpoint these flags name, and its family: `family`'s (its
-    /// default when `--model` is not given), or outside `family` the one
-    /// `--model` names.
+    /// The checkpoint these flags choose, and its family: within `family`
+    /// (its default when `--select` is not given), or outside `family`
+    /// across every family ([`choose_checkpoint`]).
     pub(super) fn checkpoint(
         &self,
         family: Option<ChatModelFamily>,
     ) -> BunsenResult<(ChatModelFamily, String)> {
-        Ok(match family {
-            Some(family) => (
-                family,
-                self.model
-                    .clone()
-                    .unwrap_or_else(|| family.default_model().to_string()),
-            ),
-            None => {
-                let name = self.model.as_deref().unwrap_or(DEFAULT_QWEN3_MODEL);
-                (ChatModelFamily::of(name)?, name.to_string())
-            }
-        })
+        choose_checkpoint(family, &self.select.select, &self.presets.presets)
     }
 
     /// Opens the device, and loads the checkpoint on it: `family`'s, or
@@ -183,6 +173,9 @@ impl ChatGenerateFlags {
         // presets.
         if family == ChatModelFamily::Qwen3 && !presets.is_empty() {
             name = with_presets(&name, presets)?;
+        }
+        if let Some(patch) = self.select.patch()? {
+            name = with_patch(&name, &patch)?;
         }
         let chat = family.load(&name, &cache, &device)?;
         Ok((device, chat, name))
@@ -371,7 +364,10 @@ impl ChatThinkingFilter {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::kits::language::nanochat::pretrained::DEFAULT_NANOCHAT_MODEL;
+    use bunsen::kits::language::{
+        nanochat::pretrained::DEFAULT_NANOCHAT_MODEL,
+        qwen3::pretrained::DEFAULT_QWEN3_MODEL,
+    };
     use clap::Parser;
 
     use super::*;

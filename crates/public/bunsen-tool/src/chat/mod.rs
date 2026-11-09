@@ -24,6 +24,11 @@
 //!   through its tokenizer, and upstream's conversation layout, as upstream
 //!   renders it.
 //!
+//! - [`choose_checkpoint`]: the checkpoint a command chooses, by its
+//!   `--select`s and `--preset`s, among every family's listed checkpoints (or
+//!   one family's), each a selection candidate tagged with its family
+//!   ([`chat_selection`]: the defaults, and each family's `default`).
+//!
 //! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `repl` take
 //! a checkpoint of any family by its name; `family qwen3`, `family gemma`
 //! and `family nanochat` have the same commands for one family, its own
@@ -41,6 +46,7 @@
 mod backend;
 mod chat_command_group;
 mod chat_model_family_flags;
+mod chat_select;
 mod generation;
 mod nanochat_chat;
 mod nanochat_layout;
@@ -50,6 +56,7 @@ mod template;
 pub use backend::*;
 pub use chat_command_group::*;
 pub use chat_model_family_flags::*;
+pub use chat_select::*;
 pub use generation::*;
 pub use nanochat_chat::*;
 pub use nanochat_layout::*;

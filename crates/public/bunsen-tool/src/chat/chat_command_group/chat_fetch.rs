@@ -10,7 +10,10 @@ use bunsen_app::{
     },
 };
 
-use crate::chat::ChatModelFamily;
+use crate::chat::{
+    ChatModelFamily,
+    choose_checkpoint,
+};
 
 /// Fetches checkpoints into the weights cache.
 #[derive(clap::Args, Debug)]
@@ -21,7 +24,7 @@ pub struct ChatFetchCommand {
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
-    /// Checkpoint names, as `--model` takes them (`list` shows them).
+    /// Checkpoints, each as `--select` takes one (`list` shows the names).
     #[arg(required = true)]
     names: Vec<String>,
 }
@@ -36,11 +39,8 @@ impl ChatFetchCommand {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
         for name in &self.names {
-            let family = match family {
-                Some(family) => family,
-                None => ChatModelFamily::of(name)?,
-            };
-            family.fetch(name, &cache)?;
+            let (family, name) = choose_checkpoint(family, std::slice::from_ref(name), &[])?;
+            family.fetch(&name, &cache)?;
         }
         Ok(())
     }
