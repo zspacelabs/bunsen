@@ -11,7 +11,7 @@ use crate::{
             CausalDecoderBlock,
             DecoderLayerKeys,
         },
-        models::LmDecoderWrapper,
+        models::language_decoder::LmDecoderWrapper,
     },
     burner::module::{
         CanonicalKeys,
@@ -43,7 +43,7 @@ pub fn text_layer_rekey() -> Rekey {
 
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto the module paths
 /// of a [`Qwen3Model`]'s
-/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel):
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under `model.`, the layers by [`text_layer_rekey`], the embedding
 /// (`embed_tokens`, the model's `embedding`) and the final norm; and
 /// `lm_head.weight`, the head's projection. Anything else is dropped.
@@ -68,7 +68,7 @@ pub fn transformers_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
-/// `model`'s [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel): [`load_rekeyed`] under [`transformers_rekey`], in the dtype `model`
+/// `model`'s [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): [`load_rekeyed`] under [`transformers_rekey`], in the dtype `model`
 /// was built in. The checkpoints ship `bf16`, which not every backend computes
 /// in.
 ///

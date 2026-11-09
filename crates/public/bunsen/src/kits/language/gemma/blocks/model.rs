@@ -33,7 +33,7 @@ use crate::{
             },
             head::LmHeadConfig,
             mlp::TransformerGatedMlpConfig,
-            models::{
+            models::language_decoder::{
                 LmAttentionOnlyKind,
                 LmDecoderMeta,
                 LmDecoderModel,
@@ -450,7 +450,7 @@ impl ModuleInit<GemmaModel> for GemmaConfig {
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
 /// [`KVCache`](crate::ops::transformers::attention::KVCache)
-/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::LmKvForwardHidden),
+/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
 /// [`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel)).
 ///
 /// Built by [`GemmaConfig`].

@@ -10,7 +10,7 @@ use bunsen::{
             DecoderStackCache,
             DecoderStackMeta,
         },
-        models::LmDecoderMeta,
+        models::language_decoder::LmDecoderMeta,
     },
     errors::{
         BunsenError,

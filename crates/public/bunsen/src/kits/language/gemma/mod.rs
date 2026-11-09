@@ -4,7 +4,7 @@
 //! (their text models), as `transformers`' `GemmaModel`, `Gemma2Model` and
 //! `Gemma3TextModel` define them. One [`GemmaModel`], built from a
 //! [`GemmaConfig`], covers the three: an
-//! [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel)
+//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 //! whose stack is `GeGLU` layers with `1 + w` RMS norms; from Gemma 2, a norm
 //! on each sublayer's output too (the sandwich), sliding-window layers among
 //! full ones, and a `query_pre_attn_scalar`; Gemma 2's attention and final
@@ -15,7 +15,7 @@
 //!
 //! - [`blocks`]: the model, built from a [`GemmaConfig`].
 //! - Decoding: the model wraps an attention-only
-//!   [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel),
+//!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
 //!   and is a [`StackedLm`](crate::kits::support::decoding::StackedLm), its
 //!   decode state its stack's
 //!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache),

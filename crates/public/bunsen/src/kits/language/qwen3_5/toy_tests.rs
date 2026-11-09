@@ -27,7 +27,7 @@ use super::{
 use crate::{
     blocks::transformers::{
         decoders::stack::DecoderStackMeta,
-        models::LmUncachedForwardHidden,
+        models::language_decoder::LmUncachedForwardHidden,
     },
     burner::module::ModuleInit,
     kits::support::decoding::{

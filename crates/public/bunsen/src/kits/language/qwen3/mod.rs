@@ -10,7 +10,7 @@
 //! [`TransformerGatedMlp`](crate::blocks::transformers::mlp::TransformerGatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
 //! wrapping an attention-only
-//! [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel), and
+//! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel), and
 //! decodes through a [`KVCache`](crate::ops::transformers::attention::KVCache).
 //!
 //! It is the model of the dense Qwen3 checkpoints up to 8B: `Qwen3-0.6B`,

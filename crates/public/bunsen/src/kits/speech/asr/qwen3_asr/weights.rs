@@ -12,7 +12,7 @@ use crate::{
         conv::ConvSeq2d,
         transformers::{
             encoders::residual::ResidualEncoderAttentionBlock,
-            models::LmDecoderMeta,
+            models::language_decoder::LmDecoderMeta,
         },
     },
     burner::module::{
@@ -40,7 +40,7 @@ use crate::{
 /// `transformers`' Whisper layer names
 /// ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`]); the text
 /// model onto its
-/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel)
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 /// (`language_model.lm.`): its layers by [`text_layer_rekey`], its embedding
 /// and final norm; and everything else as it is.
 /// Anything outside `model.` (the tied `lm_head.weight`) is dropped.

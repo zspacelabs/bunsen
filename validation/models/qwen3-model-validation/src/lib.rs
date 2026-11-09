@@ -56,7 +56,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    blocks::transformers::models::LmKvForwardHidden,
+    blocks::transformers::models::language_decoder::LmKvForwardHidden,
     kits::{
         language::qwen3::Qwen3Construct,
         support::construct::LoadPolicy,

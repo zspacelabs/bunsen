@@ -12,7 +12,7 @@ use crate::{
             DecoderStack,
             DecoderStackCache,
         },
-        models::{
+        models::language_decoder::{
             LmDecodeKind,
             LmDecoderModel,
             LmDecoderWrapper,
@@ -168,7 +168,7 @@ mod tests {
                 head::LmHeadConfig,
                 mixers::GatedDeltaNetConfig,
                 mlp::TransformerGatedMlpConfig,
-                models::{
+                models::language_decoder::{
                     LmDecoderVariantConfig,
                     LmHybridKind,
                     LmUncachedForwardHidden,

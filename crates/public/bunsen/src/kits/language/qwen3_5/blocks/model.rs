@@ -35,7 +35,7 @@ use crate::{
             head::LmHeadConfig,
             mixers::GatedDeltaNetConfig,
             mlp::TransformerGatedMlpConfig,
-            models::{
+            models::language_decoder::{
                 LmDecoderMeta,
                 LmDecoderModel,
                 LmDecoderVariantConfig,
@@ -406,7 +406,7 @@ impl ModuleInit<Qwen3_5Model> for Qwen3_5Config {
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), which carries a
 /// KV cache for its full-attention layers and a state for each linear one,
 /// and runs uncached through
-/// [`LmUncachedForwardHidden`](crate::blocks::transformers::models::LmUncachedForwardHidden).
+/// [`LmUncachedForwardHidden`](crate::blocks::transformers::models::language_decoder::LmUncachedForwardHidden).
 ///
 /// Built by [`Qwen3_5Config`].
 /// Implements [`LmDecoderMeta`].

@@ -1,7 +1,7 @@
 //! # Qwen3 blocks.
 //!
 //! The model, [`Qwen3Model`] with its [`Qwen3Config`], both
-//! [`LmDecoderMeta`](crate::blocks::transformers::models::LmDecoderMeta). Its
+//! [`LmDecoderMeta`](crate::blocks::transformers::models::language_decoder::LmDecoderMeta). Its
 //! repeated layer is the generic
 //! [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock),
 //! with RMS norms, per-head query/key RMS norms and a `SwiGLU`

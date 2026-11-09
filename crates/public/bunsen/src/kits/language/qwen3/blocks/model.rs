@@ -33,7 +33,7 @@ use crate::{
             },
             head::LmHeadConfig,
             mlp::TransformerGatedMlpConfig,
-            models::{
+            models::language_decoder::{
                 LmAttentionOnlyKind,
                 LmDecoderMeta,
                 LmDecoderModel,
@@ -258,7 +258,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
 /// [`KVCache`](crate::ops::transformers::attention::KVCache)
-/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::LmKvForwardHidden),
+/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden),
 /// [`KVCacheModel`]).
 ///
 /// Built by [`Qwen3Config`].
@@ -335,7 +335,7 @@ mod tests {
     use crate::{
         blocks::transformers::{
             head::LmHeadMeta,
-            models::LmKvForwardHidden,
+            models::language_decoder::LmKvForwardHidden,
         },
         kits::support::decoding::{
             SearchConfig,
