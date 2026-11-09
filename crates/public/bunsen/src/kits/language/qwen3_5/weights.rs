@@ -8,30 +8,26 @@ use super::{
     Qwen3_5Model,
 };
 use crate::{
-    blocks::transformers::{
-        decoders::causal::{
-            CausalDecoderBlock,
-            DecoderLayerKeys,
-        },
-        models::language_decoder::LmDecoderWrapper,
+    blocks::transformers::decoders::causal::{
+        CausalDecoderBlock,
+        DecoderLayerKeys,
     },
     burner::module::{
-        CanonicalKeys,
         Rekey,
         Select,
         TensorLoadTransform,
     },
-    data::pretrained::{
-        NamedTensorsApplied,
-        load_rekeyed,
-    },
+    data::pretrained::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::model_config::{
-        TransformersConfigJson,
-        TransformersDecoderSection,
+    kits::support::{
+        construct::load_lm_rekeyed,
+        model_config::{
+            TransformersConfigJson,
+            TransformersDecoderSection,
+        },
     },
 };
 
@@ -107,33 +103,29 @@ pub fn transformers_rekey() -> Rekey {
 
 /// Loads tensors named as a `transformers` Qwen3.5 state dict into `model`'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
-/// [`load_rekeyed`] under [`transformers_rekey`], in the dtype `model` was
-/// built in.
+/// [`load_rekeyed`](crate::data::pretrained::load_rekeyed) under
+/// [`transformers_rekey`], in the dtype `model` was built in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`load_lm_rekeyed`].
 pub fn load_transformers_tensors(
     model: &mut Qwen3_5Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let lm = model.lm_mut();
-    let rekey = transformers_rekey().then(lm.canonical_rekey());
-    load_rekeyed(lm, tensors, &rekey, None)
+    load_lm_rekeyed(model, tensors, transformers_rekey(), None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
 /// load policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`load_lm_rekeyed`].
 pub fn load_transformers_tensors_as(
     model: &mut Qwen3_5Model,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let lm = model.lm_mut();
-    let rekey = transformers_rekey().then(lm.canonical_rekey());
-    load_rekeyed(lm, tensors, &rekey, Some(dtype))
+    load_lm_rekeyed(model, tensors, transformers_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3_5Config`] of a `transformers` dense Qwen3.5 `config.json`: a

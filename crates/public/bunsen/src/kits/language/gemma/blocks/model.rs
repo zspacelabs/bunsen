@@ -41,6 +41,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
+        BunsenError,
         BunsenResult,
         ConstraintError,
         Rule,
@@ -407,16 +408,20 @@ impl GemmaConfig {
         .with_rotary_alts(alts)
         .with_kind_rotary(vec![None, sliding_rotary]))
     }
+}
 
-    /// The language model: [`embedding`](Self::embedding),
-    /// [`head`](Self::head) and [`stack`](Self::stack), its KV cache
-    /// [`GEMMA_KV_CACHE_PRE_SIZE`] positions up front.
-    ///
-    /// # Errors
-    /// As [`stack`](Self::stack).
-    pub fn lm(&self) -> BunsenResult<LmDecoderVariantConfig> {
+/// The language model: [`embedding`](GemmaConfig::embedding),
+/// [`head`](GemmaConfig::head) and [`stack`](GemmaConfig::stack), its KV
+/// cache [`GEMMA_KV_CACHE_PRE_SIZE`] positions up front.
+///
+/// # Errors
+/// As [`stack`](GemmaConfig::stack).
+impl TryFrom<&GemmaConfig> for LmDecoderVariantConfig {
+    type Error = BunsenError;
+
+    fn try_from(config: &GemmaConfig) -> BunsenResult<Self> {
         Ok(
-            LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack()?.into())
+            LmDecoderVariantConfig::new(config.embedding(), config.head(), config.stack()?.into())
                 .with_kv_cache_pre_size(GEMMA_KV_CACHE_PRE_SIZE),
         )
     }
@@ -428,7 +433,7 @@ impl ModuleInit<GemmaModel> for GemmaConfig {
         device: &Device,
     ) -> BunsenResult<GemmaModel> {
         Ok(GemmaModel {
-            lm: self.lm()?.try_init(device)?,
+            lm: LmDecoderVariantConfig::try_from(self)?.try_init(device)?,
         })
     }
 }
@@ -549,5 +554,10 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("sliding_window")
             .assert_err(&config().with_sliding_window(None).stack());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("sliding_window")
+            .assert_err(&LmDecoderVariantConfig::try_from(
+                &config().with_sliding_window(None),
+            ));
     }
 }

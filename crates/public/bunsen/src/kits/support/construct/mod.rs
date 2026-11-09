@@ -31,6 +31,8 @@ mod lm_construct;
 mod load_policy;
 #[cfg(feature = "cache")]
 mod lookup;
+#[cfg(feature = "store")]
+mod transformers_lm;
 
 #[cfg(feature = "cache")]
 pub use deferred::*;
@@ -43,3 +45,5 @@ pub use lm_construct::*;
 pub use load_policy::*;
 #[cfg(feature = "cache")]
 pub use lookup::*;
+#[cfg(feature = "store")]
+pub use transformers_lm::*;

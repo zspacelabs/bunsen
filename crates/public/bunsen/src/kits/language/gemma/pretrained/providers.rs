@@ -1,14 +1,11 @@
 //! # Gemma pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::GemmaConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
@@ -16,7 +13,6 @@ use crate::{
         language::gemma::{
             CHAT_TEMPLATE,
             GENERATION_CONFIG,
-            GemmaConstruct,
             TOKENIZER,
             TOKENIZER_CONFIG,
         },
@@ -114,23 +110,6 @@ pub fn default_gemma_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// name, which the tests pin they do not.
 pub fn default_gemma_factory() -> BunsenResult<PretrainedFactory<GemmaConstructConfig>> {
     PretrainedFactory::new().with_providers(default_gemma_providers())
-}
-
-impl PretrainedFactory<GemmaConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<GemmaConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

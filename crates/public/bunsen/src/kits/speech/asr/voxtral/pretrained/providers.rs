@@ -1,21 +1,15 @@
 //! # Voxtral Realtime pretrained providers and factory
 use alloc::sync::Arc;
 
-use burn::tensor::Device;
-
 use super::VoxtralConstructConfig;
 use crate::{
     data::pretrained::{
         EmbeddedCatalog,
         HfProvider,
-        PretrainedCache,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        speech::asr::voxtral::VoxtralConstruct,
-        support::construct::PretrainedFactory,
-    },
+    kits::support::construct::PretrainedFactory,
 };
 
 /// The kit segment of a Voxtral resource's path in the cache:
@@ -78,30 +72,13 @@ pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 ///
 /// [`load_construct`](PretrainedFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
-/// [`VoxtralConstruct`].
+/// [`VoxtralConstruct`](crate::kits::speech::asr::voxtral::VoxtralConstruct).
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
 pub fn default_voxtral_factory() -> BunsenResult<PretrainedFactory<VoxtralConstructConfig>> {
     PretrainedFactory::new().with_providers(default_voxtral_providers())
-}
-
-impl PretrainedFactory<VoxtralConstructConfig> {
-    /// A name to a construct under `policy`: [`load`](Self::load), keeping
-    /// the handle.
-    ///
-    /// # Errors
-    /// As [`load`](Self::load).
-    pub fn load_construct(
-        &self,
-        spec: &str,
-        cache: &PretrainedCache,
-        device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
-    ) -> BunsenResult<Arc<VoxtralConstruct>> {
-        Ok(self.load(spec, cache, device, policy)?.handle)
-    }
 }
 
 #[cfg(test)]

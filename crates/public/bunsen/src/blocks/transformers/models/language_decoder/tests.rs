@@ -130,6 +130,11 @@ fn test_pathways_and_meta() {
     }
     assert_eq!(a.num_params(), b.num_params());
     assert_eq!(a.kv_cache_pre_size(), 16);
+    assert_eq!(a.n_logits(), 40, "an unsliced head");
+    let mut sliced = uniform(1);
+    sliced.head = sliced.head.clone().with_vocab(Some(30));
+    let sliced: LmDecoderModel = sliced.init(&device);
+    assert_eq!((sliced.n_vocab(), sliced.n_logits()), (40, 30));
 
     let config = a.kv_cache_config();
     assert_eq!(

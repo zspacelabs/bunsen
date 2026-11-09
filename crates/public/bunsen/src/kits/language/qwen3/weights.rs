@@ -6,25 +6,19 @@ use super::{
     Qwen3Model,
 };
 use crate::{
-    blocks::transformers::{
-        decoders::causal::{
-            CausalDecoderBlock,
-            DecoderLayerKeys,
-        },
-        models::language_decoder::LmDecoderWrapper,
+    blocks::transformers::decoders::causal::{
+        CausalDecoderBlock,
+        DecoderLayerKeys,
     },
-    burner::module::{
-        CanonicalKeys,
-        Rekey,
-    },
-    data::pretrained::{
-        NamedTensorsApplied,
-        load_rekeyed,
-    },
+    burner::module::Rekey,
+    data::pretrained::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::support::model_config::{
-        TransformersConfigJson,
-        TransformersDecoderSection,
+    kits::support::{
+        construct::load_lm_rekeyed,
+        model_config::{
+            TransformersConfigJson,
+            TransformersDecoderSection,
+        },
     },
 };
 
@@ -53,7 +47,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_rekeyed`] resolves to `gamma`.
+/// [`load_rekeyed`](crate::data::pretrained::load_rekeyed) resolves to `gamma`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -68,19 +62,18 @@ pub fn transformers_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
-/// `model`'s [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): [`load_rekeyed`] under [`transformers_rekey`], in the dtype `model`
+/// `model`'s [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): [`load_lm_rekeyed`] under
+/// [`transformers_rekey`], in the dtype `model`
 /// was built in. The checkpoints ship `bf16`, which not every backend computes
 /// in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`load_lm_rekeyed`].
 pub fn load_transformers_tensors(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let lm = model.lm_mut();
-    let rekey = transformers_rekey().then(lm.canonical_rekey());
-    load_rekeyed(lm, tensors, &rekey, None)
+    load_lm_rekeyed(model, tensors, transformers_rekey(), None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
@@ -91,15 +84,13 @@ pub fn load_transformers_tensors(
 /// [`LoadPolicy::resolve`]: crate::kits::support::construct::LoadPolicy::resolve
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`load_lm_rekeyed`].
 pub fn load_transformers_tensors_as(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let lm = model.lm_mut();
-    let rekey = transformers_rekey().then(lm.canonical_rekey());
-    load_rekeyed(lm, tensors, &rekey, Some(dtype))
+    load_lm_rekeyed(model, tensors, transformers_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:

@@ -6,10 +6,7 @@ use std::{
 
 use bunsen::{
     blocks::transformers::{
-        decoders::stack::{
-            DecoderStackCache,
-            DecoderStackMeta,
-        },
+        decoders::stack::DecoderStackCache,
         models::language_decoder::LmDecoderMeta,
     },
     errors::{
@@ -18,7 +15,10 @@ use bunsen::{
     },
     kits::{
         language::{
-            driver::CachedHistory,
+            driver::{
+                CachedHistory,
+                CachedLm,
+            },
             gemma::GemmaModel,
             qwen3::Qwen3Model,
             qwen3_5::Qwen3_5Model,
@@ -177,19 +177,19 @@ pub trait ChatLm: StackedLm + Debug + Send + Sync + 'static {
 
 impl ChatLm for Qwen3Model {
     fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_vocab(self)
+        LmDecoderMeta::n_logits(self)
     }
 }
 
 impl ChatLm for GemmaModel {
     fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_vocab(self)
+        LmDecoderMeta::n_logits(self)
     }
 }
 
 impl ChatLm for Qwen3_5Model {
     fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_vocab(self)
+        LmDecoderMeta::n_logits(self)
     }
 }
 
@@ -355,7 +355,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         messages: &[ChatMessage],
         enable_thinking: Option<bool>,
     ) -> BunsenResult<Option<usize>> {
-        if self.bundle.model.stack().layer_attends().iter().all(|&a| a) {
+        if self.bundle.model.rewinds_anywhere() {
             return Ok(None);
         }
         let open = self.template.render(messages, true, enable_thinking)?;
@@ -374,7 +374,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         &self,
         state: &mut DecoderStackCache,
     ) {
-        state.snapshot();
+        CachedLm::snapshot(&self.bundle.model, state);
     }
 
     fn detokenizer(&self) -> Arc<dyn Detokenizer> {
@@ -403,9 +403,7 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         storage: KVCacheStorage,
         device: &Device,
     ) -> DecoderStackCache {
-        self.bundle
-            .model
-            .decode_state(1, positions, storage, device)
+        CachedLm::decode_state(&self.bundle.model, 1, positions, storage, device)
     }
 
     fn rewind<'a>(
@@ -413,9 +411,9 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         history: &mut CachedHistory,
         state: &mut DecoderStackCache,
         next: &'a [i64],
-        _device: &Device,
+        device: &Device,
     ) -> &'a [i64] {
-        history.rewind(state, next)
+        CachedLm::rewind(&self.bundle.model, history, state, next, device)
     }
 
     fn prefill(
@@ -424,7 +422,6 @@ impl<M: ChatLm> ChatBackend for LmChat<M> {
         state: &mut DecoderStackCache,
         device: &Device,
     ) -> Tensor<2> {
-        let model = &self.bundle.model;
-        model.prefill(model.embed(row(ids, device)), state)
+        self.bundle.model.prefill_ids(row(ids, device), state)
     }
 }

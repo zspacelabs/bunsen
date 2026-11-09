@@ -38,7 +38,10 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     ops::transformers::attention::{
         KVCacheConfig,
         KVCacheModel,
@@ -195,13 +198,22 @@ impl Qwen3Config {
     pub fn embedding(&self) -> TokenEmbeddingConfig {
         TokenEmbeddingConfig::new(self.n_vocab, self.d_model)
     }
+}
 
-    /// The language model: [`embedding`](Self::embedding),
-    /// [`head`](Self::head) and [`stack`](Self::stack), its KV cache
-    /// [`QWEN3_KV_CACHE_PRE_SIZE`] positions up front.
-    pub fn lm(&self) -> LmDecoderVariantConfig {
-        LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack().into())
-            .with_kv_cache_pre_size(QWEN3_KV_CACHE_PRE_SIZE)
+/// The language model: [`embedding`](Qwen3Config::embedding),
+/// [`head`](Qwen3Config::head) and [`stack`](Qwen3Config::stack), its KV cache
+/// [`QWEN3_KV_CACHE_PRE_SIZE`] positions up front.
+///
+/// # Errors
+/// Never: a Qwen3's lowering is total; the error is the other kits'.
+impl TryFrom<&Qwen3Config> for LmDecoderVariantConfig {
+    type Error = BunsenError;
+
+    fn try_from(config: &Qwen3Config) -> BunsenResult<Self> {
+        Ok(
+            LmDecoderVariantConfig::new(config.embedding(), config.head(), config.stack().into())
+                .with_kv_cache_pre_size(QWEN3_KV_CACHE_PRE_SIZE),
+        )
     }
 }
 
@@ -233,7 +245,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
         device: &Device,
     ) -> BunsenResult<Qwen3Model> {
         Ok(Qwen3Model {
-            lm: self.lm().try_init(device)?,
+            lm: LmDecoderVariantConfig::try_from(self)?.try_init(device)?,
         })
     }
 }
@@ -292,10 +304,13 @@ mod tests {
                 LmKvForwardHidden,
             },
         },
-        kits::support::decoding::{
-            SearchConfig,
-            StackedLm,
-            decode_cached,
+        kits::{
+            language::driver::CachedLm,
+            support::decoding::{
+                SearchConfig,
+                StackedLm,
+                decode_cached,
+            },
         },
         ops::{
             embedding::unembed,
@@ -313,6 +328,8 @@ mod tests {
             .with_rms_eps(1e-5)
             .with_rope_theta(500);
         let device = cpu_device();
+        let lm: LmDecoderVariantConfig = (&config).try_into().unwrap();
+        assert_eq!(lm.kv_cache_pre_size, QWEN3_KV_CACHE_PRE_SIZE);
         let model: Qwen3Model = config.init(&device);
         assert_eq!(model.n_vocab(), config.n_vocab());
         assert_eq!(model.d_model(), config.d_model());
