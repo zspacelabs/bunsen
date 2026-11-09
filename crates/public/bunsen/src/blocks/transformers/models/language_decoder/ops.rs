@@ -1,4 +1,4 @@
-//! [`LmDecoderOps`]: the kind-free API of a model and its wrappers.
+//! [`LmDecoderOps`] and [`LmPlainStackOps`]: the call APIs, by layer.
 use alloc::vec::Vec;
 use core::ops::Range;
 
@@ -21,45 +21,62 @@ use crate::blocks::transformers::{
     embedding::RotarySet,
 };
 
-/// The API every [`LmDecoderModel`] has, of any [`LmDecodeKind`], and every
-/// [`LmDecoderWrapper`] through a blanket impl, as the model it wraps: the
-/// stack, the rotary tables, the embedding, the head, and the attention
-/// weights. The forward is by kind:
-/// [`LmKvForwardHidden`](super::LmKvForwardHidden)
-/// or [`LmUncachedForwardHidden`](super::LmUncachedForwardHidden).
+/// The call API of a decoder-only language model that says nothing of its
+/// forward: the embedding, the head, the rotary tables and the float dtype.
+///
+/// Every [`LmDecoderModel`], of any [`LmDecodeKind`], implements it, and
+/// every [`LmDecoderWrapper`] through a blanket impl, as the model it wraps;
+/// a model whose forward is its own (nanochat's, with inputs beside the
+/// stack's) implements it by hand. The forward is [`LmPlainStackOps`]' and
+/// the kind's, where it is the bare stack's.
 pub trait LmDecoderOps {
-    /// The decoder stack.
-    fn stack(&self) -> &DecoderStack;
-
-    /// The float dtype the weights are held, and computed, in
-    /// ([`LmDecoderModel::float_dtype`]).
+    /// The float dtype the weights are held, and computed, in.
     fn float_dtype(&self) -> DType;
 
-    /// The rotary tables for positions `0..seq_len`
-    /// ([`LmDecoderModel::rotary`]).
+    /// The rotary tables for positions `0..seq_len`.
     fn rotary(
         &self,
         seq_len: usize,
         device: &Device,
     ) -> RotarySet;
 
-    /// Embeds tokens: `[batch, seq]` to `[batch, seq, d_model]`
-    /// ([`LmDecoderModel::embed`]).
+    /// Embeds tokens: `[batch, seq]` to `[batch, seq, d_model]`; the token
+    /// embedding alone, whatever the forward adds to it.
     fn embed(
         &self,
         tokens: Tensor<2, Int>,
     ) -> Tensor<3>;
 
-    /// The head: the stack's `[batch, seq, d_model]` to logits,
-    /// `[batch, seq, n_vocab]` ([`LmDecoderModel::logits`]).
+    /// The head: the stack's normalized `[batch, seq, d_model]` to logits,
+    /// `[batch, seq, n_vocab]`.
     fn logits(
         &self,
         hidden: Tensor<3>,
     ) -> Tensor<3>;
+}
+
+/// The API of a model whose forward is its [`DecoderStack`]'s alone, from
+/// [`embed`](LmDecoderOps::embed)'s embeddings: an [`LmDecoderModel`] and
+/// every [`LmDecoderWrapper`] (by a blanket impl), and nothing else, as
+/// [`StackedLm`](crate::kits::support::decoding::StackedLm)'s decode, the
+/// kinds' forwards and [`attention_weights`](Self::attention_weights) take
+/// the bare stack to be the forward.
+pub trait LmPlainStackOps: LmDecoderOps {
+    /// The decoder stack.
+    fn stack(&self) -> &DecoderStack;
 
     /// The attention weights of an uncached pass over `embeds`, at `layers`,
     /// each cut to the queries `rows` and the keys `cols`
-    /// ([`LmDecoderModel::attention_weights`]).
+    /// ([`DecoderStack::attention_weights`]).
+    ///
+    /// # Arguments
+    /// * `embeds` - `[batch, seq, d_model]`, at positions `0..seq`.
+    /// * `r_emb` - rotary tables covering `seq` positions.
+    /// * `layers` - the layers, by index, in the order returned.
+    /// * `rows`, `cols` - the query and key positions kept.
+    ///
+    /// # Returns
+    /// For each of `layers`, `[batch, n_heads, rows.len(), cols.len()]`.
     ///
     /// # Panics
     /// If a layer index is past the last layer.
@@ -70,14 +87,13 @@ pub trait LmDecoderOps {
         layers: &[usize],
         rows: Range<usize>,
         cols: Range<usize>,
-    ) -> Vec<Tensor<4>>;
+    ) -> Vec<Tensor<4>> {
+        self.stack()
+            .attention_weights(embeds, r_emb, layers, rows, cols)
+    }
 }
 
 impl<K: LmDecodeKind> LmDecoderOps for LmDecoderModel<K> {
-    fn stack(&self) -> &DecoderStack {
-        &self.stack
-    }
-
     fn float_dtype(&self) -> DType {
         LmDecoderModel::float_dtype(self)
     }
@@ -103,25 +119,16 @@ impl<K: LmDecodeKind> LmDecoderOps for LmDecoderModel<K> {
     ) -> Tensor<3> {
         LmDecoderModel::logits(self, hidden)
     }
+}
 
-    fn attention_weights(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-        layers: &[usize],
-        rows: Range<usize>,
-        cols: Range<usize>,
-    ) -> Vec<Tensor<4>> {
-        LmDecoderModel::attention_weights(self, embeds, r_emb, layers, rows, cols)
+impl<K: LmDecodeKind> LmPlainStackOps for LmDecoderModel<K> {
+    fn stack(&self) -> &DecoderStack {
+        &self.stack
     }
 }
 
 /// The wrapped model's API.
 impl<W: LmDecoderWrapper> LmDecoderOps for W {
-    fn stack(&self) -> &DecoderStack {
-        &self.lm().stack
-    }
-
     fn float_dtype(&self) -> DType {
         self.lm().float_dtype()
     }
@@ -147,16 +154,11 @@ impl<W: LmDecoderWrapper> LmDecoderOps for W {
     ) -> Tensor<3> {
         self.lm().logits(hidden)
     }
+}
 
-    fn attention_weights(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-        layers: &[usize],
-        rows: Range<usize>,
-        cols: Range<usize>,
-    ) -> Vec<Tensor<4>> {
-        self.lm()
-            .attention_weights(embeds, r_emb, layers, rows, cols)
+/// The wrapped model's stack.
+impl<W: LmDecoderWrapper> LmPlainStackOps for W {
+    fn stack(&self) -> &DecoderStack {
+        &self.lm().stack
     }
 }

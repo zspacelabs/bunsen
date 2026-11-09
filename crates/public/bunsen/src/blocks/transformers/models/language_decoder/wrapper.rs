@@ -24,7 +24,7 @@ use crate::{
 ///
 /// The model's API comes through blanket impls, by its kind: every wrapper
 /// is [`LmDecoderOps`](super::LmDecoderOps),
-/// [`LmDecoderMeta`] and a
+/// [`LmPlainStackOps`](super::LmPlainStackOps), [`LmDecoderMeta`] and a
 /// [`StackedLm`](crate::kits::support::decoding::StackedLm);
 /// an [`LmAttentionOnlyKind`] one has [`LmKvForwardHidden`] and
 /// [`KVCacheModel`], an [`LmHybridKind`] one [`LmUncachedForwardHidden`].

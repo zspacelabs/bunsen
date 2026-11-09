@@ -15,8 +15,11 @@
 //!   allowed) only through a
 //!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 //!   ([`LmUncachedForwardHidden`] besides).
-//! - API: [`LmDecoderOps`], every kind's (the stack, rotary tables, embedding,
-//!   head, attention weights), and [`LmDecoderMeta`].
+//! - API, by layer: [`LmDecoderOps`] and [`LmDecoderMeta`], which say nothing
+//!   of the forward (the embedding, head, rotary tables, dtype); and
+//!   [`LmPlainStackOps`], for a model whose forward is its stack's alone (the
+//!   stack, the attention weights), which the kinds' forwards and
+//!   [`StackedLm`](crate::kits::support::decoding::StackedLm) build on.
 //! - Wrappers: a kit's model implements [`LmDecoderWrapper`], and gets the
 //!   model's API, the forward by its kind, through blanket impls; it writes no
 //!   pass-throughs.

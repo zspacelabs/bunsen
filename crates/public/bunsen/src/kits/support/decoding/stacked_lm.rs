@@ -9,7 +9,7 @@ use burn::{
 use crate::{
     blocks::transformers::{
         decoders::stack::DecoderStackCache,
-        models::language_decoder::LmDecoderOps,
+        models::language_decoder::LmPlainStackOps,
     },
     kits::support::decoding::CachedStep,
     ops::transformers::attention::KVCacheStorage,
@@ -17,15 +17,17 @@ use crate::{
 
 /// A language model that is an embedding, a
 /// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
-/// and a head ([`LmDecoderOps`]): what decodes through a [`DecoderStackCache`],
-/// with no state of its own.
+/// and a head whose forward is the stack's alone ([`LmPlainStackOps`]): what
+/// decodes through a [`DecoderStackCache`], with no state of its own.
 ///
 /// The decode is the trait's: [`decode_state`](Self::decode_state),
 /// [`prefill`](Self::prefill), and [`CachedStep`], so
-/// [`decode_cached`](super::decode_cached) steps it. Every [`LmDecoderOps`]
-/// (an [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
-/// of any kind, and every wrapper of one) is one, by a blanket impl.
-pub trait StackedLm: LmDecoderOps {
+/// [`decode_cached`](super::decode_cached) steps it. Every
+/// [`LmPlainStackOps`] (an
+/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
+/// of any kind, and every wrapper of one) is one, by a blanket impl; a model
+/// whose forward is its own is not, and steps by its own [`CachedStep`].
+pub trait StackedLm: LmPlainStackOps {
     /// A decode state for `rows` rows of at most `positions` positions each,
     /// under `storage`
     /// ([`DecoderStack::decode_cache`](crate::blocks::transformers::decoders::stack::DecoderStack::decode_cache)).
@@ -42,8 +44,9 @@ pub trait StackedLm: LmDecoderOps {
     /// Runs prompt embeddings through the model into `state`.
     ///
     /// # Arguments
-    /// * `embeds` - `[rows, seq, d_model]`: [`LmDecoderOps::embed`]'s tokens,
-    ///   or a prompt with other frames in it.
+    /// * `embeds` - `[rows, seq, d_model]`:
+    ///   [`embed`](crate::blocks::transformers::models::language_decoder::LmDecoderOps::embed)'
+    ///   s tokens, or a prompt with other frames in it.
     ///
     /// # Returns
     /// `[rows, vocab]`, the logits that follow the prompt.
@@ -60,7 +63,7 @@ pub trait StackedLm: LmDecoderOps {
     }
 }
 
-impl<M: LmDecoderOps> StackedLm for M {}
+impl<M: LmPlainStackOps> StackedLm for M {}
 
 impl<M: StackedLm> CachedStep for M {
     type State = DecoderStackCache;
