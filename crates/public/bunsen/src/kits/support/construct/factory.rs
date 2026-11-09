@@ -428,6 +428,21 @@ impl<H: ConstructInit> PretrainedFactory<H> {
         self.resolve(spec, cache)?.load(cache, device, policy)
     }
 
+    /// A name to the construct alone, under `policy`: [`load`](Self::load),
+    /// keeping the handle.
+    ///
+    /// # Errors
+    /// As [`load`](Self::load).
+    pub fn load_construct(
+        &self,
+        spec: &str,
+        cache: &PretrainedCache,
+        device: &Device,
+        policy: LoadPolicy,
+    ) -> BunsenResult<Arc<H::Construct>> {
+        Ok(self.load(spec, cache, device, policy)?.handle)
+    }
+
     /// The dispatch behind [`lookup`](Self::lookup) and
     /// [`resolve`](Self::resolve): `ask` is what each provider is asked,
     /// its `lookup` or its `resolve`; `Ok(None)` when no provider has the
