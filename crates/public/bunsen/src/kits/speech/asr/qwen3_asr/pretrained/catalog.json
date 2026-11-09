@@ -23,6 +23,9 @@
               "en"
             ],
             "parameters": 800000000,
+            "scores": {
+              "wer.en": 6.56
+            },
             "translate": false
           }
         },
@@ -85,6 +88,9 @@
               "*"
             ],
             "parameters": 800000000,
+            "scores": {
+              "wer.en": 6.31
+            },
             "translate": false
           }
         },
@@ -105,6 +111,9 @@
               "*"
             ],
             "parameters": 2000000000,
+            "scores": {
+              "wer.en": 5.76
+            },
             "translate": false
           }
         }
