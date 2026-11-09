@@ -40,6 +40,17 @@ pub const AGENT_CONFIG: &str = "agent_config";
 pub static LAYA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("laya", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, what `decide` chooses its model by.
+pub const LAYA_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_laya_factory`] loads when a caller names none.
 pub const DEFAULT_LAYA_MODEL: &str = "laya/laya";
 

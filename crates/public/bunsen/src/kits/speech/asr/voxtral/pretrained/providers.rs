@@ -42,6 +42,19 @@ pub const TEKKEN_JSON: &str = "tekken.json";
 pub static VOXTRAL_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("voxtral", include_str!("catalog.json"));
 
+/// The tag rules of the kit's rows, which the catalog tool holds its catalog
+/// to: the keys every row carries, a speech recognizer's: what speech to text
+/// chooses its model by.
+pub const VOXTRAL_TAGS: crate::data::pretrained::tags::KitTags =
+    crate::data::pretrained::tags::KitTags {
+        keys: &[],
+        required: &[
+            crate::data::pretrained::tags::LANGUAGE.key,
+            crate::data::pretrained::tags::TRANSLATE.key,
+            crate::data::pretrained::tags::PARAMETERS.key,
+        ],
+    };
+
 /// The name [`default_voxtral_factory`] loads when a caller names none.
 pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral-mini-4b-realtime-2602";
 

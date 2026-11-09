@@ -8,6 +8,12 @@
       "description": "Google's Gemma 1, 2 and 3 text models, from their unsloth/ mirrors",
       "license": "Gemma Terms of Use",
       "origin": "https://ai.google.dev/gemma",
+      "tags": {
+        "language": [
+          "en",
+          "*"
+        ]
+      },
       "rows": [
         {
           "name": "gemma-3-270m",
@@ -35,7 +41,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 270000000
           }
         },
         {
@@ -68,7 +76,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 270000000
           }
         },
         {
@@ -98,7 +108,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 1000000000
           }
         },
         {
@@ -131,7 +143,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 1000000000
           }
         },
         {
@@ -161,7 +175,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 4000000000
           }
         },
         {
@@ -194,7 +210,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 4000000000
           }
         },
         {
@@ -218,7 +236,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 2000000000
           }
         },
         {
@@ -246,7 +266,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 2000000000
           }
         },
         {
@@ -270,7 +292,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 9000000000
           }
         },
         {
@@ -298,7 +322,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 9000000000
           }
         },
         {
@@ -322,7 +348,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 2000000000
           }
         },
         {
@@ -350,7 +378,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 2000000000
           }
         },
         {
@@ -374,7 +404,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": true,
+            "dtype": "bf16",
+            "parameters": 7000000000
           }
         },
         {
@@ -402,7 +434,9 @@
             }
           },
           "tags": {
-            "dtype": "bf16"
+            "base": false,
+            "dtype": "bf16",
+            "parameters": 7000000000
           }
         }
       ]
@@ -1293,6 +1327,10 @@
             "chat_template": "{{- bos_token -}}\n{%- if messages and messages[0]['role'] == 'system' -%}\n{%- set prefix = messages[0]['content'] | trim ~ '\\n\\n' -%}\n{%- set turns = messages[1:] -%}\n{%- else -%}\n{%- set prefix = '' -%}\n{%- set turns = messages -%}\n{%- endif -%}\n{%- for message in turns -%}\n{%- set role = 'model' if message['role'] == 'assistant' else message['role'] -%}\n{{- '<start_of_turn>' ~ role ~ '\\n' ~ (prefix if loop.first else '') ~ (message['content'] | trim) ~ '<end_of_turn>\\n' -}}\n{%- endfor -%}\n{%- if add_generation_prompt -%}\n{{- '<start_of_turn>model\\n' -}}\n{%- endif -%}"
           }
         }
+      },
+      "tags": {
+        "reasoning": false,
+        "thinking": "never"
       }
     }
   ]

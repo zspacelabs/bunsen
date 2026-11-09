@@ -11,6 +11,7 @@ groups:
     origin: "https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602"
     rows:
       - name: "voxtral-mini-4b-realtime-2602"
+        tags: { parameters: 4400000000, language: ["en", "*"], translate: false }
         aliases: ["voxtral-mini-4b-realtime"]
         description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming"
         license: "Apache-2.0"

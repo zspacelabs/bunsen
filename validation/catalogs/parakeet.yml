@@ -11,6 +11,7 @@ groups:
     origin: "https://github.com/fermionresearch/phonon"
     rows:
       - name: "phonon-2"
+        tags: { parameters: 600000000, language: ["en"], translate: false }
         aliases: ["phonon"]
         description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English"
         license: "CC-BY-4.0"
@@ -22,6 +23,7 @@ groups:
     origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
     rows:
       - name: "parakeet-tdt-0.6b-v3"
+        tags: { parameters: 600000000, language: ["en", "*"], translate: false }
         description: "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages"
         license: "CC-BY-4.0"
         origin: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
