@@ -34,11 +34,11 @@
 //!   a shape before any bytes are fetched. A kit keeps its prefabs in a
 //!   [`StaticPreFabMap`].
 //! - A **row**, a [`Pretrained`], is a name in a provider: its aliases and
-//!   listing fields, its [`tags`] (facts about the model, for listings and
-//!   selection), the prefab it instantiates when the kit keeps one, and the
-//!   resource bundles it is made of, fused strictly into one
-//!   [`ResourceBundle`]. A file many rows share is a resource bundle of its own
-//!   that each row references (Whisper's two vocabularies serve its twelve
+//!   listing fields, its [`tags`] (facts about the model, for listings and for
+//!   choosing among models, [`selection`]), the prefab it instantiates when the
+//!   kit keeps one, and the resource bundles it is made of, fused strictly into
+//!   one [`ResourceBundle`]. A file many rows share is a resource bundle of its
+//!   own that each row references (Whisper's two vocabularies serve its twelve
 //!   checkpoints); a one-file model is a row of one resource bundle. One prefab
 //!   may have many rows, in many providers.
 //! - A **resource**, a [`Resource`], is one file: its key in the resource
@@ -306,6 +306,7 @@ mod resource_bundle;
 mod rows;
 #[cfg(feature = "store")]
 mod safetensors;
+pub mod selection;
 pub mod tags;
 
 #[cfg(feature = "store")]
