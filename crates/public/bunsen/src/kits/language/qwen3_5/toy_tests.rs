@@ -25,7 +25,10 @@ use super::{
     },
 };
 use crate::{
-    blocks::transformers::decoders::stack::DecoderStackMeta,
+    blocks::transformers::{
+        decoders::stack::DecoderStackMeta,
+        models::LmUncachedForwardHidden,
+    },
     burner::module::ModuleInit,
     kits::support::decoding::{
         CachedStep,
@@ -90,7 +93,7 @@ impl Toy {
         let dropped = |n: &String| n.starts_with("model.visual.") || n.starts_with("mtp.");
         let rest: Vec<_> = applied.unused.iter().filter(|n| !dropped(n)).collect();
         if config.tied_head {
-            assert_eq!(rest, ["lm_head.proj.weight"], "{name}");
+            assert_eq!(rest, ["head.proj.weight"], "{name}");
         } else {
             assert!(rest.is_empty(), "{name}: {rest:?}");
         }
@@ -116,6 +119,7 @@ impl Toy {
     /// The first full-attention layer's index.
     fn first_full(&self) -> usize {
         self.model
+            .lm
             .stack
             .layer_attends()
             .iter()
@@ -135,7 +139,7 @@ fn test_toy_forward() {
         let r_emb = model.rotary(embeds.dims()[1], &toy.device);
         let full = toy.first_full();
         let mut x = embeds.clone();
-        for (i, layer) in model.stack.layers.iter().enumerate().take(full + 1) {
+        for (i, layer) in model.lm.stack.layers.iter().enumerate().take(full + 1) {
             x = layer.forward(x, r_emb.for_layer(i), &mut None);
             if i == 0 {
                 close(

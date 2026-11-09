@@ -5,9 +5,12 @@ use std::{
 };
 
 use bunsen::{
-    blocks::transformers::decoders::stack::{
-        DecoderStackCache,
-        DecoderStackMeta,
+    blocks::transformers::{
+        decoders::stack::{
+            DecoderStackCache,
+            DecoderStackMeta,
+        },
+        models::LmDecoderMeta,
     },
     errors::{
         BunsenError,
@@ -24,10 +27,7 @@ use bunsen::{
                 Qwen3Meta,
                 Qwen3Model,
             },
-            qwen3_5::{
-                Qwen3_5Meta,
-                Qwen3_5Model,
-            },
+            qwen3_5::Qwen3_5Model,
         },
         support::{
             construct::LmConstruct,
@@ -206,11 +206,11 @@ impl ChatLm for GemmaModel {
 
 impl ChatLm for Qwen3_5Model {
     fn n_vocab(&self) -> usize {
-        Qwen3_5Meta::n_vocab(self)
+        LmDecoderMeta::n_vocab(self)
     }
 
     fn float_dtype(&self) -> DType {
-        bunsen::burner::tensor::param_float_dtype(&self.embed_tokens.weight)
+        self.lm.float_dtype()
     }
 }
 

@@ -60,7 +60,9 @@ use crate::{
 /// the cache to it.
 pub const LM_DECODER_KV_CACHE_PRE_SIZE: usize = 1024;
 
-/// Common meta for [`LmDecoderModel`] and [`LmDecoderStructureConfig`].
+/// Common meta for [`LmDecoderModel`], [`LmDecoderStructureConfig`], every
+/// [`LmDecoderWrapper`] (as the model it wraps), and a kit's config that
+/// builds one.
 pub trait LmDecoderMeta {
     /// The token count: the embedding's rows.
     fn n_vocab(&self) -> usize;
@@ -533,6 +535,29 @@ impl<W: LmDecoderWrapper<Kind = LmHybridKind>> LmUncachedForwardHidden for W {
         r_emb: &RotarySet,
     ) -> Tensor<3> {
         self.lm().forward_hidden(embeds, r_emb)
+    }
+}
+
+/// The wrapped model's meta.
+impl<W: LmDecoderWrapper> LmDecoderMeta for W {
+    fn n_vocab(&self) -> usize {
+        self.lm().n_vocab()
+    }
+
+    fn d_model(&self) -> usize {
+        self.lm().d_model()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.lm().n_layers()
+    }
+
+    fn n_kv_heads(&self) -> usize {
+        self.lm().n_kv_heads()
+    }
+
+    fn head_dim(&self) -> usize {
+        self.lm().head_dim()
     }
 }
 

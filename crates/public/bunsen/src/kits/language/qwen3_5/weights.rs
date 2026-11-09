@@ -8,9 +8,12 @@ use super::{
     Qwen3_5Model,
 };
 use crate::{
-    blocks::transformers::decoders::causal::{
-        CausalDecoderBlock,
-        DecoderLayerKeys,
+    blocks::transformers::{
+        decoders::causal::{
+            CausalDecoderBlock,
+            DecoderLayerKeys,
+        },
+        models::LmDecoderWrapper,
     },
     burner::module::{
         CanonicalKeys,
@@ -64,12 +67,15 @@ pub fn text_layer_rekey() -> Rekey {
     .rename("linear_attn.", "attn.")
 }
 
-/// `transformers`' Qwen3.5 state-dict names onto a [`Qwen3_5Model`]'s module
-/// paths: under either of [`QWEN3_5_TEXT_PREFIXES`], the layers by
-/// [`text_layer_rekey`], the embedding and the final norm; `lm_head.weight`,
-/// the head's projection; every `1 + w` norm's gain, stored as `w`, loaded
-/// as `1 + w` ([`TensorLoadTransform::zero_centered_gain`]). Anything else is
-/// dropped: the vision tower, and the multi-token-prediction head (`mtp.`).
+/// `transformers`' Qwen3.5 state-dict names onto the module paths of a
+/// [`Qwen3_5Model`]'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel):
+/// under either of [`QWEN3_5_TEXT_PREFIXES`], the layers by
+/// [`text_layer_rekey`], the embedding (`embed_tokens`, the model's
+/// `embedding`) and the final norm; `lm_head.weight`, the head's projection;
+/// every `1 + w` norm's gain, stored as `w`, loaded as `1 + w`
+/// ([`TensorLoadTransform::zero_centered_gain`]). Anything else is dropped: the
+/// vision tower, and the multi-token-prediction head (`mtp.`).
 ///
 /// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
 /// is then unused, as `transformers` ties over it.
@@ -85,6 +91,7 @@ pub fn transformers_rekey() -> Rekey {
     let text = Rekey::keep_rest()
         .mount("visual.", "", Rekey::drop_rest())
         .mount_indexed("layers.", "stack.layers.", layer)
+        .rename("embed_tokens.", "embedding.")
         .rename("norm.", "stack.norm.")
         .transform(
             Select::suffix("stack.norm.weight"),
@@ -95,10 +102,11 @@ pub fn transformers_rekey() -> Rekey {
         .fold(Rekey::drop_rest(), |rekey, prefix| {
             rekey.mount(*prefix, "", text.clone())
         })
-        .exact("lm_head.weight", "lm_head.proj.weight")
+        .exact("lm_head.weight", "head.proj.weight")
 }
 
-/// Loads tensors named as a `transformers` Qwen3.5 state dict into `model`:
+/// Loads tensors named as a `transformers` Qwen3.5 state dict into `model`'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel):
 /// [`load_rekeyed`] under [`transformers_rekey`], in the dtype `model` was
 /// built in.
 ///
@@ -108,8 +116,9 @@ pub fn load_transformers_tensors(
     model: &mut Qwen3_5Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, None)
+    let lm = model.lm_mut();
+    let rekey = transformers_rekey().then(lm.canonical_rekey());
+    load_rekeyed(lm, tensors, &rekey, None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
@@ -122,8 +131,9 @@ pub fn load_transformers_tensors_as(
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, Some(dtype))
+    let lm = model.lm_mut();
+    let rekey = transformers_rekey().then(lm.canonical_rekey());
+    load_rekeyed(lm, tensors, &rekey, Some(dtype))
 }
 
 /// The [`Qwen3_5Config`] of a `transformers` dense Qwen3.5 `config.json`: a
@@ -252,9 +262,9 @@ mod tests {
         for (hf, bunsen) in [
             (
                 "model.language_model.embed_tokens.weight",
-                Some("embed_tokens.weight"),
+                Some("embedding.weight"),
             ),
-            ("model.embed_tokens.weight", Some("embed_tokens.weight")),
+            ("model.embed_tokens.weight", Some("embedding.weight")),
             (
                 "model.language_model.layers.0.linear_attn.in_proj_qkv.weight",
                 Some("stack.layers.0.attn.in_proj_qkv.weight"),
@@ -291,7 +301,7 @@ mod tests {
                 "model.language_model.norm.weight",
                 Some("stack.norm.weight"),
             ),
-            ("lm_head.weight", Some("lm_head.proj.weight")),
+            ("lm_head.weight", Some("head.proj.weight")),
             ("model.visual.patch_embed.proj.weight", None),
             ("mtp.fc.weight", None),
         ] {
