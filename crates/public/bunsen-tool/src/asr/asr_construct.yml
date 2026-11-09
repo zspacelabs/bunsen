@@ -2,25 +2,28 @@
 # by what the speech is for rather than which model does it. Embedded in the
 # binary and read once (`construct::catalog`).
 #
-# - `axes`: the points' coordinates, each with what it decides.
-# - `presets`: names for the points people ask for (`--preset`), each a
-#   point; `default` is an alias, so what it means can change.
-# - `fallback`: where a point without a cell looks next, per axis, in order:
-#   a nearer quality before another speech, as a multilingual model also
-#   hears English. The task is never changed by a fallback.
-# - `implications`: a point that is served as another.
-# - `defaults`: without `--preset`, what an axis the command line leaves
-#   unset is, by what it sets, before the default preset's.
-# - `engines`: what a family's engine takes from the command line; a
-#   family not named finds the language itself and only transcribes.
+# A model is chosen by selection (`bunsen_tool::select`) among every speech
+# family's rows, by their tags (`language`, `translate`, `parameters`,
+# `scores: {wer.en}`), each candidate also carrying the fields the construct
+# derives: `wer.en` (lifted from `scores`) and `multilingual` (a `language` of
+# more than one tag, or `"*"`).
+#
+# - `axes`: what a need is, each with what it decides.
+# - `presets`: names for the needs people ask for (`--preset`), each a need and
+#   the selection that chooses its model; `default` is an alias, so what it
+#   means can change.
+# - `selection`: the defaults every preset's selection merges over.
+# - `qualities` and `modes`: what `--quality` and the mode (`live`) add to the
+#   selection, merged over it: a cap on the model's size where speed matters.
+# - `implications`: a need that is served as another.
+# - `engines`: what a family's engine takes from the command line; a family
+#   not named finds the language itself and only transcribes.
 # - `language`: the speech `--language` implies, by its code; a `--speech`
-#   given with it must hear that speech (`fallback.speech`).
+#   given with it must hear that speech (`multi` hears English).
 # - `vad`: the VAD slot's filler, as a lookup expression: what finds the
 #   speech regions of every emission but `offline` (`--vad` replaces it).
-# - `points`: a cell where a model was seen to do the job, per mode, and
-#   its recipe: the engine (a family, and its model as a lookup expression,
-#   presets and patch included), the emission, and the push size. Every speech and
-#   task reaches a `balanced` cell in each mode.
+# - `recipes`: how each family runs in each mode: the emission, the push size,
+#   and a patch over the chosen model (Whisper's beam).
 
 axes:
   - name: speech
@@ -36,30 +39,41 @@ axes:
   - name: quality
     description: "how much compute to spend on it"
     members:
-      - { name: fast, description: "less compute: a smaller model, where the table has one" }
+      - { name: fast, description: "less compute: a model of at most 1B parameters" }
       - { name: balanced, description: "the default" }
-      - { name: good, description: "more compute: a larger model, where the table has one" }
+      - { name: good, description: "more compute: the larger model among equals" }
 
 presets:
   - name: en
     aliases: [default]
     description: "English: NVIDIA's Parakeet TDT, as FermionResearch's Phonon-2; each word timed"
     need: { speech: en, task: transcribe, quality: balanced }
+    selection: { require: { language: en } }
   - name: multi
     description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR (1.7B; 0.6B live)"
     need: { speech: multi, task: transcribe, quality: balanced }
+    selection: { require: { multilingual: true } }
   - name: translate-en
     description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper (large-v3-turbo was not trained to translate)"
     need: { speech: multi, task: translate, quality: balanced }
+    selection: { require: { translate: true } }
 
-fallback:
-  quality:
-    fast: [fast, balanced, good]
-    balanced: [balanced, good, fast]
-    good: [good, balanced, fast]
-  speech:
-    en: [en, multi]
-    multi: [multi]
+selection:
+  # The newest of each release sequence; the lowest published English error
+  # rate first, a model without one after those with.
+  latest: true
+  order: [-weight, wer.en]
+
+qualities:
+  # Less compute: no model above 1B parameters.
+  fast: { require: { parameters: { max: 1.0e9 } } }
+  # More compute: the larger first among equals.
+  good: { order: [-weight, wer.en, -parameters] }
+
+modes:
+  # Keeping up with the microphone: no model above 1B parameters (Qwen3-ASR-1.7B
+  # takes about 2.5x the 0.6B's time, too slow to keep up live).
+  live: { require: { parameters: { max: 1.0e9 } } }
 
 implications:
   # Translating English to English is out of every model's training, and
@@ -67,12 +81,6 @@ implications:
   - when: { speech: en, task: translate }
     then: { task: transcribe }
     reason: "English speech translated to English is transcribed"
-
-defaults:
-  # Translating is to English, so the speech is not English.
-  - when: { task: translate }
-    then: { speech: multi }
-    reason: "translating is from speech that is not English"
 
 engines:
   whisper:
@@ -95,30 +103,16 @@ language:
 # region, 400 ms pads it.
 vad: "silero/vad-16k[faster-whisper]"
 
-points:
-  # Parakeet TDT, as Phonon-2: each word timed.
-  - need: { speech: en, task: transcribe, quality: balanced }
-    mode: offline
-    recipe: { engine: { family: parakeet, model: "fermion/phonon-2" }, emission: offline, chunk_ms: 1000 }
-  - need: { speech: en, task: transcribe, quality: balanced }
-    mode: live
-    recipe: { engine: { family: parakeet, model: "fermion/phonon-2" }, emission: conservative, chunk_ms: 250 }
-  # Qwen3-ASR: 30 languages. Phonon-1 is an English fine-tune, and writes
-  # other speech as broken English. 1.7B is about 2.5x 0.6B's time, too
-  # slow to be seen keeping up live.
-  - need: { speech: multi, task: transcribe, quality: fast }
-    mode: offline
-    recipe: { engine: { family: qwen3-asr, model: "qwen/qwen3-asr-0.6b" }, emission: offline, chunk_ms: 1000 }
-  - need: { speech: multi, task: transcribe, quality: balanced }
-    mode: offline
-    recipe: { engine: { family: qwen3-asr, model: "qwen/qwen3-asr-1.7b" }, emission: offline, chunk_ms: 1000 }
-  - need: { speech: multi, task: transcribe, quality: balanced }
-    mode: live
-    recipe: { engine: { family: qwen3-asr, model: "qwen/qwen3-asr-0.6b" }, emission: conservative, chunk_ms: 250 }
-  # Whisper alone translates (large-v3-turbo was not trained to).
-  - need: { speech: multi, task: translate, quality: balanced }
-    mode: offline
-    recipe: { engine: { family: whisper, model: "openai/large-v3[translate]{beam_size: 5}" }, emission: offline, chunk_ms: 1000 }
-  - need: { speech: multi, task: translate, quality: balanced }
-    mode: live
-    recipe: { engine: { family: whisper, model: "openai/small[translate]{beam_size: 1}" }, emission: conservative, chunk_ms: 250 }
+recipes:
+  parakeet:
+    offline: { emission: offline, chunk_ms: 1000 }
+    live: { emission: conservative, chunk_ms: 250 }
+  qwen3-asr:
+    offline: { emission: offline, chunk_ms: 1000 }
+    live: { emission: conservative, chunk_ms: 250 }
+  voxtral:
+    offline: { emission: offline, chunk_ms: 1000 }
+    live: { emission: conservative, chunk_ms: 250 }
+  whisper:
+    offline: { emission: offline, chunk_ms: 1000, patch: { beam_size: 5 } }
+    live: { emission: conservative, chunk_ms: 250, patch: { beam_size: 1 } }

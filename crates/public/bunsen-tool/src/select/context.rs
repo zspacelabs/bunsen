@@ -127,6 +127,12 @@ impl SelectionContext {
         selects: &[String],
         presets: &[String],
     ) -> BunsenResult<Choice> {
+        let (name, objects) = Self::parse_selects(selects)?;
+        self.choose_parsed(universe, name, objects, presets)
+    }
+
+    /// `selects`, each `--select`, as at most one name and the objects.
+    fn parse_selects(selects: &[String]) -> BunsenResult<(Option<String>, Vec<Value>)> {
         let mut name = None;
         let mut objects = Vec::new();
         for text in selects {
@@ -150,7 +156,21 @@ impl SelectionContext {
                 }
             }
         }
+        Ok((name, objects))
+    }
 
+    /// [`choose`](Self::choose) with the `--select`s already read: `name`, at
+    /// most one, and `objects`, merged in order over the defaults.
+    ///
+    /// # Errors
+    /// As [`choose`](Self::choose).
+    pub fn choose_parsed(
+        &self,
+        universe: Vec<SelectionCandidate>,
+        name: Option<String>,
+        objects: Vec<Value>,
+        presets: &[String],
+    ) -> BunsenResult<Choice> {
         let mut layers: Vec<Value> = Vec::new();
         let mut why = Vec::new();
         let mut defaults = true;

@@ -60,7 +60,7 @@ fn title(preset: &AsrPreset) -> String {
 }
 
 /// Writes each preset, and what each of its recipes runs; then the axes
-/// they are points of.
+/// their needs are on.
 fn list(out: &mut impl Write) -> BunsenResult<()> {
     let w = |e| sys_at("write to", "stdout")(e);
     for (i, preset) in presets().iter().enumerate() {
@@ -70,18 +70,18 @@ fn list(out: &mut impl Write) -> BunsenResult<()> {
         writeln!(out, "{}", title(preset)).map_err(w)?;
         writeln!(out, "  {}", preset.description).map_err(w)?;
         for mode in [Mode::Offline, Mode::Live] {
-            let recipe = preset.recipe(mode);
+            let resolved = preset.resolve(mode)?;
             writeln!(
                 out,
                 "  {:<11} {} {}",
                 format!("{}:", mode.command()),
-                recipe.engine.family.name(),
-                recipe.engine.model
+                resolved.family.name(),
+                resolved.model
             )
             .map_err(w)?;
         }
     }
-    // The axes the presets are points of, and what each value means.
+    // The axes the presets' needs are on, and what each value means.
     writeln!(out).map_err(w)?;
     writeln!(out, "The axes (`--speech`, `--task`, `--quality`):").map_err(w)?;
     for axis in &construct_config().axes {
@@ -106,11 +106,18 @@ mod tests {
         assert!(text.starts_with("en (default)\n"), "{text}");
         for preset in presets() {
             for mode in [Mode::Offline, Mode::Live] {
-                assert!(text.contains(&preset.recipe(mode).engine.model), "{text}");
+                assert!(
+                    text.contains(&preset.resolve(mode).unwrap().model),
+                    "{text}"
+                );
             }
         }
         assert!(
             text.contains("  live:       qwen3-asr qwen/qwen3-asr-0.6b\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("  transcribe: whisper openai/large-v3[translate]{beam_size: 5}\n"),
             "{text}"
         );
     }
