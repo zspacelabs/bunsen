@@ -14,6 +14,7 @@ use crate::{
             DecoderLayerKeys,
         },
         embedding::RopeScaling,
+        models::LmDecoderWrapper,
     },
     burner::module::{
         CanonicalKeys,
@@ -60,16 +61,19 @@ pub fn text_layer_rekey(post_norms: bool) -> Rekey {
     }
 }
 
-/// `transformers`' Gemma state-dict names onto a [`GemmaModel`]'s module
-/// paths: under any of [`GEMMA_TEXT_PREFIXES`], the layers by
-/// [`text_layer_rekey`], the embedding and the final norm; every norm's
-/// gain, stored as `w` for `1 + w`, loaded as `1 + w`
+/// `transformers`' Gemma state-dict names onto the module paths of a
+/// [`GemmaModel`]'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel):
+/// under any of [`GEMMA_TEXT_PREFIXES`], the layers by [`text_layer_rekey`],
+/// the embedding (`embed_tokens`, the model's `embedding`) and the final norm;
+/// every norm's gain, stored as `w` for `1 + w`, loaded as `1 + w`
 /// ([`TensorLoadTransform::zero_centered_gain`]). Anything else is dropped: a
 /// tied head's copy, a vision tower and its projector.
 pub fn transformers_rekey(post_norms: bool) -> Rekey {
     let text = || {
         Rekey::keep_rest()
             .mount_indexed("layers.", "stack.layers.", text_layer_rekey(post_norms))
+            .rename("embed_tokens.", "embedding.")
             .rename("norm.", "stack.norm.")
     };
     GEMMA_TEXT_PREFIXES
@@ -83,7 +87,8 @@ pub fn transformers_rekey(post_norms: bool) -> Rekey {
         )
 }
 
-/// Loads tensors named as a `transformers` Gemma state dict into `model`:
+/// Loads tensors named as a `transformers` Gemma state dict into `model`'s
+/// [`LmDecoderModel`](crate::blocks::transformers::models::LmDecoderModel):
 /// [`load_rekeyed`] under [`transformers_rekey`] for `model`'s generation, in
 /// the dtype `model` was built in.
 ///
@@ -93,9 +98,10 @@ pub fn load_transformers_tensors(
     model: &mut GemmaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey(model.stack.layers[0].attn.post.is_some());
-    let rekey = rekey.then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, None)
+    let lm = model.lm_mut();
+    let rekey = transformers_rekey(lm.stack.layers[0].attn.post.is_some());
+    let rekey = rekey.then(lm.canonical_rekey());
+    load_rekeyed(lm, tensors, &rekey, None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
@@ -108,9 +114,10 @@ pub fn load_transformers_tensors_as(
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey(model.stack.layers[0].attn.post.is_some());
-    let rekey = rekey.then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, Some(dtype))
+    let lm = model.lm_mut();
+    let rekey = transformers_rekey(lm.stack.layers[0].attn.post.is_some());
+    let rekey = rekey.then(lm.canonical_rekey());
+    load_rekeyed(lm, tensors, &rekey, Some(dtype))
 }
 
 /// A Gemma generation, as a `config.json`'s `model_type` names it.
@@ -326,11 +333,7 @@ mod tests {
     #[test]
     fn test_transformers_rekey() {
         for (post_norms, hf, bunsen) in [
-            (
-                true,
-                "model.embed_tokens.weight",
-                Some("embed_tokens.weight"),
-            ),
+            (true, "model.embed_tokens.weight", Some("embedding.weight")),
             (
                 true,
                 "model.layers.3.post_attention_layernorm.weight",

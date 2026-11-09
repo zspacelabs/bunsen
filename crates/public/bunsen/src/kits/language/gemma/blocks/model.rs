@@ -22,66 +22,37 @@ use crate::{
             },
             decoders::{
                 causal::CausalDecoderBlockConfig,
-                stack::{
-                    DecoderStack,
-                    DecoderStackMeta,
-                    PatternedStackConfig,
-                },
+                stack::PatternedStackConfig,
             },
             embedding::{
                 RopeScaling,
                 RotaryDirection,
                 RotaryEmbeddingConfig,
                 RotarySet,
-                TokenEmbedding,
                 TokenEmbeddingConfig,
-                TokenEmbeddingMeta,
             },
-            head::{
-                LmHead,
-                LmHeadConfig,
-            },
+            head::LmHeadConfig,
             mlp::TransformerGatedMlpConfig,
+            models::{
+                LmAttentionOnlyKind,
+                LmDecoderMeta,
+                LmDecoderModel,
+                LmDecoderVariantConfig,
+                LmDecoderWrapper,
+            },
         },
     },
-    burner::module::{
-        CanonicalKeys,
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     errors::{
         BunsenResult,
         ConstraintError,
         Rule,
-    },
-    ops::transformers::attention::{
-        KVCache,
-        KVCacheConfig,
-        KVCacheModel,
     },
 };
 
 /// The positions a Gemma cache allocates up front by default: one growth
 /// chunk.
 pub const GEMMA_KV_CACHE_PRE_SIZE: usize = 1024;
-
-/// Common meta for [`GemmaModel`] and [`GemmaConfig`].
-pub trait GemmaMeta {
-    /// The token count: the embedding's rows.
-    fn n_vocab(&self) -> usize;
-
-    /// The model width.
-    fn d_model(&self) -> usize;
-
-    /// The layer count.
-    fn n_layers(&self) -> usize;
-
-    /// The key/value head count.
-    fn n_kv_heads(&self) -> usize;
-
-    /// The head width.
-    fn head_dim(&self) -> usize;
-}
 
 /// A Gemma layer's attention: over a sliding window, or every earlier
 /// position (`transformers`' `layer_types`: `sliding_attention`,
@@ -112,7 +83,7 @@ pub enum GemmaLayerKind {
 /// the gain as stored), a `GeGLU`, the embedding scaled by `√d_model`, the
 /// head tied to it, attention's softmax and the logits in f32.
 ///
-/// Implements [`GemmaMeta`].
+/// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
 pub struct GemmaConfig {
     /// The token count.
@@ -195,7 +166,7 @@ pub struct GemmaConfig {
     pub logits_dtype: Option<FloatDType>,
 }
 
-impl GemmaMeta for GemmaConfig {
+impl LmDecoderMeta for GemmaConfig {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -439,6 +410,19 @@ impl GemmaConfig {
         .with_rotary_alts(alts)
         .with_kind_rotary(vec![None, sliding_rotary]))
     }
+
+    /// The language model: [`embedding`](Self::embedding),
+    /// [`head`](Self::head) and [`stack`](Self::stack), its KV cache
+    /// [`GEMMA_KV_CACHE_PRE_SIZE`] positions up front.
+    ///
+    /// # Errors
+    /// As [`stack`](Self::stack).
+    pub fn lm(&self) -> BunsenResult<LmDecoderVariantConfig> {
+        Ok(
+            LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack()?.into())
+                .with_kv_cache_pre_size(GEMMA_KV_CACHE_PRE_SIZE),
+        )
+    }
 }
 
 impl ModuleInit<GemmaModel> for GemmaConfig {
@@ -447,135 +431,86 @@ impl ModuleInit<GemmaModel> for GemmaConfig {
         device: &Device,
     ) -> BunsenResult<GemmaModel> {
         Ok(GemmaModel {
-            embed_tokens: self.embedding().try_init(device)?,
-            lm_head: self.head().try_init(device)?,
-            stack: self.stack()?.try_init(device)?,
+            lm: self.lm()?.try_init(device)?,
         })
     }
 }
 
 /// Google's Gemma decoder-only language model, generations 1 to 3 (text):
-/// a [`DecoderStack`] of `GeGLU` layers with `1 + w` RMS norms, sliding and
-/// full attention by layer ([`GemmaConfig::stack`]); the embedding scaled by
-/// `√d_model`; the head tied to it.
+/// an [`LmDecoderModel`] of `GeGLU` layers with `1 + w` RMS norms, sliding
+/// and full attention by layer ([`GemmaConfig::stack`]); the embedding scaled
+/// by `√d_model`; the head tied to it.
 ///
-/// Its embedding carries the name `transformers`' `GemmaModel` gives it;
-/// [`transformers_rekey`](crate::kits::language::gemma::weights::transformers_rekey) maps the
-/// layers' names onto the stack's, and loads each norm's `w` as `1 + w`.
+/// [`transformers_rekey`](crate::kits::language::gemma::weights::transformers_rekey)
+/// maps `transformers`' `GemmaModel` names onto the [`LmDecoderModel`]'s, and
+/// loads each norm's `w` as `1 + w`; the load is into [`lm`](Self::lm).
+///
+/// An [`LmAttentionOnlyKind`] [`LmDecoderWrapper`]: it decodes through its
+/// stack's
+/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
+/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
+/// [`KVCache`](crate::ops::transformers::attention::KVCache)
+/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::LmKvForwardHidden),
+/// [`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel)).
 ///
 /// Built by [`GemmaConfig`].
-/// Implements [`GemmaMeta`].
+/// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct GemmaModel {
-    /// The token embedding, scaled; and the head's table.
-    pub embed_tokens: TokenEmbedding,
-
-    /// The output head, tied to the embedding.
-    pub lm_head: LmHead,
-
-    /// The decoder: its layers, final norm and rotary tables.
-    pub stack: DecoderStack,
+    /// The language model.
+    pub lm: LmDecoderModel,
 }
 
-impl GemmaMeta for GemmaModel {
-    fn n_vocab(&self) -> usize {
-        self.embed_tokens.n_vocab()
+impl LmDecoderWrapper for GemmaModel {
+    type Kind = LmAttentionOnlyKind;
+
+    fn lm(&self) -> &LmDecoderModel {
+        &self.lm
     }
 
-    fn d_model(&self) -> usize {
-        self.embed_tokens.d_model()
-    }
-
-    fn n_layers(&self) -> usize {
-        self.stack.n_layers()
-    }
-
-    fn n_kv_heads(&self) -> usize {
-        self.stack.n_kv_heads()
-    }
-
-    fn head_dim(&self) -> usize {
-        self.stack.head_dim()
-    }
-}
-
-impl KVCacheModel for GemmaModel {
-    fn kv_cache_config(&self) -> KVCacheConfig {
-        self.stack.kv_cache_config(GEMMA_KV_CACHE_PRE_SIZE)
+    fn lm_mut(&mut self) -> &mut LmDecoderModel {
+        &mut self.lm
     }
 }
 
 impl GemmaModel {
-    /// The rotary tables for positions `0..seq_len`.
+    /// The rotary tables for positions `0..seq_len`
+    /// ([`LmDecoderModel::rotary`]).
     pub fn rotary(
         &self,
         seq_len: usize,
         device: &Device,
     ) -> RotarySet {
-        self.stack.rotary(seq_len, device)
+        self.lm.rotary(seq_len, device)
     }
 
-    /// Embeds tokens, scaled.
-    ///
-    /// # Arguments
-    /// * `tokens` - `[batch, seq]`.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`.
+    /// Embeds tokens, scaled: `[batch, seq]` to `[batch, seq, d_model]`
+    /// ([`LmDecoderModel::embed`]).
     pub fn embed(
         &self,
         tokens: Tensor<2, Int>,
     ) -> Tensor<3> {
-        self.embed_tokens.forward(tokens)
+        self.lm.embed(tokens)
     }
 
-    /// Runs the decoder over embeddings at positions `start..start + seq`,
-    /// through the cache when there is one.
-    ///
-    /// # Arguments
-    /// * `embeds` - `[batch, seq, d_model]`.
-    /// * `r_emb` - rotary tables covering `start + seq` positions.
-    /// * `kv_cache` - the cache, at position `start`; `None` means `start` is 0
-    ///   and nothing is kept.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`, normalized: the head's input.
-    pub fn forward_hidden(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-        kv_cache: Option<&mut KVCache>,
-    ) -> Tensor<3> {
-        self.stack.forward_hidden(embeds, r_emb, kv_cache)
-    }
-
-    /// The head: logits over the vocabulary.
-    ///
-    /// # Arguments
-    /// * `hidden` - `[batch, seq, d_model]`, from
-    ///   [`forward_hidden`](Self::forward_hidden).
-    ///
-    /// # Returns
+    /// The head's logits over the vocabulary, `[batch, seq, d_model]` to
     /// `[batch, seq, n_vocab]`, soft-capped as configured, in the config's
-    /// `logits_dtype`.
+    /// `logits_dtype` ([`LmDecoderModel::logits`]).
     pub fn logits(
         &self,
         hidden: Tensor<3>,
     ) -> Tensor<3> {
-        self.lm_head.forward(hidden, &self.embed_tokens.weight)
-    }
-}
-
-impl CanonicalKeys for GemmaModel {
-    fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
+        self.lm.logits(hidden)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        ops::transformers::attention::KVCacheModel,
+        support::testing::cpu_device,
+    };
 
     fn config() -> GemmaConfig {
         GemmaConfig::new(40, 12, 3, 2, 1, 8, 24)
@@ -622,8 +557,8 @@ mod tests {
             ),
             (40, 12, 3, 1, 8)
         );
-        assert_eq!(model.embed_tokens.scale, Some(12f64.sqrt()));
-        assert!(model.lm_head.proj.is_none(), "tied");
+        assert_eq!(model.lm.embedding.scale, Some(12f64.sqrt()));
+        assert!(model.lm.head.proj.is_none(), "tied");
         assert_eq!(
             model.kv_cache_config().layer_windows,
             [Some(4), None, Some(4)]

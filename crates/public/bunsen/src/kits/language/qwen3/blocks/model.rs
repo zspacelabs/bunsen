@@ -5,11 +5,7 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        Embedding,
-        EmbeddingConfig,
-        norm::RmsNormConfig,
-    },
+    nn::norm::RmsNormConfig,
     prelude::Int,
     tensor::{
         Device,
@@ -27,32 +23,28 @@ use crate::{
             },
             decoders::{
                 causal::CausalDecoderBlockConfig,
-                stack::{
-                    DecoderStack,
-                    DecoderStackMeta,
-                    UniformStackConfig,
-                },
+                stack::UniformStackConfig,
             },
             embedding::{
                 RotaryDirection,
                 RotaryEmbeddingConfig,
                 RotarySet,
+                TokenEmbeddingConfig,
             },
-            head::{
-                LmHead,
-                LmHeadConfig,
-            },
+            head::LmHeadConfig,
             mlp::TransformerGatedMlpConfig,
+            models::{
+                LmAttentionOnlyKind,
+                LmDecoderMeta,
+                LmDecoderModel,
+                LmDecoderVariantConfig,
+                LmDecoderWrapper,
+            },
         },
     },
-    burner::module::{
-        CanonicalKeys,
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     errors::BunsenResult,
     ops::transformers::attention::{
-        KVCache,
         KVCacheConfig,
         KVCacheModel,
     },
@@ -64,52 +56,25 @@ use crate::{
 /// cache to it.
 pub const QWEN3_KV_CACHE_PRE_SIZE: usize = 1024;
 
-/// The [`KVCacheConfig`] a Qwen3 model of `meta`'s geometry decodes with: its
+/// The cache a Qwen3 of this geometry decodes with, before it is built: its
 /// KV heads, head width and layer count, [`QWEN3_KV_CACHE_PRE_SIZE`]
-/// positions up front, uncapped.
-fn kv_cache_config(meta: &impl Qwen3Meta) -> KVCacheConfig {
-    KVCacheConfig::for_decode(
-        meta.n_kv_heads(),
-        QWEN3_KV_CACHE_PRE_SIZE,
-        meta.head_dim(),
-        meta.n_layers(),
-    )
-}
-
+/// positions up front, uncapped; the built model's
+/// ([`LmDecoderModel`]'s) is the same.
 impl KVCacheModel for Qwen3Config {
     fn kv_cache_config(&self) -> KVCacheConfig {
-        kv_cache_config(self)
+        KVCacheConfig::for_decode(
+            self.n_kv_heads(),
+            QWEN3_KV_CACHE_PRE_SIZE,
+            self.head_dim(),
+            self.n_layers(),
+        )
     }
-}
-
-impl KVCacheModel for Qwen3Model {
-    fn kv_cache_config(&self) -> KVCacheConfig {
-        self.stack.kv_cache_config(QWEN3_KV_CACHE_PRE_SIZE)
-    }
-}
-
-/// Common meta for [`Qwen3Model`] and [`Qwen3Config`].
-pub trait Qwen3Meta {
-    /// The token count.
-    fn n_vocab(&self) -> usize;
-
-    /// The model width.
-    fn d_model(&self) -> usize;
-
-    /// The layer count.
-    fn n_layers(&self) -> usize;
-
-    /// The key/value head count.
-    fn n_kv_heads(&self) -> usize;
-
-    /// The head width.
-    fn head_dim(&self) -> usize;
 }
 
 /// Config for [`Qwen3Model`]: `transformers`' `Qwen3Config`, as far as a
 /// decode needs it.
 ///
-/// Implements [`Qwen3Meta`].
+/// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
 pub struct Qwen3Config {
     /// The token count.
@@ -230,9 +195,22 @@ impl Qwen3Config {
             self.rotary(0),
         )
     }
+
+    /// The token embedding: a plain table, unscaled and unnormalized.
+    pub fn embedding(&self) -> TokenEmbeddingConfig {
+        TokenEmbeddingConfig::new(self.n_vocab, self.d_model)
+    }
+
+    /// The language model: [`embedding`](Self::embedding),
+    /// [`head`](Self::head) and [`stack`](Self::stack), its KV cache
+    /// [`QWEN3_KV_CACHE_PRE_SIZE`] positions up front.
+    pub fn lm(&self) -> LmDecoderVariantConfig {
+        LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack().into())
+            .with_kv_cache_pre_size(QWEN3_KV_CACHE_PRE_SIZE)
+    }
 }
 
-impl Qwen3Meta for Qwen3Config {
+impl LmDecoderMeta for Qwen3Config {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -260,9 +238,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
         device: &Device,
     ) -> BunsenResult<Qwen3Model> {
         Ok(Qwen3Model {
-            embed_tokens: EmbeddingConfig::new(self.n_vocab, self.d_model).init(device),
-            lm_head: self.head().try_init(device)?,
-            stack: self.stack().try_init(device)?,
+            lm: self.lm().try_init(device)?,
         })
     }
 }
@@ -271,119 +247,63 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// checkpoints, their head tied to the embedding (up to 4B) or a linear map
 /// of its own (8B), and the text model of Qwen3-ASR.
 ///
-/// Its embedding and head carry the names `transformers`'
-/// `Qwen3ForCausalLM` gives them; its decoder is a generic [`DecoderStack`]
-/// ([`Qwen3Config::stack`]: RMS norms, a `SwiGLU`, QK-norm before the rotary
-/// embedding), onto whose layers
-/// [`text_layer_rekey`](crate::kits::language::qwen3::weights::text_layer_rekey)
-/// maps the `transformers` names.
+/// An [`LmDecoderModel`] whose stack ([`Qwen3Config::stack`]) is RMS norms, a
+/// `SwiGLU`, and QK-norm before the rotary embedding;
+/// [`transformers_rekey`](crate::kits::language::qwen3::weights::transformers_rekey)
+/// maps `transformers`' `Qwen3ForCausalLM` names onto the
+/// [`LmDecoderModel`]'s, and the load is into [`lm`](Self::lm).
+///
+/// An [`LmAttentionOnlyKind`] [`LmDecoderWrapper`]: it decodes through its
+/// stack's
+/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
+/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
+/// [`KVCache`](crate::ops::transformers::attention::KVCache)
+/// ([`LmKvForwardHidden`](crate::blocks::transformers::models::LmKvForwardHidden),
+/// [`KVCacheModel`]).
 ///
 /// Built by [`Qwen3Config`].
-/// Implements [`Qwen3Meta`].
+/// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct Qwen3Model {
-    /// The token embedding, and the output head when it is tied.
-    pub embed_tokens: Embedding,
-
-    /// The output head ([`Qwen3Config::head`]): tied, or a projection of
-    /// its own with no bias; the logits leave it in the config's
-    /// `logits_dtype`.
-    pub lm_head: LmHead,
-
-    /// The decoder: its layers, final norm and rotary embedding.
-    pub stack: DecoderStack,
+    /// The language model.
+    pub lm: LmDecoderModel,
 }
 
-impl Qwen3Meta for Qwen3Model {
-    fn n_vocab(&self) -> usize {
-        self.embed_tokens.weight.dims()[0]
+impl LmDecoderWrapper for Qwen3Model {
+    type Kind = LmAttentionOnlyKind;
+
+    fn lm(&self) -> &LmDecoderModel {
+        &self.lm
     }
 
-    fn d_model(&self) -> usize {
-        self.embed_tokens.weight.dims()[1]
-    }
-
-    fn n_layers(&self) -> usize {
-        self.stack.n_layers()
-    }
-
-    fn n_kv_heads(&self) -> usize {
-        self.stack.n_kv_heads()
-    }
-
-    fn head_dim(&self) -> usize {
-        self.stack.head_dim()
+    fn lm_mut(&mut self) -> &mut LmDecoderModel {
+        &mut self.lm
     }
 }
 
 impl Qwen3Model {
-    /// The rotary embedding for positions `0..seq_len`.
+    /// The rotary embedding for positions `0..seq_len`
+    /// ([`LmDecoderModel::rotary`]).
     pub fn rotary(
         &self,
         seq_len: usize,
         device: &Device,
     ) -> RotarySet {
-        self.stack.rotary(seq_len, device)
+        self.lm.rotary(seq_len, device)
     }
 
-    /// Embeds tokens.
-    ///
-    /// # Arguments
-    /// * `tokens` - `[batch, seq]`.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`.
+    /// Embeds tokens, `[batch, seq]` to `[batch, seq, d_model]`
+    /// ([`LmDecoderModel::embed`]).
     pub fn embed(
         &self,
         tokens: Tensor<2, Int>,
     ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, seq] =
-            crate::contracts::unpack_shape_contract!(["batch", "seq"], &tokens.dims());
-
-        let y = self.embed_tokens.forward(tokens);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "d_model"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
-        );
-
-        y
-    }
-
-    /// Runs the decoder over embeddings at positions `start..start + seq`,
-    /// through the cache when there is one.
-    ///
-    /// # Arguments
-    /// * `embeds` - `[batch, seq, d_model]`.
-    /// * `r_emb` - a rotary embedding covering `start + seq` positions.
-    /// * `kv_cache` - the cache, at position `start`; `None` means `start` is 0
-    ///   and nothing is kept.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`, normalized: the head's input.
-    pub fn forward_hidden(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-        kv_cache: Option<&mut KVCache>,
-    ) -> Tensor<3> {
-        self.stack.forward_hidden(embeds, r_emb, kv_cache)
+        self.lm.embed(tokens)
     }
 
     /// The attention weights of an uncached pass over `embeds`, at `layers`,
-    /// each cut to the queries `rows` and the keys `cols`.
-    ///
-    /// # Arguments
-    /// * `embeds` - `[batch, seq, d_model]`, at positions `0..seq`.
-    /// * `r_emb` - a rotary embedding covering `seq` positions.
-    /// * `layers` - the layers, by index, in the order returned.
-    /// * `rows`, `cols` - the query and key positions kept.
-    ///
-    /// # Returns
-    /// For each of `layers`, `[batch, n_heads, rows.len(), cols.len()]`.
+    /// each cut to the queries `rows` and the keys `cols`
+    /// ([`LmDecoderModel::attention_weights`]).
     ///
     /// # Panics
     /// If a layer index is past the last layer.
@@ -395,47 +315,17 @@ impl Qwen3Model {
         rows: Range<usize>,
         cols: Range<usize>,
     ) -> Vec<Tensor<4>> {
-        self.stack
-            .attention_weights(embeds, r_emb, layers, rows, cols)
+        self.lm.attention_weights(embeds, r_emb, layers, rows, cols)
     }
 
-    /// The head, tied or its own: logits over the vocabulary.
-    ///
-    /// # Arguments
-    /// * `hidden` - `[batch, seq, d_model]`, from
-    ///   [`forward_hidden`](Self::forward_hidden).
-    ///
-    /// # Returns
+    /// The head's logits over the vocabulary, `[batch, seq, d_model]` to
     /// `[batch, seq, n_vocab]`, in the config's `logits_dtype` (f32 by
-    /// default) whatever the model computes in.
+    /// default) whatever the model computes in ([`LmDecoderModel::logits`]).
     pub fn logits(
         &self,
         hidden: Tensor<3>,
     ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "d_model"],
-            &hidden.dims(),
-            &["batch", "seq"],
-            &[("d_model", self.d_model())],
-        );
-
-        let y = self.lm_head.forward(hidden, &self.embed_tokens.weight);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "n_vocab"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("n_vocab", self.n_vocab())],
-        );
-
-        y
-    }
-}
-
-impl CanonicalKeys for Qwen3Model {
-    fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
+        self.lm.logits(hidden)
     }
 }
 
@@ -443,8 +333,19 @@ impl CanonicalKeys for Qwen3Model {
 mod tests {
     use super::*;
     use crate::{
-        blocks::transformers::head::LmHeadMeta,
-        ops::embedding::unembed,
+        blocks::transformers::{
+            head::LmHeadMeta,
+            models::LmKvForwardHidden,
+        },
+        kits::support::decoding::{
+            SearchConfig,
+            StackedLm,
+            decode_cached,
+        },
+        ops::{
+            embedding::unembed,
+            transformers::attention::KVCacheStorage,
+        },
         support::testing::cpu_device,
     };
 
@@ -463,9 +364,9 @@ mod tests {
         assert_eq!(model.n_layers(), config.n_layers());
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
-        assert_eq!(model.stack.rotary.base, config.rope_theta);
+        assert_eq!(model.lm.stack.rotary.base, config.rope_theta);
         assert_eq!(
-            model.stack.layers[0]
+            model.lm.stack.layers[0]
                 .attn
                 .branch
                 .attention()
@@ -474,7 +375,7 @@ mod tests {
                 .dims(),
             [12, 18]
         );
-        assert!(model.lm_head.is_tied(), "tied by default");
+        assert!(model.lm.head.is_tied(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
         let embeds = model.embed(tokens);
@@ -499,7 +400,7 @@ mod tests {
         let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20)
             .with_tied_head(false)
             .init(&device);
-        let head = model.lm_head.proj.as_ref().expect("an untied head");
+        let head = model.lm.head.proj.as_ref().expect("an untied head");
         assert_eq!(head.weight.dims(), [12, 40]);
         assert!(head.bias.is_none());
 
@@ -511,10 +412,73 @@ mod tests {
             &head.forward(hidden.clone()),
             burn::tensor::Tolerance::default(),
         );
-        let tied = unembed(&model.embed_tokens, hidden);
+        let tied = unembed(model.lm.embedding.weight.val(), hidden);
         assert!(
             !logits.all_close(tied, None, None),
             "the logits are not the embedding's"
         );
+    }
+
+    /// A greedy decode through the loop is the argmax of an uncached
+    /// forward over the prompt and every token before it; a beam of three
+    /// over three copies of the prompt finishes each of its candidates
+    /// within the budget.
+    #[test]
+    fn test_decode_cached() {
+        let device = cpu_device();
+        let model: Qwen3Model = Qwen3Config::new(40, 12, 2, 3, 1, 6, 20).init(&device);
+        let prompt = vec![1i64, 5, 7];
+        let ids = |ids: &[i64], rows: usize| {
+            let data: Vec<i64> = (0..rows).flat_map(|_| ids.iter().copied()).collect();
+            Tensor::<2, Int>::from_data(
+                burn::prelude::TensorData::new(data, [rows, ids.len()]),
+                &device,
+            )
+        };
+
+        let budget = 5;
+        let mut state = model.decode_state(1, prompt.len() + budget, KVCacheStorage::Auto, &device);
+        let first = model.prefill(model.embed(ids(&prompt, 1)), &mut state);
+        let mut search = SearchConfig::new().init_search(&[39], 0);
+        let out = decode_cached(
+            &model,
+            &mut state,
+            vec![prompt.clone()],
+            first,
+            budget,
+            search.as_mut(),
+            &[],
+        );
+        let generated = out[0][0].tokens_with_stop();
+        assert!(!generated.is_empty() && generated.len() <= budget);
+
+        let mut seen = prompt.clone();
+        for &token in &generated {
+            let r_emb = model.rotary(seen.len(), &device);
+            let hidden = model.forward_hidden(model.embed(ids(&seen, 1)), &r_emb, None);
+            let n = hidden.dims()[1];
+            let expected = model
+                .logits(hidden.slice_dim(1, n - 1..n))
+                .argmax(2)
+                .into_scalar::<i64>();
+            assert_eq!(token, expected, "after {seen:?}");
+            seen.push(token);
+        }
+
+        let mut state = model.decode_state(3, prompt.len() + budget, KVCacheStorage::Auto, &device);
+        let first = model.prefill(model.embed(ids(&prompt, 3)), &mut state);
+        let mut beam = SearchConfig::new().with_beam_size(3).init_search(&[39], 0);
+        let out = decode_cached(
+            &model,
+            &mut state,
+            vec![prompt.clone(); 3],
+            first,
+            budget,
+            beam.as_mut(),
+            &[],
+        );
+        assert_eq!(out.len(), 1, "one group");
+        assert_eq!(out[0].len(), 3);
+        assert!(out[0].iter().all(|c| c.tokens.len() <= budget));
     }
 }

@@ -24,6 +24,7 @@ use super::{
     },
 };
 use crate::{
+    blocks::transformers::models::LmKvForwardHidden,
     burner::module::ModuleInit,
     ops::transformers::attention::{
         KVCache,
@@ -104,7 +105,8 @@ fn test_toy_forward() {
         let model = &toy.model;
         let embeds = model.embed(toy.ids());
         let r_emb = model.rotary(embeds.dims()[1], &toy.device);
-        let layer0 = model.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
+        let layer0 =
+            model.lm.stack.layers[0].forward(embeds.clone(), r_emb.for_layer(0), &mut None);
         assert_io_close(&format!("{name} layer 0"), layer0, toy.fixture.io("layer0"));
         let hidden = model.forward_hidden(embeds, &r_emb, None);
         assert_io_close(

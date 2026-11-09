@@ -47,12 +47,12 @@ fn check_row(row: &str) {
     let record = &fixture[row];
     let bundle = load_construct_with(row, &device, LoadPolicy::performance());
     assert_eq!(
-        bundle.model.embed_tokens.weight.val().dtype(),
+        bundle.model.lm.embedding.weight.val().dtype(),
         DType::BF16,
         "{row}: performance() keeps bf16 where CUDA accelerates it"
     );
     assert!(
-        bundle.model.lm_head.proj.is_some(),
+        bundle.model.lm.head.proj.is_some(),
         "{row}: the head is its own"
     );
 
@@ -124,7 +124,7 @@ fn check_long(row: &str) {
     let reference = &record.bf16;
     let bundle = load_construct_with(row, &device, LoadPolicy::performance());
     assert_eq!(
-        bundle.model.embed_tokens.weight.val().dtype(),
+        bundle.model.lm.embedding.weight.val().dtype(),
         DType::BF16,
         "{row}: performance() keeps bf16 where CUDA accelerates it"
     );
