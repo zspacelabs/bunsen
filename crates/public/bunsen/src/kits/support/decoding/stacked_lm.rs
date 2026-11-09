@@ -15,6 +15,7 @@ use crate::{
         models::{
             LmDecodeKind,
             LmDecoderModel,
+            LmDecoderWrapper,
         },
     },
     kits::support::decoding::CachedStep,
@@ -116,6 +117,27 @@ impl<K: LmDecodeKind> StackedLm for LmDecoderModel<K> {
         hidden: Tensor<3>,
     ) -> Tensor<3> {
         self.logits(hidden)
+    }
+}
+
+/// A wrapper of an [`LmDecoderModel`] decodes as the model it wraps.
+impl<W: LmDecoderWrapper> StackedLm for W {
+    fn stack(&self) -> &DecoderStack {
+        &self.lm().stack
+    }
+
+    fn embed(
+        &self,
+        ids: Tensor<2, Int>,
+    ) -> Tensor<3> {
+        self.lm().embed(ids)
+    }
+
+    fn head(
+        &self,
+        hidden: Tensor<3>,
+    ) -> Tensor<3> {
+        self.lm().logits(hidden)
     }
 }
 

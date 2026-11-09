@@ -494,6 +494,55 @@ impl<K: LmDecodeKind> CanonicalKeys for LmDecoderModel<K> {
     }
 }
 
+/// A named model that wraps an [`LmDecoderModel`]: a kit's model, which
+/// adds its own names, config and quirks around one.
+///
+/// The model's decode API comes through blanket impls, by its kind: every
+/// wrapper is a [`StackedLm`](crate::kits::support::decoding::StackedLm);
+/// an [`LmAttentionOnlyKind`] one has [`LmKvForwardHidden`] and
+/// [`KVCacheModel`], an [`LmHybridKind`] one [`LmUncachedForwardHidden`].
+///
+/// A wrapper loads its weights into [`lm_mut`](Self::lm_mut), under a rekey
+/// onto the [`LmDecoderModel`]'s own paths.
+pub trait LmDecoderWrapper {
+    /// The wrapped model's decode kind.
+    type Kind: LmDecodeKind;
+
+    /// The wrapped model.
+    fn lm(&self) -> &LmDecoderModel<Self::Kind>;
+
+    /// The wrapped model, to load into.
+    fn lm_mut(&mut self) -> &mut LmDecoderModel<Self::Kind>;
+}
+
+impl<W: LmDecoderWrapper<Kind = LmAttentionOnlyKind>> LmKvForwardHidden for W {
+    fn forward_hidden(
+        &self,
+        embeds: Tensor<3>,
+        r_emb: &RotarySet,
+        kv_cache: Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        self.lm().forward_hidden(embeds, r_emb, kv_cache)
+    }
+}
+
+impl<W: LmDecoderWrapper<Kind = LmHybridKind>> LmUncachedForwardHidden for W {
+    fn forward_hidden(
+        &self,
+        embeds: Tensor<3>,
+        r_emb: &RotarySet,
+    ) -> Tensor<3> {
+        self.lm().forward_hidden(embeds, r_emb)
+    }
+}
+
+/// The wrapped model's cache.
+impl<W: LmDecoderWrapper<Kind = LmAttentionOnlyKind>> KVCacheModel for W {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        self.lm().kv_cache_config()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::{
@@ -679,6 +728,82 @@ mod tests {
             .assert_err(&ModuleInit::<LmDecoderModel>::try_init(&hybrid(), &device));
 
         let _: LmDecoderModel<LmHybridKind> = uniform(1).init(&device);
+    }
+
+    /// A wrapper of an attention-only model, as a kit's.
+    #[derive(Module, Debug)]
+    struct Wrapped {
+        lm: LmDecoderModel,
+    }
+
+    impl LmDecoderWrapper for Wrapped {
+        type Kind = LmAttentionOnlyKind;
+
+        fn lm(&self) -> &LmDecoderModel {
+            &self.lm
+        }
+
+        fn lm_mut(&mut self) -> &mut LmDecoderModel {
+            &mut self.lm
+        }
+    }
+
+    /// A wrapper of a hybrid model.
+    #[derive(Module, Debug)]
+    struct WrappedHybrid {
+        lm: LmDecoderModel<LmHybridKind>,
+    }
+
+    impl LmDecoderWrapper for WrappedHybrid {
+        type Kind = LmHybridKind;
+
+        fn lm(&self) -> &LmDecoderModel<LmHybridKind> {
+            &self.lm
+        }
+
+        fn lm_mut(&mut self) -> &mut LmDecoderModel<LmHybridKind> {
+            &mut self.lm
+        }
+    }
+
+    /// A wrapper's forward and cache are its model's, by kind.
+    #[test]
+    fn test_wrapper_passthrough() {
+        let device = cpu_device();
+        let wrapped = Wrapped {
+            lm: uniform(2).with_kv_cache_pre_size(16).init(&device),
+        };
+        let geometry = |c: KVCacheConfig| {
+            (
+                c.num_layers(),
+                c.num_heads(),
+                c.head_dim(),
+                c.seq_len(),
+                c.max_seq_len(),
+            )
+        };
+        assert_eq!(
+            geometry(wrapped.kv_cache_config()),
+            geometry(wrapped.lm.kv_cache_config())
+        );
+        let tokens = Tensor::<2, Int>::from_data([[1, 5, 7]], &device);
+        let embeds = wrapped.lm().embed(tokens.clone());
+        let r_emb = wrapped.lm().rotary(3, &device);
+        assert_tensors_close(
+            &wrapped.forward_hidden(embeds.clone(), &r_emb, None),
+            &wrapped.lm.forward_hidden(embeds, &r_emb, None),
+            Tolerance::default(),
+        );
+
+        let hybrid = WrappedHybrid {
+            lm: hybrid().init(&device),
+        };
+        let embeds = hybrid.lm().embed(tokens);
+        assert_tensors_close(
+            &hybrid.forward_hidden(embeds.clone(), &r_emb),
+            &hybrid.lm.forward_hidden(embeds, &r_emb),
+            Tolerance::default(),
+        );
     }
 
     /// A stack that does not lower is refused through the variant, with a
