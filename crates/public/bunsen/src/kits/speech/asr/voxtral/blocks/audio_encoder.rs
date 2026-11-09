@@ -27,6 +27,7 @@ use crate::{
                 stack::{
                     DecoderStack,
                     DecoderStackMeta,
+                    DecoderStackStructureConfig,
                     UniformStackConfig,
                 },
             },
@@ -42,6 +43,7 @@ use crate::{
         CanonicalKeys,
         ModuleInit,
         Rekey,
+        ToStructureConfig,
     },
     errors::BunsenResult,
     ops::transformers::attention::{
@@ -213,11 +215,12 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoderConfig {
     }
 }
 
-impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<VoxtralAudioEncoder> {
+impl ToStructureConfig for VoxtralAudioEncoderConfig {
+    type Structure = VoxtralAudioEncoderStructureConfig;
+
+    /// # Errors
+    /// As the stack's lowering.
+    fn try_to_structure(&self) -> BunsenResult<VoxtralAudioEncoderStructureConfig> {
         // Causal: each convolution's whole context is to the left, `kernel -
         // stride` frames of it.
         let conv = |c_in, stride: usize| {
@@ -228,13 +231,35 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
             )
             .with_act(Some(BunsenActivationConfig::Gelu))
         };
-        Ok(VoxtralAudioEncoder {
-            stem: ConvSeq1dConfig::new(vec![
+        Ok(VoxtralAudioEncoderStructureConfig::new(
+            ConvSeq1dConfig::new(vec![
                 conv(self.n_mels, 1),
                 conv(self.d_model, VOXTRAL_STEM_STRIDE),
-            ])
-            .try_init(device)?,
-            stack: self.stack().try_init(device)?,
+            ]),
+            self.stack().try_to_structure()?,
+        ))
+    }
+}
+
+/// Structure config for [`VoxtralAudioEncoder`]: its causal convolution stem
+/// and its stack, unrolled. [`VoxtralAudioEncoderConfig`] lowers to it.
+#[derive(Config, Debug)]
+pub struct VoxtralAudioEncoderStructureConfig {
+    /// The causal convolution stem: `n_mels -> d_model -> d_model`.
+    pub stem: ConvSeq1dConfig,
+
+    /// The layers, their final norm and their rotary embedding.
+    pub stack: DecoderStackStructureConfig,
+}
+
+impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderStructureConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<VoxtralAudioEncoder> {
+        Ok(VoxtralAudioEncoder {
+            stem: self.stem.try_init(device)?,
+            stack: self.stack.try_init(device)?,
         })
     }
 }
@@ -256,7 +281,8 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderConfig {
 /// [`weights::transformers_rekey`](crate::kits::speech::asr::voxtral::weights::transformers_rekey):
 /// its `embedder.conv1` and `conv2` are the blocks of [`stem`](Self::stem).
 ///
-/// Built by [`VoxtralAudioEncoderConfig`].
+/// Built by [`VoxtralAudioEncoderConfig`] (high-level) or
+/// [`VoxtralAudioEncoderStructureConfig`].
 /// Implements [`VoxtralAudioEncoderMeta`].
 #[derive(Module, Debug)]
 pub struct VoxtralAudioEncoder {
