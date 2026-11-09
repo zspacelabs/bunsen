@@ -48,12 +48,13 @@ impl AsrPresetsFetchCommand {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
-        let mut models: Vec<(Family, &str)> = Vec::new();
+        let mut models: Vec<(Family, String)> = Vec::new();
         let mut vad = false;
         for name in &self.names {
             let preset = lookup(name)?;
-            for recipe in [Mode::Offline, Mode::Live].map(|m| preset.recipe(m)) {
-                let model = (recipe.engine.family, recipe.engine.model.as_str());
+            for mode in [Mode::Offline, Mode::Live] {
+                let recipe = preset.recipe(mode)?;
+                let model = (recipe.engine.family, recipe.engine.model);
                 if !models.contains(&model) {
                     models.push(model);
                 }
@@ -62,7 +63,7 @@ impl AsrPresetsFetchCommand {
         }
         let mut out = std::io::stdout().lock();
         for (family, model) in models {
-            Kit::Asr(family).fetch(&[model.to_string()], &cache, self.verify, &mut out)?;
+            Kit::Asr(family).fetch(&[model], &cache, self.verify, &mut out)?;
         }
         if vad {
             fetch_with(

@@ -10,13 +10,13 @@ use bunsen::{
 
 use crate::asr::{
     AsrConstruct,
+    AsrPreset,
     DEFAULT_PRESET,
     Emission,
     Family,
     Kit,
     Mode,
     Need,
-    NeedPattern,
     Quality,
     Speech,
     Task,
@@ -32,18 +32,19 @@ use crate::asr::{
 ///
 /// 1. `--language` implies `--speech`, by the construct's `language` table:
 ///    `en` is `en`, any other code `multi`. A `--speech` that does not hear it
-///    (`fallback.speech`: `multi` hears English) is an error.
-/// 2. Without `--preset`, each of `--speech`, `--task` and `--quality` not
-///    given is what the construct's `defaults` say, by those given
-///    ([`AsrConstructConfig::fill`](crate::asr::construct::AsrConstructConfig::fill):
-///    `--task translate` makes the speech `multi`), else `default`'s. With it,
-///    they are the preset's.
+///    (`multi` hears English) is an error.
+/// 2. Without `--preset`, the flags name the preset: `translate-en` for `--task
+///    translate` (unless the speech is English), else `multi` for `multi`
+///    speech, else `en` for English, else `default`; the axes not given are its
+///    need's. With it, they are the preset's, and `--speech` must be one it
+///    hears.
 /// 3. English speech translated to English is transcribed ([`Need::settled`]),
 ///    logged at `INFO`.
-/// 4. Without `--preset`, the table's point for that need runs. With it, the
-///    preset's recipe runs, at `--quality`; `--speech` must be one it hears
-///    (`multi` hears English), and a task not its own is set on its model
-///    (Whisper's `[translate]` preset) or is an error.
+/// 4. The preset's selection chooses the model, adjusted by the need
+///    ([`AsrConstructConfig::pick`](crate::asr::construct::AsrConstructConfig::pick)):
+///    a translator for a need that translates, a size cap for `--quality fast`
+///    and for `live`, `--language` preferred; a task not the chosen model's
+///    default is set on it (Whisper's `[translate]` preset).
 ///
 /// The task, unless a translating preset or `--task translate` asks
 /// otherwise, is `transcribe`; the need served, its task the one the model
@@ -69,9 +70,8 @@ pub struct AsrConstructArgs {
     #[arg(long, value_enum)]
     pub task: Option<Task>,
 
-    /// How much compute to spend, in place of the preset's. A quality the
-    /// table has no model for falls through to the nearest that has one,
-    /// logged at `INFO`.
+    /// How much compute to spend, in place of the preset's: `fast` caps the
+    /// model at 1B parameters, `good` takes the larger among equals.
     #[arg(long, value_enum)]
     pub quality: Option<Quality>,
 
@@ -101,7 +101,7 @@ pub struct AsrConstructArgs {
 }
 
 /// What the command line asks of the table: a name for it, the need it is
-/// for, the point's need, and the task to set on its model.
+/// for, and the preset whose selection chooses the model.
 struct Asked {
     /// The preset's name, or the need's.
     name: String,
@@ -109,13 +109,8 @@ struct Asked {
     /// The need, [settled](Need::settled).
     need: Need,
 
-    /// The need whose point runs: the preset's, at the need's quality; or
-    /// the need itself.
-    point: Need,
-
-    /// The task to set on the model (Whisper's), when the need's is not
-    /// the point's.
-    task: Option<Task>,
+    /// The preset whose selection chooses the model.
+    preset: &'static AsrPreset,
 }
 
 impl AsrConstructArgs {
@@ -126,13 +121,12 @@ impl AsrConstructArgs {
     /// # Errors
     /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) for a `--speech`
     /// that does not hear the speech `--language` implies
-    /// ([`Fallback::hears`](crate::asr::construct::Fallback::hears)):
-    /// `--speech en --language de`.
+    /// ([`Speech::hears`]): `--speech en --language de`.
     fn speech(&self) -> BunsenResult<Option<Speech>> {
         let config = construct_config();
         let implied = self.language.as_deref().map(|l| config.language.speech(l));
         match (self.speech, implied) {
-            (Some(given), Some(implied)) if !config.fallback.hears(given, implied) => {
+            (Some(given), Some(implied)) if !given.hears(implied) => {
                 Err(BunsenError::policy(format!(
                     "--speech {}, but --language {} is {} speech, which {} does not hear",
                     value_name(given),
@@ -202,17 +196,13 @@ impl AsrConstructArgs {
         }
     }
 
-    /// What the flags ask of the table in `mode`, by the rules on
-    /// [`AsrConstructArgs`].
+    /// What the flags ask of the table, by the rules on [`AsrConstructArgs`].
     ///
     /// # Errors
     /// As [`lookup`] and [`speech`](Self::speech);
     /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when the preset
-    /// does not hear the speech, or its model in `mode` cannot do the task.
-    fn asked(
-        &self,
-        mode: Mode,
-    ) -> BunsenResult<Asked> {
+    /// does not hear the speech.
+    fn asked(&self) -> BunsenResult<Asked> {
         let speech = self.speech()?;
         let settle = |asked: Need| {
             let (need, reasons) = asked.settled_why();
@@ -222,17 +212,17 @@ impl AsrConstructArgs {
             need
         };
         let Some(name) = &self.preset else {
-            let base = lookup(DEFAULT_PRESET)?;
-            let given = NeedPattern {
-                speech,
-                task: self.task,
-                quality: self.quality,
+            let preset = match (self.task, speech) {
+                (Some(Task::Translate), Some(Speech::Multi) | None) => lookup("translate-en")?,
+                (_, Some(Speech::Multi)) => lookup("multi")?,
+                (_, Some(Speech::En)) => lookup("en")?,
+                _ => lookup(DEFAULT_PRESET)?,
             };
-            let (filled, reasons) = construct_config().fill(given, base.need);
-            for reason in reasons {
-                log::info!("{filled}: {reason}");
-            }
-            let need = settle(filled);
+            let need = settle(Need {
+                speech: speech.unwrap_or(preset.need.speech),
+                task: self.task.unwrap_or(preset.need.task),
+                quality: self.quality.unwrap_or(preset.need.quality),
+            });
             let named = self.speech.is_some()
                 || self.task.is_some()
                 || self.quality.is_some()
@@ -241,18 +231,15 @@ impl AsrConstructArgs {
                 name: if named {
                     need.to_string()
                 } else {
-                    base.name.to_string()
+                    preset.name.to_string()
                 },
                 need,
-                point: need,
-                task: None,
+                preset,
             });
         };
         let preset = lookup(name)?;
         if let Some(speech) = speech
-            && !construct_config()
-                .fallback
-                .hears(preset.need.speech, speech)
+            && !preset.need.speech.hears(speech)
         {
             return Err(BunsenError::policy(format!(
                 "preset {} hears {}; {} needs another preset, or none",
@@ -261,66 +248,37 @@ impl AsrConstructArgs {
                 self.speech_flag()
             )));
         }
-        let quality = self.quality.unwrap_or(preset.need.quality);
         let need = settle(Need {
             speech: speech.unwrap_or(preset.need.speech),
             task: self.task.unwrap_or(preset.need.task),
-            quality,
+            quality: self.quality.unwrap_or(preset.need.quality),
         });
-        let point = Need {
-            quality,
-            ..preset.need
-        };
-        let task = if need.task != point.task {
-            let family =
-                self.family(construct_config().point(point, mode).0.recipe.engine.family)?;
-            let does = construct_config()
-                .engine(family)
-                .tasks
-                .as_ref()
-                .is_some_and(|tasks| tasks.does(need.task));
-            if !does {
-                let task = value_name(need.task);
-                return Err(BunsenError::policy(format!(
-                    "preset {} runs {}, which cannot {task}; --task {task} needs another \
-                     preset, or none",
-                    preset.name,
-                    family.name()
-                )));
-            }
-            Some(need.task)
-        } else {
-            None
-        };
         Ok(Asked {
             name: preset.name.to_string(),
             need,
-            point,
-            task,
+            preset,
         })
     }
 
-    /// The `mode` recipe of the preset, or of the table's point for the
-    /// need the axis flags ask for, with the command line over it (`--model`
-    /// first, then the task and `--language` set on it), logged at `INFO` as
-    /// the need it serves and the family command it runs.
+    /// The `mode` recipe the preset's selection chooses for the need the
+    /// flags ask for, with the command line over it (`--model` first, then
+    /// the task and `--language` set on it), logged at `INFO` as the need it
+    /// serves and the family command it runs.
     ///
     /// # Errors
     /// As [`lookup`](crate::asr::lookup) and
     /// [`AsrRecipe::resolve`](crate::asr::AsrRecipe::resolve);
     /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when `--speech`
-    /// does not hear the speech `--language` implies, the preset does not
-    /// hear the speech, or its model in `mode` cannot do the task.
+    /// does not hear the speech `--language` implies, or the preset does not
+    /// hear the speech; as
+    /// [`AsrConstructConfig::pick`](crate::asr::construct::AsrConstructConfig::pick).
     pub fn resolve(
         &self,
         mode: Mode,
     ) -> BunsenResult<AsrConstruct> {
-        let asked = self.asked(mode)?;
-        let (point, note) = construct_config().point(asked.point, mode);
-        if let Some(note) = note {
-            log::info!("{note}");
-        }
-        let mut recipe = point.recipe.clone();
+        let asked = self.asked()?;
+        let mut recipe =
+            construct_config().pick(asked.preset, asked.need, mode, self.language.as_deref())?;
         if let Some(model) = &self.model {
             recipe.engine.family = self.family(recipe.engine.family)?;
             recipe.engine.model = model.clone();
@@ -329,7 +287,7 @@ impl AsrConstructArgs {
             &asked.name,
             asked.need,
             mode,
-            asked.task,
+            Some(asked.need.task),
             self.language.as_deref(),
         )?;
         if let Some(emission) = self.emission {
@@ -461,7 +419,12 @@ mod tests {
             (r.family, r.model.as_str(), r.need.task),
             (Family::Whisper, "openai/small[translate]", Task::Translate)
         );
-        assert!(resolve(&["--preset", "multi", "--task", "translate"], Mode::Live).is_err());
+        // A preset whose models cannot do the task chooses one that can.
+        let r = resolve(&["--preset", "multi", "--task", "translate"], Mode::Live).unwrap();
+        assert_eq!(
+            (r.family, r.model.as_str()),
+            (Family::Whisper, "openai/tiny[translate]{beam_size: 1}")
+        );
         // A name no family lists runs in the preset's family.
         let r = resolve(&["--model", "hf:org/repo"], Mode::Offline).unwrap();
         assert_eq!(r.family, Family::Parakeet);
@@ -513,11 +476,11 @@ mod tests {
         const QWEN: &str = "qwen/qwen3-asr-1.7b";
         const QWEN_LIVE: &str = "qwen/qwen3-asr-0.6b";
         const LARGE: &str = "openai/large-v3[translate]{beam_size: 5}";
-        const SMALL: &str = "openai/small[translate]{beam_size: 1}";
+        const TINY: &str = "openai/tiny[translate]{beam_size: 1}";
         const LARGE_DE: &str = "openai/large-v3[translate]{beam_size: 5, language: de}";
         const LARGE_TRANSCRIBE: &str = "openai/large-v3{beam_size: 5}";
-        const SMALL_TRANSCRIBE: &str = "openai/small{beam_size: 1}";
-        const SMALL_EN: &str = "openai/small{beam_size: 1, language: en}";
+        const TINY_TRANSCRIBE: &str = "openai/tiny{beam_size: 1}";
+        const TINY_EN: &str = "openai/tiny{beam_size: 1, language: en}";
         type Ran<'a> = Result<(&'a str, &'a str, &'a str, Task), &'a str>;
         let rows: &[(&[&str], Mode, Ran)] = &[
             // Nothing given: `default`, which transcribes.
@@ -605,7 +568,7 @@ mod tests {
                 Ok((
                     "multi/translate/balanced",
                     "multi/translate/balanced",
-                    SMALL,
+                    TINY,
                     Translate,
                 )),
             ),
@@ -629,7 +592,7 @@ mod tests {
                     Transcribe,
                 )),
             ),
-            // No `fast` live point: `balanced` stands in.
+            // Live and `fast` cap the model alike.
             (
                 &["--speech", "multi", "--quality", "fast"],
                 Live,
@@ -682,7 +645,7 @@ mod tests {
                 Ok((
                     "translate-en",
                     "en/transcribe/balanced",
-                    SMALL_EN,
+                    TINY_EN,
                     Transcribe,
                 )),
             ),
@@ -731,7 +694,7 @@ mod tests {
                 Ok((
                     "translate-en",
                     "multi/transcribe/balanced",
-                    SMALL_TRANSCRIBE,
+                    TINY_TRANSCRIBE,
                     Transcribe,
                 )),
             ),
@@ -758,7 +721,7 @@ mod tests {
             (
                 &["--preset", "multi", "--task", "translate"],
                 Live,
-                Err("cannot translate"),
+                Ok(("multi", "multi/translate/balanced", TINY, Translate)),
             ),
         ];
         for (line, mode, expect) in rows {
@@ -843,9 +806,9 @@ mod tests {
                 }
             }
         }
-        // 4 x 3 x 3 x 3 = 108 lines in each mode, which refuses the same 29:
-        // `--speech en --language de` (12), `en` asked for other speech (12),
-        // and `multi` asked to translate other speech (5).
-        assert_eq!(ran_lines, 2 * (108 - 29));
+        // 4 x 3 x 3 x 3 = 108 lines in each mode, which refuses the same 24:
+        // `--speech en --language de` (12), and `en` asked for other speech
+        // (12).
+        assert_eq!(ran_lines, 2 * (108 - 24));
     }
 }

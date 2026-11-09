@@ -607,39 +607,42 @@ cargo run --release -p bunsen-tool --features wgpu -- asr live --preset translat
 cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech multi --quality fast recording.wav
 ```
 
-| ASR preset | for | `transcribe` runs | `live` runs |
-|---|---|---|---|
-| `en` (`default`) | English, each word timed | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
-| `multi` | any of 30 languages, found from the speech | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
-| `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/small[translate]{beam_size: 1}`, `conservative` |
+| ASR preset | for | selects | `transcribe` runs | `live` runs |
+|---|---|---|---|---|
+| `en` (`default`) | English | `require: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
+| `multi` | many languages, found from the speech | `require: {multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
+| `translate-en` | other speech, as English text | `require: {translate: true}` | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/tiny[translate]{beam_size: 1}`, `conservative` |
 
-The ASR presets are this binary's, and improve with it: when a better model arrives, an ASR preset's row changes, and the
-command lines that name the ASR preset do not. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
+An ASR preset's selection chooses its model among every speech family's checkpoints, by their tags ([Choosing a
+model](#choosing-a-model)), over the table's own: the newest of a release sequence, then the lowest published English
+word error rate (`scores: {wer.en}`), a model without one after those with. `multilingual` is a checkpoint whose
+`language` lists more than one language, or `"*"`. `--quality fast` and `live` add `require: {parameters: {max: 1e9}}`,
+a model small enough to keep up; `--quality good` takes the larger among equals. The ASR presets are this binary's, and
+improve with it: when a better model arrives, its tags choose it, and the command lines that name the ASR preset do not
+change. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
 command it runs, `-v` logs it before a run, and `transcribe --json` records `preset`, `need` (the point served:
 `speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model expression, emission, push size, VAD)
 with each transcript. `presets fetch NAME...` brings every file an ASR preset runs into the cache, as `family <family> fetch` does
 for a model.
 
-Each ASR preset is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
-x `--quality` (`fast`, `balanced`, `good`), with a recipe for `transcribe` and one for `live` where a model was seen to
-do the job. `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and `translate-en` is
-`multi`/`translate`/`balanced`. A point with no recipe falls through to the nearest that has one (another quality, a
-better before a worse; then `multi` for `en`), logged at `INFO`.
+Each ASR preset serves a need: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`) x `--quality`
+(`fast`, `balanced`, `good`). `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and
+`translate-en` is `multi`/`translate`/`balanced`.
 
 The flags choose, in this order:
 
 1. **`--language` implies `--speech`**, by the table's `language` entry: `en` means `en` speech, any other code
    `multi`. A `--speech` that does not hear it is an error (`--speech en --language de`); `multi` hears English.
-2. **The point.** Without `--preset`, each of `--speech`, `--task` and `--quality` not given is `default`'s
-   (`en`/`transcribe`/`balanced`), except where the table's `defaults` say otherwise (`--task translate` makes the speech `multi`); `--json` records the point
-   as the ASR preset (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
-   ones not given are the ASR preset's.
+2. **The ASR preset.** Without `--preset`, the flags name it: `translate-en` for `--task translate` (unless the
+   speech is English), else `multi` for `multi` speech, else `en`; the axes not given are its need's, and `--json`
+   records the need (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
+   axes not given are the ASR preset's, and `--speech` (or the speech `--language` implies) must be one it hears.
 3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its
-   transcript, so no point translates English.
-4. **What runs.** Without `--preset`, the table's recipe for the point. With it, the ASR preset's recipe, and the flags
-   may only adjust it: `--quality` moves along the ASR preset's row; `--speech` (or the speech `--language` implies) must
-   be one the ASR preset hears (`multi` hears English); a task other than the ASR preset's is set on a model that takes one
-   (Whisper's `[translate]` preset in its model's box). Anything else is an error that names another ASR preset, or none.
+   transcript, so nothing translates English.
+4. **What runs.** The ASR preset's selection, adjusted by the need: a translator for a need that translates
+   (`--preset multi --task translate` runs Whisper), the size cap at `--quality fast` and `live`, and `--language`
+   preferred; then its family's recipe for the mode (emission, push size, and Whisper's `beam_size`). A task other than
+   the model's default is set on it (Whisper's `[translate]` preset in its model's box).
 
 So the task is `transcribe` unless `translate-en` or `--task translate` asks to translate speech that is not English.
 
@@ -653,7 +656,7 @@ So the task is `transcribe` unless `translate-en` or `--task translate` asks to 
 | `--preset translate-en --speech en` | `translate-en`: Whisper, without `[translate]` | transcribe |
 | `--preset en --task translate` | `en`: Parakeet | transcribe |
 | `--preset en --language de` | an error: `en` hears only English | |
-| `--preset multi --task translate` | an error: Qwen3-ASR cannot translate | |
+| `--preset multi --task translate` | `multi`, translating: Whisper | translate |
 
 An ASR preset's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
 `--device`, the cache's and `live`'s capture flags), and:
