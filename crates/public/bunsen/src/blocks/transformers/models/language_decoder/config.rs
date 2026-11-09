@@ -39,9 +39,10 @@ use crate::{
 pub const LM_DECODER_KV_CACHE_PRE_SIZE: usize = 1024;
 
 /// Config for [`LmDecoderModel`], its stack in any of its configs' shapes:
-/// what a named model's config builds, by `TryFrom<&KitConfig>` (so
-/// `kit_config.try_into()`, its error a
-/// [`BunsenError`](crate::errors::BunsenError)).
+/// what a named model's config lowers to
+/// ([`ToStructureConfig`], `Structure = LmDecoderVariantConfig`), so it
+/// builds the kit's [`LmDecoderWrapper`](super::LmDecoderWrapper) through the
+/// blanket `ModuleInit`s.
 ///
 /// Lowers to [`LmDecoderStructureConfig`], and builds the model through it.
 #[derive(Config, Debug)]
@@ -149,5 +150,20 @@ impl<K: LmDecodeKind> ModuleInit<LmDecoderModel<K>> for LmDecoderStructureConfig
             kv_cache_pre_size: self.kv_cache_pre_size,
             kind: PhantomData,
         })
+    }
+}
+
+/// A wrapper is built around the model the config builds
+/// ([`LmDecoderWrapper::from_lm`](super::LmDecoderWrapper::from_lm)).
+impl<W: super::LmDecoderWrapper + burn::module::Module> ModuleInit<W> for LmDecoderStructureConfig {
+    /// # Errors
+    /// As the model's build.
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<W> {
+        Ok(W::from_lm(ModuleInit::<LmDecoderModel<W::Kind>>::try_init(
+            self, device,
+        )?))
     }
 }

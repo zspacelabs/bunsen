@@ -221,6 +221,10 @@ impl LmDecoderWrapper for Wrapped {
     fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
     }
+
+    fn from_lm(lm: LmDecoderModel) -> Self {
+        Self { lm }
+    }
 }
 
 /// A wrapper of a hybrid model.
@@ -238,6 +242,10 @@ impl LmDecoderWrapper for WrappedHybrid {
 
     fn lm_mut(&mut self) -> &mut LmDecoderModel<LmHybridKind> {
         &mut self.lm
+    }
+
+    fn from_lm(lm: LmDecoderModel<LmHybridKind>) -> Self {
+        Self { lm }
     }
 }
 

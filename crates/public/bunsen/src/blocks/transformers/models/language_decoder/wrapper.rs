@@ -40,6 +40,12 @@ pub trait LmDecoderWrapper {
 
     /// The wrapped model, to load into.
     fn lm_mut(&mut self) -> &mut LmDecoderModel<Self::Kind>;
+
+    /// The wrapper around `lm`: what an
+    /// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig) builds the
+    /// wrapper as (its blanket `ModuleInit`), so a kit's config that lowers to
+    /// one builds the kit's model.
+    fn from_lm(lm: LmDecoderModel<Self::Kind>) -> Self;
 }
 
 impl<W: LmDecoderWrapper<Kind = LmAttentionOnlyKind>> LmKvForwardHidden for W {
