@@ -69,6 +69,8 @@ serde_json = "1.0.151"
 # `tiktoken` `Encoding`, read as data without resolving its class.
 serde-pickle = { version = "1.2.0", default-features = false }
 serde-saphyr = { version = "2", default-features = false, features = ["deserialize"] }
+# Release versions: `bunsen-tool`'s `version` tag order.
+semver = "1.0.28"
 ciborium = "0.2.2"
 
 dashmap = "6.2.1"

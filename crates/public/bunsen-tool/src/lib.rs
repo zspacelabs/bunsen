@@ -20,6 +20,8 @@
 //!   [`decide::DecideCommandGroup`].
 //! - [`card`] and [`devices`]: the build, its cache and the models it knows;
 //!   the backends and their devices.
+//! - [`select`]: choosing a model by its tags: `--select`, selection
+//!   expressions, and each command's defaults and named selections.
 //! - [`support`]: what the command trees share.
 
 #[cfg(feature = "speech")]
@@ -28,4 +30,5 @@ pub mod card;
 pub mod chat;
 pub mod decide;
 pub mod devices;
+pub mod select;
 pub mod support;

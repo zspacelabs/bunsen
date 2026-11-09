@@ -885,6 +885,7 @@ dependencies = [
  "log",
  "minijinja",
  "minijinja-contrib",
+ "semver",
  "serde",
  "serde-saphyr",
  "serde_json",
