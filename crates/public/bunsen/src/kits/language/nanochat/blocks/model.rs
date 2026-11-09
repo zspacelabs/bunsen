@@ -889,6 +889,63 @@ impl NanoChatGpt {
     }
 }
 
+/// The call API that says nothing of the forward: the token embedding alone
+/// (the smear is the forward's), the head, the rotary tables and the dtype.
+/// A [`NanoChatGpt`]'s forward is its own
+/// ([`hidden_after`](NanoChatGpt::hidden_after)), so it is not a
+/// [`LmPlainStackOps`](crate::blocks::transformers::models::language_decoder::LmPlainStackOps).
+impl crate::blocks::transformers::models::language_decoder::LmDecoderOps for NanoChatGpt {
+    fn float_dtype(&self) -> burn::tensor::DType {
+        NanoChatGpt::float_dtype(self)
+    }
+
+    fn rotary(
+        &self,
+        seq_len: usize,
+        device: &Device,
+    ) -> RotarySet {
+        self.lm.rotary(seq_len, device)
+    }
+
+    fn embed(
+        &self,
+        tokens: Tensor<2, Int>,
+    ) -> Tensor<3> {
+        self.lm.embed(tokens)
+    }
+
+    fn logits(
+        &self,
+        hidden: Tensor<3>,
+    ) -> Tensor<3> {
+        NanoChatGpt::logits(self, hidden)
+    }
+}
+
+/// Its language model's meta: `n_vocab` is the padded table's rows, not
+/// [`vocab_size`](NanoChatGptMeta::vocab_size).
+impl crate::blocks::transformers::models::language_decoder::LmDecoderMeta for NanoChatGpt {
+    fn n_vocab(&self) -> usize {
+        self.lm.n_vocab()
+    }
+
+    fn d_model(&self) -> usize {
+        self.lm.d_model()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.lm.n_layers()
+    }
+
+    fn n_kv_heads(&self) -> usize {
+        self.lm.n_kv_heads()
+    }
+
+    fn head_dim(&self) -> usize {
+        self.lm.head_dim()
+    }
+}
+
 impl CanonicalKeys for NanoChatGpt {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest().mount_canonical("lm.", &self.lm)
@@ -1379,5 +1436,38 @@ mod tests {
         scaled
             .into_data()
             .assert_approx_eq::<f32>(&logits.into_data(), Tolerance::rel_abs(1e-3, 1e-4));
+    }
+
+    /// The forward-free call API is the model's own: the head over its hidden
+    /// states gives its forward's logits, and the embedding is the table's,
+    /// unsmeared.
+    #[test]
+    #[serial]
+    fn test_lm_decoder_ops() {
+        use crate::blocks::transformers::models::language_decoder::{
+            LmDecoderMeta,
+            LmDecoderOps,
+        };
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let gpt = tiny_2026(&device);
+        let ids: Tensor<2, Int> = Tensor::from_data([[3, 1, 4, 1, 5]], &device);
+        let hidden = gpt.hidden_after(ids.clone(), None, &mut None);
+        crate::support::testing::assert_tensors_close(
+            &LmDecoderOps::logits(&gpt, hidden),
+            &gpt.forward(ids.clone(), &mut None),
+            burn::tensor::Tolerance::default(),
+        );
+        crate::support::testing::assert_tensors_close(
+            &LmDecoderOps::embed(&gpt, ids.clone()),
+            &gpt.lm.embedding.forward(ids),
+            burn::tensor::Tolerance::default(),
+        );
+        assert_eq!(LmDecoderMeta::n_vocab(&gpt), 64, "the padded table");
+        assert_eq!(gpt.vocab_size(), 30);
+        assert_eq!(
+            LmDecoderOps::rotary(&gpt, 5, &device).tables[0].cos.dims()[1],
+            5
+        );
     }
 }
