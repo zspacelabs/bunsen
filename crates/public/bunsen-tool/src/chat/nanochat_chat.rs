@@ -21,10 +21,7 @@ use bunsen::{
         },
         support::{
             decoding::LogitFilter,
-            model_config::{
-                GenerationPolicy,
-                SamplingPolicy,
-            },
+            model_config::GenerationPolicy,
             tokens::{
                 BunsenTokenizer,
                 Detokenizer,
@@ -55,8 +52,10 @@ use crate::chat::{
 /// layout, and upstream's chat defaults. A reply never chooses an id the
 /// tokenizer cannot spell.
 ///
-/// nanochat's checkpoints carry no generation config; the defaults are
-/// upstream's chat scripts': temperature 0.6, top-k 50, a reply ending at
+/// nanochat's checkpoints carry no generation config: its sampling is the
+/// kit's policy
+/// ([`nanochat_default_policy`](bunsen::kits::language::nanochat::nanochat_default_policy),
+/// upstream's chat scripts'), and a reply ends at its tokenizer's
 /// `<|assistant_end|>` or `<|bos|>`. It has no thinking switch.
 #[derive(Debug)]
 pub struct NanoChatChat {
@@ -82,15 +81,11 @@ impl NanoChatChat {
         let tokenizer: Arc<dyn Tokenizer> =
             Arc::new(BunsenTokenizer::from_tiktoken_pickle_file(path)?);
         let layout = NanoChatLayout::from_tokenizer(tokenizer.as_ref())?;
+        // The kit's policy, the sampling among it; the stops are the
+        // tokenizer's, which the layout reads.
         let generation = GenerationPolicy {
             stop_ids: layout.stop_ids(),
-            sampling: Some(SamplingPolicy {
-                temperature: 0.6,
-                top_k: Some(50),
-                top_p: None,
-                min_p: None,
-            }),
-            ..Default::default()
+            ..bundle.policy.generation.clone()
         };
         Ok(Self {
             unspelled: unspelled(bundle.model.vocab_size(), tokenizer.as_ref()),
@@ -146,7 +141,7 @@ impl ChatBackend for NanoChatChat {
     }
 
     fn trained_context(&self) -> Option<usize> {
-        Some(self.bundle.sequence_len())
+        self.bundle.max_positions
     }
 
     fn float_dtype(&self) -> DType {

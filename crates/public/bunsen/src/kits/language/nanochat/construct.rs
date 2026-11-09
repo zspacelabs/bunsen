@@ -1,15 +1,13 @@
 //! A loaded nanochat model, with the files a decode reads beside it.
-use alloc::collections::BTreeMap;
-use std::path::{
-    Path,
-    PathBuf,
-};
-
-use super::{
-    NanoChatGpt,
-    weights::{
-        NanoChatGeneration,
-        NanoChatMeta,
+use super::NanoChatGpt;
+use crate::kits::support::{
+    construct::{
+        LmConstruct,
+        LmPolicy,
+    },
+    model_config::{
+        GenerationPolicy,
+        SamplingPolicy,
     },
 };
 
@@ -30,92 +28,49 @@ pub const TOKENIZER: &str = "tokenizer";
 /// a nanochat resource bundle.
 pub const TOKEN_BYTES: &str = "token_bytes";
 
-/// A nanochat model, which of upstream's models it is, its meta, and its
-/// checkpoint's other files, unread: what a pretrained loads to.
-///
-/// The kit reads only what builds the model: ids in, logits out. The
-/// tokenizer is the caller's to read, through [`tokenizer`](Self::tokenizer).
-/// The model decodes through a
-/// [`NanoChatDecodeState`](super::NanoChatDecodeState) the caller makes from
-/// it.
+/// How a nanochat pretrained is run: the [`LmPolicy`] its presets patch,
+/// over [`nanochat_default_policy`].
+pub type NanoChatPolicy = LmPolicy;
+
+/// The sampling upstream's chat scripts reply under: temperature 0.6, top-k
+/// 50 (nanochat's checkpoints carry no generation config).
+pub const NANOCHAT_SAMPLING: SamplingPolicy = SamplingPolicy {
+    temperature: 0.6,
+    top_k: Some(50),
+    top_p: None,
+    min_p: None,
+};
+
+/// The policy a nanochat pretrained resolves its presets over: its
+/// generation [`NANOCHAT_SAMPLING`]. Its stop tokens are its tokenizer's
+/// (`<|assistant_end|>`, `<|bos|>`), which the kit does not read.
+pub fn nanochat_default_policy() -> NanoChatPolicy {
+    LmPolicy {
+        generation: GenerationPolicy {
+            sampling: Some(NANOCHAT_SAMPLING),
+            ..Default::default()
+        },
+    }
+}
+
+/// A nanochat model, the positions it was trained on (its meta's
+/// `sequence_len`; the model's rotary table reaches ten times it), its
+/// policy, and its checkpoint's other files, unread: what a pretrained loads
+/// to ([`LmConstruct`]). The tokenizer, [`TOKENIZER`], is the caller's to
+/// read.
 ///
 /// [`default_nanochat_factory`](super::pretrained::default_nanochat_factory)
 /// builds one from a name.
-#[derive(Debug)]
-pub struct NanoChatConstruct {
-    /// The model.
-    pub model: NanoChatGpt,
-
-    /// Which of upstream's models the checkpoint is.
-    pub generation: NanoChatGeneration,
-
-    /// The checkpoint's meta.
-    pub meta: NanoChatMeta,
-
-    /// The checkpoint's files, local, by resource key: [`TOKENIZER`] and
-    /// [`TOKEN_BYTES`] among them, where it has them.
-    pub files: BTreeMap<String, PathBuf>,
-}
-
-impl NanoChatConstruct {
-    /// A construct of `model`, of `generation`, with its `meta`, and no files.
-    pub fn new(
-        model: NanoChatGpt,
-        generation: NanoChatGeneration,
-        meta: NanoChatMeta,
-    ) -> Self {
-        Self {
-            model,
-            generation,
-            meta,
-            files: BTreeMap::new(),
-        }
-    }
-
-    /// Adds the file `path` under `key`.
-    pub fn with_file(
-        mut self,
-        key: impl Into<String>,
-        path: impl Into<PathBuf>,
-    ) -> Self {
-        self.files.insert(key.into(), path.into());
-        self
-    }
-
-    /// The file under `key`, when the checkpoint has it.
-    pub fn file(
-        &self,
-        key: &str,
-    ) -> Option<&Path> {
-        self.files.get(key).map(PathBuf::as_path)
-    }
-
-    /// The `tokenizer.pkl`, under [`TOKENIZER`].
-    pub fn tokenizer(&self) -> Option<&Path> {
-        self.file(TOKENIZER)
-    }
-
-    /// The `token_bytes.pt`, under [`TOKEN_BYTES`].
-    pub fn token_bytes(&self) -> Option<&Path> {
-        self.file(TOKEN_BYTES)
-    }
-
-    /// The context the checkpoint was trained on, in tokens: its meta's
-    /// `sequence_len`. The model's rotary table reaches ten times it.
-    pub fn sequence_len(&self) -> usize {
-        self.meta.model_config.sequence_len
-    }
-}
+pub type NanoChatConstruct = LmConstruct<NanoChatGpt>;
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        kits::language::nanochat::{
-            NanoChatGptContractConfig,
-            weights::NanoChatModelConfig,
-        },
+        kits::language::nanochat::NanoChatGptContractConfig,
         support::testing::cpu_device,
     };
 
@@ -129,22 +84,15 @@ mod tests {
             .with_n_embed(8)
             .with_init_seq_len(4)
             .init(&cpu_device());
-        let meta = NanoChatMeta {
-            step: Some(1),
-            model_config: NanoChatModelConfig {
-                sequence_len: 4,
-                vocab_size: 16,
-                n_layer: 1,
-                n_head: 2,
-                n_kv_head: 2,
-                n_embd: 8,
-                window_pattern: None,
-            },
-        };
-        let bundle = NanoChatConstruct::new(model, NanoChatGeneration::Upstream2025, meta)
+        let bundle = NanoChatConstruct::new(model)
+            .with_max_positions(Some(4))
             .with_file(TOKENIZER, "/x/tokenizer.pkl");
-        assert_eq!(bundle.sequence_len(), 4);
+        assert_eq!(bundle.max_positions, Some(4));
         assert_eq!(bundle.tokenizer(), Some(Path::new("/x/tokenizer.pkl")));
-        assert_eq!(bundle.token_bytes(), None);
+        assert_eq!(bundle.file(TOKEN_BYTES), None);
+        assert_eq!(
+            nanochat_default_policy().generation.sampling,
+            Some(NANOCHAT_SAMPLING)
+        );
     }
 }
