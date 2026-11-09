@@ -34,6 +34,7 @@ use crate::{
         PretrainedProvider,
         PretrainedRef,
         not_found,
+        tags::KIT,
     },
     errors::{
         BunsenError,
@@ -254,9 +255,19 @@ impl<H: ConstructInit> PretrainedFactory<H> {
                 provider
                     .list()
                     .into_iter()
-                    .map(move |row| (name.clone(), row))
+                    .map(move |row| (name.clone(), Self::with_kit(row)))
             })
             .collect()
+    }
+
+    /// `row` with this factory's kit as its [`KIT`] tag, when it has none:
+    /// every row the factory hands out says which kit it is, whichever
+    /// provider it came from.
+    fn with_kit(mut row: Pretrained) -> Pretrained {
+        if !row.tags.contains_key(KIT) {
+            row.tags.insert(KIT, H::KIT);
+        }
+        row
     }
 
     /// Every listed id, `provider:ref`: the "did you mean" list.
@@ -277,7 +288,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
                 provider
                     .for_prefab(prefab)
                     .into_iter()
-                    .map(move |row| (name.clone(), row))
+                    .map(move |row| (name.clone(), Self::with_kit(row)))
             })
             .collect()
     }
@@ -429,14 +440,15 @@ impl<H: ConstructInit> PretrainedFactory<H> {
         if let Some((head, rest)) = spec.split_once(':')
             && let Some(provider) = self.provider(head)
         {
-            return Ok(ask(provider.as_ref(), rest)?.map(|row| (provider.name().to_string(), row)));
+            return Ok(ask(provider.as_ref(), rest)?
+                .map(|row| (provider.name().to_string(), Self::with_kit(row))));
         }
         for provider in &self.providers {
             if !provider.answers_bare_names() {
                 continue;
             }
             if let Some(row) = ask(provider.as_ref(), spec)? {
-                return Ok(Some((provider.name().to_string(), row)));
+                return Ok(Some((provider.name().to_string(), Self::with_kit(row))));
             }
         }
         Ok(None)
@@ -551,6 +563,7 @@ pub(crate) mod testing {
                 prefab: None,
                 resources,
                 presets: Default::default(),
+                tags: Default::default(),
             }))
         }
 
@@ -691,6 +704,7 @@ mod tests {
                 sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
             }),
             presets: Default::default(),
+            tags: Default::default(),
         }
     }
 
@@ -708,6 +722,7 @@ mod tests {
             prefab: None,
             resources: ResourceBundle::given(name, "checkpoint", path),
             presets: Default::default(),
+            tags: Default::default(),
         }
     }
 
@@ -1062,6 +1077,36 @@ mod tests {
             .collect();
         assert_eq!(small, ["well-known:a/small", "well-known:b/small"]);
         assert!(factory.for_prefab("nothing").is_empty());
+    }
+
+    /// Every row the factory hands out says which kit it is, whichever way
+    /// it was found; a row that already says keeps its own.
+    #[test]
+    fn test_rows_carry_their_kit() {
+        let factory = factory();
+        assert!(
+            factory
+                .list()
+                .iter()
+                .chain(&factory.for_prefab("small"))
+                .all(|(_, row)| row.tags.text(KIT) == Some("kit"))
+        );
+        let (_, row) = factory.lookup("a/small").unwrap();
+        assert_eq!(row.tags.text(KIT), Some("kit"));
+        assert_eq!(
+            factory
+                .lookup("well-known:b/tiny")
+                .unwrap()
+                .1
+                .tags
+                .text(KIT),
+            Some("kit")
+        );
+
+        let mut own = row;
+        own.tags.insert(KIT, "other");
+        let kept = PretrainedFactory::<CheckpointPath>::with_kit(own);
+        assert_eq!(kept.tags.text(KIT), Some("other"));
     }
 
     /// A well-known table compares names ignoring case, and hands the row

@@ -347,6 +347,7 @@ mod tests {
                 sources: alloc::vec![Source::Url(format!("{base}/{file}"))],
             }),
             presets: Default::default(),
+            tags: Default::default(),
         }
     }
 
