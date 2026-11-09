@@ -19,10 +19,7 @@ use bunsen::{
     kits::{
         language::{
             driver::CachedHistory,
-            gemma::{
-                GemmaMeta,
-                GemmaModel,
-            },
+            gemma::GemmaModel,
             qwen3::{
                 Qwen3Meta,
                 Qwen3Model,
@@ -196,11 +193,11 @@ impl ChatLm for Qwen3Model {
 
 impl ChatLm for GemmaModel {
     fn n_vocab(&self) -> usize {
-        GemmaMeta::n_vocab(self)
+        LmDecoderMeta::n_vocab(self)
     }
 
     fn float_dtype(&self) -> DType {
-        bunsen::burner::tensor::param_float_dtype(&self.embed_tokens.weight)
+        self.lm.float_dtype()
     }
 }
 

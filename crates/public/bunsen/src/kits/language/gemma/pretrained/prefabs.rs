@@ -59,9 +59,9 @@ pub static GEMMA_PREFABS: StaticPreFabMap<GemmaConfig> = StaticPreFabMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::language::gemma::{
-        GemmaLayerKind,
-        GemmaMeta,
+    use crate::{
+        blocks::transformers::models::LmDecoderMeta,
+        kits::language::gemma::GemmaLayerKind,
     };
 
     /// Each generation's prefabs carry its features: Gemma 3's pattern and
