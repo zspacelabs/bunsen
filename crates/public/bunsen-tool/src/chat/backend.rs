@@ -177,19 +177,19 @@ pub trait ChatLm: StackedLm + Debug + Send + Sync + 'static {
 
 impl ChatLm for Qwen3Model {
     fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_vocab(self)
+        LmDecoderMeta::n_logits(self)
     }
 }
 
 impl ChatLm for GemmaModel {
     fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_vocab(self)
+        LmDecoderMeta::n_logits(self)
     }
 }
 
 impl ChatLm for Qwen3_5Model {
     fn n_vocab(&self) -> usize {
-        LmDecoderMeta::n_vocab(self)
+        LmDecoderMeta::n_logits(self)
     }
 }
 
