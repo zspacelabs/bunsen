@@ -13,6 +13,7 @@ use serde::{
 use super::{
     PresetSet,
     ResourceBundle,
+    Tags,
 };
 
 /// A pretrained row: a name in a provider, over a resource bundle.
@@ -61,6 +62,12 @@ pub struct Pretrained {
     /// default selection.
     #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
     pub presets: PresetSet,
+
+    /// Its tags: facts about the model, for listings and selection
+    /// ([`tags`](super::tags)). A catalog lays a row's over its group's and
+    /// family's, and writes its [`KIT`](super::tags::KIT) tag.
+    #[serde(default, skip_serializing_if = "Tags::is_empty")]
+    pub tags: Tags,
 }
 
 impl Pretrained {
@@ -109,6 +116,7 @@ mod tests {
             resources: ResourceBundle::new("small")
                 .with_resource(Resource::given("checkpoint", "/t/small.pt")),
             presets: PresetSet::default(),
+            tags: Default::default(),
         };
         assert!(row.matches("small"));
         assert!(row.matches("s"));
