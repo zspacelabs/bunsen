@@ -1,10 +1,8 @@
 //! The Qwen3.5 decoder.
 use burn::{
-    Tensor,
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    prelude::Int,
     tensor::{
         Device,
         FloatDType,
@@ -29,7 +27,6 @@ use crate::{
             embedding::{
                 RotaryDirection,
                 RotaryEmbeddingConfig,
-                RotarySet,
                 TokenEmbeddingConfig,
             },
             head::LmHeadConfig,
@@ -428,37 +425,6 @@ impl LmDecoderWrapper for Qwen3_5Model {
     }
 }
 
-impl Qwen3_5Model {
-    /// The rotary table for positions `0..seq_len`
-    /// ([`LmDecoderModel::rotary`]).
-    pub fn rotary(
-        &self,
-        seq_len: usize,
-        device: &Device,
-    ) -> RotarySet {
-        self.lm.rotary(seq_len, device)
-    }
-
-    /// Embeds tokens, `[batch, seq]` to `[batch, seq, d_model]`
-    /// ([`LmDecoderModel::embed`]).
-    pub fn embed(
-        &self,
-        tokens: Tensor<2, Int>,
-    ) -> Tensor<3> {
-        self.lm.embed(tokens)
-    }
-
-    /// The head's logits over the vocabulary, `[batch, seq, d_model]` to
-    /// `[batch, seq, n_vocab]`, in the config's `logits_dtype`
-    /// ([`LmDecoderModel::logits`]).
-    pub fn logits(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3> {
-        self.lm.logits(hidden)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -470,6 +436,7 @@ mod tests {
                 GatedDeltaNetMeta,
                 TokenMixer,
             },
+            models::language_decoder::LmDecoderOps,
         },
         support::testing::cpu_device,
     };

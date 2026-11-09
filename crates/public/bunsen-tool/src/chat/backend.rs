@@ -168,23 +168,16 @@ pub fn row(
     Tensor::from_data(TensorData::new(ids.to_vec(), [1, ids.len()]), device)
 }
 
-/// A language model a chat drives: a [`StackedLm`], with what the chat reads
-/// of it beside.
+/// A language model a chat drives: a [`StackedLm`] (its float dtype
+/// [`LmDecoderOps::float_dtype`](bunsen::blocks::transformers::models::language_decoder::LmDecoderOps::float_dtype)'s), with what the chat reads of it beside.
 pub trait ChatLm: StackedLm + Debug + Send + Sync + 'static {
     /// The head's width: the ids a reply may choose among.
     fn n_vocab(&self) -> usize;
-
-    /// The float dtype its weights are held, and computed, in.
-    fn float_dtype(&self) -> DType;
 }
 
 impl ChatLm for Qwen3Model {
     fn n_vocab(&self) -> usize {
         LmDecoderMeta::n_vocab(self)
-    }
-
-    fn float_dtype(&self) -> DType {
-        self.lm.float_dtype()
     }
 }
 
@@ -192,19 +185,11 @@ impl ChatLm for GemmaModel {
     fn n_vocab(&self) -> usize {
         LmDecoderMeta::n_vocab(self)
     }
-
-    fn float_dtype(&self) -> DType {
-        self.lm.float_dtype()
-    }
 }
 
 impl ChatLm for Qwen3_5Model {
     fn n_vocab(&self) -> usize {
         LmDecoderMeta::n_vocab(self)
-    }
-
-    fn float_dtype(&self) -> DType {
-        self.lm.float_dtype()
     }
 }
 

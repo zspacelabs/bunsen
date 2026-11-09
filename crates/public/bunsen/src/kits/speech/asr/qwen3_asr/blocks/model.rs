@@ -20,6 +20,7 @@ use super::{
 use crate::{
     blocks::transformers::models::language_decoder::{
         LmDecoderMeta,
+        LmDecoderOps,
         LmKvForwardHidden,
     },
     burner::module::{

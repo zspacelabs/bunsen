@@ -1,10 +1,8 @@
 //! The Gemma decoder.
 use burn::{
-    Tensor,
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    prelude::Int,
     tensor::{
         Device,
         FloatDType,
@@ -28,7 +26,6 @@ use crate::{
                 RopeScaling,
                 RotaryDirection,
                 RotaryEmbeddingConfig,
-                RotarySet,
                 TokenEmbeddingConfig,
             },
             head::LmHeadConfig,
@@ -470,37 +467,6 @@ impl LmDecoderWrapper for GemmaModel {
 
     fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
-    }
-}
-
-impl GemmaModel {
-    /// The rotary tables for positions `0..seq_len`
-    /// ([`LmDecoderModel::rotary`]).
-    pub fn rotary(
-        &self,
-        seq_len: usize,
-        device: &Device,
-    ) -> RotarySet {
-        self.lm.rotary(seq_len, device)
-    }
-
-    /// Embeds tokens, scaled: `[batch, seq]` to `[batch, seq, d_model]`
-    /// ([`LmDecoderModel::embed`]).
-    pub fn embed(
-        &self,
-        tokens: Tensor<2, Int>,
-    ) -> Tensor<3> {
-        self.lm.embed(tokens)
-    }
-
-    /// The head's logits over the vocabulary, `[batch, seq, d_model]` to
-    /// `[batch, seq, n_vocab]`, soft-capped as configured, in the config's
-    /// `logits_dtype` ([`LmDecoderModel::logits`]).
-    pub fn logits(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3> {
-        self.lm.logits(hidden)
     }
 }
 

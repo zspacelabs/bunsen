@@ -22,7 +22,10 @@ use super::{
     },
 };
 use crate::{
-    blocks::transformers::models::language_decoder::LmKvForwardHidden,
+    blocks::transformers::models::language_decoder::{
+        LmDecoderOps,
+        LmKvForwardHidden,
+    },
     burner::module::ModuleInit,
     ops::transformers::attention::{
         KVCache,

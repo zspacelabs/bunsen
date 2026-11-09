@@ -8,45 +8,27 @@ use burn::{
 
 use crate::{
     blocks::transformers::{
-        decoders::stack::{
-            DecoderStack,
-            DecoderStackCache,
-        },
-        models::language_decoder::{
-            LmDecodeKind,
-            LmDecoderModel,
-            LmDecoderWrapper,
-        },
+        decoders::stack::DecoderStackCache,
+        models::language_decoder::LmDecoderOps,
     },
     kits::support::decoding::CachedStep,
     ops::transformers::attention::KVCacheStorage,
 };
 
-/// A language model that is an embedding, a [`DecoderStack`] and a head:
-/// what decodes through a [`DecoderStackCache`], with no state of its own.
+/// A language model that is an embedding, a
+/// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
+/// and a head ([`LmDecoderOps`]): what decodes through a [`DecoderStackCache`],
+/// with no state of its own.
 ///
-/// A model gives the three pieces; the decode is the trait's:
-/// [`decode_state`](Self::decode_state), [`prefill`](Self::prefill), and
-/// [`CachedStep`], so [`decode_cached`](super::decode_cached) steps it.
-pub trait StackedLm {
-    /// The decoder stack.
-    fn stack(&self) -> &DecoderStack;
-
-    /// Embeds tokens: `[rows, seq]` to `[rows, seq, d_model]`.
-    fn embed(
-        &self,
-        ids: Tensor<2, Int>,
-    ) -> Tensor<3>;
-
-    /// The head: the stack's `[rows, seq, d_model]` to logits,
-    /// `[rows, seq, vocab]`.
-    fn head(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3>;
-
+/// The decode is the trait's: [`decode_state`](Self::decode_state),
+/// [`prefill`](Self::prefill), and [`CachedStep`], so
+/// [`decode_cached`](super::decode_cached) steps it. Every [`LmDecoderOps`]
+/// (an [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
+/// of any kind, and every wrapper of one) is one, by a blanket impl.
+pub trait StackedLm: LmDecoderOps {
     /// A decode state for `rows` rows of at most `positions` positions each,
-    /// under `storage` ([`DecoderStack::decode_cache`]).
+    /// under `storage`
+    /// ([`DecoderStack::decode_cache`](crate::blocks::transformers::decoders::stack::DecoderStack::decode_cache)).
     fn decode_state(
         &self,
         rows: usize,
@@ -60,8 +42,8 @@ pub trait StackedLm {
     /// Runs prompt embeddings through the model into `state`.
     ///
     /// # Arguments
-    /// * `embeds` - `[rows, seq, d_model]`: [`embed`](Self::embed)'s tokens, or
-    ///   a prompt with other frames in it.
+    /// * `embeds` - `[rows, seq, d_model]`: [`LmDecoderOps::embed`]'s tokens,
+    ///   or a prompt with other frames in it.
     ///
     /// # Returns
     /// `[rows, vocab]`, the logits that follow the prompt.
@@ -72,11 +54,13 @@ pub trait StackedLm {
     ) -> Tensor<2> {
         let hidden = self.stack().forward_cached(embeds, state);
         let [rows, seq, _] = hidden.dims();
-        let logits = self.head(hidden.slice_dim(1, seq - 1..seq));
+        let logits = self.logits(hidden.slice_dim(1, seq - 1..seq));
         let vocab = logits.dims()[2];
         logits.reshape([rows, vocab])
     }
 }
+
+impl<M: LmDecoderOps> StackedLm for M {}
 
 impl<M: StackedLm> CachedStep for M {
     type State = DecoderStackCache;
@@ -95,49 +79,6 @@ impl<M: StackedLm> CachedStep for M {
         sources: &[usize],
     ) {
         state.reorder(sources);
-    }
-}
-
-/// Every [`LmDecoderModel`], of any kind, decodes through its stack's
-/// [`DecoderStackCache`].
-impl<K: LmDecodeKind> StackedLm for LmDecoderModel<K> {
-    fn stack(&self) -> &DecoderStack {
-        &self.stack
-    }
-
-    fn embed(
-        &self,
-        ids: Tensor<2, Int>,
-    ) -> Tensor<3> {
-        LmDecoderModel::embed(self, ids)
-    }
-
-    fn head(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3> {
-        self.logits(hidden)
-    }
-}
-
-/// A wrapper of an [`LmDecoderModel`] decodes as the model it wraps.
-impl<W: LmDecoderWrapper> StackedLm for W {
-    fn stack(&self) -> &DecoderStack {
-        &self.lm().stack
-    }
-
-    fn embed(
-        &self,
-        ids: Tensor<2, Int>,
-    ) -> Tensor<3> {
-        self.lm().embed(ids)
-    }
-
-    fn head(
-        &self,
-        hidden: Tensor<3>,
-    ) -> Tensor<3> {
-        self.lm().logits(hidden)
     }
 }
 
@@ -169,6 +110,7 @@ mod tests {
                 mixers::GatedDeltaNetConfig,
                 mlp::TransformerGatedMlpConfig,
                 models::language_decoder::{
+                    LmDecoderModel,
                     LmDecoderVariantConfig,
                     LmHybridKind,
                     LmUncachedForwardHidden,

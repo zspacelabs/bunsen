@@ -22,7 +22,10 @@ use super::{
     weights::load_transformers_tensors,
 };
 use crate::{
-    blocks::transformers::models::language_decoder::LmKvForwardHidden,
+    blocks::transformers::models::language_decoder::{
+        LmDecoderOps,
+        LmKvForwardHidden,
+    },
     burner::module::ModuleInit,
     kits::language::qwen3::Qwen3Config,
     ops::transformers::attention::{

@@ -22,8 +22,10 @@ use crate::{
 /// A named model that wraps an [`LmDecoderModel`]: a kit's model, which
 /// adds its own names, config and quirks around one.
 ///
-/// The model's decode API comes through blanket impls, by its kind: every
-/// wrapper is a [`StackedLm`](crate::kits::support::decoding::StackedLm);
+/// The model's API comes through blanket impls, by its kind: every wrapper
+/// is [`LmDecoderOps`](super::LmDecoderOps),
+/// [`LmDecoderMeta`] and a
+/// [`StackedLm`](crate::kits::support::decoding::StackedLm);
 /// an [`LmAttentionOnlyKind`] one has [`LmKvForwardHidden`] and
 /// [`KVCacheModel`], an [`LmHybridKind`] one [`LmUncachedForwardHidden`].
 ///
