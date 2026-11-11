@@ -5,13 +5,19 @@
 //! pretrained-catalog --builtin list --kind build
 //! pretrained-catalog --catalog a.yml --catalog b.yml show qwen3
 //! pretrained-catalog --builtin resolve large-v3 --preset translate
-//! pretrained-catalog --builtin select --select qwen3 --off thinking --limit 1
-//! pretrained-catalog --builtin select --select whisper --prefer '{release: latest}' --order -weight --rank
+//! pretrained-catalog --builtin select qwen3 --off thinking --limit 1
+//! pretrained-catalog --builtin select whisper --weigh '{release: latest}' --desc '$weight' --rank
 //! pretrained-catalog --builtin releases release
 //! ```
 //!
 //! Catalogs are imported in the order given, `--builtin` (the example
 //! catalogs) first when it is given.
+//!
+//! `select` stands in for a tool that chooses builds (bunsen-tool's chat
+//! and asr commands): it turns its preset flags into the presets it applies
+//! and a prefix that keeps only the builds they apply to
+//! ([`preset_prefix`]), its other flags into stages, in command-line order,
+//! and composes them over its defaults ([`SelectionContext::compose`]).
 
 use std::{
     path::PathBuf,
@@ -19,6 +25,9 @@ use std::{
 };
 
 use clap::{
+    ArgMatches,
+    CommandFactory,
+    FromArgMatches,
     Parser,
     Subcommand,
 };
@@ -37,13 +46,37 @@ use pretrained_catalog::{
     },
     presets::PresetSelection,
     resolve::TagSource,
-    select::choose::{
-        AxisFlag,
-        ChoiceRequest,
-        SelectionContext,
+    select::{
+        choose::{
+            OriginStage,
+            SelectRequest,
+            SelectionContext,
+            bool_axis_member,
+            empty_error,
+            preset_prefix,
+        },
+        query::{
+            Predicate,
+            SelectQuery,
+            SortKey,
+            SortKeys,
+            Stage,
+            WeighBlock,
+            WeighEntry,
+        },
+        state::{
+            SelectEnv,
+            SelectRun,
+            StageOrigin,
+            StageTrace,
+        },
     },
 };
-use serde_json::Value;
+use serde::Serialize;
+use serde_json::{
+    Value,
+    json,
+};
 
 /// Writes a line of output.
 macro_rules! emit {
@@ -108,44 +141,12 @@ enum Command {
         patch: Option<String>,
     },
 
-    /// Select builds, printed as YAML: the merged query, why, and the
-    /// result in order, each build resolved with its weight and presets
-    /// (all of it, unless `--limit` says how many). Each flag fills the
-    /// query key of its name; patches merge in this order: the defaults,
-    /// `--query`s, `--select {..}`s, `--prefer`s, then `--order`, `--cutoff`
-    /// and `--limit`; names add to `select.from`.
-    Select {
-        /// A name (added to `select.from`), or a patch of `select`
-        /// (`{require: [hybrid], where: {instruct: true}}`); repeatable.
-        #[arg(long = "select", value_name = "NAME|{..}")]
-        selects: Vec<String>,
-        /// A patch of `prefer` (`{where: {language: en}, release: latest}`);
-        /// repeatable.
-        #[arg(long, value_name = "{..}")]
-        prefer: Vec<String>,
-        /// An order key, most significant first; `-` descends; repeatable.
-        #[arg(long, value_name = "KEY", allow_hyphen_values = true)]
-        order: Vec<String>,
-        /// The least weight a build in the result has.
-        #[arg(long, value_name = "W")]
-        cutoff: Option<f64>,
-        /// How many builds the result keeps; all, when absent.
-        #[arg(long, value_name = "N")]
-        limit: Option<usize>,
-        /// A patch of the whole query (`{select, prefer, order, cutoff,
-        /// limit}`); repeatable.
-        #[arg(long, value_name = "{..}")]
-        query: Vec<String>,
-        #[command(flatten)]
-        presets: PresetArgs,
-        /// The default query, applied unless the only name is one build.
-        #[arg(long, value_name = "{..}")]
-        defaults: Option<String>,
-        /// List every ranked candidate, not only the result; one outside it
-        /// carries `excluded: below cutoff` or `excluded: past limit`.
-        #[arg(long)]
-        rank: bool,
-    },
+    /// Select builds, printed as YAML: the composed query, why, the
+    /// presets applied, and the result in order, each build resolved with
+    /// its weight. Each flag is one stage, in command-line order, but
+    /// `--on`, `--off` and `--preset`: they are the presets applied, and the
+    /// prefix that keeps only the builds that can take them.
+    Select(Box<SelectArgs>),
 
     /// The namespace as a tree, from the root or from one entry.
     Tree {
@@ -168,6 +169,78 @@ enum Command {
     },
 }
 
+/// The `select` flags: see [`Command::Select`].
+#[derive(clap::Args, Debug)]
+struct SelectArgs {
+    /// Names, in order: one `from` stage; a named selection's name is a
+    /// `use`.
+    names: Vec<String>,
+    /// `keep: P` (a name or a flow map); repeatable.
+    #[arg(long, value_name = "P")]
+    keep: Vec<String>,
+    /// `drop: P`; repeatable.
+    #[arg(long, value_name = "P")]
+    drop: Vec<String>,
+    /// `keep: {KEY: {lt: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["KEY", "V"])]
+    lt: Vec<String>,
+    /// `keep: {KEY: {le: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["KEY", "V"])]
+    le: Vec<String>,
+    /// `keep: {KEY: {gt: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["KEY", "V"])]
+    gt: Vec<String>,
+    /// `keep: {KEY: {ge: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["KEY", "V"])]
+    ge: Vec<String>,
+    /// `keep: {KEY: {eq: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["KEY", "V"])]
+    eq: Vec<String>,
+    /// `keep: {KEY: {ne: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["KEY", "V"])]
+    ne: Vec<String>,
+    /// `keep: {TAG: {has: V}}`; repeatable.
+    #[arg(long, num_args = 2, value_names = ["TAG", "V"])]
+    has: Vec<String>,
+    /// `weigh: {by: [E]}`: a block of one entry (`{when: P, else: w}`);
+    /// repeatable.
+    #[arg(long, value_name = "E")]
+    weigh: Vec<String>,
+    /// `weigh: B`: a whole block (`{by: [..], floor: f}`); repeatable.
+    #[arg(long, value_name = "B")]
+    weigh_block: Vec<String>,
+    /// The query's floor.
+    #[arg(long, value_name = "F")]
+    floor: Option<String>,
+    /// `keep: {$weight: {ge: W}}`; repeatable.
+    #[arg(long, value_name = "W")]
+    cutoff: Vec<String>,
+    /// A sort key, ascending; consecutive sort flags join one `order`.
+    #[arg(long, value_name = "K")]
+    asc: Vec<String>,
+    /// A sort key, descending.
+    #[arg(long, value_name = "K")]
+    desc: Vec<String>,
+    /// `limit: N`; repeatable.
+    #[arg(long, value_name = "N")]
+    limit: Vec<String>,
+    /// `use: NAME`; repeatable.
+    #[arg(long = "use", value_name = "NAME")]
+    uses: Vec<String>,
+    /// A list of stages, spliced in: a file, or YAML flow; repeatable.
+    #[arg(long, value_name = "FILE|[..]")]
+    pipeline: Vec<String>,
+    #[command(flatten)]
+    presets: PresetArgs,
+    /// The defaults, a list of stages (a file, or YAML flow): applied
+    /// unless the only name is one build.
+    #[arg(long, value_name = "FILE|[..]")]
+    defaults: Option<String>,
+    /// Also list every row a stage removed, with why.
+    #[arg(long)]
+    rank: bool,
+}
+
 #[derive(clap::Args, Debug)]
 struct PresetArgs {
     /// A preset to select; repeatable.
@@ -181,25 +254,11 @@ struct PresetArgs {
     off: Vec<String>,
 }
 
-impl PresetArgs {
-    fn flags(&self) -> Vec<AxisFlag> {
-        let flag = |axis: &String, on: bool| AxisFlag {
-            flag: format!("--{} {axis}", if on { "on" } else { "off" }),
-            axis: axis.clone(),
-            on,
-        };
-        self.on
-            .iter()
-            .map(|a| flag(a, true))
-            .chain(self.off.iter().map(|a| flag(a, false)))
-            .collect()
-    }
-}
-
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let cli = Cli::from_arg_matches(&matches).expect("clap parsed it");
     let mut out = String::new();
-    let result = run(cli, &mut out);
+    let result = run(cli, &matches, &mut out);
     print!("{out}");
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -210,9 +269,10 @@ fn main() -> ExitCode {
     }
 }
 
-/// Runs `cli`, writing its output to `out`.
+/// Runs `cli` (parsed from `matches`), writing its output to `out`.
 fn run(
     cli: Cli,
+    matches: &ArgMatches,
     out: &mut String,
 ) -> Result<(), String> {
     let stack = load(&cli)?;
@@ -230,19 +290,18 @@ fn run(
             presets,
             patch,
         } => resolve(out, &stack, &build, &presets, patch.as_deref())?,
-        Command::Select {
-            selects,
-            prefer,
-            order,
-            cutoff,
-            limit,
-            query,
-            presets,
-            defaults,
-            rank,
-        } => {
-            let request = request(&selects, &prefer, &order, cutoff, limit, &query, &presets)?;
-            select(out, &stack, request, defaults.as_deref(), rank)?
+        Command::Select(args) => {
+            let matches = matches
+                .subcommand_matches("select")
+                .expect("the select subcommand");
+            let SelectArgs {
+                names,
+                floor,
+                defaults,
+                rank,
+                ..
+            } = *args;
+            select(out, &stack, matches, names, floor, defaults, rank)?
         }
         Command::Tree { root, kinds, depth } => tree(out, &stack, root.as_deref(), &kinds, depth)?,
         Command::Releases { group } => releases(out, &stack, &group)?,
@@ -459,13 +518,19 @@ fn resolve(
     }
     // The flags as shortcuts, then the presets' document.
     let mut presets = args.presets.clone();
-    for flag in args.flags() {
-        let axis = find(stack, &flag.axis, &[EntryKind::Axis])?;
+    for (axis, on) in args
+        .on
+        .iter()
+        .map(|a| (a, true))
+        .chain(args.off.iter().map(|a| (a, false)))
+    {
+        let flag = format!("--{} {axis}", if on { "on" } else { "off" });
+        let name = find(stack, axis, &[EntryKind::Axis])?;
         let member = b
             .presets
-            .bool_member(&axis, flag.on)
-            .map_err(|e| format!("`{}` doesn't apply: {}", flag.flag, e.message))?;
-        emit!(out, "  `{}` implies `--preset {member}`", flag.flag);
+            .bool_member(&name, on)
+            .map_err(|e| format!("`{flag}` doesn't apply: {}", e.message))?;
+        emit!(out, "  `{flag}` implies `--preset {member}`");
         presets.push(member);
     }
     let selection = PresetSelection {
@@ -481,81 +546,379 @@ fn resolve(
     Ok(())
 }
 
-/// The `select` flags, as a request: each fills its query key.
-fn request(
-    selects: &[String],
-    prefer: &[String],
-    order: &[String],
-    cutoff: Option<f64>,
-    limit: Option<usize>,
-    query: &[String],
-    args: &PresetArgs,
-) -> Result<ChoiceRequest, String> {
-    let mut request = ChoiceRequest::default();
-    for patch in query {
-        request = request.query(parse_object(patch)?);
-    }
-    for select in selects {
-        request = if select.trim_start().starts_with('{') {
-            request.select(parse_object(select)?)
-        } else {
-            request.name(select.trim())
-        };
-    }
-    for patch in prefer {
-        request = request.prefer(parse_object(patch)?);
-    }
-    if !order.is_empty() {
-        request = request.order(order);
-    }
-    if let Some(cutoff) = cutoff {
-        request = request.cutoff(cutoff);
-    }
-    if let Some(limit) = limit {
-        request = request.limit(limit);
-    }
-    for preset in &args.presets {
-        request = request.preset(preset.clone());
-    }
-    for axis in &args.on {
-        request = request.flag(axis.clone(), true);
-    }
-    for axis in &args.off {
-        request = request.flag(axis.clone(), false);
-    }
-    Ok(request)
+/// One flag of `select`, by its place on the command line.
+enum SelectFlag {
+    /// A stage, with the flag as written.
+    Stage(Stage, String),
+    /// A sort key, with the flag as written; consecutive ones join.
+    Sort(SortKey, String),
+    /// Stages spliced in, with the flag as written.
+    Pipeline(Vec<Stage>, String),
+    /// A preset, with the flag as written.
+    Preset(String, String),
 }
 
-fn parse_object(text: &str) -> Result<Value, String> {
-    let value = parse_value(text)?;
-    if value.is_object() {
-        Ok(value)
-    } else {
-        Err(format!("`{text}` is not a mapping"))
+/// The values of the flag `id`, `per` to an occurrence, each with its
+/// place on the command line.
+fn occurrences(
+    matches: &ArgMatches,
+    id: &str,
+    per: usize,
+) -> Vec<(usize, Vec<String>)> {
+    let (Some(indices), Some(values)) = (matches.indices_of(id), matches.get_many::<String>(id))
+    else {
+        return Vec::new();
+    };
+    let indices: Vec<usize> = indices.collect();
+    let values: Vec<String> = values.cloned().collect();
+    indices
+        .chunks(per)
+        .zip(values.chunks(per))
+        .map(|(i, v)| (i[0], v.to_vec()))
+        .collect()
+}
+
+/// A YAML particle, or a file holding one.
+fn file_or_flow(text: &str) -> Result<Value, String> {
+    let path = std::path::Path::new(text);
+    if path.is_file() {
+        let body = std::fs::read_to_string(path).map_err(|e| format!("`{text}`: {e}"))?;
+        return parse_value(&body);
     }
+    parse_value(text)
+}
+
+fn stages_of(text: &str) -> Result<Vec<Stage>, String> {
+    serde_json::from_value(file_or_flow(text)?)
+        .map_err(|e| format!("`{text}` is not a list of stages: {e}"))
+}
+
+/// The `select` flags, in command-line order.
+fn select_flags(
+    stack: &PretrainedCatalogStack,
+    matches: &ArgMatches,
+) -> Result<Vec<SelectFlag>, String> {
+    let mut flags: Vec<(usize, SelectFlag)> = Vec::new();
+    let predicate = |text: &str| -> Result<Predicate, String> {
+        Predicate::from_value(&parse_value(text)?).map_err(|e| e.message)
+    };
+    for (id, keep) in [("keep", true), ("drop", false)] {
+        for (at, v) in occurrences(matches, id, 1) {
+            let p = predicate(&v[0])?;
+            let stage = if keep { Stage::Keep(p) } else { Stage::Drop(p) };
+            flags.push((at, SelectFlag::Stage(stage, format!("--{id} {}", v[0]))));
+        }
+    }
+    for op in ["lt", "le", "gt", "ge", "eq", "ne", "has"] {
+        for (at, v) in occurrences(matches, op, 2) {
+            let test = Predicate::Test {
+                key: v[0].clone(),
+                value: json!({ op: parse_value(&v[1])? }),
+            };
+            let flag = format!("--{op} {} {}", v[0], v[1]);
+            flags.push((at, SelectFlag::Stage(Stage::Keep(test), flag)));
+        }
+    }
+    for (at, v) in occurrences(matches, "weigh", 1) {
+        let entry: WeighEntry = serde_json::from_value(parse_value(&v[0])?)
+            .map_err(|e| format!("`--weigh {}`: {e}", v[0]))?;
+        let block = WeighBlock {
+            by: vec![entry],
+            floor: None,
+        };
+        flags.push((
+            at,
+            SelectFlag::Stage(Stage::Weigh(block), format!("--weigh {}", v[0])),
+        ));
+    }
+    for (at, v) in occurrences(matches, "weigh_block", 1) {
+        let block: WeighBlock = serde_json::from_value(parse_value(&v[0])?)
+            .map_err(|e| format!("`--weigh-block {}`: {e}", v[0]))?;
+        let flag = format!("--weigh-block {}", v[0]);
+        flags.push((at, SelectFlag::Stage(Stage::Weigh(block), flag)));
+    }
+    for (at, v) in occurrences(matches, "cutoff", 1) {
+        let w: f64 = v[0]
+            .parse()
+            .map_err(|_| format!("`--cutoff {}`: not a weight", v[0]))?;
+        let test = Predicate::Test {
+            key: "$weight".into(),
+            value: json!({ "ge": w }),
+        };
+        flags.push((
+            at,
+            SelectFlag::Stage(Stage::Keep(test), format!("--cutoff {}", v[0])),
+        ));
+    }
+    for (id, descending) in [("asc", false), ("desc", true)] {
+        for (at, v) in occurrences(matches, id, 1) {
+            let key = if descending {
+                SortKey::desc(v[0].clone())
+            } else {
+                SortKey::asc(v[0].clone())
+            };
+            flags.push((at, SelectFlag::Sort(key, format!("--{id} {}", v[0]))));
+        }
+    }
+    for (at, v) in occurrences(matches, "limit", 1) {
+        let n: usize = v[0]
+            .parse()
+            .map_err(|_| format!("`--limit {}`: not a count", v[0]))?;
+        flags.push((
+            at,
+            SelectFlag::Stage(Stage::Limit(n), format!("--limit {}", v[0])),
+        ));
+    }
+    for (at, v) in occurrences(matches, "uses", 1) {
+        flags.push((
+            at,
+            SelectFlag::Stage(Stage::Use(v[0].clone()), format!("--use {}", v[0])),
+        ));
+    }
+    for (at, v) in occurrences(matches, "pipeline", 1) {
+        flags.push((
+            at,
+            SelectFlag::Pipeline(stages_of(&v[0])?, format!("--pipeline {}", v[0])),
+        ));
+    }
+    for (at, v) in occurrences(matches, "presets", 1) {
+        flags.push((
+            at,
+            SelectFlag::Preset(v[0].clone(), format!("--preset {}", v[0])),
+        ));
+    }
+    for (id, on) in [("on", true), ("off", false)] {
+        for (at, v) in occurrences(matches, id, 1) {
+            let flag = format!("--{id} {}", v[0]);
+            let member = bool_axis_member(stack, &v[0], on)
+                .map_err(|e| format!("`{flag}`: {}", e.message))?;
+            flags.push((at, SelectFlag::Preset(member, flag)));
+        }
+    }
+    flags.sort_by_key(|(at, _)| *at);
+    Ok(flags.into_iter().map(|(_, f)| f).collect())
+}
+
+/// A build in a result, as `select` prints it: the resolved build's
+/// fields, tags as plain values, with its weight.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct ChoiceRecord {
+    /// The build's full name.
+    name: String,
+    /// Its weight.
+    weight: f64,
+    /// What it is, for a person.
+    description: String,
+    /// The checkpoint's license.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    license: Option<String>,
+    /// Where the checkpoint comes from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origin: Option<String>,
+    /// The template-class chain, root first.
+    template_chain: Vec<String>,
+    /// Every group it is in.
+    memberships: Vec<String>,
+    /// Its group in each facet, by facet.
+    facets: std::collections::BTreeMap<String, String>,
+    /// Its contract.
+    contract: Option<String>,
+    /// Its release membership.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    release: Option<ReleaseRecord>,
+    /// Its tags, written and implied, by full name.
+    tags: std::collections::BTreeMap<String, Value>,
+    /// The tags a derive step added, by key.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    derived: std::collections::BTreeMap<String, Value>,
+    /// Its dependencies: each key's resource.
+    dependencies: std::collections::BTreeMap<String, String>,
+}
+
+/// A build's release membership, in a [`ChoiceRecord`].
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+struct ReleaseRecord {
+    /// The release group.
+    group: String,
+    /// When the build was released.
+    released: String,
+}
+
+/// A row a stage removed, as `select --rank` prints it.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct DroppedRecord {
+    /// The build's full name.
+    name: String,
+    /// The stage that removed it.
+    stage: usize,
+    /// Its weight then.
+    weight: f64,
+    /// Why.
+    why: String,
+}
+
+/// What `select` prints.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct SelectionReport {
+    /// The composed query.
+    query: SelectQuery,
+    /// Each stage: where it came from, and how many rows it removed.
+    why: Vec<StageTrace>,
+    /// With `--rank`, every row a stage removed.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    dropped: Vec<DroppedRecord>,
+    /// The presets applied to every result.
+    presets: Vec<String>,
+    /// The result, in order.
+    results: Vec<ChoiceRecord>,
+}
+
+fn record(
+    env: &SelectEnv<'_>,
+    name: &CatalogName,
+    weight: f64,
+) -> Result<ChoiceRecord, String> {
+    let entry = env.build(name).map_err(|e| e.message)?;
+    let build = &entry.build;
+    let names = |names: &mut dyn Iterator<Item = &CatalogName>| -> Vec<String> {
+        names.map(ToString::to_string).collect()
+    };
+    Ok(ChoiceRecord {
+        name: build.name.to_string(),
+        weight,
+        description: build.description.clone(),
+        license: build.license.clone(),
+        origin: build.origin.clone(),
+        template_chain: names(&mut build.template_chain.iter()),
+        memberships: names(&mut build.memberships.iter()),
+        facets: build
+            .facets
+            .iter()
+            .map(|(facet, group)| (facet.to_string(), group.to_string()))
+            .collect(),
+        contract: build.contract.as_ref().map(ToString::to_string),
+        release: build.release.as_ref().map(|r| ReleaseRecord {
+            group: r.group.to_string(),
+            released: r.released.to_string(),
+        }),
+        tags: build
+            .tags
+            .iter()
+            .map(|(name, tag)| (name.to_string(), tag.value.clone()))
+            .collect(),
+        derived: entry.derived.clone(),
+        dependencies: build
+            .dependencies
+            .iter()
+            .map(|(key, dep)| (key.clone(), dep.resource.to_string()))
+            .collect(),
+    })
 }
 
 fn select(
     out: &mut String,
     stack: &PretrainedCatalogStack,
-    request: ChoiceRequest,
-    defaults: Option<&str>,
+    matches: &ArgMatches,
+    names: Vec<String>,
+    floor: Option<String>,
+    defaults: Option<String>,
     rank: bool,
 ) -> Result<(), String> {
+    let env = SelectEnv::new(stack);
     let context = SelectionContext {
         defaults: defaults
-            .map(parse_object)
+            .as_deref()
+            .map(stages_of)
             .transpose()?
-            .unwrap_or(Value::Null),
+            .unwrap_or_default(),
         named: Vec::new(),
     };
-    let ranking = context
-        .rank(stack, None, &[], &request)
-        .map_err(|e| e.message)?;
-    let report = ranking.report(rank);
-    if report.results.is_empty() {
-        return Err(ranking.empty_error().message);
+    let mut request = SelectRequest {
+        names,
+        stages: Vec::new(),
+        floor: floor
+            .map(|f| {
+                f.parse()
+                    .map_err(|_| format!("`--floor {f}`: not a weight"))
+            })
+            .transpose()?,
+    };
+    let mut presets = PresetSelection::default();
+    let mut preset_flags = Vec::new();
+    let mut sort: Option<(Vec<SortKey>, Vec<String>)> = None;
+    let flush = |request: &mut SelectRequest, sort: &mut Option<(Vec<SortKey>, Vec<String>)>| {
+        if let Some((keys, flags)) = sort.take() {
+            request.stages.push(OriginStage::new(
+                Stage::Order(SortKeys(keys)),
+                StageOrigin::Flag(flags.join(" ")),
+            ));
+        }
+    };
+    for flag in select_flags(stack, matches)? {
+        match flag {
+            SelectFlag::Sort(key, text) => {
+                let (keys, flags) = sort.get_or_insert_with(Default::default);
+                keys.push(key);
+                flags.push(text);
+            }
+            SelectFlag::Preset(preset, text) => {
+                presets.presets.push(preset);
+                preset_flags.push(text);
+            }
+            SelectFlag::Stage(stage, text) => {
+                flush(&mut request, &mut sort);
+                request
+                    .stages
+                    .push(OriginStage::new(stage, StageOrigin::Flag(text)));
+            }
+            SelectFlag::Pipeline(stages, text) => {
+                flush(&mut request, &mut sort);
+                for stage in stages {
+                    request
+                        .stages
+                        .push(OriginStage::new(stage, StageOrigin::Flag(text.clone())));
+                }
+            }
+        }
     }
+    flush(&mut request, &mut sort);
+    let prefix = preset_prefix(&presets, preset_flags);
+    let composed = context
+        .compose(&env, prefix, &request, false)
+        .map_err(|e| e.message)?;
+    let run: SelectRun = context
+        .run_composed(&env, None, &composed)
+        .map_err(|e| e.message)?;
+    if run.table.is_empty() {
+        return Err(empty_error(&run).message);
+    }
+    let results = run
+        .table
+        .rows
+        .iter()
+        .map(|r| record(&env, &r.entry.path, r.weight))
+        .collect::<Result<_, _>>()?;
+    let dropped = if rank {
+        run.trace
+            .dropped
+            .iter()
+            .map(|d| DroppedRecord {
+                name: d.entry.path.to_string(),
+                stage: d.stage,
+                weight: d.weight,
+                why: d.why.clone(),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let report = SelectionReport {
+        query: composed.query,
+        why: run.trace.stages,
+        dropped,
+        presets: presets.presets,
+        results,
+    };
     let yaml = serde_saphyr::to_string(&report).map_err(|e| e.to_string())?;
     emit!(out, "{}", yaml.trim_end());
     Ok(())
@@ -715,9 +1078,12 @@ mod tests {
             argv.push(format!("{dir}/{file}.yml"));
         }
         argv.extend(shell_words(args));
-        let parsed = Cli::try_parse_from(argv).map_err(|e| e.to_string())?;
+        let matches = Cli::command()
+            .try_get_matches_from(argv)
+            .map_err(|e| e.to_string())?;
+        let parsed = Cli::from_arg_matches(&matches).map_err(|e| e.to_string())?;
         let mut out = String::new();
-        run(parsed, &mut out)?;
+        run(parsed, &matches, &mut out)?;
         Ok(out)
     }
 
@@ -785,22 +1151,27 @@ mod tests {
         assert!(err.contains("fixed at `no-thinking`"), "{err}");
     }
 
+    /// The YAML report `select ARGS` prints.
+    fn report(args: &str) -> Value {
+        let out = cli(&format!("select {args}")).unwrap();
+        serde_saphyr::from_str(&out).unwrap_or_else(|e| panic!("{e}: {out}"))
+    }
+
+    fn field(
+        report: &Value,
+        key: &str,
+    ) -> Vec<Value> {
+        report["results"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r[key].clone())
+            .collect()
+    }
+
     #[test]
-    fn test_select_and_rank() {
-        // `select` prints a YAML report; `results` holds each build, in order.
-        let report = |args: &str| -> Value {
-            let out = cli(args).unwrap();
-            serde_saphyr::from_str(&out).unwrap_or_else(|e| panic!("{e}: {out}"))
-        };
-        let field = |report: &Value, key: &str| -> Vec<Value> {
-            report["results"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|r| r[key].clone())
-                .collect()
-        };
-        let all = report("select --select qwen3 --off thinking");
+    fn test_select_reports_the_query_why_and_the_result() {
+        let all = report("qwen3 --off thinking");
         assert_eq!(
             field(&all, "name"),
             [
@@ -809,72 +1180,124 @@ mod tests {
                 "qwen/qwen3/qwen3-1.7b",
             ]
         );
-        assert_eq!(all["results"][0]["presets"], json!(["no-thinking"]));
+        assert_eq!(all["presets"], json!(["no-thinking"]));
         assert_eq!(all["results"][0]["weight"], json!(1.0));
         assert_eq!(all["results"][0]["tags"]["thinking"], json!("switch"));
         assert_eq!(all["results"][0]["contract"], json!("qwen3-lm"));
+        // The prefix is stage 0, attributed to the flag.
         assert_eq!(
-            all["why"][1],
-            json!("`--off thinking` is `select.where.thinking: false`")
+            all["query"]["run"][0],
+            json!({"keep": {"$presets": ["no-thinking"]}})
         );
-        assert!(
-            all["dropped"][0]
-                .as_str()
-                .unwrap()
-                .contains("qwen3-4b-thinking-2507")
+        assert_eq!(all["why"][0]["origin"], json!("prefix: --off thinking"));
+        assert_eq!(all["why"][0]["dropped"], json!(5));
+        // The tail orders by weight when nothing else does.
+        assert_eq!(all["why"][2]["origin"], json!("tail"));
+    }
+
+    #[test]
+    fn test_select_flags_are_stages_in_command_line_order() {
+        // Ascending parameters: turbo (1.0), v1 (0.5), v2 (0.75), v3 (1.0);
+        // the cutoff drops v1, the limit v3.
+        let cut = report(
+            "whisper --weigh '{release: latest, step: 0.25}' --asc parameters --cutoff 0.6 \
+             --limit 2 --rank",
         );
-        let one = report("select --select qwen3 --off thinking --limit 1");
-        assert_eq!(field(&one, "name"), ["qwen/qwen3/qwen3-0.6b"]);
-        assert_eq!(one["query"]["limit"], json!(1));
-        let marked = report(
-            "select --select whisper --prefer '{release: {step: 0.25}}' --order parameters \
-             --cutoff 0.6 --limit 2 --rank",
-        );
-        assert_eq!(field(&marked, "weight"), [1.0, 0.5, 0.75, 1.0]);
+        assert_eq!(field(&cut, "weight"), [1.0, 0.75]);
+        let dropped: Vec<(String, String)> = cut["dropped"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|d| d["name"].as_str().unwrap().starts_with("openai"))
+            .map(|d| {
+                (
+                    d["name"]
+                        .as_str()
+                        .unwrap()
+                        .rsplit('/')
+                        .next()
+                        .unwrap()
+                        .to_string(),
+                    d["why"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
         assert_eq!(
-            field(&marked, "excluded"),
+            dropped,
             [
-                Value::Null,
-                json!("below cutoff"),
-                Value::Null,
-                json!("past limit")
+                (
+                    "large-v1".to_string(),
+                    "fails `keep: {$weight: {ge: 0.6}}`".to_string()
+                ),
+                ("large-v3".to_string(), "past limit".to_string()),
             ]
         );
         assert_eq!(
-            marked["results"][3]["release"],
-            json!({"group": "openai/whisper/large/release", "released": "2023-11-06"})
+            cut["results"][1]["release"],
+            json!({"group": "openai/whisper/large/release", "released": "2022-12"})
         );
-        let ranked = report(
-            "select --select whisper --prefer '{release: {step: 0.25}}' --order -weight --order \
-             parameters --rank",
+        // Consecutive sort flags join one `order`.
+        let sorted =
+            report("whisper --desc '$weight' --desc parameters --weigh '{release: latest}'");
+        assert_eq!(
+            sorted["query"]["run"][1],
+            json!({"order": [{"desc": "$weight"}, {"desc": "parameters"}]})
         );
-        let names = field(&ranked, "name");
-        assert_eq!(names.len(), 4);
-        assert_eq!(names[0], "openai/whisper/large/large-v3-turbo");
-        assert_eq!(names[3], "openai/whisper/large/large-v1");
-        let dropped = report("select --select whisper --preset translate --rank");
+        let tests = report("--le parameters 8.9e8 --has language en");
+        assert_eq!(
+            field(&tests, "name"),
+            ["openai/whisper/large/large-v3-turbo"]
+        );
+    }
+
+    #[test]
+    fn test_the_preset_prefix_holds_wherever_the_flags_sit() {
+        // The prefix runs first, so the limit can't pick a build the preset
+        // can't apply to.
+        let late = report("qwen3 --limit 1 --off thinking");
+        let early = report("qwen3 --off thinking --limit 1");
+        assert_eq!(field(&late, "name"), ["qwen/qwen3/qwen3-0.6b"]);
+        assert_eq!(field(&late, "name"), field(&early, "name"));
+        // A pipeline whose own limit comes first: the same.
+        let piped = report("--pipeline '[{from: qwen3}, {limit: 1}]' --off thinking");
+        assert_eq!(field(&piped, "name"), ["qwen/qwen3/qwen3-0.6b"]);
+        // The printed query, fed back with no preset flags, returns the same
+        // rows.
+        let query = serde_json::to_string(&late["query"]["run"]).unwrap();
+        let again = report(&format!("--pipeline '{query}'"));
+        assert_eq!(field(&again, "name"), field(&late, "name"));
+        // A build named alone that can't take the presets is an error.
+        let err = cli("select qwen3-4b-thinking-2507 --off thinking").unwrap_err();
+        assert!(err.contains("was named, but can't be chosen"), "{err}");
+        let dropped = report("whisper --preset translate --rank");
+        assert_eq!(dropped["dropped"][0]["stage"], json!(0));
         assert!(
-            dropped["dropped"][0]
-                .as_str()
-                .unwrap()
-                .starts_with("`openai/whisper/large/large-v3-turbo`")
+            cli("select --on task")
+                .unwrap_err()
+                .contains("not a bool axis")
         );
-        let defaults = report("select --select qwen3 --defaults '{order: [-parameters]}'");
+    }
+
+    #[test]
+    fn test_select_defaults_and_refusals() {
+        let defaults = report("--defaults '[{keep: instruct}, {order: {desc: parameters}}]'");
         assert_eq!(
             field(&defaults, "name")[0],
             "qwen/qwen3/qwen3-4b-thinking-2507"
         );
-        let err = cli("select --select '{where: {kit: qwen3}}'").unwrap_err();
-        assert!(err.contains("every key a query tests is declared"), "{err}");
-        let typed = cli("select --select '{where: {instruct: maybe}}'").unwrap_err();
+        assert_eq!(defaults["why"][0]["origin"], json!("defaults"));
+        // One build named alone skips them.
+        let one = report("large-v1 --defaults '[{keep: instruct}]'");
+        assert_eq!(field(&one, "name"), ["openai/whisper/large/large-v1"]);
+        let err = cli("select --keep '{kit: qwen3}'").unwrap_err();
+        assert!(err.contains("nothing matches `kit`"), "{err}");
+        let typed = cli("select --keep '{instruct: maybe}'").unwrap_err();
         assert!(typed.contains("is not `true` or `false`"), "{typed}");
-        let empty = cli("select --select qwen3 --cutoff 2").unwrap_err();
+        let empty = cli("select qwen3 --cutoff 2").unwrap_err();
         assert!(empty.contains("no build is left"), "{empty}");
-        let query = report(
-            "select --query '{select: {require: [whisper-asr]}, prefer: {where: {timestamps: \
-             true}}}' --order -weight",
-        );
-        assert_eq!(field(&query, "name")[0], "openai/whisper/large/large-v3");
+        assert!(empty.contains("--cutoff 2"), "{empty}");
+        let unknown = cli("select --use nothing").unwrap_err();
+        assert!(unknown.contains("no named selection"), "{unknown}");
     }
 
     #[test]
@@ -920,8 +1343,11 @@ mod tests {
 
     #[test]
     fn test_needs_catalogs() {
-        let parsed = Cli::try_parse_from(["pretrained-catalog", "layers"]).unwrap();
-        let err = run(parsed, &mut String::new()).unwrap_err();
+        let matches = Cli::command()
+            .try_get_matches_from(["pretrained-catalog", "layers"])
+            .unwrap();
+        let parsed = Cli::from_arg_matches(&matches).unwrap();
+        let err = run(parsed, &matches, &mut String::new()).unwrap_err();
         assert!(err.contains("no catalogs"));
     }
 }

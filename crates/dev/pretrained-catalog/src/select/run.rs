@@ -62,10 +62,6 @@ use crate::{
     release_time::ReleaseTime,
     resolve::CONTRACT_TAG,
     select::{
-        predicate::{
-            LanguageMatch,
-            match_language,
-        },
         query::{
             Predicate,
             SelectQuery,
@@ -84,6 +80,10 @@ use crate::{
             SelectTrace,
             StageOrigin,
             StageTrace,
+        },
+        typed::{
+            LanguageMatch,
+            match_language,
         },
     },
 };
@@ -801,6 +801,12 @@ impl Compiler<'_, '_> {
                     return Err(query_error("`limit` is a count, 1 or more"));
                 }
                 Step::Limit(*n)
+            }
+            Stage::Use(name) => {
+                return Err(query_error(format!(
+                    "`use: {name}` is spliced in when a query is composed with its context \
+                     (`SelectionContext::compose`)"
+                )));
             }
         };
         Ok(CompiledStage {

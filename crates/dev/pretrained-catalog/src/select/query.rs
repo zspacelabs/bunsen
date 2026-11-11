@@ -24,6 +24,7 @@
 //! | `weigh` | a [`WeighBlock`] | updates each row's weight |
 //! | `order` | a [`SortKey`] or a list of them | sorts, stably |
 //! | `limit` | an integer, 1 or more | keeps the first N |
+//! | `use` | a name | splices in a named selection's stages, when the query is composed ([`choose`](super::choose)) |
 //!
 //! The query compiles against a [`SelectEnv`]
 //! ([`compile`](SelectQuery::compile)), which checks every name and test
@@ -155,6 +156,9 @@ pub enum Stage {
     Order(SortKeys),
     /// Keeps the first N rows.
     Limit(usize),
+    /// Splices in the stages of the named selection of this name, when the
+    /// query is composed.
+    Use(String),
 }
 
 impl Stage {
@@ -167,6 +171,7 @@ impl Stage {
             Self::Weigh(_) => "weigh",
             Self::Order(_) => "order",
             Self::Limit(_) => "limit",
+            Self::Use(_) => "use",
         }
     }
 }

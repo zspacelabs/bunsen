@@ -11,6 +11,7 @@
 use std::{
     cell::RefCell,
     collections::BTreeMap,
+    fmt,
     rc::Rc,
 };
 
@@ -274,9 +275,10 @@ impl<'a> SelectEnv<'a> {
     }
 }
 
-/// Where a stage of a run came from.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+/// Where a stage of a run came from. It displays (and serializes) as one
+/// line: `prefix: --off thinking`, `defaults`, `use: NAME`, the flag as
+/// written, `query` or `tail`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StageOrigin {
     /// The prefix a tool injects for the presets it applies, by the flags as
     /// written.
@@ -291,6 +293,31 @@ pub enum StageOrigin {
     Query,
     /// The tail the composition appends.
     Tail,
+}
+
+impl fmt::Display for StageOrigin {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            Self::Prefix(flags) => write!(f, "prefix: {}", flags.join(" ")),
+            Self::Default => f.write_str("defaults"),
+            Self::Use(name) => write!(f, "use: {name}"),
+            Self::Flag(flag) => f.write_str(flag),
+            Self::Query => f.write_str("query"),
+            Self::Tail => f.write_str("tail"),
+        }
+    }
+}
+
+impl Serialize for StageOrigin {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
 }
 
 /// One stage of a traced run.

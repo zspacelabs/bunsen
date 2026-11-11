@@ -15,8 +15,9 @@
 //! - [`presets`]: folding preset sets along a chain (axis uses narrow, never
 //!   widen), and selecting from the result.
 //! - [`lookup`]: finding entries by shorter names, and naming them for people.
-//! - [`select`]: choosing a build by its tags, names and presets, with axis
-//!   flags such as `--think` as explained shortcuts into presets.
+//! - [`select`]: the selection pipeline: a query of stages over weighted rows,
+//!   composed from a tool's preset prefix, its defaults and a request. Axis
+//!   flags such as `--think` are explained shortcuts into presets.
 //! - [`fixtures`]: the example catalogs in `catalogs/`, for tests and examples.
 //! - [`release_time`], [`tags`], [`merge_patch`], [`name`]: the value types and
 //!   rules the rest is built from.

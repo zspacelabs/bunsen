@@ -114,45 +114,35 @@ A build can depend on any resource in the state.
 
 ## Selection
 
-A query is `{select, prefer, order, cutoff, limit}`:
+A query is a kind and a list of stages, written only in YAML particles:
 
 ```yaml
-select:                            # the hard filter
-  from:    [qwen3]                 # a member of at least one
-  require: [hybrid]                # a member of every one
-  exclude: [qwen3-2507]            # a member of none
-  where:   {thinking: false, instruct: true, parameters: {max: 8e9}}
-prefer:                            # soft scores
-  where:   {language: {is: en, otherwise: 0.5}}
-  release: latest
-order: [-weight, -parameters]
-cutoff: 0.5
-limit: 3
+kind: build
+run:
+  - from: [qwen3, whisper]                       # in any of them
+  - keep: {instruct: true, thinking: false, parameters: {le: 8.9e9}}
+  - drop: qwen3-2507                             # keep: {$not: ..}
+  - weigh: {by: [{when: {language: en}, else: 0.5}, {release: latest}]}
+  - keep: {$weight: {ge: 0.5}}                   # a cutoff, where it sits
+  - order: [{desc: $weight}, {desc: parameters}]
+  - limit: 3
 ```
 
-- **Membership** lists references to groups (namespaces, contracts and release groups, through
-  their membership closure), template classes (the build's chain includes the class), or builds.
-- **`where`** keys are declared axes and tags, and each value is typed by its declaration:
-  - a bool axis takes `true`, `false`, `switch`, `always` or `never`;
-  - for a set-valued key (categorical axis offers, `text_list`, `languages`), a list means
-    "all of", and `{any}` and `{only}` are available;
-  - for a single-valued key, a list means "any of", and a count takes `{min, max}`.
-
-  A value that doesn't fit its declaration is an error. Facet keys and `contract` are refused,
-  because membership is in the lists.
-- **`prefer`** mirrors `where`, with `otherwise` and `truncated` per entry; a `languages` tag is
-  graded by RFC 4647. `release` ranks each release group by release time.
-- **`order`** sorts by `weight` and numeric tags; **`cutoff`** drops the builds whose weight is
-  below it, and **`limit`** keeps the first so many of the rest. That list is the result. Loading
-  a model takes one build, the first: an implicit limit of 1.
-- Queries merge as RFC 7386 merge patches: the defaults, then named selections, then each patch.
-- **Flags fill the keys of their name:**
-  - `--select NAME` adds to `select.from`, and several names are a union; when the only name is
-    one build, the defaults don't apply;
-  - `--select {..}`, `--prefer {..}`, `--order`, `--cutoff` and `--limit` fill their own keys, and
-    `--query {..}` patches the whole query;
-  - `--on`/`--off AXIS` is `select.where.AXIS: true/false`, and selects that member's preset; a
-    build that can't take it is dropped with the reason.
+- **No string is parsed.** A string is a name, a `$` word or a literal; a map is an operator or
+  a test. Wherever a catalog name can appear, anything that isn't one starts with `$`
+  (`$any`, `$not`, `$weight`, `$name`, `$presets`, `$released`, the field words `$license`,
+  `$origin`, `$parent`, `$template_class`, `$contract`, and derived keys).
+- **Each stage maps a table of weighted rows to a table.** The run starts from every build, in
+  full-name order, at weight 1, and no stage adds a row.
+- **Names** test membership: a group by closure, a template class by chain, a build itself. A
+  bool axis (`thinking`) tests what its use offers; tags take value tests (`eq`, `ne`, `lt`,
+  `le`, `gt`, `ge`, `in`, `has`, `has_all`, `has_any`, `exists`), typed by their declaration.
+- **`weigh`** is a block of updates (`when`, `match`, `release`, `mul`, `add`, `clip`),
+  committed clipped to 0 or more at its end; the query's `floor` drops what counts as zero.
+- **A query only filters, weighs and orders.** It never selects presets. A tool composes its
+  pipeline as its preset prefix (`keep: {$presets: [..]}`, so every row can take the presets it
+  will apply), then its defaults, then the request (`use` splices in a named selection), then a
+  tail (`order: {desc: $weight}`, and `limit: 1` when choosing).
 
 `tests/select_examples.rs` works through the language over the example catalogs, each query
 with the builds it selects, and why.
@@ -173,7 +163,7 @@ cargo run -p pretrained-catalog -- --builtin <command>                         #
 | `list [--kind K] [--facet F] [--members G] [--children S]` | entries, by their shortest unique names |
 | `show NAME` | an entry's kind, history (which catalog declared, updated or replaced it) and merged fields |
 | `resolve BUILD [--preset P] [--on AXIS] [--off AXIS] [--patch {..}]` | the resolved build, and the document its presets make |
-| `select [--select NAME\|{..}]... [--prefer {..}]... [--order KEY]... [--cutoff W] [--limit N] [--query {..}]... [--preset P] [--on/--off AXIS] [--defaults {..}] [--rank]` | a YAML report: the merged query, why, and the result in order, each build resolved with its `weight` and `presets` (all of it unless `--limit`); `--rank` lists every ranked build, with `excluded: below cutoff` or `past limit` on those outside the result |
+| `select [NAME]... [--keep P] [--drop P] [--le KEY V]... [--weigh E] [--cutoff W] [--asc K] [--desc K] [--limit N] [--use NAME] [--pipeline ..] [--floor F] [--preset P] [--on/--off AXIS] [--defaults ..] [--rank]` | a YAML report: the composed query, why (each stage, where it came from, and what it removed), the presets applied, and the result in order, each build resolved with its `weight`; each flag is one stage, in command-line order, but the preset flags, which are the prefix; `--rank` adds every removed row with why |
 | `tree [NAME] [--kind K]... [--depth N]` | the namespace as a tree, from the root or one entry, annotated (facets, releases, base classes, files); `--kind` keeps only those kinds and the containers on the way to them |
 | `releases GROUP` | a release group's members, oldest first |
 
@@ -181,7 +171,7 @@ cargo run -p pretrained-catalog -- --builtin <command>                         #
 
 ```sh
 cargo test -p pretrained-catalog
-cargo run -p pretrained-catalog -- --builtin select --select qwen3 --off thinking
+cargo run -p pretrained-catalog -- --builtin select qwen3 --off thinking
 cargo run -p pretrained-catalog --example catalog_tour   # layers, facets, names, releases
 cargo run -p pretrained-catalog --example think_flags    # --think / --no-think as presets
 cargo run -p pretrained-catalog --example supplemental   # extensions, fall-through, refusals
