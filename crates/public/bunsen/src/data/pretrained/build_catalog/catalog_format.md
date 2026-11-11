@@ -97,8 +97,18 @@ The set of kinds is closed:
 | `type` | A named type: a `$description` and a `$type` expression. It sits in a namespace or in `$contracts`. |
 | `axis` | A registered preset axis. A `bool` axis `X` has the members `X` and `no-X`, with a negation between them; a `categorical` axis has declared `$members` and no negation. An axis is also its own tag's declaration. |
 | `facet` | A declared, exclusive set of groups (`publisher`, `family`). A build is in at most one group of each facet. A facet becomes required through a template class's `$required_facets`. |
-| `resource` | One artifact: a `$file`, its `$format`, an optional `$sha256` and `$dtype`, and its `$sources`. |
+| `resource` | One artifact: a `$file` (a relative path), its `$format`, an optional `$sha256`, `$size` and `$dtype`, its `$sources`, and, when sharded, its `$shards`. |
 | `alias` | Another name for one entry: `$ref: {$path, $kind}`, a reference and the kind its target must have (never `alias`). It sits wherever a namespace can hold it, apart from what it names, and a lookup for its target's kind resolves through it. |
+
+**Resources** are had from their `$sources`, in order. A `$url` names one file. A place serves
+any file by its path: `$hub: {$repo, $revision}` (a Hugging Face repo at a revision),
+`$base_url` (a URL the file's `$file` is appended to), and `$local_dir: {$name, $default}`
+(a directory another tool keeps its files in, which a caller can override by `$name`, else
+the first of `$default`'s path templates that resolves). A sharded resource is one artifact:
+its `$file` is the index, and `$shards` lists each shard's `$file`, `$sha256` and `$size`,
+with sources of its own tried before the resource's places. Every file needs a source, so a
+resource whose only sources are `$url`s gives each shard its own. An update matches every
+field but `$sources`, and adds its new ones first.
 
 **Types** are expressions. The primitives are `$` words: `$bool`, `$count`, `$number`,
 `$text`, `$languages` (BCP 47 tags, with `*`) and `$object` (any object, unchecked). The forms

@@ -1007,22 +1007,52 @@ impl PretrainedCatalogStack {
                 let mut bad = |m: String| {
                     errors.push(CatalogError::new(CatalogErrorKind::Structure, m));
                 };
-                if r.file.is_empty() || r.file.contains('/') {
-                    bad(format!("`{}` is not a file name", r.file));
+                if let Err(why) = check_file_path(&r.file) {
+                    bad(why);
                 }
                 if r.format.trim().is_empty() {
                     bad("a resource names its format".into());
                 }
                 if let Some(sha) = &r.sha256
-                    && !(sha.len() == 64
-                        && sha
-                            .chars()
-                            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()))
+                    && !is_sha256(sha)
                 {
                     bad(format!("`{sha}` is not a lowercase hex SHA-256"));
                 }
                 if r.sources.is_empty() {
                     bad("a resource names at least one source".into());
+                }
+                for source in &r.sources {
+                    if let Err(why) = check_source(source) {
+                        bad(why);
+                    }
+                }
+                let mut files = BTreeSet::from([r.file.as_str()]);
+                for shard in &r.shards {
+                    if let Err(why) = check_file_path(&shard.file) {
+                        bad(format!("the shard `{}`: {why}", shard.file));
+                    }
+                    if !files.insert(shard.file.as_str()) {
+                        bad(format!("the file `{}` is listed twice", shard.file));
+                    }
+                    if !is_sha256(&shard.sha256) {
+                        bad(format!(
+                            "the shard `{}`: `{}` is not a lowercase hex SHA-256",
+                            shard.file, shard.sha256
+                        ));
+                    }
+                    for source in &shard.sources {
+                        if let Err(why) = check_source(source) {
+                            bad(format!("the shard `{}`: {why}", shard.file));
+                        }
+                    }
+                    if r.shard_sources(shard).next().is_none() {
+                        bad(format!(
+                            "the shard `{}` has no source: the resource's are `$url`s, which \
+                             name one file each; give it its own `$sources`, or the resource a \
+                             place (`$hub`, `$base_url`, `$local_dir`)",
+                            shard.file
+                        ));
+                    }
                 }
             }
             CatalogEntry::TemplateClass(t) => {
@@ -1435,6 +1465,48 @@ impl PretrainedCatalogStack {
     }
 }
 
+/// Whether `sha` is a lowercase hex SHA-256.
+fn is_sha256(sha: &str) -> bool {
+    sha.len() == 64
+        && sha
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
+}
+
+/// A resource file's path: `/`-separated segments, none empty, `.` or
+/// `..`, with no leading `/` and no `\`.
+fn check_file_path(path: &str) -> Result<(), String> {
+    let fine = !path.is_empty()
+        && !path.contains('\\')
+        && path
+            .split('/')
+            .all(|segment| !segment.is_empty() && segment != "." && segment != "..");
+    if fine {
+        Ok(())
+    } else {
+        Err(format!(
+            "`{path}` is not a file path: `/`-separated names, none empty, `.` or `..`, and no \
+             leading `/`"
+        ))
+    }
+}
+
+/// A source's own fields.
+fn check_source(
+    source: &crate::data::pretrained::build_catalog::document::ResourceSource
+) -> Result<(), String> {
+    use crate::data::pretrained::build_catalog::document::ResourceSource;
+    match source {
+        ResourceSource::Url(url) | ResourceSource::BaseUrl(url) if url.trim().is_empty() => {
+            Err("a URL source is empty".into())
+        }
+        ResourceSource::LocalDir { name, .. } if name.trim().is_empty() => {
+            Err("a `$local_dir` source names no directory".into())
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Clears an entry's `merge`: the state holds merged entries.
 fn reset_merge(entry: &mut CatalogEntry) {
     match entry {
@@ -1473,7 +1545,9 @@ fn update(
             let differs = update.file != current.file
                 || update.format != current.format
                 || update.sha256 != current.sha256
+                || update.size != current.size
                 || update.dtype != current.dtype
+                || update.shards != current.shards
                 || update
                     .description
                     .as_ref()
@@ -2005,6 +2079,116 @@ openai:
     }
 
     #[test]
+    fn test_sharded_resources_and_place_sources() {
+        let mut stack = fixtures::example_stack().unwrap();
+        stack
+            .push_yaml(
+                "files",
+                r#"
+local:
+  $kind: namespace
+  $description: "Local files."
+  sharded:
+    $kind: resource
+    $file: model.safetensors.index.json
+    $format: safetensors-index
+    $sha256: "5000000000000000000000000000000000000000000000000000000000000001"
+    $size: 27000
+    $sources:
+      - { $url: "https://exact.example/model.safetensors.index.json" }
+      - { $base_url: "https://mirror.example/repo" }
+    $shards:
+      - { $file: model-00001-of-00002.safetensors, $sha256: "5000000000000000000000000000000000000000000000000000000000000002", $size: 4000000000 }
+      - $file: model-00002-of-00002.safetensors
+        $sha256: "5000000000000000000000000000000000000000000000000000000000000003"
+        $size: 3000000000
+        $sources: [{ $url: "https://exact.example/model-00002-of-00002.safetensors" }]
+  nested:
+    $kind: resource
+    $file: encoder/config.json
+    $format: json
+    $sources: [{ $local_dir: { $name: other-tool, $default: ["~/.cache/other-tool"] } }]
+"#,
+            )
+            .unwrap();
+        let sharded = stack.resource(&n("local/sharded")).unwrap();
+        // A shard has its own sources first, then the resource's places: the
+        // index's exact `$url` is the index's alone.
+        let second: Vec<String> = sharded
+            .shard_sources(&sharded.shards[1])
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(
+            second,
+            [
+                "https://exact.example/model-00002-of-00002.safetensors",
+                "https://mirror.example/repo/*"
+            ]
+        );
+        assert_eq!(sharded.shard_sources(&sharded.shards[0]).count(), 1);
+        assert_eq!(sharded.size, Some(27000));
+
+        // A shard needs a source, a pin and a size; a path stays relative.
+        let only_urls = refused(
+            r#"
+bad-shards:
+  $kind: resource
+  $file: index.json
+  $format: safetensors-index
+  $sources: [{ $url: "https://x/index.json" }]
+  $shards: [{ $file: a.safetensors, $sha256: "5000000000000000000000000000000000000000000000000000000000000004", $size: 1 }]
+"#,
+        );
+        assert!(
+            only_urls.mentions("the shard `a.safetensors` has no source"),
+            "{only_urls}"
+        );
+        let pinless = refused(
+            "p: { $kind: resource, $file: i.json, $format: f, $sources: [{ $base_url: \"https://x\" }], $shards: [{ $file: a, $sha256: nope, $size: 1 }] }\n",
+        );
+        assert!(
+            pinless.mentions("the shard `a`: `nope` is not a lowercase hex SHA-256"),
+            "{pinless}"
+        );
+        let sizeless = refused(
+            "p: { $kind: resource, $file: i.json, $format: f, $sources: [{ $base_url: \"https://x\" }], $shards: [{ $file: a, $sha256: \"5000000000000000000000000000000000000000000000000000000000000004\" }] }\n",
+        );
+        assert!(sizeless.mentions("missing field `$size`"), "{sizeless}");
+        let rooted = refused(
+            "p: { $kind: resource, $file: /etc/passwd, $format: f, $sources: [{ $url: \"https://x\" }] }\n",
+        );
+        assert!(
+            rooted.mentions("`/etc/passwd` is not a file path"),
+            "{rooted}"
+        );
+
+        // An update adds sources, and nothing else.
+        let reshard = stack
+            .clone()
+            .push_yaml(
+                "reshard",
+                r#"
+local:
+  $kind: namespace
+  $merge: update
+  sharded:
+    $kind: resource
+    $merge: update
+    $file: model.safetensors.index.json
+    $format: safetensors-index
+    $sha256: "5000000000000000000000000000000000000000000000000000000000000001"
+    $size: 27000
+    $sources: [{ $base_url: "https://other.example/repo" }]
+"#,
+            )
+            .unwrap_err();
+        assert!(
+            reshard.mentions("matches every field but `$sources`"),
+            "{reshard}"
+        );
+    }
+
+    #[test]
     fn test_references_resolve_from_where_they_are_written() {
         let stack = fixtures::example_stack().unwrap();
         // A build's `checkpoint` is its own; the family's `vocabulary` is
@@ -2360,14 +2544,14 @@ no_timestamps: { $kind: tag, $type: $bool, $description: "A negative bool tag." 
 non-streaming: { $kind: axis, $axis: bool, $description: "A negative bool axis." }
 notes: { $kind: tag, $type: $text, $description: "Not a bool, and not a negative." }
 nothing: { $kind: tag, $type: $bool, $description: "`no` without a separator is a word." }
-r: { $kind: resource, $file: a/b, $format: "", $sha256: ABC, $sources: [] }
+r: { $kind: resource, $file: a/../b, $format: "", $sha256: ABC, $sources: [] }
 "#,
         );
         for text in [
             "no description",
             "members are generated",
             "two or more members",
-            "not a file name",
+            "not a file path",
             "names its format",
             "lowercase hex SHA-256",
             "at least one source",

@@ -973,7 +973,9 @@ pub struct ResourceEntry {
     )]
     pub description: Option<String>,
 
-    /// The file name it is stored under.
+    /// The file's path, relative to the place it is had from: a bare file
+    /// name, or `/`-separated segments (`encoder/config.json`). A place
+    /// source appends it; the cache keeps it whole.
     #[serde(rename = "$file")]
     pub file: String,
 
@@ -985,13 +987,61 @@ pub struct ResourceEntry {
     #[serde(rename = "$sha256", default, skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
 
-    /// The dtype a checkpoint stores, when it is one.
+    /// The file's size in bytes, when it is known.
+    #[serde(rename = "$size", default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+
+    /// The dtype a checkpoint stores, when it is one; its shards store it
+    /// too.
     #[serde(rename = "$dtype", default, skip_serializing_if = "Option::is_none")]
     pub dtype: Option<String>,
 
-    /// Where to fetch it, tried in order.
+    /// Where to fetch it, tried in order. A place source (`$hub`,
+    /// `$base_url`, `$local_dir`) serves every file of the resource, its
+    /// shards included, by their `$file`; a `$url` serves this file alone.
     #[serde(rename = "$sources")]
     pub sources: Vec<ResourceSource>,
+
+    /// The files a sharded resource's `$file` (its index) lists: one
+    /// artifact, bound to one slot.
+    #[serde(rename = "$shards", default, skip_serializing_if = "Vec::is_empty")]
+    pub shards: Vec<ResourceShard>,
+}
+
+/// One shard of a sharded resource.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceShard {
+    /// The shard's path, relative to the place it is had from.
+    #[serde(rename = "$file")]
+    pub file: String,
+
+    /// The shard's SHA-256, in lowercase hex.
+    #[serde(rename = "$sha256")]
+    pub sha256: String,
+
+    /// The shard's size in bytes.
+    #[serde(rename = "$size")]
+    pub size: u64,
+
+    /// Sources of this shard alone, tried before the resource's place
+    /// sources.
+    #[serde(rename = "$sources", default, skip_serializing_if = "Vec::is_empty")]
+    pub sources: Vec<ResourceSource>,
+}
+
+impl ResourceEntry {
+    /// The sources `shard` is had from: its own, then the resource's place
+    /// sources.
+    pub fn shard_sources<'a>(
+        &'a self,
+        shard: &'a ResourceShard,
+    ) -> impl Iterator<Item = &'a ResourceSource> + 'a {
+        shard
+            .sources
+            .iter()
+            .chain(self.sources.iter().filter(|s| s.is_place()))
+    }
 }
 
 /// An alias: another name for one entry, which a lookup for that entry's
@@ -1050,9 +1100,33 @@ pub enum ResourceSource {
         #[serde(rename = "$revision")]
         revision: String,
     },
-    /// A URL: `{$url: ..}`.
+    /// A URL: `{$url: ..}`. It names one file.
     #[serde(rename = "$url")]
     Url(String),
+    /// A URL a file's `$file` is appended to: `{$base_url: ..}`.
+    #[serde(rename = "$base_url")]
+    BaseUrl(String),
+    /// A directory another tool keeps its files in: `{$local_dir: {$name,
+    /// $default}}`. A caller overrides it by `$name`; otherwise it is the
+    /// first of `$default`'s path templates that resolves (`~`, `$VAR`).
+    #[serde(rename = "$local_dir")]
+    LocalDir {
+        /// The directory's name, for overrides and messages.
+        #[serde(rename = "$name")]
+        name: String,
+        /// Where it is when nobody overrides it: path templates, the first
+        /// that resolves.
+        #[serde(rename = "$default", default, skip_serializing_if = "Vec::is_empty")]
+        default: Vec<String>,
+    },
+}
+
+impl ResourceSource {
+    /// Whether it is a place, which serves any file by its path (`$hub`,
+    /// `$base_url`, `$local_dir`), rather than one file (`$url`).
+    pub fn is_place(&self) -> bool {
+        !matches!(self, Self::Url(_))
+    }
 }
 
 impl fmt::Display for ResourceSource {
@@ -1063,6 +1137,8 @@ impl fmt::Display for ResourceSource {
         match self {
             Self::Hub { repo, revision } => write!(f, "hub:{repo}@{revision}"),
             Self::Url(url) => f.write_str(url),
+            Self::BaseUrl(base) => write!(f, "{base}/*"),
+            Self::LocalDir { name, .. } => write!(f, "local-dir:{name}"),
         }
     }
 }

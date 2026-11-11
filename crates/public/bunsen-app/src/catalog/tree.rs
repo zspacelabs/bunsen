@@ -155,7 +155,12 @@ fn tree_line(
                 parts.extend(axes_text(&class.presets.axes));
             }
         }
-        CatalogEntry::Resource(r) => parts.push(r.file.clone()),
+        CatalogEntry::Resource(r) => {
+            parts.push(r.file.clone());
+            if !r.shards.is_empty() {
+                parts.push(format!("+{} shards", r.shards.len()));
+            }
+        }
         CatalogEntry::Contract(c) => {
             let resources: Vec<&str> = c.resources.keys().map(String::as_str).collect();
             let args: Vec<&str> = c.args.keys().map(String::as_str).collect();

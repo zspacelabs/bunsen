@@ -53,7 +53,10 @@ openai:
           $format: pytorch
           $dtype: float16
           $sha256: "3000000000000000000000000000000000000000000000000000000000000001"
-          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v1.pt" }]
+          # openai-whisper's own download root first, then its CDN, by the file's name.
+          $sources:
+            - { $local_dir: { $name: openai-whisper, $default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }
+            - { $base_url: "https://openaipublic.azureedge.net/main/whisper/models/3000000000000000000000000000000000000000000000000000000000000001" }
       large-v2:
         $kind: build
         $description: "Whisper large-v2."
