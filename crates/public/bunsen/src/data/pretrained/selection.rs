@@ -44,6 +44,7 @@
 //!     prefab: None,
 //!     resources: ResourceBundle::new(name),
 //!     presets: Default::default(),
+//!     args: Default::default(),
 //!     tags: serde_json::from_value::<Tags>(tags).unwrap(),
 //! };
 //! let rows = [
@@ -450,6 +451,7 @@ mod tests {
             prefab: None,
             resources: ResourceBundle::new(name),
             presets: Default::default(),
+            args: Default::default(),
             tags: serde_json::from_value(tags).unwrap(),
         })
     }

@@ -1,9 +1,12 @@
 //! Pretrained rows: what a name in a provider is.
 
 use alloc::{
+    collections::BTreeMap,
     string::String,
     vec::Vec,
 };
+
+use serde_json::Value;
 
 use super::{
     ResourceBundle,
@@ -58,6 +61,11 @@ pub struct Pretrained {
     /// resolves them.
     pub presets: ResolvedPresetSet,
 
+    /// The values its contract's argument slots are bound to, by slot: what
+    /// the loader is told rather than reads, such as a stated geometry. Empty
+    /// for a row that comes from no build catalog.
+    pub args: BTreeMap<String, Value>,
+
     /// Its tags: facts about the model, for listings and selection
     /// ([`tags`](super::tags)). A catalog lays a row's over its group's and
     /// family's, and writes its [`KIT`](super::tags::KIT) tag.
@@ -109,6 +117,7 @@ mod tests {
             resources: ResourceBundle::new("small")
                 .with_resource(Resource::given("checkpoint", "/t/small.pt")),
             presets: ResolvedPresetSet::default(),
+            args: Default::default(),
             tags: Default::default(),
         };
         assert!(row.matches("small"));

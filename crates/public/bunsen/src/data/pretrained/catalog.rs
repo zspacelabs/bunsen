@@ -516,6 +516,7 @@ impl PretrainedCatalog {
             presets: presets
                 .to_resolved()
                 .with_context(|| format!("the row {:?}'s presets", row.name))?,
+            args: Default::default(),
             tags,
         })
     }

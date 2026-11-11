@@ -65,6 +65,7 @@ pub(crate) mod testing {
             prefab: None,
             resources: ResourceBundle::new(name),
             presets: Default::default(),
+            args: Default::default(),
             tags: serde_json::from_value(tags).unwrap(),
         })
     }

@@ -209,6 +209,7 @@ mod tests {
                     .with_resource(resource("checkpoint", "small.pt"))
                     .with_resource(resource("vocabulary", "vocab.txt")),
                 presets: Default::default(),
+                args: Default::default(),
                 tags: Default::default(),
             }),
             selection: Default::default(),

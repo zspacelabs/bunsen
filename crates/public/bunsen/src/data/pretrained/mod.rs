@@ -65,6 +65,11 @@
 //! [`PretrainedCatalog::to_table`] loads it into the owned
 //! [`PretrainedTable`].
 //!
+//! The build catalog ([`build_catalog`]) holds the same rows as builds, by
+//! contract: a [`BuildCatalogProvider`] serves one contract's builds, as rows
+//! named in full (`qwen/qwen3/qwen3-0.6b`), with the presets and arguments
+//! the catalog resolves.
+//!
 //! ## Providers
 //!
 //! A [`PretrainedProvider`] is a namespace over rows: the `provider` of
@@ -214,6 +219,7 @@
 //!         }],
 //!     }),
 //!     presets: Default::default(),
+//!     args: Default::default(),
 //!     tags: Default::default(),
 //! };
 //!
@@ -290,6 +296,7 @@ mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
 mod catalog;
+mod catalog_provider;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
@@ -318,6 +325,7 @@ pub use cache::*;
 #[cfg(feature = "cache")]
 pub use cached_files::*;
 pub use catalog::*;
+pub use catalog_provider::*;
 pub use hf::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;

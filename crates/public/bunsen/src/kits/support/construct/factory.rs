@@ -579,6 +579,7 @@ pub(crate) mod testing {
                 prefab: None,
                 resources,
                 presets: Default::default(),
+                args: Default::default(),
                 tags: Default::default(),
             }))
         }
@@ -720,6 +721,7 @@ mod tests {
                 sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
             }),
             presets: Default::default(),
+            args: Default::default(),
             tags: Default::default(),
         }
     }
@@ -738,6 +740,7 @@ mod tests {
             prefab: None,
             resources: ResourceBundle::given(name, "checkpoint", path),
             presets: Default::default(),
+            args: Default::default(),
             tags: Default::default(),
         }
     }

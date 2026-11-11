@@ -394,6 +394,7 @@ mod tests {
                 prefab: None,
                 resources: ResourceBundle::new("org/repo"),
                 presets: presets.to_resolved().unwrap(),
+                args: Default::default(),
                 tags: Default::default(),
             }),
             selection,
