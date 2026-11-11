@@ -6,7 +6,7 @@
 //! match `openai/whisper/large-v3`. A query resolves when exactly one entry
 //! matches, or when it is some entry's full name.
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::EntryKind,
     error::{
         CatalogError,
@@ -197,7 +197,7 @@ fn choose(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixtures;
+    use crate::data::pretrained::build_catalog::fixtures;
 
     #[test]
     fn test_subsequences_match_in_order() {
@@ -218,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_find_by_shorter_names() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let v3 = CatalogName::parse("openai/whisper/large/large-v3").unwrap();
         for query in [
             "large-v3",
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_prefix_mode() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let turbo = stack
             .find("large-v3-t", &[EntryKind::Build], LeafMatch::Prefix)
             .unwrap();
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_template_classes_are_found_like_any_entry() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let hybrid = stack
             .find("hybrid", &[EntryKind::TemplateClass], LeafMatch::Exact)
             .unwrap();
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_display_names_lengthen_when_a_later_layer_collides() {
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         let vocabulary = CatalogName::parse("openai/whisper/vocabulary").unwrap();
         assert_eq!(stack.display_name(&vocabulary).short, "vocabulary");
         let tokenizer = CatalogName::parse("qwen/qwen3/qwen3-0.6b/tokenizer").unwrap();

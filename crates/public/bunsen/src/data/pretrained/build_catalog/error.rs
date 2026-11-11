@@ -1,7 +1,7 @@
 //! Errors: one [`CatalogError`] per problem, and [`CatalogErrors`] for a
 //! validation pass that reports every problem it finds.
 
-use std::fmt;
+use alloc::fmt;
 
 /// What sort of rule a [`CatalogError`] breaks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -127,7 +127,7 @@ impl fmt::Display for CatalogError {
     }
 }
 
-impl std::error::Error for CatalogError {}
+impl core::error::Error for CatalogError {}
 
 /// Every problem a validation pass found, in the order found.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -172,7 +172,7 @@ impl fmt::Display for CatalogErrors {
     }
 }
 
-impl std::error::Error for CatalogErrors {}
+impl core::error::Error for CatalogErrors {}
 
 /// A result with one [`CatalogError`].
 pub type CatalogResult<T> = Result<T, CatalogError>;

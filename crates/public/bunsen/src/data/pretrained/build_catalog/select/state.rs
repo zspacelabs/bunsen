@@ -8,20 +8,22 @@
 //! stage's output rows are a subset of its input's, so a property every row
 //! has after one stage holds for every row of the result.
 
-use std::{
-    cell::RefCell,
+use alloc::{
     collections::{
         BTreeMap,
         BTreeSet,
     },
-    fmt,
     rc::Rc,
+};
+use core::{
+    cell::RefCell,
+    fmt,
 };
 
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::{
         CatalogEntry,
         EntryKind,

@@ -10,7 +10,7 @@ use std::path::{
     PathBuf,
 };
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::{
         CatalogEntry,
         EntryKind,
@@ -44,7 +44,7 @@ impl LayerEntry {
     }
 
     /// How the occurrence meets an existing declaration of its name.
-    pub fn merge(&self) -> crate::document::MergeMode {
+    pub fn merge(&self) -> crate::data::pretrained::build_catalog::document::MergeMode {
         self.entry.merge()
     }
 }
@@ -164,8 +164,10 @@ fn name_of(
             CatalogErrorKind::Structure,
             format!(
                 "{} can't hold {}",
-                crate::stack::with_article(container_kind.as_str()),
-                crate::stack::with_article(kind.as_str())
+                crate::data::pretrained::build_catalog::stack::with_article(
+                    container_kind.as_str()
+                ),
+                crate::data::pretrained::build_catalog::stack::with_article(kind.as_str())
             ),
         )
         .at(&name));

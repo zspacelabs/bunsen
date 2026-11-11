@@ -53,14 +53,12 @@
 //! `languages` tag contains a language by RFC 4647 filtering (`en` contains
 //! `en-US`).
 
-use std::{
-    cmp::Ordering,
-    collections::BTreeSet,
-};
+use alloc::collections::BTreeSet;
+use core::cmp::Ordering;
 
 use serde_json::Value;
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::{
         AxisKind,
         CatalogEntry,
@@ -386,7 +384,7 @@ impl CompiledQuery {
     /// Runs the query on `table`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`](crate::CatalogErrorKind::Selection)
+    /// [`CatalogErrorKind::Selection`](crate::data::pretrained::build_catalog::CatalogErrorKind::Selection)
     /// when `table` holds another kind, and as
     /// [`SelectEnv::build`].
     pub fn run(

@@ -9,7 +9,7 @@
 //!
 //! `cargo run -p pretrained-catalog --example think_flags`
 
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogName,
     fixtures,
     presets::PresetSelection,
@@ -26,7 +26,7 @@ use pretrained_catalog::{
 use serde_json::json;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let stack = fixtures::builtin_stack()?;
+    let stack = fixtures::example_stack()?;
     let thinking = CatalogName::parse("thinking")?;
     let chat = CatalogName::parse("qwen3-lm")?;
 

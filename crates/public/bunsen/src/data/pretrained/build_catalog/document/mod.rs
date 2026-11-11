@@ -35,7 +35,7 @@
 //! entry it is written in, climbing the namespace to the root; a leading `/`
 //! resolves from the root only.
 
-use std::{
+use alloc::{
     collections::BTreeMap,
     fmt,
 };
@@ -46,7 +46,7 @@ use serde::{
 };
 use serde_json::Value;
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     error::{
         CatalogError,
         CatalogErrorKind,
@@ -293,8 +293,8 @@ impl CatalogEntry {
     /// Takes the nested children out, leaving none.
     pub(crate) fn take_children(&mut self) -> Vec<CatalogEntry> {
         match self {
-            Self::Namespace(e) | Self::Contract(e) => std::mem::take(&mut e.children),
-            Self::Build(e) => std::mem::take(&mut e.children),
+            Self::Namespace(e) | Self::Contract(e) => core::mem::take(&mut e.children),
+            Self::Build(e) => core::mem::take(&mut e.children),
             _ => Vec::new(),
         }
     }

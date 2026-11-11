@@ -15,28 +15,30 @@
 //! use above it no longer offers) is an error. An offer of one member is a
 //! fixed mode.
 
-use std::collections::BTreeSet;
+use alloc::collections::BTreeSet;
 
 use serde_json::Value;
 
 use crate::{
-    document::{
-        AxisKind,
-        MergeMode,
-        PresetEntry,
-        PresetSetEntry,
+    data::pretrained::build_catalog::{
+        document::{
+            AxisKind,
+            MergeMode,
+            PresetEntry,
+            PresetSetEntry,
+        },
+        error::{
+            CatalogError,
+            CatalogErrorKind,
+            CatalogResult,
+        },
+        name::{
+            CatalogName,
+            CatalogRef,
+            is_segment,
+        },
     },
-    error::{
-        CatalogError,
-        CatalogErrorKind,
-        CatalogResult,
-    },
-    merge_patch,
-    name::{
-        CatalogName,
-        CatalogRef,
-        is_segment,
-    },
+    support::merge_patch,
 };
 
 /// What folding needs to know of a registered axis.
@@ -629,7 +631,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::document::AxisUse;
+    use crate::data::pretrained::build_catalog::document::AxisUse;
 
     fn thinking() -> AxisInfo {
         AxisInfo {

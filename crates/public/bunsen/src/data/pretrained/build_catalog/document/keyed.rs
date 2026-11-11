@@ -1,6 +1,6 @@
 //! The keyed form's reader and writer, through an order-keeping tree.
 
-use std::{
+use alloc::{
     collections::{
         BTreeMap,
         BTreeSet,
@@ -45,7 +45,7 @@ use super::{
     empty_object,
     is_empty_object,
 };
-use crate::{
+use crate::data::pretrained::build_catalog::{
     error::{
         CatalogError,
         CatalogErrorKind,
@@ -412,7 +412,9 @@ fn read_entry(
                         path,
                         format!(
                             "{} has no bare keys: `{key}` is neither a `$` word nor allowed",
-                            crate::stack::with_article(kind.as_str())
+                            crate::data::pretrained::build_catalog::stack::with_article(
+                                kind.as_str()
+                            )
                         ),
                     ));
                 }

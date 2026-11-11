@@ -4,22 +4,22 @@
 //!
 //! `cargo run -p pretrained-catalog --example supplemental`
 
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogName,
     fixtures,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut stack = fixtures::builtin_stack()?;
+    let mut stack = fixtures::example_stack()?;
     stack.push_yaml("supplemental", fixtures::SUPPLEMENTAL)?;
 
     let qwen3 = CatalogName::parse("qwen/qwen3")?;
     println!("occurrences of `{qwen3}`:");
     for occurrence in stack.occurrences(&qwen3) {
         let what = match occurrence.entry.merge() {
-            pretrained_catalog::document::MergeMode::Deny => "declaring",
-            pretrained_catalog::document::MergeMode::Update => "extending",
-            pretrained_catalog::document::MergeMode::Replace => "replacing",
+            bunsen::data::pretrained::build_catalog::document::MergeMode::Deny => "declaring",
+            bunsen::data::pretrained::build_catalog::document::MergeMode::Update => "extending",
+            bunsen::data::pretrained::build_catalog::document::MergeMode::Replace => "replacing",
         };
         println!(
             "  {what:<9} in {}",

@@ -2,14 +2,14 @@
 //! it once its template-class chain, its memberships and its stack's
 //! declarations are taken into account.
 
-use std::collections::{
+use alloc::collections::{
     BTreeMap,
     BTreeSet,
 };
 
 use serde_json::Value;
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::{
         CatalogEntry,
         EntryKind,
@@ -575,7 +575,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::{
+    use crate::data::pretrained::build_catalog::{
         fixtures,
         presets::PresetSelection,
     };
@@ -593,13 +593,13 @@ mod tests {
     }
 
     fn refused(yaml: &str) -> CatalogErrors {
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         stack.push_yaml("bad", yaml).unwrap_err()
     }
 
     #[test]
     fn test_a_hybrid_build() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let b = resolve(&stack, "qwen3-0.6b");
         assert_eq!(
             b.template_chain,
@@ -640,7 +640,7 @@ mod tests {
 
     #[test]
     fn test_a_build_narrows_its_class_to_a_fixed_mode() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let base = resolve(&stack, "qwen3-0.6b-base");
         assert_eq!(base.tag("thinking"), Some(&json!("never")));
         assert_eq!(base.tag("instruct"), Some(&json!(false)));
@@ -658,7 +658,7 @@ mod tests {
 
     #[test]
     fn test_a_child_class_fixes_the_mode() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let b = resolve(&stack, "qwen3-4b-thinking-2507");
         assert_eq!(
             b.template_chain,
@@ -679,7 +679,7 @@ mod tests {
 
     #[test]
     fn test_a_categorical_axis_narrowed() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let turbo = resolve(&stack, "large-v3-turbo");
         assert_eq!(turbo.tag("task"), Some(&json!(["transcribe"])));
         let err = turbo
@@ -702,7 +702,7 @@ mod tests {
 
     #[test]
     fn test_dependencies_resolve_through_the_namespace() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let base = resolve(&stack, "qwen3-0.6b-base");
         let config = &base.dependencies["config"];
         assert_eq!(config.resource, n("qwen/qwen3/qwen3-0.6b/config"));
@@ -792,7 +792,7 @@ qwen:
         }
 
         // A later catalog may use resources an earlier one declares.
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         stack
             .push_yaml(
                 "borrows",

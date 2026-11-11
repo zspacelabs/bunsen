@@ -24,11 +24,11 @@
 //! A query only filters, weighs and orders: it never selects presets. The
 //! caller applies the presets it chose.
 
-use std::rc::Rc;
+use alloc::rc::Rc;
 
 use serde_json::Value;
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::{
         AxisKind,
         CatalogEntry,
@@ -203,7 +203,7 @@ pub fn preset_prefix(
 /// it needs no build.
 ///
 /// # Errors
-/// [`CatalogErrorKind::Selection`](crate::CatalogErrorKind::Selection) when
+/// [`CatalogErrorKind::Selection`](crate::data::pretrained::build_catalog::CatalogErrorKind::Selection) when
 /// `axis` names no axis, or one that isn't bool.
 pub fn bool_axis_member(
     stack: &PretrainedCatalogStack,
@@ -266,7 +266,7 @@ impl SelectionContext {
     /// `limit: 1`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`](crate::CatalogErrorKind::Selection)
+    /// [`CatalogErrorKind::Selection`](crate::data::pretrained::build_catalog::CatalogErrorKind::Selection)
     /// for a `use` of a name no named selection has, or one nested too deep.
     pub fn compose(
         &self,
@@ -482,7 +482,7 @@ impl SelectionContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixtures;
+    use crate::data::pretrained::build_catalog::fixtures;
 
     fn leaves(run: &SelectRun) -> Vec<String> {
         run.table
@@ -509,7 +509,7 @@ mod tests {
 
     #[test]
     fn test_defaults_apply_unless_one_build_is_named() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let env = SelectEnv::new(&stack);
         let run = context()
             .rank(&env, None, None, &SelectRequest::default())
@@ -523,7 +523,7 @@ mod tests {
 
     #[test]
     fn test_a_named_selection_is_spliced_where_it_is_named() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let env = SelectEnv::new(&stack);
         let context = SelectionContext {
             defaults: Vec::new(),
@@ -547,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_the_prefix_holds_for_every_row_whatever_follows() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let env = SelectEnv::new(&stack);
         let off = bool_axis_member(&stack, "thinking", false).unwrap();
         assert_eq!(off, "no-thinking");
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn test_choose_takes_the_first_and_an_empty_result_says_why() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let env = SelectEnv::new(&stack);
         let (build, _) = context()
             .choose(&env, None, None, &SelectRequest::default())

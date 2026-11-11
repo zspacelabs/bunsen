@@ -2,15 +2,15 @@
 //! select over the state they make.
 //!
 //! ```text
-//! pretrained-catalog --builtin list --kind build
+//! pretrained-catalog --examples list --kind build
 //! pretrained-catalog --catalog a.yml --catalog b.yml show qwen3
-//! pretrained-catalog --builtin resolve large-v3 --preset translate
-//! pretrained-catalog --builtin select qwen3 --off thinking --limit 1
-//! pretrained-catalog --builtin select whisper --weigh '{release: latest}' --desc '$weight' --rank
-//! pretrained-catalog --builtin releases release
+//! pretrained-catalog --examples resolve large-v3 --preset translate
+//! pretrained-catalog --examples select qwen3 --off thinking --limit 1
+//! pretrained-catalog --examples select whisper --weigh '{release: latest}' --desc '$weight' --rank
+//! pretrained-catalog --examples releases release
 //! ```
 //!
-//! Catalogs are imported in the order given, `--builtin` (the example
+//! Catalogs are imported in the order given, `--examples` (the example
 //! catalogs) first when it is given.
 //!
 //! `select` stands in for a tool that chooses builds (bunsen-tool's chat
@@ -24,14 +24,7 @@ use std::{
     process::ExitCode,
 };
 
-use clap::{
-    ArgMatches,
-    CommandFactory,
-    FromArgMatches,
-    Parser,
-    Subcommand,
-};
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogErrors,
     CatalogName,
     PretrainedCatalogStack,
@@ -75,6 +68,13 @@ use pretrained_catalog::{
         },
     },
 };
+use clap::{
+    ArgMatches,
+    CommandFactory,
+    FromArgMatches,
+    Parser,
+    Subcommand,
+};
 use serde::Serialize;
 use serde_json::{
     Value,
@@ -100,7 +100,7 @@ struct Cli {
 
     /// Import the example catalogs (prelude, commons, qwen3, whisper) first.
     #[arg(long)]
-    builtin: bool,
+    examples: bool,
 
     #[command(subcommand)]
     command: Command,
@@ -325,8 +325,8 @@ fn errors(e: CatalogErrors) -> String {
 }
 
 fn load(cli: &Cli) -> Result<PretrainedCatalogStack, String> {
-    let mut stack = if cli.builtin {
-        fixtures::builtin_stack().map_err(errors)?
+    let mut stack = if cli.examples {
+        fixtures::example_stack().map_err(errors)?
     } else {
         PretrainedCatalogStack::new()
     };
@@ -334,7 +334,7 @@ fn load(cli: &Cli) -> Result<PretrainedCatalogStack, String> {
         stack.push_file(path).map_err(errors)?;
     }
     if stack.layers().is_empty() {
-        return Err("no catalogs: give `--catalog PATH` (repeatable) or `--builtin`".into());
+        return Err("no catalogs: give `--catalog PATH` (repeatable) or `--examples`".into());
     }
     Ok(stack)
 }
@@ -1184,7 +1184,10 @@ mod tests {
     /// Runs the command line `args` (after the program name) over the
     /// example catalogs, as files.
     fn cli(args: &str) -> Result<String, String> {
-        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/catalogs");
+        let dir = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../public/bunsen/src/data/pretrained/build_catalog/fixtures"
+        );
         let mut argv = vec!["pretrained-catalog".to_string()];
         for file in ["prelude", "commons", "qwen3", "whisper", "supplemental"] {
             argv.push("--catalog".into());

@@ -1,20 +1,21 @@
 //! Release timestamps: a canonical spelling at some precision, read as the
 //! span of time it covers.
 
-use std::{
+use core::{
     cmp::Ordering,
     fmt,
 };
 
-use jiff::{
-    Span,
-    Timestamp,
-    civil::DateTime,
-    fmt::strtime::BrokenDownTime,
-    tz::TimeZone,
+use time::{
+    Date,
+    Duration,
+    Month,
+    OffsetDateTime,
+    PrimitiveDateTime,
+    Time,
 };
 
-use crate::error::{
+use crate::data::pretrained::build_catalog::error::{
     CatalogError,
     CatalogErrorKind,
     CatalogResult,
@@ -36,26 +37,6 @@ pub enum ReleasePrecision {
 }
 
 impl ReleasePrecision {
-    fn format(self) -> &'static str {
-        match self {
-            Self::Year => "%Y",
-            Self::Month => "%Y-%m",
-            Self::Day => "%Y-%m-%d",
-            Self::Minute => "%Y-%m-%dT%H:%MZ",
-            Self::Second => "%Y-%m-%dT%H:%M:%SZ",
-        }
-    }
-
-    fn unit(self) -> Span {
-        match self {
-            Self::Year => Span::new().years(1),
-            Self::Month => Span::new().months(1),
-            Self::Day => Span::new().days(1),
-            Self::Minute => Span::new().minutes(1),
-            Self::Second => Span::new().seconds(1),
-        }
-    }
-
     /// The precision a canonical spelling is written at, judged by its
     /// shape alone.
     fn of(spelling: &str) -> Option<Self> {
@@ -77,7 +58,7 @@ impl ReleasePrecision {
 /// is the stricter "ends no later than the other starts".
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ReleaseTime {
-    start: DateTime,
+    start: PrimitiveDateTime,
     precision: ReleasePrecision,
 }
 
@@ -99,18 +80,64 @@ impl ReleaseTime {
             )
         };
         let precision = ReleasePrecision::of(spelling).ok_or_else(|| bad("its length"))?;
-        let fields =
-            BrokenDownTime::parse(precision.format(), spelling).map_err(|e| bad(&e.to_string()))?;
-        let start = DateTime::new(
-            fields.year().ok_or_else(|| bad("no year"))?,
-            fields.month().unwrap_or(1),
-            fields.day().unwrap_or(1),
-            fields.hour().unwrap_or(0),
-            fields.minute().unwrap_or(0),
-            fields.second().unwrap_or(0),
-            0,
-        )
-        .map_err(|e| bad(&e.to_string()))?;
+        let field = |range: core::ops::Range<usize>| -> CatalogResult<u32> {
+            let digits = spelling.get(range).ok_or_else(|| bad("its shape"))?;
+            if !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(bad("its shape"));
+            }
+            digits.parse().map_err(|_| bad("its shape"))
+        };
+        let separators: &[(usize, u8)] = match precision {
+            ReleasePrecision::Year => &[],
+            ReleasePrecision::Month => &[(4, b'-')],
+            ReleasePrecision::Day => &[(4, b'-'), (7, b'-')],
+            ReleasePrecision::Minute => &[(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b'Z')],
+            ReleasePrecision::Second => &[
+                (4, b'-'),
+                (7, b'-'),
+                (10, b'T'),
+                (13, b':'),
+                (16, b':'),
+                (19, b'Z'),
+            ],
+        };
+        if separators
+            .iter()
+            .any(|&(at, byte)| spelling.as_bytes()[at] != byte)
+        {
+            return Err(bad("its shape"));
+        }
+        let at_least = |p: ReleasePrecision| precision >= p;
+        let year = field(0..4)? as i32;
+        let month = if at_least(ReleasePrecision::Month) {
+            field(5..7)?
+        } else {
+            1
+        };
+        let day = if at_least(ReleasePrecision::Day) {
+            field(8..10)?
+        } else {
+            1
+        };
+        let (hour, minute) = if at_least(ReleasePrecision::Minute) {
+            (field(11..13)?, field(14..16)?)
+        } else {
+            (0, 0)
+        };
+        let second = if at_least(ReleasePrecision::Second) {
+            field(17..19)?
+        } else {
+            0
+        };
+        let month = u8::try_from(month)
+            .ok()
+            .and_then(|m| Month::try_from(m).ok())
+            .ok_or_else(|| bad("no such month"))?;
+        let date =
+            Date::from_calendar_date(year, month, day as u8).map_err(|e| bad(&e.to_string()))?;
+        let clock = Time::from_hms(hour as u8, minute as u8, second as u8)
+            .map_err(|e| bad(&e.to_string()))?;
+        let start = PrimitiveDateTime::new(date, clock);
         let time = Self { start, precision };
         if time.canonical() != spelling {
             return Err(bad("not its canonical spelling"));
@@ -124,16 +151,33 @@ impl ReleaseTime {
     }
 
     /// The span's first instant.
-    pub fn start(&self) -> Timestamp {
-        utc(self.start)
+    pub fn start(&self) -> OffsetDateTime {
+        self.start.assume_utc()
     }
 
     /// The instant after the span's last.
-    pub fn end(&self) -> Timestamp {
-        utc(self
-            .start
-            .checked_add(self.precision.unit())
-            .expect("a parsed year is far from the end of time"))
+    pub fn end(&self) -> OffsetDateTime {
+        let start = self.start;
+        let first_of = |year: i32, month: Month| {
+            Date::from_calendar_date(year, month, 1).expect("the first of a month is a date")
+        };
+        let end = match self.precision {
+            ReleasePrecision::Year => {
+                PrimitiveDateTime::new(first_of(start.year() + 1, Month::January), Time::MIDNIGHT)
+            }
+            ReleasePrecision::Month => {
+                let year = if start.month() == Month::December {
+                    start.year() + 1
+                } else {
+                    start.year()
+                };
+                PrimitiveDateTime::new(first_of(year, start.month().next()), Time::MIDNIGHT)
+            }
+            ReleasePrecision::Day => start + Duration::days(1),
+            ReleasePrecision::Minute => start + Duration::minutes(1),
+            ReleasePrecision::Second => start + Duration::seconds(1),
+        };
+        end.assume_utc()
     }
 
     /// Whether the whole span ends no later than `other` starts.
@@ -154,7 +198,20 @@ impl ReleaseTime {
 
     /// The canonical spelling.
     pub fn canonical(&self) -> String {
-        self.start.strftime(self.precision.format()).to_string()
+        let t = self.start;
+        let (year, month, day) = (t.year(), u8::from(t.month()), t.day());
+        let (hour, minute, second) = (t.hour(), t.minute(), t.second());
+        match self.precision {
+            ReleasePrecision::Year => format!("{year:04}"),
+            ReleasePrecision::Month => format!("{year:04}-{month:02}"),
+            ReleasePrecision::Day => format!("{year:04}-{month:02}-{day:02}"),
+            ReleasePrecision::Minute => {
+                format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}Z")
+            }
+            ReleasePrecision::Second => {
+                format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+            }
+        }
     }
 }
 
@@ -187,12 +244,6 @@ impl fmt::Display for ReleaseTime {
     }
 }
 
-fn utc(time: DateTime) -> Timestamp {
-    time.to_zoned(TimeZone::UTC)
-        .expect("every civil time is a UTC instant")
-        .timestamp()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,10 +270,14 @@ mod tests {
     #[test]
     fn test_spans_cover_one_unit() {
         let july = t("2025-07");
-        assert_eq!(july.start().to_string(), "2025-07-01T00:00:00Z");
-        assert_eq!(july.end().to_string(), "2025-08-01T00:00:00Z");
+        assert_eq!(july.start(), time::macros::datetime!(2025-07-01 0:00 UTC));
+        assert_eq!(july.end(), time::macros::datetime!(2025-08-01 0:00 UTC));
+        let december = t("2024-12");
+        assert_eq!(december.end(), time::macros::datetime!(2025-01-01 0:00 UTC));
         let year = t("2024");
-        assert_eq!(year.end().to_string(), "2025-01-01T00:00:00Z");
+        assert_eq!(year.end(), time::macros::datetime!(2025-01-01 0:00 UTC));
+        let day = t("2024-02-29");
+        assert_eq!(day.end(), time::macros::datetime!(2024-03-01 0:00 UTC));
     }
 
     #[test]

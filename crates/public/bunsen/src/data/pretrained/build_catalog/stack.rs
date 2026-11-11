@@ -21,19 +21,17 @@
 //! The imported catalogs are kept, as read, for provenance: each entry
 //! records the catalogs that declared, updated and replaced it.
 
-use std::{
-    cell::RefCell,
-    collections::{
-        BTreeMap,
-        BTreeSet,
-    },
-    path::{
-        Path,
-        PathBuf,
-    },
+use alloc::collections::{
+    BTreeMap,
+    BTreeSet,
+};
+use core::cell::RefCell;
+use std::path::{
+    Path,
+    PathBuf,
 };
 
-use crate::{
+use crate::data::pretrained::build_catalog::{
     document::{
         CatalogEntry,
         EntryKind,
@@ -928,10 +926,11 @@ impl PretrainedCatalogStack {
             CatalogEntry::Tag(t) => {
                 push(&mut errors, described(&t.description));
                 push(&mut errors, reserved_tag_name(entry.name()));
-                if t.tag_type == crate::document::TagType::Bool {
+                if t.tag_type == crate::data::pretrained::build_catalog::document::TagType::Bool {
                     push(&mut errors, positive_bool_name("tag", entry.name()));
                 }
-                if let crate::document::TagType::OneOf(choices) = &t.tag_type
+                if let crate::data::pretrained::build_catalog::document::TagType::OneOf(choices) =
+                    &t.tag_type
                     && choices.is_empty()
                 {
                     push::<()>(
@@ -946,14 +945,18 @@ impl PretrainedCatalogStack {
             CatalogEntry::Axis(a) => {
                 push(&mut errors, described(&a.description));
                 push(&mut errors, reserved_tag_name(entry.name()));
-                if a.axis == crate::document::AxisKind::Bool {
+                if a.axis == crate::data::pretrained::build_catalog::document::AxisKind::Bool {
                     push(&mut errors, positive_bool_name("axis", entry.name()));
                 }
                 let problem = match a.axis {
-                    crate::document::AxisKind::Bool if !a.members.is_empty() => {
+                    crate::data::pretrained::build_catalog::document::AxisKind::Bool
+                        if !a.members.is_empty() =>
+                    {
                         Some("a bool axis's members are generated, never written")
                     }
-                    crate::document::AxisKind::Categorical if a.members.len() < 2 => {
+                    crate::data::pretrained::build_catalog::document::AxisKind::Categorical
+                        if a.members.len() < 2 =>
+                    {
                         Some("a categorical axis has two or more members")
                     }
                     _ => None,
@@ -1035,16 +1038,23 @@ impl PretrainedCatalogStack {
                     push(&mut errors, self.check_dependency_target(from, resource));
                 }
                 if let Ok(chain) = chain {
-                    let links: Vec<crate::presets::PresetLink<'_>> = chain
+                    let links: Vec<
+                        crate::data::pretrained::build_catalog::presets::PresetLink<'_>,
+                    > = chain
                         .iter()
-                        .map(|l| crate::presets::PresetLink {
-                            owner: l.name,
-                            set: &l.class.presets,
-                        })
+                        .map(
+                            |l| crate::data::pretrained::build_catalog::presets::PresetLink {
+                                owner: l.name,
+                                set: &l.class.presets,
+                            },
+                        )
                         .collect();
-                    if let Err(found) = crate::presets::ResolvedPresetSet::fold(&links, &|l, a| {
-                        self.axis_info(l.owner, a)
-                    }) {
+                    if let Err(found) =
+                        crate::data::pretrained::build_catalog::presets::ResolvedPresetSet::fold(
+                            &links,
+                            &|l, a| self.axis_info(l.owner, a),
+                        )
+                    {
                         errors.extend(found);
                     }
                 }
@@ -1137,12 +1147,12 @@ impl PretrainedCatalogStack {
         &self,
         from: &CatalogName,
         axis: &CatalogRef,
-    ) -> CatalogResult<crate::presets::AxisInfo> {
+    ) -> CatalogResult<crate::data::pretrained::build_catalog::presets::AxisInfo> {
         let decl = self.expect_ref(from, axis, "axis", &[EntryKind::Axis])?;
         let CatalogEntry::Axis(a) = decl.body() else {
             unreachable!("expected an axis")
         };
-        Ok(crate::presets::AxisInfo {
+        Ok(crate::data::pretrained::build_catalog::presets::AxisInfo {
             name: decl.name().clone(),
             kind: a.axis,
             members: a.member_names(),
@@ -1329,7 +1339,7 @@ fn update(
 /// Tags, axes and facets name tags; the contract's implied tag takes one
 /// name from them.
 fn reserved_tag_name(name: &CatalogName) -> CatalogResult<()> {
-    if name.to_string() == crate::resolve::CONTRACT_TAG {
+    if name.to_string() == crate::data::pretrained::build_catalog::resolve::CONTRACT_TAG {
         Err(CatalogError::new(
             CatalogErrorKind::Conflict,
             format!(
@@ -1380,7 +1390,7 @@ pub(crate) fn with_article(word: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
+    use crate::data::pretrained::build_catalog::{
         fixtures,
         lookup::LeafMatch,
     };
@@ -1396,7 +1406,7 @@ mod tests {
     /// Pushes `yaml` over the built-in stack, expecting it to be refused,
     /// and checks the stack was left as it was.
     fn refused(yaml: &str) -> CatalogErrors {
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         let before = stack.layers().len();
         let errors = stack.push_yaml("bad", yaml).unwrap_err();
         assert_eq!(stack.layers().len(), before);
@@ -1406,7 +1416,7 @@ mod tests {
 
     #[test]
     fn test_fixtures_load() {
-        let stack = fixtures::supplemented_stack().unwrap();
+        let stack = fixtures::supplemented_example_stack().unwrap();
         let labels: Vec<&str> = stack.layers().iter().map(|l| l.label()).collect();
         assert_eq!(
             labels,
@@ -1416,7 +1426,7 @@ mod tests {
 
     #[test]
     fn test_facet_groups_are_the_groups_not_their_members() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         assert_eq!(
             names(stack.facet_groups(&n("family"))),
             ["qwen/qwen3", "openai/whisper"]
@@ -1431,7 +1441,7 @@ mod tests {
 
     #[test]
     fn test_occurrences_fall_through_and_children_union() {
-        let stack = fixtures::supplemented_stack().unwrap();
+        let stack = fixtures::supplemented_example_stack().unwrap();
         let qwen = n("qwen");
         let found: Vec<(usize, bool)> = stack
             .occurrences(&qwen)
@@ -1460,7 +1470,7 @@ mod tests {
 
     #[test]
     fn test_members_come_through_groups_and_template_classes() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let qwen3 = stack.members_of(&n("qwen3-lm"));
         assert_eq!(qwen3.len(), 3, "{qwen3:?}");
         let refresh = stack.members_of(&n("qwen/qwen3/qwen3-2507"));
@@ -1475,7 +1485,7 @@ mod tests {
 
     #[test]
     fn test_releases_order_by_time() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let group = n("openai/whisper/large/release");
         let order: Vec<String> = stack
             .releases(&group)
@@ -1586,7 +1596,7 @@ loose:
         // A name is unique in its scope only: a later catalog may reuse a
         // leaf above, below or beside an existing one, so long as no
         // earlier reference changes.
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         stack
             .push_yaml(
                 "reuse",
@@ -1637,7 +1647,7 @@ qwen:
     #[test]
     fn test_a_later_catalog_updates_and_replaces() {
         // One catalog states a name once; a later one updates or replaces it.
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         stack
             .push_yaml(
                 "first",
@@ -1677,7 +1687,7 @@ local:
 
     #[test]
     fn test_a_refused_import_leaves_the_state_as_it_was() {
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         let before: Vec<String> = stack.declarations().map(|e| e.name().to_string()).collect();
         let errors = stack
             .push_yaml(
@@ -1696,7 +1706,7 @@ qwen: { $kind: namespace, $description: "A conflict." }
 
     #[test]
     fn test_replace_substitutes_for_every_reference() {
-        let mut stack = fixtures::supplemented_stack().unwrap();
+        let mut stack = fixtures::supplemented_example_stack().unwrap();
         stack
             .push_yaml(
                 "rename",
@@ -1741,7 +1751,7 @@ qwen: { $kind: namespace, $merge: replace, $facet: publisher, $description: "Qwe
     fn test_update_is_defined_per_kind() {
         // A resource update matches every field but its sources, and puts
         // its new sources first.
-        let mut stack = fixtures::builtin_stack().unwrap();
+        let mut stack = fixtures::example_stack().unwrap();
         stack
             .push_yaml(
                 "mirror",
@@ -1769,7 +1779,7 @@ openai:
         assert_eq!(sources.len(), 2);
         assert_eq!(
             sources[0],
-            crate::document::ResourceSource::Url(
+            crate::data::pretrained::build_catalog::document::ResourceSource::Url(
                 "https://mirror.example/multilingual.tiktoken".into()
             )
         );
@@ -1808,7 +1818,7 @@ openai:
 
     #[test]
     fn test_references_resolve_from_where_they_are_written() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         // A build's `checkpoint` is its own; the family's `vocabulary` is
         // found by climbing; the class's `vocabulary` resolves at the class.
         let v1 = stack
@@ -1920,7 +1930,7 @@ qwen:
 
     #[test]
     fn test_template_classes_nest_without_conferring_membership() {
-        let stack = fixtures::builtin_stack().unwrap();
+        let stack = fixtures::example_stack().unwrap();
         let class_scope = n("qwen/qwen3");
         // The class sits in `qwen/qwen3`, and its builds are members of
         // `qwen/qwen3` because they are placed there, not because of it.

@@ -284,6 +284,7 @@
 
 #[cfg(feature = "store")]
 mod apply_named;
+pub mod build_catalog;
 #[cfg(feature = "cache")]
 mod cache;
 #[cfg(feature = "cache")]

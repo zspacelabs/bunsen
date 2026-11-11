@@ -1,7 +1,7 @@
 //! Names: [`CatalogName`], a `/`-separated path of segments, each of
 //! which YAML reads as a plain, unquoted key.
 
-use std::{
+use core::{
     fmt,
     str::FromStr,
 };
@@ -13,7 +13,7 @@ use serde::{
     Serializer,
 };
 
-use crate::error::{
+use crate::data::pretrained::build_catalog::error::{
     CatalogError,
     CatalogErrorKind,
     CatalogResult,

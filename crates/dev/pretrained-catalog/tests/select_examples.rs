@@ -19,7 +19,7 @@
 
 use std::collections::BTreeMap;
 
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogName,
     PretrainedCatalogStack,
     document::EntryKind,
@@ -81,7 +81,7 @@ fn leaves(table: &SelectTable) -> Vec<String> {
 
 /// The builds `run` selects, by leaf, in order.
 fn select(run: &str) -> Vec<String> {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let compiled = build_query(run).compile(&env).expect("a valid query");
     let table = compiled
@@ -92,7 +92,7 @@ fn select(run: &str) -> Vec<String> {
 
 /// The error `run` fails to compile with.
 fn refused(run: &str) -> String {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     match SelectQuery::from_value(&json!({
         "kind": "build",
@@ -368,7 +368,7 @@ fn limit_keeps_the_first() {
 
 #[test]
 fn a_traced_run_records_each_stage_and_each_row_removed() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let compiled = build_query(
         "
@@ -403,7 +403,7 @@ fn a_traced_run_records_each_stage_and_each_row_removed() {
 
 #[test]
 fn a_derived_key_is_a_dollar_word() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let size = DeriveEach {
         keys: vec![DerivedKey {
             name: "gigabytes".into(),
@@ -493,7 +493,7 @@ fn a_query_round_trips_through_its_written_form() {
 
 /// The builds `run` selects, by leaf, with their weights, in order.
 fn weighed(run: &str) -> Vec<(String, f64)> {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let compiled = build_query(run).compile(&env).expect("a valid query");
     compiled
@@ -651,7 +651,7 @@ fn floors_drop_what_counts_as_zero() {
     // The default floor drops a 0.
     assert_eq!(select(zeroed), ["qwen3-0.6b"]);
     // `floor: 0` keeps every row.
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let mut query = build_query(zeroed);
     query.floor = Some(0.0);
@@ -670,7 +670,7 @@ fn floors_drop_what_counts_as_zero() {
 
 #[test]
 fn a_traced_weigh_records_its_weights_and_its_floored_rows() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let run = build_query(
         "[{from: whisper}, {weigh: {by: [{release: latest, step: 0.25}], floor: 0.7}}]",
@@ -728,7 +728,7 @@ fn ranked(
 
 #[test]
 fn defaults_come_first_and_one_named_build_skips_them() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let context = SelectionContext {
         defaults: stages("[{keep: instruct}, {order: {desc: parameters}}]"),
         named: vec![],
@@ -764,7 +764,7 @@ fn defaults_come_first_and_one_named_build_skips_them() {
 
 #[test]
 fn a_named_selection_is_a_stored_list_of_stages() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let context = SelectionContext {
         defaults: vec![],
@@ -795,7 +795,7 @@ fn a_named_selection_is_a_stored_list_of_stages() {
 
 #[test]
 fn an_axis_flag_is_a_preset_and_the_prefix_that_keeps_its_builds() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     // `--off thinking` is the preset `no-thinking`; the prefix keeps the
     // builds that can take it, and the caller applies it.
@@ -826,7 +826,7 @@ fn an_axis_flag_is_a_preset_and_the_prefix_that_keeps_its_builds() {
 
 #[test]
 fn a_preset_prefix_narrows_with_reasons() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let prefix = preset_prefix(
         &PresetSelection::of(["translate"]),
@@ -857,7 +857,7 @@ fn a_preset_prefix_narrows_with_reasons() {
 
 #[test]
 fn a_caller_universe_bounds_the_run() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let universe: Vec<CatalogName> = ["openai/whisper/large/large-v2", "qwen/qwen3/qwen3-0.6b"]
         .iter()
@@ -874,7 +874,7 @@ fn a_caller_universe_bounds_the_run() {
 #[test]
 fn a_supplemental_build_is_selected_like_any_other() {
     // The supplemental catalog adds `qwen3-1.7b` under `qwen/qwen3`.
-    let stack = fixtures::supplemented_stack().unwrap();
+    let stack = fixtures::supplemented_example_stack().unwrap();
     let context = SelectionContext::default();
     let family = SelectRequest::default().name("qwen3");
     let mut expected: Vec<&str> = QWEN3.to_vec();
@@ -891,7 +891,7 @@ fn a_supplemental_build_is_selected_like_any_other() {
 
 #[test]
 fn an_ambiguous_name_is_an_error_that_lists_the_candidates() {
-    let mut stack = fixtures::builtin_stack().unwrap();
+    let mut stack = fixtures::example_stack().unwrap();
     stack
         .push_yaml(
             "mirror",
@@ -942,7 +942,7 @@ fn select_kind(
     kind: &str,
     run: &str,
 ) -> Result<Vec<String>, String> {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let run: Value = serde_saphyr::from_str(&dedent(run)).expect("YAML stages");
     let query =
@@ -1054,7 +1054,7 @@ fn a_kind_admits_only_its_tests() {
     // A namespace has no tags: `instruct` names nothing it can be in.
     assert!(refused("namespace", "[{keep: instruct}]").contains("nothing matches `instruct`"));
     // Choosing takes a build.
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let err = SelectionContext::default()
         .choose(
@@ -1100,7 +1100,7 @@ fn per_runs_its_stages_on_each_part() {
 
 #[test]
 fn a_traced_per_says_which_part_dropped_a_row() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let run = build_query("[{per: {group: family, run: [{limit: 1}]}}]")
         .compile(&env)
@@ -1119,7 +1119,7 @@ fn a_traced_per_says_which_part_dropped_a_row() {
 
 #[test]
 fn unset_removes_a_labeled_default() {
-    let stack = fixtures::builtin_stack().unwrap();
+    let stack = fixtures::example_stack().unwrap();
     let context = SelectionContext {
         defaults: stages("[{keep: instruct, as: tuned}, {order: {desc: parameters}}]"),
         named: vec![NamedSelection {

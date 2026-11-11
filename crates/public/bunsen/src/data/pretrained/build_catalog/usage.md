@@ -1,10 +1,11 @@
-# Using the pretrained catalog
+# Using build catalogs
 
-This guide covers the crate's API, from importing catalogs to choosing a build, and the select
-language that does the choosing. The document form (the keyed `$` form, entry kinds, names, references, `$merge`) is
-described in the crate's `README.md`. This guide uses as much of it as selection needs.
+This guide covers the module's API, from importing catalogs to choosing a build, and the select
+language that does the choosing. The document form (the keyed `$` form, entry kinds, names,
+references, `$merge`) is described in [`catalog_format`](catalog_format). This guide uses as much of it as
+selection needs.
 
-The examples run against the example catalogs in `catalogs/`, which `fixtures::builtin_stack()`
+The examples run against the example catalogs in [`fixtures`](fixtures), which `fixtures::example_stack()`
 imports in this order: `prelude`, `commons`, `qwen3`, `whisper`. Their builds (a query's run
 starts from them in full-name order: Whisper's `openai/...` first):
 
@@ -20,7 +21,7 @@ starts from them in full-name order: Whisper's `openai/...` first):
 
 Qwen3's `language` is `["*"]`; Whisper's is `[en, "*"]`. The Qwen3 builds have the contract
 `qwen3-lm`, the Whisper builds `whisper-asr`. The supplemental catalog
-(`fixtures::supplemented_stack()`) adds `qwen3-1.7b`.
+(`fixtures::supplemented_example_stack()`) adds `qwen3-1.7b`.
 
 ## Contents
 
@@ -61,7 +62,7 @@ catalog documents ──push──▶ PretrainedCatalogStack ──resolve_build
 
 ## Importing catalogs
 
-A catalog document is the namespace tree, in the keyed form the crate's `README.md` describes:
+A catalog document is the namespace tree, in the keyed form [`catalog_format`](catalog_format) describes:
 every key the catalog language defines starts with `$`, and a bare key is a name (a child, a
 tag, or a preset).
 
@@ -71,13 +72,13 @@ nothing is wrong. A refused catalog leaves the stack as it was, and the error li
 problem found.
 
 ```rust
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogErrorKind,
     PretrainedCatalogStack,
     fixtures,
 };
 
-let mut stack = fixtures::builtin_stack().unwrap();
+let mut stack = fixtures::example_stack().unwrap();
 let labels: Vec<&str> = stack.layers().iter().map(|l| l.label()).collect();
 assert_eq!(labels, ["prelude", "commons", "qwen3", "whisper"]);
 
@@ -113,7 +114,7 @@ empty.push_yaml("prelude", fixtures::PRELUDE).unwrap();
 
 The first catalog is usually a prelude: the facets, registered axes and tags, and
 `template_class_root`. A catalog can refer to anything below it in the stack, and its extending
-occurrences (`$merge: update`) add to groups an earlier catalog declared. `catalogs/supplemental.yml`
+occurrences (`$merge: update`) add to groups an earlier catalog declared. `fixtures/supplemental.yml`
 shows a local addition.
 
 ## Finding entries
@@ -122,7 +123,7 @@ Names are `/`-separated paths, such as `openai/whisper/large/large-v3`. Lookups 
 spelling that identifies one entry: the leaf, or a longer path.
 
 ```rust
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     document::EntryKind,
     fixtures,
     lookup::{
@@ -131,7 +132,7 @@ use pretrained_catalog::{
     },
 };
 
-let stack = fixtures::builtin_stack().unwrap();
+let stack = fixtures::example_stack().unwrap();
 
 let v3 = stack.find_build("large-v3").unwrap();
 assert_eq!(v3.to_string(), "openai/whisper/large/large-v3");
@@ -188,13 +189,13 @@ assert_eq!(stack.latest(&release).unwrap(), Some(v3.clone()));
 `resolve_build` gathers everything the state says about a build into a `ResolvedBuild`.
 
 ```rust
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogName,
     fixtures,
 };
 use serde_json::json;
 
-let stack = fixtures::builtin_stack().unwrap();
+let stack = fixtures::example_stack().unwrap();
 let name = stack.find_build("large-v3").unwrap();
 let build = stack.resolve_build(&name).unwrap();
 
@@ -239,14 +240,14 @@ A preset with the name of an inherited one meets it by its `$merge`:
 With nothing inherited, the preset is declared, whatever its mode.
 
 ```rust
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogName,
     fixtures,
     presets::PresetSelection,
 };
 use serde_json::json;
 
-let stack = fixtures::builtin_stack().unwrap();
+let stack = fixtures::example_stack().unwrap();
 let thinking = CatalogName::parse("thinking").unwrap();
 
 let hybrid = stack
@@ -284,7 +285,7 @@ apply, and a `SelectRequest` (names, then stages). `preset_prefix` turns the pre
 first stage, which keeps only the builds that can take them.
 
 ```rust
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     fixtures,
     presets::PresetSelection,
     select::{
@@ -295,7 +296,7 @@ use pretrained_catalog::{
 };
 use serde_json::json;
 
-let stack = fixtures::builtin_stack().unwrap();
+let stack = fixtures::example_stack().unwrap();
 let env = SelectEnv::new(&stack);
 let context = SelectionContext {
     defaults: serde_saphyr::from_str("[{keep: instruct}]").unwrap(),
@@ -361,7 +362,7 @@ is a `$` word the language defines.
 ```rust
 use std::collections::BTreeMap;
 
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     document::EntryKind,
     fixtures,
     resolve::ResolvedBuild,
@@ -372,7 +373,7 @@ use pretrained_catalog::{
 };
 use serde_json::{Value, json};
 
-let stack = fixtures::builtin_stack().unwrap();
+let stack = fixtures::example_stack().unwrap();
 let gigabytes = DeriveEach {
     keys: vec![DerivedKey { name: "gigabytes".into(), description: "At bf16.".into() }],
     tags: |b: &ResolvedBuild| {
@@ -589,7 +590,7 @@ N` keeps the first N.
 ## The CLI
 
 ```sh
-cargo run -p pretrained-catalog -- --builtin select <names> <flags>
+cargo run -p pretrained-catalog -- --examples select <names> <flags>
 cargo run -p pretrained-catalog -- --catalog a.yml --catalog b.yml select <names> <flags>
 ```
 
@@ -620,8 +621,8 @@ A bare name or a number goes as it is; anything else goes in single quotes (a fl
 word).
 
 ```sh
-pretrained-catalog --builtin select qwen3 --off thinking --keep instruct --desc parameters --limit 1
-pretrained-catalog --builtin select whisper --weigh '{release: latest}' --cutoff 0.9 --rank
+pretrained-catalog --examples select qwen3 --off thinking --keep instruct --desc parameters --limit 1
+pretrained-catalog --examples select whisper --weigh '{release: latest}' --cutoff 0.9 --rank
 ```
 
 `select` prints YAML: the composed `query`, `why` (each stage: its operation, origin, how many
@@ -636,7 +637,7 @@ stack) and runs on a `SelectTable`, traced or not. Nothing composes it: no defau
 no tail.
 
 ```rust
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     document::EntryKind,
     fixtures,
     select::{
@@ -645,7 +646,7 @@ use pretrained_catalog::{
     },
 };
 
-let stack = fixtures::builtin_stack().unwrap();
+let stack = fixtures::example_stack().unwrap();
 let env = SelectEnv::new(&stack);
 let query = SelectQuery::from_yaml(
     r#"

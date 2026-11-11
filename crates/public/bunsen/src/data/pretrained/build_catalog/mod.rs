@@ -1,6 +1,9 @@
-//! The pretrained catalog's runtime logic, on its own: how a catalog is read,
-//! validated, queried and resolved. Probing, building, caching and model
-//! loading are out of its scope.
+//! # Build catalogs
+//!
+//! The catalog of things bunsen can build, as a stack of catalog layers: how
+//! a catalog is read, validated, queried and resolved, and how a build is
+//! chosen from it. Probing, building, caching and model loading are out of
+//! its scope.
 //!
 //! - [`document`]: the catalog document ([`PretrainedCatalog`]) and the serde
 //!   form it is read from and written to, as YAML or JSON. Every entry names
@@ -18,17 +21,19 @@
 //! - [`select`]: the selection pipeline: a query of stages over weighted rows,
 //!   composed from a tool's preset prefix, its defaults and a request. Axis
 //!   flags such as `--think` are explained shortcuts into presets.
-//! - [`fixtures`]: the example catalogs in `catalogs/`, for tests and examples.
-//! - [`release_time`], [`tags`], [`merge_patch`], [`name`]: the value types and
-//!   rules the rest is built from.
+//! - [`fixtures`]: example catalogs, for tests, examples and these docs.
+//! - [`release_time`], [`tags`], [`name`]: the value types and rules the rest
+//!   is built from. Preset patches are [merge
+//!   patches](crate::support::merge_patch).
 //!
-//! [`usage`] is the guide: the API from importing catalogs to choosing a
-//! build, and the select language.
+//! [`catalog_format`] describes the catalog document and the stack, and
+//! [`usage`] is the guide: the API from importing catalogs to choosing a build,
+//! and the select language.
 //!
 //! # Example
 //!
 //! ```
-//! use pretrained_catalog::{
+//! use bunsen::data::pretrained::build_catalog::{
 //!     PretrainedCatalogStack,
 //!     presets::PresetSelection,
 //! };
@@ -84,7 +89,6 @@ pub mod error;
 pub mod fixtures;
 pub mod layer;
 pub mod lookup;
-pub mod merge_patch;
 pub mod name;
 pub mod presets;
 pub mod release_time;
@@ -93,7 +97,10 @@ pub mod select;
 pub mod stack;
 pub mod tags;
 
-#[doc = include_str!("../docs/usage.md")]
+#[doc = include_str!("catalog_format.md")]
+pub mod catalog_format {}
+
+#[doc = include_str!("usage.md")]
 pub mod usage {}
 
 pub use document::PretrainedCatalog;

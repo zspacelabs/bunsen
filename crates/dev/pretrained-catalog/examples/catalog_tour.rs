@@ -1,12 +1,13 @@
-//! Loads the example catalogs from `catalogs/` as a stack, and walks the
-//! queries: layers, facets ("all families" against "things in families"),
-//! builds by their shortest names, and a release sequence.
+//! Loads bunsen's example catalogs (`build_catalog/fixtures/`) from their
+//! files as a stack, and walks the queries: layers, facets ("all families"
+//! against "things in families"), builds by their shortest names, and a
+//! release sequence.
 //!
 //! `cargo run -p pretrained-catalog --example catalog_tour`
 
 use std::path::PathBuf;
 
-use pretrained_catalog::{
+use bunsen::data::pretrained::build_catalog::{
     CatalogName,
     PretrainedCatalogStack,
     document::EntryKind,
@@ -14,7 +15,8 @@ use pretrained_catalog::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("catalogs");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../public/bunsen/src/data/pretrained/build_catalog/fixtures");
     let mut stack = PretrainedCatalogStack::new();
     for file in ["prelude.yml", "commons.yml", "qwen3.yml", "whisper.yml"] {
         stack.push_file(dir.join(file))?;
