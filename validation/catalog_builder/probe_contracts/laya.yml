@@ -6,19 +6,21 @@ laya:
   laya:
     $kind: namespace
     $facet: family
-    $description: "convaiinnovations' Laya decision models: a ModernBERT encoder and a decision head."
+    $description: "convaiinnovations' Laya decision models: a ModernBERT encoder and a decision
+      head."
     $requires:
-    - language
-    - parameters
+      - language
+      - parameters
     laya:
       $kind: build
-      $description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters, prompts of 512 tokens."
+      $description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters,
+        prompts of 512 tokens."
       $license: Apache-2.0
       $origin: https://huggingface.co/convaiinnovations/laya
       $contract: laya-decision
       parameters: 421000000
       language:
-      - en
+        - en
       $hub:
         $repo: convaiinnovations/laya
         $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
@@ -56,14 +58,15 @@ laya:
         $kind: build
     laya-multilingual:
       $kind: build
-      $description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M parameters, prompts of 1024 tokens."
+      $description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M
+        parameters, prompts of 1024 tokens."
       $license: Apache-2.0
       $origin: https://huggingface.co/convaiinnovations/laya
       $contract: laya-decision
       parameters: 322000000
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       $hub:
         $repo: convaiinnovations/laya
         $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
@@ -96,13 +99,14 @@ laya:
         $format: tokenizer_config.json
     laya-typed-decisions:
       $kind: build
-      $description: "Laya, typed decisions: the English model trained on typed questions, prompts of 1024 tokens."
+      $description: "Laya, typed decisions: the English model trained on typed questions, prompts of
+        1024 tokens."
       $license: Apache-2.0
       $origin: https://huggingface.co/convaiinnovations/laya
       $contract: laya-decision
       parameters: 421000000
       language:
-      - en
+        - en
       $hub:
         $repo: convaiinnovations/laya
         $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148

@@ -5,9 +5,9 @@ qwen3-asr:
   $facet: family
   $description: Qwen's Qwen3-ASR speech recognizers.
   $requires:
-  - language
-  - translate
-  - parameters
+    - language
+    - translate
+    - parameters
 fermion:
   $kind: namespace
   $merge: update
@@ -18,10 +18,10 @@ fermion:
     $origin: https://huggingface.co/FermionResearch/Phonon-1
     $contract: qwen3-asr/stated
     $join:
-    - qwen3-asr
+      - qwen3-asr
     parameters: 800000000
     language:
-    - en
+      - en
     translate: false
     scores:
       wer.en: 6.56
@@ -66,10 +66,10 @@ fermion:
     $origin: https://huggingface.co/FermionResearch/Phonon-1-Micro
     $contract: qwen3-asr/stated
     $join:
-    - qwen3-asr
+      - qwen3-asr
     parameters: 800000000
     language:
-    - en
+      - en
     translate: false
     $args:
       geometry:
@@ -112,10 +112,10 @@ fermion:
     $origin: https://huggingface.co/FermionResearch/Phonon-1-Big
     $contract: qwen3-asr/stated
     $join:
-    - qwen3-asr
+      - qwen3-asr
     parameters: 800000000
     language:
-    - en
+      - en
     translate: false
     $args:
       geometry:
@@ -161,12 +161,12 @@ qwen:
     $origin: https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf
     $contract: qwen3-asr/stated
     $join:
-    - qwen3-asr
+      - qwen3-asr
     parameters: 800000000
     language:
-    - en
-    - zh
-    - "*"
+      - en
+      - zh
+      - "*"
     translate: false
     scores:
       wer.en: 6.31
@@ -217,12 +217,12 @@ qwen:
     $origin: https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf
     $contract: qwen3-asr/stated
     $join:
-    - qwen3-asr
+      - qwen3-asr
     parameters: 2000000000
     language:
-    - en
-    - zh
-    - "*"
+      - en
+      - zh
+      - "*"
     translate: false
     scores:
       wer.en: 5.76

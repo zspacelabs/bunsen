@@ -19,18 +19,20 @@ silero:
         $axes:
           vad-policy:
             $offers:
-            - silero
-            - faster-whisper
+              - silero
+              - faster-whisper
             $default: silero
         silero:
-          $description: "upstream's get_speech_timestamps defaults: regions under 250 ms dropped, 100 ms of silence to close, 30 ms of padding"
+          $description: "upstream's get_speech_timestamps defaults: regions under 250 ms dropped,
+            100 ms of silence to close, 30 ms of padding"
           $patch:
             vad:
               min_silence_ms: 100
               min_speech_ms: 250
               speech_pad_ms: 30
         faster-whisper:
-          $description: "faster-whisper's VadOptions: no minimum region, 2000 ms of silence to close, 400 ms of padding"
+          $description: "faster-whisper's VadOptions: no minimum region, 2000 ms of silence to
+            close, 400 ms of padding"
           $patch:
             vad:
               min_silence_ms: 2000
@@ -44,5 +46,5 @@ silero:
         $size: 1239748
         $dtype: float32
         $sources:
-        - $base_url: >-
-            https://raw.githubusercontent.com/snakers4/silero-vad/fb7d7c7f5df63235f0afd037d8397593829aeb41/src/silero_vad/data
+          - $base_url: >-
+              https://raw.githubusercontent.com/snakers4/silero-vad/fb7d7c7f5df63235f0afd037d8397593829aeb41/src/silero_vad/data

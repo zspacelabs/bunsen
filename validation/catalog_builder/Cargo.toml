@@ -19,6 +19,9 @@ workspace = true
 bunsen = { path = "../../crates/public/bunsen" }
 clap = { workspace = true, features = ["derive"] }
 icu_locale = { workspace = true }
+# Writes the built layers in the repository's YAML form (`.ryl.toml`); keep its
+# version in step with `Makefile.toml`'s `ensure-ryl`.
+ryl = { version = "0.29.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

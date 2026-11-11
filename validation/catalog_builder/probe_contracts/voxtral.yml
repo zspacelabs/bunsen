@@ -8,9 +8,9 @@ mistralai:
     $facet: family
     $description: Mistral's Voxtral Realtime speech recognizers.
     $requires:
-    - language
-    - translate
-    - parameters
+      - language
+      - translate
+      - parameters
     voxtral-mini-4b-realtime-2602:
       $kind: build
       $description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming."
@@ -19,8 +19,8 @@ mistralai:
       $contract: voxtral-asr/stated
       parameters: 4400000000
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       translate: false
       $args:
         geometry:

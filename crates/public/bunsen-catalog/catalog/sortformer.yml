@@ -5,7 +5,8 @@ nvidia:
   $merge: update
   sortformer:
     $kind: namespace
-    $description: "NVIDIA's Sortformer speaker diarizers: Nemotron-3-Diarization as transformers ships it, the streaming Sortformer v2 and v2.1 as NeMo does."
+    $description: "NVIDIA's Sortformer speaker diarizers: Nemotron-3-Diarization as transformers
+      ships it, the streaming Sortformer v2 and v2.1 as NeMo does."
     $facet: family
     nemotron:
       $kind: template_class
@@ -14,16 +15,16 @@ nvidia:
         $axes:
           latency:
             $offers:
-            - ultra-low
-            - very-low
-            - low
-            - offline
+              - ultra-low
+              - very-low
+              - low
+              - offline
             $default: low
           postprocess:
             $offers:
-            - none
-            - dihard3
-            - callhome
+              - none
+              - dihard3
+              - callhome
             $default: none
         ultra-low:
           $description: "0.32 s: chunks of 3 frames with 1 of look-ahead"
@@ -77,7 +78,8 @@ nvidia:
               update_period: 222
               weak_boost_rate: 1.5
         offline:
-          $description: "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for files"
+          $description: "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for
+            files"
           $patch:
             streaming:
               chunk_len: 340
@@ -128,21 +130,22 @@ nvidia:
               pad_onset: 0.229
     sortformer-v2:
       $kind: template_class
-      $description: "The streaming Sortformer v2 and v2.1: their model card's streaming latencies, with one frame of left context and three silence slots per speaker."
+      $description: "The streaming Sortformer v2 and v2.1: their model card's streaming latencies,
+        with one frame of left context and three silence slots per speaker."
       $presets:
         $axes:
           latency:
             $offers:
-            - ultra-low
-            - low
-            - high
-            - offline
+              - ultra-low
+              - low
+              - high
+              - offline
             $default: low
           postprocess:
             $offers:
-            - none
-            - dihard3
-            - callhome
+              - none
+              - dihard3
+              - callhome
             $default: none
         ultra-low:
           $description: "0.32 s: chunks of 3 frames with 1 of look-ahead"
@@ -196,7 +199,8 @@ nvidia:
               update_period: 124
               weak_boost_rate: 1.5
         offline:
-          $description: "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for files"
+          $description: "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for
+            files"
           $patch:
             streaming:
               chunk_len: 340
@@ -247,7 +251,8 @@ nvidia:
               pad_onset: 0.229
     nemotron-3-diarization:
       $kind: build
-      $description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames, streaming."
+      $description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames,
+        streaming."
       $template_class: nemotron
       $license: OpenMDW-1.1
       $origin: https://huggingface.co/nvidia/Nemotron-3-Diarization
@@ -262,9 +267,9 @@ nvidia:
         $size: 396954592
         $dtype: float32
         $sources:
-        - $hub:
-            $repo: nvidia/Nemotron-3-Diarization
-            $revision: f667ed73aee57d40cc39428eb768b4fd87a0a29e
+          - $hub:
+              $repo: nvidia/Nemotron-3-Diarization
+              $revision: f667ed73aee57d40cc39428eb768b4fd87a0a29e
     diar_streaming_sortformer_4spk-v2:
       $kind: build
       $description: "Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames."
@@ -282,9 +287,9 @@ nvidia:
         $size: 471367680
         $dtype: float32
         $sources:
-        - $hub:
-            $repo: nvidia/diar_streaming_sortformer_4spk-v2
-            $revision: 84edd514b8ef68004c10086918cd62f2148cbd59
+          - $hub:
+              $repo: nvidia/diar_streaming_sortformer_4spk-v2
+              $revision: 84edd514b8ef68004c10086918cd62f2148cbd59
     diar_streaming_sortformer_4spk-v2.1:
       $kind: build
       $description: "Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms frames."
@@ -302,9 +307,9 @@ nvidia:
         $size: 471367680
         $dtype: float32
         $sources:
-        - $hub:
-            $repo: nvidia/diar_streaming_sortformer_4spk-v2.1
-            $revision: cd03eee90fbec18297ac31b8c21546e596b7f71c
+          - $hub:
+              $repo: nvidia/diar_streaming_sortformer_4spk-v2.1
+              $revision: cd03eee90fbec18297ac31b8c21546e596b7f71c
     sortformer-v2.1:
       $kind: alias
       $ref:

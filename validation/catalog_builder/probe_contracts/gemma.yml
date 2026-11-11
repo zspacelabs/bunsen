@@ -8,14 +8,15 @@ gemma:
     $facet: family
     $description: Google's Gemma 1, 2 and 3 text models, from their unsloth/ mirrors.
     $requires:
-    - instruct
-    - thinking
-    - reasoning
-    - language
-    - parameters
+      - instruct
+      - thinking
+      - reasoning
+      - language
+      - parameters
     gemma:
       $kind: template_class
-      $description: "Google's Gemma models: a row's own chat template where it has one, else bunsen's rendering of Gemma's turn format."
+      $description: "Google's Gemma models: a row's own chat template where it has one, else
+        bunsen's rendering of Gemma's turn format."
       reasoning: false
       $presets:
         $common:
@@ -39,7 +40,7 @@ gemma:
         $axes:
           thinking:
             $offers:
-            - no-thinking
+              - no-thinking
             $default: no-thinking
         no-thinking:
           $description: "Answer at once: this model doesn't think."
@@ -51,22 +52,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 270000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-3-270m
         $revision: edcf1fe394ee1168e7c5538afd104cfb1f7947e6
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -101,31 +102,31 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 270000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-3-270m-it
         $revision: 23cf460f6bb16954176b3ddcc8d4f250501458a9
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: chat_template
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: chat_template
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -165,22 +166,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 1000000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-3-1b-pt
         $revision: 34a98bf3eaecc08c699516f625eb5e56e4c5d99d
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -215,31 +216,31 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 1000000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-3-1b-it
         $revision: 5b11413a10db4e486ef16a20101fd028f8f2499c
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: chat_template
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: chat_template
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -279,22 +280,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 4000000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-3-4b-pt
         $revision: 52aba93981c6ad7712b030eb6dd496ece1d279d6
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -306,8 +307,8 @@ gemma:
         $file: model.safetensors.index.json
         $format: safetensors-index
         $shards:
-        - $file: model-00001-of-00002.safetensors
-        - $file: model-00002-of-00002.safetensors
+          - $file: model-00001-of-00002.safetensors
+          - $file: model-00002-of-00002.safetensors
       config:
         $kind: resource
         $file: config.json
@@ -332,31 +333,31 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 4000000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-3-4b-it
         $revision: bf46152c47f5dd20b896357cb51abc4c03b8ee8c
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: chat_template
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: chat_template
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -369,8 +370,8 @@ gemma:
         $file: model.safetensors.index.json
         $format: safetensors-index
         $shards:
-        - $file: model-00001-of-00002.safetensors
-        - $file: model-00002-of-00002.safetensors
+          - $file: model-00001-of-00002.safetensors
+          - $file: model-00002-of-00002.safetensors
       config:
         $kind: resource
         $file: config.json
@@ -399,22 +400,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 2000000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-2-2b
         $revision: 25319945f7fd83b8b903e12081777b7eef2ba993
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -449,27 +450,27 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 2000000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-2-2b-it
         $revision: 457f2e15bf550c227ce6ad86e2ec108d3e42c106
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -504,22 +505,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 9000000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-2-9b
         $revision: 9145841c83add11c48155cd7bb87d8656703f997
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -531,10 +532,10 @@ gemma:
         $file: model.safetensors.index.json
         $format: safetensors-index
         $shards:
-        - $file: model-00001-of-00004.safetensors
-        - $file: model-00002-of-00004.safetensors
-        - $file: model-00003-of-00004.safetensors
-        - $file: model-00004-of-00004.safetensors
+          - $file: model-00001-of-00004.safetensors
+          - $file: model-00002-of-00004.safetensors
+          - $file: model-00003-of-00004.safetensors
+          - $file: model-00004-of-00004.safetensors
       config:
         $kind: resource
         $file: config.json
@@ -559,27 +560,27 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 9000000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-2-9b-it
         $revision: fc7d4737cda11c3a19af2b722319e846670b4d89
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -591,10 +592,10 @@ gemma:
         $file: model.safetensors.index.json
         $format: safetensors-index
         $shards:
-        - $file: model-00001-of-00004.safetensors
-        - $file: model-00002-of-00004.safetensors
-        - $file: model-00003-of-00004.safetensors
-        - $file: model-00004-of-00004.safetensors
+          - $file: model-00001-of-00004.safetensors
+          - $file: model-00002-of-00004.safetensors
+          - $file: model-00003-of-00004.safetensors
+          - $file: model-00004-of-00004.safetensors
       config:
         $kind: resource
         $file: config.json
@@ -619,22 +620,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 2000000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-2b
         $revision: 7ac9d201a57c8cdc6f939069fc0f044c60197a4a
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -669,27 +670,27 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 2000000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-2b-it
         $revision: 5ae754dee0b5cbf7f7fb39a7731aefa6b7987c2d
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -724,22 +725,22 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 7000000000
       instruct: false
       $hub:
         $repo: unsloth/gemma-7b
         $revision: a0aa8221f534401bd60aa694dd8dd3022dbaf47a
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -751,10 +752,10 @@ gemma:
         $file: model.safetensors.index.json
         $format: safetensors-index
         $shards:
-        - $file: model-00001-of-00004.safetensors
-        - $file: model-00002-of-00004.safetensors
-        - $file: model-00003-of-00004.safetensors
-        - $file: model-00004-of-00004.safetensors
+          - $file: model-00001-of-00004.safetensors
+          - $file: model-00002-of-00004.safetensors
+          - $file: model-00003-of-00004.safetensors
+          - $file: model-00004-of-00004.safetensors
       config:
         $kind: resource
         $file: config.json
@@ -779,27 +780,27 @@ gemma:
       $template_class: gemma
       $contract: gemma-lm
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 7000000000
       instruct: true
       $hub:
         $repo: unsloth/gemma-7b-it
         $revision: 09fcaf72a834aee7e71c7c42b7c04985c476d66d
       $probes:
-      - $probe: generation_config
-        $resource: generation_config
-        $into:
-        - $common
-      - $probe: tokenizer_config
-        $resource: tokenizer_config
-        $into:
-        - $common
-        $token: <end_of_turn>
-      - $probe: chat_template
-        $resource: tokenizer_config
-        $into:
-        - $common
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: tokenizer_config
+          $resource: tokenizer_config
+          $into:
+            - $common
+          $token: <end_of_turn>
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
       $resources:
         checkpoint: checkpoint
         config: config
@@ -811,9 +812,9 @@ gemma:
         $file: model.safetensors.index.json
         $format: safetensors-index
         $shards:
-        - $file: model-00001-of-00003.safetensors
-        - $file: model-00002-of-00003.safetensors
-        - $file: model-00003-of-00003.safetensors
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
       config:
         $kind: resource
         $file: config.json

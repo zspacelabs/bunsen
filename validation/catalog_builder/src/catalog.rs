@@ -152,6 +152,10 @@ pub struct Paths {
 
     /// The checked-in catalog: `crates/public/bunsen-catalog/catalog/`.
     pub checked_in: PathBuf,
+
+    /// The repository's YAML style, `.ryl.toml`: the built layers are written
+    /// as `ryl format` writes them; as the builder writes them, when `None`.
+    pub yaml_style: Option<PathBuf>,
 }
 
 impl Paths {
@@ -168,6 +172,7 @@ impl Paths {
                 .join("public")
                 .join("bunsen-catalog")
                 .join("catalog"),
+            yaml_style: Some(validation.join("..").join(".ryl.toml")),
         }
     }
 
@@ -237,6 +242,15 @@ pub fn build(
         }
     }
 
+    let style = match &paths.yaml_style {
+        Some(path) => Some(
+            ryl::config::YamlLintConfig::from_toml_str(
+                &fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?,
+            )
+            .map_err(|e| format!("{}: {e}", path.display()))?,
+        ),
+        None => None,
+    };
     let contracts = kit_contracts()?;
     let contracts_text = contracts.to_yaml().map_err(|e| e.to_string())?;
     let cache = paths.target.join("layers");
@@ -264,6 +278,10 @@ pub fn build(
             fs::create_dir_all(&cache).map_err(|e| format!("{}: {e}", cache.display()))?;
             fs::write(&cached, &text).map_err(|e| format!("{}: {e}", cached.display()))?;
             text
+        };
+        let text = match &style {
+            Some(style) => ryl::format::format_str(&text, style, Path::new(&entry.file), &[]),
+            None => text,
         };
         stack.push_yaml(entry.name(), &text).map_err(|e| {
             format!(
@@ -430,6 +448,7 @@ qwen:
             sources: dir.join("sources"),
             target: dir.join("target"),
             checked_in: dir.join("checked-in"),
+            yaml_style: None,
         };
         fs::create_dir_all(&paths.sources).unwrap();
         fs::write(

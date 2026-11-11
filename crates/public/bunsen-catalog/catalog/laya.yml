@@ -5,14 +5,16 @@ laya:
   $merge: update
   laya:
     $kind: namespace
-    $description: "convaiinnovations' Laya decision models: a ModernBERT encoder and a decision head."
+    $description: "convaiinnovations' Laya decision models: a ModernBERT encoder and a decision
+      head."
     $facet: family
     $requires:
-    - language
-    - parameters
+      - language
+      - parameters
     laya:
       $kind: build
-      $description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters, prompts of 512 tokens."
+      $description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters,
+        prompts of 512 tokens."
       $license: Apache-2.0
       $origin: https://huggingface.co/convaiinnovations/laya
       $contract: laya-decision
@@ -23,7 +25,7 @@ laya:
         tokenizer: tokenizer
         tokenizer_config: tokenizer_config
       language:
-      - en
+        - en
       parameters: 421000000
       checkpoint:
         $kind: resource
@@ -33,9 +35,9 @@ laya:
         $size: 842609210
         $dtype: float16
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       encoder_config:
         $kind: resource
         $file: encoder/config.json
@@ -43,9 +45,9 @@ laya:
         $sha256: bf3ab80598fdccf414855a2ce80f22859e4492d06ca8a62ddd1cfb63972f8979
         $size: 2083
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       agent_config:
         $kind: resource
         $file: rl_agent_config.json
@@ -53,9 +55,9 @@ laya:
         $sha256: ae287b56bbcf5f8c4f4541ae9dfd00c914c4c48b940b8398c3058af37ba92bbd
         $size: 745
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       tokenizer:
         $kind: resource
         $file: tokenizer/tokenizer.json
@@ -63,9 +65,9 @@ laya:
         $sha256: 6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30
         $size: 3583228
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       tokenizer_config:
         $kind: resource
         $file: tokenizer/tokenizer_config.json
@@ -73,9 +75,9 @@ laya:
         $sha256: 50044de60daaa73df97d262e15a40d4faf0160e7d742df64b377877a1320dd12
         $size: 308
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
     laya-en:
       $kind: alias
       $ref:
@@ -83,7 +85,8 @@ laya:
         $kind: build
     laya-multilingual:
       $kind: build
-      $description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M parameters, prompts of 1024 tokens."
+      $description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M
+        parameters, prompts of 1024 tokens."
       $license: Apache-2.0
       $origin: https://huggingface.co/convaiinnovations/laya
       $contract: laya-decision
@@ -94,8 +97,8 @@ laya:
         tokenizer: tokenizer
         tokenizer_config: tokenizer_config
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 322000000
       checkpoint:
         $kind: resource
@@ -105,9 +108,9 @@ laya:
         $size: 643835514
         $dtype: float16
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       encoder_config:
         $kind: resource
         $file: multilingual/encoder/config.json
@@ -115,9 +118,9 @@ laya:
         $sha256: 83f6916d13ef0f556ac461f28308dc2bffa7ebeadee8ec9e2db5812020ea5bb4
         $size: 1938
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       agent_config:
         $kind: resource
         $file: multilingual/rl_agent_config.json
@@ -125,9 +128,9 @@ laya:
         $sha256: 25061739243b617ad88d1219ba6f8a9c86c5881ca28df024fa2d9b3b2fcc30c6
         $size: 472
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       tokenizer:
         $kind: resource
         $file: multilingual/tokenizer/tokenizer.json
@@ -135,9 +138,9 @@ laya:
         $sha256: 609d8f4c067cd3950f88594c5a802616cea245823836ef5848ee4fc40aab5b6f
         $size: 34363188
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       tokenizer_config:
         $kind: resource
         $file: multilingual/tokenizer/tokenizer_config.json
@@ -145,12 +148,13 @@ laya:
         $sha256: 6c6b2d8e3c84ce0e671c129cd6b374b235d6f9863042a5836358d00a89bbb5a1
         $size: 524
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
     laya-typed-decisions:
       $kind: build
-      $description: "Laya, typed decisions: the English model trained on typed questions, prompts of 1024 tokens."
+      $description: "Laya, typed decisions: the English model trained on typed questions, prompts of
+        1024 tokens."
       $license: Apache-2.0
       $origin: https://huggingface.co/convaiinnovations/laya
       $contract: laya-decision
@@ -161,7 +165,7 @@ laya:
         tokenizer: tokenizer
         tokenizer_config: tokenizer_config
       language:
-      - en
+        - en
       parameters: 421000000
       checkpoint:
         $kind: resource
@@ -171,9 +175,9 @@ laya:
         $size: 842609220
         $dtype: float16
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       encoder_config:
         $kind: resource
         $file: typed-decisions/encoder/config.json
@@ -181,9 +185,9 @@ laya:
         $sha256: 5268d24ad3b77c8151de5dcb0762ba4391619aad9ab0bda33e36fb083cfeae6d
         $size: 2084
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       agent_config:
         $kind: resource
         $file: typed-decisions/rl_agent_config.json
@@ -191,9 +195,9 @@ laya:
         $sha256: ebf0cd524d92342a6be5e48e9fca3d7c2babfb5a56ccd79d2171ef5d8c7f7be8
         $size: 847
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       tokenizer:
         $kind: resource
         $file: typed-decisions/tokenizer/tokenizer.json
@@ -201,9 +205,9 @@ laya:
         $sha256: 6c8aaa9a542084f2457eab775d4eeb51f92a70c0fd9de28d5edb0ddec3c08d30
         $size: 3583228
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
       tokenizer_config:
         $kind: resource
         $file: typed-decisions/tokenizer/tokenizer_config.json
@@ -211,6 +215,6 @@ laya:
         $sha256: 08d4cf3ac4dca381759441b85b91a6d40e688471dcd33d15d6649eb0a9a854d1
         $size: 337
         $sources:
-        - $hub:
-            $repo: convaiinnovations/laya
-            $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+          - $hub:
+              $repo: convaiinnovations/laya
+              $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148

@@ -11,7 +11,7 @@ torchvision:
     $kind: build
     $description: TorchVision ResNet-18.
     $join:
-    - resnet
+      - resnet
     $license: bsd-3-clause
     $origin: https://github.com/pytorch/vision
     $contract: resnet-classifier
@@ -22,10 +22,10 @@ torchvision:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 2
-        - 2
-        - 2
-        - 2
+          - 2
+          - 2
+          - 2
+          - 2
         normalization:
           Batch:
             epsilon: 0.00001
@@ -42,12 +42,12 @@ torchvision:
       $size: 46830571
       $dtype: float32
       $sources:
-      - $base_url: https://download.pytorch.org/models
+        - $base_url: https://download.pytorch.org/models
   resnet34:
     $kind: build
     $description: TorchVision ResNet-34.
     $join:
-    - resnet
+      - resnet
     $license: bsd-3-clause
     $origin: https://github.com/pytorch/vision
     $contract: resnet-classifier
@@ -58,10 +58,10 @@ torchvision:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 3
-        - 4
-        - 6
-        - 3
+          - 3
+          - 4
+          - 6
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -78,12 +78,12 @@ torchvision:
       $size: 87319819
       $dtype: float32
       $sources:
-      - $base_url: https://download.pytorch.org/models
+        - $base_url: https://download.pytorch.org/models
   resnet50:
     $kind: build
     $description: TorchVision ResNet-50.
     $join:
-    - resnet
+      - resnet
     $license: bsd-3-clause
     $origin: https://github.com/pytorch/vision
     $contract: resnet-classifier
@@ -95,10 +95,10 @@ torchvision:
         bottleneck_policy:
           pinch_factor: 4
         layers:
-        - 3
-        - 4
-        - 6
-        - 3
+          - 3
+          - 4
+          - 6
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -115,12 +115,12 @@ torchvision:
       $size: 102530333
       $dtype: float32
       $sources:
-      - $base_url: https://download.pytorch.org/models
+        - $base_url: https://download.pytorch.org/models
   resnet101:
     $kind: build
     $description: TorchVision ResNet-101.
     $join:
-    - resnet
+      - resnet
     $license: bsd-3-clause
     $origin: https://github.com/pytorch/vision
     $contract: resnet-classifier
@@ -132,10 +132,10 @@ torchvision:
         bottleneck_policy:
           pinch_factor: 4
         layers:
-        - 3
-        - 4
-        - 23
-        - 3
+          - 3
+          - 4
+          - 23
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -152,12 +152,12 @@ torchvision:
       $size: 178793939
       $dtype: float32
       $sources:
-      - $base_url: https://download.pytorch.org/models
+        - $base_url: https://download.pytorch.org/models
   resnet152:
     $kind: build
     $description: TorchVision ResNet-152.
     $join:
-    - resnet
+      - resnet
     $license: bsd-3-clause
     $origin: https://github.com/pytorch/vision
     $contract: resnet-classifier
@@ -169,10 +169,10 @@ torchvision:
         bottleneck_policy:
           pinch_factor: 4
         layers:
-        - 3
-        - 8
-        - 36
-        - 3
+          - 3
+          - 8
+          - 36
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -189,7 +189,7 @@ torchvision:
       $size: 241627721
       $dtype: float32
       $sources:
-      - $base_url: https://download.pytorch.org/models
+        - $base_url: https://download.pytorch.org/models
 timm:
   $kind: namespace
   $merge: update
@@ -197,7 +197,7 @@ timm:
     $kind: build
     $description: RSB Paper ResNet-18 a1.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -207,10 +207,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 2
-        - 2
-        - 2
-        - 2
+          - 2
+          - 2
+          - 2
+          - 2
         normalization:
           Batch:
             epsilon: 0.00001
@@ -227,13 +227,13 @@ timm:
       $size: 46812648
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
   resnet18_a2:
     $kind: build
     $description: RSB Paper ResNet-18 a2.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -243,10 +243,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 2
-        - 2
-        - 2
-        - 2
+          - 2
+          - 2
+          - 2
+          - 2
         normalization:
           Batch:
             epsilon: 0.00001
@@ -263,13 +263,13 @@ timm:
       $size: 46812648
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
   resnet18_a3:
     $kind: build
     $description: RSB Paper ResNet-18 a3.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -279,10 +279,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 2
-        - 2
-        - 2
-        - 2
+          - 2
+          - 2
+          - 2
+          - 2
         normalization:
           Batch:
             epsilon: 0.00001
@@ -299,13 +299,13 @@ timm:
       $size: 46812648
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
   resnet26:
     $kind: build
     $description: ResNet-26 pretrained on ImageNet.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -316,10 +316,10 @@ timm:
         bottleneck_policy:
           pinch_factor: 4
         layers:
-        - 2
-        - 2
-        - 2
-        - 2
+          - 2
+          - 2
+          - 2
+          - 2
         normalization:
           Batch:
             epsilon: 0.00001
@@ -336,12 +336,12 @@ timm:
       $size: 64129972
       $dtype: float32
       $sources:
-      - $base_url: https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights
+        - $base_url: https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights
   resnet34_a1:
     $kind: build
     $description: RSB Paper ResNet-34 a1.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -351,10 +351,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 3
-        - 4
-        - 6
-        - 3
+          - 3
+          - 4
+          - 6
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -371,13 +371,13 @@ timm:
       $size: 87288056
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
   resnet34_a2:
     $kind: build
     $description: RSB Paper ResNet-34 a2.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -387,10 +387,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 3
-        - 4
-        - 6
-        - 3
+          - 3
+          - 4
+          - 6
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -407,13 +407,13 @@ timm:
       $size: 87288056
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
   resnet34_a3:
     $kind: build
     $description: RSB Paper ResNet-34 a3.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -423,10 +423,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 3
-        - 4
-        - 6
-        - 3
+          - 3
+          - 4
+          - 6
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -443,13 +443,13 @@ timm:
       $size: 87288056
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
   resnet34:
     $kind: build
     $description: ResNet-34 pretrained on ImageNet.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -459,10 +459,10 @@ timm:
         activation: Relu
         bottleneck_policy: null
         layers:
-        - 3
-        - 4
-        - 6
-        - 3
+          - 3
+          - 4
+          - 6
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -479,12 +479,12 @@ timm:
       $size: 87290831
       $dtype: float32
       $sources:
-      - $base_url: https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights
+        - $base_url: https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights
   resnet101_a1:
     $kind: build
     $description: ResNet-101 pretrained on ImageNet.
     $join:
-    - resnet
+      - resnet
     $origin: https://github.com/huggingface/pytorch-image-models
     $contract: resnet-classifier
     $resources:
@@ -495,10 +495,10 @@ timm:
         bottleneck_policy:
           pinch_factor: 4
         layers:
-        - 3
-        - 4
-        - 23
-        - 3
+          - 3
+          - 4
+          - 23
+          - 3
         normalization:
           Batch:
             epsilon: 0.00001
@@ -515,5 +515,5 @@ timm:
       $size: 178703660
       $dtype: float32
       $sources:
-      - $base_url: >-
-          https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights
+        - $base_url: >-
+            https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights

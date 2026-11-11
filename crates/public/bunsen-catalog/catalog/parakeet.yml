@@ -5,9 +5,9 @@ parakeet:
   $description: NVIDIA's Parakeet TDT speech recognizers.
   $facet: family
   $requires:
-  - language
-  - translate
-  - parameters
+    - language
+    - translate
+    - parameters
 fermion:
   $kind: namespace
   $merge: update
@@ -15,14 +15,14 @@ fermion:
     $kind: build
     $description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English."
     $join:
-    - parakeet
+      - parakeet
     $license: CC-BY-4.0
     $origin: https://huggingface.co/FermionResearch/Phonon-2
     $contract: parakeet-asr
     $resources:
       checkpoint: checkpoint
     language:
-    - en
+      - en
     parameters: 600000000
     scores:
       wer.en: 5.21
@@ -34,9 +34,9 @@ fermion:
       $sha256: 98125795b6dda72f5c6eee9ba33d19815df65dcb18b50a357bf9f73c9935309e
       $size: 163515201
       $sources:
-      - $hub:
-          $repo: FermionResearch/Phonon-2
-          $revision: 7e153e4054c0a10db6d47d6fff5c062d4c77c154
+        - $hub:
+            $repo: FermionResearch/Phonon-2
+            $revision: 7e153e4054c0a10db6d47d6fff5c062d4c77c154
   phonon:
     $kind: alias
     $ref:
@@ -49,7 +49,7 @@ nvidia:
     $kind: build
     $description: "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages."
     $join:
-    - parakeet
+      - parakeet
     $license: CC-BY-4.0
     $origin: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
     $contract: parakeet-asr
@@ -57,8 +57,8 @@ nvidia:
       checkpoint: checkpoint
       vocabulary: vocabulary
     language:
-    - en
-    - "*"
+      - en
+      - "*"
     parameters: 600000000
     scores:
       wer.en: 6.32
@@ -71,9 +71,9 @@ nvidia:
       $size: 2508311120
       $dtype: float32
       $sources:
-      - $hub:
-          $repo: nvidia/parakeet-tdt-0.6b-v3
-          $revision: 541d1f99c6b0c3cd0b11a95167540bb8edefd82b
+        - $hub:
+            $repo: nvidia/parakeet-tdt-0.6b-v3
+            $revision: 541d1f99c6b0c3cd0b11a95167540bb8edefd82b
     vocabulary:
       $kind: resource
       $file: tokenizer.json
@@ -81,6 +81,6 @@ nvidia:
       $sha256: bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91
       $size: 1159960
       $sources:
-      - $hub:
-          $repo: nvidia/parakeet-tdt-0.6b-v3
-          $revision: 541d1f99c6b0c3cd0b11a95167540bb8edefd82b
+        - $hub:
+            $repo: nvidia/parakeet-tdt-0.6b-v3
+            $revision: 541d1f99c6b0c3cd0b11a95167540bb8edefd82b

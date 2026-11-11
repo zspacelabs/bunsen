@@ -5,9 +5,9 @@ qwen3-asr:
   $description: Qwen's Qwen3-ASR speech recognizers.
   $facet: family
   $requires:
-  - language
-  - translate
-  - parameters
+    - language
+    - translate
+    - parameters
 fermion:
   $kind: namespace
   $merge: update
@@ -15,7 +15,7 @@ fermion:
     $kind: build
     $description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
     $join:
-    - qwen3-asr
+      - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/FermionResearch/Phonon-1
     $contract: qwen3-asr/stated
@@ -47,7 +47,7 @@ fermion:
           softmax_dtype: F32
           tied_head: true
     language:
-    - en
+      - en
     parameters: 800000000
     scores:
       wer.en: 6.56
@@ -59,14 +59,14 @@ fermion:
       $sha256: 214c3b45aa57257013811a53f99a905848466ad4ab21f2b2f8368f7ac79427b2
       $size: 415077202
       $sources:
-      - $hub:
-          $repo: FermionResearch/Phonon-1
-          $revision: 68f96e309cd19bf5b9b72c0ead80eed92a499eae
+        - $hub:
+            $repo: FermionResearch/Phonon-1
+            $revision: 68f96e309cd19bf5b9b72c0ead80eed92a499eae
   phonon-1-micro:
     $kind: build
     $description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
     $join:
-    - qwen3-asr
+      - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/FermionResearch/Phonon-1-Micro
     $contract: qwen3-asr/stated
@@ -98,7 +98,7 @@ fermion:
           softmax_dtype: F32
           tied_head: true
     language:
-    - en
+      - en
     parameters: 800000000
     translate: false
     checkpoint:
@@ -108,14 +108,14 @@ fermion:
       $sha256: 8a03e55d78e65c10f6ce22aff7e32359ca6a7aaa27973435b9ebc3cdbff13f9c
       $size: 285083584
       $sources:
-      - $hub:
-          $repo: FermionResearch/Phonon-1-Micro
-          $revision: e916a4f8e30ed5c3ddfc1808429f049669bd8bf3
+        - $hub:
+            $repo: FermionResearch/Phonon-1-Micro
+            $revision: e916a4f8e30ed5c3ddfc1808429f049669bd8bf3
   phonon-1-big:
     $kind: build
     $description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
     $join:
-    - qwen3-asr
+      - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/FermionResearch/Phonon-1-Big
     $contract: qwen3-asr/stated
@@ -147,7 +147,7 @@ fermion:
           softmax_dtype: F32
           tied_head: true
     language:
-    - en
+      - en
     parameters: 800000000
     translate: false
     checkpoint:
@@ -157,9 +157,9 @@ fermion:
       $sha256: 5dbd566d022a05bac045d1e84f0bf6188999494070e2a00dc5fd1bac6caffdb9
       $size: 580892956
       $sources:
-      - $hub:
-          $repo: FermionResearch/Phonon-1-Big
-          $revision: 74ec0333ac8a5ede5e855489c069ef763bc99edb
+        - $hub:
+            $repo: FermionResearch/Phonon-1-Big
+            $revision: 74ec0333ac8a5ede5e855489c069ef763bc99edb
 qwen:
   $kind: namespace
   $merge: update
@@ -167,7 +167,7 @@ qwen:
     $kind: build
     $description: "Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages."
     $join:
-    - qwen3-asr
+      - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf
     $contract: qwen3-asr/stated
@@ -200,9 +200,9 @@ qwen:
           softmax_dtype: F32
           tied_head: true
     language:
-    - en
-    - zh
-    - "*"
+      - en
+      - zh
+      - "*"
     parameters: 800000000
     scores:
       wer.en: 6.31
@@ -215,9 +215,9 @@ qwen:
       $size: 1564928088
       $dtype: bfloat16
       $sources:
-      - $hub:
-          $repo: Qwen/Qwen3-ASR-0.6B-hf
-          $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-0.6B-hf
+            $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
     vocabulary:
       $kind: resource
       $file: tokenizer.json
@@ -225,14 +225,14 @@ qwen:
       $sha256: fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05
       $size: 11429653
       $sources:
-      - $hub:
-          $repo: Qwen/Qwen3-ASR-0.6B-hf
-          $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-0.6B-hf
+            $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
   qwen3-asr-1.7b:
     $kind: build
     $description: "Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages."
     $join:
-    - qwen3-asr
+      - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf
     $contract: qwen3-asr/stated
@@ -265,9 +265,9 @@ qwen:
           softmax_dtype: F32
           tied_head: true
     language:
-    - en
-    - zh
-    - "*"
+      - en
+      - zh
+      - "*"
     parameters: 2000000000
     scores:
       wer.en: 5.76
@@ -280,9 +280,9 @@ qwen:
       $size: 4076193080
       $dtype: bfloat16
       $sources:
-      - $hub:
-          $repo: Qwen/Qwen3-ASR-1.7B-hf
-          $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-1.7B-hf
+            $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
     vocabulary:
       $kind: resource
       $file: tokenizer.json
@@ -290,6 +290,6 @@ qwen:
       $sha256: fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05
       $size: 11429653
       $sources:
-      - $hub:
-          $repo: Qwen/Qwen3-ASR-1.7B-hf
-          $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-1.7B-hf
+            $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3

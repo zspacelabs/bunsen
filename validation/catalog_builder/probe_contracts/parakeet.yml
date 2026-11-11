@@ -5,9 +5,9 @@ parakeet:
   $facet: family
   $description: NVIDIA's Parakeet TDT speech recognizers.
   $requires:
-  - language
-  - translate
-  - parameters
+    - language
+    - translate
+    - parameters
 fermion:
   $kind: namespace
   $merge: update
@@ -18,10 +18,10 @@ fermion:
     $origin: https://huggingface.co/FermionResearch/Phonon-2
     $contract: parakeet-asr
     $join:
-    - parakeet
+      - parakeet
     parameters: 600000000
     language:
-    - en
+      - en
     translate: false
     scores:
       wer.en: 5.21
@@ -49,11 +49,11 @@ nvidia:
     $origin: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
     $contract: parakeet-asr
     $join:
-    - parakeet
+      - parakeet
     parameters: 600000000
     language:
-    - en
-    - "*"
+      - en
+      - "*"
     translate: false
     scores:
       wer.en: 6.32

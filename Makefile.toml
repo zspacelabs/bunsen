@@ -26,7 +26,7 @@ cargo metadata --no-deps --format-version 1 \
 '''
 
 [tasks.setup]
-dependencies = ["ensure-mdbook-suite"]
+dependencies = ["ensure-mdbook-suite", "ensure-ryl"]
 
 # ── individual tasks ──────────────────────────────────────────────────────────
 
@@ -45,6 +45,20 @@ toolchain = "nightly"
 install_crate = "rustfmt"
 command = "cargo"
 args = ["fmt"]
+
+[tasks.check-yaml]
+description = "Check the YAML: formatted as ryl writes it, and within its lint rules (`.ryl.toml`)"
+dependencies = ["ensure-ryl"]
+script = '''
+ryl format --check .
+ryl check .
+'''
+
+[tasks.format-yaml]
+description = "Format the YAML as ryl writes it (`.ryl.toml`)"
+dependencies = ["ensure-ryl"]
+command = "ryl"
+args = ["format", "."]
 
 [tasks.clippy]
 description = "Lint (treat warnings as errors)"
@@ -222,6 +236,7 @@ args = ["tools/exercise_asr.py", "all", "${@}"]
 dependencies = [
     "clippy-fix",
     "format",
+    "format-yaml",
 ]
 
 [tasks.tests-all]
@@ -232,6 +247,7 @@ dependencies = ["test"]
 description = "Full CI validation (mirrors GitHub Actions)"
 dependencies = [
     "check-format",
+    "check-yaml",
     "clippy",
     "tests-all",
 ]
@@ -305,3 +321,13 @@ args = ["install", "mdbook-mermaid", "--version", "0.17.1", "--locked"]
 toolchain = "stable"
 command = "cargo"
 args = ["install", "mdbook-rustdoc-links", "--version", "3.0.2", "--locked"]
+
+# ── ryl ───────────────────────────────────────────────────────────────────────
+
+# ryl's prebuilt binary, through cargo-binstall: a no-op when the pinned
+# version is installed. Keep the version in step with ci.yml's.
+[tasks.ensure-ryl]
+toolchain = "stable"
+install_crate = { crate_name = "cargo-binstall", binary = "cargo-binstall", test_arg = "-V" }
+command = "cargo"
+args = ["binstall", "ryl@0.29.0", "--no-confirm", "--disable-strategies", "compile"]

@@ -3,8 +3,8 @@
 # the medium models, but not for Voxtral.
 extends: medium-core
 include:
-  - {crate: qwen3, model: qwen3-1.7b}   # one more geometry, while it is cheap
+  - { crate: qwen3, model: qwen3-1.7b }  # one more geometry, while it is cheap
 deny:
-  - {crate: voxtral}
-dtypes: [f32, bf16]   # bf16 checks run on cuda alone
+  - { crate: voxtral }
+dtypes: [f32, bf16]  # bf16 checks run on cuda alone
 backend: cuda

@@ -40,7 +40,8 @@ crates:
         core: true
         reference: true
         dtypes: [f32, bf16]
-        varies: the tied head, the ONNX reference (2.4 GB), the thinking chat template and its sessions; the long bf16 report (`long_bf16::`)
+        varies: the tied head, the ONNX reference (2.4 GB), the thinking chat template and its
+          sessions; the long bf16 report (`long_bf16::`)
       qwen3-1.7b:
         size: medium
         gb: 4.1
@@ -58,13 +59,15 @@ crates:
         gb: 8.0
         core: false
         dtypes: [f32]
-        varies: a rotary base of 5e6 (a config value the config tests read), the non-thinking template and its sessions
+        varies: a rotary base of 5e6 (a config value the config tests read), the non-thinking
+          template and its sessions
       qwen3-8b:
         size: large
         gb: 16.4
         core: true
         dtypes: [bf16]
-        varies: the untied output head (`tie_word_embeddings` false); bf16 on cuda alone, too large for float32 on 24 GB
+        varies: the untied output head (`tie_word_embeddings` false); bf16 on cuda alone, too large
+          for float32 on 24 GB
 
   gemma:
     package: gemma-model-validation
@@ -75,7 +78,8 @@ crates:
         gb: 0.5
         core: true
         dtypes: [f32]
-        varies: Gemma 3 at its smallest - the sandwich, QK-norm, the 5:1 pattern and its two rotary tables, the scaled embedding, the tied head; a decode past its window (512)
+        varies: Gemma 3 at its smallest - the sandwich, QK-norm, the 5:1 pattern and its two rotary
+          tables, the scaled embedding, the tied head; a decode past its window (512)
       gemma-3-1b-pt:
         size: medium
         gb: 2.0
@@ -87,37 +91,46 @@ crates:
         gb: 8.6
         core: true
         dtypes: [f32]
-        varies: the linear x8 global table, grouped-query heads, the multimodal checkpoint's text model (its tower dropped), a window of 1024
+        varies: the linear x8 global table, grouped-query heads, the multimodal checkpoint's text
+          model (its tower dropped), a window of 1024
       gemma-2-2b:
         size: large
         gb: 10.5
         core: true
         dtypes: [f32]
-        varies: Gemma 2 - the attention and final soft-caps, alternating layers, one table; stored in f32 on disk; a decode past its window (4096)
+        varies: Gemma 2 - the attention and final soft-caps, alternating layers, one table; stored
+          in f32 on disk; a decode past its window (4096)
       gemma-2-9b:
         size: large
         gb: 18.5
         core: true
         dtypes: [bf16]
-        varies: Gemma 2 in bf16 on cuda alone (too large for float32 on 24 GB), where bunsen's bf16 norms are measured against transformers'
+        varies: Gemma 2 in bf16 on cuda alone (too large for float32 on 24 GB), where bunsen's bf16
+          norms are measured against transformers'
       gemma-2-9b-it:
         size: large
         gb: 18.5
         core: true
         dtypes: [bf16]
-        varies: the instruction-tuned Gemma 2 9B in bf16 on cuda alone (too large for float32 on 24 GB), at the end of the long conversation
+        varies: the instruction-tuned Gemma 2 9B in bf16 on cuda alone (too large for float32 on 24
+          GB), at the end of the long conversation
       gemma-3-1b-it:
         size: medium
         gb: 2.0
         core: true
         dtypes: [f32, bf16]
-        varies: the instruction-tuned Gemma 3 - its greedy decode, the long conversation in f32 and bf16 (bf16 on cuda alone), chat sessions against transformers' replies (stopping at the end of a turn), the tokenizer and the chat template that folds a system turn into the first user turn
+        varies: the instruction-tuned Gemma 3 - its greedy decode, the long conversation in f32 and
+          bf16 (bf16 on cuda alone), chat sessions against transformers' replies (stopping at the
+          end of a turn), the tokenizer and the chat template that folds a system turn into the
+          first user turn
       gemma-2-2b-it:
         size: medium
         gb: 5.2
         core: true
         dtypes: [f32, bf16]
-        varies: the instruction-tuned Gemma 2 - its greedy decode and the long conversation in f32 (on the CPU, as its table binds no wgpu buffer) and bf16 (on cuda alone), chat sessions against transformers' replies, Gemma 2's chat template, which refuses a system turn
+        varies: the instruction-tuned Gemma 2 - its greedy decode and the long conversation in f32
+          (on the CPU, as its table binds no wgpu buffer) and bf16 (on cuda alone), chat sessions
+          against transformers' replies, Gemma 2's chat template, which refuses a system turn
 
   qwen3-5:
     package: qwen3-5-model-validation
@@ -128,7 +141,9 @@ crates:
         gb: 1.8
         core: true
         dtypes: [f32]
-        varies: the dense Qwen3.5 hybrid at its smallest - gated DeltaNet layers, every fourth layer gated full attention with partial rotary, equal linear key and value heads, the tied head; a prefill of several delta-rule chunks
+        varies: the dense Qwen3.5 hybrid at its smallest - gated DeltaNet layers, every fourth layer
+          gated full attention with partial rotary, equal linear key and value heads, the tied head;
+          a prefill of several delta-rule chunks
       qwen3.5-2b:
         size: medium
         gb: 4.6
@@ -140,7 +155,8 @@ crates:
         gb: 9.4
         core: true
         dtypes: [f32]
-        varies: linear value heads twice the key heads (the queries and keys repeated), two shards; on the CPU, as its f32 table binds no wgpu buffer
+        varies: linear value heads twice the key heads (the queries and keys repeated), two shards;
+          on the CPU, as its f32 table binds no wgpu buffer
       qwen3.5-9b:
         size: large
         gb: 19.4
@@ -159,7 +175,8 @@ crates:
         core: true
         reference: true
         dtypes: [f32]
-        varies: the only model - its ONNX graph (both rates), the bundle, the kits' recording, the stream
+        varies: the only model - its ONNX graph (both rates), the bundle, the kits' recording, the
+          stream
   whisper:
     package: whisper-model-validation
     features: [checkpoints, gpu-tests]
@@ -171,13 +188,15 @@ crates:
         core: true
         reference: true
         dtypes: [f32]
-        varies: the OpenAI layout and its decodes, the ONNX reference, the bundle, the transformers conversion
+        varies: the OpenAI layout and its decodes, the ONNX reference, the bundle, the transformers
+          conversion
       openai/tiny:
         size: small
         gb: 0.08
         core: false
         dtypes: [f32]
-        varies: base's architecture, smaller - the stream driver against its one-shot decode, which CI runs
+        varies: base's architecture, smaller - the stream driver against its one-shot decode, which
+          CI runs
   sortformer:
     package: sortformer-model-validation
     features: [checkpoints, gpu-tests]
@@ -189,14 +208,16 @@ crates:
         core: true
         reference: true
         dtypes: [f32]
-        varies: Nemotron-3's feature stacking, its ONNX reference, the streaming presets against NeMo
+        varies: Nemotron-3's feature stacking, its ONNX reference, the streaming presets against
+          NeMo
       sortformer-v2.1:
         size: small
         gb: 1.0
         core: true
         reference: true
         dtypes: [f32]
-        varies: the streaming v2 family from its .nemo, its ONNX reference, the latencies against NeMo
+        varies: the streaming v2 family from its .nemo, its ONNX reference, the latencies against
+          NeMo
       sortformer-v2:
         size: small
         gb: 0.5
@@ -208,7 +229,8 @@ crates:
         gb: 0.7
         core: false
         dtypes: [f32]
-        varies: not a row - speakers over the Parakeet (Phonon-2), Qwen3-ASR (Phonon-1) and Whisper (base) engines, with Nemotron's diarizer
+        varies: not a row - speakers over the Parakeet (Phonon-2), Qwen3-ASR (Phonon-1) and Whisper
+          (base) engines, with Nemotron's diarizer
 
   parakeet:
     package: parakeet-model-validation
@@ -220,14 +242,16 @@ crates:
         gb: 0.2
         core: true
         dtypes: [f32]
-        varies: the Fermion archive path (a fine-tune on parakeet-tdt-0.6b-v3's architecture), held to its own transformers decode
+        varies: the Fermion archive path (a fine-tune on parakeet-tdt-0.6b-v3's architecture), held
+          to its own transformers decode
       nvidia/parakeet-tdt-0.6b-v3:
         size: medium
         gb: 5.0
         core: true
         reference: true
         dtypes: [f32]
-        varies: NVIDIA's base weights, the ONNX reference (2.5 GB), stage by stage, the stream driver
+        varies: NVIDIA's base weights, the ONNX reference (2.5 GB), stage by stage, the stream
+          driver
 
   qwen3-asr:
     package: qwen3-asr-model-validation
@@ -239,7 +263,8 @@ crates:
         gb: 0.4
         core: true
         dtypes: [f32]
-        varies: the Fermion archive path (a fine-tune on Qwen3-ASR-0.6B's architecture), and its stream driver
+        varies: the Fermion archive path (a fine-tune on Qwen3-ASR-0.6B's architecture), and its
+          stream driver
       fermion/phonon-1-micro:
         size: small
         gb: 0.3
@@ -258,7 +283,8 @@ crates:
         core: true
         reference: true
         dtypes: [f32]
-        varies: Qwen's base weights, the ONNX reference (3.8 GB), stage by stage, the alignment heads
+        varies: Qwen's base weights, the ONNX reference (3.8 GB), stage by stage, the alignment
+          heads
 
   nanochat:
     package: nanochat-model-validation
@@ -269,13 +295,15 @@ crates:
         gb: 2.1
         core: true
         dtypes: [f32, bf16]
-        varies: upstream's 2025 model (nanochat-students/rl-d20), its tokenizer, chat sessions, bf16 sampling
+        varies: upstream's 2025 model (nanochat-students/rl-d20), its tokenizer, chat sessions, bf16
+          sampling
       nanochat-d18-sft:
         size: medium
         gb: 2.1
         core: true
         dtypes: [f32, bf16]
-        varies: upstream's 2026 model (nitishpandey04/nanochat-d18-sft) - smear, value embeddings, windows - its tokenizer, chat sessions
+        varies: upstream's 2026 model (nitishpandey04/nanochat-d18-sft) - smear, value embeddings,
+          windows - its tokenizer, chat sessions
       nanochat-d20-base:
         size: medium
         gb: 2.1
@@ -305,7 +333,8 @@ crates:
         core: true
         reference: true
         dtypes: [f32]
-        varies: the only model - its ONNX reference (19.4 GB), the front end, the tekken vocabulary, streaming transcription
+        varies: the only model - its ONNX reference (19.4 GB), the front end, the tekken vocabulary,
+          streaming transcription
   laya:
     package: laya-model-validation
     features: [checkpoints, gpu-tests]
@@ -315,13 +344,15 @@ crates:
         gb: 0.85
         core: true
         dtypes: [f32]
-        varies: the English model - ModernBERT-large (global and two-sided local layers, two rotary bases), the decision head, ModernBERT's tokenizer, a state cut to 512 tokens
+        varies: the English model - ModernBERT-large (global and two-sided local layers, two rotary
+          bases), the decision head, ModernBERT's tokenizer, a state cut to 512 tokens
       laya-multilingual:
         size: small
         gb: 0.68
         core: true
         dtypes: [f32]
-        varies: mmBERT-base (one rotary base, a 256k vocabulary), Gemma's SentencePiece tokenizer and its `<mask>` specials, a non-English state, a state cut to 1024 tokens
+        varies: mmBERT-base (one rotary base, a 256k vocabulary), Gemma's SentencePiece tokenizer
+          and its `<mask>` specials, a non-English state, a state cut to 1024 tokens
       laya-typed-decisions:
         size: small
         gb: 0.85

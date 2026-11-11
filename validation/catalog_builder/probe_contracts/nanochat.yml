@@ -5,24 +5,25 @@ nanochat:
   $facet: family
   $description: "karpathy's nanochat GPT: community runs of upstream's 2025 and 2026 models."
   $requires:
-  - instruct
-  - thinking
-  - reasoning
-  - language
-  - parameters
+    - instruct
+    - thinking
+    - reasoning
+    - language
+    - parameters
 nanochat-students:
   $kind: namespace
   $merge: update
   base-d20:
     $kind: build
-    $description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base."
+    $description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model,
+      561M, base."
     $license: Apache-2.0
     $origin: https://huggingface.co/nanochat-students/base-d20
     $contract: nanochat-lm
     $join:
-    - nanochat
+      - nanochat
     language:
-    - en
+      - en
     instruct: false
     reasoning: false
     parameters: 561000000
@@ -38,7 +39,7 @@ nanochat-students:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -66,14 +67,15 @@ nanochat-students:
       $kind: build
   mid-d20:
     $kind: build
-    $description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format."
+    $description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M,
+      chat format."
     $license: Apache-2.0
     $origin: https://huggingface.co/nanochat-students/mid-d20
     $contract: nanochat-lm
     $join:
-    - nanochat
+      - nanochat
     language:
-    - en
+      - en
     instruct: true
     reasoning: false
     parameters: 561000000
@@ -89,7 +91,7 @@ nanochat-students:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -117,14 +119,15 @@ nanochat-students:
       $kind: build
   rl-d20:
     $kind: build
-    $description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat."
+    $description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model,
+      561M, chat."
     $license: Apache-2.0
     $origin: https://huggingface.co/nanochat-students/rl-d20
     $contract: nanochat-lm
     $join:
-    - nanochat
+      - nanochat
     language:
-    - en
+      - en
     instruct: true
     reasoning: true
     parameters: 561000000
@@ -140,7 +143,7 @@ nanochat-students:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -171,14 +174,15 @@ nitishpandey04:
   $merge: update
   nanochat-d18-base:
     $kind: build
-    $description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base."
+    $description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M,
+      base."
     $license: MIT
     $origin: https://huggingface.co/nitishpandey04/nanochat-d18-base
     $contract: nanochat-lm
     $join:
-    - nanochat
+      - nanochat
     language:
-    - en
+      - en
     instruct: false
     reasoning: false
     parameters: 702000000
@@ -194,7 +198,7 @@ nitishpandey04:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -221,9 +225,9 @@ nitishpandey04:
     $origin: https://huggingface.co/nitishpandey04/nanochat-d18-sft
     $contract: nanochat-lm
     $join:
-    - nanochat
+      - nanochat
     language:
-    - en
+      - en
     instruct: true
     reasoning: false
     parameters: 702000000
@@ -239,7 +243,7 @@ nitishpandey04:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."

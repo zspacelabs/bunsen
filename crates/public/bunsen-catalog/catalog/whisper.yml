@@ -8,22 +8,23 @@ openai:
     $description: OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them.
     $facet: family
     $requires:
-    - language
-    - translate
-    - parameters
+      - language
+      - translate
+      - parameters
     multilingual:
       $kind: template_class
-      $description: "The multilingual checkpoints that translate: transcribe in the speech's own language, or translate to English."
+      $description: "The multilingual checkpoints that translate: transcribe in the speech's own
+        language, or translate to English."
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       translate: true
       $presets:
         $axes:
           task:
             $offers:
-            - transcribe
-            - translate
+              - transcribe
+              - translate
             $default: transcribe
         transcribe:
           $description: emit the speech in its own language
@@ -40,8 +41,8 @@ openai:
       $sha256: 306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930
       $size: 835554
       $sources:
-      - $base_url: >-
-          https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets
+        - $base_url: >-
+            https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets
     multilingual.tiktoken:
       $kind: resource
       $file: multilingual.tiktoken
@@ -49,8 +50,8 @@ openai:
       $sha256: b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126
       $size: 816730
       $sources:
-      - $base_url: >-
-          https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets
+        - $base_url: >-
+            https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets
     large:
       $kind: namespace
       $description: The large Whisper models.
@@ -61,8 +62,8 @@ openai:
         $kind: build
         $description: 1550 M parameters, multilingual.
         $join:
-        - $group: release
-          $released: 2022-09
+          - $group: release
+            $released: 2022-09
         $template_class: multilingual
         $license: MIT
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
@@ -79,19 +80,19 @@ openai:
           $size: 3086999982
           $dtype: float16
           $sources:
-          - $local_dir:
-              $name: openai-whisper
-              $default:
-              - $XDG_CACHE_HOME/whisper
-              - ~/.cache/whisper
-          - $base_url: >-
-              https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a
+            - $local_dir:
+                $name: openai-whisper
+                $default:
+                  - $XDG_CACHE_HOME/whisper
+                  - ~/.cache/whisper
+            - $base_url: >-
+                https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a
       large-v2:
         $kind: build
         $description: 1550 M parameters, multilingual.
         $join:
-        - $group: release
-          $released: 2022-12
+          - $group: release
+            $released: 2022-12
         $template_class: multilingual
         $license: MIT
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
@@ -108,19 +109,19 @@ openai:
           $size: 3086999982
           $dtype: float16
           $sources:
-          - $local_dir:
-              $name: openai-whisper
-              $default:
-              - $XDG_CACHE_HOME/whisper
-              - ~/.cache/whisper
-          - $base_url: >-
-              https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524
+            - $local_dir:
+                $name: openai-whisper
+                $default:
+                  - $XDG_CACHE_HOME/whisper
+                  - ~/.cache/whisper
+            - $base_url: >-
+                https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524
       large-v3:
         $kind: build
         $description: 1550 M parameters, multilingual, 128 mels.
         $join:
-        - $group: release
-          $released: "2023-11-06"
+          - $group: release
+            $released: "2023-11-06"
         $template_class: multilingual
         $license: MIT
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
@@ -139,13 +140,13 @@ openai:
           $size: 3087371615
           $dtype: float16
           $sources:
-          - $local_dir:
-              $name: openai-whisper
-              $default:
-              - $XDG_CACHE_HOME/whisper
-              - ~/.cache/whisper
-          - $base_url: >-
-              https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb
+            - $local_dir:
+                $name: openai-whisper
+                $default:
+                  - $XDG_CACHE_HOME/whisper
+                  - ~/.cache/whisper
+            - $base_url: >-
+                https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb
       large:
         $kind: alias
         $ref:
@@ -161,8 +162,8 @@ openai:
           checkpoint: checkpoint
           vocabulary: multilingual.tiktoken
         language:
-        - en
-        - "*"
+          - en
+          - "*"
         parameters: 809000000
         scores:
           wer.en: 7.83
@@ -175,13 +176,13 @@ openai:
           $size: 1617941637
           $dtype: float16
           $sources:
-          - $local_dir:
-              $name: openai-whisper
-              $default:
-              - $XDG_CACHE_HOME/whisper
-              - ~/.cache/whisper
-          - $base_url: >-
-              https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a
+            - $local_dir:
+                $name: openai-whisper
+                $default:
+                  - $XDG_CACHE_HOME/whisper
+                  - ~/.cache/whisper
+            - $base_url: >-
+                https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a
       turbo:
         $kind: alias
         $ref:
@@ -197,7 +198,7 @@ openai:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
       language:
-      - en
+        - en
       parameters: 39000000
       translate: false
       checkpoint:
@@ -208,13 +209,13 @@ openai:
         $size: 75571315
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03
     tiny:
       $kind: build
       $description: 39 M parameters, multilingual.
@@ -234,13 +235,13 @@ openai:
         $size: 75572083
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9
     base.en:
       $kind: build
       $description: 74 M parameters, English-only.
@@ -251,7 +252,7 @@ openai:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
       language:
-      - en
+        - en
       parameters: 74000000
       translate: false
       checkpoint:
@@ -262,13 +263,13 @@ openai:
         $size: 145261783
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead
     base:
       $kind: build
       $description: 74 M parameters, multilingual.
@@ -288,13 +289,13 @@ openai:
         $size: 145262807
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e
     small.en:
       $kind: build
       $description: 244 M parameters, English-only.
@@ -305,7 +306,7 @@ openai:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
       language:
-      - en
+        - en
       parameters: 244000000
       translate: false
       checkpoint:
@@ -316,13 +317,13 @@ openai:
         $size: 483615683
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872
     small:
       $kind: build
       $description: 244 M parameters, multilingual.
@@ -342,13 +343,13 @@ openai:
         $size: 483617219
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794
     medium.en:
       $kind: build
       $description: 769 M parameters, English-only.
@@ -359,7 +360,7 @@ openai:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
       language:
-      - en
+        - en
       parameters: 769000000
       translate: false
       checkpoint:
@@ -370,13 +371,13 @@ openai:
         $size: 1528006491
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f
     medium:
       $kind: build
       $description: 769 M parameters, multilingual.
@@ -396,10 +397,10 @@ openai:
         $size: 1528008539
         $dtype: float16
         $sources:
-        - $local_dir:
-            $name: openai-whisper
-            $default:
-            - $XDG_CACHE_HOME/whisper
-            - ~/.cache/whisper
-        - $base_url: >-
-            https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1
+          - $local_dir:
+              $name: openai-whisper
+              $default:
+                - $XDG_CACHE_HOME/whisper
+                - ~/.cache/whisper
+          - $base_url: >-
+              https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1

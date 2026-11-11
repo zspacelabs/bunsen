@@ -8,9 +8,9 @@ mistralai:
     $description: Mistral's Voxtral Realtime speech recognizers.
     $facet: family
     $requires:
-    - language
-    - translate
-    - parameters
+      - language
+      - translate
+      - parameters
     voxtral-mini-4b-realtime-2602:
       $kind: build
       $description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming."
@@ -45,8 +45,8 @@ mistralai:
             rope_theta: 1000000
             sliding_window: 8192
       language:
-      - en
-      - "*"
+        - en
+        - "*"
       parameters: 4400000000
       translate: false
       checkpoint:
@@ -57,9 +57,9 @@ mistralai:
         $size: 8859446848
         $dtype: bfloat16
         $sources:
-        - $hub:
-            $repo: mistralai/Voxtral-Mini-4B-Realtime-2602
-            $revision: 2769294da9567371363522aac9bbcfdd19447add
+          - $hub:
+              $repo: mistralai/Voxtral-Mini-4B-Realtime-2602
+              $revision: 2769294da9567371363522aac9bbcfdd19447add
       vocabulary:
         $kind: resource
         $file: tekken.json
@@ -67,9 +67,9 @@ mistralai:
         $sha256: 8434af1d39eba99f0ef46cf1450bf1a63fa941a26933a1ef5dbbf4adf0d00e44
         $size: 14910348
         $sources:
-        - $hub:
-            $repo: mistralai/Voxtral-Mini-4B-Realtime-2602
-            $revision: 2769294da9567371363522aac9bbcfdd19447add
+          - $hub:
+              $repo: mistralai/Voxtral-Mini-4B-Realtime-2602
+              $revision: 2769294da9567371363522aac9bbcfdd19447add
     voxtral-mini-4b-realtime:
       $kind: alias
       $ref:

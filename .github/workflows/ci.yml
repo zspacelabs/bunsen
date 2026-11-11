@@ -2,7 +2,7 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   # Every pull request, whatever its base: a layer of a stack targets the
   # layer below it, not main, and gets its checks while it waits.
   pull_request:
@@ -13,14 +13,16 @@ on:
     # comes off, as it does when the layer is retargeted to main before it
     # merges. A skipped job passes a required check, so the label comes off
     # before a merge.
-    types: [ opened, synchronize, reopened, labeled, unlabeled ]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 # A push to a pull request cancels that pull request's run still in
 # progress, as does adding or removing `ci-light`; each push to main runs in
 # a group of its own, and is never cancelled. Another label's event is a
 # group of its own too, which cancels nothing, and its jobs all skip.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light' && format('-{0}', github.run_id) || '' }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}${{
+    (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+    github.event.label.name != 'ci-light' && format('-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 env:
@@ -36,18 +38,27 @@ jobs:
   fmt:
     name: Format
     # Not for another label's event.
-    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light') }}
+    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+      github.event.label.name != 'ci-light') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install nightly --profile minimal --component rustfmt
       # No cache: `cargo fmt` parses, it does not compile.
       - run: cargo +nightly fmt -- --check
+      # The YAML, as `cargo make check-yaml` checks it. Keep the version in step
+      # with `Makefile.toml`'s `ensure-ryl`.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: ryl@0.29.0
+      - run: ryl format --check .
+      - run: ryl check .
 
   clippy:
     name: Clippy
     # Not for another label's event.
-    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light') }}
+    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+      github.event.label.name != 'ci-light') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,7 +85,7 @@ jobs:
           prefix-key: v1-rust
           cache-targets: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
           cache-key-prefix: kache3-clippy
@@ -86,7 +97,8 @@ jobs:
   book:
     name: Book
     # Not for another label's event.
-    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'ci-light') }}
+    if: ${{ !((github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+      github.event.label.name != 'ci-light') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -100,7 +112,7 @@ jobs:
           prefix-key: v1-rust
           cache-targets: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
           cache-key-prefix: kache3-book
@@ -147,7 +159,8 @@ jobs:
       - name: Free disk
         run: |
           df -h /
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL
           df -h /
 
       - name: Install Toolchain
@@ -192,7 +205,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: kache
-        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
           cache-key-prefix: kache3-test
@@ -263,7 +276,8 @@ jobs:
         run: |
           features=$(cargo metadata --no-deps --format-version 1 \
             | jq -r '.packages[] | select(.name == "bunsen") | .features | keys[]
-                     | select(. != "default" and (IN("cuda", "metal", "vulkan", "wgpu", "flex") | not))')
+                     | select(. != "default"
+                              and (IN("cuda", "metal", "vulkan", "wgpu", "flex") | not))')
           for feature in $features; do
             echo "::group::$feature"
             cargo check -p bunsen --no-default-features --features "$feature"

@@ -5,19 +5,20 @@ nanochat:
   $description: "karpathy's nanochat GPT: community runs of upstream's 2025 and 2026 models."
   $facet: family
   $requires:
-  - instruct
-  - thinking
-  - reasoning
-  - language
-  - parameters
+    - instruct
+    - thinking
+    - reasoning
+    - language
+    - parameters
 nanochat-students:
   $kind: namespace
   $merge: update
   base-d20:
     $kind: build
-    $description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base."
+    $description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model,
+      561M, base."
     $join:
-    - nanochat
+      - nanochat
     $license: Apache-2.0
     $origin: https://huggingface.co/nanochat-students/base-d20
     $contract: nanochat-lm
@@ -28,14 +29,14 @@ nanochat-students:
       tokenizer: tokenizer
     instruct: false
     language:
-    - en
+      - en
     parameters: 561000000
     reasoning: false
     $presets:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -47,9 +48,9 @@ nanochat-students:
       $size: 2076230219
       $dtype: bfloat16
       $sources:
-      - $hub:
-          $repo: nanochat-students/base-d20
-          $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
+        - $hub:
+            $repo: nanochat-students/base-d20
+            $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
     meta:
       $kind: resource
       $file: meta_021400.json
@@ -57,9 +58,9 @@ nanochat-students:
       $sha256: a34a9b144a30d2a8066e64a91b7becc8579ea355c075e20427c28afb83ef106c
       $size: 762
       $sources:
-      - $hub:
-          $repo: nanochat-students/base-d20
-          $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
+        - $hub:
+            $repo: nanochat-students/base-d20
+            $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
     tokenizer:
       $kind: resource
       $file: tokenizer.pkl
@@ -67,9 +68,9 @@ nanochat-students:
       $sha256: 8467414b90511a50c4dac438af25c075817e9d62d799a5ef613b186c977f5d1b
       $size: 846518
       $sources:
-      - $hub:
-          $repo: nanochat-students/base-d20
-          $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
+        - $hub:
+            $repo: nanochat-students/base-d20
+            $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
     token_bytes:
       $kind: resource
       $file: token_bytes.pt
@@ -77,9 +78,9 @@ nanochat-students:
       $sha256: e1b6cdee5d02fe1018b2b1d2ae5b736be665f9c0e7d10c81dcf935e7efaf8cb5
       $size: 263721
       $sources:
-      - $hub:
-          $repo: nanochat-students/base-d20
-          $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
+        - $hub:
+            $repo: nanochat-students/base-d20
+            $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
   nanochat-d20-base:
     $kind: alias
     $ref:
@@ -87,9 +88,10 @@ nanochat-students:
       $kind: build
   mid-d20:
     $kind: build
-    $description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format."
+    $description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M,
+      chat format."
     $join:
-    - nanochat
+      - nanochat
     $license: Apache-2.0
     $origin: https://huggingface.co/nanochat-students/mid-d20
     $contract: nanochat-lm
@@ -100,14 +102,14 @@ nanochat-students:
       tokenizer: tokenizer
     instruct: true
     language:
-    - en
+      - en
     parameters: 561000000
     reasoning: false
     $presets:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -119,9 +121,9 @@ nanochat-students:
       $size: 2076230219
       $dtype: bfloat16
       $sources:
-      - $hub:
-          $repo: nanochat-students/mid-d20
-          $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
+        - $hub:
+            $repo: nanochat-students/mid-d20
+            $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
     meta:
       $kind: resource
       $file: meta_000765.json
@@ -129,9 +131,9 @@ nanochat-students:
       $sha256: 1282220593eaf3e120b3e6be0eb3894e054638d46021511ede8d60b074ece58d
       $size: 543
       $sources:
-      - $hub:
-          $repo: nanochat-students/mid-d20
-          $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
+        - $hub:
+            $repo: nanochat-students/mid-d20
+            $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
     tokenizer:
       $kind: resource
       $file: tokenizer.pkl
@@ -139,9 +141,9 @@ nanochat-students:
       $sha256: 8467414b90511a50c4dac438af25c075817e9d62d799a5ef613b186c977f5d1b
       $size: 846518
       $sources:
-      - $hub:
-          $repo: nanochat-students/mid-d20
-          $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
+        - $hub:
+            $repo: nanochat-students/mid-d20
+            $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
     token_bytes:
       $kind: resource
       $file: token_bytes.pt
@@ -149,9 +151,9 @@ nanochat-students:
       $sha256: e1b6cdee5d02fe1018b2b1d2ae5b736be665f9c0e7d10c81dcf935e7efaf8cb5
       $size: 263721
       $sources:
-      - $hub:
-          $repo: nanochat-students/mid-d20
-          $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
+        - $hub:
+            $repo: nanochat-students/mid-d20
+            $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
   nanochat-d20-mid:
     $kind: alias
     $ref:
@@ -159,9 +161,10 @@ nanochat-students:
       $kind: build
   rl-d20:
     $kind: build
-    $description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat."
+    $description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model,
+      561M, chat."
     $join:
-    - nanochat
+      - nanochat
     $license: Apache-2.0
     $origin: https://huggingface.co/nanochat-students/rl-d20
     $contract: nanochat-lm
@@ -172,14 +175,14 @@ nanochat-students:
       tokenizer: tokenizer
     instruct: true
     language:
-    - en
+      - en
     parameters: 561000000
     reasoning: true
     $presets:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -191,9 +194,9 @@ nanochat-students:
       $size: 2076230219
       $dtype: bfloat16
       $sources:
-      - $hub:
-          $repo: nanochat-students/rl-d20
-          $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
+        - $hub:
+            $repo: nanochat-students/rl-d20
+            $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
     meta:
       $kind: resource
       $file: meta_000650.json
@@ -201,9 +204,9 @@ nanochat-students:
       $sha256: 353d774b8548a317a5e71762b775ee8ea506332f9b2acf8dff4fbfd9e813131a
       $size: 839
       $sources:
-      - $hub:
-          $repo: nanochat-students/rl-d20
-          $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
+        - $hub:
+            $repo: nanochat-students/rl-d20
+            $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
     tokenizer:
       $kind: resource
       $file: tokenizer.pkl
@@ -211,9 +214,9 @@ nanochat-students:
       $sha256: 8467414b90511a50c4dac438af25c075817e9d62d799a5ef613b186c977f5d1b
       $size: 846518
       $sources:
-      - $hub:
-          $repo: nanochat-students/rl-d20
-          $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
+        - $hub:
+            $repo: nanochat-students/rl-d20
+            $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
     token_bytes:
       $kind: resource
       $file: token_bytes.pt
@@ -221,9 +224,9 @@ nanochat-students:
       $sha256: e1b6cdee5d02fe1018b2b1d2ae5b736be665f9c0e7d10c81dcf935e7efaf8cb5
       $size: 263721
       $sources:
-      - $hub:
-          $repo: nanochat-students/rl-d20
-          $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
+        - $hub:
+            $repo: nanochat-students/rl-d20
+            $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
   nanochat-d20-rl:
     $kind: alias
     $ref:
@@ -234,9 +237,10 @@ nitishpandey04:
   $merge: update
   nanochat-d18-base:
     $kind: build
-    $description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base."
+    $description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M,
+      base."
     $join:
-    - nanochat
+      - nanochat
     $license: MIT
     $origin: https://huggingface.co/nitishpandey04/nanochat-d18-base
     $contract: nanochat-lm
@@ -247,14 +251,14 @@ nitishpandey04:
       tokenizer: tokenizer
     instruct: false
     language:
-    - en
+      - en
     parameters: 702000000
     reasoning: false
     $presets:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -265,9 +269,9 @@ nitishpandey04:
       $sha256: 979a5ac9ea785da98d38dd9b58bd07d39d06230a6644d1f4e157f045499989b3
       $size: 2052644332
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-base
-          $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-base
+            $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
     meta:
       $kind: resource
       $file: base_checkpoints/d18/meta_003712.json
@@ -275,9 +279,9 @@ nitishpandey04:
       $sha256: 7ecc0e6f4f0315d106d4fb213fec593879456475a21de34b71c329a4a8a4e7b4
       $size: 1338
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-base
-          $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-base
+            $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
     tokenizer:
       $kind: resource
       $file: tokenizer/tokenizer.pkl
@@ -285,9 +289,9 @@ nitishpandey04:
       $sha256: ae73c5f7a960edc56022dfd46a653df2b9b38d84456e5e9f48eb5e02a60c21c2
       $size: 412126
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-base
-          $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-base
+            $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
     token_bytes:
       $kind: resource
       $file: tokenizer/token_bytes.pt
@@ -295,14 +299,14 @@ nitishpandey04:
       $sha256: 009ef93d20dd4684497c19c4b7fed29278b53f20022d2dc39264e27b9eefa2a8
       $size: 132649
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-base
-          $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-base
+            $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
   nanochat-d18-sft:
     $kind: build
     $description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat."
     $join:
-    - nanochat
+      - nanochat
     $license: MIT
     $origin: https://huggingface.co/nitishpandey04/nanochat-d18-sft
     $contract: nanochat-lm
@@ -313,14 +317,14 @@ nitishpandey04:
       tokenizer: tokenizer
     instruct: true
     language:
-    - en
+      - en
     parameters: 702000000
     reasoning: false
     $presets:
       $axes:
         thinking:
           $offers:
-          - no-thinking
+            - no-thinking
           $default: no-thinking
       no-thinking:
         $description: "Answer at once: this model doesn't think."
@@ -331,9 +335,9 @@ nitishpandey04:
       $sha256: 951589ed950a12358d69ab3180c39a237cf24fea80f01a4b6691f90e3bacf17a
       $size: 2052644332
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-sft
-          $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-sft
+            $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
     meta:
       $kind: resource
       $file: chatsft_checkpoints/d18/meta_000478.json
@@ -341,9 +345,9 @@ nitishpandey04:
       $sha256: e0acf64f9e195a42d5de9dc284f5d9a814a0b29d7a48e89f5f96ebb891967028
       $size: 838
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-sft
-          $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-sft
+            $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
     tokenizer:
       $kind: resource
       $file: tokenizer/tokenizer.pkl
@@ -351,9 +355,9 @@ nitishpandey04:
       $sha256: ae73c5f7a960edc56022dfd46a653df2b9b38d84456e5e9f48eb5e02a60c21c2
       $size: 412126
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-sft
-          $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-sft
+            $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
     token_bytes:
       $kind: resource
       $file: tokenizer/token_bytes.pt
@@ -361,6 +365,6 @@ nitishpandey04:
       $sha256: 009ef93d20dd4684497c19c4b7fed29278b53f20022d2dc39264e27b9eefa2a8
       $size: 132649
       $sources:
-      - $hub:
-          $repo: nitishpandey04/nanochat-d18-sft
-          $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
+        - $hub:
+            $repo: nitishpandey04/nanochat-d18-sft
+            $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63

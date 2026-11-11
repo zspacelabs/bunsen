@@ -30,7 +30,10 @@ axes:
     description: "what the speech is"
     members:
       - { name: en, description: "English" }
-      - { name: multi, description: "any language a model finds from the speech; English among them" }
+      - {
+        name: multi,
+        description: "any language a model finds from the speech; English among them",
+       }
   - name: task
     description: "what to make of the speech"
     members:
@@ -54,7 +57,8 @@ presets:
     need: { speech: multi, task: transcribe, quality: balanced }
     selection: { require: { multilingual: true } }
   - name: translate-en
-    description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper (large-v3-turbo was not trained to translate)"
+    description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper
+      (large-v3-turbo was not trained to translate)"
     need: { speech: multi, task: translate, quality: balanced }
     selection: { require: { translate: true } }
 
