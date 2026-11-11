@@ -30,7 +30,7 @@ pub enum CatalogErrorKind {
     Preset,
     /// A release timestamp or release ordering is wrong.
     Release,
-    /// A dependency key or the resource it names is wrong.
+    /// A contract slot, or what a build binds to it, is wrong.
     Dependency,
     /// A lookup by name matched nothing, or more than one entry.
     Lookup,

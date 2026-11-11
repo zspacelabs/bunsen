@@ -63,7 +63,7 @@ use crate::data::pretrained::build_catalog::{
         AxisKind,
         CatalogEntry,
         EntryKind,
-        TagType,
+        Primitive,
     },
     error::CatalogResult,
     lookup::LeafMatch,
@@ -102,21 +102,20 @@ use crate::data::pretrained::build_catalog::{
             match_language,
         },
     },
+    tags::ResolvedType,
 };
 
 /// The kinds a membership name may name.
-pub const MEMBERSHIP_KINDS: [EntryKind; 5] = [
+pub const MEMBERSHIP_KINDS: [EntryKind; 4] = [
     EntryKind::Namespace,
-    EntryKind::Contract,
     EntryKind::Release,
     EntryKind::TemplateClass,
     EntryKind::Build,
 ];
 
 /// The kinds a bare name or a test key may name.
-const NAMED_KINDS: [EntryKind; 8] = [
+const NAMED_KINDS: [EntryKind; 7] = [
     EntryKind::Namespace,
-    EntryKind::Contract,
     EntryKind::Release,
     EntryKind::TemplateClass,
     EntryKind::Build,
@@ -282,6 +281,9 @@ enum ValueKind {
     Time,
     /// A full name, compared as text; written operands are references.
     Name,
+    /// A name that also matches the names nested in it: `eq` holds for the
+    /// operand and its descendants (a contract and its variants).
+    Lineage,
     TextSet,
     Languages,
     Offers(Vec<String>),
@@ -305,7 +307,7 @@ impl ValueKind {
             Self::Text => "text".into(),
             Self::OneOf(choices) => format!("one of {choices:?}"),
             Self::Time => "a release time".into(),
-            Self::Name => "a name".into(),
+            Self::Name | Self::Lineage => "a name".into(),
             Self::TextSet | Self::Languages => "text".into(),
             Self::Offers(members) => format!("one of the axis's members {members:?}"),
             Self::Any => "a value".into(),
@@ -648,6 +650,14 @@ fn compare(
             let b = ReleaseTime::parse(&time_text(b)?).ok()?;
             Some(a.cmp(&b))
         }
+        ValueKind::Lineage => {
+            let (a, b) = (a.as_str()?, b.as_str()?);
+            if a == b || a.strip_prefix(b).is_some_and(|rest| rest.starts_with('/')) {
+                Some(Ordering::Equal)
+            } else {
+                Some(a.cmp(b))
+            }
+        }
         _ => match (a, b) {
             (Value::Number(a), Value::Number(b)) => a.as_f64()?.partial_cmp(&b.as_f64()?),
             (Value::String(a), Value::String(b)) => Some(a.cmp(b)),
@@ -781,7 +791,11 @@ impl Subject {
             Self::Origin => text(build?.build.origin.as_deref()?),
             Self::Parent => text(&row.path.scope()?.to_string()),
             Self::TemplateClass => text(&build?.build.template_chain.last()?.to_string()),
-            Self::Contract => text(&build?.build.contract.as_ref()?.to_string()),
+            Self::Contract => match row.entry {
+                SelectEntry::Build(b) => text(&b.build.contract.as_ref()?.to_string()),
+                SelectEntry::TemplateClass(c) => text(&c.contract.as_ref()?.to_string()),
+                SelectEntry::Declared { .. } => None,
+            },
             Self::Format | Self::Dtype => {
                 let SelectEntry::Declared {
                     entry: CatalogEntry::Resource(r),
@@ -844,7 +858,7 @@ enum Resolved {
     Member(Member),
     BoolAxis(CatalogName),
     CategoricalAxis(CatalogName, Vec<String>),
-    Tag(CatalogName, TagType),
+    Tag(CatalogName, ResolvedType),
     Facet(CatalogName),
 }
 
@@ -1025,15 +1039,17 @@ impl Compiler<'_, '_> {
             } => {
                 self.only(&[EntryKind::Build, EntryKind::TemplateClass], "`match`")?;
                 match self.resolve(tag)? {
-                    Resolved::Tag(tag, TagType::Languages) => Update::Match {
-                        tag,
-                        language: language.clone(),
-                        truncated: *truncated,
-                        otherwise: *otherwise,
-                    },
+                    Resolved::Tag(tag, ResolvedType::Primitive(Primitive::Languages)) => {
+                        Update::Match {
+                            tag,
+                            language: language.clone(),
+                            truncated: *truncated,
+                            otherwise: *otherwise,
+                        }
+                    }
                     _ => {
                         return Err(query_error(format!(
-                            "`match` grades a `languages` tag, and `{tag}` isn't one"
+                            "`match` grades a `$languages` tag, and `{tag}` isn't one"
                         )));
                     }
                 }
@@ -1100,7 +1116,10 @@ impl Compiler<'_, '_> {
                 AxisKind::Bool => Resolved::BoolAxis(found),
                 AxisKind::Categorical => Resolved::CategoricalAxis(found, a.member_names()),
             },
-            CatalogEntry::Tag(t) => Resolved::Tag(found, t.tag_type.clone()),
+            CatalogEntry::Tag(t) => {
+                let ty = self.env.stack().resolve_type(&found, &t.tag_type)?;
+                Resolved::Tag(found, ty)
+            }
             CatalogEntry::Facet(_) => Resolved::Facet(found),
             _ => Resolved::Member(Member {
                 name: found,
@@ -1129,7 +1148,7 @@ impl Compiler<'_, '_> {
                         axis,
                         positive: true,
                     },
-                    Resolved::Tag(tag, TagType::Bool) => Test::Value {
+                    Resolved::Tag(tag, ResolvedType::Primitive(Primitive::Bool)) => Test::Value {
                         subject: Subject::Tag(tag),
                         check: ValueCheck {
                             kind: ValueKind::Bool,
@@ -1206,14 +1225,22 @@ impl Compiler<'_, '_> {
             },
             Resolved::Tag(tag, tag_type) => {
                 let kind = match tag_type {
-                    TagType::Bool => ValueKind::Bool,
-                    TagType::Count => ValueKind::Number,
-                    TagType::Text => ValueKind::Text,
-                    TagType::OneOf(choices) => ValueKind::OneOf(choices),
-                    TagType::TextList => ValueKind::TextSet,
-                    TagType::Languages => ValueKind::Languages,
-                    TagType::Scores => {
-                        return Err(query_error("a `scores` tag can't be tested"));
+                    ResolvedType::Primitive(Primitive::Bool) => ValueKind::Bool,
+                    ResolvedType::Primitive(Primitive::Count | Primitive::Number) => {
+                        ValueKind::Number
+                    }
+                    ResolvedType::Primitive(Primitive::Text) => ValueKind::Text,
+                    ResolvedType::OneOf(choices) => ValueKind::OneOf(choices),
+                    ResolvedType::List(inner)
+                        if matches!(*inner, ResolvedType::Primitive(Primitive::Text)) =>
+                    {
+                        ValueKind::TextSet
+                    }
+                    ResolvedType::Primitive(Primitive::Languages) => ValueKind::Languages,
+                    _ => {
+                        return Err(query_error(format!(
+                            "the tag `{tag}` holds structured values, which a test can't compare"
+                        )));
                     }
                 };
                 Test::Value {
@@ -1226,7 +1253,7 @@ impl Compiler<'_, '_> {
                 let check = self.check(ValueKind::Name, value)?;
                 Test::Value {
                     subject: Subject::Facet(facet),
-                    check: self.names(check, &[EntryKind::Namespace, EntryKind::Contract])?,
+                    check: self.names(check, &[EntryKind::Namespace])?,
                 }
             }
         })
@@ -1240,8 +1267,11 @@ impl Compiler<'_, '_> {
         let builds = [EntryKind::Build];
         match word {
             "presets" => self.only(&[EntryKind::Build, EntryKind::TemplateClass], "`$presets`")?,
-            "released" | "license" | "origin" | "template_class" | "contract" => {
+            "released" | "license" | "origin" | "template_class" => {
                 self.only(&builds, &format!("`${word}`"))?
+            }
+            "contract" => {
+                self.only(&[EntryKind::Build, EntryKind::TemplateClass], "`$contract`")?
             }
             "format" | "dtype" => self.only(&[EntryKind::Resource], &format!("`${word}`"))?,
             _ => {}
@@ -1274,14 +1304,18 @@ impl Compiler<'_, '_> {
             "parent" => (
                 Subject::Parent,
                 ValueKind::Name,
-                &[EntryKind::Namespace, EntryKind::Contract, EntryKind::Build],
+                &[EntryKind::Namespace, EntryKind::Build],
             ),
             "template_class" => (
                 Subject::TemplateClass,
                 ValueKind::Name,
                 &[EntryKind::TemplateClass],
             ),
-            "contract" => (Subject::Contract, ValueKind::Name, &[EntryKind::Contract]),
+            "contract" => (
+                Subject::Contract,
+                ValueKind::Lineage,
+                &[EntryKind::Contract],
+            ),
             "format" => (Subject::Format, ValueKind::Text, &[]),
             "dtype" => (Subject::Dtype, ValueKind::Text, &[]),
             "any" | "all" | "not" => {
@@ -1342,9 +1376,11 @@ impl Compiler<'_, '_> {
             let ok = match &kind {
                 ValueKind::Bool => v.is_boolean(),
                 ValueKind::Number => v.is_number(),
-                ValueKind::Text | ValueKind::Name | ValueKind::TextSet | ValueKind::Languages => {
-                    v.is_string()
-                }
+                ValueKind::Text
+                | ValueKind::Name
+                | ValueKind::Lineage
+                | ValueKind::TextSet
+                | ValueKind::Languages => v.is_string(),
                 ValueKind::OneOf(choices) | ValueKind::Offers(choices) => {
                     v.as_str().is_some_and(|s| choices.iter().any(|c| c == s))
                 }
@@ -1492,7 +1528,10 @@ impl Compiler<'_, '_> {
                 )));
             }
             None => match self.resolve(&key.key)? {
-                Resolved::Tag(tag, TagType::Count) => (Subject::Tag(tag), ValueKind::Number),
+                Resolved::Tag(
+                    tag,
+                    ResolvedType::Primitive(Primitive::Count | Primitive::Number),
+                ) => (Subject::Tag(tag), ValueKind::Number),
                 _ => {
                     return Err(query_error(format!(
                         "`{}` is not ordered: sort by `$weight`, `$name`, `$released`, a count \

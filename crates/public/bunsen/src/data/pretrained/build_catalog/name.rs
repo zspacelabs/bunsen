@@ -57,6 +57,9 @@ pub fn check_segment(segment: &str) -> CatalogResult<()> {
     }
 }
 
+/// The `$` word that opens the contracts' section of the base catalog.
+pub const CONTRACTS: &str = "$contracts";
+
 /// A full name: one or more segments, written joined by `/`
 /// (`qwen/qwen3/qwen3-4b`).
 ///
@@ -76,7 +79,13 @@ impl CatalogName {
             return Err(CatalogError::new(CatalogErrorKind::Name, "a name is empty"));
         }
         let segments: Vec<String> = name.split('/').map(str::to_string).collect();
-        for segment in &segments {
+        // `$contracts` opens the contracts' own namespace; it is no
+        // entry's segment.
+        let named = match segments.split_first() {
+            Some((first, rest)) if first == CONTRACTS => rest,
+            _ => &segments[..],
+        };
+        for segment in named {
             check_segment(segment).map_err(|e| {
                 CatalogError::new(
                     CatalogErrorKind::Name,
@@ -85,6 +94,25 @@ impl CatalogName {
             })?;
         }
         Ok(Self(segments))
+    }
+
+    /// The root of the `$contracts` section: contracts and their types
+    /// are named under it (`$contracts/whisper`).
+    pub fn contracts_root() -> Self {
+        Self(vec![CONTRACTS.to_string()])
+    }
+
+    /// Whether the name is in the `$contracts` section.
+    pub fn in_contracts(&self) -> bool {
+        self.0.first().is_some_and(|s| s == CONTRACTS)
+    }
+
+    /// The name within `$contracts` (`whisper` for `$contracts/whisper`),
+    /// for a name in that section.
+    pub fn contract_path(&self) -> Option<String> {
+        self.in_contracts()
+            .then(|| self.0[1..].join("/"))
+            .filter(|path| !path.is_empty())
     }
 
     /// A name of one segment.

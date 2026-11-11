@@ -24,17 +24,18 @@ use crate::data::pretrained::build_catalog::{
 };
 
 /// The kinds a lookup searches when it isn't told which: every kind but
-/// `alias`. An alias is found as its target.
+/// `alias` and `contract`. An alias is found as its target; a contract is
+/// named in `$contracts` (`expect_contract`).
 pub const SEARCHABLE: [EntryKind; 9] = [
     EntryKind::Build,
     EntryKind::TemplateClass,
     EntryKind::Namespace,
-    EntryKind::Contract,
     EntryKind::Release,
     EntryKind::Tag,
     EntryKind::Axis,
     EntryKind::Facet,
     EntryKind::Resource,
+    EntryKind::Type,
 ];
 
 /// How a query's last segment matches a leaf.

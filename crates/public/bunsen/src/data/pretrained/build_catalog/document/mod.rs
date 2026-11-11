@@ -19,9 +19,12 @@
 //!
 //! - **An entry** is a map with `$kind`, keyed by its segment. Its name is its
 //!   path of keys: nesting is the only placement.
-//! - **Bare keys under an entry:** under a namespace or contract, children;
+//! - **Bare keys under an entry:** under a namespace or a contract, children;
 //!   under a template class, tags; under a build, a child when the value is a
 //!   map with `$kind`, and a tag otherwise. Other kinds have none.
+//! - **`$contracts`**, at the root of the base catalog only, holds the
+//!   contracts and their `type` entries: the interfaces bunsen's loaders
+//!   implement. A build names its contract with `$contract`.
 //! - **`$presets`** holds `$common`, `$axes` (keyed by the axis), `$default`,
 //!   and the presets, keyed by name.
 //! - **Foreign documents are data:** a preset's `$patch` and `$common` keep the
@@ -56,8 +59,10 @@ use crate::data::pretrained::build_catalog::{
 };
 
 mod keyed;
+mod types;
 
 pub use keyed::OrderedNode;
+pub use types::*;
 
 /// The name of the template class every chain ends at.
 ///
@@ -65,12 +70,17 @@ pub use keyed::OrderedNode;
 /// no `$template_class`. Its `$required_facets` hold for every build.
 pub const TEMPLATE_CLASS_ROOT: &str = "template_class_root";
 
-/// One catalog document: `$description`, and the top-level entries keyed by
-/// their segments ([module](self)).
+/// One catalog document: `$description`, `$contracts` in the base catalog,
+/// and the top-level entries keyed by their segments ([module](self)).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct PretrainedCatalog {
     /// What the catalog holds, for a person.
     pub description: Option<String>,
+
+    /// The `$contracts` section: contracts and their types, in the order
+    /// written. Only the base catalog has one, and it must; `None` when the
+    /// document doesn't write it.
+    pub contracts: Option<Vec<CatalogEntry>>,
 
     /// The top-level entries, in the order written.
     pub entries: Vec<CatalogEntry>,
@@ -133,7 +143,8 @@ impl PretrainedCatalog {
 pub enum EntryKind {
     /// A plain group: a naming scope, and a membership.
     Namespace,
-    /// A group that also states what a loader expects: its dependency keys.
+    /// What a loader implements: the resources and arguments a build binds.
+    /// Contracts live in `$contracts`, and nest as variants.
     Contract,
     /// A group whose members are releases of one sequence, ordered by time.
     Release,
@@ -152,11 +163,13 @@ pub enum EntryKind {
     /// Another name for an entry of a stated kind, anywhere in the
     /// namespace.
     Alias,
+    /// A named, documented type expression.
+    Type,
 }
 
 impl EntryKind {
     /// Every kind.
-    pub const ALL: [EntryKind; 10] = [
+    pub const ALL: [EntryKind; 11] = [
         Self::Namespace,
         Self::Contract,
         Self::Release,
@@ -167,16 +180,18 @@ impl EntryKind {
         Self::Facet,
         Self::Resource,
         Self::Alias,
+        Self::Type,
     ];
 
     /// Whether entries of this kind are groups (a build may be a member).
     pub fn is_group(self) -> bool {
-        matches!(self, Self::Namespace | Self::Contract | Self::Release)
+        matches!(self, Self::Namespace | Self::Release)
     }
 
-    /// Whether entries of this kind may hold children and be scoped.
+    /// Whether entries of this kind are groups that may hold children and
+    /// be scoped.
     pub fn is_container_group(self) -> bool {
-        matches!(self, Self::Namespace | Self::Contract)
+        matches!(self, Self::Namespace)
     }
 
     /// The kind the document spells `name`.
@@ -197,6 +212,7 @@ impl EntryKind {
             Self::Facet => "facet",
             Self::Resource => "resource",
             Self::Alias => "alias",
+            Self::Type => "type",
         }
     }
 }
@@ -233,8 +249,8 @@ impl fmt::Display for EntryKind {
 pub enum CatalogEntry {
     /// A `namespace` group.
     Namespace(GroupEntry),
-    /// A `contract` group.
-    Contract(GroupEntry),
+    /// A contract, in `$contracts`.
+    Contract(ContractEntry),
     /// A `release` group.
     Release(ReleaseEntry),
     /// A build.
@@ -251,6 +267,8 @@ pub enum CatalogEntry {
     Resource(ResourceEntry),
     /// An alias.
     Alias(AliasEntry),
+    /// A type.
+    Type(TypeEntry),
 }
 
 impl CatalogEntry {
@@ -272,13 +290,15 @@ impl CatalogEntry {
             Self::Facet(_) => EntryKind::Facet,
             Self::Resource(_) => EntryKind::Resource,
             Self::Alias(_) => EntryKind::Alias,
+            Self::Type(_) => EntryKind::Type,
         }
     }
 
     /// The entry's own name segment, as written.
     pub fn name(&self) -> &str {
         match self {
-            Self::Namespace(e) | Self::Contract(e) => &e.name,
+            Self::Namespace(e) => &e.name,
+            Self::Contract(e) => &e.name,
             Self::Release(e) => &e.name,
             Self::Build(e) => &e.name,
             Self::TemplateClass(e) => &e.name,
@@ -287,13 +307,15 @@ impl CatalogEntry {
             Self::Facet(e) => &e.name,
             Self::Resource(e) => &e.name,
             Self::Alias(e) => &e.name,
+            Self::Type(e) => &e.name,
         }
     }
 
     /// The nested children, if the kind has any.
     pub fn children(&self) -> &[CatalogEntry] {
         match self {
-            Self::Namespace(e) | Self::Contract(e) => &e.children,
+            Self::Namespace(e) => &e.children,
+            Self::Contract(e) => &e.children,
             Self::Build(e) => &e.children,
             _ => &[],
         }
@@ -302,7 +324,8 @@ impl CatalogEntry {
     /// Takes the nested children out, leaving none.
     pub(crate) fn take_children(&mut self) -> Vec<CatalogEntry> {
         match self {
-            Self::Namespace(e) | Self::Contract(e) => core::mem::take(&mut e.children),
+            Self::Namespace(e) => core::mem::take(&mut e.children),
+            Self::Contract(e) => core::mem::take(&mut e.children),
             Self::Build(e) => core::mem::take(&mut e.children),
             _ => Vec::new(),
         }
@@ -311,7 +334,8 @@ impl CatalogEntry {
     /// How the occurrence meets an existing declaration of its name.
     pub fn merge(&self) -> MergeMode {
         match self {
-            Self::Namespace(e) | Self::Contract(e) => e.merge,
+            Self::Namespace(e) => e.merge,
+            Self::Contract(e) => e.merge,
             Self::Release(e) => e.merge,
             Self::Build(e) => e.merge,
             Self::TemplateClass(e) => e.merge,
@@ -320,22 +344,23 @@ impl CatalogEntry {
             Self::Facet(e) => e.merge,
             Self::Resource(e) => e.merge,
             Self::Alias(e) => e.merge,
+            Self::Type(e) => e.merge,
         }
     }
 
-    /// The group fields, for a `namespace` or `contract`.
+    /// The group fields, for a `namespace`.
     pub fn as_group(&self) -> Option<&GroupEntry> {
         match self {
-            Self::Namespace(e) | Self::Contract(e) => Some(e),
+            Self::Namespace(e) => Some(e),
             _ => None,
         }
     }
 }
 
-/// A `namespace` or `contract` group.
+/// A `namespace` group.
 ///
 /// A **declaring** occurrence (`$merge: deny`, the default) carries the
-/// group's content. On a `namespace`, an **extending** occurrence
+/// group's content. An **extending** occurrence
 /// (`$merge: update`) carries only its `$kind`, optionally the `$facet` it
 /// expects the group to have, and children: it opens the group's scope to add
 /// children to it, and asserts what it expects of the group.
@@ -371,14 +396,6 @@ pub struct GroupEntry {
     #[serde(rename = "$requires", default, skip_serializing_if = "Vec::is_empty")]
     pub requires: Vec<CatalogRef>,
 
-    /// On a `contract`: the dependency keys its loader reads.
-    #[serde(
-        rename = "$dependency_keys",
-        default,
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub dependency_keys: Option<DependencyKeys>,
-
     /// Entries nested in the group's scope.
     #[serde(skip)]
     pub children: Vec<CatalogEntry>,
@@ -392,7 +409,7 @@ pub struct GroupEntry {
 /// |---|---|
 /// | `namespace` | adds its children (each child's own `$merge` decides how it meets an existing child), and asserts the facet it expects; it states nothing else |
 /// | `resource` | matches every field but `sources`, and puts its new sources first |
-/// | `contract` | refused: a contract is the interface a loader is built against |
+/// | `contract` | refused: a contract is the interface a loader is built against, and only the base catalog declares contracts |
 /// | every other kind | refused |
 ///
 /// `replace` is the same for every kind: the occurrence's own fields take
@@ -428,17 +445,113 @@ impl MergeMode {
     }
 }
 
-/// The dependency keys a contract's loader reads.
+/// A contract: what a loader implements, as the resources and arguments a
+/// build binds ([`ContractEntry::resources`], [`ContractEntry::args`]).
+///
+/// Contracts live in `$contracts`. A contract may hold variants, child
+/// contracts that add slots to its own, and `type` entries. A build names
+/// one contract that isn't [`abstract_`](Self::abstract_) with `$contract`.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContractEntry {
+    /// The contract's own segment.
+    #[serde(skip)]
+    pub name: String,
+
+    /// How this occurrence meets an existing declaration of its name.
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
+    pub merge: MergeMode,
+
+    /// What the loader is, for a person.
+    #[serde(rename = "$description")]
+    pub description: String,
+
+    /// Whether no build may name it: it holds the slots its variants share.
+    #[serde(rename = "$abstract", default, skip_serializing_if = "is_false")]
+    pub abstract_: bool,
+
+    /// The resource slots it adds, by slot name.
+    #[serde(
+        rename = "$resources",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
+    pub resources: BTreeMap<String, ResourceSlot>,
+
+    /// The argument slots it adds, by slot name.
+    #[serde(rename = "$args", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub args: BTreeMap<String, ArgSlot>,
+
+    /// Its variants and its types.
+    #[serde(skip)]
+    pub children: Vec<CatalogEntry>,
+}
+
+/// A contract's resource slot: a resource the loader reads.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DependencyKeys {
-    /// Keys every member build must have.
-    #[serde(rename = "$required", default, skip_serializing_if = "Vec::is_empty")]
-    pub required: Vec<String>,
+pub struct ResourceSlot {
+    /// What the slot is for, for a person.
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<String>,
 
-    /// Keys a member build may have.
-    #[serde(rename = "$optional", default, skip_serializing_if = "Vec::is_empty")]
-    pub optional: Vec<String>,
+    /// The formats it takes, by a resource's `$format`; any, when empty.
+    #[serde(rename = "$format", default, skip_serializing_if = "Vec::is_empty")]
+    pub formats: Vec<String>,
+
+    /// Whether a build may leave it unbound.
+    #[serde(rename = "$optional", default, skip_serializing_if = "is_false")]
+    pub optional: bool,
+}
+
+/// A contract's argument slot: a value the loader is told.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArgSlot {
+    /// What the slot is for, for a person.
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<String>,
+
+    /// What it takes; references resolve from the contract.
+    #[serde(rename = "$type")]
+    pub type_expr: TypeExpr,
+
+    /// Whether a build may leave it unbound.
+    #[serde(rename = "$optional", default, skip_serializing_if = "is_false")]
+    pub optional: bool,
+}
+
+/// A type: a named, documented type expression.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TypeEntry {
+    /// The type's own segment.
+    #[serde(skip)]
+    pub name: String,
+
+    /// How this occurrence meets an existing declaration of its name.
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
+    pub merge: MergeMode,
+
+    /// What the type's values are, for a person.
+    #[serde(rename = "$description")]
+    pub description: String,
+
+    /// The expression it names; references resolve from the type.
+    #[serde(rename = "$type")]
+    pub type_expr: TypeExpr,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// A `release` group: its members are releases of one sequence.
@@ -544,13 +657,23 @@ pub struct BuildEntry {
     #[serde(skip)]
     pub presets: PresetSetEntry,
 
-    /// Dependency keys to resources. They override the chain's.
+    /// The contract, by its name in `$contracts`. It overrides the chain's.
+    #[serde(rename = "$contract", default, skip_serializing_if = "Option::is_none")]
+    pub contract: Option<CatalogRef>,
+
+    /// The contract's resource slots, bound to resources by reference. They
+    /// override the chain's.
     #[serde(
-        rename = "$dependencies",
+        rename = "$resources",
         default,
         skip_serializing_if = "BTreeMap::is_empty"
     )]
-    pub dependencies: BTreeMap<String, CatalogRef>,
+    pub resources: BTreeMap<String, CatalogRef>,
+
+    /// The contract's argument slots, bound to values. They override
+    /// the chain's.
+    #[serde(rename = "$args", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub args: BTreeMap<String, Value>,
 
     /// Facets the build must be in exactly one group of, beyond its
     /// chain's.
@@ -603,13 +726,24 @@ pub struct TemplateClassEntry {
     #[serde(skip)]
     pub presets: PresetSetEntry,
 
-    /// Dependency keys to resources. They override the base class's.
+    /// The contract, by its name in `$contracts`. It overrides the base
+    /// class's.
+    #[serde(rename = "$contract", default, skip_serializing_if = "Option::is_none")]
+    pub contract: Option<CatalogRef>,
+
+    /// The contract's resource slots, bound to resources by reference. They
+    /// override the base class's.
     #[serde(
-        rename = "$dependencies",
+        rename = "$resources",
         default,
         skip_serializing_if = "BTreeMap::is_empty"
     )]
-    pub dependencies: BTreeMap<String, CatalogRef>,
+    pub resources: BTreeMap<String, CatalogRef>,
+
+    /// The contract's argument slots, bound to values. They override
+    /// the base class's.
+    #[serde(rename = "$args", default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub args: BTreeMap<String, Value>,
 
     /// Facets every build of the class must be in exactly one group of.
     #[serde(
@@ -731,28 +865,7 @@ pub struct TagEntry {
 
     /// The values the tag takes.
     #[serde(rename = "$type")]
-    pub tag_type: TagType,
-}
-
-/// The values a tag takes.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum TagType {
-    /// `true` or `false`.
-    Bool,
-    /// A whole number, zero or more.
-    Count,
-    /// Any text.
-    Text,
-    /// A list of strings.
-    TextList,
-    /// A list of BCP 47 language tags, `"*"` among them for "others".
-    Languages,
-    /// An object of numbers, by name.
-    Scores,
-    /// One of these strings: `{$one_of: [..]}`.
-    #[serde(rename = "$one_of")]
-    OneOf(Vec<String>),
+    pub tag_type: TypeExpr,
 }
 
 /// An axis's kind.
@@ -976,7 +1089,7 @@ qwen:
     $kind: build
     $description: "Qwen3-4B."
     $join: [qwen/qwen3-line, { $group: qwen/qwen3-releases, $released: "2025-04" }]
-    $dependencies: { config: qwen/qwen3-4b/config }
+    $resources: { config: qwen/qwen3-4b/config }
     parameters: 4000000000
     $presets:
       $axes:
@@ -1074,7 +1187,7 @@ g:
                 .contains("no `$kind`")
         );
         assert!(
-            refused("t: { $kind: tag, $type: bool, $description: \"T.\", extra: 1 }\n")
+            refused("t: { $kind: tag, $type: $bool, $description: \"T.\", extra: 1 }\n")
                 .contains("a tag has no bare keys")
         );
         assert!(refused("$entries: []\n").contains("the catalog has no `$entries`"));

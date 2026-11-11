@@ -21,7 +21,10 @@ use crate::data::pretrained::build_catalog::{
         CatalogErrorKind,
         CatalogErrors,
     },
-    name::CatalogName,
+    name::{
+        CONTRACTS,
+        CatalogName,
+    },
 };
 
 /// One entry of a layer, under its full name.
@@ -75,6 +78,15 @@ impl PretrainedCatalogLayer {
         let label = label.into();
         let mut entries = Vec::new();
         let mut errors = Vec::new();
+        if let Some(contracts) = &document.contracts {
+            let root = CatalogName::contracts_root();
+            flatten(
+                contracts,
+                Some((&root, EntryKind::Contract)),
+                &mut entries,
+                &mut errors,
+            );
+        }
         flatten(&document.entries, None, &mut entries, &mut errors);
         if errors.is_empty() {
             Ok(Self {
@@ -151,23 +163,39 @@ fn name_of(
         })
     };
     let Some((scope, container_kind)) = container else {
-        return named(None);
+        let name = named(None)?;
+        if kind == EntryKind::Contract {
+            return Err(CatalogError::new(
+                CatalogErrorKind::Structure,
+                "a contract is declared in the base catalog's `$contracts`",
+            )
+            .at(&name));
+        }
+        return Ok(name);
     };
     let name = named(Some(scope))?;
     let allowed = match container_kind {
-        EntryKind::Namespace | EntryKind::Contract => kind != EntryKind::Facet,
+        EntryKind::Namespace => !matches!(kind, EntryKind::Facet | EntryKind::Contract),
+        EntryKind::Contract => matches!(kind, EntryKind::Contract | EntryKind::Type),
         EntryKind::Build => matches!(kind, EntryKind::Resource | EntryKind::Tag | EntryKind::Axis),
         _ => false,
     };
     if !allowed {
+        let container = if scope.segments() == [CONTRACTS] {
+            "`$contracts`".to_string()
+        } else {
+            crate::data::pretrained::build_catalog::stack::with_article(container_kind.as_str())
+        };
         return Err(CatalogError::new(
             CatalogErrorKind::Structure,
             format!(
-                "{} can't hold {}",
-                crate::data::pretrained::build_catalog::stack::with_article(
-                    container_kind.as_str()
-                ),
-                crate::data::pretrained::build_catalog::stack::with_article(kind.as_str())
+                "{container} can't hold {}{}",
+                crate::data::pretrained::build_catalog::stack::with_article(kind.as_str()),
+                if kind == EntryKind::Contract {
+                    "; contracts are declared in the base catalog's `$contracts`"
+                } else {
+                    ""
+                }
             ),
         )
         .at(&name));

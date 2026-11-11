@@ -13,7 +13,7 @@ openai:
     $requires: [language, parameters]
     timestamps:
       $kind: tag
-      $type: bool
+      $type: $bool
       $description: "Whether the build decodes with timestamp tokens by default."
     vocabulary:
       $kind: resource
@@ -24,8 +24,8 @@ openai:
     multilingual:
       $kind: template_class
       $description: "Multilingual Whisper: transcribes, or translates into English."
-      $join: [whisper-asr]
-      $dependencies: { vocabulary: vocabulary }
+      $contract: whisper-asr
+      $resources: { vocabulary: vocabulary }
       language: [en, "*"]
       $presets:
         $axes:
@@ -45,7 +45,7 @@ openai:
         $description: "Whisper large (v1)."
         $template_class: multilingual
         $join: [{ $group: release, $released: "2022-09" }]
-        $dependencies: { checkpoint: checkpoint }
+        $resources: { checkpoint: checkpoint }
         parameters: 1550000000
         checkpoint:
           $kind: resource
@@ -59,7 +59,7 @@ openai:
         $description: "Whisper large-v2."
         $template_class: multilingual
         $join: [{ $group: release, $released: "2022-12" }]
-        $dependencies: { checkpoint: checkpoint }
+        $resources: { checkpoint: checkpoint }
         parameters: 1550000000
         checkpoint:
           $kind: resource
@@ -73,7 +73,7 @@ openai:
         $description: "Whisper large-v3."
         $template_class: multilingual
         $join: [{ $group: release, $released: "2023-11-06" }]
-        $dependencies: { checkpoint: checkpoint }
+        $resources: { checkpoint: checkpoint }
         parameters: 1550000000
         timestamps: true
         checkpoint:
@@ -87,7 +87,7 @@ openai:
         $kind: build
         $description: "Whisper large-v3-turbo: a pruned large-v3, not trained to translate."
         $template_class: multilingual
-        $dependencies: { checkpoint: checkpoint }
+        $resources: { checkpoint: checkpoint }
         parameters: 809000000
         $presets:
           $axes:

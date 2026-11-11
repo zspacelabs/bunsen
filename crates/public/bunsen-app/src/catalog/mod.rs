@@ -359,15 +359,7 @@ fn list(
             .map(|e| e.name().clone())
             .collect()
     } else if let Some(group) = members {
-        let group = find(
-            stack,
-            &group,
-            &[
-                EntryKind::Namespace,
-                EntryKind::Contract,
-                EntryKind::Release,
-            ],
-        )?;
+        let group = find(stack, &group, &[EntryKind::Namespace, EntryKind::Release])?;
         stack.members_of(&group)
     } else if let Some(scope) = children {
         let scope = find(stack, &scope, &SEARCHABLE)?;
@@ -408,7 +400,9 @@ fn show(
     stack: &PretrainedCatalogStack,
     query: &str,
 ) -> Result<(), String> {
-    let name = find(stack, query, &SEARCHABLE)?;
+    let mut kinds = SEARCHABLE.to_vec();
+    kinds.push(EntryKind::Contract);
+    let name = find(stack, query, &kinds)?;
     let entry = stack.declaration(&name).expect("found");
     emit!(out, "{name}  ({})", entry.kind());
     for change in entry.history() {
@@ -456,7 +450,7 @@ fn resolve(
     emit!(out, "  chain        {}", chain.join(" > "));
     let groups: Vec<String> = b.memberships.iter().map(ToString::to_string).collect();
     emit!(out, "  memberships  {}", groups.join(", "));
-    if let Some(contract) = &b.contract {
+    if let Some(contract) = b.contract.as_ref().and_then(CatalogName::contract_path) {
         emit!(out, "  contract     {contract}");
     }
     if let Some(release) = &b.release {
@@ -495,9 +489,20 @@ fn resolve(
     }
     let names: Vec<&str> = b.presets.presets.iter().map(|p| p.name.as_str()).collect();
     emit!(out, "  presets      {}", names.join(", "));
-    emit!(out, "  dependencies");
-    for (key, dep) in &b.dependencies {
-        emit!(out, "    {key:<18} {} ({})", dep.resource, dep.entry.file);
+    emit!(out, "  resources");
+    for (slot, bound) in &b.resources {
+        emit!(
+            out,
+            "    {slot:<18} {} ({})",
+            bound.resource,
+            bound.entry.file
+        );
+    }
+    if !b.args.is_empty() {
+        emit!(out, "  args");
+        for (slot, bound) in &b.args {
+            emit!(out, "    {slot:<18} {}", bound.value);
+        }
     }
     // The flags as shortcuts, then the presets' document.
     let mut presets = args.presets.clone();

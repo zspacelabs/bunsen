@@ -11,10 +11,12 @@ use serde_json::Value;
 
 use crate::data::pretrained::build_catalog::{
     document::{
+        ArgSlot,
         CatalogEntry,
         EntryKind,
         Membership,
         ResourceEntry,
+        ResourceSlot,
     },
     error::{
         CatalogError,
@@ -32,7 +34,10 @@ use crate::data::pretrained::build_catalog::{
     },
     release_time::ReleaseTime,
     stack::PretrainedCatalogStack,
-    tags::axis_tag_value,
+    tags::{
+        axis_tag_value,
+        check_value,
+    },
 };
 
 /// Where a resolved tag's value comes from.
@@ -62,14 +67,23 @@ pub struct ResolvedTag {
     pub source: TagSource,
 }
 
-/// One resolved dependency.
+/// One bound resource slot.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ResolvedDependency {
+pub struct ResolvedResource {
     /// The resource's full name.
     pub resource: CatalogName,
     /// The resource's declaration.
     pub entry: ResourceEntry,
-    /// Who set the key: the lowest template class or build that does.
+    /// Who bound the slot: the lowest template class or build that does.
+    pub set_by: CatalogName,
+}
+
+/// One bound argument slot.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedArg {
+    /// The value.
+    pub value: Value,
+    /// Who bound the slot: the lowest template class or build that does.
     pub set_by: CatalogName,
 }
 
@@ -99,7 +113,8 @@ pub struct ResolvedBuild {
     pub memberships: BTreeSet<CatalogName>,
     /// Its group in each facet it is in, by facet.
     pub facets: BTreeMap<CatalogName, CatalogName>,
-    /// Its contract: the one `contract` group it is in.
+    /// Its contract, under `$contracts`: the one its `$contract` names, or
+    /// its template class's.
     pub contract: Option<CatalogName>,
     /// Its release membership, if it has one.
     pub release: Option<ResolvedRelease>,
@@ -107,8 +122,10 @@ pub struct ResolvedBuild {
     pub tags: BTreeMap<CatalogName, ResolvedTag>,
     /// Its presets.
     pub presets: ResolvedPresetSet,
-    /// Its dependencies, by key.
-    pub dependencies: BTreeMap<String, ResolvedDependency>,
+    /// Its contract's resource slots, bound, by slot name.
+    pub resources: BTreeMap<String, ResolvedResource>,
+    /// Its contract's argument slots, bound, by slot name.
+    pub args: BTreeMap<String, ResolvedArg>,
 }
 
 impl ResolvedBuild {
@@ -134,6 +151,9 @@ pub struct ResolvedTemplateClass {
     pub chain: Vec<CatalogName>,
     /// Every group its builds join through the chain.
     pub memberships: BTreeSet<CatalogName>,
+    /// The contract its builds have unless they name another: the nearest
+    /// in its chain that names one.
+    pub contract: Option<CatalogName>,
     /// Its tags, written along the chain and implied by its axis uses.
     pub tags: BTreeMap<CatalogName, ResolvedTag>,
     /// Its presets, folded along the chain.
@@ -216,27 +236,54 @@ impl PretrainedCatalogStack {
             }
         }
         let memberships = self.build_memberships(name);
-        // The contract: a build is in exactly one.
-        let contracts: Vec<CatalogName> = memberships
-            .iter()
-            .filter(|g| {
-                self.declaration(g)
-                    .is_some_and(|d| d.kind() == EntryKind::Contract)
-            })
-            .cloned()
-            .collect();
-        match contracts.len() {
-            0 => report(CatalogError::new(
-                CatalogErrorKind::Contract,
-                "it is in no contract; every build is in exactly one",
-            )),
-            1 => {}
-            _ => report(CatalogError::new(
-                CatalogErrorKind::Contract,
-                format!("it is in more than one contract: {contracts:?}"),
-            )),
-        }
-        let contract = contracts.first().cloned();
+        // The contract: the build's `$contract`, else the nearest class's.
+        let named = [(name, build.contract.as_ref())]
+            .into_iter()
+            .chain(
+                chain
+                    .iter()
+                    .rev()
+                    .map(|l| (l.name, l.class.contract.as_ref())),
+            )
+            .find_map(|(owner, c)| c.map(|c| (owner, c)));
+        let contract = match named {
+            None => {
+                report(CatalogError::new(
+                    CatalogErrorKind::Contract,
+                    "it names no contract: a build, or its template class, names one with \
+                     `$contract`",
+                ));
+                None
+            }
+            Some((_, reference)) => match self.expect_contract(reference) {
+                Ok(decl) => {
+                    let contract = decl.name().clone();
+                    if let CatalogEntry::Contract(c) = decl.body()
+                        && c.abstract_
+                    {
+                        let variants: Vec<String> = self
+                            .contract_variants(&contract)
+                            .iter()
+                            .filter_map(CatalogName::contract_path)
+                            .collect();
+                        report(CatalogError::new(
+                            CatalogErrorKind::Contract,
+                            format!(
+                                "its contract `{}` is abstract: a build names one of its \
+                                 variants: {}",
+                                reference.path(),
+                                variants.join(", ")
+                            ),
+                        ));
+                    }
+                    Some(contract)
+                }
+                Err(e) => {
+                    report(e);
+                    None
+                }
+            },
+        };
 
         // Facets: at most one group of each, and exactly one of each
         // required facet.
@@ -357,11 +404,11 @@ impl PretrainedCatalogStack {
                 },
             );
         }
-        if let Some(contract) = &contract {
+        if let Some(path) = contract.as_ref().and_then(CatalogName::contract_path) {
             tags.insert(
                 CatalogName::root(CONTRACT_TAG).expect("a legal segment"),
                 ResolvedTag {
-                    value: Value::String(contract.to_string()),
+                    value: Value::String(path),
                     source: TagSource::Contract,
                 },
             );
@@ -386,43 +433,55 @@ impl PretrainedCatalogStack {
             }
         }
 
-        // Dependencies: the chain's, root first, then the build's.
-        let mut keys: BTreeMap<String, (&CatalogName, &CatalogRef)> = BTreeMap::new();
-        let set = chain
+        // The contract's slots, from its outermost ancestor in.
+        let lineage = contract
+            .as_ref()
+            .map(|c| self.contract_lineage(c))
+            .unwrap_or_default();
+        let contract_path = contract
+            .as_ref()
+            .and_then(CatalogName::contract_path)
+            .unwrap_or_default();
+        let resource_slots: BTreeMap<&String, &ResourceSlot> = lineage
             .iter()
-            .map(|l| (l.name, &l.class.dependencies))
-            .chain([(name, &build.dependencies)]);
-        for (owner, deps) in set {
-            for (key, resource) in deps {
-                keys.insert(key.clone(), (owner, resource));
+            .flat_map(|(_, c)| c.resources.iter())
+            .collect();
+        let arg_slots: BTreeMap<&String, (&CatalogName, &ArgSlot)> = lineage
+            .iter()
+            .flat_map(|(n, c)| c.args.iter().map(move |(k, slot)| (k, (n, slot))))
+            .collect();
+
+        // Bindings: the chain's, root first, then the build's.
+        let mut bound: BTreeMap<String, (&CatalogName, &CatalogRef)> = BTreeMap::new();
+        let mut given: BTreeMap<String, (&CatalogName, &Value)> = BTreeMap::new();
+        let binders = chain
+            .iter()
+            .map(|l| (l.name, &l.class.resources, &l.class.args))
+            .chain([(name, &build.resources, &build.args)]);
+        for (owner, resources, args) in binders {
+            for (slot, resource) in resources {
+                bound.insert(slot.clone(), (owner, resource));
+            }
+            for (slot, value) in args {
+                given.insert(slot.clone(), (owner, value));
             }
         }
-        let mut vocabulary: BTreeSet<&String> = BTreeSet::new();
-        let mut required_keys: Vec<(&CatalogName, &String)> = Vec::new();
-        if let Some(contract) = &contract
-            && let Some(keys) = self
-                .declaration(contract)
-                .and_then(|d| d.group())
-                .and_then(|g| g.dependency_keys.as_ref())
-        {
-            vocabulary.extend(keys.required.iter().chain(&keys.optional));
-            required_keys.extend(keys.required.iter().map(|k| (contract, k)));
-        }
-        let mut dependencies = BTreeMap::new();
-        for (key, (owner, resource)) in &keys {
-            if let Err(e) = check_segment(key) {
+        let mut resources = BTreeMap::new();
+        for (slot, (owner, reference)) in &bound {
+            if let Err(e) = check_segment(slot) {
                 report(e);
                 continue;
             }
-            if let Some(contract) = &contract
-                && !vocabulary.contains(key)
-            {
+            let spec = resource_slots.get(slot);
+            if contract.is_some() && spec.is_none() {
                 report(CatalogError::new(
                     CatalogErrorKind::Dependency,
-                    format!("the dependency key `{key}` is not one of its contract `{contract}`'s"),
+                    format!(
+                        "the resource slot `{slot}` is not one of its contract `{contract_path}`'s"
+                    ),
                 ));
             }
-            let resource = match self.check_dependency_target(owner, resource) {
+            let resource = match self.check_dependency_target(owner, reference) {
                 Ok(resource) => resource,
                 Err(e) => {
                     report(e);
@@ -432,20 +491,82 @@ impl PretrainedCatalogStack {
             let Some(entry) = self.resource(&resource).cloned() else {
                 continue;
             };
-            dependencies.insert(
-                key.clone(),
-                ResolvedDependency {
+            if let Some(spec) = spec
+                && !spec.formats.is_empty()
+                && !spec.formats.contains(&entry.format)
+            {
+                report(CatalogError::new(
+                    CatalogErrorKind::Dependency,
+                    format!(
+                        "the resource slot `{slot}` takes {}, and `{resource}` is `{}`",
+                        spec.formats
+                            .iter()
+                            .map(|f| format!("`{f}`"))
+                            .collect::<Vec<_>>()
+                            .join(" or "),
+                        entry.format
+                    ),
+                ));
+            }
+            resources.insert(
+                slot.clone(),
+                ResolvedResource {
                     resource,
                     entry,
                     set_by: (*owner).clone(),
                 },
             );
         }
-        for (contract, key) in required_keys {
-            if !keys.contains_key(key) {
+        let mut args = BTreeMap::new();
+        for (slot, (owner, value)) in &given {
+            let Some((declared_in, spec)) = arg_slots.get(slot) else {
+                if contract.is_some() {
+                    report(CatalogError::new(
+                        CatalogErrorKind::Dependency,
+                        format!(
+                            "the argument slot `{slot}` is not one of its contract \
+                             `{contract_path}`'s"
+                        ),
+                    ));
+                }
+                continue;
+            };
+            match self
+                .resolve_type(declared_in, &spec.type_expr)
+                .map_err(|e| e.message)
+                .and_then(|ty| check_value(&ty, value))
+            {
+                Ok(()) => {
+                    args.insert(
+                        slot.clone(),
+                        ResolvedArg {
+                            value: (*value).clone(),
+                            set_by: (*owner).clone(),
+                        },
+                    );
+                }
+                Err(why) => report(CatalogError::new(
+                    CatalogErrorKind::Dependency,
+                    format!("the argument `{slot}`: {why}"),
+                )),
+            }
+        }
+        for (slot, spec) in &resource_slots {
+            if !spec.optional && !bound.contains_key(*slot) {
                 report(CatalogError::new(
                     CatalogErrorKind::Dependency,
-                    format!("it has no `{key}`, which its contract `{contract}` requires"),
+                    format!("it binds no `{slot}`, which its contract `{contract_path}` requires"),
+                ));
+            }
+        }
+        for (slot, (_, spec)) in &arg_slots {
+            if !spec.optional && !given.contains_key(*slot) {
+                report(CatalogError::new(
+                    CatalogErrorKind::Dependency,
+                    format!(
+                        "it gives no `{slot}` argument, which its contract `{contract_path}` \
+                         requires"
+                    ),
                 ));
             }
         }
@@ -465,7 +586,8 @@ impl PretrainedCatalogStack {
             release,
             tags,
             presets,
-            dependencies,
+            resources,
+            args,
         })
     }
 
@@ -533,11 +655,18 @@ impl PretrainedCatalogStack {
                 },
             );
         }
+        let contract = chain
+            .iter()
+            .rev()
+            .find_map(|l| l.class.contract.as_ref())
+            .and_then(|r| self.expect_contract(r).ok())
+            .map(|d| d.name().clone());
         Ok(ResolvedTemplateClass {
             name: name.clone(),
             description: class.description.clone(),
             chain: chain.into_iter().map(|l| l.name.clone()).collect(),
             memberships,
+            contract,
             tags,
             presets,
         })
@@ -607,7 +736,7 @@ mod tests {
         );
         assert_eq!(b.facets[&n("family")], n("qwen/qwen3"));
         assert_eq!(b.facets[&n("publisher")], n("qwen"));
-        assert_eq!(b.contract, Some(n("qwen3-lm")));
+        assert_eq!(b.contract, Some(n("$contracts/qwen3-lm")));
         assert_eq!(b.tag("contract"), Some(&json!("qwen3-lm")));
         assert_eq!(b.tags[&n("contract")].source, TagSource::Contract);
         assert_eq!(b.tag("thinking"), Some(&json!("switch")));
@@ -704,12 +833,12 @@ mod tests {
     fn test_dependencies_resolve_through_the_namespace() {
         let stack = fixtures::example_stack().unwrap();
         let base = resolve(&stack, "qwen3-0.6b-base");
-        let config = &base.dependencies["config"];
+        let config = &base.resources["config"];
         assert_eq!(config.resource, n("qwen/qwen3/qwen3-0.6b/config"));
         assert_eq!(config.set_by, n("qwen/qwen3/qwen3-0.6b-base"));
         let v1 = resolve(&stack, "large-v1");
         assert_eq!(
-            v1.dependencies["vocabulary"].resource,
+            v1.resources["vocabulary"].resource,
             n("openai/whisper/vocabulary")
         );
     }
@@ -779,7 +908,7 @@ qwen:
       $kind: build
       $description: "Bad dependencies."
       $template_class: hybrid
-      $dependencies: { checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint, weights: qwen/qwen3/qwen3-0.6b/checkpoint, tokenizer: qwen/qwen3/nope }
+      $resources: { checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint, weights: qwen/qwen3/qwen3-0.6b/checkpoint, tokenizer: qwen/qwen3/nope }
       parameters: 1
 "#,
         );
@@ -807,14 +936,14 @@ qwen:
       $kind: build
       $description: "Uses resources declared below it."
       $template_class: hybrid
-      $dependencies: { checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint, config: qwen/qwen3/qwen3-0.6b/config, tokenizer: qwen/qwen3/qwen3-0.6b/tokenizer }
+      $resources: { checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint, config: qwen/qwen3/qwen3-0.6b/config, tokenizer: qwen/qwen3/qwen3-0.6b/tokenizer }
       parameters: 1
 "#,
             )
             .unwrap();
         let b = stack.resolve_build(&n("qwen/qwen3/borrower")).unwrap();
         assert_eq!(
-            b.dependencies["tokenizer"].resource,
+            b.resources["tokenizer"].resource,
             n("qwen/qwen3/qwen3-0.6b/tokenizer")
         );
     }
@@ -843,8 +972,10 @@ qwen:
     }
 
     #[test]
-    fn test_exactly_one_contract() {
-        let two = refused(
+    fn test_a_build_names_one_contract() {
+        // A build's own `$contract` overrides its class's; the slots it
+        // binds must be the new contract's.
+        let other = refused(
             r#"
 qwen:
   $kind: namespace
@@ -852,20 +983,219 @@ qwen:
   qwen3:
     $kind: namespace
     $merge: update
-    both:
+    elsewhere:
       $kind: build
-      $description: "In two contracts."
+      $description: "Names Whisper's contract over its class's."
       $template_class: hybrid
-      $join: [whisper-asr]
+      $contract: whisper-asr
+      $resources: { config: qwen3-0.6b/config }
       parameters: 1
 "#,
         );
-        assert!(two.mentions("more than one contract"), "{two}");
+        assert!(
+            other.mentions("the resource slot `config` is not one of its contract `whisper-asr`'s"),
+            "{other}"
+        );
+        assert!(
+            other.mentions("it binds no `checkpoint`, which its contract `whisper-asr` requires"),
+            "{other}"
+        );
         let none = refused(
             "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    free: { $kind: build, $description: \"F.\", parameters: 1 }\n",
         );
-        assert!(none.mentions("in no contract"), "{none}");
+        assert!(none.mentions("it names no contract"), "{none}");
         assert!(none.has(CatalogErrorKind::Contract));
+        let missing = refused(
+            "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    lost: { $kind: build, $description: \"L.\", $template_class: hybrid, $contract: qwen9-lm, parameters: 1 }\n",
+        );
+        assert!(
+            missing.mentions("`$contracts` has no contract `qwen9-lm`"),
+            "{missing}"
+        );
+    }
+
+    /// A base catalog of variant contracts, typed arguments and a family.
+    const VARIANTS: &str = r#"
+$contracts:
+  asr:
+    $kind: contract
+    $abstract: true
+    $description: "Shared by both variants."
+    $resources:
+      checkpoint: { $format: [safetensors, archive] }
+      vocabulary: { $format: [tokenizer.json] }
+    geometry:
+      $kind: type
+      $description: "The dims a loader can't read from an archive."
+      $type:
+        $record:
+          layers: { $type: $count }
+          width: { $type: $count, $optional: true }
+    probed:
+      $kind: contract
+      $description: "Its geometry read from config.json."
+      $resources: { config: { $format: [json] } }
+    stated:
+      $kind: contract
+      $description: "Its geometry stated."
+      $args: { geometry: { $type: geometry, $description: "The dims." } }
+family: { $kind: facet, $description: "Families." }
+template_class_root: { $kind: template_class, $description: "The root." }
+lab:
+  $kind: namespace
+  $facet: family
+  $description: "A lab."
+  w: { $kind: resource, $file: w.bin, $format: archive, $sources: [{ $url: "https://x/w" }] }
+  t: { $kind: resource, $file: t.json, $format: tokenizer.json, $sources: [{ $url: "https://x/t" }] }
+  c: { $kind: resource, $file: config.json, $format: json, $sources: [{ $url: "https://x/c" }] }
+"#;
+
+    fn variants() -> PretrainedCatalogStack {
+        let mut stack = PretrainedCatalogStack::new();
+        stack.push_yaml("base", VARIANTS).unwrap();
+        stack
+    }
+
+    fn build_in(
+        stack: &PretrainedCatalogStack,
+        build: &str,
+    ) -> Result<PretrainedCatalogStack, CatalogErrors> {
+        let mut stack = stack.clone();
+        stack.push_yaml(
+            "builds",
+            &format!("lab:\n  $kind: namespace\n  $merge: update\n  {build}\n"),
+        )?;
+        Ok(stack)
+    }
+
+    #[test]
+    fn test_variants_args_and_types() {
+        let base = variants();
+        // A stated build binds the shared slots and the variant's argument.
+        let stack = build_in(
+            &base,
+            "x: { $kind: build, $description: \"X.\", $contract: asr/stated, $resources: { checkpoint: w, vocabulary: t }, $args: { geometry: { layers: 18, extra: true } } }",
+        )
+        .unwrap();
+        let x = stack.resolve_build(&n("lab/x")).unwrap();
+        assert_eq!(x.contract, Some(n("$contracts/asr/stated")));
+        assert_eq!(x.tag("contract"), Some(&json!("asr/stated")));
+        assert_eq!(
+            x.args["geometry"].value,
+            json!({"layers": 18, "extra": true})
+        );
+        assert_eq!(x.resources["checkpoint"].resource, n("lab/w"));
+        assert_eq!(stack.builds_of_contract(&n("$contracts/asr")), [n("lab/x")]);
+        // A probed build binds `config` instead.
+        assert!(
+            build_in(
+                &base,
+                "probed-build: { $kind: build, $description: \"P.\", $contract: asr/probed, $resources: { checkpoint: w, vocabulary: t, config: c } }",
+            )
+            .is_ok()
+        );
+        let refused = |build: &str| build_in(&base, build).unwrap_err();
+        // The abstract parent can't be named.
+        let abstract_ = refused(
+            "z: { $kind: build, $description: \"Z.\", $contract: asr, $resources: { checkpoint: w, vocabulary: t } }",
+        );
+        assert!(
+            abstract_.mentions(
+                "its contract `asr` is abstract: a build names one of its variants: asr/probed, \
+                 asr/stated"
+            ),
+            "{abstract_}"
+        );
+        // An argument is checked against its type; one the variant lacks is
+        // refused, and so is one it requires and the build leaves out.
+        let typed = refused(
+            "z: { $kind: build, $description: \"Z.\", $contract: asr/stated, $resources: { checkpoint: w, vocabulary: t }, $args: { geometry: { width: 3 } } }",
+        );
+        assert!(
+            typed.mentions("the argument `geometry`: it has no `layers`"),
+            "{typed}"
+        );
+        let unknown = refused(
+            "z: { $kind: build, $description: \"Z.\", $contract: asr/probed, $resources: { checkpoint: w, vocabulary: t, config: c }, $args: { geometry: { layers: 1 } } }",
+        );
+        assert!(
+            unknown
+                .mentions("the argument slot `geometry` is not one of its contract `asr/probed`'s"),
+            "{unknown}"
+        );
+        let absent = refused(
+            "z: { $kind: build, $description: \"Z.\", $contract: asr/stated, $resources: { checkpoint: w, vocabulary: t } }",
+        );
+        assert!(
+            absent.mentions(
+                "it gives no `geometry` argument, which its contract `asr/stated` requires"
+            ),
+            "{absent}"
+        );
+        // A slot's format is the resource's.
+        let format = refused(
+            "z: { $kind: build, $description: \"Z.\", $contract: asr/probed, $resources: { checkpoint: c, vocabulary: t, config: c } }",
+        );
+        assert!(
+            format.mentions("the resource slot `checkpoint` takes `safetensors` or `archive`, and `lab/c` is `json`"),
+            "{format}"
+        );
+    }
+
+    #[test]
+    fn test_contract_declarations_are_checked() {
+        let base = |contracts: &str| {
+            let mut stack = PretrainedCatalogStack::new();
+            stack
+                .push_yaml("base", &format!("$contracts:\n{contracts}"))
+                .unwrap_err()
+        };
+        let restated = base(
+            "  a:\n    $kind: contract\n    $description: \"A.\"\n    $resources: { w: {} }\n    b: { $kind: contract, $description: \"B.\", $resources: { w: {} } }\n",
+        );
+        assert!(
+            restated
+                .mentions("the slot `w` is already its contract `a`'s: a variant only adds slots"),
+            "{restated}"
+        );
+        let hollow = base("  a: { $kind: contract, $abstract: true, $description: \"A.\" }\n");
+        assert!(
+            hollow.mentions("it is abstract, and has no variant a build can name"),
+            "{hollow}"
+        );
+        let untyped = base(
+            "  a: { $kind: contract, $description: \"A.\", $args: { g: { $type: nothing } } }\n",
+        );
+        assert!(
+            untyped.mentions("the argument slot `g`: no type `nothing`"),
+            "{untyped}"
+        );
+        let cyclic = base(
+            "  a:\n    $kind: contract\n    $description: \"A.\"\n    t: { $kind: type, $description: \"T.\", $type: { $list: t } }\n",
+        );
+        assert!(
+            cyclic.mentions("the type `$contracts/a/t` names itself"),
+            "{cyclic}"
+        );
+        // Only the base catalog declares `$contracts`, and it must.
+        let mut stack = PretrainedCatalogStack::new();
+        let missing = stack
+            .push_yaml("base", "$description: \"No contracts.\"\n")
+            .unwrap_err();
+        assert!(
+            missing.mentions("the base catalog declares `$contracts`"),
+            "{missing}"
+        );
+        let late = refused("$contracts: {}\n");
+        assert!(
+            late.mentions("only the base catalog declares `$contracts`"),
+            "{late}"
+        );
+        let misplaced = refused("c: { $kind: contract, $description: \"C.\" }\n");
+        assert!(
+            misplaced.mentions("in the base catalog's `$contracts`"),
+            "{misplaced}"
+        );
     }
 
     #[test]

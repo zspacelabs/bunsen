@@ -280,7 +280,7 @@ struct ChoiceRecord {
     memberships: Vec<String>,
     /// Its group in each facet, by facet.
     facets: std::collections::BTreeMap<String, String>,
-    /// Its contract.
+    /// Its contract, by its name in `$contracts`.
     contract: Option<String>,
     /// Its release membership.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -290,8 +290,11 @@ struct ChoiceRecord {
     /// The tags a derive step added, by key.
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     derived: std::collections::BTreeMap<String, Value>,
-    /// Its dependencies: each key's resource.
-    dependencies: std::collections::BTreeMap<String, String>,
+    /// Its contract's resource slots: each slot's resource.
+    resources: std::collections::BTreeMap<String, String>,
+    /// Its contract's argument slots: each slot's value.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    args: std::collections::BTreeMap<String, Value>,
 }
 
 /// A build's release membership, in a [`ChoiceRecord`].
@@ -376,7 +379,7 @@ fn record(
             .iter()
             .map(|(facet, group)| (facet.to_string(), group.to_string()))
             .collect(),
-        contract: build.contract.as_ref().map(ToString::to_string),
+        contract: build.contract.as_ref().and_then(CatalogName::contract_path),
         release: build.release.as_ref().map(|r| ReleaseRecord {
             group: r.group.to_string(),
             released: r.released.to_string(),
@@ -387,10 +390,15 @@ fn record(
             .map(|(name, tag)| (name.to_string(), tag.value.clone()))
             .collect(),
         derived: entry.derived.clone(),
-        dependencies: build
-            .dependencies
+        resources: build
+            .resources
             .iter()
-            .map(|(key, dep)| (key.clone(), dep.resource.to_string()))
+            .map(|(slot, bound)| (slot.clone(), bound.resource.to_string()))
+            .collect(),
+        args: build
+            .args
+            .iter()
+            .map(|(slot, bound)| (slot.clone(), bound.value.clone()))
             .collect(),
     })
 }

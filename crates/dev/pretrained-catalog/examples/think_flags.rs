@@ -20,7 +20,10 @@ use bunsen::data::pretrained::build_catalog::{
             bool_axis_member,
             preset_prefix,
         },
-        state::SelectEnv,
+        state::{
+            SelectEnv,
+            StageOrigin,
+        },
     },
 };
 use serde_json::json;
@@ -28,10 +31,10 @@ use serde_json::json;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stack = fixtures::example_stack()?;
     let thinking = CatalogName::parse("thinking")?;
-    let chat = CatalogName::parse("qwen3-lm")?;
+    let chat = CatalogName::parse("$contracts/qwen3-lm")?;
 
     println!("On each build:");
-    for build in stack.members_of(&chat) {
+    for build in stack.builds_of_contract(&chat) {
         let resolved = stack.resolve_build(&build)?;
         let mode = resolved
             .tag("thinking")
@@ -58,7 +61,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         defaults: serde_saphyr::from_str("[{order: {desc: parameters}}]")?,
         named: Vec::new(),
     };
-    let request = SelectRequest::default().name("qwen3-lm");
+    let request = SelectRequest::default().stage(
+        serde_saphyr::from_str("{keep: {$contract: qwen3-lm}}")?,
+        StageOrigin::Query,
+    );
     for (flag, on) in [("--think", true), ("--no-think", false)] {
         let member = bool_axis_member(&stack, "thinking", on)?;
         let presets = PresetSelection::of([member.as_str()]);

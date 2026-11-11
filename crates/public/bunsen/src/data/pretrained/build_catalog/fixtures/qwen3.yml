@@ -15,7 +15,7 @@ qwen:
     hybrid:
       $kind: template_class
       $description: "Qwen3 hybrid-thinking chat: thinks by default, can be switched off."
-      $join: [qwen3-lm]
+      $contract: qwen3-lm
       instruct: true
       language: ["*"]
       $presets:
@@ -43,7 +43,7 @@ qwen:
       $license: Apache-2.0
       $origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
       $template_class: hybrid
-      $dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
+      $resources: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
       parameters: 600000000
       checkpoint:
         $kind: resource
@@ -70,7 +70,7 @@ qwen:
       $license: Apache-2.0
       $origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
       $template_class: hybrid
-      $dependencies: { checkpoint: checkpoint, config: qwen3-0.6b/config, tokenizer: tokenizer }
+      $resources: { checkpoint: checkpoint, config: qwen3-0.6b/config, tokenizer: tokenizer }
       parameters: 600000000
       instruct: false
       $presets:
@@ -96,7 +96,7 @@ qwen:
       $origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
       $template_class: thinking-only
       $join: [qwen3-2507]
-      $dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
+      $resources: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
       parameters: 4000000000
       checkpoint:
         $kind: resource

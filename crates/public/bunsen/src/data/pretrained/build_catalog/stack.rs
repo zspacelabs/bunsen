@@ -172,6 +172,23 @@ impl PretrainedCatalogStack {
     ) -> Result<(), CatalogErrors> {
         let layer = PretrainedCatalogLayer::new(label, path, document)?;
         let label = layer.label().to_string();
+        let declares_contracts = layer.document().contracts.is_some();
+        let refusal = match (self.layers.is_empty(), declares_contracts) {
+            (true, false) => Some(
+                "the base catalog declares `$contracts`, the contracts every build names (it \
+                 may be empty)",
+            ),
+            (false, true) => Some(
+                "only the base catalog declares `$contracts`: a contract is an interface \
+                 bunsen's loaders implement, and a later catalog can't add one",
+            ),
+            _ => None,
+        };
+        if let Some(why) = refusal {
+            return Err(CatalogErrors::from(
+                CatalogError::new(CatalogErrorKind::Contract, why).in_layer(&label),
+            ));
+        }
         let mut next = self.clone();
         next.layers.push(layer);
         let mut errors = next.apply_top();
@@ -491,9 +508,7 @@ impl PretrainedCatalogStack {
             }
         };
         match entry.body() {
-            CatalogEntry::Namespace(g) | CatalogEntry::Contract(g) => {
-                join(entry.name(), &mut g.join.iter());
-            }
+            CatalogEntry::Namespace(g) => join(entry.name(), &mut g.join.iter()),
             CatalogEntry::Release(r) => join(entry.name(), &mut r.join.iter()),
             CatalogEntry::Build(b) => {
                 join(entry.name(), &mut b.join.iter().map(Membership::group));
@@ -820,12 +835,18 @@ impl PretrainedCatalogStack {
         let Some(scope) = entry.name().scope() else {
             return Vec::new();
         };
+        // The layer placed contracts and types in `$contracts` and in
+        // contracts; the section's root is no entry.
+        if scope == CatalogName::contracts_root() {
+            return Vec::new();
+        }
         let child_of_build = matches!(
             entry.kind(),
             EntryKind::Resource | EntryKind::Tag | EntryKind::Axis
         );
         match self.declaration(&scope) {
             Some(decl) if decl.kind().is_container_group() => Vec::new(),
+            Some(decl) if decl.kind() == EntryKind::Contract => Vec::new(),
             Some(decl) if decl.kind() == EntryKind::Build && child_of_build => Vec::new(),
             Some(decl) => vec![CatalogError::new(
                 CatalogErrorKind::Structure,
@@ -867,7 +888,7 @@ impl PretrainedCatalogStack {
         };
         let from = entry.name();
         match entry.body() {
-            CatalogEntry::Namespace(g) | CatalogEntry::Contract(g) => {
+            CatalogEntry::Namespace(g) => {
                 push(
                     &mut errors,
                     described(g.description.as_deref().unwrap_or("")),
@@ -887,33 +908,16 @@ impl PretrainedCatalogStack {
                         self.expect_ref(from, tag, "tag", &[EntryKind::Tag, EntryKind::Axis]),
                     );
                 }
-                match (&g.dependency_keys, entry.kind()) {
-                    (Some(keys), EntryKind::Contract) => {
-                        let mut seen = BTreeSet::new();
-                        for key in keys.required.iter().chain(&keys.optional) {
-                            push(&mut errors, check_segment(key));
-                            if !seen.insert(key) {
-                                push::<()>(
-                                    &mut errors,
-                                    Err(CatalogError::new(
-                                        CatalogErrorKind::Dependency,
-                                        format!("the dependency key `{key}` is listed twice"),
-                                    )),
-                                );
-                            }
-                        }
-                    }
-                    (Some(_), _) => push::<()>(
-                        &mut errors,
-                        Err(CatalogError::new(
-                            CatalogErrorKind::Structure,
-                            "only a contract has `$dependency_keys`",
-                        )),
-                    ),
-                    _ => {}
-                }
                 errors.extend(self.check_join_cycle(entry));
                 errors.extend(self.check_facet_nesting(entry));
+            }
+            CatalogEntry::Contract(c) => {
+                push(&mut errors, described(&c.description));
+                errors.extend(self.check_contract(entry, c));
+            }
+            CatalogEntry::Type(t) => {
+                push(&mut errors, described(&t.description));
+                push(&mut errors, self.resolve_type(from, &t.type_expr));
             }
             CatalogEntry::Release(r) => {
                 push(&mut errors, described(&r.description));
@@ -929,21 +933,15 @@ impl PretrainedCatalogStack {
             CatalogEntry::Tag(t) => {
                 push(&mut errors, described(&t.description));
                 push(&mut errors, reserved_tag_name(entry.name()));
-                if t.tag_type == crate::data::pretrained::build_catalog::document::TagType::Bool {
+                if matches!(
+                    t.tag_type,
+                    crate::data::pretrained::build_catalog::document::TypeExpr::Primitive(
+                        crate::data::pretrained::build_catalog::document::Primitive::Bool
+                    )
+                ) {
                     push(&mut errors, positive_bool_name("tag", entry.name()));
                 }
-                if let crate::data::pretrained::build_catalog::document::TagType::OneOf(choices) =
-                    &t.tag_type
-                    && choices.is_empty()
-                {
-                    push::<()>(
-                        &mut errors,
-                        Err(CatalogError::new(
-                            CatalogErrorKind::Tag,
-                            "a `$one_of` tag lists no choices",
-                        )),
-                    );
-                }
+                push(&mut errors, self.resolve_type(from, &t.tag_type));
             }
             CatalogEntry::Axis(a) => {
                 push(&mut errors, described(&a.description));
@@ -1057,9 +1055,15 @@ impl PretrainedCatalogStack {
                 for (tag, value) in &t.tags {
                     push(&mut errors, self.check_tag_value(from, tag, value));
                 }
-                for (key, resource) in &t.dependencies {
-                    push(&mut errors, check_segment(key));
+                if let Some(contract) = &t.contract {
+                    push(&mut errors, self.expect_contract(contract));
+                }
+                for (slot, resource) in &t.resources {
+                    push(&mut errors, check_segment(slot));
                     push(&mut errors, self.check_dependency_target(from, resource));
+                }
+                for slot in t.args.keys() {
+                    push(&mut errors, check_segment(slot));
                 }
                 if let Ok(chain) = chain {
                     let links: Vec<
@@ -1088,7 +1092,7 @@ impl PretrainedCatalogStack {
         errors
     }
 
-    /// A plain join: to a `namespace` or `contract`. Joining a release
+    /// A plain join: to a `namespace`. Joining a release
     /// needs a release timestamp, which only a build's membership carries.
     pub(crate) fn check_plain_join(
         &self,
@@ -1099,11 +1103,7 @@ impl PretrainedCatalogStack {
             from,
             joined,
             "group",
-            &[
-                EntryKind::Namespace,
-                EntryKind::Contract,
-                EntryKind::Release,
-            ],
+            &[EntryKind::Namespace, EntryKind::Release],
         )?;
         if decl.kind() == EntryKind::Release {
             return Err(CatalogError::new(
@@ -1133,7 +1133,10 @@ impl PretrainedCatalogStack {
         };
         let name = decl.name();
         match decl.body() {
-            CatalogEntry::Tag(t) => check_value(&t.tag_type, value)
+            CatalogEntry::Tag(t) => self
+                .resolve_type(name, &t.tag_type)
+                .map_err(|e| e.message)
+                .and_then(|ty| check_value(&ty, value))
                 .map(|()| name.clone())
                 .map_err(|why| {
                     CatalogError::new(CatalogErrorKind::Tag, format!("the tag `{name}`: {why}"))
@@ -1164,6 +1167,153 @@ impl PretrainedCatalogStack {
     ) -> CatalogResult<CatalogName> {
         self.expect_ref(from, resource, "resource", &[EntryKind::Resource])
             .map(|d| d.name().clone())
+    }
+
+    /// The contract `reference` names in `$contracts`
+    /// (`qwen3-asr/stated` is `$contracts/qwen3-asr/stated`).
+    ///
+    /// # Errors
+    /// [`CatalogErrorKind::Contract`] when `$contracts` has no such
+    /// contract.
+    pub fn expect_contract(
+        &self,
+        reference: &CatalogRef,
+    ) -> CatalogResult<EntryRef<'_>> {
+        let name = CatalogName::contracts_root().join(reference.path());
+        match self.declaration(&name) {
+            Some(decl) if decl.kind() == EntryKind::Contract => Ok(decl),
+            _ => Err(CatalogError::new(
+                CatalogErrorKind::Contract,
+                format!("`$contracts` has no contract `{}`", reference.path()),
+            )),
+        }
+    }
+
+    /// The contract `name` and its ancestors, the outermost first: the
+    /// contracts whose slots it has.
+    pub fn contract_lineage(
+        &self,
+        name: &CatalogName,
+    ) -> Vec<(
+        CatalogName,
+        &crate::data::pretrained::build_catalog::document::ContractEntry,
+    )> {
+        let mut lineage = Vec::new();
+        let mut at = Some(name.clone());
+        while let Some(current) = at {
+            let Some(CatalogEntry::Contract(c)) = self.declaration(&current).map(|d| d.body())
+            else {
+                break;
+            };
+            at = current.scope();
+            lineage.push((current, c));
+        }
+        lineage.reverse();
+        lineage
+    }
+
+    /// The contracts nested in `name`, at any depth.
+    pub fn contract_variants(
+        &self,
+        name: &CatalogName,
+    ) -> Vec<CatalogName> {
+        self.of_kind(EntryKind::Contract)
+            .iter()
+            .map(|c| c.name().clone())
+            .filter(|c| c != name && c.is_within(name))
+            .collect()
+    }
+
+    /// The builds whose contract is `contract` or one of its variants.
+    pub fn builds_of_contract(
+        &self,
+        contract: &CatalogName,
+    ) -> Vec<CatalogName> {
+        self.of_kind(EntryKind::Build)
+            .iter()
+            .filter(|b| {
+                self.resolve_build(b.name()).is_ok_and(|r| {
+                    r.contract
+                        .as_ref()
+                        .is_some_and(|c| c == contract || c.is_within(contract))
+                })
+            })
+            .map(|b| b.name().clone())
+            .collect()
+    }
+
+    /// A contract's own rules: its slot names, its argument slots' types,
+    /// a variant adding slots rather than restating its parents', and an
+    /// abstract contract having a variant a build can name.
+    fn check_contract(
+        &self,
+        entry: EntryRef<'_>,
+        contract: &crate::data::pretrained::build_catalog::document::ContractEntry,
+    ) -> Vec<CatalogError> {
+        let mut errors = Vec::new();
+        let name = entry.name();
+        let lineage = self.contract_lineage(name);
+        let inherited: BTreeMap<&String, &CatalogName> = lineage
+            .iter()
+            .filter(|(n, _)| n != name)
+            .flat_map(|(n, c)| c.resources.keys().chain(c.args.keys()).map(move |k| (k, n)))
+            .collect();
+        for slot in contract.resources.keys().chain(contract.args.keys()) {
+            if let Err(e) = check_segment(slot) {
+                errors.push(e);
+            }
+            if let Some(parent) = inherited.get(slot) {
+                errors.push(CatalogError::new(
+                    CatalogErrorKind::Contract,
+                    format!(
+                        "the slot `{slot}` is already its contract `{}`'s: a variant only adds \
+                         slots",
+                        parent.contract_path().unwrap_or_default()
+                    ),
+                ));
+            }
+        }
+        if contract
+            .resources
+            .keys()
+            .any(|k| contract.args.contains_key(k))
+        {
+            errors.push(CatalogError::new(
+                CatalogErrorKind::Contract,
+                "a slot is either a resource or an argument, not both",
+            ));
+        }
+        for (slot, spec) in &contract.resources {
+            if spec.formats.iter().any(|f| f.trim().is_empty()) {
+                errors.push(CatalogError::new(
+                    CatalogErrorKind::Contract,
+                    format!("the resource slot `{slot}` lists an empty format"),
+                ));
+            }
+        }
+        for (slot, spec) in &contract.args {
+            if let Err(e) = self.resolve_type(name, &spec.type_expr) {
+                errors.push(CatalogError::new(
+                    e.kind,
+                    format!("the argument slot `{slot}`: {}", e.message),
+                ));
+            }
+        }
+        if contract.abstract_ {
+            let concrete = self.contract_variants(name).iter().any(|v| {
+                matches!(
+                    self.declaration(v).map(|d| d.body()),
+                    Some(CatalogEntry::Contract(c)) if !c.abstract_
+                )
+            });
+            if !concrete {
+                errors.push(CatalogError::new(
+                    CatalogErrorKind::Contract,
+                    "it is abstract, and has no variant a build can name",
+                ));
+            }
+        }
+        errors
     }
 
     /// Resolves an axis use's axis.
@@ -1288,7 +1438,9 @@ impl PretrainedCatalogStack {
 /// Clears an entry's `merge`: the state holds merged entries.
 fn reset_merge(entry: &mut CatalogEntry) {
     match entry {
-        CatalogEntry::Namespace(e) | CatalogEntry::Contract(e) => e.merge = MergeMode::Deny,
+        CatalogEntry::Namespace(e) => e.merge = MergeMode::Deny,
+        CatalogEntry::Contract(e) => e.merge = MergeMode::Deny,
+        CatalogEntry::Type(e) => e.merge = MergeMode::Deny,
         CatalogEntry::Release(e) => e.merge = MergeMode::Deny,
         CatalogEntry::Build(e) => e.merge = MergeMode::Deny,
         CatalogEntry::TemplateClass(e) => e.merge = MergeMode::Deny,
@@ -1308,11 +1460,7 @@ fn update(
 ) -> CatalogResult<()> {
     match (current, occurrence) {
         (CatalogEntry::Namespace(_), CatalogEntry::Namespace(group)) => {
-            if group.description.is_some()
-                || !group.join.is_empty()
-                || !group.requires.is_empty()
-                || group.dependency_keys.is_some()
-            {
+            if group.description.is_some() || !group.join.is_empty() || !group.requires.is_empty() {
                 return Err(CatalogError::new(
                     CatalogErrorKind::Structure,
                     "an extending occurrence carries only its `$kind`, a `$facet` to expect, \
@@ -1503,8 +1651,11 @@ mod tests {
     #[test]
     fn test_members_come_through_groups_and_template_classes() {
         let stack = fixtures::example_stack().unwrap();
-        let qwen3 = stack.members_of(&n("qwen3-lm"));
+        // Through the class chain: the class names the contract.
+        let qwen3 = stack.builds_of_contract(&n("$contracts/qwen3-lm"));
         assert_eq!(qwen3.len(), 3, "{qwen3:?}");
+        let family = stack.members_of(&n("qwen/qwen3"));
+        assert_eq!(family.len(), 3, "{family:?}");
         let refresh = stack.members_of(&n("qwen/qwen3/qwen3-2507"));
         assert_eq!(refresh, [n("qwen/qwen3/qwen3-4b-thinking-2507")]);
         // The release group is placed in its family, so its members are too.
@@ -1573,7 +1724,8 @@ qwen:
         assert!(wrong_facet.has(CatalogErrorKind::Merge), "{wrong_facet}");
         assert!(wrong_facet.mentions("declared with `publisher`"));
 
-        let wrong_kind = refused("qwen: { $kind: contract, $merge: update }\n");
+        let wrong_kind =
+            refused("qwen: { $kind: release, $merge: update, $description: \"R.\" }\n");
         assert!(
             wrong_kind.mentions("it is declared a namespace"),
             "{wrong_kind}"
@@ -1770,7 +1922,7 @@ qwen: { $kind: namespace, $merge: replace, $facet: publisher, $description: "Qwe
         let errors =
             refused("qwen: { $kind: namespace, $merge: replace, $description: \"No facet.\" }\n");
         assert!(errors.mentions("in no `publisher` group"), "{errors}");
-        let kind = refused("qwen: { $kind: contract, $merge: replace, $description: \"C.\" }\n");
+        let kind = refused("qwen: { $kind: release, $merge: replace, $description: \"R.\" }\n");
         assert!(kind.mentions("a replacement keeps the kind"), "{kind}");
         let missing = refused("country: { $kind: facet, $merge: replace, $description: \"C.\" }\n");
         assert!(
@@ -1807,7 +1959,7 @@ openai:
         let v1 = stack
             .resolve_build(&n("openai/whisper/large/large-v1"))
             .unwrap();
-        let sources = &v1.dependencies["vocabulary"].entry.sources;
+        let sources = &v1.resources["vocabulary"].entry.sources;
         assert_eq!(sources.len(), 2);
         assert_eq!(
             sources[0],
@@ -1837,9 +1989,13 @@ openai:
             "{changed}"
         );
 
-        let contract = refused("qwen3-lm: { $kind: contract, $merge: update }\n");
+        // Contracts are the base catalog's alone: a later one can't write
+        // `$contracts`, so a contract never meets an update.
+        let contract = refused(
+            "$contracts:\n  qwen3-lm: { $kind: contract, $merge: update, $description: \"C.\" }\n",
+        );
         assert!(
-            contract.mentions("a contract can't be updated"),
+            contract.mentions("only the base catalog declares `$contracts`"),
             "{contract}"
         );
         let build = refused(
@@ -1857,15 +2013,15 @@ openai:
             .resolve_build(&n("openai/whisper/large/large-v1"))
             .unwrap();
         assert_eq!(
-            v1.dependencies["checkpoint"].resource,
+            v1.resources["checkpoint"].resource,
             n("openai/whisper/large/large-v1/checkpoint")
         );
         assert_eq!(
-            v1.dependencies["vocabulary"].resource,
+            v1.resources["vocabulary"].resource,
             n("openai/whisper/vocabulary")
         );
         assert_eq!(
-            v1.dependencies["vocabulary"].set_by,
+            v1.resources["vocabulary"].set_by,
             n("openai/whisper/multilingual")
         );
         assert_eq!(v1.release.unwrap().group, n("openai/whisper/large/release"));
@@ -1886,7 +2042,7 @@ openai:
         $description: "Asks for a root `release`."
         $template_class: multilingual
         $join: [{ $group: /release, $released: "2030" }]
-        $dependencies: { checkpoint: large-v1/checkpoint }
+        $resources: { checkpoint: large-v1/checkpoint }
         parameters: 1
 "#,
         );
@@ -1911,7 +2067,7 @@ openai:
         $kind: build
         $description: "Its `vocabulary` dependency names a group."
         $template_class: multilingual
-        $dependencies: { checkpoint: large-v1/checkpoint, vocabulary: release }
+        $resources: { checkpoint: large-v1/checkpoint, vocabulary: release }
         parameters: 1
 "#,
         );
@@ -2050,7 +2206,7 @@ qwen:
   qwen3:
     $kind: namespace
     $merge: update
-    parameters: { $kind: tag, $type: count, $description: "Nearer than the root's." }
+    parameters: { $kind: tag, $type: $count, $description: "Nearer than the root's." }
 "#,
         );
         assert!(
@@ -2058,21 +2214,22 @@ qwen:
             "{tag}"
         );
         assert!(tag.mentions("which resolves to `parameters`"), "{tag}");
-        let contract = refused(
-            r#"
+        // A contract is named in `$contracts`, which no other catalog
+        // writes: a namesake in the namespace changes nothing.
+        let mut stack = fixtures::example_stack().unwrap();
+        stack
+            .push_yaml(
+                "namesake",
+                r#"
 qwen:
   $kind: namespace
   $merge: update
-  qwen3-lm: { $kind: contract, $description: "Nearer than the root's." }
+  qwen3-lm: { $kind: namespace, $description: "Not the contract." }
 "#,
-        );
-        assert!(
-            contract.mentions(
-                "it would capture `qwen3-lm`, written in `qwen/qwen3/hybrid`, which resolves to \
-                 `qwen3-lm`"
-            ),
-            "{contract}"
-        );
+            )
+            .unwrap();
+        let b = stack.resolve_build(&n("qwen/qwen3/qwen3-0.6b")).unwrap();
+        assert_eq!(b.contract, Some(n("$contracts/qwen3-lm")));
     }
 
     #[test]
@@ -2095,14 +2252,18 @@ elsewhere:
     $description: "Uses a Qwen3 class from another branch."
     $template_class: /qwen/qwen3/hybrid
     $join: [qwen]
-    $dependencies: { checkpoint: /qwen/qwen3/qwen3-0.6b/checkpoint, config: /qwen/qwen3/qwen3-0.6b/config, tokenizer: /qwen/qwen3/qwen3-0.6b/tokenizer }
+    $resources: { checkpoint: /qwen/qwen3/qwen3-0.6b/checkpoint, config: /qwen/qwen3/qwen3-0.6b/config, tokenizer: /qwen/qwen3/qwen3-0.6b/tokenizer }
     parameters: 1
 "#,
             )
             .unwrap();
         let memberships = stack2.build_memberships(&n("elsewhere/borrowed-class"));
         assert!(!memberships.contains(&class_scope), "{memberships:?}");
-        assert!(memberships.contains(&n("qwen3-lm")));
+        // The class still gives it its contract.
+        let b = stack2
+            .resolve_build(&n("elsewhere/borrowed-class"))
+            .unwrap();
+        assert_eq!(b.contract, Some(n("$contracts/qwen3-lm")));
     }
 
     #[test]
@@ -2146,7 +2307,7 @@ openai:
       $description: "An imprecisely dated release."
       $template_class: multilingual
       $join: [{ $group: openai/whisper/large/release, $released: "2023" }]
-      $dependencies: { checkpoint: openai/whisper/large/large-v4/checkpoint, vocabulary: openai/whisper/vocabulary }
+      $resources: { checkpoint: openai/whisper/large/large-v4/checkpoint, vocabulary: openai/whisper/vocabulary }
       parameters: 1
       checkpoint:
         $kind: resource
@@ -2165,7 +2326,10 @@ openai:
     fn test_template_class_rules() {
         let mut empty = PretrainedCatalogStack::new();
         let errors = empty
-            .push_yaml("only", "b: { $kind: build, $description: \"B.\" }\n")
+            .push_yaml(
+                "only",
+                "$contracts: {}\nb: { $kind: build, $description: \"B.\" }\n",
+            )
             .unwrap_err();
         assert!(errors.mentions("the prelude declares it"), "{errors}");
 
@@ -2191,13 +2355,11 @@ t2: { $kind: template_class, $base: t1, $description: "T2." }
 country: { $kind: facet, $description: "" }
 mood: { $kind: axis, $axis: bool, $members: [happy], $description: "M." }
 size: { $kind: axis, $axis: categorical, $members: [one], $description: "S." }
-pick: { $kind: tag, $type: { $one_of: [] }, $description: "P." }
-contract: { $kind: tag, $type: text, $description: "Shadows the implied tag." }
-no_timestamps: { $kind: tag, $type: bool, $description: "A negative bool tag." }
+contract: { $kind: tag, $type: $text, $description: "Shadows the implied tag." }
+no_timestamps: { $kind: tag, $type: $bool, $description: "A negative bool tag." }
 non-streaming: { $kind: axis, $axis: bool, $description: "A negative bool axis." }
-notes: { $kind: tag, $type: text, $description: "Not a bool, and not a negative." }
-nothing: { $kind: tag, $type: bool, $description: "`no` without a separator is a word." }
-plain: { $kind: namespace, $description: "P.", $dependency_keys: { $required: [x] } }
+notes: { $kind: tag, $type: $text, $description: "Not a bool, and not a negative." }
+nothing: { $kind: tag, $type: $bool, $description: "`no` without a separator is a word." }
 r: { $kind: resource, $file: a/b, $format: "", $sha256: ABC, $sources: [] }
 "#,
         );
@@ -2205,8 +2367,6 @@ r: { $kind: resource, $file: a/b, $format: "", $sha256: ABC, $sources: [] }
             "no description",
             "members are generated",
             "two or more members",
-            "lists no choices",
-            "only a contract has `$dependency_keys`",
             "not a file name",
             "names its format",
             "lowercase hex SHA-256",

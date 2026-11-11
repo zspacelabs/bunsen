@@ -16,7 +16,7 @@ qwen:
       $license: Apache-2.0
       $origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
       $template_class: hybrid
-      $dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
+      $resources: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
       parameters: 1700000000
       checkpoint:
         $kind: resource

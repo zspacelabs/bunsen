@@ -71,7 +71,9 @@ fn tree_shows(
 /// An entry's description, when its kind has one and it is written.
 fn description(entry: &CatalogEntry) -> Option<&str> {
     match entry {
-        CatalogEntry::Namespace(g) | CatalogEntry::Contract(g) => g.description.as_deref(),
+        CatalogEntry::Namespace(g) => g.description.as_deref(),
+        CatalogEntry::Contract(e) => Some(&e.description),
+        CatalogEntry::Type(e) => Some(&e.description),
         CatalogEntry::Release(e) => Some(&e.description),
         CatalogEntry::Build(e) => Some(&e.description),
         CatalogEntry::TemplateClass(e) => Some(&e.description),
@@ -154,6 +156,16 @@ fn tree_line(
             }
         }
         CatalogEntry::Resource(r) => parts.push(r.file.clone()),
+        CatalogEntry::Contract(c) => {
+            let resources: Vec<&str> = c.resources.keys().map(String::as_str).collect();
+            let args: Vec<&str> = c.args.keys().map(String::as_str).collect();
+            if !resources.is_empty() {
+                parts.push(format!("[{}]", resources.join(", ")));
+            }
+            if !args.is_empty() {
+                parts.push(format!("{{{}}}", args.join(", ")));
+            }
+        }
         CatalogEntry::Alias(a) => {
             let target = stack
                 .resolve_ref(name, &a.target.path)
@@ -173,9 +185,12 @@ fn tree_line(
         _ => {}
     }
     parts.extend(description(body).map(str::to_string));
-    let head = match body.kind() {
-        EntryKind::Namespace | EntryKind::Build => label.to_string(),
-        kind => format!("{label} ({kind})"),
+    let head = match body {
+        CatalogEntry::Contract(c) if c.abstract_ => format!("{label} (contract, abstract)"),
+        _ => match body.kind() {
+            EntryKind::Namespace | EntryKind::Build => label.to_string(),
+            kind => format!("{label} ({kind})"),
+        },
     };
     if parts.is_empty() {
         head
@@ -273,6 +288,15 @@ pub(super) fn tree(
                 if depth.is_none_or(|d| d > 1) {
                     let below = depth.map(|d| d - 2);
                     walk(out, stack, &children(name), "", &kinds, below);
+                }
+            }
+            // `$contracts` is a section of its own, shown when its kinds are.
+            let contracts = CatalogName::contracts_root();
+            let section = children(&contracts);
+            if section.iter().any(|n| shown(stack, n, &kinds)) {
+                emit!(out, "$contracts");
+                if depth.is_none_or(|d| d > 1) {
+                    walk(out, stack, &section, "", &kinds, depth.map(|d| d - 2));
                 }
             }
         }

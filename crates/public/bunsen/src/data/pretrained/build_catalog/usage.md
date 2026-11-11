@@ -54,7 +54,7 @@ catalog documents ──push──▶ PretrainedCatalogStack ──resolve_build
 - A **stack** holds the imported catalogs as one validated state. Every query reads it.
 - A **resolved build** is everything the state says about one build: its template-class chain,
   its memberships and facets, its tags (written and implied), its presets folded along the
-  chain, and its dependencies.
+  chain, its contract, and the resources and arguments it binds to the contract's slots.
 - A **query** is a kind and a list of stages, written only in YAML particles. Each stage maps a
   table of weighted rows to a table; no stage adds a row. The result is the last table.
 - A **choice** is the first row of the result. A query never selects presets: the caller applies
@@ -125,6 +125,7 @@ name for an entry: a lookup for its target's kind finds the target through it.
 
 ```rust
 use bunsen::data::pretrained::build_catalog::{
+    CatalogName,
     document::EntryKind,
     fixtures,
     lookup::{
@@ -152,16 +153,20 @@ let one = stack
 assert_eq!(one.leaf(), "checkpoint");
 
 // Groups and their members.
-let whisper_asr = stack
-    .find("whisper-asr", &[EntryKind::Contract], LeafMatch::Exact)
+let whisper = stack
+    .find("whisper", &[EntryKind::Namespace], LeafMatch::Exact)
     .unwrap();
-assert_eq!(stack.members_of(&whisper_asr).len(), 4);
+assert_eq!(stack.members_of(&whisper).len(), 4);
+// Contracts live in the base catalog's `$contracts`, apart from the
+// namespace; a build names one with `$contract`.
 let contracts: Vec<String> = stack
     .of_kind(EntryKind::Contract)
     .iter()
     .map(|c| c.name().to_string())
     .collect();
-assert_eq!(contracts, ["qwen3-lm", "whisper-asr"]);
+assert_eq!(contracts, ["$contracts/qwen3-lm", "$contracts/whisper-asr"]);
+let whisper_asr = CatalogName::parse("$contracts/whisper-asr").unwrap();
+assert_eq!(stack.builds_of_contract(&whisper_asr).len(), 4);
 
 // An alias, anywhere in the namespace, is another name for its target.
 let mut aliased = stack.clone();
@@ -221,21 +226,25 @@ assert_eq!(build.tag("contract"), Some(&json!("whisper-asr")));
 
 let chain: Vec<&str> = build.template_chain.iter().map(|c| c.leaf()).collect();
 assert_eq!(chain, ["template_class_root", "multilingual"]);
-assert_eq!(build.contract, Some(CatalogName::parse("whisper-asr").unwrap()));
+assert_eq!(build.contract, Some(CatalogName::parse("$contracts/whisper-asr").unwrap()));
 let release = build.release.as_ref().unwrap();
 assert_eq!(release.released.to_string(), "2023-11-06");
-assert!(build.dependencies.contains_key("checkpoint"));
+// The contract's slots, bound: the build's own checkpoint, its family's
+// vocabulary.
+assert_eq!(build.resources["checkpoint"].resource.leaf(), "checkpoint");
+assert_eq!(build.resources["vocabulary"].set_by.leaf(), "multilingual");
 ```
 
 | field | holds |
 |---|---|
 | `name`, `description`, `license`, `origin` | as written |
 | `template_chain` | the class chain, root first |
-| `memberships`, `facets`, `contract` | every group the build is in; its group per facet; its one contract |
+| `memberships`, `facets` | every group the build is in; its group per facet |
+| `contract` | its contract, under `$contracts`: its own `$contract`, or the nearest class's |
 | `release` | `{group, released}`, when it joins a release group |
 | `tags` | each tag's value and source, by full name (`TagSource`: `Written` by the build or the class that writes it lowest in the chain, or implied by an `Axis`, a `Facet` or the `Contract`) |
 | `presets` | the folded `ResolvedPresetSet` |
-| `dependencies` | each dependency key's resource |
+| `resources`, `args` | the contract's resource slots and argument slots, bound: each slot's resource (or value) and who bound it |
 
 ## Presets
 
@@ -441,7 +450,7 @@ starts with `$`.** A `$` word can never be a name, so nothing is reserved.
 | `$license`, `$origin` | the build's fields |
 | `$parent` | the naming scope, exactly (a bare name tests membership by closure) |
 | `$template_class` | the direct class (a bare class name tests the whole chain) |
-| `$contract` | the build's contract |
+| `$contract` | the build's contract, by its name in `$contracts`; `eq` also matches the contracts nested in it, its variants |
 | `$k` | a derived key `k` |
 
 Words where no names appear stay bare: stage names, value-test words and weighing words.
@@ -542,8 +551,8 @@ Weights aren't bounded above, and nothing renormalizes.
 |---|---|---|---|
 | `build` | its groups (by closure), its template-class chain, itself | its own, its chain's, the implied ones, derived keys | `$released`, `$license`, `$origin`, `$template_class`, `$contract` |
 | `template_class` | the groups it joins through its chain (by closure), its base chain, itself | its chain's, and its folded axis uses and presets | |
-| `namespace`, `contract`, `release` | the groups in its closure, itself | none | |
-| `tag`, `axis`, `facet`, `resource` | the scopes that enclose it, itself | none | `$format`, `$dtype` (a resource's) |
+| `namespace`, `release` | the groups in its closure, itself | none | |
+| `tag`, `axis`, `facet`, `resource`, `alias`, `type`, `contract` | the scopes that enclose it, itself | none | `$format`, `$dtype` (a resource's) |
 
 `$weight`, `$name`, `$parent`, `weigh` (`when`, `mul`, `add`, `clip`), `order` and `limit` apply to
 every kind; `match` to builds and template classes, `release` to builds. A test the kind doesn't
@@ -575,7 +584,7 @@ N` keeps the first N.
 # qwen3-0.6b
 
 # English speech, newest release, without the pruned turbo build.
-- keep: whisper-asr
+- keep: {$contract: whisper-asr}
 - drop: large-v3-turbo
 - weigh: {by: [{when: {language: en}}, {release: latest}]}
 - order: {desc: $weight}

@@ -6,7 +6,7 @@ to the API and the select language.
 ## The document
 
 A catalog document is the namespace tree. **Every key the catalog language defines starts
-with `$`, and a bare key is a name.** Abridged from `catalogs/qwen3.yml`:
+with `$`, and a bare key is a name.** Abridged from the example catalogs' `qwen3.yml`:
 
 ```yaml
 $description: "Qwen3 chat models."
@@ -21,7 +21,7 @@ qwen:
     hybrid:
       $kind: template_class
       $description: "Qwen3 hybrid-thinking chat."
-      $join: [qwen3-lm]
+      $contract: qwen3-lm                # named in the base catalog's `$contracts`
       instruct: true                     # a tag
       $presets:
         $common: { generation: { max_new_tokens: 2048 } }
@@ -33,8 +33,34 @@ qwen:
       $description: "Qwen3-0.6B."
       $template_class: hybrid
       parameters: 600000000              # a tag
-      $dependencies: { checkpoint: checkpoint }
+      $resources: { checkpoint: checkpoint }   # the contract's slots, bound
       checkpoint: { $kind: resource, $file: model.safetensors, $format: safetensors, $sources: [] }
+```
+
+The base catalog, the first a stack imports, holds the contracts, in a `$contracts` section of
+their own:
+
+```yaml
+$contracts:
+  qwen3-asr:
+    $kind: contract
+    $abstract: true                      # no build names it; its variants share its slots
+    $description: "Qwen3-ASR, from a Phonon archive or transformers safetensors."
+    $resources:
+      checkpoint: { $format: [phonon-archive, safetensors], $description: "The weights." }
+      vocabulary: { $format: [tokenizer.json] }
+    geometry:                            # a type, beside the contract that uses it
+      $kind: type
+      $description: "The dims a loader can't read from an archive."
+      $type: { $record: { n_mels: { $type: $count }, layers: { $type: $count } } }
+    probed:                              # a variant: it adds slots
+      $kind: contract
+      $description: "Its geometry read from config.json."
+      $resources: { config: { $format: [json] } }
+    stated:
+      $kind: contract
+      $description: "Its geometry stated."
+      $args: { geometry: { $type: geometry } }
 ```
 
 - **An entry** is a map with `$kind`, under its segment. Its name is its path of keys: nesting
@@ -42,6 +68,16 @@ qwen:
 - **Bare keys** under a namespace or contract are children; under a template class, tags; under
   a build, a child when the value is a map with `$kind`, and a tag otherwise. Other kinds
   have none.
+- **`$contracts`** is the base catalog's alone, and it must have one, empty or not: a contract
+  is an interface bunsen's loaders implement, and a later catalog can't add one. It holds
+  contracts and their types. Its names are `$contracts/...`, apart from the namespace.
+- **A contract** is a signature. `$resources` are slots a build binds to resources (a slot's
+  `$format` lists what it takes), and `$args` are slots a build binds to values (a slot's
+  `$type` says what they are); either may be `$optional`. A child contract is a variant: it
+  adds slots to its parent's. An `$abstract` contract can't be named by a build.
+- **A build** names its contract with `$contract` (or inherits its template class's, the
+  nearest in the chain), binds the resource slots in `$resources` and the argument slots in
+  `$args`. Template classes bind slots too; the build's override the chain's.
 - **`$presets`** holds `$common` (a patch every selection keeps), `$axes` (axis uses, keyed by
   the axis), `$default`, and the presets, keyed by name.
 - **Foreign documents are data:** a preset's `$patch` and `$common` keep the model's own keys.
@@ -53,15 +89,24 @@ The set of kinds is closed:
 | kind | what it is |
 |---|---|
 | `namespace` | A plain group: a naming scope, and a membership. |
-| `contract` | A group that also lists the `$dependency_keys` its loader reads. Every build is in exactly one, and carries a `contract` tag naming it. |
+| `contract` | A loader's signature, in `$contracts`: `$resources` and `$args` slots, variants nested in it, and `$abstract`. Every build names one, and carries a `contract` tag naming it. |
 | `release` | A group whose members are releases of one sequence. A build joins it as `{$group, $released}`, and `latest` orders the members by time. It holds no children. |
-| `build` | Something we can build. It names a `$template_class` and its tags, presets and dependencies. It can hold its own resources, tags and axes. |
+| `build` | Something we can build. It names a `$template_class` and a `$contract`, and has tags, presets, and the slots it binds. It can hold its own resources, tags and axes. |
 | `template_class` | A preamble that builds inherit along a chain of `$base` classes, ending at `template_class_root`. It may sit in a namespace, but its placement confers no membership. |
 | `tag` | A declared tag, with a `$type`. No tag is undeclared. |
+| `type` | A named type: a `$description` and a `$type` expression. It sits in a namespace or in `$contracts`. |
 | `axis` | A registered preset axis. A `bool` axis `X` has the members `X` and `no-X`, with a negation between them; a `categorical` axis has declared `$members` and no negation. An axis is also its own tag's declaration. |
 | `facet` | A declared, exclusive set of groups (`publisher`, `family`). A build is in at most one group of each facet. A facet becomes required through a template class's `$required_facets`. |
 | `resource` | One artifact: a `$file`, its `$format`, an optional `$sha256` and `$dtype`, and its `$sources`. |
 | `alias` | Another name for one entry: `$ref: {$path, $kind}`, a reference and the kind its target must have (never `alias`). It sits wherever a namespace can hold it, apart from what it names, and a lookup for its target's kind resolves through it. |
+
+**Types** are expressions. The primitives are `$` words: `$bool`, `$count`, `$number`,
+`$text`, `$languages` (BCP 47 tags, with `*`) and `$object` (any object, unchecked). The forms
+are `$` maps: `{$list: T}`, `{$map: T}`, `{$one_of: [..]}` and
+`{$record: {field: {$type, $description, $optional}}}`. Any other string names a `type`
+entry, resolved from where it is written; an expression may be written in place, or named. A
+value is checked weakly: its base, and each declared record field present and of its type;
+fields a record doesn't declare pass.
 
 **Names** are `/`-separated paths. Each segment is a plain, unquoted YAML key, and only
 ASCII is allowed. Collisions are kind-flat: a scope holds one entry per name, whatever
@@ -109,4 +154,4 @@ An occurrence's `$merge` says how it meets an existing entry of its name:
 - `replace` substitutes the occurrence's own fields for the entry's, for every reference to
   it. The kind stays the same, and children are entries of their own.
 
-A build can depend on any resource in the state.
+A build can bind any resource in the state to a resource slot.

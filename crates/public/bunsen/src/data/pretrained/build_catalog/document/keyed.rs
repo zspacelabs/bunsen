@@ -33,6 +33,7 @@ use super::{
     AxisUse,
     BuildEntry,
     CatalogEntry,
+    ContractEntry,
     EntryKind,
     FacetEntry,
     GroupEntry,
@@ -43,6 +44,7 @@ use super::{
     ResourceEntry,
     TagEntry,
     TemplateClassEntry,
+    TypeEntry,
     empty_object,
     is_empty_object,
 };
@@ -357,10 +359,21 @@ pub(super) fn read_catalog(node: OrderedNode) -> CatalogResult<PretrainedCatalog
                 OrderedNode::Scalar(Value::String(text)) => catalog.description = Some(text),
                 _ => return Err(parse_error("", "`$description` is not a string")),
             },
+            "$contracts" => {
+                let mut contracts = Vec::new();
+                for (name, node) in expect_map(value, "$contracts", "`$contracts`")? {
+                    let path = child_path("$contracts", &name);
+                    contracts.push(read_entry(name, node, &path)?);
+                }
+                catalog.contracts = Some(contracts);
+            }
             _ if key.starts_with('$') => {
                 return Err(parse_error(
                     "",
-                    format!("the catalog has no `{key}`: its `$` word is `$description`"),
+                    format!(
+                        "the catalog has no `{key}`: its `$` words are `$description` and \
+                         `$contracts`"
+                    ),
                 ));
             }
             _ => {
@@ -432,18 +445,16 @@ fn read_entry(
     }
     let what = kind.as_str();
     Ok(match kind {
-        EntryKind::Namespace | EntryKind::Contract => {
-            let group = GroupEntry {
-                name,
-                children,
-                ..typed(fields, path, what)?
-            };
-            if kind == EntryKind::Namespace {
-                CatalogEntry::Namespace(group)
-            } else {
-                CatalogEntry::Contract(group)
-            }
-        }
+        EntryKind::Namespace => CatalogEntry::Namespace(GroupEntry {
+            name,
+            children,
+            ..typed(fields, path, what)?
+        }),
+        EntryKind::Contract => CatalogEntry::Contract(ContractEntry {
+            name,
+            children,
+            ..typed(fields, path, what)?
+        }),
         EntryKind::Release => CatalogEntry::Release(ReleaseEntry {
             name,
             ..typed(fields, path, what)?
@@ -478,6 +489,10 @@ fn read_entry(
             ..typed(fields, path, what)?
         }),
         EntryKind::Alias => CatalogEntry::Alias(AliasEntry {
+            name,
+            ..typed(fields, path, what)?
+        }),
+        EntryKind::Type => CatalogEntry::Type(TypeEntry {
             name,
             ..typed(fields, path, what)?
         }),
@@ -575,6 +590,13 @@ pub(super) fn write_catalog(catalog: &PretrainedCatalog) -> OrderedNode {
             OrderedNode::Scalar(Value::String(description.clone())),
         ));
     }
+    if let Some(contracts) = &catalog.contracts {
+        let written = contracts
+            .iter()
+            .map(|c| (c.name().to_string(), write_entry(c)))
+            .collect();
+        entries.push(("$contracts".to_string(), OrderedNode::Map(written)));
+    }
     for entry in &catalog.entries {
         entries.push((entry.name().to_string(), write_entry(entry)));
     }
@@ -585,9 +607,8 @@ pub(super) fn write_catalog(catalog: &PretrainedCatalog) -> OrderedNode {
 /// declared order, its tags, `$presets`, then its children.
 pub(super) fn write_entry(entry: &CatalogEntry) -> OrderedNode {
     let (fields, presets, tags, children) = match entry {
-        CatalogEntry::Namespace(e) | CatalogEntry::Contract(e) => {
-            (OrderedNode::of(e), None, None, e.children.as_slice())
-        }
+        CatalogEntry::Namespace(e) => (OrderedNode::of(e), None, None, e.children.as_slice()),
+        CatalogEntry::Contract(e) => (OrderedNode::of(e), None, None, e.children.as_slice()),
         CatalogEntry::Release(e) => (OrderedNode::of(e), None, None, &[][..]),
         CatalogEntry::Build(e) => (
             OrderedNode::of(e),
@@ -603,6 +624,7 @@ pub(super) fn write_entry(entry: &CatalogEntry) -> OrderedNode {
         CatalogEntry::Facet(e) => (OrderedNode::of(e), None, None, &[][..]),
         CatalogEntry::Resource(e) => (OrderedNode::of(e), None, None, &[][..]),
         CatalogEntry::Alias(e) => (OrderedNode::of(e), None, None, &[][..]),
+        CatalogEntry::Type(e) => (OrderedNode::of(e), None, None, &[][..]),
     };
     let mut out = vec![(
         "$kind".to_string(),

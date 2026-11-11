@@ -15,7 +15,8 @@
 //! | `qwen3-4b-thinking-2507` | `qwen/qwen3` | `hybrid > thinking-only` | always | | 4e9 | in `qwen3-2507` |
 //!
 //! Qwen3's `language` is `["*"]`; Whisper's is `[en, "*"]`. The Qwen3 builds
-//! have the contract `qwen3-lm`, the Whisper builds `whisper-asr`.
+//! have the contract `qwen3-lm`, the Whisper builds `whisper-asr`, which a
+//! query tests with `$contract`.
 
 use std::collections::BTreeMap;
 
@@ -137,11 +138,11 @@ fn a_list_in_keep_is_all_of() {
     // The release group `release` (under whisper/large) and the contract
     // `whisper-asr`. The turbo build is in no release.
     assert_eq!(
-        select("[{keep: [release, whisper-asr]}]"),
+        select("[{keep: [release, {$contract: whisper-asr}]}]"),
         ["large-v1", "large-v2", "large-v3"]
     );
     // Two contracts can't both hold: a build has exactly one.
-    assert!(select("[{keep: [qwen3-lm, whisper-asr]}]").is_empty());
+    assert!(select("[{keep: [{$contract: qwen3-lm}, {$contract: whisper-asr}]}]").is_empty());
 }
 
 #[test]
@@ -696,7 +697,7 @@ fn a_traced_weigh_records_its_weights_and_its_floored_rows() {
 fn weighing_is_checked_when_the_query_compiles() {
     assert!(refused("[{weigh: {by: [{mul: x}]}}]").contains("`mul` is a number"));
     assert!(refused("[{weigh: {by: [{when: instruct, but: 1}]}}]").contains("not `but`"));
-    assert!(refused("[{weigh: {by: [{match: {parameters: en}}]}}]").contains("`languages` tag"));
+    assert!(refused("[{weigh: {by: [{match: {parameters: en}}]}}]").contains("`$languages` tag"));
     assert!(refused("[{weigh: {by: [{release: oldest}]}}]").contains("`release` is `latest`"));
     assert!(refused("[{weigh: {by: [{clip: [1, 0]}]}}]").contains("`clip` is `[a, b]`"));
     assert!(refused("[{weigh: {by: [{pow: 2}]}}]").contains("a `by` entry is"));
@@ -909,7 +910,7 @@ openai:
         $kind: build
         $description: "Whisper large-v2, mirrored."
         $template_class: multilingual
-        $dependencies: { checkpoint: large/large-v2/checkpoint }
+        $resources: { checkpoint: large/large-v2/checkpoint }
         parameters: 1550000000
 "#,
         )
@@ -960,7 +961,7 @@ fn a_template_class_query_reads_its_chain_tags_and_presets() {
     // Its groups through the chain's joins, its base chain, its tags and
     // its folded axis uses.
     assert_eq!(
-        select_kind("template_class", "[{keep: qwen3-lm}]").unwrap(),
+        select_kind("template_class", "[{keep: {$contract: qwen3-lm}}]").unwrap(),
         ["qwen/qwen3/hybrid", "qwen/qwen3/thinking-only"]
     );
     assert_eq!(
@@ -996,7 +997,7 @@ fn a_group_query_reads_its_closure() {
     );
     assert_eq!(
         select_kind("contract", "[{order: {desc: $name}}]").unwrap(),
-        ["whisper-asr", "qwen3-lm"]
+        ["$contracts/whisper-asr", "$contracts/qwen3-lm"]
     );
     assert_eq!(
         select_kind("release", "[{keep: whisper}]").unwrap(),

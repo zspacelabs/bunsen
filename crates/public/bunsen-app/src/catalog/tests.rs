@@ -351,6 +351,11 @@ fn test_tree() {
     assert_eq!(lines.len(), 6, "{builds}");
 
     let all = cli("tree --all").unwrap();
+    assert!(all.contains("\n$contracts\n"), "{all}");
+    assert!(
+        all.contains("whisper-asr (contract): [checkpoint, vocabulary] An OpenAI Whisper"),
+        "{all}"
+    );
     assert!(
         all.contains("checkpoint (resource): model.safetensors"),
         "{all}"

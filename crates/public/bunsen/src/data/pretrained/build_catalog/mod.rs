@@ -44,6 +44,8 @@
 //!     .push_yaml(
 //!         "prelude",
 //!         r#"
+//! $contracts:
+//!   demo-lm: { $kind: contract, $description: "What the demo loader reads." }
 //! family: { $kind: facet, $description: "A line of related models." }
 //! thinking: { $kind: axis, $axis: bool, $description: "Think first." }
 //! template_class_root:
@@ -57,7 +59,6 @@
 //!     .push_yaml(
 //!         "models",
 //!         r#"
-//! demo-lm: { $kind: contract, $description: "What the demo loader reads." }
 //! demo:
 //!   $kind: namespace
 //!   $facet: family
@@ -65,7 +66,7 @@
 //!   thinker:
 //!     $kind: build
 //!     $description: "Always thinks."
-//!     $join: [demo-lm]
+//!     $contract: demo-lm
 //!     $presets:
 //!       $axes: { thinking: { $offers: [thinking], $default: thinking } }
 //!       thinking: { $description: "Think.", $patch: { think: true } }

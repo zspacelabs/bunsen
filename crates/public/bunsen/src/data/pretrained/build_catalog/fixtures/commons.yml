@@ -1,14 +1,4 @@
-# Groups that more than one catalog refers to: publishers and contracts.
-# Contracts are named at the root; `of_kind(contract)` lists them, and each
-# build is in exactly one.
-$description: "Shared groups: publishers and contracts."
+# Groups that more than one catalog refers to: the publishers.
+$description: "Shared groups: publishers."
 qwen: { $kind: namespace, $facet: publisher, $description: "Qwen, Alibaba Cloud's model team." }
 openai: { $kind: namespace, $facet: publisher, $description: "OpenAI." }
-qwen3-lm:
-  $kind: contract
-  $description: "A Qwen3-architecture causal LM, as transformers lays it out."
-  $dependency_keys: { $required: [checkpoint, config, tokenizer], $optional: [generation_config] }
-whisper-asr:
-  $kind: contract
-  $description: "An OpenAI Whisper checkpoint and its tiktoken vocabulary."
-  $dependency_keys: { $required: [checkpoint, vocabulary] }
