@@ -1,8 +1,9 @@
-//! `pretrained-catalog`: import catalogs, then list, show, resolve and
-//! select over the state they make.
+//! `pretrained-catalog`: import catalogs, then dump, browse, show, resolve
+//! and select over the state they make.
 //!
 //! ```text
-//! pretrained-catalog --examples list --kind build
+//! pretrained-catalog --examples tree
+//! pretrained-catalog --examples dump --format json
 //! pretrained-catalog --catalog a.yml --catalog b.yml show qwen3
 //! pretrained-catalog --examples resolve large-v3 --preset translate
 //! pretrained-catalog --examples select qwen3 --off thinking --limit 1
@@ -31,13 +32,17 @@ use bunsen::data::pretrained::build_catalog::{
     document::{
         CatalogEntry,
         EntryKind,
+        OrderedNode,
     },
     fixtures,
     lookup::{
         LeafMatch,
         SEARCHABLE,
     },
-    presets::PresetSelection,
+    presets::{
+        PresetSelection,
+        ResolvedAxisUse,
+    },
     resolve::TagSource,
     select::{
         choose::{
@@ -151,15 +156,30 @@ enum Command {
     /// prefix that keeps only the builds that can take them.
     Select(Box<SelectArgs>),
 
-    /// The namespace as a tree, from the root or from one entry.
+    /// The imported catalogs, in import order, as one sequence: each
+    /// item's `layer`, `path` and `catalog`, the document in its keyed form.
+    Dump {
+        /// The output format.
+        #[arg(long, value_enum, default_value_t = DumpFormat::Yml)]
+        format: DumpFormat,
+    },
+
+    /// The namespace as a directory view, from the root's entries or from
+    /// one entry: `name: description` for a namespace, `name: aliases {axes}
+    /// description` for a build, `name -> target` for an alias. By default
+    /// it shows namespaces, builds and the aliases that name them.
     Tree {
         /// The entry to start from, by any unambiguous name; the root when
         /// absent.
         root: Option<String>,
         /// Show only entries of these kinds (repeatable), with the
         /// containers on the way to them.
-        #[arg(long = "kind", value_name = "KIND")]
+        #[arg(long = "kind", value_name = "KIND", conflicts_with = "all")]
         kinds: Vec<String>,
+        /// Show every kind: contracts, releases, template classes,
+        /// resources, tags, axes and facets too.
+        #[arg(long)]
+        all: bool,
         /// How many levels below the start to show.
         #[arg(long)]
         depth: Option<usize>,
@@ -314,7 +334,13 @@ fn run(
                 .expect("the select subcommand");
             select(out, &stack, matches, *args)?
         }
-        Command::Tree { root, kinds, depth } => tree(out, &stack, root.as_deref(), &kinds, depth)?,
+        Command::Dump { format } => dump(out, &stack, format)?,
+        Command::Tree {
+            root,
+            kinds,
+            all,
+            depth,
+        } => tree(out, &stack, root.as_deref(), &kinds, all, depth)?,
         Command::Releases { group } => releases(out, &stack, &group)?,
     }
     Ok(())
@@ -1040,33 +1066,186 @@ fn select(
     Ok(())
 }
 
-/// What an entry's tree line adds after its name and kind.
-fn annotation(
+/// The format `dump` writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+enum DumpFormat {
+    /// YAML.
+    #[value(alias = "yaml")]
+    Yml,
+    /// JSON.
+    Json,
+}
+
+fn dump(
+    out: &mut String,
+    stack: &PretrainedCatalogStack,
+    format: DumpFormat,
+) -> Result<(), String> {
+    let layers = stack
+        .layers()
+        .iter()
+        .map(|layer| {
+            let mut fields = vec![(
+                "layer".to_string(),
+                OrderedNode::Scalar(Value::String(layer.label().to_string())),
+            )];
+            if let Some(path) = layer.path() {
+                fields.push((
+                    "path".to_string(),
+                    OrderedNode::Scalar(Value::String(path.display().to_string())),
+                ));
+            }
+            fields.push(("catalog".to_string(), layer.document().to_node()));
+            OrderedNode::Map(fields)
+        })
+        .collect();
+    let node = OrderedNode::Seq(layers);
+    let text = match format {
+        DumpFormat::Yml => node.to_yaml(),
+        DumpFormat::Json => node.to_json(),
+    }
+    .map_err(|e| e.message)?;
+    emit!(out, "{}", text.trim_end());
+    Ok(())
+}
+
+/// The kinds `tree` shows by default: namespaces and builds, and the
+/// aliases that name one.
+const TREE_KINDS: [EntryKind; 3] = [EntryKind::Namespace, EntryKind::Build, EntryKind::Alias];
+
+/// Whether `tree` shows `name` for `kinds`: an alias only when its target's
+/// kind is shown too.
+fn tree_shows(
     stack: &PretrainedCatalogStack,
     name: &CatalogName,
+    kinds: &[EntryKind],
+) -> bool {
+    let Some(entry) = stack.declaration(name) else {
+        return false;
+    };
+    if !kinds.contains(&entry.kind()) {
+        return false;
+    }
+    match entry.body() {
+        CatalogEntry::Alias(a) => kinds.contains(&a.target.kind),
+        _ => true,
+    }
+}
+
+/// An entry's description, when its kind has one and it is written.
+fn description(entry: &CatalogEntry) -> Option<&str> {
+    match entry {
+        CatalogEntry::Namespace(g) | CatalogEntry::Contract(g) => g.description.as_deref(),
+        CatalogEntry::Release(e) => Some(&e.description),
+        CatalogEntry::Build(e) => Some(&e.description),
+        CatalogEntry::TemplateClass(e) => Some(&e.description),
+        CatalogEntry::Tag(e) => Some(&e.description),
+        CatalogEntry::Axis(e) => Some(&e.description),
+        CatalogEntry::Facet(e) => Some(&e.description),
+        CatalogEntry::Resource(e) => e.description.as_deref(),
+        CatalogEntry::Alias(e) => e.description.as_deref(),
+    }
+}
+
+/// Axis uses, `{axis: default|other, ..}`: the default first, then the
+/// rest of what the use offers.
+fn axes_text(axes: &[ResolvedAxisUse]) -> Option<String> {
+    if axes.is_empty() {
+        return None;
+    }
+    let uses: Vec<String> = axes
+        .iter()
+        .map(|a| {
+            let mut offers = vec![a.default.as_str()];
+            offers.extend(
+                a.offers
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|o| *o != a.default),
+            );
+            format!("{}: {}", a.axis.name.leaf(), offers.join("|"))
+        })
+        .collect();
+    Some(format!("{{{}}}", uses.join(", ")))
+}
+
+/// An alias's name as a build's line shows it: its leaf when it sits in
+/// the build's scope or above it, its full name otherwise.
+fn alias_text(
+    alias: &CatalogName,
+    build: &CatalogName,
+) -> String {
+    let near = match (alias.scope(), build.scope()) {
+        (None, _) => true,
+        (Some(a), Some(b)) => b == a || b.is_within(&a),
+        (Some(_), None) => false,
+    };
+    if near {
+        alias.leaf().to_string()
+    } else {
+        alias.to_string()
+    }
+}
+
+/// An entry's tree line, after its tree glyph.
+fn tree_line(
+    stack: &PretrainedCatalogStack,
+    name: &CatalogName,
+    label: &str,
 ) -> String {
     let Some(entry) = stack.declaration(name) else {
-        return String::new();
+        return label.to_string();
     };
-    let note = match entry.body() {
-        CatalogEntry::Namespace(_) | CatalogEntry::Contract(_) => {
-            stack.group_facet(entry).map(|f| f.to_string())
+    let body = entry.body();
+    let mut parts: Vec<String> = Vec::new();
+    match body {
+        CatalogEntry::Build(_) => {
+            let aliases: Vec<String> = stack
+                .aliases_of(name)
+                .iter()
+                .map(|a| alias_text(a, name))
+                .collect();
+            if !aliases.is_empty() {
+                parts.push(aliases.join(", "));
+            }
+            if let Ok(build) = stack.resolve_build(name) {
+                parts.extend(axes_text(&build.presets.axes));
+            }
         }
-        CatalogEntry::Build(_) => stack
-            .resolve_build(name)
-            .ok()
-            .and_then(|b| b.release)
-            .map(|r| format!("{} {}", r.group.leaf(), r.released)),
-        CatalogEntry::TemplateClass(t) => t.base.as_ref().map(|b| format!("base {b}")),
-        CatalogEntry::Resource(r) => Some(r.file.clone()),
-        CatalogEntry::Alias(a) => stack
-            .resolve_ref(name, &a.target.path)
-            .map(|t| format!("-> {}", t.name())),
-        CatalogEntry::Axis(a) => Some(format!("{:?}", a.axis).to_lowercase()),
-        CatalogEntry::Tag(t) => Some(format!("{:?}", t.tag_type).to_lowercase()),
-        _ => None,
+        CatalogEntry::TemplateClass(_) => {
+            if let Ok(class) = stack.resolve_template_class(name) {
+                parts.extend(axes_text(&class.presets.axes));
+            }
+        }
+        CatalogEntry::Resource(r) => parts.push(r.file.clone()),
+        CatalogEntry::Alias(a) => {
+            let target = stack
+                .resolve_ref(name, &a.target.path)
+                .map(|t| t.name().clone());
+            let shown = target.map_or_else(
+                || a.target.path.to_string(),
+                |t| {
+                    if t.scope() == name.scope() {
+                        t.leaf().to_string()
+                    } else {
+                        t.to_string()
+                    }
+                },
+            );
+            return format!("{label} -> {shown}");
+        }
+        _ => {}
+    }
+    parts.extend(description(body).map(str::to_string));
+    let head = match body.kind() {
+        EntryKind::Namespace | EntryKind::Build => label.to_string(),
+        kind => format!("{label} ({kind})"),
     };
-    note.map(|n| format!("  [{n}]")).unwrap_or_default()
+    if parts.is_empty() {
+        head
+    } else {
+        format!("{head}: {}", parts.join(" "))
+    }
 }
 
 fn tree(
@@ -1074,12 +1253,19 @@ fn tree(
     stack: &PretrainedCatalogStack,
     root: Option<&str>,
     kinds: &[String],
+    all: bool,
     depth: Option<usize>,
 ) -> Result<(), String> {
-    let kinds: Vec<EntryKind> = kinds
-        .iter()
-        .map(|k| parse_kind(k))
-        .collect::<Result<_, _>>()?;
+    let kinds: Vec<EntryKind> = if all {
+        EntryKind::ALL.to_vec()
+    } else if kinds.is_empty() {
+        TREE_KINDS.to_vec()
+    } else {
+        kinds
+            .iter()
+            .map(|k| parse_kind(k))
+            .collect::<Result<_, _>>()?
+    };
     // Whether `name` is shown: it is of a wanted kind, or something below it
     // is.
     fn shown(
@@ -1087,10 +1273,7 @@ fn tree(
         name: &CatalogName,
         kinds: &[EntryKind],
     ) -> bool {
-        kinds.is_empty()
-            || stack
-                .declaration(name)
-                .is_some_and(|d| kinds.contains(&d.kind()))
+        tree_shows(stack, name, kinds)
             || stack
                 .children(name)
                 .iter()
@@ -1107,16 +1290,11 @@ fn tree(
         let names: Vec<&CatalogName> = names.iter().filter(|n| shown(stack, n, kinds)).collect();
         for (i, name) in names.iter().enumerate() {
             let last = i + 1 == names.len();
-            let kind = stack
-                .declaration(name)
-                .map(|d| d.kind().as_str())
-                .unwrap_or("?");
             emit!(
                 out,
-                "{prefix}{} {} ({kind}){}",
+                "{prefix}{} {}",
                 if last { "└──" } else { "├──" },
-                name.leaf(),
-                annotation(stack, name)
+                tree_line(stack, name, name.leaf())
             );
             if depth == Some(0) {
                 continue;
@@ -1130,35 +1308,37 @@ fn tree(
             walk(out, stack, &children, &prefix, kinds, depth.map(|d| d - 1));
         }
     }
-    let (start, names): (String, Vec<CatalogName>) = match root {
+    let children = |name: &CatalogName| -> Vec<CatalogName> {
+        stack
+            .children(name)
+            .iter()
+            .map(|c| c.name().clone())
+            .collect()
+    };
+    let below = depth.map(|d| d.saturating_sub(1));
+    match root {
+        // One entry heads its subtree.
         Some(query) => {
             let name = find(stack, query, &SEARCHABLE)?;
-            let kids = stack
-                .children(&name)
-                .iter()
-                .map(|c| c.name().clone())
-                .collect();
-            let kind = stack.declaration(&name).map(|d| d.kind()).expect("found");
-            (format!("{name} ({kind}){}", annotation(stack, &name)), kids)
+            emit!(out, "{}", tree_line(stack, &name, &name.to_string()));
+            walk(out, stack, &children(&name), "", &kinds, below);
         }
-        None => (
-            "/".to_string(),
-            stack
+        // The root is not an entry: its entries are the top level.
+        None => {
+            let top: Vec<CatalogName> = stack
                 .declarations()
                 .filter(|e| e.name().scope().is_none())
                 .map(|e| e.name().clone())
-                .collect(),
-        ),
-    };
-    emit!(out, "{start}");
-    walk(
-        out,
-        stack,
-        &names,
-        "",
-        &kinds,
-        depth.map(|d| d.saturating_sub(1)),
-    );
+                .filter(|n| shown(stack, n, &kinds))
+                .collect();
+            for name in &top {
+                emit!(out, "{}", tree_line(stack, name, name.leaf()));
+                if depth != Some(1) {
+                    walk(out, stack, &children(name), "", &kinds, below);
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1472,33 +1652,119 @@ mod tests {
     fn test_tree() {
         let out = cli("tree").unwrap();
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines[0], "/");
-        assert!(out.contains("├── qwen (namespace)  [publisher]"), "{out}");
-        assert!(out.contains("qwen3 (namespace)  [family]"), "{out}");
+        // The root's entries are the top level, with no line for the root.
+        assert_eq!(lines[0], "qwen: Qwen, Alibaba Cloud's model team.");
+        assert!(lines.contains(&"openai: OpenAI."), "{out}");
+        // A namespace is its name and description; a build adds its axis
+        // uses, default first.
+        assert!(out.contains("└── qwen3: Qwen3."), "{out}");
         assert!(
-            out.contains("thinking-only (template_class)  [base hybrid]"),
+            out.contains(
+                "qwen3-0.6b: {thinking: thinking|no-thinking} Qwen3-0.6B: hybrid-thinking chat."
+            ),
             "{out}"
         );
         assert!(
-            out.contains("large-v3 (build)  [release 2023-11-06]"),
+            out.contains("qwen3-0.6b-base: {thinking: no-thinking} Qwen3-0.6B-Base"),
             "{out}"
         );
         // Children from the supplemental catalog sit under the group it
         // extends.
-        assert!(out.contains("qwen3-1.7b (build)"), "{out}");
+        assert!(out.contains("qwen3-1.7b: "), "{out}");
+        // Only namespaces and builds: no contracts, releases, template
+        // classes, vocabulary or resources.
+        for hidden in [
+            "qwen3-lm",
+            "release",
+            "hybrid",
+            "template_class_root",
+            "parameters",
+            "(",
+        ] {
+            assert!(
+                !lines.iter().any(|l| l
+                    .trim_start_matches(['│', '├', '└', '─', ' '])
+                    .starts_with(hidden)),
+                "{hidden}: {out}"
+            );
+        }
 
         let builds = cli("tree whisper --kind build").unwrap();
         let lines: Vec<&str> = builds.lines().collect();
-        assert_eq!(lines[0], "openai/whisper (namespace)  [family]");
-        assert!(lines[1].ends_with("large (namespace)"), "{builds}");
+        assert_eq!(lines[0], "openai/whisper: Whisper.");
+        assert!(
+            lines[1].ends_with("large: The large Whisper models."),
+            "{builds}"
+        );
         assert_eq!(lines.len(), 6, "{builds}");
-        assert!(!builds.contains("checkpoint"));
-        assert!(!builds.contains("vocabulary"));
+
+        let all = cli("tree --all").unwrap();
+        assert!(
+            all.contains("checkpoint (resource): model.safetensors"),
+            "{all}"
+        );
+        assert!(all.contains("family (facet): A line of related"), "{all}");
+        assert!(all.contains("hybrid (template_class): {thinking"), "{all}");
 
         let shallow = cli("tree --depth 1").unwrap();
-        assert!(shallow.contains("qwen (namespace)"));
-        assert!(!shallow.contains("qwen3 (namespace)"), "{shallow}");
+        assert_eq!(
+            shallow,
+            "qwen: Qwen, Alibaba Cloud's model team.\nopenai: OpenAI.\n"
+        );
         assert!(cli("tree --kind nope").is_err());
+    }
+
+    #[test]
+    fn test_tree_shows_aliases() {
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/aliases.yml");
+        let out = cli(&format!("--catalog {path} tree")).unwrap();
+        // On the build's line, and as entries where they sit.
+        assert!(
+            out.contains("large-v3: newest, large {task: transcribe|translate} Whisper large-v3."),
+            "{out}"
+        );
+        assert!(
+            out.contains("└── large -> openai/whisper/large/large-v3"),
+            "{out}"
+        );
+        assert!(
+            out.lines()
+                .any(|l| l == "newest -> openai/whisper/large/large-v3"),
+            "{out}"
+        );
+        // An alias to a kind the view leaves out is left out with it.
+        let builds = cli(&format!("--catalog {path} tree --kind namespace")).unwrap();
+        assert!(!builds.contains("->"), "{builds}");
+    }
+
+    #[test]
+    fn test_dump_nests_each_catalog_in_order() {
+        let yaml = cli("dump").unwrap();
+        let docs: Value = serde_saphyr::from_str(&yaml).unwrap();
+        let layers: Vec<&str> = docs
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| l["layer"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            layers,
+            ["prelude", "commons", "qwen3", "whisper", "supplemental"]
+        );
+        assert_eq!(docs[0]["catalog"]["thinking"]["$kind"], "axis");
+        assert!(docs[0]["path"].as_str().unwrap().ends_with("prelude.yml"));
+        // The keyed form, read back in its order, is the catalog imported.
+        let OrderedNode::Seq(items) = OrderedNode::from_yaml(&yaml).unwrap() else {
+            panic!("a sequence")
+        };
+        let node = items[2].get("catalog").unwrap().clone();
+        let catalog =
+            bunsen::data::pretrained::build_catalog::PretrainedCatalog::from_node(node).unwrap();
+        let stack = fixtures::supplemented_example_stack().unwrap();
+        assert_eq!(&catalog, stack.layers()[2].document());
+        let json: Value = serde_json::from_str(&cli("dump --format json").unwrap()).unwrap();
+        assert_eq!(json, docs);
+        assert!(cli("dump --format toml").is_err());
     }
 
     #[test]
