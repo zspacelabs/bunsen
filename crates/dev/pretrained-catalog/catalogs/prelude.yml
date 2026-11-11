@@ -24,9 +24,9 @@ entries:
     type: count
     description: "The parameter count."
   - kind: tag
-    name: base
+    name: instruct
     type: bool
-    description: "A pretrained base checkpoint, not tuned to follow instructions."
+    description: "Tuned to follow instructions; `false` for a pretrained base checkpoint."
   - kind: tag
     name: language
     type: languages

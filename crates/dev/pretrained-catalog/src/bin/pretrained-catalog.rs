@@ -116,7 +116,7 @@ enum Command {
     /// and `--limit`; names add to `select.from`.
     Select {
         /// A name (added to `select.from`), or a patch of `select`
-        /// (`{require: [hybrid], where: {base: false}}`); repeatable.
+        /// (`{require: [hybrid], where: {instruct: true}}`); repeatable.
         #[arg(long = "select", value_name = "NAME|{..}")]
         selects: Vec<String>,
         /// A patch of `prefer` (`{where: {language: en}, release: latest}`);
@@ -866,7 +866,7 @@ mod tests {
         );
         let err = cli("select --select '{where: {kit: qwen3}}'").unwrap_err();
         assert!(err.contains("every key a query tests is declared"), "{err}");
-        let typed = cli("select --select '{where: {base: maybe}}'").unwrap_err();
+        let typed = cli("select --select '{where: {instruct: maybe}}'").unwrap_err();
         assert!(typed.contains("is not `true` or `false`"), "{typed}");
         let empty = cli("select --select qwen3 --cutoff 2").unwrap_err();
         assert!(empty.contains("no build is left"), "{empty}");

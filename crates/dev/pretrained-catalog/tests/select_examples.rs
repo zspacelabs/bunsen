@@ -7,7 +7,7 @@
 //! | build | family | class chain | thinking | task | parameters | other |
 //! |---|---|---|---|---|---|---|
 //! | `qwen3-0.6b` | `qwen/qwen3` | `hybrid` | switch | | 6e8 | |
-//! | `qwen3-0.6b-base` | `qwen/qwen3` | `hybrid` | never | | 6e8 | `base: true` |
+//! | `qwen3-0.6b-base` | `qwen/qwen3` | `hybrid` | never | | 6e8 | `instruct: false` |
 //! | `qwen3-4b-thinking-2507` | `qwen/qwen3` | `hybrid > thinking-only` | always | | 4e9 | in `qwen3-2507` |
 //! | `large-v1` | `openai/whisper` | `multilingual` | | both | 1.55e9 | release 2022-09 |
 //! | `large-v2` | `openai/whisper` | `multilingual` | | both | 1.55e9 | release 2022-12 |
@@ -201,21 +201,24 @@ fn scalar_tags_compare_and_range() {
         query("select: {where: {parameters: [600000000, 809000000]}}"),
         ["qwen3-0.6b", "qwen3-0.6b-base", "large-v3-turbo"]
     );
-    // A bool tag compares; only Qwen3 declares `base` values.
-    assert_eq!(query("select: {where: {base: true}}"), ["qwen3-0.6b-base"]);
+    // A bool tag compares; only Qwen3 declares `instruct` values.
+    assert_eq!(
+        query("select: {where: {instruct: false}}"),
+        ["qwen3-0.6b-base"]
+    );
     // A tag declared in a family's scope is found by its short name.
     assert_eq!(query("select: {where: {timestamps: true}}"), ["large-v3"]);
 }
 
 #[test]
 fn predicates_and_membership_combine() {
-    // The running example: Qwen3, can run without thinking, under 8B, not a
-    // base model.
+    // The running example: Qwen3, can run without thinking, under 8B, tuned
+    // to follow instructions.
     assert_eq!(
         query(
             "select:
                from: [qwen3]
-               where: {thinking: false, base: false, parameters: {max: 8.0e9}}"
+               where: {thinking: false, instruct: true, parameters: {max: 8.0e9}}"
         ),
         ["qwen3-0.6b"]
     );
@@ -223,7 +226,7 @@ fn predicates_and_membership_combine() {
 
 #[test]
 fn values_are_checked_against_their_declarations() {
-    assert!(refused("select: {where: {base: maybe}}").contains("is not `true` or `false`"));
+    assert!(refused("select: {where: {instruct: maybe}}").contains("is not `true` or `false`"));
     assert!(refused("select: {where: {parameters: big}}").contains("is not a number"));
     assert!(
         refused("select: {where: {task: summarize}}").contains("not one of the axis's members")
@@ -335,12 +338,12 @@ fn defaults_merge_under_a_choice_and_patches_override_them() {
     let stack = fixtures::builtin_stack().unwrap();
     let context = SelectionContext {
         defaults: q("
-                     select: {where: {base: false}}
+                     select: {where: {instruct: true}}
                      order: [-parameters]"),
         named: vec![],
     };
-    // The defaults keep only builds with `base: false` (Whisper has no
-    // `base`), largest first.
+    // The defaults keep only builds with `instruct: true` (Whisper has no
+    // `instruct`), largest first.
     assert_eq!(
         ranked(&stack, &context, ChoiceRequest::default()),
         ["qwen3-4b-thinking-2507", "qwen3-0.6b"]
@@ -352,7 +355,7 @@ fn defaults_merge_under_a_choice_and_patches_override_them() {
             &context,
             ChoiceRequest::default()
                 .name("whisper")
-                .select(q("where: {base: null}"))
+                .select(q("where: {instruct: null}"))
         ),
         ["large-v1", "large-v2", "large-v3", "large-v3-turbo"]
     );

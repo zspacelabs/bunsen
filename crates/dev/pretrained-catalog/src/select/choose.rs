@@ -693,14 +693,14 @@ mod tests {
 
     fn context() -> SelectionContext {
         SelectionContext {
-            defaults: json!({"select": {"where": {"base": false}}, "order": ["-parameters"]}),
+            defaults: json!({"select": {"where": {"instruct": true}}, "order": ["-parameters"]}),
             named: vec![NamedSelection {
                 name: "en".into(),
                 description: "English speech.".into(),
-                // Whisper has no `base` tag: the selection removes that
+                // Whisper has no `instruct` tag: the selection removes that
                 // default.
                 query: json!({
-                    "select": {"from": ["whisper"], "where": {"base": null}},
+                    "select": {"from": ["whisper"], "where": {"instruct": null}},
                     "prefer": {"where": {"language": "en"}, "release": "latest"},
                     "order": ["-weight"],
                 }),

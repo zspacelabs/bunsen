@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn test_select_weighs_and_drops() {
         let s = selection(&["qwen3-0.6b", "qwen3-0.6b-base", "qwen3-4b-thinking-2507"])
-            .weigh_each(|c| if c.is_true("base") { 0.0 } else { 1.0 })
+            .weigh_each(|c| if !c.is_true("instruct") { 0.0 } else { 1.0 })
             .weigh_each(|c| {
                 if c.name().leaf().contains("4b") {
                     0.5
@@ -379,7 +379,7 @@ mod tests {
     fn test_epsilon_drops_the_faint() {
         let s = selection(&["qwen3-0.6b", "qwen3-0.6b-base"])
             .with_epsilon(0.1)
-            .weigh_each(|c| if c.is_true("base") { 0.05 } else { 1.0 });
+            .weigh_each(|c| if !c.is_true("instruct") { 0.05 } else { 1.0 });
         assert_eq!(shown(&s), ["qwen3-0.6b"]);
     }
 

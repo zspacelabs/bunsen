@@ -281,7 +281,7 @@ impl PretrainedCatalogStack {
                     report(e);
                 }
                 ResolvedPresetSet {
-                    base: Value::Object(Default::default()),
+                    common: Value::Object(Default::default()),
                     presets: Vec::new(),
                     axes: Vec::new(),
                     default: Vec::new(),
@@ -521,12 +521,12 @@ mod tests {
         assert_eq!(b.tag("thinking"), Some(&json!("switch")));
         assert_eq!(b.tag("family"), Some(&json!("qwen/qwen3")));
         assert_eq!(b.tag("publisher"), Some(&json!("qwen")));
-        assert_eq!(b.tag("base"), Some(&json!(false)));
+        assert_eq!(b.tag("instruct"), Some(&json!(true)));
         assert_eq!(b.tag("parameters"), Some(&json!(600000000u64)));
         assert_eq!(b.tags[&n("thinking")].source, TagSource::Axis);
         assert_eq!(b.tags[&n("family")].source, TagSource::Facet);
         assert_eq!(
-            b.tags[&n("base")].source,
+            b.tags[&n("instruct")].source,
             TagSource::Written(n("qwen/qwen3/hybrid"))
         );
 
@@ -551,9 +551,9 @@ mod tests {
         let stack = fixtures::builtin_stack().unwrap();
         let base = resolve(&stack, "qwen3-0.6b-base");
         assert_eq!(base.tag("thinking"), Some(&json!("never")));
-        assert_eq!(base.tag("base"), Some(&json!(true)));
+        assert_eq!(base.tag("instruct"), Some(&json!(false)));
         assert_eq!(
-            base.tags[&n("base")].source,
+            base.tags[&n("instruct")].source,
             TagSource::Written(n("qwen/qwen3/qwen3-0.6b-base"))
         );
         // The class's `thinking` preset is pruned: not offered, not selectable.

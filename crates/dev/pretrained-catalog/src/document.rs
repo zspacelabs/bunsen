@@ -535,7 +535,7 @@ pub struct TemplateClassEntry {
 pub struct PresetSetEntry {
     /// A merge patch every selection keeps.
     #[serde(default = "empty_object", skip_serializing_if = "is_empty_object")]
-    pub base: Value,
+    pub common: Value,
 
     /// The presets.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -553,7 +553,7 @@ pub struct PresetSetEntry {
 impl Default for PresetSetEntry {
     fn default() -> Self {
         Self {
-            base: empty_object(),
+            common: empty_object(),
             presets: Vec::new(),
             axes: Vec::new(),
             default: Vec::new(),
@@ -564,7 +564,7 @@ impl Default for PresetSetEntry {
 impl PresetSetEntry {
     /// Whether the set says nothing.
     pub fn is_empty(&self) -> bool {
-        is_empty_object(&self.base)
+        is_empty_object(&self.common)
             && self.presets.is_empty()
             && self.axes.is_empty()
             && self.default.is_empty()

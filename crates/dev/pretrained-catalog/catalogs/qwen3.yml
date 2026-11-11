@@ -19,9 +19,9 @@ entries:
             name: hybrid
             description: "Qwen3 hybrid-thinking chat: thinks by default, can be switched off."
             join: [qwen3-lm]
-            tags: { base: false, language: ["*"] }
+            tags: { instruct: true, language: ["*"] }
             presets:
-              base: { generation: { max_new_tokens: 2048 } }
+              common: { generation: { max_new_tokens: 2048 } }
               axes:
                 - { use: thinking, offers: [thinking, no-thinking], default: thinking }
               presets:
@@ -81,7 +81,7 @@ entries:
             license: "Apache-2.0"
             origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
             template_class: hybrid
-            tags: { parameters: 600000000, base: true }
+            tags: { parameters: 600000000, instruct: false }
             presets:
               axes:
                 - { use: thinking, offers: [no-thinking], default: no-thinking }

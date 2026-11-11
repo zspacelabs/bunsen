@@ -574,12 +574,12 @@ mod tests {
         assert!(holds(params(), json!({"max": 1e9}), "qwen3-0.6b"));
         assert!(!holds(params(), json!({"max": 1e9}), "large-v3"));
         assert!(holds(params(), json!([600000000u64, 1]), "qwen3-0.6b"));
-        let base = || tag("base", TagType::Bool);
-        assert!(holds(base(), json!(true), "qwen3-0.6b-base"));
-        assert!(holds(base(), json!({"is": false}), "qwen3-0.6b"));
+        let instruct = || tag("instruct", TagType::Bool);
+        assert!(holds(instruct(), json!(false), "qwen3-0.6b-base"));
+        assert!(holds(instruct(), json!({"is": true}), "qwen3-0.6b"));
         for bad_value in [json!("yes"), json!({"min": 1}), json!([true, "no"])] {
             assert!(
-                Predicate::compile(base(), &bad_value).is_err(),
+                Predicate::compile(instruct(), &bad_value).is_err(),
                 "{bad_value}"
             );
         }

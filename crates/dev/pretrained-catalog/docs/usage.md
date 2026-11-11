@@ -10,7 +10,7 @@ imports in this order: `prelude`, `commons`, `qwen3`, `whisper`. Their builds:
 | build | family | class chain | thinking | task | parameters | other |
 |---|---|---|---|---|---|---|
 | `qwen3-0.6b` | `qwen/qwen3` | `hybrid` | switch | | 6e8 | |
-| `qwen3-0.6b-base` | `qwen/qwen3` | `hybrid` | never | | 6e8 | `base: true` |
+| `qwen3-0.6b-base` | `qwen/qwen3` | `hybrid` | never | | 6e8 | `instruct: false` |
 | `qwen3-4b-thinking-2507` | `qwen/qwen3` | `hybrid > thinking-only` | always | | 4e9 | in `qwen3-2507` |
 | `large-v1` | `openai/whisper` | `multilingual` | | both | 1.55e9 | release 2022-09 |
 | `large-v2` | `openai/whisper` | `multilingual` | | both | 1.55e9 | release 2022-12 |
@@ -258,7 +258,7 @@ let err = always.presets.bool_member(&thinking, false).unwrap_err();
 assert!(err.message.contains("fixed at `thinking`"), "{err}");
 ```
 
-- `select(base, &selection)` resolves a document: the caller's `base`, the set's base patch, each
+- `select(base, &selection)` resolves a document: the caller's `base`, the set's `common` patch, each
   applied preset in order (each axis's default unless a member of it is selected, the `default`
   list, then the selected), and the selection's final `patch`.
 - `check_selection(&selection)` is the same check without the document: unknown presets, two
@@ -290,13 +290,13 @@ fn yaml(text: &str) -> Value {
 let stack = fixtures::builtin_stack().unwrap();
 let context = SelectionContext {
     // Applied under every choice, unless the only name is one build.
-    defaults: yaml("{select: {where: {base: false}}, order: [-parameters]}"),
+    defaults: yaml("{select: {where: {instruct: true}}, order: [-parameters]}"),
     named: vec![NamedSelection {
         name: "en".into(),
         description: "English speech.".into(),
-        // Whisper has no `base` tag, so this selection removes that default with `null`.
+        // Whisper has no `instruct` tag, so this selection removes that default with `null`.
         query: yaml(
-            "{select: {from: [whisper], where: {base: null}},
+            "{select: {from: [whisper], where: {instruct: null}},
               prefer: {where: {language: en}, release: latest},
               order: [-weight]}",
         ),
@@ -330,7 +330,7 @@ let en = context
     .unwrap();
 assert_eq!(en.candidate.name().leaf(), "large-v3");
 
-// One build, named exactly: the defaults don't apply, so `base: false` doesn't refuse it.
+// One build, named exactly: the defaults don't apply, so `instruct: true` doesn't refuse it.
 let base = context
     .choose(&stack, None, &[], &ChoiceRequest::default().name("qwen3-0.6b-base"))
     .unwrap();
@@ -505,7 +505,7 @@ select:                            # the hard filter: a build passes or is out
   from:    [qwen3]                 # a member of at least one
   require: [hybrid]                # a member of every one
   exclude: [qwen3-2507]            # a member of none
-  where:   {thinking: switch, base: false, parameters: {max: 8e9}}
+  where:   {thinking: switch, instruct: true, parameters: {max: 8e9}}
 prefer:                            # soft scores, multiplied into the weight
   where:   {language: {is: en, otherwise: 0.5}}
   release: latest                  # or {step, floor}
@@ -584,8 +584,8 @@ where: {task: translate}                 # offers translate: large-v1, -v2, -v3
 where: {task: [transcribe, translate]}   # offers both: the same three
 where: {task: {any: [transcribe, translate]}}   # offers either: all four
 where: {task: {only: [transcribe]}}      # transcribe and nothing else: large-v3-turbo
-where: {base: false}                     # the tag is false; Whisper has no `base`, so it is out
-where: {base: [true, false]}             # any value: has the tag at all
+where: {instruct: true}                  # the tag is true; Whisper has no `instruct`, so it is out
+where: {instruct: [true, false]}         # any value: has the tag at all
 where: {parameters: {min: 1e9, max: 2e9}}
 where: {timestamps: true}                # large-v3 (a tag declared under openai/whisper)
 where: {language: en}                    # handles English: the Whisper builds
@@ -604,7 +604,7 @@ where: {language: en}                    # handles English: the Whisper builds
 - **Values are typed.** Each of these is an error when the query compiles: `thinking: maybe`,
   `{min}` on a text tag, a member the axis doesn't have, `limit: 0`, and `{any}` on a
   single-valued key. A `scores` tag can't be tested as a whole.
-- YAML reads `yes` and `no` as booleans: `base: yes` means `base: true`.
+- YAML reads `yes` and `no` as booleans: `instruct: yes` means `instruct: true`.
 
 ### `prefer`: soft scores
 
@@ -693,13 +693,13 @@ Those are lists, and a later patch replaces each one whole. A `null` removes a k
 
 ```yaml
 # defaults
-select: {where: {base: false, thinking: switch}}
+select: {where: {instruct: true, thinking: switch}}
 order: [-parameters]
 # patch
 select: {where: {thinking: null}}
 order: [-weight]
 # merged
-select: {where: {base: false}}
+select: {where: {instruct: true}}
 order: [-weight]
 ```
 
@@ -724,7 +724,7 @@ says why: ``the build `qwen3-4b-thinking-2507` can't be chosen: … fixed at `th
 
 ```yaml
 # The largest instruction-tuned Qwen3 that can answer without thinking.
-select: {from: [qwen3], where: {base: false, thinking: false}}
+select: {from: [qwen3], where: {instruct: true, thinking: false}}
 order: [-parameters]
 # qwen3-0.6b
 
@@ -835,9 +835,9 @@ results:
     publisher: qwen
   contract: qwen3-lm
   tags:
-    base: false
     contract: qwen3-lm
     family: qwen/qwen3
+    instruct: true
     language:
     - "*"
     parameters: 600000000

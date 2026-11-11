@@ -4,7 +4,7 @@
 //! Folding runs root first. At each link a same-named preset's patch is
 //! merged patch over patch, a same-named axis use replaces the one above it
 //! and may only **narrow** what that offered, a non-empty `default` list
-//! replaces the one above it, and the base patches merge.
+//! replaces the one above it, and the common patches merge.
 //!
 //! A preset whose name is a member of a used axis is on that axis. Every
 //! offered member is a preset, and what isn't offered can't be selected:
@@ -104,8 +104,8 @@ pub struct PresetLink<'a> {
 /// A build's presets, folded along its chain.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedPresetSet {
-    /// The merged base patch.
-    pub base: Value,
+    /// The merged common patch.
+    pub common: Value,
     /// The presets.
     pub presets: Vec<PresetEntry>,
     /// The axis uses.
@@ -160,7 +160,7 @@ impl ResolvedPresetSet {
     ) -> Result<Self, Vec<CatalogError>> {
         let mut errors = Vec::new();
         let mut set = Self {
-            base: Value::Object(Default::default()),
+            common: Value::Object(Default::default()),
             presets: Vec::new(),
             axes: Vec::new(),
             default: Vec::new(),
@@ -170,10 +170,10 @@ impl ResolvedPresetSet {
         let mut used_at: Vec<usize> = Vec::new();
         for (at, link) in links.iter().enumerate() {
             let owner = link.owner;
-            if !link.set.base.is_object() {
-                errors.push(preset_error(owner, "the base patch is not an object"));
+            if !link.set.common.is_object() {
+                errors.push(preset_error(owner, "the common patch is not an object"));
             } else {
-                merge_patch::apply(&mut set.base, &link.set.base);
+                merge_patch::apply(&mut set.common, &link.set.common);
             }
             let mut seen = BTreeSet::new();
             for preset in &link.set.presets {
@@ -552,7 +552,7 @@ impl ResolvedPresetSet {
         applied
     }
 
-    /// Resolves `base` through the set as `selection` asks: the set's base
+    /// Resolves `base` through the set as `selection` asks: the set's common
     /// patch, the applied presets in order, then the selection's patch.
     ///
     /// # Errors
@@ -565,7 +565,7 @@ impl ResolvedPresetSet {
         let selected = self.check_selection(selection)?;
         let applied = self.applied(&selected);
         let mut document = base;
-        merge_patch::apply(&mut document, &self.base);
+        merge_patch::apply(&mut document, &self.common);
         for name in &applied {
             merge_patch::apply(&mut document, &self.get(name).expect("checked").patch);
         }
@@ -654,7 +654,7 @@ mod tests {
 
     fn hybrid() -> PresetSetEntry {
         PresetSetEntry {
-            base: json!({"generation": {"max_tokens": 512}}),
+            common: json!({"generation": {"max_tokens": 512}}),
             presets: vec![
                 preset("thinking", json!({"generation": {"temperature": 0.6}})),
                 preset(

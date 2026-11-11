@@ -77,7 +77,7 @@ select:                            # the hard filter
   from:    [qwen3]                 # a member of at least one
   require: [hybrid]                # a member of every one
   exclude: [qwen3-2507]            # a member of none
-  where:   {thinking: false, base: false, parameters: {max: 8e9}}
+  where:   {thinking: false, instruct: true, parameters: {max: 8e9}}
 prefer:                            # soft scores
   where:   {language: {is: en, otherwise: 0.5}}
   release: latest

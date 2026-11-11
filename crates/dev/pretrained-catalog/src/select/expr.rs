@@ -6,7 +6,7 @@
 //!   from:    [qwen3]                 # a member of at least one
 //!   require: [hybrid]                # a member of every one
 //!   exclude: [qwen3-2507]            # a member of none
-//!   where:   {thinking: false, base: false, parameters: {max: 8e9}}
+//!   where:   {thinking: false, instruct: true, parameters: {max: 8e9}}
 //! prefer:                            # soft scores
 //!   where:   {language: {is: en, otherwise: 0.5}}
 //!   release: latest                  # or {step, floor}
@@ -621,7 +621,7 @@ mod tests {
         );
         let refused = |value: Value| compile(value).unwrap_err().message;
         assert!(
-            refused(json!({"select": {"where": {"base": "yes"}}}))
+            refused(json!({"select": {"where": {"instruct": "yes"}}}))
                 .contains("is not `true` or `false`")
         );
         assert!(refused(json!({"select": {"where": {"family": "qwen3"}}})).contains("is a facet"));
@@ -673,13 +673,13 @@ mod tests {
     #[test]
     fn test_merge_is_a_merge_patch() {
         let merged = merge(&[
-            json!({"select": {"where": {"base": false, "thinking": "switch"}}, "cutoff": 0.5}),
+            json!({"select": {"where": {"instruct": true, "thinking": "switch"}}, "cutoff": 0.5}),
             Value::Null,
             json!({"select": {"where": {"thinking": null}}, "order": ["-weight"]}),
         ]);
         assert_eq!(
             merged,
-            json!({"select": {"where": {"base": false}}, "cutoff": 0.5, "order": ["-weight"]})
+            json!({"select": {"where": {"instruct": true}}, "cutoff": 0.5, "order": ["-weight"]})
         );
     }
 }
