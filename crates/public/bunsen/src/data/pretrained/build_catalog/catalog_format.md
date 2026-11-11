@@ -122,7 +122,9 @@ fields a record doesn't declare pass.
 ASCII is allowed. Collisions are kind-flat: a scope holds one entry per name, whatever
 the kind, and a second occurrence of a name in its scope meets the first by its `$merge`. A
 name may repeat in other scopes, above, below or beside, and a lookup by a shorter name takes
-the spelling only one entry matches.
+the spelling only one entry matches. Lookups ignore ASCII case, so a name is written in one case
+throughout: a catalog that writes a name in another case than the stack, or than itself, is
+refused.
 
 **References** resolve from the entry they are written in. A relative reference written in
 `a/b/c` names the first of `a/b/c/ref`, `a/b/ref`, `a/ref` and `ref` that is declared. A

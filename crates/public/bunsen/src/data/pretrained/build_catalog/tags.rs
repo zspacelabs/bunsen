@@ -18,9 +18,10 @@ use crate::data::pretrained::build_catalog::{
         TypeExpr,
     },
     error::{
-        CatalogError,
-        CatalogErrorKind,
+        CatalogErrorExt,
         CatalogResult,
+        CatalogRule,
+        catalog_error,
     },
     name::CatalogName,
     stack::PretrainedCatalogStack,
@@ -47,7 +48,7 @@ impl PretrainedCatalogStack {
     /// type's own expression.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Reference`] for a reference that names no type,
+    /// [`CatalogRule::Reference`] for a reference that names no type,
     /// and a type that names itself.
     pub fn resolve_type(
         &self,
@@ -79,9 +80,9 @@ impl PretrainedCatalogStack {
                         self.resolve_type_in(from, &spec.type_expr, open)
                             .map(|t| (field.clone(), (t, spec.optional)))
                             .map_err(|e| {
-                                CatalogError::new(
-                                    e.kind,
-                                    format!("the field `{field}`: {}", e.message),
+                                catalog_error(
+                                    e.rule().unwrap_or(CatalogRule::Structure),
+                                    format!("the field `{field}`: {}", e.problem_message()),
                                 )
                             })
                     })
@@ -94,8 +95,8 @@ impl PretrainedCatalogStack {
                 };
                 let name = decl.name().clone();
                 if !open.insert(name.clone()) {
-                    return Err(CatalogError::new(
-                        CatalogErrorKind::Reference,
+                    return Err(catalog_error(
+                        CatalogRule::Reference,
                         format!("the type `{name}` names itself"),
                     ));
                 }

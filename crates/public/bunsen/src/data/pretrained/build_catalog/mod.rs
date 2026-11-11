@@ -82,7 +82,7 @@
 //! let off = build
 //!     .presets
 //!     .check_selection(&PresetSelection::of(["no-thinking"]));
-//! assert!(off.unwrap_err().message.contains("fixed at `thinking`"));
+//! assert!(off.unwrap_err().message().contains("fixed at `thinking`"));
 //! ```
 
 pub mod document;
@@ -106,9 +106,11 @@ pub mod usage {}
 
 pub use document::PretrainedCatalog;
 pub use error::{
-    CatalogError,
-    CatalogErrorKind,
-    CatalogErrors,
+    CatalogErrorExt,
+    CatalogProblem,
+    CatalogRule,
+    catalog_error,
+    catalog_errors,
 };
 pub use name::{
     CatalogName,

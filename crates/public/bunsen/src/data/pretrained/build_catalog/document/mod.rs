@@ -51,9 +51,9 @@ use serde_json::Value;
 
 use crate::data::pretrained::build_catalog::{
     error::{
-        CatalogError,
-        CatalogErrorKind,
         CatalogResult,
+        CatalogRule,
+        catalog_error,
     },
     name::CatalogRef,
 };
@@ -90,7 +90,7 @@ impl PretrainedCatalog {
     /// Parses a YAML document.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it isn't a catalog.
+    /// [`CatalogRule::Parse`] when it isn't a catalog.
     pub fn from_yaml(yaml: &str) -> CatalogResult<Self> {
         Self::from_node(OrderedNode::from_yaml(yaml)?)
     }
@@ -98,16 +98,15 @@ impl PretrainedCatalog {
     /// Writes the catalog as YAML.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it doesn't serialize.
+    /// [`CatalogRule::Parse`] when it doesn't serialize.
     pub fn to_yaml(&self) -> CatalogResult<String> {
-        serde_saphyr::to_string(self)
-            .map_err(|e| CatalogError::new(CatalogErrorKind::Parse, e.to_string()))
+        serde_saphyr::to_string(self).map_err(|e| catalog_error(CatalogRule::Parse, e.to_string()))
     }
 
     /// Parses a JSON document.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it isn't a catalog.
+    /// [`CatalogRule::Parse`] when it isn't a catalog.
     pub fn from_json(json: &str) -> CatalogResult<Self> {
         Self::from_node(OrderedNode::from_json(json)?)
     }
@@ -115,7 +114,7 @@ impl PretrainedCatalog {
     /// Reads the catalog `node` writes.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it isn't a catalog, with the path of
+    /// [`CatalogRule::Parse`] when it isn't a catalog, with the path of
     /// the entry at fault.
     pub fn from_node(node: OrderedNode) -> CatalogResult<Self> {
         keyed::read_catalog(node)
@@ -130,10 +129,10 @@ impl PretrainedCatalog {
     /// Writes the catalog as pretty JSON.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it doesn't serialize.
+    /// [`CatalogRule::Parse`] when it doesn't serialize.
     pub fn to_json(&self) -> CatalogResult<String> {
         serde_json::to_string_pretty(self)
-            .map_err(|e| CatalogError::new(CatalogErrorKind::Parse, e.to_string()))
+            .map_err(|e| catalog_error(CatalogRule::Parse, e.to_string()))
     }
 }
 

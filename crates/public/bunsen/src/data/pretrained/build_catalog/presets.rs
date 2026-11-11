@@ -28,9 +28,10 @@ use crate::{
             PresetSetEntry,
         },
         error::{
-            CatalogError,
-            CatalogErrorKind,
+            CatalogErrorExt,
             CatalogResult,
+            CatalogRule,
+            catalog_error,
         },
         name::{
             CatalogName,
@@ -38,6 +39,7 @@ use crate::{
             is_segment,
         },
     },
+    errors::BunsenError,
     support::merge_patch,
 };
 
@@ -157,12 +159,12 @@ impl ResolvedPresetSet {
     /// with `axis`.
     ///
     /// # Errors
-    /// Every [`CatalogErrorKind::Preset`] or [`CatalogErrorKind::Reference`]
+    /// Every [`CatalogRule::Preset`] or [`CatalogRule::Reference`]
     /// problem found.
     pub fn fold(
         links: &[PresetLink<'_>],
         axis: &dyn Fn(&PresetLink<'_>, &CatalogRef) -> CatalogResult<AxisInfo>,
-    ) -> Result<Self, Vec<CatalogError>> {
+    ) -> Result<Self, Vec<BunsenError>> {
         let mut errors = Vec::new();
         let mut set = Self {
             common: Value::Object(Default::default()),
@@ -299,7 +301,7 @@ impl ResolvedPresetSet {
     fn check(
         &self,
         owner: &CatalogName,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let mut errors = Vec::new();
         let err = |m: String| preset_error(owner, m);
         for preset in &self.presets {
@@ -444,7 +446,7 @@ impl ResolvedPresetSet {
     /// flag such as `--think` / `--no-think` stands for.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] when the set doesn't use the axis,
+    /// [`CatalogRule::Selection`] when the set doesn't use the axis,
     /// the axis is not a bool, or the member is not offered (the mode is
     /// fixed the other way).
     pub fn bool_member(
@@ -453,14 +455,14 @@ impl ResolvedPresetSet {
         on: bool,
     ) -> CatalogResult<String> {
         let Some(using) = self.axis_use(axis) else {
-            return Err(CatalogError::new(
-                CatalogErrorKind::Selection,
+            return Err(catalog_error(
+                CatalogRule::Selection,
                 format!("the build doesn't use the axis `{axis}`"),
             ));
         };
         if using.axis.kind != AxisKind::Bool {
-            return Err(CatalogError::new(
-                CatalogErrorKind::Selection,
+            return Err(catalog_error(
+                CatalogRule::Selection,
                 format!("`{axis}` is not a bool axis"),
             ));
         }
@@ -480,7 +482,7 @@ impl ResolvedPresetSet {
     /// Checks `selection`'s preset names and returns them as declared.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] when a name is unknown or not
+    /// [`CatalogRule::Selection`] when a name is unknown or not
     /// offered, a preset is named twice, two members of one axis are named,
     /// or two selected presets set the same path.
     pub fn check_selection(
@@ -503,15 +505,15 @@ impl ResolvedPresetSet {
                     return Err(not_offered(using, name));
                 }
                 let known: Vec<&str> = self.presets.iter().map(|p| p.name.as_str()).collect();
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Selection,
+                return Err(catalog_error(
+                    CatalogRule::Selection,
                     format!("no preset `{name}`; the build has {known:?}"),
                 ));
             };
             let name = &preset.name;
             if selected.contains(name) {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Selection,
+                return Err(catalog_error(
+                    CatalogRule::Selection,
                     format!("the preset `{name}` is selected twice"),
                 ));
             }
@@ -520,8 +522,8 @@ impl ResolvedPresetSet {
                     .iter()
                     .find(|s| using.axis.members.iter().any(|m| m == *s))
             {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Selection,
+                return Err(catalog_error(
+                    CatalogRule::Selection,
                     format!(
                         "`{other}` and `{name}` are both on the axis `{}`: select one",
                         using.axis.name
@@ -540,8 +542,8 @@ impl ResolvedPresetSet {
                 .iter()
                 .map(|&i| selected[i].as_str())
                 .collect();
-            return Err(CatalogError::new(
-                CatalogErrorKind::Selection,
+            return Err(catalog_error(
+                CatalogRule::Selection,
                 format!(
                     "the presets {who:?} each set `{}`: select one",
                     conflict.path
@@ -604,14 +606,14 @@ impl ResolvedPresetSet {
 fn not_offered(
     using: &ResolvedAxisUse,
     member: &str,
-) -> CatalogError {
+) -> BunsenError {
     let how = if using.is_fixed() {
         format!("fixed at `{}`", using.offers[0])
     } else {
         format!("offers only {:?}", using.offers)
     };
-    CatalogError::new(
-        CatalogErrorKind::Selection,
+    catalog_error(
+        CatalogRule::Selection,
         format!(
             "`{member}` is not offered: on this build the axis `{}` is {how}",
             using.axis.name
@@ -622,8 +624,8 @@ fn not_offered(
 fn preset_error(
     owner: &CatalogName,
     message: impl Into<String>,
-) -> CatalogError {
-    CatalogError::new(CatalogErrorKind::Preset, message).at(owner)
+) -> BunsenError {
+    catalog_error(CatalogRule::Preset, message).at(owner)
 }
 
 #[cfg(test)]
@@ -648,8 +650,8 @@ mod tests {
         if name.to_string() == "thinking" {
             Ok(thinking())
         } else {
-            Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            Err(catalog_error(
+                CatalogRule::Reference,
                 format!("no axis `{name}`"),
             ))
         }
@@ -694,7 +696,7 @@ mod tests {
         }
     }
 
-    fn fold(sets: &[&PresetSetEntry]) -> Result<ResolvedPresetSet, Vec<CatalogError>> {
+    fn fold(sets: &[&PresetSetEntry]) -> Result<ResolvedPresetSet, Vec<BunsenError>> {
         let names: Vec<CatalogName> = (0..sets.len())
             .map(|i| CatalogName::root(&format!("link{i}")).unwrap())
             .collect();
@@ -749,7 +751,10 @@ mod tests {
         let err = set
             .check_selection(&PresetSelection::of(["no-thinking"]))
             .unwrap_err();
-        assert!(err.message.contains("fixed at `thinking`"), "{err}");
+        assert!(
+            err.problem_message().contains("fixed at `thinking`"),
+            "{err}"
+        );
         assert!(set.bool_member(&thinking().name, false).is_err());
         assert_eq!(set.bool_member(&thinking().name, true).unwrap(), "thinking");
         assert_eq!(set.negate("thinking"), None);
@@ -764,7 +769,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.message.contains("doesn't offer it")),
+                .any(|e| e.problem_message().contains("doesn't offer it")),
             "{errors:?}"
         );
 
@@ -781,7 +786,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.message.contains("doesn't offer it")),
+                .any(|e| e.problem_message().contains("doesn't offer it")),
             "{errors:?}"
         );
     }
@@ -799,7 +804,11 @@ mod tests {
             ..Default::default()
         };
         let errors = fold(&[&narrow, &wide]).unwrap_err();
-        assert!(errors.iter().any(|e| e.message.contains("may only narrow")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.problem_message().contains("may only narrow"))
+        );
     }
 
     #[test]
@@ -864,7 +873,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.message.contains("`greedy` is `$merge: deny`")),
+                .any(|e| e.problem_message().contains("`greedy` is `$merge: deny`")),
             "{errors:?}"
         );
         // A new name is declared, whatever its mode.
@@ -886,7 +895,7 @@ mod tests {
         let err = |names: &[&str]| {
             set.check_selection(&PresetSelection::of(names.iter().copied()))
                 .unwrap_err()
-                .message
+                .problem_message()
         };
         assert!(err(&["fast"]).contains("no preset `fast`"));
         assert!(err(&["thinking", "no-thinking"]).contains("both on the axis"));
@@ -914,7 +923,7 @@ mod tests {
             ..Default::default()
         };
         let errors = fold(&[&bad]).unwrap_err();
-        let text: Vec<&str> = errors.iter().map(|e| e.message.as_str()).collect();
+        let text: Vec<String> = errors.iter().map(|e| e.problem_message()).collect();
         assert!(
             text.iter().any(|t| t.contains("not one of its members")),
             "{text:?}"
@@ -941,6 +950,10 @@ mod tests {
             ..Default::default()
         };
         let errors = fold(&[&set]).unwrap_err();
-        assert!(errors.iter().any(|e| e.message.contains("each set `t`")));
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.problem_message().contains("each set `t`"))
+        );
     }
 }

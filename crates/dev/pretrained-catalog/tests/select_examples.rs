@@ -21,6 +21,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::data::pretrained::build_catalog::{
+    CatalogErrorExt,
     CatalogName,
     PretrainedCatalogStack,
     document::EntryKind,
@@ -99,8 +100,11 @@ fn refused(run: &str) -> String {
         "kind": "build",
         "run": serde_saphyr::from_str::<Value>(&dedent(run)).expect("YAML stages"),
     })) {
-        Err(e) => e.message,
-        Ok(query) => query.compile(&env).expect_err("an invalid query").message,
+        Err(e) => e.problem_message(),
+        Ok(query) => query
+            .compile(&env)
+            .expect_err("an invalid query")
+            .problem_message(),
     }
 }
 
@@ -822,7 +826,10 @@ fn an_axis_flag_is_a_preset_and_the_prefix_that_keeps_its_builds() {
             &SelectRequest::default().name("qwen3-4b-thinking-2507"),
         )
         .unwrap_err();
-    assert!(err.message.contains("fixed at `thinking`"), "{err}");
+    assert!(
+        err.problem_message().contains("fixed at `thinking`"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -919,9 +926,10 @@ openai:
     let err = SelectionContext::default()
         .rank(&env, None, None, &SelectRequest::default().name("large-v2"))
         .unwrap_err();
-    assert!(err.message.contains("ambiguous"), "{err}");
+    assert!(err.problem_message().contains("ambiguous"), "{err}");
     assert!(
-        err.message.contains("openai/whisper/mirror/large-v2"),
+        err.problem_message()
+            .contains("openai/whisper/mirror/large-v2"),
         "{err}"
     );
     // A longer spelling picks one.
@@ -946,13 +954,13 @@ fn select_kind(
     let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
     let run: Value = serde_saphyr::from_str(&dedent(run)).expect("YAML stages");
-    let query =
-        SelectQuery::from_value(&json!({"kind": kind, "run": run})).map_err(|e| e.message)?;
+    let query = SelectQuery::from_value(&json!({"kind": kind, "run": run}))
+        .map_err(|e| e.problem_message())?;
     let kind = query.kind;
-    let compiled = query.compile(&env).map_err(|e| e.message)?;
+    let compiled = query.compile(&env).map_err(|e| e.problem_message())?;
     let table = compiled
         .run(&env, SelectTable::universe(&env, kind))
-        .map_err(|e| e.message)?;
+        .map_err(|e| e.problem_message())?;
     Ok(table.names().iter().map(|n| n.to_string()).collect())
 }
 
@@ -1065,7 +1073,10 @@ fn a_kind_admits_only_its_tests() {
             &SelectRequest::of_kind(EntryKind::Namespace),
         )
         .unwrap_err();
-    assert!(err.message.contains("choosing takes a build"), "{err}");
+    assert!(
+        err.problem_message().contains("choosing takes a build"),
+        "{err}"
+    );
 }
 
 // `per`, labels and `unset`.
@@ -1153,7 +1164,8 @@ fn unset_removes_a_labeled_default() {
     twice.stages[0].stage.label = Some("tuned".into());
     let err = context.rank(&env, None, None, &twice).unwrap_err();
     assert!(
-        err.message.contains("two stages are labeled `tuned`"),
+        err.problem_message()
+            .contains("two stages are labeled `tuned`"),
         "{err}"
     );
     // A query run on its own can't `unset` or `use`.

@@ -29,9 +29,9 @@ use crate::data::pretrained::build_catalog::{
         EntryKind,
     },
     error::{
-        CatalogError,
-        CatalogErrorKind,
         CatalogResult,
+        CatalogRule,
+        catalog_error,
     },
     name::CatalogName,
     presets::ResolvedPresetSet,
@@ -263,7 +263,7 @@ impl<'a> SelectEnv<'a> {
     /// An environment over `stack`, with `derive`'s keys.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] when a derived key is one of the
+    /// [`CatalogRule::Selection`] when a derived key is one of the
     /// [`RESERVED_WORDS`], or two steps write the same key.
     pub fn with_derive(
         stack: &'a PretrainedCatalogStack,
@@ -272,8 +272,8 @@ impl<'a> SelectEnv<'a> {
         let mut derived_keys: Vec<DerivedKey> = Vec::new();
         for key in derive.iter().flat_map(|d| d.keys()) {
             if RESERVED_WORDS.contains(&key.name.as_str()) {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Selection,
+                return Err(catalog_error(
+                    CatalogRule::Selection,
                     format!(
                         "the derived key `{}` would be the `$` word `${}`, which the query \
                          language defines",
@@ -282,8 +282,8 @@ impl<'a> SelectEnv<'a> {
                 ));
             }
             if derived_keys.iter().any(|k| k.name == key.name) {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Selection,
+                return Err(catalog_error(
+                    CatalogRule::Selection,
                     format!("two derive steps write the key `{}`", key.name),
                 ));
             }
@@ -311,7 +311,7 @@ impl<'a> SelectEnv<'a> {
     /// The build `name`, resolved once and kept.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] when it doesn't resolve
+    /// [`CatalogRule::Selection`] when it doesn't resolve
     /// ([`PretrainedCatalogStack::resolve_build`]).
     pub fn build(
         &self,
@@ -321,8 +321,8 @@ impl<'a> SelectEnv<'a> {
             return Ok(found.clone());
         }
         let build = self.stack.resolve_build(name).map_err(|e| {
-            CatalogError::new(
-                CatalogErrorKind::Selection,
+            catalog_error(
+                CatalogRule::Selection,
                 format!("`{name}` doesn't resolve: {e}"),
             )
         })?;
@@ -341,7 +341,7 @@ impl SelectEnv<'_> {
     /// kept.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] when it isn't declared as that kind,
+    /// [`CatalogRule::Selection`] when it isn't declared as that kind,
     /// or doesn't resolve.
     pub fn entry(
         &self,
@@ -352,8 +352,8 @@ impl SelectEnv<'_> {
         }
         let name = &entry.path;
         let unresolved = |why: String| {
-            CatalogError::new(
-                CatalogErrorKind::Selection,
+            catalog_error(
+                CatalogRule::Selection,
                 format!("`{name}` doesn't resolve: {why}"),
             )
         };

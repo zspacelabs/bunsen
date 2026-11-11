@@ -10,6 +10,7 @@
 //! `cargo run -p pretrained-catalog --example think_flags`
 
 use bunsen::data::pretrained::build_catalog::{
+    CatalogErrorExt,
     CatalogName,
     fixtures,
     presets::PresetSelection,
@@ -50,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         applied.document
                     );
                 }
-                Err(e) => println!("    {flag:<11} doesn't apply: {}", e.message),
+                Err(e) => println!("    {flag:<11} doesn't apply: {}", e.problem_message()),
             }
         }
     }

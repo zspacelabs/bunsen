@@ -29,7 +29,7 @@ use std::path::PathBuf;
 
 use bunsen::{
     data::pretrained::build_catalog::{
-        CatalogErrors,
+        CatalogErrorExt,
         CatalogName,
         PretrainedCatalogStack,
         document::{
@@ -289,8 +289,13 @@ pub struct PresetArgs {
     off: Vec<String>,
 }
 
-fn errors(e: CatalogErrors) -> String {
-    e.to_string()
+fn errors(e: BunsenError) -> String {
+    let lines = e.problem_lines();
+    if lines.is_empty() {
+        e.to_string()
+    } else {
+        lines
+    }
 }
 
 fn load(cli: &CatalogCommand) -> Result<PretrainedCatalogStack, String> {
@@ -322,7 +327,7 @@ fn find(
 ) -> Result<CatalogName, String> {
     stack
         .find(query, kinds, LeafMatch::Exact)
-        .map_err(|e| e.message)
+        .map_err(|e| e.problem_message())
 }
 
 fn layers(
@@ -517,7 +522,7 @@ fn resolve(
         let member = b
             .presets
             .bool_member(&name, on)
-            .map_err(|e| format!("`{flag}` doesn't apply: {}", e.message))?;
+            .map_err(|e| format!("`{flag}` doesn't apply: {}", e.problem_message()))?;
         emit!(out, "  `{flag}` implies `--preset {member}`");
         presets.push(member);
     }
@@ -528,7 +533,7 @@ fn resolve(
     let applied = b
         .presets
         .select(Value::Object(Default::default()), &selection)
-        .map_err(|e| e.message)?;
+        .map_err(|e| e.problem_message())?;
     emit!(out, "  applied      {}", applied.applied.join(", "));
     emit!(out, "  document     {}", applied.document);
     Ok(())
@@ -540,7 +545,7 @@ fn releases(
     query: &str,
 ) -> Result<(), String> {
     let group = find(stack, query, &[EntryKind::Release])?;
-    let members = stack.releases(&group).map_err(|e| e.message)?;
+    let members = stack.releases(&group).map_err(|e| e.problem_message())?;
     let latest = members.last().map(|(n, _)| n.clone());
     for (build, released) in &members {
         let mark = if Some(build) == latest.as_ref() {

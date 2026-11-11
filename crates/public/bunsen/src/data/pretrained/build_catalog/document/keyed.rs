@@ -48,13 +48,17 @@ use super::{
     empty_object,
     is_empty_object,
 };
-use crate::data::pretrained::build_catalog::{
-    error::{
-        CatalogError,
-        CatalogErrorKind,
-        CatalogResult,
+use crate::{
+    data::pretrained::build_catalog::{
+        error::{
+            CatalogErrorExt,
+            CatalogResult,
+            CatalogRule,
+            catalog_error,
+        },
+        name::CatalogRef,
     },
-    name::CatalogRef,
+    errors::BunsenError,
 };
 
 /// A YAML or JSON document as a tree whose maps keep their order and hold
@@ -79,7 +83,7 @@ impl OrderedNode {
     /// Reads a YAML document.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it isn't YAML, or repeats a key.
+    /// [`CatalogRule::Parse`] when it isn't YAML, or repeats a key.
     pub fn from_yaml(yaml: &str) -> CatalogResult<Self> {
         serde_saphyr::from_str(yaml).map_err(|e| parse_error("", e))
     }
@@ -87,7 +91,7 @@ impl OrderedNode {
     /// Reads a JSON document.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it isn't JSON, or repeats a key.
+    /// [`CatalogRule::Parse`] when it isn't JSON, or repeats a key.
     pub fn from_json(json: &str) -> CatalogResult<Self> {
         serde_json::from_str(json).map_err(|e| parse_error("", e))
     }
@@ -95,7 +99,7 @@ impl OrderedNode {
     /// Writes the tree as YAML, in its order.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it doesn't serialize.
+    /// [`CatalogRule::Parse`] when it doesn't serialize.
     pub fn to_yaml(&self) -> CatalogResult<String> {
         serde_saphyr::to_string(self).map_err(|e| parse_error("", e))
     }
@@ -103,7 +107,7 @@ impl OrderedNode {
     /// Writes the tree as pretty JSON, in its order.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it doesn't serialize.
+    /// [`CatalogRule::Parse`] when it doesn't serialize.
     pub fn to_json(&self) -> CatalogResult<String> {
         serde_json::to_string_pretty(self).map_err(|e| parse_error("", e))
     }
@@ -111,7 +115,7 @@ impl OrderedNode {
     /// `value` as a tree, its maps in serialization order.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Parse`] when it doesn't serialize.
+    /// [`CatalogRule::Parse`] when it doesn't serialize.
     pub fn from_serialize<T: Serialize>(value: &T) -> CatalogResult<Self> {
         let text = serde_json::to_string(value).map_err(|e| parse_error("", e))?;
         Self::from_json(&text)
@@ -310,8 +314,8 @@ impl Serialize for CatalogEntry {
 fn parse_error(
     path: &str,
     message: impl fmt::Display,
-) -> CatalogError {
-    let error = CatalogError::new(CatalogErrorKind::Parse, message.to_string());
+) -> BunsenError {
+    let error = catalog_error(CatalogRule::Parse, message.to_string());
     if path.is_empty() {
         error
     } else {
@@ -437,8 +441,9 @@ fn read_entry(
                 let child_path = child_path(path, &key);
                 children.push(read_entry(key, value, &child_path)?);
             } else {
-                let tag = CatalogRef::parse(&key)
-                    .map_err(|e| parse_error(path, format!("the tag `{key}`: {}", e.message)))?;
+                let tag = CatalogRef::parse(&key).map_err(|e| {
+                    parse_error(path, format!("the tag `{key}`: {}", e.problem_message()))
+                })?;
                 tags.insert(tag, value.into_value());
             }
         }
@@ -540,8 +545,9 @@ fn read_presets(
                         path,
                         &what,
                     )?;
-                    let axis = CatalogRef::parse(&axis)
-                        .map_err(|e| parse_error(path, format!("{what}: {}", e.message)))?;
+                    let axis = CatalogRef::parse(&axis).map_err(|e| {
+                        parse_error(path, format!("{what}: {}", e.problem_message()))
+                    })?;
                     set.axes.push(AxisUse {
                         axis,
                         offers: fields.offers,

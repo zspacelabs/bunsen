@@ -9,35 +9,40 @@ use alloc::collections::{
 
 use serde_json::Value;
 
-use crate::data::pretrained::build_catalog::{
-    document::{
-        ArgSlot,
-        CatalogEntry,
-        EntryKind,
-        Membership,
-        ResourceEntry,
-        ResourceSlot,
+use crate::{
+    data::pretrained::build_catalog::{
+        document::{
+            ArgSlot,
+            CatalogEntry,
+            EntryKind,
+            Membership,
+            ResourceEntry,
+            ResourceSlot,
+        },
+        error::{
+            CatalogErrorExt,
+            CatalogResult,
+            CatalogRule,
+            catalog_error,
+            catalog_errors,
+        },
+        name::{
+            CatalogName,
+            CatalogRef,
+            check_segment,
+        },
+        presets::{
+            PresetLink,
+            ResolvedPresetSet,
+        },
+        release_time::ReleaseTime,
+        stack::PretrainedCatalogStack,
+        tags::{
+            axis_tag_value,
+            check_value,
+        },
     },
-    error::{
-        CatalogError,
-        CatalogErrorKind,
-        CatalogErrors,
-    },
-    name::{
-        CatalogName,
-        CatalogRef,
-        check_segment,
-    },
-    presets::{
-        PresetLink,
-        ResolvedPresetSet,
-    },
-    release_time::ReleaseTime,
-    stack::PretrainedCatalogStack,
-    tags::{
-        axis_tag_value,
-        check_value,
-    },
+    errors::BunsenError,
 };
 
 /// Where a resolved tag's value comes from.
@@ -170,19 +175,19 @@ impl PretrainedCatalogStack {
     pub fn resolve_build(
         &self,
         name: &CatalogName,
-    ) -> Result<ResolvedBuild, CatalogErrors> {
-        let mut errors: Vec<CatalogError> = Vec::new();
+    ) -> CatalogResult<ResolvedBuild> {
+        let mut errors: Vec<BunsenError> = Vec::new();
         let decl = self
             .expect(name, "build", &[EntryKind::Build])
-            .map_err(|e| CatalogErrors::from(e.at(name)))?;
+            .map_err(|e| e.at(name))?;
         let CatalogEntry::Build(build) = decl.body() else {
             unreachable!("expected a build");
         };
-        let mut report = |e: CatalogError| errors.push(e.at(name));
+        let mut report = |e: BunsenError| errors.push(e.at(name));
 
         if build.description.trim().is_empty() {
-            report(CatalogError::new(
-                CatalogErrorKind::Structure,
+            report(catalog_error(
+                CatalogRule::Structure,
                 "it has no description",
             ));
         }
@@ -226,8 +231,8 @@ impl PretrainedCatalogStack {
                         }
                     };
                     if release.is_some() {
-                        report(CatalogError::new(
-                            CatalogErrorKind::Release,
+                        report(catalog_error(
+                            CatalogRule::Release,
                             "it is in two release groups; a build is in at most one",
                         ));
                     }
@@ -248,8 +253,8 @@ impl PretrainedCatalogStack {
             .find_map(|(owner, c)| c.map(|c| (owner, c)));
         let contract = match named {
             None => {
-                report(CatalogError::new(
-                    CatalogErrorKind::Contract,
+                report(catalog_error(
+                    CatalogRule::Contract,
                     "it names no contract: a build, or its template class, names one with \
                      `$contract`",
                 ));
@@ -266,8 +271,8 @@ impl PretrainedCatalogStack {
                             .iter()
                             .filter_map(CatalogName::contract_path)
                             .collect();
-                        report(CatalogError::new(
-                            CatalogErrorKind::Contract,
+                        report(catalog_error(
+                            CatalogRule::Contract,
                             format!(
                                 "its contract `{}` is abstract: a build names one of its \
                                  variants: {}",
@@ -296,8 +301,8 @@ impl PretrainedCatalogStack {
         let mut facets = BTreeMap::new();
         for (facet, groups) in &by_facet {
             if groups.len() > 1 {
-                report(CatalogError::new(
-                    CatalogErrorKind::Facet,
+                report(catalog_error(
+                    CatalogRule::Facet,
                     format!("it is in more than one `{facet}` group: {groups:?}"),
                 ));
             }
@@ -320,8 +325,8 @@ impl PretrainedCatalogStack {
         }
         for facet in &required {
             if !facets.contains_key(facet) {
-                report(CatalogError::new(
-                    CatalogErrorKind::Facet,
+                report(catalog_error(
+                    CatalogRule::Facet,
                     format!("it is in no `{facet}` group, and its chain requires one"),
                 ));
             }
@@ -425,8 +430,8 @@ impl PretrainedCatalogStack {
                     continue;
                 };
                 if !tags.contains_key(&tag) {
-                    report(CatalogError::new(
-                        CatalogErrorKind::Tag,
+                    report(catalog_error(
+                        CatalogRule::Tag,
                         format!("it has no value for `{tag}`, which its group `{group}` requires"),
                     ));
                 }
@@ -474,8 +479,8 @@ impl PretrainedCatalogStack {
             }
             let spec = resource_slots.get(slot);
             if contract.is_some() && spec.is_none() {
-                report(CatalogError::new(
-                    CatalogErrorKind::Dependency,
+                report(catalog_error(
+                    CatalogRule::Dependency,
                     format!(
                         "the resource slot `{slot}` is not one of its contract `{contract_path}`'s"
                     ),
@@ -495,8 +500,8 @@ impl PretrainedCatalogStack {
                 && !spec.formats.is_empty()
                 && !spec.formats.contains(&entry.format)
             {
-                report(CatalogError::new(
-                    CatalogErrorKind::Dependency,
+                report(catalog_error(
+                    CatalogRule::Dependency,
                     format!(
                         "the resource slot `{slot}` takes {}, and `{resource}` is `{}`",
                         spec.formats
@@ -521,8 +526,8 @@ impl PretrainedCatalogStack {
         for (slot, (owner, value)) in &given {
             let Some((declared_in, spec)) = arg_slots.get(slot) else {
                 if contract.is_some() {
-                    report(CatalogError::new(
-                        CatalogErrorKind::Dependency,
+                    report(catalog_error(
+                        CatalogRule::Dependency,
                         format!(
                             "the argument slot `{slot}` is not one of its contract \
                              `{contract_path}`'s"
@@ -533,7 +538,7 @@ impl PretrainedCatalogStack {
             };
             match self
                 .resolve_type(declared_in, &spec.type_expr)
-                .map_err(|e| e.message)
+                .map_err(|e| e.problem_message())
                 .and_then(|ty| check_value(&ty, value))
             {
                 Ok(()) => {
@@ -545,24 +550,24 @@ impl PretrainedCatalogStack {
                         },
                     );
                 }
-                Err(why) => report(CatalogError::new(
-                    CatalogErrorKind::Dependency,
+                Err(why) => report(catalog_error(
+                    CatalogRule::Dependency,
                     format!("the argument `{slot}`: {why}"),
                 )),
             }
         }
         for (slot, spec) in &resource_slots {
             if !spec.optional && !bound.contains_key(*slot) {
-                report(CatalogError::new(
-                    CatalogErrorKind::Dependency,
+                report(catalog_error(
+                    CatalogRule::Dependency,
                     format!("it binds no `{slot}`, which its contract `{contract_path}` requires"),
                 ));
             }
         }
         for (slot, (_, spec)) in &arg_slots {
             if !spec.optional && !given.contains_key(*slot) {
-                report(CatalogError::new(
-                    CatalogErrorKind::Dependency,
+                report(catalog_error(
+                    CatalogRule::Dependency,
                     format!(
                         "it gives no `{slot}` argument, which its contract `{contract_path}` \
                          requires"
@@ -572,7 +577,7 @@ impl PretrainedCatalogStack {
         }
 
         if !errors.is_empty() {
-            return Err(CatalogErrors(errors));
+            return Err(catalog_errors(errors));
         }
         Ok(ResolvedBuild {
             name: name.clone(),
@@ -597,21 +602,21 @@ impl PretrainedCatalogStack {
     /// it; this only reads what the state holds.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Reference`] when `name` isn't a template class,
+    /// [`CatalogRule::Reference`] when `name` isn't a template class,
     /// and every problem folding its chain finds.
     pub fn resolve_template_class(
         &self,
         name: &CatalogName,
-    ) -> Result<ResolvedTemplateClass, CatalogErrors> {
+    ) -> CatalogResult<ResolvedTemplateClass> {
         let decl = self
             .expect(name, "template class", &[EntryKind::TemplateClass])
-            .map_err(|e| CatalogErrors::from(e.at(name)))?;
+            .map_err(|e| e.at(name))?;
         let CatalogEntry::TemplateClass(class) = decl.body() else {
             unreachable!("expected a template class");
         };
         let chain = self
             .template_chain(name, Some(&CatalogRef::absolute(name.clone())))
-            .map_err(|e| CatalogErrors::from(e.at(name)))?;
+            .map_err(|e| e.at(name))?;
         let mut joined = Vec::new();
         for link in &chain {
             for group in &link.class.join {
@@ -631,7 +636,7 @@ impl PretrainedCatalogStack {
             })
             .collect();
         let presets = ResolvedPresetSet::fold(&links, &|l, a| self.axis_info(l.owner, a))
-            .map_err(|found| CatalogErrors(found.into_iter().map(|e| e.at(name)).collect()))?;
+            .map_err(|found| catalog_errors(found.into_iter().map(|e| e.at(name)).collect()))?;
         let mut tags: BTreeMap<CatalogName, ResolvedTag> = BTreeMap::new();
         for link in &chain {
             for (tag, value) in &link.class.tags {
@@ -680,7 +685,7 @@ impl PretrainedCatalogStack {
         memberships: &BTreeSet<CatalogName>,
         declared: &CatalogName,
         verb: &str,
-    ) -> Result<(), CatalogError> {
+    ) -> Result<(), BunsenError> {
         let Some(scope) = declared.scope() else {
             return Ok(());
         };
@@ -688,8 +693,8 @@ impl PretrainedCatalogStack {
         if allowed {
             Ok(())
         } else {
-            Err(CatalogError::new(
-                CatalogErrorKind::Tag,
+            Err(catalog_error(
+                CatalogRule::Tag,
                 format!(
                     "`{declared}` is scoped to `{scope}`, which it is not in: only members may \
                      {verb} it"
@@ -721,7 +726,7 @@ mod tests {
         stack.resolve_build(&name).unwrap()
     }
 
-    fn refused(yaml: &str) -> CatalogErrors {
+    fn refused(yaml: &str) -> BunsenError {
         let mut stack = fixtures::example_stack().unwrap();
         stack.push_yaml("bad", yaml).unwrap_err()
     }
@@ -780,7 +785,10 @@ mod tests {
         // The class's `thinking` preset is pruned: not offered, not selectable.
         assert!(base.presets.get("thinking").is_none());
         let err = base.presets.bool_member(&n("thinking"), true).unwrap_err();
-        assert!(err.message.contains("fixed at `no-thinking`"), "{err}");
+        assert!(
+            err.problem_message().contains("fixed at `no-thinking`"),
+            "{err}"
+        );
         // Free presets survive the narrowing.
         assert!(base.presets.get("greedy").is_some());
     }
@@ -815,7 +823,10 @@ mod tests {
             .presets
             .check_selection(&PresetSelection::of(["translate"]))
             .unwrap_err();
-        assert!(err.message.contains("fixed at `transcribe`"), "{err}");
+        assert!(
+            err.problem_message().contains("fixed at `transcribe`"),
+            "{err}"
+        );
         assert!(turbo.release.is_none());
 
         let v3 = resolve(&stack, "large-v3");
@@ -1004,7 +1015,7 @@ qwen:
             "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    free: { $kind: build, $description: \"F.\", parameters: 1 }\n",
         );
         assert!(none.mentions("it names no contract"), "{none}");
-        assert!(none.has(CatalogErrorKind::Contract));
+        assert!(none.has(CatalogRule::Contract));
         let missing = refused(
             "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    lost: { $kind: build, $description: \"L.\", $template_class: hybrid, $contract: qwen9-lm, parameters: 1 }\n",
         );
@@ -1059,7 +1070,7 @@ lab:
     fn build_in(
         stack: &PretrainedCatalogStack,
         build: &str,
-    ) -> Result<PretrainedCatalogStack, CatalogErrors> {
+    ) -> CatalogResult<PretrainedCatalogStack> {
         let mut stack = stack.clone();
         stack.push_yaml(
             "builds",

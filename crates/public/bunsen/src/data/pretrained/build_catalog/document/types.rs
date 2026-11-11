@@ -14,7 +14,10 @@ use serde_json::{
     Value,
 };
 
-use crate::data::pretrained::build_catalog::name::CatalogRef;
+use crate::data::pretrained::build_catalog::{
+    error::CatalogErrorExt,
+    name::CatalogRef,
+};
 
 /// A primitive type: a `$` word.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -134,7 +137,7 @@ impl TypeExpr {
                 }),
             Value::String(name) => CatalogRef::parse(name)
                 .map(Self::Named)
-                .map_err(|e| format!("`{name}`: {}", e.message)),
+                .map_err(|e| format!("`{name}`: {}", e.problem_message())),
             Value::Object(form) => {
                 let mut fields = form.iter();
                 let (Some((key, inner)), None) = (fields.next(), fields.next()) else {

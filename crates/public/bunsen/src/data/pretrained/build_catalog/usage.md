@@ -73,7 +73,8 @@ problem found.
 
 ```rust
 use bunsen::data::pretrained::build_catalog::{
-    CatalogErrorKind,
+    CatalogErrorExt,
+    CatalogRule,
     PretrainedCatalogStack,
     fixtures,
 };
@@ -94,7 +95,7 @@ orphan:
 "#,
     )
     .unwrap_err();
-assert!(err.has(CatalogErrorKind::Reference), "{err}");
+assert!(err.has(CatalogRule::Reference), "{err}");
 assert_eq!(stack.layers().len(), 4);
 
 // An empty stack, filled from files, or from documents built in code.
@@ -120,7 +121,7 @@ shows a local addition.
 ## Finding entries
 
 Names are `/`-separated paths, such as `openai/whisper/large/large-v3`. Lookups accept any
-spelling that identifies one entry: the leaf, or a longer path. An `alias` entry is another
+spelling that identifies one entry: the leaf, or a longer path, in any ASCII case. An `alias` entry is another
 name for an entry: a lookup for its target's kind finds the target through it.
 
 ```rust
@@ -146,7 +147,7 @@ assert_eq!(stack.display_name(&v3).short, "large-v3");
 let err = stack
     .find("checkpoint", &SEARCHABLE, LeafMatch::Exact)
     .unwrap_err();
-assert!(err.message.contains("large-v3/checkpoint"), "{err}");
+assert!(err.message().contains("large-v3/checkpoint"), "{err}");
 let one = stack
     .find("large-v3/checkpoint", &[EntryKind::Resource], LeafMatch::Exact)
     .unwrap();
@@ -290,7 +291,7 @@ let always = stack
     .resolve_build(&stack.find_build("qwen3-4b-thinking-2507").unwrap())
     .unwrap();
 let err = always.presets.bool_member(&thinking, false).unwrap_err();
-assert!(err.message.contains("fixed at `thinking`"), "{err}");
+assert!(err.message().contains("fixed at `thinking`"), "{err}");
 ```
 
 - `select(base, &selection)` resolves a document: the caller's `base`, the set's `common` patch, each
@@ -347,7 +348,7 @@ assert_eq!(applied.document["chat"]["enable_thinking"], json!(false));
 // One build named alone skips the defaults; one the presets can't apply to is an error.
 let named = SelectRequest::default().name("qwen3-4b-thinking-2507");
 let err = context.rank(&env, None, prefix(), &named).unwrap_err();
-assert!(err.message.contains("was named, but can't be chosen"), "{err}");
+assert!(err.message().contains("was named, but can't be chosen"), "{err}");
 ```
 
 ### `compose`, `rank` and `choose`
@@ -702,11 +703,16 @@ assert_eq!((v1.stage, v1.weight), (2, 0.5));
 
 ## Errors
 
-Every problem is a `CatalogError` with a `kind`, a message, and, where known, the entry and the
-catalog it was found in. An import returns `CatalogErrors`, every problem it found, which has
-`has(kind)` and `mentions(text)`.
+Every failure is a `BunsenError`. A catalog problem carries a `CatalogProblem` as its cause: the
+`CatalogRule` it breaks, a message, and, where known, the entry and the catalog it was found in.
+An import that finds several problems returns one error whose cause is a `Multiple` of them.
+`CatalogErrorExt` reads either: `problems()`, `has(rule)`, `mentions(text)`, `rule()`,
+`problem_message()` and `problem_lines()`. A `Lookup` rule is a
+[`Lookup`](crate::errors::BunsenErrorKind::Lookup) error; every other rule is a
+[`Policy`](crate::errors::BunsenErrorKind::Policy) error: a catalog or a request read from
+outside the program that breaks it.
 
-| kind | raised by |
+| rule | raised by |
 |---|---|
 | `Parse`, `Name`, `Structure`, `Conflict`, `Reference`, `Merge`, `Facet`, `Contract`, `Tag`, `Preset`, `Release`, `Dependency` | importing a catalog: the document's rules |
 | `Lookup` | `find`, `find_build`: a name that matches nothing, or several entries |

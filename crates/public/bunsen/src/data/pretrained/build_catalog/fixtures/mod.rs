@@ -2,7 +2,7 @@
 //! the examples and the [`usage`](super::usage) guide run against.
 
 use crate::data::pretrained::build_catalog::{
-    error::CatalogErrors,
+    error::CatalogResult,
     stack::PretrainedCatalogStack,
 };
 
@@ -26,7 +26,7 @@ pub const SUPPLEMENTAL: &str = include_str!("supplemental.yml");
 ///
 /// # Errors
 /// Whatever a push finds, which would be a bug in the fixtures.
-pub fn example_stack() -> Result<PretrainedCatalogStack, CatalogErrors> {
+pub fn example_stack() -> CatalogResult<PretrainedCatalogStack> {
     let mut stack = PretrainedCatalogStack::new();
     for (label, yaml) in [
         ("prelude", PRELUDE),
@@ -43,7 +43,7 @@ pub fn example_stack() -> Result<PretrainedCatalogStack, CatalogErrors> {
 ///
 /// # Errors
 /// As [`example_stack`].
-pub fn supplemented_example_stack() -> Result<PretrainedCatalogStack, CatalogErrors> {
+pub fn supplemented_example_stack() -> CatalogResult<PretrainedCatalogStack> {
     let mut stack = example_stack()?;
     stack.push_yaml("supplemental", SUPPLEMENTAL)?;
     Ok(stack)

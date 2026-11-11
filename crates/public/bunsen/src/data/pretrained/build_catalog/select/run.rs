@@ -65,7 +65,10 @@ use crate::data::pretrained::build_catalog::{
         EntryKind,
         Primitive,
     },
-    error::CatalogResult,
+    error::{
+        CatalogErrorExt,
+        CatalogResult,
+    },
     lookup::LeafMatch,
     name::{
         CatalogName,
@@ -386,7 +389,7 @@ impl CompiledQuery {
     /// Runs the query on `table`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`](crate::data::pretrained::build_catalog::CatalogErrorKind::Selection)
+    /// [`CatalogRule::Selection`](crate::data::pretrained::build_catalog::CatalogRule::Selection)
     /// when `table` holds another kind, and as
     /// [`SelectEnv::build`].
     pub fn run(
@@ -601,7 +604,7 @@ fn explain(
             .presets()?
             .check_selection(&PresetSelection::of(presets.iter().cloned()))
             .err()
-            .map(|e| e.message),
+            .map(|e| e.problem_message()),
         Test::All(items) => items
             .iter()
             .find(|t| !t.holds(row))
@@ -915,7 +918,11 @@ impl Compiler<'_, '_> {
                         compiled
                     })
                     .map_err(|e| {
-                        query_error(format!("stage {i} (`{}`): {}", stage.op(), e.message))
+                        query_error(format!(
+                            "stage {i} (`{}`): {}",
+                            stage.op(),
+                            e.problem_message()
+                        ))
                     })
             })
             .collect()
@@ -1079,7 +1086,7 @@ impl Compiler<'_, '_> {
                 .ok_or_else(|| query_error(format!("nothing is declared as `{r}`"))),
             _ => stack
                 .find(name, kinds, LeafMatch::Exact)
-                .map_err(|e| query_error(format!("`{name}`: {}", e.message))),
+                .map_err(|e| query_error(format!("`{name}`: {}", e.problem_message()))),
         }
     }
 
@@ -1175,7 +1182,7 @@ impl Compiler<'_, '_> {
             }
             Predicate::Test { key, value } => self
                 .test(key, value)
-                .map_err(|e| query_error(format!("`{key}`: {}", e.message)))?,
+                .map_err(|e| query_error(format!("`{key}`: {}", e.problem_message())))?,
         })
     }
 

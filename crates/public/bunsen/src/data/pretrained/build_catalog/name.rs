@@ -13,10 +13,14 @@ use serde::{
     Serializer,
 };
 
-use crate::data::pretrained::build_catalog::error::{
-    CatalogError,
-    CatalogErrorKind,
-    CatalogResult,
+use crate::{
+    data::pretrained::build_catalog::error::{
+        CatalogErrorExt,
+        CatalogResult,
+        CatalogRule,
+        catalog_error,
+    },
+    errors::BunsenError,
 };
 
 /// The words YAML reads as something other than a string, in any case.
@@ -42,13 +46,13 @@ pub fn is_segment(segment: &str) -> bool {
 /// Checks `segment` with [`is_segment`].
 ///
 /// # Errors
-/// [`CatalogErrorKind::Name`] when it is not a legal segment.
+/// [`CatalogRule::Name`] when it is not a legal segment.
 pub fn check_segment(segment: &str) -> CatalogResult<()> {
     if is_segment(segment) {
         Ok(())
     } else {
-        Err(CatalogError::new(
-            CatalogErrorKind::Name,
+        Err(catalog_error(
+            CatalogRule::Name,
             format!(
                 "`{segment}` is not a name segment: it must start with an ASCII letter or `_`, \
                  continue with ASCII letters, digits, `_`, `-` or `.`, and not be a YAML word"
@@ -72,11 +76,11 @@ impl CatalogName {
     /// Parses a full name.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Name`] when it is empty or a segment is not
+    /// [`CatalogRule::Name`] when it is empty or a segment is not
     /// legal.
     pub fn parse(name: &str) -> CatalogResult<Self> {
         if name.is_empty() {
-            return Err(CatalogError::new(CatalogErrorKind::Name, "a name is empty"));
+            return Err(catalog_error(CatalogRule::Name, "a name is empty"));
         }
         let segments: Vec<String> = name.split('/').map(str::to_string).collect();
         // `$contracts` opens the contracts' own namespace; it is no
@@ -87,9 +91,9 @@ impl CatalogName {
         };
         for segment in named {
             check_segment(segment).map_err(|e| {
-                CatalogError::new(
-                    CatalogErrorKind::Name,
-                    format!("in `{name}`: {}", e.message),
+                catalog_error(
+                    CatalogRule::Name,
+                    format!("in `{name}`: {}", e.problem_message()),
                 )
             })?;
         }
@@ -118,7 +122,7 @@ impl CatalogName {
     /// A name of one segment.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Name`] when `segment` is not legal.
+    /// [`CatalogRule::Name`] when `segment` is not legal.
     pub fn root(segment: &str) -> CatalogResult<Self> {
         check_segment(segment)?;
         Ok(Self(vec![segment.to_string()]))
@@ -127,7 +131,7 @@ impl CatalogName {
     /// This name with `segment` appended.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Name`] when `segment` is not legal.
+    /// [`CatalogRule::Name`] when `segment` is not legal.
     pub fn child(
         &self,
         segment: &str,
@@ -141,7 +145,7 @@ impl CatalogName {
     /// `child`, under `scope` when there is one.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Name`] when `segment` is not legal.
+    /// [`CatalogRule::Name`] when `segment` is not legal.
     pub fn under(
         scope: Option<&CatalogName>,
         segment: &str,
@@ -209,7 +213,7 @@ impl fmt::Debug for CatalogName {
 }
 
 impl FromStr for CatalogName {
-    type Err = CatalogError;
+    type Err = BunsenError;
 
     fn from_str(s: &str) -> CatalogResult<Self> {
         Self::parse(s)
@@ -261,7 +265,7 @@ impl CatalogRef {
     /// Parses a reference: a name, with an optional leading `/`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Name`] when the name isn't legal.
+    /// [`CatalogRule::Name`] when the name isn't legal.
     pub fn parse(reference: &str) -> CatalogResult<Self> {
         let (absolute, rest) = match reference.strip_prefix('/') {
             Some(rest) => (true, rest),
@@ -332,7 +336,7 @@ impl fmt::Debug for CatalogRef {
 }
 
 impl FromStr for CatalogRef {
-    type Err = CatalogError;
+    type Err = BunsenError;
 
     fn from_str(s: &str) -> CatalogResult<Self> {
         Self::parse(s)
@@ -385,7 +389,7 @@ mod tests {
     fn test_parse_rejects_bad_names() {
         for bad in ["", "/a", "a/", "a//b", "a/yes", "a/0b"] {
             let err = CatalogName::parse(bad).unwrap_err();
-            assert_eq!(err.kind, CatalogErrorKind::Name, "{bad}");
+            assert_eq!(err.rule(), Some(CatalogRule::Name), "{bad}");
         }
     }
 

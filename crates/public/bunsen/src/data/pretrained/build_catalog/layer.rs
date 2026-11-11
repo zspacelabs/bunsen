@@ -10,21 +10,26 @@ use std::path::{
     PathBuf,
 };
 
-use crate::data::pretrained::build_catalog::{
-    document::{
-        CatalogEntry,
-        EntryKind,
-        PretrainedCatalog,
+use crate::{
+    data::pretrained::build_catalog::{
+        document::{
+            CatalogEntry,
+            EntryKind,
+            PretrainedCatalog,
+        },
+        error::{
+            CatalogErrorExt,
+            CatalogResult,
+            CatalogRule,
+            catalog_error,
+            catalog_errors,
+        },
+        name::{
+            CONTRACTS,
+            CatalogName,
+        },
     },
-    error::{
-        CatalogError,
-        CatalogErrorKind,
-        CatalogErrors,
-    },
-    name::{
-        CONTRACTS,
-        CatalogName,
-    },
+    errors::BunsenError,
 };
 
 /// One entry of a layer, under its full name.
@@ -68,13 +73,13 @@ impl PretrainedCatalogLayer {
     /// is checked when the layer joins a stack.
     ///
     /// # Errors
-    /// Every [`CatalogErrorKind::Name`] and [`CatalogErrorKind::Structure`]
+    /// Every [`CatalogRule::Name`] and [`CatalogRule::Structure`]
     /// problem found.
     pub fn new(
         label: impl Into<String>,
         path: Option<PathBuf>,
         document: PretrainedCatalog,
-    ) -> Result<Self, CatalogErrors> {
+    ) -> CatalogResult<Self> {
         let label = label.into();
         let mut entries = Vec::new();
         let mut errors = Vec::new();
@@ -96,7 +101,7 @@ impl PretrainedCatalogLayer {
                 entries,
             })
         } else {
-            Err(CatalogErrors(
+            Err(catalog_errors(
                 errors.into_iter().map(|e| e.in_layer(&label)).collect(),
             ))
         }
@@ -128,7 +133,7 @@ fn flatten(
     entries: &[CatalogEntry],
     container: Option<(&CatalogName, EntryKind)>,
     out: &mut Vec<LayerEntry>,
-    errors: &mut Vec<CatalogError>,
+    errors: &mut Vec<BunsenError>,
 ) {
     for entry in entries {
         let kind = entry.kind();
@@ -153,7 +158,7 @@ fn flatten(
 fn name_of(
     entry: &CatalogEntry,
     container: Option<(&CatalogName, EntryKind)>,
-) -> Result<CatalogName, CatalogError> {
+) -> Result<CatalogName, BunsenError> {
     let kind = entry.kind();
     let segment = entry.name();
     let named = |scope: Option<&CatalogName>| {
@@ -165,8 +170,8 @@ fn name_of(
     let Some((scope, container_kind)) = container else {
         let name = named(None)?;
         if kind == EntryKind::Contract {
-            return Err(CatalogError::new(
-                CatalogErrorKind::Structure,
+            return Err(catalog_error(
+                CatalogRule::Structure,
                 "a contract is declared in the base catalog's `$contracts`",
             )
             .at(&name));
@@ -186,8 +191,8 @@ fn name_of(
         } else {
             crate::data::pretrained::build_catalog::stack::with_article(container_kind.as_str())
         };
-        return Err(CatalogError::new(
-            CatalogErrorKind::Structure,
+        return Err(catalog_error(
+            CatalogRule::Structure,
             format!(
                 "{container} can't hold {}{}",
                 crate::data::pretrained::build_catalog::stack::with_article(kind.as_str()),
@@ -207,7 +212,7 @@ fn name_of(
 mod tests {
     use super::*;
 
-    fn layer(yaml: &str) -> Result<PretrainedCatalogLayer, CatalogErrors> {
+    fn layer(yaml: &str) -> CatalogResult<PretrainedCatalogLayer> {
         PretrainedCatalogLayer::new("test", None, PretrainedCatalog::from_yaml(yaml).unwrap())
     }
 
@@ -270,15 +275,20 @@ g:
 "#,
         )
         .unwrap_err();
-        assert_eq!(errors.0.len(), 2, "{errors}");
+        assert_eq!(errors.problems().len(), 2, "{errors}");
         assert!(errors.mentions("can't hold a facet"));
         assert!(errors.mentions("a build can't hold a namespace"));
-        assert!(errors.0.iter().all(|e| e.layer.as_deref() == Some("test")));
+        assert!(
+            errors
+                .problems()
+                .iter()
+                .all(|p| p.layer.as_deref() == Some("test"))
+        );
     }
 
     #[test]
     fn test_bad_segments_are_refused() {
         let errors = layer("\"no\": { $kind: facet, $description: \"d\" }\n").unwrap_err();
-        assert!(errors.has(CatalogErrorKind::Name));
+        assert!(errors.has(CatalogRule::Name));
     }
 }

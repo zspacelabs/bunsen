@@ -5,6 +5,7 @@
 //! `cargo run -p pretrained-catalog --example supplemental`
 
 use bunsen::data::pretrained::build_catalog::{
+    CatalogErrorExt,
     CatalogName,
     fixtures,
 };
@@ -61,8 +62,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (why, yaml) in bad {
         let errors = stack.push_yaml("bad", yaml).unwrap_err();
         println!("  {why}:");
-        for error in &errors.0 {
-            println!("    {error}");
+        for problem in errors.problems() {
+            println!("    {problem}");
         }
     }
     println!("\nthe stack still has {} layers", stack.layers().len());

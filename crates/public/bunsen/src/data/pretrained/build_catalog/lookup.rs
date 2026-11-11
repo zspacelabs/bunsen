@@ -12,9 +12,9 @@ use crate::data::pretrained::build_catalog::{
         EntryKind,
     },
     error::{
-        CatalogError,
-        CatalogErrorKind,
         CatalogResult,
+        CatalogRule,
+        catalog_error,
     },
     name::CatalogName,
     stack::{
@@ -68,15 +68,19 @@ fn subsequence(
     else {
         return false;
     };
+    // Lookups ignore ASCII case; a stack never holds two names that differ
+    // only in case.
     let leaf_ok = match leaf {
-        LeafMatch::Exact => name_last == last,
-        LeafMatch::Prefix => name_last.starts_with(last),
+        LeafMatch::Exact => name_last.eq_ignore_ascii_case(last),
+        LeafMatch::Prefix => name_last
+            .get(..last.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(last)),
     };
     if !leaf_ok {
         return false;
     }
     let mut rest = name_init.iter();
-    init.iter().all(|q| rest.any(|s| s == q))
+    init.iter().all(|q| rest.any(|s| s.eq_ignore_ascii_case(q)))
 }
 
 impl PretrainedCatalogStack {
@@ -131,6 +135,21 @@ impl PretrainedCatalogStack {
             .and_then(|entry| self.as_found(entry, kinds))
     }
 
+    /// The declared name `name` spells, ignoring ASCII case.
+    pub fn cased(
+        &self,
+        name: &CatalogName,
+    ) -> Option<CatalogName> {
+        if self.declaration(name).is_some() {
+            return Some(name.clone());
+        }
+        let wanted = name.to_string();
+        self.declarations()
+            .map(|d| d.name())
+            .find(|n| n.to_string().eq_ignore_ascii_case(&wanted))
+            .cloned()
+    }
+
     /// The aliases that name `name`, in declaration order.
     pub fn aliases_of(
         &self,
@@ -152,7 +171,7 @@ impl PretrainedCatalogStack {
     /// Resolves `query` to one entry of `kinds`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Lookup`] when nothing matches, or more than one
+    /// [`CatalogRule::Lookup`] when nothing matches, or more than one
     /// entry does and none is named in full.
     pub fn find(
         &self,
@@ -161,19 +180,21 @@ impl PretrainedCatalogStack {
         leaf: LeafMatch,
     ) -> CatalogResult<CatalogName> {
         if let Ok(full) = CatalogName::parse(query)
-            && let Some(found) = self.named_as(&full, kinds)
+            && let Some(found) = self
+                .cased(&full)
+                .and_then(|name| self.named_as(&name, kinds))
         {
             return Ok(found);
         }
         let mut found = self.matches(query, kinds, leaf);
         match found.len() {
             1 => Ok(found.pop().expect("one")),
-            0 => Err(CatalogError::new(
-                CatalogErrorKind::Lookup,
+            0 => Err(catalog_error(
+                CatalogRule::Lookup,
                 format!("nothing matches `{query}`"),
             )),
-            _ => Err(CatalogError::new(
-                CatalogErrorKind::Lookup,
+            _ => Err(catalog_error(
+                CatalogRule::Lookup,
                 format!(
                     "`{query}` is ambiguous: {}",
                     found
@@ -257,7 +278,10 @@ fn choose(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::build_catalog::fixtures;
+    use crate::data::pretrained::build_catalog::{
+        error::CatalogErrorExt,
+        fixtures,
+    };
 
     #[test]
     fn test_subsequences_match_in_order() {
@@ -289,11 +313,11 @@ mod tests {
             assert_eq!(stack.find_build(query).unwrap(), v3, "{query}");
         }
         let err = stack.find_build("large-v4").unwrap_err();
-        assert!(err.message.contains("nothing matches"));
+        assert!(err.problem_message().contains("nothing matches"));
         let err = stack
             .find("checkpoint", &SEARCHABLE, LeafMatch::Exact)
             .unwrap_err();
-        assert!(err.message.contains("ambiguous"), "{err}");
+        assert!(err.problem_message().contains("ambiguous"), "{err}");
         assert_eq!(
             stack
                 .find("qwen3-0.6b/checkpoint", &SEARCHABLE, LeafMatch::Exact)
@@ -313,7 +337,7 @@ mod tests {
         let err = stack
             .find("large", &[EntryKind::Build], LeafMatch::Prefix)
             .unwrap_err();
-        assert!(err.message.contains("ambiguous"));
+        assert!(err.problem_message().contains("ambiguous"));
     }
 
     #[test]

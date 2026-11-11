@@ -1,11 +1,20 @@
-//! Errors: one [`CatalogError`] per problem, and [`CatalogErrors`] for a
-//! validation pass that reports every problem it finds.
+//! Errors: every failure is a [`BunsenError`]. A catalog problem carries a
+//! [`CatalogProblem`] as its cause: the rule it breaks, and where it was
+//! found. A validation pass that finds several reports them together, each a
+//! member of a [`Multiple`].
 
 use alloc::fmt;
 
-/// What sort of rule a [`CatalogError`] breaks.
+use crate::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    Multiple,
+};
+
+/// What sort of rule a [`CatalogProblem`] breaks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum CatalogErrorKind {
+pub enum CatalogRule {
     /// The document doesn't parse as a catalog.
     Parse,
     /// A name or name segment is malformed.
@@ -38,7 +47,7 @@ pub enum CatalogErrorKind {
     Selection,
 }
 
-impl fmt::Display for CatalogErrorKind {
+impl fmt::Display for CatalogRule {
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>,
@@ -63,11 +72,12 @@ impl fmt::Display for CatalogErrorKind {
     }
 }
 
-/// One problem, with where it was found.
+/// One catalog problem, with where it was found: the cause a catalog's
+/// [`BunsenError`] carries.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CatalogError {
+pub struct CatalogProblem {
     /// The rule broken.
-    pub kind: CatalogErrorKind,
+    pub rule: CatalogRule,
     /// What is wrong, for a person.
     pub message: String,
     /// The label of the layer being loaded, when the problem is in one.
@@ -76,43 +86,42 @@ pub struct CatalogError {
     pub entry: Option<String>,
 }
 
-impl CatalogError {
-    /// A problem of `kind`, not yet placed in a layer or an entry.
+impl CatalogRule {
+    /// The kind of the error a problem of this rule is: a lookup that
+    /// matched nothing, or one too many, is
+    /// [`Lookup`](BunsenErrorKind::Lookup); every other rule is
+    /// [`Policy`](BunsenErrorKind::Policy), a catalog or a request read from
+    /// outside the program that breaks it.
+    pub fn error_kind(self) -> BunsenErrorKind {
+        match self {
+            Self::Lookup => BunsenErrorKind::Lookup,
+            _ => BunsenErrorKind::Policy,
+        }
+    }
+}
+
+impl CatalogProblem {
+    /// A problem of `rule`, not yet placed in a layer or an entry.
     pub fn new(
-        kind: CatalogErrorKind,
+        rule: CatalogRule,
         message: impl Into<String>,
     ) -> Self {
         Self {
-            kind,
+            rule,
             message: message.into(),
             layer: None,
             entry: None,
         }
     }
 
-    /// Places the problem at `entry`.
-    pub fn at(
-        mut self,
-        entry: impl ToString,
-    ) -> Self {
-        self.entry = Some(entry.to_string());
-        self
-    }
-
-    /// Places the problem in the layer `layer`, unless it is already
-    /// placed.
-    pub fn in_layer(
-        mut self,
-        layer: &str,
-    ) -> Self {
-        if self.layer.is_none() {
-            self.layer = Some(layer.to_string());
-        }
-        self
+    /// The error that carries it.
+    #[track_caller]
+    pub fn into_error(self) -> BunsenError {
+        BunsenError::from_cause(self.rule.error_kind(), self)
     }
 }
 
-impl fmt::Display for CatalogError {
+impl fmt::Display for CatalogProblem {
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>,
@@ -123,56 +132,177 @@ impl fmt::Display for CatalogError {
         if let Some(entry) = &self.entry {
             write!(f, "`{entry}`: ")?;
         }
-        write!(f, "{} ({})", self.message, self.kind)
+        write!(f, "{} ({})", self.message, self.rule)
     }
 }
 
-impl core::error::Error for CatalogError {}
+impl core::error::Error for CatalogProblem {}
 
-/// Every problem a validation pass found, in the order found.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct CatalogErrors(pub Vec<CatalogError>);
+/// The error of a [`CatalogProblem`] of `rule`.
+#[track_caller]
+pub fn catalog_error(
+    rule: CatalogRule,
+    message: impl Into<String>,
+) -> BunsenError {
+    CatalogProblem::new(rule, message).into_error()
+}
 
-impl CatalogErrors {
-    /// Whether any problem of `kind` was found.
-    pub fn has(
+/// The errors a pass found, as one: the error itself when there is one,
+/// and a [`Multiple`] of them otherwise.
+///
+/// # Panics
+/// When `errors` is empty: there is no failure to report.
+#[track_caller]
+pub fn catalog_errors(errors: Vec<BunsenError>) -> BunsenError {
+    match <[BunsenError; 1]>::try_from(errors) {
+        Ok([one]) => one,
+        Err(errors) => {
+            assert!(!errors.is_empty(), "a pass with no problems is no error");
+            let summary = format!("{} catalog problems", errors.len());
+            let members = errors.into_iter().map(|e| (String::new(), e)).collect();
+            let multiple = Multiple::new(summary, members);
+            let kind = multiple.kind();
+            BunsenError::from_detailed(kind, multiple)
+        }
+    }
+}
+
+/// What a catalog error says: its problems, and where they are.
+pub trait CatalogErrorExt: Sized {
+    /// The problems it carries: its own, or its members'.
+    fn problems(&self) -> Vec<&CatalogProblem>;
+
+    /// The error with each problem placed at `entry`.
+    #[must_use]
+    fn at(
+        self,
+        entry: impl fmt::Display,
+    ) -> Self;
+
+    /// The error with each problem placed in the layer `layer`, unless it is
+    /// already placed.
+    #[must_use]
+    fn in_layer(
+        self,
+        layer: &str,
+    ) -> Self;
+
+    /// The errors it is made of: its members, or itself.
+    fn members(self) -> Vec<BunsenError>;
+
+    /// The first problem's rule.
+    fn rule(&self) -> Option<CatalogRule> {
+        self.problems().first().map(|p| p.rule)
+    }
+
+    /// The first problem's message, without where it was found.
+    fn problem_message(&self) -> String;
+
+    /// Whether any problem breaks `rule`.
+    fn has(
         &self,
-        kind: CatalogErrorKind,
+        rule: CatalogRule,
     ) -> bool {
-        self.0.iter().any(|e| e.kind == kind)
+        self.problems().iter().any(|p| p.rule == rule)
     }
 
     /// Whether any problem's message contains `text`.
-    pub fn mentions(
+    fn mentions(
         &self,
         text: &str,
     ) -> bool {
-        self.0.iter().any(|e| e.message.contains(text))
+        self.problems().iter().any(|p| p.message.contains(text))
+    }
+
+    /// Each problem on a line of its own, placed.
+    fn problem_lines(&self) -> String {
+        self.problems()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
-impl From<CatalogError> for CatalogErrors {
-    fn from(error: CatalogError) -> Self {
-        Self(vec![error])
-    }
-}
-
-impl fmt::Display for CatalogErrors {
-    fn fmt(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-    ) -> fmt::Result {
-        for (i, error) in self.0.iter().enumerate() {
-            if i > 0 {
-                writeln!(f)?;
-            }
-            write!(f, "{error}")?;
+impl CatalogErrorExt for BunsenError {
+    fn problems(&self) -> Vec<&CatalogProblem> {
+        if let Some(problem) = self.find::<CatalogProblem>() {
+            return vec![problem];
         }
-        Ok(())
+        match self.find::<Multiple>() {
+            Some(multiple) => multiple
+                .members
+                .iter()
+                .flat_map(|(_, member)| member.problems())
+                .collect(),
+            None => Vec::new(),
+        }
+    }
+
+    fn at(
+        self,
+        entry: impl fmt::Display,
+    ) -> Self {
+        let entry = entry.to_string();
+        self.placed(&|p| p.entry = Some(entry.clone()))
+    }
+
+    fn in_layer(
+        self,
+        layer: &str,
+    ) -> Self {
+        self.placed(&|p| {
+            if p.layer.is_none() {
+                p.layer = Some(layer.to_string());
+            }
+        })
+    }
+
+    fn members(self) -> Vec<BunsenError> {
+        match self.find::<Multiple>() {
+            Some(multiple) if self.find::<CatalogProblem>().is_none() => {
+                multiple.members.iter().map(|(_, m)| m.clone()).collect()
+            }
+            _ => vec![self],
+        }
+    }
+
+    fn problem_message(&self) -> String {
+        self.problems()
+            .first()
+            .map_or_else(|| self.message().to_string(), |p| p.message.clone())
     }
 }
 
-impl core::error::Error for CatalogErrors {}
+trait Placed {
+    fn placed(
+        self,
+        place: &dyn Fn(&mut CatalogProblem),
+    ) -> Self;
+}
 
-/// A result with one [`CatalogError`].
-pub type CatalogResult<T> = Result<T, CatalogError>;
+impl Placed for BunsenError {
+    fn placed(
+        self,
+        place: &dyn Fn(&mut CatalogProblem),
+    ) -> Self {
+        if let Some(problem) = self.find::<CatalogProblem>() {
+            let mut problem = problem.clone();
+            place(&mut problem);
+            return problem.into_error();
+        }
+        if let Some(multiple) = self.find::<Multiple>() {
+            let members = multiple
+                .members
+                .iter()
+                .map(|(_, member)| member.clone().placed(place))
+                .collect();
+            return catalog_errors(members);
+        }
+        self
+    }
+}
+
+/// A result whose error is a [`BunsenError`], a catalog's carrying its
+/// [`CatalogProblem`]s.
+pub type CatalogResult<T> = BunsenResult<T>;

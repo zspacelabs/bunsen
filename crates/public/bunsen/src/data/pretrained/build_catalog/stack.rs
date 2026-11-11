@@ -31,35 +31,39 @@ use std::path::{
     PathBuf,
 };
 
-use crate::data::pretrained::build_catalog::{
-    document::{
-        CatalogEntry,
-        EntryKind,
-        GroupEntry,
-        Membership,
-        MergeMode,
-        PretrainedCatalog,
-        ResourceEntry,
-        TEMPLATE_CLASS_ROOT,
-        TemplateClassEntry,
+use crate::{
+    data::pretrained::build_catalog::{
+        document::{
+            CatalogEntry,
+            EntryKind,
+            GroupEntry,
+            Membership,
+            MergeMode,
+            PretrainedCatalog,
+            ResourceEntry,
+            TEMPLATE_CLASS_ROOT,
+            TemplateClassEntry,
+        },
+        error::{
+            CatalogErrorExt,
+            CatalogResult,
+            CatalogRule,
+            catalog_error,
+            catalog_errors,
+        },
+        layer::{
+            LayerEntry,
+            PretrainedCatalogLayer,
+        },
+        name::{
+            CatalogName,
+            CatalogRef,
+            check_segment,
+        },
+        release_time::ReleaseTime,
+        tags::check_value,
     },
-    error::{
-        CatalogError,
-        CatalogErrorKind,
-        CatalogErrors,
-        CatalogResult,
-    },
-    layer::{
-        LayerEntry,
-        PretrainedCatalogLayer,
-    },
-    name::{
-        CatalogName,
-        CatalogRef,
-        check_segment,
-    },
-    release_time::ReleaseTime,
-    tags::check_value,
+    errors::BunsenError,
 };
 
 /// One change an import made to an entry: the catalog, and how.
@@ -169,7 +173,7 @@ impl PretrainedCatalogStack {
         label: impl Into<String>,
         path: Option<PathBuf>,
         document: PretrainedCatalog,
-    ) -> Result<(), CatalogErrors> {
+    ) -> CatalogResult<()> {
         let layer = PretrainedCatalogLayer::new(label, path, document)?;
         let label = layer.label().to_string();
         let declares_contracts = layer.document().contracts.is_some();
@@ -185,8 +189,15 @@ impl PretrainedCatalogStack {
             _ => None,
         };
         if let Some(why) = refusal {
-            return Err(CatalogErrors::from(
-                CatalogError::new(CatalogErrorKind::Contract, why).in_layer(&label),
+            return Err(catalog_error(CatalogRule::Contract, why).in_layer(&label));
+        }
+        let case_errors = self.check_case(&layer);
+        if !case_errors.is_empty() {
+            return Err(catalog_errors(
+                case_errors
+                    .into_iter()
+                    .map(|e| e.in_layer(&label))
+                    .collect(),
             ));
         }
         let mut next = self.clone();
@@ -206,7 +217,7 @@ impl PretrainedCatalogStack {
             *self = next;
             Ok(())
         } else {
-            Err(CatalogErrors(
+            Err(catalog_errors(
                 errors.into_iter().map(|e| e.in_layer(&label)).collect(),
             ))
         }
@@ -215,15 +226,14 @@ impl PretrainedCatalogStack {
     /// Parses `yaml` and [`push`](Self::push)es it.
     ///
     /// # Errors
-    /// A [`CatalogErrorKind::Parse`] problem, or every problem `push` finds.
+    /// A [`CatalogRule::Parse`] problem, or every problem `push` finds.
     pub fn push_yaml(
         &mut self,
         label: impl Into<String>,
         yaml: &str,
-    ) -> Result<(), CatalogErrors> {
+    ) -> CatalogResult<()> {
         let label = label.into();
-        let document = PretrainedCatalog::from_yaml(yaml)
-            .map_err(|e| CatalogErrors::from(e.in_layer(&label)))?;
+        let document = PretrainedCatalog::from_yaml(yaml).map_err(|e| e.in_layer(&label))?;
         self.push(label, None, document)
     }
 
@@ -235,24 +245,21 @@ impl PretrainedCatalogStack {
     pub fn push_file(
         &mut self,
         path: impl AsRef<Path>,
-    ) -> Result<(), CatalogErrors> {
+    ) -> CatalogResult<()> {
         let path = path.as_ref();
         let label = path
             .file_stem()
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
         let text = std::fs::read_to_string(path).map_err(|e| {
-            CatalogErrors::from(
-                CatalogError::new(CatalogErrorKind::Parse, format!("{}: {e}", path.display()))
-                    .in_layer(&label),
-            )
+            catalog_error(CatalogRule::Parse, format!("{}: {e}", path.display())).in_layer(&label)
         })?;
         let document = if path.extension().is_some_and(|x| x == "json") {
             PretrainedCatalog::from_json(&text)
         } else {
             PretrainedCatalog::from_yaml(&text)
         }
-        .map_err(|e| CatalogErrors::from(e.in_layer(&label)))?;
+        .map_err(|e| e.in_layer(&label))?;
         self.push(label, Some(path.to_path_buf()), document)
     }
 
@@ -319,14 +326,14 @@ impl PretrainedCatalogStack {
 
     /// The references earlier catalogs resolved that now resolve elsewhere:
     /// a name the top catalog adds is nearer to them than what they named.
-    fn check_captures(&self) -> Vec<CatalogError> {
+    fn check_captures(&self) -> Vec<BunsenError> {
         self.resolved
             .iter()
             .filter_map(|((from, reference), target)| {
                 let now = self.resolve_ref(from, reference)?;
                 (now.name() != target).then(|| {
-                    CatalogError::new(
-                        CatalogErrorKind::Conflict,
+                    catalog_error(
+                        CatalogRule::Conflict,
                         format!(
                             "it would capture `{reference}`, written in `{from}`, which resolves \
                              to `{target}`: a catalog can't change an earlier catalog's reference"
@@ -356,7 +363,7 @@ impl PretrainedCatalogStack {
     /// entry of one of `kinds`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Reference`] when it resolves to nothing, or the
+    /// [`CatalogRule::Reference`] when it resolves to nothing, or the
     /// nearest entry it names is of another kind.
     pub fn expect_ref(
         &self,
@@ -367,8 +374,8 @@ impl PretrainedCatalogStack {
     ) -> CatalogResult<EntryRef<'_>> {
         match self.resolve_ref(from, reference) {
             Some(decl) if kinds.contains(&decl.kind()) => Ok(decl),
-            Some(decl) => Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            Some(decl) => Err(catalog_error(
+                CatalogRule::Reference,
                 format!(
                     "`{reference}` resolves to `{}`, which is {}, not {}",
                     decl.name(),
@@ -376,8 +383,8 @@ impl PretrainedCatalogStack {
                     with_article(what)
                 ),
             )),
-            None => Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            None => Err(catalog_error(
+                CatalogRule::Reference,
                 format!("no {what} `{reference}` is visible from `{from}`"),
             )),
         }
@@ -392,16 +399,16 @@ impl PretrainedCatalogStack {
     ) -> CatalogResult<EntryRef<'_>> {
         match self.declaration(name) {
             Some(decl) if kinds.contains(&decl.kind()) => Ok(decl),
-            Some(decl) => Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            Some(decl) => Err(catalog_error(
+                CatalogRule::Reference,
                 format!(
                     "`{name}` is {}, not {}",
                     with_article(decl.kind().as_str()),
                     with_article(what)
                 ),
             )),
-            None => Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            None => Err(catalog_error(
+                CatalogRule::Reference,
                 format!("no {what} `{name}`"),
             )),
         }
@@ -559,8 +566,8 @@ impl PretrainedCatalogStack {
     /// the root alone. Each class's `base` resolves from that class.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Reference`] when a link names no template class
-    /// or the root isn't declared; [`CatalogErrorKind::Structure`] on a
+    /// [`CatalogRule::Reference`] when a link names no template class
+    /// or the root isn't declared; [`CatalogRule::Structure`] on a
     /// cycle.
     pub fn template_chain(
         &self,
@@ -573,8 +580,8 @@ impl PretrainedCatalogStack {
             self.declaration(&root)
                 .filter(|d| d.kind() == EntryKind::TemplateClass)
                 .ok_or_else(|| {
-                    CatalogError::new(
-                        CatalogErrorKind::Reference,
+                    catalog_error(
+                        CatalogRule::Reference,
                         format!("no template class `{root}` (the prelude declares it)"),
                     )
                 })
@@ -586,8 +593,8 @@ impl PretrainedCatalogStack {
         let mut chain: Vec<TemplateLink<'_>> = Vec::new();
         loop {
             if chain.iter().any(|l| l.name == next.name()) {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Structure,
+                return Err(catalog_error(
+                    CatalogRule::Structure,
                     format!("the template-class chain loops at `{}`", next.name()),
                 ));
             }
@@ -613,7 +620,7 @@ impl PretrainedCatalogStack {
     /// The members of the `release` group `group`, ordered by release time.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Reference`] when `group` isn't a release group.
+    /// [`CatalogRule::Reference`] when `group` isn't a release group.
     pub fn releases(
         &self,
         group: &CatalogName,
@@ -663,8 +670,42 @@ impl PretrainedCatalogStack {
         self.layers[entry.declared_in()].label()
     }
 
+    /// The names `layer` writes in another case than the stack, or than
+    /// itself, writes them: a catalog cases a name consistently, so a
+    /// lookup that ignores case finds one entry.
+    fn check_case(
+        &self,
+        layer: &PretrainedCatalogLayer,
+    ) -> Vec<BunsenError> {
+        let mut seen: BTreeMap<String, CatalogName> = self
+            .declarations()
+            .map(|d| (d.name().to_string().to_ascii_lowercase(), d.name().clone()))
+            .collect();
+        let mut errors = Vec::new();
+        for occurrence in layer.entries() {
+            let name = &occurrence.name;
+            match seen.get(&name.to_string().to_ascii_lowercase()) {
+                Some(first) if first != name => errors.push(
+                    catalog_error(
+                        CatalogRule::Conflict,
+                        format!(
+                            "`{name}` and `{first}` differ only in case: a name is written in \
+                             one case throughout"
+                        ),
+                    )
+                    .at(name),
+                ),
+                Some(_) => {}
+                None => {
+                    seen.insert(name.to_string().to_ascii_lowercase(), name.clone());
+                }
+            }
+        }
+        errors
+    }
+
     /// Applies the top catalog's occurrences, in order, to the state.
-    fn apply_top(&mut self) -> Vec<CatalogError> {
+    fn apply_top(&mut self) -> Vec<BunsenError> {
         let top = self.layers.len() - 1;
         let occurrences: Vec<LayerEntry> = self.layers[top].entries().to_vec();
         let mut errors = Vec::new();
@@ -675,7 +716,7 @@ impl PretrainedCatalogStack {
             let change = EntryChange { layer: top, merge };
             let mut fields = occurrence.entry.clone();
             reset_merge(&mut fields);
-            let at = |e: CatalogError| e.at(&name);
+            let at = |e: BunsenError| e.at(&name);
             let existing = self.index.get(&name).copied();
             match (merge, existing) {
                 (MergeMode::Deny, None) => {
@@ -690,8 +731,8 @@ impl PretrainedCatalogStack {
                     let first = EntryRef {
                         entry: &self.entries[i],
                     };
-                    errors.push(at(CatalogError::new(
-                        CatalogErrorKind::Conflict,
+                    errors.push(at(catalog_error(
+                        CatalogRule::Conflict,
                         format!(
                             "`{name}` is already declared in `{}`, as {}",
                             self.declared_label(first),
@@ -705,8 +746,8 @@ impl PretrainedCatalogStack {
                     } else {
                         "replaces"
                     };
-                    errors.push(at(CatalogError::new(
-                        CatalogErrorKind::Merge,
+                    errors.push(at(catalog_error(
+                        CatalogRule::Merge,
                         format!("{verb} `{name}`, which no earlier catalog or this one declares"),
                     )));
                 }
@@ -718,8 +759,8 @@ impl PretrainedCatalogStack {
                     } else {
                         ("replaces", ": a replacement keeps the kind")
                     };
-                    errors.push(at(CatalogError::new(
-                        CatalogErrorKind::Merge,
+                    errors.push(at(catalog_error(
+                        CatalogRule::Merge,
                         format!(
                             "{verb} `{name}` as {}, but it is declared {}{rule}",
                             with_article(fields.kind().as_str()),
@@ -729,8 +770,8 @@ impl PretrainedCatalogStack {
                 }
                 (MergeMode::Replace, Some(i)) => {
                     if !replaced.insert(name.clone()) {
-                        errors.push(at(CatalogError::new(
-                            CatalogErrorKind::Merge,
+                        errors.push(at(catalog_error(
+                            CatalogRule::Merge,
                             format!("`{name}` is replaced twice in one catalog"),
                         )));
                         continue;
@@ -748,7 +789,7 @@ impl PretrainedCatalogStack {
     }
 
     /// Validates the state after the top catalog is applied.
-    fn validate_top(&self) -> Vec<CatalogError> {
+    fn validate_top(&self) -> Vec<BunsenError> {
         let top = self.layers.len() - 1;
         let occurrences: Vec<&LayerEntry> = self.layers[top].entries().iter().collect();
         let mut errors = Vec::new();
@@ -758,7 +799,7 @@ impl PretrainedCatalogStack {
             let Some(entry) = self.declaration(&occurrence.name) else {
                 continue;
             };
-            let at = |e: CatalogError| e.at(entry.name());
+            let at = |e: BunsenError| e.at(entry.name());
             match occurrence.merge() {
                 MergeMode::Deny | MergeMode::Replace => {
                     changes_entries |= occurrence.merge() == MergeMode::Replace;
@@ -787,7 +828,7 @@ impl PretrainedCatalogStack {
         }
         for build in &builds {
             if let Err(found) = self.resolve_build(build) {
-                errors.extend(found.0);
+                errors.extend(found.members());
             }
         }
         errors.extend(self.check_release_order(&builds));
@@ -800,7 +841,7 @@ impl PretrainedCatalogStack {
         &self,
         entry: EntryRef<'_>,
         occurrence: &LayerEntry,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let CatalogEntry::Namespace(group) = &occurrence.entry else {
             return Vec::new();
         };
@@ -815,8 +856,8 @@ impl PretrainedCatalogStack {
                     Vec::new()
                 } else {
                     let declared = declared.map_or("no facet".to_string(), |f| format!("`{f}`"));
-                    vec![CatalogError::new(
-                        CatalogErrorKind::Merge,
+                    vec![catalog_error(
+                        CatalogRule::Merge,
                         format!(
                             "expects `{}` in the facet `{}`, but it is declared with {declared}",
                             entry.name(),
@@ -831,7 +872,7 @@ impl PretrainedCatalogStack {
     fn check_naming_scope(
         &self,
         entry: EntryRef<'_>,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let Some(scope) = entry.name().scope() else {
             return Vec::new();
         };
@@ -848,16 +889,16 @@ impl PretrainedCatalogStack {
             Some(decl) if decl.kind().is_container_group() => Vec::new(),
             Some(decl) if decl.kind() == EntryKind::Contract => Vec::new(),
             Some(decl) if decl.kind() == EntryKind::Build && child_of_build => Vec::new(),
-            Some(decl) => vec![CatalogError::new(
-                CatalogErrorKind::Structure,
+            Some(decl) => vec![catalog_error(
+                CatalogRule::Structure,
                 format!(
                     "{} can't hold {}",
                     with_article(decl.kind().as_str()),
                     with_article(entry.kind().as_str())
                 ),
             )],
-            None => vec![CatalogError::new(
-                CatalogErrorKind::Reference,
+            None => vec![catalog_error(
+                CatalogRule::Reference,
                 format!("its scope `{scope}` is not declared"),
             )],
         }
@@ -866,10 +907,10 @@ impl PretrainedCatalogStack {
     fn check_declaration(
         &self,
         entry: EntryRef<'_>,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let mut errors = Vec::new();
         fn push<T>(
-            errors: &mut Vec<CatalogError>,
+            errors: &mut Vec<BunsenError>,
             r: CatalogResult<T>,
         ) {
             if let Err(e) = r {
@@ -878,8 +919,8 @@ impl PretrainedCatalogStack {
         }
         let described = |d: &str| {
             if d.trim().is_empty() {
-                Err(CatalogError::new(
-                    CatalogErrorKind::Structure,
+                Err(catalog_error(
+                    CatalogRule::Structure,
                     "it has no description",
                 ))
             } else {
@@ -965,7 +1006,7 @@ impl PretrainedCatalogStack {
                 if let Some(problem) = problem {
                     push::<()>(
                         &mut errors,
-                        Err(CatalogError::new(CatalogErrorKind::Preset, problem)),
+                        Err(catalog_error(CatalogRule::Preset, problem)),
                     );
                 }
                 let mut seen = BTreeSet::new();
@@ -974,8 +1015,8 @@ impl PretrainedCatalogStack {
                     if !seen.insert(member) {
                         push::<()>(
                             &mut errors,
-                            Err(CatalogError::new(
-                                CatalogErrorKind::Preset,
+                            Err(catalog_error(
+                                CatalogRule::Preset,
                                 format!("the member `{member}` is listed twice"),
                             )),
                         );
@@ -986,8 +1027,8 @@ impl PretrainedCatalogStack {
                 if a.target.kind == EntryKind::Alias {
                     push::<()>(
                         &mut errors,
-                        Err(CatalogError::new(
-                            CatalogErrorKind::Reference,
+                        Err(catalog_error(
+                            CatalogRule::Reference,
                             "an alias names an entry, not another alias",
                         )),
                     );
@@ -1005,7 +1046,7 @@ impl PretrainedCatalogStack {
             }
             CatalogEntry::Resource(r) => {
                 let mut bad = |m: String| {
-                    errors.push(CatalogError::new(CatalogErrorKind::Structure, m));
+                    errors.push(catalog_error(CatalogRule::Structure, m));
                 };
                 if let Err(why) = check_file_path(&r.file) {
                     bad(why);
@@ -1062,8 +1103,8 @@ impl PretrainedCatalogStack {
                 if is_root && t.base.is_some() {
                     push::<()>(
                         &mut errors,
-                        Err(CatalogError::new(
-                            CatalogErrorKind::Structure,
+                        Err(catalog_error(
+                            CatalogRule::Structure,
                             "the template-class root has no base",
                         )),
                     );
@@ -1136,8 +1177,8 @@ impl PretrainedCatalogStack {
             &[EntryKind::Namespace, EntryKind::Release],
         )?;
         if decl.kind() == EntryKind::Release {
-            return Err(CatalogError::new(
-                CatalogErrorKind::Release,
+            return Err(catalog_error(
+                CatalogRule::Release,
                 format!(
                     "joins the release group `{}` without a `$released` timestamp; only a build \
                      joins a release, as `{{$group, $released}}`",
@@ -1156,8 +1197,8 @@ impl PretrainedCatalogStack {
         value: &serde_json::Value,
     ) -> CatalogResult<CatalogName> {
         let Some(decl) = self.resolve_ref(from, tag) else {
-            return Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            return Err(catalog_error(
+                CatalogRule::Reference,
                 format!("no tag `{tag}` is visible from `{from}`; every tag is declared"),
             ));
         };
@@ -1165,22 +1206,20 @@ impl PretrainedCatalogStack {
         match decl.body() {
             CatalogEntry::Tag(t) => self
                 .resolve_type(name, &t.tag_type)
-                .map_err(|e| e.message)
+                .map_err(|e| e.problem_message())
                 .and_then(|ty| check_value(&ty, value))
                 .map(|()| name.clone())
-                .map_err(|why| {
-                    CatalogError::new(CatalogErrorKind::Tag, format!("the tag `{name}`: {why}"))
-                }),
-            CatalogEntry::Axis(_) => Err(CatalogError::new(
-                CatalogErrorKind::Tag,
+                .map_err(|why| catalog_error(CatalogRule::Tag, format!("the tag `{name}`: {why}"))),
+            CatalogEntry::Axis(_) => Err(catalog_error(
+                CatalogRule::Tag,
                 format!("the tag `{name}` is implied by the axis use; it is never written"),
             )),
-            CatalogEntry::Facet(_) => Err(CatalogError::new(
-                CatalogErrorKind::Tag,
+            CatalogEntry::Facet(_) => Err(catalog_error(
+                CatalogRule::Tag,
                 format!("the tag `{name}` is implied by facet membership; it is never written"),
             )),
-            _ => Err(CatalogError::new(
-                CatalogErrorKind::Reference,
+            _ => Err(catalog_error(
+                CatalogRule::Reference,
                 format!(
                     "`{tag}` resolves to `{name}`, which is {}, not a tag",
                     with_article(decl.kind().as_str())
@@ -1203,7 +1242,7 @@ impl PretrainedCatalogStack {
     /// (`qwen3-asr/stated` is `$contracts/qwen3-asr/stated`).
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Contract`] when `$contracts` has no such
+    /// [`CatalogRule::Contract`] when `$contracts` has no such
     /// contract.
     pub fn expect_contract(
         &self,
@@ -1212,8 +1251,8 @@ impl PretrainedCatalogStack {
         let name = CatalogName::contracts_root().join(reference.path());
         match self.declaration(&name) {
             Some(decl) if decl.kind() == EntryKind::Contract => Ok(decl),
-            _ => Err(CatalogError::new(
-                CatalogErrorKind::Contract,
+            _ => Err(catalog_error(
+                CatalogRule::Contract,
                 format!("`$contracts` has no contract `{}`", reference.path()),
             )),
         }
@@ -1279,7 +1318,7 @@ impl PretrainedCatalogStack {
         &self,
         entry: EntryRef<'_>,
         contract: &crate::data::pretrained::build_catalog::document::ContractEntry,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let mut errors = Vec::new();
         let name = entry.name();
         let lineage = self.contract_lineage(name);
@@ -1293,8 +1332,8 @@ impl PretrainedCatalogStack {
                 errors.push(e);
             }
             if let Some(parent) = inherited.get(slot) {
-                errors.push(CatalogError::new(
-                    CatalogErrorKind::Contract,
+                errors.push(catalog_error(
+                    CatalogRule::Contract,
                     format!(
                         "the slot `{slot}` is already its contract `{}`'s: a variant only adds \
                          slots",
@@ -1308,24 +1347,24 @@ impl PretrainedCatalogStack {
             .keys()
             .any(|k| contract.args.contains_key(k))
         {
-            errors.push(CatalogError::new(
-                CatalogErrorKind::Contract,
+            errors.push(catalog_error(
+                CatalogRule::Contract,
                 "a slot is either a resource or an argument, not both",
             ));
         }
         for (slot, spec) in &contract.resources {
             if spec.formats.iter().any(|f| f.trim().is_empty()) {
-                errors.push(CatalogError::new(
-                    CatalogErrorKind::Contract,
+                errors.push(catalog_error(
+                    CatalogRule::Contract,
                     format!("the resource slot `{slot}` lists an empty format"),
                 ));
             }
         }
         for (slot, spec) in &contract.args {
             if let Err(e) = self.resolve_type(name, &spec.type_expr) {
-                errors.push(CatalogError::new(
-                    e.kind,
-                    format!("the argument slot `{slot}`: {}", e.message),
+                errors.push(catalog_error(
+                    e.rule().unwrap_or(CatalogRule::Structure),
+                    format!("the argument slot `{slot}`: {}", e.problem_message()),
                 ));
             }
         }
@@ -1337,8 +1376,8 @@ impl PretrainedCatalogStack {
                 )
             });
             if !concrete {
-                errors.push(CatalogError::new(
-                    CatalogErrorKind::Contract,
+                errors.push(catalog_error(
+                    CatalogRule::Contract,
                     "it is abstract, and has no variant a build can name",
                 ));
             }
@@ -1366,13 +1405,13 @@ impl PretrainedCatalogStack {
     fn check_join_cycle(
         &self,
         start: EntryRef<'_>,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let mut seen = BTreeSet::new();
         let mut todo = self.direct_groups(start);
         while let Some(name) = todo.pop() {
             if &name == start.name() {
-                return vec![CatalogError::new(
-                    CatalogErrorKind::Structure,
+                return vec![catalog_error(
+                    CatalogRule::Structure,
                     format!(
                         "`{}` is, through its memberships, a member of itself",
                         start.name()
@@ -1394,7 +1433,7 @@ impl PretrainedCatalogStack {
     fn check_facet_nesting(
         &self,
         entry: EntryRef<'_>,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let Some(facet) = self.group_facet(entry) else {
             return Vec::new();
         };
@@ -1409,8 +1448,8 @@ impl PretrainedCatalogStack {
                     == Some(&facet)
             })
             .map(|g| {
-                CatalogError::new(
-                    CatalogErrorKind::Facet,
+                catalog_error(
+                    CatalogRule::Facet,
                     format!(
                         "a `{facet}` group can't be within another `{facet}` group, `{g}`: its \
                          members would be in both"
@@ -1423,7 +1462,7 @@ impl PretrainedCatalogStack {
     fn check_release_order(
         &self,
         builds: &BTreeSet<CatalogName>,
-    ) -> Vec<CatalogError> {
+    ) -> Vec<BunsenError> {
         let mut touched: BTreeSet<CatalogName> = BTreeSet::new();
         for build in builds {
             let Some(entry) = self.declaration(build) else {
@@ -1448,8 +1487,8 @@ impl PretrainedCatalogStack {
                 for (b, tb) in &members[i + 1..] {
                     if ta.overlaps(tb) {
                         errors.push(
-                            CatalogError::new(
-                                CatalogErrorKind::Release,
+                            catalog_error(
+                                CatalogRule::Release,
                                 format!(
                                     "`{a}` ({ta}) and `{b}` ({tb}) overlap in `{group}`: pin \
                                      one of them more precisely"
@@ -1533,8 +1572,8 @@ fn update(
     match (current, occurrence) {
         (CatalogEntry::Namespace(_), CatalogEntry::Namespace(group)) => {
             if group.description.is_some() || !group.join.is_empty() || !group.requires.is_empty() {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Structure,
+                return Err(catalog_error(
+                    CatalogRule::Structure,
                     "an extending occurrence carries only its `$kind`, a `$facet` to expect, \
                      and children",
                 ));
@@ -1553,8 +1592,8 @@ fn update(
                     .as_ref()
                     .is_some_and(|d| Some(d) != current.description.as_ref());
             if differs {
-                return Err(CatalogError::new(
-                    CatalogErrorKind::Merge,
+                return Err(catalog_error(
+                    CatalogRule::Merge,
                     "a resource update matches every field but `$sources`; to change the \
                      artifact, replace it",
                 ));
@@ -1575,13 +1614,13 @@ fn update(
             }
             Ok(())
         }
-        (CatalogEntry::Contract(_), _) => Err(CatalogError::new(
-            CatalogErrorKind::Merge,
+        (CatalogEntry::Contract(_), _) => Err(catalog_error(
+            CatalogRule::Merge,
             "a contract can't be updated: it is the interface its loader is built against; \
              replace it",
         )),
-        (other, _) => Err(CatalogError::new(
-            CatalogErrorKind::Merge,
+        (other, _) => Err(catalog_error(
+            CatalogRule::Merge,
             format!(
                 "{} can't be updated; replace it",
                 with_article(other.kind().as_str())
@@ -1594,8 +1633,8 @@ fn update(
 /// name from them.
 fn reserved_tag_name(name: &CatalogName) -> CatalogResult<()> {
     if name.to_string() == crate::data::pretrained::build_catalog::resolve::CONTRACT_TAG {
-        Err(CatalogError::new(
-            CatalogErrorKind::Conflict,
+        Err(catalog_error(
+            CatalogRule::Conflict,
             format!(
                 "`{name}` is the tag every build's contract implies; nothing else may declare it"
             ),
@@ -1621,8 +1660,8 @@ fn positive_bool_name(
             .filter(|rest| !rest.is_empty())
     });
     match negative {
-        Some(positive) => Err(CatalogError::new(
-            CatalogErrorKind::Name,
+        Some(positive) => Err(catalog_error(
+            CatalogRule::Name,
             format!(
                 "a bool {what} is named by its positive: `{positive}`, not `{}`",
                 name.leaf()
@@ -1659,12 +1698,17 @@ mod tests {
 
     /// Pushes `yaml` over the built-in stack, expecting it to be refused,
     /// and checks the stack was left as it was.
-    fn refused(yaml: &str) -> CatalogErrors {
+    fn refused(yaml: &str) -> BunsenError {
         let mut stack = fixtures::example_stack().unwrap();
         let before = stack.layers().len();
         let errors = stack.push_yaml("bad", yaml).unwrap_err();
         assert_eq!(stack.layers().len(), before);
-        assert!(errors.0.iter().all(|e| e.layer.as_deref() == Some("bad")));
+        assert!(
+            errors
+                .problems()
+                .iter()
+                .all(|p| p.layer.as_deref() == Some("bad"))
+        );
         errors
     }
 
@@ -1768,7 +1812,7 @@ mod tests {
     #[test]
     fn test_redeclaring_is_a_conflict() {
         let errors = refused("qwen: { $kind: namespace, $description: \"Again.\" }\n");
-        assert!(errors.has(CatalogErrorKind::Conflict), "{errors}");
+        assert!(errors.has(CatalogRule::Conflict), "{errors}");
         assert!(errors.mentions("already declared in `commons`"));
 
         // A child name already taken in the scope, from another layer.
@@ -1783,7 +1827,7 @@ qwen:
     qwen3-0.6b: { $kind: namespace, $description: "Collides with a build." }
 "#,
         );
-        assert!(errors.has(CatalogErrorKind::Conflict), "{errors}");
+        assert!(errors.has(CatalogRule::Conflict), "{errors}");
     }
 
     #[test]
@@ -1795,7 +1839,7 @@ qwen:
         );
 
         let wrong_facet = refused("qwen: { $kind: namespace, $merge: update, $facet: family }\n");
-        assert!(wrong_facet.has(CatalogErrorKind::Merge), "{wrong_facet}");
+        assert!(wrong_facet.has(CatalogRule::Merge), "{wrong_facet}");
         assert!(wrong_facet.mentions("declared with `publisher`"));
 
         let wrong_kind =
@@ -1894,7 +1938,7 @@ qwen:
         let both = stack
             .find("hybrid", &classes, LeafMatch::Exact)
             .unwrap_err();
-        assert!(both.message.contains("is ambiguous"), "{both}");
+        assert!(both.problem_message().contains("is ambiguous"), "{both}");
         assert_eq!(
             stack.display_name(&n("timestamps")).short,
             "timestamps",
@@ -1956,7 +2000,7 @@ qwen: { $kind: namespace, $description: "A conflict." }
 "#,
             )
             .unwrap_err();
-        assert!(errors.has(CatalogErrorKind::Conflict));
+        assert!(errors.has(CatalogRule::Conflict));
         let after: Vec<String> = stack.declarations().map(|e| e.name().to_string()).collect();
         assert_eq!(before, after);
         assert!(stack.declaration(&n("fine")).is_none());
@@ -2186,6 +2230,41 @@ local:
             reshard.mentions("matches every field but `$sources`"),
             "{reshard}"
         );
+    }
+
+    #[test]
+    fn test_names_are_cased_consistently_and_looked_up_ignoring_case() {
+        let stack = fixtures::example_stack().unwrap();
+        let v3 = n("openai/whisper/large/large-v3");
+        assert_eq!(stack.find_build("Large-V3").unwrap(), v3);
+        assert_eq!(
+            stack.find_build("OpenAI/Whisper/Large/Large-V3").unwrap(),
+            v3
+        );
+        // A catalog may not write a name in another case than the stack, or
+        // than itself, writes it.
+        let across = refused(
+            "OpenAI:\n  $kind: namespace\n  $merge: update\n  extra: { $kind: namespace, $description: \"E.\" }\n",
+        );
+        assert!(
+            across.mentions("`OpenAI` and `openai` differ only in case"),
+            "{across}"
+        );
+        let within = refused(
+            r#"
+local: { $kind: namespace, $description: "L." }
+LOCAL-2: { $kind: namespace, $description: "Fine: another name." }
+Local:
+  $kind: namespace
+  $merge: update
+  extra: { $kind: namespace, $description: "E." }
+"#,
+        );
+        assert!(
+            within.mentions("`Local` and `local` differ only in case"),
+            "{within}"
+        );
+        assert!(!within.mentions("LOCAL-2"), "{within}");
     }
 
     #[test]
@@ -2463,10 +2542,7 @@ b: { $kind: namespace, $description: "B.", $join: [a] }
         let plain_release = refused(
             "x: { $kind: namespace, $description: \"X.\", $join: [openai/whisper/large/release] }\n",
         );
-        assert!(
-            plain_release.has(CatalogErrorKind::Release),
-            "{plain_release}"
-        );
+        assert!(plain_release.has(CatalogRule::Release), "{plain_release}");
 
         let not_a_group =
             refused("x: { $kind: namespace, $description: \"X.\", $join: [parameters] }\n");

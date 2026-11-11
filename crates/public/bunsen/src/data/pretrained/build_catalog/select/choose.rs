@@ -28,41 +28,44 @@ use alloc::rc::Rc;
 
 use serde_json::Value;
 
-use crate::data::pretrained::build_catalog::{
-    document::{
-        AxisKind,
-        CatalogEntry,
-        EntryKind,
-    },
-    error::{
-        CatalogError,
-        CatalogResult,
-    },
-    lookup::LeafMatch,
-    name::CatalogName,
-    presets::PresetSelection,
-    select::{
-        query::{
-            LabeledStage,
-            NameList,
-            PerStage,
-            Predicate,
-            SelectQuery,
-            SortKey,
-            SortKeys,
-            Stage,
-            query_error,
+use crate::{
+    data::pretrained::build_catalog::{
+        document::{
+            AxisKind,
+            CatalogEntry,
+            EntryKind,
         },
-        run::MEMBERSHIP_KINDS,
-        state::{
-            SelectBuild,
-            SelectEnv,
-            SelectRun,
-            SelectTable,
-            StageOrigin,
+        error::{
+            CatalogErrorExt,
+            CatalogResult,
         },
+        lookup::LeafMatch,
+        name::CatalogName,
+        presets::PresetSelection,
+        select::{
+            query::{
+                LabeledStage,
+                NameList,
+                PerStage,
+                Predicate,
+                SelectQuery,
+                SortKey,
+                SortKeys,
+                Stage,
+                query_error,
+            },
+            run::MEMBERSHIP_KINDS,
+            state::{
+                SelectBuild,
+                SelectEnv,
+                SelectRun,
+                SelectTable,
+                StageOrigin,
+            },
+        },
+        stack::PretrainedCatalogStack,
     },
-    stack::PretrainedCatalogStack,
+    errors::BunsenError,
 };
 
 /// A stage, with its label and where it came from.
@@ -203,7 +206,7 @@ pub fn preset_prefix(
 /// it needs no build.
 ///
 /// # Errors
-/// [`CatalogErrorKind::Selection`](crate::data::pretrained::build_catalog::CatalogErrorKind::Selection) when
+/// [`CatalogRule::Selection`](crate::data::pretrained::build_catalog::CatalogRule::Selection) when
 /// `axis` names no axis, or one that isn't bool.
 pub fn bool_axis_member(
     stack: &PretrainedCatalogStack,
@@ -212,7 +215,7 @@ pub fn bool_axis_member(
 ) -> CatalogResult<String> {
     let name = stack
         .find(axis, &[EntryKind::Axis], LeafMatch::Exact)
-        .map_err(|e| query_error(format!("`{axis}`: {}", e.message)))?;
+        .map_err(|e| query_error(format!("`{axis}`: {}", e.problem_message())))?;
     let decl = stack.declaration(&name).expect("found");
     match decl.body() {
         CatalogEntry::Axis(a) if a.axis == AxisKind::Bool => Ok(if on {
@@ -227,7 +230,7 @@ pub fn bool_axis_member(
 }
 
 /// The error for an empty result, with the stages that removed rows.
-pub fn empty_error(run: &SelectRun) -> CatalogError {
+pub fn empty_error(run: &SelectRun) -> BunsenError {
     let stages: Vec<String> = run
         .trace
         .stages
@@ -266,7 +269,7 @@ impl SelectionContext {
     /// `limit: 1`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`](crate::data::pretrained::build_catalog::CatalogErrorKind::Selection)
+    /// [`CatalogRule::Selection`](crate::data::pretrained::build_catalog::CatalogRule::Selection)
     /// for a `use` of a name no named selection has, or one nested too deep.
     pub fn compose(
         &self,
@@ -572,10 +575,11 @@ mod tests {
         let named = SelectRequest::default().name("qwen3-4b-thinking-2507");
         let err = context.rank(&env, None, prefix(), &named).unwrap_err();
         assert!(
-            err.message.contains("was named, but can't be chosen"),
+            err.problem_message()
+                .contains("was named, but can't be chosen"),
             "{err}"
         );
-        assert!(err.message.contains("no-thinking"), "{err}");
+        assert!(err.problem_message().contains("no-thinking"), "{err}");
         assert!(bool_axis_member(&stack, "task", true).is_err());
     }
 
@@ -590,9 +594,10 @@ mod tests {
         let none = SelectRequest::default().name("whisper");
         let err = context().choose(&env, None, None, &none).unwrap_err();
         assert!(
-            err.message.starts_with("no build is left to choose"),
+            err.problem_message()
+                .starts_with("no build is left to choose"),
             "{err}"
         );
-        assert!(err.message.contains("defaults"), "{err}");
+        assert!(err.problem_message().contains("defaults"), "{err}");
     }
 }

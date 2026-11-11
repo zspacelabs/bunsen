@@ -47,21 +47,25 @@ use serde_json::{
     Value,
 };
 
-use crate::data::pretrained::build_catalog::{
-    document::EntryKind,
-    error::{
-        CatalogError,
-        CatalogErrorKind,
-        CatalogResult,
+use crate::{
+    data::pretrained::build_catalog::{
+        document::EntryKind,
+        error::{
+            CatalogErrorExt,
+            CatalogResult,
+            CatalogRule,
+            catalog_error,
+        },
+        select::{
+            run::CompiledQuery,
+            state::SelectEnv,
+        },
     },
-    select::{
-        run::CompiledQuery,
-        state::SelectEnv,
-    },
+    errors::BunsenError,
 };
 
-pub(crate) fn query_error(message: impl Into<String>) -> CatalogError {
-    CatalogError::new(CatalogErrorKind::Selection, message)
+pub(crate) fn query_error(message: impl Into<String>) -> BunsenError {
+    catalog_error(CatalogRule::Selection, message)
 }
 
 /// The least weight a row keeps between stages, unless a query sets its
@@ -102,7 +106,7 @@ impl SelectQuery {
     /// The query `value` writes.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] when it isn't a query.
+    /// [`CatalogRule::Selection`] when it isn't a query.
     pub fn from_value(value: &Value) -> CatalogResult<Self> {
         let query: Self = serde_json::from_value(value.clone())
             .map_err(|e| query_error(format!("a query: {e}")))?;
@@ -134,7 +138,7 @@ impl SelectQuery {
     /// Resolves every name and test against `env`, for the query's kind.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] for a name or key that resolves to
+    /// [`CatalogRule::Selection`] for a name or key that resolves to
     /// nothing (or to something it can't be), a test the kind doesn't admit,
     /// or a value that doesn't fit its declaration.
     pub fn compile(
@@ -486,7 +490,7 @@ impl Serialize for WeighEntry {
 impl<'de> Deserialize<'de> for WeighEntry {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(deserializer)?;
-        Self::from_value(&value).map_err(|e| de::Error::custom(e.message))
+        Self::from_value(&value).map_err(|e| de::Error::custom(e.problem_message()))
     }
 }
 
@@ -555,7 +559,7 @@ impl Predicate {
     /// The predicate `value` writes.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Selection`] for a shape no predicate has.
+    /// [`CatalogRule::Selection`] for a shape no predicate has.
     pub fn from_value(value: &Value) -> CatalogResult<Self> {
         match value {
             Value::String(name) => Ok(Self::Name(name.clone())),
@@ -639,7 +643,7 @@ impl Serialize for Predicate {
 impl<'de> Deserialize<'de> for Predicate {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(deserializer)?;
-        Self::from_value(&value).map_err(|e| de::Error::custom(e.message))
+        Self::from_value(&value).map_err(|e| de::Error::custom(e.problem_message()))
     }
 }
 
@@ -756,7 +760,8 @@ impl<'de> Deserialize<'de> for SortKeys {
                 .collect::<CatalogResult<Vec<_>>>(),
             one => SortKey::from_value(one).map(|k| vec![k]),
         };
-        keys.map(SortKeys).map_err(|e| de::Error::custom(e.message))
+        keys.map(SortKeys)
+            .map_err(|e| de::Error::custom(e.problem_message()))
     }
 }
 

@@ -40,7 +40,7 @@ pub(super) fn dump(
         DumpFormat::Yml => node.to_yaml(),
         DumpFormat::Json => node.to_json(),
     }
-    .map_err(|e| e.message)?;
+    .map_err(|e| e.problem_message())?;
     emit!(out, "{}", text.trim_end());
     Ok(())
 }

@@ -147,7 +147,7 @@ fn select_flags(
 ) -> Result<Vec<SelectFlag>, String> {
     let mut flags: Vec<(usize, SelectFlag)> = Vec::new();
     let predicate = |text: &str| -> Result<Predicate, String> {
-        Predicate::from_value(&parse_value(text)?).map_err(|e| e.message)
+        Predicate::from_value(&parse_value(text)?).map_err(|e| e.problem_message())
     };
     for (id, keep) in [("keep", true), ("drop", false)] {
         for (at, v) in occurrences(matches, id, 1) {
@@ -250,7 +250,7 @@ fn select_flags(
         for (at, v) in occurrences(matches, id, 1) {
             let flag = format!("--{id} {}", v[0]);
             let member = bool_axis_member(stack, &v[0], on)
-                .map_err(|e| format!("`{flag}`: {}", e.message))?;
+                .map_err(|e| format!("`{flag}`: {}", e.problem_message()))?;
             flags.push((at, SelectFlag::Preset(member, flag)));
         }
     }
@@ -361,7 +361,7 @@ fn record(
     name: &CatalogName,
     weight: f64,
 ) -> Result<ChoiceRecord, String> {
-    let entry = env.build(name).map_err(|e| e.message)?;
+    let entry = env.build(name).map_err(|e| e.problem_message())?;
     let build = &entry.build;
     let names = |names: &mut dyn Iterator<Item = &CatalogName>| -> Vec<String> {
         names.map(ToString::to_string).collect()
@@ -528,12 +528,12 @@ pub(super) fn select(
     let prefix = preset_prefix(&presets, preset_flags);
     let composed = context
         .compose(&env, prefix, &request, false)
-        .map_err(|e| e.message)?;
+        .map_err(|e| e.problem_message())?;
     let run: SelectRun = context
         .run_composed(&env, None, &composed)
-        .map_err(|e| e.message)?;
+        .map_err(|e| e.problem_message())?;
     if run.table.is_empty() {
-        return Err(empty_error(&run).message);
+        return Err(empty_error(&run).problem_message());
     }
     let results = run
         .table

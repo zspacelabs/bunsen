@@ -16,9 +16,9 @@ use time::{
 };
 
 use crate::data::pretrained::build_catalog::error::{
-    CatalogError,
-    CatalogErrorKind,
     CatalogResult,
+    CatalogRule,
+    catalog_error,
 };
 
 /// How precisely a release timestamp is pinned.
@@ -67,12 +67,12 @@ impl ReleaseTime {
     /// `YYYY-MM-DDTHH:MMZ` or `YYYY-MM-DDTHH:MM:SSZ`.
     ///
     /// # Errors
-    /// [`CatalogErrorKind::Release`] when it isn't one, or names no real
+    /// [`CatalogRule::Release`] when it isn't one, or names no real
     /// time.
     pub fn parse(spelling: &str) -> CatalogResult<Self> {
         let bad = |why: &str| {
-            CatalogError::new(
-                CatalogErrorKind::Release,
+            catalog_error(
+                CatalogRule::Release,
                 format!(
                     "`{spelling}` is not a release timestamp ({why}); write `YYYY`, `YYYY-MM`, \
                      `YYYY-MM-DD`, `YYYY-MM-DDTHH:MMZ` or `YYYY-MM-DDTHH:MM:SSZ`, in UTC"
@@ -247,6 +247,7 @@ impl fmt::Display for ReleaseTime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data::pretrained::build_catalog::error::CatalogErrorExt;
 
     fn t(s: &str) -> ReleaseTime {
         ReleaseTime::parse(s).unwrap()
@@ -302,7 +303,7 @@ mod tests {
             "July 2025",
         ] {
             let err = ReleaseTime::parse(bad).unwrap_err();
-            assert_eq!(err.kind, CatalogErrorKind::Release, "{bad}");
+            assert_eq!(err.rule(), Some(CatalogRule::Release), "{bad}");
         }
     }
 }
