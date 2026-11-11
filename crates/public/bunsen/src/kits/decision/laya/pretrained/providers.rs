@@ -34,6 +34,11 @@ pub const AGENT_CONFIG: &str = "agent_config";
 pub static LAYA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("laya", include_str!("catalog.json"));
 
+/// What the laya kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const LAYA_CONTRACT: &str = include_str!("contract.yml");
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, what `decide` chooses its model by.
 pub const LAYA_TAGS: crate::data::pretrained::tags::KitTags =
@@ -113,6 +118,32 @@ mod tests {
         assert_eq!(
             factory.lookup(DEFAULT_LAYA_MODEL).unwrap().1.name,
             "laya/laya"
+        );
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::{
+            data::pretrained::SAFETENSORS,
+            kits::support::{
+                catalog_contracts::testing::contract_lines,
+                construct::{
+                    TOKENIZER,
+                    TOKENIZER_CONFIG,
+                },
+            },
+        };
+        assert_eq!(
+            contract_lines(LAYA_CONTRACT),
+            [
+                format!("laya-decision: {AGENT_CONFIG} [json]"),
+                format!("laya-decision: {CHECKPOINT} [{SAFETENSORS}]"),
+                format!("laya-decision: {ENCODER_CONFIG} [json]"),
+                format!("laya-decision: {TOKENIZER} [tokenizer.json]"),
+                format!("laya-decision: {TOKENIZER_CONFIG} [tokenizer_config.json]"),
+            ]
         );
     }
 }

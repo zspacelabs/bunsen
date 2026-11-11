@@ -1,0 +1,11 @@
+# What the sortformer kit's loader reads: a Sortformer diarizer, from a
+# .nemo archive or transformers' safetensors.
+sortformer-diarizer:
+  $kind: contract
+  $description: >-
+    A Sortformer speaker diarizer: a `.nemo` archive, which carries its config, or transformers'
+    safetensors.
+  $resources:
+    checkpoint:
+      $format: [nemo, safetensors]
+      $description: "The weights, and in a `.nemo` its NeMo config."

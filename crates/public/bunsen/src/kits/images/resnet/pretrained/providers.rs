@@ -36,6 +36,11 @@ pub const TIMM_NAMESPACE: &str = "timm";
 pub static RESNET_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("resnet", include_str!("catalog.json"));
 
+/// What the resnet kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const RESNET_CONTRACT: &str = include_str!("contract.yml");
+
 /// `ResNet`'s compiled-in providers, in search order: the well-known table.
 pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(RESNET_CATALOG.table())]
@@ -134,6 +139,20 @@ mod tests {
                 .prefab
                 .as_deref(),
             Some("resnet34")
+        );
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::kits::support::catalog_contracts::testing::contract_lines;
+        assert_eq!(
+            contract_lines(RESNET_CONTRACT),
+            [
+                format!("resnet-classifier: {CHECKPOINT} [{PYTORCH_FP32}]"),
+                "resnet-classifier: geometry: \"geometry\"".to_string(),
+            ]
         );
     }
 }

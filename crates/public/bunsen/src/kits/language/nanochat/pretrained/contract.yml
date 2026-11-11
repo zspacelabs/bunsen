@@ -1,0 +1,18 @@
+# What the nanochat kit's loader reads: upstream nanochat's own checkpoint
+# files, its geometry from the run's meta.json.
+nanochat-lm:
+  $kind: contract
+  $description: >-
+    A nanochat GPT, as upstream's training run writes it: its geometry from the run's
+    `meta_*.json`.
+  $resources:
+    checkpoint: { $format: [pytorch], $description: "The model's state dict, `model_*.pt`." }
+    meta:
+      $format: [nanochat-meta.json]
+      $description: "The run's `meta_*.json`: the geometry."
+    tokenizer:
+      $format: [tiktoken-pickle]
+      $description: "`tokenizer.pkl`: the pickled tiktoken encoding."
+    token_bytes:
+      $format: [pytorch]
+      $description: "`token_bytes.pt`: each token's length in bytes, for bits per byte."

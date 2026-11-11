@@ -1,0 +1,16 @@
+# What the parakeet kit's loader reads: a Parakeet TDT model, from a Phonon
+# archive (which carries its config and vocabulary) or transformers'
+# safetensors and tokenizer.
+parakeet-asr:
+  $kind: contract
+  $description: >-
+    A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers' safetensors and its
+    tokenizer.
+  $resources:
+    checkpoint:
+      $format: [phonon archive, safetensors]
+      $description: "The weights: a Phonon-2 archive carries its config and vocabulary too."
+    vocabulary:
+      $format: [tokenizer.json]
+      $optional: true
+      $description: "The tokenizer, beside safetensors weights."

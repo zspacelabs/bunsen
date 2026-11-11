@@ -34,6 +34,11 @@ pub const NEMO: &str = "nemo";
 pub static SORTFORMER_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("sortformer", include_str!("catalog.json"));
 
+/// What the sortformer kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const SORTFORMER_CONTRACT: &str = include_str!("contract.yml");
+
 /// The name [`default_sortformer_factory`] loads when a caller names none.
 pub const DEFAULT_SORTFORMER_MODEL: &str = "nvidia/nemotron-3-diarization";
 
@@ -129,5 +134,18 @@ mod tests {
         ] {
             assert_eq!(factory.lookup(spec).unwrap().1.name, name, "{spec}");
         }
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::kits::support::catalog_contracts::testing::contract_lines;
+        assert_eq!(
+            contract_lines(SORTFORMER_CONTRACT),
+            [format!(
+                "sortformer-diarizer: {CHECKPOINT} [{NEMO}, {SAFETENSORS}]"
+            )]
+        );
     }
 }

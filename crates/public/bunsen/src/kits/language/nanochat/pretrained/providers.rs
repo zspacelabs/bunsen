@@ -37,6 +37,11 @@ pub const TIKTOKEN_PICKLE: &str = "tiktoken-pickle";
 pub static NANOCHAT_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("nanochat", include_str!("catalog.json"));
 
+/// What the nanochat kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const NANOCHAT_CONTRACT: &str = include_str!("contract.yml");
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -151,6 +156,30 @@ mod tests {
         assert_eq!(
             factory.lookup(DEFAULT_NANOCHAT_MODEL).unwrap().1.name,
             "nanochat-students/rl-d20"
+        );
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::kits::{
+            language::nanochat::{
+                CHECKPOINT,
+                META,
+                TOKEN_BYTES,
+                TOKENIZER,
+            },
+            support::catalog_contracts::testing::contract_lines,
+        };
+        assert_eq!(
+            contract_lines(NANOCHAT_CONTRACT),
+            [
+                format!("nanochat-lm: {CHECKPOINT} [{PYTORCH}]"),
+                format!("nanochat-lm: {META} [{META_JSON}]"),
+                format!("nanochat-lm: {TOKEN_BYTES} [{PYTORCH}]"),
+                format!("nanochat-lm: {TOKENIZER} [{TIKTOKEN_PICKLE}]"),
+            ]
         );
     }
 }

@@ -50,6 +50,11 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 pub static QWEN3_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("qwen3", include_str!("catalog.json"));
 
+/// What the qwen3 kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const QWEN3_CONTRACT: &str = include_str!("contract.yml");
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -195,6 +200,37 @@ mod tests {
         assert_eq!(
             factory.lookup(DEFAULT_QWEN3_MODEL).unwrap().1.name,
             "qwen/qwen3-0.6b"
+        );
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::{
+            data::pretrained::{
+                CONFIG,
+                SAFETENSORS,
+                SAFETENSORS_INDEX,
+            },
+            kits::support::{
+                catalog_contracts::testing::contract_lines,
+                construct::{
+                    GENERATION_CONFIG,
+                    TOKENIZER,
+                    TOKENIZER_CONFIG,
+                },
+            },
+        };
+        assert_eq!(
+            contract_lines(QWEN3_CONTRACT),
+            [
+                format!("qwen3-lm: {CHECKPOINT} [{SAFETENSORS}, {SAFETENSORS_INDEX}]"),
+                format!("qwen3-lm: {CONFIG} [{JSON}]"),
+                format!("qwen3-lm: {GENERATION_CONFIG} [{GENERATION_CONFIG_JSON}]"),
+                format!("qwen3-lm: {TOKENIZER} [{TOKENIZER_JSON}]"),
+                format!("qwen3-lm: {TOKENIZER_CONFIG} [{TOKENIZER_CONFIG_JSON}]"),
+            ]
         );
     }
 }

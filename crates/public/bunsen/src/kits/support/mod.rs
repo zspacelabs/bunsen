@@ -16,10 +16,15 @@
 //! - [`decoding`]: the search machinery, from a step's logits to the ids a
 //!   decode returns: logit filters, greedy and beam search, sampling, ranking,
 //!   and the temperature ladder.
+//! - [`catalog_contracts`]: each kit's build-catalog contract, the signature
+//!   its loader implements, gathered for the catalog builder (with `store`, as
+//!   the pretrained indexes are).
 //! - [`model_config`]: the config side, apart from building: reading the
 //!   configs a checkpoint ships with, such as a `transformers` `config.json`
 //!   ([`TransformersConfigJson`](model_config::TransformersConfigJson)).
 
+#[cfg(feature = "store")]
+pub mod catalog_contracts;
 pub mod construct;
 pub mod decoding;
 pub mod model_config;

@@ -36,6 +36,11 @@ pub const TEKKEN_JSON: &str = "tekken.json";
 pub static VOXTRAL_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("voxtral", include_str!("catalog.json"));
 
+/// What the voxtral kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const VOXTRAL_CONTRACT: &str = include_str!("contract.yml");
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a speech recognizer's: what speech to text
 /// chooses its model by.
@@ -126,5 +131,25 @@ mod tests {
                 .try_lookup_prefab(row.prefab.as_deref().unwrap())
                 .unwrap();
         }
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::{
+            data::pretrained::CONFIG,
+            kits::support::catalog_contracts::testing::contract_lines,
+        };
+        assert_eq!(
+            contract_lines(VOXTRAL_CONTRACT),
+            [
+                "voxtral-asr: abstract".to_string(),
+                format!("voxtral-asr: {CHECKPOINT} [{SAFETENSORS}]"),
+                format!("voxtral-asr: {VOCABULARY} [{TEKKEN_JSON}]"),
+                format!("voxtral-asr/probed: {CONFIG} [json]"),
+                "voxtral-asr/stated: geometry: \"geometry\"".to_string(),
+            ]
+        );
     }
 }

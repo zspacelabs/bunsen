@@ -52,6 +52,11 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 pub static GEMMA_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("gemma", include_str!("catalog.json"));
 
+/// What the gemma kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const GEMMA_CONTRACT: &str = include_str!("contract.yml");
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -181,6 +186,39 @@ mod tests {
         assert_eq!(
             factory.lookup(DEFAULT_GEMMA_MODEL).unwrap().1.name,
             "gemma/gemma-3-1b-it"
+        );
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::{
+            data::pretrained::{
+                CONFIG,
+                SAFETENSORS,
+                SAFETENSORS_INDEX,
+            },
+            kits::support::{
+                catalog_contracts::testing::contract_lines,
+                construct::{
+                    CHAT_TEMPLATE,
+                    GENERATION_CONFIG,
+                    TOKENIZER,
+                    TOKENIZER_CONFIG,
+                },
+            },
+        };
+        assert_eq!(
+            contract_lines(GEMMA_CONTRACT),
+            [
+                format!("gemma-lm: {CHAT_TEMPLATE}? [{CHAT_TEMPLATE_JINJA}]"),
+                format!("gemma-lm: {CHECKPOINT} [{SAFETENSORS}, {SAFETENSORS_INDEX}]"),
+                format!("gemma-lm: {CONFIG} [json]"),
+                format!("gemma-lm: {GENERATION_CONFIG} [{GENERATION_CONFIG_JSON}]"),
+                format!("gemma-lm: {TOKENIZER} [{TOKENIZER_JSON}]"),
+                format!("gemma-lm: {TOKENIZER_CONFIG} [{TOKENIZER_CONFIG_JSON}]"),
+            ]
         );
     }
 }

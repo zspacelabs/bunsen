@@ -1,0 +1,12 @@
+# What the laya kit's loader reads: a Laya decision model, a ModernBERT
+# encoder and its decision head.
+laya-decision:
+  $kind: contract
+  $description: >-
+    A Laya decision model: a ModernBERT encoder and a decision head, in one safetensors file.
+  $resources:
+    checkpoint: { $format: [safetensors], $description: "The encoder's and the head's weights." }
+    encoder_config: { $format: [json], $description: "The encoder's transformers `config.json`." }
+    agent_config: { $format: [json], $description: "The decision head's config." }
+    tokenizer: { $format: [tokenizer.json] }
+    tokenizer_config: { $format: [tokenizer_config.json] }

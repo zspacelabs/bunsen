@@ -1,0 +1,23 @@
+# What the gemma kit's loader reads: a transformers Gemma 1, 2 or 3 text
+# model, its geometry from config.json.
+gemma-lm:
+  $kind: contract
+  $description: >-
+    A Gemma 1, 2 or 3 text model, as transformers lays it out: its geometry from `config.json`.
+  $resources:
+    checkpoint:
+      $format: [safetensors, safetensors-index]
+      $description: "The weights: one file, or an index and its shards."
+    config: { $format: [json], $description: "transformers' `config.json`: the geometry." }
+    tokenizer: { $format: [tokenizer.json] }
+    tokenizer_config:
+      $format: [tokenizer_config.json]
+      $description: >-
+        The special tokens, and the chat template when no `chat_template.jinja` is given.
+    generation_config:
+      $format: [generation_config.json]
+      $description: "The stop tokens and the sampling."
+    chat_template:
+      $format: [chat_template.jinja]
+      $optional: true
+      $description: "The chat template, as its own file."

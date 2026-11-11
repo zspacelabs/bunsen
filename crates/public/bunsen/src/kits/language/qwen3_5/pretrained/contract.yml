@@ -1,0 +1,27 @@
+# What the qwen3.5 kit's loader reads: a transformers Qwen3.5 checkpoint's
+# text model, its geometry from config.json.
+qwen3.5-lm:
+  $kind: contract
+  $description: >-
+    A dense Qwen3.5 checkpoint's text model, as transformers lays it out: its geometry from
+    `config.json`.
+  $resources:
+    checkpoint:
+      $format: [safetensors, safetensors-index]
+      $description: "The weights: one file, or an index and its shards."
+    config:
+      $format: [json]
+      $description: "transformers' `config.json`: the geometry, under `text_config`."
+    tokenizer: { $format: [tokenizer.json] }
+    tokenizer_config:
+      $format: [tokenizer_config.json]
+      $description: >-
+        The special tokens, and the chat template when no `chat_template.jinja` is given.
+    generation_config:
+      $format: [generation_config.json]
+      $optional: true
+      $description: "The stop tokens and the sampling."
+    chat_template:
+      $format: [chat_template.jinja]
+      $optional: true
+      $description: "The chat template, as its own file."

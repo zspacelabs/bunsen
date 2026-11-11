@@ -1,0 +1,13 @@
+# What the whisper kit's loader reads: an openai-whisper checkpoint, which
+# carries its own dims, and the tiktoken vocabulary of its token layout.
+whisper-asr:
+  $kind: contract
+  $description: >-
+    An OpenAI Whisper checkpoint, as openai-whisper saves it, and its tiktoken vocabulary.
+  $resources:
+    checkpoint:
+      $format: [pytorch fp16]
+      $description: "The `.pt`: the weights and the dims they are laid out in."
+    vocabulary:
+      $format: [tiktoken]
+      $description: "`multilingual.tiktoken` or `gpt2.tiktoken`, as the token layout needs."

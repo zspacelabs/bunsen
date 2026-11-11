@@ -1,0 +1,21 @@
+# What the qwen3 kit's loader reads: a transformers Qwen3 causal LM, its
+# geometry from config.json.
+qwen3-lm:
+  $kind: contract
+  $description: >-
+    A dense Qwen3 causal LM, as transformers lays it out: its geometry from `config.json`.
+  $resources:
+    checkpoint:
+      $format: [safetensors, safetensors-index]
+      $description: "The weights: one file, or an index and its shards."
+    config:
+      $format: [json]
+      $description: >-
+        transformers' `config.json`: the geometry, and the positions it was trained on.
+    tokenizer: { $format: [tokenizer.json] }
+    tokenizer_config:
+      $format: [tokenizer_config.json]
+      $description: "The chat template, and the special tokens."
+    generation_config:
+      $format: [generation_config.json]
+      $description: "The stop tokens and the sampling."

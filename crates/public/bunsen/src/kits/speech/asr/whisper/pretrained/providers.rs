@@ -38,6 +38,11 @@ pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 pub static WHISPER_CATALOG: EmbeddedCatalog =
     EmbeddedCatalog::new("whisper", include_str!("catalog.json"));
 
+/// What the whisper kit's loader implements, as a build catalog's contract:
+/// `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const WHISPER_CONTRACT: &str = include_str!("contract.yml");
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a speech recognizer's: what speech to text
 /// chooses its model by.
@@ -173,5 +178,25 @@ mod tests {
             names.dedup();
             assert_eq!(names.len(), n, "{}: a name is repeated", group.name);
         }
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::kits::{
+            speech::asr::whisper::pretrained::{
+                PYTORCH_FP16,
+                TIKTOKEN,
+            },
+            support::catalog_contracts::testing::contract_lines,
+        };
+        assert_eq!(
+            contract_lines(WHISPER_CONTRACT),
+            [
+                format!("whisper-asr: {CHECKPOINT} [{PYTORCH_FP16}]"),
+                format!("whisper-asr: {VOCABULARY} [{TIKTOKEN}]"),
+            ]
+        );
     }
 }
