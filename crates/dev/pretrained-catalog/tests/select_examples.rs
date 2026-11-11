@@ -35,6 +35,7 @@ use pretrained_catalog::{
             preset_prefix,
         },
         query::{
+            LabeledStage,
             SelectQuery,
             Stage,
         },
@@ -704,7 +705,7 @@ fn weighing_is_checked_when_the_query_compiles() {
 
 // Composition: defaults, named selections, the preset prefix.
 
-fn stages(run: &str) -> Vec<Stage> {
+fn stages(run: &str) -> Vec<LabeledStage> {
     serde_saphyr::from_str(&dedent(run)).expect("YAML stages")
 }
 
@@ -880,7 +881,9 @@ fn a_supplemental_build_is_selected_like_any_other() {
     expected.insert(2, "qwen3-1.7b");
     assert_eq!(ranked(&stack, &context, &[], &family), expected);
     let sized = family.stage(
-        stages("[{keep: {parameters: {ge: 1.0e9, le: 2.0e9}}}]").remove(0),
+        stages("[{keep: {parameters: {ge: 1.0e9, le: 2.0e9}}}]")
+            .remove(0)
+            .stage,
         StageOrigin::Query,
     );
     assert_eq!(ranked(&stack, &context, &[], &sized), ["qwen3-1.7b"]);
@@ -1062,4 +1065,116 @@ fn a_kind_admits_only_its_tests() {
         )
         .unwrap_err();
     assert!(err.message.contains("choosing takes a build"), "{err}");
+}
+
+// `per`, labels and `unset`.
+
+#[test]
+fn per_runs_its_stages_on_each_part() {
+    // The largest build of each family; the parts come out in the order of
+    // their first row.
+    assert_eq!(
+        select(
+            "
+            - per:
+                group: family
+                run:
+                  - order: [{desc: parameters}, {asc: $name}]
+                  - limit: 1"
+        ),
+        ["large-v1", "qwen3-4b-thinking-2507"]
+    );
+    // By names: a part per name, a row in the first it is in; the rows in
+    // none form one more part, last.
+    assert_eq!(
+        select(
+            "
+            - per:
+                group: [qwen3-2507, release]
+                run: [{limit: 1}]"
+        ),
+        // The `release` part, the `qwen3-2507` part, then the rest.
+        ["large-v1", "qwen3-4b-thinking-2507", "large-v3-turbo"]
+    );
+}
+
+#[test]
+fn a_traced_per_says_which_part_dropped_a_row() {
+    let stack = fixtures::builtin_stack().unwrap();
+    let env = SelectEnv::new(&stack);
+    let run = build_query("[{per: {group: family, run: [{limit: 1}]}}]")
+        .compile(&env)
+        .unwrap()
+        .run_traced(&env, SelectTable::universe(&env, EntryKind::Build))
+        .unwrap();
+    assert_eq!(run.trace.stages[0].dropped, 5);
+    let v2 = run
+        .trace
+        .dropped
+        .iter()
+        .find(|d| d.entry.path.leaf() == "large-v2")
+        .unwrap();
+    assert_eq!(v2.why, "in the part of `openai/whisper`: past limit");
+}
+
+#[test]
+fn unset_removes_a_labeled_default() {
+    let stack = fixtures::builtin_stack().unwrap();
+    let context = SelectionContext {
+        defaults: stages("[{keep: instruct, as: tuned}, {order: {desc: parameters}}]"),
+        named: vec![NamedSelection {
+            name: "any-tuning".into(),
+            description: "Base models too.".into(),
+            run: stages("[{unset: tuned}]"),
+        }],
+    };
+    let whisper = SelectRequest::default().name("whisper");
+    assert!(ranked(&stack, &context, &[], &whisper).is_empty());
+    let all = whisper
+        .clone()
+        .stage(Stage::Unset("tuned".into()), StageOrigin::Query);
+    assert_eq!(
+        ranked(&stack, &context, &[], &all),
+        ["large-v1", "large-v2", "large-v3", "large-v3-turbo"]
+    );
+    // A named selection may unset it too.
+    let named = SelectRequest::default().name("any-tuning").name("whisper");
+    assert_eq!(ranked(&stack, &context, &[], &named).len(), 4);
+    // An unknown label, or a label given twice, is an error.
+    let env = SelectEnv::new(&stack);
+    let unknown = SelectRequest::default().stage(Stage::Unset("nope".into()), StageOrigin::Query);
+    assert!(context.rank(&env, None, None, &unknown).is_err());
+    let twice = SelectRequest::default().stage(
+        stages("[{keep: qwen3, as: tuned}]").remove(0).stage,
+        StageOrigin::Query,
+    );
+    let mut twice = twice;
+    twice.stages[0].stage.label = Some("tuned".into());
+    let err = context.rank(&env, None, None, &twice).unwrap_err();
+    assert!(
+        err.message.contains("two stages are labeled `tuned`"),
+        "{err}"
+    );
+    // A query run on its own can't `unset` or `use`.
+    assert!(refused("[{unset: tuned}]").contains("when a query is composed"));
+    assert!(
+        refused("[{per: {group: family, run: [{use: x}]}}]").contains("when a query is composed")
+    );
+}
+
+#[test]
+fn labels_round_trip() {
+    let query = build_query(
+        "[{keep: instruct, as: tuned}, {per: {group: [qwen3], run: [{limit: 1, as: one}]}}]",
+    );
+    let value = serde_json::to_value(&query).unwrap();
+    assert_eq!(value["run"][0], json!({"keep": "instruct", "as": "tuned"}));
+    assert_eq!(SelectQuery::from_value(&value).unwrap(), query);
+    assert!(refused("[{keep: instruct, as: 1}]").contains("label"));
+    // `per` by a facet is for builds.
+    assert!(
+        select_kind("template_class", "[{per: {group: family, run: []}}]")
+            .unwrap_err()
+            .contains("`per` by a facet")
+    );
 }

@@ -15,6 +15,9 @@
 //!   commute: `from`, fixed tests, and multiplying `weigh`s.
 //! - **The request**: its names first (a named selection's name is a `use`; the
 //!   other names are one `from`), then its stages.
+//! - **Labels**: a stage labeled `as: L` can be removed by a later `unset: L`,
+//!   so a request can drop a hard default. Naming a label no earlier stage has,
+//!   or giving two stages one label, is an error.
 //! - **The tail**: `order: {desc: $weight}` when nothing orders, and, when
 //!   choosing, `limit: 1`.
 //!
@@ -40,7 +43,9 @@ use crate::{
     presets::PresetSelection,
     select::{
         query::{
+            LabeledStage,
             NameList,
+            PerStage,
             Predicate,
             SelectQuery,
             SortKey,
@@ -60,19 +65,27 @@ use crate::{
     stack::PretrainedCatalogStack,
 };
 
-/// A stage, with where it came from.
+/// A stage, with its label and where it came from.
 #[derive(Clone, Debug, PartialEq)]
 pub struct OriginStage {
-    /// The stage.
-    pub stage: Stage,
+    /// The stage and its label.
+    pub stage: LabeledStage,
     /// Where it came from.
     pub origin: StageOrigin,
 }
 
 impl OriginStage {
-    /// `stage`, from `origin`.
+    /// `stage`, unlabeled, from `origin`.
     pub fn new(
         stage: Stage,
+        origin: StageOrigin,
+    ) -> Self {
+        Self::labeled(stage.into(), origin)
+    }
+
+    /// `stage`, with its label, from `origin`.
+    pub fn labeled(
+        stage: LabeledStage,
         origin: StageOrigin,
     ) -> Self {
         Self { stage, origin }
@@ -87,7 +100,7 @@ pub struct NamedSelection {
     /// A line for a listing.
     pub description: String,
     /// The stages it splices in.
-    pub run: Vec<Stage>,
+    pub run: Vec<LabeledStage>,
 }
 
 /// What a tool chooses with: the defaults every request starts with, and
@@ -95,7 +108,7 @@ pub struct NamedSelection {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SelectionContext {
     /// The default stages, unless the request's only name is one build.
-    pub defaults: Vec<Stage>,
+    pub defaults: Vec<LabeledStage>,
     /// The named selections.
     pub named: Vec<NamedSelection>,
 }
@@ -283,12 +296,8 @@ impl SelectionContext {
             }
         }
         for name in uses {
-            self.push(
-                &mut stages,
-                &Stage::Use(name.clone()),
-                StageOrigin::Query,
-                0,
-            )?;
+            let stage = Stage::Use(name.clone()).into();
+            self.push(&mut stages, &stage, StageOrigin::Query, 0)?;
         }
         if !refs.is_empty() {
             stages.push(OriginStage::new(
@@ -299,7 +308,10 @@ impl SelectionContext {
         for stage in &request.stages {
             self.push(&mut stages, &stage.stage, stage.origin.clone(), 0)?;
         }
-        if !stages.iter().any(|s| matches!(s.stage, Stage::Order(_))) {
+        if !stages
+            .iter()
+            .any(|s| matches!(s.stage.stage, Stage::Order(_)))
+        {
             stages.push(OriginStage::new(
                 Stage::Order(SortKeys(vec![SortKey::desc("$weight")])),
                 StageOrigin::Tail,
@@ -320,35 +332,69 @@ impl SelectionContext {
         })
     }
 
-    /// Pushes `stage`, splicing a `use` in place.
+    /// Pushes `stage`: a `use` splices its stages in place, an `unset`
+    /// removes the earlier stage with its label, and a `per` has the `use`s
+    /// in its stages spliced.
     fn push(
         &self,
         stages: &mut Vec<OriginStage>,
-        stage: &Stage,
+        stage: &LabeledStage,
         origin: StageOrigin,
         depth: usize,
     ) -> CatalogResult<()> {
-        let Stage::Use(name) = stage else {
-            stages.push(OriginStage::new(stage.clone(), origin));
-            return Ok(());
-        };
+        match &stage.stage {
+            Stage::Use(name) => {
+                for inner in &self.named_run(name, depth)?.run {
+                    self.push(stages, inner, StageOrigin::Use(name.clone()), depth + 1)?;
+                }
+            }
+            Stage::Unset(label) => {
+                let at = stages
+                    .iter()
+                    .position(|s| s.stage.label.as_ref() == Some(label))
+                    .ok_or_else(|| {
+                        query_error(format!(
+                            "`unset: {label}`: no earlier stage is labeled `{label}`"
+                        ))
+                    })?;
+                stages.remove(at);
+            }
+            other => {
+                if let Some(label) = &stage.label
+                    && stages.iter().any(|s| s.stage.label.as_ref() == Some(label))
+                {
+                    return Err(query_error(format!("two stages are labeled `{label}`")));
+                }
+                let mut stage = stage.clone();
+                if let Stage::Per(per) = other {
+                    let mut inner = Vec::new();
+                    for s in &per.run {
+                        self.push(&mut inner, s, StageOrigin::Query, depth)?;
+                    }
+                    stage.stage = Stage::Per(PerStage {
+                        group: per.group.clone(),
+                        run: inner.into_iter().map(|s| s.stage).collect(),
+                    });
+                }
+                stages.push(OriginStage::labeled(stage, origin));
+            }
+        }
+        Ok(())
+    }
+
+    /// The named selection `name`, for a `use` nested `depth` deep.
+    fn named_run(
+        &self,
+        name: &str,
+        depth: usize,
+    ) -> CatalogResult<&NamedSelection> {
         if depth >= MAX_USE_DEPTH {
             return Err(query_error(format!(
                 "`use: {name}` nests more than {MAX_USE_DEPTH} deep"
             )));
         }
-        let named = self
-            .named(name)
-            .ok_or_else(|| query_error(format!("`use: {name}`: no named selection `{name}`")))?;
-        for inner in &named.run {
-            self.push(
-                stages,
-                inner,
-                StageOrigin::Use(named.name.clone()),
-                depth + 1,
-            )?;
-        }
-        Ok(())
+        self.named(name)
+            .ok_or_else(|| query_error(format!("`use: {name}`: no named selection `{name}`")))
     }
 
     /// Runs `composed` over the entries of its kind in `env`'s stack (all of
@@ -446,7 +492,7 @@ mod tests {
             .collect()
     }
 
-    fn stages(yaml: &str) -> Vec<Stage> {
+    fn stages(yaml: &str) -> Vec<LabeledStage> {
         serde_saphyr::from_str(yaml).unwrap()
     }
 

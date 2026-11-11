@@ -345,6 +345,9 @@ The composed pipeline is a concatenation; nothing is merged:
 4. **The request's stages**, each `use` spliced in place.
 5. **The tail:** `order: {desc: $weight}` when nothing orders, and `limit: 1` when choosing.
 
+An `unset: L` anywhere in the request (or in a named selection) removes the earlier stage
+labeled `L`, a default's among them.
+
 A `SelectRun` is the result `table` and its `trace`: one `StageTrace` per stage (its operation,
 origin, how many rows it removed, and the weights a `weigh` committed), and every `DroppedRow`,
 with the stage and why.
@@ -439,7 +442,26 @@ Words where no names appear stay bare: stage names, value-test words and weighin
 | `weigh` | `{by: [..], floor: f}` | updates each row's weight |
 | `order` | a sort key or a list of them | sorts, stably |
 | `limit` | an integer, 1 or more | keeps the first N |
+| `per` | `{group: G, run: [..]}` | partitions the rows, runs `run` on each part, and concatenates the parts |
 | `use` | a name | splices in a named selection's stages, when the query is composed |
+| `unset` | a label | removes the earlier stage with that label, when the query is composed |
+
+A stage may carry a label, the one key allowed beside its operation: `{keep: instruct, as: tuned}`.
+A later `unset: tuned` removes it, so a request can drop a hard default. An `unset` of a label no
+earlier stage has, or two stages with one label, is an error.
+
+`per`'s `group` is a facet (for builds: a part per group of it) or a list of names (a part per
+name; a row goes in the first it is in). The parts come out in the order of their first row, and
+the rows in no group form one more part, last. Each part runs `run` on its own:
+
+```yaml
+- per:
+    group: family
+    run:
+      - order: [{desc: parameters}, {asc: $name}]
+      - limit: 1
+# the largest build of each family: large-v1, qwen3-4b-thinking-2507
+```
 
 There is no cutoff stage: a cutoff is `keep: {$weight: {ge: W}}`, at the position the query
 chooses.
@@ -586,7 +608,8 @@ wherever they sit on the command line.
 | `--weigh E` | `weigh: {by: [E]}`; `--weigh-block '{by: [..], floor: f}'` for a whole block |
 | `--cutoff W` | `keep: {$weight: {ge: W}}` |
 | `--asc K`, `--desc K` | one sort key; consecutive ones join one `order` stage |
-| `--limit N`, `--use NAME` | that stage |
+| `--limit N`, `--use NAME`, `--unset LABEL` | that stage |
+| `--per GROUP` … `--end` | a `per` stage; the flags between are its `run` |
 | `--pipeline FILE_OR_FLOW` | a whole list of stages, spliced in |
 | `--floor F` | the query's floor |
 | `--on X`, `--off X`, `--preset P` | the presets applied, and the prefix |

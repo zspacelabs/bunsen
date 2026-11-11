@@ -24,7 +24,12 @@
 //! | `weigh` | a [`WeighBlock`] | updates each row's weight |
 //! | `order` | a [`SortKey`] or a list of them | sorts, stably |
 //! | `limit` | an integer, 1 or more | keeps the first N |
+//! | `per` | `{group: G, run: [..]}` ([`PerStage`]) | partitions the rows, runs `run` on each part, and concatenates the parts |
 //! | `use` | a name | splices in a named selection's stages, when the query is composed ([`choose`](super::choose)) |
+//! | `unset` | a label | removes the earlier stage with that label, when the query is composed |
+//!
+//! A stage may carry a label, the one key allowed beside its operation:
+//! `{keep: instruct, as: tuned}` ([`LabeledStage`]).
 //!
 //! The query compiles against a [`SelectEnv`]
 //! ([`compile`](SelectQuery::compile)), which checks every name and test
@@ -78,7 +83,7 @@ pub struct SelectQuery {
 
     /// The stages, in order.
     #[serde(default)]
-    pub run: Vec<Stage>,
+    pub run: Vec<LabeledStage>,
 }
 
 impl SelectQuery {
@@ -90,7 +95,7 @@ impl SelectQuery {
         Self {
             kind,
             floor: None,
-            run,
+            run: run.into_iter().map(LabeledStage::from).collect(),
         }
     }
 
@@ -156,9 +161,15 @@ pub enum Stage {
     Order(SortKeys),
     /// Keeps the first N rows.
     Limit(usize),
+    /// Partitions the rows, runs the part's stages on each part, and
+    /// concatenates the parts.
+    Per(PerStage),
     /// Splices in the stages of the named selection of this name, when the
     /// query is composed.
     Use(String),
+    /// Removes the earlier stage with this label, when the query is
+    /// composed.
+    Unset(String),
 }
 
 impl Stage {
@@ -171,9 +182,89 @@ impl Stage {
             Self::Weigh(_) => "weigh",
             Self::Order(_) => "order",
             Self::Limit(_) => "limit",
+            Self::Per(_) => "per",
             Self::Use(_) => "use",
+            Self::Unset(_) => "unset",
         }
     }
+}
+
+/// A stage, with an optional label: `{keep: instruct, as: tuned}`. A later
+/// `unset: tuned` removes it when the query is composed.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LabeledStage {
+    /// The stage.
+    pub stage: Stage,
+    /// Its label, when it has one.
+    pub label: Option<String>,
+}
+
+impl From<Stage> for LabeledStage {
+    fn from(stage: Stage) -> Self {
+        Self { stage, label: None }
+    }
+}
+
+impl Serialize for LabeledStage {
+    fn serialize<S: Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        let mut value = serde_json::to_value(&self.stage).map_err(serde::ser::Error::custom)?;
+        if let (Some(label), Value::Object(map)) = (&self.label, &mut value) {
+            map.insert("as".to_string(), Value::String(label.clone()));
+        }
+        value.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for LabeledStage {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut value = Value::deserialize(deserializer)?;
+        let label = match &mut value {
+            Value::Object(map) => match map.remove("as") {
+                None => None,
+                Some(Value::String(label)) => Some(label),
+                Some(other) => {
+                    return Err(de::Error::custom(format!(
+                        "a stage's label `as` is a string, not {other}"
+                    )));
+                }
+            },
+            _ => None,
+        };
+        let stage = serde_json::from_value(value).map_err(de::Error::custom)?;
+        Ok(Self { stage, label })
+    }
+}
+
+/// A `per` stage: `{group: G, run: [..]}`.
+///
+/// - **`group`** is a facet (`family`), for a query of builds: a part per group
+///   of the facet. Or a list of names: a part per name, a row in the first it
+///   is in.
+/// - **The parts** come out in the order of their first row, as the rows stood
+///   when `per` ran. The rows in no group form one more part, last.
+/// - **`run`** runs on each part on its own, so a `limit` keeps the first so
+///   many of each.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PerStage {
+    /// What partitions the rows.
+    pub group: PerGroup,
+    /// The stages each part runs.
+    #[serde(default)]
+    pub run: Vec<LabeledStage>,
+}
+
+/// What a `per` stage partitions by.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PerGroup {
+    /// A facet: a part per group of it.
+    Facet(String),
+    /// Names: a part per name.
+    Names(Vec<String>),
 }
 
 /// A `weigh` stage: a block of updates, `{by: [..], floor?: f}`.

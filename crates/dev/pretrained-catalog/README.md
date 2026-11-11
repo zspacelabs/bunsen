@@ -143,7 +143,11 @@ run:
 - **A query only filters, weighs and orders.** It never selects presets. A tool composes its
   pipeline as its preset prefix (`keep: {$presets: [..]}`, so every row can take the presets it
   will apply), then its defaults, then the request (`use` splices in a named selection), then a
-  tail (`order: {desc: $weight}`, and `limit: 1` when choosing).
+  tail (`order: {desc: $weight}`, and `limit: 1` when choosing). A stage labeled `as: L` can be
+  removed by a later `unset: L`.
+- **`per`** partitions the rows (by a facet, or by names), runs its stages on each part, and
+  concatenates the parts: the largest build of each family is
+  `per: {group: family, run: [{order: {desc: parameters}}, {limit: 1}]}`.
 
 `tests/select_examples.rs` works through the language over the example catalogs, each query
 with the builds it selects, and why.
@@ -164,7 +168,7 @@ cargo run -p pretrained-catalog -- --builtin <command>                         #
 | `list [--kind K] [--facet F] [--members G] [--children S]` | entries, by their shortest unique names |
 | `show NAME` | an entry's kind, history (which catalog declared, updated or replaced it) and merged fields |
 | `resolve BUILD [--preset P] [--on AXIS] [--off AXIS] [--patch {..}]` | the resolved build, and the document its presets make |
-| `select [--kind K] [NAME]... [--keep P] [--drop P] [--le KEY V]... [--weigh E] [--cutoff W] [--asc K] [--desc K] [--limit N] [--use NAME] [--pipeline ..] [--floor F] [--preset P] [--on/--off AXIS] [--defaults ..] [--rank]` | a YAML report: the composed query, why (each stage, where it came from, and what it removed), the presets applied, and the result in order, each build resolved with its `weight`; each flag is one stage, in command-line order, but the preset flags, which are the prefix; `--rank` adds every removed row with why |
+| `select [--kind K] [NAME]... [--keep P] [--drop P] [--le KEY V]... [--weigh E] [--cutoff W] [--asc K] [--desc K] [--limit N] [--use NAME] [--unset L] [--per G .. --end] [--pipeline ..] [--floor F] [--preset P] [--on/--off AXIS] [--defaults ..] [--rank]` | a YAML report: the composed query, why (each stage, where it came from, and what it removed), the presets applied, and the result in order, each build resolved with its `weight`; each flag is one stage, in command-line order, but the preset flags, which are the prefix; `--rank` adds every removed row with why |
 | `tree [NAME] [--kind K]... [--depth N]` | the namespace as a tree, from the root or one entry, annotated (facets, releases, base classes, files); `--kind` keeps only those kinds and the containers on the way to them |
 | `releases GROUP` | a release group's members, oldest first |
 

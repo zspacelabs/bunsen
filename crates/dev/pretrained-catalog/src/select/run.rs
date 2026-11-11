@@ -78,6 +78,8 @@ use crate::{
     resolve::CONTRACT_TAG,
     select::{
         query::{
+            LabeledStage,
+            PerGroup,
             Predicate,
             SelectQuery,
             SortKey,
@@ -90,6 +92,7 @@ use crate::{
             DroppedRow,
             SelectEntry,
             SelectEnv,
+            SelectRow,
             SelectRun,
             SelectTable,
             SelectTrace,
@@ -162,6 +165,19 @@ enum Step {
     },
     Order(Vec<CompiledSortKey>),
     Limit(usize),
+    Per {
+        group: Grouping,
+        run: Vec<CompiledStage>,
+    },
+}
+
+/// What a `per` stage partitions by.
+#[derive(Clone, Debug, PartialEq)]
+enum Grouping {
+    /// A facet: each build's group in it.
+    Facet(CatalogName),
+    /// Names: the first a row is in.
+    Members(Vec<Member>),
 }
 
 /// A compiled `by` entry.
@@ -348,16 +364,7 @@ impl CompiledQuery {
             env,
             kind: query.kind,
         };
-        let stages = query
-            .run
-            .iter()
-            .enumerate()
-            .map(|(i, stage)| {
-                compiler.stage(stage).map_err(|e| {
-                    query_error(format!("stage {i} (`{}`): {}", stage.op(), e.message))
-                })
-            })
-            .collect::<CatalogResult<Vec<_>>>()?;
+        let stages = compiler.stages(&query.run)?;
         Ok(Self {
             kind: query.kind,
             floor: query.floor(),
@@ -407,8 +414,8 @@ impl CompiledQuery {
     fn execute(
         &self,
         env: &SelectEnv<'_>,
-        mut table: SelectTable,
-        mut trace: Option<&mut SelectTrace>,
+        table: SelectTable,
+        trace: Option<&mut SelectTrace>,
     ) -> CatalogResult<SelectTable> {
         if table.kind != self.kind {
             return Err(query_error(format!(
@@ -416,7 +423,18 @@ impl CompiledQuery {
                 self.kind, table.kind
             )));
         }
-        for (index, stage) in self.stages.iter().enumerate() {
+        self.run_stages(&self.stages, env, table, trace)
+    }
+
+    /// Runs `stages` on `table`, recording into `trace` when given.
+    fn run_stages(
+        &self,
+        stages: &[CompiledStage],
+        env: &SelectEnv<'_>,
+        mut table: SelectTable,
+        mut trace: Option<&mut SelectTrace>,
+    ) -> CatalogResult<SelectTable> {
+        for (index, stage) in stages.iter().enumerate() {
             let before: BTreeSet<CatalogName> =
                 table.rows.iter().map(|r| r.entry.path.clone()).collect();
             let mut dropped = Vec::new();
@@ -496,6 +514,52 @@ impl CompiledQuery {
                     let mut rows = table.rows;
                     let rest = rows.split_off((*n).min(rows.len()));
                     dropped.extend(rest.into_iter().map(|r| (r, "past limit".to_string())));
+                    rows
+                }
+                Step::Per { group, run } => {
+                    // The parts, in the order of their first row; the rows
+                    // in no group last.
+                    let mut parts: Vec<(Option<CatalogName>, Vec<SelectRow>)> = Vec::new();
+                    let mut loose = Vec::new();
+                    for row in table.rows {
+                        let entry = env.entry(&row.entry)?;
+                        let view = Row {
+                            entry: &entry,
+                            path: &row.entry.path,
+                            weight: row.weight,
+                        };
+                        match group.of(&view) {
+                            Some(key) => {
+                                match parts.iter_mut().find(|(k, _)| k.as_ref() == Some(&key)) {
+                                    Some((_, rows)) => rows.push(row),
+                                    None => parts.push((Some(key), vec![row])),
+                                }
+                            }
+                            None => loose.push(row),
+                        }
+                    }
+                    if !loose.is_empty() {
+                        parts.push((None, loose));
+                    }
+                    let mut rows = Vec::new();
+                    for (key, part) in parts {
+                        let mut inner = SelectTrace::default();
+                        let part = SelectTable {
+                            kind: table.kind,
+                            rows: part,
+                        };
+                        let out = self.run_stages(run, env, part, Some(&mut inner))?;
+                        let label =
+                            key.map_or_else(|| "no group".to_string(), |k| format!("`{k}`"));
+                        dropped.extend(inner.dropped.into_iter().map(|d| {
+                            let row = SelectRow {
+                                entry: d.entry,
+                                weight: d.weight,
+                            };
+                            (row, format!("in the part of {label}: {}", d.why))
+                        }));
+                        rows.extend(out.rows);
+                    }
                     rows
                 }
             };
@@ -600,6 +664,22 @@ fn time_text(value: &Value) -> Option<String> {
         Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
         _ => None,
+    }
+}
+
+impl Grouping {
+    /// The group `row` falls in, if any.
+    fn of(
+        &self,
+        row: &Row<'_>,
+    ) -> Option<CatalogName> {
+        match self {
+            Self::Facet(facet) => row.entry.build()?.build.facets.get(facet).cloned(),
+            Self::Members(members) => members
+                .iter()
+                .find(|m| m.contains(row))
+                .map(|m| m.name.clone()),
+        }
     }
 }
 
@@ -809,6 +889,26 @@ impl Compiler<'_, '_> {
         kinds
     }
 
+    fn stages(
+        &self,
+        run: &[LabeledStage],
+    ) -> CatalogResult<Vec<CompiledStage>> {
+        run.iter()
+            .enumerate()
+            .map(|(i, labeled)| {
+                let stage = &labeled.stage;
+                self.stage(stage)
+                    .map(|mut compiled| {
+                        compiled.label = labeled.label.clone();
+                        compiled
+                    })
+                    .map_err(|e| {
+                        query_error(format!("stage {i} (`{}`): {}", stage.op(), e.message))
+                    })
+            })
+            .collect()
+    }
+
     fn stage(
         &self,
         stage: &Stage,
@@ -865,10 +965,34 @@ impl Compiler<'_, '_> {
                 }
                 Step::Limit(*n)
             }
+            Stage::Per(per) => {
+                let group = match &per.group {
+                    PerGroup::Facet(facet) => {
+                        self.only(&[EntryKind::Build], "`per` by a facet")?;
+                        Grouping::Facet(self.find(facet, &[EntryKind::Facet])?)
+                    }
+                    PerGroup::Names(names) => Grouping::Members(
+                        names
+                            .iter()
+                            .map(|n| self.member(n))
+                            .collect::<CatalogResult<_>>()?,
+                    ),
+                };
+                Step::Per {
+                    group,
+                    run: self.stages(&per.run)?,
+                }
+            }
             Stage::Use(name) => {
                 return Err(query_error(format!(
                     "`use: {name}` is spliced in when a query is composed with its context \
                      (`SelectionContext::compose`)"
+                )));
+            }
+            Stage::Unset(label) => {
+                return Err(query_error(format!(
+                    "`unset: {label}` removes a labeled stage when a query is composed with its \
+                     context (`SelectionContext::compose`)"
                 )));
             }
         };
