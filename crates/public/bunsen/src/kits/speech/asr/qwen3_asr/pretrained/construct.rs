@@ -16,6 +16,7 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
+        GEOMETRY,
         LoadedResources,
         PretrainedRef,
         ResolvedPresetSet,
@@ -155,9 +156,12 @@ impl ConstructInit for Qwen3AsrConstructConfig {
                 qwen3_asr_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?
             }
-            None => model
-                .prefab(&QWEN3_ASR_PREFABS)
-                .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
+            None => match model.stated(GEOMETRY)? {
+                Some(config) => config,
+                None => model
+                    .prefab(&QWEN3_ASR_PREFABS)
+                    .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
+            },
         };
         let n_mels = config.audio.n_mels;
         // The stored dtype (bf16), where the policy and the device allow it;

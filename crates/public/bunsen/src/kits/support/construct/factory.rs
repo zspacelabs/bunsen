@@ -128,7 +128,7 @@ use crate::{
 /// // order: the well-known table has it.
 /// let (provider, row) = factory.lookup("tiny")?;
 /// assert_eq!(provider, "well-known");
-/// assert_eq!(row.name, "openai/tiny");
+/// assert_eq!(row.name, "openai/whisper/tiny");
 ///
 /// // `hf:` goes to the Hugging Face provider alone, which answers only
 /// // through a cache: its error aborts the lookup.

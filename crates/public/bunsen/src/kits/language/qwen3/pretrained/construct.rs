@@ -16,7 +16,6 @@ use crate::{
         CatalogProbe,
         LoadedResources,
         NamedTensorsApplied,
-        PresetSet,
         ResolvedPresetSet,
         StaticPreFabMap,
     },
@@ -89,7 +88,7 @@ impl TransformersLmKit for Qwen3ConstructConfig {
                 CatalogProbe::into_base("generation_config", GENERATION_CONFIG),
                 CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
             ],
-            &PresetSet::default(),
+            &ResolvedPresetSet::default(),
         )
     }
 }
@@ -168,12 +167,14 @@ mod tests {
             "qwen/qwen3-4b-instruct-2507",
             "qwen/qwen3guard-gen-4b",
         ] {
+            // A fixed mode: `no-thinking` applies, and adds nothing; `thinking`
+            // is refused, with why.
             let r = policy(row).unwrap();
-            assert!(r.presets.is_empty(), "{row}");
+            assert_eq!(r.presets, ["no-thinking"], "{row}");
             assert!(!r.config.generation.stop_ids.is_empty(), "{row}");
             assert!(r.config.generation.template_kwargs.is_empty(), "{row}");
-            crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
-                .message_contains("no preset")
+            crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Policy)
+                .message_contains("fixed at `no-thinking`")
                 .assert_err(&policy(&format!("{row}[thinking]")));
         }
     }

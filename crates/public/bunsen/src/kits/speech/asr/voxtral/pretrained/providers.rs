@@ -41,6 +41,10 @@ pub static VOXTRAL_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const VOXTRAL_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const VOXTRAL_CATALOG_CONTRACT: &str = "voxtral-asr";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a speech recognizer's: what speech to text
 /// chooses its model by.
@@ -55,7 +59,7 @@ pub const VOXTRAL_TAGS: crate::data::pretrained::tags::KitTags =
     };
 
 /// The name [`default_voxtral_factory`] loads when a caller names none.
-pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral-mini-4b-realtime-2602";
+pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral/voxtral-mini-4b-realtime-2602";
 
 /// Voxtral's compiled-in providers, in search order: the well-known table,
 /// then `hf:org/repo`, a Hugging Face repo in the published layout (its
@@ -63,7 +67,12 @@ pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral-mini-4b-realtime-2602
 /// `tekken.json` as the vocabulary).
 pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(VOXTRAL_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                VOXTRAL_CATALOG_CONTRACT,
+                VOXTRAL_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -109,7 +118,7 @@ mod tests {
         assert_eq!(factory.kit(), VOXTRAL_KIT);
         assert_eq!(
             factory.ids(),
-            ["well-known:mistralai/voxtral-mini-4b-realtime-2602"]
+            ["well-known:mistralai/voxtral/voxtral-mini-4b-realtime-2602"]
         );
         assert_eq!(
             factory
@@ -127,9 +136,11 @@ mod tests {
         ] {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, DEFAULT_VOXTRAL_MODEL, "{spec}");
-            VOXTRAL_PREFABS
-                .try_lookup_prefab(row.prefab.as_deref().unwrap())
-                .unwrap();
+            // Its geometry is stated, and reads as a config.
+            serde_json::from_value::<crate::kits::speech::asr::voxtral::VoxtralRealtimeConfig>(
+                row.args[crate::data::pretrained::GEOMETRY].clone(),
+            )
+            .unwrap();
         }
     }
 

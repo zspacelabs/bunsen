@@ -55,6 +55,10 @@ pub static QWEN3_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const QWEN3_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const QWEN3_CATALOG_CONTRACT: &str = "qwen3-lm";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -71,7 +75,7 @@ pub const QWEN3_TAGS: crate::data::pretrained::tags::KitTags =
     };
 
 /// The name [`default_qwen3_factory`] loads when a caller names none.
-pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3-0.6b";
+pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3/qwen3-0.6b";
 
 /// Qwen3's compiled-in providers, in search order: the well-known table,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`'
@@ -80,7 +84,12 @@ pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3-0.6b";
 /// [`TOKENIZER_CONFIG`] and [`GENERATION_CONFIG`] files when it has them.
 pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(QWEN3_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                QWEN3_CATALOG_CONTRACT,
+                QWEN3_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -161,12 +170,12 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:qwen/{n}"))
+                .map(|n| format!("well-known:qwen/qwen3/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {
             let (_, row) = factory.lookup(name).unwrap();
-            assert_eq!(row.name, format!("qwen/{name}"));
+            assert_eq!(row.name, format!("qwen/qwen3/{name}"));
             let map = &row.resources;
             map.validate().unwrap();
             for resource in map.resources.values() {
@@ -192,14 +201,16 @@ mod tests {
             );
             let config =
                 qwen3_config_from_transformers(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            // The old catalog's row names the prefab the build documents.
+            let old = QWEN3_CATALOG.table().lookup(name).unwrap().unwrap();
             let prefab = QWEN3_PREFABS
-                .expect_lookup_prefab(row.prefab.as_deref().unwrap())
+                .expect_lookup_prefab(old.prefab.as_deref().unwrap())
                 .to_config();
             assert_eq!(format!("{config:?}"), format!("{prefab:?}"), "{name}");
         }
         assert_eq!(
             factory.lookup(DEFAULT_QWEN3_MODEL).unwrap().1.name,
-            "qwen/qwen3-0.6b"
+            "qwen/qwen3/qwen3-0.6b"
         );
     }
 

@@ -45,7 +45,7 @@ impl ChatModelFamily {
 /// family:
 ///
 /// - the defaults, applied to every choice but a checkpoint named exactly: a
-///   tuned model (`base: false`), each release sequence's newest (`latest`),
+///   tuned model (`instruct: true`), each release group's newest (`latest`),
 ///   the heaviest first (`order: [-weight]`);
 /// - [`DEFAULT_SELECTION`]: the family's default checkpoint
 ///   ([`ChatModelFamily::default_model`]), or across families Qwen3's.
@@ -53,7 +53,7 @@ pub fn chat_selection(family: Option<ChatModelFamily>) -> SelectionContext {
     let default = family.unwrap_or(ChatModelFamily::Qwen3).default_model();
     SelectionContext {
         defaults: json!({
-            "require": {"base": false},
+            "require": {"instruct": true},
             "latest": true,
             "order": ["-weight"],
         }),
@@ -176,7 +176,7 @@ mod tests {
             )
         );
         assert_eq!(
-            choose(None, &["well-known:gemma/gemma-2-2b-it"]).0,
+            choose(None, &["well-known:gemma/gemma/gemma-2-2b-it"]).0,
             ChatModelFamily::Gemma
         );
     }
@@ -212,15 +212,15 @@ mod tests {
             "a prefix of its rows' names"
         );
         let (_, name) = choose(None, &["{require: {thinking: always}}"]);
-        assert_eq!(name, "qwen/qwen3-4b-thinking-2507");
+        assert_eq!(name, "qwen/qwen3/qwen3-4b-thinking-2507");
         let (_, name) = choose(
             None,
             &[
                 "qwen3",
-                "{require: {base: null, thinking: never}, order: [parameters]}",
+                "{require: {instruct: null, thinking: never}, order: [parameters]}",
             ],
         );
-        assert_eq!(name, "qwen/qwen3-0.6b-base");
+        assert_eq!(name, "qwen/qwen3/qwen3-0.6b-base");
         assert!(choose_checkpoint(None, &["no-such-model".to_string()], &[]).is_err());
     }
 

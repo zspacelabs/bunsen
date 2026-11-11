@@ -42,6 +42,10 @@ pub static NANOCHAT_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const NANOCHAT_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const NANOCHAT_CATALOG_CONTRACT: &str = "nanochat-lm";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -62,7 +66,12 @@ pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
 
 /// nanochat's compiled-in providers: the well-known table.
 pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(NANOCHAT_CATALOG.table())]
+    vec![Arc::new(
+        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            NANOCHAT_CATALOG_CONTRACT,
+            NANOCHAT_KIT,
+        ),
+    )]
 }
 
 /// nanochat's factory over [`default_nanochat_providers`], building through
@@ -144,8 +153,10 @@ mod tests {
                 Some(_) => NanoChatGeneration::Upstream2026,
                 None => NanoChatGeneration::Upstream2025,
             };
+            // The old catalog's row names the prefab the build documents.
+            let old = NANOCHAT_CATALOG.table().lookup(name).unwrap().unwrap();
             let prefab = NANOCHAT_PREFABS
-                .expect_lookup_prefab(row.prefab.as_deref().unwrap())
+                .expect_lookup_prefab(old.prefab.as_deref().unwrap())
                 .to_config();
             assert_eq!(
                 format!("{:?}", meta.gpt_config(generation)),

@@ -37,8 +37,12 @@ fn test_every_row_is_its_prefab() {
         let json = std::fs::read_to_string(loaded.expect(CONFIG).unwrap()).unwrap();
         let config =
             qwen3_5_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
+        // The per-kit catalog's row names the prefab the build documents.
+        let leaf = row.name.rsplit('/').next().unwrap();
+        let table = bunsen::kits::language::qwen3_5::pretrained::QWEN3_5_CATALOG.table();
+        let (_, old) = table.get(leaf).unwrap();
         let prefab = QWEN3_5_PREFABS
-            .expect_lookup_prefab(row.prefab.as_deref().unwrap())
+            .expect_lookup_prefab(old.prefab.as_deref().unwrap())
             .to_config();
         assert_eq!(format!("{config:?}"), format!("{prefab:?}"), "{id}");
     }

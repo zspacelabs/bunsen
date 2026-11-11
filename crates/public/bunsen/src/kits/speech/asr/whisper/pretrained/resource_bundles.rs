@@ -2,10 +2,7 @@
 
 use crate::{
     data::pretrained::ResourceBundle,
-    kits::speech::asr::whisper::{
-        driver::WhisperSpecialIds,
-        pretrained::WHISPER_CATALOG,
-    },
+    kits::speech::asr::whisper::driver::WhisperSpecialIds,
 };
 
 /// The key of the checkpoint in a Whisper resource bundle.
@@ -58,13 +55,13 @@ impl WhisperVocabulary {
         }
     }
 
-    /// The name of the rank file's resource bundle in
-    /// [`WHISPER_CATALOG`]: `openai/multilingual.tiktoken` or
-    /// `openai/gpt2.tiktoken`.
-    pub fn bundle_name(self) -> &'static str {
+    /// The rank file's full name in the built-in catalog:
+    /// `openai/whisper/multilingual.tiktoken` or
+    /// `openai/whisper/gpt2.tiktoken`.
+    pub fn resource_name(self) -> &'static str {
         match self {
-            Self::Multilingual => "openai/multilingual.tiktoken",
-            Self::Gpt2 => "openai/gpt2.tiktoken",
+            Self::Multilingual => "openai/whisper/multilingual.tiktoken",
+            Self::Gpt2 => "openai/whisper/gpt2.tiktoken",
         }
     }
 
@@ -72,8 +69,12 @@ impl WhisperVocabulary {
     /// [`OPENAI_VOCAB_REVISION`](super::OPENAI_VOCAB_REVISION).
     /// `multilingual.tiktoken`'s last line is `= 50256`, base64 of nothing,
     /// and that empty token is real; bunsen's parser reads it as such.
+    ///
+    /// # Panics
+    /// When the built-in catalog lacks it, a bug in the catalog.
     pub fn resource_bundle(self) -> ResourceBundle {
-        WHISPER_CATALOG.resource_bundle(self.bundle_name())
+        crate::data::pretrained::builtin_resource_bundle(self.resource_name(), VOCABULARY)
+            .unwrap_or_else(|e| panic!("the Whisper vocabulary {}: {e}", self.resource_name()))
     }
 }
 
@@ -88,6 +89,7 @@ mod tests {
         },
         kits::speech::asr::whisper::pretrained::{
             OPENAI_LOCAL_DIR,
+            WHISPER_CATALOG,
             WHISPER_PREFABS,
         },
     };
@@ -162,7 +164,8 @@ mod tests {
             assert_eq!(r.namespace, OPENAI_NAMESPACE);
             assert_eq!(r.kind.as_deref(), Some(TIKTOKEN));
             assert!(r.is_pinned());
-            assert_eq!(owned.name, format!("openai/{}", r.file));
+            assert_eq!(owned.name, vocabulary.resource_name());
+            assert_eq!(owned.name, format!("openai/whisper/{}", r.file));
             let urls = r.urls();
             assert_eq!(urls.len(), 1);
             assert!(
@@ -177,7 +180,13 @@ mod tests {
         assert_eq!(rule("tiny"), WhisperVocabulary::Multilingual);
         assert_eq!(rule("tiny.en"), WhisperVocabulary::Gpt2);
         assert_eq!(rule("large-v3"), WhisperVocabulary::Multilingual);
-        assert_eq!(rule("tiny").bundle_name(), "openai/multilingual.tiktoken");
-        assert_eq!(rule("tiny.en").bundle_name(), "openai/gpt2.tiktoken");
+        assert_eq!(
+            rule("tiny").resource_name(),
+            "openai/whisper/multilingual.tiktoken"
+        );
+        assert_eq!(
+            rule("tiny.en").resource_name(),
+            "openai/whisper/gpt2.tiktoken"
+        );
     }
 }

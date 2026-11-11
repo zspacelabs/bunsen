@@ -1,91 +1,58 @@
 //! Release order, and the `latest` select step.
-use std::cmp::Ordering;
 
 use bunsen::data::pretrained::{
+    build_catalog::release_time::ReleaseTime,
     selection::{
         SelectOp,
         SelectionCandidate,
     },
-    tags::VERSION,
 };
 use serde_json::Value;
 
-/// A candidate's release, as its `version` tag says: the sequence, and the
-/// version in it.
+/// The tag a row carries its release in: `{group, released}`, the release
+/// group's full name and when the build was released, from the build
+/// catalog.
+pub const RELEASE: &str = "release";
+
+/// A candidate's release, as its `release` tag says: the group, and when.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Release {
-    /// The release sequence.
+    /// The release group.
     pub group: String,
 
-    /// The version in it.
-    pub version: semver::Version,
+    /// When it was released.
+    pub released: ReleaseTime,
 }
 
 impl Release {
-    /// `candidate`'s release; `None` when it has no `version` tag, or one
-    /// that is not `{group, version}` with a semver version (the catalog
-    /// build refuses such a tag).
+    /// `candidate`'s release; `None` when it has no `release` tag, or one
+    /// that is not `{group, released}` with a release time.
     pub fn of(candidate: &SelectionCandidate) -> Option<Release> {
-        let tag = candidate.get(VERSION)?;
+        let tag = candidate.get(RELEASE)?;
         let group = tag.get("group").and_then(Value::as_str)?;
-        let version = tag.get("version").and_then(Value::as_str)?;
+        let released = tag.get("released").and_then(Value::as_str)?;
         Some(Release {
             group: group.to_string(),
-            version: semver::Version::parse(version).ok()?,
+            released: ReleaseTime::parse(released).ok()?,
         })
     }
-}
 
-/// Two versions of one sequence, in release order: semver precedence, then
-/// the `+tag`, which orders here (semver's own precedence ignores it): an
-/// untagged version before a tagged one, two tags split on `.`, each part
-/// compared as a number when both are numbers, as text otherwise, a number
-/// before text.
-pub fn release_cmp(
-    a: &semver::Version,
-    b: &semver::Version,
-) -> Ordering {
-    a.cmp_precedence(b)
-        .then_with(|| tag_cmp(a.build.as_str(), b.build.as_str()))
-}
-
-/// Two `+tag`s, in release order.
-fn tag_cmp(
-    a: &str,
-    b: &str,
-) -> Ordering {
-    match (a.is_empty(), b.is_empty()) {
-        (true, true) => return Ordering::Equal,
-        (true, false) => return Ordering::Less,
-        (false, true) => return Ordering::Greater,
-        (false, false) => {}
-    }
-    let mut a = a.split('.');
-    let mut b = b.split('.');
-    loop {
-        let ordering = match (a.next(), b.next()) {
-            (None, None) => return Ordering::Equal,
-            (None, Some(_)) => return Ordering::Less,
-            (Some(_), None) => return Ordering::Greater,
-            (Some(x), Some(y)) => match (x.parse::<u64>(), y.parse::<u64>()) {
-                (Ok(m), Ok(n)) => m.cmp(&n),
-                (Ok(_), Err(_)) => Ordering::Less,
-                (Err(_), Ok(_)) => Ordering::Greater,
-                (Err(_), Err(_)) => x.cmp(y),
-            },
-        };
-        if ordering != Ordering::Equal {
-            return ordering;
-        }
+    /// Whether `other` is a later release of the same group: its time
+    /// starts after this one's ends.
+    pub fn is_before(
+        &self,
+        other: &Release,
+    ) -> bool {
+        self.group == other.group && self.released.precedes(&other.released)
     }
 }
 
-/// The `latest` select step: the most recent release of each sequence.
+/// The `latest` select step: the most recent release of each group.
 ///
-/// A candidate in no release sequence scores 1. One in a sequence scores
+/// A candidate in no release group scores 1. One in a group scores
 /// `max(floor, 1 - step * rank)`, its rank the number of newer releases of
-/// its sequence among the current candidates (0 for the newest; equal
-/// versions share a rank; a release dropped by an earlier step no longer
+/// its group among the current candidates (0 for the newest; releases at
+/// one time share a rank; a release dropped by an earlier step no longer
 /// counts). A `floor` of 0 drops a release `1 / step` or more behind.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Latest {
@@ -122,17 +89,15 @@ impl SelectOp for Latest {
                 let Some(release) = release else {
                     return 1.0;
                 };
-                let mut newer: Vec<&semver::Version> = releases
-                    .iter()
-                    .flatten()
-                    .filter(|other| {
-                        other.group == release.group
-                            && release_cmp(&other.version, &release.version) == Ordering::Greater
-                    })
-                    .map(|other| &other.version)
-                    .collect();
-                newer.sort_by(|a, b| release_cmp(a, b));
-                newer.dedup_by(|a, b| release_cmp(a, b) == Ordering::Equal);
+                // The newer releases, those released at one time counted once.
+                let mut newer: Vec<&ReleaseTime> = Vec::new();
+                for other in releases.iter().flatten() {
+                    if release.is_before(other)
+                        && !newer.iter().any(|t| t.overlaps(&other.released))
+                    {
+                        newer.push(&other.released);
+                    }
+                }
                 let score = 1.0 - self.step * newer.len() as f64;
                 score.max(self.floor).max(0.0)
             })
@@ -148,62 +113,43 @@ mod tests {
     use super::*;
     use crate::select::testing::candidate;
 
-    fn v(s: &str) -> semver::Version {
-        semver::Version::parse(s).unwrap()
-    }
-
-    #[test]
-    fn test_release_order() {
-        let ordered = [
-            "1.0.0",
-            "2.0.0",
-            "3.0.0",
-            "3.0.0+2507",
-            "3.0.0+2507.1",
-            "3.0.0+250801",
-            "3.0.0+a",
-            "3.1.0",
-        ];
-        for pair in ordered.windows(2) {
-            assert_eq!(
-                release_cmp(&v(pair[0]), &v(pair[1])),
-                Ordering::Less,
-                "{} < {}",
-                pair[0],
-                pair[1]
-            );
-        }
-        assert_eq!(
-            release_cmp(&v("3.0.0+2507"), &v("3.0.0+2507")),
-            Ordering::Equal
-        );
-        assert_eq!(release_cmp(&v("1.0.0-rc1"), &v("1.0.0")), Ordering::Less);
-    }
-
     fn release(
         name: &str,
         group: &str,
-        version: &str,
+        released: &str,
     ) -> SelectionCandidate {
         candidate(
             name,
-            json!({"version": {"group": group, "version": version}}),
+            json!({RELEASE: {"group": group, "released": released}}),
         )
     }
 
-    /// Each sequence's newest release scores 1, the next `1 - step`; a
-    /// candidate in no sequence scores 1; a release `1 / step` behind drops
+    /// A release precedes another of its group when its time ends first.
+    #[test]
+    fn test_release_order() {
+        let r = |group: &str, released: &str| Release {
+            group: group.to_string(),
+            released: ReleaseTime::parse(released).unwrap(),
+        };
+        assert!(r("large", "2022-09").is_before(&r("large", "2022-12")));
+        assert!(!r("large", "2022-12").is_before(&r("large", "2022-09")));
+        assert!(!r("large", "2023").is_before(&r("large", "2023-11-06")));
+        assert!(!r("large", "2022-09").is_before(&r("qwen3", "2025-07")));
+    }
+
+    /// Each group's newest release scores 1, the next `1 - step`; a
+    /// candidate in no group scores 1; a release `1 / step` behind drops
     /// at the default floor, and stays at a raised one.
     #[test]
     fn test_latest() {
         let items = || {
             Selection::new([
-                release("v1", "large", "1.0.0"),
-                release("v2", "large", "2.0.0"),
-                release("v3", "large", "3.0.0"),
-                release("v3-again", "large", "3.0.0"),
+                release("v1", "large", "2022-09"),
+                release("v2", "large", "2022-12"),
+                release("v3", "large", "2023-11-06"),
+                release("v3-again", "large", "2023-11-06"),
                 candidate("turbo", json!({})),
-                release("q", "qwen3", "3.0.0+2507"),
+                release("q", "qwen3", "2025-07"),
             ])
         };
         let weights = |s: Selection| -> Vec<(String, f64)> {

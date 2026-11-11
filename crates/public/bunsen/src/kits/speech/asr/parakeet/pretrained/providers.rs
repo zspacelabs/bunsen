@@ -47,6 +47,10 @@ pub static PARAKEET_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const PARAKEET_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const PARAKEET_CATALOG_CONTRACT: &str = "parakeet-asr";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a speech recognizer's: what speech to text
 /// chooses its model by.
@@ -69,7 +73,12 @@ pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(PARAKEET_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                PARAKEET_CATALOG_CONTRACT,
+                PARAKEET_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)

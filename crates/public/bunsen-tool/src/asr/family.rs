@@ -12,6 +12,13 @@ use bunsen::{
             Pretrained,
             PretrainedCache,
             PretrainedCacheOptions,
+            build_catalog::{
+                CatalogName,
+                lookup::{
+                    LeafMatch,
+                    name_matches,
+                },
+            },
         },
     },
     errors::{
@@ -253,7 +260,10 @@ impl Kit {
     }
 
     /// Whether the kit's factory lists `name`, a row's name or alias, with
-    /// or without its provider (`well-known:openai/small`), case aside.
+    /// or without its provider (`well-known:openai/small`), case aside: a
+    /// row named in the build catalog's form answers its shorter spellings too
+    /// (`openai/small` for `openai/whisper/small`), as its provider's lookup
+    /// takes them.
     ///
     /// # Errors
     /// As [`listing`](Self::listing).
@@ -268,9 +278,11 @@ impl Kit {
                 Some(_) => return false,
                 None => name,
             };
-            std::iter::once(&row.name)
-                .chain(&row.aliases)
-                .any(|n| n.eq_ignore_ascii_case(bare))
+            let catalog_name = CatalogName::parse(&row.name).ok();
+            catalog_name.is_some_and(|full| name_matches(bare, &full, LeafMatch::Exact))
+                || std::iter::once(&row.name)
+                    .chain(&row.aliases)
+                    .any(|n| n.eq_ignore_ascii_case(bare))
         }))
     }
 

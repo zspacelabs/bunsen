@@ -599,7 +599,7 @@ mod tests {
         let small = whisper
             .iter()
             .filter_map(|e| e.get("model"))
-            .find(|m| m.get("name") == Some(&Value::str("openai/small")))
+            .find(|m| m.get("name") == Some(&Value::str("openai/whisper/small")))
             .unwrap();
         let presets = small.get("presets").unwrap();
         assert_eq!(
@@ -710,7 +710,7 @@ mod tests {
         let small = whisper
             .iter()
             .filter_map(|e| e.get("model"))
-            .find(|m| m.get("name") == Some(&Value::str("openai/small")))
+            .find(|m| m.get("name") == Some(&Value::str("openai/whisper/small")))
             .unwrap();
         assert_eq!(
             small.get("presets"),
@@ -802,7 +802,7 @@ mod tests {
                     Value::map([(
                         "model",
                         Value::List(vec![Value::map([
-                            ("name", Value::str("qwen/qwen3-0.6b")),
+                            ("name", Value::str("qwen/qwen3/qwen3-0.6b")),
                             ("description", Value::str("Qwen3-0.6B")),
                         ])]),
                     )]),
@@ -817,7 +817,7 @@ mod tests {
         let json = render(&card, Format::Json).unwrap();
         assert_eq!(
             json,
-            "{\"kits\":{\"chat\":{\"qwen3\":{\"model\":[{\"name\":\"qwen/qwen3-0.6b\",\"description\":\"Qwen3-0.6B\"}]}}}}\n"
+            "{\"kits\":{\"chat\":{\"qwen3\":{\"model\":[{\"name\":\"qwen/qwen3/qwen3-0.6b\",\"description\":\"Qwen3-0.6B\"}]}}}}\n"
         );
     }
 }

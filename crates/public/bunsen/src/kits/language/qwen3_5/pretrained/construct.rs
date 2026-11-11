@@ -16,7 +16,6 @@ use crate::{
         CatalogProbe,
         LoadedResources,
         NamedTensorsApplied,
-        PresetSet,
         ResolvedPresetSet,
         StaticPreFabMap,
     },
@@ -99,7 +98,7 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
                 CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
                 CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
             ],
-            &PresetSet::default(),
+            &ResolvedPresetSet::default(),
         )
     }
 }

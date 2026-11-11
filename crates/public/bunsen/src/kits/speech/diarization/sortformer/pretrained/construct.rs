@@ -7,7 +7,6 @@ use super::{
     CHECKPOINT,
     NEMO,
     SAFETENSORS,
-    SORTFORMER_CATALOG,
     SORTFORMER_KIT,
 };
 use crate::{
@@ -224,7 +223,7 @@ impl ConstructInit for SortformerConstructConfig {
 
     /// Builds the model, then resolves its [`SortformerPolicy`] through the
     /// row's presets, or, for a model no row describes, its family's
-    /// ([`SortformerFamily::catalog_family`]).
+    /// ([`SortformerFamily::template_class`]).
     fn try_init(
         &self,
         model: &PretrainedRef,
@@ -236,9 +235,8 @@ impl ConstructInit for SortformerConstructConfig {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
         };
-        let family = SORTFORMER_CATALOG
-            .family_presets(bundle.family.catalog_family())
-            .to_resolved()?;
+        let family =
+            crate::data::pretrained::builtin_template_presets(bundle.family.template_class())?;
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
         Ok(Arc::new(
             bundle.with_policy(policy.config.clone(), policy.applied()),

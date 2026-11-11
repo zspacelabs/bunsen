@@ -43,6 +43,10 @@ pub static WHISPER_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const WHISPER_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const WHISPER_CATALOG_CONTRACT: &str = "whisper-asr";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a speech recognizer's: what speech to text
 /// chooses its model by.
@@ -66,7 +70,12 @@ pub const WHISPER_TAGS: crate::data::pretrained::tags::KitTags =
 /// [`default_whisper_factory`](super::default_whisper_factory).
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(WHISPER_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                WHISPER_CATALOG_CONTRACT,
+                WHISPER_KIT,
+            ),
+        ),
         Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
     ]
 }

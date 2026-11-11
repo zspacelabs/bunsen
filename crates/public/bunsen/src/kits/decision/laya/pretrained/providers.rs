@@ -39,6 +39,10 @@ pub static LAYA_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const LAYA_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const LAYA_CATALOG_CONTRACT: &str = "laya-decision";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, what `decide` chooses its model by.
 pub const LAYA_TAGS: crate::data::pretrained::tags::KitTags =
@@ -51,11 +55,16 @@ pub const LAYA_TAGS: crate::data::pretrained::tags::KitTags =
     };
 
 /// The name [`default_laya_factory`] loads when a caller names none.
-pub const DEFAULT_LAYA_MODEL: &str = "laya/laya";
+pub const DEFAULT_LAYA_MODEL: &str = "laya/laya/laya";
 
 /// Laya's compiled-in providers: the well-known table.
 pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(LAYA_CATALOG.table())]
+    vec![Arc::new(
+        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            LAYA_CATALOG_CONTRACT,
+            LAYA_KIT,
+        ),
+    )]
 }
 
 /// Laya's factory over [`default_laya_providers`], building through
@@ -87,7 +96,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:laya/{n}"))
+                .map(|n| format!("well-known:laya/laya/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {
@@ -114,10 +123,10 @@ mod tests {
                 assert!(map.get(key).is_some(), "{name}: {key}");
             }
         }
-        assert_eq!(factory.lookup("laya-en").unwrap().1.name, "laya/laya");
+        assert_eq!(factory.lookup("laya-en").unwrap().1.name, "laya/laya/laya");
         assert_eq!(
             factory.lookup(DEFAULT_LAYA_MODEL).unwrap().1.name,
-            "laya/laya"
+            "laya/laya/laya"
         );
     }
 

@@ -57,6 +57,10 @@ pub static GEMMA_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const GEMMA_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const GEMMA_CATALOG_CONTRACT: &str = "gemma-lm";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -72,13 +76,13 @@ pub const GEMMA_TAGS: crate::data::pretrained::tags::KitTags =
         ],
     };
 
-/// The catalog family every Gemma row is of, and an `hf:` repo's presets lie
-/// over: its own chat template where it has one, else bunsen's rendering of
-/// Gemma's turn format.
-pub const GEMMA_FAMILY: &str = "gemma";
+/// The built-in catalog's template class every Gemma build is of, and an
+/// `hf:` repo's presets lie over: its own chat template where it has one,
+/// else bunsen's rendering of Gemma's turn format.
+pub const GEMMA_TEMPLATE_CLASS: &str = "gemma/gemma/gemma";
 
 /// The name [`default_gemma_factory`] loads when a caller names none.
-pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma-3-1b-it";
+pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma/gemma-3-1b-it";
 
 /// Gemma's compiled-in providers, in search order: the well-known table,
 /// then `hf:org/repo`, a Hugging Face repo in a `transformers` Gemma's
@@ -87,7 +91,12 @@ pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma-3-1b-it";
 /// [`GENERATION_CONFIG`] and [`CHAT_TEMPLATE`] files when it has them.
 pub fn default_gemma_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(GEMMA_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                GEMMA_CATALOG_CONTRACT,
+                GEMMA_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -162,7 +171,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:gemma/{n}"))
+                .map(|n| format!("well-known:gemma/gemma/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {
@@ -185,7 +194,7 @@ mod tests {
         }
         assert_eq!(
             factory.lookup(DEFAULT_GEMMA_MODEL).unwrap().1.name,
-            "gemma/gemma-3-1b-it"
+            "gemma/gemma/gemma-3-1b-it"
         );
     }
 

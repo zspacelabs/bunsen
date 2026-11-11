@@ -55,6 +55,10 @@ pub static QWEN3_5_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const QWEN3_5_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const QWEN3_5_CATALOG_CONTRACT: &str = "qwen3.5-lm";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a chat model's: what a chat chooses its
 /// checkpoint by.
@@ -71,7 +75,7 @@ pub const QWEN3_5_TAGS: crate::data::pretrained::tags::KitTags =
     };
 
 /// The name [`default_qwen3_5_factory`] loads when a caller names none.
-pub const DEFAULT_QWEN3_5_MODEL: &str = "qwen/qwen3.5-0.8b";
+pub const DEFAULT_QWEN3_5_MODEL: &str = "qwen/qwen3.5/qwen3.5-0.8b";
 
 /// Qwen3.5's compiled-in providers, in search order: the well-known table,
 /// then `hf:org/repo`, a Hugging Face repo in a `transformers` Qwen3.5's
@@ -80,7 +84,12 @@ pub const DEFAULT_QWEN3_5_MODEL: &str = "qwen/qwen3.5-0.8b";
 /// [`GENERATION_CONFIG`] and [`CHAT_TEMPLATE`] files when it has them.
 pub fn default_qwen3_5_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(QWEN3_5_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                QWEN3_5_CATALOG_CONTRACT,
+                QWEN3_5_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -150,7 +159,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:qwen/{n}"))
+                .map(|n| format!("well-known:qwen/qwen3.5/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {
@@ -174,7 +183,7 @@ mod tests {
         }
         assert_eq!(
             factory.lookup(DEFAULT_QWEN3_5_MODEL).unwrap().1.name,
-            "qwen/qwen3.5-0.8b"
+            "qwen/qwen3.5/qwen3.5-0.8b"
         );
     }
 

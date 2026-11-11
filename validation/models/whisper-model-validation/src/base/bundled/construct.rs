@@ -87,7 +87,7 @@ fn test_the_factory_builds_the_construct() {
         )
         .unwrap();
 
-    assert_eq!(loaded.name, "well-known:openai/base");
+    assert_eq!(loaded.name, "well-known:openai/whisper/base");
     assert_eq!(loaded.resources.keys(), [CHECKPOINT, VOCABULARY]);
     for (key, part) in loaded.resources.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");

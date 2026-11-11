@@ -27,6 +27,8 @@ use super::{
         builtin_stack,
         catalog_error,
         document::{
+            CatalogEntry,
+            EntryKind,
             ResourceEntry,
             ResourceSource,
         },
@@ -34,11 +36,17 @@ use super::{
             LeafMatch,
             name_matches,
         },
+        presets::ResolvedPresetSet,
     },
     resolve_dir_template,
     tags::KIT,
 };
 use crate::errors::BunsenResult;
+
+/// The argument slot a contract states a geometry in, for weights that
+/// carry none: resnet's, and the `stated` variants of qwen3-asr's and
+/// voxtral's ([`PretrainedRef::stated`](super::PretrainedRef::stated)).
+pub const GEOMETRY: &str = "geometry";
 
 /// A provider over the builds of one contract in a build catalog: each a
 /// row, named in full (`qwen/qwen3/qwen3-0.6b`).
@@ -82,16 +90,70 @@ impl BuildCatalogProvider {
             .expect_contract(&CatalogRef::parse(contract)?)?
             .name()
             .clone();
+        let mut builds = Vec::new();
+        for build in stack.builds_of_contract(&contract_name) {
+            builds.push((stack.resolve_build(&build)?, stack.aliases_of(&build)));
+        }
+        Self::of_builds(name, description, builds.iter(), kit)
+    }
+
+    /// The built-in catalog's builds of `contract`, as the [`WELL_KNOWN`]
+    /// provider's rows, described by the contract.
+    ///
+    /// The built-in catalog ([`builtin_stack`]) is imported and resolved once
+    /// in a process, the first time it is asked for.
+    ///
+    /// # Errors
+    /// As [`builtin_stack`], and
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a contract
+    /// `$contracts` doesn't have.
+    pub fn builtin(
+        contract: &str,
+        kit: &str,
+    ) -> BunsenResult<Self> {
+        let snapshot = builtin_snapshot()?;
+        let contract_name = CatalogName::contracts_root().join(CatalogRef::parse(contract)?.path());
+        let description = snapshot.contracts.get(&contract_name).ok_or_else(|| {
+            catalog_error(
+                CatalogRule::Lookup,
+                format!("the built-in catalog has no contract `{contract}`"),
+            )
+        })?;
+        let builds = snapshot.builds.iter().filter(|(build, _)| {
+            build
+                .contract
+                .as_ref()
+                .is_some_and(|c| c == &contract_name || c.is_within(&contract_name))
+        });
+        Self::of_builds(WELL_KNOWN, description.clone(), builds, kit)
+    }
+
+    /// [`builtin`](Self::builtin), for a kit's default providers: the
+    /// built-in catalog is compiled in and tested whole.
+    ///
+    /// # Panics
+    /// When [`builtin`](Self::builtin) fails, a bug in the built-in catalog.
+    pub fn expect_builtin(
+        contract: &str,
+        kit: &str,
+    ) -> Self {
+        Self::builtin(contract, kit)
+            .unwrap_or_else(|e| panic!("the built-in catalog's `{contract}` builds: {e}"))
+    }
+
+    fn of_builds<'a>(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        builds: impl Iterator<Item = &'a (ResolvedBuild, Vec<CatalogName>)>,
+        kit: &str,
+    ) -> BunsenResult<Self> {
         let mut rows = Vec::new();
         let mut names = Vec::new();
-        for build in stack.builds_of_contract(&contract_name) {
-            let resolved = stack.resolve_build(&build)?;
+        for (build, aliases) in builds {
             let index = rows.len();
-            names.push((build.clone(), index));
-            for alias in stack.aliases_of(&build) {
-                names.push((alias, index));
-            }
-            rows.push(build_row(stack, &resolved, kit)?);
+            names.push((build.name.clone(), index));
+            names.extend(aliases.iter().map(|a| (a.clone(), index)));
+            rows.push(build_row(build, aliases, kit)?);
         }
         Ok(Self {
             name: name.into(),
@@ -99,19 +161,6 @@ impl BuildCatalogProvider {
             rows,
             names,
         })
-    }
-
-    /// The built-in catalog's builds of `contract`
-    /// ([`builtin_stack`]), as the [`WELL_KNOWN`] provider's rows.
-    ///
-    /// # Errors
-    /// As [`builtin_stack`] and [`new`](Self::new).
-    pub fn builtin(
-        description: impl Into<String>,
-        contract: &str,
-        kit: &str,
-    ) -> BunsenResult<Self> {
-        Self::new(WELL_KNOWN, description, &builtin_stack()?, contract, kit)
     }
 
     /// The rows, in the catalog's order.
@@ -179,16 +228,16 @@ impl PretrainedProvider for BuildCatalogProvider {
     }
 }
 
-/// `build` as a row: its full name, its aliases' names, its listing fields,
-/// its bound resources by slot (a sharded one as `{slot}.index` and
+/// `build` as a row: its full name, the leaves of its `aliases`, its listing
+/// fields, its bound resources by slot (a sharded one as `{slot}.index` and
 /// `{slot}.{n:05}`, numbered from 1), its presets, its bound arguments, and
 /// its tags, each by its own name, with `kit`.
 ///
 /// # Errors
 /// A resource source that has no URL form (none yet).
 pub fn build_row(
-    stack: &PretrainedCatalogStack,
     build: &ResolvedBuild,
+    aliases: &[CatalogName],
     kit: &str,
 ) -> BunsenResult<Pretrained> {
     let name = build.name.to_string();
@@ -206,14 +255,19 @@ pub fn build_row(
     for (tag, value) in &build.tags {
         tags.insert(tag.leaf(), value.value.clone());
     }
+    if let Some(release) = &build.release {
+        tags.insert(
+            "release",
+            serde_json::json!({
+                "group": release.group.to_string(),
+                "released": release.released.canonical(),
+            }),
+        );
+    }
     tags.insert(KIT.key, kit);
     Ok(Pretrained {
         name,
-        aliases: stack
-            .aliases_of(&build.name)
-            .iter()
-            .map(|a| a.leaf().to_string())
-            .collect(),
+        aliases: aliases.iter().map(|a| a.leaf().to_string()).collect(),
         description: build.description.clone(),
         license: build.license.clone(),
         origin: build.origin.clone(),
@@ -227,6 +281,107 @@ pub fn build_row(
             .collect::<BTreeMap<_, _>>(),
         tags,
     })
+}
+
+/// What the built-in catalog resolves to, kept for the process: every build
+/// with its aliases, every template class's presets, every contract's
+/// description, and every resource. A stack is not shared between threads; this
+/// is.
+struct BuiltinSnapshot {
+    builds: Vec<(ResolvedBuild, Vec<CatalogName>)>,
+    classes: BTreeMap<CatalogName, ResolvedPresetSet>,
+    contracts: BTreeMap<CatalogName, String>,
+    resources: BTreeMap<CatalogName, ResourceEntry>,
+}
+
+fn builtin_snapshot() -> BunsenResult<&'static BuiltinSnapshot> {
+    static SNAPSHOT: std::sync::OnceLock<Result<BuiltinSnapshot, String>> =
+        std::sync::OnceLock::new();
+    let snapshot = SNAPSHOT.get_or_init(|| {
+        let take = || -> BunsenResult<BuiltinSnapshot> {
+            let stack = builtin_stack()?;
+            let mut builds = Vec::new();
+            for build in stack.of_kind(EntryKind::Build) {
+                let name = build.name().clone();
+                builds.push((stack.resolve_build(&name)?, stack.aliases_of(&name)));
+            }
+            let mut classes = BTreeMap::new();
+            for class in stack.of_kind(EntryKind::TemplateClass) {
+                let name = class.name().clone();
+                classes.insert(name.clone(), stack.resolve_template_class(&name)?.presets);
+            }
+            let mut resources = BTreeMap::new();
+            for resource in stack.of_kind(EntryKind::Resource) {
+                if let CatalogEntry::Resource(r) = resource.body() {
+                    resources.insert(resource.name().clone(), r.clone());
+                }
+            }
+            let mut contracts = BTreeMap::new();
+            for contract in stack.of_kind(EntryKind::Contract) {
+                if let CatalogEntry::Contract(c) = contract.body() {
+                    contracts.insert(contract.name().clone(), c.description.clone());
+                }
+            }
+            Ok(BuiltinSnapshot {
+                builds,
+                classes,
+                contracts,
+                resources,
+            })
+        };
+        take().map_err(|e| e.to_string())
+    });
+    snapshot
+        .as_ref()
+        .map_err(|e| catalog_error(CatalogRule::Parse, format!("the built-in catalog: {e}")))
+}
+
+/// The presets of the built-in catalog's template class `class`, by its
+/// full name (`openai/whisper/multilingual`): what a kit gives a model of
+/// the class that no build describes, such as an `hf:` repo's.
+///
+/// # Errors
+/// As [`builtin_stack`], and [`Lookup`](crate::errors::BunsenErrorKind::Lookup)
+/// for a class the catalog doesn't have.
+pub fn builtin_template_presets(class: &str) -> BunsenResult<ResolvedPresetSet> {
+    let snapshot = builtin_snapshot()?;
+    let name = CatalogName::parse(class)?;
+    snapshot.classes.get(&name).cloned().ok_or_else(|| {
+        catalog_error(
+            CatalogRule::Lookup,
+            format!("the built-in catalog has no template class `{class}`"),
+        )
+    })
+}
+
+/// The built-in catalog's resource `resource`, by its full name
+/// (`openai/whisper/multilingual.tiktoken`), as a resource bundle under
+/// `key`: what code that names a file of the catalog's loads, such as a
+/// checkpoint's vocabulary. A sharded resource is its index and shards.
+///
+/// # Errors
+/// As [`builtin_stack`], and [`Lookup`](crate::errors::BunsenErrorKind::Lookup)
+/// for a resource the catalog doesn't have.
+pub fn builtin_resource_bundle(
+    resource: &str,
+    key: &str,
+) -> BunsenResult<ResourceBundle> {
+    let snapshot = builtin_snapshot()?;
+    let name = CatalogName::parse(resource)?;
+    let entry = snapshot.resources.get(&name).ok_or_else(|| {
+        catalog_error(
+            CatalogRule::Lookup,
+            format!("the built-in catalog has no resource `{resource}`"),
+        )
+    })?;
+    let mut bundle = ResourceBundle::new(resource);
+    if let Some(description) = &entry.description {
+        bundle.description = description.clone();
+    }
+    for r in slot_resources(key, entry, &name.segments()[0]) {
+        bundle = bundle.with_resource(r);
+    }
+    Ok(bundle)
 }
 
 /// The resources a slot bound to `entry` is: one, or a sharded resource's
@@ -385,8 +540,7 @@ mod tests {
             return;
         }
 
-        let resnet =
-            BuildCatalogProvider::builtin("ResNets", "resnet-classifier", "resnet").unwrap();
+        let resnet = BuildCatalogProvider::builtin("resnet-classifier", "resnet").unwrap();
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
             .message_contains("`resnet34` is ambiguous: torchvision/resnet34, timm/resnet34")
             .assert_err(&resnet.lookup("resnet34"));

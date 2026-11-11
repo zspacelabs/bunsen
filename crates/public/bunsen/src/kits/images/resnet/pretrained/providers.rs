@@ -41,9 +41,18 @@ pub static RESNET_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const RESNET_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const RESNET_CATALOG_CONTRACT: &str = "resnet-classifier";
+
 /// `ResNet`'s compiled-in providers, in search order: the well-known table.
 pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(RESNET_CATALOG.table())]
+    vec![Arc::new(
+        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            RESNET_CATALOG_CONTRACT,
+            RESNET_KIT,
+        ),
+    )]
 }
 
 #[cfg(test)]

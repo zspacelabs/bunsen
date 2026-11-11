@@ -285,12 +285,12 @@ mod tests {
             candidate(
                 "openai/large-v2",
                 json!({"kit": "whisper", "base": false, "parameters": 1.5e9,
-                       "version": {"group": "whisper-large", "version": "2.0.0"}}),
+                       "release": {"group": "whisper-large", "released": "2022-12"}}),
             ),
             candidate(
                 "openai/large-v3",
                 json!({"kit": "whisper", "base": false, "parameters": 1.5e9,
-                       "version": {"group": "whisper-large", "version": "3.0.0"}}),
+                       "release": {"group": "whisper-large", "released": "2023-11-06"}}),
             ),
             candidate(
                 "openai/tiny",

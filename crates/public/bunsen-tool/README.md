@@ -614,7 +614,7 @@ cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech mu
 | `translate-en` | other speech, as English text | `require: {translate: true}` | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/tiny[translate]{beam_size: 1}`, `conservative` |
 
 An ASR preset's selection chooses its model among every speech family's checkpoints, by their tags ([Choosing a
-model](#choosing-a-model)), over the table's own: the newest of a release sequence, then the lowest published English
+model](#choosing-a-model)), over the table's own: the newest of a release group, then the lowest published English
 word error rate (`scores: {wer.en}`), a model without one after those with. `multilingual` is a checkpoint whose
 `language` lists more than one language, or `"*"`. `--quality fast` and `live` add `require: {parameters: {max: 1e9}}`,
 a model small enough to keep up; `--quality good` takes the larger among equals. The ASR presets are this binary's, and
@@ -1013,29 +1013,29 @@ cargo run --release -p bunsen-tool --features wgpu -- decide run --select laya-m
 ## Choosing a model
 
 `chat` and `decide` choose their checkpoint with `--select`, repeatable: at most one name, and any number of
-selection objects, YAML. A checkpoint's facts are its tags, which its catalog row carries:
-`base`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
-others), `parameters`, `groups`, `version`, `kit`.
+selection objects, YAML. A checkpoint's facts are its tags, which its build in the built-in catalog carries:
+`instruct`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
+others), `parameters`, `release` (its release group and date), `kit`, `contract`, `family`, `publisher`.
 
 - A name that is a checkpoint's (its full id, its bare name, or an alias) is that checkpoint, as named.
 - Any other name is a set of checkpoints: those whose names it begins (`--select qwen3`), else those of the group it
   names, else the kit's (`--select nanochat`). The command's defaults choose within it: a tuned model
-  (`base: false`), each release sequence's newest, the heaviest first.
+  (`instruct: true`), each release group's newest, the heaviest first.
 - An object narrows and orders, merged over the defaults: `require` (a tag's value, one of a list, `{min, max}`, or a
   language), `prefer` (each a tag with the score it keeps when it is not met: `{language: de, otherwise: 0.5}`),
   `latest`, `absent` (`drop`, or `{default: value}`, for a checkpoint without the tag), `order` (`[-parameters]`),
-  `take` (the least weight taken). `null` removes a default: `{require: {base: null}}`.
+  `take` (the least weight taken). `null` removes a default: `{require: {instruct: null}}`.
 - `--preset` keeps only the checkpoints that have the preset; `--patch {..}` merges over the chosen one's config.
 
 ```sh
-bunsen-tool chat run --select qwen3 --select '{require: {base: null, thinking: never}, order: [parameters]}' "Hi"
+bunsen-tool chat run --select qwen3 --select '{require: {instruct: null, thinking: never}, order: [parameters]}' "Hi"
 bunsen-tool chat run --select '{require: {parameters: {max: 2e9}}, prefer: [{language: zh, otherwise: 0}]}' "你好"
 ```
 
 The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
 
-The checkpoints: `laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya-multilingual` (on
-`mmBERT-base`) and `laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
+The checkpoints: `laya/laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya/laya-multilingual` (on
+`mmBERT-base`) and `laya/laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
 device accelerates it, else in f32.
 
 ## catalog: build catalogs

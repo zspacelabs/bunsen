@@ -117,7 +117,9 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("  transcribe: whisper openai/large-v3[translate]{beam_size: 5}\n"),
+            text.contains(
+                "  transcribe: whisper openai/whisper/large/large-v3[translate]{beam_size: 5}\n"
+            ),
             "{text}"
         );
     }

@@ -138,7 +138,7 @@ fn test_the_bundle_serves_openai_base() {
     let loaded = cache
         .load(WHISPER_KIT, &model.to_resource_bundle())
         .unwrap();
-    assert_eq!(loaded.map.name, "well-known:openai/base");
+    assert_eq!(loaded.map.name, "well-known:openai/whisper/base");
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");
         assert!(part.path.starts_with(bind_whisper_onnx::cache_dir()));

@@ -110,6 +110,31 @@ impl PretrainedRef {
             .map(|prefab| prefabs.expect_lookup_prefab(prefab))
     }
 
+    /// The value the row binds its contract's argument slot `slot` to, read as
+    /// `C`: a stated geometry, say. `None` for a given bundle, or a row that
+    /// binds no such slot.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when the value
+    /// doesn't read as `C`.
+    pub fn stated<C: serde::de::DeserializeOwned>(
+        &self,
+        slot: &str,
+    ) -> crate::errors::BunsenResult<Option<C>> {
+        let Some(value) = self.named().and_then(|(_, row)| row.args.get(slot)) else {
+            return Ok(None);
+        };
+        serde_json::from_value(value.clone())
+            .map(Some)
+            .map_err(|e| {
+                crate::errors::BunsenError::illegal(format!(
+                    "{}: the argument `{slot}` doesn't read as its config",
+                    self.id()
+                ))
+                .with_cause(e)
+            })
+    }
+
     /// The resource bundle: the row's, named by the qualified id, or the
     /// given resource bundle.
     pub fn to_resource_bundle(&self) -> ResourceBundle {

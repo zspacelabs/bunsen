@@ -8,10 +8,9 @@ use burn::{
 
 use super::{
     CHECKPOINT,
-    GEMMA_CATALOG,
-    GEMMA_FAMILY,
     GEMMA_KIT,
     GEMMA_PREFABS,
+    GEMMA_TEMPLATE_CLASS,
 };
 use crate::{
     data::pretrained::{
@@ -82,7 +81,7 @@ impl TransformersLmKit for GemmaConstructConfig {
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
-    /// catalog tool probes a row's, over the [`GEMMA_FAMILY`]'s: its
+    /// catalog tool probes a row's, over the [`GEMMA_TEMPLATE_CLASS`]'s: its
     /// `generation_config.json`, when it has one (the stop tokens and
     /// sampling); its `tokenizer_config.json`'s [`END_OF_TURN`] (a turn's
     /// end, which joins the stop tokens) and chat template, when it has one;
@@ -98,7 +97,7 @@ impl TransformersLmKit for GemmaConstructConfig {
                 CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
                 CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
             ],
-            &GEMMA_CATALOG.family_presets(GEMMA_FAMILY),
+            &crate::data::pretrained::builtin_template_presets(GEMMA_TEMPLATE_CLASS)?,
         )
     }
 }
@@ -170,7 +169,7 @@ mod tests {
 
     /// A row's chat template is its own file where it has one (Gemma 3's
     /// `chat_template.jinja`, the rest's `tokenizer_config.json`), and the
-    /// [`GEMMA_FAMILY`]'s own source where it has none (the pretrained
+    /// [`GEMMA_TEMPLATE_CLASS`]'s own source where it has none (the pretrained
     /// models); a lookup's patch replaces either.
     #[test]
     fn test_the_chat_templates() {
@@ -192,7 +191,9 @@ mod tests {
         };
         assert_eq!(template("gemma/gemma-3-1b-it"), file("chat_template"));
         assert_eq!(template("gemma/gemma-2-9b-it"), file("tokenizer_config"));
-        let family = GEMMA_CATALOG.family_presets(GEMMA_FAMILY).base["generation"]["chat_template"]
+        let family = crate::data::pretrained::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
+            .unwrap()
+            .common["generation"]["chat_template"]
             .as_str()
             .unwrap()
             .to_string();

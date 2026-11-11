@@ -45,6 +45,10 @@ pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const SILERO_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const SILERO_CATALOG_CONTRACT: &str = "silero-vad";
+
 /// Silero's compiled-in providers: the well-known table (with
 /// `store`), and none without it.
 ///
@@ -52,7 +56,12 @@ pub const SILERO_CONTRACT: &str = include_str!("contract.yml");
 /// `silero_vad_16k.safetensors`, the 16 kHz model, fetched from a pinned
 /// revision of `snakers4/silero-vad`.
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(SILERO_CATALOG.table())];
+    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(
+        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            SILERO_CATALOG_CONTRACT,
+            SILERO_KIT,
+        ),
+    )];
     providers
 }
 
@@ -90,7 +99,7 @@ mod tests {
     fn test_only_upstream_is_listed() {
         let factory = default_silero_factory().unwrap();
         assert_eq!(factory.kit(), SILERO_KIT);
-        assert_eq!(factory.ids(), ["well-known:silero/vad-16k"]);
+        assert_eq!(factory.ids(), ["well-known:silero/silero_vad/vad-16k"]);
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("vad"));
     }
 
@@ -113,7 +122,7 @@ mod tests {
         for spec in ["well-known:silero/vad-16k", "silero/vad-16k", "vad-16k"] {
             assert_eq!(
                 factory.lookup(spec).unwrap().1.name,
-                "silero/vad-16k",
+                "silero/silero_vad/vad-16k",
                 "{spec}"
             );
         }

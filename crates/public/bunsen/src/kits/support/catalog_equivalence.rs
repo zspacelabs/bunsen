@@ -220,7 +220,7 @@ fn test_the_builtin_rows_are_the_old_rows() {
     let mut total = 0;
     let mut compared = Compared::default();
     for kit in kits() {
-        let new = BuildCatalogProvider::builtin("the built-in catalog", kit.contract, kit.kit)
+        let new = BuildCatalogProvider::builtin(kit.contract, kit.kit)
             .unwrap_or_else(|e| panic!("{}: {e}", kit.kit));
         let old = kit.catalog.table().list();
         if old.len() != new.rows().len() {
@@ -254,7 +254,7 @@ fn test_the_builtin_rows_are_the_old_rows() {
 /// The rows are named in full, each under its publisher.
 #[test]
 fn test_the_builtin_rows_are_named_in_full() {
-    let qwen3 = BuildCatalogProvider::builtin("", "qwen3-lm", "qwen3").unwrap();
+    let qwen3 = BuildCatalogProvider::builtin("qwen3-lm", "qwen3").unwrap();
     assert_eq!(
         qwen3.lookup("qwen/qwen3-0.6b").unwrap().unwrap().name,
         "qwen/qwen3/qwen3-0.6b"

@@ -47,6 +47,10 @@ pub static QWEN3_ASR_CATALOG: EmbeddedCatalog =
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const QWEN3_ASR_CONTRACT: &str = include_str!("contract.yml");
 
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const QWEN3_ASR_CATALOG_CONTRACT: &str = "qwen3-asr";
+
 /// The tag rules of the kit's rows, which the catalog tool holds its catalog
 /// to: the keys every row carries, a speech recognizer's: what speech to text
 /// chooses its model by.
@@ -69,7 +73,12 @@ pub const DEFAULT_QWEN3_ASR_MODEL: &str = "fermion/phonon-1";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(QWEN3_ASR_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                QWEN3_ASR_CATALOG_CONTRACT,
+                QWEN3_ASR_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -150,8 +159,11 @@ mod tests {
         ] {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, name);
-            let prefab = row.prefab.as_deref().unwrap();
-            QWEN3_ASR_PREFABS.try_lookup_prefab(prefab).unwrap();
+            // Its geometry is stated, and reads as a config.
+            serde_json::from_value::<crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig>(
+                row.args[crate::data::pretrained::GEOMETRY].clone(),
+            )
+            .unwrap();
         }
     }
 

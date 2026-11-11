@@ -25,11 +25,12 @@
 //! its presets resolved to, which a driver takes with
 //! [`with_policy`](super::driver::WhisperStreamDriverConfig::with_policy).
 //! The multilingual checkpoints that translate (every one but the `.en`
-//! checkpoints and `large-v3-turbo`) are the catalog's `multilingual` family,
-//! with a `task` axis: `[transcribe]`, the default, and `[translate]`. Every
-//! other field is the lookup's patch: `'openai/small[translate]{beam_size:
-//! 1}'`. A multilingual checkpoint no row describes, a file or an `hf:` repo,
-//! takes the family's presets ([`MULTILINGUAL_FAMILY`]).
+//! checkpoints and `large-v3-turbo`) are the catalog's `multilingual` template
+//! class, with a `task` axis: `[transcribe]`, the default, and `[translate]`.
+//! Every other field is the lookup's patch:
+//! `'openai/small[translate]{beam_size: 1}'`. A multilingual checkpoint no row
+//! describes, a file or an `hf:` repo, takes the class's presets
+//! ([`MULTILINGUAL_TEMPLATE_CLASS`]).
 //!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
@@ -82,12 +83,11 @@
 //!
 //! let factory = default_whisper_factory()?;
 //!
-//! // `large` is upstream's alias for `large-v3`, and the row names its
-//! // prefab: the geometry the checkpoint must scan to.
+//! // `large` is upstream's alias for `large-v3`; its prefab documents the
+//! // geometry its checkpoint carries.
 //! let (_, row) = factory.lookup("large")?;
-//! assert_eq!(row.name, "openai/large-v3");
-//! let prefab =
-//!     WHISPER_PREFABS.try_lookup_prefab(row.prefab.as_deref().unwrap())?;
+//! assert_eq!(row.name, "openai/whisper/large/large-v3");
+//! let prefab = WHISPER_PREFABS.try_lookup_prefab("large-v3")?;
 //! let geometry = prefab.to_config().geometry();
 //! assert_eq!((geometry.n_mels, geometry.vocab_size), (128, 51866));
 //!

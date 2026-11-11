@@ -40,7 +40,6 @@ use crate::{
                 PytorchWhisperScanner,
                 SafetensorsWhisperScanner,
                 VOCABULARY,
-                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperVocabulary,
@@ -343,9 +342,10 @@ impl WhisperConstructConfig {
     }
 }
 
-/// The Whisper catalog's family of multilingual checkpoints: its presets are
-/// the `task` axis, `[transcribe]` and `[translate]`.
-pub const MULTILINGUAL_FAMILY: &str = "multilingual";
+/// The built-in catalog's template class of the multilingual Whisper
+/// checkpoints: its presets are the `task` axis, `[transcribe]` and
+/// `[translate]`.
+pub const MULTILINGUAL_TEMPLATE_CLASS: &str = "openai/whisper/multilingual";
 
 impl ConstructInit for WhisperConstructConfig {
     type Construct = WhisperConstruct;
@@ -445,9 +445,7 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            WHISPER_CATALOG
-                .family_presets(MULTILINGUAL_FAMILY)
-                .to_resolved()?
+            crate::data::pretrained::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
         } else {
             ResolvedPresetSet::default()
         };
