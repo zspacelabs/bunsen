@@ -5,8 +5,9 @@ use super::*;
 /// The `select` flags: see [`CatalogAction::Select`].
 #[derive(clap::Args, Clone, Debug)]
 pub struct SelectArgs {
-    /// The kind of entry to select (`build`, `template_class`, `namespace`,
-    /// `resource`, ..).
+    /// The kind of entry to select.
+    ///
+    /// `build`, `template_class`, `namespace`, `resource`, ..
     #[arg(long, default_value = "build")]
     kind: String,
     /// Names, in order: one `from` stage; a named selection's name is a
@@ -64,12 +65,15 @@ pub struct SelectArgs {
     /// `use: NAME`; repeatable.
     #[arg(long = "use", value_name = "NAME")]
     uses: Vec<String>,
-    /// `unset: LABEL`: removes the earlier stage labeled LABEL (a default's
-    /// `as`); repeatable.
+    /// `unset: LABEL`: removes the earlier stage labeled LABEL; repeatable.
+    ///
+    /// LABEL is a stage's `as`, such as a default's.
     #[arg(long, value_name = "LABEL")]
     unset: Vec<String>,
-    /// Starts a `per` stage, by a facet (`family`) or a list of names
-    /// (`'[qwen3, whisper]'`): the flags up to its `--end` are its `run`.
+    /// Starts a `per` stage: the flags up to its `--end` are its `run`.
+    ///
+    /// The group is a facet (`family`) or a list of names
+    /// (`'[qwen3, whisper]'`).
     #[arg(long, value_name = "GROUP")]
     per: Vec<String>,
     /// Ends the innermost `--per`.
@@ -80,8 +84,10 @@ pub struct SelectArgs {
     pipeline: Vec<String>,
     #[command(flatten)]
     presets: PresetArgs,
-    /// The defaults, a list of stages (a file, or YAML flow): applied
-    /// unless the only name is one build.
+    /// The defaults, a list of stages: applied unless the only name is one
+    /// build.
+    ///
+    /// A file, or YAML flow.
     #[arg(long, value_name = "FILE|[..]")]
     defaults: Option<String>,
     /// Also list every row a stage removed, with why.

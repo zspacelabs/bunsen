@@ -32,26 +32,31 @@ pub struct ChatCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 enum ChatSubCommand {
-    /// The checkpoints bunsen knows by name, every family's: each one's
-    /// origin, and each of its files' path in its repo and whether it is
-    /// cached.
+    /// The checkpoints bunsen knows by name, every family's.
+    ///
+    /// Each one's origin, and each of its files' path in its repo and whether
+    /// it is cached.
     List(ChatListCommand),
 
-    /// Brings every file of the named checkpoints into the weights cache;
-    /// each name is its own family's.
+    /// Brings every file of the named checkpoints into the weights cache.
+    ///
+    /// Each name is its own family's.
     Fetch(ChatFetchCommand),
 
-    /// Answers one prompt, from the command line or stdin, with the
-    /// checkpoint `--model` names, of whichever family.
+    /// Answers one prompt, from the command line or stdin.
+    ///
+    /// The checkpoint is the one `--model` names, of whichever family.
     Run(ChatRunCommand<ChatThinkFlags>),
 
-    /// Holds a conversation on stdin, with the checkpoint `--model` names,
-    /// of whichever family: `/reset` starts over, `/quit` (or end of input)
-    /// leaves.
+    /// Holds a conversation on stdin: `/reset` starts over, `/quit` leaves.
+    ///
+    /// The checkpoint is the one `--model` names, of whichever family; end of
+    /// input leaves too.
     Repl(ChatReplCommand<ChatThinkFlags>),
 
-    /// The model families, each with its own `list`, `fetch`, `run` and
-    /// `repl`, its own default checkpoint, and only the flags that apply to
+    /// The model families, each with its own `list`, `fetch`, `run` and `repl`.
+    ///
+    /// Each has its own default checkpoint, and only the flags that apply to
     /// it.
     Family(ChatFamilyCommandGroup),
 }

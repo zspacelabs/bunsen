@@ -1,11 +1,11 @@
 //! `bunsen-tool`: bunsen's models on the command line. `bunsen-tool asr`
 //! is speech to text, by preset or by model family, and who spoke when;
-//! `bunsen-tool chat` chats with a Qwen3 or nanochat checkpoint; `bunsen-tool
-//! decide` answers typed questions about a context with a Laya decision
-//! model; `bunsen-tool cache <path|list|clear>` manages the weights cache every
-//! command loads through; `bunsen-tool card` describes the build, its cache and
-//! the models it knows; `bunsen-tool catalog` imports build catalogs, and
-//! dumps, browses, resolves and selects over them.
+//! `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or nanochat
+//! checkpoint; `bunsen-tool decide` answers typed questions about a context
+//! with a Laya decision model; `bunsen-tool cache <path|list|clear>` manages
+//! the weights cache every command loads through; `bunsen-tool card` describes
+//! the build, its cache and the models it knows; `bunsen-tool catalog` imports
+//! build catalogs, and dumps, browses, resolves and selects over them.
 
 use std::process::ExitCode;
 
@@ -30,8 +30,18 @@ use clap::{
     Parser,
 };
 
+/// bunsen's models on the command line.
+///
+/// `bunsen-tool asr` is speech to text, by preset or by model family, and who
+/// spoke when; `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
+/// nanochat checkpoint; `bunsen-tool decide` answers typed questions about a
+/// context with a Laya decision model; `bunsen-tool cache` manages the weights
+/// cache every command loads through; `bunsen-tool card` describes the build,
+/// its cache and the models it knows; `bunsen-tool devices` lists the backends
+/// and their devices; `bunsen-tool catalog` browses, resolves and selects over
+/// the model catalog.
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version)]
 struct Args {
     #[clap(subcommand)]
     command: Command,
@@ -39,26 +49,31 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// Speech to text, by preset (`asr transcribe`, `asr live`) or by model
-    /// family (`asr family`), and who spoke when (`asr diarize`).
+    /// Speech to text, by preset or by model family, and who spoke when.
+    ///
+    /// By preset (`asr transcribe`, `asr live`) or by model family (`asr
+    /// family`), and who spoke when (`asr diarize`).
     #[cfg(feature = "speech")]
     Asr(asr::AsrCommandGroup),
 
-    /// Chat with a Qwen3 or nanochat checkpoint: one prompt (`chat run`), a
-    /// conversation (`chat repl`), and the checkpoints (`chat list`, `chat
-    /// fetch`); `chat family` for one family's.
+    /// Chat with a Qwen3, Qwen3.5, Gemma or nanochat checkpoint.
+    ///
+    /// One prompt (`chat run`), a conversation (`chat repl`), and the
+    /// checkpoints (`chat list`, `chat fetch`); `chat family` for one family's.
     Chat(ChatCommandGroup),
 
-    /// Typed questions about a context, answered with calibrated
-    /// probabilities by a Laya decision model: a request (YAML or JSON) in
+    /// Typed questions about a context, answered by a Laya decision model.
+    ///
+    /// Answered with calibrated probabilities: a request (YAML or JSON) in
     /// (`decide run`), one result per question out; and the checkpoints
     /// (`decide list`, `decide fetch`).
     Decide(DecideCommandGroup),
 
-    /// The weights cache every command loads through: where it is, what it
-    /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
-    /// `sortformer`, `silero_vad`, `qwen3`, `nanochat`, `laya`), and clearing
-    /// it.
+    /// The weights cache every command loads through.
+    ///
+    /// Where it is, what it holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`,
+    /// `whisper`, `sortformer`, `silero_vad`, `qwen3`, `nanochat`, `laya`), and
+    /// clearing it.
     Cache(CacheCommand),
 
     /// The built-in model catalog: browse it, resolve builds, select them.
@@ -69,14 +84,19 @@ enum Command {
     /// selection pipelines, each stage explained (`select`).
     Catalog(CatalogCommand),
 
+    /// What this build is, its weights cache and the models it knows, as YAML
+    /// or JSON.
+    ///
     /// What this build is (`build`: its version and features), its weights
     /// cache (`config`), and the models it knows by name (`kits`: by kind and
-    /// family, a name and a description each), as YAML or JSON.
+    /// family, a name and a description each).
     Card(CardCommand),
 
-    /// The backends this build can run on, each one's default device, and
-    /// what the device does with each float dtype (store, compute,
-    /// accelerate), as YAML or JSON.
+    /// The backends this build can run on and their default devices, as YAML or
+    /// JSON.
+    ///
+    /// Each backend's default device, and what the device does with each float
+    /// dtype (store, compute, accelerate).
     Devices(DevicesCommand),
 }
 
@@ -168,6 +188,49 @@ mod tests {
             argv.extend_from_slice(action);
             Args::try_parse_from(argv).unwrap();
         }
+    }
+
+    /// Every command's and argument's short help is one summary of at most
+    /// [`SUMMARY`] characters: clap's derive takes a doc comment's first
+    /// paragraph, up to its first blank line, as the short help (`-h`, and
+    /// the command and flag lists), and the whole comment as the long help
+    /// (`--help`).
+    #[test]
+    fn test_help_summaries_are_short() {
+        const SUMMARY: usize = 80;
+        fn walk(
+            command: &clap::Command,
+            path: &str,
+            long: &mut Vec<String>,
+        ) {
+            let path = format!("{path} {}", command.get_name()).trim().to_string();
+            let mut check = |what: String, text: String| {
+                if text.chars().count() > SUMMARY {
+                    long.push(format!("{what} ({}): {text}", text.chars().count()));
+                }
+            };
+            if let Some(about) = command.get_about() {
+                check(path.clone(), about.to_string());
+            }
+            for arg in command.get_arguments() {
+                if let Some(help) = arg.get_help() {
+                    check(format!("{path} {}", arg.get_id()), help.to_string());
+                }
+            }
+            for sub in command.get_subcommands() {
+                walk(sub, &path, long);
+            }
+        }
+        let mut long = Vec::new();
+        walk(&Args::command(), "", &mut long);
+        long.sort();
+        long.dedup();
+        assert!(
+            long.is_empty(),
+            "{} long summaries:\n{}",
+            long.len(),
+            long.join("\n")
+        );
     }
 
     /// `catalog` runs over the built-in catalog, at its own level of the

@@ -215,39 +215,50 @@ pub enum CatalogAction {
         patch: Option<String>,
     },
 
-    /// Select builds, printed as YAML: the composed query, why, the
-    /// presets applied, and the result in order, each build resolved with
-    /// its weight. Each flag is one stage, in command-line order, but
-    /// `--on`, `--off` and `--preset`: they are the presets applied, and the
-    /// prefix that keeps only the builds that can take them.
+    /// Select builds through a pipeline of stages, printed as YAML.
+    ///
+    /// The output: the composed query, why, the presets applied, and the
+    /// result in order, each build resolved with its weight. Each flag is one
+    /// stage, in command-line order, but `--on`, `--off` and `--preset`: they
+    /// are the presets applied, and the prefix that keeps only the builds that
+    /// can take them.
     Select(Box<select::SelectArgs>),
 
-    /// The imported catalogs, in import order, as one sequence: each
-    /// item's `layer`, `path` and `catalog`, the document in its keyed form.
+    /// The imported catalogs, in import order, as one sequence.
+    ///
+    /// Each item's `layer`, `path` and `catalog`, the document in its keyed
+    /// form.
     Dump {
         /// The output format.
         #[arg(long, value_enum, default_value_t = DumpFormat::Yml)]
         format: DumpFormat,
     },
 
-    /// The namespace as a directory view, from the root's entries or from
-    /// one entry: `name: description` for a namespace, `name: aliases {axes}
+    /// The namespace as a directory view, from the root's entries or one entry.
+    ///
+    /// `name: description` for a namespace, `name: aliases {axes}
     /// description` for a build, `name -> target` for an alias. By default
     /// it shows namespaces, builds and the aliases that name them.
     Tree {
         /// The entry to start from, by any unambiguous name; the root when
         /// absent.
         root: Option<String>,
-        /// Show only entries of these kinds (repeatable), with the
-        /// containers on the way to them.
+        /// Show only entries of these kinds (repeatable).
+        ///
+        /// The containers on the way to them show too.
         #[arg(long = "kind", value_name = "KIND", conflicts_with = "all")]
         kinds: Vec<String>,
-        /// Show every kind: contracts, releases, template classes,
-        /// resources, tags, axes and facets too.
+        /// Show every kind of entry.
+        ///
+        /// Contracts, releases, template classes, resources, tags, axes and
+        /// facets too.
         #[arg(long)]
         all: bool,
-        /// Where aliases show: on their build's line (`inline`), as entries
-        /// where they sit (`entries`), both, or not at all.
+        /// Where aliases show: on their build's line, as entries, both, or not
+        /// at all.
+        ///
+        /// On their build's line (`inline`), as entries where they sit
+        /// (`entries`), both, or not at all.
         #[arg(long, value_enum, default_value_t = AliasView::Both)]
         aliases: AliasView,
         /// How many levels below the start to show.

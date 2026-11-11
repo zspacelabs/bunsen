@@ -48,8 +48,9 @@ pub struct AsrDiarizeCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 enum AsrDiarizeSubCommand {
-    /// List the models `--model` can name, their licences and files, and
-    /// whether each file is cached.
+    /// List the models `--model` can name, their licences and files.
+    ///
+    /// Each file is marked with whether it is cached.
     List(AsrKitListCommand),
 
     /// Bring every file of the named models into the weights cache.
@@ -81,7 +82,8 @@ impl AsrDiarizeCommandGroup {
 /// each model's.
 #[derive(clap::Args, Debug)]
 pub struct AsrDiarizerArgs {
-    /// The model, as a lookup expression: `diarize list` shows them;
+    /// The model, as a lookup expression: `diarize list` shows them.
+    ///
     /// `nvidia/nemotron-3-diarization` when omitted.
     #[arg(long)]
     pub model: Option<String>,
@@ -130,7 +132,8 @@ pub fn load_diarizer(
 /// `transcribe` and `live`.
 #[derive(clap::Args, Debug)]
 pub struct AsrSpeakerArgs {
-    /// Label each word or segment with its speaker, through a diarizer:
+    /// Label each word or segment with its speaker, through a diarizer.
+    ///
     /// `--diarize` alone for `nvidia/nemotron-3-diarization`, `--diarize=EXPR`
     /// for another, or its presets
     /// (`--diarize='nvidia/nemotron-3-diarization[very-low]'`; `diarize list`
@@ -173,8 +176,9 @@ pub struct AsrDiarizeOutputArgs {
     #[arg(long)]
     pub rttm: bool,
 
-    /// Print JSON: for `run`, an object per file with its turns and each
-    /// speaker's total; for `live`, an object per turn.
+    /// Print JSON: for `run`, an object per file; for `live`, one per turn.
+    ///
+    /// A file's object has its turns and each speaker's total.
     #[arg(long)]
     pub json: bool,
 }

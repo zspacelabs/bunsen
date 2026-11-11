@@ -60,23 +60,28 @@ use crate::{
 /// exits.
 #[derive(clap::Args, Debug)]
 pub struct AsrKitLiveCommand<F: clap::Args> {
-    /// The model, as a lookup expression, its presets and patch its policy
+    /// The model, as a lookup expression; the family's default when omitted.
+    ///
+    /// The expression also names its presets and patches its policy
     /// (`'openai/small[translate]{beam_size: 1}'`): `list` shows the names
-    /// and presets; the family's default when omitted. Whisper also takes a
-    /// checkpoint's path.
+    /// and presets. Whisper also takes a checkpoint's path.
     #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 
     #[clap(flatten)]
     pub presets: PresetArgs,
 
-    /// When to decode: a microphone has no end, so by default each speech
-    /// region is decoded as it closes.
+    /// When to decode.
+    ///
+    /// A microphone has no end, so by default each speech region is decoded
+    /// as it closes.
     #[arg(long, value_enum, default_value_t = Emission::Conservative)]
     pub emission: Emission,
 
-    /// Milliseconds of audio per push: the capture callbacks, which arrive
-    /// every few milliseconds, are batched to this.
+    /// Milliseconds of audio per push.
+    ///
+    /// The capture callbacks, which arrive every few milliseconds, are
+    /// batched to this.
     #[arg(long, default_value_t = 250)]
     pub chunk_ms: usize,
 

@@ -40,8 +40,10 @@ use crate::logging::{
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct WeightsCacheArgs {
-    /// Directory for fetched weights; `$BUNSEN_CACHE_DIR`, then the
-    /// platform's cache directory, when omitted.
+    /// Directory for fetched weights.
+    ///
+    /// When omitted: `$BUNSEN_CACHE_DIR`, then the platform's cache
+    /// directory.
     #[arg(long)]
     pub cache_dir: Option<PathBuf>,
 
@@ -87,9 +89,11 @@ pub enum CacheAction {
     /// Print the cache directory.
     Path,
 
-    /// List the cached weights: each file's kit, namespace, size, when it
-    /// was fetched and last loaded (UTC), and its pin, then the total.
-    /// Listing loads nothing, so it changes no file's last use.
+    /// List the cached weights, file by file, then the total.
+    ///
+    /// Each file's kit, namespace, size, when it was fetched and last loaded
+    /// (UTC), and its pin. Listing loads nothing, so it changes no file's last
+    /// use.
     List {
         /// `kit` or `kit/namespace`; every file when omitted.
         selector: Option<CacheSelector>,
@@ -104,9 +108,11 @@ pub enum CacheAction {
         #[arg(long)]
         partial: bool,
 
-        /// Only files not loaded for at least this long: `90m`, `12h`,
-        /// `30d`, `2w` (`s`, `m`, `h`, `d`, `w`). A file whose last use the
-        /// file system does not record is kept.
+        /// Only files not loaded for at least this long (`90m`, `12h`, `30d`,
+        /// `2w`).
+        ///
+        /// Units: `s`, `m`, `h`, `d`, `w`. A file whose last use the file
+        /// system does not record is kept.
         #[arg(long, value_parser = parse_age)]
         age: Option<Duration>,
 

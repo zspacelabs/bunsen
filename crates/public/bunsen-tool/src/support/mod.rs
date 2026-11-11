@@ -106,9 +106,10 @@ pub fn preset_lines(set: &ResolvedPresetSet) -> Vec<String> {
 /// lookup expression.
 #[derive(clap::Args, Debug, Clone, Default)]
 pub struct PresetArgs {
-    /// The model's presets, joining its expression's box: a comma list, or
-    /// the flag repeated (`--preset translate --preset ...`). The model's
-    /// `list` shows the presets it has.
+    /// The model's presets, joining its expression's box.
+    ///
+    /// A comma list, or the flag repeated (`--preset translate --preset
+    /// ...`). The model's `list` shows the presets it has.
     #[arg(long = "preset", value_name = "PRESET", value_delimiter = ',')]
     pub presets: Vec<String>,
 }

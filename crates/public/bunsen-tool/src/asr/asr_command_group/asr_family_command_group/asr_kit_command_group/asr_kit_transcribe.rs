@@ -55,10 +55,11 @@ use crate::{
 /// how long it took, are logged at `INFO` (`-v`).
 #[derive(clap::Args, Debug)]
 pub struct AsrKitTranscribeCommand<F: clap::Args> {
-    /// The model, as a lookup expression, its presets and patch its policy
+    /// The model, as a lookup expression; the family's default when omitted.
+    ///
+    /// The expression also names its presets and patches its policy
     /// (`'openai/small[translate]{beam_size: 1}'`): `list` shows the names
-    /// and presets; the family's default when omitted. Whisper also takes a
-    /// checkpoint's path.
+    /// and presets. Whisper also takes a checkpoint's path.
     #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 
@@ -69,8 +70,10 @@ pub struct AsrKitTranscribeCommand<F: clap::Args> {
     #[arg(long, value_enum, default_value_t = Emission::Offline)]
     pub emission: Emission,
 
-    /// Milliseconds of audio per push: each file is fed to the driver as a
-    /// live loop would feed it, in pieces of this.
+    /// Milliseconds of audio per push.
+    ///
+    /// Each file is fed to the driver as a live loop would feed it, in pieces
+    /// of this.
     #[arg(long, default_value_t = 1000)]
     pub chunk_ms: usize,
 

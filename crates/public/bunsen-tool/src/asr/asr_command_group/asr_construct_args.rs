@@ -51,40 +51,49 @@ use crate::asr::{
 /// runs, is logged and recorded by `--json`.
 #[derive(clap::Args, Debug)]
 pub struct AsrConstructArgs {
-    /// The preset, by name or alias: `presets` lists them, and what each
-    /// runs. Without it, `--speech`, `--task`, `--quality` and `--language`
-    /// choose the model, over `default`'s; with it, they may only adjust it.
+    /// The preset, by name or alias: `presets` lists them, and what each runs.
+    ///
+    /// Without it, `--speech`, `--task`, `--quality` and `--language` choose
+    /// the model, over `default`'s; with it, they may only adjust it.
     #[arg(long = "preset", value_name = "PRESET")]
     pub preset: Option<String>,
 
-    /// What the speech is; `--language` implies it. Without `--preset`, in
-    /// place of `default`'s (`multi` with `--task translate`); with it, only
-    /// as the preset already hears it (`multi` hears English).
+    /// What the speech is; `--language` implies it.
+    ///
+    /// Without `--preset`, in place of `default`'s (`multi` with `--task
+    /// translate`); with it, only as the preset already hears it (`multi`
+    /// hears English).
     #[arg(long, value_enum)]
     pub speech: Option<Speech>,
 
-    /// What to make of the speech: `transcribe` unless the preset
-    /// translates. Without `--preset`, in place of `default`'s; with it,
-    /// set on a model that takes a task (Whisper's `[translate]`), and an error
-    /// on one that does not. English speech is transcribed either way.
+    /// What to make of the speech: `transcribe` unless the preset translates.
+    ///
+    /// Without `--preset`, in place of `default`'s; with it, set on a model
+    /// that takes a task (Whisper's `[translate]`), and an error on one that
+    /// does not. English speech is transcribed either way.
     #[arg(long, value_enum)]
     pub task: Option<Task>,
 
-    /// How much compute to spend, in place of the preset's: `fast` caps the
-    /// model at 1B parameters, `good` takes the larger among equals.
+    /// How much compute to spend, in place of the preset's.
+    ///
+    /// `fast` caps the model at 1B parameters, `good` takes the larger among
+    /// equals.
     #[arg(long, value_enum)]
     pub quality: Option<Quality>,
 
-    /// The spoken language (`en`, `de`, ...): it implies `--speech` (`en`,
-    /// or `multi` for any other), and is given to a model that can be told
-    /// it (Whisper); one that finds the language itself goes on doing so.
+    /// The spoken language (`en`, `de`, ...); it implies `--speech`.
+    ///
+    /// `en` implies `--speech en`, any other `multi`. It is given to a model
+    /// that can be told it (Whisper); one that finds the language itself goes
+    /// on doing so.
     #[arg(long)]
     pub language: Option<String>,
 
-    /// The model, as a lookup expression (`'openai/small[translate]{beam_size:
-    /// 1}'`), in place of the preset's. The family that lists it runs, the
-    /// preset's when it does; a name no family lists (`hf:`, a path) runs
-    /// in the preset's.
+    /// The model, as a lookup expression, in place of the preset's.
+    ///
+    /// For example `'openai/small[translate]{beam_size: 1}'`. The
+    /// family that lists it runs, the preset's when it does; a name no family
+    /// lists (`hf:`, a path) runs in the preset's.
     #[arg(long, value_name = "EXPR")]
     pub model: Option<String>,
 

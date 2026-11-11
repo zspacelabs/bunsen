@@ -92,8 +92,10 @@ pub struct CardCommand {
     #[arg(long, value_enum)]
     section: Option<Section>,
 
-    /// Each model's presets as data, their patches included, and the
-    /// policy its default selection resolves to (`policy`).
+    /// Each model's presets as data, and its default selection's policy.
+    ///
+    /// The presets with their patches included, and the policy the model's
+    /// default selection resolves to (`policy`).
     #[arg(long)]
     policies: bool,
 }

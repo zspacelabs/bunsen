@@ -20,8 +20,10 @@ pub struct ChatKitCommandGroup<F: clap::Args> {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum ChatKitSubCommand<F: clap::Args> {
-    /// The family's checkpoints: each one's origin, and each of its files'
-    /// path in its repo and whether it is cached.
+    /// The family's checkpoints.
+    ///
+    /// Each one's origin, and each of its files' path in its repo and whether
+    /// it is cached.
     List(ChatListCommand),
 
     /// Brings every file of the family's named checkpoints into the weights
@@ -31,8 +33,9 @@ pub enum ChatKitSubCommand<F: clap::Args> {
     /// Answers one prompt, from the command line or stdin.
     Run(ChatRunCommand<F>),
 
-    /// Holds a conversation on stdin: `/reset` starts over, `/quit` (or end
-    /// of input) leaves.
+    /// Holds a conversation on stdin: `/reset` starts over, `/quit` leaves.
+    ///
+    /// End of input leaves too.
     Repl(ChatReplCommand<F>),
 }
 

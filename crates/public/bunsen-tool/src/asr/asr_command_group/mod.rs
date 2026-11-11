@@ -31,8 +31,9 @@ pub struct AsrCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 enum AsrSubCommand {
-    /// Transcribe audio files with a preset: a model chosen by what it is
-    /// for (`en` by default).
+    /// Transcribe audio files with a preset: a model chosen by what it is for.
+    ///
+    /// The preset is `en` by default.
     Transcribe(Box<AsrTranscribeCommand>),
 
     /// Transcribe the microphone, as it speaks, with a preset.
@@ -42,8 +43,9 @@ enum AsrSubCommand {
     /// The presets: what each is for, and what it runs.
     Presets(AsrPresetsCommandGroup),
 
-    /// The model families, each with its own `list` and `transcribe`, and
-    /// only the flags that apply to it.
+    /// The model families, each with its own `list` and `transcribe`.
+    ///
+    /// Each takes only the flags that apply to it.
     Family(AsrFamilyCommandGroup),
 
     /// NVIDIA's Sortformer, who spoke when: `nvidia/nemotron-3-diarization`

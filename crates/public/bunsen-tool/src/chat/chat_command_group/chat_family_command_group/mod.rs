@@ -25,17 +25,21 @@ pub enum ChatFamilySubCommand {
     /// its layout.
     Qwen3(ChatKitCommandGroup<ChatThinkFlags>),
 
-    /// Qwen's dense Qwen3.5 (its text models): `qwen/qwen3.5-0.8b` by
-    /// default, or any `hf:org/repo` in its layout.
+    /// Qwen's dense Qwen3.5 (its text models).
+    ///
+    /// `qwen/qwen3.5-0.8b` by default, or any `hf:org/repo` in its layout.
     #[command(name = "qwen3.5")]
     Qwen3_5(ChatKitCommandGroup<ChatThinkFlags>),
 
-    /// Google's Gemma, generations 1 to 3: `gemma/gemma-3-1b-it` by
-    /// default, each from its `unsloth/` mirror.
+    /// Google's Gemma, generations 1 to 3.
+    ///
+    /// `gemma/gemma-3-1b-it` by default, each from its `unsloth/` mirror.
     Gemma(ChatKitCommandGroup<ChatPlainFlags>),
 
-    /// Andrej Karpathy's nanochat: community checkpoints of upstream's 2025
-    /// and 2026 models, `nanochat-students/rl-d20` by default.
+    /// Andrej Karpathy's nanochat.
+    ///
+    /// Community checkpoints of upstream's 2025 and 2026 models,
+    /// `nanochat-students/rl-d20` by default.
     #[command(name = "nanochat")]
     NanoChat(ChatKitCommandGroup<ChatPlainFlags>),
 }

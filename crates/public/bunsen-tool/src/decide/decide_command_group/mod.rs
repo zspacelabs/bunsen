@@ -22,14 +22,17 @@ pub struct DecideCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum DecideSubCommand {
-    /// Answers a request's questions: a YAML or JSON document, from a file
-    /// or stdin, of a `context` and its `choices`, each a `type` (`choice`,
-    /// `score` or `noul`), a `question`, and its `options`; one result per
-    /// choice, in order.
+    /// Answers a request's questions: one result per choice, in order.
+    ///
+    /// The request is a YAML or JSON document, from a file or stdin, of a
+    /// `context` and its `choices`, each a `type` (`choice`, `score` or
+    /// `noul`), a `question`, and its `options`.
     Run(DecideRunCommand),
 
-    /// The checkpoints bunsen knows by name: each one's origin, and each of
-    /// its files' path in its repo and whether it is cached.
+    /// The checkpoints bunsen knows by name.
+    ///
+    /// Each one's origin, and each of its files' path in its repo and whether
+    /// it is cached.
     List(DecideListCommand),
 
     /// Brings every file of the named checkpoints into the weights cache.

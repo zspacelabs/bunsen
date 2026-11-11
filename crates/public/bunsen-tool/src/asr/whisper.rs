@@ -57,12 +57,15 @@ use crate::asr::{
 /// (`--model 'openai/small[translate]{beam_size: 1}'`).
 #[derive(clap::Args, Debug, Default)]
 pub struct WhisperFlags {
-    /// A vocabulary file (`multilingual.tiktoken`, `gpt2.tiktoken`) in place
-    /// of the one the checkpoint's layout selects; trusted as given.
+    /// A vocabulary file, in place of the one the checkpoint's layout selects.
+    ///
+    /// For example `multilingual.tiktoken` or `gpt2.tiktoken`; trusted as
+    /// given.
     #[arg(long)]
     pub vocab: Option<PathBuf>,
 
-    /// `openai-whisper`'s download cache, whose files are used in place;
+    /// `openai-whisper`'s download cache, whose files are used in place.
+    ///
     /// `~/.cache/whisper` when omitted.
     #[arg(long)]
     pub upstream_cache_dir: Option<PathBuf>,

@@ -113,9 +113,10 @@ pub struct ChatGenerateFlags {
     #[arg(long, value_enum, default_value_t = ChatKvStorage::Auto)]
     kv_storage: ChatKvStorage,
 
-    /// Print, to stderr after each reply, the model's lookup expression
-    /// (its name and presets) on a line of its own, then the reply's token
-    /// counts and speeds.
+    /// Print the model and the reply's token counts and speeds, to stderr.
+    ///
+    /// After each reply: the model's lookup expression (its name and presets)
+    /// on a line of its own, then the counts and speeds.
     #[arg(long)]
     stats: bool,
 }
