@@ -1,0 +1,25 @@
+[package]
+name = "pretrained-catalog"
+description = "The pretrained catalog's runtime logic on its own: the document types, serial import into a validated state, queries, template-class resolution with the preset merge, selection, and a CLI over them."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+jiff = { version = "0.2.39", default-features = false, features = ["std"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde-saphyr = { workspace = true, features = ["serialize"] }
+
+[[bin]]
+name = "pretrained-catalog"
+path = "src/bin/pretrained-catalog.rs"
+
+[lints]
+workspace = true

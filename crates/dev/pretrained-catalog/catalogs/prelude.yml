@@ -1,0 +1,42 @@
+# The vocabulary every other catalog uses: facets, registered axes and tags,
+# and the template-class root. It is always the bottom of the stack.
+description: "Vocabulary: facets, registered axes and tags, and the template-class root."
+entries:
+  - kind: facet
+    name: publisher
+    description: "Who publishes the checkpoints."
+  - kind: facet
+    name: family
+    description: "A line of related architectures."
+
+  - kind: axis
+    name: thinking
+    axis: bool
+    description: "Whether the model thinks before it answers."
+  - kind: axis
+    name: task
+    axis: categorical
+    members: [transcribe, translate]
+    description: "What to make of the speech."
+
+  - kind: tag
+    name: parameters
+    type: count
+    description: "The parameter count."
+  - kind: tag
+    name: base
+    type: bool
+    description: "A pretrained base checkpoint, not tuned to follow instructions."
+  - kind: tag
+    name: language
+    type: languages
+    description: "The languages the model handles; `*` for others it wasn't measured on."
+  - kind: tag
+    name: scores
+    type: scores
+    description: "Benchmark scores, by name, where they were measured."
+
+  - kind: template_class
+    name: template_class_root
+    description: "The root of every template-class chain."
+    required_facets: [publisher, family]

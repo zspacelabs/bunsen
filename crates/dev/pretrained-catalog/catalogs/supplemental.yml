@@ -1,0 +1,43 @@
+# A supplemental catalog: one more Qwen3 build, added under groups an
+# earlier catalog declares. Its extending occurrences say what it assumes of
+# them. It may also name resources earlier catalogs declare.
+description: "A local addition: Qwen3-1.7B."
+entries:
+  - kind: namespace
+    name: qwen
+    merge: update
+    facet: publisher
+    children:
+      - kind: namespace
+        name: qwen3
+        merge: update
+        facet: family
+        children:
+          - kind: build
+            name: qwen3-1.7b
+            description: "Qwen3-1.7B: hybrid-thinking chat, added locally."
+            license: "Apache-2.0"
+            origin: "https://huggingface.co/Qwen/Qwen3-1.7B"
+            template_class: hybrid
+            tags: { parameters: 1700000000 }
+            dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
+            children:
+              - kind: resource
+                name: checkpoint
+                file: model.safetensors.index.json
+                format: safetensors-index
+                dtype: bfloat16
+                sha256: "4000000000000000000000000000000000000000000000000000000000000001"
+                sources: [{ hub: { repo: Qwen/Qwen3-1.7B, revision: 70d244c } }]
+              - kind: resource
+                name: config
+                file: config.json
+                format: json
+                sha256: "4000000000000000000000000000000000000000000000000000000000000002"
+                sources: [{ hub: { repo: Qwen/Qwen3-1.7B, revision: 70d244c } }]
+              - kind: resource
+                name: tokenizer
+                file: tokenizer.json
+                format: tokenizer.json
+                sha256: "7000000000000000000000000000000000000000000000000000000000000007"
+                sources: [{ hub: { repo: Qwen/Qwen3-1.7B, revision: 70d244c } }]
