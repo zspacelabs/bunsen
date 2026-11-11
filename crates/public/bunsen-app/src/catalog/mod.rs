@@ -103,7 +103,10 @@ mod select;
 mod tree;
 
 pub use select::SelectArgs;
-pub use tree::DumpFormat;
+pub use tree::{
+    AliasView,
+    DumpFormat,
+};
 #[cfg(test)]
 mod tests;
 
@@ -154,19 +157,6 @@ impl CatalogCommand {
         let stack = load(self)?;
         match &self.action {
             CatalogAction::Layers => layers(out, &stack),
-            CatalogAction::List {
-                kind,
-                facet,
-                members,
-                children,
-            } => list(
-                out,
-                &stack,
-                kind.clone(),
-                facet.clone(),
-                members.clone(),
-                children.clone(),
-            )?,
             CatalogAction::Show { name } => show(out, &stack, name)?,
             CatalogAction::Resolve {
                 build,
@@ -184,8 +174,9 @@ impl CatalogCommand {
                 root,
                 kinds,
                 all,
+                aliases,
                 depth,
-            } => tree::tree(out, &stack, root.as_deref(), kinds, *all, *depth)?,
+            } => tree::tree(out, &stack, root.as_deref(), kinds, *all, *aliases, *depth)?,
             CatalogAction::Releases { group } => releases(out, &stack, group)?,
         }
         Ok(())
@@ -197,22 +188,6 @@ impl CatalogCommand {
 pub enum CatalogAction {
     /// The imported catalogs, in import order.
     Layers,
-
-    /// Entries, by their shortest unique names.
-    List {
-        /// Only entries of this kind (`build`, `namespace`, `tag`, ...).
-        #[arg(long)]
-        kind: Option<String>,
-        /// Only the groups of this facet ("all families").
-        #[arg(long)]
-        facet: Option<String>,
-        /// Only the builds that are members of this group.
-        #[arg(long)]
-        members: Option<String>,
-        /// Only the entries directly in this scope.
-        #[arg(long)]
-        children: Option<String>,
-    },
 
     /// One entry: its kind, its history, and its merged fields.
     Show {
@@ -262,6 +237,10 @@ pub enum CatalogAction {
         /// resources, tags, axes and facets too.
         #[arg(long)]
         all: bool,
+        /// Where aliases show: on their build's line (`inline`), as entries
+        /// where they sit (`entries`), both, or not at all.
+        #[arg(long, value_enum, default_value_t = AliasView::Both)]
+        aliases: AliasView,
         /// How many levels below the start to show.
         #[arg(long)]
         depth: Option<usize>,
@@ -346,58 +325,6 @@ fn layers(
             layer.entries().len()
         );
     }
-}
-
-fn list(
-    out: &mut String,
-    stack: &PretrainedCatalogStack,
-    kind: Option<String>,
-    facet: Option<String>,
-    members: Option<String>,
-    children: Option<String>,
-) -> Result<(), String> {
-    let mut names: Vec<CatalogName> = if let Some(facet) = facet {
-        let facet = find(stack, &facet, &[EntryKind::Facet])?;
-        stack
-            .facet_groups(&facet)
-            .iter()
-            .map(|e| e.name().clone())
-            .collect()
-    } else if let Some(group) = members {
-        let group = find(stack, &group, &[EntryKind::Namespace, EntryKind::Release])?;
-        stack.members_of(&group)
-    } else if let Some(scope) = children {
-        let scope = find(stack, &scope, &SEARCHABLE)?;
-        stack
-            .children(&scope)
-            .iter()
-            .map(|e| e.name().clone())
-            .collect()
-    } else {
-        stack.declarations().map(|e| e.name().clone()).collect()
-    };
-    if let Some(kind) = kind {
-        let kind = parse_kind(&kind)?;
-        names.retain(|n| stack.declaration(n).is_some_and(|d| d.kind() == kind));
-    }
-    for name in names {
-        let Some(entry) = stack.declaration(&name) else {
-            continue;
-        };
-        let shown = stack.display_name(&name);
-        let facet = stack
-            .group_facet(entry)
-            .map(|f| format!("  ({f})"))
-            .unwrap_or_default();
-        emit!(
-            out,
-            "{:<28} {:<44} {}{facet}",
-            shown.short,
-            shown.full.to_string(),
-            entry.kind()
-        );
-    }
-    Ok(())
 }
 
 fn show(

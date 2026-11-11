@@ -17,11 +17,10 @@ cargo run -p pretrained-catalog -- --examples <command>                         
 | command | does |
 |---|---|
 | `layers` | the imported catalogs, in order |
-| `list [--kind K] [--facet F] [--members G] [--children S]` | entries, by their shortest unique names |
 | `show NAME` | an entry's kind, history (which catalog declared, updated or replaced it) and merged fields |
 | `resolve BUILD [--preset P] [--on AXIS] [--off AXIS] [--patch {..}]` | the resolved build, and the document its presets make |
 | `select [--kind K] [NAME]... [--keep P] [--drop P] [--le KEY V]... [--weigh E] [--cutoff W] [--asc K] [--desc K] [--limit N] [--use NAME] [--unset L] [--per G .. --end] [--pipeline ..] [--floor F] [--preset P] [--on/--off AXIS] [--defaults ..] [--rank]` | a YAML report: the composed query, why (each stage, where it came from, and what it removed), the presets applied, and the result in order, each build resolved with its `weight`; each flag is one stage, in command-line order, but the preset flags, which are the prefix; `--rank` adds every removed row with why |
-| `tree [NAME] [--kind K]... [--all] [--depth N]` | the namespace as a directory view, from the root's entries or one entry: `name: description` for a namespace, `name: aliases {axis: default\|other} description` for a build, `name -> target` for an alias. It shows namespaces, builds and the aliases that name them; `--kind` keeps only those kinds (and the containers on the way to them), `--all` shows every kind, as `name (kind): ..` |
+| `tree [NAME] [--kind K]... [--all] [--aliases inline\|entries\|both\|none] [--depth N]` | the namespace as a directory view, from the root's entries or one entry: `name: description` for a namespace, `name: aliases {axis: default\|other} description` for a build, `name -> target` for an alias. It shows namespaces, builds and the aliases that name them; `--kind` keeps only those kinds (and the containers on the way to them), `--all` shows every kind, as `name (kind): ..`, and the base catalog's `$contracts`; `--aliases` says where aliases show (both, by default) |
 | `dump [--format yml\|json]` | the imported catalogs, in order, as one sequence: each item's `layer`, `path` and `catalog`, the document in its keyed form |
 | `releases GROUP` | a release group's members, oldest first |
 

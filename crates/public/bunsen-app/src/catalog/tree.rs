@@ -45,6 +45,19 @@ pub(super) fn dump(
     Ok(())
 }
 
+/// Where `tree` shows aliases.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum AliasView {
+    /// On the line of the build they name.
+    Inline,
+    /// As entries, where they sit.
+    Entries,
+    /// Both.
+    Both,
+    /// Not at all.
+    None,
+}
+
 /// The kinds `tree` shows by default: namespaces and builds, and the
 /// aliases that name one.
 const TREE_KINDS: [EntryKind; 3] = [EntryKind::Namespace, EntryKind::Build, EntryKind::Alias];
@@ -130,6 +143,7 @@ fn tree_line(
     stack: &PretrainedCatalogStack,
     name: &CatalogName,
     label: &str,
+    inline_aliases: bool,
 ) -> String {
     let Some(entry) = stack.declaration(name) else {
         return label.to_string();
@@ -143,7 +157,7 @@ fn tree_line(
                 .iter()
                 .map(|a| alias_text(a, name))
                 .collect();
-            if !aliases.is_empty() {
+            if inline_aliases && !aliases.is_empty() {
                 parts.push(aliases.join(", "));
             }
             if let Ok(build) = stack.resolve_build(name) {
@@ -210,9 +224,10 @@ pub(super) fn tree(
     root: Option<&str>,
     kinds: &[String],
     all: bool,
+    aliases: AliasView,
     depth: Option<usize>,
 ) -> Result<(), String> {
-    let kinds: Vec<EntryKind> = if all {
+    let mut kinds: Vec<EntryKind> = if all {
         EntryKind::ALL.to_vec()
     } else if kinds.is_empty() {
         TREE_KINDS.to_vec()
@@ -222,6 +237,10 @@ pub(super) fn tree(
             .map(|k| parse_kind(k))
             .collect::<Result<_, _>>()?
     };
+    if matches!(aliases, AliasView::Inline | AliasView::None) {
+        kinds.retain(|k| *k != EntryKind::Alias);
+    }
+    let inline = matches!(aliases, AliasView::Inline | AliasView::Both);
     // Whether `name` is shown: it is of a wanted kind, or something below it
     // is.
     fn shown(
@@ -241,6 +260,7 @@ pub(super) fn tree(
         names: &[CatalogName],
         prefix: &str,
         kinds: &[EntryKind],
+        inline: bool,
         depth: Option<usize>,
     ) {
         let names: Vec<&CatalogName> = names.iter().filter(|n| shown(stack, n, kinds)).collect();
@@ -250,7 +270,7 @@ pub(super) fn tree(
                 out,
                 "{prefix}{} {}",
                 if last { "└──" } else { "├──" },
-                tree_line(stack, name, name.leaf())
+                tree_line(stack, name, name.leaf(), inline)
             );
             if depth == Some(0) {
                 continue;
@@ -261,7 +281,15 @@ pub(super) fn tree(
                 .map(|c| c.name().clone())
                 .collect();
             let prefix = format!("{prefix}{}", if last { "    " } else { "│   " });
-            walk(out, stack, &children, &prefix, kinds, depth.map(|d| d - 1));
+            walk(
+                out,
+                stack,
+                &children,
+                &prefix,
+                kinds,
+                inline,
+                depth.map(|d| d - 1),
+            );
         }
     }
     let children = |name: &CatalogName| -> Vec<CatalogName> {
@@ -276,8 +304,12 @@ pub(super) fn tree(
         // One entry heads its subtree.
         Some(query) => {
             let name = find(stack, query, &SEARCHABLE)?;
-            emit!(out, "{}", tree_line(stack, &name, &name.to_string()));
-            walk(out, stack, &children(&name), "", &kinds, below);
+            emit!(
+                out,
+                "{}",
+                tree_line(stack, &name, &name.to_string(), inline)
+            );
+            walk(out, stack, &children(&name), "", &kinds, inline, below);
         }
         // The root is not an entry: its entries are the top level.
         None => {
@@ -289,10 +321,10 @@ pub(super) fn tree(
                 .collect();
             // The top level is the first level below the root.
             for name in &top {
-                emit!(out, "{}", tree_line(stack, name, name.leaf()));
+                emit!(out, "{}", tree_line(stack, name, name.leaf(), inline));
                 if depth.is_none_or(|d| d > 1) {
                     let below = depth.map(|d| d - 2);
-                    walk(out, stack, &children(name), "", &kinds, below);
+                    walk(out, stack, &children(name), "", &kinds, inline, below);
                 }
             }
             // `$contracts` is a section of its own, shown when its kinds are.
@@ -301,7 +333,15 @@ pub(super) fn tree(
             if section.iter().any(|n| shown(stack, n, &kinds)) {
                 emit!(out, "$contracts");
                 if depth.is_none_or(|d| d > 1) {
-                    walk(out, stack, &section, "", &kinds, depth.map(|d| d - 2));
+                    walk(
+                        out,
+                        stack,
+                        &section,
+                        "",
+                        &kinds,
+                        inline,
+                        depth.map(|d| d - 2),
+                    );
                 }
             }
         }

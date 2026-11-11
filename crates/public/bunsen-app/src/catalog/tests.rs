@@ -66,23 +66,11 @@ fn shell_words(args: &str) -> Vec<String> {
 }
 
 #[test]
-fn test_layers_and_lists() {
+fn test_layers() {
     let out = cli("layers").unwrap();
     assert_eq!(out.lines().count(), 5);
     assert!(out.contains("supplemental"));
-    let builds = cli("list --kind build").unwrap();
-    assert_eq!(builds.lines().count(), 8);
-    let families = cli("list --facet family").unwrap();
-    assert!(families.contains("qwen/qwen3") && families.contains("openai/whisper"));
-    let members = cli("list --members release").unwrap();
-    assert_eq!(members.lines().count(), 3);
-    let classes = cli("list --children qwen3 --kind template_class").unwrap();
-    assert!(classes.contains("qwen/qwen3/hybrid"));
-    assert!(
-        cli("list --kind family")
-            .unwrap_err()
-            .contains("no kind `family`")
-    );
+    assert!(cli("list").is_err(), "`list` is gone: `tree` browses");
 }
 
 #[test]
@@ -392,6 +380,18 @@ fn test_tree_shows_aliases() {
     // An alias to a kind the view leaves out is left out with it.
     let builds = cli(&format!("--catalog {path} tree --kind namespace")).unwrap();
     assert!(!builds.contains("->"), "{builds}");
+    // `--aliases` says where they show.
+    let inline = cli(&format!("--catalog {path} tree whisper --aliases inline")).unwrap();
+    assert!(inline.contains("large-v3: newest, large {task"), "{inline}");
+    assert!(!inline.contains("->"), "{inline}");
+    let entries = cli(&format!("--catalog {path} tree --aliases entries")).unwrap();
+    assert!(
+        entries.contains("└── large -> openai/whisper/large/large-v3"),
+        "{entries}"
+    );
+    assert!(entries.contains("large-v3: {task"), "{entries}");
+    let none = cli(&format!("--catalog {path} tree --aliases none")).unwrap();
+    assert!(!none.contains("->") && !none.contains("newest"), "{none}");
 }
 
 #[test]
