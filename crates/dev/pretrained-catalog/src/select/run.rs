@@ -27,6 +27,21 @@
 //! | `{has: v}`, `{has_all: [..]}`, `{has_any: [..]}` | set-valued (`languages`, `text_list`, categorical offers) | contains |
 //! | `{exists: true}` | any | has a value |
 //!
+//! **Kinds.** A query's kind decides what its tests read:
+//!
+//! | kind | name tests | tags, axis tests, `$presets` | `$` fields |
+//! |---|---|---|---|
+//! | `build` | its groups (by closure), its template-class chain, itself | its own, its chain's, the implied ones, derived keys | `$released`, `$license`, `$origin`, `$template_class`, `$contract` |
+//! | `template_class` | the groups it joins through its chain (by closure), its base chain, itself | its chain's, and its folded axis uses and presets | |
+//! | `namespace`, `contract`, `release` | the groups in its closure, itself | none | |
+//! | `tag`, `axis`, `facet`, `resource` | the scopes that enclose it, itself | none | `$format`, `$dtype` (a resource's) |
+//!
+//! `$weight`, `$name`, `$parent`, `weigh` (`when`, `mul`, `add`, `clip`),
+//! `order` and `limit` apply to every kind; `match` to builds and template
+//! classes, `release` to builds. A test the kind doesn't admit is an error when
+//! the query compiles. Choosing takes a build; a query of another kind is
+//! ranked.
+//!
 //! **Weighing.** A `weigh` block ([`WeighBlock`](super::query::WeighBlock))
 //! applies its updates to each row's running weight, commits the result
 //! clipped to 0 or more, and drops the row when it is below the block's
@@ -73,7 +88,7 @@ use crate::{
         },
         state::{
             DroppedRow,
-            SelectBuild,
+            SelectEntry,
             SelectEnv,
             SelectRun,
             SelectTable,
@@ -182,13 +197,25 @@ struct Member {
 impl Member {
     fn contains(
         &self,
-        build: &SelectBuild,
+        row: &Row<'_>,
     ) -> bool {
-        let build = &build.build;
-        match self.kind {
-            EntryKind::Build => build.name == self.name,
-            EntryKind::TemplateClass => build.template_chain.contains(&self.name),
-            _ => build.memberships.contains(&self.name),
+        match row.entry {
+            SelectEntry::Build(b) => {
+                let build = &b.build;
+                match self.kind {
+                    EntryKind::Build => build.name == self.name,
+                    EntryKind::TemplateClass => build.template_chain.contains(&self.name),
+                    _ => build.memberships.contains(&self.name),
+                }
+            }
+            SelectEntry::TemplateClass(c) => match self.kind {
+                EntryKind::Build => false,
+                EntryKind::TemplateClass => c.chain.contains(&self.name),
+                _ => c.memberships.contains(&self.name),
+            },
+            SelectEntry::Declared { within, .. } => {
+                row.path == &self.name || within.contains(&self.name)
+            }
         }
     }
 }
@@ -227,6 +254,8 @@ enum Subject {
     Parent,
     TemplateClass,
     Contract,
+    Format,
+    Dtype,
 }
 
 /// What a value is, for its tests.
@@ -299,9 +328,10 @@ struct CompiledSortKey {
     missing_first: bool,
 }
 
-/// What a test reads: the build, and the row's weight.
+/// What a test reads: the entry, its name, and the row's weight.
 struct Row<'b> {
-    build: &'b SelectBuild,
+    entry: &'b SelectEntry,
+    path: &'b CatalogName,
     weight: f64,
 }
 
@@ -314,13 +344,10 @@ impl CompiledQuery {
         query: &SelectQuery,
         env: &SelectEnv<'_>,
     ) -> CatalogResult<Self> {
-        if query.kind != EntryKind::Build {
-            return Err(query_error(format!(
-                "a query selects builds: `kind: {}` isn't supported",
-                query.kind
-            )));
-        }
-        let compiler = Compiler { env };
+        let compiler = Compiler {
+            env,
+            kind: query.kind,
+        };
         let stages = query
             .run
             .iter()
@@ -398,9 +425,10 @@ impl CompiledQuery {
                 Step::Filter { test, keep_if } => {
                     let mut kept = Vec::new();
                     for row in table.rows {
-                        let build = env.build(&row.entry.path)?;
+                        let entry = env.entry(&row.entry)?;
                         let view = Row {
-                            build: &build,
+                            entry: &entry,
+                            path: &row.entry.path,
                             weight: row.weight,
                         };
                         if test.holds(&view) == *keep_if {
@@ -422,11 +450,12 @@ impl CompiledQuery {
                     let mut kept = Vec::new();
                     let mut weights = Vec::new();
                     for mut row in table.rows {
-                        let build = env.build(&row.entry.path)?;
+                        let entry = env.entry(&row.entry)?;
                         let mut weight = row.weight;
                         for update in by {
                             let view = Row {
-                                build: &build,
+                                entry: &entry,
+                                path: &row.entry.path,
                                 weight,
                             };
                             weight = update.apply(env, &view)?;
@@ -450,9 +479,10 @@ impl CompiledQuery {
                 Step::Order(keys) => {
                     let mut keyed = Vec::new();
                     for row in table.rows {
-                        let build = env.build(&row.entry.path)?;
+                        let entry = env.entry(&row.entry)?;
                         let view = Row {
-                            build: &build,
+                            entry: &entry,
+                            path: &row.entry.path,
                             weight: row.weight,
                         };
                         let values: Vec<Option<Value>> =
@@ -503,9 +533,8 @@ fn explain(
 ) -> Option<String> {
     match test {
         Test::Presets(presets) => row
-            .build
-            .build
-            .presets
+            .entry
+            .presets()?
             .check_selection(&PresetSelection::of(presets.iter().cloned()))
             .err()
             .map(|e| e.message),
@@ -594,7 +623,7 @@ impl Update {
                 truncated,
                 otherwise,
             } => {
-                let factor = match row.build.build.tags.get(tag) {
+                let factor = match row.entry.tags().and_then(|t| t.get(tag)) {
                     Some(t) => match match_language(language, &t.value) {
                         LanguageMatch::Filtered => 1.0,
                         LanguageMatch::Truncated => *truncated,
@@ -605,7 +634,7 @@ impl Update {
                 weight * factor
             }
             Self::Release { step, min } => {
-                let Some(release) = &row.build.build.release else {
+                let Some(release) = row.entry.build().and_then(|b| b.build.release.as_ref()) else {
                     return Ok(weight);
                 };
                 let releases = env.stack().releases(&release.group)?;
@@ -631,9 +660,9 @@ impl Test {
             Self::All(items) => items.iter().all(|t| t.holds(row)),
             Self::Any(items) => items.iter().any(|t| t.holds(row)),
             Self::Not(inner) => !inner.holds(row),
-            Self::Member(member) => member.contains(row.build),
+            Self::Member(member) => member.contains(row),
             Self::BoolAxis { axis, positive } => {
-                let Some(using) = row.build.build.presets.axis_use(axis) else {
+                let Some(using) = row.entry.presets().and_then(|p| p.axis_use(axis)) else {
                     return false;
                 };
                 let on = axis.leaf();
@@ -644,12 +673,10 @@ impl Test {
                 }
             }
             Self::Value { subject, check } => check.holds(subject.read(row).as_ref()),
-            Self::Presets(presets) => row
-                .build
-                .build
-                .presets
-                .check_selection(&PresetSelection::of(presets.iter().cloned()))
-                .is_ok(),
+            Self::Presets(presets) => row.entry.presets().is_some_and(|p| {
+                p.check_selection(&PresetSelection::of(presets.iter().cloned()))
+                    .is_ok()
+            }),
         }
     }
 }
@@ -660,34 +687,36 @@ impl Subject {
         &self,
         row: &Row<'_>,
     ) -> Option<Value> {
-        let build = &row.build.build;
+        let build = row.entry.build();
+        let text = |s: &str| Some(Value::String(s.to_string()));
         match self {
-            Self::Tag(name) => build.tags.get(name).map(|t| t.value.clone()),
-            Self::Derived(key) => row.build.derived.get(key).cloned(),
-            Self::Offers(axis) => build.presets.axis_use(axis).map(|using| {
+            Self::Tag(name) => row.entry.tags()?.get(name).map(|t| t.value.clone()),
+            Self::Derived(key) => build?.derived.get(key).cloned(),
+            Self::Offers(axis) => row.entry.presets()?.axis_use(axis).map(|using| {
                 Value::Array(using.offers.iter().cloned().map(Value::String).collect())
             }),
-            Self::Facet(facet) => build
-                .facets
-                .get(facet)
-                .map(|g| Value::String(g.to_string())),
+            Self::Facet(facet) => text(&build?.build.facets.get(facet)?.to_string()),
             Self::Weight => serde_json::Number::from_f64(row.weight).map(Value::Number),
-            Self::Name => Some(Value::String(build.name.to_string())),
-            Self::Released => build
-                .release
-                .as_ref()
-                .map(|r| Value::String(r.released.canonical())),
-            Self::License => build.license.clone().map(Value::String),
-            Self::Origin => build.origin.clone().map(Value::String),
-            Self::Parent => build.name.scope().map(|s| Value::String(s.to_string())),
-            Self::TemplateClass => build
-                .template_chain
-                .last()
-                .map(|c| Value::String(c.to_string())),
-            Self::Contract => build
-                .contract
-                .as_ref()
-                .map(|c| Value::String(c.to_string())),
+            Self::Name => text(&row.path.to_string()),
+            Self::Released => text(&build?.build.release.as_ref()?.released.canonical()),
+            Self::License => text(build?.build.license.as_deref()?),
+            Self::Origin => text(build?.build.origin.as_deref()?),
+            Self::Parent => text(&row.path.scope()?.to_string()),
+            Self::TemplateClass => text(&build?.build.template_chain.last()?.to_string()),
+            Self::Contract => text(&build?.build.contract.as_ref()?.to_string()),
+            Self::Format | Self::Dtype => {
+                let SelectEntry::Declared {
+                    entry: CatalogEntry::Resource(r),
+                    ..
+                } = row.entry
+                else {
+                    return None;
+                };
+                match self {
+                    Self::Format => text(&r.format),
+                    _ => text(r.dtype.as_deref()?),
+                }
+            }
         }
     }
 }
@@ -743,9 +772,43 @@ enum Resolved {
 
 struct Compiler<'e, 'a> {
     env: &'e SelectEnv<'a>,
+    /// The kind the query selects.
+    kind: EntryKind,
 }
 
 impl Compiler<'_, '_> {
+    /// Whether the query's kind has tags, axis uses and presets.
+    fn has_tags(&self) -> bool {
+        matches!(self.kind, EntryKind::Build | EntryKind::TemplateClass)
+    }
+
+    /// Refuses `what` unless the query's kind is one of `kinds`.
+    fn only(
+        &self,
+        kinds: &[EntryKind],
+        what: &str,
+    ) -> CatalogResult<()> {
+        if kinds.contains(&self.kind) {
+            return Ok(());
+        }
+        let kinds: Vec<String> = kinds.iter().map(|k| format!("`{k}`")).collect();
+        Err(query_error(format!(
+            "{what} applies to a query of {}, not of `{}`",
+            kinds.join(" or "),
+            self.kind
+        )))
+    }
+
+    /// The kinds a membership name may name: a group, a template class or a
+    /// build, and an entry of the query's own kind.
+    fn member_kinds(&self) -> Vec<EntryKind> {
+        let mut kinds = MEMBERSHIP_KINDS.to_vec();
+        if !kinds.contains(&self.kind) {
+            kinds.push(self.kind);
+        }
+        kinds
+    }
+
     fn stage(
         &self,
         stage: &Stage,
@@ -837,23 +900,29 @@ impl Compiler<'_, '_> {
                 language,
                 truncated,
                 otherwise,
-            } => match self.resolve(tag)? {
-                Resolved::Tag(tag, TagType::Languages) => Update::Match {
-                    tag,
-                    language: language.clone(),
-                    truncated: *truncated,
-                    otherwise: *otherwise,
-                },
-                _ => {
-                    return Err(query_error(format!(
-                        "`match` grades a `languages` tag, and `{tag}` isn't one"
-                    )));
+            } => {
+                self.only(&[EntryKind::Build, EntryKind::TemplateClass], "`match`")?;
+                match self.resolve(tag)? {
+                    Resolved::Tag(tag, TagType::Languages) => Update::Match {
+                        tag,
+                        language: language.clone(),
+                        truncated: *truncated,
+                        otherwise: *otherwise,
+                    },
+                    _ => {
+                        return Err(query_error(format!(
+                            "`match` grades a `languages` tag, and `{tag}` isn't one"
+                        )));
+                    }
                 }
-            },
-            WeighEntry::Release { step, min } => Update::Release {
-                step: *step,
-                min: *min,
-            },
+            }
+            WeighEntry::Release { step, min } => {
+                self.only(&[EntryKind::Build], "`release: latest`")?;
+                Update::Release {
+                    step: *step,
+                    min: *min,
+                }
+            }
             WeighEntry::Mul(k) => Update::Mul(*k),
             WeighEntry::Add(k) => Update::Add(*k),
             WeighEntry::Clip(a, b) => Update::Clip(*a, *b),
@@ -882,7 +951,7 @@ impl Compiler<'_, '_> {
         &self,
         name: &str,
     ) -> CatalogResult<Member> {
-        let found = self.find(name, &MEMBERSHIP_KINDS)?;
+        let found = self.find(name, &self.member_kinds())?;
         let kind = self
             .env
             .stack()
@@ -900,6 +969,9 @@ impl Compiler<'_, '_> {
             return Err(query_error(
                 "the build's contract is the `$` word `$contract`, or a contract's name",
             ));
+        }
+        if !self.has_tags() {
+            return self.member(name).map(Resolved::Member);
         }
         let found = self.find(name, &NAMED_KINDS)?;
         let decl = self.env.stack().declaration(&found).expect("found");
@@ -1030,6 +1102,7 @@ impl Compiler<'_, '_> {
                 }
             }
             Resolved::Facet(facet) => {
+                self.only(&[EntryKind::Build], "a facet test")?;
                 let check = self.check(ValueKind::Name, value)?;
                 Test::Value {
                     subject: Subject::Facet(facet),
@@ -1044,6 +1117,15 @@ impl Compiler<'_, '_> {
         word: &str,
         value: &Value,
     ) -> CatalogResult<Test> {
+        let builds = [EntryKind::Build];
+        match word {
+            "presets" => self.only(&[EntryKind::Build, EntryKind::TemplateClass], "`$presets`")?,
+            "released" | "license" | "origin" | "template_class" | "contract" => {
+                self.only(&builds, &format!("`${word}`"))?
+            }
+            "format" | "dtype" => self.only(&[EntryKind::Resource], &format!("`${word}`"))?,
+            _ => {}
+        }
         let (subject, kind, refs): (Subject, ValueKind, &[EntryKind]) = match word {
             "presets" => {
                 let presets = match value {
@@ -1072,7 +1154,7 @@ impl Compiler<'_, '_> {
             "parent" => (
                 Subject::Parent,
                 ValueKind::Name,
-                &[EntryKind::Namespace, EntryKind::Contract],
+                &[EntryKind::Namespace, EntryKind::Contract, EntryKind::Build],
             ),
             "template_class" => (
                 Subject::TemplateClass,
@@ -1080,22 +1162,23 @@ impl Compiler<'_, '_> {
                 &[EntryKind::TemplateClass],
             ),
             "contract" => (Subject::Contract, ValueKind::Name, &[EntryKind::Contract]),
-            "format" | "dtype" => {
-                return Err(query_error(format!(
-                    "`${word}` is a resource's field; a build has none"
-                )));
-            }
+            "format" => (Subject::Format, ValueKind::Text, &[]),
+            "dtype" => (Subject::Dtype, ValueKind::Text, &[]),
             "any" | "all" | "not" => {
                 return Err(query_error(format!("`${word}` is an operator, not a test")));
             }
-            derived if self.env.derived_keys().iter().any(|k| k.name == derived) => {
+            derived
+                if self.kind == EntryKind::Build
+                    && self.env.derived_keys().iter().any(|k| k.name == derived) =>
+            {
                 (Subject::Derived(derived.to_string()), ValueKind::Any, &[])
             }
             other => {
                 return Err(query_error(format!(
                     "`${other}` is not a `$` word: the words are `$any`, `$all`, `$not`, \
                      `$presets`, `$weight`, `$name`, `$released`, `$license`, `$origin`, \
-                     `$parent`, `$template_class`, `$contract`, and the derived keys"
+                     `$parent`, `$template_class`, `$contract`, `$format`, `$dtype`, and the \
+                     derived keys"
                 )));
             }
         };
@@ -1272,8 +1355,14 @@ impl Compiler<'_, '_> {
         let (subject, kind) = match key.key.strip_prefix('$') {
             Some("weight") => (Subject::Weight, ValueKind::Number),
             Some("name") => (Subject::Name, ValueKind::Text),
-            Some("released") => (Subject::Released, ValueKind::Time),
-            Some(derived) if self.env.derived_keys().iter().any(|k| k.name == derived) => {
+            Some("released") => {
+                self.only(&[EntryKind::Build], "`$released`")?;
+                (Subject::Released, ValueKind::Time)
+            }
+            Some(derived)
+                if self.kind == EntryKind::Build
+                    && self.env.derived_keys().iter().any(|k| k.name == derived) =>
+            {
                 (Subject::Derived(derived.to_string()), ValueKind::Any)
             }
             Some(other) => {

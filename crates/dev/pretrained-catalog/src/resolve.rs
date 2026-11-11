@@ -122,6 +122,24 @@ impl ResolvedBuild {
     }
 }
 
+/// What the catalog says about one template class, as its builds inherit
+/// it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedTemplateClass {
+    /// The class's full name.
+    pub name: CatalogName,
+    /// What it shares, for a person.
+    pub description: String,
+    /// Its chain of base classes, root first, ending at itself.
+    pub chain: Vec<CatalogName>,
+    /// Every group its builds join through the chain.
+    pub memberships: BTreeSet<CatalogName>,
+    /// Its tags, written along the chain and implied by its axis uses.
+    pub tags: BTreeMap<CatalogName, ResolvedTag>,
+    /// Its presets, folded along the chain.
+    pub presets: ResolvedPresetSet,
+}
+
 impl PretrainedCatalogStack {
     /// Resolves the build `name`.
     ///
@@ -448,6 +466,80 @@ impl PretrainedCatalogStack {
             tags,
             presets,
             dependencies,
+        })
+    }
+
+    /// Resolves the template class `name`: its chain of base classes, the
+    /// groups its builds join through the chain, its tags and its presets,
+    /// folded root first. The catalog's checks ran when the stack imported
+    /// it; this only reads what the state holds.
+    ///
+    /// # Errors
+    /// [`CatalogErrorKind::Reference`] when `name` isn't a template class,
+    /// and every problem folding its chain finds.
+    pub fn resolve_template_class(
+        &self,
+        name: &CatalogName,
+    ) -> Result<ResolvedTemplateClass, CatalogErrors> {
+        let decl = self
+            .expect(name, "template class", &[EntryKind::TemplateClass])
+            .map_err(|e| CatalogErrors::from(e.at(name)))?;
+        let CatalogEntry::TemplateClass(class) = decl.body() else {
+            unreachable!("expected a template class");
+        };
+        let chain = self
+            .template_chain(name, Some(&CatalogRef::absolute(name.clone())))
+            .map_err(|e| CatalogErrors::from(e.at(name)))?;
+        let mut joined = Vec::new();
+        for link in &chain {
+            for group in &link.class.join {
+                if let Some(d) = self.resolve_ref(link.name, group)
+                    && d.kind().is_group()
+                {
+                    joined.push(d.name().clone());
+                }
+            }
+        }
+        let memberships = self.group_closure(joined);
+        let links: Vec<PresetLink<'_>> = chain
+            .iter()
+            .map(|l| PresetLink {
+                owner: l.name,
+                set: &l.class.presets,
+            })
+            .collect();
+        let presets = ResolvedPresetSet::fold(&links, &|l, a| self.axis_info(l.owner, a))
+            .map_err(|found| CatalogErrors(found.into_iter().map(|e| e.at(name)).collect()))?;
+        let mut tags: BTreeMap<CatalogName, ResolvedTag> = BTreeMap::new();
+        for link in &chain {
+            for (tag, value) in &link.class.tags {
+                if let Some(d) = self.resolve_ref(link.name, tag) {
+                    tags.insert(
+                        d.name().clone(),
+                        ResolvedTag {
+                            value: value.clone(),
+                            source: TagSource::Written(link.name.clone()),
+                        },
+                    );
+                }
+            }
+        }
+        for using in &presets.axes {
+            tags.insert(
+                using.axis.name.clone(),
+                ResolvedTag {
+                    value: axis_tag_value(using.axis.kind, using.axis.positive(), &using.offers),
+                    source: TagSource::Axis,
+                },
+            );
+        }
+        Ok(ResolvedTemplateClass {
+            name: name.clone(),
+            description: class.description.clone(),
+            chain: chain.into_iter().map(|l| l.name.clone()).collect(),
+            memberships,
+            tags,
+            presets,
         })
     }
 

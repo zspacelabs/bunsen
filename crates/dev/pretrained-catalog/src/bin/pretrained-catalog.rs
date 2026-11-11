@@ -172,6 +172,10 @@ enum Command {
 /// The `select` flags: see [`Command::Select`].
 #[derive(clap::Args, Debug)]
 struct SelectArgs {
+    /// The kind of entry to select (`build`, `template_class`, `namespace`,
+    /// `resource`, ..).
+    #[arg(long, default_value = "build")]
+    kind: String,
     /// Names, in order: one `from` stage; a named selection's name is a
     /// `use`.
     names: Vec<String>,
@@ -294,14 +298,7 @@ fn run(
             let matches = matches
                 .subcommand_matches("select")
                 .expect("the select subcommand");
-            let SelectArgs {
-                names,
-                floor,
-                defaults,
-                rank,
-                ..
-            } = *args;
-            select(out, &stack, matches, names, floor, defaults, rank)?
+            select(out, &stack, matches, *args)?
         }
         Command::Tree { root, kinds, depth } => tree(out, &stack, root.as_deref(), &kinds, depth)?,
         Command::Releases { group } => releases(out, &stack, &group)?,
@@ -770,7 +767,28 @@ struct SelectionReport {
     /// The presets applied to every result.
     presets: Vec<String>,
     /// The result, in order.
-    results: Vec<ChoiceRecord>,
+    results: Vec<ResultRecord>,
+}
+
+/// One row of a result: a build resolved, or another kind's entry.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(untagged)]
+enum ResultRecord {
+    /// A build, resolved.
+    Build(Box<ChoiceRecord>),
+    /// An entry of another kind.
+    Entry(EntryRecord),
+}
+
+/// An entry of a kind other than `build`, in a result.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+struct EntryRecord {
+    /// Its full name.
+    name: String,
+    /// Its kind.
+    kind: &'static str,
+    /// Its weight.
+    weight: f64,
 }
 
 fn record(
@@ -819,11 +837,17 @@ fn select(
     out: &mut String,
     stack: &PretrainedCatalogStack,
     matches: &ArgMatches,
-    names: Vec<String>,
-    floor: Option<String>,
-    defaults: Option<String>,
-    rank: bool,
+    args: SelectArgs,
 ) -> Result<(), String> {
+    let SelectArgs {
+        kind,
+        names,
+        floor,
+        defaults,
+        rank,
+        ..
+    } = args;
+    let kind = parse_kind(&kind)?;
     let env = SelectEnv::new(stack);
     let context = SelectionContext {
         defaults: defaults
@@ -834,6 +858,7 @@ fn select(
         named: Vec::new(),
     };
     let mut request = SelectRequest {
+        kind,
         names,
         stages: Vec::new(),
         floor: floor
@@ -896,8 +921,18 @@ fn select(
         .table
         .rows
         .iter()
-        .map(|r| record(&env, &r.entry.path, r.weight))
-        .collect::<Result<_, _>>()?;
+        .map(|r| {
+            if kind == EntryKind::Build {
+                record(&env, &r.entry.path, r.weight).map(|c| ResultRecord::Build(Box::new(c)))
+            } else {
+                Ok(ResultRecord::Entry(EntryRecord {
+                    name: r.entry.path.to_string(),
+                    kind: kind.as_str(),
+                    weight: r.weight,
+                }))
+            }
+        })
+        .collect::<Result<_, String>>()?;
     let dropped = if rank {
         run.trace
             .dropped
@@ -1275,6 +1310,24 @@ mod tests {
             cli("select --on task")
                 .unwrap_err()
                 .contains("not a bool axis")
+        );
+    }
+
+    #[test]
+    fn test_select_any_kind() {
+        let classes = report("--kind template_class --keep thinking");
+        assert_eq!(
+            field(&classes, "name"),
+            ["qwen/qwen3/hybrid", "qwen/qwen3/thinking-only"]
+        );
+        assert_eq!(classes["results"][0]["kind"], json!("template_class"));
+        assert_eq!(classes["query"]["kind"], json!("template_class"));
+        let resources = report("--kind resource qwen3-1.7b --eq '$format' json");
+        assert_eq!(field(&resources, "name"), ["qwen/qwen3/qwen3-1.7b/config"]);
+        assert!(
+            cli("select --kind family")
+                .unwrap_err()
+                .contains("no kind `family`")
         );
     }
 

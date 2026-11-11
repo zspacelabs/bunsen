@@ -451,7 +451,7 @@ fn names_and_values_are_checked_when_the_query_compiles() {
     assert!(refused("[{keep: {kit: qwen3}}]").contains("nothing matches `kit`"));
     assert!(refused("[{from: parameters}]").contains("nothing matches"));
     assert!(refused("[{keep: {contract: qwen3-lm}}]").contains("`$contract`"));
-    assert!(refused("[{keep: {$format: json}}]").contains("a resource's field"));
+    assert!(refused("[{keep: {$format: json}}]").contains("a query of `resource`"));
     assert!(refused("[{keep: {$nope: 1}}]").contains("is not a `$` word"));
     assert!(refused("[{keep: {parameters: [1, 2]}}]").contains("a list is not a value test"));
     assert!(refused("[{keep: {language: {lt: en}}}]").contains("`lt` tests a single value"));
@@ -930,4 +930,136 @@ openai:
         ),
         ["large-v2"]
     );
+}
+
+// Queries of every kind.
+
+/// The entries of `kind` that `run` selects, by full name, in order.
+fn select_kind(
+    kind: &str,
+    run: &str,
+) -> Result<Vec<String>, String> {
+    let stack = fixtures::builtin_stack().unwrap();
+    let env = SelectEnv::new(&stack);
+    let run: Value = serde_saphyr::from_str(&dedent(run)).expect("YAML stages");
+    let query =
+        SelectQuery::from_value(&json!({"kind": kind, "run": run})).map_err(|e| e.message)?;
+    let kind = query.kind;
+    let compiled = query.compile(&env).map_err(|e| e.message)?;
+    let table = compiled
+        .run(&env, SelectTable::universe(&env, kind))
+        .map_err(|e| e.message)?;
+    Ok(table.names().iter().map(|n| n.to_string()).collect())
+}
+
+#[test]
+fn a_template_class_query_reads_its_chain_tags_and_presets() {
+    // Its groups through the chain's joins, its base chain, its tags and
+    // its folded axis uses.
+    assert_eq!(
+        select_kind("template_class", "[{keep: qwen3-lm}]").unwrap(),
+        ["qwen/qwen3/hybrid", "qwen/qwen3/thinking-only"]
+    );
+    assert_eq!(
+        select_kind(
+            "template_class",
+            "[{keep: hybrid}, {drop: {thinking: false}}]"
+        )
+        .unwrap(),
+        ["qwen/qwen3/thinking-only"]
+    );
+    assert_eq!(
+        select_kind("template_class", "[{keep: {language: en}}]").unwrap(),
+        ["openai/whisper/multilingual"]
+    );
+    assert_eq!(
+        select_kind("template_class", "[{keep: {$presets: greedy}}]").unwrap(),
+        ["qwen/qwen3/hybrid", "qwen/qwen3/thinking-only"]
+    );
+    // Placement confers no membership: `qwen3` holds the class, but the
+    // class isn't in it.
+    assert!(
+        select_kind("template_class", "[{keep: qwen3}]")
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn a_group_query_reads_its_closure() {
+    assert_eq!(
+        select_kind("namespace", "[{keep: qwen}]").unwrap(),
+        ["qwen", "qwen/qwen3", "qwen/qwen3/qwen3-2507"]
+    );
+    assert_eq!(
+        select_kind("contract", "[{order: {desc: $name}}]").unwrap(),
+        ["whisper-asr", "qwen3-lm"]
+    );
+    assert_eq!(
+        select_kind("release", "[{keep: whisper}]").unwrap(),
+        ["openai/whisper/large/release"]
+    );
+}
+
+#[test]
+fn a_declaration_query_reads_its_scopes() {
+    // A resource is in the scopes that enclose it, a build's among them.
+    assert_eq!(
+        select_kind("resource", "[{keep: qwen3-0.6b}, {keep: {$format: json}}]").unwrap(),
+        ["qwen/qwen3/qwen3-0.6b/config"]
+    );
+    assert_eq!(
+        select_kind("resource", "[{keep: {$parent: large-v3}}]").unwrap(),
+        ["openai/whisper/large/large-v3/checkpoint"]
+    );
+    assert_eq!(
+        select_kind("resource", "[{keep: {$dtype: float16}}]")
+            .unwrap()
+            .len(),
+        4
+    );
+    // A tag is in the scope it is declared in, and is itself.
+    assert_eq!(
+        select_kind("tag", "[{keep: whisper}]").unwrap(),
+        ["openai/whisper/timestamps"]
+    );
+    assert_eq!(
+        select_kind("tag", "[{keep: instruct}]").unwrap(),
+        ["instruct"]
+    );
+    assert_eq!(
+        select_kind("facet", "[{order: $name}]").unwrap(),
+        ["family", "publisher"]
+    );
+}
+
+#[test]
+fn a_kind_admits_only_its_tests() {
+    let refused = |kind: &str, run: &str| select_kind(kind, run).unwrap_err();
+    assert!(
+        refused("namespace", "[{keep: {$license: MIT}}]")
+            .contains("of `build`, not of `namespace`")
+    );
+    assert!(refused("template_class", "[{keep: {$released: {ge: 2020}}}]").contains("`$released`"));
+    assert!(refused("namespace", "[{keep: {$presets: greedy}}]").contains("`$presets`"));
+    assert!(refused("build", "[{keep: {$format: json}}]").contains("of `resource`"));
+    assert!(
+        refused("template_class", "[{weigh: {by: [{release: latest}]}}]")
+            .contains("`release: latest`")
+    );
+    assert!(refused("template_class", "[{keep: {family: qwen3}}]").contains("a facet test"));
+    // A namespace has no tags: `instruct` names nothing it can be in.
+    assert!(refused("namespace", "[{keep: instruct}]").contains("nothing matches `instruct`"));
+    // Choosing takes a build.
+    let stack = fixtures::builtin_stack().unwrap();
+    let env = SelectEnv::new(&stack);
+    let err = SelectionContext::default()
+        .choose(
+            &env,
+            None,
+            None,
+            &SelectRequest::of_kind(EntryKind::Namespace),
+        )
+        .unwrap_err();
+    assert!(err.message.contains("choosing takes a build"), "{err}");
 }

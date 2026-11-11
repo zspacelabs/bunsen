@@ -10,7 +10,10 @@
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{
+        BTreeMap,
+        BTreeSet,
+    },
     fmt,
     rc::Rc,
 };
@@ -19,14 +22,22 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::{
-    document::EntryKind,
+    document::{
+        CatalogEntry,
+        EntryKind,
+    },
     error::{
         CatalogError,
         CatalogErrorKind,
         CatalogResult,
     },
     name::CatalogName,
-    resolve::ResolvedBuild,
+    presets::ResolvedPresetSet,
+    resolve::{
+        ResolvedBuild,
+        ResolvedTag,
+        ResolvedTemplateClass,
+    },
     stack::PretrainedCatalogStack,
 };
 
@@ -162,6 +173,51 @@ pub struct SelectBuild {
     pub derived: BTreeMap<String, Value>,
 }
 
+/// An entry as a query of its kind reads it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SelectEntry {
+    /// A build: resolved, with its derived tags.
+    Build(Rc<SelectBuild>),
+    /// A template class, resolved along its chain.
+    TemplateClass(ResolvedTemplateClass),
+    /// Any other kind: its declaration, and the groups and scopes it is in.
+    Declared {
+        /// The entry's fields.
+        entry: CatalogEntry,
+        /// For a group, the groups in its membership closure; for any other
+        /// kind, every scope that encloses it.
+        within: BTreeSet<CatalogName>,
+    },
+}
+
+impl SelectEntry {
+    /// Its tags, for a kind that has them.
+    pub fn tags(&self) -> Option<&BTreeMap<CatalogName, ResolvedTag>> {
+        match self {
+            Self::Build(b) => Some(&b.build.tags),
+            Self::TemplateClass(c) => Some(&c.tags),
+            Self::Declared { .. } => None,
+        }
+    }
+
+    /// Its folded presets, for a kind that has them.
+    pub fn presets(&self) -> Option<&ResolvedPresetSet> {
+        match self {
+            Self::Build(b) => Some(&b.build.presets),
+            Self::TemplateClass(c) => Some(&c.presets),
+            Self::Declared { .. } => None,
+        }
+    }
+
+    /// The build, for a build.
+    pub fn build(&self) -> Option<&SelectBuild> {
+        match self {
+            Self::Build(b) => Some(b),
+            _ => None,
+        }
+    }
+}
+
 /// The `$` words the query language defines; a derived key may not be one.
 pub const RESERVED_WORDS: [&str; 14] = [
     "any",
@@ -187,6 +243,7 @@ pub struct SelectEnv<'a> {
     derive: Vec<&'a dyn DeriveTags>,
     derived_keys: Vec<DerivedKey>,
     builds: RefCell<BTreeMap<CatalogName, Rc<SelectBuild>>>,
+    entries: RefCell<BTreeMap<CatalogName, Rc<SelectEntry>>>,
 }
 
 impl<'a> SelectEnv<'a> {
@@ -197,6 +254,7 @@ impl<'a> SelectEnv<'a> {
             derive: Vec::new(),
             derived_keys: Vec::new(),
             builds: RefCell::new(BTreeMap::new()),
+            entries: RefCell::new(BTreeMap::new()),
         }
     }
 
@@ -234,6 +292,7 @@ impl<'a> SelectEnv<'a> {
             derive,
             derived_keys,
             builds: RefCell::new(BTreeMap::new()),
+            entries: RefCell::new(BTreeMap::new()),
         })
     }
 
@@ -272,6 +331,64 @@ impl<'a> SelectEnv<'a> {
         let entry = Rc::new(SelectBuild { build, derived });
         self.builds.borrow_mut().insert(name.clone(), entry.clone());
         Ok(entry)
+    }
+}
+
+impl SelectEnv<'_> {
+    /// The entry `entry`, as a query of its kind reads it, resolved once and
+    /// kept.
+    ///
+    /// # Errors
+    /// [`CatalogErrorKind::Selection`] when it isn't declared as that kind,
+    /// or doesn't resolve.
+    pub fn entry(
+        &self,
+        entry: &KindRef,
+    ) -> CatalogResult<Rc<SelectEntry>> {
+        if let Some(found) = self.entries.borrow().get(&entry.path) {
+            return Ok(found.clone());
+        }
+        let name = &entry.path;
+        let unresolved = |why: String| {
+            CatalogError::new(
+                CatalogErrorKind::Selection,
+                format!("`{name}` doesn't resolve: {why}"),
+            )
+        };
+        let decl = self
+            .stack
+            .declaration(name)
+            .filter(|d| d.kind() == entry.kind)
+            .ok_or_else(|| unresolved(format!("it isn't declared as a `{}`", entry.kind)))?;
+        let found = Rc::new(match entry.kind {
+            EntryKind::Build => SelectEntry::Build(self.build(name)?),
+            EntryKind::TemplateClass => SelectEntry::TemplateClass(
+                self.stack
+                    .resolve_template_class(name)
+                    .map_err(|e| unresolved(e.to_string()))?,
+            ),
+            kind => {
+                let within = if kind.is_group() {
+                    self.stack.group_closure(self.stack.direct_groups(decl))
+                } else {
+                    let mut scopes = BTreeSet::new();
+                    let mut scope = name.scope();
+                    while let Some(s) = scope {
+                        scope = s.scope();
+                        scopes.insert(s);
+                    }
+                    scopes
+                };
+                SelectEntry::Declared {
+                    entry: decl.body().clone(),
+                    within,
+                }
+            }
+        });
+        self.entries
+            .borrow_mut()
+            .insert(name.clone(), found.clone());
+        Ok(found)
     }
 }
 

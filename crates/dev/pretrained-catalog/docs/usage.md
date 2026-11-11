@@ -500,6 +500,28 @@ Weights aren't bounded above, and nothing renormalizes.
 # large-v2, large-v3, large-v3-turbo
 ```
 
+### Kinds
+
+| kind | name tests | tags, axis tests, `$presets` | `$` fields |
+|---|---|---|---|
+| `build` | its groups (by closure), its template-class chain, itself | its own, its chain's, the implied ones, derived keys | `$released`, `$license`, `$origin`, `$template_class`, `$contract` |
+| `template_class` | the groups it joins through its chain (by closure), its base chain, itself | its chain's, and its folded axis uses and presets | |
+| `namespace`, `contract`, `release` | the groups in its closure, itself | none | |
+| `tag`, `axis`, `facet`, `resource` | the scopes that enclose it, itself | none | `$format`, `$dtype` (a resource's) |
+
+`$weight`, `$name`, `$parent`, `weigh` (`when`, `mul`, `add`, `clip`), `order` and `limit` apply to
+every kind; `match` to builds and template classes, `release` to builds. A test the kind doesn't
+admit is an error when the query compiles. Choosing takes a build; a query of another kind is
+ranked.
+
+```yaml
+kind: resource
+run:
+  - keep: qwen3-0.6b              # the resources in the build's scope
+  - keep: {$format: json}
+# qwen/qwen3/qwen3-0.6b/config
+```
+
 ### `order` and `limit`
 
 A sort key is `K` (ascending), `{asc: K}` or `{desc: K}`, with an optional `missing: first` (the
@@ -556,6 +578,7 @@ wherever they sit on the command line.
 
 | flag | stage |
 |---|---|
+| `--kind K` | the query's kind; `build` by default |
 | bare names | one `from: [..]`; a named selection's name is a `use` |
 | `--keep P`, `--drop P` | that stage; P is a name or a flow map |
 | `--lt/--le/--gt/--ge/--eq/--ne KEY V` | `keep: {KEY: {le: V}}`, and so on |
@@ -580,7 +603,8 @@ pretrained-catalog --builtin select whisper --weigh '{release: latest}' --cutoff
 
 `select` prints YAML: the composed `query`, `why` (each stage: its operation, origin, how many
 rows it removed, and a `weigh`'s weights), `dropped` (with `--rank`), the `presets` applied, and
-the `results`, each build resolved with its weight.
+the `results`: each build resolved with its weight, or, for another kind, each entry's name,
+kind and weight.
 
 ## Lower layers: a query by hand
 

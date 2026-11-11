@@ -100,9 +100,11 @@ pub struct SelectionContext {
     pub named: Vec<NamedSelection>,
 }
 
-/// What a request asks: names, then stages.
-#[derive(Clone, Debug, Default, PartialEq)]
+/// What a request asks: a kind, names, then stages.
+#[derive(Clone, Debug, PartialEq)]
 pub struct SelectRequest {
+    /// The kind it selects; `build` by default.
+    pub kind: EntryKind,
     /// Names, in order: a named selection's name is a `use`, and the others
     /// are one `from`.
     pub names: Vec<String>,
@@ -112,7 +114,26 @@ pub struct SelectRequest {
     pub floor: Option<f64>,
 }
 
+impl Default for SelectRequest {
+    fn default() -> Self {
+        Self {
+            kind: EntryKind::Build,
+            names: Vec::new(),
+            stages: Vec::new(),
+            floor: None,
+        }
+    }
+}
+
 impl SelectRequest {
+    /// A request for entries of `kind`.
+    pub fn of_kind(kind: EntryKind) -> Self {
+        Self {
+            kind,
+            ..Self::default()
+        }
+    }
+
     /// This request with the name `name`.
     pub fn name(
         mut self,
@@ -228,7 +249,8 @@ impl SelectionContext {
     }
 
     /// The pipeline `request` makes over the context, with `prefix` first,
-    /// as a query of builds; `choosing` adds the tail's `limit: 1`.
+    /// as a query of the request's kind; `choosing` adds the tail's
+    /// `limit: 1`.
     ///
     /// # Errors
     /// [`CatalogErrorKind::Selection`](crate::CatalogErrorKind::Selection)
@@ -244,7 +266,7 @@ impl SelectionContext {
         let (uses, refs): (Vec<&String>, Vec<&String>) =
             request.names.iter().partition(|n| self.named(n).is_some());
         let exact = match (refs.as_slice(), uses.is_empty()) {
-            ([only], true) => env
+            ([only], true) if request.kind == EntryKind::Build => env
                 .stack()
                 .find(only, &MEMBERSHIP_KINDS, LeafMatch::Exact)
                 .ok()
@@ -289,7 +311,7 @@ impl SelectionContext {
         let (run, origins) = stages.into_iter().map(|s| (s.stage, s.origin)).unzip();
         Ok(ComposedQuery {
             query: SelectQuery {
-                kind: EntryKind::Build,
+                kind: request.kind,
                 floor: request.floor,
                 run,
             },
@@ -329,8 +351,8 @@ impl SelectionContext {
         Ok(())
     }
 
-    /// Runs `composed` over the builds of `env`'s stack (every build, or
-    /// those in `universe`), traced.
+    /// Runs `composed` over the entries of its kind in `env`'s stack (all of
+    /// them, or those in `universe`), traced.
     ///
     /// # Errors
     /// As [`SelectQuery::compile`], and when the request named one build
@@ -345,9 +367,10 @@ impl SelectionContext {
         for (index, origin) in composed.origins.iter().enumerate() {
             compiled.set_origin(index, origin.clone());
         }
+        let kind = composed.query.kind;
         let table = match universe {
-            Some(names) => SelectTable::of(EntryKind::Build, names.iter().cloned()),
-            None => SelectTable::universe(env, EntryKind::Build),
+            Some(names) => SelectTable::of(kind, names.iter().cloned()),
+            None => SelectTable::universe(env, kind),
         };
         let run = compiled.run_traced(env, table)?;
         if let Some(build) = &composed.exact
@@ -367,7 +390,7 @@ impl SelectionContext {
         Ok(run)
     }
 
-    /// Every build `request` (with `prefix` first) selects, in order, traced.
+    /// Every entry `request` (with `prefix` first) selects, in order, traced.
     ///
     /// # Errors
     /// As [`compose`](Self::compose) and [`run_composed`](Self::run_composed).
@@ -394,6 +417,12 @@ impl SelectionContext {
         prefix: Option<OriginStage>,
         request: &SelectRequest,
     ) -> CatalogResult<(Rc<SelectBuild>, SelectRun)> {
+        if request.kind != EntryKind::Build {
+            return Err(query_error(format!(
+                "choosing takes a build, not a `{}`; rank a query of other kinds",
+                request.kind
+            )));
+        }
         let composed = self.compose(env, prefix, request, true)?;
         let run = self.run_composed(env, universe, &composed)?;
         let Some(row) = run.table.rows.first() else {
