@@ -152,6 +152,19 @@ pub enum EntryKind {
 }
 
 impl EntryKind {
+    /// Every kind.
+    pub const ALL: [EntryKind; 9] = [
+        Self::Namespace,
+        Self::Contract,
+        Self::Release,
+        Self::Build,
+        Self::TemplateClass,
+        Self::Tag,
+        Self::Axis,
+        Self::Facet,
+        Self::Resource,
+    ];
+
     /// Whether entries of this kind are groups (a build may be a member).
     pub fn is_group(self) -> bool {
         matches!(self, Self::Namespace | Self::Contract | Self::Release)
@@ -160,6 +173,11 @@ impl EntryKind {
     /// Whether entries of this kind may hold children and be scoped.
     pub fn is_container_group(self) -> bool {
         matches!(self, Self::Namespace | Self::Contract)
+    }
+
+    /// The kind the document spells `name`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.as_str() == name)
     }
 
     /// The kind as the document spells it.
@@ -175,6 +193,23 @@ impl EntryKind {
             Self::Facet => "facet",
             Self::Resource => "resource",
         }
+    }
+}
+
+impl Serialize for EntryKind {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for EntryKind {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        Self::from_name(&name)
+            .ok_or_else(|| serde::de::Error::custom(format!("`{name}` is not a kind")))
     }
 }
 

@@ -375,18 +375,7 @@ fn entry_kind(
     text: &str,
     path: &str,
 ) -> CatalogResult<EntryKind> {
-    Ok(match text {
-        "namespace" => EntryKind::Namespace,
-        "contract" => EntryKind::Contract,
-        "release" => EntryKind::Release,
-        "build" => EntryKind::Build,
-        "template_class" => EntryKind::TemplateClass,
-        "tag" => EntryKind::Tag,
-        "axis" => EntryKind::Axis,
-        "facet" => EntryKind::Facet,
-        "resource" => EntryKind::Resource,
-        other => return Err(parse_error(path, format!("`{other}` is not a kind"))),
-    })
+    EntryKind::from_name(text).ok_or_else(|| parse_error(path, format!("`{text}` is not a kind")))
 }
 
 fn read_entry(

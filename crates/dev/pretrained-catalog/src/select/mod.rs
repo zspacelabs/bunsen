@@ -7,6 +7,11 @@
 //! - [`latest`]: each release group's newest release first, by release time.
 //! - [`expr`]: [`Query`](expr::Query), `{select, prefer, order, cutoff,
 //!   limit}`, merged as merge patches and compiled against the stack.
+//! - [`query`], [`state`] and [`run`]: the selection pipeline. A
+//!   [`SelectQuery`](query::SelectQuery) is a kind and a list of stages,
+//!   written only in YAML particles; it compiles against a
+//!   [`SelectEnv`](state::SelectEnv) and runs on a
+//!   [`SelectTable`](state::SelectTable) of weighted rows.
 //! - [`choose`]: choosing and ranking
 //!   ([`SelectionContext`](choose::SelectionContext)), with names, `--preset`s
 //!   and axis flags filling the query.
@@ -16,6 +21,9 @@ pub mod core;
 pub mod expr;
 pub mod latest;
 pub mod predicate;
+pub mod query;
+pub mod run;
+pub mod state;
 
 #[cfg(test)]
 pub(crate) mod testing {
