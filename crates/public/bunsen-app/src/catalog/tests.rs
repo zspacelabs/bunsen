@@ -478,3 +478,42 @@ fn test_extensions_import_over_the_base() {
         "{err}"
     );
 }
+
+/// A command of its own that flattens the stage flags reads them in
+/// command-line order, with a tool preset joining the prefix.
+#[test]
+fn test_selection_flags_flatten_into_a_command() {
+    use clap::CommandFactory;
+
+    #[derive(clap::Parser, Debug)]
+    struct Tool {
+        #[arg(long)]
+        model: Vec<String>,
+        #[command(flatten)]
+        stages: SelectionStageArgs,
+    }
+
+    let stack = bunsen::data::pretrained::build_catalog::fixtures::example_stack().unwrap();
+    let matches = Tool::command()
+        .try_get_matches_from([
+            "tool", "--model", "qwen3", "--limit", "2", "--off", "thinking", "--keep", "instruct",
+        ])
+        .unwrap();
+    let flags = SelectionFlags::read(&stack, &matches)
+        .unwrap()
+        .with_preset("thinking-extra", "--think");
+    let ops: Vec<&str> = flags.stages.iter().map(|s| s.stage.stage.op()).collect();
+    assert_eq!(ops, ["limit", "keep"], "in command-line order");
+    assert_eq!(flags.presets.presets, ["no-thinking", "thinking-extra"]);
+    assert_eq!(flags.preset_flags, ["--off thinking", "--think"]);
+    assert!(flags.prefix().is_some());
+
+    let bare = Tool::command().try_get_matches_from(["tool"]).unwrap();
+    let none = SelectionFlags::read(&stack, &bare).unwrap();
+    assert!(none.stages.is_empty() && none.prefix().is_none());
+
+    let bad = Tool::command()
+        .try_get_matches_from(["tool", "--on", "no-such-axis"])
+        .unwrap();
+    assert!(SelectionFlags::read(&stack, &bad).is_err());
+}

@@ -13,6 +13,30 @@ pub struct SelectArgs {
     /// Names, in order: one `from` stage; a named selection's name is a
     /// `use`.
     names: Vec<String>,
+    /// The query's floor.
+    #[arg(long, value_name = "F")]
+    floor: Option<String>,
+    #[command(flatten)]
+    stages: SelectionStageArgs,
+    /// The defaults, a list of stages: applied unless the only name is one
+    /// build.
+    ///
+    /// A file, or YAML flow.
+    #[arg(long, value_name = "FILE|[..]")]
+    defaults: Option<String>,
+    /// Also list every row a stage removed, with why.
+    #[arg(long)]
+    rank: bool,
+}
+
+/// The pipeline's stage and preset flags, for `#[command(flatten)]` into any
+/// command that chooses builds: each flag is one stage, in command-line
+/// order, and `--preset`, `--on` and `--off` go into the prefix.
+///
+/// The values are read back in order from the command's [`ArgMatches`] by
+/// [`SelectionFlags::read`]; the fields only declare the flags.
+#[derive(clap::Args, Clone, Debug, Default)]
+pub struct SelectionStageArgs {
     /// `keep: P` (a name or a flow map); repeatable.
     #[arg(long, value_name = "P")]
     keep: Vec<String>,
@@ -47,9 +71,6 @@ pub struct SelectArgs {
     /// `weigh: B`: a whole block (`{by: [..], floor: f}`); repeatable.
     #[arg(long, value_name = "B")]
     weigh_block: Vec<String>,
-    /// The query's floor.
-    #[arg(long, value_name = "F")]
-    floor: Option<String>,
     /// `keep: {$weight: {ge: W}}`; repeatable.
     #[arg(long, value_name = "W")]
     cutoff: Vec<String>,
@@ -84,15 +105,53 @@ pub struct SelectArgs {
     pipeline: Vec<String>,
     #[command(flatten)]
     presets: PresetArgs,
-    /// The defaults, a list of stages: applied unless the only name is one
-    /// build.
+}
+
+/// What [`SelectionStageArgs`] said, read in command-line order: the
+/// request's stages, and the presets to apply, which the prefix filters by.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SelectionFlags {
+    /// The stages, in order, each attributed to its flag.
+    pub stages: Vec<OriginStage>,
+    /// The presets: each `--preset`, and each `--on`/`--off` member.
+    pub presets: PresetSelection,
+    /// The preset flags as written, for the prefix's origin.
+    pub preset_flags: Vec<String>,
+}
+
+impl SelectionFlags {
+    /// The flags of a command flattening [`SelectionStageArgs`], read from
+    /// its `matches` in command-line order; `--on X` and `--off X` are read
+    /// against `stack`'s declaration of the bool axis `X`.
     ///
-    /// A file, or YAML flow.
-    #[arg(long, value_name = "FILE|[..]")]
-    defaults: Option<String>,
-    /// Also list every row a stage removed, with why.
-    #[arg(long)]
-    rank: bool,
+    /// # Errors
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) for a flag
+    /// whose value doesn't read, an `--on`/`--off` of no bool axis, or a
+    /// `--per` without its `--end`.
+    pub fn read(
+        stack: &PretrainedCatalogStack,
+        matches: &ArgMatches,
+    ) -> BunsenResult<Self> {
+        read_selection(stack, matches).map_err(BunsenError::policy)
+    }
+
+    /// These flags with the preset `preset` too, as the flag `flag` wrote
+    /// it: a tool's own preset flag (`--think`).
+    pub fn with_preset(
+        mut self,
+        preset: impl Into<String>,
+        flag: impl Into<String>,
+    ) -> Self {
+        self.presets.presets.push(preset.into());
+        self.preset_flags.push(flag.into());
+        self
+    }
+
+    /// The prefix the presets make: one `keep: {$presets: [..]}`, or `None`
+    /// without presets.
+    pub fn prefix(&self) -> Option<OriginStage> {
+        preset_prefix(&self.presets, self.preset_flags.clone())
+    }
 }
 
 /// One flag of `select`, by its place on the command line.
@@ -262,6 +321,104 @@ fn select_flags(
     }
     flags.sort_by_key(|(at, _)| *at);
     Ok(flags.into_iter().map(|(_, f)| f).collect())
+}
+
+/// [`SelectionFlags::read`], with its errors as messages.
+fn read_selection(
+    stack: &PretrainedCatalogStack,
+    matches: &ArgMatches,
+) -> Result<SelectionFlags, String> {
+    let mut presets = PresetSelection::default();
+    let mut preset_flags = Vec::new();
+    // The stages being built: the request's, then one frame per open
+    // `--per`, each with its pending sort keys.
+    struct Frame {
+        stages: Vec<OriginStage>,
+        sort: Option<(Vec<SortKey>, Vec<String>)>,
+        per: Option<(PerGroup, String)>,
+    }
+    impl Frame {
+        fn new(per: Option<(PerGroup, String)>) -> Self {
+            Self {
+                stages: Vec::new(),
+                sort: None,
+                per,
+            }
+        }
+
+        fn flush(&mut self) {
+            if let Some((keys, flags)) = self.sort.take() {
+                self.stages.push(OriginStage::new(
+                    Stage::Order(SortKeys(keys)),
+                    StageOrigin::Flag(flags.join(" ")),
+                ));
+            }
+        }
+    }
+    let mut frames = vec![Frame::new(None)];
+    for flag in select_flags(stack, matches)? {
+        let frame = frames.last_mut().expect("the request's frame");
+        match flag {
+            SelectFlag::Sort(key, text) => {
+                let (keys, flags) = frame.sort.get_or_insert_with(Default::default);
+                keys.push(key);
+                flags.push(text);
+            }
+            SelectFlag::Preset(preset, text) => {
+                presets.presets.push(preset);
+                preset_flags.push(text);
+            }
+            SelectFlag::Stage(stage, text) => {
+                frame.flush();
+                frame
+                    .stages
+                    .push(OriginStage::new(stage, StageOrigin::Flag(text)));
+            }
+            SelectFlag::Pipeline(stages, text) => {
+                frame.flush();
+                for stage in stages {
+                    frame
+                        .stages
+                        .push(OriginStage::labeled(stage, StageOrigin::Flag(text.clone())));
+                }
+            }
+            SelectFlag::PerStart(group, text) => {
+                frame.flush();
+                frames.push(Frame::new(Some((group, text))));
+            }
+            SelectFlag::PerEnd => {
+                frame.flush();
+                if frames.len() == 1 {
+                    return Err("`--end` closes no `--per`".to_string());
+                }
+                let done = frames.pop().expect("an open `--per`");
+                let (group, text) = done.per.expect("a `--per` frame");
+                let per = Stage::Per(PerStage {
+                    group,
+                    run: done.stages.into_iter().map(|s| s.stage).collect(),
+                });
+                frames
+                    .last_mut()
+                    .expect("the request's frame")
+                    .stages
+                    .push(OriginStage::new(
+                        per,
+                        StageOrigin::Flag(format!("{text} .. --end")),
+                    ));
+            }
+        }
+    }
+    if frames.len() > 1 {
+        let (_, text) = frames.pop().and_then(|f| f.per).expect("a `--per` frame");
+        return Err(format!("`{text}` has no `--end`"));
+    }
+    let mut top = frames.pop().expect("the request's frame");
+    top.flush();
+    Ok(SelectionFlags {
+        stages: top.stages,
+        presets,
+        preset_flags,
+    })
 }
 
 /// A build in a result, as `select` prints it: the resolved build's
@@ -444,94 +601,10 @@ pub(super) fn select(
             })
             .transpose()?,
     };
-    let mut presets = PresetSelection::default();
-    let mut preset_flags = Vec::new();
-    // The stages being built: the request's, then one frame per open
-    // `--per`, each with its pending sort keys.
-    struct Frame {
-        stages: Vec<OriginStage>,
-        sort: Option<(Vec<SortKey>, Vec<String>)>,
-        per: Option<(PerGroup, String)>,
-    }
-    impl Frame {
-        fn new(per: Option<(PerGroup, String)>) -> Self {
-            Self {
-                stages: Vec::new(),
-                sort: None,
-                per,
-            }
-        }
-
-        fn flush(&mut self) {
-            if let Some((keys, flags)) = self.sort.take() {
-                self.stages.push(OriginStage::new(
-                    Stage::Order(SortKeys(keys)),
-                    StageOrigin::Flag(flags.join(" ")),
-                ));
-            }
-        }
-    }
-    let mut frames = vec![Frame::new(None)];
-    for flag in select_flags(stack, matches)? {
-        let frame = frames.last_mut().expect("the request's frame");
-        match flag {
-            SelectFlag::Sort(key, text) => {
-                let (keys, flags) = frame.sort.get_or_insert_with(Default::default);
-                keys.push(key);
-                flags.push(text);
-            }
-            SelectFlag::Preset(preset, text) => {
-                presets.presets.push(preset);
-                preset_flags.push(text);
-            }
-            SelectFlag::Stage(stage, text) => {
-                frame.flush();
-                frame
-                    .stages
-                    .push(OriginStage::new(stage, StageOrigin::Flag(text)));
-            }
-            SelectFlag::Pipeline(stages, text) => {
-                frame.flush();
-                for stage in stages {
-                    frame
-                        .stages
-                        .push(OriginStage::labeled(stage, StageOrigin::Flag(text.clone())));
-                }
-            }
-            SelectFlag::PerStart(group, text) => {
-                frame.flush();
-                frames.push(Frame::new(Some((group, text))));
-            }
-            SelectFlag::PerEnd => {
-                frame.flush();
-                if frames.len() == 1 {
-                    return Err("`--end` closes no `--per`".to_string());
-                }
-                let done = frames.pop().expect("an open `--per`");
-                let (group, text) = done.per.expect("a `--per` frame");
-                let per = Stage::Per(PerStage {
-                    group,
-                    run: done.stages.into_iter().map(|s| s.stage).collect(),
-                });
-                frames
-                    .last_mut()
-                    .expect("the request's frame")
-                    .stages
-                    .push(OriginStage::new(
-                        per,
-                        StageOrigin::Flag(format!("{text} .. --end")),
-                    ));
-            }
-        }
-    }
-    if frames.len() > 1 {
-        let (_, text) = frames.pop().and_then(|f| f.per).expect("a `--per` frame");
-        return Err(format!("`{text}` has no `--end`"));
-    }
-    let mut top = frames.pop().expect("the request's frame");
-    top.flush();
-    request.stages = top.stages;
-    let prefix = preset_prefix(&presets, preset_flags);
+    let flags = read_selection(stack, matches)?;
+    request.stages = flags.stages.clone();
+    let prefix = flags.prefix();
+    let presets = flags.presets;
     let composed = context
         .compose(&env, prefix, &request, false)
         .map_err(|e| e.problem_message())?;
