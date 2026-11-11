@@ -1504,6 +1504,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "catalog-builder"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "clap",
+ "icu_locale",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "ureq 3.5.1",
+]
+
+[[package]]
 name = "cc"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

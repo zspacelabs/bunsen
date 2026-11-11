@@ -1,0 +1,25 @@
+[package]
+name = "catalog-builder"
+description = "Builds bunsen's built-in pretrained catalog from its probe-contract sources: the kits' contracts, the pins the Hub and the URLs give, and the presets the probes find."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The full default stack: the builder gathers every kit's contract, and runs
+# the kits' probes.
+bunsen = { path = "../../crates/public/bunsen" }
+clap = { workspace = true, features = ["derive"] }
+icu_locale = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+ureq = { workspace = true }
