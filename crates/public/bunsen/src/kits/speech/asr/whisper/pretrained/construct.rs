@@ -11,6 +11,7 @@ use burn::tensor::Device;
 use crate::{
     data::pretrained::{
         Fuse,
+        GEOMETRY,
         GIVEN_NAMESPACE,
         LoadedResources,
         PretrainedCache,
@@ -287,7 +288,7 @@ impl WhisperConstructConfig {
     }
 
     /// Sets the geometry the checkpoint must scan to, which wins over the
-    /// one a row's prefab promises.
+    /// one a row promises.
     pub fn with_expected(
         mut self,
         expected: Option<WhisperGeometry>,
@@ -296,17 +297,26 @@ impl WhisperConstructConfig {
         self
     }
 
-    /// The geometry `model` must scan to: the explicit one, else its
-    /// prefab's when it was named and names one, else none.
+    /// The geometry `model` must scan to: the explicit one, else the one
+    /// its row states ([`GEOMETRY`]), else its prefab's when it names one,
+    /// else none. A given bundle promises nothing.
+    ///
+    /// # Errors
+    /// As [`PretrainedRef::stated`], when the row's geometry doesn't read as
+    /// a [`WhisperGeometry`].
     pub fn expected_for(
         &self,
         model: &PretrainedRef,
-    ) -> Option<WhisperGeometry> {
-        self.expected.or_else(|| {
-            model
-                .prefab(&WHISPER_PREFABS)
-                .map(|prefab| prefab.to_config().geometry())
-        })
+    ) -> BunsenResult<Option<WhisperGeometry>> {
+        if self.expected.is_some() {
+            return Ok(self.expected);
+        }
+        if let Some(stated) = model.stated(GEOMETRY)? {
+            return Ok(Some(stated));
+        }
+        Ok(model
+            .prefab(&WHISPER_PREFABS)
+            .map(|prefab| prefab.to_config().geometry()))
     }
 
     /// Scans the checkpoint in `loaded` for its config without loading its
@@ -333,7 +343,7 @@ impl WhisperConstructConfig {
         model: &PretrainedRef,
         found: &WhisperGeometry,
     ) -> BunsenResult<()> {
-        match self.expected_for(model) {
+        match self.expected_for(model)? {
             Some(expected) if expected != *found => {
                 Err(GeometryMismatch::new(model.id(), expected, *found).into())
             }

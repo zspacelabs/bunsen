@@ -166,7 +166,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
 }
 
 /// The geometry a name promises is checked against the scan before
-/// anything is loaded: a named model plans against its prefab, a
+/// anything is loaded: a named model plans against its stated geometry, a
 /// given one promises nothing, and an explicit expectation wins over
 /// both.
 #[test]
@@ -177,8 +177,11 @@ fn test_plan_checks_the_prefab_a_name_promises() {
     let named = resolve_model("openai/base").unwrap();
     let hook = WhisperConstructConfig::new();
 
-    assert_eq!(hook.expected_for(&given), None);
-    assert_eq!(hook.expected_for(&named), Some(geometry_of("base")));
+    assert_eq!(hook.expected_for(&given).unwrap(), None);
+    assert_eq!(
+        hook.expected_for(&named).unwrap(),
+        Some(geometry_of("base"))
+    );
     hook.plan(&named, &cache).unwrap();
     hook.plan(&given, &cache).unwrap();
 
@@ -200,7 +203,7 @@ fn test_plan_checks_the_prefab_a_name_promises() {
     assert!(hook.scan(&wrong_name, &base).is_err());
     let explicit = hook.clone().with_expected(Some(geometry_of("base")));
     assert_eq!(
-        explicit.expected_for(&wrong_name),
+        explicit.expected_for(&wrong_name).unwrap(),
         Some(geometry_of("base"))
     );
     explicit.scan(&wrong_name, &base).unwrap();
@@ -248,10 +251,10 @@ fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
     let model = resolve_model("openai/tiny").unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .cause(predicate(
-            "a mismatch under openai/tiny",
-            |m: &GeometryMismatch| m.model.contains("openai/tiny"),
+            "a mismatch under openai/whisper/tiny",
+            |m: &GeometryMismatch| m.model.contains("openai/whisper/tiny"),
         ))
-        .display_contains("openai/tiny")
+        .display_contains("openai/whisper/tiny")
         .assert_err(
             &WhisperConstructConfig::new().scan(&model, &loaded(bind_whisper_onnx::base_pt())),
         );

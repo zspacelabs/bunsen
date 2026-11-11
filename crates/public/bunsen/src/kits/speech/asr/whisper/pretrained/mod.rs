@@ -41,10 +41,14 @@
 //!
 //! A row is a build's two resources: its checkpoint, and the vocabulary its
 //! token layout selects ([`WhisperVocabulary`]), which the plan checks
-//! against the checkpoint. A prefab of [`WHISPER_PREFABS`] is a shape
-//! without weights; a resource is where the bytes come from and the digest
-//! that pins them. A path arrives as a one-resource bundle, and gets its
-//! vocabulary from the same rule, [`WhisperVocabulary::for_layout`].
+//! against the checkpoint. It states the geometry its checkpoint must have
+//! ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)), a prefab's of
+//! [`WHISPER_PREFABS`], so a name means a shape before any bytes are
+//! fetched, and a checkpoint of another shape under the name is refused. A
+//! prefab is a shape without weights; a resource is where the bytes come
+//! from and the digest that pins them. A path arrives as a one-resource bundle,
+//! and gets its vocabulary from the same rule,
+//! [`WhisperVocabulary::for_layout`].
 //!
 //! # Loading
 //!

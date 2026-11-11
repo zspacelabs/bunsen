@@ -206,8 +206,8 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&factory.lookup("hf:whisper-tiny"));
     }
 
-    /// The factory's rows name no prefab, since a checkpoint carries its
-    /// own dims.
+    /// The factory's rows name no prefab: each states its geometry instead
+    /// ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)).
     #[test]
     fn test_the_rows_name_no_prefab() {
         assert!(

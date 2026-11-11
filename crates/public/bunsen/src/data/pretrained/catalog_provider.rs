@@ -43,9 +43,11 @@ use super::{
 };
 use crate::errors::BunsenResult;
 
-/// The argument slot a contract states a geometry in, for weights that
-/// carry none: resnet's, and the `stated` variants of qwen3-asr's and
-/// voxtral's ([`PretrainedRef::stated`](super::PretrainedRef::stated)).
+/// The argument slot a contract states a geometry in
+/// ([`PretrainedRef::stated`](super::PretrainedRef::stated)): for weights
+/// that carry none (resnet's, and the `stated` variants of qwen3-asr's and
+/// voxtral's), the geometry they are built in; for weights that carry their
+/// own (whisper's), the one they must have.
 pub const GEOMETRY: &str = "geometry";
 
 /// A provider over the builds of one contract in a build catalog: each a

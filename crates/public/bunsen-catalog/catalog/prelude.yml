@@ -253,6 +253,15 @@ $contracts:
         $description: "`multilingual.tiktoken` or `gpt2.tiktoken`, as the token layout needs."
         $format:
           - tiktoken
+    $args:
+      geometry:
+        $description: The dims the checkpoint must have.
+        $type: geometry
+    geometry:
+      $kind: type
+      $description: "A `WhisperGeometry`, as it serializes: the loader checks the checkpoint's dims
+        against it."
+      $type: $object
   sortformer-diarizer:
     $kind: contract
     $description: "A Sortformer speaker diarizer: a `.nemo` archive, which carries its config, or

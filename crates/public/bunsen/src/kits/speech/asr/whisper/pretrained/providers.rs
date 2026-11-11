@@ -67,23 +67,6 @@ mod tests {
             .ids()
     }
 
-    /// The prefab each well-known row's checkpoint has the geometry of, by
-    /// the row's leaf name: `large-v1` and `large-v2` share `large`.
-    const ROW_PREFABS: [(&str, &str); 12] = [
-        ("large-v1", "large"),
-        ("large-v2", "large"),
-        ("large-v3", "large-v3"),
-        ("large-v3-turbo", "large-v3-turbo"),
-        ("tiny.en", "tiny.en"),
-        ("tiny", "tiny"),
-        ("base.en", "base.en"),
-        ("base", "base"),
-        ("small.en", "small.en"),
-        ("small", "small"),
-        ("medium.en", "medium.en"),
-        ("medium", "medium"),
-    ];
-
     fn well_known() -> crate::data::pretrained::BuildCatalogProvider {
         crate::data::pretrained::BuildCatalogProvider::expect_builtin(
             WHISPER_CATALOG_CONTRACT,
@@ -95,26 +78,33 @@ mod tests {
         name.rsplit('/').next().unwrap()
     }
 
-    fn prefab_of(name: &str) -> &'static str {
-        ROW_PREFABS
-            .iter()
-            .find(|(row, _)| *row == leaf(name))
-            .unwrap_or_else(|| panic!("{name}: no prefab in ROW_PREFABS"))
-            .1
+    /// The prefab whose geometry the row states.
+    fn prefab_of(row: &crate::data::pretrained::Pretrained) -> &'static str {
+        let geometry: crate::kits::speech::asr::whisper::WhisperGeometry = serde_json::from_value(
+            row.args
+                .get(crate::data::pretrained::GEOMETRY)
+                .unwrap_or_else(|| panic!("{}: no stated geometry", row.name))
+                .clone(),
+        )
+        .unwrap();
+        geometry
+            .prefab()
+            .unwrap_or_else(|| panic!("{}: no prefab has its geometry", row.name))
+            .name
     }
 
-    /// Every row has a prefab the map has and fuses into a checkpoint and a
+    /// Every row states the geometry of the prefab of its name (`large-v1`
+    /// and `large-v2` share `large`'s), and fuses into a checkpoint and a
     /// vocabulary, the checkpoint file named after the row and pinned.
     #[test]
-    fn test_every_row_has_a_prefab_and_fuses() {
+    fn test_every_row_states_its_prefab_and_fuses() {
         let provider = well_known();
         for row in provider.rows() {
-            let prefab = prefab_of(&row.name);
-            assert!(
-                WHISPER_PREFABS.lookup_prefab(prefab).is_some(),
-                "{}: prefab {prefab:?} is not in WHISPER_PREFABS",
-                row.name,
-            );
+            let expected = match leaf(&row.name) {
+                "large-v1" | "large-v2" => "large",
+                name => name,
+            };
+            assert_eq!(prefab_of(row), expected, "{}", row.name);
             let map = &row.resources;
             map.validate().unwrap();
             assert_eq!(map.keys(), [CHECKPOINT, VOCABULARY], "{}", row.name);
@@ -123,7 +113,7 @@ mod tests {
             assert!(checkpoint.is_pinned());
             assert!(map.get(VOCABULARY).unwrap().is_pinned());
         }
-        assert_eq!(provider.rows().len(), ROW_PREFABS.len());
+        assert_eq!(provider.rows().len(), 12);
     }
 
     /// The vocabulary a row declares is the one the rule selects for its
@@ -132,8 +122,7 @@ mod tests {
     fn test_the_declared_vocabulary_is_the_rules() {
         for row in well_known().rows() {
             let declared = row.resources.get(VOCABULARY).unwrap();
-            let rule =
-                WhisperVocabulary::for_layout(&layout_of(prefab_of(&row.name))).resource_bundle();
+            let rule = WhisperVocabulary::for_layout(&layout_of(prefab_of(row))).resource_bundle();
             let rule = rule.get(VOCABULARY).unwrap();
             assert_eq!(declared, rule, "{}", row.name);
         }
@@ -194,7 +183,8 @@ mod tests {
     }
 
     /// `contract.yml` loads as a base catalog's contracts, and its slots are
-    /// the resource keys the loader reads, of the kinds it reads them as.
+    /// the resource keys the loader reads, of the kinds it reads them as, and
+    /// the geometry it checks a checkpoint against.
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::kits::{
@@ -209,6 +199,7 @@ mod tests {
             [
                 format!("whisper-asr: {CHECKPOINT} [{PYTORCH_FP16}]"),
                 format!("whisper-asr: {VOCABULARY} [{TIKTOKEN}]"),
+                "whisper-asr: geometry: \"geometry\"".to_string(),
             ]
         );
     }
