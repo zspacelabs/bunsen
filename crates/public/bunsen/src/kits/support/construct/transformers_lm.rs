@@ -32,8 +32,8 @@ use crate::{
         CONFIG,
         LoadedResources,
         NamedTensorsApplied,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS,
         SAFETENSORS_INDEX,
@@ -108,7 +108,7 @@ pub trait TransformersLmKit: Default {
     ///
     /// # Errors
     /// As [`probe_loaded`](crate::kits::support::model_config::probe_loaded).
-    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet>;
+    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet>;
 }
 
 impl<K: TransformersLmKit> ConstructInit for K {

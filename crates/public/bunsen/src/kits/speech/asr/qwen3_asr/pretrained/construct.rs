@@ -17,8 +17,8 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -167,7 +167,11 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         let dtype = load.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut asr: Qwen3Asr = config.try_init(device)?;
         load_transformers_tensors_as(&mut asr, tensors, dtype)?;
-        let policy = resolve_ref_presets(&Qwen3AsrPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &Qwen3AsrPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
             .with_policy(policy.config.clone(), policy.applied());
         if n_mels != bundle.front_end.config.n_mels {

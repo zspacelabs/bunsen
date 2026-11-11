@@ -414,7 +414,7 @@ pub fn probe_loaded(
     loaded: &crate::data::pretrained::LoadedResources,
     entries: &[CatalogProbe],
     family: &PresetSet,
-) -> BunsenResult<PresetSet> {
+) -> BunsenResult<crate::data::pretrained::ResolvedPresetSet> {
     let mut files = ProbeFiles::new();
     let mut kept = Vec::new();
     for entry in entries {
@@ -428,7 +428,9 @@ pub fn probe_loaded(
         }
         kept.push(entry.clone());
     }
-    Ok(apply_probes(&PresetSet::default(), family, &kept, &files)?.over(family))
+    apply_probes(&PresetSet::default(), family, &kept, &files)?
+        .over(family)
+        .to_resolved()
 }
 
 impl CatalogProbe {

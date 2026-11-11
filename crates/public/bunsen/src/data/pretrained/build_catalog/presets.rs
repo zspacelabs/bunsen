@@ -52,6 +52,8 @@ pub struct AxisInfo {
     pub kind: AxisKind,
     /// Its members.
     pub members: Vec<String>,
+    /// What it decides, for a person.
+    pub description: String,
 }
 
 impl AxisInfo {
@@ -109,6 +111,10 @@ pub struct PresetLink<'a> {
 }
 
 /// A build's presets, folded along its chain.
+///
+/// A pretrained row carries one
+/// ([`Pretrained::presets`](crate::data::pretrained::Pretrained::presets)), and
+/// a kit resolves its config through it at construct time.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedPresetSet {
     /// The merged common patch.
@@ -154,7 +160,27 @@ pub struct AppliedPresets {
     pub applied: Vec<String>,
 }
 
+impl Default for ResolvedPresetSet {
+    fn default() -> Self {
+        Self {
+            common: Value::Object(Default::default()),
+            presets: Vec::new(),
+            axes: Vec::new(),
+            default: Vec::new(),
+        }
+    }
+}
+
 impl ResolvedPresetSet {
+    /// Whether the set says nothing: no common patch, presets, axes or
+    /// default.
+    pub fn is_empty(&self) -> bool {
+        self.common.as_object().is_some_and(|m| m.is_empty())
+            && self.presets.is_empty()
+            && self.axes.is_empty()
+            && self.default.is_empty()
+    }
+
     /// Folds `links`, root first, resolving each link's axis references
     /// with `axis`.
     ///
@@ -387,11 +413,17 @@ impl ResolvedPresetSet {
                 .map(|&i| defaults[i].as_str())
                 .collect();
             errors.push(err(format!(
-                "the defaults {who:?} each set `{}`",
+                "the defaults {} each set `{}`",
+                quoted(&who),
                 conflict.path
             )));
         }
         errors
+    }
+
+    /// The presets' names, in order.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.presets.iter().map(|p| p.name.as_str())
     }
 
     /// The preset named `name`.
@@ -482,9 +514,10 @@ impl ResolvedPresetSet {
     /// Checks `selection`'s preset names and returns them as declared.
     ///
     /// # Errors
-    /// [`CatalogRule::Selection`] when a name is unknown or not
-    /// offered, a preset is named twice, two members of one axis are named,
-    /// or two selected presets set the same path.
+    /// [`CatalogRule::Lookup`] when a name is no preset of the set;
+    /// [`CatalogRule::Selection`] when a member isn't offered, a preset is
+    /// named twice, two members of one axis are named, or two selected
+    /// presets set the same path.
     pub fn check_selection(
         &self,
         selection: &PresetSelection,
@@ -505,9 +538,14 @@ impl ResolvedPresetSet {
                     return Err(not_offered(using, name));
                 }
                 let known: Vec<&str> = self.presets.iter().map(|p| p.name.as_str()).collect();
+                let known = if known.is_empty() {
+                    "there are none".to_string()
+                } else {
+                    format!("there are: {}", known.join(", "))
+                };
                 return Err(catalog_error(
-                    CatalogRule::Selection,
-                    format!("no preset `{name}`; the build has {known:?}"),
+                    CatalogRule::Lookup,
+                    format!("no preset `{name}`; {known}"),
                 ));
             };
             let name = &preset.name;
@@ -545,7 +583,8 @@ impl ResolvedPresetSet {
             return Err(catalog_error(
                 CatalogRule::Selection,
                 format!(
-                    "the presets {who:?} each set `{}`: select one",
+                    "the presets {} each set `{}`: select one",
+                    quoted(&who),
                     conflict.path
                 ),
             ));
@@ -603,6 +642,16 @@ impl ResolvedPresetSet {
     }
 }
 
+/// `a`, `b` and `c`, each in backticks.
+pub(crate) fn quoted(names: &[&str]) -> String {
+    let names: Vec<String> = names.iter().map(|n| format!("`{n}`")).collect();
+    match names.as_slice() {
+        [] => String::new(),
+        [one] => one.clone(),
+        [init @ .., last] => format!("{} and {last}", init.join(", ")),
+    }
+}
+
 fn not_offered(
     using: &ResolvedAxisUse,
     member: &str,
@@ -640,6 +689,7 @@ mod tests {
             name: CatalogName::root("thinking").unwrap(),
             kind: AxisKind::Bool,
             members: vec!["thinking".into(), "no-thinking".into()],
+            description: "Whether the model thinks first.".into(),
         }
     }
 
@@ -887,6 +937,14 @@ mod tests {
         let set = fold(&[&hybrid(), &new]).unwrap();
         assert_eq!(set.get("beam").unwrap().patch, json!({"beams": 4}));
         assert_eq!(set.get("short").unwrap().patch, json!({"max": 8}));
+    }
+
+    #[test]
+    fn test_quoted() {
+        assert_eq!(quoted(&[]), "");
+        assert_eq!(quoted(&["a"]), "`a`");
+        assert_eq!(quoted(&["a", "b"]), "`a` and `b`");
+        assert_eq!(quoted(&["a", "b", "c"]), "`a`, `b` and `c`");
     }
 
     #[test]

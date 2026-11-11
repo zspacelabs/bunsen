@@ -8,7 +8,7 @@ mod model_row;
 mod output_format;
 
 use bunsen::{
-    data::pretrained::PresetSet,
+    data::pretrained::ResolvedPresetSet,
     errors::{
         BunsenError,
         BunsenResult,
@@ -64,14 +64,15 @@ pub fn with_patch(
 ///       transcribe  text in the language spoken (default)
 ///       translate   English text
 /// ```
-pub fn preset_lines(set: &PresetSet) -> Vec<String> {
+pub fn preset_lines(set: &ResolvedPresetSet) -> Vec<String> {
     if set.presets.is_empty() {
         return Vec::new();
     }
+    let defaults = set.default_names();
     let width = set.presets.iter().map(|p| p.name.len()).max().unwrap_or(0);
     let member = |name: &str| {
         let description = set.get(name).map_or("", |p| p.description.as_str());
-        let default = if set.default.iter().any(|d| d == name) {
+        let default = if defaults.iter().any(|d| d == name) {
             " (default)"
         } else {
             ""
@@ -82,15 +83,16 @@ pub fn preset_lines(set: &PresetSet) -> Vec<String> {
     };
     let mut lines =
         vec!["  presets (`--preset NAME`, or the model's box: `NAME[PRESET,...]`):".to_string()];
-    for axis in &set.axes {
-        lines.push(format!("    {}: {}", axis.name, axis.description));
-        lines.extend(axis.members.iter().map(|m| member(m)));
+    for using in &set.axes {
+        lines.push(format!(
+            "    {}: {}",
+            using.axis.name, using.axis.description
+        ));
+        lines.extend(using.offers.iter().map(|m| member(m)));
     }
     let loose: Vec<&str> = set
-        .presets
-        .iter()
-        .map(|p| p.name.as_str())
-        .filter(|name| !set.axes.iter().any(|a| a.members.iter().any(|m| m == name)))
+        .names()
+        .filter(|name| set.axis_of(name).is_none())
         .collect();
     if !loose.is_empty() {
         lines.push("    on no axis:".to_string());
@@ -155,6 +157,7 @@ mod tests {
         use bunsen::data::pretrained::{
             Preset,
             PresetAxis,
+            PresetSet,
         };
         let preset = |name: &str, description: &str| Preset {
             name: name.to_string(),
@@ -176,7 +179,7 @@ mod tests {
             ..PresetSet::default()
         };
         assert_eq!(
-            preset_lines(&set),
+            preset_lines(&set.to_resolved().unwrap()),
             [
                 "  presets (`--preset NAME`, or the model's box: `NAME[PRESET,...]`):",
                 "    task: what to emit",
@@ -186,7 +189,7 @@ mod tests {
                 "      loud",
             ]
         );
-        assert!(preset_lines(&PresetSet::default()).is_empty());
+        assert!(preset_lines(&ResolvedPresetSet::default()).is_empty());
     }
 
     /// `--preset` takes a comma list or repeats, in order, and joins the

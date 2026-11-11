@@ -17,6 +17,7 @@ use crate::{
         LoadedResources,
         NamedTensorsApplied,
         PresetSet,
+        ResolvedPresetSet,
         StaticPreFabMap,
     },
     errors::BunsenResult,
@@ -81,7 +82,7 @@ impl TransformersLmKit for Qwen3ConstructConfig {
     /// catalog tool probes a row's: its `generation_config.json`, when it
     /// has one (the stop tokens and sampling), and the chat template its
     /// `tokenizer_config.json` holds, probed into the base.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
+    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[

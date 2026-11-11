@@ -312,6 +312,7 @@ pub mod tags;
 
 #[cfg(feature = "store")]
 pub use apply_named::*;
+pub use build_catalog::presets::ResolvedPresetSet;
 #[cfg(feature = "cache")]
 pub use cache::*;
 #[cfg(feature = "cache")]

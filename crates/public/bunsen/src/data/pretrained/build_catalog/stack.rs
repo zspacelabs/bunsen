@@ -1399,6 +1399,7 @@ impl PretrainedCatalogStack {
             name: decl.name().clone(),
             kind: a.axis,
             members: a.member_names(),
+            description: a.description.clone(),
         })
     }
 

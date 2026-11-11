@@ -31,8 +31,8 @@ use bunsen::kits::speech::{
 };
 use bunsen::{
     data::pretrained::{
-        PresetSet,
         PretrainedCache,
+        ResolvedPresetSet,
     },
     errors::{
         BunsenError,
@@ -438,7 +438,7 @@ fn policy<H: ConstructInit, C: Default + Serialize + DeserializeOwned>(
 /// `description` and `members`) and `default`. Empty (and
 /// elided) for a row with none.
 fn presets(
-    set: &PresetSet,
+    set: &ResolvedPresetSet,
     full: bool,
 ) -> BunsenResult<Value> {
     if set.presets.is_empty() {
@@ -450,7 +450,7 @@ fn presets(
         // In the structs' field order, each preset's and axis's name first,
         // rather than a JSON map's sorted keys; the patches as data.
         return Ok(Value::map([
-            ("base", Value::Json(set.base.clone())),
+            ("base", Value::Json(set.common.clone())),
             (
                 "modes",
                 Value::List(
@@ -473,15 +473,15 @@ fn presets(
                         .iter()
                         .map(|a| {
                             Value::map([
-                                ("name", Value::str(a.name.as_str())),
-                                ("description", Value::str(a.description.as_str())),
-                                ("members", strs(&a.members)),
+                                ("name", Value::str(a.axis.name.to_string())),
+                                ("description", Value::str(a.axis.description.as_str())),
+                                ("members", strs(&a.offers)),
                             ])
                         })
                         .collect(),
                 ),
             ),
-            ("default", strs(&set.default)),
+            ("default", strs(&set.default_names())),
         ]));
     }
     let names = |names: &mut dyn Iterator<Item = &String>| {
@@ -490,16 +490,17 @@ fn presets(
     let mut entries: Vec<(String, Value)> = set
         .axes
         .iter()
-        .map(|a| (a.name.clone(), names(&mut a.members.iter())))
+        .map(|a| (a.axis.name.to_string(), names(&mut a.offers.iter())))
         .collect();
     let other: Vec<&String> = set
         .presets
         .iter()
         .map(|p| &p.name)
-        .filter(|n| !set.axes.iter().any(|a| a.members.contains(n)))
+        .filter(|n| set.axis_of(n).is_none())
         .collect();
     entries.push(("other".to_string(), names(&mut other.into_iter())));
-    entries.push(("default".to_string(), names(&mut set.default.iter())));
+    let defaults = set.default_names();
+    entries.push(("default".to_string(), names(&mut defaults.iter())));
     Ok(Value::Map(entries))
 }
 

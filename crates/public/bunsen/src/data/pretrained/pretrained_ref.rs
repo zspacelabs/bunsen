@@ -30,11 +30,11 @@ use crate::errors::BunsenResult;
 /// ref: [`to_resource_bundle`](Self::to_resource_bundle) for its files,
 /// [`prefab`](Self::prefab) for the geometry a row promises.
 ///
-/// A ref is plain data: the row and the resource bundle are serde types, and
-/// the provider is held by name, so a ref outlives the factory that made it.
+/// A ref is plain data: the row and the resource bundle are values, and the
+/// provider is held by name, so a ref outlives the factory that made it.
 /// The caller's resources ride on it through
 /// [`with_overlay`](Self::with_overlay), so a hook sees one thing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PretrainedRef {
     /// A row in a provider, copied out of it.
     Named {

@@ -16,8 +16,8 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -155,7 +155,11 @@ impl ConstructInit for ParakeetConstructConfig {
             }
             None => ParakeetTdtConfig::tdt_0_6b_v3(),
         };
-        let policy = resolve_ref_presets(&ParakeetPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &ParakeetPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         let mut model: ParakeetTdt = config.try_init(device)?;
         load_transformers_tensors(&mut model, tensors)?;
         // The files' precision (f32), or wider as the policy asks.

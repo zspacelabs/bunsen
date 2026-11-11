@@ -305,10 +305,13 @@ mod tests {
                 json!({"kit": "qwen3", "base": false, "parameters": 6e8}),
             ),
         ];
-        rows[1].pretrained.presets = serde_json::from_value(json!({
-            "presets": [{"name": "translate", "description": "", "patch": {}}]
-        }))
-        .unwrap();
+        rows[1].pretrained.presets =
+            serde_json::from_value::<bunsen::data::pretrained::PresetSet>(json!({
+                "presets": [{"name": "translate", "description": "", "patch": {}}]
+            }))
+            .unwrap()
+            .to_resolved()
+            .unwrap();
         rows
     }
 

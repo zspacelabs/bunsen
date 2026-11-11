@@ -16,8 +16,8 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -132,7 +132,11 @@ impl ConstructInit for VoxtralConstructConfig {
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |_| true)?;
         load_transformers_tensors_as(&mut voxtral, tensors, dtype)?;
-        let policy = resolve_ref_presets(&VoxtralPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &VoxtralPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         Ok(Arc::new(
             VoxtralConstruct::new(voxtral, vocab, layout)?
                 .with_policy(policy.config.clone(), policy.applied())?,

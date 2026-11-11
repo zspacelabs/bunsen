@@ -7,11 +7,6 @@ use alloc::{
 };
 use core::fmt;
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
-
 use super::Pretrained;
 #[cfg(feature = "cache")]
 use super::PretrainedCache;
@@ -151,7 +146,7 @@ pub trait PretrainedProvider: Send + Sync + fmt::Debug {
 ///
 /// A group sits in a [`PretrainedTable`], which names its rows
 /// `group/name`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PretrainedGroup {
     /// The label: the `group` in `group/name`.
     pub name: String,
@@ -226,14 +221,14 @@ impl PretrainedGroup {
     }
 }
 
-/// A provider over groups: the compiled-in rows, and any table read from
-/// a manifest. Its refs are `{group}/{name}`; a bare name or alias
+/// A provider over groups: the compiled-in rows, or rows built in code. Its
+/// refs are `{group}/{name}`; a bare name or alias
 /// searches the groups in order, first hit wins.
 ///
 /// Names compare ignoring ASCII case unless the table is
 /// [`case_sensitive`](Self::case_sensitive): `Qwen/Qwen3-0.6B` finds
 /// `qwen/qwen3-0.6b`. A listing gives names as the table declares them.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PretrainedTable {
     /// The provider's name: [`WELL_KNOWN`] for the compiled-in rows.
     pub name: String,
@@ -245,7 +240,6 @@ pub struct PretrainedTable {
     pub groups: Vec<PretrainedGroup>,
 
     /// Whether names compare exactly; by default they ignore ASCII case.
-    #[serde(default, skip_serializing_if = "core::ops::Not::not")]
     pub case_sensitive: bool,
 }
 
@@ -422,8 +416,6 @@ mod tests {
         );
         assert!(a.for_prefab("tiny").is_empty());
         assert_eq!(a.items[0].resources.keys(), ["weights"]);
-        let json = serde_json::to_string(&a).unwrap();
-        assert_eq!(serde_json::from_str::<PretrainedGroup>(&json).unwrap(), a);
     }
 
     /// A table lists its rows by ref, `group/name`, and answers a ref in one
@@ -483,12 +475,6 @@ mod tests {
         );
         assert_eq!(table.group("b").map(|g| g.items.len()), Some(2));
         assert!(table.get("nope").is_none());
-
-        let json = serde_json::to_string(&table).unwrap();
-        assert_eq!(
-            serde_json::from_str::<PretrainedTable>(&json).unwrap(),
-            table
-        );
     }
 
     /// A table is held as a trait object, which is how a factory holds

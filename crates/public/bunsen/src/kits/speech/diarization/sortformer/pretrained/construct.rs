@@ -236,7 +236,9 @@ impl ConstructInit for SortformerConstructConfig {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
         };
-        let family = SORTFORMER_CATALOG.family_presets(bundle.family.catalog_family());
+        let family = SORTFORMER_CATALOG
+            .family_presets(bundle.family.catalog_family())
+            .to_resolved()?;
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
         Ok(Arc::new(
             bundle.with_policy(policy.config.clone(), policy.applied()),
@@ -346,7 +348,10 @@ mod tests {
         let resolve = |family: &str, presets: &[&str]| {
             resolve_presets(
                 &SortformerPolicy::default(),
-                &SORTFORMER_CATALOG.family_presets(family),
+                &SORTFORMER_CATALOG
+                    .family_presets(family)
+                    .to_resolved()
+                    .unwrap(),
                 &PresetSelection::new(presets.iter().copied()),
             )
             .unwrap()
@@ -413,7 +418,10 @@ mod tests {
             };
             assert_eq!(
                 row.presets,
-                SORTFORMER_CATALOG.family_presets(family),
+                SORTFORMER_CATALOG
+                    .family_presets(family)
+                    .to_resolved()
+                    .unwrap(),
                 "{}",
                 row.name
             );

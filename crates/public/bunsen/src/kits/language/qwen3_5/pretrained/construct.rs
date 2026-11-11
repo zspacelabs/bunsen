@@ -17,6 +17,7 @@ use crate::{
         LoadedResources,
         NamedTensorsApplied,
         PresetSet,
+        ResolvedPresetSet,
         StaticPreFabMap,
     },
     errors::BunsenResult,
@@ -87,7 +88,7 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
     /// has one; its `tokenizer_config.json`'s `eos_token` and
     /// [`END_OF_TEXT`] (the stop tokens, joined) and chat template; and its
     /// `chat_template.jinja`, when it has one; probed into the base.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
+    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[

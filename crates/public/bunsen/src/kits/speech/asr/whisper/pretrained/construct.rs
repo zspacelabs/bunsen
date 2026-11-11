@@ -13,9 +13,9 @@ use crate::{
         Fuse,
         GIVEN_NAMESPACE,
         LoadedResources,
-        PresetSet,
         PretrainedCache,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS,
         SafetensorsCheckpoint,
@@ -445,9 +445,11 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            WHISPER_CATALOG.family_presets(MULTILINGUAL_FAMILY)
+            WHISPER_CATALOG
+                .family_presets(MULTILINGUAL_FAMILY)
+                .to_resolved()?
         } else {
-            PresetSet::default()
+            ResolvedPresetSet::default()
         };
         let policy = resolve_ref_presets(&WhisperPolicy::default(), model, &family)?;
         let mut bundle = WhisperConstruct::new(whisper, layout)
@@ -494,7 +496,7 @@ mod preset_tests {
         for row in ["openai/tiny.en", "openai/large-v3-turbo"] {
             assert!(policy(row).unwrap().presets.is_empty(), "{row}");
             crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
-                .message_contains("no preset \"translate\"")
+                .message_contains("no preset `translate`")
                 .assert_err(&policy(&format!("{row}[translate]")));
         }
         assert_eq!(policy("large").unwrap().presets, ["transcribe"]);

@@ -18,7 +18,7 @@ use crate::{
         CatalogProbe,
         LoadedResources,
         NamedTensorsApplied,
-        PresetSet,
+        ResolvedPresetSet,
         StaticPreFabMap,
     },
     errors::BunsenResult,
@@ -88,7 +88,7 @@ impl TransformersLmKit for GemmaConstructConfig {
     /// end, which joins the stop tokens) and chat template, when it has one;
     /// and its `chat_template.jinja`, when it has one; probed into the base.
     /// Without a template of its own, it renders with the family's.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
+    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[

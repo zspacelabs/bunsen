@@ -343,8 +343,9 @@ impl<H: ConstructInit> PretrainedFactory<H> {
 
     /// Checks what a lookup asks of `row`'s presets, before anything is
     /// fetched: that the kit resolves presets at all, and that the selection
-    /// is one `row`'s presets allow ([`PresetSet::check_selection`]). A row
-    /// with no presets of its own, an `hf:` repo's, is left to the hook,
+    /// is one `row`'s presets allow
+    /// ([`ResolvedPresetSet::check_selection`](crate::data::pretrained::ResolvedPresetSet::check_selection)).
+    /// A row with no presets of its own, an `hf:` repo's, is left to the hook,
     /// which knows the model's family only once it reads the files
     /// ([`resolve_ref_presets`](crate::kits::support::model_config::resolve_ref_presets)).
     fn check_selection(
@@ -364,7 +365,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
             return Ok(());
         }
         row.presets
-            .check_selection(selection)
+            .check_selection(&selection.to_catalog_selection())
             .with_context(|| format!("the presets of {:?}", row.name))?;
         Ok(())
     }
@@ -1172,7 +1173,9 @@ mod tests {
                 patch: serde_json::json!({"beam": 1}),
             }],
             ..Default::default()
-        };
+        }
+        .to_resolved()
+        .unwrap();
         let factory = PretrainedFactory::<PresetPath>::new()
             .with_providers([table(WELL_KNOWN, vec![group("a", vec![small])])])
             .unwrap();
@@ -1186,7 +1189,7 @@ mod tests {
         assert_eq!(selection.patch, Some(serde_json::json!({"beam": 2})));
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_contains("no preset \"slow\"; there are: fast")
+            .message_contains("no preset `slow`; there are: fast")
             .assert_err(&factory.resolve("a/small[slow]", &cache));
         // A row with no presets of its own leaves the box to the hook.
         let bare = PretrainedFactory::<PresetPath>::new()

@@ -513,7 +513,9 @@ impl PretrainedCatalog {
             origin: row.origin.clone(),
             prefab: row.prefab.clone(),
             resources,
-            presets,
+            presets: presets
+                .to_resolved()
+                .with_context(|| format!("the row {:?}'s presets", row.name))?,
             tags,
         })
     }
@@ -1028,7 +1030,10 @@ mod tests {
 
         let table = catalog.to_table().unwrap();
         let small = &table.groups[0].items[0];
-        assert_eq!(small.presets, catalog.groups[0].rows[0].presets);
+        assert_eq!(
+            small.presets,
+            catalog.groups[0].rows[0].presets.to_resolved().unwrap()
+        );
         assert!(table.groups[0].items[1].presets.is_empty());
 
         catalog.groups[0].rows[0]
@@ -1116,7 +1121,7 @@ mod tests {
             small.get("good").unwrap().patch,
             serde_json::json!({"beam": 8})
         );
-        assert_eq!(small.default, ["good"]);
+        assert_eq!(small.default_names(), ["good"]);
         assert!(table.groups[0].items[1].presets.is_empty());
 
         catalog.groups[0].rows[0].family = Some("nobody".to_string());
