@@ -27,6 +27,13 @@
 //! | `{has: v}`, `{has_all: [..]}`, `{has_any: [..]}` | set-valued (`languages`, `text_list`, categorical offers) | contains |
 //! | `{exists: true}` | any | has a value |
 //!
+//! **Weighing.** A `weigh` block ([`WeighBlock`](super::query::WeighBlock))
+//! applies its updates to each row's running weight, commits the result
+//! clipped to 0 or more, and drops the row when it is below the block's
+//! floor. The query's floor applies after every stage that weighs: a row
+//! whose weight is below it is dropped there, even if a later block would
+//! raise it again.
+//!
 //! A row without a value fails every test but `{exists: false}`. A
 //! `languages` tag contains a language by RFC 4647 filtering (`en` contains
 //! `en-US`).
@@ -64,6 +71,7 @@ use crate::{
             SelectQuery,
             SortKey,
             Stage,
+            WeighEntry,
             flow,
             query_error,
         },
@@ -133,8 +141,35 @@ enum Step {
         test: Test,
         keep_if: bool,
     },
+    Weigh {
+        by: Vec<Update>,
+        floor: Option<f64>,
+    },
     Order(Vec<CompiledSortKey>),
     Limit(usize),
+}
+
+/// A compiled `by` entry.
+#[derive(Clone, Debug, PartialEq)]
+enum Update {
+    When {
+        test: Test,
+        then: f64,
+        otherwise: f64,
+    },
+    Match {
+        tag: CatalogName,
+        language: String,
+        truncated: f64,
+        otherwise: f64,
+    },
+    Release {
+        step: f64,
+        min: f64,
+    },
+    Mul(f64),
+    Add(f64),
+    Clip(f64, f64),
 }
 
 /// A membership: a group, a template class or a build.
@@ -358,6 +393,7 @@ impl CompiledQuery {
             let before: BTreeSet<CatalogName> =
                 table.rows.iter().map(|r| r.entry.path.clone()).collect();
             let mut dropped = Vec::new();
+            let mut committed = Vec::new();
             table.rows = match &stage.step {
                 Step::Filter { test, keep_if } => {
                     let mut kept = Vec::new();
@@ -380,6 +416,35 @@ impl CompiledQuery {
                             dropped.push((row, why));
                         }
                     }
+                    kept
+                }
+                Step::Weigh { by, floor } => {
+                    let mut kept = Vec::new();
+                    let mut weights = Vec::new();
+                    for mut row in table.rows {
+                        let build = env.build(&row.entry.path)?;
+                        let mut weight = row.weight;
+                        for update in by {
+                            let view = Row {
+                                build: &build,
+                                weight,
+                            };
+                            weight = update.apply(env, &view)?;
+                        }
+                        row.weight = weight.max(0.0);
+                        if let Some(floor) = floor
+                            && row.weight < *floor
+                        {
+                            dropped.push((row, format!("below the block's floor, {floor}")));
+                        } else if row.weight < self.floor {
+                            let why = format!("below the query's floor, {}", self.floor);
+                            dropped.push((row, why));
+                        } else {
+                            weights.push((row.entry.path.clone(), row.weight));
+                            kept.push(row);
+                        }
+                    }
+                    committed = weights;
                     kept
                 }
                 Step::Order(keys) => {
@@ -415,7 +480,7 @@ impl CompiledQuery {
                     origin: stage.origin.clone(),
                     label: stage.label.clone(),
                     dropped: dropped.len(),
-                    weights: Vec::new(),
+                    weights: committed,
                 });
                 trace
                     .dropped
@@ -506,6 +571,54 @@ fn time_text(value: &Value) -> Option<String> {
         Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
         _ => None,
+    }
+}
+
+impl Update {
+    /// The weight after this update, from `row`'s.
+    fn apply(
+        &self,
+        env: &SelectEnv<'_>,
+        row: &Row<'_>,
+    ) -> CatalogResult<f64> {
+        let weight = row.weight;
+        Ok(match self {
+            Self::When {
+                test,
+                then,
+                otherwise,
+            } => weight * if test.holds(row) { *then } else { *otherwise },
+            Self::Match {
+                tag,
+                language,
+                truncated,
+                otherwise,
+            } => {
+                let factor = match row.build.build.tags.get(tag) {
+                    Some(t) => match match_language(language, &t.value) {
+                        LanguageMatch::Filtered => 1.0,
+                        LanguageMatch::Truncated => *truncated,
+                        LanguageMatch::Wildcard | LanguageMatch::Missed => *otherwise,
+                    },
+                    None => *otherwise,
+                };
+                weight * factor
+            }
+            Self::Release { step, min } => {
+                let Some(release) = &row.build.build.release else {
+                    return Ok(weight);
+                };
+                let releases = env.stack().releases(&release.group)?;
+                let newer = releases
+                    .iter()
+                    .filter(|(_, time)| release.released.precedes(time))
+                    .count();
+                weight * (1.0 - step * newer as f64).max(*min)
+            }
+            Self::Mul(k) => weight * k,
+            Self::Add(k) => weight + k,
+            Self::Clip(a, b) => weight.clamp(*a, *b),
+        })
     }
 }
 
@@ -660,6 +773,23 @@ impl Compiler<'_, '_> {
                 test: self.predicate(p)?,
                 keep_if: false,
             },
+            Stage::Weigh(block) => {
+                if let Some(floor) = block.floor
+                    && !(floor.is_finite() && floor >= 0.0)
+                {
+                    return Err(query_error(format!(
+                        "a block's `floor` is a weight, 0 or more, not {floor}"
+                    )));
+                }
+                Step::Weigh {
+                    by: block
+                        .by
+                        .iter()
+                        .map(|e| self.update(e))
+                        .collect::<CatalogResult<_>>()?,
+                    floor: block.floor,
+                }
+            }
             Stage::Order(keys) => Step::Order(
                 keys.0
                     .iter()
@@ -679,6 +809,48 @@ impl Compiler<'_, '_> {
             label: None,
             written,
             step,
+        })
+    }
+
+    fn update(
+        &self,
+        entry: &WeighEntry,
+    ) -> CatalogResult<Update> {
+        Ok(match entry {
+            WeighEntry::When {
+                when,
+                then,
+                otherwise,
+            } => Update::When {
+                test: self.predicate(when)?,
+                then: *then,
+                otherwise: *otherwise,
+            },
+            WeighEntry::Match {
+                tag,
+                language,
+                truncated,
+                otherwise,
+            } => match self.resolve(tag)? {
+                Resolved::Tag(tag, TagType::Languages) => Update::Match {
+                    tag,
+                    language: language.clone(),
+                    truncated: *truncated,
+                    otherwise: *otherwise,
+                },
+                _ => {
+                    return Err(query_error(format!(
+                        "`match` grades a `languages` tag, and `{tag}` isn't one"
+                    )));
+                }
+            },
+            WeighEntry::Release { step, min } => Update::Release {
+                step: *step,
+                min: *min,
+            },
+            WeighEntry::Mul(k) => Update::Mul(*k),
+            WeighEntry::Add(k) => Update::Add(*k),
+            WeighEntry::Clip(a, b) => Update::Clip(*a, *b),
         })
     }
 

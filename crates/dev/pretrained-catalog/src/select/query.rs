@@ -21,6 +21,7 @@
 //! | `from` | a name or a list of names | keeps the rows in any of them |
 //! | `keep` | a [`Predicate`] | keeps the rows that satisfy it |
 //! | `drop` | a predicate | `keep: {$not: P}` |
+//! | `weigh` | a [`WeighBlock`] | updates each row's weight |
 //! | `order` | a [`SortKey`] or a list of them | sorts, stably |
 //! | `limit` | an integer, 1 or more | keeps the first N |
 //!
@@ -148,6 +149,8 @@ pub enum Stage {
     Keep(Predicate),
     /// Drops the rows that satisfy the predicate: `keep: {$not: P}`.
     Drop(Predicate),
+    /// Updates each row's weight.
+    Weigh(WeighBlock),
     /// Sorts the rows, stably, by the keys, most significant first.
     Order(SortKeys),
     /// Keeps the first N rows.
@@ -161,9 +164,233 @@ impl Stage {
             Self::From(_) => "from",
             Self::Keep(_) => "keep",
             Self::Drop(_) => "drop",
+            Self::Weigh(_) => "weigh",
             Self::Order(_) => "order",
             Self::Limit(_) => "limit",
         }
+    }
+}
+
+/// A `weigh` stage: a block of updates, `{by: [..], floor?: f}`.
+///
+/// 1. It starts from each row's running weight.
+/// 2. It applies each `by` entry in order, as signed arithmetic, with nothing
+///    clipped in between.
+/// 3. It commits the result, clipped to 0 or more.
+/// 4. It drops the row if the committed weight is below `floor`, when one is
+///    given. The query's floor applies after it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WeighBlock {
+    /// The updates, in order.
+    #[serde(default)]
+    pub by: Vec<WeighEntry>,
+    /// The block's own floor, 0 or more.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub floor: Option<f64>,
+}
+
+/// One update in a [`WeighBlock`].
+///
+/// | entry | does to the weight |
+/// |---|---|
+/// | `{when: P, else: w, then: v}` | × `v` (default 1) if the row satisfies P, else × `w` (default 0) |
+/// | `{match: {TAG: L}, truncated: t, else: w}` | RFC 4647 on a `languages` tag: × 1 when `L` filters to one of its languages, × `t` (default 1) when only a truncation of `L` does, else × `w` (default 0) |
+/// | `{release: latest, step: s, min: m}` | × 1 for the newest of its release group in the catalog, `s` (default 0.05) less for each newer one, never below `m` (default 0); × 1 in no release group |
+/// | `{mul: k}` | × `k` |
+/// | `{add: k}` | + `k` |
+/// | `{clip: [a, b]}` | clamps to `[a, b]` |
+///
+/// `when`, `match`, `release` and `mul` multiply; `add` and `clip` read the
+/// running weight, so their place matters.
+#[derive(Clone, Debug, PartialEq)]
+pub enum WeighEntry {
+    /// `{when: P, else: w, then: v}`.
+    When {
+        /// The predicate.
+        when: Predicate,
+        /// The factor when it holds.
+        then: f64,
+        /// The factor when it doesn't.
+        otherwise: f64,
+    },
+    /// `{match: {TAG: L}, truncated: t, else: w}`.
+    Match {
+        /// The `languages` tag.
+        tag: String,
+        /// The requested language.
+        language: String,
+        /// The factor for a match through a truncation.
+        truncated: f64,
+        /// The factor otherwise.
+        otherwise: f64,
+    },
+    /// `{release: latest, step: s, min: m}`.
+    Release {
+        /// The factor lost per newer release.
+        step: f64,
+        /// The least factor.
+        min: f64,
+    },
+    /// `{mul: k}`.
+    Mul(f64),
+    /// `{add: k}`.
+    Add(f64),
+    /// `{clip: [a, b]}`.
+    Clip(f64, f64),
+}
+
+/// The default `step` of `{release: latest}`.
+pub const RELEASE_STEP: f64 = 0.05;
+
+impl WeighEntry {
+    /// Whether it multiplies (and so commutes with other multiplying entries
+    /// and with fixed tests).
+    pub fn multiplies(&self) -> bool {
+        !matches!(self, Self::Add(_) | Self::Clip(..))
+    }
+
+    fn from_value(value: &Value) -> CatalogResult<Self> {
+        let Value::Object(fields) = value else {
+            return Err(query_error(format!("a `by` entry is a map, not {value}")));
+        };
+        let number = |key: &str, default: f64| -> CatalogResult<f64> {
+            match fields.get(key) {
+                None => Ok(default),
+                Some(v) => v
+                    .as_f64()
+                    .filter(|n| n.is_finite())
+                    .ok_or_else(|| query_error(format!("`{key}` is a number, not {v}"))),
+            }
+        };
+        let only = |allowed: &[&str]| -> CatalogResult<()> {
+            match fields.keys().find(|k| !allowed.contains(&k.as_str())) {
+                Some(k) => Err(query_error(format!(
+                    "this `by` entry takes {allowed:?}, not `{k}`"
+                ))),
+                None => Ok(()),
+            }
+        };
+        if let Some(when) = fields.get("when") {
+            only(&["when", "then", "else"])?;
+            return Ok(Self::When {
+                when: Predicate::from_value(when)?,
+                then: number("then", 1.0)?,
+                otherwise: number("else", 0.0)?,
+            });
+        }
+        if let Some(matched) = fields.get("match") {
+            only(&["match", "truncated", "else"])?;
+            let (tag, language) = match matched {
+                Value::Object(m) if m.len() == 1 => {
+                    let (tag, language) = m.iter().next().expect("one");
+                    let language = language.as_str().ok_or_else(|| {
+                        query_error(format!("`match.{tag}` is a language, not {language}"))
+                    })?;
+                    (tag.clone(), language.to_string())
+                }
+                other => {
+                    return Err(query_error(format!(
+                        "`match` is `{{TAG: LANGUAGE}}`, not {other}"
+                    )));
+                }
+            };
+            return Ok(Self::Match {
+                tag,
+                language,
+                truncated: number("truncated", 1.0)?,
+                otherwise: number("else", 0.0)?,
+            });
+        }
+        if let Some(release) = fields.get("release") {
+            only(&["release", "step", "min"])?;
+            if release.as_str() != Some("latest") {
+                return Err(query_error(format!("`release` is `latest`, not {release}")));
+            }
+            let step = number("step", RELEASE_STEP)?;
+            let min = number("min", 0.0)?;
+            if step < 0.0 || min < 0.0 {
+                return Err(query_error("`release`'s `step` and `min` are 0 or more"));
+            }
+            return Ok(Self::Release { step, min });
+        }
+        if fields.contains_key("mul") {
+            only(&["mul"])?;
+            return Ok(Self::Mul(number("mul", 1.0)?));
+        }
+        if fields.contains_key("add") {
+            only(&["add"])?;
+            return Ok(Self::Add(number("add", 0.0)?));
+        }
+        if let Some(clip) = fields.get("clip") {
+            only(&["clip"])?;
+            let bounds: Option<Vec<f64>> = clip
+                .as_array()
+                .map(|items| items.iter().filter_map(Value::as_f64).collect());
+            return match bounds.as_deref() {
+                Some([a, b]) if a <= b && a.is_finite() && b.is_finite() => Ok(Self::Clip(*a, *b)),
+                _ => Err(query_error(format!(
+                    "`clip` is `[a, b]`, with `a` at most `b`, not {clip}"
+                ))),
+            };
+        }
+        Err(query_error(format!(
+            "a `by` entry is `when`, `match`, `release`, `mul`, `add` or `clip`, not {}",
+            flow(value)
+        )))
+    }
+
+    fn to_value(&self) -> Value {
+        let mut map = Map::new();
+        let mut put = |k: &str, v: Value| {
+            map.insert(k.to_string(), v);
+        };
+        match self {
+            Self::When {
+                when,
+                then,
+                otherwise,
+            } => {
+                put("when", when.to_value());
+                put("then", (*then).into());
+                put("else", (*otherwise).into());
+            }
+            Self::Match {
+                tag,
+                language,
+                truncated,
+                otherwise,
+            } => {
+                put("match", single(tag, Value::String(language.clone())));
+                put("truncated", (*truncated).into());
+                put("else", (*otherwise).into());
+            }
+            Self::Release { step, min } => {
+                put("release", "latest".into());
+                put("step", (*step).into());
+                put("min", (*min).into());
+            }
+            Self::Mul(k) => put("mul", (*k).into()),
+            Self::Add(k) => put("add", (*k).into()),
+            Self::Clip(a, b) => put("clip", vec![*a, *b].into()),
+        }
+        Value::Object(map)
+    }
+}
+
+impl Serialize for WeighEntry {
+    fn serialize<S: Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        self.to_value().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for WeighEntry {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = Value::deserialize(deserializer)?;
+        Self::from_value(&value).map_err(|e| de::Error::custom(e.message))
     }
 }
 

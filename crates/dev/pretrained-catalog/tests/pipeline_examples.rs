@@ -456,6 +456,15 @@ fn a_query_round_trips_through_its_written_form() {
         - from: [qwen3, whisper]
         - keep: {$any: [instruct, {thinking: false}]}
         - drop: qwen3-2507
+        - weigh:
+            by:
+              - {when: {language: en}, else: 0.5}
+              - {match: {language: en-GB}, truncated: 0.8}
+              - {release: latest, min: 0.5}
+              - {mul: 2}
+              - {add: -0.5}
+              - {clip: [0, 1]}
+            floor: 0.25
         - order: [{desc: parameters}, {asc: $name, missing: first}]
         - limit: 2",
     );
@@ -463,4 +472,218 @@ fn a_query_round_trips_through_its_written_form() {
     assert_eq!(SelectQuery::from_value(&value).unwrap(), query);
     assert!(SelectQuery::from_value(&json!({"kind": "build", "floor": -1})).is_err());
     assert!(SelectQuery::from_value(&json!({"run": []})).is_err());
+}
+
+// Weighing.
+
+/// The builds `run` selects, by leaf, with their weights, in order.
+fn weighed(run: &str) -> Vec<(String, f64)> {
+    let stack = fixtures::builtin_stack().unwrap();
+    let env = SelectEnv::new(&stack);
+    let compiled = build_query(run).compile(&env).expect("a valid query");
+    compiled
+        .run(&env, SelectTable::universe(&env, EntryKind::Build))
+        .unwrap()
+        .rows
+        .iter()
+        .map(|r| (r.entry.path.leaf().to_string(), r.weight))
+        .collect()
+}
+
+#[test]
+fn when_grades_and_order_sorts_by_weight() {
+    // Whisper handles `en`: × 1. Qwen3 only wildcards it: × 0.5.
+    let expected: Vec<(String, f64)> = LARGE
+        .iter()
+        .map(|b| (b.to_string(), 1.0))
+        .chain(QWEN3.iter().map(|b| (b.to_string(), 0.5)))
+        .collect();
+    assert_eq!(
+        weighed(
+            "
+            - weigh: {by: [{when: {language: en}, else: 0.5}]}
+            - order: {desc: $weight}"
+        ),
+        expected
+    );
+}
+
+#[test]
+fn match_grades_a_language_by_rfc_4647() {
+    // `en-GB` reaches Whisper's `en` only by truncation; Qwen3's `*` is
+    // `else`.
+    let weights = weighed(
+        "
+        - weigh: {by: [{match: {language: en-GB}, truncated: 0.8, else: 0.5}]}
+        - limit: 5",
+    );
+    assert_eq!(weights[0], ("large-v1".to_string(), 0.8));
+    assert_eq!(weights[4], ("qwen3-0.6b".to_string(), 0.5));
+}
+
+#[test]
+fn release_latest_grades_against_the_catalog_then_order() {
+    // Each release loses `step` per newer release of its group: v1 0.5, v2
+    // 0.75, v3 1; the turbo build is in no release, so 1. By weight, then
+    // parameters descending (v3 1.55e9 before turbo 8.09e8).
+    assert_eq!(
+        select(
+            "
+            - from: whisper
+            - weigh: {by: [{release: latest, step: 0.25}]}
+            - order: [{desc: $weight}, {desc: parameters}]"
+        ),
+        ["large-v3", "large-v3-turbo", "large-v2", "large-v1"]
+    );
+    // Graded in the catalog, not among the rows still in the run: with v3
+    // gone, v2 is still one release behind.
+    assert_eq!(
+        weighed(
+            "
+            - from: whisper
+            - drop: large-v3
+            - weigh: {by: [{release: latest, step: 0.25, min: 0.6}]}"
+        ),
+        [
+            ("large-v1".to_string(), 0.6),
+            ("large-v2".to_string(), 0.75),
+            ("large-v3-turbo".to_string(), 1.0)
+        ]
+    );
+}
+
+#[test]
+fn the_cutoff_is_a_weight_test_after_the_weighs() {
+    // Ascending parameters: turbo (1.0), v1 (0.5), v2 (0.75), v3 (1.0).
+    let run = |tail: &str| {
+        select(&format!(
+            "
+            - from: whisper
+            - weigh: {{by: [{{release: latest, step: 0.25}}]}}
+            - order: parameters
+            {tail}"
+        ))
+    };
+    assert_eq!(
+        run(""),
+        ["large-v3-turbo", "large-v1", "large-v2", "large-v3"]
+    );
+    // `cutoff: 0.6` drops v1; the order of the rest stands.
+    let cut = "- keep: {$weight: {ge: 0.6}}";
+    assert_eq!(run(cut), ["large-v3-turbo", "large-v2", "large-v3"]);
+    // A band: the near misses only.
+    assert_eq!(run("- keep: {$weight: {ge: 0.6, lt: 1}}"), ["large-v2"]);
+    // A running test reads the weight where it sits: before the weigh,
+    // every row is at 1.
+    assert_eq!(
+        select(
+            "
+            - from: whisper
+            - keep: {$weight: {ge: 0.6}}
+            - weigh: {by: [{release: latest, step: 0.25}]}"
+        )
+        .len(),
+        4
+    );
+}
+
+#[test]
+fn a_block_is_signed_arithmetic_committed_at_its_end() {
+    // `else: 0` then `add` restores the row within one block.
+    assert_eq!(
+        weighed(
+            "
+            - from: qwen3
+            - weigh: {by: [{when: {thinking: switch}, else: 0}, {add: 0.25}]}"
+        ),
+        [
+            ("qwen3-0.6b".to_string(), 1.25),
+            ("qwen3-0.6b-base".to_string(), 0.25),
+            ("qwen3-4b-thinking-2507".to_string(), 0.25)
+        ]
+    );
+    // Weights aren't bounded above; `clip` bounds them.
+    assert_eq!(
+        weighed("[{from: qwen3-0.6b}, {weigh: {by: [{mul: 3}]}}]"),
+        [("qwen3-0.6b".to_string(), 3.0)]
+    );
+    assert_eq!(
+        weighed("[{from: qwen3-0.6b}, {weigh: {by: [{mul: 3}, {clip: [0, 1]}]}}]"),
+        [("qwen3-0.6b".to_string(), 1.0)]
+    );
+    // A negative running weight commits as 0, and the floor drops it.
+    assert!(weighed("[{from: qwen3-0.6b}, {weigh: {by: [{add: -2}]}}]").is_empty());
+}
+
+#[test]
+fn a_row_below_the_floor_at_a_block_end_is_dropped_there() {
+    // Two blocks: the row falls to 0 at the first one's end, and the second
+    // can't raise it. One block holding both updates does.
+    let two = "
+        - from: qwen3-0.6b-base
+        - weigh: {by: [{when: {thinking: switch}, else: 0}]}
+        - weigh: {by: [{add: 0.5}]}";
+    assert!(select(two).is_empty());
+    let one = "
+        - from: qwen3-0.6b-base
+        - weigh: {by: [{when: {thinking: switch}, else: 0}, {add: 0.5}]}";
+    assert_eq!(select(one), ["qwen3-0.6b-base"]);
+}
+
+#[test]
+fn floors_drop_what_counts_as_zero() {
+    let zeroed = "[{from: qwen3}, {weigh: {by: [{when: {thinking: switch}, else: 0}]}}]";
+    // The default floor drops a 0.
+    assert_eq!(select(zeroed), ["qwen3-0.6b"]);
+    // `floor: 0` keeps every row.
+    let stack = fixtures::builtin_stack().unwrap();
+    let env = SelectEnv::new(&stack);
+    let mut query = build_query(zeroed);
+    query.floor = Some(0.0);
+    let table = query
+        .compile(&env)
+        .unwrap()
+        .run(&env, SelectTable::universe(&env, EntryKind::Build))
+        .unwrap();
+    assert_eq!(leaves(&table), QWEN3);
+    // A block's own floor drops at its end.
+    assert_eq!(
+        select("[{from: whisper}, {weigh: {by: [{release: latest, step: 0.25}], floor: 0.7}}]"),
+        ["large-v2", "large-v3", "large-v3-turbo"]
+    );
+}
+
+#[test]
+fn a_traced_weigh_records_its_weights_and_its_floored_rows() {
+    let stack = fixtures::builtin_stack().unwrap();
+    let env = SelectEnv::new(&stack);
+    let run = build_query(
+        "[{from: whisper}, {weigh: {by: [{release: latest, step: 0.25}], floor: 0.7}}]",
+    )
+    .compile(&env)
+    .unwrap()
+    .run_traced(&env, SelectTable::universe(&env, EntryKind::Build))
+    .unwrap();
+    let weigh = &run.trace.stages[1];
+    assert_eq!(weigh.op, "weigh");
+    assert_eq!(weigh.weights.len(), 3);
+    let floored = run
+        .trace
+        .dropped
+        .iter()
+        .find(|d| d.entry.path.leaf() == "large-v1")
+        .unwrap();
+    assert_eq!((floored.stage, floored.weight), (1, 0.5));
+    assert!(floored.why.contains("floor"), "{}", floored.why);
+}
+
+#[test]
+fn weighing_is_checked_when_the_query_compiles() {
+    assert!(refused("[{weigh: {by: [{mul: x}]}}]").contains("`mul` is a number"));
+    assert!(refused("[{weigh: {by: [{when: instruct, but: 1}]}}]").contains("not `but`"));
+    assert!(refused("[{weigh: {by: [{match: {parameters: en}}]}}]").contains("`languages` tag"));
+    assert!(refused("[{weigh: {by: [{release: oldest}]}}]").contains("`release` is `latest`"));
+    assert!(refused("[{weigh: {by: [{clip: [1, 0]}]}}]").contains("`clip` is `[a, b]`"));
+    assert!(refused("[{weigh: {by: [{pow: 2}]}}]").contains("a `by` entry is"));
+    assert!(refused("[{weigh: {floor: -1}}]").contains("a block's `floor`"));
 }
