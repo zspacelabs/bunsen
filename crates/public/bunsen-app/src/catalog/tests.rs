@@ -1,4 +1,5 @@
-//! The commands, run over the example catalogs as files.
+//! The commands, run over the example catalogs, the supplemental one as an
+//! extension.
 
 use serde_json::json;
 
@@ -13,7 +14,10 @@ struct Cli {
 }
 
 /// Parses `argv` (with the program name) and runs it into a string.
-fn run_argv(argv: Vec<String>) -> Result<String, String> {
+fn run_argv(
+    argv: Vec<String>,
+    base: PretrainedCatalogStack,
+) -> Result<String, String> {
     use clap::{
         CommandFactory,
         FromArgMatches,
@@ -23,24 +27,28 @@ fn run_argv(argv: Vec<String>) -> Result<String, String> {
         .map_err(|e| e.to_string())?;
     let parsed = Cli::from_arg_matches(&matches).map_err(|e| e.to_string())?;
     let mut out = String::new();
-    parsed.command.run_into(&matches, &mut out)?;
+    parsed.command.run_into(&matches, base, &mut out)?;
     Ok(out)
 }
 
-/// Runs the command line `args` (after the program name) over the
-/// example catalogs, as files.
+/// Runs the command line `args` (after the program name) over the example
+/// catalogs, with the supplemental catalog as an extension.
 fn cli(args: &str) -> Result<String, String> {
     let dir = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../bunsen/src/data/pretrained/build_catalog/fixtures"
     );
-    let mut argv = vec!["catalog".to_string()];
-    for file in ["prelude", "commons", "qwen3", "whisper", "supplemental"] {
-        argv.push("--catalog".into());
-        argv.push(format!("{dir}/{file}.yml"));
-    }
+    let mut argv = vec![
+        "catalog".to_string(),
+        "--catalog".to_string(),
+        format!("{dir}/supplemental.yml"),
+    ];
     argv.extend(shell_words(args));
-    run_argv(argv)
+    run_argv(argv, examples())
+}
+
+fn examples() -> PretrainedCatalogStack {
+    bunsen::data::pretrained::build_catalog::fixtures::example_stack().unwrap()
 }
 
 /// `args` split on spaces, keeping single-quoted runs together.
@@ -409,7 +417,14 @@ fn test_dump_nests_each_catalog_in_order() {
         ["prelude", "commons", "qwen3", "whisper", "supplemental"]
     );
     assert_eq!(docs[0]["catalog"]["thinking"]["$kind"], "axis");
-    assert!(docs[0]["path"].as_str().unwrap().ends_with("prelude.yml"));
+    // A base layer built in has no path; an extension is its file's.
+    assert!(docs[0]["path"].is_null(), "{}", docs[0]["path"]);
+    assert!(
+        docs[4]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("supplemental.yml")
+    );
     // The keyed form, read back in its order, is the catalog imported.
     let OrderedNode::Seq(items) = OrderedNode::from_yaml(&yaml).unwrap() else {
         panic!("a sequence")
@@ -417,7 +432,8 @@ fn test_dump_nests_each_catalog_in_order() {
     let node = items[2].get("catalog").unwrap().clone();
     let catalog =
         bunsen::data::pretrained::build_catalog::PretrainedCatalog::from_node(node).unwrap();
-    let stack = fixtures::supplemented_example_stack().unwrap();
+    let stack =
+        bunsen::data::pretrained::build_catalog::fixtures::supplemented_example_stack().unwrap();
     assert_eq!(&catalog, stack.layers()[2].document());
     let json: Value = serde_json::from_str(&cli("dump --format json").unwrap()).unwrap();
     assert_eq!(json, docs);
@@ -432,8 +448,33 @@ fn test_releases() {
     assert!(rows[2].ends_with("(latest)"));
 }
 
+/// With no extensions, the commands run over the base alone; an extension
+/// can't declare contracts.
 #[test]
-fn test_needs_catalogs() {
-    let err = run_argv(vec!["catalog".into(), "layers".into()]).unwrap_err();
-    assert!(err.contains("no catalogs"));
+fn test_extensions_import_over_the_base() {
+    let out = run_argv(vec!["catalog".into(), "layers".into()], examples()).unwrap();
+    let labels: Vec<&str> = out
+        .lines()
+        .map(|l| l.split_whitespace().nth(1).unwrap())
+        .collect();
+    assert_eq!(labels, ["prelude", "commons", "qwen3", "whisper"]);
+
+    let prelude = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../bunsen/src/data/pretrained/build_catalog/fixtures/prelude.yml"
+    );
+    let err = run_argv(
+        vec![
+            "catalog".into(),
+            "--catalog".into(),
+            prelude.into(),
+            "layers".into(),
+        ],
+        examples(),
+    )
+    .unwrap_err();
+    assert!(
+        err.contains("only the base catalog declares `$contracts`"),
+        "{err}"
+    );
 }

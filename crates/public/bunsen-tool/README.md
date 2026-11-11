@@ -1040,14 +1040,15 @@ device accelerates it, else in f32.
 
 ## catalog: build catalogs
 
-`bunsen-tool catalog` imports build catalogs, in order, and queries the state they make
+`bunsen-tool catalog` queries bunsen's built-in model catalog, the one the kits load from
 (`bunsen::data::pretrained::build_catalog`; its `catalog_format` page describes the document,
-and its `usage` page the select language). The catalogs come from `--catalog` files, YAML or
-JSON, or `--examples` for the module's example catalogs:
+and its `usage` page the select language). `--catalog` imports an extension over it, YAML or
+JSON, repeatable, in order: an extension may add builds, template classes and resources, but
+not contracts.
 
 ```sh
-bunsen-tool catalog --examples tree
-bunsen-tool catalog --catalog a.yml --catalog b.yml select qwen3 --off thinking --limit 1
+bunsen-tool catalog tree
+bunsen-tool catalog --catalog local.yml select qwen3 --off thinking --limit 1
 ```
 
 | command | does |

@@ -61,10 +61,12 @@ enum Command {
     /// it.
     Cache(CacheCommand),
 
-    /// Build catalogs, imported in order from `--catalog` files (or the
-    /// examples): the state as a directory view (`tree`), each catalog as
-    /// written (`dump`), one entry (`show`), a resolved build (`resolve`),
-    /// and selection pipelines, each stage explained (`select`).
+    /// The built-in model catalog: browse it, resolve builds, select them.
+    ///
+    /// bunsen's built-in catalog, with any `--catalog` extensions imported over
+    /// it in order: the state as a directory view (`tree`), each catalog as
+    /// written (`dump`), one entry (`show`), a resolved build (`resolve`), and
+    /// selection pipelines, each stage explained (`select`).
     Catalog(CatalogCommand),
 
     /// What this build is (`build`: its version and features), its weights
@@ -115,6 +117,7 @@ fn run(
             matches
                 .subcommand_matches("catalog")
                 .expect("the catalog subcommand"),
+            bunsen::data::pretrained::build_catalog::builtin_stack()?,
         ),
         Command::Card(cmd) => cmd.run(),
         Command::Devices(cmd) => cmd.run(),
@@ -167,23 +170,13 @@ mod tests {
         }
     }
 
-    /// `catalog` runs at its own level of the matches, so `select` sees its
-    /// flags in command-line order.
+    /// `catalog` runs over the built-in catalog, at its own level of the
+    /// matches, so `select` sees its flags in command-line order.
     #[test]
     fn test_catalog_runs_through_its_matches() {
-        let fixtures = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../bunsen/src/data/pretrained/build_catalog/fixtures"
-        );
         let argv = [
             "bunsen-tool".to_string(),
             "catalog".into(),
-            "--catalog".into(),
-            format!("{fixtures}/prelude.yml"),
-            "--catalog".into(),
-            format!("{fixtures}/commons.yml"),
-            "--catalog".into(),
-            format!("{fixtures}/qwen3.yml"),
             "select".into(),
             "qwen3".into(),
             "--off".into(),
@@ -199,9 +192,13 @@ mod tests {
             panic!("the catalog command")
         };
         let mut out = String::new();
-        cmd.run_into(matches.subcommand_matches("catalog").unwrap(), &mut out)
-            .unwrap();
+        cmd.run_into(
+            matches.subcommand_matches("catalog").unwrap(),
+            bunsen::data::pretrained::build_catalog::builtin_stack().unwrap(),
+            &mut out,
+        )
+        .unwrap();
         let results: Vec<&str> = out.lines().filter(|l| l.starts_with("- name:")).collect();
-        assert_eq!(results, ["- name: qwen/qwen3/qwen3-0.6b"], "{out}");
+        assert_eq!(results, ["- name: qwen/qwen3/qwen3-8b"], "{out}");
     }
 }
