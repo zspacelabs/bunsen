@@ -207,7 +207,7 @@ impl ResolvedPresetSet {
                         MergeMode::Deny => errors.push(preset_error(
                             owner,
                             format!(
-                                "the preset `{}` is `merge: deny`, but the chain above already \
+                                "the preset `{}` is `$merge: deny`, but the chain above already \
                                  declares it",
                                 preset.name
                             ),
@@ -862,7 +862,7 @@ mod tests {
         assert!(
             errors
                 .iter()
-                .any(|e| e.message.contains("`greedy` is `merge: deny`")),
+                .any(|e| e.message.contains("`greedy` is `$merge: deny`")),
             "{errors:?}"
         );
         // A new name is declared, whatever its mode.

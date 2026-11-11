@@ -1,14 +1,39 @@
 //! The catalog document: [`PretrainedCatalog`] and its entries, with the
-//! serde form they are read from and written to (YAML or JSON).
+//! keyed form they are read from and written to (YAML or JSON).
 //!
-//! Every entry names its `kind`. Groups (`namespace`, `contract`) and builds
-//! may hold `children`, which is a shortcut for naming the container as the
-//! child's `parent`.
+//! The document is the namespace tree. **Every key the catalog language
+//! defines starts with `$`; a bare key is a name.**
+//!
+//! ```yaml
+//! $description: "Qwen3 chat models."
+//! qwen:                                  # an entry, keyed by its segment
+//!   $kind: namespace
+//!   $merge: update
+//!   qwen3-0.6b:                          # a child: a map with `$kind`
+//!     $kind: build
+//!     $description: "Qwen3-0.6B."
+//!     $template_class: qwen3/hybrid
+//!     parameters: 600000000              # a tag
+//!     checkpoint: {$kind: resource, $file: model.safetensors, $format: safetensors, $sources: []}
+//! ```
+//!
+//! - **An entry** is a map with `$kind`, keyed by its segment. Its name is its
+//!   path of keys: nesting is the only placement.
+//! - **Bare keys under an entry:** under a namespace or contract, children;
+//!   under a template class, tags; under a build, a child when the value is a
+//!   map with `$kind`, and a tag otherwise. Other kinds have none.
+//! - **`$presets`** holds `$common`, `$axes` (keyed by the axis), `$default`,
+//!   and the presets, keyed by name.
+//! - **Foreign documents are data:** a preset's `$patch` and `$common` keep the
+//!   model's keys.
+//! - **Refused:** a `$` word the kind doesn't define, a child without `$kind`,
+//!   a bare key where the kind has none, and a repeated key.
+//! - **Order is the file's:** `entries`, children, presets and axis uses keep
+//!   the order they are written in.
 //!
 //! A reference to another entry ([`CatalogRef`]) resolves relative to the
 //! entry it is written in, climbing the namespace to the root; a leading `/`
-//! resolves from the root only. A naming `parent` is always read from the
-//! root.
+//! resolves from the root only.
 
 use std::{
     collections::BTreeMap,
@@ -30,22 +55,24 @@ use crate::{
     name::CatalogRef,
 };
 
+mod keyed;
+
+pub use keyed::OrderedNode;
+
 /// The name of the template class every chain ends at.
 ///
-/// A template class with no `parent` inherits it, and so does a build with
-/// no `template_class`. Its `required_facets` hold for every build.
+/// A template class with no `$base` inherits it, and so does a build with
+/// no `$template_class`. Its `$required_facets` hold for every build.
 pub const TEMPLATE_CLASS_ROOT: &str = "template_class_root";
 
-/// One catalog document.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// One catalog document: `$description`, and the top-level entries keyed by
+/// their segments ([module](self)).
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct PretrainedCatalog {
     /// What the catalog holds, for a person.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
-    /// The top-level entries.
-    #[serde(default)]
+    /// The top-level entries, in the order written.
     pub entries: Vec<CatalogEntry>,
 }
 
@@ -55,8 +82,7 @@ impl PretrainedCatalog {
     /// # Errors
     /// [`CatalogErrorKind::Parse`] when it isn't a catalog.
     pub fn from_yaml(yaml: &str) -> CatalogResult<Self> {
-        serde_saphyr::from_str(yaml)
-            .map_err(|e| CatalogError::new(CatalogErrorKind::Parse, e.to_string()))
+        Self::from_node(OrderedNode::from_yaml(yaml)?)
     }
 
     /// Writes the catalog as YAML.
@@ -73,8 +99,22 @@ impl PretrainedCatalog {
     /// # Errors
     /// [`CatalogErrorKind::Parse`] when it isn't a catalog.
     pub fn from_json(json: &str) -> CatalogResult<Self> {
-        serde_json::from_str(json)
-            .map_err(|e| CatalogError::new(CatalogErrorKind::Parse, e.to_string()))
+        Self::from_node(OrderedNode::from_json(json)?)
+    }
+
+    /// Reads the catalog `node` writes.
+    ///
+    /// # Errors
+    /// [`CatalogErrorKind::Parse`] when it isn't a catalog, with the path of
+    /// the entry at fault.
+    pub fn from_node(node: OrderedNode) -> CatalogResult<Self> {
+        keyed::read_catalog(node)
+    }
+
+    /// The catalog as a tree: its entries, children, presets and axis uses
+    /// in their order, and each entry's `$` fields in their declared order.
+    pub fn to_node(&self) -> OrderedNode {
+        keyed::write_catalog(self)
     }
 
     /// Writes the catalog as pretty JSON.
@@ -117,7 +157,7 @@ impl EntryKind {
         matches!(self, Self::Namespace | Self::Contract | Self::Release)
     }
 
-    /// Whether entries of this kind may hold `children` and be scoped.
+    /// Whether entries of this kind may hold children and be scoped.
     pub fn is_container_group(self) -> bool {
         matches!(self, Self::Namespace | Self::Contract)
     }
@@ -147,9 +187,9 @@ impl fmt::Display for EntryKind {
     }
 }
 
-/// One entry, tagged by its `kind`.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+/// One entry, tagged by its `$kind`. It serializes as its keyed form, without
+/// its name: the `$` fields, then its tags, `$presets` and its children.
+#[derive(Clone, Debug, PartialEq)]
 pub enum CatalogEntry {
     /// A `namespace` group.
     Namespace(GroupEntry),
@@ -172,6 +212,11 @@ pub enum CatalogEntry {
 }
 
 impl CatalogEntry {
+    /// The entry's keyed form, without its name, as a tree.
+    pub fn to_node(&self) -> OrderedNode {
+        keyed::write_entry(self)
+    }
+
     /// The entry's kind.
     pub fn kind(&self) -> EntryKind {
         match self {
@@ -198,34 +243,6 @@ impl CatalogEntry {
             Self::Axis(e) => &e.name,
             Self::Facet(e) => &e.name,
             Self::Resource(e) => &e.name,
-        }
-    }
-
-    /// The naming `parent` the entry states, if it states one.
-    pub fn naming_parent(&self) -> Option<&CatalogRef> {
-        match self {
-            Self::Namespace(e) | Self::Contract(e) => e.parent.as_ref(),
-            Self::Release(e) => e.parent.as_ref(),
-            Self::Build(e) => e.parent.as_ref(),
-            Self::Tag(e) => e.parent.as_ref(),
-            Self::Axis(e) => e.parent.as_ref(),
-            Self::Resource(e) => e.parent.as_ref(),
-            Self::TemplateClass(e) => e.parent.as_ref(),
-            Self::Facet(_) => None,
-        }
-    }
-
-    /// Clears the naming `parent`.
-    pub(crate) fn clear_naming_parent(&mut self) {
-        match self {
-            Self::Namespace(e) | Self::Contract(e) => e.parent = None,
-            Self::Release(e) => e.parent = None,
-            Self::Build(e) => e.parent = None,
-            Self::Tag(e) => e.parent = None,
-            Self::Axis(e) => e.parent = None,
-            Self::Resource(e) => e.parent = None,
-            Self::TemplateClass(e) => e.parent = None,
-            Self::Facet(_) => {}
         }
     }
 
@@ -272,49 +289,53 @@ impl CatalogEntry {
 
 /// A `namespace` or `contract` group.
 ///
-/// A **declaring** occurrence (`merge: deny`, the default) carries the
+/// A **declaring** occurrence (`$merge: deny`, the default) carries the
 /// group's content. On a `namespace`, an **extending** occurrence
-/// (`merge: update`) carries only
-/// its name, optionally the facet it expects the group to have, and `children`:
-/// it opens the group's scope to add children to it, and asserts what it
-/// expects of the group.
+/// (`$merge: update`) carries only its `$kind`, optionally the `$facet` it
+/// expects the group to have, and children: it opens the group's scope to add
+/// children to it, and asserts what it expects of the group.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct GroupEntry {
     /// The group's own segment.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the group is, for a person. Required on a declaring occurrence.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub description: Option<String>,
 
     /// The facet the group belongs to. On an extending occurrence, the facet
     /// the declaration must have.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$facet", default, skip_serializing_if = "Option::is_none")]
     pub facet: Option<CatalogRef>,
 
-    /// The naming scope, when the entry isn't nested. Also a membership.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// Further memberships.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$join", default, skip_serializing_if = "Vec::is_empty")]
     pub join: Vec<CatalogRef>,
 
     /// Tags every member build must have a value for.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$requires", default, skip_serializing_if = "Vec::is_empty")]
     pub requires: Vec<CatalogRef>,
 
     /// On a `contract`: the dependency keys its loader reads.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "$dependency_keys",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub dependency_keys: Option<DependencyKeys>,
 
     /// Entries nested in the group's scope.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip)]
     pub children: Vec<CatalogEntry>,
 }
 
@@ -324,7 +345,7 @@ pub struct GroupEntry {
 ///
 /// | kind | `update` |
 /// |---|---|
-/// | `namespace` | adds its children (each child's own `merge` decides how it meets an existing child), and asserts the facet it expects; it states nothing else |
+/// | `namespace` | adds its children (each child's own `$merge` decides how it meets an existing child), and asserts the facet it expects; it states nothing else |
 /// | `resource` | matches every field but `sources`, and puts its new sources first |
 /// | `contract` | refused: a contract is the interface a loader is built against |
 /// | every other kind | refused |
@@ -367,37 +388,35 @@ impl MergeMode {
 #[serde(deny_unknown_fields)]
 pub struct DependencyKeys {
     /// Keys every member build must have.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$required", default, skip_serializing_if = "Vec::is_empty")]
     pub required: Vec<String>,
 
     /// Keys a member build may have.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$optional", default, skip_serializing_if = "Vec::is_empty")]
     pub optional: Vec<String>,
 }
 
 /// A `release` group: its members are releases of one sequence.
 ///
-/// A build joins it with a `released` timestamp ([`Membership::Release`]).
+/// A build joins it with a `$released` timestamp ([`Membership::Release`]).
 /// It holds no children.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReleaseEntry {
     /// The group's own segment.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the sequence is, for a person.
+    #[serde(rename = "$description")]
     pub description: String,
 
-    /// The naming scope, when the entry isn't nested. Also a membership.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// Further memberships.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$join", default, skip_serializing_if = "Vec::is_empty")]
     pub join: Vec<CatalogRef>,
 }
 
@@ -421,15 +440,17 @@ impl Membership {
     }
 }
 
-/// `{group, released}`: a release membership.
+/// `{$group, $released}`: a release membership.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReleaseMembership {
     /// The `release` group.
+    #[serde(rename = "$group")]
     pub group: CatalogRef,
 
     /// When the build was released, in canonical form (`2025`, `2025-07`,
     /// `2025-07-15`, `2025-07-15T09:30Z`, `2025-07-15T09:30:00Z`; UTC).
+    #[serde(rename = "$released")]
     pub released: String,
 }
 
@@ -438,55 +459,65 @@ pub struct ReleaseMembership {
 #[serde(deny_unknown_fields)]
 pub struct BuildEntry {
     /// The build's own segment.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the build is, for a person.
+    #[serde(rename = "$description")]
     pub description: String,
 
-    /// The naming scope, when the entry isn't nested. Also a membership.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// Further memberships, release memberships among them.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$join", default, skip_serializing_if = "Vec::is_empty")]
     pub join: Vec<Membership>,
 
     /// The template class the build inherits; [`TEMPLATE_CLASS_ROOT`] when
     /// absent.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "$template_class",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub template_class: Option<CatalogRef>,
 
     /// The checkpoint's license.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$license", default, skip_serializing_if = "Option::is_none")]
     pub license: Option<String>,
 
     /// Where the checkpoint comes from, for a person.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$origin", default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
 
     /// Tag values, by tag. They override the chain's.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(skip)]
     pub tags: BTreeMap<CatalogRef, Value>,
 
     /// The build's own presets, applied over its chain's.
-    #[serde(default, skip_serializing_if = "PresetSetEntry::is_empty")]
+    #[serde(skip)]
     pub presets: PresetSetEntry,
 
     /// Dependency keys to resources. They override the chain's.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        rename = "$dependencies",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
     pub dependencies: BTreeMap<String, CatalogRef>,
 
     /// Facets the build must be in exactly one group of, beyond its
     /// chain's.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        rename = "$required_facets",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub required_facets: Vec<CatalogRef>,
 
     /// Entries in the build's scope: its own resources, tags and axes.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip)]
     pub children: Vec<CatalogEntry>,
 }
 
@@ -500,63 +531,66 @@ pub struct BuildEntry {
 #[serde(deny_unknown_fields)]
 pub struct TemplateClassEntry {
     /// The class's own segment.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the class shares, for a person.
+    #[serde(rename = "$description")]
     pub description: String,
 
-    /// The naming scope, when the entry isn't nested. Unlike a group's or
-    /// a build's, it confers no membership.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// The base class it inherits; [`TEMPLATE_CLASS_ROOT`] when absent.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$base", default, skip_serializing_if = "Option::is_none")]
     pub base: Option<CatalogRef>,
 
     /// Memberships every build of the class has.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$join", default, skip_serializing_if = "Vec::is_empty")]
     pub join: Vec<CatalogRef>,
 
     /// Tag values, by tag. They override the base class's.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(skip)]
     pub tags: BTreeMap<CatalogRef, Value>,
 
     /// Presets, applied over the base class's.
-    #[serde(default, skip_serializing_if = "PresetSetEntry::is_empty")]
+    #[serde(skip)]
     pub presets: PresetSetEntry,
 
     /// Dependency keys to resources. They override the base class's.
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        rename = "$dependencies",
+        default,
+        skip_serializing_if = "BTreeMap::is_empty"
+    )]
     pub dependencies: BTreeMap<String, CatalogRef>,
 
     /// Facets every build of the class must be in exactly one group of.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        rename = "$required_facets",
+        default,
+        skip_serializing_if = "Vec::is_empty"
+    )]
     pub required_facets: Vec<CatalogRef>,
 }
 
-/// A preset set as a template class or build writes it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// A preset set as a template class or build writes it, under `$presets`:
+/// `$common`, `$axes` (keyed by the axis), `$default`, and the presets,
+/// keyed by name.
+#[derive(Clone, Debug, PartialEq)]
 pub struct PresetSetEntry {
     /// A merge patch every selection keeps.
-    #[serde(default = "empty_object", skip_serializing_if = "is_empty_object")]
     pub common: Value,
 
-    /// The presets.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// The presets, in the order written.
     pub presets: Vec<PresetEntry>,
 
-    /// The registered axes used, with what each offers.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// The registered axes used, with what each offers, in the order
+    /// written.
     pub axes: Vec<AxisUse>,
 
     /// Presets on no axis that apply unless displaced.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub default: Vec<String>,
 }
 
@@ -586,6 +620,7 @@ impl PresetSetEntry {
 #[serde(deny_unknown_fields)]
 pub struct PresetEntry {
     /// The preset's name. A member of a used axis is on that axis.
+    #[serde(skip)]
     pub name: String,
 
     /// How it meets a preset of its name inherited down the template-class
@@ -594,28 +629,36 @@ pub struct PresetEntry {
     /// inherited one's place; [`Deny`](MergeMode::Deny) refuses one. With
     /// nothing inherited, the preset is declared, whatever its mode.
     #[serde(
+        rename = "$merge",
         default = "MergeMode::update",
         skip_serializing_if = "MergeMode::is_update"
     )]
     pub merge: MergeMode,
 
     /// What selecting it does, for a person.
-    #[serde(default)]
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub description: String,
 
     /// The merge patch it applies.
-    #[serde(default = "empty_object", skip_serializing_if = "is_empty_object")]
+    #[serde(
+        rename = "$patch",
+        default = "empty_object",
+        skip_serializing_if = "is_empty_object"
+    )]
     pub patch: Value,
 }
 
 /// A use of a registered axis: the members offered, and the default.
 ///
-/// An offer of one member is a fixed mode.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// An offer of one member is a fixed mode. It is written under `$axes`,
+/// keyed by the axis: `thinking: {$offers: [..], $default: ..}`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AxisUse {
     /// The axis.
-    #[serde(rename = "use")]
     pub axis: CatalogRef,
 
     /// The members offered: a non-empty subset of the axis's.
@@ -630,22 +673,19 @@ pub struct AxisUse {
 #[serde(deny_unknown_fields)]
 pub struct TagEntry {
     /// The tag's own segment.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the tag says, for a person.
+    #[serde(rename = "$description")]
     pub description: String,
 
-    /// The naming scope, when the entry isn't nested. Only members of the
-    /// scope may set the tag.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// The values the tag takes.
-    #[serde(rename = "type")]
+    #[serde(rename = "$type")]
     pub tag_type: TagType,
 }
 
@@ -665,7 +705,8 @@ pub enum TagType {
     Languages,
     /// An object of numbers, by name.
     Scores,
-    /// One of these strings.
+    /// One of these strings: `{$one_of: [..]}`.
+    #[serde(rename = "$one_of")]
     OneOf(Vec<String>),
 }
 
@@ -686,25 +727,23 @@ pub enum AxisKind {
 #[serde(deny_unknown_fields)]
 pub struct AxisEntry {
     /// The axis's own segment. A bool axis's positive member has this name.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the axis selects, for a person.
+    #[serde(rename = "$description")]
     pub description: String,
 
-    /// The naming scope, when the entry isn't nested. Only members of the
-    /// scope may use the axis.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// The axis's kind.
+    #[serde(rename = "$axis")]
     pub axis: AxisKind,
 
     /// A categorical axis's members; a bool axis has none written.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(rename = "$members", default, skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<String>,
 }
 
@@ -744,13 +783,15 @@ impl AxisEntry {
 #[serde(deny_unknown_fields)]
 pub struct FacetEntry {
     /// The facet's name; facets are top-level only.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the facet sorts groups by, for a person.
+    #[serde(rename = "$description")]
     pub description: String,
 }
 
@@ -759,50 +800,59 @@ pub struct FacetEntry {
 #[serde(deny_unknown_fields)]
 pub struct ResourceEntry {
     /// The resource's own segment.
+    #[serde(skip)]
     pub name: String,
 
     /// How this occurrence meets an existing declaration of its name.
-    #[serde(default, skip_serializing_if = "MergeMode::is_deny")]
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
     pub merge: MergeMode,
 
     /// What the artifact is, for a person.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub description: Option<String>,
 
-    /// The naming scope, when the entry isn't nested.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parent: Option<CatalogRef>,
-
     /// The file name it is stored under.
+    #[serde(rename = "$file")]
     pub file: String,
 
     /// The file's format, as its loader names it.
+    #[serde(rename = "$format")]
     pub format: String,
 
     /// The file's SHA-256, in lowercase hex, when it is pinned.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$sha256", default, skip_serializing_if = "Option::is_none")]
     pub sha256: Option<String>,
 
     /// The dtype a checkpoint stores, when it is one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "$dtype", default, skip_serializing_if = "Option::is_none")]
     pub dtype: Option<String>,
 
     /// Where to fetch it, tried in order.
+    #[serde(rename = "$sources")]
     pub sources: Vec<ResourceSource>,
 }
 
 /// Where a resource can be fetched.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", deny_unknown_fields)]
+#[serde(deny_unknown_fields)]
 pub enum ResourceSource {
-    /// A file in a Hugging Face Hub repo, at a revision.
+    /// A file in a Hugging Face Hub repo, at a revision: `{$hub: {$repo,
+    /// $revision}}`.
+    #[serde(rename = "$hub")]
     Hub {
         /// `org/name`.
+        #[serde(rename = "$repo")]
         repo: String,
         /// A commit.
+        #[serde(rename = "$revision")]
         revision: String,
     },
-    /// A URL.
+    /// A URL: `{$url: ..}`.
+    #[serde(rename = "$url")]
     Url(String),
 }
 
@@ -831,37 +881,26 @@ mod tests {
     use super::*;
 
     const SAMPLE: &str = r#"
-entries:
-  - kind: facet
-    name: family
-    description: "A line of related architectures."
-  - kind: axis
-    name: thinking
-    axis: bool
-    description: "Whether the model thinks first."
-  - kind: namespace
-    name: qwen
-    description: "Qwen."
-    children:
-      - kind: build
-        name: qwen3-4b
-        description: "Qwen3-4B."
-        join:
-          - qwen/qwen3-line
-          - { group: qwen/qwen3-releases, released: "2025-04" }
-        tags: { parameters: 4000000000 }
-        presets:
-          axes:
-            - { use: thinking, offers: [thinking], default: thinking }
-          presets:
-            - { name: thinking, merge: replace, description: "Think.", patch: { a: 1 } }
-        dependencies: { config: qwen/qwen3-4b/config }
-        children:
-          - kind: resource
-            name: config
-            file: config.json
-            format: json
-            sources: [{ hub: { repo: Qwen/Qwen3-4B, revision: abc } }, { url: "https://x/y" }]
+family: { $kind: facet, $description: "A line of related architectures." }
+thinking: { $kind: axis, $axis: bool, $description: "Whether the model thinks first." }
+qwen:
+  $kind: namespace
+  $description: "Qwen."
+  qwen3-4b:
+    $kind: build
+    $description: "Qwen3-4B."
+    $join: [qwen/qwen3-line, { $group: qwen/qwen3-releases, $released: "2025-04" }]
+    $dependencies: { config: qwen/qwen3-4b/config }
+    parameters: 4000000000
+    $presets:
+      $axes:
+        thinking: { $offers: [thinking], $default: thinking }
+      thinking: { $merge: replace, $description: "Think.", $patch: { a: 1 } }
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sources: [{ $hub: { $repo: Qwen/Qwen3-4B, $revision: abc } }, { $url: "https://x/y" }]
 "#;
 
     #[test]
@@ -896,10 +935,139 @@ entries:
 
     #[test]
     fn test_unknown_fields_and_kinds_are_refused() {
-        let unknown_field = "entries:\n  - { kind: facet, name: f, description: d, extra: 1 }\n";
+        let unknown_field = "f: { $kind: facet, $description: \"d\", $extra: 1 }\n";
         assert!(PretrainedCatalog::from_yaml(unknown_field).is_err());
-        let unknown_kind = "entries:\n  - { kind: family, name: f, description: d }\n";
+        let unknown_kind = "f: { $kind: family, $description: \"d\" }\n";
         assert!(PretrainedCatalog::from_yaml(unknown_kind).is_err());
+    }
+
+    fn refused(yaml: &str) -> String {
+        PretrainedCatalog::from_yaml(yaml).unwrap_err().to_string()
+    }
+
+    #[test]
+    fn test_a_bare_key_is_a_child_or_a_tag_by_kind_and_shape() {
+        let doc = PretrainedCatalog::from_yaml(
+            r#"
+g:
+  $kind: namespace
+  $description: "G."
+  b:
+    $kind: build
+    $description: "B."
+    parameters: 7
+    scores: { mmlu: 0.5 }                 # a map without `$kind`: a tag
+    weights: { $kind: resource, $file: w, $format: f, $sources: [] }
+  t:
+    $kind: template_class
+    $description: "T."
+    language: [en]
+"#,
+        )
+        .unwrap();
+        let g = &doc.entries[0];
+        assert_eq!(g.children().len(), 2);
+        let CatalogEntry::Build(b) = &g.children()[0] else {
+            panic!("a build")
+        };
+        let tags: Vec<String> = b.tags.keys().map(ToString::to_string).collect();
+        assert_eq!(tags, ["parameters", "scores"]);
+        assert_eq!(b.children.len(), 1);
+        assert_eq!(b.children[0].name(), "weights");
+        let CatalogEntry::TemplateClass(t) = &g.children()[1] else {
+            panic!("a template class")
+        };
+        assert_eq!(t.tags.len(), 1);
+    }
+
+    #[test]
+    fn test_the_keyed_form_refuses_what_it_cant_read() {
+        assert!(refused("g: { $description: \"No kind.\" }\n").contains("no `$kind`"));
+        assert!(
+            refused("g:\n  $kind: namespace\n  $description: \"G.\"\n  child: { $file: x }\n")
+                .contains("no `$kind`")
+        );
+        assert!(
+            refused("t: { $kind: tag, $type: bool, $description: \"T.\", extra: 1 }\n")
+                .contains("a tag has no bare keys")
+        );
+        assert!(refused("$entries: []\n").contains("the catalog has no `$entries`"));
+        assert!(
+            refused("b: { $kind: build, $description: \"B.\", $presets: { $base: {} } }\n")
+                .contains("`$presets` has no `$base`")
+        );
+        let repeated = refused("a: { $kind: facet, $description: \"A.\" }\na: { $kind: facet }\n");
+        assert!(
+            repeated.contains("repeated") || repeated.contains("uplicate"),
+            "{repeated}"
+        );
+    }
+
+    #[test]
+    fn test_the_file_order_is_kept() {
+        let doc = PretrainedCatalog::from_yaml(
+            r#"
+zeta: { $kind: facet, $description: "Z." }
+alpha:
+  $kind: namespace
+  $description: "A."
+  y: { $kind: namespace, $description: "Y." }
+  b: { $kind: namespace, $description: "B." }
+c:
+  $kind: template_class
+  $description: "C."
+  $presets:
+    $axes:
+      zz: { $offers: [zz], $default: zz }
+      aa: { $offers: [aa], $default: aa }
+    second: {}
+    first: {}
+"#,
+        )
+        .unwrap();
+        let names: Vec<&str> = doc.entries.iter().map(CatalogEntry::name).collect();
+        assert_eq!(names, ["zeta", "alpha", "c"]);
+        let kids: Vec<&str> = doc.entries[1]
+            .children()
+            .iter()
+            .map(CatalogEntry::name)
+            .collect();
+        assert_eq!(kids, ["y", "b"]);
+        let CatalogEntry::TemplateClass(c) = &doc.entries[2] else {
+            panic!("a template class")
+        };
+        let axes: Vec<String> = c.presets.axes.iter().map(|a| a.axis.to_string()).collect();
+        assert_eq!(axes, ["zz", "aa"]);
+        let presets: Vec<&str> = c.presets.presets.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(presets, ["second", "first"]);
+        // Written back, the order holds.
+        let again = PretrainedCatalog::from_yaml(&doc.to_yaml().unwrap()).unwrap();
+        assert_eq!(again, doc);
+        assert!(doc.to_yaml().unwrap().starts_with("zeta:"));
+    }
+
+    #[test]
+    fn test_an_editor_reads_changes_and_writes_a_tree() {
+        let mut node = OrderedNode::from_yaml(SAMPLE).unwrap();
+        let OrderedNode::Map(entries) = &mut node else {
+            panic!("a map")
+        };
+        // Move the namespace first; the catalog reads it in the new order.
+        let qwen = entries.pop().unwrap();
+        entries.insert(0, qwen);
+        let doc = PretrainedCatalog::from_node(node.clone()).unwrap();
+        assert_eq!(doc.entries[0].name(), "qwen");
+        // Written back, the entries keep their order; each entry's fields
+        // come in their declared order.
+        assert_eq!(PretrainedCatalog::from_node(doc.to_node()).unwrap(), doc);
+        assert_eq!(
+            doc.entries[0].to_node().get("$kind"),
+            Some(&OrderedNode::Scalar(Value::String("namespace".into())))
+        );
+        assert!(node.get("qwen").is_some_and(OrderedNode::is_entry));
+        let yaml = node.to_yaml().unwrap();
+        assert_eq!(OrderedNode::from_yaml(&yaml).unwrap(), node);
+        assert!(OrderedNode::from_yaml("a: 1\na: 2\n").is_err());
     }
 
     #[test]
@@ -908,7 +1076,6 @@ entries:
             name: "thinking".into(),
             merge: MergeMode::Deny,
             description: "d".into(),
-            parent: None,
             axis: AxisKind::Bool,
             members: vec![],
         };
@@ -921,7 +1088,6 @@ entries:
             name: "task".into(),
             merge: MergeMode::Deny,
             description: "d".into(),
-            parent: None,
             axis: AxisKind::Categorical,
             members: vec!["transcribe".into(), "translate".into()],
         };

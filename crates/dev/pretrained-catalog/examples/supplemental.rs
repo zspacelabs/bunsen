@@ -51,11 +51,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bad = [
         (
             "redeclares a publisher",
-            "entries:\n  - { kind: namespace, name: qwen, description: \"Mine.\" }\n",
+            "qwen: { $kind: namespace, $description: \"Mine.\" }\n",
         ),
         (
             "expects the wrong facet",
-            "entries:\n  - { kind: namespace, name: qwen, merge: update, facet: family }\n",
+            "qwen: { $kind: namespace, $merge: update, $facet: family }\n",
         ),
     ];
     for (why, yaml) in bad {

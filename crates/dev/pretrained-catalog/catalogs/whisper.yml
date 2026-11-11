@@ -2,107 +2,100 @@
 # group, a template class whose references resolve where it is written,
 # a categorical `task` axis that one build narrows, and a tag scoped to the
 # family.
-description: "OpenAI Whisper speech recognition."
-entries:
-  - kind: namespace
-    name: openai
-    merge: update
-    children:
-      - kind: namespace
-        name: whisper
-        facet: family
-        description: "Whisper."
-        requires: [language, parameters]
-        children:
-          - kind: tag
-            name: timestamps
-            type: bool
-            description: "Whether the build decodes with timestamp tokens by default."
-          - kind: resource
-            name: vocabulary
-            file: multilingual.tiktoken
-            format: tiktoken
-            sha256: "2000000000000000000000000000000000000000000000000000000000000001"
-            sources: [{ url: "https://openaipublic.azureedge.net/whisper/multilingual.tiktoken" }]
-          - kind: template_class
-            name: multilingual
-            description: "Multilingual Whisper: transcribes, or translates into English."
-            join: [whisper-asr]
-            tags: { language: [en, "*"] }
-            dependencies: { vocabulary: vocabulary }
-            presets:
-              axes:
-                - { use: task, offers: [transcribe, translate], default: transcribe }
-              presets:
-                - { name: transcribe, description: "Transcribe in the spoken language.", patch: { task: transcribe } }
-                - { name: translate, description: "Translate into English.", patch: { task: translate } }
-
-          - kind: namespace
-            name: large
-            description: "The large Whisper models."
-            children:
-              - kind: release
-                name: release
-                description: "The large Whisper releases, each a drop-in update."
-              - kind: build
-                name: large-v1
-                description: "Whisper large (v1)."
-                template_class: multilingual
-                join: [{ group: release, released: "2022-09" }]
-                tags: { parameters: 1550000000 }
-                dependencies: { checkpoint: checkpoint }
-                children:
-                  - kind: resource
-                    name: checkpoint
-                    file: large-v1.pt
-                    format: pytorch
-                    dtype: float16
-                    sha256: "3000000000000000000000000000000000000000000000000000000000000001"
-                    sources: [{ url: "https://openaipublic.azureedge.net/main/whisper/models/large-v1.pt" }]
-              - kind: build
-                name: large-v2
-                description: "Whisper large-v2."
-                template_class: multilingual
-                join: [{ group: release, released: "2022-12" }]
-                tags: { parameters: 1550000000 }
-                dependencies: { checkpoint: checkpoint }
-                children:
-                  - kind: resource
-                    name: checkpoint
-                    file: large-v2.pt
-                    format: pytorch
-                    dtype: float16
-                    sha256: "3000000000000000000000000000000000000000000000000000000000000002"
-                    sources: [{ url: "https://openaipublic.azureedge.net/main/whisper/models/large-v2.pt" }]
-              - kind: build
-                name: large-v3
-                description: "Whisper large-v3."
-                template_class: multilingual
-                join: [{ group: release, released: "2023-11-06" }]
-                tags: { parameters: 1550000000, timestamps: true }
-                dependencies: { checkpoint: checkpoint }
-                children:
-                  - kind: resource
-                    name: checkpoint
-                    file: large-v3.pt
-                    format: pytorch
-                    dtype: float16
-                    sha256: "3000000000000000000000000000000000000000000000000000000000000003"
-                    sources: [{ url: "https://openaipublic.azureedge.net/main/whisper/models/large-v3.pt" }]
-              - kind: build
-                name: large-v3-turbo
-                description: "Whisper large-v3-turbo: a pruned large-v3, not trained to translate."
-                template_class: multilingual
-                tags: { parameters: 809000000 }
-                presets:
-                  axes:
-                    - { use: task, offers: [transcribe], default: transcribe }
-                dependencies: { checkpoint: checkpoint }
-                children:
-                  - kind: resource
-                    name: checkpoint
-                    file: large-v3-turbo.pt
-                    format: pytorch
-                    dtype: float16
-                    sha256: "3000000000000000000000000000000000000000000000000000000000000004"
-                    sources: [{ url: "https://openaipublic.azureedge.net/main/whisper/models/large-v3-turbo.pt" }]
+$description: "OpenAI Whisper speech recognition."
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $facet: family
+    $description: "Whisper."
+    $requires: [language, parameters]
+    timestamps:
+      $kind: tag
+      $type: bool
+      $description: "Whether the build decodes with timestamp tokens by default."
+    vocabulary:
+      $kind: resource
+      $file: multilingual.tiktoken
+      $format: tiktoken
+      $sha256: "2000000000000000000000000000000000000000000000000000000000000001"
+      $sources: [{ $url: "https://openaipublic.azureedge.net/whisper/multilingual.tiktoken" }]
+    multilingual:
+      $kind: template_class
+      $description: "Multilingual Whisper: transcribes, or translates into English."
+      $join: [whisper-asr]
+      $dependencies: { vocabulary: vocabulary }
+      language: [en, "*"]
+      $presets:
+        $axes:
+          task: { $offers: [transcribe, translate], $default: transcribe }
+        transcribe:
+          $description: "Transcribe in the spoken language."
+          $patch: { task: transcribe }
+        translate: { $description: "Translate into English.", $patch: { task: translate } }
+    large:
+      $kind: namespace
+      $description: "The large Whisper models."
+      release:
+        $kind: release
+        $description: "The large Whisper releases, each a drop-in update."
+      large-v1:
+        $kind: build
+        $description: "Whisper large (v1)."
+        $template_class: multilingual
+        $join: [{ $group: release, $released: "2022-09" }]
+        $dependencies: { checkpoint: checkpoint }
+        parameters: 1550000000
+        checkpoint:
+          $kind: resource
+          $file: large-v1.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000001"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v1.pt" }]
+      large-v2:
+        $kind: build
+        $description: "Whisper large-v2."
+        $template_class: multilingual
+        $join: [{ $group: release, $released: "2022-12" }]
+        $dependencies: { checkpoint: checkpoint }
+        parameters: 1550000000
+        checkpoint:
+          $kind: resource
+          $file: large-v2.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000002"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v2.pt" }]
+      large-v3:
+        $kind: build
+        $description: "Whisper large-v3."
+        $template_class: multilingual
+        $join: [{ $group: release, $released: "2023-11-06" }]
+        $dependencies: { checkpoint: checkpoint }
+        parameters: 1550000000
+        timestamps: true
+        checkpoint:
+          $kind: resource
+          $file: large-v3.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000003"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v3.pt" }]
+      large-v3-turbo:
+        $kind: build
+        $description: "Whisper large-v3-turbo: a pruned large-v3, not trained to translate."
+        $template_class: multilingual
+        $dependencies: { checkpoint: checkpoint }
+        parameters: 809000000
+        $presets:
+          $axes:
+            task: { $offers: [transcribe], $default: transcribe }
+        checkpoint:
+          $kind: resource
+          $file: large-v3-turbo.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000004"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v3-turbo.pt" }]

@@ -38,13 +38,12 @@
 //!     .push_yaml(
 //!         "prelude",
 //!         r#"
-//! entries:
-//!   - { kind: facet, name: family, description: "A line of related models." }
-//!   - { kind: axis, name: thinking, axis: bool, description: "Think first." }
-//!   - kind: template_class
-//!     name: template_class_root
-//!     description: "The root of every chain."
-//!     required_facets: [family]
+//! family: { $kind: facet, $description: "A line of related models." }
+//! thinking: { $kind: axis, $axis: bool, $description: "Think first." }
+//! template_class_root:
+//!   $kind: template_class
+//!   $description: "The root of every chain."
+//!   $required_facets: [family]
 //! "#,
 //!     )
 //!     .unwrap();
@@ -52,20 +51,18 @@
 //!     .push_yaml(
 //!         "models",
 //!         r#"
-//! entries:
-//!   - { kind: contract, name: demo-lm, description: "What the demo loader reads." }
-//!   - kind: namespace
-//!     name: demo
-//!     facet: family
-//!     description: "A demo family."
-//!     children:
-//!       - kind: build
-//!         name: thinker
-//!         description: "Always thinks."
-//!         join: [demo-lm]
-//!         presets:
-//!           axes: [{ use: thinking, offers: [thinking], default: thinking }]
-//!           presets: [{ name: thinking, description: "Think.", patch: { think: true } }]
+//! demo-lm: { $kind: contract, $description: "What the demo loader reads." }
+//! demo:
+//!   $kind: namespace
+//!   $facet: family
+//!   $description: "A demo family."
+//!   thinker:
+//!     $kind: build
+//!     $description: "Always thinks."
+//!     $join: [demo-lm]
+//!     $presets:
+//!       $axes: { thinking: { $offers: [thinking], $default: thinking } }
+//!       thinking: { $description: "Think.", $patch: { think: true } }
 //! "#,
 //!     )
 //!     .unwrap();

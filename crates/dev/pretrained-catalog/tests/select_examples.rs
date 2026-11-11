@@ -484,25 +484,21 @@ fn an_ambiguous_name_is_an_error_that_lists_the_candidates() {
         .push_yaml(
             "mirror",
             r#"
-entries:
-  - kind: namespace
-    name: openai
-    merge: update
-    children:
-      - kind: namespace
-        name: whisper
-        merge: update
-        children:
-          - kind: namespace
-            name: mirror
-            description: "Mirrored builds."
-            children:
-              - kind: build
-                name: large-v2
-                description: "Whisper large-v2, mirrored."
-                template_class: multilingual
-                tags: { parameters: 1550000000 }
-                dependencies: { checkpoint: large/large-v2/checkpoint }
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    mirror:
+      $kind: namespace
+      $description: "Mirrored builds."
+      large-v2:
+        $kind: build
+        $description: "Whisper large-v2, mirrored."
+        $template_class: multilingual
+        $dependencies: { checkpoint: large/large-v2/checkpoint }
+        parameters: 1550000000
 "#,
         )
         .unwrap();

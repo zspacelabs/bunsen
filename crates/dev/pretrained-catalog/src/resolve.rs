@@ -626,14 +626,17 @@ mod tests {
     fn test_tag_rules() {
         let errors = refused(
             r#"
-entries:
-  - kind: build
-    name: tagged
-    parent: qwen/qwen3
-    description: "Bad tags."
-    template_class: hybrid
-    tags:
-      parameters: "many"
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    tagged:
+      $kind: build
+      $description: "Bad tags."
+      $template_class: hybrid
+      parameters: many
       thinking: always
       family: qwen3
       mood: happy
@@ -655,8 +658,13 @@ entries:
     fn test_group_requirements() {
         let errors = refused(
             r#"
-entries:
-  - { kind: build, name: bare, parent: qwen/qwen3, description: "No parameters." }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    bare: { $kind: build, $description: "No parameters." }
 "#,
         );
         assert!(
@@ -669,17 +677,18 @@ entries:
     fn test_dependency_rules() {
         let errors = refused(
             r#"
-entries:
-  - kind: build
-    name: deps
-    parent: qwen/qwen3
-    description: "Bad dependencies."
-    template_class: hybrid
-    tags: { parameters: 1 }
-    dependencies:
-      checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint
-      weights: qwen/qwen3/qwen3-0.6b/checkpoint
-      tokenizer: qwen/qwen3/nope
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    deps:
+      $kind: build
+      $description: "Bad dependencies."
+      $template_class: hybrid
+      $dependencies: { checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint, weights: qwen/qwen3/qwen3-0.6b/checkpoint, tokenizer: qwen/qwen3/nope }
+      parameters: 1
 "#,
         );
         for text in [
@@ -696,17 +705,18 @@ entries:
             .push_yaml(
                 "borrows",
                 r#"
-entries:
-  - kind: build
-    name: borrower
-    parent: qwen/qwen3
-    description: "Uses resources declared below it."
-    template_class: hybrid
-    tags: { parameters: 1 }
-    dependencies:
-      checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint
-      config: qwen/qwen3/qwen3-0.6b/config
-      tokenizer: qwen/qwen3/qwen3-0.6b/tokenizer
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    borrower:
+      $kind: build
+      $description: "Uses resources declared below it."
+      $template_class: hybrid
+      $dependencies: { checkpoint: qwen/qwen3/qwen3-0.6b/checkpoint, config: qwen/qwen3/qwen3-0.6b/config, tokenizer: qwen/qwen3/qwen3-0.6b/tokenizer }
+      parameters: 1
 "#,
             )
             .unwrap();
@@ -721,15 +731,20 @@ entries:
     fn test_widening_a_class_is_refused() {
         let errors = refused(
             r#"
-entries:
-  - kind: build
-    name: wide
-    parent: qwen/qwen3
-    description: "Tries to switch a thinking-only class."
-    template_class: thinking-only
-    tags: { parameters: 1 }
-    presets:
-      axes: [{ use: thinking, offers: [thinking, no-thinking], default: thinking }]
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    wide:
+      $kind: build
+      $description: "Tries to switch a thinking-only class."
+      $template_class: thinking-only
+      parameters: 1
+      $presets:
+        $axes:
+          thinking: { $offers: [thinking, no-thinking], $default: thinking }
 "#,
         );
         assert!(errors.mentions("may only narrow"), "{errors}");
@@ -739,19 +754,23 @@ entries:
     fn test_exactly_one_contract() {
         let two = refused(
             r#"
-entries:
-  - kind: build
-    name: both
-    parent: qwen/qwen3
-    description: "In two contracts."
-    template_class: hybrid
-    join: [whisper-asr]
-    tags: { parameters: 1 }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    both:
+      $kind: build
+      $description: "In two contracts."
+      $template_class: hybrid
+      $join: [whisper-asr]
+      parameters: 1
 "#,
         );
         assert!(two.mentions("more than one contract"), "{two}");
         let none = refused(
-            "entries:\n  - { kind: build, name: free, parent: qwen/qwen3, description: \"F.\", tags: { parameters: 1 } }\n",
+            "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    free: { $kind: build, $description: \"F.\", parameters: 1 }\n",
         );
         assert!(none.mentions("in no contract"), "{none}");
         assert!(none.has(CatalogErrorKind::Contract));
@@ -761,17 +780,19 @@ entries:
     fn test_two_release_groups_are_refused() {
         let errors = refused(
             r#"
-entries:
-  - { kind: release, name: other-line, parent: openai/whisper, description: "Another sequence." }
-  - kind: build
-    name: twice
-    parent: openai/whisper
-    description: "In two release groups."
-    template_class: multilingual
-    tags: { parameters: 1 }
-    join:
-      - { group: openai/whisper/large/release, released: "2030-01" }
-      - { group: openai/whisper/other-line, released: "2030-02" }
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    other-line: { $kind: release, $description: "Another sequence." }
+    twice:
+      $kind: build
+      $description: "In two release groups."
+      $template_class: multilingual
+      $join: [{ $group: openai/whisper/large/release, $released: "2030-01" }, { $group: openai/whisper/other-line, $released: "2030-02" }]
+      parameters: 1
 "#,
         );
         assert!(errors.mentions("two release groups"), "{errors}");

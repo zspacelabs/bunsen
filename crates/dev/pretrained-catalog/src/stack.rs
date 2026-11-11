@@ -2,8 +2,8 @@
 //! materialized state.
 //!
 //! Importing a catalog applies its occurrences, in order, to a copy of the
-//! state: `merge: deny` declares a name (an existing one is a conflict),
-//! `merge: update` updates it as its kind defines, and `merge: replace`
+//! state: `$merge: deny` declares a name (an existing one is a conflict),
+//! `$merge: update` updates it as its kind defines, and `$merge: replace`
 //! substitutes the occurrence's own fields for the entry's ([`MergeMode`]).
 //! The copy is then validated as a whole, and committed only if it is
 //! clean. The state before the import was valid, so every problem found is
@@ -80,8 +80,7 @@ pub struct MaterializedEntry {
     /// The full name.
     pub name: CatalogName,
     /// The entry's fields after every import: no children (they are entries
-    /// of their own), no naming `parent` (the name carries it), and `merge`
-    /// at its default.
+    /// of their own), and `merge` at its default.
     pub entry: CatalogEntry,
     /// The changes, in import order; the first declared it.
     pub history: Vec<EntryChange>,
@@ -907,7 +906,7 @@ impl PretrainedCatalogStack {
                         &mut errors,
                         Err(CatalogError::new(
                             CatalogErrorKind::Structure,
-                            "only a contract has `dependency_keys`",
+                            "only a contract has `$dependency_keys`",
                         )),
                     ),
                     _ => {}
@@ -939,7 +938,7 @@ impl PretrainedCatalogStack {
                         &mut errors,
                         Err(CatalogError::new(
                             CatalogErrorKind::Tag,
-                            "a `one_of` tag lists no choices",
+                            "a `$one_of` tag lists no choices",
                         )),
                     );
                 }
@@ -1076,8 +1075,8 @@ impl PretrainedCatalogStack {
             return Err(CatalogError::new(
                 CatalogErrorKind::Release,
                 format!(
-                    "joins the release group `{}` without a `released` timestamp; only a build \
-                     joins a release, as `{{group, released}}`",
+                    "joins the release group `{}` without a `$released` timestamp; only a build \
+                     joins a release, as `{{$group, $released}}`",
                     decl.name()
                 ),
             ));
@@ -1281,8 +1280,8 @@ fn update(
             {
                 return Err(CatalogError::new(
                     CatalogErrorKind::Structure,
-                    "an extending occurrence carries only its name, a facet to expect, and \
-                     children",
+                    "an extending occurrence carries only its `$kind`, a `$facet` to expect, \
+                     and children",
                 ));
             }
             Ok(())
@@ -1299,7 +1298,7 @@ fn update(
             if differs {
                 return Err(CatalogError::new(
                     CatalogErrorKind::Merge,
-                    "a resource update matches every field but `sources`; to change the \
+                    "a resource update matches every field but `$sources`; to change the \
                      artifact, replace it",
                 ));
             }
@@ -1501,24 +1500,20 @@ mod tests {
 
     #[test]
     fn test_redeclaring_is_a_conflict() {
-        let errors =
-            refused("entries:\n  - { kind: namespace, name: qwen, description: \"Again.\" }\n");
+        let errors = refused("qwen: { $kind: namespace, $description: \"Again.\" }\n");
         assert!(errors.has(CatalogErrorKind::Conflict), "{errors}");
         assert!(errors.mentions("already declared in `commons`"));
 
         // A child name already taken in the scope, from another layer.
         let errors = refused(
             r#"
-entries:
-  - kind: namespace
-    name: qwen
-    merge: update
-    children:
-      - kind: namespace
-        name: qwen3
-        merge: update
-        children:
-          - { kind: namespace, name: qwen3-0.6b, description: "Collides with a build." }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    qwen3-0.6b: { $kind: namespace, $description: "Collides with a build." }
 "#,
         );
         assert!(errors.has(CatalogErrorKind::Conflict), "{errors}");
@@ -1526,48 +1521,31 @@ entries:
 
     #[test]
     fn test_extensions_must_match_their_declarations() {
-        let undeclared =
-            refused("entries:\n  - { kind: namespace, name: mistral, merge: update }\n");
+        let undeclared = refused("mistral: { $kind: namespace, $merge: update }\n");
         assert!(
             undeclared.mentions("no earlier catalog or this one declares"),
             "{undeclared}"
         );
 
-        let wrong_facet = refused(
-            "entries:\n  - { kind: namespace, name: qwen, merge: update, facet: family }\n",
-        );
+        let wrong_facet = refused("qwen: { $kind: namespace, $merge: update, $facet: family }\n");
         assert!(wrong_facet.has(CatalogErrorKind::Merge), "{wrong_facet}");
         assert!(wrong_facet.mentions("declared with `publisher`"));
 
-        let wrong_kind = refused("entries:\n  - { kind: contract, name: qwen, merge: update }\n");
+        let wrong_kind = refused("qwen: { $kind: contract, $merge: update }\n");
         assert!(
             wrong_kind.mentions("it is declared a namespace"),
             "{wrong_kind}"
         );
 
-        let carries = refused(
-            "entries:\n  - { kind: namespace, name: qwen, merge: update, description: \"No.\" }\n",
-        );
-        assert!(carries.mentions("carries only its name"), "{carries}");
+        let carries =
+            refused("qwen: { $kind: namespace, $merge: update, $description: \"No.\" }\n");
+        assert!(carries.mentions("carries only its `$kind`"), "{carries}");
     }
 
     #[test]
     fn test_facet_rules() {
         let nested = refused(
-            r#"
-entries:
-  - kind: namespace
-    name: qwen
-    merge: update
-    children:
-      - { kind: namespace, name: qwen-sub, parent: qwen/qwen3, facet: family, description: "D." }
-"#,
-        );
-        // A nested entry may not state a parent: caught while flattening.
-        assert!(nested.has(CatalogErrorKind::Structure), "{nested}");
-
-        let nested = refused(
-            "entries:\n  - { kind: namespace, name: sub, parent: qwen/qwen3, facet: family, description: \"D.\" }\n",
+            "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    sub: { $kind: namespace, $facet: family, $description: \"D.\" }\n",
         );
         assert!(
             nested.mentions("can't be within another `family` group"),
@@ -1576,25 +1554,27 @@ entries:
 
         let two = refused(
             r#"
-entries:
-  - kind: build
-    name: both-families
-    parent: qwen/qwen3
-    description: "In two families."
-    join: [openai/whisper]
-    tags: { parameters: 1 }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    both-families:
+      $kind: build
+      $description: "In two families."
+      $join: [openai/whisper]
+      parameters: 1
 "#,
         );
         assert!(two.mentions("more than one `family` group"), "{two}");
 
         let none = refused(
             r#"
-entries:
-  - kind: namespace
-    name: loose
-    description: "No facet."
-    children:
-      - { kind: build, name: orphan, description: "In no family." }
+loose:
+  $kind: namespace
+  $description: "No facet."
+  orphan: { $kind: build, $description: "In no family." }
 "#,
         );
         assert!(none.mentions("in no `family` group"), "{none}");
@@ -1611,21 +1591,17 @@ entries:
             .push_yaml(
                 "reuse",
                 r#"
-entries:
-  - { kind: namespace, name: timestamps, description: "Above openai/whisper/timestamps." }
-  - kind: namespace
-    name: qwen
-    merge: update
-    children:
-      - kind: namespace
-        name: qwen3
-        merge: update
-        children:
-          - kind: namespace
-            name: qwen3-0.6b-extras
-            description: "Beside the family's class."
-            children:
-              - { kind: template_class, name: hybrid, description: "A namesake." }
+timestamps: { $kind: namespace, $description: "Above openai/whisper/timestamps." }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    qwen3-0.6b-extras:
+      $kind: namespace
+      $description: "Beside the family's class."
+      hybrid: { $kind: template_class, $description: "A namesake." }
 "#,
             )
             .unwrap();
@@ -1659,31 +1635,34 @@ entries:
     }
 
     #[test]
-    fn test_an_import_applies_its_occurrences_in_order() {
-        // A catalog may declare a name and then update or replace it.
+    fn test_a_later_catalog_updates_and_replaces() {
+        // One catalog states a name once; a later one updates or replaces it.
         let mut stack = fixtures::builtin_stack().unwrap();
         stack
             .push_yaml(
-                "in-order",
+                "first",
                 r#"
-entries:
-  - kind: namespace
-    name: local
-    description: "First."
-    children:
-      - kind: resource
-        name: notes
-        file: notes.txt
-        format: text
-        sources: [{ url: "https://a/notes.txt" }]
-  - kind: resource
-    name: notes
-    parent: local
-    merge: update
-    file: notes.txt
-    format: text
-    sources: [{ url: "https://b/notes.txt" }]
-  - { kind: namespace, name: local, merge: replace, description: "Second." }
+local:
+  $kind: namespace
+  $description: "First."
+  notes: { $kind: resource, $file: notes.txt, $format: text, $sources: [{ $url: "https://a/notes.txt" }] }
+"#,
+            )
+            .unwrap();
+        stack
+            .push_yaml(
+                "second",
+                r#"
+local:
+  $kind: namespace
+  $merge: replace
+  $description: "Second."
+  notes:
+    $kind: resource
+    $merge: update
+    $file: notes.txt
+    $format: text
+    $sources: [{ $url: "https://b/notes.txt" }]
 "#,
             )
             .unwrap();
@@ -1704,9 +1683,8 @@ entries:
             .push_yaml(
                 "half-good",
                 r#"
-entries:
-  - { kind: namespace, name: fine, description: "Would be fine on its own." }
-  - { kind: namespace, name: qwen, description: "A conflict." }
+fine: { $kind: namespace, $description: "Would be fine on its own." }
+qwen: { $kind: namespace, $description: "A conflict." }
 "#,
             )
             .unwrap_err();
@@ -1723,8 +1701,7 @@ entries:
             .push_yaml(
                 "rename",
                 r#"
-entries:
-  - { kind: namespace, name: qwen, merge: replace, facet: publisher, description: "Qwen, renamed." }
+qwen: { $kind: namespace, $merge: replace, $facet: publisher, $description: "Qwen, renamed." }
 "#,
             )
             .unwrap();
@@ -1748,17 +1725,12 @@ entries:
     #[test]
     fn test_a_replacement_that_breaks_builds_is_refused() {
         // Dropping the facet takes every Qwen build out of its publisher.
-        let errors = refused(
-            "entries:\n  - { kind: namespace, name: qwen, merge: replace, description: \"No facet.\" }\n",
-        );
+        let errors =
+            refused("qwen: { $kind: namespace, $merge: replace, $description: \"No facet.\" }\n");
         assert!(errors.mentions("in no `publisher` group"), "{errors}");
-        let kind = refused(
-            "entries:\n  - { kind: contract, name: qwen, merge: replace, description: \"C.\" }\n",
-        );
+        let kind = refused("qwen: { $kind: contract, $merge: replace, $description: \"C.\" }\n");
         assert!(kind.mentions("a replacement keeps the kind"), "{kind}");
-        let missing = refused(
-            "entries:\n  - { kind: facet, name: country, merge: replace, description: \"C.\" }\n",
-        );
+        let missing = refused("country: { $kind: facet, $merge: replace, $description: \"C.\" }\n");
         assert!(
             missing.mentions("replaces `country`, which no earlier catalog or this one declares"),
             "{missing}"
@@ -1774,15 +1746,19 @@ entries:
             .push_yaml(
                 "mirror",
                 r#"
-entries:
-  - kind: resource
-    name: vocabulary
-    parent: openai/whisper
-    merge: update
-    file: multilingual.tiktoken
-    format: tiktoken
-    sha256: "2000000000000000000000000000000000000000000000000000000000000001"
-    sources: [{ url: "https://mirror.example/multilingual.tiktoken" }]
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    vocabulary:
+      $kind: resource
+      $merge: update
+      $file: multilingual.tiktoken
+      $format: tiktoken
+      $sha256: "2000000000000000000000000000000000000000000000000000000000000001"
+      $sources: [{ $url: "https://mirror.example/multilingual.tiktoken" }]
 "#,
             )
             .unwrap();
@@ -1800,28 +1776,32 @@ entries:
 
         let changed = refused(
             r#"
-entries:
-  - kind: resource
-    name: vocabulary
-    parent: openai/whisper
-    merge: update
-    file: other.tiktoken
-    format: tiktoken
-    sources: [{ url: "https://mirror.example/other.tiktoken" }]
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    vocabulary:
+      $kind: resource
+      $merge: update
+      $file: other.tiktoken
+      $format: tiktoken
+      $sources: [{ $url: "https://mirror.example/other.tiktoken" }]
 "#,
         );
         assert!(
-            changed.mentions("matches every field but `sources`"),
+            changed.mentions("matches every field but `$sources`"),
             "{changed}"
         );
 
-        let contract = refused("entries:\n  - { kind: contract, name: qwen3-lm, merge: update }\n");
+        let contract = refused("qwen3-lm: { $kind: contract, $merge: update }\n");
         assert!(
             contract.mentions("a contract can't be updated"),
             "{contract}"
         );
         let build = refused(
-            "entries:\n  - { kind: build, name: qwen3-0.6b, parent: qwen/qwen3, merge: update, description: \"B.\" }\n",
+            "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    qwen3-0.6b: { $kind: build, $merge: update, $description: \"B.\" }\n",
         );
         assert!(build.mentions("a build can't be updated"), "{build}");
     }
@@ -1850,15 +1830,22 @@ entries:
         // A leading `/` resolves from the root only.
         let errors = refused(
             r#"
-entries:
-  - kind: build
-    name: rooted
-    parent: openai/whisper/large
-    description: "Asks for a root `release`."
-    template_class: multilingual
-    join: [{ group: /release, released: "2030" }]
-    tags: { parameters: 1 }
-    dependencies: { checkpoint: large-v1/checkpoint }
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    large:
+      $kind: namespace
+      $merge: update
+      rooted:
+        $kind: build
+        $description: "Asks for a root `release`."
+        $template_class: multilingual
+        $join: [{ $group: /release, $released: "2030" }]
+        $dependencies: { checkpoint: large-v1/checkpoint }
+        parameters: 1
 "#,
         );
         assert!(
@@ -1869,14 +1856,21 @@ entries:
         // error, not a reason to keep climbing.
         let errors = refused(
             r#"
-entries:
-  - kind: build
-    name: wrong-kind
-    parent: openai/whisper/large
-    description: "Its `vocabulary` dependency names a group."
-    template_class: multilingual
-    tags: { parameters: 1 }
-    dependencies: { checkpoint: large-v1/checkpoint, vocabulary: release }
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    large:
+      $kind: namespace
+      $merge: update
+      wrong-kind:
+        $kind: build
+        $description: "Its `vocabulary` dependency names a group."
+        $template_class: multilingual
+        $dependencies: { checkpoint: large-v1/checkpoint, vocabulary: release }
+        parameters: 1
 "#,
         );
         assert!(
@@ -1893,16 +1887,13 @@ entries:
         // resolves to would capture it, and is refused.
         let tag = refused(
             r#"
-entries:
-  - kind: namespace
-    name: qwen
-    merge: update
-    children:
-      - kind: namespace
-        name: qwen3
-        merge: update
-        children:
-          - { kind: tag, name: parameters, type: count, description: "Nearer than the root's." }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $merge: update
+    parameters: { $kind: tag, $type: count, $description: "Nearer than the root's." }
 "#,
         );
         assert!(
@@ -1912,12 +1903,10 @@ entries:
         assert!(tag.mentions("which resolves to `parameters`"), "{tag}");
         let contract = refused(
             r#"
-entries:
-  - kind: namespace
-    name: qwen
-    merge: update
-    children:
-      - { kind: contract, name: qwen3-lm, description: "Nearer than the root's." }
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3-lm: { $kind: contract, $description: "Nearer than the root's." }
 "#,
         );
         assert!(
@@ -1940,22 +1929,17 @@ entries:
             .push_yaml(
                 "elsewhere",
                 r#"
-entries:
-  - kind: namespace
-    name: elsewhere
-    facet: family
-    description: "Another family."
-    children:
-      - kind: build
-        name: borrowed-class
-        description: "Uses a Qwen3 class from another branch."
-        template_class: /qwen/qwen3/hybrid
-        join: [qwen]
-        tags: { parameters: 1 }
-        dependencies:
-          checkpoint: /qwen/qwen3/qwen3-0.6b/checkpoint
-          config: /qwen/qwen3/qwen3-0.6b/config
-          tokenizer: /qwen/qwen3/qwen3-0.6b/tokenizer
+elsewhere:
+  $kind: namespace
+  $facet: family
+  $description: "Another family."
+  borrowed-class:
+    $kind: build
+    $description: "Uses a Qwen3 class from another branch."
+    $template_class: /qwen/qwen3/hybrid
+    $join: [qwen]
+    $dependencies: { checkpoint: /qwen/qwen3/qwen3-0.6b/checkpoint, config: /qwen/qwen3/qwen3-0.6b/config, tokenizer: /qwen/qwen3/qwen3-0.6b/tokenizer }
+    parameters: 1
 "#,
             )
             .unwrap();
@@ -1968,24 +1952,22 @@ entries:
     fn test_join_rules() {
         let cycle = refused(
             r#"
-entries:
-  - { kind: namespace, name: a, description: "A.", join: [b] }
-  - { kind: namespace, name: b, description: "B.", join: [a] }
+a: { $kind: namespace, $description: "A.", $join: [b] }
+b: { $kind: namespace, $description: "B.", $join: [a] }
 "#,
         );
         assert!(cycle.mentions("a member of itself"), "{cycle}");
 
         let plain_release = refused(
-            "entries:\n  - { kind: namespace, name: x, description: \"X.\", join: [openai/whisper/large/release] }\n",
+            "x: { $kind: namespace, $description: \"X.\", $join: [openai/whisper/large/release] }\n",
         );
         assert!(
             plain_release.has(CatalogErrorKind::Release),
             "{plain_release}"
         );
 
-        let not_a_group = refused(
-            "entries:\n  - { kind: namespace, name: x, description: \"X.\", join: [parameters] }\n",
-        );
+        let not_a_group =
+            refused("x: { $kind: namespace, $description: \"X.\", $join: [parameters] }\n");
         assert!(
             not_a_group.mentions("is a tag, not a group"),
             "{not_a_group}"
@@ -1996,19 +1978,24 @@ entries:
     fn test_release_overlap_is_refused() {
         let errors = refused(
             r#"
-entries:
-  - kind: build
-    name: large-v4
-    parent: openai/whisper
-    description: "An imprecisely dated release."
-    template_class: multilingual
-    join: [{ group: openai/whisper/large/release, released: "2023" }]
-    tags: { parameters: 1 }
-    dependencies:
-      checkpoint: openai/whisper/large/large-v4/checkpoint
-      vocabulary: openai/whisper/vocabulary
-    children:
-      - { kind: resource, name: checkpoint, file: v4.pt, format: pytorch, sources: [{ url: "https://x/v4.pt" }] }
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    large-v4:
+      $kind: build
+      $description: "An imprecisely dated release."
+      $template_class: multilingual
+      $join: [{ $group: openai/whisper/large/release, $released: "2023" }]
+      $dependencies: { checkpoint: openai/whisper/large/large-v4/checkpoint, vocabulary: openai/whisper/vocabulary }
+      parameters: 1
+      checkpoint:
+        $kind: resource
+        $file: v4.pt
+        $format: pytorch
+        $sources: [{ $url: "https://x/v4.pt" }]
 "#,
         );
         assert!(
@@ -2021,16 +2008,11 @@ entries:
     fn test_template_class_rules() {
         let mut empty = PretrainedCatalogStack::new();
         let errors = empty
-            .push_yaml(
-                "only",
-                "entries:\n  - { kind: build, name: b, description: \"B.\" }\n",
-            )
+            .push_yaml("only", "b: { $kind: build, $description: \"B.\" }\n")
             .unwrap_err();
         assert!(errors.mentions("the prelude declares it"), "{errors}");
 
-        let unknown = refused(
-            "entries:\n  - { kind: template_class, name: t, base: nope, description: \"T.\" }\n",
-        );
+        let unknown = refused("t: { $kind: template_class, $base: nope, $description: \"T.\" }\n");
         assert!(
             unknown.mentions("no template class `nope` is visible from `t`"),
             "{unknown}"
@@ -2038,9 +2020,8 @@ entries:
 
         let looped = refused(
             r#"
-entries:
-  - { kind: template_class, name: t1, base: t2, description: "T1." }
-  - { kind: template_class, name: t2, base: t1, description: "T2." }
+t1: { $kind: template_class, $base: t2, $description: "T1." }
+t2: { $kind: template_class, $base: t1, $description: "T2." }
 "#,
         );
         assert!(looped.mentions("loops"), "{looped}");
@@ -2050,18 +2031,17 @@ entries:
     fn test_declaration_checks() {
         let errors = refused(
             r#"
-entries:
-  - { kind: facet, name: country, description: "" }
-  - { kind: axis, name: mood, axis: bool, members: [happy], description: "M." }
-  - { kind: axis, name: size, axis: categorical, members: [one], description: "S." }
-  - { kind: tag, name: pick, type: { one_of: [] }, description: "P." }
-  - { kind: tag, name: contract, type: text, description: "Shadows the implied tag." }
-  - { kind: tag, name: no_timestamps, type: bool, description: "A negative bool tag." }
-  - { kind: axis, name: non-streaming, axis: bool, description: "A negative bool axis." }
-  - { kind: tag, name: notes, type: text, description: "Not a bool, and not a negative." }
-  - { kind: tag, name: nothing, type: bool, description: "`no` without a separator is a word." }
-  - { kind: namespace, name: plain, description: "P.", dependency_keys: { required: [x] } }
-  - { kind: resource, name: r, file: "a/b", format: "", sha256: "ABC", sources: [] }
+country: { $kind: facet, $description: "" }
+mood: { $kind: axis, $axis: bool, $members: [happy], $description: "M." }
+size: { $kind: axis, $axis: categorical, $members: [one], $description: "S." }
+pick: { $kind: tag, $type: { $one_of: [] }, $description: "P." }
+contract: { $kind: tag, $type: text, $description: "Shadows the implied tag." }
+no_timestamps: { $kind: tag, $type: bool, $description: "A negative bool tag." }
+non-streaming: { $kind: axis, $axis: bool, $description: "A negative bool axis." }
+notes: { $kind: tag, $type: text, $description: "Not a bool, and not a negative." }
+nothing: { $kind: tag, $type: bool, $description: "`no` without a separator is a word." }
+plain: { $kind: namespace, $description: "P.", $dependency_keys: { $required: [x] } }
+r: { $kind: resource, $file: a/b, $format: "", $sha256: ABC, $sources: [] }
 "#,
         );
         for text in [
@@ -2069,7 +2049,7 @@ entries:
             "members are generated",
             "two or more members",
             "lists no choices",
-            "only a contract has `dependency_keys`",
+            "only a contract has `$dependency_keys`",
             "not a file name",
             "names its format",
             "lowercase hex SHA-256",

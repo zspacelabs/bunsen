@@ -284,12 +284,14 @@ mod tests {
             .push_yaml(
                 "more",
                 r#"
-entries:
-  - kind: namespace
-    name: local
-    description: "Local things."
-    children:
-      - { kind: resource, name: vocabulary, file: v.txt, format: text, sources: [{ url: "https://x/v.txt" }] }
+local:
+  $kind: namespace
+  $description: "Local things."
+  vocabulary:
+    $kind: resource
+    $file: v.txt
+    $format: text
+    $sources: [{ $url: "https://x/v.txt" }]
 "#,
             )
             .unwrap();

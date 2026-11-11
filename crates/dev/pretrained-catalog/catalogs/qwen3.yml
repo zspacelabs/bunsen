@@ -2,134 +2,118 @@
 # it, and the builds, under the publisher `qwen` (declared in commons and
 # extended here). References are relative: they climb the namespace from
 # where they are written.
-description: "Qwen3 chat models."
-entries:
-  - kind: namespace
-    name: qwen
-    merge: update
-    facet: publisher
-    children:
-      - kind: namespace
-        name: qwen3
-        facet: family
-        description: "Qwen3."
-        requires: [parameters]
-        children:
-          - kind: template_class
-            name: hybrid
-            description: "Qwen3 hybrid-thinking chat: thinks by default, can be switched off."
-            join: [qwen3-lm]
-            tags: { instruct: true, language: ["*"] }
-            presets:
-              common: { generation: { max_new_tokens: 2048 } }
-              axes:
-                - { use: thinking, offers: [thinking, no-thinking], default: thinking }
-              presets:
-                - name: thinking
-                  description: "Think before answering, with the card's thinking sampling."
-                  patch: { generation: { temperature: 0.6, top_p: 0.95 } }
-                - name: no-thinking
-                  description: "Answer directly, with the card's non-thinking sampling."
-                  patch: { generation: { temperature: 0.7, top_p: 0.8 }, chat: { enable_thinking: false } }
-                - name: greedy
-                  description: "Decode greedily."
-                  patch: { generation: { do_sample: false } }
-          - kind: template_class
-            name: thinking-only
-            base: hybrid
-            description: "Qwen3 checkpoints trained to always think."
-            presets:
-              axes:
-                - { use: thinking, offers: [thinking], default: thinking }
-
-          - kind: namespace
-            name: qwen3-2507
-            description: "The July 2025 refresh of Qwen3-4B."
-
-          - kind: build
-            name: qwen3-0.6b
-            description: "Qwen3-0.6B: hybrid-thinking chat."
-            license: "Apache-2.0"
-            origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
-            template_class: hybrid
-            tags: { parameters: 600000000 }
-            dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
-            children:
-              - kind: resource
-                name: checkpoint
-                file: model.safetensors
-                format: safetensors
-                dtype: bfloat16
-                sha256: "1000000000000000000000000000000000000000000000000000000000000001"
-                sources: [{ hub: { repo: Qwen/Qwen3-0.6B, revision: c1899de } }]
-              - kind: resource
-                name: config
-                file: config.json
-                format: json
-                sha256: "1000000000000000000000000000000000000000000000000000000000000002"
-                sources: [{ hub: { repo: Qwen/Qwen3-0.6B, revision: c1899de } }]
-              - kind: resource
-                name: tokenizer
-                file: tokenizer.json
-                format: tokenizer.json
-                sha256: "7000000000000000000000000000000000000000000000000000000000000007"
-                sources: [{ hub: { repo: Qwen/Qwen3-0.6B, revision: c1899de } }]
-
-          - kind: build
-            name: qwen3-0.6b-base
-            description: "Qwen3-0.6B-Base: the pretrained base; it never thinks."
-            license: "Apache-2.0"
-            origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
-            template_class: hybrid
-            tags: { parameters: 600000000, instruct: false }
-            presets:
-              axes:
-                - { use: thinking, offers: [no-thinking], default: no-thinking }
-            dependencies:
-              checkpoint: checkpoint
-              config: qwen3-0.6b/config
-              tokenizer: tokenizer
-            children:
-              - kind: resource
-                name: checkpoint
-                file: model.safetensors
-                format: safetensors
-                dtype: bfloat16
-                sha256: "1000000000000000000000000000000000000000000000000000000000000003"
-                sources: [{ hub: { repo: Qwen/Qwen3-0.6B-Base, revision: da87bfb } }]
-              - kind: resource
-                name: tokenizer
-                file: tokenizer.json
-                format: tokenizer.json
-                sha256: "7000000000000000000000000000000000000000000000000000000000000007"
-                sources: [{ hub: { repo: Qwen/Qwen3-0.6B-Base, revision: da87bfb } }]
-
-          - kind: build
-            name: qwen3-4b-thinking-2507
-            description: "Qwen3-4B-Thinking-2507: always thinks."
-            license: "Apache-2.0"
-            origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
-            template_class: thinking-only
-            join: [qwen3-2507]
-            tags: { parameters: 4000000000 }
-            dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
-            children:
-              - kind: resource
-                name: checkpoint
-                file: model.safetensors.index.json
-                format: safetensors-index
-                dtype: bfloat16
-                sha256: "1000000000000000000000000000000000000000000000000000000000000004"
-                sources: [{ hub: { repo: Qwen/Qwen3-4B-Thinking-2507, revision: 768f209 } }]
-              - kind: resource
-                name: config
-                file: config.json
-                format: json
-                sha256: "1000000000000000000000000000000000000000000000000000000000000005"
-                sources: [{ hub: { repo: Qwen/Qwen3-4B-Thinking-2507, revision: 768f209 } }]
-              - kind: resource
-                name: tokenizer
-                file: tokenizer.json
-                format: tokenizer.json
-                sha256: "7100000000000000000000000000000000000000000000000000000000000007"
-                sources: [{ hub: { repo: Qwen/Qwen3-4B-Thinking-2507, revision: 768f209 } }]
+$description: "Qwen3 chat models."
+qwen:
+  $kind: namespace
+  $merge: update
+  $facet: publisher
+  qwen3:
+    $kind: namespace
+    $facet: family
+    $description: "Qwen3."
+    $requires: [parameters]
+    hybrid:
+      $kind: template_class
+      $description: "Qwen3 hybrid-thinking chat: thinks by default, can be switched off."
+      $join: [qwen3-lm]
+      instruct: true
+      language: ["*"]
+      $presets:
+        $common: { generation: { max_new_tokens: 2048 } }
+        $axes:
+          thinking: { $offers: [thinking, no-thinking], $default: thinking }
+        thinking:
+          $description: "Think before answering, with the card's thinking sampling."
+          $patch: { generation: { temperature: 0.6, top_p: 0.95 } }
+        no-thinking:
+          $description: "Answer directly, with the card's non-thinking sampling."
+          $patch: { generation: { temperature: 0.7, top_p: 0.8 }, chat: { enable_thinking: false } }
+        greedy: { $description: "Decode greedily.", $patch: { generation: { do_sample: false } } }
+    thinking-only:
+      $kind: template_class
+      $base: hybrid
+      $description: "Qwen3 checkpoints trained to always think."
+      $presets:
+        $axes:
+          thinking: { $offers: [thinking], $default: thinking }
+    qwen3-2507: { $kind: namespace, $description: "The July 2025 refresh of Qwen3-4B." }
+    qwen3-0.6b:
+      $kind: build
+      $description: "Qwen3-0.6B: hybrid-thinking chat."
+      $license: Apache-2.0
+      $origin: "https://huggingface.co/Qwen/Qwen3-0.6B"
+      $template_class: hybrid
+      $dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
+      parameters: 600000000
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+        $dtype: bfloat16
+        $sha256: "1000000000000000000000000000000000000000000000000000000000000001"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-0.6B, $revision: c1899de } }]
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+        $sha256: "1000000000000000000000000000000000000000000000000000000000000002"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-0.6B, $revision: c1899de } }]
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+        $sha256: "7000000000000000000000000000000000000000000000000000000000000007"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-0.6B, $revision: c1899de } }]
+    qwen3-0.6b-base:
+      $kind: build
+      $description: "Qwen3-0.6B-Base: the pretrained base; it never thinks."
+      $license: Apache-2.0
+      $origin: "https://huggingface.co/Qwen/Qwen3-0.6B-Base"
+      $template_class: hybrid
+      $dependencies: { checkpoint: checkpoint, config: qwen3-0.6b/config, tokenizer: tokenizer }
+      parameters: 600000000
+      instruct: false
+      $presets:
+        $axes:
+          thinking: { $offers: [no-thinking], $default: no-thinking }
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+        $dtype: bfloat16
+        $sha256: "1000000000000000000000000000000000000000000000000000000000000003"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-0.6B-Base, $revision: da87bfb } }]
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+        $sha256: "7000000000000000000000000000000000000000000000000000000000000007"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-0.6B-Base, $revision: da87bfb } }]
+    qwen3-4b-thinking-2507:
+      $kind: build
+      $description: "Qwen3-4B-Thinking-2507: always thinks."
+      $license: Apache-2.0
+      $origin: "https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507"
+      $template_class: thinking-only
+      $join: [qwen3-2507]
+      $dependencies: { checkpoint: checkpoint, config: config, tokenizer: tokenizer }
+      parameters: 4000000000
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $dtype: bfloat16
+        $sha256: "1000000000000000000000000000000000000000000000000000000000000004"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-4B-Thinking-2507, $revision: "768f209" } }]
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+        $sha256: "1000000000000000000000000000000000000000000000000000000000000005"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-4B-Thinking-2507, $revision: "768f209" } }]
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+        $sha256: "7100000000000000000000000000000000000000000000000000000000000007"
+        $sources: [{ $hub: { $repo: Qwen/Qwen3-4B-Thinking-2507, $revision: "768f209" } }]

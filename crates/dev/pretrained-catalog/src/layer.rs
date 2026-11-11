@@ -1,10 +1,9 @@
 //! One loaded catalog: [`PretrainedCatalogLayer`], the document plus its
 //! entries flattened to full names.
 //!
-//! Flattening resolves the nesting shortcut: a child's full name is its
-//! container's full name plus its own segment, as if it had named the
-//! container as its `parent`. The layer keeps the document as it was read;
-//! the flat entries are a view of it.
+//! Flattening resolves the nesting: a child's full name is its container's
+//! full name plus its own segment. The layer keeps the document as it was
+//! read; the flat entries are a view of it.
 
 use std::path::{
     Path,
@@ -31,8 +30,7 @@ pub struct LayerEntry {
     /// The full name.
     pub name: CatalogName,
 
-    /// The entry, with its `children` taken out and its naming `parent`
-    /// cleared: the full name carries both.
+    /// The entry, with its children taken out: the full name places it.
     pub entry: CatalogEntry,
 
     /// Whether the entry was written nested in a container.
@@ -63,9 +61,8 @@ pub struct PretrainedCatalogLayer {
 
 impl PretrainedCatalogLayer {
     /// Flattens `document` into a layer. This checks only what flattening
-    /// needs: name segments, which kinds may nest where, and that a nested
-    /// entry doesn't also state a `parent`. Everything else is checked when
-    /// the layer joins a stack.
+    /// needs: name segments, and which kinds may nest where. Everything else
+    /// is checked when the layer joins a stack.
     ///
     /// # Errors
     /// Every [`CatalogErrorKind::Name`] and [`CatalogErrorKind::Structure`]
@@ -132,7 +129,6 @@ fn flatten(
         };
         let mut flat = entry.clone();
         let children = flat.take_children();
-        flat.clear_naming_parent();
         out.push(LayerEntry {
             name: name.clone(),
             entry: flat,
@@ -155,11 +151,7 @@ fn name_of(
         })
     };
     let Some((scope, container_kind)) = container else {
-        // A naming `parent` is read from the root, with or without a `/`.
-        return match kind {
-            EntryKind::Facet => named(None),
-            _ => named(entry.naming_parent().map(|p| p.path())),
-        };
+        return named(None);
     };
     let name = named(Some(scope))?;
     let allowed = match container_kind {
@@ -175,13 +167,6 @@ fn name_of(
                 crate::stack::with_article(container_kind.as_str()),
                 crate::stack::with_article(kind.as_str())
             ),
-        )
-        .at(&name));
-    }
-    if entry.naming_parent().is_some() {
-        return Err(CatalogError::new(
-            CatalogErrorKind::Structure,
-            "a nested entry may not also state a `parent`: its container is its parent",
         )
         .at(&name));
     }
@@ -201,28 +186,16 @@ mod tests {
     }
 
     #[test]
-    fn test_nesting_and_parent_name_the_same_entries() {
+    fn test_nesting_names_the_entries() {
         let nested = layer(
             r#"
-entries:
-  - kind: namespace
-    name: qwen
-    description: "Qwen."
-    children:
-      - kind: namespace
-        name: qwen3
-        description: "Qwen3."
-        children:
-          - { kind: build, name: qwen3-4b, description: "B." }
-"#,
-        )
-        .unwrap();
-        let flat = layer(
-            r#"
-entries:
-  - { kind: namespace, name: qwen, description: "Qwen." }
-  - { kind: namespace, name: qwen3, parent: qwen, description: "Qwen3." }
-  - { kind: build, name: qwen3-4b, parent: qwen/qwen3, description: "B." }
+qwen:
+  $kind: namespace
+  $description: "Qwen."
+  qwen3:
+    $kind: namespace
+    $description: "Qwen3."
+    qwen3-4b: { $kind: build, $description: "B." }
 "#,
         )
         .unwrap();
@@ -230,30 +203,22 @@ entries:
             names(&nested),
             ["qwen", "qwen/qwen3", "qwen/qwen3/qwen3-4b"]
         );
-        assert_eq!(names(&nested), names(&flat));
-        let strip = |l: &PretrainedCatalogLayer| {
-            l.entries()
-                .iter()
-                .map(|e| e.entry.clone())
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(strip(&nested), strip(&flat));
+        assert!(!nested.entries()[0].nested);
         assert!(nested.entries()[2].nested);
-        assert!(!flat.entries()[2].nested);
+        // The flat entries hold no children: the full name places them.
+        assert!(nested.entries()[0].entry.children().is_empty());
     }
 
     #[test]
     fn test_template_classes_nest_and_name_their_base_apart() {
         let l = layer(
             r#"
-entries:
-  - { kind: template_class, name: child, base: base_class, description: "C." }
-  - kind: namespace
-    name: g
-    description: "G."
-    children:
-      - { kind: template_class, name: nested, base: child, description: "N." }
-  - { kind: template_class, name: flat, parent: /g, description: "F." }
+child: { $kind: template_class, $base: base_class, $description: "C." }
+g:
+  $kind: namespace
+  $description: "G."
+  nested: { $kind: template_class, $base: child, $description: "N." }
+  flat: { $kind: template_class, $description: "F." }
 "#,
         )
         .unwrap();
@@ -264,32 +229,26 @@ entries:
     fn test_misplaced_entries_are_refused() {
         let errors = layer(
             r#"
-entries:
-  - kind: namespace
-    name: g
-    description: "G."
-    children:
-      - { kind: facet, name: f, description: "F." }
-      - { kind: namespace, name: h, parent: g, description: "H." }
-      - kind: build
-        name: b
-        description: "B."
-        children:
-          - { kind: namespace, name: inner, description: "I." }
+g:
+  $kind: namespace
+  $description: "G."
+  f: { $kind: facet, $description: "F." }
+  b:
+    $kind: build
+    $description: "B."
+    inner: { $kind: namespace, $description: "I." }
 "#,
         )
         .unwrap_err();
-        assert_eq!(errors.0.len(), 3, "{errors}");
+        assert_eq!(errors.0.len(), 2, "{errors}");
         assert!(errors.mentions("can't hold a facet"));
-        assert!(errors.mentions("may not also state a `parent`"));
         assert!(errors.mentions("a build can't hold a namespace"));
         assert!(errors.0.iter().all(|e| e.layer.as_deref() == Some("test")));
     }
 
     #[test]
     fn test_bad_segments_are_refused() {
-        let errors =
-            layer("entries:\n  - { kind: facet, name: \"no\", description: d }\n").unwrap_err();
+        let errors = layer("\"no\": { $kind: facet, $description: \"d\" }\n").unwrap_err();
         assert!(errors.has(CatalogErrorKind::Name));
     }
 }

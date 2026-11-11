@@ -1,7 +1,7 @@
 # Using the pretrained catalog
 
 This guide covers the crate's API, from importing catalogs to choosing a build, and the select
-language that does the choosing. The document form (entry kinds, names, references, `merge`) is
+language that does the choosing. The document form (the keyed `$` form, entry kinds, names, references, `$merge`) is
 described in the crate's `README.md`. This guide uses as much of it as selection needs.
 
 The examples run against the example catalogs in `catalogs/`, which `fixtures::builtin_stack()`
@@ -61,6 +61,10 @@ catalog documents ──push──▶ PretrainedCatalogStack ──resolve_build
 
 ## Importing catalogs
 
+A catalog document is the namespace tree, in the keyed form the crate's `README.md` describes:
+every key the catalog language defines starts with `$`, and a bare key is a name (a child, a
+tag, or a preset).
+
 `PretrainedCatalogStack` imports catalogs one after another. A push applies the catalog's
 entries, in order, to a copy of the state, validates the whole copy, and commits it only if
 nothing is wrong. A refused catalog leaves the stack as it was, and the error lists every
@@ -82,11 +86,10 @@ let err = stack
     .push_yaml(
         "broken",
         r#"
-entries:
-  - kind: build
-    name: orphan
-    description: "Names a class nobody declared."
-    template_class: no-such-class
+orphan:
+  $kind: build
+  $description: "Names a class nobody declared."
+  $template_class: no-such-class
 "#,
     )
     .unwrap_err();
@@ -110,7 +113,7 @@ empty.push_yaml("prelude", fixtures::PRELUDE).unwrap();
 
 The first catalog is usually a prelude: the facets, registered axes and tags, and
 `template_class_root`. A catalog can refer to anything below it in the stack, and its extending
-occurrences (`merge: update`) add to groups an earlier catalog declared. `catalogs/supplemental.yml`
+occurrences (`$merge: update`) add to groups an earlier catalog declared. `catalogs/supplemental.yml`
 shows a local addition.
 
 ## Finding entries
@@ -226,7 +229,7 @@ A build's presets fold down its class chain. An axis use (`{use, offers, default
 what the use above it offered, and when it narrows, the presets of the dropped members are
 pruned. A use that offers one member is a fixed mode.
 
-A preset with the name of an inherited one meets it by its `merge`:
+A preset with the name of an inherited one meets it by its `$merge`:
 
 - `update`, the default, merges its patch over the inherited patch, and a description replaces
   the inherited one;
