@@ -3,6 +3,7 @@
 //! ([`print_model_row`]), the `--preset` flags, the `--format` choice
 //! ([`Format`]), and "did you mean?" on a failed lookup ([`did_you_mean`]).
 
+mod choose_args;
 pub mod did_you_mean;
 mod model_row;
 mod output_format;
@@ -16,6 +17,7 @@ use bunsen::{
     kits::support::construct::LookupExpr,
     support::merge_patch,
 };
+pub use choose_args::*;
 pub use model_row::*;
 pub use output_format::*;
 

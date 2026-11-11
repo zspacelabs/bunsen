@@ -37,14 +37,16 @@ use bunsen_app::{
     },
 };
 use burn::tensor::Device;
+use clap::ArgMatches;
 use log::LevelFilter;
 
 use crate::{
     decide::choose_decide_model,
-    select::SelectArgs,
     support::{
+        ChooseArgs,
         Format,
         with_patch,
+        with_presets,
     },
 };
 
@@ -63,11 +65,10 @@ pub struct DecideRunCommand {
     #[clap(flatten)]
     device: BackendArgs,
 
-    /// The checkpoint: a name `list` shows (or a prefix or group of them), a
-    /// selection object, or `hf:org/repo`; the default checkpoint when
-    /// omitted.
+    /// The checkpoint, chosen among Laya's builds by `--model` and the stage
+    /// flags; the default checkpoint when nothing is named.
     #[clap(flatten)]
-    select: SelectArgs,
+    choose: ChooseArgs,
 
     /// The results' format: YAML, or JSON on one line.
     #[arg(long, value_enum, default_value_t = Format::Yml)]
@@ -78,14 +79,24 @@ pub struct DecideRunCommand {
 }
 
 impl DecideRunCommand {
-    pub fn run(&self) -> BunsenResult<()> {
+    /// Answers the request; `matches` are the command's own, for the stage
+    /// flags' order.
+    pub fn run(
+        &self,
+        matches: &ArgMatches,
+    ) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let request = read_request(self.input.as_deref())?;
         let cache = self.cache.init()?;
         let device = self.device.open()?;
-        let mut model = choose_decide_model(&self.select.select)?;
-        if let Some(patch) = self.select.patch()? {
+        let flags = self.choose.flags(matches)?;
+        let mut model = choose_decide_model(&self.choose.model, &flags)?;
+        if !flags.presets.presets.is_empty() {
+            let presets: Vec<&str> = flags.presets.presets.iter().map(String::as_str).collect();
+            model = with_presets(&model, &presets)?;
+        }
+        if let Some(patch) = self.choose.patch()? {
             model = with_patch(&model, &patch)?;
         }
         let construct = default_laya_factory()?.load_construct(

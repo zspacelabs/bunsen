@@ -1,6 +1,7 @@
 //! `chat family <family>`: one family's command group.
 
 use bunsen::errors::BunsenResult;
+use clap::ArgMatches;
 
 use crate::chat::{
     ChatFetchCommand,
@@ -40,16 +41,18 @@ pub enum ChatKitSubCommand<F: clap::Args> {
 }
 
 impl<F: ChatModelFamilyFlags> ChatKitCommandGroup<F> {
-    /// Runs the command on `family`'s checkpoints.
+    /// Runs the command on `family`'s checkpoints; `matches` are the leaf
+    /// command's own.
     pub fn run(
         &self,
         family: ChatModelFamily,
+        matches: &ArgMatches,
     ) -> BunsenResult<()> {
         match &self.action {
             ChatKitSubCommand::List(cmd) => cmd.run(&[family]),
             ChatKitSubCommand::Fetch(cmd) => cmd.run(Some(family)),
-            ChatKitSubCommand::Run(cmd) => cmd.run(Some(family)),
-            ChatKitSubCommand::Repl(cmd) => cmd.run(Some(family)),
+            ChatKitSubCommand::Run(cmd) => cmd.run(Some(family), matches),
+            ChatKitSubCommand::Repl(cmd) => cmd.run(Some(family), matches),
         }
     }
 }

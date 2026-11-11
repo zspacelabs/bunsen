@@ -24,7 +24,7 @@ pub struct ChatFetchCommand {
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
-    /// Checkpoints, each as `--select` takes one (`list` shows the names).
+    /// Checkpoints, each as `--model` takes one (`list` shows the names).
     #[arg(required = true)]
     names: Vec<String>,
 }
@@ -39,7 +39,8 @@ impl ChatFetchCommand {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
         for name in &self.names {
-            let (family, name) = choose_checkpoint(family, std::slice::from_ref(name), &[])?;
+            let (family, name) =
+                choose_checkpoint(family, std::slice::from_ref(name), &Default::default())?;
             family.fetch(&name, &cache)?;
         }
         Ok(())

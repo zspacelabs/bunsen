@@ -244,9 +244,10 @@ impl ChatModelFamily {
 
 /// A family's own generation flags.
 pub trait ChatModelFamilyFlags: clap::Args + std::fmt::Debug {
-    /// The presets the flags select, added to a Qwen3 checkpoint's lookup
-    /// expression: none for the checkpoint's default.
-    fn presets(&self) -> Vec<&'static str> {
+    /// The presets the flags select, each with the flag that selects it:
+    /// they keep only the builds that offer them, and are applied to the
+    /// chosen one. None for the checkpoint's default.
+    fn presets(&self) -> Vec<(&'static str, &'static str)> {
         Vec::new()
     }
 
@@ -261,15 +262,17 @@ pub trait ChatModelFamilyFlags: clap::Args + std::fmt::Debug {
 pub struct ChatThinkFlags {
     /// Let the model think first: its `[thinking]` preset.
     ///
-    /// A Qwen3 or Qwen3.5 checkpoint's `[thinking]` preset (Qwen3's hybrid
-    /// models' default; Qwen3.5 answers at once by default), under the card's
-    /// thinking sampling. nanochat does not think.
+    /// Chooses among the checkpoints that offer `[thinking]` (Qwen3's hybrid
+    /// models, whose default it is, and Qwen3.5's, which answer at once by
+    /// default), and applies it, under the card's thinking sampling: as
+    /// `--on thinking`.
     #[arg(long, conflicts_with = "no_think")]
     think: bool,
 
     /// Ask the model not to think: its `[no-thinking]` preset.
     ///
-    /// Under the card's non-thinking sampling.
+    /// Chooses among the checkpoints that offer it, under the card's
+    /// non-thinking sampling: as `--off thinking`.
     #[arg(long)]
     no_think: bool,
 
@@ -281,10 +284,10 @@ pub struct ChatThinkFlags {
 impl ChatModelFamilyFlags for ChatThinkFlags {
     /// `[thinking]` or `[no-thinking]`: the `thinking-mode` axis, which also
     /// sets the model card's sampling for the mode.
-    fn presets(&self) -> Vec<&'static str> {
+    fn presets(&self) -> Vec<(&'static str, &'static str)> {
         match (self.think, self.no_think) {
-            (true, _) => vec!["thinking"],
-            (_, true) => vec!["no-thinking"],
+            (true, _) => vec![("thinking", "--think")],
+            (_, true) => vec![("no-thinking", "--no-think")],
             _ => Vec::new(),
         }
     }

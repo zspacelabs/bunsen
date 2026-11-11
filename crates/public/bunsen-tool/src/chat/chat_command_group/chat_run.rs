@@ -6,6 +6,7 @@ use bunsen::errors::{
     BunsenResult,
     sys_at,
 };
+use clap::ArgMatches;
 
 use crate::chat::{
     ChatGenerateFlags,
@@ -30,9 +31,12 @@ pub struct ChatRunCommand<F: clap::Args> {
 impl<F: ChatModelFamilyFlags> ChatRunCommand<F> {
     /// Answers the prompt with `family`'s checkpoint, or outside `family`
     /// whichever `--model` names.
+    ///
+    /// `matches` are the command's own, for the stage flags' order.
     pub fn run(
         &self,
         family: Option<ChatModelFamily>,
+        matches: &ArgMatches,
     ) -> BunsenResult<()> {
         let prompt = match &self.prompt {
             Some(prompt) => prompt.clone(),
@@ -45,7 +49,7 @@ impl<F: ChatModelFamilyFlags> ChatRunCommand<F> {
             }
         };
         let prompt = prompt.trim_end();
-        let (device, chat, model) = self.flags.load(family, &self.family.presets())?;
+        let (device, chat, model) = self.flags.load(family, &self.family.presets(), matches)?;
         match &chat {
             LoadedChat::Qwen3(chat) => {
                 self.flags

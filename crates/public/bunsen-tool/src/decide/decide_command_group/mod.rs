@@ -5,6 +5,7 @@ mod decide_list;
 mod decide_run;
 
 use bunsen::errors::BunsenResult;
+use clap::ArgMatches;
 pub use decide_fetch::*;
 pub use decide_list::*;
 pub use decide_run::*;
@@ -27,7 +28,7 @@ pub enum DecideSubCommand {
     /// The request is a YAML or JSON document, from a file or stdin, of a
     /// `context` and its `choices`, each a `type` (`choice`, `score` or
     /// `noul`), a `question`, and its `options`.
-    Run(DecideRunCommand),
+    Run(Box<DecideRunCommand>),
 
     /// The checkpoints bunsen knows by name.
     ///
@@ -40,10 +41,13 @@ pub enum DecideSubCommand {
 }
 
 impl DecideCommandGroup {
-    /// Runs the command.
-    pub fn run(&self) -> BunsenResult<()> {
+    /// Runs the command; `matches` are the leaf command's own.
+    pub fn run(
+        &self,
+        matches: &ArgMatches,
+    ) -> BunsenResult<()> {
         match &self.command {
-            DecideSubCommand::Run(cmd) => cmd.run(),
+            DecideSubCommand::Run(cmd) => cmd.run(matches),
             DecideSubCommand::List(cmd) => cmd.run(),
             DecideSubCommand::Fetch(cmd) => cmd.run(),
         }

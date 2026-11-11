@@ -4,8 +4,8 @@
 //!
 //! - [`DecideCommandGroup`]: the `decide` command tree, `decide
 //!   <run|list|fetch>`.
-//! - [`choose_decide_model`]: the checkpoint `--select` chooses
-//!   ([`decide_selection`]).
+//! - [`choose_decide_model`]: the checkpoint `--model` and the stage flags
+//!   choose among Laya's builds ([`decide_selection`]).
 
 mod decide_command_group;
 mod decide_select;

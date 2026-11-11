@@ -1,6 +1,7 @@
 //! `chat repl`.
 
 use bunsen::errors::BunsenResult;
+use clap::ArgMatches;
 
 use crate::chat::{
     ChatGenerateFlags,
@@ -22,11 +23,14 @@ pub struct ChatReplCommand<F: clap::Args> {
 impl<F: ChatModelFamilyFlags> ChatReplCommand<F> {
     /// Holds a conversation with `family`'s checkpoint, or outside `family`
     /// whichever `--model` names.
+    ///
+    /// `matches` are the command's own, for the stage flags' order.
     pub fn run(
         &self,
         family: Option<ChatModelFamily>,
+        matches: &ArgMatches,
     ) -> BunsenResult<()> {
-        let (device, chat, model) = self.flags.load(family, &self.family.presets())?;
+        let (device, chat, model) = self.flags.load(family, &self.family.presets(), matches)?;
         match &chat {
             LoadedChat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
             LoadedChat::Qwen3_5(chat) => {
