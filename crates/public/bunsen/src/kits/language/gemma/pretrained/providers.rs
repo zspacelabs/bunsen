@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::GemmaConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -40,17 +39,6 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 /// The `kind` of a `chat_template.jinja`.
 pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 
-/// The Gemma checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
-/// `gemma`: Google's Gemma 1, 2 and 3 text models
-/// (`well-known:gemma/gemma-3-1b-it`, `gemma/gemma-3-1b-it`, or
-/// `gemma-3-1b-it`), each fetched from its `unsloth/` mirror, whose files
-/// are ungated (Google's own repos are gated).
-///
-/// Built from `validation/catalogs/gemma.yml` by `cargo validate catalog`.
-pub static GEMMA_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("gemma", include_str!("catalog.json"));
-
 /// What the gemma kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -59,21 +47,6 @@ pub const GEMMA_CONTRACT: &str = include_str!("contract.yml");
 /// The contract the kit's loader implements, by its name in the built-in
 /// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
 pub const GEMMA_CATALOG_CONTRACT: &str = "gemma-lm";
-
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a chat model's: what a chat chooses its
-/// checkpoint by.
-pub const GEMMA_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::BASE.key,
-            crate::data::pretrained::tags::THINKING.key,
-            crate::data::pretrained::tags::REASONING.key,
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
 
 /// The built-in catalog's template class every Gemma build is of, and an
 /// `hf:` repo's presets lie over: its own chat template where it has one,
@@ -128,18 +101,12 @@ pub fn default_gemma_factory() -> BunsenResult<PretrainedFactory<GemmaConstructC
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        data::pretrained::CONFIG,
-        kits::language::gemma::pretrained::GEMMA_PREFABS,
-    };
+    use crate::data::pretrained::CONFIG;
 
     /// The rows, by name, every file pinned to one URL on its mirror, each
-    /// row with its config, tokenizer and generation files and naming a
-    /// prefab there is.
+    /// row with its config, tokenizer and generation files.
     #[test]
     fn test_rows_are_pinned() {
-        let prefabs: Vec<&str> = GEMMA_PREFABS.iter().map(|p| p.name).collect();
-        GEMMA_CATALOG.catalog().validate(&prefabs).unwrap();
         let factory = default_gemma_factory().unwrap();
         assert_eq!(factory.kit(), GEMMA_KIT);
         assert_eq!(

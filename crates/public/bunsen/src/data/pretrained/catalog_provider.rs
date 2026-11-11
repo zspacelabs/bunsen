@@ -354,6 +354,25 @@ pub fn builtin_template_presets(class: &str) -> BunsenResult<ResolvedPresetSet> 
     })
 }
 
+/// The resource bundle of the built-in catalog's build `name`: its row's files,
+/// by slot, under the build's full name. `name` is any spelling the catalog's
+/// lookups take (`qwen/qwen3-0.6b`, `qwen3-0.6b`), or an alias.
+///
+/// # Errors
+/// As [`builtin_stack`], and [`Lookup`](crate::errors::BunsenErrorKind::Lookup)
+/// for a name no build, or more than one, answers to.
+pub fn builtin_build_bundle(name: &str) -> BunsenResult<ResourceBundle> {
+    let snapshot = builtin_snapshot()?;
+    let all = BuildCatalogProvider::of_builds(WELL_KNOWN, "", snapshot.builds.iter(), "")?;
+    let row = all.find(name)?.ok_or_else(|| {
+        catalog_error(
+            CatalogRule::Lookup,
+            format!("the built-in catalog has no build `{name}`"),
+        )
+    })?;
+    Ok(row.resources.clone())
+}
+
 /// The built-in catalog's resource `resource`, by its full name
 /// (`openai/whisper/multilingual.tiktoken`), as a resource bundle under
 /// `key`: what code that names a file of the catalog's loads, such as a

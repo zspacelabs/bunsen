@@ -151,12 +151,14 @@ impl ConstructInit for VoxtralConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::voxtral::pretrained::VOXTRAL_CATALOG;
 
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
         VoxtralConstructConfig::for_resource_bundle(
-            &VOXTRAL_CATALOG.resource_bundle("mistralai/voxtral-mini-4b-realtime-2602"),
+            &crate::data::pretrained::builtin_build_bundle(
+                "mistralai/voxtral-mini-4b-realtime-2602",
+            )
+            .unwrap(),
         )
         .unwrap();
     }

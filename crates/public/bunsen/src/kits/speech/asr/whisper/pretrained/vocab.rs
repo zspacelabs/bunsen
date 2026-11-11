@@ -21,8 +21,8 @@ impl WhisperVocabulary {
     /// The rank file, brought local through the cache and parsed: the
     /// cache, or one 800 KB fetch from the pinned commit.
     ///
-    /// The files are the two vocabulary bundles of
-    /// [`WHISPER_CATALOG`](super::WHISPER_CATALOG), pinned to
+    /// The files are the built-in catalog's two vocabulary resources
+    /// ([`WhisperVocabulary::resource_name`](super::WhisperVocabulary::resource_name)), pinned to
     /// [`OPENAI_VOCAB_REVISION`]. A loaded construct already carries its
     /// vocabulary; this is for a caller that wants the ranks alone.
     ///

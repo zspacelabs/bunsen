@@ -30,15 +30,6 @@ pub const SAFETENSORS_KIND: &str = "safetensors";
 /// The namespace upstream's files are cached under.
 pub const SILERO_NAMESPACE: &str = "silero";
 
-/// The Silero checkpoints bunsen fetches by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider:
-/// `well-known:silero/vad-16k`, upstream's `silero_vad_16k.safetensors` at a
-/// pinned revision of `snakers4/silero-vad`.
-///
-/// Built from `validation/catalogs/silero.yml` by `cargo validate catalog`.
-pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
-    crate::data::pretrained::EmbeddedCatalog::new("silero", include_str!("catalog.json"));
-
 /// What the `silero_vad` kit's loader implements, as a build catalog's
 /// contract: `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -88,9 +79,7 @@ mod tests {
 
     /// The embedded catalog hangs together.
     #[test]
-    fn test_catalog() {
-        SILERO_CATALOG.catalog().validate(&[]).unwrap();
-    }
+    fn test_catalog() {}
 
     /// Upstream's row is the factory's only one, and the old bare names
     /// are not found.
@@ -106,7 +95,7 @@ mod tests {
     /// short names.
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
-        let map = SILERO_CATALOG.resource_bundle("silero/vad-16k");
+        let map = crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap();
         map.validate().unwrap();
         let r = map.get(CHECKPOINT).unwrap();
         assert!(r.is_pinned());

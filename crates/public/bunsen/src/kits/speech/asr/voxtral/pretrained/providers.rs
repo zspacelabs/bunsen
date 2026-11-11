@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::VoxtralConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -27,14 +26,6 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a Mistral `tekken.json` vocabulary.
 pub const TEKKEN_JSON: &str = "tekken.json";
 
-/// The Voxtral Realtime checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
-/// `mistralai`: Voxtral-Mini-4B-Realtime-2602.
-///
-/// Built from `validation/catalogs/voxtral.yml` by `cargo validate catalog`.
-pub static VOXTRAL_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("voxtral", include_str!("catalog.json"));
-
 /// What the voxtral kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -43,19 +34,6 @@ pub const VOXTRAL_CONTRACT: &str = include_str!("contract.yml");
 /// The contract the kit's loader implements, by its name in the built-in
 /// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
 pub const VOXTRAL_CATALOG_CONTRACT: &str = "voxtral-asr";
-
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a speech recognizer's: what speech to text
-/// chooses its model by.
-pub const VOXTRAL_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::TRANSLATE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
 
 /// The name [`default_voxtral_factory`] loads when a caller names none.
 pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral/voxtral-mini-4b-realtime-2602";
@@ -99,13 +77,14 @@ mod tests {
     use super::*;
     use crate::kits::speech::asr::voxtral::pretrained::VOXTRAL_PREFABS;
 
-    /// The row is pinned, names a prefab there is, and answers by its
+    /// The row is pinned, states a prefab's geometry, and answers by its
     /// qualified, short and aliased names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        let prefabs: Vec<&str> = VOXTRAL_PREFABS.iter().map(|p| p.name).collect();
-        VOXTRAL_CATALOG.catalog().validate(&prefabs).unwrap();
-        let map = VOXTRAL_CATALOG.resource_bundle("mistralai/voxtral-mini-4b-realtime-2602");
+        let map = crate::data::pretrained::builtin_build_bundle(
+            "mistralai/voxtral-mini-4b-realtime-2602",
+        )
+        .unwrap();
         map.validate().unwrap();
         for key in [CHECKPOINT, VOCABULARY] {
             let resource = map.get(key).unwrap();
@@ -135,11 +114,18 @@ mod tests {
         ] {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, DEFAULT_VOXTRAL_MODEL, "{spec}");
-            // Its geometry is stated, and reads as a config.
+            // Its geometry is stated, reads as a config, and is a prefab's.
+            let geometry = &row.args[crate::data::pretrained::GEOMETRY];
             serde_json::from_value::<crate::kits::speech::asr::voxtral::VoxtralRealtimeConfig>(
-                row.args[crate::data::pretrained::GEOMETRY].clone(),
+                geometry.clone(),
             )
             .unwrap();
+            assert!(
+                VOXTRAL_PREFABS
+                    .iter()
+                    .any(|p| serde_json::to_value(p.to_config()).unwrap() == *geometry),
+                "{spec}: its geometry is no prefab's"
+            );
         }
     }
 

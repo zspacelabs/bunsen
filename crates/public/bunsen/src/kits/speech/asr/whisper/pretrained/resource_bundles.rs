@@ -11,9 +11,6 @@ pub const CHECKPOINT: &str = "checkpoint";
 /// The key of the `.tiktoken` vocabulary in a Whisper resource bundle.
 pub const VOCABULARY: &str = "vocabulary";
 
-/// The namespace of the per-kit catalog's `openai` bundles.
-pub const OPENAI_NAMESPACE: &str = "openai";
-
 /// The label on every `openai` checkpoint.
 pub const PYTORCH_FP16: &str = "pytorch fp16";
 
@@ -82,13 +79,13 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::{
-            LocalDirBase,
             Source,
             resolve_dir_template,
         },
         kits::speech::asr::whisper::pretrained::{
             OPENAI_LOCAL_DIR,
-            WHISPER_CATALOG,
+            WHISPER_CATALOG_CONTRACT,
+            WHISPER_KIT,
             WHISPER_PREFABS,
         },
     };
@@ -101,50 +98,55 @@ mod tests {
             .ids()
     }
 
-    /// Every checkpoint resource bundle is one pinned, labeled `checkpoint`
-    /// under the `openai` namespace, found under upstream's root before
-    /// upstream's URL, and that URL is addressed by the digest that pins it;
-    /// upstream's root is `$XDG_CACHE_HOME/whisper`, else `~/.cache/whisper`.
+    /// Every well-known row's checkpoint is one pinned resource, labeled
+    /// `checkpoint` under the `openai` namespace, found under upstream's root
+    /// before upstream's URL, and that URL is addressed by the digest that
+    /// pins it; upstream's root is `$XDG_CACHE_HOME/whisper`, else
+    /// `~/.cache/whisper`.
     #[test]
-    fn test_checkpoint_bundles_validate_and_pin_their_urls() {
-        let checkpoints: Vec<_> = WHISPER_CATALOG
-            .catalog()
-            .bundles
-            .iter()
-            .filter(|b| b.name.ends_with(".pt"))
-            .collect();
-        assert_eq!(checkpoints.len(), 12);
+    fn test_checkpoints_validate_and_pin_their_urls() {
+        let provider = crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            WHISPER_CATALOG_CONTRACT,
+            WHISPER_KIT,
+        );
+        assert_eq!(provider.rows().len(), 12);
+        let upstream_root = resolve_dir_template("$XDG_CACHE_HOME/whisper")
+            .or_else(|| resolve_dir_template("~/.cache/whisper"));
 
-        for bundle in checkpoints {
-            let owned = bundle.to_resource_bundle();
-            owned.validate().unwrap();
-            assert_eq!(owned.keys(), [CHECKPOINT], "{}", bundle.name);
-            let r = owned.get(CHECKPOINT).unwrap();
-            assert_eq!(r.namespace, OPENAI_NAMESPACE, "{}", bundle.name);
-            assert_eq!(r.kind.as_deref(), Some(PYTORCH_FP16), "{}", bundle.name);
-            let sha256 = r.sha256.as_deref().expect("every checkpoint is pinned");
-            assert_eq!(bundle.name, format!("openai/{}", r.file));
-            assert_eq!(r.sources.len(), 2, "{}", bundle.name);
+        for row in provider.rows() {
+            let name = &row.name;
+            row.resources.validate().unwrap();
+            let r = row.resources.get(CHECKPOINT).unwrap();
             assert!(
-                matches!(&r.sources[0], Source::LocalDir { name, .. } if name == OPENAI_LOCAL_DIR),
-                "{}: upstream's root comes first",
-                bundle.name
+                r.namespace.starts_with("openai/whisper/"),
+                "{name}: {}",
+                r.namespace
             );
+            assert_eq!(r.kind.as_deref(), Some(PYTORCH_FP16), "{name}");
+            let sha256 = r.sha256.as_deref().expect("every checkpoint is pinned");
+            assert_eq!(
+                r.file,
+                format!("{}.pt", name.rsplit('/').next().unwrap()),
+                "{name}"
+            );
+            assert_eq!(r.sources.len(), 2, "{name}");
+            let Source::LocalDir {
+                name: dir_name,
+                dir,
+            } = &r.sources[0]
+            else {
+                panic!("{name}: upstream's root comes first");
+            };
+            assert_eq!(dir_name, OPENAI_LOCAL_DIR, "{name}");
+            assert_eq!(dir, &upstream_root, "{name}");
             assert_eq!(
                 r.urls(),
                 vec![format!(
                     "https://openaipublic.azureedge.net/main/whisper/models/{sha256}/{}",
                     r.file
                 )],
-                "{}",
-                bundle.name
+                "{name}"
             );
-            let crate::data::pretrained::CatalogBase::LocalDir(LocalDirBase { default, .. }) =
-                &bundle.bases[0]
-            else {
-                panic!("{}: upstream's root is the first base", bundle.name);
-            };
-            assert_eq!(default, &["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"]);
         }
         assert!(
             resolve_dir_template("~/.cache/whisper").is_some_and(|d| d.ends_with(".cache/whisper"))

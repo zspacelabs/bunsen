@@ -95,7 +95,6 @@ mod tests {
         kits::{
             speech::asr::whisper::pretrained::{
                 CHECKPOINT,
-                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WhisperReader,
             },
@@ -207,17 +206,10 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&factory.lookup("hf:whisper-tiny"));
     }
 
-    /// One prefab, many rows, in the per-kit catalog's listing; the factory's
-    /// rows name none, since a checkpoint carries its own dims.
+    /// The factory's rows name no prefab, since a checkpoint carries its
+    /// own dims.
     #[test]
-    fn test_one_prefab_many_pretrained() {
-        let table = WHISPER_CATALOG.table();
-        let large: Vec<&str> = table.groups[0]
-            .for_prefab("large")
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect();
-        assert_eq!(large, ["large-v1", "large-v2"]);
+    fn test_the_rows_name_no_prefab() {
         assert!(
             default_whisper_factory()
                 .unwrap()

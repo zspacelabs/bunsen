@@ -25,8 +25,6 @@
 
 #[cfg(feature = "store")]
 pub mod catalog_contracts;
-#[cfg(all(test, feature = "store", feature = "speech"))]
-mod catalog_equivalence;
 pub mod construct;
 pub mod decoding;
 pub mod model_config;

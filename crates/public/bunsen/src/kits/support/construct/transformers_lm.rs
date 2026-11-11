@@ -104,7 +104,7 @@ pub trait TransformersLmKit: Default {
     ) -> BunsenResult<NamedTensorsApplied>;
 
     /// The presets of a checkpoint no row describes (an `hf:` repo's), as the
-    /// catalog tool probes a row's.
+    /// catalog builder probes a row's.
     ///
     /// # Errors
     /// As [`probe_loaded`](crate::kits::support::model_config::probe_loaded).

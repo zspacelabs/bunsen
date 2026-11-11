@@ -28,8 +28,6 @@ use bunsen::{
                 GeometryMismatch,
                 PytorchWhisperScanner,
                 VOCABULARY,
-                WHISPER_CATALOG,
-                WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperConstructConfig,
                 WhisperVocabulary,
@@ -43,6 +41,7 @@ use bunsen::{
 use serial_test::serial;
 
 use super::{
+    base_checkpoint,
     cache_in,
     factory_with_bundle,
     offline_cache,
@@ -57,10 +56,7 @@ fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
 /// A checkpoint on disk, as loaded resources: used in place.
 fn loaded(path: &std::path::Path) -> LoadedResources {
     offline_cache()
-        .load(
-            WHISPER_KIT,
-            &ResourceBundle::given("given", CHECKPOINT, path),
-        )
+        .load(&ResourceBundle::given("given", CHECKPOINT, path))
         .unwrap()
 }
 
@@ -125,8 +121,7 @@ fn test_plan_derives_a_paths_vocabulary() {
 #[test]
 fn test_plan_checks_a_declared_vocabulary() {
     let cache = offline_cache();
-    let wrong = WHISPER_CATALOG
-        .resource_bundle("openai/base.pt")
+    let wrong = base_checkpoint()
         .fuse(WhisperVocabulary::Gpt2.resource_bundle(), Fuse::Strict)
         .unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
@@ -134,7 +129,7 @@ fn test_plan_checks_a_declared_vocabulary() {
         .message_contains("multilingual.tiktoken")
         .assert_err(&WhisperConstructConfig::new().plan(&PretrainedRef::from(wrong), &cache));
 
-    let overridden = PretrainedRef::from(WHISPER_CATALOG.resource_bundle("openai/base.pt"))
+    let overridden = PretrainedRef::from(base_checkpoint())
         .with_overlay(ResourceBundle::given(
             "--vocab",
             VOCABULARY,
@@ -178,7 +173,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
 fn test_plan_checks_the_prefab_a_name_promises() {
     let cache = offline_cache();
     let base_pt = bind_whisper_onnx::base_pt();
-    let given = PretrainedRef::from(WHISPER_CATALOG.resource_bundle("openai/base.pt"));
+    let given = PretrainedRef::from(base_checkpoint());
     let named = resolve_model("openai/base").unwrap();
     let hook = WhisperConstructConfig::new();
 

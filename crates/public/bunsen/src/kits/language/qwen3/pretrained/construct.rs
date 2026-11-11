@@ -13,7 +13,6 @@ use super::{
 };
 use crate::{
     data::pretrained::{
-        CatalogProbe,
         LoadedResources,
         NamedTensorsApplied,
         ResolvedPresetSet,
@@ -33,7 +32,10 @@ use crate::{
         },
         support::{
             construct::TransformersLmKit,
-            model_config::probe_loaded,
+            model_config::{
+                CatalogProbe,
+                probe_loaded,
+            },
         },
     },
 };
@@ -78,7 +80,7 @@ impl TransformersLmKit for Qwen3ConstructConfig {
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
-    /// catalog tool probes a row's: its `generation_config.json`, when it
+    /// catalog builder probes a row's: its `generation_config.json`, when it
     /// has one (the stop tokens and sampling), and the chat template its
     /// `tokenizer_config.json` holds, probed into the base.
     fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
@@ -97,23 +99,22 @@ impl TransformersLmKit for Qwen3ConstructConfig {
 mod tests {
     use super::*;
     use crate::kits::{
-        language::qwen3::{
-            Qwen3Policy,
-            pretrained::QWEN3_CATALOG,
-        },
+        language::qwen3::Qwen3Policy,
         support::construct::ConstructInit,
     };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         Qwen3ConstructConfig::for_resource_bundle(
-            &QWEN3_CATALOG.resource_bundle("qwen/qwen3-0.6b"),
+            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-0.6b").unwrap(),
         )
         .unwrap();
-        Qwen3ConstructConfig::for_resource_bundle(&QWEN3_CATALOG.resource_bundle("qwen/qwen3-4b"))
-            .unwrap();
+        Qwen3ConstructConfig::for_resource_bundle(
+            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-4b").unwrap(),
+        )
+        .unwrap();
 
-        let mut gguf = QWEN3_CATALOG.resource_bundle("qwen/qwen3-0.6b");
+        let mut gguf = crate::data::pretrained::builtin_build_bundle("qwen/qwen3-0.6b").unwrap();
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

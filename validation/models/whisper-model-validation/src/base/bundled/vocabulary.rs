@@ -14,7 +14,6 @@ use bunsen::{
             },
             pretrained::{
                 VOCABULARY,
-                WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperVocabulary,
             },

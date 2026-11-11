@@ -11,10 +11,10 @@
 //! [`default_whisper_factory`] is the index a caller holds, over
 //! [`default_whisper_providers`] in search order:
 //!
-//! - [`WHISPER_CATALOG`]: the checkpoints bunsen knows by name, as
-//!   `well-known:openai/base`, `openai/base`, or `base`. Its one group,
-//!   `openai`, is upstream's `_MODELS`, with upstream's aliases (`large`,
-//!   `turbo`).
+//! - The well-known rows, the built-in catalog's builds of
+//!   [`WHISPER_CATALOG_CONTRACT`]: the checkpoints bunsen knows by name, as
+//!   `well-known:openai/whisper/base`, `openai/base`, or `base`. They are
+//!   upstream's `_MODELS`, with upstream's aliases (`large`, `turbo`).
 //! - The data layer's [`HfProvider`](crate::data::pretrained::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
 //!   checkpoint under [`CHECKPOINT`]. It lists nothing.
@@ -37,16 +37,14 @@
 //! [`with_provider`](crate::kits::support::construct::PretrainedFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
-//! # Rows, prefabs and bundles
+//! # Rows, prefabs and resources
 //!
-//! A row names its prefab in [`WHISPER_PREFABS`], the geometry its
-//! checkpoint must have, and fuses a checkpoint bundle of
-//! [`WHISPER_CATALOG`] with the vocabulary bundle its token layout
-//! selects ([`WhisperVocabulary`]). A prefab is a shape without weights,
-//! so a name means a shape before any bytes are fetched; a bundle is where
-//! the bytes come from and the digest that pins them. A path arrives as a
-//! one-resource bundle with no prefab, and gets its vocabulary from the same
-//! rule, [`WhisperVocabulary::for_layout`].
+//! A row is a build's two resources: its checkpoint, and the vocabulary its
+//! token layout selects ([`WhisperVocabulary`]), which the plan checks
+//! against the checkpoint. A prefab of [`WHISPER_PREFABS`] is a shape
+//! without weights; a resource is where the bytes come from and the digest
+//! that pins them. A path arrives as a one-resource bundle, and gets its
+//! vocabulary from the same rule, [`WhisperVocabulary::for_layout`].
 //!
 //! # Loading
 //!

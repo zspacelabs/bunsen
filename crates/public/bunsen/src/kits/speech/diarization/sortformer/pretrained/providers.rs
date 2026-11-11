@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::SortformerConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -24,14 +23,6 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a `NeMo` `.nemo` checkpoint: its config and its weights in
 /// one archive.
 pub const NEMO: &str = "nemo";
-
-/// The Sortformer checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
-/// `nvidia`: Nemotron-3-Diarization, and the streaming Sortformer v2 and v2.1.
-///
-/// Built from `validation/catalogs/sortformer.yml` by `cargo validate catalog`.
-pub static SORTFORMER_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("sortformer", include_str!("catalog.json"));
 
 /// What the sortformer kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
@@ -86,13 +77,12 @@ mod tests {
     /// Every row is pinned, and answers by its qualified and short names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        SORTFORMER_CATALOG.catalog().validate(&[]).unwrap();
         for (name, kind) in [
             ("nvidia/nemotron-3-diarization", SAFETENSORS),
             ("nvidia/diar_streaming_sortformer_4spk-v2", NEMO),
             ("nvidia/diar_streaming_sortformer_4spk-v2.1", NEMO),
         ] {
-            let map = SORTFORMER_CATALOG.resource_bundle(name);
+            let map = crate::data::pretrained::builtin_build_bundle(name).unwrap();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{name}");

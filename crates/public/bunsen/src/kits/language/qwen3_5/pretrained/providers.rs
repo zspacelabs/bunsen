@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::Qwen3_5ConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -40,15 +39,6 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 /// The `kind` of a `chat_template.jinja`.
 pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 
-/// The Qwen3.5 checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
-/// `qwen` (`well-known:qwen/qwen3.5-0.8b`, `qwen/qwen3.5-0.8b`, or
-/// `qwen3.5-0.8b`).
-///
-/// Built from `validation/catalogs/qwen3.5.yml` by `cargo validate catalog`.
-pub static QWEN3_5_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("qwen3.5", include_str!("catalog.json"));
-
 /// What the qwen3.5 kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -57,21 +47,6 @@ pub const QWEN3_5_CONTRACT: &str = include_str!("contract.yml");
 /// The contract the kit's loader implements, by its name in the built-in
 /// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
 pub const QWEN3_5_CATALOG_CONTRACT: &str = "qwen3.5-lm";
-
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a chat model's: what a chat chooses its
-/// checkpoint by.
-pub const QWEN3_5_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::BASE.key,
-            crate::data::pretrained::tags::THINKING.key,
-            crate::data::pretrained::tags::REASONING.key,
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
 
 /// The name [`default_qwen3_5_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_5_MODEL: &str = "qwen/qwen3.5/qwen3.5-0.8b";
@@ -121,18 +96,12 @@ pub fn default_qwen3_5_factory() -> BunsenResult<PretrainedFactory<Qwen3_5Constr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        data::pretrained::CONFIG,
-        kits::language::qwen3_5::pretrained::QWEN3_5_PREFABS,
-    };
+    use crate::data::pretrained::CONFIG;
 
     /// The rows, by name, every file pinned to one URL on Qwen's repo, each
-    /// row with its config and tokenizer files, its checkpoint's index, and
-    /// naming a prefab there is.
+    /// row with its config and tokenizer files and its checkpoint's index.
     #[test]
     fn test_rows_are_pinned() {
-        let prefabs: Vec<&str> = QWEN3_5_PREFABS.iter().map(|p| p.name).collect();
-        QWEN3_5_CATALOG.catalog().validate(&prefabs).unwrap();
         let factory = default_qwen3_5_factory().unwrap();
         assert_eq!(factory.kit(), QWEN3_5_KIT);
         assert_eq!(

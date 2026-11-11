@@ -3,10 +3,7 @@ use alloc::sync::Arc;
 
 use super::NanoChatConstructConfig;
 use crate::{
-    data::pretrained::{
-        EmbeddedCatalog,
-        PretrainedProvider,
-    },
+    data::pretrained::PretrainedProvider,
     errors::BunsenResult,
     kits::support::construct::PretrainedFactory,
 };
@@ -25,17 +22,6 @@ pub const META_JSON: &str = "nanochat-meta.json";
 /// `tokenizer.pkl`.
 pub const TIKTOKEN_PICKLE: &str = "tiktoken-pickle";
 
-/// The nanochat checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider: in group
-/// `nanochat-students`, the d20 run of upstream's 2025 model (base, mid and
-/// RL; `well-known:nanochat-students/rl-d20`, or its alias
-/// `nanochat-d20-rl`), and in group `nitishpandey04`, the d18 run of its
-/// 2026 model (base and SFT).
-///
-/// Built from `validation/catalogs/nanochat.yml` by `cargo validate catalog`.
-pub static NANOCHAT_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("nanochat", include_str!("catalog.json"));
-
 /// What the nanochat kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -44,21 +30,6 @@ pub const NANOCHAT_CONTRACT: &str = include_str!("contract.yml");
 /// The contract the kit's loader implements, by its name in the built-in
 /// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
 pub const NANOCHAT_CATALOG_CONTRACT: &str = "nanochat-lm";
-
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a chat model's: what a chat chooses its
-/// checkpoint by.
-pub const NANOCHAT_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::BASE.key,
-            crate::data::pretrained::tags::THINKING.key,
-            crate::data::pretrained::tags::REASONING.key,
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
 
 /// The name [`default_nanochat_factory`] loads when a caller names none.
 pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
@@ -104,11 +75,9 @@ mod tests {
 
     /// Every file of every row is pinned to one URL, each row's alias finds
     /// it, and each row's meta (committed under `testdata/nanochat/meta/`, at
-    /// the row's digest) is the geometry of the prefab the row names.
+    /// the row's digest) is the geometry of a prefab.
     #[test]
     fn test_rows_are_pinned_and_match_their_prefabs() {
-        let prefabs: Vec<&str> = NANOCHAT_PREFABS.iter().map(|p| p.name).collect();
-        NANOCHAT_CATALOG.catalog().validate(&prefabs).unwrap();
         let factory = default_nanochat_factory().unwrap();
         assert_eq!(factory.kit(), NANOCHAT_KIT);
         let rows = [
@@ -152,15 +121,12 @@ mod tests {
                 Some(_) => NanoChatGeneration::Upstream2026,
                 None => NanoChatGeneration::Upstream2025,
             };
-            // The old catalog's row names the prefab the build documents.
-            let old = NANOCHAT_CATALOG.table().lookup(name).unwrap().unwrap();
-            let prefab = NANOCHAT_PREFABS
-                .expect_lookup_prefab(old.prefab.as_deref().unwrap())
-                .to_config();
-            assert_eq!(
-                format!("{:?}", meta.gpt_config(generation)),
-                format!("{prefab:?}"),
-                "{name}"
+            let config = format!("{:?}", meta.gpt_config(generation));
+            assert!(
+                NANOCHAT_PREFABS
+                    .iter()
+                    .any(|p| format!("{:?}", p.to_config()) == config),
+                "{name}: its meta is no prefab's geometry"
             );
         }
         assert_eq!(

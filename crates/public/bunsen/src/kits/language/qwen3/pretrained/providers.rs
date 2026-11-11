@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::Qwen3ConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -39,16 +38,6 @@ pub const TOKENIZER_CONFIG_JSON: &str = "tokenizer_config.json";
 /// The `kind` of a `transformers` `generation_config.json`.
 pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 
-/// The Qwen3 checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
-/// `qwen`: Qwen's dense Qwen3 language models up to 8B, as `transformers`
-/// ships them (`well-known:qwen/qwen3-0.6b`, `qwen/qwen3-0.6b`, or
-/// `qwen3-0.6b`).
-///
-/// Built from `validation/catalogs/qwen3.yml` by `cargo validate catalog`.
-pub static QWEN3_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("qwen3", include_str!("catalog.json"));
-
 /// What the qwen3 kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -57,21 +46,6 @@ pub const QWEN3_CONTRACT: &str = include_str!("contract.yml");
 /// The contract the kit's loader implements, by its name in the built-in
 /// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
 pub const QWEN3_CATALOG_CONTRACT: &str = "qwen3-lm";
-
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a chat model's: what a chat chooses its
-/// checkpoint by.
-pub const QWEN3_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::BASE.key,
-            crate::data::pretrained::tags::THINKING.key,
-            crate::data::pretrained::tags::REASONING.key,
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
 
 /// The name [`default_qwen3_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3/qwen3-0.6b";
@@ -134,11 +108,9 @@ mod tests {
 
     /// Every file of every row is pinned to one URL, and each row's
     /// `config.json` (committed under `testdata/qwen3/`, at the row's digest)
-    /// is the geometry of the prefab the row names.
+    /// is the geometry of a prefab.
     #[test]
     fn test_rows_are_pinned_and_match_their_prefabs() {
-        let prefabs: Vec<&str> = QWEN3_PREFABS.iter().map(|p| p.name).collect();
-        QWEN3_CATALOG.catalog().validate(&prefabs).unwrap();
         let factory = default_qwen3_factory().unwrap();
         assert_eq!(factory.kit(), QWEN3_KIT);
         assert_eq!(
@@ -200,12 +172,13 @@ mod tests {
             );
             let config =
                 qwen3_config_from_transformers(&std::fs::read_to_string(&path).unwrap()).unwrap();
-            // The old catalog's row names the prefab the build documents.
-            let old = QWEN3_CATALOG.table().lookup(name).unwrap().unwrap();
-            let prefab = QWEN3_PREFABS
-                .expect_lookup_prefab(old.prefab.as_deref().unwrap())
-                .to_config();
-            assert_eq!(format!("{config:?}"), format!("{prefab:?}"), "{name}");
+            let config = format!("{config:?}");
+            assert!(
+                QWEN3_PREFABS
+                    .iter()
+                    .any(|p| format!("{:?}", p.to_config()) == config),
+                "{name}: its config.json is no prefab's geometry"
+            );
         }
         assert_eq!(
             factory.lookup(DEFAULT_QWEN3_MODEL).unwrap().1.name,

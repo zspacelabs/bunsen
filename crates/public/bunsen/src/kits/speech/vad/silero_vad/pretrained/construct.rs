@@ -160,7 +160,7 @@ mod tests {
 
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
-                &super::super::SILERO_CATALOG.resource_bundle("silero/vad-16k")
+                &crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap()
             )
             .unwrap()
             .reader,

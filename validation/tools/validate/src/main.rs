@@ -6,7 +6,6 @@
 //! cargo validate list  [--profile P] [--crate C]...
 //! cargo validate run   [--profile P] [--crate C]... [--backend B] [--dtypes D,...] [--dry-run] [--nextest] [-- TEST_ARGS]
 //! cargo validate check [--crate C]... [--reference]
-//! cargo validate catalog (--build | --check | --update) [--kit K]... [--verify-remote]
 //! ```
 //!
 //! `models.yml` is the validation schedule: every model a crate checks, with
@@ -52,19 +51,6 @@
 //! `check` builds and lists the crates' tests (without their ONNX references
 //! unless `--reference`) and checks the validation schedule against them: every
 //! model has a test.
-//!
-//! `catalog` builds each kit's pretrained catalog (`validation/catalogs/
-//! {kit}.yml`, the hand-written source) into its `catalog.json`. A file on
-//! the Hub takes its digest and size from the repo's listing at the pinned
-//! revision, or, a small one, from its bytes; a checkpoint takes the dtype
-//! its `config.json` names. A digest the source gives is authoritative: it
-//! must agree with the derived one, and a file off the Hub must have one.
-//! `--build` builds into `target/catalog/` (once per source and tool
-//! version), `--check` fails if the checked-in catalog differs, `--update`
-//! overwrites it. Only `--verify-remote` downloads the weights, to hash them
-//! against their pins.
-//!
-//! A build holds every row's tags to bunsen's tag vocabulary ([`tags`]).
 
 use std::{
     path::PathBuf,
@@ -97,11 +83,9 @@ use crate::{
     },
 };
 
-mod catalog;
 mod profile;
 mod run;
 mod schedule;
-pub mod tags;
 
 /// The validation workspace: `validation/`.
 pub fn validation_dir() -> PathBuf {
@@ -166,31 +150,6 @@ enum Cmd {
         /// it, a model checked in bf16 alone is reported, not failed.
         #[arg(long)]
         cuda: bool,
-    },
-
-    /// Builds each kit's pretrained catalog from its source in
-    /// `validation/catalogs/`.
-    #[command(group(clap::ArgGroup::new("mode").required(true).args(["build", "check", "update"])))]
-    Catalog {
-        /// Build into `target/catalog/`, unless this source's build is there.
-        #[arg(long)]
-        build: bool,
-
-        /// Build, then fail if a checked-in catalog differs.
-        #[arg(long)]
-        check: bool,
-
-        /// Build, then overwrite the checked-in catalogs.
-        #[arg(long)]
-        update: bool,
-
-        /// Only this kit's source (repeatable).
-        #[arg(long)]
-        kit: Vec<String>,
-
-        /// Download every file and check it hashes to its pin.
-        #[arg(long)]
-        verify_remote: bool,
     },
 }
 
@@ -258,31 +217,6 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
         } => {
             check_crates(&schedule, &crates)?;
             check(&schedule, &validation, &crates, reference, cuda)
-        }
-        Cmd::Catalog {
-            build,
-            check,
-            update: _,
-            kit,
-            verify_remote,
-        } => {
-            let mode = if build {
-                catalog::Mode::Build
-            } else if check {
-                catalog::Mode::Check
-            } else {
-                catalog::Mode::Update
-            };
-            let remote = catalog::Http::new();
-            let mut current = true;
-            for path in catalog::sources(&validation, &kit)? {
-                current &= catalog::run(&remote, &validation, &path, mode, verify_remote)?;
-            }
-            Ok(if current {
-                ExitCode::SUCCESS
-            } else {
-                ExitCode::FAILURE
-            })
         }
     }
 }

@@ -191,18 +191,17 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 mod tests {
 
     use super::*;
-    use crate::kits::speech::asr::qwen3_asr::pretrained::QWEN3_ASR_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let qwen = Qwen3AsrConstructConfig::for_resource_bundle(
-            &QWEN3_ASR_CATALOG.resource_bundle("qwen/qwen3-asr-0.6b"),
+            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-asr-0.6b").unwrap(),
         )
         .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
         let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
-            &QWEN3_ASR_CATALOG.resource_bundle("fermion/phonon-audio6.bps.tar.zst"),
+            &crate::data::pretrained::builtin_build_bundle("fermion/phonon-1").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());

@@ -13,7 +13,6 @@ use serde_json::{
 
 use crate::{
     data::pretrained::{
-        CatalogProbe,
         Preset,
         PresetSet,
     },
@@ -24,6 +23,26 @@ use crate::{
     },
     support::merge_patch,
 };
+
+/// One probe of a pretrained's files: a named reader of one of its files,
+/// and where what it finds goes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CatalogProbe {
+    /// The probe, by name: `generation_config`, say.
+    pub probe: String,
+
+    /// The file it reads, by its resource key.
+    pub file: String,
+
+    /// Where its patch goes: `base`, the set's common patch, or presets by
+    /// name.
+    pub into: Vec<String>,
+
+    /// The token it reads, for a probe that reads one by name (the
+    /// `tokenizer_config` probe's added token: `<end_of_turn>`, say); `None`,
+    /// the probe's own.
+    pub token: Option<String>,
+}
 
 /// A reader of one of a pretrained's files that finds values for its
 /// presets: a merge patch over the family's config.

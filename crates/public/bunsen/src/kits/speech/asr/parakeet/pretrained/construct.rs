@@ -175,18 +175,17 @@ impl ConstructInit for ParakeetConstructConfig {
 mod tests {
 
     use super::*;
-    use crate::kits::speech::asr::parakeet::pretrained::PARAKEET_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let nvidia = ParakeetConstructConfig::for_resource_bundle(
-            &PARAKEET_CATALOG.resource_bundle("nvidia/parakeet-tdt-0.6b-v3"),
+            &crate::data::pretrained::builtin_build_bundle("nvidia/parakeet-tdt-0.6b-v3").unwrap(),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
         let phonon = ParakeetConstructConfig::for_resource_bundle(
-            &PARAKEET_CATALOG.resource_bundle("fermion/phonon-2.bps.tar.zst"),
+            &crate::data::pretrained::builtin_build_bundle("fermion/phonon-2").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());

@@ -361,6 +361,39 @@ pub(crate) fn is_sha256_hex(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
+/// The directory a path template names, or `None` when it does not
+/// resolve.
+///
+/// A template is a path whose leading `~` is the home directory and whose
+/// `$NAME` segments are environment variables: `~/.cache/whisper`,
+/// `$XDG_CACHE_HOME/whisper`. A template that names an unset variable, or
+/// `~` without a home directory, does not resolve.
+pub fn resolve_dir_template(template: &str) -> Option<PathBuf> {
+    resolve_dir_template_with(template, &|name| std::env::var(name).ok(), &|| {
+        std::env::home_dir()
+    })
+}
+
+fn resolve_dir_template_with(
+    template: &str,
+    env: &dyn Fn(&str) -> Option<String>,
+    home: &dyn Fn() -> Option<PathBuf>,
+) -> Option<PathBuf> {
+    let mut path = PathBuf::new();
+    for (i, segment) in template.split('/').enumerate() {
+        if i == 0 && segment == "~" {
+            path.push(home()?);
+        } else if let Some(name) = segment.strip_prefix('$') {
+            path.push(env(name).filter(|v| !v.is_empty())?);
+        } else if i == 0 && segment.is_empty() {
+            path.push("/");
+        } else if !segment.is_empty() {
+            path.push(segment);
+        }
+    }
+    Some(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -581,5 +614,30 @@ mod tests {
         assert!(!is_sha256_hex(&ABC_SHA256.to_uppercase()));
         assert!(!is_sha256_hex(&ABC_SHA256[1..]));
         assert!(!is_sha256_hex(""));
+    }
+
+    /// A template resolves `~` and `$NAME` segments, and does not resolve
+    /// when a variable is unset or empty, or there is no home.
+    #[test]
+    fn test_resolve_dir_template() {
+        let env = |name: &str| match name {
+            "XDG_CACHE_HOME" => Some("/x/cache".to_string()),
+            "EMPTY" => Some(String::new()),
+            _ => None,
+        };
+        let home = || Some(PathBuf::from("/home/u"));
+        let resolve = |t: &str| resolve_dir_template_with(t, &env, &home);
+        assert_eq!(
+            resolve("$XDG_CACHE_HOME/whisper"),
+            Some(PathBuf::from("/x/cache/whisper"))
+        );
+        assert_eq!(
+            resolve("~/.cache/whisper"),
+            Some(PathBuf::from("/home/u/.cache/whisper"))
+        );
+        assert_eq!(resolve("/abs/dir"), Some(PathBuf::from("/abs/dir")));
+        assert_eq!(resolve("$UNSET/whisper"), None);
+        assert_eq!(resolve("$EMPTY/whisper"), None);
+        assert_eq!(resolve_dir_template_with("~/x", &env, &|| None), None);
     }
 }

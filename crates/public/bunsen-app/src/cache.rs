@@ -97,8 +97,8 @@ pub enum CacheAction {
     List {
         /// The namespaces under this name; every file when omitted.
         ///
-        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given` for
-        /// the files no catalog names.
+        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given`
+        /// for the files no catalog names.
         selector: Option<CacheSelector>,
     },
 
@@ -106,8 +106,8 @@ pub enum CacheAction {
     Clear {
         /// The namespaces under this name; every file when omitted.
         ///
-        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given` for
-        /// the files no catalog names.
+        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given`
+        /// for the files no catalog names.
         selector: Option<CacheSelector>,
 
         /// Only unfinished downloads.

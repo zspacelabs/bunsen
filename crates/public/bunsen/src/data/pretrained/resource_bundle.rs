@@ -53,12 +53,12 @@ pub enum Fuse {
 /// bundle; [`PretrainedCache::load`](super::PretrainedCache::load) brings a
 /// whole resource bundle local, as [`LoadedResources`](super::LoadedResources).
 ///
-/// Built from a [`PretrainedCatalog`](super::PretrainedCatalog)'s bundle,
-/// deserialized, or assembled at runtime; [`validate`](Self::validate) checks a
-/// hand-built one. Two resource bundles [fuse](Self::fuse) by key, with no
-/// memory of where a resource came from: [`Fuse::Strict`] for authoring, where
-/// a repeated key is a mistake, or [`Fuse::Overlay`] for an override, where the
-/// right-hand resource bundle wins.
+/// Built from a build catalog's build, deserialized, or assembled at runtime;
+/// [`validate`](Self::validate) checks a hand-built one. Two resource bundles
+/// [fuse](Self::fuse) by key, with no memory of where a resource came from:
+/// [`Fuse::Strict`] for authoring, where a repeated key is a mistake, or
+/// [`Fuse::Overlay`] for an override, where the right-hand resource bundle
+/// wins.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceBundle {
     /// The resource bundle's name, for messages.

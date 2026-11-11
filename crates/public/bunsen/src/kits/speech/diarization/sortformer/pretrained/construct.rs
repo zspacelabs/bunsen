@@ -247,16 +247,17 @@ impl ConstructInit for SortformerConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let hook = SortformerConstructConfig::for_resource_bundle(
-            &SORTFORMER_CATALOG.resource_bundle("nvidia/nemotron-3-diarization"),
+            &crate::data::pretrained::builtin_build_bundle("nvidia/nemotron-3-diarization")
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(hook.reader, SortformerReader::Safetensors);
-        let mut map = SORTFORMER_CATALOG.resource_bundle("nvidia/nemotron-3-diarization");
+        let mut map =
+            crate::data::pretrained::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap();
         for res in map.resources.values_mut() {
             res.kind = Some("pytorch".into());
         }
@@ -343,13 +344,16 @@ mod tests {
             },
         };
 
+        let family_presets = |family: &str| {
+            crate::data::pretrained::builtin_template_presets(&format!(
+                "nvidia/sortformer/{family}"
+            ))
+            .unwrap()
+        };
         let resolve = |family: &str, presets: &[&str]| {
             resolve_presets(
                 &SortformerPolicy::default(),
-                &SORTFORMER_CATALOG
-                    .family_presets(family)
-                    .to_resolved()
-                    .unwrap(),
+                &family_presets(family),
                 &PresetSelection::new(presets.iter().copied()),
             )
             .unwrap()
@@ -407,22 +411,17 @@ mod tests {
             0.511
         );
 
-        let table = SORTFORMER_CATALOG.table();
-        for row in table.groups.iter().flat_map(|g| &g.items) {
+        let provider = crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            super::super::SORTFORMER_CATALOG_CONTRACT,
+            super::super::SORTFORMER_KIT,
+        );
+        for row in provider.rows() {
             let family = if row.name.contains("nemotron") {
                 "nemotron"
             } else {
                 "sortformer-v2"
             };
-            assert_eq!(
-                row.presets,
-                SORTFORMER_CATALOG
-                    .family_presets(family)
-                    .to_resolved()
-                    .unwrap(),
-                "{}",
-                row.name
-            );
+            assert_eq!(row.presets, family_presets(family), "{}", row.name);
         }
     }
 

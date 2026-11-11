@@ -22,8 +22,8 @@ use super::{
 /// hook, since the function that loads a kit's models is the kit's and
 /// supplies one, and it does not know which of its resources is the model.
 ///
-/// A kit's [`PretrainedCatalog`](super::PretrainedCatalog) spells its rows
-/// as data. A
+/// A [`BuildCatalogProvider`](super::BuildCatalogProvider) makes rows of a
+/// build catalog's builds. A
 /// [`PretrainedProvider`](super::PretrainedProvider) hands rows out from
 /// its `list`, `lookup` and `resolve`; a
 /// [`PretrainedTable`](super::PretrainedTable) keeps them in groups and

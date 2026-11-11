@@ -249,7 +249,7 @@ fn speaker_totals(turns: &[SpeakerTurn]) -> Vec<JsonSpeaker> {
 mod tests {
     use std::path::Path;
 
-    use bunsen::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG;
+    use bunsen::kits::speech::diarization::sortformer::pretrained::default_sortformer_factory;
 
     use super::*;
     use crate::{
@@ -288,9 +288,8 @@ mod tests {
         assert_eq!(got, [("speaker_0", 1.0, 1), ("speaker_1", 2.5, 2)]);
     }
 
-    /// A diarizer's latency and post-processing are the catalog families'
-    /// axes: a model's box names them, and the families default to `low`
-    /// and `none`.
+    /// A diarizer's latency and post-processing are every row's axes: a
+    /// model's box names them, and they default to `low` and `none`.
     #[test]
     fn test_presets() {
         assert_eq!(
@@ -298,16 +297,17 @@ mod tests {
             "sortformer-v2[dihard3,high]"
         );
 
-        let catalog = SORTFORMER_CATALOG.catalog();
-        for family in &catalog.families {
-            let axes: Vec<&str> = family
+        let rows = default_sortformer_factory().unwrap().list();
+        assert!(!rows.is_empty());
+        for (_, row) in rows {
+            let axes: Vec<&str> = row
                 .presets
                 .axes
                 .iter()
-                .map(|a| a.name.as_str())
+                .map(|a| a.axis.name.leaf())
                 .collect();
-            assert_eq!(axes, ["latency", "postprocess"], "{}", family.name);
-            assert_eq!(family.presets.default, ["low", "none"], "{}", family.name);
+            assert_eq!(axes, ["latency", "postprocess"], "{}", row.name);
+            assert_eq!(row.presets.default_names(), ["low", "none"], "{}", row.name);
         }
     }
 }

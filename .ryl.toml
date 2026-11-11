@@ -3,10 +3,6 @@
 # are off.
 line-length = 100
 
-# The per-kit catalog sources `cargo validate catalog` reads: one row a line,
-# in flow style, by design.
-exclude = ["validation/catalogs/"]
-
 [format]
 quote-style = "preserve"
 brace-spacing = true

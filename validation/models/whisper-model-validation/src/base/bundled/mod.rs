@@ -14,6 +14,8 @@ use bunsen::{
             PretrainedCacheOptions,
             PretrainedGroup,
             PretrainedTable,
+            ResourceBundle,
+            builtin_resource_bundle,
         },
     },
     kits::{
@@ -22,8 +24,6 @@ use bunsen::{
             pretrained::{
                 CHECKPOINT,
                 VOCABULARY,
-                WHISPER_CATALOG,
-                WHISPER_KIT,
                 WhisperConstructConfig,
                 WhisperVocabulary,
                 default_whisper_factory,
@@ -76,15 +76,25 @@ pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
         .unwrap()
 }
 
+/// `openai/whisper/base`'s checkpoint alone, as a resource bundle: the
+/// built-in catalog's resource `openai/whisper/base/checkpoint`.
+pub fn base_checkpoint() -> ResourceBundle {
+    builtin_resource_bundle("openai/whisper/base/checkpoint", CHECKPOINT).unwrap()
+}
+
 /// A [`BUNDLED`] table of one row, `bundled:openai/base`: the well-known
-/// `openai/base` row with its two resources served in place from the
-/// bundle's files rather than fetched.
+/// `openai/whisper/base` row with its two resources served in place from
+/// the bundle's files rather than fetched.
 ///
 /// It is how a deployment that ships its files would serve them, so it is
 /// built here the way such a caller would.
 pub fn bundled_table() -> PretrainedTable {
-    let openai = WHISPER_CATALOG.table().groups.remove(0);
-    let mut base = openai.lookup("base").unwrap().clone();
+    let (_, mut base) = default_whisper_factory()
+        .unwrap()
+        .lookup("openai/whisper/base")
+        .unwrap();
+    base.name = "base".to_string();
+    base.aliases.clear();
     base.resources = base
         .resources
         .with_local_files(
@@ -99,8 +109,11 @@ pub fn bundled_table() -> PretrainedTable {
         name: BUNDLED.to_string(),
         description: "the Whisper assets bind-whisper-onnx ships, used in place".to_string(),
         groups: vec![PretrainedGroup {
+            name: "openai".to_string(),
+            description: "OpenAI's Whisper checkpoints".to_string(),
+            license: None,
+            origin: None,
             items: vec![base],
-            ..openai
         }],
         case_sensitive: false,
     }

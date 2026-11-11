@@ -9,7 +9,7 @@
 //! # The index
 //!
 //! [`default_parakeet_factory`] is the index a caller holds, over one
-//! provider, [`PARAKEET_CATALOG`]:
+//! provider, the built-in catalog's builds of [`PARAKEET_CATALOG_CONTRACT`]:
 //!
 //! - `fermion/phonon-2` (`phonon-2`, `phonon`): `FermionResearch`'s Phonon-2,
 //!   NVIDIA's `parakeet-tdt-0.6b-v3` with its encoder re-trained to a

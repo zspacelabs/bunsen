@@ -14,7 +14,6 @@ use super::{
 };
 use crate::{
     data::pretrained::{
-        CatalogProbe,
         LoadedResources,
         NamedTensorsApplied,
         ResolvedPresetSet,
@@ -36,7 +35,10 @@ use crate::{
         },
         support::{
             construct::TransformersLmKit,
-            model_config::probe_loaded,
+            model_config::{
+                CatalogProbe,
+                probe_loaded,
+            },
         },
     },
 };
@@ -81,7 +83,7 @@ impl TransformersLmKit for GemmaConstructConfig {
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
-    /// catalog tool probes a row's, over the [`GEMMA_TEMPLATE_CLASS`]'s: its
+    /// catalog builder probes a row's, over the [`GEMMA_TEMPLATE_CLASS`]'s: its
     /// `generation_config.json`, when it has one (the stop tokens and
     /// sampling); its `tokenizer_config.json`'s [`END_OF_TURN`] (a turn's
     /// end, which joins the stop tokens) and chat template, when it has one;
@@ -108,10 +110,7 @@ mod tests {
     use crate::kits::{
         language::gemma::{
             GemmaPolicy,
-            pretrained::{
-                GEMMA_CATALOG,
-                default_gemma_factory,
-            },
+            pretrained::default_gemma_factory,
         },
         support::construct::ConstructInit,
     };
@@ -119,15 +118,15 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         GemmaConstructConfig::for_resource_bundle(
-            &GEMMA_CATALOG.resource_bundle("gemma/gemma-3-270m"),
+            &crate::data::pretrained::builtin_build_bundle("gemma/gemma-3-270m").unwrap(),
         )
         .unwrap();
         GemmaConstructConfig::for_resource_bundle(
-            &GEMMA_CATALOG.resource_bundle("gemma/gemma-2-9b-it"),
+            &crate::data::pretrained::builtin_build_bundle("gemma/gemma-2-9b-it").unwrap(),
         )
         .unwrap();
 
-        let mut gguf = GEMMA_CATALOG.resource_bundle("gemma/gemma-3-270m");
+        let mut gguf = crate::data::pretrained::builtin_build_bundle("gemma/gemma-3-270m").unwrap();
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

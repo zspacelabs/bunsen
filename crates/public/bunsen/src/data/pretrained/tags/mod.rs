@@ -9,22 +9,18 @@
 //! The keys form a loosely closed, shared vocabulary. Shared keys are bare
 //! (`language`); a key only one kit uses is prefixed with the kit's name and a
 //! dot (`whisper.multilingual`). Values are any JSON; each key's shape is a
-//! convention of the vocabulary, and the catalog tool, which builds a kit's
-//! `catalog.json`, holds the rows to it. Nothing at run time refuses a tag.
+//! convention of the vocabulary. Nothing at run time refuses a tag.
 //!
-//! In a catalog, tags are laid as presets are: a row's own over its group's,
-//! over its family's ([`Tags::over`]), and the catalog writes the row's
+//! A build catalog writes a row's tags from its build's tag fields, and a
+//! [`BuildCatalogProvider`](super::BuildCatalogProvider) writes the row's
 //! [`KIT`] tag. A factory writes the [`KIT`] tag on a row of any provider
 //! that lacks one, an `hf:` repo's among them.
 //!
 //! ## The vocabulary
 //!
 //! Each shared key is a [`TagDef`]: its key, its description, the shape of
-//! its value ([`TagShape`]), and who writes it ([`TagAuthor`]). [`VOCABULARY`]
-//! lists them; a kit with keys of its own, or keys all its rows must carry,
-//! says so in a [`KitTags`]. They are data and docs: the catalog tool reads
-//! them to hold every row to them when it builds a kit's catalog, and bunsen
-//! runs none of those checks.
+//! its value ([`TagShape`]), and who writes it ([`TagAuthor`]). They are
+//! data and docs; bunsen runs no checks of them.
 //!
 //! | key | shape | written by |
 //! |---|---|---|

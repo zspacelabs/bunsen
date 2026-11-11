@@ -8,10 +8,10 @@
 //! # The index
 //!
 //! [`default_qwen3_factory`] is the index a caller holds, over two providers.
-//! First the well-known table, [`QWEN3_CATALOG`], whose rows name their
-//! prefab in [`QWEN3_PREFABS`]; each is a `transformers` checkpoint (bf16),
-//! its `config.json`, `tokenizer.json`, `tokenizer_config.json` and
-//! `generation_config.json`:
+//! First the well-known rows, the built-in catalog's builds of
+//! [`QWEN3_CATALOG_CONTRACT`], whose geometries are [`QWEN3_PREFABS`]'; each is
+//! a `transformers` checkpoint (bf16), its `config.json`, `tokenizer.json`,
+//! `tokenizer_config.json` and `generation_config.json`:
 //!
 //! - `qwen/qwen3-0.6b` (`qwen3-0.6b`): the default, 1.5 GB.
 //! - `qwen/qwen3-1.7b`, `qwen/qwen3-4b`: the larger chat models, 4.1 and 8.0

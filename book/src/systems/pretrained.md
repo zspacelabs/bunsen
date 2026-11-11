@@ -131,14 +131,13 @@ deserialize as the config. A kit's hook resolves presets before it builds,
 and [`PretrainedFactory::resolve_presets`](bunsen::kits::support::construct::PretrainedFactory::resolve_presets)
 resolves a row's config with nothing fetched or built.
 
-A catalog states presets once per model family
-([`CatalogFamily`](bunsen::data::pretrained::CatalogFamily)), and its rows
-inherit them under their own. An `hf:` repo that no row describes gets its
-family's. Some presets are read from a model's own files. A catalog row
-names probes, such as one that reads `generation_config.json`, and
-`cargo validate catalog` runs them when it builds the catalog, so a
-well-known row's presets are fixed data in the build and need no probing
-when the model loads. A probe may read a token by name: Gemma's
+A catalog states presets once per template class, and its builds inherit
+them under their own. An `hf:` repo that no build describes gets its
+template class's. Some presets are read from a model's own files. A
+catalog source names probes, such as one that reads
+`generation_config.json`, and `cargo catalog` runs them when it builds the
+built-in catalog, so a well-known row's presets are fixed data in the build
+and need no probing when the model loads. A probe may read a token by name: Gemma's
 instruction-tuned rows read the id `tokenizer_config.json` gives
 `<end_of_turn>` into their stop tokens. A chat model's template is a preset
 field too (`generation.chat_template`): a file of the checkpoint's, which
