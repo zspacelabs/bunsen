@@ -64,6 +64,11 @@ release = true
 version_group = "bunsen"
 
 [[package]]
+name = "bunsen-catalog"
+release = true
+version_group = "bunsen"
+
+[[package]]
 name = "bunsen-firehose"
 release = true
 version_group = "bunsen"

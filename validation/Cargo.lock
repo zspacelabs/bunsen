@@ -796,6 +796,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 name = "bunsen"
 version = "0.41.0"
 dependencies = [
+ "bunsen-catalog",
  "bunsen-contracts-macros",
  "bunsen-fetch",
  "burn",
@@ -850,6 +851,13 @@ dependencies = [
  "serde-saphyr",
  "serde_json",
  "time",
+]
+
+[[package]]
+name = "bunsen-catalog"
+version = "0.41.0"
+dependencies = [
+ "include_dir",
 ]
 
 [[package]]
@@ -4630,6 +4638,25 @@ name = "imgref"
 version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e44b0a4eaa4c82f441d50a963f2d5f05a787240aeee097597033e72accfd22f"
+
+[[package]]
+name = "include_dir"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "923d117408f1e49d914f1a379a309cffe4f18c05cf4e3d12e613a15fc81bd0dd"
+dependencies = [
+ "include_dir_macros",
+]
+
+[[package]]
+name = "include_dir_macros"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cab85a7ed0bd5f0e76d93846e0147172bed2e2d3f859bcc33a8d9699cad1a75"
+dependencies = [
+ "proc-macro2",
+ "quote",
+]
 
 [[package]]
 name = "indexmap"

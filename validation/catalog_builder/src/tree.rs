@@ -1,5 +1,5 @@
-//! Reading, editing and writing catalog trees ([`OrderedNode`]s) in place:
-//! a map's keys keep their order, and a key set again stays where it was.
+//! Reading and editing catalog trees ([`OrderedNode`]s) in place: a map's
+//! keys keep their order, and a key set again stays where it was.
 
 use bunsen::data::pretrained::build_catalog::document::OrderedNode;
 use serde_json::Value;
@@ -143,82 +143,5 @@ pub fn u64_opt(
             .map(Some)
             .ok_or_else(|| format!("`{key}` is a whole number")),
         Some(_) => Err(format!("`{key}` is a whole number")),
-    }
-}
-
-/// A string scalar.
-pub fn text(s: impl Into<String>) -> OrderedNode {
-    OrderedNode::Scalar(Value::String(s.into()))
-}
-
-/// A scalar, or a value as a tree (a map's keys in their serialization
-/// order).
-pub fn value(v: Value) -> OrderedNode {
-    match v {
-        Value::Array(items) => OrderedNode::Seq(items.into_iter().map(value).collect()),
-        Value::Object(fields) => {
-            OrderedNode::Map(fields.into_iter().map(|(k, v)| (k, value(v))).collect())
-        }
-        scalar => OrderedNode::Scalar(scalar),
-    }
-}
-
-/// A list of strings.
-pub fn texts<S: Into<String>>(items: impl IntoIterator<Item = S>) -> OrderedNode {
-    OrderedNode::Seq(items.into_iter().map(text).collect())
-}
-
-/// A map, built key by key.
-#[derive(Clone, Debug, Default)]
-pub struct MapBuilder(Vec<(String, OrderedNode)>);
-
-impl MapBuilder {
-    /// An empty map.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// The map with `key` set to `value` at its end.
-    pub fn with(
-        mut self,
-        key: impl Into<String>,
-        value: OrderedNode,
-    ) -> Self {
-        self.0.push((key.into(), value));
-        self
-    }
-
-    /// The map with `key` set at its end, when there is a value.
-    pub fn with_opt(
-        self,
-        key: impl Into<String>,
-        value: Option<OrderedNode>,
-    ) -> Self {
-        match value {
-            Some(value) => self.with(key, value),
-            None => self,
-        }
-    }
-
-    /// Sets `key` at the end.
-    pub fn push(
-        &mut self,
-        key: impl Into<String>,
-        value: OrderedNode,
-    ) {
-        self.0.push((key.into(), value));
-    }
-
-    /// Whether `key` is set.
-    pub fn contains(
-        &self,
-        key: &str,
-    ) -> bool {
-        self.0.iter().any(|(k, _)| k == key)
-    }
-
-    /// The map.
-    pub fn build(self) -> OrderedNode {
-        OrderedNode::Map(self.0)
     }
 }
