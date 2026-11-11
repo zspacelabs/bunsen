@@ -120,7 +120,8 @@ shows a local addition.
 ## Finding entries
 
 Names are `/`-separated paths, such as `openai/whisper/large/large-v3`. Lookups accept any
-spelling that identifies one entry: the leaf, or a longer path.
+spelling that identifies one entry: the leaf, or a longer path. An `alias` entry is another
+name for an entry: a lookup for its target's kind finds the target through it.
 
 ```rust
 use bunsen::data::pretrained::build_catalog::{
@@ -162,6 +163,17 @@ let contracts: Vec<String> = stack
     .collect();
 assert_eq!(contracts, ["qwen3-lm", "whisper-asr"]);
 
+// An alias, anywhere in the namespace, is another name for its target.
+let mut aliased = stack.clone();
+aliased
+    .push_yaml(
+        "aliases",
+        "large: { $kind: alias, $ref: { $path: openai/whisper/large/large-v3, $kind: build } }\n",
+    )
+    .unwrap();
+assert_eq!(aliased.find_build("large").unwrap(), v3);
+assert_eq!(aliased.aliases_of(&v3)[0].to_string(), "large");
+
 // Release groups are ordered by release time.
 let release = stack
     .find("large/release", &[EntryKind::Release], LeafMatch::Exact)
@@ -173,7 +185,8 @@ assert_eq!(stack.latest(&release).unwrap(), Some(v3.clone()));
 |---|---|
 | `find(query, kinds, LeafMatch)` | one entry of `kinds`; `LeafMatch::Prefix` lets the last segment be a prefix |
 | `find_build(query)` | `find` over builds, with an exact leaf |
-| `matches(query, kinds, LeafMatch)` | every entry a query could mean |
+| `matches(query, kinds, LeafMatch)` | every entry a query could mean, aliases resolved to their targets |
+| `named_as(name, kinds)`, `aliases_of(name)` | what a full name stands for (itself, or an alias's target); the aliases naming an entry |
 | `display_name(name)` | `{short, full}`: the least specified spelling that resolves to the entry |
 | `declaration(name)` | the entry: `kind()`, `body()`, `history()`, `declared_in()` |
 | `of_kind(kind)`, `children(name)` | entries of a kind; the entries in a scope |

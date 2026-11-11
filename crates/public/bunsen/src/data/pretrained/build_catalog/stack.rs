@@ -756,6 +756,9 @@ impl PretrainedCatalogStack {
                 MergeMode::Update => {
                     changes_entries = true;
                     errors.extend(self.check_update(entry, occurrence).into_iter().map(at));
+                    if entry.kind() == EntryKind::Alias {
+                        errors.extend(self.check_declaration(entry).into_iter().map(at));
+                    }
                 }
             }
         }
@@ -979,6 +982,27 @@ impl PretrainedCatalogStack {
                             )),
                         );
                     }
+                }
+            }
+            CatalogEntry::Alias(a) => {
+                if a.target.kind == EntryKind::Alias {
+                    push::<()>(
+                        &mut errors,
+                        Err(CatalogError::new(
+                            CatalogErrorKind::Reference,
+                            "an alias names an entry, not another alias",
+                        )),
+                    );
+                } else {
+                    push(
+                        &mut errors,
+                        self.expect_ref(
+                            from,
+                            &a.target.path,
+                            a.target.kind.as_str(),
+                            &[a.target.kind],
+                        ),
+                    );
                 }
             }
             CatalogEntry::Resource(r) => {
@@ -1272,6 +1296,7 @@ fn reset_merge(entry: &mut CatalogEntry) {
         CatalogEntry::Axis(e) => e.merge = MergeMode::Deny,
         CatalogEntry::Facet(e) => e.merge = MergeMode::Deny,
         CatalogEntry::Resource(e) => e.merge = MergeMode::Deny,
+        CatalogEntry::Alias(e) => e.merge = MergeMode::Deny,
     }
 }
 
@@ -1319,6 +1344,13 @@ fn update(
                 .cloned()
                 .collect();
             current.sources.splice(0..0, new);
+            Ok(())
+        }
+        (CatalogEntry::Alias(current), CatalogEntry::Alias(update)) => {
+            current.target = update.target.clone();
+            if update.description.is_some() {
+                current.description = update.description.clone();
+            }
             Ok(())
         }
         (CatalogEntry::Contract(_), _) => Err(CatalogError::new(
@@ -1889,6 +1921,121 @@ openai:
             ),
             "{errors}"
         );
+    }
+
+    #[test]
+    fn test_aliases_name_entries_anywhere_and_merge() {
+        let mut stack = fixtures::example_stack().unwrap();
+        stack
+            .push_yaml(
+                "aliases",
+                r#"
+large:
+  $kind: alias
+  $description: "The newest large Whisper."
+  $ref: { $path: openai/whisper/large/large-v3, $kind: build }
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    turbo: { $kind: alias, $ref: { $path: large/large-v3-turbo, $kind: build } }
+"#,
+            )
+            .unwrap();
+        let v3 = n("openai/whisper/large/large-v3");
+        let turbo = n("openai/whisper/large/large-v3-turbo");
+        // A lookup for the target's kind resolves through the alias, by any
+        // spelling that finds it; a lookup for aliases finds the alias.
+        assert_eq!(stack.find_build("large").unwrap(), v3);
+        assert_eq!(stack.find_build("turbo").unwrap(), turbo);
+        assert_eq!(stack.find_build("whisper/turbo").unwrap(), turbo);
+        assert_eq!(stack.find_build("openai/whisper/turbo").unwrap(), turbo);
+        assert_eq!(
+            stack
+                .find("turbo", &[EntryKind::Alias], LeafMatch::Exact)
+                .unwrap(),
+            n("openai/whisper/turbo")
+        );
+        assert_eq!(stack.aliases_of(&v3), [n("large")]);
+        // The template-class lookup doesn't see a build's alias.
+        assert!(
+            stack
+                .find("large", &[EntryKind::TemplateClass], LeafMatch::Exact)
+                .is_err()
+        );
+        // A later catalog retargets an alias by updating or replacing it.
+        stack
+            .push_yaml(
+                "retarget",
+                r#"
+large:
+  $kind: alias
+  $merge: update
+  $ref: { $path: openai/whisper/large/large-v2, $kind: build }
+"#,
+            )
+            .unwrap();
+        assert_eq!(
+            stack.find_build("large").unwrap(),
+            n("openai/whisper/large/large-v2")
+        );
+        assert_eq!(
+            stack.declaration(&n("large")).unwrap().history().len(),
+            2,
+            "declared, then updated"
+        );
+        // An alias is checked like any reference, names no alias, and sits
+        // where a namespace could hold it.
+        let wrong = refused(
+            "big: { $kind: alias, $ref: { $path: openai/whisper/large/large-v3, $kind: template_class } }\n",
+        );
+        assert!(
+            wrong.mentions("which is a build, not a template_class"),
+            "{wrong}"
+        );
+        let missing = refused("big: { $kind: alias, $ref: { $path: large-v9, $kind: build } }\n");
+        assert!(
+            missing.mentions("no build `large-v9` is visible from `big`"),
+            "{missing}"
+        );
+        let chained = refused(
+            r#"
+big: { $kind: alias, $ref: { $path: openai/whisper/large/large-v3, $kind: build } }
+bigger: { $kind: alias, $ref: { $path: big, $kind: alias } }
+"#,
+        );
+        assert!(chained.mentions("not another alias"), "{chained}");
+        let in_build = refused(
+            r#"
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    large:
+      $kind: namespace
+      $merge: update
+      large-v4:
+        $kind: build
+        $description: "Not yet."
+        $template_class: multilingual
+        nick: { $kind: alias, $ref: { $path: large-v3, $kind: build } }
+"#,
+        );
+        assert!(
+            in_build.mentions("a build can't hold an alias"),
+            "{in_build}"
+        );
+        // It survives the round trip through the keyed form.
+        let doc = PretrainedCatalog::from_yaml(
+            "big: { $kind: alias, $ref: { $path: a/b, $kind: build } }\n",
+        )
+        .unwrap();
+        let again = PretrainedCatalog::from_yaml(&doc.to_yaml().unwrap()).unwrap();
+        assert_eq!(again, doc);
     }
 
     #[test]

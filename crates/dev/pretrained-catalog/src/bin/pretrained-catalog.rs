@@ -340,14 +340,10 @@ fn load(cli: &Cli) -> Result<PretrainedCatalogStack, String> {
 }
 
 fn parse_kind(kind: &str) -> Result<EntryKind, String> {
-    SEARCHABLE
-        .iter()
-        .copied()
-        .find(|k| k.as_str() == kind)
-        .ok_or_else(|| {
-            let known: Vec<&str> = SEARCHABLE.iter().map(|k| k.as_str()).collect();
-            format!("no kind `{kind}`; the kinds are {}", known.join(", "))
-        })
+    EntryKind::from_name(kind).ok_or_else(|| {
+        let known: Vec<&str> = EntryKind::ALL.iter().map(|k| k.as_str()).collect();
+        format!("no kind `{kind}`; the kinds are {}", known.join(", "))
+    })
 }
 
 fn find(
@@ -456,6 +452,13 @@ fn show(
     }
     let yaml = serde_saphyr::to_string(entry.body()).map_err(|e| e.to_string())?;
     emit!(out, "{yaml}");
+    let aliases = stack.aliases_of(&name);
+    if !aliases.is_empty() {
+        emit!(out, "aliases:");
+        for alias in aliases {
+            emit!(out, "  {alias}");
+        }
+    }
     let kids = stack.children(&name);
     if !kids.is_empty() {
         emit!(out, "children:");
@@ -1056,6 +1059,9 @@ fn annotation(
             .map(|r| format!("{} {}", r.group.leaf(), r.released)),
         CatalogEntry::TemplateClass(t) => t.base.as_ref().map(|b| format!("base {b}")),
         CatalogEntry::Resource(r) => Some(r.file.clone()),
+        CatalogEntry::Alias(a) => stack
+            .resolve_ref(name, &a.target.path)
+            .map(|t| format!("-> {}", t.name())),
         CatalogEntry::Axis(a) => Some(format!("{:?}", a.axis).to_lowercase()),
         CatalogEntry::Tag(t) => Some(format!("{:?}", t.tag_type).to_lowercase()),
         _ => None,

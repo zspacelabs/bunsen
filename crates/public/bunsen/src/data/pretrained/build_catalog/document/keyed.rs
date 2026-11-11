@@ -28,6 +28,7 @@ use serde::{
 use serde_json::Value;
 
 use super::{
+    AliasEntry,
     AxisEntry,
     AxisUse,
     BuildEntry,
@@ -476,6 +477,10 @@ fn read_entry(
             name,
             ..typed(fields, path, what)?
         }),
+        EntryKind::Alias => CatalogEntry::Alias(AliasEntry {
+            name,
+            ..typed(fields, path, what)?
+        }),
     })
 }
 
@@ -597,6 +602,7 @@ pub(super) fn write_entry(entry: &CatalogEntry) -> OrderedNode {
         CatalogEntry::Axis(e) => (OrderedNode::of(e), None, None, &[][..]),
         CatalogEntry::Facet(e) => (OrderedNode::of(e), None, None, &[][..]),
         CatalogEntry::Resource(e) => (OrderedNode::of(e), None, None, &[][..]),
+        CatalogEntry::Alias(e) => (OrderedNode::of(e), None, None, &[][..]),
     };
     let mut out = vec![(
         "$kind".to_string(),

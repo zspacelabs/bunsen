@@ -1059,9 +1059,7 @@ impl Compiler<'_, '_> {
         let stack = self.env.stack();
         match CatalogRef::parse(name) {
             Ok(r) if r.is_absolute() => stack
-                .declaration(r.path())
-                .filter(|d| kinds.contains(&d.kind()))
-                .map(|d| d.name().clone())
+                .named_as(r.path(), kinds)
                 .ok_or_else(|| query_error(format!("nothing is declared as `{r}`"))),
             _ => stack
                 .find(name, kinds, LeafMatch::Exact)

@@ -61,6 +61,7 @@ The set of kinds is closed:
 | `axis` | A registered preset axis. A `bool` axis `X` has the members `X` and `no-X`, with a negation between them; a `categorical` axis has declared `$members` and no negation. An axis is also its own tag's declaration. |
 | `facet` | A declared, exclusive set of groups (`publisher`, `family`). A build is in at most one group of each facet. A facet becomes required through a template class's `$required_facets`. |
 | `resource` | One artifact: a `$file`, its `$format`, an optional `$sha256` and `$dtype`, and its `$sources`. |
+| `alias` | Another name for one entry: `$ref: {$path, $kind}`, a reference and the kind its target must have (never `alias`). It sits wherever a namespace can hold it, apart from what it names, and a lookup for its target's kind resolves through it. |
 
 **Names** are `/`-separated paths. Each segment is a plain, unquoted YAML key, and only
 ASCII is allowed. Collisions are kind-flat: a scope holds one entry per name, whatever
@@ -102,6 +103,8 @@ An occurrence's `$merge` says how it meets an existing entry of its name:
   - a `namespace` adds its children, each of which meets any existing child by its own
     `$merge`, and may assert the `$facet` it expects;
   - a `resource` must match every field but `$sources`, and its new sources are tried first;
+  - an `alias` takes the occurrence's `$ref` (and `$description`, when it has one): it is
+    retargeted;
   - every other kind refuses it. A contract is the interface its loader is built against.
 - `replace` substitutes the occurrence's own fields for the entry's, for every reference to
   it. The kind stays the same, and children are entries of their own.

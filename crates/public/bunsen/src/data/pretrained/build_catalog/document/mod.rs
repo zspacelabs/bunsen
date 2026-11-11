@@ -149,11 +149,14 @@ pub enum EntryKind {
     Facet,
     /// One artifact.
     Resource,
+    /// Another name for an entry of a stated kind, anywhere in the
+    /// namespace.
+    Alias,
 }
 
 impl EntryKind {
     /// Every kind.
-    pub const ALL: [EntryKind; 9] = [
+    pub const ALL: [EntryKind; 10] = [
         Self::Namespace,
         Self::Contract,
         Self::Release,
@@ -163,6 +166,7 @@ impl EntryKind {
         Self::Axis,
         Self::Facet,
         Self::Resource,
+        Self::Alias,
     ];
 
     /// Whether entries of this kind are groups (a build may be a member).
@@ -192,6 +196,7 @@ impl EntryKind {
             Self::Axis => "axis",
             Self::Facet => "facet",
             Self::Resource => "resource",
+            Self::Alias => "alias",
         }
     }
 }
@@ -244,6 +249,8 @@ pub enum CatalogEntry {
     Facet(FacetEntry),
     /// A resource declaration.
     Resource(ResourceEntry),
+    /// An alias.
+    Alias(AliasEntry),
 }
 
 impl CatalogEntry {
@@ -264,6 +271,7 @@ impl CatalogEntry {
             Self::Axis(_) => EntryKind::Axis,
             Self::Facet(_) => EntryKind::Facet,
             Self::Resource(_) => EntryKind::Resource,
+            Self::Alias(_) => EntryKind::Alias,
         }
     }
 
@@ -278,6 +286,7 @@ impl CatalogEntry {
             Self::Axis(e) => &e.name,
             Self::Facet(e) => &e.name,
             Self::Resource(e) => &e.name,
+            Self::Alias(e) => &e.name,
         }
     }
 
@@ -310,6 +319,7 @@ impl CatalogEntry {
             Self::Axis(e) => e.merge,
             Self::Facet(e) => e.merge,
             Self::Resource(e) => e.merge,
+            Self::Alias(e) => e.merge,
         }
     }
 
@@ -869,6 +879,47 @@ pub struct ResourceEntry {
     /// Where to fetch it, tried in order.
     #[serde(rename = "$sources")]
     pub sources: Vec<ResourceSource>,
+}
+
+/// An alias: another name for one entry, which a lookup for that entry's
+/// kind resolves through. It may sit anywhere a namespace can hold it, and
+/// an update or a replacement retargets it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AliasEntry {
+    /// The alias's own segment.
+    #[serde(skip)]
+    pub name: String,
+
+    /// How this occurrence meets an existing declaration of its name.
+    #[serde(rename = "$merge", default, skip_serializing_if = "MergeMode::is_deny")]
+    pub merge: MergeMode,
+
+    /// Why the alias exists, for a person.
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<String>,
+
+    /// The entry it names.
+    #[serde(rename = "$ref")]
+    pub target: AliasTarget,
+}
+
+/// What an alias names: a reference, resolved from where the alias is
+/// written, and the kind the entry must have.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AliasTarget {
+    /// The entry, as a reference.
+    #[serde(rename = "$path")]
+    pub path: CatalogRef,
+
+    /// Its kind; never `alias`.
+    #[serde(rename = "$kind")]
+    pub kind: EntryKind,
 }
 
 /// Where a resource can be fetched.

@@ -7,17 +7,24 @@
 //! matches, or when it is some entry's full name.
 
 use crate::data::pretrained::build_catalog::{
-    document::EntryKind,
+    document::{
+        CatalogEntry,
+        EntryKind,
+    },
     error::{
         CatalogError,
         CatalogErrorKind,
         CatalogResult,
     },
     name::CatalogName,
-    stack::PretrainedCatalogStack,
+    stack::{
+        EntryRef,
+        PretrainedCatalogStack,
+    },
 };
 
-/// The kinds a lookup searches when it isn't told which: every kind.
+/// The kinds a lookup searches when it isn't told which: every kind but
+/// `alias`. An alias is found as its target.
 pub const SEARCHABLE: [EntryKind; 9] = [
     EntryKind::Build,
     EntryKind::TemplateClass,
@@ -72,7 +79,10 @@ fn subsequence(
 }
 
 impl PretrainedCatalogStack {
-    /// The entries of `kinds` that `query` matches.
+    /// The entries of `kinds` that `query` matches, each once. An
+    /// alias that matches stands for its target when its target's kind is
+    /// among `kinds`; it is matched itself only when `kinds` asks for
+    /// aliases and not for its target's kind.
     pub fn matches(
         &self,
         query: &str,
@@ -80,10 +90,61 @@ impl PretrainedCatalogStack {
         leaf: LeafMatch,
     ) -> Vec<CatalogName> {
         let parts: Vec<&str> = query.split('/').collect();
-        self.declarations()
-            .filter(|e| kinds.contains(&e.kind()))
+        let mut found: Vec<CatalogName> = Vec::new();
+        for name in self
+            .declarations()
             .filter(|e| subsequence(&parts, e.name(), leaf))
-            .map(|e| e.name().clone())
+            .filter_map(|e| self.as_found(e, kinds))
+        {
+            if !found.contains(&name) {
+                found.push(name);
+            }
+        }
+        found
+    }
+
+    /// The name a lookup for `kinds` finds in `entry`: its own, its alias
+    /// target's, or none.
+    fn as_found(
+        &self,
+        entry: EntryRef<'_>,
+        kinds: &[EntryKind],
+    ) -> Option<CatalogName> {
+        match entry.body() {
+            CatalogEntry::Alias(alias) if kinds.contains(&alias.target.kind) => self
+                .resolve_ref(entry.name(), &alias.target.path)
+                .map(|target| target.name().clone()),
+            _ if kinds.contains(&entry.kind()) => Some(entry.name().clone()),
+            _ => None,
+        }
+    }
+
+    /// The entry the full name `name` stands for in a lookup for `kinds`:
+    /// the entry itself, or the target of the alias it names.
+    pub fn named_as(
+        &self,
+        name: &CatalogName,
+        kinds: &[EntryKind],
+    ) -> Option<CatalogName> {
+        self.declaration(name)
+            .and_then(|entry| self.as_found(entry, kinds))
+    }
+
+    /// The aliases that name `name`, in declaration order.
+    pub fn aliases_of(
+        &self,
+        name: &CatalogName,
+    ) -> Vec<CatalogName> {
+        self.of_kind(EntryKind::Alias)
+            .into_iter()
+            .filter(|alias| {
+                let CatalogEntry::Alias(a) = alias.body() else {
+                    return false;
+                };
+                self.resolve_ref(alias.name(), &a.target.path)
+                    .is_some_and(|t| t.name() == name)
+            })
+            .map(|alias| alias.name().clone())
             .collect()
     }
 
@@ -99,11 +160,9 @@ impl PretrainedCatalogStack {
         leaf: LeafMatch,
     ) -> CatalogResult<CatalogName> {
         if let Ok(full) = CatalogName::parse(query)
-            && self
-                .declaration(&full)
-                .is_some_and(|d| kinds.contains(&d.kind()))
+            && let Some(found) = self.named_as(&full, kinds)
         {
-            return Ok(full);
+            return Ok(found);
         }
         let mut found = self.matches(query, kinds, leaf);
         match found.len() {
