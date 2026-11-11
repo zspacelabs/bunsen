@@ -350,6 +350,16 @@ impl MergeMode {
     pub fn is_deny(&self) -> bool {
         *self == Self::Deny
     }
+
+    /// [`Update`](Self::Update): a preset's default.
+    pub fn update() -> Self {
+        Self::Update
+    }
+
+    /// Whether this is [`Update`](Self::Update), a preset's default.
+    pub fn is_update(&self) -> bool {
+        *self == Self::Update
+    }
 }
 
 /// The dependency keys a contract's loader reads.
@@ -577,6 +587,17 @@ impl PresetSetEntry {
 pub struct PresetEntry {
     /// The preset's name. A member of a used axis is on that axis.
     pub name: String,
+
+    /// How it meets a preset of its name inherited down the template-class
+    /// chain: [`Update`](MergeMode::Update), the default, merges its patch
+    /// over the inherited one; [`Replace`](MergeMode::Replace) takes the
+    /// inherited one's place; [`Deny`](MergeMode::Deny) refuses one. With
+    /// nothing inherited, the preset is declared, whatever its mode.
+    #[serde(
+        default = "MergeMode::update",
+        skip_serializing_if = "MergeMode::is_update"
+    )]
+    pub merge: MergeMode,
 
     /// What selecting it does, for a person.
     #[serde(default)]
@@ -833,7 +854,7 @@ entries:
           axes:
             - { use: thinking, offers: [thinking], default: thinking }
           presets:
-            - { name: thinking, description: "Think.", patch: { a: 1 } }
+            - { name: thinking, merge: replace, description: "Think.", patch: { a: 1 } }
         dependencies: { config: qwen/qwen3-4b/config }
         children:
           - kind: resource
@@ -857,6 +878,7 @@ entries:
         assert_eq!(build.join.len(), 2);
         assert!(matches!(build.join[1], Membership::Release(_)));
         assert_eq!(build.presets.axes[0].offers, ["thinking"]);
+        assert_eq!(build.presets.presets[0].merge, MergeMode::Replace);
         let CatalogEntry::Resource(res) = &build.children[0] else {
             panic!("a resource")
         };

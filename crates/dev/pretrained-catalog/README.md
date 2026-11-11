@@ -40,7 +40,9 @@ the class is written, not where its builds are.
 **Memberships** are declared only by the member, through `parent` (its naming scope) and
 `join`. They are transitive. A template class's `join` applies to every build of the class.
 
-**Presets** fold down the chain, root first. A use of an axis
+**Presets** fold down the chain, root first. A preset with an inherited preset's name meets
+it by its `merge`: `update` (the default) merges its patch over the inherited one, `replace`
+takes its place, and `deny` refuses it. A use of an axis
 (`{use, offers, default}`) may only narrow what the use above it offered. When it narrows,
 the presets of the dropped members are pruned. An offer of one member is a fixed mode. The
 tags implied by the axes used (`thinking: always | switch | never`) and by the facets

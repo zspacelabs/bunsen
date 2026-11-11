@@ -1,10 +1,12 @@
 //! A build's presets: the template-class chain's sets folded into one
 //! [`ResolvedPresetSet`], and choosing presets from it.
 //!
-//! Folding runs root first. At each link a same-named preset's patch is
-//! merged patch over patch, a same-named axis use replaces the one above it
-//! and may only **narrow** what that offered, a non-empty `default` list
-//! replaces the one above it, and the common patches merge.
+//! Folding runs root first. At each link a same-named preset meets the
+//! inherited one by its `merge` ([`PresetEntry::merge`]): by default its
+//! patch merges over the inherited patch; `replace` takes the inherited
+//! preset's place, and `deny` refuses one. A same-named axis use replaces the
+//! one above it and may only **narrow** what that offered, a non-empty
+//! `default` list replaces the one above it, and the common patches merge.
 //!
 //! A preset whose name is a member of a used axis is on that axis. Every
 //! offered member is a preset, and what isn't offered can't be selected:
@@ -20,6 +22,7 @@ use serde_json::Value;
 use crate::{
     document::{
         AxisKind,
+        MergeMode,
         PresetEntry,
         PresetSetEntry,
     },
@@ -185,16 +188,36 @@ impl ResolvedPresetSet {
                     continue;
                 }
                 match set.presets.iter().position(|p| p.name == preset.name) {
-                    Some(i) => {
-                        let above = &mut set.presets[i];
-                        merge_patch::apply(&mut above.patch, &preset.patch);
-                        if !preset.description.trim().is_empty() {
-                            above.description = preset.description.clone();
+                    Some(i) => match preset.merge {
+                        MergeMode::Update => {
+                            let above = &mut set.presets[i];
+                            merge_patch::apply(&mut above.patch, &preset.patch);
+                            if !preset.description.trim().is_empty() {
+                                above.description = preset.description.clone();
+                            }
+                            declared_at[i] = at;
                         }
-                        declared_at[i] = at;
-                    }
+                        MergeMode::Replace => {
+                            set.presets[i] = PresetEntry {
+                                merge: MergeMode::Update,
+                                ..preset.clone()
+                            };
+                            declared_at[i] = at;
+                        }
+                        MergeMode::Deny => errors.push(preset_error(
+                            owner,
+                            format!(
+                                "the preset `{}` is `merge: deny`, but the chain above already \
+                                 declares it",
+                                preset.name
+                            ),
+                        )),
+                    },
                     None => {
-                        set.presets.push(preset.clone());
+                        set.presets.push(PresetEntry {
+                            merge: MergeMode::Update,
+                            ..preset.clone()
+                        });
                         declared_at.push(at);
                     }
                 }
@@ -636,6 +659,7 @@ mod tests {
     ) -> PresetEntry {
         PresetEntry {
             name: name.into(),
+            merge: MergeMode::Update,
             description: format!("{name}."),
             patch,
         }
@@ -781,6 +805,7 @@ mod tests {
         let small = PresetSetEntry {
             presets: vec![PresetEntry {
                 name: "thinking".into(),
+                merge: MergeMode::Update,
                 description: String::new(),
                 patch: json!({"generation": {"top_p": 0.9}}),
             }],
@@ -795,6 +820,62 @@ mod tests {
         );
         assert_eq!(set.get("thinking").unwrap().description, "thinking.");
         assert_eq!(set.negate("thinking").as_deref(), Some("no-thinking"));
+    }
+
+    fn with_merge(
+        merge: MergeMode,
+        preset: PresetEntry,
+    ) -> PresetEntry {
+        PresetEntry { merge, ..preset }
+    }
+
+    #[test]
+    fn test_a_replacing_preset_takes_the_inherited_ones_place() {
+        let lower = PresetSetEntry {
+            presets: vec![with_merge(
+                MergeMode::Replace,
+                preset("thinking", json!({"generation": {"top_p": 0.9}})),
+            )],
+            ..Default::default()
+        };
+        let set = fold(&[&hybrid(), &lower]).unwrap();
+        let thinking = set.get("thinking").unwrap();
+        assert_eq!(thinking.patch, json!({"generation": {"top_p": 0.9}}));
+        assert_eq!(thinking.merge, MergeMode::Update);
+        // The others are inherited as they were.
+        assert_eq!(
+            set.get("greedy").unwrap().patch,
+            json!({"generation": {"greedy": true}})
+        );
+    }
+
+    #[test]
+    fn test_a_denying_preset_must_be_new() {
+        let lower = PresetSetEntry {
+            presets: vec![with_merge(
+                MergeMode::Deny,
+                preset("greedy", json!({"generation": {"beams": 4}})),
+            )],
+            ..Default::default()
+        };
+        let errors = fold(&[&hybrid(), &lower]).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.message.contains("`greedy` is `merge: deny`")),
+            "{errors:?}"
+        );
+        // A new name is declared, whatever its mode.
+        let new = PresetSetEntry {
+            presets: vec![
+                with_merge(MergeMode::Deny, preset("beam", json!({"beams": 4}))),
+                with_merge(MergeMode::Replace, preset("short", json!({"max": 8}))),
+            ],
+            ..Default::default()
+        };
+        let set = fold(&[&hybrid(), &new]).unwrap();
+        assert_eq!(set.get("beam").unwrap().patch, json!({"beams": 4}));
+        assert_eq!(set.get("short").unwrap().patch, json!({"max": 8}));
     }
 
     #[test]

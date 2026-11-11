@@ -226,6 +226,15 @@ A build's presets fold down its class chain. An axis use (`{use, offers, default
 what the use above it offered, and when it narrows, the presets of the dropped members are
 pruned. A use that offers one member is a fixed mode.
 
+A preset with the name of an inherited one meets it by its `merge`:
+
+- `update`, the default, merges its patch over the inherited patch, and a description replaces
+  the inherited one;
+- `replace` takes the inherited preset's place;
+- `deny` refuses an inherited preset of its name.
+
+With nothing inherited, the preset is declared, whatever its mode.
+
 ```rust
 use pretrained_catalog::{
     CatalogName,
