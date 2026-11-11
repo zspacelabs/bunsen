@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-app"
-description = "Shared command-line plumbing for bunsen's binaries: device and precision selection, logging, shard selection, and the weights cache's flags and commands."
+description = "Shared command-line plumbing for bunsen's binaries: device and precision selection, logging, shard selection, the weights cache's flags and commands, and the build catalogs' commands."
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -23,6 +23,10 @@ clap = { workspace = true, features = ["derive"] }
 document-features = { workspace = true }
 env_logger = { workspace = true }
 log = { workspace = true }
+# `catalog`'s reports and its catalogs.
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde-saphyr = { workspace = true, features = ["serialize"] }
 # `cache list`'s dates.
 time = { workspace = true, features = ["formatting", "macros"] }
 

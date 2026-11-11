@@ -1,12 +1,13 @@
 # pretrained-catalog
 
-A CLI, examples and integration tests over bunsen's build catalogs
-(`bunsen::data::pretrained::build_catalog`): import catalogs as a stack, list, show and resolve
-their entries, and run selection pipelines over them, with each stage explained. The module's
-`catalog_format` page describes the catalog document, and its `usage` page the API and the select
-language.
+Examples and integration tests over bunsen's build catalogs
+(`bunsen::data::pretrained::build_catalog`). The module's `catalog_format` page describes the
+catalog document, and its `usage` page the API and the select language.
 
 ## The CLI
+
+The commands are `bunsen_app::catalog`, which `bunsen-tool catalog` runs. The `pretrained-catalog`
+bin here runs the same commands without the model kits bunsen-tool builds, so it builds quickly:
 
 ```sh
 cargo run -p pretrained-catalog -- --catalog a.yml --catalog b.yml <command>   # in order

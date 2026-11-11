@@ -1,6 +1,6 @@
 [package]
 name = "pretrained-catalog"
-description = "A CLI, examples and integration tests over bunsen's build catalogs: import a stack, list, show and resolve entries, and run selection pipelines with each stage explained."
+description = "Examples and integration tests over bunsen's build catalogs, and `bunsen-tool catalog` on its own as the `pretrained-catalog` bin, without the model kits."
 publish = false
 
 authors.workspace = true
@@ -12,8 +12,8 @@ license.workspace = true
 
 [dependencies]
 bunsen = { path = "../../public/bunsen", default-features = false, features = ["std"] }
+bunsen-app = { path = "../../public/bunsen-app" }
 clap = { workspace = true, features = ["derive"] }
-serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 serde-saphyr = { workspace = true, features = ["serialize"] }
 

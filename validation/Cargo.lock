@@ -846,6 +846,9 @@ dependencies = [
  "document-features",
  "env_logger",
  "log",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
  "time",
 ]
 

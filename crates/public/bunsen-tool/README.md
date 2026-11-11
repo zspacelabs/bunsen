@@ -1037,3 +1037,26 @@ The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
 The checkpoints: `laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya-multilingual` (on
 `mmBERT-base`) and `laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
 device accelerates it, else in f32.
+
+## catalog: build catalogs
+
+`bunsen-tool catalog` imports build catalogs, in order, and queries the state they make
+(`bunsen::data::pretrained::build_catalog`; its `catalog_format` page describes the document,
+and its `usage` page the select language). The catalogs come from `--catalog` files, YAML or
+JSON, or `--examples` for the module's example catalogs:
+
+```sh
+bunsen-tool catalog --examples tree
+bunsen-tool catalog --catalog a.yml --catalog b.yml select qwen3 --off thinking --limit 1
+```
+
+| command | does |
+|---|---|
+| `layers` | the imported catalogs, in order |
+| `list [--kind K] [--facet F] [--members G] [--children S]` | entries, by their shortest unique names |
+| `show NAME` | an entry's kind, history (which catalog declared, updated or replaced it) and merged fields |
+| `resolve BUILD [--preset P] [--on AXIS] [--off AXIS] [--patch {..}]` | the resolved build, and the document its presets make |
+| `select [--kind K] [NAME]... [--keep P] [--drop P] [--le KEY V]... [--weigh E] [--cutoff W] [--asc K] [--desc K] [--limit N] [--use NAME] [--unset L] [--per G .. --end] [--pipeline ..] [--floor F] [--preset P] [--on/--off AXIS] [--defaults ..] [--rank]` | a YAML report: the composed query, why (each stage, where it came from, and what it removed), the presets applied, and the result in order, each build resolved with its `weight`; each flag is one stage, in command-line order, but the preset flags, which are the prefix; `--rank` adds every removed row with why |
+| `tree [NAME] [--kind K]... [--all] [--depth N]` | the namespace as a directory view, from the root's entries or one entry: `name: description` for a namespace, `name: aliases {axis: default\|other} description` for a build, `name -> target` for an alias. It shows namespaces, builds and the aliases that name them; `--kind` keeps only those kinds (and the containers on the way to them), `--all` shows every kind, as `name (kind): ..` |
+| `dump [--format yml\|json]` | the imported catalogs, in order, as one sequence: each item's `layer`, `path` and `catalog`, the document in its keyed form |
+| `releases GROUP` | a release group's members, oldest first |

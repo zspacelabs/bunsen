@@ -1232,6 +1232,9 @@ dependencies = [
  "document-features",
  "env_logger",
  "log",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
  "tempfile",
  "time",
 ]
@@ -8459,8 +8462,8 @@ name = "pretrained-catalog"
 version = "0.41.0"
 dependencies = [
  "bunsen",
+ "bunsen-app",
  "clap",
- "serde",
  "serde-saphyr",
  "serde_json",
 ]

@@ -603,11 +603,12 @@ N` keeps the first N.
 ## The CLI
 
 ```sh
-cargo run -p pretrained-catalog -- --examples select <names> <flags>
-cargo run -p pretrained-catalog -- --catalog a.yml --catalog b.yml select <names> <flags>
+bunsen-tool catalog --examples select <names> <flags>
+bunsen-tool catalog --catalog a.yml --catalog b.yml select <names> <flags>
 ```
 
-The bin stands in for a tool that chooses builds. Each flag is one stage, in command-line order,
+`bunsen-tool catalog` (and the dev crate's `pretrained-catalog`, the same commands without the
+model kits) stands in for a tool that chooses builds. Each flag is one stage, in command-line order,
 and each flag value is one YAML particle. `--on`, `--off` and `--preset` are the exception: they
 are the presets the tool applies, and the prefix that keeps only the builds that can take them,
 wherever they sit on the command line.
@@ -634,8 +635,8 @@ A bare name or a number goes as it is; anything else goes in single quotes (a fl
 word).
 
 ```sh
-pretrained-catalog --examples select qwen3 --off thinking --keep instruct --desc parameters --limit 1
-pretrained-catalog --examples select whisper --weigh '{release: latest}' --cutoff 0.9 --rank
+bunsen-tool catalog --examples select qwen3 --off thinking --keep instruct --desc parameters --limit 1
+bunsen-tool catalog --examples select whisper --weigh '{release: latest}' --cutoff 0.9 --rank
 ```
 
 `select` prints YAML: the composed `query`, `why` (each stage: its operation, origin, how many
