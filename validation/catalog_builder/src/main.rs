@@ -44,8 +44,10 @@ use clap::{
 };
 
 pub mod catalog;
+pub mod convert;
 pub mod layer;
 pub mod remote;
+pub mod tree;
 
 /// Builds bunsen's built-in pretrained catalog from its probe contracts.
 #[derive(Debug, Parser)]
@@ -65,6 +67,10 @@ enum Command {
 
     /// Build, then replace the checked-in catalog.
     Update(BuildArgs),
+
+    /// Write `probe_contracts/` from `validation/catalogs/`, the per-kit
+    /// sources of the old form.
+    Convert,
 }
 
 #[derive(Debug, Args)]
@@ -91,10 +97,22 @@ impl BuildArgs {
 fn run(cli: Cli) -> Result<bool, String> {
     let paths = catalog::Paths::of_checkout();
     let remote = remote::Http::new();
+    if let Command::Convert = cli.command {
+        let catalogs = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("catalogs");
+        let notes = convert::convert(&catalogs, &paths.sources)?;
+        for line in notes.lines() {
+            eprintln!("{line}");
+        }
+        eprintln!("wrote {}", paths.sources.display());
+        return Ok(true);
+    }
     let (args, after) = match &cli.command {
         Command::Build(args) => (args, None),
         Command::Check(args) => (args, Some(false)),
         Command::Update(args) => (args, Some(true)),
+        Command::Convert => unreachable!("converted above"),
     };
     let built = catalog::build(&remote, &paths, &args.options())?;
     catalog::write_dir(&built, &paths.built())?;

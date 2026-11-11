@@ -16,9 +16,8 @@
 //! - **`$probes: [{$probe, $resource, $into, $token?}]` on a build**: each
 //!   probe reads the resource bound to the slot `$resource` and patches the
 //!   build's `$presets`, into `$common` or the presets `$into` names. What
-//!   probes find accumulates
-//!   ([`accumulate_probed`]),
-//!   and the source's own patches are laid over it as merge patches.
+//!   probes find accumulates ([`accumulate_probed`]), and the source's own
+//!   patches are laid over it as merge patches.
 
 use std::collections::BTreeMap;
 
@@ -43,12 +42,15 @@ use serde_json::{
     Value,
 };
 
-use crate::remote::{
-    HubFile,
-    HubRepo,
-    Remote,
-    config_dtype,
-    sha256_of,
+use crate::{
+    remote::{
+        HubFile,
+        HubRepo,
+        Remote,
+        config_dtype,
+        sha256_of,
+    },
+    tree::*,
 };
 
 /// The formats whose resources are checkpoints: their `$dtype` is the one the
@@ -687,127 +689,6 @@ fn check_languages(
         path.pop();
     }
     Ok(())
-}
-
-fn kind_of(node: &OrderedNode) -> Option<&str> {
-    match get(node, "$kind") {
-        Some(OrderedNode::Scalar(Value::String(kind))) => Some(kind),
-        _ => None,
-    }
-}
-
-fn children(node: &OrderedNode) -> impl Iterator<Item = (&String, &OrderedNode)> {
-    let entries: &[(String, OrderedNode)] = match node {
-        OrderedNode::Map(entries) => entries,
-        _ => &[],
-    };
-    entries
-        .iter()
-        .filter(|(k, v)| !k.starts_with('$') && v.is_entry())
-        .map(|(k, v)| (k, v))
-}
-
-fn node_at<'n>(
-    root: &'n OrderedNode,
-    path: &[String],
-) -> Option<&'n OrderedNode> {
-    path.iter()
-        .try_fold(root, |node, segment| get(node, segment))
-}
-
-fn node_at_mut<'n>(
-    root: &'n mut OrderedNode,
-    path: &[String],
-) -> Option<&'n mut OrderedNode> {
-    path.iter()
-        .try_fold(root, |node, segment| get_mut(node, segment))
-}
-
-fn get<'n>(
-    node: &'n OrderedNode,
-    key: &str,
-) -> Option<&'n OrderedNode> {
-    node.get(key)
-}
-
-fn get_mut<'n>(
-    node: &'n mut OrderedNode,
-    key: &str,
-) -> Option<&'n mut OrderedNode> {
-    match node {
-        OrderedNode::Map(entries) => entries.iter_mut().find(|(k, _)| k == key).map(|(_, v)| v),
-        _ => None,
-    }
-}
-
-/// Sets `key` in a map: in place when it is there, else at the end.
-fn set(
-    node: &mut OrderedNode,
-    key: &str,
-    value: OrderedNode,
-) {
-    if let OrderedNode::Map(entries) = node {
-        match entries.iter_mut().find(|(k, _)| k == key) {
-            Some((_, slot)) => *slot = value,
-            None => entries.push((key.to_string(), value)),
-        }
-    }
-}
-
-fn take(
-    node: &mut OrderedNode,
-    key: &str,
-) -> Option<OrderedNode> {
-    let OrderedNode::Map(entries) = node else {
-        return None;
-    };
-    let at = entries.iter().position(|(k, _)| k == key)?;
-    Some(entries.remove(at).1)
-}
-
-fn get_or_insert_map<'n>(
-    node: &'n mut OrderedNode,
-    key: &str,
-) -> &'n mut OrderedNode {
-    if get(node, key).is_none() {
-        set(node, key, OrderedNode::Map(Vec::new()));
-    }
-    get_mut(node, key).expect("just set")
-}
-
-fn string_field<'n>(
-    node: &'n OrderedNode,
-    key: &str,
-) -> Result<&'n str, String> {
-    match get(node, key) {
-        Some(OrderedNode::Scalar(Value::String(s))) => Ok(s),
-        _ => Err(format!("`{key}` is a string")),
-    }
-}
-
-fn string_opt(
-    node: &OrderedNode,
-    key: &str,
-) -> Result<Option<String>, String> {
-    match get(node, key) {
-        None => Ok(None),
-        Some(OrderedNode::Scalar(Value::String(s))) => Ok(Some(s.clone())),
-        Some(_) => Err(format!("`{key}` is a string")),
-    }
-}
-
-fn u64_opt(
-    node: &OrderedNode,
-    key: &str,
-) -> Result<Option<u64>, String> {
-    match get(node, key) {
-        None => Ok(None),
-        Some(OrderedNode::Scalar(v)) => v
-            .as_u64()
-            .map(Some)
-            .ok_or_else(|| format!("`{key}` is a whole number")),
-        Some(_) => Err(format!("`{key}` is a whole number")),
-    }
 }
 
 #[cfg(test)]

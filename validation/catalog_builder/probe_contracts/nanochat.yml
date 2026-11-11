@@ -1,0 +1,261 @@
+# The nanochat kit's builds: a probe-contract source of the built-in catalog.
+$description: The nanochat checkpoints bunsen knows by name.
+nanochat:
+  $kind: namespace
+  $facet: family
+  $description: "karpathy's nanochat GPT: community runs of upstream's 2025 and 2026 models."
+  $requires:
+  - instruct
+  - thinking
+  - reasoning
+  - language
+  - parameters
+nanochat-students:
+  $kind: namespace
+  $merge: update
+  base-d20:
+    $kind: build
+    $description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/nanochat-students/base-d20
+    $contract: nanochat-lm
+    $join:
+    - nanochat
+    language:
+    - en
+    instruct: false
+    reasoning: false
+    parameters: 561000000
+    $hub:
+      $repo: nanochat-students/base-d20
+      $revision: 4c6e4e8d8468a6b66302a472cb950bb73a1e2a61
+    $resources:
+      checkpoint: checkpoint
+      meta: meta
+      tokenizer: tokenizer
+      token_bytes: token_bytes
+    $presets:
+      $axes:
+        thinking:
+          $offers:
+          - no-thinking
+          $default: no-thinking
+      no-thinking:
+        $description: "Answer at once: this model doesn't think."
+    checkpoint:
+      $kind: resource
+      $file: model_021400.pt
+      $format: pytorch
+      $dtype: bfloat16
+    meta:
+      $kind: resource
+      $file: meta_021400.json
+      $format: nanochat-meta.json
+    tokenizer:
+      $kind: resource
+      $file: tokenizer.pkl
+      $format: tiktoken-pickle
+    token_bytes:
+      $kind: resource
+      $file: token_bytes.pt
+      $format: pytorch
+  nanochat-d20-base:
+    $kind: alias
+    $ref:
+      $path: base-d20
+      $kind: build
+  mid-d20:
+    $kind: build
+    $description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/nanochat-students/mid-d20
+    $contract: nanochat-lm
+    $join:
+    - nanochat
+    language:
+    - en
+    instruct: true
+    reasoning: false
+    parameters: 561000000
+    $hub:
+      $repo: nanochat-students/mid-d20
+      $revision: 8db9593636d2b4dd8546cb211f3586f90da49269
+    $resources:
+      checkpoint: checkpoint
+      meta: meta
+      tokenizer: tokenizer
+      token_bytes: token_bytes
+    $presets:
+      $axes:
+        thinking:
+          $offers:
+          - no-thinking
+          $default: no-thinking
+      no-thinking:
+        $description: "Answer at once: this model doesn't think."
+    checkpoint:
+      $kind: resource
+      $file: model_000765.pt
+      $format: pytorch
+      $dtype: bfloat16
+    meta:
+      $kind: resource
+      $file: meta_000765.json
+      $format: nanochat-meta.json
+    tokenizer:
+      $kind: resource
+      $file: tokenizer.pkl
+      $format: tiktoken-pickle
+    token_bytes:
+      $kind: resource
+      $file: token_bytes.pt
+      $format: pytorch
+  nanochat-d20-mid:
+    $kind: alias
+    $ref:
+      $path: mid-d20
+      $kind: build
+  rl-d20:
+    $kind: build
+    $description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/nanochat-students/rl-d20
+    $contract: nanochat-lm
+    $join:
+    - nanochat
+    language:
+    - en
+    instruct: true
+    reasoning: true
+    parameters: 561000000
+    $hub:
+      $repo: nanochat-students/rl-d20
+      $revision: 22fbb6a82b381a7b0b4f04f3bc5f3580a996745e
+    $resources:
+      checkpoint: checkpoint
+      meta: meta
+      tokenizer: tokenizer
+      token_bytes: token_bytes
+    $presets:
+      $axes:
+        thinking:
+          $offers:
+          - no-thinking
+          $default: no-thinking
+      no-thinking:
+        $description: "Answer at once: this model doesn't think."
+    checkpoint:
+      $kind: resource
+      $file: model_000650.pt
+      $format: pytorch
+      $dtype: bfloat16
+    meta:
+      $kind: resource
+      $file: meta_000650.json
+      $format: nanochat-meta.json
+    tokenizer:
+      $kind: resource
+      $file: tokenizer.pkl
+      $format: tiktoken-pickle
+    token_bytes:
+      $kind: resource
+      $file: token_bytes.pt
+      $format: pytorch
+  nanochat-d20-rl:
+    $kind: alias
+    $ref:
+      $path: rl-d20
+      $kind: build
+nitishpandey04:
+  $kind: namespace
+  $merge: update
+  nanochat-d18-base:
+    $kind: build
+    $description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base."
+    $license: MIT
+    $origin: https://huggingface.co/nitishpandey04/nanochat-d18-base
+    $contract: nanochat-lm
+    $join:
+    - nanochat
+    language:
+    - en
+    instruct: false
+    reasoning: false
+    parameters: 702000000
+    $hub:
+      $repo: nitishpandey04/nanochat-d18-base
+      $revision: bd4999f3186942207bac6b4b41ff743381e5fc8b
+    $resources:
+      checkpoint: checkpoint
+      meta: meta
+      tokenizer: tokenizer
+      token_bytes: token_bytes
+    $presets:
+      $axes:
+        thinking:
+          $offers:
+          - no-thinking
+          $default: no-thinking
+      no-thinking:
+        $description: "Answer at once: this model doesn't think."
+    checkpoint:
+      $kind: resource
+      $file: base_checkpoints/d18/model_003712.pt
+      $format: pytorch
+    meta:
+      $kind: resource
+      $file: base_checkpoints/d18/meta_003712.json
+      $format: nanochat-meta.json
+    tokenizer:
+      $kind: resource
+      $file: tokenizer/tokenizer.pkl
+      $format: tiktoken-pickle
+    token_bytes:
+      $kind: resource
+      $file: tokenizer/token_bytes.pt
+      $format: pytorch
+  nanochat-d18-sft:
+    $kind: build
+    $description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat."
+    $license: MIT
+    $origin: https://huggingface.co/nitishpandey04/nanochat-d18-sft
+    $contract: nanochat-lm
+    $join:
+    - nanochat
+    language:
+    - en
+    instruct: true
+    reasoning: false
+    parameters: 702000000
+    $hub:
+      $repo: nitishpandey04/nanochat-d18-sft
+      $revision: e2c7c119fee2a0caf6a0c69704ccbe57bad87e63
+    $resources:
+      checkpoint: checkpoint
+      meta: meta
+      tokenizer: tokenizer
+      token_bytes: token_bytes
+    $presets:
+      $axes:
+        thinking:
+          $offers:
+          - no-thinking
+          $default: no-thinking
+      no-thinking:
+        $description: "Answer at once: this model doesn't think."
+    checkpoint:
+      $kind: resource
+      $file: chatsft_checkpoints/d18/model_000478.pt
+      $format: pytorch
+    meta:
+      $kind: resource
+      $file: chatsft_checkpoints/d18/meta_000478.json
+      $format: nanochat-meta.json
+    tokenizer:
+      $kind: resource
+      $file: tokenizer/tokenizer.pkl
+      $format: tiktoken-pickle
+    token_bytes:
+      $kind: resource
+      $file: tokenizer/token_bytes.pt
+      $format: pytorch

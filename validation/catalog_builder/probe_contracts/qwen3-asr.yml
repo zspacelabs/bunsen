@@ -1,0 +1,268 @@
+# The qwen3-asr kit's builds: a probe-contract source of the built-in catalog.
+$description: The Qwen3-ASR checkpoints bunsen knows by name.
+qwen3-asr:
+  $kind: namespace
+  $facet: family
+  $description: Qwen's Qwen3-ASR speech recognizers.
+  $requires:
+  - language
+  - translate
+  - parameters
+fermion:
+  $kind: namespace
+  $merge: update
+  phonon-1:
+    $kind: build
+    $description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/FermionResearch/Phonon-1
+    $contract: qwen3-asr/stated
+    $join:
+    - qwen3-asr
+    parameters: 800000000
+    language:
+    - en
+    translate: false
+    scores:
+      wer.en: 6.56
+    $args:
+      geometry:
+        audio:
+          conv_channels: 480
+          d_ff: 3584
+          d_model: 896
+          n_heads: 14
+          n_layers: 18
+          n_mels: 128
+          n_window: 50
+          n_window_infer: 800
+        audio_token: 151676
+        text:
+          d_ff: 3072
+          d_model: 1024
+          head_dim: 128
+          logits_dtype: F32
+          n_heads: 16
+          n_kv_heads: 8
+          n_layers: 28
+          n_vocab: 151936
+          rms_eps: 1.0e-6
+          rope_theta: 1000000
+          softmax_dtype: F32
+          tied_head: true
+    $hub:
+      $repo: FermionResearch/Phonon-1
+      $revision: 68f96e309cd19bf5b9b72c0ead80eed92a499eae
+    $resources:
+      checkpoint: checkpoint
+    checkpoint:
+      $kind: resource
+      $file: phonon-audio6.bps.tar.zst
+      $format: phonon archive
+  phonon-1-micro:
+    $kind: build
+    $description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/FermionResearch/Phonon-1-Micro
+    $contract: qwen3-asr/stated
+    $join:
+    - qwen3-asr
+    parameters: 800000000
+    language:
+    - en
+    translate: false
+    $args:
+      geometry:
+        audio:
+          conv_channels: 480
+          d_ff: 3584
+          d_model: 896
+          n_heads: 14
+          n_layers: 18
+          n_mels: 128
+          n_window: 50
+          n_window_infer: 800
+        audio_token: 151676
+        text:
+          d_ff: 3072
+          d_model: 1024
+          head_dim: 128
+          logits_dtype: F32
+          n_heads: 16
+          n_kv_heads: 8
+          n_layers: 28
+          n_vocab: 151936
+          rms_eps: 1.0e-6
+          rope_theta: 1000000
+          softmax_dtype: F32
+          tied_head: true
+    $hub:
+      $repo: FermionResearch/Phonon-1-Micro
+      $revision: e916a4f8e30ed5c3ddfc1808429f049669bd8bf3
+    $resources:
+      checkpoint: checkpoint
+    checkpoint:
+      $kind: resource
+      $file: phonon-micro.bps.tar.zst
+      $format: phonon archive
+  phonon-1-big:
+    $kind: build
+    $description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/FermionResearch/Phonon-1-Big
+    $contract: qwen3-asr/stated
+    $join:
+    - qwen3-asr
+    parameters: 800000000
+    language:
+    - en
+    translate: false
+    $args:
+      geometry:
+        audio:
+          conv_channels: 480
+          d_ff: 3584
+          d_model: 896
+          n_heads: 14
+          n_layers: 18
+          n_mels: 128
+          n_window: 50
+          n_window_infer: 800
+        audio_token: 151676
+        text:
+          d_ff: 3072
+          d_model: 1024
+          head_dim: 128
+          logits_dtype: F32
+          n_heads: 16
+          n_kv_heads: 8
+          n_layers: 28
+          n_vocab: 151936
+          rms_eps: 1.0e-6
+          rope_theta: 1000000
+          softmax_dtype: F32
+          tied_head: true
+    $hub:
+      $repo: FermionResearch/Phonon-1-Big
+      $revision: 74ec0333ac8a5ede5e855489c069ef763bc99edb
+    $resources:
+      checkpoint: checkpoint
+    checkpoint:
+      $kind: resource
+      $file: phonon-parity.bps.tar.zst
+      $format: phonon archive
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3-asr-0.6b:
+    $kind: build
+    $description: "Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf
+    $contract: qwen3-asr/stated
+    $join:
+    - qwen3-asr
+    parameters: 800000000
+    language:
+    - en
+    - zh
+    - "*"
+    translate: false
+    scores:
+      wer.en: 6.31
+    $args:
+      geometry:
+        audio:
+          conv_channels: 480
+          d_ff: 3584
+          d_model: 896
+          n_heads: 14
+          n_layers: 18
+          n_mels: 128
+          n_window: 50
+          n_window_infer: 800
+        audio_token: 151676
+        text:
+          d_ff: 3072
+          d_model: 1024
+          head_dim: 128
+          logits_dtype: F32
+          n_heads: 16
+          n_kv_heads: 8
+          n_layers: 28
+          n_vocab: 151936
+          rms_eps: 1.0e-6
+          rope_theta: 1000000
+          softmax_dtype: F32
+          tied_head: true
+    $hub:
+      $repo: Qwen/Qwen3-ASR-0.6B-hf
+      $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
+    $resources:
+      checkpoint: checkpoint
+      vocabulary: vocabulary
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $dtype: bfloat16
+    vocabulary:
+      $kind: resource
+      $file: tokenizer.json
+      $format: tokenizer.json
+  qwen3-asr-1.7b:
+    $kind: build
+    $description: "Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages."
+    $license: Apache-2.0
+    $origin: https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf
+    $contract: qwen3-asr/stated
+    $join:
+    - qwen3-asr
+    parameters: 2000000000
+    language:
+    - en
+    - zh
+    - "*"
+    translate: false
+    scores:
+      wer.en: 5.76
+    $args:
+      geometry:
+        audio:
+          conv_channels: 480
+          d_ff: 4096
+          d_model: 1024
+          n_heads: 16
+          n_layers: 24
+          n_mels: 128
+          n_window: 50
+          n_window_infer: 800
+        audio_token: 151676
+        text:
+          d_ff: 6144
+          d_model: 2048
+          head_dim: 128
+          logits_dtype: F32
+          n_heads: 16
+          n_kv_heads: 8
+          n_layers: 28
+          n_vocab: 151936
+          rms_eps: 1.0e-6
+          rope_theta: 1000000
+          softmax_dtype: F32
+          tied_head: true
+    $hub:
+      $repo: Qwen/Qwen3-ASR-1.7B-hf
+      $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
+    $resources:
+      checkpoint: checkpoint
+      vocabulary: vocabulary
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $dtype: bfloat16
+    vocabulary:
+      $kind: resource
+      $file: tokenizer.json
+      $format: tokenizer.json

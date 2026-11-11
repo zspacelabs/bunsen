@@ -1,0 +1,68 @@
+# The voxtral kit's builds: a probe-contract source of the built-in catalog.
+$description: The Voxtral Realtime checkpoints bunsen knows by name.
+mistralai:
+  $kind: namespace
+  $merge: update
+  voxtral:
+    $kind: namespace
+    $facet: family
+    $description: Mistral's Voxtral Realtime speech recognizers.
+    $requires:
+    - language
+    - translate
+    - parameters
+    voxtral-mini-4b-realtime-2602:
+      $kind: build
+      $description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/mistralai/Voxtral-Mini-4B-Realtime-2602
+      $contract: voxtral-asr/stated
+      parameters: 4400000000
+      language:
+      - en
+      - "*"
+      translate: false
+      $args:
+        geometry:
+          audio:
+            d_ff: 5120
+            d_model: 1280
+            head_dim: 64
+            n_heads: 32
+            n_layers: 32
+            n_mels: 128
+            rms_eps: 0.00001
+            rope_theta: 1000000
+            sliding_window: 750
+          downsample: 4
+          text:
+            d_ff: 9216
+            d_model: 3072
+            head_dim: 128
+            n_heads: 32
+            n_kv_heads: 8
+            n_layers: 26
+            n_vocab: 131072
+            rms_eps: 0.00001
+            rope_theta: 1000000
+            sliding_window: 8192
+      $hub:
+        $repo: mistralai/Voxtral-Mini-4B-Realtime-2602
+        $revision: 2769294da9567371363522aac9bbcfdd19447add
+      $resources:
+        checkpoint: checkpoint
+        vocabulary: vocabulary
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+        $dtype: bfloat16
+      vocabulary:
+        $kind: resource
+        $file: tekken.json
+        $format: tekken.json
+    voxtral-mini-4b-realtime:
+      $kind: alias
+      $ref:
+        $path: voxtral-mini-4b-realtime-2602
+        $kind: build

@@ -1,0 +1,74 @@
+# The parakeet kit's builds: a probe-contract source of the built-in catalog.
+$description: The Parakeet TDT checkpoints bunsen knows by name.
+parakeet:
+  $kind: namespace
+  $facet: family
+  $description: NVIDIA's Parakeet TDT speech recognizers.
+  $requires:
+  - language
+  - translate
+  - parameters
+fermion:
+  $kind: namespace
+  $merge: update
+  phonon-2:
+    $kind: build
+    $description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English."
+    $license: CC-BY-4.0
+    $origin: https://huggingface.co/FermionResearch/Phonon-2
+    $contract: parakeet-asr
+    $join:
+    - parakeet
+    parameters: 600000000
+    language:
+    - en
+    translate: false
+    scores:
+      wer.en: 5.21
+    $hub:
+      $repo: FermionResearch/Phonon-2
+      $revision: 7e153e4054c0a10db6d47d6fff5c062d4c77c154
+    $resources:
+      checkpoint: checkpoint
+    checkpoint:
+      $kind: resource
+      $file: phonon-2.bps.tar.zst
+      $format: phonon archive
+  phonon:
+    $kind: alias
+    $ref:
+      $path: phonon-2
+      $kind: build
+nvidia:
+  $kind: namespace
+  $merge: update
+  parakeet-tdt-0.6b-v3:
+    $kind: build
+    $description: "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages."
+    $license: CC-BY-4.0
+    $origin: https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
+    $contract: parakeet-asr
+    $join:
+    - parakeet
+    parameters: 600000000
+    language:
+    - en
+    - "*"
+    translate: false
+    scores:
+      wer.en: 6.32
+    $hub:
+      $repo: nvidia/parakeet-tdt-0.6b-v3
+      $revision: 541d1f99c6b0c3cd0b11a95167540bb8edefd82b
+    $resources:
+      checkpoint: checkpoint
+      vocabulary: vocabulary
+    checkpoint:
+      $kind: resource
+      $file: model.safetensors
+      $format: safetensors
+      $dtype: float32
+    vocabulary:
+      $kind: resource
+      $file: tokenizer.json
+      $format: tokenizer.json

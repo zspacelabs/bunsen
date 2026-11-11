@@ -1,0 +1,308 @@
+# The sortformer kit's builds: a probe-contract source of the built-in catalog.
+$description: The Sortformer diarizers bunsen knows by name.
+nvidia:
+  $kind: namespace
+  $merge: update
+  sortformer:
+    $kind: namespace
+    $facet: family
+    $description: "NVIDIA's Sortformer speaker diarizers: Nemotron-3-Diarization as transformers ships it, the streaming Sortformer v2 and v2.1 as NeMo does."
+    nemotron:
+      $kind: template_class
+      $description: "Nemotron-3-Diarization: its model card's streaming latencies."
+      $presets:
+        $axes:
+          latency:
+            $offers:
+            - ultra-low
+            - very-low
+            - low
+            - offline
+            $default: low
+          postprocess:
+            $offers:
+            - none
+            - dihard3
+            - callhome
+            $default: none
+        ultra-low:
+          $description: "0.32 s: chunks of 3 frames with 1 of look-ahead"
+          $patch:
+            streaming:
+              chunk_len: 3
+              right_context: 1
+              fifo_len: 264
+              spkcache_len: 264
+              update_period: 222
+              left_context: 0
+              silence_frames_per_speaker: 1
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        very-low:
+          $description: "0.64 s: chunks of 6 frames with 2 of look-ahead"
+          $patch:
+            streaming:
+              chunk_len: 6
+              right_context: 2
+              fifo_len: 264
+              spkcache_len: 264
+              update_period: 222
+              left_context: 0
+              silence_frames_per_speaker: 1
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        low:
+          $description: "1.04 s: chunks of 9 frames with 4 of look-ahead"
+          $patch:
+            streaming:
+              chunk_len: 9
+              right_context: 4
+              fifo_len: 264
+              spkcache_len: 264
+              update_period: 222
+              left_context: 0
+              silence_frames_per_speaker: 1
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        offline:
+          $description: "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for files"
+          $patch:
+            streaming:
+              chunk_len: 340
+              right_context: 40
+              fifo_len: 40
+              spkcache_len: 264
+              update_period: 300
+              left_context: 0
+              silence_frames_per_speaker: 1
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        none:
+          $description: "NeMo's bypass: thresholds of 0.5, no padding, no filters"
+          $patch:
+            turns:
+              onset: 0.5
+              offset: 0.5
+              pad_onset: 0.0
+              pad_offset: 0.0
+              min_duration_on: 0.0
+              min_duration_off: 0.0
+              filter_speech_first: true
+        dihard3:
+          $description: NeMo's parameters tuned for streaming Sortformer v2 on DIHARD III dev
+          $patch:
+            turns:
+              onset: 0.56
+              offset: 1.0
+              pad_onset: 0.063
+              pad_offset: 0.002
+              min_duration_on: 0.007
+              min_duration_off: 0.151
+              filter_speech_first: true
+        callhome:
+          $description: NeMo's parameters tuned for streaming Sortformer v2 on CALLHOME part 1
+          $patch:
+            turns:
+              onset: 0.641
+              offset: 0.561
+              pad_onset: 0.229
+              pad_offset: 0.079
+              min_duration_on: 0.511
+              min_duration_off: 0.296
+              filter_speech_first: true
+    sortformer-v2:
+      $kind: template_class
+      $description: "The streaming Sortformer v2 and v2.1: their model card's streaming latencies, with one frame of left context and three silence slots per speaker."
+      $presets:
+        $axes:
+          latency:
+            $offers:
+            - ultra-low
+            - low
+            - high
+            - offline
+            $default: low
+          postprocess:
+            $offers:
+            - none
+            - dihard3
+            - callhome
+            $default: none
+        ultra-low:
+          $description: "0.32 s: chunks of 3 frames with 1 of look-ahead"
+          $patch:
+            streaming:
+              chunk_len: 3
+              right_context: 1
+              left_context: 1
+              fifo_len: 188
+              spkcache_len: 188
+              update_period: 144
+              silence_frames_per_speaker: 3
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        low:
+          $description: "1.04 s: chunks of 6 frames with 7 of look-ahead"
+          $patch:
+            streaming:
+              chunk_len: 6
+              right_context: 7
+              left_context: 1
+              fifo_len: 188
+              spkcache_len: 188
+              update_period: 144
+              silence_frames_per_speaker: 3
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        high:
+          $description: "10 s: chunks of 124 frames with 1 of look-ahead"
+          $patch:
+            streaming:
+              chunk_len: 124
+              right_context: 1
+              left_context: 1
+              fifo_len: 124
+              spkcache_len: 188
+              update_period: 124
+              silence_frames_per_speaker: 3
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        offline:
+          $description: "30.4 s: chunks of 340 frames with 40 of look-ahead; the most accurate, for files"
+          $patch:
+            streaming:
+              chunk_len: 340
+              right_context: 40
+              left_context: 1
+              fifo_len: 40
+              spkcache_len: 188
+              update_period: 300
+              silence_frames_per_speaker: 3
+              pred_score_threshold: 0.25
+              latest_boost: 0.05
+              strong_boost_rate: 0.75
+              weak_boost_rate: 1.5
+              min_pos_scores_rate: 0.5
+              silence_threshold: 0.2
+        none:
+          $description: "NeMo's bypass: thresholds of 0.5, no padding, no filters"
+          $patch:
+            turns:
+              onset: 0.5
+              offset: 0.5
+              pad_onset: 0.0
+              pad_offset: 0.0
+              min_duration_on: 0.0
+              min_duration_off: 0.0
+              filter_speech_first: true
+        dihard3:
+          $description: NeMo's parameters tuned for streaming Sortformer v2 on DIHARD III dev
+          $patch:
+            turns:
+              onset: 0.56
+              offset: 1.0
+              pad_onset: 0.063
+              pad_offset: 0.002
+              min_duration_on: 0.007
+              min_duration_off: 0.151
+              filter_speech_first: true
+        callhome:
+          $description: NeMo's parameters tuned for streaming Sortformer v2 on CALLHOME part 1
+          $patch:
+            turns:
+              onset: 0.641
+              offset: 0.561
+              pad_onset: 0.229
+              pad_offset: 0.079
+              min_duration_on: 0.511
+              min_duration_off: 0.296
+              filter_speech_first: true
+    nemotron-3-diarization:
+      $kind: build
+      $description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames, streaming."
+      $license: OpenMDW-1.1
+      $origin: https://huggingface.co/nvidia/Nemotron-3-Diarization
+      $template_class: nemotron
+      $contract: sortformer-diarizer
+      $hub:
+        $repo: nvidia/Nemotron-3-Diarization
+        $revision: f667ed73aee57d40cc39428eb768b4fd87a0a29e
+      $resources:
+        checkpoint: checkpoint
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+        $dtype: float32
+    diar_streaming_sortformer_4spk-v2:
+      $kind: build
+      $description: "Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames."
+      $license: NVIDIA Open Model License
+      $origin: https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2
+      $template_class: sortformer-v2
+      $contract: sortformer-diarizer
+      $hub:
+        $repo: nvidia/diar_streaming_sortformer_4spk-v2
+        $revision: 84edd514b8ef68004c10086918cd62f2148cbd59
+      $resources:
+        checkpoint: checkpoint
+      checkpoint:
+        $kind: resource
+        $file: diar_streaming_sortformer_4spk-v2.nemo
+        $format: nemo
+        $dtype: float32
+    diar_streaming_sortformer_4spk-v2.1:
+      $kind: build
+      $description: "Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms frames."
+      $license: NVIDIA Open Model License
+      $origin: https://huggingface.co/nvidia/diar_streaming_sortformer_4spk-v2.1
+      $template_class: sortformer-v2
+      $contract: sortformer-diarizer
+      $hub:
+        $repo: nvidia/diar_streaming_sortformer_4spk-v2.1
+        $revision: cd03eee90fbec18297ac31b8c21546e596b7f71c
+      $resources:
+        checkpoint: checkpoint
+      checkpoint:
+        $kind: resource
+        $file: diar_streaming_sortformer_4spk-v2.1.nemo
+        $format: nemo
+        $dtype: float32
+    sortformer-v2.1:
+      $kind: alias
+      $ref:
+        $path: diar_streaming_sortformer_4spk-v2.1
+        $kind: build
+  sortformer-v2:
+    $kind: alias
+    $ref:
+      $path: sortformer/diar_streaming_sortformer_4spk-v2
+      $kind: build

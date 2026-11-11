@@ -1,0 +1,50 @@
+# The publishers, which more than one kit's builds are in.
+$description: The publishers, which more than one kit's builds are in.
+laya:
+  $kind: namespace
+  $facet: publisher
+  $description: convaiinnovations, Laya's authors.
+torchvision:
+  $kind: namespace
+  $facet: publisher
+  $description: TorchVision, PyTorch's computer vision library.
+timm:
+  $kind: namespace
+  $facet: publisher
+  $description: pytorch-image-models (timm), Ross Wightman's.
+gemma:
+  $kind: namespace
+  $facet: publisher
+  $description: Google's Gemma models, from their unsloth/ mirrors.
+nanochat-students:
+  $kind: namespace
+  $facet: publisher
+  $description: nanochat-students, who publish nanochat training runs.
+nitishpandey04:
+  $kind: namespace
+  $facet: publisher
+  $description: nitishpandey04, who publishes nanochat training runs.
+qwen:
+  $kind: namespace
+  $facet: publisher
+  $description: Qwen, Alibaba Cloud's model team.
+fermion:
+  $kind: namespace
+  $facet: publisher
+  $description: FermionResearch, Phonon's authors.
+nvidia:
+  $kind: namespace
+  $facet: publisher
+  $description: NVIDIA.
+mistralai:
+  $kind: namespace
+  $facet: publisher
+  $description: Mistral AI.
+openai:
+  $kind: namespace
+  $facet: publisher
+  $description: OpenAI.
+silero:
+  $kind: namespace
+  $facet: publisher
+  $description: Silero, snakers4/silero-vad's authors.
