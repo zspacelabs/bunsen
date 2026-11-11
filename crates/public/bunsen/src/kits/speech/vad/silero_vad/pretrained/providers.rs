@@ -11,8 +11,7 @@ use crate::{
     },
 };
 
-/// The kit segment of a Silero resource's path in the cache:
-/// `<cache>/pretrained/silero_vad/<namespace>/<sha256>/<file>`.
+/// The Silero kit's name: its rows' `kit` tag.
 pub const SILERO_KIT: &str = "silero_vad";
 
 /// The key of the burnpack in a Silero resource bundle.

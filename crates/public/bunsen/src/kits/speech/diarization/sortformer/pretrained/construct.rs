@@ -147,7 +147,7 @@ impl SortformerConstructConfig {
             nemo::NemoArchive,
         };
         let checkpoint = map.try_get(CHECKPOINT)?;
-        let prefix = cache.read_prefix(SORTFORMER_KIT, checkpoint, NEMO_CONFIG_PREFIX)?;
+        let prefix = cache.read_prefix(checkpoint, NEMO_CONFIG_PREFIX)?;
         let Some(yaml) = NemoArchive::config_from_prefix(&prefix) else {
             return Ok(());
         };
@@ -212,7 +212,7 @@ impl ConstructInit for SortformerConstructConfig {
         match self.reader {
             SortformerReader::Safetensors => {
                 if let Some(config) = map.get(CONFIG) {
-                    let resolved = cache.resolve(SORTFORMER_KIT, config)?;
+                    let resolved = cache.resolve(config)?;
                     Self::read_config(&resolved.path)?;
                 }
             }
@@ -510,7 +510,7 @@ mod tests {
         hook.plan(&PretrainedRef::from(map.clone()), &cache)
             .unwrap();
         let res = map.get(CHECKPOINT).unwrap();
-        assert_eq!(cache.status(SORTFORMER_KIT, res), CacheStatus::Remote);
+        assert_eq!(cache.status(res), CacheStatus::Remote);
 
         let modules = "  fc_d_model: 16\n  tf_d_model: 8\n  chunk";
         assert_eq!(yaml.matches(modules).count(), 1);
@@ -521,6 +521,6 @@ mod tests {
             .frame_contains("remote.nemo")
             .assert_err(&hook.plan(&PretrainedRef::from(map.clone()), &cache));
         let res = map.get(CHECKPOINT).unwrap();
-        assert_eq!(cache.status(SORTFORMER_KIT, res), CacheStatus::Remote);
+        assert_eq!(cache.status(res), CacheStatus::Remote);
     }
 }

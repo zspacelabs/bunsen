@@ -11,8 +11,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Laya resource's path in the cache:
-/// `<cache>/pretrained/laya/<namespace>/<sha256>/<file>`.
+/// The Laya kit's name: its rows' `kit` tag.
 pub const LAYA_KIT: &str = "laya";
 
 /// The key of the checkpoint in a Laya resource bundle: its

@@ -102,7 +102,7 @@ impl<H: ConstructInit> Deferred<H> {
         &self,
         cache: &PretrainedCache,
     ) -> BTreeMap<String, CacheStatus> {
-        cache.map_status(H::KIT, &self.to_resource_bundle())
+        cache.map_status(&self.to_resource_bundle())
     }
 
     /// The hook's plan: the resource bundle completed, before anything but what
@@ -142,7 +142,7 @@ impl<H: ConstructInit> Deferred<H> {
     ) -> BunsenResult<Loaded<H::Construct>> {
         let load = || -> BunsenResult<Loaded<H::Construct>> {
             let planned = self.config.plan(&self.model, cache)?;
-            let resources = cache.load(H::KIT, &planned)?;
+            let resources = cache.load(&planned)?;
             let handle = self
                 .config
                 .try_init(&self.model, &resources, device, policy)?;

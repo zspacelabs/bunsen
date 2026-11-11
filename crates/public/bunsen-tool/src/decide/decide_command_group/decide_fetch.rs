@@ -2,10 +2,7 @@
 
 use bunsen::{
     errors::BunsenResult,
-    kits::decision::laya::pretrained::{
-        LAYA_KIT,
-        default_laya_factory,
-    },
+    kits::decision::laya::pretrained::default_laya_factory,
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,
@@ -39,7 +36,7 @@ impl DecideFetchCommand {
         for name in &self.names {
             let model = factory.resolve(name, &cache)?;
             let map = model.plan(&cache)?;
-            let loaded = cache.load(LAYA_KIT, &map)?;
+            let loaded = cache.load(&map)?;
             println!("{}:", model.id());
             for (key, part) in loaded.iter() {
                 println!("  {key}: {}", part.path.display());

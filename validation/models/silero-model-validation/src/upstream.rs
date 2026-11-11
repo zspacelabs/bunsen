@@ -32,7 +32,6 @@ use bunsen::{
             SileroVadMeta,
             pretrained::{
                 CHECKPOINT,
-                SILERO_KIT,
                 default_silero_factory,
             },
         },
@@ -65,7 +64,7 @@ fn upstream_file() -> std::path::PathBuf {
     let mut map = ResourceBundle::new(row.resources.name.clone());
     map.insert(row.resources.try_get(CHECKPOINT).unwrap().clone());
     crate::weights_cache()
-        .load(SILERO_KIT, &map)
+        .load(&map)
         .unwrap()
         .expect(CHECKPOINT)
         .unwrap()

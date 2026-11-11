@@ -18,7 +18,6 @@ fn tekken_json() -> String {
         kits::speech::asr::voxtral::pretrained::{
             DEFAULT_VOXTRAL_MODEL,
             VOCABULARY,
-            VOXTRAL_KIT,
             default_voxtral_factory,
         },
     };
@@ -33,9 +32,7 @@ fn tekken_json() -> String {
             .expect("its vocabulary")
             .clone(),
     );
-    let loaded = weights_cache()
-        .load(VOXTRAL_KIT, &map)
-        .expect("fetch tekken.json");
+    let loaded = weights_cache().load(&map).expect("fetch tekken.json");
     let path = loaded.expect(VOCABULARY).expect("the fetched file");
     std::fs::read_to_string(path).expect("read tekken.json")
 }

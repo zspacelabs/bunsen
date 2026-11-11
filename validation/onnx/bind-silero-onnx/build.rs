@@ -26,7 +26,8 @@ fn main() {
 }
 
 /// Fetches upstream's 16 kHz safetensors into `OUT_DIR`, laid out as a
-/// pretrained cache, `pretrained/silero_vad/silero/<sha256>/<file>`, at the
+/// pretrained cache,
+/// `pretrained/silero/silero_vad/vad-16k/checkpoint/<sha256>/<file>`, at the
 /// revision bunsen's `silero/vad-16k` row pins.
 #[cfg(feature = "checkpoint")]
 fn fetch_checkpoint() {
@@ -39,7 +40,12 @@ fn fetch_checkpoint() {
         url: &url,
         sha256: SHA256,
     };
-    let dest = bunsen_fetch::pretrained_cache_path(&out, "silero_vad", "silero", SHA256, FILE);
+    let dest = bunsen_fetch::pretrained_cache_path(
+        &out,
+        "silero/silero_vad/vad-16k/checkpoint",
+        SHA256,
+        FILE,
+    );
     let path = asset.resolve(&dest);
     println!("cargo:rustc-env=SILERO_CACHE_DIR={}", out.display());
     println!(

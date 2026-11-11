@@ -16,15 +16,14 @@ use crate::{
 /// config, its hook into the pretrained pathway.
 ///
 /// Each kit's `{Kit}ConstructConfig` implements it, and builds the kit's
-/// construct. It says which cache segment its files live under
-/// ([`KIT`](Self::KIT)), what it builds for a backend
-/// ([`Construct`](Self::Construct)), which hook a resource bundle calls for
-/// ([`for_resource_bundle`](Self::for_resource_bundle)), how a ref's resource
-/// bundle is completed before it is loaded ([`plan`](Self::plan)), and how the
-/// loaded parts become the built thing, behind an `Arc`
-/// ([`try_init`](Self::try_init)). A [`Deferred`](super::Deferred) model
-/// pairs a ref with its construct config and runs the whole way: plan,
-/// [`PretrainedCache::load`], `try_init`.
+/// construct. It says what the kit is called ([`KIT`](Self::KIT)), what it
+/// builds for a backend ([`Construct`](Self::Construct)), which hook a resource
+/// bundle calls for ([`for_resource_bundle`](Self::for_resource_bundle)), how a
+/// ref's resource bundle is completed before it is loaded
+/// ([`plan`](Self::plan)), and how the loaded parts become the built thing,
+/// behind an `Arc` ([`try_init`](Self::try_init)). A
+/// [`Deferred`](super::Deferred) model pairs a ref with its construct config
+/// and runs the whole way: plan, [`PretrainedCache::load`], `try_init`.
 ///
 /// Not object-safe: [`try_init`](Self::try_init) is generic over the
 /// backend so that [`Construct`](Self::Construct) is a real type. A
@@ -39,8 +38,8 @@ use crate::{
 /// and a kit whose checkpoint does not describe itself takes its config
 /// from the row in [`try_init`](Self::try_init).
 pub trait ConstructInit: Sized {
-    /// The cache segment the kit's files live under: the `<kit>` of
-    /// `pretrained/<kit>/<namespace>/<sha256>/<file>`.
+    /// The kit's name: the `kit` tag of its rows, and the name its errors
+    /// and listings give it.
     const KIT: &'static str;
 
     /// Whether [`try_init`](Self::try_init) resolves the ref's preset

@@ -3,10 +3,7 @@
 use bunsen::kits::language::qwen3::{
     Qwen3Policy,
     TOKENIZER_CONFIG,
-    pretrained::{
-        QWEN3_KIT,
-        default_qwen3_factory,
-    },
+    pretrained::default_qwen3_factory,
 };
 use bunsen_tool::chat::{
     ChatMessage,
@@ -38,7 +35,7 @@ fn test_the_default_thinking_mode_is_the_templates() {
         let config = bundle
             .get(TOKENIZER_CONFIG)
             .expect("a tokenizer_config.json");
-        let path = cache.resolve(QWEN3_KIT, config).unwrap().path;
+        let path = cache.resolve(config).unwrap().path;
         let template = ChatTemplate::from_file(&path).unwrap();
         let render = |switch| template.render(&messages, true, switch).unwrap();
 

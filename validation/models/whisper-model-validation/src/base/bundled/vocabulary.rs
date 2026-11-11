@@ -47,12 +47,8 @@ fn test_bundled_vocabularies_resolve_offline() {
         let vocabulary = WhisperVocabulary::for_layout(&ids);
         let map = vocabulary.resource_bundle();
         let r = map.try_get(VOCABULARY).unwrap();
-        assert_eq!(
-            cache.status(WHISPER_KIT, r),
-            CacheStatus::Cached,
-            "{prefab}"
-        );
-        let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
+        assert_eq!(cache.status(r), CacheStatus::Cached, "{prefab}");
+        let resolved = cache.resolve(r).unwrap();
         assert_eq!(resolved.provenance, Provenance::Cached);
         assert_eq!(resolved.path, bundled_vocabulary_path(&ids));
         assert!(resolved.path.starts_with(bind_whisper_onnx::cache_dir()));

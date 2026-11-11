@@ -157,7 +157,7 @@ fn missing_shards(
 /// resolved once resolves again offline. The listing names the files and
 /// pins each LFS file by its SHA-256, so the checkpoint is
 /// digest-addressed in the cache like a well-known row's:
-/// `<cache>/pretrained/<kit>/hf/<sha256>/<file>`. Fetching the listing
+/// `<cache>/pretrained/hf/<sha256>/<file>`. Fetching the listing
 /// needs the `fetch` feature, unless the cache has it already.
 ///
 /// Resolving a ref without a cache is an error, and
@@ -607,13 +607,12 @@ impl HfProvider {
         Ok(None)
     }
 
-    /// The repo's file listing, through the cache: fetched once under
-    /// `kit`, read from there after.
+    /// The repo's file listing, through the cache: fetched once, read from
+    /// there after.
     #[cfg(feature = "cache")]
     fn listing(
         &self,
         name: &str,
-        kit: &str,
         cache: &PretrainedCache,
     ) -> BunsenResult<Vec<HfTreeEntry>> {
         use crate::errors::{
@@ -625,7 +624,7 @@ impl HfProvider {
 
         let (org, repo) = self.split(name)?;
         let resource = self.listing_resource(org, repo);
-        let resolved = cache.resolve(kit, &resource);
+        let resolved = cache.resolve(&resource);
         // The hub answers 401 to an anonymous caller both for a repo that is
         // not there and for a gated one.
         let unauthorized = resolved
@@ -718,10 +717,9 @@ impl PretrainedProvider for HfProvider {
     fn resolve(
         &self,
         name: &str,
-        kit: &str,
         cache: &PretrainedCache,
     ) -> BunsenResult<Option<Pretrained>> {
-        let listing = self.listing(name, kit, cache)?;
+        let listing = self.listing(name, cache)?;
         self.row_from_listing(name, &listing).map(Some)
     }
 
@@ -1121,7 +1119,7 @@ mod tests {
         let hf = HfProvider::new().with_origin(origin_of(serve_once("any", LISTING)));
 
         let online = cache_at(false);
-        let row = hf.resolve("org/repo", "kit", &online).unwrap().unwrap();
+        let row = hf.resolve("org/repo", &online).unwrap().unwrap();
         assert_eq!(row.name, "org/repo");
         let checkpoint = row.resources.get("checkpoint").unwrap();
         assert_eq!(
@@ -1136,7 +1134,7 @@ mod tests {
             ))]
         );
         assert_eq!(
-            online.status("kit", &hf.listing_resource("org", "repo")),
+            online.status(&hf.listing_resource("org", "repo")),
             CacheStatus::Cached,
             "the listing stays in the cache"
         );
@@ -1144,12 +1142,12 @@ mod tests {
         // Offline, the same ref resolves from the cached listing; the
         // server took one request and is gone.
         let offline = cache_at(true);
-        let again = hf.resolve("org/repo", "kit", &offline).unwrap().unwrap();
+        let again = hf.resolve("org/repo", &offline).unwrap().unwrap();
         assert_eq!(again, row);
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .display(text::starts_with("hf:org/other: file listing: "))
             .message_contains("the cache is offline")
-            .assert_err(&hf.resolve("org/other", "kit", &offline));
+            .assert_err(&hf.resolve("org/other", &offline));
 
         let gone = HfProvider::new().with_origin(origin_of(serve_status("any", 401)));
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -1162,6 +1160,6 @@ mod tests {
                     c.problem == crate::errors::LookupProblem::Unauthorized
                 },
             ))
-            .assert_err(&gone.resolve("nobody/nothing", "kit", &online));
+            .assert_err(&gone.resolve("nobody/nothing", &online));
     }
 }

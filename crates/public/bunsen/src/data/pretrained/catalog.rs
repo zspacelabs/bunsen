@@ -207,7 +207,7 @@ pub struct CatalogBundle {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<String>,
 
-    /// The cache segment its files live under: who published them.
+    /// Who published its files: the namespace its resources carry.
     pub namespace: String,
 
     /// The places every file name is appended to, in preference order.

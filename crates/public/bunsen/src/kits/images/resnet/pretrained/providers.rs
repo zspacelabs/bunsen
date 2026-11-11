@@ -10,8 +10,7 @@ use crate::data::pretrained::{
     PretrainedProvider,
 };
 
-/// The kit segment of a `ResNet` resource's path in the cache:
-/// `<cache>/pretrained/resnet/<namespace>/<sha256>/<file>`.
+/// The `ResNet` kit's name: its rows' `kit` tag.
 pub const RESNET_KIT: &str = "resnet";
 
 /// The key of the checkpoint in a `ResNet` resource bundle.

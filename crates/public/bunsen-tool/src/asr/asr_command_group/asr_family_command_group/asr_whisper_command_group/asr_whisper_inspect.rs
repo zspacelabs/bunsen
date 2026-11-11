@@ -14,7 +14,6 @@ use bunsen::{
             CHECKPOINT,
             GeometryMismatch,
             VOCABULARY,
-            WHISPER_KIT,
             WHISPER_PREFABS,
             WhisperVocabulary,
             default_whisper_factory,
@@ -80,7 +79,7 @@ impl AsrWhisperInspectCommand {
                 "  {key}: {} ({}, {pin}) [{}]",
                 r.file,
                 r.kind.as_deref().unwrap_or("unlabeled"),
-                cache.status(WHISPER_KIT, r),
+                cache.status(r),
             );
             for source in &r.sources {
                 println!("    {source}");
@@ -93,7 +92,7 @@ impl AsrWhisperInspectCommand {
             println!("  {:?}", prefab.to_config().geometry());
         }
 
-        let loaded = cache.load(WHISPER_KIT, &map)?;
+        let loaded = cache.load(&map)?;
         let checkpoint = loaded.family(CHECKPOINT);
         if checkpoint.is_empty() {
             return Err(BunsenError::lookup(
@@ -135,7 +134,7 @@ impl AsrWhisperInspectCommand {
             println!(
                 "vocabulary (by the checkpoint's layout): {} ({})",
                 vocab.name,
-                cache.status(WHISPER_KIT, r)
+                cache.status(r)
             );
         }
         Ok(())

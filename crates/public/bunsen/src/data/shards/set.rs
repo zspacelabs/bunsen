@@ -525,7 +525,7 @@ mod tests {
             ),
         )
         .unwrap();
-        let loaded = cache.load("shards", &map).unwrap();
+        let loaded = cache.load(&map).unwrap();
         for (key, part) in loaded.iter() {
             assert_eq!(part.provenance, Provenance::Downloaded, "{key}");
             assert_eq!(fs::read(&part.path).unwrap(), b"abc", "{key}");
@@ -534,7 +534,7 @@ mod tests {
                     .starts_with(dir.path().join("cache").join("pretrained"))
             );
         }
-        let again = cache.load("shards", &map).unwrap();
+        let again = cache.load(&map).unwrap();
         for (_, part) in again.iter() {
             assert_eq!(part.provenance, Provenance::Cached);
         }

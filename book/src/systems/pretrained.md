@@ -160,7 +160,9 @@ the config each row's default selection resolves to.
 ## The cache and its trust model
 
 A [`PretrainedCache`](bunsen::data::pretrained::PretrainedCache) keeps each
-pinned file at `<cache>/pretrained/<kit>/<namespace>/<sha256>/<file>`. **The
+pinned file at `<cache>/pretrained/<namespace>/<sha256>/<file>`, the namespace a
+catalog resource's full name (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two
+builds share is cached once; files off the catalog sit under `hf` and `given`. **The
 digest in the path is the pin.** A file there was verified when it was
 written, so later runs trust it without re-hashing gigabytes, and a model
 whose pin changes can never collide with a stale copy. The cache trusts the

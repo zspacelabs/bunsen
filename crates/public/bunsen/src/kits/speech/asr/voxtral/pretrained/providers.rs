@@ -12,8 +12,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Voxtral resource's path in the cache:
-/// `<cache>/pretrained/voxtral/<namespace>/<sha256>/<file>`.
+/// The Voxtral kit's name: its rows' `kit` tag.
 pub const VOXTRAL_KIT: &str = "voxtral";
 
 /// The key of the checkpoint in a Voxtral resource bundle.

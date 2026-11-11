@@ -39,8 +39,8 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
         WhisperVocabulary::Gpt2.resource_bundle(),
     ] {
         for (key, r) in &owned.resources {
-            assert_eq!(cache.status(WHISPER_KIT, r), CacheStatus::Cached, "{key}");
-            let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
+            assert_eq!(cache.status(r), CacheStatus::Cached, "{key}");
+            let resolved = cache.resolve(r).unwrap();
             assert_eq!(resolved.provenance, Provenance::Cached, "{key}");
             assert!(
                 resolved.path.starts_with(root),
@@ -58,7 +58,7 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
             Fuse::Strict,
         )
         .unwrap();
-    let loaded = cache.load(WHISPER_KIT, &base).unwrap();
+    let loaded = cache.load(&base).unwrap();
     assert_eq!(loaded.keys(), [CHECKPOINT, VOCABULARY]);
     for (_, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached);
@@ -103,7 +103,7 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
         "the same file, pinned the same"
     );
 
-    let loaded = cache.load(WHISPER_KIT, &map).unwrap();
+    let loaded = cache.load(&map).unwrap();
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::LocalDir, "{key}");
     }
@@ -135,9 +135,7 @@ fn test_the_bundle_serves_openai_base() {
     assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
     assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 
-    let loaded = cache
-        .load(WHISPER_KIT, &model.to_resource_bundle())
-        .unwrap();
+    let loaded = cache.load(&model.to_resource_bundle()).unwrap();
     assert_eq!(loaded.map.name, "well-known:openai/whisper/base");
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");

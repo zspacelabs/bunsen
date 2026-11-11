@@ -12,8 +12,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Parakeet resource's path in the cache:
-/// `<cache>/pretrained/parakeet/<namespace>/<sha256>/<file>`.
+/// The Parakeet kit's name: its rows' `kit` tag.
 pub const PARAKEET_KIT: &str = "parakeet";
 
 /// The key of the checkpoint in a Parakeet resource bundle.

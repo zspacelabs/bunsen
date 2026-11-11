@@ -20,8 +20,7 @@ use crate::{
     },
 };
 
-/// The kit segment of a Gemma resource's path in the cache:
-/// `<cache>/pretrained/gemma/<namespace>/<sha256>/<file>`.
+/// The Gemma kit's name: its rows' `kit` tag.
 pub const GEMMA_KIT: &str = "gemma";
 
 /// The key of the checkpoint in a Gemma resource bundle: one

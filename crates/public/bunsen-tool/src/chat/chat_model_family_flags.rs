@@ -216,22 +216,22 @@ impl ChatModelFamily {
             ChatModelFamily::Qwen3 => {
                 let model = default_qwen3_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(QWEN3_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
             ChatModelFamily::Qwen3_5 => {
                 let model = default_qwen3_5_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(QWEN3_5_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
             ChatModelFamily::Gemma => {
                 let model = default_gemma_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(GEMMA_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
             ChatModelFamily::NanoChat => {
                 let model = default_nanochat_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(NANOCHAT_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
         };
         println!("{id}:");

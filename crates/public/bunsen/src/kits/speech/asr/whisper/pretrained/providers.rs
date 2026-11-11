@@ -11,8 +11,7 @@ use crate::{
     kits::speech::asr::whisper::pretrained::CHECKPOINT,
 };
 
-/// The kit segment of a Whisper resource's path in the cache:
-/// `<cache>/pretrained/whisper/<namespace>/<sha256>/<file>`.
+/// The Whisper kit's name: its rows' `kit` tag.
 pub const WHISPER_KIT: &str = "whisper";
 
 /// The name of the local-dir base that is `openai-whisper`'s download
@@ -132,13 +131,21 @@ mod tests {
     }
 
     /// The vocabulary a row declares is the one the rule selects for its
-    /// prefab's layout, so a name and a path agree on it.
+    /// prefab's layout, so a name and a path agree on it: the built-in
+    /// catalog's row of each per-kit row, which names the prefab.
     #[test]
     fn test_the_declared_vocabulary_is_the_rules() {
+        use crate::data::pretrained::PretrainedProvider;
+
+        let builtin = crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            WHISPER_CATALOG_CONTRACT,
+            WHISPER_KIT,
+        );
         let table = WHISPER_CATALOG.table();
         let openai = &table.groups[0];
         for row in &openai.items {
-            let declared = row.resources.get(VOCABULARY).unwrap();
+            let built = builtin.lookup(&openai.id(row)).unwrap().unwrap();
+            let declared = built.resources.get(VOCABULARY).unwrap();
             let rule = WhisperVocabulary::for_layout(&layout_of(row.prefab.as_deref().unwrap()))
                 .resource_bundle();
             let rule = rule.get(VOCABULARY).unwrap();

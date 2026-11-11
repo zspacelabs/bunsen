@@ -358,7 +358,7 @@ pub fn fetch_with<H: ConstructInit>(
     for name in names {
         let model = factory.resolve(name, cache)?;
         let map = model.plan(cache)?;
-        let loaded = cache.load(H::KIT, &map)?;
+        let loaded = cache.load(&map)?;
         writeln!(out, "{}:", model.id()).map_err(w)?;
         for (key, part) in loaded.iter() {
             writeln!(

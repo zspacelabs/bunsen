@@ -11,8 +11,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a nanochat resource's path in the cache:
-/// `<cache>/pretrained/nanochat/<namespace>/<sha256>/<file>`.
+/// The nanochat kit's name: its rows' `kit` tag.
 pub const NANOCHAT_KIT: &str = "nanochat";
 
 /// The `kind` of a `PyTorch` state dict (`torch.save`), as upstream writes

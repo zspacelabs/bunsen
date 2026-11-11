@@ -13,7 +13,6 @@ use bunsen::{
             TOKENIZER,
             TOKENIZER_CONFIG,
             pretrained::{
-                GEMMA_KIT,
                 GEMMA_TEMPLATE_CLASS,
                 default_gemma_factory,
             },
@@ -46,7 +45,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
         }
     }
     let loaded = weights_cache()
-        .load(GEMMA_KIT, &map)
+        .load(&map)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
     (
         loaded.expect(TOKENIZER).unwrap().to_path_buf(),

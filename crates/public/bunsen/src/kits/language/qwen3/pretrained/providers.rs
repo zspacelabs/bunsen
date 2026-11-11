@@ -19,8 +19,7 @@ use crate::{
     },
 };
 
-/// The kit segment of a Qwen3 resource's path in the cache:
-/// `<cache>/pretrained/qwen3/<namespace>/<sha256>/<file>`.
+/// The Qwen3 kit's name: its rows' `kit` tag.
 pub const QWEN3_KIT: &str = "qwen3";
 
 /// The key of the checkpoint in a Qwen3 resource bundle: one

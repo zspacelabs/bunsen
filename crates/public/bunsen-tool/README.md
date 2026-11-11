@@ -851,13 +851,14 @@ the geometries. Neither needs a backend.
 `bunsen-tool cache` manages the weights cache every family loads through (`bunsen_app::cache`):
 
 ```sh
-bunsen-tool cache path                         # the cache directory
-bunsen-tool cache list [KIT[/NAMESPACE]]       # each file's kit, namespace, size, fetched and last used (UTC), pin
-bunsen-tool cache clear [KIT[/NAMESPACE]] [--partial] [--age AGE] [--yes]
+bunsen-tool cache path                                 # the cache directory
+bunsen-tool cache list [NAME]                          # each file's namespace, size, fetched and last used (UTC), pin
+bunsen-tool cache clear [NAME] [--partial] [--age AGE] [--yes]
 ```
 
-The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer), `silero_vad` (the VAD the
-`conservative` preset loads), `qwen3`, `gemma` and `nanochat`.
+A file is cached under its namespace: its resource's full name in the built-in catalog
+(`openai/whisper/base/checkpoint`), or `hf` and `given` for the files no catalog names. `NAME` selects the namespaces
+under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`.
 `clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads, and `--age 30d` the
 files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
 and checking what is cached, do not.
@@ -889,7 +890,8 @@ Whisper's index keeps three things apart, because they vary independently:
   `openai-whisper`'s `~/.cache/whisper` (`--upstream-cache-dir`), whose file is used in place, then upstream's
   digest-addressed URL, streamed to a `.partial`, hashed as it lands, and renamed into place only on a match.
 
-Fetched files live at `<cache>/pretrained/whisper/<namespace>/<sha256>/<file>`: the digest in the path is the pin, so
+Fetched files live at `<cache>/pretrained/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
+(`openai/whisper/base/checkpoint`): the digest in the path is the pin, so
 a file there is trusted without re-hashing, and a directory laid out this way is the cache (`fetch` fills one ahead
 of time for a deployment that runs `--offline`). `hf:openai/whisper-large-v3` is a Hugging Face repo's safetensors
 checkpoint at `main`, sharded or not, each file pinned by the digest the hub's listing carries; its vocabulary is the

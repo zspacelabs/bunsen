@@ -390,9 +390,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     ) -> BunsenResult<Deferred<H>> {
         let resolve = || -> BunsenResult<Deferred<H>> {
             let expr = LookupExpr::parse(spec)?;
-            let found = self.find(&expr.name, |provider, name| {
-                provider.resolve(name, H::KIT, cache)
-            })?;
+            let found = self.find(&expr.name, |provider, name| provider.resolve(name, cache))?;
             let (provider, pretrained) = match found {
                 Some(found) => found,
                 None => return Err(self.not_found(&expr.name)),

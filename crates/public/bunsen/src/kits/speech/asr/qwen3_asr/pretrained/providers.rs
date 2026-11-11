@@ -12,8 +12,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Qwen3-ASR resource's path in the cache:
-/// `<cache>/pretrained/qwen3-asr/<namespace>/<sha256>/<file>`.
+/// The Qwen3-ASR kit's name: its rows' `kit` tag.
 pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
 
 /// The key of the checkpoint in a Qwen3-ASR resource bundle.

@@ -60,8 +60,8 @@
 //!   ([`catalog_contracts`](support::catalog_contracts)).
 //! - **A construct config.** `{Kit}ConstructConfig` is the kit's hook, its
 //!   [`ConstructInit`](crate::kits::support::construct::ConstructInit): the
-//!   cache segment its files land under (`{KIT}_KIT`), and how the loaded files
-//!   become its construct, `{Kit}Construct`.
+//!   kit's name (`{KIT}_KIT`), and how the loaded files become its construct,
+//!   `{Kit}Construct`.
 //! - **`default_{kit}_factory()`.** A
 //!   [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
 //!   over the default providers, behind the construct config. A name to a model

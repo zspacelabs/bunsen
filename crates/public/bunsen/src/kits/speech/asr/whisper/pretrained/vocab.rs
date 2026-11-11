@@ -6,7 +6,6 @@ use crate::{
     kits::{
         speech::asr::whisper::pretrained::{
             VOCABULARY,
-            WHISPER_KIT,
             WhisperVocabulary,
         },
         support::tokens::TiktokenRanks,
@@ -35,7 +34,7 @@ impl WhisperVocabulary {
         cache: &PretrainedCache,
     ) -> BunsenResult<TiktokenRanks> {
         let map = self.resource_bundle();
-        let resolved = cache.resolve(WHISPER_KIT, map.try_get(VOCABULARY)?)?;
+        let resolved = cache.resolve(map.try_get(VOCABULARY)?)?;
         TiktokenRanks::load(&resolved.path)
     }
 }

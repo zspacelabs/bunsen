@@ -161,6 +161,15 @@ fn differences(
         if o.dtype.is_none() {
             o.dtype = n.dtype.clone();
         }
+        // The new cache namespace is the resource's full name, under its old
+        // group's publisher.
+        if !n.namespace.starts_with(&format!("{}/", o.namespace)) {
+            differ(format!(
+                "resource {key}: namespace {:?} not under {:?}",
+                n.namespace, o.namespace
+            ));
+        }
+        o.namespace = n.namespace.clone();
         if &o != n {
             differ(format!("resource {key}: {o:?} vs {n:?}"));
         }

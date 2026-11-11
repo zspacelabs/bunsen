@@ -11,8 +11,7 @@ pub const CHECKPOINT: &str = "checkpoint";
 /// The key of the `.tiktoken` vocabulary in a Whisper resource bundle.
 pub const VOCABULARY: &str = "vocabulary";
 
-/// The namespace every `openai` resource is cached under:
-/// `pretrained/whisper/openai/<sha256>/<file>`.
+/// The namespace of the per-kit catalog's `openai` bundles.
 pub const OPENAI_NAMESPACE: &str = "openai";
 
 /// The label on every `openai` checkpoint.
@@ -161,7 +160,7 @@ mod tests {
             owned.validate().unwrap();
             assert_eq!(owned.keys(), [VOCABULARY], "{}", owned.name);
             let r = owned.get(VOCABULARY).unwrap();
-            assert_eq!(r.namespace, OPENAI_NAMESPACE);
+            assert_eq!(r.namespace, vocabulary.resource_name());
             assert_eq!(r.kind.as_deref(), Some(TIKTOKEN));
             assert!(r.is_pinned());
             assert_eq!(owned.name, vocabulary.resource_name());

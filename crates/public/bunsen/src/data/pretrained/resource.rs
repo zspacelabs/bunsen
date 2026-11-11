@@ -201,7 +201,9 @@ pub struct Resource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dtype: Option<String>,
 
-    /// The cache segment its file lives under: who published it.
+    /// The cache namespace its file lives under: a catalog resource's full
+    /// name (`qwen/qwen3/qwen3-0.6b/checkpoint`), `hf` for an `hf:` repo's
+    /// file, `given` for a path's.
     pub namespace: String,
 
     /// Where the file can be had from, in preference order, its resource

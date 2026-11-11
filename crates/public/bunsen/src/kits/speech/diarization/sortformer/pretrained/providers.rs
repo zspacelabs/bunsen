@@ -12,8 +12,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Sortformer resource's path in the cache:
-/// `<cache>/pretrained/sortformer/<namespace>/<sha256>/<file>`.
+/// The Sortformer kit's name: its rows' `kit` tag.
 pub const SORTFORMER_KIT: &str = "sortformer";
 
 /// The key of the checkpoint in a Sortformer resource bundle.

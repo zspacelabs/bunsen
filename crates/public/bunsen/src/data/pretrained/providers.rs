@@ -92,8 +92,8 @@ pub trait PretrainedProvider: Send + Sync + fmt::Debug {
     /// The row `name` refers to, with a cache to hand: what a factory
     /// asks when it resolves a spec to load. The default is
     /// [`lookup`](Self::lookup). A hub answers here instead, asking the
-    /// hub what the repo holds once and keeping the answer in the cache
-    /// under `kit`, so the same ref is answered offline after.
+    /// hub what the repo holds once and keeping the answer in the cache, so
+    /// the same ref is answered offline after.
     ///
     /// # Errors
     /// The provider's own, as [`lookup`](Self::lookup).
@@ -101,10 +101,9 @@ pub trait PretrainedProvider: Send + Sync + fmt::Debug {
     fn resolve(
         &self,
         name: &str,
-        kit: &str,
         cache: &PretrainedCache,
     ) -> BunsenResult<Option<Pretrained>> {
-        let _ = (kit, cache);
+        let _ = cache;
         self.lookup(name)
     }
 

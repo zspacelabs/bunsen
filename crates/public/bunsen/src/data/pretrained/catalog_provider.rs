@@ -246,7 +246,7 @@ pub fn build_row(
     resources.license = build.license.clone();
     resources.origin = build.origin.clone();
     for (slot, bound) in &build.resources {
-        let namespace = bound.resource.segments()[0].clone();
+        let namespace = bound.resource.to_string();
         for resource in slot_resources(slot, &bound.entry, &namespace) {
             resources = resources.with_resource(resource);
         }
@@ -378,7 +378,7 @@ pub fn builtin_resource_bundle(
     if let Some(description) = &entry.description {
         bundle.description = description.clone();
     }
-    for r in slot_resources(key, entry, &name.segments()[0]) {
+    for r in slot_resources(key, entry, &name.to_string()) {
         bundle = bundle.with_resource(r);
     }
     Ok(bundle)
@@ -502,7 +502,11 @@ mod tests {
         let whisper = provider("whisper-asr");
         let v1 = whisper.find("large-v1").unwrap().unwrap();
         let checkpoint = v1.resources.get("checkpoint").unwrap();
-        assert_eq!(checkpoint.namespace, "openai");
+        // Cached under the resource's full name.
+        assert_eq!(
+            checkpoint.namespace,
+            "openai/whisper/large/large-v1/checkpoint"
+        );
         assert_eq!(checkpoint.dtype.as_deref(), Some("float16"));
         assert!(
             matches!(&checkpoint.sources[0], Source::LocalDir { name, .. } if name == "openai-whisper")

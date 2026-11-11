@@ -390,7 +390,7 @@ impl ConstructInit for WhisperConstructConfig {
         if checkpoint.is_empty() {
             map.try_get(CHECKPOINT)?;
         }
-        let loaded = cache.load(WHISPER_KIT, &checkpoint)?;
+        let loaded = cache.load(&checkpoint)?;
         let cfg = self.scan(model, &loaded)?;
 
         let ids = *cfg

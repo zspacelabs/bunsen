@@ -91,17 +91,23 @@ pub enum CacheAction {
 
     /// List the cached weights, file by file, then the total.
     ///
-    /// Each file's kit, namespace, size, when it was fetched and last loaded
-    /// (UTC), and its pin. Listing loads nothing, so it changes no file's last
-    /// use.
+    /// Each file's namespace (its resource's full name, or `hf` or `given` off
+    /// the catalog), size, when it was fetched and last loaded (UTC), and its
+    /// pin. Listing loads nothing, so it changes no file's last use.
     List {
-        /// `kit` or `kit/namespace`; every file when omitted.
+        /// The namespaces under this name; every file when omitted.
+        ///
+        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given` for
+        /// the files no catalog names.
         selector: Option<CacheSelector>,
     },
 
     /// Remove cached weights; without `--yes`, only list what would go.
     Clear {
-        /// `kit` or `kit/namespace`; every file when omitted.
+        /// The namespaces under this name; every file when omitted.
+        ///
+        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given` for
+        /// the files no catalog names.
         selector: Option<CacheSelector>,
 
         /// Only unfinished downloads.
@@ -245,8 +251,8 @@ fn utc_minute(time: Option<SystemTime>) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
-/// One row per file: kit, namespace, file (marked when partial), size, when
-/// it was fetched and last loaded, and the pin's first 12 characters.
+/// One row per file: namespace, file (marked when partial), size, when it was
+/// fetched and last loaded, and the pin's first 12 characters.
 fn write_table(
     files: &[CachedFile],
     out: &mut impl Write,
@@ -261,25 +267,20 @@ fn write_table(
             f.file.clone()
         }
     };
-    let widths = files.iter().fold([3, 9, 4], |[k, n, f], file| {
-        [
-            k.max(file.kit.len()),
-            n.max(file.namespace.len()),
-            f.max(name(file).len()),
-        ]
+    let widths = files.iter().fold([9, 4], |[n, f], file| {
+        [n.max(file.namespace.len()), f.max(name(file).len())]
     });
-    let [k, n, f] = widths;
+    let [n, f] = widths;
     writeln!(
         out,
-        "{:k$}  {:n$}  {:f$}  {:>9}  {:16}  {:16}  PIN",
-        "KIT", "NAMESPACE", "FILE", "SIZE", "FETCHED (UTC)", "LAST USED (UTC)"
+        "{:n$}  {:f$}  {:>9}  {:16}  {:16}  PIN",
+        "NAMESPACE", "FILE", "SIZE", "FETCHED (UTC)", "LAST USED (UTC)"
     )?;
     for file in files {
         let pin: String = file.pin.chars().take(12).collect();
         writeln!(
             out,
-            "{:k$}  {:n$}  {:f$}  {:>9}  {:16}  {:16}  {pin}",
-            file.kit,
+            "{:n$}  {:f$}  {:>9}  {:16}  {:16}  {pin}",
             file.namespace,
             name(file),
             human_bytes(file.bytes),
@@ -367,7 +368,7 @@ mod tests {
             "--cache-dir",
             "/tmp/c",
             "clear",
-            "whisper/openai",
+            "openai/whisper",
             "--partial",
         ])
         .unwrap();
@@ -382,9 +383,9 @@ mod tests {
         else {
             panic!("clear");
         };
-        assert_eq!(selector, Some("whisper/openai".parse().unwrap()));
+        assert_eq!(selector, Some("openai/whisper".parse().unwrap()));
         assert!(partial && !yes);
-        assert!(Cli::try_parse_from(["x", "cache", "list", "a/b/c"]).is_err());
+        assert!(Cli::try_parse_from(["x", "cache", "list", "a//b"]).is_err());
     }
 
     #[test]
@@ -411,9 +412,20 @@ mod tests {
     fn test_dates_and_clear_by_age() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path());
-        put(&cache, "whisper/openai/aaaa/old.pt", 1_000);
-        put(&cache, "whisper/openai/bbbb/new.pt", 2_000);
-        let old = cache.pretrained_dir().join("whisper/openai/aaaa/old.pt");
+        let (a, b) = ("a".repeat(64), "b".repeat(64));
+        put(
+            &cache,
+            &format!("openai/whisper/old/checkpoint/{a}/old.pt"),
+            1_000,
+        );
+        put(
+            &cache,
+            &format!("openai/whisper/new/checkpoint/{b}/new.pt"),
+            2_000,
+        );
+        let old = cache
+            .pretrained_dir()
+            .join(format!("openai/whisper/old/checkpoint/{a}/old.pt"));
         let then = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
         fs::File::options()
             .write(true)
@@ -449,9 +461,23 @@ mod tests {
     fn test_path_list_and_clear() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path());
-        put(&cache, "whisper/openai/65147644a518d12f/tiny.pt", 2_000);
-        put(&cache, "whisper/openai/aaaa/base.pt.partial", 500);
-        put(&cache, "parakeet/nvidia/bbbb/model.safetensors", 3_000_000);
+        let tiny = format!("65147644a518{}", "d".repeat(52));
+        let (a, b) = ("a".repeat(64), "b".repeat(64));
+        put(
+            &cache,
+            &format!("openai/whisper/tiny/checkpoint/{tiny}/tiny.pt"),
+            2_000,
+        );
+        put(
+            &cache,
+            &format!("openai/whisper/base/checkpoint/{a}/base.pt.partial"),
+            500,
+        );
+        put(
+            &cache,
+            &format!("nvidia/parakeet-tdt-0.6b-v3/checkpoint/{b}/model.safetensors"),
+            3_000_000,
+        );
 
         assert_eq!(
             run(&CacheAction::Path, &cache).trim(),
@@ -461,14 +487,14 @@ mod tests {
         let list = run(&CacheAction::List { selector: None }, &cache);
         let lines: Vec<&str> = list.lines().collect();
         assert_eq!(lines.len(), 5, "{list}");
-        assert!(lines[0].starts_with("KIT"));
-        assert!(lines[1].starts_with("parakeet") && lines[1].contains("3.0 MB"));
-        assert!(lines[3].contains("base.pt (partial)"));
-        assert!(lines[2].ends_with("65147644a518"));
+        assert!(lines[0].starts_with("NAMESPACE"));
+        assert!(lines[1].starts_with("nvidia/parakeet") && lines[1].contains("3.0 MB"));
+        assert!(lines[2].contains("base.pt (partial)"));
+        assert!(lines[3].ends_with("65147644a518"));
         assert!(lines[4].starts_with("3 files, 3.0 MB"), "{}", lines[4]);
 
         let dry = CacheAction::Clear {
-            selector: Some("whisper".parse().unwrap()),
+            selector: Some("openai/whisper".parse().unwrap()),
             partial: true,
             age: None,
             yes: false,
@@ -481,7 +507,7 @@ mod tests {
         );
 
         let partial = CacheAction::Clear {
-            selector: Some("whisper".parse().unwrap()),
+            selector: Some("openai/whisper".parse().unwrap()),
             partial: true,
             age: None,
             yes: true,
@@ -494,6 +520,6 @@ mod tests {
             yes: true,
         };
         assert!(run(&all, &cache).contains("removed 2 files, 3.0 MB"));
-        assert!(run(&all, &cache).contains("nothing cached for every kit"));
+        assert!(run(&all, &cache).contains("nothing cached for every resource"));
     }
 }

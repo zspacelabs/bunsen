@@ -20,8 +20,7 @@ use crate::{
     },
 };
 
-/// The kit segment of a Qwen3.5 resource's path in the cache:
-/// `<cache>/pretrained/qwen3.5/<namespace>/<sha256>/<file>`.
+/// The Qwen3.5 kit's name: its rows' `kit` tag.
 pub const QWEN3_5_KIT: &str = "qwen3.5";
 
 /// The key of the checkpoint in a Qwen3.5 resource bundle: one

@@ -68,7 +68,7 @@ use crate::{
 /// policy and the device allow it, never f16 (whose range a bf16-trained
 /// model's activations exceed).
 pub trait TransformersLmKit: Default {
-    /// The cache segment ([`ConstructInit::KIT`]).
+    /// The kit's name ([`ConstructInit::KIT`]).
     const KIT: &'static str;
 
     /// The kit's name, in errors: `"Qwen3"`.

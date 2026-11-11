@@ -11,7 +11,6 @@ use bunsen::{
     },
     kits::language::qwen3_5::{
         pretrained::{
-            QWEN3_5_KIT,
             QWEN3_5_PREFABS,
             default_qwen3_5_factory,
         },
@@ -31,9 +30,7 @@ fn test_every_row_is_its_prefab() {
         let (_, row) = factory.lookup(&id).unwrap();
         let mut map = ResourceBundle::new(row.resources.name.clone());
         map.insert(row.resources.try_get(CONFIG).unwrap().clone());
-        let loaded = cache
-            .load(QWEN3_5_KIT, &map)
-            .unwrap_or_else(|e| panic!("{id}: {e}"));
+        let loaded = cache.load(&map).unwrap_or_else(|e| panic!("{id}: {e}"));
         let json = std::fs::read_to_string(loaded.expect(CONFIG).unwrap()).unwrap();
         let config =
             qwen3_5_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));

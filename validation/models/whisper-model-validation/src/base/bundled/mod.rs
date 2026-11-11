@@ -64,7 +64,7 @@ pub fn cache_in(dir: PathBuf) -> PretrainedCache {
 pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
     let map = WhisperVocabulary::for_layout(ids).resource_bundle();
     offline_cache()
-        .resolve(WHISPER_KIT, map.try_get(VOCABULARY).unwrap())
+        .resolve(map.try_get(VOCABULARY).unwrap())
         .unwrap()
         .path
 }
