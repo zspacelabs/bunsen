@@ -1232,6 +1232,9 @@ dependencies = [
  "document-features",
  "env_logger",
  "log",
+ "serde",
+ "serde-saphyr",
+ "serde_json",
  "tempfile",
  "time",
 ]
@@ -8453,6 +8456,17 @@ name = "presser"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
+
+[[package]]
+name = "pretrained-catalog"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "bunsen-app",
+ "clap",
+ "serde-saphyr",
+ "serde_json",
+]
 
 [[package]]
 name = "prettyplease"

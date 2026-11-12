@@ -1,0 +1,104 @@
+# OpenAI Whisper: the large models and their release sequence under one
+# group, a template class whose references resolve where it is written,
+# a categorical `task` axis that one build narrows, and a tag scoped to the
+# family.
+$description: "OpenAI Whisper speech recognition."
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $facet: family
+    $description: "Whisper."
+    $requires: [language, parameters]
+    timestamps:
+      $kind: tag
+      $type: $bool
+      $description: "Whether the build decodes with timestamp tokens by default."
+    vocabulary:
+      $kind: resource
+      $file: multilingual.tiktoken
+      $format: tiktoken
+      $sha256: "2000000000000000000000000000000000000000000000000000000000000001"
+      $sources: [{ $url: "https://openaipublic.azureedge.net/whisper/multilingual.tiktoken" }]
+    multilingual:
+      $kind: template_class
+      $description: "Multilingual Whisper: transcribes, or translates into English."
+      $contract: whisper-asr
+      $resources: { vocabulary: vocabulary }
+      language: [en, "*"]
+      $presets:
+        $axes:
+          task: { $offers: [transcribe, translate], $default: transcribe }
+        transcribe:
+          $description: "Transcribe in the spoken language."
+          $patch: { task: transcribe }
+        translate: { $description: "Translate into English.", $patch: { task: translate } }
+    large:
+      $kind: namespace
+      $description: "The large Whisper models."
+      release:
+        $kind: release
+        $description: "The large Whisper releases, each a drop-in update."
+      large-v1:
+        $kind: build
+        $description: "Whisper large (v1)."
+        $template_class: multilingual
+        $join: [{ $group: release, $released: "2022-09" }]
+        $resources: { checkpoint: checkpoint }
+        parameters: 1550000000
+        checkpoint:
+          $kind: resource
+          $file: large-v1.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000001"
+          # openai-whisper's own download root first, then its CDN, by the file's name.
+          $sources:
+            - { $local_dir: { $name: openai-whisper, $default: ["$XDG_CACHE_HOME/whisper", "~/.cache/whisper"] } }
+            - { $base_url: "https://openaipublic.azureedge.net/main/whisper/models/3000000000000000000000000000000000000000000000000000000000000001" }
+      large-v2:
+        $kind: build
+        $description: "Whisper large-v2."
+        $template_class: multilingual
+        $join: [{ $group: release, $released: "2022-12" }]
+        $resources: { checkpoint: checkpoint }
+        parameters: 1550000000
+        checkpoint:
+          $kind: resource
+          $file: large-v2.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000002"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v2.pt" }]
+      large-v3:
+        $kind: build
+        $description: "Whisper large-v3."
+        $template_class: multilingual
+        $join: [{ $group: release, $released: "2023-11-06" }]
+        $resources: { checkpoint: checkpoint }
+        parameters: 1550000000
+        timestamps: true
+        checkpoint:
+          $kind: resource
+          $file: large-v3.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000003"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v3.pt" }]
+      large-v3-turbo:
+        $kind: build
+        $description: "Whisper large-v3-turbo: a pruned large-v3, not trained to translate."
+        $template_class: multilingual
+        $resources: { checkpoint: checkpoint }
+        parameters: 809000000
+        $presets:
+          $axes:
+            task: { $offers: [transcribe], $default: transcribe }
+        checkpoint:
+          $kind: resource
+          $file: large-v3-turbo.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000004"
+          $sources: [{ $url: "https://openaipublic.azureedge.net/main/whisper/models/large-v3-turbo.pt" }]

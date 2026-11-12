@@ -1,0 +1,44 @@
+# The vocabulary every other catalog uses: the contracts, facets, registered
+# axes and tags, and the template-class root. It is always the bottom of the
+# stack, and the only catalog with `$contracts`.
+$description: "Vocabulary: contracts, facets, registered axes and tags, and the template-class root."
+$contracts:
+  qwen3-lm:
+    $kind: contract
+    $description: "A Qwen3-architecture causal LM, as transformers lays it out."
+    $resources:
+      checkpoint: { $format: [safetensors, safetensors-index], $description: "The weights." }
+      config: { $format: [json], $description: "transformers' config.json: the geometry." }
+      tokenizer: { $format: [tokenizer.json] }
+      generation_config: { $format: [json], $optional: true }
+  whisper-asr:
+    $kind: contract
+    $description: "An OpenAI Whisper checkpoint and its tiktoken vocabulary."
+    $resources:
+      checkpoint: { $format: [pytorch], $description: "The .pt, which carries its own dims." }
+      vocabulary: { $format: [tiktoken] }
+publisher: { $kind: facet, $description: "Who publishes the checkpoints." }
+family: { $kind: facet, $description: "A line of related architectures." }
+thinking: { $kind: axis, $axis: bool, $description: "Whether the model thinks before it answers." }
+task:
+  $kind: axis
+  $axis: categorical
+  $members: [transcribe, translate]
+  $description: "What to make of the speech."
+parameters: { $kind: tag, $type: $count, $description: "The parameter count." }
+instruct:
+  $kind: tag
+  $type: $bool
+  $description: "Tuned to follow instructions; `false` for a pretrained base checkpoint."
+language:
+  $kind: tag
+  $type: $languages
+  $description: "The languages the model handles; `*` for others it wasn't measured on."
+scores:
+  $kind: tag
+  $type: { $map: $number }
+  $description: "Benchmark scores, by name, where they were measured."
+template_class_root:
+  $kind: template_class
+  $description: "The root of every template-class chain."
+  $required_facets: [publisher, family]

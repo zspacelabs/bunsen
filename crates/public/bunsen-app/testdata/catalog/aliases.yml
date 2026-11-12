@@ -1,0 +1,7 @@
+# Aliases over the example catalogs: one at the root, one in a namespace above
+# the build it names.
+newest: { $kind: alias, $ref: { $path: openai/whisper/large/large-v3, $kind: build } }
+openai:
+  $kind: namespace
+  $merge: update
+  large: { $kind: alias, $ref: { $path: whisper/large/large-v3, $kind: build } }

@@ -2,6 +2,8 @@
 //!
 //! - [`cache`]: the weights cache's flags, and its `path`, `list` and `clear`
 //!   commands.
+//! - [`catalog`]: the build catalogs' commands: import catalogs, then dump,
+//!   browse, show, resolve and select over them.
 //! - [`device`]: `--device` and precision flags, resolved into a configured
 //!   burn `Device`.
 //! - [`logging`]: log-level flags.
@@ -14,6 +16,7 @@
 #![doc = document_features::document_features!()]
 
 pub mod cache;
+pub mod catalog;
 pub mod device;
 pub mod logging;
 pub mod shards;

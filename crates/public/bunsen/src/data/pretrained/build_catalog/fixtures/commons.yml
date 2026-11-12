@@ -1,0 +1,4 @@
+# Groups that more than one catalog refers to: the publishers.
+$description: "Shared groups: publishers."
+qwen: { $kind: namespace, $facet: publisher, $description: "Qwen, Alibaba Cloud's model team." }
+openai: { $kind: namespace, $facet: publisher, $description: "OpenAI." }

@@ -1,0 +1,25 @@
+[package]
+name = "pretrained-catalog"
+description = "Examples and integration tests over bunsen's build catalogs, and `bunsen-tool catalog` on its own as the `pretrained-catalog` bin, without the model kits."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+bunsen = { path = "../../public/bunsen", default-features = false, features = ["std"] }
+bunsen-app = { path = "../../public/bunsen-app" }
+clap = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde-saphyr = { workspace = true, features = ["serialize"] }
+
+[[bin]]
+name = "pretrained-catalog"
+path = "src/bin/pretrained-catalog.rs"
+
+[lints]
+workspace = true
