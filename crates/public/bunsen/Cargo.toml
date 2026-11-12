@@ -89,8 +89,8 @@ sims = [
 ## backends turns it on: `data`, the kits, the simulations, audio, the test
 ## support and the rest need files, threads or clocks. It turns on burn's
 ## `std`, the dependencies' own, and the dependencies only `std` has
-## (`dashmap`, `time`, and `serde-saphyr`, which reads and writes the build
-## catalogs).
+## (`dashmap`, `time`, `serde-saphyr`, which reads and writes the build
+## catalogs, and `bunsen-catalog`, the built-in one).
 std = [
     "burn/std",
     "serde/std",
@@ -99,6 +99,7 @@ std = [
     "strum/std",
     "thiserror/std",
     "dep:dashmap",
+    "dep:bunsen-catalog",
     "dep:serde-saphyr",
     "dep:time",
 ]
@@ -259,6 +260,7 @@ audit = [
 [dependencies]
 log = { workspace = true }
 bunsen-contracts-macros = { version = "0.41.0", path = "../bunsen-contracts-macros" }
+bunsen-catalog = { version = "0.41.0", path = "../bunsen-catalog", optional = true }
 
 bunsen-fetch = { version = "0.41.0", path = "../bunsen-fetch", optional = true }
 

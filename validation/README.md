@@ -11,6 +11,7 @@ onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and
 onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
 models.yml, profiles/               the validation schedule of models and the profiles that choose from it
 catalogs/{kit}.yml                  each kit's pretrained catalog source, which `cargo validate catalog` builds into the kit
+catalog_builder/                   `cargo catalog`: builds bunsen's built-in catalog from its probe contracts (probe_contracts/)
 models/{model}-model-validation/   each model's cross-checks
 tools/                             the fixture generators whose output lands in models/*/testdata
 ```

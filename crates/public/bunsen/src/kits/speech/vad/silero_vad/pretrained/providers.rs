@@ -40,6 +40,11 @@ pub const SILERO_NAMESPACE: &str = "silero";
 pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
     crate::data::pretrained::EmbeddedCatalog::new("silero", include_str!("catalog.json"));
 
+/// What the `silero_vad` kit's loader implements, as a build catalog's
+/// contract: `contract.yml`, gathered by
+/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+pub const SILERO_CONTRACT: &str = include_str!("contract.yml");
+
 /// Silero's compiled-in providers: the well-known table (with
 /// `store`), and none without it.
 ///
@@ -112,5 +117,16 @@ mod tests {
                 "{spec}"
             );
         }
+    }
+
+    /// `contract.yml` loads as a base catalog's contracts, and its slots are
+    /// the resource keys the loader reads, of the kinds it reads them as.
+    #[test]
+    fn test_the_contract_is_the_loaders() {
+        use crate::kits::support::catalog_contracts::testing::contract_lines;
+        assert_eq!(
+            contract_lines(SILERO_CONTRACT),
+            [format!("silero-vad: {CHECKPOINT} [{SAFETENSORS_KIND}]")]
+        );
     }
 }

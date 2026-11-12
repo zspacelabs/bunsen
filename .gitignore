@@ -34,3 +34,6 @@ target
 .claude/
 # Assets fetched by dev crates (see dev_crates/whisper-onnx-crosscheck)
 **/.cache/
+
+# ryl's lint and format cache.
+.ryl_cache/

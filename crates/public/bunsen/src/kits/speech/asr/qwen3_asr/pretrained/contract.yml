@@ -1,0 +1,32 @@
+# What the qwen3-asr kit's loader reads: a Qwen3-ASR model, from a Phonon
+# archive or transformers' safetensors, its geometry from config.json or
+# stated.
+qwen3-asr:
+  $kind: contract
+  $abstract: true
+  $description: >-
+    A Qwen3-ASR speech recognizer: a Phonon-1 archive or transformers' safetensors, and its
+    tokenizer.
+  $resources:
+    checkpoint:
+      $format: [phonon archive, safetensors]
+      $description: "The weights: a Phonon-1 archive carries its vocabulary too."
+    vocabulary:
+      $format: [tokenizer.json]
+      $optional: true
+      $description: "The tokenizer, beside safetensors weights: a Phonon-1 archive carries its own."
+  geometry:
+    $kind: type
+    $description: >-
+      A `Qwen3AsrConfig`, as it serializes: the loader verifies it against the weights.
+    $type: $object
+  probed:
+    $kind: contract
+    $description: "Its geometry read from transformers' `config.json`."
+    $resources:
+      config: { $format: [json], $description: "transformers' `config.json`: the geometry." }
+  stated:
+    $kind: contract
+    $description: "Its geometry stated, for weights that carry none."
+    $args:
+      geometry: { $type: geometry, $description: "The audio tower's and the text model's dims." }

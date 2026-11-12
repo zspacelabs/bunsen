@@ -296,7 +296,7 @@ pub fn apply_probes(
 /// text and `tokenizer_config.json`'s end of a turn), and anything else is
 /// the later probe's. What is laid over probes (a row's or family's own
 /// presets, a lookup's patch) is a merge patch, which replaces.
-fn accumulate(
+pub fn accumulate_probed(
     into: &mut Value,
     found: &Value,
 ) {
@@ -304,7 +304,7 @@ fn accumulate(
         (Value::Object(into), Value::Object(found)) => {
             for (key, value) in found {
                 match into.get_mut(key) {
-                    Some(slot) => accumulate(slot, value),
+                    Some(slot) => accumulate_probed(slot, value),
                     None => {
                         into.insert(key.clone(), value.clone());
                     }
@@ -362,7 +362,7 @@ pub fn apply_probes_with(
             .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.file)))?;
         for into in &entry.into {
             if into == "base" {
-                accumulate(&mut base, &patch);
+                accumulate_probed(&mut base, &patch);
                 continue;
             }
             if set.get(into).is_none() && family.get(into).is_none() {
@@ -372,7 +372,7 @@ pub fn apply_probes_with(
                 )
                 .context(format!("the {} probe's `into`", entry.probe)));
             }
-            accumulate(
+            accumulate_probed(
                 found
                     .entry(into.clone())
                     .or_insert_with(|| Value::Object(Map::new())),

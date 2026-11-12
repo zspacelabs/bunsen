@@ -1,0 +1,139 @@
+# The laya kit's builds: a probe-contract source of the built-in catalog.
+$description: The Laya decision models bunsen knows by name.
+laya:
+  $kind: namespace
+  $merge: update
+  laya:
+    $kind: namespace
+    $facet: family
+    $description: "convaiinnovations' Laya decision models: a ModernBERT encoder and a decision
+      head."
+    $requires:
+      - language
+      - parameters
+    laya:
+      $kind: build
+      $description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters,
+        prompts of 512 tokens."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/convaiinnovations/laya
+      $contract: laya-decision
+      parameters: 421000000
+      language:
+        - en
+      $hub:
+        $repo: convaiinnovations/laya
+        $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+      $resources:
+        checkpoint: checkpoint
+        encoder_config: encoder_config
+        agent_config: agent_config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+        $dtype: float16
+      encoder_config:
+        $kind: resource
+        $file: encoder/config.json
+        $format: json
+      agent_config:
+        $kind: resource
+        $file: rl_agent_config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer/tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer/tokenizer_config.json
+        $format: tokenizer_config.json
+    laya-en:
+      $kind: alias
+      $ref:
+        $path: laya
+        $kind: build
+    laya-multilingual:
+      $kind: build
+      $description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M
+        parameters, prompts of 1024 tokens."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/convaiinnovations/laya
+      $contract: laya-decision
+      parameters: 322000000
+      language:
+        - en
+        - "*"
+      $hub:
+        $repo: convaiinnovations/laya
+        $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+      $resources:
+        checkpoint: checkpoint
+        encoder_config: encoder_config
+        agent_config: agent_config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+      checkpoint:
+        $kind: resource
+        $file: multilingual/model.safetensors
+        $format: safetensors
+        $dtype: float16
+      encoder_config:
+        $kind: resource
+        $file: multilingual/encoder/config.json
+        $format: json
+      agent_config:
+        $kind: resource
+        $file: multilingual/rl_agent_config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: multilingual/tokenizer/tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: multilingual/tokenizer/tokenizer_config.json
+        $format: tokenizer_config.json
+    laya-typed-decisions:
+      $kind: build
+      $description: "Laya, typed decisions: the English model trained on typed questions, prompts of
+        1024 tokens."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/convaiinnovations/laya
+      $contract: laya-decision
+      parameters: 421000000
+      language:
+        - en
+      $hub:
+        $repo: convaiinnovations/laya
+        $revision: 7b928d828b7b0e022f929d9bd2e44165aa270148
+      $resources:
+        checkpoint: checkpoint
+        encoder_config: encoder_config
+        agent_config: agent_config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+      checkpoint:
+        $kind: resource
+        $file: typed-decisions/model.safetensors
+        $format: safetensors
+        $dtype: float16
+      encoder_config:
+        $kind: resource
+        $file: typed-decisions/encoder/config.json
+        $format: json
+      agent_config:
+        $kind: resource
+        $file: typed-decisions/rl_agent_config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: typed-decisions/tokenizer/tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: typed-decisions/tokenizer/tokenizer_config.json
+        $format: tokenizer_config.json

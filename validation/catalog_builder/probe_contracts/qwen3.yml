@@ -1,0 +1,895 @@
+# The qwen3 kit's builds: a probe-contract source of the built-in catalog.
+$description: The Qwen3 checkpoints bunsen knows by name.
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3:
+    $kind: namespace
+    $facet: family
+    $description: Qwen's dense Qwen3 language models, as transformers ships them.
+    $requires:
+      - instruct
+      - thinking
+      - reasoning
+      - language
+      - parameters
+    hybrid:
+      $kind: template_class
+      $description: >-
+        The Qwen3 chat models that think or answer at once, as the chat template's
+        `enable_thinking` says.
+      instruct: true
+      reasoning: true
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - thinking
+              - no-thinking
+            $default: thinking
+        thinking:
+          $description: >-
+            think before answering, under the card's thinking sampling (the checkpoint's
+            generation_config.json)
+          $patch:
+            generation:
+              template_kwargs:
+                enable_thinking: true
+        no-thinking:
+          $description: "answer at once, under the card's non-thinking sampling: temperature 0.7,
+            top-p 0.8, top-k 20, min-p 0"
+          $patch:
+            generation:
+              template_kwargs:
+                enable_thinking: false
+              sampling:
+                temperature: 0.7
+                top_p: 0.8
+                top_k: 20
+                min_p: 0.0
+    qwen3-2507:
+      $kind: namespace
+      $description: "The Qwen3 2507 updates: one thinking mode each, and a 256K context."
+    qwen3guard:
+      $kind: namespace
+      $description: "Qwen3Guard-Gen: Qwen3 tuned to moderate prompts and responses."
+    qwen3-0.6b:
+      $kind: build
+      $description: "Qwen3-0.6B: thinking and non-thinking chat."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-0.6B
+      $template_class: hybrid
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      parameters: 600000000
+      $hub:
+        $repo: Qwen/Qwen3-0.6B
+        $revision: c1899de289a04d12100db370d81485cdf75e47ca
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-0.6b-base:
+      $kind: build
+      $description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-0.6B-Base
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: false
+      reasoning: false
+      parameters: 600000000
+      $hub:
+        $repo: Qwen/Qwen3-0.6B-Base
+        $revision: da87bfb608c14b7cf20ba1ce41287e8de496c0cd
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-1.7b:
+      $kind: build
+      $description: "Qwen3-1.7B: thinking and non-thinking chat."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-1.7B
+      $template_class: hybrid
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      parameters: 1700000000
+      $hub:
+        $repo: Qwen/Qwen3-1.7B
+        $revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00002.safetensors
+          - $file: model-00002-of-00002.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-1.7b-base:
+      $kind: build
+      $description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-1.7B-Base
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: false
+      reasoning: false
+      parameters: 1700000000
+      $hub:
+        $repo: Qwen/Qwen3-1.7B-Base
+        $revision: ea980cb0a6c2ae4b936e82123acc929f1cec04c1
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-4b:
+      $kind: build
+      $description: "Qwen3-4B: thinking and non-thinking chat."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-4B
+      $template_class: hybrid
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      parameters: 4000000000
+      $hub:
+        $repo: Qwen/Qwen3-4B
+        $revision: 1cfa9a7208912126459214e8b04321603b3df60c
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-4b-base:
+      $kind: build
+      $description: "Qwen3-4B-Base: the pretrained model, no chat tuning."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-4B-Base
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: false
+      reasoning: false
+      parameters: 4000000000
+      $hub:
+        $repo: Qwen/Qwen3-4B-Base
+        $revision: 906bfd4b4dc7f14ee4320094d8b41684abff8539
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-4b-instruct-2507:
+      $kind: build
+      $description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
+      $contract: qwen3-lm
+      $join:
+        - qwen3-2507
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: true
+      reasoning: false
+      parameters: 4000000000
+      $hub:
+        $repo: Qwen/Qwen3-4B-Instruct-2507
+        $revision: cdbee75f17c01a7cc42f958dc650907174af0554
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-4b-thinking-2507:
+      $kind: build
+      $description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-4B-Thinking-2507
+      $contract: qwen3-lm
+      $join:
+        - qwen3-2507
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: true
+      reasoning: true
+      parameters: 4000000000
+      $hub:
+        $repo: Qwen/Qwen3-4B-Thinking-2507
+        $revision: 768f209d9ea81521153ed38c47d515654e938aea
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - thinking
+            $default: thinking
+        thinking:
+          $description: "Think before answering: this model always does."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-8b:
+      $kind: build
+      $description: "Qwen3-8B: thinking and non-thinking chat."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-8B
+      $template_class: hybrid
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      parameters: 8000000000
+      $hub:
+        $repo: Qwen/Qwen3-8B
+        $revision: b968826d9c46dd6066d109eabc6255188de91218
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00005.safetensors
+          - $file: model-00002-of-00005.safetensors
+          - $file: model-00003-of-00005.safetensors
+          - $file: model-00004-of-00005.safetensors
+          - $file: model-00005-of-00005.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-8b-base:
+      $kind: build
+      $description: "Qwen3-8B-Base: the pretrained model, no chat tuning."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-8B-Base
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: false
+      reasoning: false
+      parameters: 8000000000
+      $hub:
+        $repo: Qwen/Qwen3-8B-Base
+        $revision: 49e3418fbbbca6ecbdf9608b4d22e5a407081db4
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00005.safetensors
+          - $file: model-00002-of-00005.safetensors
+          - $file: model-00003-of-00005.safetensors
+          - $file: model-00004-of-00005.safetensors
+          - $file: model-00005-of-00005.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3-4b-saferl:
+      $kind: build
+      $description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking
+        and non-thinking chat."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-4B-SafeRL
+      $template_class: hybrid
+      $contract: qwen3-lm
+      language:
+        - en
+        - zh
+        - "*"
+      parameters: 4000000000
+      $hub:
+        $repo: Qwen/Qwen3-4B-SafeRL
+        $revision: 1b95ccb88cabaf284ffb6968719c40ae6cd4085b
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3guard-gen-0.6b:
+      $kind: build
+      $description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe
+        or Controversial, with its categories."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3Guard-Gen-0.6B
+      $contract: qwen3-lm
+      $join:
+        - qwen3guard
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: true
+      reasoning: false
+      parameters: 600000000
+      $hub:
+        $repo: Qwen/Qwen3Guard-Gen-0.6B
+        $revision: fada3b2f655b89601929198343c94cd2f64d93cc
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3guard-gen-4b:
+      $kind: build
+      $description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe
+        or Controversial, with its categories."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3Guard-Gen-4B
+      $contract: qwen3-lm
+      $join:
+        - qwen3guard
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: true
+      reasoning: false
+      parameters: 4000000000
+      $hub:
+        $repo: Qwen/Qwen3Guard-Gen-4B
+        $revision: 6ec42827da0c1ff11e7a49dc269d2e810d27e108
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00003.safetensors
+          - $file: model-00002-of-00003.safetensors
+          - $file: model-00003-of-00003.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+    qwen3guard-gen-8b:
+      $kind: build
+      $description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe
+        or Controversial, with its categories."
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3Guard-Gen-8B
+      $contract: qwen3-lm
+      $join:
+        - qwen3guard
+      language:
+        - en
+        - zh
+        - "*"
+      instruct: true
+      reasoning: false
+      parameters: 8000000000
+      $hub:
+        $repo: Qwen/Qwen3Guard-Gen-8B
+        $revision: 4505cb1a6f1864f21f8b27f7daf1b9a1aab6edbb
+      $probes:
+        - $probe: generation_config
+          $resource: generation_config
+          $into:
+            - $common
+        - $probe: chat_template
+          $resource: tokenizer_config
+          $into:
+            - $common
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        tokenizer_config: tokenizer_config
+        generation_config: generation_config
+      $presets:
+        $axes:
+          thinking:
+            $offers:
+              - no-thinking
+            $default: no-thinking
+        no-thinking:
+          $description: "Answer at once: this model doesn't think."
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors.index.json
+        $format: safetensors-index
+        $shards:
+          - $file: model-00001-of-00005.safetensors
+          - $file: model-00002-of-00005.safetensors
+          - $file: model-00003-of-00005.safetensors
+          - $file: model-00004-of-00005.safetensors
+          - $file: model-00005-of-00005.safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json

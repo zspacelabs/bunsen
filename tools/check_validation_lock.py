@@ -11,6 +11,8 @@ to choose.
 Stdlib only; run from the repository root.
 """
 
+import json
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -29,7 +31,13 @@ def packages(lock: Path) -> list[dict]:
 def main() -> int:
     root = {(p["name"], p["version"]) for p in packages(Path("Cargo.lock"))}
     validation = packages(Path("validation/Cargo.lock"))
-    members = {p.parent.name for p in Path("validation").glob("*/*/Cargo.toml")}
+    # The validation workspace's own crates, by package name.
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--manifest-path", "validation/Cargo.toml", "--no-deps",
+         "--format-version", "1"],
+        capture_output=True, check=True, text=True,
+    )
+    members = {p["name"] for p in json.loads(metadata.stdout)["packages"]}
 
     by_name: dict[str, list[dict]] = {}
     for p in validation:

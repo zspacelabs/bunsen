@@ -106,6 +106,7 @@ empty.push_yaml("prelude", fixtures::PRELUDE).unwrap();
 | call | does |
 |---|---|
 | `PretrainedCatalogStack::new()` | an empty stack |
+| `builtin_stack()` | bunsen's built-in catalog |
 | `push(label, PretrainedCatalog)` | imports a document built in code |
 | `push_yaml(label, text)` | parses YAML, then pushes |
 | `push_file(path)` | reads YAML (or JSON, by a `.json` extension), labelled by its file stem |
@@ -117,6 +118,12 @@ The first catalog is usually a prelude: the facets, registered axes and tags, an
 `template_class_root`. A catalog can refer to anything below it in the stack, and its extending
 occurrences (`$merge: update`) add to groups an earlier catalog declared. `fixtures/supplemental.yml`
 shows a local addition.
+
+`builtin_stack()` is bunsen's own catalog, the layers `bunsen-catalog` carries: a prelude whose
+`$contracts` are the kits' loaders, the publishers, and a layer per kit, skipping the kits this
+build of bunsen leaves out. The catalog builder (`cargo catalog`, in the repository's `validation/`
+workspace) writes them from their probe-contract sources, reading the pins from the Hub and the
+presets from the checkpoints' files. A local catalog pushes on top of it.
 
 ## Finding entries
 

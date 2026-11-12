@@ -1,0 +1,38 @@
+# ryl, the YAML linter and formatter (`cargo make check-yaml`, `cargo make
+# format-yaml`): how every checked-in YAML file is written. Rules not listed
+# are off.
+line-length = 100
+
+# The per-kit catalog sources `cargo validate catalog` reads: one row a line,
+# in flow style, by design.
+exclude = ["validation/catalogs/"]
+
+[format]
+quote-style = "preserve"
+brace-spacing = true
+mapping-expand = "auto"
+sequence-expand = "auto"
+fold-long-lines = true
+
+[lint.rules]
+anchors = "enable"
+colons = "enable"
+commas = "enable"
+comments = "enable"
+comments-indentation = "enable"
+empty-lines = "enable"
+hyphens = "enable"
+indentation = "enable"
+key-duplicates = "enable"
+line-length = { allow-non-breakable-inline-mappings = true }
+new-line-at-end-of-file = "enable"
+new-lines = "enable"
+octal-values = "enable"
+trailing-spaces = "enable"
+truthy = { check-keys = false }
+unicode-line-breaks = "enable"
+
+# A chat template's Jinja lines are the template's: breaking one changes it.
+[[lint.per-line-ignores]]
+regex = '^\s*\{\{-'
+rules = ["line-length"]

@@ -1,0 +1,16 @@
+# What the resnet kit's loader reads: an ImageNet-1k ResNet state dict, and
+# the geometry it is laid out in, which a state dict doesn't carry.
+resnet-classifier:
+  $kind: contract
+  $description: "A ResNet image classifier: a PyTorch state dict, in the geometry its build states."
+  $resources:
+    checkpoint:
+      $format: [pytorch fp32]
+      $description: "The state dict, torchvision's or timm's."
+  $args:
+    geometry: { $type: geometry, $description: "The network's blocks and widths." }
+  geometry:
+    $kind: type
+    $description: >-
+      A `ResNetContractConfig`, as it serializes: the loader verifies it against the weights.
+    $type: $object

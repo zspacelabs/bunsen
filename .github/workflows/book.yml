@@ -70,7 +70,7 @@ jobs:
         with:
           prefix-key: v1-rust
           cache-targets: false
-      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
           cache-key-prefix: kache3-book
@@ -122,5 +122,6 @@ jobs:
             echo "gh-pages is already up to date with $REF."
             exit 0
           fi
-          git commit -m "Publish the book for $REF ($(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD))"
+          sha=$(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)
+          git commit -m "Publish the book for $REF ($sha)"
           git push origin HEAD:refs/heads/gh-pages

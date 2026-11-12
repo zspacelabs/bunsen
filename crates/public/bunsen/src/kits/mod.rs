@@ -54,6 +54,10 @@
 //!   into a table behind the `well-known:` provider.
 //!   `default_{kit}_providers()` lists the kit's providers in search order,
 //!   `bundled:` and `hf:` among them where the kit has them.
+//! - **A catalog contract.** `contract.yml`, beside the providers
+//!   (`{KIT}_CONTRACT`): the signature its loader implements, the resource
+//!   slots and arguments a build catalog's builds bind
+//!   ([`catalog_contracts`](support::catalog_contracts)).
 //! - **A construct config.** `{Kit}ConstructConfig` is the kit's hook, its
 //!   [`ConstructInit`](crate::kits::support::construct::ConstructInit): the
 //!   cache segment its files land under (`{KIT}_KIT`), and how the loaded files

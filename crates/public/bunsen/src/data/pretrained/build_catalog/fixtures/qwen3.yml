@@ -109,8 +109,16 @@ qwen:
         # The shards the index lists; each is fetched from the resource's places by its own
         # `$file`, and pinned by its own digest.
         $shards:
-          - { $file: model-00001-of-00002.safetensors, $sha256: "1000000000000000000000000000000000000000000000000000000000000041", $size: 4967215360 }
-          - { $file: model-00002-of-00002.safetensors, $sha256: "1000000000000000000000000000000000000000000000000000000000000042", $size: 3077766632 }
+          - {
+            $file: model-00001-of-00002.safetensors,
+            $sha256: "1000000000000000000000000000000000000000000000000000000000000041",
+            $size: 4967215360,
+           }
+          - {
+            $file: model-00002-of-00002.safetensors,
+            $sha256: "1000000000000000000000000000000000000000000000000000000000000042",
+            $size: 3077766632,
+           }
       config:
         $kind: resource
         $file: config.json

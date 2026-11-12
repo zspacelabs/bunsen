@@ -1,0 +1,26 @@
+# What the voxtral kit's loader reads: a Voxtral Realtime model and its
+# tekken vocabulary, its geometry from config.json or stated.
+voxtral-asr:
+  $kind: contract
+  $abstract: true
+  $description: "A Voxtral Realtime speech recognizer: its safetensors and its tekken vocabulary."
+  $resources:
+    checkpoint: { $format: [safetensors], $description: "The weights." }
+    vocabulary: { $format: [tekken.json] }
+  geometry:
+    $kind: type
+    $description: >-
+      A `VoxtralConfig`, as it serializes: the loader verifies it against the weights.
+    $type: $object
+  probed:
+    $kind: contract
+    $description: "Its geometry read from transformers' `config.json`."
+    $resources:
+      config: { $format: [json], $description: "transformers' `config.json`: the geometry." }
+  stated:
+    $kind: contract
+    $description: "Its geometry stated, for weights that carry none."
+    $args:
+      geometry:
+        $type: geometry
+        $description: "The audio encoder's and the text decoder's dims."

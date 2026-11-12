@@ -1,7 +1,8 @@
 # The vocabulary every other catalog uses: the contracts, facets, registered
 # axes and tags, and the template-class root. It is always the bottom of the
 # stack, and the only catalog with `$contracts`.
-$description: "Vocabulary: contracts, facets, registered axes and tags, and the template-class root."
+$description: "Vocabulary: contracts, facets, registered axes and tags, and the template-class
+  root."
 $contracts:
   qwen3-lm:
     $kind: contract

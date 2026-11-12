@@ -21,6 +21,8 @@
 //! - [`select`]: the selection pipeline: a query of stages over weighted rows,
 //!   composed from a tool's preset prefix, its defaults and a request. Axis
 //!   flags such as `--think` are explained shortcuts into presets.
+//! - [`builtin`]: the built-in catalog, `bunsen-catalog`'s layers, imported
+//!   ([`builtin_stack`]).
 //! - [`fixtures`]: example catalogs, for tests, examples and these docs.
 //! - [`release_time`], [`tags`], [`name`]: the value types and rules the rest
 //!   is built from. Preset patches are [merge
@@ -85,6 +87,7 @@
 //! assert!(off.unwrap_err().message().contains("fixed at `thinking`"));
 //! ```
 
+pub mod builtin;
 pub mod document;
 pub mod error;
 pub mod fixtures;
@@ -104,6 +107,7 @@ pub mod catalog_format {}
 #[doc = include_str!("usage.md")]
 pub mod usage {}
 
+pub use builtin::builtin_stack;
 pub use document::PretrainedCatalog;
 pub use error::{
     CatalogErrorExt,

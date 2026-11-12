@@ -160,10 +160,11 @@ hand. Configuration lives in [`release-plz.toml`](release-plz.toml); the automat
 
 ### What gets released
 
-The eight published crates, in `crates/public/`, are versioned in **lockstep**: they share one version
+The nine published crates, in `crates/public/`, are versioned in **lockstep**: they share one version
 (`version_group = "bunsen"` in `release-plz.toml`, matching `version.workspace = true` in the root `Cargo.toml`):
 
 - `bunsen`
+- `bunsen-catalog` (the built-in pretrained catalog, which `cargo catalog update` writes)
 - `bunsen-contracts-macros`
 - `bunsen-fetch`
 - `bunsen-firehose`
