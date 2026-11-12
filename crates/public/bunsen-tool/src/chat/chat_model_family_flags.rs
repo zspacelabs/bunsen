@@ -9,8 +9,8 @@ use bunsen::{
             BuildFactory,
             CATALOG,
             ConstructInit,
-            Pretrained,
         },
+        catalog::ResolvedBuild,
         formats::LoadPolicy,
         resources::ResourceCache,
     },
@@ -133,10 +133,10 @@ impl ChatModelFamily {
     }
 
     /// The family's checkpoints by name: each row, by its id.
-    pub fn rows(self) -> BunsenResult<Vec<(String, Pretrained)>> {
+    pub fn rows(self) -> BunsenResult<Vec<(String, ResolvedBuild)>> {
         fn rows_of<H: ConstructInit>(
             factory: &BuildFactory<H>
-        ) -> BunsenResult<Vec<(String, Pretrained)>> {
+        ) -> BunsenResult<Vec<(String, ResolvedBuild)>> {
             factory
                 .ids()
                 .into_iter()

@@ -43,6 +43,23 @@ pub fn is_segment(segment: &str) -> bool {
         && !YAML_WORDS.iter().any(|w| w.eq_ignore_ascii_case(segment))
 }
 
+/// The root a Hugging Face Hub repo's builds and resources are named under
+/// (`hf/openai/whisper-tiny`), which no catalog declares.
+pub const HUB_ROOT: &str = "hf";
+
+/// Whether `segment` is a legal segment under [`HUB_ROOT`]: the Hub's own
+/// rule for an org or a repo name, ASCII letters, digits, `_`, `-` and `.`,
+/// in any case and in any order (`01-ai`, `Qwen3-0.6B`), neither empty nor
+/// `.` or `..`.
+pub fn is_hub_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && segment
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+}
+
 /// Checks `segment` with [`is_segment`].
 ///
 /// # Errors
@@ -72,6 +89,35 @@ pub const CONTRACTS: &str = "$contracts";
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CatalogName(Vec<String>);
 
+/// A name equals its written form: `qwen/qwen3/qwen3-4b`.
+impl PartialEq<str> for CatalogName {
+    fn eq(
+        &self,
+        other: &str,
+    ) -> bool {
+        let mut parts = other.split('/');
+        self.0.iter().all(|s| parts.next() == Some(s.as_str())) && parts.next().is_none()
+    }
+}
+
+impl PartialEq<&str> for CatalogName {
+    fn eq(
+        &self,
+        other: &&str,
+    ) -> bool {
+        self == *other
+    }
+}
+
+impl PartialEq<String> for CatalogName {
+    fn eq(
+        &self,
+        other: &String,
+    ) -> bool {
+        self == other.as_str()
+    }
+}
+
 impl CatalogName {
     /// Parses a full name.
     ///
@@ -87,6 +133,16 @@ impl CatalogName {
         // entry's segment.
         let named = match segments.split_first() {
             Some((first, rest)) if first == CONTRACTS => rest,
+            // A Hub repo's names keep the Hub's spelling.
+            Some((first, rest)) if first == HUB_ROOT => {
+                if let Some(bad) = rest.iter().find(|s| !is_hub_segment(s)) {
+                    return Err(catalog_error(
+                        CatalogRule::Name,
+                        format!("in `{name}`: `{bad}` is not a Hub name segment"),
+                    ));
+                }
+                &[][..]
+            }
             _ => &segments[..],
         };
         for segment in named {
@@ -381,8 +437,30 @@ mod tests {
         assert_eq!(name.segments(), ["qwen", "qwen3", "qwen3-4b"]);
         assert_eq!(name.leaf(), "qwen3-4b");
         assert_eq!(name.to_string(), "qwen/qwen3/qwen3-4b");
+        assert_eq!(
+            name, "qwen/qwen3/qwen3-4b",
+            "a name equals its written form"
+        );
+        assert_ne!(name, "qwen/qwen3");
+        assert_ne!(name, "qwen/qwen3/qwen3-4b/x");
         assert_eq!(name.scope().unwrap().to_string(), "qwen/qwen3");
         assert_eq!(CatalogName::root("qwen").unwrap().scope(), None);
+    }
+
+    /// Under the Hub root, a name keeps the Hub's spelling: a leading digit,
+    /// capitals; a slash or a space is still refused.
+    #[test]
+    fn test_hub_names_keep_the_hubs_spelling() {
+        let name = CatalogName::parse("hf/01-ai/Yi-6B").unwrap();
+        assert_eq!(name.segments(), ["hf", "01-ai", "Yi-6B"]);
+        assert_eq!(name.to_string(), "hf/01-ai/Yi-6B");
+        for bad in ["hf/a b/c", "hf//c", "hf/../c", "hf/a:b"] {
+            assert!(CatalogName::parse(bad).is_err(), "{bad}");
+        }
+        assert!(
+            CatalogName::parse("other/01-ai").is_err(),
+            "only under `hf`"
+        );
     }
 
     #[test]

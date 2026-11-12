@@ -29,7 +29,6 @@ use crate::{
         pretrained::{
             CHECKPOINT,
             RESNET_KIT,
-            RESNET_PREFABS,
         },
     },
 };
@@ -61,7 +60,8 @@ impl ResNetConstructConfig {
         Self::default()
     }
 
-    /// Sets the config to build from, which wins over the prefab's.
+    /// Sets the config to build from, which wins over the build's stated
+    /// geometry.
     pub fn with_config(
         mut self,
         config: ResNetContractConfig,
@@ -71,7 +71,7 @@ impl ResNetConstructConfig {
     }
 
     /// The config `model` is built from: the explicit one, else the
-    /// prefab the row names.
+    /// geometry the build states.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
@@ -87,21 +87,15 @@ impl ResNetConstructConfig {
         if let Some(config) = model.stated(GEOMETRY)? {
             return Ok(config);
         }
-        model
-            .prefab(&RESNET_PREFABS)
-            .map(|prefab| prefab.to_config())
-            .ok_or_else(|| {
-                BunsenError::from(ConstraintError::new(
-                    "ResNetConstructConfig",
-                    "config",
-                    Rule::Missing,
-                ))
-                .context(format!(
-                    "{}: names no prefab to build from; a given checkpoint needs \
-                         `with_config`",
-                    model.id()
-                ))
-            })
+        Err(BunsenError::from(ConstraintError::new(
+            "ResNetConstructConfig",
+            "config",
+            Rule::Missing,
+        ))
+        .context(format!(
+            "{}: states no geometry to build from; a given checkpoint needs `with_config`",
+            model.id()
+        )))
     }
 }
 
@@ -184,13 +178,17 @@ mod tests {
         let named = factory.resolve("resnet50", &cache).unwrap();
         let hook = named.config.clone();
         let named = named.model;
-        let resnet50 = RESNET_PREFABS.expect_lookup_prefab("resnet50").to_config();
+        let resnet50 = super::super::RESNET_PREFABS
+            .expect_lookup_prefab("resnet50")
+            .to_config();
         assert_eq!(
             format!("{:?}", hook.config_for(&named).unwrap()),
             format!("{resnet50:?}")
         );
 
-        let resnet18 = RESNET_PREFABS.expect_lookup_prefab("resnet18").to_config();
+        let resnet18 = super::super::RESNET_PREFABS
+            .expect_lookup_prefab("resnet18")
+            .to_config();
         let explicit = hook.clone().with_config(resnet18.clone());
         assert_eq!(
             format!("{:?}", explicit.config_for(&named).unwrap()),

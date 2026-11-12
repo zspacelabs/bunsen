@@ -44,7 +44,6 @@ pub fn default_sortformer_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             SORTFORMER_CATALOG_CONTRACT,
-            SORTFORMER_KIT,
         )),
         Arc::new(
             HfProvider::new()

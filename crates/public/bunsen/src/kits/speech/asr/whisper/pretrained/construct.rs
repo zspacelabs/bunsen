@@ -47,7 +47,6 @@ use crate::{
                 SafetensorsWhisperScanner,
                 VOCABULARY,
                 WHISPER_KIT,
-                WHISPER_PREFABS,
                 WhisperVocabulary,
             },
         },
@@ -315,12 +314,7 @@ impl WhisperConstructConfig {
         if self.expected.is_some() {
             return Ok(self.expected);
         }
-        if let Some(stated) = model.stated(GEOMETRY)? {
-            return Ok(Some(stated));
-        }
-        Ok(model
-            .prefab(&WHISPER_PREFABS)
-            .map(|prefab| prefab.to_config().geometry()))
+        model.stated(GEOMETRY)
     }
 
     /// Scans the checkpoint in `loaded` for its config without loading its

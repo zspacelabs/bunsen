@@ -9,7 +9,6 @@ use super::{
     TEKKEN_JSON,
     VOCABULARY,
     VOXTRAL_KIT,
-    VOXTRAL_PREFABS,
 };
 use crate::{
     burner::module::ModuleInit,
@@ -124,14 +123,9 @@ impl ConstructInit for VoxtralConstructConfig {
                 voxtral_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?
             }
-            None => match model.stated(GEOMETRY)? {
-                Some(config) => config,
-                None => model
-                    .prefab(&VOXTRAL_PREFABS)
-                    .map_or_else(VoxtralRealtimeConfig::voxtral_mini_4b_realtime, |p| {
-                        p.to_config()
-                    }),
-            },
+            None => model
+                .stated(GEOMETRY)?
+                .unwrap_or_else(VoxtralRealtimeConfig::voxtral_mini_4b_realtime),
         };
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;

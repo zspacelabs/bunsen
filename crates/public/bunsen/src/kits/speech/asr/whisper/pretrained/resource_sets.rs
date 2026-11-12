@@ -86,7 +86,6 @@ mod tests {
         kits::speech::asr::whisper::pretrained::{
             OPENAI_LOCAL_DIR,
             WHISPER_CATALOG_CONTRACT,
-            WHISPER_KIT,
             WHISPER_PREFABS,
         },
     };
@@ -106,26 +105,21 @@ mod tests {
     /// `~/.cache/whisper`.
     #[test]
     fn test_checkpoints_validate_and_pin_their_urls() {
-        let provider = crate::data::catalog::BuiltinCatalog::expect_provider(
-            WHISPER_CATALOG_CONTRACT,
-            WHISPER_KIT,
-        );
-        assert_eq!(provider.rows().len(), 12);
+        let provider =
+            crate::data::catalog::BuiltinCatalog::expect_provider(WHISPER_CATALOG_CONTRACT);
+        assert_eq!(provider.builds().len(), 12);
         let upstream_root = resolve_dir_template("$XDG_CACHE_HOME/whisper")
             .or_else(|| resolve_dir_template("~/.cache/whisper"));
 
-        for row in provider.rows() {
+        for row in provider.builds() {
             let name = &row.name;
-            row.resources.validate().unwrap();
-            let r = row.resources.get(CHECKPOINT).unwrap();
+            row.resource_set().validate().unwrap();
+            let set_r = row.resource_set();
+            let r = set_r.get(CHECKPOINT).unwrap();
             assert!(r.name.starts_with("openai/whisper/"), "{name}: {}", r.name);
             assert_eq!(r.format.as_deref(), Some(PYTORCH_FP16), "{name}");
             let sha256 = r.sha256.as_deref().expect("every checkpoint is pinned");
-            assert_eq!(
-                r.file,
-                format!("{}.pt", name.rsplit('/').next().unwrap()),
-                "{name}"
-            );
+            assert_eq!(r.file, format!("{}.pt", name.leaf()), "{name}");
             assert_eq!(r.sources.len(), 2, "{name}");
             let Source::LocalDir {
                 name: dir_name,

@@ -1,19 +1,18 @@
 //! # Builds: from a name to a model
 //!
-//! From a name to a model. A kit's
-//! [`BuildFactory`]
-//! takes a spec, `provider:ref` or a bare name, and asks its providers for the
-//! row the spec names. Loading the row, the [`ResourceCache`] brings its
-//! files local and the kit's
-//! [`ConstructInit`] hook
-//! builds from them, behind an `Arc`. The [`data`](crate::data#lifecycle)
+//! A kit's [`BuildFactory`] takes a spec, `provider:ref` or a bare name, and
+//! asks its providers for the build the spec names. Loading the build, the
+//! [`ResourceCache`] brings its files local and the kit's [`ConstructInit`]
+//! hook builds from them, behind an `Arc`. The [`data`](crate::data#lifecycle)
 //! overview draws the whole pathway; this page says what the pieces are, and
 //! why they are split the way they are.
 //!
 //! The pieces:
 //!
-//! - [`BuildProvider`]: a namespace over rows, the `provider` of
-//!   `provider:ref`.
+//! - [`BuildProvider`]: a namespace over builds, the `provider` of
+//!   `provider:ref`, answering with the catalog's [`ResolvedBuild`].
+//! - [`BuildRef`]: what a spec resolved to, a provider's build or a given
+//!   resource set.
 //! - [`ConstructInit`]: the kit's hook, which completes a resolved ref's
 //!   resource set before it is loaded and builds from the loaded parts.
 //! - [`Deferred`]: a model not yet loaded, its ref paired with the hook that
@@ -21,59 +20,44 @@
 //! - [`BuildFactory`]: a kit's providers in search order, resolving lookup
 //!   expressions to [`Deferred`] models.
 //! - [`LookupExpr`]: a lookup expression, `[provider:]name[preset, …]{patch}`,
-//!   split into the name and what it asks of the row's presets.
+//!   split into the name and what it asks of the build's presets.
 //! - [`Loaded`]: the handle the pathway hands back.
 //!
 //! The factory, [`Deferred`], [`ConstructInit`], [`Loaded`] and
 //! [`LookupExpr`] need the `cache` feature (default, through `store`), and
 //! the factory the `kits` feature too, for the kits' preset resolution. The
-//! rows, refs and providers are plain data and are always here.
+//! refs and providers are plain data and are always here.
 //!
 //! A hook reads its checkpoint's own format with the readers in
 //! [`formats`](crate::data::formats).
 //!
-//! ## Prefabs, rows and resources
+//! ## Builds and resources
 //!
-//! Three things are kept apart, because they vary independently:
+//! A **build** is what the catalog says one buildable thing is
+//! ([`ResolvedBuild`]): its full name and aliases, its listing fields, its
+//! tags (facts about the model, for listings and for choosing among models,
+//! [`catalog::select`](crate::data::catalog::select)), its presets, the
+//! arguments its contract's slots are bound to (such as the geometry it
+//! states, [`GEOMETRY`]), and the resources its slots are bound to, in the
+//! catalog's form. A file many builds share is one resource that each binds
+//! (Whisper's two vocabularies serve its twelve checkpoints).
 //!
-//! - A **prefab** is a geometry by name, with no weights: what a name means as
-//!   a shape before any bytes are fetched. A kit keeps its prefabs in a
-//!   [`StaticPreFabMap`](crate::data::pretrained::StaticPreFabMap).
-//! - A **row**, a [`Pretrained`], is a name in a provider: its aliases and
-//!   listing fields, its [`tags`](crate::data::pretrained::tags) (facts about
-//!   the model, for listings and for choosing among models,
-//!   [`catalog::select`](crate::data::catalog::select)), the prefab it
-//!   instantiates when the kit keeps one, and the resource sets it is made of,
-//!   fused strictly into one [`ResourceSet`]. A file many rows share is a
-//!   resource set of its own that each row references (Whisper's two
-//!   vocabularies serve its twelve checkpoints); a one-file model is a row of
-//!   one resource set. One prefab may have many rows, in many providers.
-//! - A **resource**, a [`Resource`], is one file: the slot it fills in its set
-//!   (`checkpoint`, `vocabulary`: the kit's constants), the file name it lands
-//!   as, the SHA-256 that pins it, its format, and the [`Source`]s it can be
-//!   had from, in order.
+//! What a loader reads is the build's [`ResourceSet`]
+//! ([`ResolvedBuild::resource_set`]), made when it is loaded: each slot's
+//! [`Resource`] (the file name it lands as, the SHA-256 that pins it, its
+//! format, its full name, and the [`Source`]s it can be had from, in order),
+//! a local directory resolved from its path templates then
+//! ([`resolve_dir_template`]).
 //!
-//! None of these knows a hook, or which resource is the model: the
-//! function that loads a kit's models is the kit's, and it supplies the
-//! hook. Rows, resource sets and resources are plain serde data, so a
-//! manifest can carry them. An owned resource carries its resource set's
-//! bases appended to its own sources, so it stands alone, and two resource
-//! sets [fuse](crate::data::resources::ResourceSet::fuse) by key with no
-//! memory of where a resource came from: strictly for authoring, where a
-//! repeated key is a mistake, or as an overlay for an override, where the
-//! right-hand resource set wins.
-//!
-//! A kit's rows are data: the builds of the kit's contract in the built-in
-//! build catalog ([`catalog`](crate::data::catalog)), which a
-//! [`CatalogBuildProvider`] serves as rows named in full
-//! (`qwen/qwen3/qwen3-0.6b`), with the presets and arguments the catalog
-//! resolves. Its files carry their sizes and dtypes, and a local directory
-//! names where another tool keeps its files as path
-//! templates ([`resolve_dir_template`]).
+//! None of these knows a hook, or which resource is the model: the function
+//! that loads a kit's models is the kit's, and it supplies the hook. A kit's
+//! builds are data: the builds of the kit's contract in the built-in catalog
+//! ([`catalog`](crate::data::catalog)), which a [`CatalogBuildProvider`]
+//! serves named in full (`qwen/qwen3/qwen3-0.6b`).
 //!
 //! ## Providers
 //!
-//! A [`BuildProvider`] is a namespace over rows: the `provider` of
+//! A [`BuildProvider`] is a namespace over builds: the `provider` of
 //! `provider:ref`. It looks a name up, and lists what it has when it can.
 //! Two are in use:
 //!
@@ -83,13 +67,13 @@
 //!   `openai/tiny`, or `tiny`, finds it too. Files a deployment ships are such
 //!   a layer: an update of the builds' resources that adds the files as
 //!   local-dir sources, so the same name loads them.
-//! - `hf:` ([`HF`]) is an [`HfProvider`]: a Hugging Face repo, by `org/repo`.
-//!   It lists nothing and never answers a bare name.
+//! - `hf:` ([`HF`]) is an [`HfProvider`]: a Hugging Face repo, by `org/repo`,
+//!   answered with a build named `hf/<org>/<repo>`. It lists nothing and never
+//!   answers a bare name.
 //!
-//! A [`BuildFactory`]
-//! holds a kit's providers in search order and offers a spec to them by its
-//! [dispatch rules]. A provider's `Ok(None)` means "not here", and an error
-//! aborts the lookup.
+//! A [`BuildFactory`] holds a kit's providers in search order and offers a
+//! spec to them by its [dispatch rules]. A provider's `Ok(None)` means "not
+//! here", and an error aborts the lookup.
 //!
 //! [dispatch rules]: crate::data::builds::BuildFactory#dispatch
 //!
@@ -98,9 +82,9 @@
 //!
 //! ## Example
 //!
-//! A toy kit whose model is the text of one file, a table with one row
-//! over a directory another tool keeps, and an offline cache in a
-//! temporary directory. Nothing here reaches the network.
+//! A toy kit whose model is the text of one file: a catalog of one build over
+//! a directory another tool keeps, and an offline cache in a temporary
+//! directory. Nothing here reaches the network.
 //!
 //! ```rust
 //! # #[cfg(all(feature = "cache", feature = "kits"))] {
@@ -112,24 +96,19 @@
 //!             BuildFactory,
 //!             BuildRef,
 //!             CATALOG,
+//!             CatalogBuildProvider,
 //!             ConstructInit,
 //!             Deferred,
-//!             Pretrained,
-//!             PretrainedGroup,
-//!             PretrainedTable,
 //!         },
-//!         cache::{
-//!             BunsenDiskCacheOptions,
-//!             sha256_of,
-//!         },
+//!         cache::BunsenDiskCacheOptions,
+//!         catalog::BunsenCatalogStack,
+//!         formats::LoadPolicy,
 //!         resources::{
 //!             LoadedResourceSet,
 //!             Provenance,
-//!             Resource,
 //!             ResourceCache,
 //!             ResourceCacheOptions,
 //!             ResourceSet,
-//!             Source,
 //!         },
 //!     },
 //!     errors::{
@@ -156,7 +135,7 @@
 //!         _model: &BuildRef,
 //!         loaded: &LoadedResourceSet,
 //!         _device: &Device,
-//!         _policy: bunsen::data::formats::LoadPolicy,
+//!         _policy: LoadPolicy,
 //!     ) -> BunsenResult<Arc<String>> {
 //!         let path = loaded.expect("text")?;
 //!         let text =
@@ -171,47 +150,50 @@
 //! std::fs::create_dir_all(&upstream)?;
 //! std::fs::write(upstream.join("hello.txt"), "hello")?;
 //!
-//! // A row of one resource, pinned, with that directory as its source.
-//! let hello = Pretrained {
-//!     name: "hello".to_string(),
-//!     aliases: vec!["hi".to_string()],
-//!     description: "a greeting".to_string(),
-//!     license: None,
-//!     origin: None,
-//!     prefab: None,
-//!     resources: ResourceSet::new("hello").with_resource(Resource {
-//!         slot: "text".to_string(),
-//!         file: "hello.txt".to_string(),
-//!         sha256: Some(sha256_of(&upstream.join("hello.txt"))?),
-//!         format: Some("text".to_string()),
-//!         size: None,
-//!         dtype: None,
-//!         name: "toy".to_string(),
-//!         sources: vec![Source::LocalDir {
-//!             name: "upstream".to_string(),
-//!             dir: Some(upstream.clone()),
-//!         }],
-//!     }),
-//!     presets: Default::default(),
-//!     args: Default::default(),
-//!     tags: Default::default(),
-//! };
-//!
-//! // The kit's index: one provider, a table of one group.
-//! let table = PretrainedTable {
-//!     name: CATALOG.to_string(),
-//!     description: "the toy kit's rows".to_string(),
-//!     groups: vec![PretrainedGroup {
-//!         name: "toy".to_string(),
-//!         description: "toy rows".to_string(),
-//!         license: None,
-//!         origin: None,
-//!         items: vec![hello],
-//!     }],
-//!     case_sensitive: false,
-//! };
+//! // The kit's contract, and one build of it, `toy/hello` (alias `hi`),
+//! // whose one file is had from that directory.
+//! let mut stack = BunsenCatalogStack::new();
+//! stack.push_yaml(
+//!     "prelude",
+//!     r#"
+//! $contracts:
+//!   greeting:
+//!     $kind: contract
+//!     $description: "A greeting, as text."
+//!     $resources: { text: { $format: [text] } }
+//! template_class_root: { $kind: template_class, $description: "The root." }
+//! "#,
+//! )?;
+//! stack.push_yaml(
+//!     "toy",
+//!     &format!(
+//!         r#"
+//! toy:
+//!   $kind: namespace
+//!   $description: "Toy builds."
+//!   hi: {{ $kind: alias, $ref: {{ $path: hello, $kind: build }} }}
+//!   hello:
+//!     $kind: build
+//!     $description: "A greeting."
+//!     $contract: greeting
+//!     $resources: {{ text: text }}
+//!     text:
+//!       $kind: resource
+//!       $file: hello.txt
+//!       $format: text
+//!       $sources: [{{ $local_dir: {{ $name: upstream, $default: ["{}"] }} }}]
+//! "#,
+//!         upstream.display()
+//!     ),
+//! )?;
+//! let catalog = CatalogBuildProvider::new(
+//!     CATALOG,
+//!     "the toy builds",
+//!     &stack,
+//!     "greeting",
+//! )?;
 //! let factory =
-//!     BuildFactory::<Greeting>::new().with_provider(Arc::new(table))?;
+//!     BuildFactory::<Greeting>::new().with_provider(Arc::new(catalog))?;
 //! assert_eq!(factory.ids(), ["catalog:toy/hello"]);
 //!
 //! // A cache rooted in the temporary directory, and offline.
@@ -225,13 +207,13 @@
 //!         .with_offline(true),
 //! )?;
 //!
-//! // The whole pathway: the alias resolves to the row, the file is used in
+//! // The whole pathway: the alias resolves to the build, the file is used in
 //! // place, and the hook builds.
 //! let loaded = factory.load(
 //!     "hi",
 //!     &cache,
 //!     &Default::default(),
-//!     bunsen::data::formats::LoadPolicy::as_stored(),
+//!     LoadPolicy::as_stored(),
 //! )?;
 //! assert_eq!(loaded.name, "catalog:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
@@ -245,11 +227,8 @@
 //!     "text",
 //!     upstream.join("hello.txt"),
 //! ))?;
-//! let loaded = given.load(
-//!     &cache,
-//!     &Default::default(),
-//!     bunsen::data::formats::LoadPolicy::as_stored(),
-//! )?;
+//! let loaded =
+//!     given.load(&cache, &Default::default(), LoadPolicy::as_stored())?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
 //!     ("mine", "hello")
@@ -264,10 +243,11 @@
 //! and
 //! [`default_silero_factory`](crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory).
 //!
+//! [`ResolvedBuild`]: crate::data::catalog::ResolvedBuild
+//! [`ResolvedBuild::resource_set`]: crate::data::catalog::ResolvedBuild::resource_set
 //! [`ResourceCache`]: crate::data::resources::ResourceCache
-//! [`Resource`]: crate::data::resources::Resource
 //! [`ResourceSet`]: crate::data::resources::ResourceSet
-//! [`ResourceSet::fuse`]: crate::data::resources::ResourceSet::fuse
+//! [`Resource`]: crate::data::resources::Resource
 //! [`Source`]: crate::data::resources::Source
 //! [`resolve_dir_template`]: crate::data::resources::resolve_dir_template
 
@@ -283,7 +263,6 @@ mod init;
 #[cfg(feature = "cache")]
 mod lookup;
 mod providers;
-mod rows;
 
 pub use build_ref::*;
 pub use catalog_provider::*;
@@ -297,4 +276,3 @@ pub use init::*;
 #[cfg(feature = "cache")]
 pub use lookup::*;
 pub use providers::*;
-pub use rows::*;

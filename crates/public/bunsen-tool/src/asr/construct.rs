@@ -726,10 +726,7 @@ pub fn asr_builds() -> BunsenResult<Vec<(CatalogName, Family)>> {
     let mut builds = Vec::new();
     for family in Family::ALL {
         for (_, row) in Kit::Asr(family).listing()?.rows {
-            let name = CatalogName::parse(&row.name).map_err(|e| {
-                BunsenError::illegal(format!("`{}`: {}", row.name, e.problem_message()))
-            })?;
-            builds.push((name, family));
+            builds.push((row.name, family));
         }
     }
     Ok(builds)

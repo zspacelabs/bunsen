@@ -1,7 +1,10 @@
 //! `asr family whisper inspect`.
 
 use bunsen::{
-    data::resources::ResourceCache,
+    data::{
+        builds::GEOMETRY,
+        resources::ResourceCache,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -9,12 +12,12 @@ use bunsen::{
     },
     kits::speech::asr::whisper::{
         WhisperApiConfig,
+        WhisperGeometry,
         driver::WhisperSpecialIds,
         pretrained::{
             CHECKPOINT,
             GeometryMismatch,
             VOCABULARY,
-            WHISPER_PREFABS,
             WhisperVocabulary,
             default_whisper_factory,
         },
@@ -59,7 +62,7 @@ impl AsrWhisperInspectCommand {
         let cache: ResourceCache = self.cache.init()?;
         let model = whisper::resolve(&self.name, None, &cache)?;
         println!("model: {}", model.id());
-        if let Some((provider, row)) = model.model.named() {
+        if let Some((provider, row)) = model.model.build() {
             let description = default_whisper_factory()?
                 .provider(provider)
                 .map(|p| p.description().to_string())
@@ -86,10 +89,15 @@ impl AsrWhisperInspectCommand {
             }
         }
 
-        let promised = model.model.prefab(&WHISPER_PREFABS);
-        if let Some(prefab) = &promised {
-            println!("prefab: {} ({})", prefab.name, prefab.description);
-            println!("  {:?}", prefab.to_config().geometry());
+        let promised: Option<WhisperGeometry> = model.model.stated(GEOMETRY)?;
+        if let Some(geometry) = &promised {
+            match geometry.prefab() {
+                Some(prefab) => {
+                    println!("geometry: prefab {} ({})", prefab.name, prefab.description)
+                }
+                None => println!("geometry: stated"),
+            }
+            println!("  {geometry:?}");
         }
 
         let loaded = cache.load(&map)?;
@@ -121,7 +129,7 @@ impl AsrWhisperInspectCommand {
         println!("  front end: {:?}", cfg.front_end);
 
         match (&promised, geometry.prefab()) {
-            (Some(prefab), _) => println!("  matches prefab {}", prefab.name),
+            (Some(_), _) => println!("  matches the stated geometry"),
             (None, Some(prefab)) => println!("  geometry is prefab {}", prefab.name),
             (None, None) => println!("  geometry matches no built-in prefab"),
         }

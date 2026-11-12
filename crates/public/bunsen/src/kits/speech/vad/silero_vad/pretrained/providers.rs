@@ -44,7 +44,7 @@ pub const SILERO_CATALOG_CONTRACT: &str = "silero-vad";
 /// revision of `snakers4/silero-vad`.
 pub fn default_silero_providers() -> Vec<Arc<dyn BuildProvider>> {
     let providers: Vec<Arc<dyn BuildProvider>> = vec![Arc::new(
-        crate::data::catalog::BuiltinCatalog::expect_provider(SILERO_CATALOG_CONTRACT, SILERO_KIT),
+        crate::data::catalog::BuiltinCatalog::expect_provider(SILERO_CATALOG_CONTRACT),
     )];
     providers
 }

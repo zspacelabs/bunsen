@@ -11,11 +11,10 @@ use bunsen::{
             BuildFactory,
             ConstructInit,
             Deferred,
-            Pretrained,
         },
         cache::verify_sha256,
         catalog::{
-            CatalogName,
+            ResolvedBuild,
             lookup::{
                 LeafMatch,
                 name_matches,
@@ -112,7 +111,7 @@ impl From<Family> for Kit {
 #[derive(Clone, Debug)]
 pub struct Listing {
     /// The listed rows, by provider.
-    pub rows: Vec<(String, Pretrained)>,
+    pub rows: Vec<(String, ResolvedBuild)>,
 
     /// The providers that list nothing.
     pub unlisted: Vec<String>,
@@ -251,11 +250,7 @@ impl Kit {
                 Some(_) => return false,
                 None => name,
             };
-            let catalog_name = CatalogName::parse(&row.name).ok();
-            catalog_name.is_some_and(|full| name_matches(bare, &full, LeafMatch::Exact))
-                || std::iter::once(&row.name)
-                    .chain(&row.aliases)
-                    .any(|n| n.eq_ignore_ascii_case(bare))
+            name_matches(bare, &row.name, LeafMatch::Exact) || row.answers_to(bare)
         }))
     }
 
@@ -367,7 +362,7 @@ pub fn load_logged<H: ConstructInit>(
     let t0 = Instant::now();
     let loaded = deferred.load(cache, device, LoadPolicy::performance())?;
     log::info!("model: {}", deferred.id());
-    if let Some((_, row)) = deferred.model.named() {
+    if let Some((_, row)) = deferred.model.build() {
         log::info!("  {}", row.description);
         if let Some(license) = &row.license {
             log::info!("  license: {license}");

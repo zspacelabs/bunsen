@@ -7,7 +7,6 @@ use super::{
     CHECKPOINT,
     PHONON_ARCHIVE,
     QWEN3_ASR_KIT,
-    QWEN3_ASR_PREFABS,
     SAFETENSORS,
     TOKENIZER_JSON,
     VOCABULARY,
@@ -160,12 +159,9 @@ impl ConstructInit for Qwen3AsrConstructConfig {
                 qwen3_asr_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?
             }
-            None => match model.stated(GEOMETRY)? {
-                Some(config) => config,
-                None => model
-                    .prefab(&QWEN3_ASR_PREFABS)
-                    .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
-            },
+            None => model
+                .stated(GEOMETRY)?
+                .unwrap_or_else(Qwen3AsrConfig::qwen3_asr_0_6b),
         };
         let n_mels = config.audio.n_mels;
         // The stored dtype (bf16), where the policy and the device allow it;

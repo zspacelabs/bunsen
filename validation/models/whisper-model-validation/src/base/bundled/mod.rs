@@ -32,7 +32,6 @@ use bunsen::{
                 CHECKPOINT,
                 VOCABULARY,
                 WHISPER_CATALOG_CONTRACT,
-                WHISPER_KIT,
                 WhisperConstructConfig,
                 WhisperVocabulary,
                 default_whisper_providers,
@@ -159,7 +158,6 @@ pub fn factory_with_bundle() -> BuildFactory<WhisperConstructConfig> {
         "the built-in catalog, with the bundle's files",
         &stack,
         WHISPER_CATALOG_CONTRACT,
-        WHISPER_KIT,
     )
     .unwrap();
     let rest = default_whisper_providers()

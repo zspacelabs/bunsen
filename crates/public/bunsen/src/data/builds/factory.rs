@@ -28,12 +28,13 @@ use crate::{
             Deferred,
             Loaded,
             LookupExpr,
-            Pretrained,
         },
-        catalog::presets::PresetSelection,
+        catalog::{
+            ResolvedBuild,
+            presets::PresetSelection,
+        },
         formats::LoadPolicy,
         not_found,
-        pretrained::tags::KIT,
         resources::ResourceCache,
     },
     errors::{
@@ -57,9 +58,9 @@ use crate::{
 /// is the whole pathway, from a name to a [`Loaded`] model.
 /// [`resolve`](Self::resolve) is its index half: a [`Deferred`] model that
 /// carries the hook its resource set calls for, so that a caller can overlay
-/// a row ([`Deferred::with_overlay`]) before loading it, and never builds or
-/// passes a hook. [`list`](Self::list), [`ids`](Self::ids) and
-/// [`for_prefab`](Self::for_prefab) answer a listing. A file on disk is
+/// a build ([`Deferred::with_overlay`]) before loading it, and never builds or
+/// passes a hook. [`list`](Self::list) and [`ids`](Self::ids) answer a
+/// listing. A file on disk is
 /// not the factory's business: that is a given [`ResourceSet`], through
 /// [`Deferred::from_resource_set`].
 ///
@@ -67,18 +68,17 @@ use crate::{
 ///
 /// A spec is a [`LookupExpr`]: `[provider:]name`, then an optional box of
 /// presets and an optional YAML patch, `name[preset, …]{patch}`. Only the
-/// name is dispatched. The box and the patch are checked against the row
+/// name is dispatched. The box and the patch are checked against the build
 /// found before anything is fetched: a kit whose hook does not resolve
 /// presets ([`ConstructInit::RESOLVES_PRESETS`]) refuses them, and one that
-/// does checks the box against the row's presets
+/// does checks the box against the build's presets
 /// ([`ResolvedPresetSet::check_selection`](crate::data::catalog::presets::ResolvedPresetSet::check_selection)).
 /// The selection rides on the ref ([`BuildRef::selection`]) to the
 /// hook, which resolves its config through it.
 ///
-/// A table compares names ignoring ASCII case unless it is
-/// [`case_sensitive`](crate::data::builds::PretrainedTable::case_sensitive):
-/// `Qwen/Qwen3-0.6B` finds `qwen/qwen3-0.6b`. A hub compares as it is asked,
-/// since its names are paths in URLs.
+/// A catalog compares names ignoring ASCII case: `Qwen/Qwen3-0.6B` finds
+/// `qwen/qwen3/qwen3-0.6b`. A hub compares as it is asked, since its names
+/// are paths in URLs.
 ///
 /// # Dispatch
 ///
@@ -126,9 +126,9 @@ use crate::{
 ///
 /// // A bare name is offered to the providers that answer bare names, in
 /// // order: the catalog provider has it.
-/// let (provider, row) = factory.lookup("tiny")?;
+/// let (provider, build) = factory.lookup("tiny")?;
 /// assert_eq!(provider, "catalog");
-/// assert_eq!(row.name, "openai/whisper/tiny");
+/// assert_eq!(build.name.to_string(), "openai/whisper/tiny");
 ///
 /// // `hf:` goes to the Hugging Face provider alone, which answers only
 /// // through a cache: its error aborts the lookup.
@@ -245,9 +245,9 @@ impl<H: ConstructInit> BuildFactory<H> {
         self.providers.iter().find(|p| p.name() == name)
     }
 
-    /// Every listed row with its provider's name, in registration then
+    /// Every listed build with its provider's name, in registration then
     /// listing order.
-    pub fn list(&self) -> Vec<(String, Pretrained)> {
+    pub fn list(&self) -> Vec<(String, ResolvedBuild)> {
         self.providers
             .iter()
             .flat_map(|provider| {
@@ -255,19 +255,9 @@ impl<H: ConstructInit> BuildFactory<H> {
                 provider
                     .list()
                     .into_iter()
-                    .map(move |row| (name.clone(), Self::with_kit(row)))
+                    .map(move |build| (name.clone(), build))
             })
             .collect()
-    }
-
-    /// `row` with this factory's kit as its [`KIT`] tag, when it has none:
-    /// every row the factory hands out says which kit it is, whichever
-    /// provider it came from.
-    fn with_kit(mut row: Pretrained) -> Pretrained {
-        if !row.tags.contains_key(KIT) {
-            row.tags.insert(KIT, H::KIT);
-        }
-        row
     }
 
     /// Every listed id, `provider:ref`: the "did you mean" list.
@@ -275,25 +265,7 @@ impl<H: ConstructInit> BuildFactory<H> {
         self.providers.iter().flat_map(|p| p.ids()).collect()
     }
 
-    /// Every listed row that instantiates `prefab`, with its provider's
-    /// name.
-    pub fn for_prefab(
-        &self,
-        prefab: &str,
-    ) -> Vec<(String, Pretrained)> {
-        self.providers
-            .iter()
-            .flat_map(|provider| {
-                let name = provider.name().to_string();
-                provider
-                    .for_prefab(prefab)
-                    .into_iter()
-                    .map(move |row| (name.clone(), Self::with_kit(row)))
-            })
-            .collect()
-    }
-
-    /// The row `spec` names, with its provider's name.
+    /// The build `spec` names, with its provider's name.
     ///
     /// The index only: `provider:ref` asks that provider alone. Anything
     /// else is offered to the providers that answer bare names, in order;
@@ -309,14 +281,15 @@ impl<H: ConstructInit> BuildFactory<H> {
     pub fn lookup(
         &self,
         spec: &str,
-    ) -> BunsenResult<(String, Pretrained)> {
+    ) -> BunsenResult<(String, ResolvedBuild)> {
         let expr = LookupExpr::parse(spec)?;
-        let (provider, row) = match self.find(&expr.name, |provider, name| provider.lookup(name))? {
-            Some(found) => found,
-            None => return Err(self.not_found(&expr.name)),
-        };
-        Self::check_selection(&row, &expr.selection)?;
-        Ok((provider, row))
+        let (provider, build) =
+            match self.find(&expr.name, |provider, name| provider.lookup(name))? {
+                Some(found) => found,
+                None => return Err(self.not_found(&expr.name)),
+            };
+        Self::check_selection(&build, &expr.selection)?;
+        Ok((provider, build))
     }
 
     /// The config `spec` resolves `base` to through its row's presets, as
@@ -337,8 +310,8 @@ impl<H: ConstructInit> BuildFactory<H> {
         C: Serialize + DeserializeOwned,
     {
         let expr = LookupExpr::parse(spec)?;
-        let (_, row) = self.lookup(spec)?;
-        resolve_presets(base, &row.presets, &expr.selection)
+        let (_, build) = self.lookup(spec)?;
+        resolve_presets(base, &build.presets, &expr.selection)
     }
 
     /// Checks what a lookup asks of `row`'s presets, before anything is
@@ -349,7 +322,7 @@ impl<H: ConstructInit> BuildFactory<H> {
     /// which knows the model's family only once it reads the files
     /// ([`resolve_ref_presets`](crate::kits::support::model_config::resolve_ref_presets)).
     fn check_selection(
-        row: &Pretrained,
+        build: &ResolvedBuild,
         selection: &PresetSelection,
     ) -> BunsenResult<()> {
         if selection.is_empty() {
@@ -361,12 +334,13 @@ impl<H: ConstructInit> BuildFactory<H> {
                 H::KIT
             )));
         }
-        if row.presets.is_empty() {
+        if build.presets.is_empty() {
             return Ok(());
         }
-        row.presets
+        build
+            .presets
             .check_selection(selection)
-            .with_context(|| format!("the presets of {:?}", row.name))?;
+            .with_context(|| format!("the presets of {:?}", build.name.to_string()))?;
         Ok(())
     }
 
@@ -391,16 +365,12 @@ impl<H: ConstructInit> BuildFactory<H> {
         let resolve = || -> BunsenResult<Deferred<H>> {
             let expr = LookupExpr::parse(spec)?;
             let found = self.find(&expr.name, |provider, name| provider.resolve(name, cache))?;
-            let (provider, pretrained) = match found {
+            let (provider, build) = match found {
                 Some(found) => found,
                 None => return Err(self.not_found(&expr.name)),
             };
-            Self::check_selection(&pretrained, &expr.selection)?;
-            Deferred::new(BuildRef::Named {
-                provider,
-                pretrained: Box::new(pretrained),
-                selection: expr.selection,
-            })
+            Self::check_selection(&build, &expr.selection)?;
+            Deferred::new(BuildRef::named(provider, build, expr.selection))
         };
 
         let defered = resolve().as_policy()?;
@@ -449,20 +419,19 @@ impl<H: ConstructInit> BuildFactory<H> {
     pub(crate) fn find(
         &self,
         spec: &str,
-        ask: impl Fn(&dyn BuildProvider, &str) -> BunsenResult<Option<Pretrained>>,
-    ) -> BunsenResult<Option<(String, Pretrained)>> {
+        ask: impl Fn(&dyn BuildProvider, &str) -> BunsenResult<Option<ResolvedBuild>>,
+    ) -> BunsenResult<Option<(String, ResolvedBuild)>> {
         if let Some((head, rest)) = spec.split_once(':')
             && let Some(provider) = self.provider(head)
         {
-            return Ok(ask(provider.as_ref(), rest)?
-                .map(|row| (provider.name().to_string(), Self::with_kit(row))));
+            return Ok(ask(provider.as_ref(), rest)?.map(|b| (provider.name().to_string(), b)));
         }
         for provider in &self.providers {
             if !provider.answers_bare_names() {
                 continue;
             }
-            if let Some(row) = ask(provider.as_ref(), spec)? {
-                return Ok(Some((provider.name().to_string(), Self::with_kit(row))));
+            if let Some(build) = ask(provider.as_ref(), spec)? {
+                return Ok(Some((provider.name().to_string(), build)));
             }
         }
         Ok(None)
@@ -489,9 +458,9 @@ impl<H: ConstructInit> BuildFactory<H> {
     }
 }
 
-/// Providers and a hook with the shape of things the compiled-in tables are
-/// not: a hub that answers a ref but lists nothing, one that fails, and a
-/// hook that builds a path.
+/// Providers and hooks for the factory's tests: a catalog of toy builds, a
+/// hub that answers a ref but lists nothing, one that fails, and a hook
+/// that builds a path.
 #[cfg(test)]
 pub(crate) mod testing {
     use alloc::{
@@ -505,12 +474,69 @@ pub(crate) mod testing {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::data::resources::{
-        LoadedResourceSet,
-        Resource,
-        ResourceSet,
-        Source,
+    use crate::data::{
+        builds::CatalogBuildProvider,
+        catalog::{
+            BunsenCatalogStack,
+            CatalogName,
+            document::{
+                ResourceEntry,
+                ResourceSource,
+            },
+        },
+        resources::{
+            LoadedResourceSet,
+            ResourceSet,
+        },
     };
+
+    /// The base catalog of the toy builds: the `toy` contract, whose builds
+    /// are one `checkpoint`.
+    pub const TOY_PRELUDE: &str = r#"
+$contracts:
+  toy:
+    $kind: contract
+    $description: "A toy checkpoint."
+    $resources:
+      checkpoint: { $format: [pytorch] }
+template_class_root: { $kind: template_class, $description: "The root." }
+"#;
+
+    /// The toy builds `yaml` declares, over [`TOY_PRELUDE`], as a catalog
+    /// provider called `name`.
+    pub fn toy_catalog(
+        name: &str,
+        yaml: &str,
+    ) -> Arc<dyn BuildProvider> {
+        let mut stack = BunsenCatalogStack::new();
+        stack.push_yaml("prelude", TOY_PRELUDE).unwrap();
+        stack.push_yaml("builds", yaml).unwrap();
+        Arc::new(
+            CatalogBuildProvider::new(name, format!("the {name} builds"), &stack, "toy").unwrap(),
+        )
+    }
+
+    /// A toy build `leaf`, its checkpoint `{leaf}.pt` at `t.example`, with
+    /// `extra` YAML fields, as an entry of a namespace's.
+    pub fn toy_build(
+        leaf: &str,
+        extra: &str,
+    ) -> String {
+        format!(
+            r#"  {leaf}:
+    $kind: build
+    $description: "Build {leaf}."
+    $contract: toy
+    $resources: {{ checkpoint: checkpoint }}
+    {extra}
+    checkpoint:
+      $kind: resource
+      $file: {leaf}.pt
+      $format: pytorch
+      $sources: [{{ $url: "https://t.example/{leaf}.pt" }}]
+"#
+        )
+    }
 
     /// A provider that can look up but not list: the shape of a hub
     /// wrapper. Answers `hub:<org>/<repo>` with a two-file resource set of
@@ -542,44 +568,36 @@ pub(crate) mod testing {
             Some("https://hub.example")
         }
 
-        fn list(&self) -> Vec<Pretrained> {
+        fn list(&self) -> Vec<ResolvedBuild> {
             Vec::new()
         }
 
         fn lookup(
             &self,
             name: &str,
-        ) -> BunsenResult<Option<Pretrained>> {
+        ) -> BunsenResult<Option<ResolvedBuild>> {
             self.lookups.fetch_add(1, Ordering::SeqCst);
             let Some((org, repo)) = name.split_once('/') else {
                 return Ok(None);
             };
             let base = format!("https://hub.example/{org}/{repo}/resolve/main");
-            let file = |key: &str, file: &str, kind: &str| Resource {
-                size: None,
-                dtype: None,
-                slot: key.to_string(),
-                file: file.to_string(),
-                sha256: None,
-                format: Some(kind.to_string()),
-                name: "hub".to_string(),
-                sources: vec![Source::Url(format!("{base}/{file}"))],
+            let n = |rest: &str| CatalogName::parse(&format!("hub/{org}/{repo}{rest}")).unwrap();
+            let file = |file: &str, format: &str| {
+                ResourceEntry::new(
+                    file,
+                    format,
+                    vec![ResourceSource::Url(format!("{base}/{file}"))],
+                )
             };
-            let resources = ResourceSet::new(name)
-                .with_resource(file("checkpoint", "model.safetensors", "safetensors"))
-                .with_resource(file("config", "config.json", "json"));
-            Ok(Some(Pretrained {
-                name: name.to_string(),
-                aliases: Vec::new(),
-                description: format!("{org}/{repo}, from the hub"),
-                license: None,
-                origin: Some(base),
-                prefab: None,
-                resources,
-                presets: Default::default(),
-                args: Default::default(),
-                tags: Default::default(),
-            }))
+            let mut build = ResolvedBuild::new(n(""), format!("{org}/{repo}, from the hub"))
+                .with_resource(
+                    "checkpoint",
+                    n("/checkpoint"),
+                    file("model.safetensors", "safetensors"),
+                )
+                .with_resource("config", n("/config"), file("config.json", "json"));
+            build.origin = Some(base);
+            Ok(Some(build))
         }
 
         fn answers_bare_names(&self) -> bool {
@@ -600,14 +618,14 @@ pub(crate) mod testing {
             "cannot be reached"
         }
 
-        fn list(&self) -> Vec<Pretrained> {
+        fn list(&self) -> Vec<ResolvedBuild> {
             Vec::new()
         }
 
         fn lookup(
             &self,
             _name: &str,
-        ) -> BunsenResult<Option<Pretrained>> {
+        ) -> BunsenResult<Option<ResolvedBuild>> {
             Err(BunsenError::unavailable("failing: unreachable"))
         }
     }
@@ -665,8 +683,6 @@ pub(crate) mod testing {
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec;
-    use std::path::Path;
 
     use super::{
         testing::{
@@ -674,21 +690,15 @@ mod tests {
             Failing,
             ListsNothing,
             PresetPath,
+            toy_build,
+            toy_catalog,
         },
         *,
     };
     use crate::{
         data::{
-            builds::{
-                CATALOG,
-                PretrainedGroup,
-                PretrainedTable,
-            },
-            resources::{
-                Resource,
-                ResourceSet,
-                Source,
-            },
+            builds::CATALOG,
+            resources::ResourceSet,
         },
         errors::{
             LookupProblem,
@@ -700,97 +710,28 @@ mod tests {
         },
     };
 
-    fn row(
-        name: &str,
-        aliases: &[&str],
-        prefab: &str,
-    ) -> Pretrained {
-        Pretrained {
-            name: name.to_string(),
-            aliases: aliases.iter().map(|a| a.to_string()).collect(),
-            description: format!("row {name}"),
-            license: None,
-            origin: None,
-            prefab: Some(prefab.to_string()),
-            resources: ResourceSet::new(name).with_resource(Resource {
-                size: None,
-                dtype: None,
-                slot: "checkpoint".to_string(),
-                file: format!("{name}.pt"),
-                sha256: None,
-                format: Some("pytorch".to_string()),
-                name: "t".to_string(),
-                sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
-            }),
-            presets: Default::default(),
-            args: Default::default(),
-            tags: Default::default(),
-        }
-    }
-
-    /// A row whose one resource is a file on disk already.
-    fn local_row(
-        name: &str,
-        path: &Path,
-    ) -> Pretrained {
-        Pretrained {
-            name: name.to_string(),
-            aliases: Vec::new(),
-            description: format!("row {name}, on disk"),
-            license: None,
-            origin: None,
-            prefab: None,
-            resources: ResourceSet::given(name, "checkpoint", path),
-            presets: Default::default(),
-            args: Default::default(),
-            tags: Default::default(),
-        }
-    }
-
-    fn group(
-        name: &str,
-        items: Vec<Pretrained>,
-    ) -> PretrainedGroup {
-        PretrainedGroup {
-            name: name.to_string(),
-            description: format!("group {name}"),
-            license: None,
-            origin: None,
-            items,
-        }
-    }
-
-    fn table(
-        name: &str,
-        groups: Vec<PretrainedGroup>,
-    ) -> Arc<dyn BuildProvider> {
-        Arc::new(PretrainedTable {
-            name: name.to_string(),
-            description: format!("table {name}"),
-            groups,
-            case_sensitive: false,
-        })
-    }
-
-    /// `catalog` with groups `a` (small, large-v1, large-v2) and `b`
-    /// (small, tiny).
+    /// `catalog`, the toy builds `a/small` (alias `s`), `a/large-v1`,
+    /// `a/large-v2` (alias `large`), `b/small` and `b/tiny`.
     fn well_known() -> Arc<dyn BuildProvider> {
-        table(
+        toy_catalog(
             CATALOG,
-            vec![
-                group(
-                    "a",
-                    vec![
-                        row("small", &["s"], "small"),
-                        row("large-v1", &[], "large"),
-                        row("large-v2", &["large"], "large"),
-                    ],
-                ),
-                group(
-                    "b",
-                    vec![row("small", &[], "small"), row("tiny", &[], "tiny")],
-                ),
-            ],
+            &format!(
+                r#"
+a:
+  $kind: namespace
+  $description: "Group a."
+  s: {{ $kind: alias, $ref: {{ $path: small, $kind: build }} }}
+  large: {{ $kind: alias, $ref: {{ $path: large-v2, $kind: build }} }}
+{}{}{}b:
+  $kind: namespace
+  $description: "Group b."
+{}{}"#,
+                toy_build("small", ""),
+                toy_build("large-v1", ""),
+                toy_build("large-v2", ""),
+                toy_build("small", ""),
+                toy_build("tiny", ""),
+            ),
         )
     }
 
@@ -841,7 +782,7 @@ mod tests {
         assert_eq!(removed.name(), CATALOG);
         assert!(factory.providers().is_empty());
         factory.register(well_known()).unwrap();
-        assert!(format!("{factory:?}").contains("PretrainedTable"));
+        assert!(format!("{factory:?}").contains("CatalogBuildProvider"));
         assert_eq!(factory.clone().providers().len(), 1);
         assert!(
             BuildFactory::<CheckpointPath>::default()
@@ -865,12 +806,12 @@ mod tests {
 
         let (provider, row) = factory.lookup("catalog:b/tiny").unwrap();
         assert_eq!(
-            (provider.as_str(), row.name.as_str()),
+            (provider.as_str(), row.name.to_string().as_str()),
             ("catalog", "b/tiny")
         );
         let (provider, row) = factory.lookup("catalog:large").unwrap();
         assert_eq!(
-            (provider.as_str(), row.name.as_str()),
+            (provider.as_str(), row.name.to_string().as_str()),
             ("catalog", "a/large-v2")
         );
 
@@ -890,36 +831,41 @@ mod tests {
     /// wins, and a provider that declines bare names is skipped.
     #[test]
     fn test_a_bare_spec_searches_in_order_and_skips_decliners() {
-        let second = table(
+        let second = toy_catalog(
             "second",
-            vec![group(
-                "a",
-                vec![row("small", &[], "small"), row("only-here", &[], "x")],
-            )],
+            &format!(
+                "a:\n  $kind: namespace\n  $description: \"Group a.\"\n{}{}",
+                toy_build("small", ""),
+                toy_build("only-here", "")
+            ),
         );
         let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([Arc::new(ListsNothing::default()) as _, well_known(), second])
             .unwrap();
 
-        let (provider, row) = factory.lookup("small").unwrap();
+        let (provider, row) = factory.lookup("a/small").unwrap();
         assert_eq!(
-            (provider.as_str(), row.name.as_str()),
+            (provider.as_str(), row.name.to_string().as_str()),
             ("catalog", "a/small")
         );
+        // A spelling two builds of the first catalog match is its error.
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_contains("`small` is ambiguous: a/small, b/small")
+            .assert_err(&factory.lookup("small"));
         let (provider, row) = factory.lookup("only-here").unwrap();
         assert_eq!(
-            (provider.as_str(), row.name.as_str()),
+            (provider.as_str(), row.name.to_string().as_str()),
             ("second", "a/only-here")
         );
         let (provider, row) = factory.lookup("second:a/small").unwrap();
         assert_eq!(
-            (provider.as_str(), row.name.as_str()),
+            (provider.as_str(), row.name.to_string().as_str()),
             ("second", "a/small")
         );
         let (_, row) = factory.lookup("tiny").unwrap();
-        assert_eq!(row.name, "b/tiny");
+        assert_eq!(row.name.to_string(), "b/tiny");
         let (_, row) = factory.lookup("a/s").unwrap();
-        assert_eq!(row.name, "a/small");
+        assert_eq!(row.name.to_string(), "a/small");
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .display(text::starts_with("kit: no pretrained \"gigantic\""))
@@ -945,10 +891,11 @@ mod tests {
 
         let (provider, row) = factory.lookup("hub:openai/whisper-base").unwrap();
         assert_eq!(provider, "hub");
-        assert_eq!(row.name, "openai/whisper-base");
-        assert_eq!(row.resources.keys(), ["checkpoint", "config"]);
+        assert_eq!(row.name.to_string(), "hub/openai/whisper-base");
+        let set = row.resource_set();
+        assert_eq!(set.keys(), ["checkpoint", "config"]);
         assert_eq!(
-            row.resources.get("checkpoint").unwrap().urls(),
+            set.get("checkpoint").unwrap().urls(),
             ["https://hub.example/openai/whisper-base/resolve/main/model.safetensors"]
         );
         assert_eq!(hub.lookups(), 1);
@@ -975,7 +922,10 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("failing:x"));
         // The failing provider answers bare names, and is asked first.
         ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("small"));
-        assert_eq!(factory.lookup("catalog:small").unwrap().1.name, "a/small");
+        assert_eq!(
+            factory.lookup("catalog:tiny").unwrap().1.name.to_string(),
+            "b/tiny"
+        );
     }
 
     /// A spec resolves to the row it names, qualified, bare or by alias,
@@ -992,13 +942,16 @@ mod tests {
         let model = factory.resolve("s", &cache).unwrap();
         assert_eq!(model.id(), "catalog:a/small");
         assert_eq!(
-            model.model.named().map(|(p, row)| (p, row.name.as_str())),
-            Some(("catalog", "a/small"))
+            model
+                .model
+                .build()
+                .map(|(p, build)| (p, build.name.to_string())),
+            Some(("catalog", "a/small".to_string()))
         );
         assert_eq!(model.to_resource_set().name, "catalog:a/small");
         assert!(format!("{:?}", model.config).contains("CheckpointPath"));
-        let model = factory.resolve("hub:x/y", &cache).unwrap();
-        assert_eq!(model.id(), "hub:x/y");
+        let model = factory.resolve("hub:x/z", &cache).unwrap();
+        assert_eq!(model.id(), "hub:x/z");
 
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
@@ -1022,7 +975,27 @@ mod tests {
         let cache = offline_cache(dir.path());
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        let on_disk = table("disk", vec![group("l", vec![local_row("ckpt", &file)])]);
+        let on_disk = toy_catalog(
+            "disk",
+            &format!(
+                r#"
+l:
+  $kind: namespace
+  $description: "On disk."
+  ckpt:
+    $kind: build
+    $description: "A checkpoint on disk."
+    $contract: toy
+    $resources: {{ checkpoint: checkpoint }}
+    checkpoint:
+      $kind: resource
+      $file: ckpt.pt
+      $format: pytorch
+      $sources: [{{ $local_dir: {{ $name: disk, $default: ["{}"] }} }}]
+"#,
+                dir.path().display()
+            ),
+        );
         let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([well_known(), on_disk])
             .unwrap();
@@ -1070,12 +1043,12 @@ mod tests {
     }
 
     #[test]
-    fn test_list_ids_and_for_prefab_cover_every_provider() {
+    fn test_list_and_ids_cover_every_provider() {
         let factory = factory();
         let listed: Vec<String> = factory
             .list()
             .iter()
-            .map(|(p, row)| format!("{p}:{}", row.name))
+            .map(|(p, build)| format!("{p}:{}", build.name))
             .collect();
         assert_eq!(listed, factory.ids());
         assert_eq!(
@@ -1088,52 +1061,23 @@ mod tests {
                 "catalog:b/tiny",
             ]
         );
-        let small: Vec<String> = factory
-            .for_prefab("small")
-            .iter()
-            .map(|(p, row)| format!("{p}:{}", row.name))
-            .collect();
-        assert_eq!(small, ["catalog:a/small", "catalog:b/small"]);
-        assert!(factory.for_prefab("nothing").is_empty());
     }
 
-    /// Every row the factory hands out says which kit it is, whichever way
-    /// it was found; a row that already says keeps its own.
-    #[test]
-    fn test_rows_carry_their_kit() {
-        let factory = factory();
-        assert!(
-            factory
-                .list()
-                .iter()
-                .chain(&factory.for_prefab("small"))
-                .all(|(_, row)| row.tags.text(KIT) == Some("kit"))
-        );
-        let (_, row) = factory.lookup("a/small").unwrap();
-        assert_eq!(row.tags.text(KIT), Some("kit"));
-        assert_eq!(
-            factory.lookup("catalog:b/tiny").unwrap().1.tags.text(KIT),
-            Some("kit")
-        );
-
-        let mut own = row;
-        own.tags.insert(KIT, "other");
-        let kept = BuildFactory::<CheckpointPath>::with_kit(own);
-        assert_eq!(kept.tags.text(KIT), Some("other"));
-    }
-
-    /// A table compares names ignoring case, and hands the row
-    /// back named as it declares it.
+    /// A catalog compares names ignoring case, and hands the build back
+    /// named as it declares it.
     #[test]
     fn test_well_known_names_ignore_case() {
         let factory = factory();
         let (provider, row) = factory.lookup("A/SMALL").unwrap();
         assert_eq!(
-            (provider.as_str(), row.name.as_str()),
+            (provider.as_str(), row.name.to_string().as_str()),
             ("catalog", "a/small")
         );
-        assert_eq!(factory.lookup("catalog:B/Tiny").unwrap().1.name, "b/tiny");
-        assert_eq!(factory.lookup("S").unwrap().1.name, "a/small");
+        assert_eq!(
+            factory.lookup("catalog:B/Tiny").unwrap().1.name.to_string(),
+            "b/tiny"
+        );
+        assert_eq!(factory.lookup("S").unwrap().1.name.to_string(), "a/small");
     }
 
     /// A box or a patch, to a kit whose hook does not resolve presets, is
@@ -1154,26 +1098,20 @@ mod tests {
     /// row's presets before anything is fetched, and rides on the ref.
     #[test]
     fn test_a_selection_is_checked_against_the_row() {
-        use crate::data::catalog::{
-            document::{
-                MergeMode,
-                PresetEntry,
-            },
-            presets::ResolvedPresetSet,
-        };
-
-        let mut small = row("small", &[], "small");
-        small.presets = ResolvedPresetSet {
-            presets: vec![PresetEntry {
-                name: "fast".to_string(),
-                merge: MergeMode::Update,
-                description: "a greedy search".to_string(),
-                patch: serde_json::json!({"beam": 1}),
-            }],
-            ..Default::default()
+        let catalog = |extra: &str| {
+            toy_catalog(
+                CATALOG,
+                &format!(
+                    "a:\n  $kind: namespace\n  $description: \"Group a.\"\n{}{}",
+                    toy_build("small", extra),
+                    toy_build("bare", "")
+                ),
+            )
         };
         let factory = BuildFactory::<PresetPath>::new()
-            .with_providers([table(CATALOG, vec![group("a", vec![small])])])
+            .with_providers([catalog(
+                r#"$presets: { fast: { $description: "a greedy search", $patch: { beam: 1 } } }"#,
+            )])
             .unwrap();
         let dir = tempfile::tempdir().unwrap();
         let cache = offline_cache(dir.path());
@@ -1187,14 +1125,8 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .message_contains("no preset `slow`; there are: fast")
             .assert_err(&factory.resolve("a/small[slow]", &cache));
-        // A row with no presets of its own leaves the box to the hook.
-        let bare = BuildFactory::<PresetPath>::new()
-            .with_providers([table(
-                CATALOG,
-                vec![group("a", vec![row("bare", &[], "small")])],
-            )])
-            .unwrap();
-        let model = bare.resolve("a/bare[anything]", &cache).unwrap();
+        // A build with no presets of its own leaves the box to the hook.
+        let model = factory.resolve("a/bare[anything]", &cache).unwrap();
         assert_eq!(model.model.selection().unwrap().presets, ["anything"]);
         // An empty box is a malformed expression, not an empty selection.
         ErrorMatcher::kind(BunsenErrorKind::Policy)

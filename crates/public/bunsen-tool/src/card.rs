@@ -530,6 +530,7 @@ fn family<H: ConstructInit>(
     });
     let mut models = Vec::new();
     for (provider, row) in factory.list() {
+        let resources = row.resource_set();
         let presets = presets(&row.presets, policy.is_some())?;
         let policy = match &policy {
             Some(policy) => Value::Json(policy(&factory, &format!("{provider}:{}", row.name))?),
@@ -538,17 +539,22 @@ fn family<H: ConstructInit>(
         models.push(Value::map([(
             "model",
             Value::map([
-                ("name", Value::str(row.name)),
+                ("name", Value::str(row.name.to_string())),
                 (
                     "aliases",
-                    Value::List(row.aliases.into_iter().map(Value::Str).collect()),
+                    Value::List(
+                        row.aliases
+                            .iter()
+                            .map(|a| Value::Str(a.leaf().to_string()))
+                            .collect(),
+                    ),
                 ),
-                ("description", Value::str(row.description)),
+                ("description", Value::str(row.description.clone())),
                 (
                     "size",
-                    Value::str(row.resources.size().map(human_bytes).unwrap_or_default()),
+                    Value::str(resources.size().map(human_bytes).unwrap_or_default()),
                 ),
-                ("dtype", Value::str(row.resources.dtypes().join(", "))),
+                ("dtype", Value::str(resources.dtypes().join(", "))),
                 ("presets", presets),
                 ("policy", policy),
             ]),

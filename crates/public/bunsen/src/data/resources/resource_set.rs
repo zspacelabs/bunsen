@@ -51,9 +51,10 @@ pub enum Fuse {
 /// A named set of resources, by key.
 ///
 /// The unit a pretrained is described in, cached by, and fused from. The
-/// keys are the kit's; nothing here knows which one is the model. A
-/// [`Pretrained`](crate::data::builds::Pretrained) row is one resource
-/// set, fused from the resource sets it lists; [`ResourceSet::given`]
+/// keys are the kit's; nothing here knows which one is the model. A build's
+/// files are one
+/// ([`ResolvedBuild::resource_set`](crate::data::catalog::ResolvedBuild::resource_set));
+/// [`ResourceSet::given`]
 /// is a path as a resource
 /// set; [`ResourceCache::load`](super::ResourceCache::load) brings a
 /// whole resource set local, as

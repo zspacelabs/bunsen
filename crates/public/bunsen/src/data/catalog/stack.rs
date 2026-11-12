@@ -147,7 +147,7 @@ pub struct TemplateLink<'a> {
 
 /// The root names no catalog may declare: the resource cache keeps files
 /// off the catalog under them (`hf:` repos', and paths').
-pub const RESERVED_ROOTS: [&str; 2] = ["hf", "given"];
+pub const RESERVED_ROOTS: [&str; 2] = [crate::data::catalog::name::HUB_ROOT, "given"];
 
 /// Catalogs imported in order, and the state they materialize.
 #[derive(Clone, Debug, Default)]
@@ -1660,7 +1660,7 @@ fn update(
 /// Tags, axes and facets name tags; the contract's implied tag takes one
 /// name from them.
 fn reserved_tag_name(name: &CatalogName) -> CatalogResult<()> {
-    if name.to_string() == crate::data::catalog::resolve::CONTRACT_TAG {
+    if *name == crate::data::catalog::resolve::CONTRACT_TAG {
         Err(catalog_error(
             CatalogRule::Conflict,
             format!(

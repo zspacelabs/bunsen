@@ -51,7 +51,6 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             PARAKEET_CATALOG_CONTRACT,
-            PARAKEET_KIT,
         )),
         Arc::new(
             HfProvider::new()
@@ -85,7 +84,7 @@ mod tests {
     fn test_rows_are_pinned_and_named() {
         let factory = default_parakeet_factory().unwrap();
         for (_, row) in factory.list() {
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);

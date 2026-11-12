@@ -230,8 +230,14 @@ pub fn row_file(
         .expect("the nanochat factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = bunsen::data::resources::ResourceSet::new(found.resources.name.clone());
-    map.insert(found.resources.try_get(key).expect("the resource").clone());
+    let mut map = bunsen::data::resources::ResourceSet::new(found.resource_set().name.clone());
+    map.insert(
+        found
+            .resource_set()
+            .try_get(key)
+            .expect("the resource")
+            .clone(),
+    );
     let loaded = weights_cache()
         .load(&map)
         .unwrap_or_else(|e| panic!("{row}: {e}"));

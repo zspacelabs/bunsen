@@ -1,7 +1,7 @@
 //! A checkpoint's row, as the `list` commands print it.
 
 use bunsen::data::{
-    builds::Pretrained,
+    catalog::ResolvedBuild,
     resources::ResourceCache,
 };
 use bunsen_app::cache::human_bytes;
@@ -24,7 +24,7 @@ use crate::support::preset_lines;
 pub fn print_model_row(
     cache: &ResourceCache,
     id: &str,
-    row: &Pretrained,
+    row: &ResolvedBuild,
     default: &str,
     urls: bool,
 ) {
@@ -36,13 +36,15 @@ pub fn print_model_row(
     println!();
     println!("{id}{default}");
     if !row.aliases.is_empty() {
-        println!("  aliases: {}", row.aliases.join(", "));
+        let aliases: Vec<&str> = row.aliases.iter().map(|a| a.leaf()).collect();
+        println!("  aliases: {}", aliases.join(", "));
     }
     println!("  {}", row.description);
-    if let Some(size) = row.resources.size() {
+    let resources = row.resource_set();
+    if let Some(size) = resources.size() {
         println!("  size: {}", human_bytes(size));
     }
-    let dtypes = row.resources.dtypes();
+    let dtypes = resources.dtypes();
     if !dtypes.is_empty() {
         println!("  dtype: {}", dtypes.join(", "));
     }
@@ -52,7 +54,7 @@ pub fn print_model_row(
     for line in preset_lines(&row.presets) {
         println!("{line}");
     }
-    for (key, r) in &row.resources.resources {
+    for (key, r) in &resources.resources {
         println!("  {key}: [{}]", cache.status(r));
         println!("    path: {}", r.file);
         if urls && !r.sources.is_empty() {

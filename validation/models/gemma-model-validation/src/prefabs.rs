@@ -29,8 +29,8 @@ fn test_every_row_is_a_prefab() {
     assert_eq!(ids.len(), 14);
     for id in ids {
         let (_, row) = factory.lookup(&id).unwrap();
-        let mut map = ResourceSet::new(row.resources.name.clone());
-        map.insert(row.resources.try_get(CONFIG).unwrap().clone());
+        let mut map = ResourceSet::new(row.resource_set().name.clone());
+        map.insert(row.resource_set().try_get(CONFIG).unwrap().clone());
         let loaded = cache.load(&map).unwrap_or_else(|e| panic!("{id}: {e}"));
         let json = std::fs::read_to_string(loaded.expect(CONFIG).unwrap()).unwrap();
         let config = gemma_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));

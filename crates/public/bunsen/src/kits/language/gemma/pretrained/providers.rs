@@ -63,7 +63,6 @@ pub fn default_gemma_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             GEMMA_CATALOG_CONTRACT,
-            GEMMA_KIT,
         )),
         Arc::new(
             HfProvider::new()
@@ -138,7 +137,7 @@ mod tests {
         );
         for name in names {
             let (_, row) = factory.lookup(name).unwrap();
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             for resource in map.resources.values() {
                 assert!(resource.is_pinned(), "{name}: {}", resource.slot);

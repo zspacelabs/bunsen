@@ -156,13 +156,11 @@ mod tests {
         let model = factory.resolve("openai/tiny.en", &cache).unwrap();
         match &model.model {
             BuildRef::Named {
-                provider,
-                pretrained,
-                ..
+                provider, build, ..
             } => {
                 assert_eq!(provider, "catalog");
-                assert_eq!(pretrained.name, "openai/whisper/tiny.en");
-                assert_eq!(pretrained.resources.keys(), [CHECKPOINT, "vocabulary"]);
+                assert_eq!(build.name, "openai/whisper/tiny.en");
+                assert_eq!(build.resource_set().keys(), [CHECKPOINT, "vocabulary"]);
             }
             other => panic!("{other:?}"),
         }
@@ -188,7 +186,7 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(given.id(), spec);
-        assert!(given.model.named().is_none());
+        assert!(given.model.build().is_none());
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .assert_err(&factory.resolve("openai/gigantic", &cache));
@@ -204,18 +202,6 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .assert_err(&factory.lookup("openai/whisper-tiny"));
         ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&factory.lookup("hf:whisper-tiny"));
-    }
-
-    /// The factory's rows name no prefab: each states its geometry instead
-    /// ([`GEOMETRY`](crate::data::builds::GEOMETRY)).
-    #[test]
-    fn test_the_rows_name_no_prefab() {
-        assert!(
-            default_whisper_factory()
-                .unwrap()
-                .for_prefab("large")
-                .is_empty()
-        );
     }
 
     /// A provider that lists nothing joins the defaults: its refs answer
@@ -240,7 +226,7 @@ mod tests {
 
         let (provider, row) = factory.lookup("hub:openai/whisper-base").unwrap();
         assert_eq!(provider, "hub");
-        assert_eq!(row.name, "openai/whisper-base");
+        assert_eq!(row.name, "hub/openai/whisper-base");
         assert_eq!(factory.lookup("base").unwrap().0, "catalog");
         assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
 

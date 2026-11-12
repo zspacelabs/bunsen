@@ -33,21 +33,21 @@
 //! ```text
 //! spec: "provider:ref" or a bare name         a path, a manifest
 //!   │                                            │
-//!   │ BuildFactory::resolve(spec, &cache)   │ ResourceSet::given,
+//!   │ BuildFactory::resolve(spec, &cache)        │ ResourceSet::given,
 //!   │   provider:ref -> that provider only       │ or deserialized
 //!   │   bare -> each provider that answers       │
-//!   │     bare names, in order; first row wins   │
-//!   │   BuildProvider::resolve:             │
-//!   │     a table answers from its rows;         │
+//!   │     bare names, in order; first wins       │
+//!   │   BuildProvider::resolve:                  │
+//!   │     a catalog answers from its builds;     │
 //!   │     HfProvider asks the hub once and       │
 //!   │     keeps the listing in the cache         │
 //!   ▼                                            │
-//! Pretrained row: name, aliases, prefab?,        │
-//!   one ResourceSet (its resource sets fused strictly)    │
-//!   │ BuildRef::Named                       │ BuildRef::Given
+//! ResolvedBuild: name, aliases, tags, presets,   │
+//!   args, resources in the catalog's form        │
+//!   │ BuildRef::Named                            │ BuildRef::Given
 //!   ▼                                            ▼
-//! Deferred<H>: the ref, and the hook H::for_resource_set(resource set) picks for it
-//!   │ [with_overlay(resource set)]: the caller's resources win, by key
+//! Deferred<H>: the ref, and the hook H::for_resource_set(its files) picks
+//!   │ [with_overlay(resource set)]: the caller's resources win, by slot
 //!   │ load(&cache, &device):
 //!   │   H::plan(ref, cache)              -> the completed ResourceSet
 //!   │   ResourceCache::load(KIT, resource set)  -> LoadedResourceSet
@@ -59,17 +59,17 @@
 //! Loaded<H::Construct>: name, handle (an Arc), resources
 //! ```
 //!
-//! - **Spec to row.** [`BuildFactory::resolve`] offers a spec to its
-//!   [`BuildProvider`]s by the [dispatch rules]. A [`PretrainedTable`] answers
-//!   from compiled-in rows, and an [`HfProvider`] from the hub's file listing.
-//!   The answer is a [`Pretrained`] row over a [`ResourceSet`] of
-//!   [`Resource`]s. A path or a manifest skips this step, since it is a
-//!   resource set already.
-//! - **Row to deferred model.** The row, or the given resource set, becomes a
-//!   [`BuildRef`]. [`Deferred::new`] or [`Deferred::from_resource_set`] pairs
+//! - **Spec to build.** [`BuildFactory::resolve`] offers a spec to its
+//!   [`BuildProvider`]s by the [dispatch rules]. A [`CatalogBuildProvider`]
+//!   answers from a catalog's builds, and an [`HfProvider`] from the hub's file
+//!   listing. The answer is a [`ResolvedBuild`], whose files in the loader's
+//!   form are a [`ResourceSet`] of [`Resource`]s. A path or a manifest skips
+//!   this step, since it is a resource set already.
+//! - **Build to deferred model.** The build, or the given resource set, becomes
+//!   a [`BuildRef`]. [`Deferred::new`] or [`Deferred::from_resource_set`] pairs
 //!   it with the kit's hook, chosen by [`ConstructInit::for_resource_set`] from
 //!   the resources' `format`s. [`Deferred::with_overlay`] lays the caller's
-//!   resources over the row's.
+//!   resources over the build's.
 //! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
 //!   [`plan`](crate::data::builds::ConstructInit::plan), then
 //!   [`ResourceCache::load`] (in its [source order], into
@@ -78,9 +78,8 @@
 //!   a [`Loaded`] handle.
 //!
 //! Prefabs sit beside this pathway. A kit's [`StaticPreFabMap`] names its
-//! geometries, and a row names the prefab it instantiates;
-//! [`BuildRef::prefab`] and [`BuildFactory::for_prefab`] join the
-//! two.
+//! geometries, and a build states the geometry it is built in
+//! ([`BuildRef::stated`]), which a kit's tests check against its prefabs.
 //!
 //! Shards take a shorter path: a [`StaticShardSetMap`] entry becomes a
 //! [`ShardSetDescriptor`], a [`ShardSet`] binds it to a directory, and its
@@ -125,17 +124,16 @@
 //! [`HfProvider`]: crate::data::builds::HfProvider
 //! [`Loaded`]: crate::data::builds::Loaded
 //! [`LoadedResourceSet`]: resources::LoadedResourceSet
-//! [`Pretrained`]: crate::data::builds::Pretrained
 //! [`ResourceCache`]: resources::ResourceCache
 //! [`ResourceCache::load`]: resources::ResourceCache::load
 //! [`BuildFactory`]: crate::data::builds::BuildFactory
-//! [`BuildFactory::for_prefab`]: crate::data::builds::BuildFactory::for_prefab
+//! [`BuildRef::stated`]: crate::data::builds::BuildRef::stated
+//! [`CatalogBuildProvider`]: crate::data::builds::CatalogBuildProvider
+//! [`ResolvedBuild`]: crate::data::catalog::ResolvedBuild
 //! [`BuildFactory::load`]: crate::data::builds::BuildFactory::load
 //! [`BuildFactory::resolve`]: crate::data::builds::BuildFactory::resolve
 //! [`BuildProvider`]: crate::data::builds::BuildProvider
 //! [`BuildRef`]: crate::data::builds::BuildRef
-//! [`BuildRef::prefab`]: crate::data::builds::BuildRef::prefab
-//! [`PretrainedTable`]: crate::data::builds::PretrainedTable
 //! [`Resource`]: resources::Resource
 //! [`ResourceSet`]: resources::ResourceSet
 //! [`SafetensorsCheckpoint`]: crate::data::formats::SafetensorsCheckpoint

@@ -57,7 +57,6 @@ pub fn default_qwen3_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             QWEN3_CATALOG_CONTRACT,
-            QWEN3_KIT,
         )),
         Arc::new(
             HfProvider::new()
@@ -143,7 +142,7 @@ mod tests {
         for name in names {
             let (_, row) = factory.lookup(name).unwrap();
             assert_eq!(row.name, format!("qwen/qwen3/{name}"));
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             for resource in map.resources.values() {
                 assert!(resource.is_pinned(), "{name}: {}", resource.slot);
