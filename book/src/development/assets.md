@@ -24,8 +24,8 @@ There are two switches, and neither implies the other:
   per-asset features of the crates that own the assets.
 - **`fetch`**: the *program* may reach the network at run time, to bring a
   pretrained model or a dataset shard into the disk cache
-  ([pretrained models](../systems/pretrained.md),
-  [shard sets](../systems/shards.md)).
+  ([pretrained models](../systems/data.md),
+  [shard sets](../systems/data/datasets.md)).
 
 A validation test that needs a checkpoint fetches it, through `fetch`: the
 validation crates' `checkpoints` loads it by its pinned row, into the
@@ -62,7 +62,7 @@ with everything else.
 
 Shipping a model with a build doesn't need a special kind of source. It
 needs a cache directory that is already full
-([bundling](../systems/pretrained.md#bundling-is-a-populated-cache-directory)).
+([bundling](../systems/data/resources.md#bundling-is-a-populated-cache-directory)).
 Every bundled crate hosts nothing: its build script fetches the files, pins
 each one, and lays them out in `OUT_DIR` as a resource cache. A cache rooted
 there finds them offline without knowing they were bundled.

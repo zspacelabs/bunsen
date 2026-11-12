@@ -48,7 +48,7 @@ to drift out of sync with each burn release. `bunsen` exists to:
 - **Building models on bunsen?** Read
   [module design conventions](./systems/conventions.md) and the systems
   chapters relevant to you: [shape contracts](./systems/contracts.md),
-  [pretrained models](./systems/pretrained.md),
+  [pretrained models](./systems/data.md),
   [streaming contexts](./systems/streaming.md),
   [parameter groups](./systems/param-groups.md).
 - **Contributing?** The [development strategies](./development/setup.md)

@@ -22,7 +22,7 @@ appears:
   loaded module. The machinery is shared and lives in
   [`bunsen::data::pretrained`]. A kit contributes
   tables and a `ConstructInit` hook, not a loader of its own. See
-  [Files, caches and pretrained models](../systems/pretrained.md).
+  [Data: from files to models](../systems/data.md).
 - **Configuring it.** A kit's configs follow the Simple or Stacked shape from
   [Module design conventions](../systems/conventions.md). A user-facing
   policy config is small and stable; the structure config spells out the

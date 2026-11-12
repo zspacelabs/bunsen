@@ -82,7 +82,7 @@ model's output on a clip stays in the `testdata/` of that model's validation
 crate.
 
 Data is pinned the way models are: `cargo catalog` reads a dataset's listing
-at a pinned revision and lists the digests a [shard set](../systems/shards.md)
+at a pinned revision and lists the digests a [shard set](../systems/data/datasets.md)
 verifies against.
 
 ## Running validation
