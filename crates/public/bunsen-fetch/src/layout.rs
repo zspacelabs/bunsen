@@ -1,14 +1,14 @@
-//! The pretrained cache layout.
+//! The resource cache layout.
 use std::path::{
     Path,
     PathBuf,
 };
 
-/// The root segment of the pretrained cache layout.
+/// The root segment of the resource cache layout.
 pub const PRETRAINED_DIR: &str = "pretrained";
 
 /// `pretrained/<namespace>/<pin>/<file>` under `root`: where bunsen's
-/// `PretrainedCache` keeps a resource, `pin` its SHA-256 when it is pinned,
+/// `ResourceCache` keeps a resource, `pin` its SHA-256 when it is pinned,
 /// so a cache rooted at `root` finds a file laid out here without knowing
 /// where it came from. A catalog resource's namespace is its full name
 /// (`openai/whisper/base/checkpoint`), each `/` a directory.

@@ -14,10 +14,10 @@ use crate::{
 /// The Voxtral kit's name: its rows' `kit` tag.
 pub const VOXTRAL_KIT: &str = "voxtral";
 
-/// The key of the checkpoint in a Voxtral resource bundle.
+/// The key of the checkpoint in a Voxtral resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary, `tekken.json`, in a Voxtral resource bundle.
+/// The key of the vocabulary, `tekken.json`, in a Voxtral resource set.
 pub const VOCABULARY: &str = "vocabulary";
 
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.

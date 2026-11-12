@@ -1,4 +1,4 @@
-//! What a pretrained cache holds, and removing it.
+//! What a resource cache holds, and removing it.
 use alloc::fmt;
 use core::str::FromStr;
 use std::{
@@ -16,7 +16,7 @@ use crate::{
         resources::{
             GIVEN_NAMESPACE,
             PRETRAINED_DIR,
-            PretrainedCache,
+            ResourceCache,
         },
     },
     errors::{
@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-/// A file in a [`PretrainedCache`]:
+/// A file in a [`ResourceCache`]:
 /// `<cache>/pretrained/<namespace>/<pin>/<file>`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedFile {
@@ -57,12 +57,12 @@ pub struct CachedFile {
     pub created: Option<SystemTime>,
 
     /// When it was last loaded (its modification time): a load that finds
-    /// it in the cache sets it ([`PretrainedCache`]'s "Use"), and a download
+    /// it in the cache sets it ([`ResourceCache`]'s "Use"), and a download
     /// is its first use.
     pub last_used: Option<SystemTime>,
 }
 
-/// Which of a [`PretrainedCache`]'s files: every one, or those whose
+/// Which of a [`ResourceCache`]'s files: every one, or those whose
 /// namespace is under a name.
 ///
 /// Parsed from `""` (every file) or a `/`-separated name: `qwen` selects
@@ -157,7 +157,7 @@ fn files_under(dir: &Path) -> BunsenResult<Vec<(PathBuf, fs::Metadata)>> {
     Ok(out)
 }
 
-impl PretrainedCache {
+impl ResourceCache {
     /// The directory holding every cached file: `<cache>/pretrained`.
     pub fn pretrained_dir(&self) -> PathBuf {
         self.cache_dir().join(PRETRAINED_DIR)
@@ -244,7 +244,7 @@ impl PretrainedCache {
         let root = self.pretrained_dir();
         if let Some(stray) = files.iter().find(|f| !f.path.starts_with(&root)) {
             return Err(BunsenError::illegal(format!(
-                "{} is not in the pretrained cache at {}",
+                "{} is not in the resource cache at {}",
                 stray.path.display(),
                 root.display()
             )));
@@ -272,12 +272,12 @@ mod tests {
     use super::*;
     use crate::data::{
         cache::BunsenDiskCacheOptions,
-        resources::PretrainedCacheOptions,
+        resources::ResourceCacheOptions,
     };
 
-    fn cache_in(dir: &Path) -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
+    fn cache_in(dir: &Path) -> ResourceCache {
+        ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))
@@ -289,7 +289,7 @@ mod tests {
     }
 
     fn put(
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         rel: &str,
         bytes: usize,
     ) {

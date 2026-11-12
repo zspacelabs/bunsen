@@ -20,7 +20,7 @@ use crate::{
 /// The Gemma kit's name: its rows' `kit` tag.
 pub const GEMMA_KIT: &str = "gemma";
 
-/// The key of the checkpoint in a Gemma resource bundle: one
+/// The key of the checkpoint in a Gemma resource set: one
 /// `model.safetensors`, or `checkpoint.index` and its shards
 /// `checkpoint.<n>`.
 pub const CHECKPOINT: &str = "checkpoint";
@@ -141,9 +141,9 @@ mod tests {
             let map = &row.resources;
             map.validate().unwrap();
             for resource in map.resources.values() {
-                assert!(resource.is_pinned(), "{name}: {}", resource.key);
+                assert!(resource.is_pinned(), "{name}: {}", resource.slot);
                 let urls = resource.urls();
-                assert_eq!(urls.len(), 1, "{name}: {}", resource.key);
+                assert_eq!(urls.len(), 1, "{name}: {}", resource.slot);
                 assert!(urls[0].contains("/unsloth/"), "{name}: {}", urls[0]);
             }
             for key in [CONFIG, TOKENIZER, TOKENIZER_CONFIG, GENERATION_CONFIG] {

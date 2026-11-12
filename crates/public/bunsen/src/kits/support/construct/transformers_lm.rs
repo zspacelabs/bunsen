@@ -42,8 +42,8 @@ use crate::{
         },
         pretrained::StaticPreFabMap,
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
             SAFETENSORS,
             SAFETENSORS_INDEX,
         },
@@ -80,7 +80,7 @@ pub trait TransformersLmKit: Default {
     /// The kit's name, in errors: `"Qwen3"`.
     const NAME: &'static str;
 
-    /// The checkpoint's key in the resource bundle.
+    /// The checkpoint's key in the resource set.
     const CHECKPOINT: &'static str;
 
     /// The model's config.
@@ -114,7 +114,7 @@ pub trait TransformersLmKit: Default {
     ///
     /// # Errors
     /// As [`probe_loaded`](crate::kits::support::model_config::probe_loaded).
-    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet>;
+    fn probed(loaded: &LoadedResourceSet) -> BunsenResult<ResolvedPresetSet>;
 }
 
 impl<K: TransformersLmKit> ConstructInit for K {
@@ -124,13 +124,13 @@ impl<K: TransformersLmKit> ConstructInit for K {
     const RESOLVES_PRESETS: bool = true;
 
     /// The hook for a safetensors checkpoint.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{}.index", K::CHECKPOINT);
         let checkpoint = match map.get(&index) {
             Some(index) => index,
             None => map.try_get(K::CHECKPOINT)?,
         };
-        match checkpoint.kind.as_deref() {
+        match checkpoint.format.as_deref() {
             Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::default()),
             other => Err(BunsenError::unsupported(format!(
                 "no {} reader for a checkpoint of kind {other:?}",
@@ -142,7 +142,7 @@ impl<K: TransformersLmKit> ConstructInit for K {
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Arc<LmConstruct<K::Model>>> {

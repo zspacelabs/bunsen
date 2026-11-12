@@ -34,8 +34,8 @@
 //!
 //! use bunsen::{
 //!     data::resources::{
-//!         PretrainedCache,
-//!         PretrainedCacheOptions,
+//!         ResourceCache,
+//!         ResourceCacheOptions,
 //!     },
 //!     errors::BunsenResult,
 //!     kits::speech::vad::silero_vad::{
@@ -55,7 +55,7 @@
 //! /// Upstream's 16 kHz model on `device`: from the cache, or fetched into
 //! /// it on first use.
 //! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroConstruct>> {
-//!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+//!     let cache = ResourceCache::new(ResourceCacheOptions::default())?;
 //!     Ok(default_silero_factory()?
 //!         .load(
 //!             "silero/vad-16k",

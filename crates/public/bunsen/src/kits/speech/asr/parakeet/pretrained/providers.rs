@@ -14,10 +14,10 @@ use crate::{
 /// The Parakeet kit's name: its rows' `kit` tag.
 pub const PARAKEET_KIT: &str = "parakeet";
 
-/// The key of the checkpoint in a Parakeet resource bundle.
+/// The key of the checkpoint in a Parakeet resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary in a Parakeet resource bundle, for a checkpoint
+/// The key of the vocabulary in a Parakeet resource set, for a checkpoint
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 

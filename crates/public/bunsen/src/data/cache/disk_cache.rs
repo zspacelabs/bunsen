@@ -141,7 +141,7 @@ impl BunsenDiskCacheOptions {
 /// the [`TransferObserver`] stack the options carried.
 ///
 /// The layers above keep their files here. A
-/// [`PretrainedCache`](crate::data::resources::PretrainedCache) wraps one,
+/// [`ResourceCache`](crate::data::resources::ResourceCache) wraps one,
 /// opened from its options' `disk`, and a
 /// [`ShardSet`](crate::data::datasets::ShardSet) borrows one.
 #[cfg_attr(

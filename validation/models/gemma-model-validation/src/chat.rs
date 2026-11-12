@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use bunsen::{
-    data::resources::ResourceBundle,
+    data::resources::ResourceSet,
     kits::{
         language::gemma::{
             CHAT_TEMPLATE,
@@ -38,7 +38,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
         .expect("the gemma factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = ResourceBundle::new(pretrained.resources.name.clone());
+    let mut map = ResourceSet::new(pretrained.resources.name.clone());
     for key in [TOKENIZER, TOKENIZER_CONFIG, CHAT_TEMPLATE] {
         if let Some(r) = pretrained.resources.get(key) {
             map.insert(r.clone());

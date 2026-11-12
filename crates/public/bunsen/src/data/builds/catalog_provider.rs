@@ -43,7 +43,7 @@ use crate::{
         },
         resources::{
             Resource,
-            ResourceBundle,
+            ResourceSet,
             Source,
             resolve_dir_template,
         },
@@ -251,7 +251,7 @@ pub fn build_row(
     kit: &str,
 ) -> BunsenResult<Pretrained> {
     let name = build.name.to_string();
-    let mut resources = ResourceBundle::new(&name);
+    let mut resources = ResourceSet::new(&name);
     resources.description = build.description.clone();
     resources.license = build.license.clone();
     resources.origin = build.origin.clone();
@@ -364,14 +364,14 @@ pub fn builtin_template_presets(class: &str) -> BunsenResult<ResolvedPresetSet> 
     })
 }
 
-/// The resource bundle of the built-in catalog's build `name`: its row's files,
+/// The resource set of the built-in catalog's build `name`: its row's files,
 /// by slot, under the build's full name. `name` is any spelling the catalog's
 /// lookups take (`qwen/qwen3-0.6b`, `qwen3-0.6b`), or an alias.
 ///
 /// # Errors
 /// As [`builtin_stack`], and [`Lookup`](crate::errors::BunsenErrorKind::Lookup)
 /// for a name no build, or more than one, answers to.
-pub fn builtin_build_bundle(name: &str) -> BunsenResult<ResourceBundle> {
+pub fn builtin_build_bundle(name: &str) -> BunsenResult<ResourceSet> {
     let snapshot = builtin_snapshot()?;
     let all = BuildCatalogProvider::of_builds(WELL_KNOWN, "", snapshot.builds.iter(), "")?;
     let row = all.find(name)?.ok_or_else(|| {
@@ -384,17 +384,17 @@ pub fn builtin_build_bundle(name: &str) -> BunsenResult<ResourceBundle> {
 }
 
 /// The built-in catalog's resource `resource`, by its full name
-/// (`openai/whisper/multilingual.tiktoken`), as a resource bundle under
+/// (`openai/whisper/multilingual.tiktoken`), as a resource set under
 /// `key`: what code that names a file of the catalog's loads, such as a
 /// checkpoint's vocabulary. A sharded resource is its index and shards.
 ///
 /// # Errors
 /// As [`builtin_stack`], and [`Lookup`](crate::errors::BunsenErrorKind::Lookup)
 /// for a resource the catalog doesn't have.
-pub fn builtin_resource_bundle(
+pub fn builtin_resource_set(
     resource: &str,
     key: &str,
-) -> BunsenResult<ResourceBundle> {
+) -> BunsenResult<ResourceSet> {
     let snapshot = builtin_snapshot()?;
     let name = CatalogName::parse(resource)?;
     let entry = snapshot.resources.get(&name).ok_or_else(|| {
@@ -403,7 +403,7 @@ pub fn builtin_resource_bundle(
             format!("the built-in catalog has no resource `{resource}`"),
         )
     })?;
-    let mut bundle = ResourceBundle::new(resource);
+    let mut bundle = ResourceSet::new(resource);
     if let Some(description) = &entry.description {
         bundle.description = description.clone();
     }
@@ -422,13 +422,13 @@ fn slot_resources(
 ) -> Vec<Resource> {
     let resource =
         |key: String, file: &str, sha256: Option<&String>, size, kind: &str, sources| Resource {
-            key,
+            slot: key,
             file: file.to_string(),
             sha256: sha256.cloned(),
-            kind: Some(kind.to_string()),
+            format: Some(kind.to_string()),
             size,
             dtype: entry.dtype.clone(),
-            namespace: namespace.to_string(),
+            name: namespace.to_string(),
             sources,
         };
     let sources_of = |sources: &mut dyn Iterator<Item = &ResourceSource>, file: &str| {
@@ -532,10 +532,7 @@ mod tests {
         let v1 = whisper.find("large-v1").unwrap().unwrap();
         let checkpoint = v1.resources.get("checkpoint").unwrap();
         // Cached under the resource's full name.
-        assert_eq!(
-            checkpoint.namespace,
-            "openai/whisper/large/large-v1/checkpoint"
-        );
+        assert_eq!(checkpoint.name, "openai/whisper/large/large-v1/checkpoint");
         assert_eq!(checkpoint.dtype.as_deref(), Some("float16"));
         assert!(
             matches!(&checkpoint.sources[0], Source::LocalDir { name, .. } if name == "openai-whisper")

@@ -14,7 +14,7 @@ use crate::{
 pub const WHISPER_KIT: &str = "whisper";
 
 /// The name of the local-dir base that is `openai-whisper`'s download
-/// root; a [`PretrainedCacheOptions`](crate::data::resources::PretrainedCacheOptions)
+/// root; a [`ResourceCacheOptions`](crate::data::resources::ResourceCacheOptions)
 /// override by this name points it elsewhere.
 pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 
@@ -120,7 +120,7 @@ mod tests {
     fn test_the_declared_vocabulary_is_the_rules() {
         for row in well_known().rows() {
             let declared = row.resources.get(VOCABULARY).unwrap();
-            let rule = WhisperVocabulary::for_layout(&layout_of(prefab_of(row))).resource_bundle();
+            let rule = WhisperVocabulary::for_layout(&layout_of(prefab_of(row))).resource_set();
             let rule = rule.get(VOCABULARY).unwrap();
             assert_eq!(declared, rule, "{}", row.name);
         }

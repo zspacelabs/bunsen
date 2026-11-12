@@ -13,7 +13,7 @@ use crate::{
 /// The Laya kit's name: its rows' `kit` tag.
 pub const LAYA_KIT: &str = "laya";
 
-/// The key of the checkpoint in a Laya resource bundle: its
+/// The key of the checkpoint in a Laya resource set: its
 /// `model.safetensors`.
 pub const CHECKPOINT: &str = "checkpoint";
 
@@ -78,9 +78,9 @@ mod tests {
             let map = &row.resources;
             map.validate().unwrap();
             for resource in map.resources.values() {
-                assert!(resource.is_pinned(), "{name}: {}", resource.key);
+                assert!(resource.is_pinned(), "{name}: {}", resource.slot);
                 let urls = resource.urls();
-                assert_eq!(urls.len(), 1, "{name}: {}", resource.key);
+                assert_eq!(urls.len(), 1, "{name}: {}", resource.slot);
                 assert!(
                     urls[0].starts_with("https://huggingface.co/convaiinnovations/laya/resolve/"),
                     "{name}: {}",

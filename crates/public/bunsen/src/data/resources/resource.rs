@@ -1,4 +1,4 @@
-//! Resources: one file of a resource bundle, and the places it can be had from.
+//! Resources: one file of a resource set, and the places it can be had from.
 
 use alloc::{
     format,
@@ -46,11 +46,11 @@ pub fn url_to_cache_key(
     }
 }
 
-/// The label on a safetensors weights file: a whole checkpoint, or one
+/// The format of a safetensors weights file: a whole checkpoint, or one
 /// shard of a checkpoint split across several.
 pub const SAFETENSORS: &str = "safetensors";
 
-/// The label on the index of a sharded safetensors checkpoint
+/// The format of the index of a sharded safetensors checkpoint
 /// (`model.safetensors.index.json`): the shard each tensor is in.
 pub const SAFETENSORS_INDEX: &str = "safetensors-index";
 
@@ -162,22 +162,23 @@ impl fmt::Display for Source {
     }
 }
 
-/// One file of a resource bundle.
+/// One file of a resource set.
 ///
-/// Its resource bundle's bases are already appended to its sources, so it
+/// Its resource set's bases are already appended to its sources, so it
 /// stands alone. A resource's sources
-/// are its own first, then its resource bundle's bases with its file name
-/// appended, each in the order listed; a fused resource bundle needs no memory
-/// of which resource bundle a resource came from.
+/// are its own first, then its resource set's bases with its file name
+/// appended, each in the order listed; a fused resource set needs no memory
+/// of which resource set a resource came from.
 ///
-/// It is what a resource bundle is keyed by, and what
-/// [`PretrainedCache::resolve`](super::PretrainedCache::resolve) brings
-/// local, in its [source order](super::PretrainedCache#source-order). A
+/// It is what a resource set is keyed by, and what
+/// [`ResourceCache::resolve`](super::ResourceCache::resolve) brings
+/// local, in its [source order](super::ResourceCache#source-order). A
 /// path on a command line becomes one through [`given`](Self::given).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resource {
-    /// The resource bundle's name for it. Opaque here; a kit's constant.
-    pub key: String,
+    /// The slot it fills in its set (`checkpoint`, `vocabulary`). Opaque
+    /// here; a kit's constant.
+    pub slot: String,
 
     /// The file name, under every base.
     pub file: String,
@@ -188,9 +189,10 @@ pub struct Resource {
     /// unpinned, which a bundled source may not be.
     pub sha256: Option<String>,
 
-    /// A label for a listing. Nothing in this layer reads it; a kit's hook
-    /// may, and a resource that arrived without a row has none.
-    pub kind: Option<String>,
+    /// The file's format, the catalog's `$format` (`safetensors`). Nothing in
+    /// this layer reads it; a kit's hook may, and a resource that arrived
+    /// without a build has none.
+    pub format: Option<String>,
 
     /// The file's size in bytes, when its row says.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -201,13 +203,13 @@ pub struct Resource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dtype: Option<String>,
 
-    /// The cache namespace its file lives under: a catalog resource's full
-    /// name (`qwen/qwen3/qwen3-0.6b/checkpoint`), `hf` for an `hf:` repo's
-    /// file, `given` for a path's.
-    pub namespace: String,
+    /// Its full name, which the cache keeps its file under: a catalog
+    /// resource's (`qwen/qwen3/qwen3-0.6b/checkpoint`), `hf` for an `hf:`
+    /// repo's file, `given` for a path's.
+    pub name: String,
 
     /// Where the file can be had from, in preference order, its resource
-    /// bundle's bases already appended.
+    /// set's bases already appended.
     pub sources: Vec<Source>,
 }
 
@@ -228,11 +230,11 @@ impl Resource {
         Self {
             size: None,
             dtype: None,
-            key: key.into(),
+            slot: key.into(),
             file,
             sha256: None,
-            kind: None,
-            namespace: GIVEN_NAMESPACE.to_string(),
+            format: None,
+            name: GIVEN_NAMESPACE.to_string(),
             sources: vec![Source::LocalDir {
                 name: GIVEN_NAMESPACE.to_string(),
                 dir,
@@ -280,11 +282,11 @@ impl Resource {
     /// declaration from outside the program re-marks it
     /// [`as_policy`](crate::errors::BunsenError::as_policy).
     pub fn validate(&self) -> BunsenResult<()> {
-        let problem = if self.key.is_empty() {
+        let problem = if self.slot.is_empty() {
             Some(ConstraintError::zero_or_empty("Resource", "key"))
         } else if self.file.is_empty() {
             Some(ConstraintError::zero_or_empty("Resource", "file"))
-        } else if self.namespace.is_empty() {
+        } else if self.name.is_empty() {
             Some(ConstraintError::zero_or_empty("Resource", "namespace"))
         } else if self.sources.is_empty() {
             Some(ConstraintError::zero_or_empty("Resource", "sources"))
@@ -304,10 +306,10 @@ impl Resource {
         match problem {
             None => Ok(()),
             Some(problem) => {
-                let name = if self.key.is_empty() {
+                let name = if self.slot.is_empty() {
                     &self.file
                 } else {
-                    &self.key
+                    &self.slot
                 };
                 Err(BunsenError::from(problem).context(name))
             }
@@ -343,13 +345,13 @@ impl fmt::Display for Resource {
         &self,
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
-        write!(f, "{}: {}", self.key, self.file)?;
+        write!(f, "{}: {}", self.slot, self.file)?;
         let pin = if self.is_pinned() {
             "pinned"
         } else {
             "unpinned"
         };
-        match &self.kind {
+        match &self.format {
             Some(kind) => write!(f, " ({kind}, {pin})"),
             None => write!(f, " ({pin})"),
         }
@@ -448,11 +450,11 @@ mod tests {
         let mut r = Resource {
             size: None,
             dtype: None,
-            key: "burnpack".to_string(),
+            slot: "burnpack".to_string(),
             file: "model.bpk".to_string(),
             sha256: None,
-            kind: None,
-            namespace: "bunsen".to_string(),
+            format: None,
+            name: "bunsen".to_string(),
             sources: vec![Source::Bundled(BundledBytes(b"abc"))],
         };
         assert_eq!(r.bundled(), Some(&b"abc"[..]));
@@ -480,11 +482,11 @@ mod tests {
         Resource {
             size: None,
             dtype: None,
-            key: "checkpoint".to_string(),
+            slot: "checkpoint".to_string(),
             file: "tiny.en.pt".to_string(),
             sha256: Some(ABC_SHA256.to_string()),
-            kind: Some("pytorch fp16".to_string()),
-            namespace: "openai".to_string(),
+            format: Some("pytorch fp16".to_string()),
+            name: "openai".to_string(),
             sources: vec![
                 Source::Url("https://mirror.example/tiny.en.pt".to_string()),
                 Source::LocalDir {
@@ -528,11 +530,11 @@ mod tests {
     #[test]
     fn test_given() {
         let r = Resource::given("checkpoint", "/models/my.pt");
-        assert_eq!(r.key, "checkpoint");
+        assert_eq!(r.slot, "checkpoint");
         assert_eq!(r.file, "my.pt");
-        assert_eq!(r.namespace, GIVEN_NAMESPACE);
+        assert_eq!(r.name, GIVEN_NAMESPACE);
         assert!(!r.is_pinned());
-        assert_eq!(r.kind, None);
+        assert_eq!(r.format, None);
         assert_eq!(
             r.sources,
             vec![Source::LocalDir {
@@ -568,7 +570,7 @@ mod tests {
         };
 
         let mut no_key = r.clone();
-        no_key.key.clear();
+        no_key.slot.clear();
         broken("key")
             .frame_contains("tiny.en.pt")
             .assert_err(&no_key.validate());
@@ -581,7 +583,7 @@ mod tests {
         );
 
         let mut no_namespace = r.clone();
-        no_namespace.namespace.clear();
+        no_namespace.name.clear();
         broken("namespace").assert_err(&no_namespace.validate());
 
         let mut no_source = r.clone();

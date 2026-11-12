@@ -3,7 +3,7 @@
 //! From a name to a model. A kit's
 //! [`PretrainedFactory`]
 //! takes a spec, `provider:ref` or a bare name, and asks its providers for the
-//! row the spec names. Loading the row, the [`PretrainedCache`] brings its
+//! row the spec names. Loading the row, the [`ResourceCache`] brings its
 //! files local and the kit's
 //! [`ConstructInit`] hook
 //! builds from them, behind an `Arc`. The [`data`](crate::data#lifecycle)
@@ -15,7 +15,7 @@
 //! - [`PretrainedProvider`]: a namespace over rows, the `provider` of
 //!   `provider:ref`.
 //! - [`ConstructInit`]: the kit's hook, which completes a resolved ref's
-//!   resource bundle before it is loaded and builds from the loaded parts.
+//!   resource set before it is loaded and builds from the loaded parts.
 //! - [`Deferred`]: a model not yet loaded, its ref paired with the hook that
 //!   will build it.
 //! - [`PretrainedFactory`]: a kit's providers in search order, resolving lookup
@@ -43,25 +43,25 @@
 //!   listing fields, its [`tags`](crate::data::pretrained::tags) (facts about
 //!   the model, for listings and for choosing among models,
 //!   [`catalog::select`](crate::data::catalog::select)), the prefab it
-//!   instantiates when the kit keeps one, and the resource bundles it is made
-//!   of, fused strictly into one [`ResourceBundle`]. A file many rows share is
-//!   a resource bundle of its own that each row references (Whisper's two
+//!   instantiates when the kit keeps one, and the resource sets it is made of,
+//!   fused strictly into one [`ResourceSet`]. A file many rows share is a
+//!   resource set of its own that each row references (Whisper's two
 //!   vocabularies serve its twelve checkpoints); a one-file model is a row of
-//!   one resource bundle. One prefab may have many rows, in many providers.
-//! - A **resource**, a [`Resource`], is one file: its key in the resource
-//!   bundle (`checkpoint`, `vocabulary`: the kit's constants), the file name it
-//!   lands as, the SHA-256 that pins it, a `kind` label, and the [`Source`]s it
-//!   can be had from, in order.
+//!   one resource set. One prefab may have many rows, in many providers.
+//! - A **resource**, a [`Resource`], is one file: the slot it fills in its set
+//!   (`checkpoint`, `vocabulary`: the kit's constants), the file name it lands
+//!   as, the SHA-256 that pins it, its format, and the [`Source`]s it can be
+//!   had from, in order.
 //!
 //! None of these knows a hook, or which resource is the model: the
 //! function that loads a kit's models is the kit's, and it supplies the
-//! hook. Rows, resource bundles and resources are plain serde data, so a
-//! manifest can carry them. An owned resource carries its resource bundle's
+//! hook. Rows, resource sets and resources are plain serde data, so a
+//! manifest can carry them. An owned resource carries its resource set's
 //! bases appended to its own sources, so it stands alone, and two resource
-//! bundles [fuse](crate::data::resources::ResourceBundle::fuse) by key with no
+//! sets [fuse](crate::data::resources::ResourceSet::fuse) by key with no
 //! memory of where a resource came from: strictly for authoring, where a
 //! repeated key is a mistake, or as an overlay for an override, where the
-//! right-hand resource bundle wins.
+//! right-hand resource set wins.
 //!
 //! A kit's rows are data: the builds of the kit's contract in the built-in
 //! build catalog ([`catalog`](crate::data::catalog)), which a
@@ -123,12 +123,12 @@
 //!             sha256_of,
 //!         },
 //!         resources::{
-//!             LoadedResources,
-//!             PretrainedCache,
-//!             PretrainedCacheOptions,
+//!             LoadedResourceSet,
 //!             Provenance,
 //!             Resource,
-//!             ResourceBundle,
+//!             ResourceCache,
+//!             ResourceCacheOptions,
+//!             ResourceSet,
 //!             Source,
 //!         },
 //!     },
@@ -147,14 +147,14 @@
 //!
 //!     const KIT: &'static str = "greeting";
 //!
-//!     fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+//!     fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
 //!         Ok(Greeting)
 //!     }
 //!
 //!     fn try_init(
 //!         &self,
 //!         _model: &PretrainedRef,
-//!         loaded: &LoadedResources,
+//!         loaded: &LoadedResourceSet,
 //!         _device: &Device,
 //!         _policy: bunsen::data::formats::LoadPolicy,
 //!     ) -> BunsenResult<Arc<String>> {
@@ -179,14 +179,14 @@
 //!     license: None,
 //!     origin: None,
 //!     prefab: None,
-//!     resources: ResourceBundle::new("hello").with_resource(Resource {
-//!         key: "text".to_string(),
+//!     resources: ResourceSet::new("hello").with_resource(Resource {
+//!         slot: "text".to_string(),
 //!         file: "hello.txt".to_string(),
 //!         sha256: Some(sha256_of(&upstream.join("hello.txt"))?),
-//!         kind: Some("text".to_string()),
+//!         format: Some("text".to_string()),
 //!         size: None,
 //!         dtype: None,
-//!         namespace: "toy".to_string(),
+//!         name: "toy".to_string(),
 //!         sources: vec![Source::LocalDir {
 //!             name: "upstream".to_string(),
 //!             dir: Some(upstream.clone()),
@@ -215,8 +215,8 @@
 //! assert_eq!(factory.ids(), ["well-known:toy/hello"]);
 //!
 //! // A cache rooted in the temporary directory, and offline.
-//! let cache = PretrainedCache::new(
-//!     PretrainedCacheOptions::default()
+//! let cache = ResourceCache::new(
+//!     ResourceCacheOptions::default()
 //!         .with_disk(
 //!             BunsenDiskCacheOptions::default()
 //!                 .with_cache_dir(Some(tmp.path().join("cache")))
@@ -239,10 +239,12 @@
 //! assert_eq!(text.provenance, Provenance::LocalDir);
 //! assert!(!tmp.path().join("cache").exists(), "nothing was copied in");
 //!
-//! // A path is not the factory's business: it is a given resource bundle.
-//! let given = Deferred::<Greeting>::from_resource_bundle(
-//!     ResourceBundle::given("mine", "text", upstream.join("hello.txt")),
-//! )?;
+//! // A path is not the factory's business: it is a given resource set.
+//! let given = Deferred::<Greeting>::from_resource_set(ResourceSet::given(
+//!     "mine",
+//!     "text",
+//!     upstream.join("hello.txt"),
+//! ))?;
 //! let loaded = given.load(
 //!     &cache,
 //!     &Default::default(),
@@ -262,10 +264,10 @@
 //! and
 //! [`default_silero_factory`](crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory).
 //!
-//! [`PretrainedCache`]: crate::data::resources::PretrainedCache
+//! [`ResourceCache`]: crate::data::resources::ResourceCache
 //! [`Resource`]: crate::data::resources::Resource
-//! [`ResourceBundle`]: crate::data::resources::ResourceBundle
-//! [`ResourceBundle::fuse`]: crate::data::resources::ResourceBundle::fuse
+//! [`ResourceSet`]: crate::data::resources::ResourceSet
+//! [`ResourceSet::fuse`]: crate::data::resources::ResourceSet::fuse
 //! [`Source`]: crate::data::resources::Source
 //! [`resolve_dir_template`]: crate::data::resources::resolve_dir_template
 

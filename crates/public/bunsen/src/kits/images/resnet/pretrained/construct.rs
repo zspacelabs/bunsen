@@ -13,8 +13,8 @@ use crate::{
             PretrainedRef,
         },
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
         },
     },
     errors::{
@@ -112,7 +112,7 @@ impl ConstructInit for ResNetConstructConfig {
 
     /// Every row is a `PyTorch` state dict; the config comes at
     /// construction, from the row's prefab or the caller's.
-    fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
         Ok(Self::new())
     }
 
@@ -120,7 +120,7 @@ impl ConstructInit for ResNetConstructConfig {
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ResNet>> {
@@ -153,9 +153,9 @@ mod tests {
                 },
                 cache::BunsenDiskCacheOptions,
                 resources::{
-                    PretrainedCache,
-                    PretrainedCacheOptions,
-                    ResourceBundle,
+                    ResourceCache,
+                    ResourceCacheOptions,
+                    ResourceSet,
                 },
             },
             errors::{
@@ -170,8 +170,8 @@ mod tests {
         };
 
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     crate::data::cache::BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().join("cache")))
@@ -204,7 +204,7 @@ mod tests {
             factory.resolve(file.to_str().unwrap(), &cache).is_err(),
             "a path is not a name the factory knows"
         );
-        let given = PretrainedRef::from(ResourceBundle::given("mine", CHECKPOINT, &file));
+        let given = PretrainedRef::from(ResourceSet::given("mine", CHECKPOINT, &file));
         let missing_config = |kinds: &[BunsenErrorKind]| {
             ErrorMatcher::new()
                 .with_kind_matching(value::one_of(kinds.to_vec()))
@@ -220,8 +220,8 @@ mod tests {
         );
 
         // Through the pathway: the refusal comes before the file is read.
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().join("cache")))
@@ -230,7 +230,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let err = Deferred::<ResNetConstructConfig>::from_resource_bundle(ResourceBundle::given(
+        let err = Deferred::<ResNetConstructConfig>::from_resource_set(ResourceSet::given(
             "mine", CHECKPOINT, &file,
         ))
         .unwrap()

@@ -18,8 +18,8 @@ use bunsen::{
         ModuleInit,
     },
     data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     },
     errors::{
         BunsenError,
@@ -270,7 +270,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         }
         return Ok(());
     }
-    let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+    let cache = ResourceCache::new(ResourceCacheOptions::default())?;
     let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
     let prefab = model_ref
         .model

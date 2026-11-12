@@ -1,7 +1,7 @@
 //! Fetches the Silero VAD assets.
 //!
 //! Two sets, each behind its own feature: `checkpoint` is upstream's 16 kHz
-//! `silero_vad_16k.safetensors`, laid out as a bunsen pretrained cache, and
+//! `silero_vad_16k.safetensors`, laid out as a bunsen resource cache, and
 //! `onnx_gen` is upstream's `silero_vad_op18_ifless.onnx`, from which
 //! `burn-onnx` generates the reference model and its burnpack. Both come
 //! from one pinned revision of `snakers4/silero-vad`.
@@ -26,7 +26,7 @@ fn main() {
 }
 
 /// Fetches upstream's 16 kHz safetensors into `OUT_DIR`, laid out as a
-/// pretrained cache,
+/// resource cache,
 /// `pretrained/silero/silero_vad/vad-16k/checkpoint/<sha256>/<file>`, at the
 /// revision bunsen's `silero/vad-16k` row pins.
 #[cfg(feature = "checkpoint")]

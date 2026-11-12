@@ -14,10 +14,10 @@ use crate::{
 /// The Qwen3-ASR kit's name: its rows' `kit` tag.
 pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
 
-/// The key of the checkpoint in a Qwen3-ASR resource bundle.
+/// The key of the checkpoint in a Qwen3-ASR resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary in a Qwen3-ASR resource bundle, for a checkpoint
+/// The key of the vocabulary in a Qwen3-ASR resource set, for a checkpoint
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 

@@ -11,11 +11,11 @@ use crate::kits::support::{
     },
 };
 
-/// The key of the state dict, `model_<step>.pt`, in a nanochat resource bundle.
+/// The key of the state dict, `model_<step>.pt`, in a nanochat resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The key of the checkpoint's meta, `meta_<step>.json`, in a nanochat
-/// resource bundle.
+/// resource set.
 pub const META: &str = "meta";
 
 /// The key of the tokenizer, `tokenizer.pkl` (a pickled `tiktoken`
@@ -25,7 +25,7 @@ pub const TOKENIZER: &str = "tokenizer";
 
 /// The key of the tokenizer's byte lengths, `token_bytes.pt` (one per token,
 /// for upstream's bits-per-byte metric), in a [`NanoChatConstruct`]'s files and
-/// a nanochat resource bundle.
+/// a nanochat resource set.
 pub const TOKEN_BYTES: &str = "token_bytes";
 
 /// How a nanochat pretrained is run: the [`LmPolicy`] its presets patch,

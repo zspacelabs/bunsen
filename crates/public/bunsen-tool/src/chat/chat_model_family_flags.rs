@@ -12,7 +12,7 @@ use bunsen::{
             WELL_KNOWN,
         },
         formats::LoadPolicy,
-        resources::PretrainedCache,
+        resources::ResourceCache,
     },
     errors::BunsenResult,
     kits::{
@@ -122,7 +122,7 @@ impl ChatModelFamily {
         }
     }
 
-    /// The kit's segment of the pretrained cache.
+    /// The kit's segment of the resource cache.
     pub fn cache_kit(self) -> &'static str {
         match self {
             ChatModelFamily::Qwen3 => QWEN3_KIT,
@@ -155,7 +155,7 @@ impl ChatModelFamily {
     pub fn load(
         self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &DeviceSession,
     ) -> BunsenResult<LoadedChat> {
         Ok(match self {
@@ -210,7 +210,7 @@ impl ChatModelFamily {
     pub fn fetch(
         self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<()> {
         let (id, loaded) = match self {
             ChatModelFamily::Qwen3 => {

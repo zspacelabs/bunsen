@@ -17,7 +17,7 @@ use crate::{
         catalog::presets::ResolvedPresetSet,
         formats::NamedTensorsApplied,
         pretrained::StaticPreFabMap,
-        resources::LoadedResources,
+        resources::LoadedResourceSet,
     },
     errors::BunsenResult,
     kits::{
@@ -89,7 +89,7 @@ impl TransformersLmKit for GemmaConstructConfig {
     /// end, which joins the stop tokens) and chat template, when it has one;
     /// and its `chat_template.jinja`, when it has one; probed into the base.
     /// Without a template of its own, it renders with the family's.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
+    fn probed(loaded: &LoadedResourceSet) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[
@@ -117,20 +117,20 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        GemmaConstructConfig::for_resource_bundle(
+        GemmaConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("gemma/gemma-3-270m").unwrap(),
         )
         .unwrap();
-        GemmaConstructConfig::for_resource_bundle(
+        GemmaConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("gemma/gemma-2-9b-it").unwrap(),
         )
         .unwrap();
 
         let mut gguf = crate::data::builds::builtin_build_bundle("gemma/gemma-3-270m").unwrap();
-        gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
+        gguf.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
-            .assert_err(&GemmaConstructConfig::for_resource_bundle(&gguf));
+            .assert_err(&GemmaConstructConfig::for_resource_set(&gguf));
     }
 
     /// Every row stops where its files say: the end of the text its

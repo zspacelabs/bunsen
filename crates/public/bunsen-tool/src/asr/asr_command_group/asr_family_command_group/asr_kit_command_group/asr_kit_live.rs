@@ -1,7 +1,7 @@
 //! `asr family <family> live`, and what `asr live` shares.
 
 use bunsen::{
-    data::resources::PretrainedCache,
+    data::resources::ResourceCache,
     errors::{
         BunsenResult,
         ResultContext,
@@ -164,7 +164,7 @@ impl AsrLiveIo {
 
         let device = self.device.open()?;
         // The options come from the command line.
-        let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
+        let cache = ResourceCache::new(flags.cache_options(self.cache.options())).as_policy()?;
         let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
         let driver = Driver::build(

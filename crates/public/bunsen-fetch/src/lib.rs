@@ -12,7 +12,7 @@
 //! - [`sha256_of`]: a file's digest.
 //! - [`link_or_copy`], [`place_file`] and [`replace_with_link`]: putting a
 //!   verified file where it belongs.
-//! - [`pretrained_cache_path`]: where bunsen's pretrained cache keeps a pinned
+//! - [`pretrained_cache_path`]: where bunsen's resource cache keeps a pinned
 //!   file.
 //! - `Asset` (feature `fetch`): a pinned file a build script needs, fetched
 //!   into `OUT_DIR` or taken from a local override, and kept by digest in

@@ -14,18 +14,18 @@ use crate::{
 /// The Silero kit's name: its rows' `kit` tag.
 pub const SILERO_KIT: &str = "silero_vad";
 
-/// The key of the burnpack in a Silero resource bundle.
+/// The key of the burnpack in a Silero resource set.
 pub const BURNPACK: &str = "burnpack";
 
-/// The `kind` label of the burnpack resource.
-pub const BURNPACK_KIND: &str = "burnpack";
+/// The format of the burnpack resource.
+pub const BURNPACK_FORMAT: &str = "burnpack";
 
-/// The key of the checkpoint in a Silero resource bundle of upstream's files.
+/// The key of the checkpoint in a Silero resource set of upstream's files.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The `kind` label of a `PyTorch` state dict as safetensors: upstream's
+/// The format of a `PyTorch` state dict as safetensors: upstream's
 /// `silero_vad_16k.safetensors`.
-pub const SAFETENSORS_KIND: &str = "safetensors";
+pub const SAFETENSORS_FORMAT: &str = "safetensors";
 
 /// What the `silero_vad` kit's loader implements, as a build catalog's
 /// contract: `contract.yml`, gathered by
@@ -120,7 +120,7 @@ mod tests {
         use crate::kits::support::catalog_contracts::testing::contract_lines;
         assert_eq!(
             contract_lines(SILERO_CONTRACT),
-            [format!("silero-vad: {CHECKPOINT} [{SAFETENSORS_KIND}]")]
+            [format!("silero-vad: {CHECKPOINT} [{SAFETENSORS_FORMAT}]")]
         );
     }
 }

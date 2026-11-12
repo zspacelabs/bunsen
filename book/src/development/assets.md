@@ -41,7 +41,7 @@ a build error, not a silently different model.
 The build scripts fetch through the `bunsen-fetch` crate's `Asset`, and
 bunsen's disk cache fetches through the same crate at run time: one
 implementation of the streamed, hashed, renamed-into-place transfer, and one
-statement of the pretrained cache layout, so what a build lays out is what the
+statement of the resource cache layout, so what a build lays out is what the
 cache reads.
 
 An environment variable can point the build at a local file instead:
@@ -64,7 +64,7 @@ Shipping a model with a build doesn't need a special kind of source. It
 needs a cache directory that is already full
 ([bundling](../systems/pretrained.md#bundling-is-a-populated-cache-directory)).
 Every bundled crate hosts nothing: its build script fetches the files, pins
-each one, and lays them out in `OUT_DIR` as a pretrained cache. A cache rooted
+each one, and lays them out in `OUT_DIR` as a resource cache. A cache rooted
 there finds them offline without knowing they were bundled.
 
 Each is a crate of the validation workspace, `validation/onnx/bind-{model}-onnx`,

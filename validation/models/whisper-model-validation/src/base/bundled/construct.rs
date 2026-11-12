@@ -10,9 +10,9 @@ use bunsen::{
         },
         resources::{
             Fuse,
-            LoadedResources,
+            LoadedResourceSet,
             Provenance,
-            ResourceBundle,
+            ResourceSet,
             Source,
         },
     },
@@ -56,9 +56,9 @@ fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
 }
 
 /// A checkpoint on disk, as loaded resources: used in place.
-fn loaded(path: &std::path::Path) -> LoadedResources {
+fn loaded(path: &std::path::Path) -> LoadedResourceSet {
     offline_cache()
-        .load(&ResourceBundle::given("given", CHECKPOINT, path))
+        .load(&ResourceSet::given("given", CHECKPOINT, path))
         .unwrap()
 }
 
@@ -104,7 +104,7 @@ fn test_the_factory_builds_the_construct() {
 #[test]
 fn test_plan_derives_a_paths_vocabulary() {
     let cache = offline_cache();
-    let given = PretrainedRef::from(ResourceBundle::given(
+    let given = PretrainedRef::from(ResourceSet::given(
         "base",
         CHECKPOINT,
         bind_whisper_onnx::base_pt(),
@@ -124,7 +124,7 @@ fn test_plan_derives_a_paths_vocabulary() {
 fn test_plan_checks_a_declared_vocabulary() {
     let cache = offline_cache();
     let wrong = base_checkpoint()
-        .fuse(WhisperVocabulary::Gpt2.resource_bundle(), Fuse::Strict)
+        .fuse(WhisperVocabulary::Gpt2.resource_set(), Fuse::Strict)
         .unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .message_contains("gpt2.tiktoken")
@@ -132,7 +132,7 @@ fn test_plan_checks_a_declared_vocabulary() {
         .assert_err(&WhisperConstructConfig::new().plan(&PretrainedRef::from(wrong), &cache));
 
     let overridden = PretrainedRef::from(base_checkpoint())
-        .with_overlay(ResourceBundle::given(
+        .with_overlay(ResourceSet::given(
             "--vocab",
             VOCABULARY,
             bind_whisper_onnx::gpt2_tiktoken(),
@@ -240,7 +240,7 @@ fn test_scan_honors_the_scanner() {
         .has_cause::<GeometryMismatch>()
         .assert_err(&hook.scan(&named, &loaded(base)));
 
-    let given = PretrainedRef::from(ResourceBundle::given("base", CHECKPOINT, base));
+    let given = PretrainedRef::from(ResourceSet::given("base", CHECKPOINT, base));
     let cfg = hook.scan(&given, &loaded(base)).unwrap();
     assert_eq!(cfg.geometry().d_head, 32);
     assert_eq!(cfg.geometry().n_heads(), 16);

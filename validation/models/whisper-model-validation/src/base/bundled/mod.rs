@@ -12,13 +12,13 @@ use bunsen::{
             PretrainedFactory,
             PretrainedGroup,
             PretrainedTable,
-            builtin_resource_bundle,
+            builtin_resource_set,
         },
         cache::BunsenDiskCacheOptions,
         resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
-            ResourceBundle,
+            ResourceCache,
+            ResourceCacheOptions,
+            ResourceSet,
         },
     },
     kits::{
@@ -42,14 +42,14 @@ mod hf;
 mod vocabulary;
 
 /// A cache rooted at the bundle's directory, offline.
-pub fn offline_cache() -> PretrainedCache {
+pub fn offline_cache() -> ResourceCache {
     cache_in(bind_whisper_onnx::cache_dir().to_path_buf())
 }
 
 /// An offline cache rooted at `dir`.
-pub fn cache_in(dir: PathBuf) -> PretrainedCache {
-    PretrainedCache::new(
-        PretrainedCacheOptions::default()
+pub fn cache_in(dir: PathBuf) -> ResourceCache {
+    ResourceCache::new(
+        ResourceCacheOptions::default()
             .with_disk(
                 BunsenDiskCacheOptions::default()
                     .with_cache_dir(Some(dir))
@@ -62,7 +62,7 @@ pub fn cache_in(dir: PathBuf) -> PretrainedCache {
 
 /// The bundled rank file a layout selects.
 pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
-    let map = WhisperVocabulary::for_layout(ids).resource_bundle();
+    let map = WhisperVocabulary::for_layout(ids).resource_set();
     offline_cache()
         .resolve(map.try_get(VOCABULARY).unwrap())
         .unwrap()
@@ -76,10 +76,10 @@ pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
         .unwrap()
 }
 
-/// `openai/whisper/base`'s checkpoint alone, as a resource bundle: the
+/// `openai/whisper/base`'s checkpoint alone, as a resource set: the
 /// built-in catalog's resource `openai/whisper/base/checkpoint`.
-pub fn base_checkpoint() -> ResourceBundle {
-    builtin_resource_bundle("openai/whisper/base/checkpoint", CHECKPOINT).unwrap()
+pub fn base_checkpoint() -> ResourceSet {
+    builtin_resource_set("openai/whisper/base/checkpoint", CHECKPOINT).unwrap()
 }
 
 /// A [`BUNDLED`] table of one row, `bundled:openai/base`: the well-known

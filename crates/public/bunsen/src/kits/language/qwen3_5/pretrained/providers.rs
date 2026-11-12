@@ -20,7 +20,7 @@ use crate::{
 /// The Qwen3.5 kit's name: its rows' `kit` tag.
 pub const QWEN3_5_KIT: &str = "qwen3.5";
 
-/// The key of the checkpoint in a Qwen3.5 resource bundle: one
+/// The key of the checkpoint in a Qwen3.5 resource set: one
 /// `model.safetensors`, or `checkpoint.index` and its shards
 /// `checkpoint.<n>`.
 pub const CHECKPOINT: &str = "checkpoint";
@@ -131,9 +131,9 @@ mod tests {
             let map = &row.resources;
             map.validate().unwrap();
             for resource in map.resources.values() {
-                assert!(resource.is_pinned(), "{name}: {}", resource.key);
+                assert!(resource.is_pinned(), "{name}: {}", resource.slot);
                 let urls = resource.urls();
-                assert_eq!(urls.len(), 1, "{name}: {}", resource.key);
+                assert_eq!(urls.len(), 1, "{name}: {}", resource.slot);
                 assert!(urls[0].contains("/Qwen/Qwen3.5-"), "{name}: {}", urls[0]);
             }
             for key in [CONFIG, TOKENIZER, TOKENIZER_CONFIG, "checkpoint.index"] {

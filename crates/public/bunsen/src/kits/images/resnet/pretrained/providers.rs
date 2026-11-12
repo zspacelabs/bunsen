@@ -10,7 +10,7 @@ use crate::data::builds::PretrainedProvider;
 /// The `ResNet` kit's name: its rows' `kit` tag.
 pub const RESNET_KIT: &str = "resnet";
 
-/// The key of the checkpoint in a `ResNet` resource bundle.
+/// The key of the checkpoint in a `ResNet` resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The `kind` label of every checkpoint here: a `PyTorch` state dict in
@@ -71,11 +71,11 @@ mod tests {
             let namespace = name.split('/').next().unwrap();
             assert!(["torchvision", "timm"].contains(&namespace), "{name}");
             assert!(
-                checkpoint.namespace.starts_with(&format!("{namespace}/")),
+                checkpoint.name.starts_with(&format!("{namespace}/")),
                 "{name}: {}",
-                checkpoint.namespace
+                checkpoint.name
             );
-            assert_eq!(checkpoint.kind.as_deref(), Some(PYTORCH_FP32));
+            assert_eq!(checkpoint.format.as_deref(), Some(PYTORCH_FP32));
             let sha256 = checkpoint.sha256.as_deref().expect("every row is pinned");
             let tag = checkpoint
                 .file

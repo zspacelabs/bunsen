@@ -35,8 +35,8 @@
 //! use bunsen::{
 //!     blocks::activation::BunsenActivationConfig,
 //!     data::resources::{
-//!         PretrainedCache,
-//!         PretrainedCacheOptions,
+//!         ResourceCache,
+//!         ResourceCacheOptions,
 //!     },
 //!     kits::images::resnet::{
 //!         ResNet,
@@ -49,7 +49,7 @@
 //! };
 //!
 //! let device = cpu_device();
-//! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+//! let cache = ResourceCache::new(ResourceCacheOptions::default())?;
 //!
 //! let config = RESNET_PREFABS
 //!     .expect_lookup_prefab("resnet18")

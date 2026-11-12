@@ -13,7 +13,7 @@ use alloc::{
 use serde::Deserialize;
 
 #[cfg(feature = "cache")]
-use crate::data::resources::PretrainedCache;
+use crate::data::resources::ResourceCache;
 use crate::{
     data::{
         builds::{
@@ -22,7 +22,7 @@ use crate::{
         },
         resources::{
             Resource,
-            ResourceBundle,
+            ResourceSet,
             SAFETENSORS,
             SAFETENSORS_INDEX,
             Source,
@@ -145,7 +145,7 @@ fn missing_shards(
 ///
 /// `hf:{org}/{repo}` is a Hugging Face repo: `hf:openai/whisper-large-v3`
 /// is <https://huggingface.co/openai/whisper-large-v3>. The provider
-/// answers such a ref with a row whose resource bundle is the repo's
+/// answers such a ref with a row whose resource set is the repo's
 /// safetensors checkpoint, and it lists nothing: the hub is not enumerable, and
 /// a bare name never reaches it
 /// ([`answers_bare_names`](PretrainedProvider::answers_bare_names) is
@@ -159,7 +159,7 @@ fn missing_shards(
 ///
 /// What a repo holds comes from the hub's file listing (its tree API, at
 /// [`tree_url`](Self::tree_url)). The listing is fetched once through the
-/// [`PretrainedCache`](crate::data::resources::PretrainedCache) and kept there,
+/// [`ResourceCache`](crate::data::resources::ResourceCache) and kept there,
 /// so a ref resolved once resolves again offline. The listing names the files
 /// and pins each LFS file by its SHA-256, so the checkpoint is
 /// digest-addressed in the cache like a well-known row's:
@@ -399,11 +399,11 @@ impl HfProvider {
         Resource {
             size: None,
             dtype: None,
-            key: "listing".to_string(),
+            slot: "listing".to_string(),
             file: format!("{org}--{repo}--{}.json", self.revision.replace('/', "-")),
             sha256: None,
-            kind: Some("json".to_string()),
-            namespace: self.name.clone(),
+            format: Some("json".to_string()),
+            name: self.name.clone(),
             sources: vec![Source::Url(self.tree_url(org, repo))],
         }
     }
@@ -421,11 +421,11 @@ impl HfProvider {
         Resource {
             size: Some(entry.size),
             dtype: None,
-            key: key.to_string(),
+            slot: key.to_string(),
             file: entry.path.clone(),
             sha256: entry.sha256(),
-            kind: Some(kind.to_string()),
-            namespace: self.name.clone(),
+            format: Some(kind.to_string()),
+            name: self.name.clone(),
             sources: vec![Source::Url(self.url(org, repo, &entry.path))],
         }
     }
@@ -455,7 +455,7 @@ impl HfProvider {
         let origin = format!("{}/{org}/{repo}", self.origin);
         let key = self.checkpoint_key.as_str();
 
-        let mut resources = ResourceBundle::new(name);
+        let mut resources = ResourceSet::new(name);
         resources.origin = Some(origin.clone());
         let what;
         if let Some(single) = file(HF_SINGLE_FILE) {
@@ -619,7 +619,7 @@ impl HfProvider {
     fn listing(
         &self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<Vec<HfTreeEntry>> {
         use crate::errors::{
             LookupError,
@@ -723,7 +723,7 @@ impl PretrainedProvider for HfProvider {
     fn resolve(
         &self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<Option<Pretrained>> {
         let listing = self.listing(name, cache)?;
         self.row_from_listing(name, &listing).map(Some)
@@ -804,8 +804,8 @@ mod tests {
         let checkpoint = row.resources.get("checkpoint").unwrap();
         assert_eq!(checkpoint.file, "model.safetensors");
         assert_eq!(checkpoint.sha256.as_deref(), Some(TINY_SHA));
-        assert_eq!(checkpoint.kind.as_deref(), Some("safetensors"));
-        assert_eq!(checkpoint.namespace, "hf");
+        assert_eq!(checkpoint.format.as_deref(), Some("safetensors"));
+        assert_eq!(checkpoint.name, "hf");
         assert_eq!(
             checkpoint.sources,
             [Source::Url(
@@ -816,7 +816,7 @@ mod tests {
         let config = row.resources.get("config").unwrap();
         assert_eq!(config.file, "config.json");
         assert_eq!(config.sha256, None);
-        assert_eq!(config.kind.as_deref(), Some("json"));
+        assert_eq!(config.format.as_deref(), Some("json"));
     }
 
     /// An extra file rides along under its key and kind, pinned when the
@@ -835,7 +835,7 @@ mod tests {
         assert_eq!(row.resources.keys(), ["checkpoint", "config", "vocabulary"]);
         let vocab = row.resources.get("vocabulary").unwrap();
         assert_eq!(vocab.file, "tokenizer.json");
-        assert_eq!(vocab.kind.as_deref(), Some("tokenizer.json"));
+        assert_eq!(vocab.format.as_deref(), Some("tokenizer.json"));
         assert_eq!(vocab.sha256.as_deref(), Some(SHARD_1));
         assert_eq!(
             row.description,
@@ -874,12 +874,12 @@ mod tests {
         );
         let index = row.resources.get("weights.index").unwrap();
         assert_eq!(index.file, "model.safetensors.index.json");
-        assert_eq!(index.kind.as_deref(), Some("safetensors-index"));
+        assert_eq!(index.format.as_deref(), Some("safetensors-index"));
         assert_eq!(index.sha256, None);
         let first = row.resources.get("weights.00001").unwrap();
         assert_eq!(first.file, "model-00001-of-00002.safetensors");
         assert_eq!(first.sha256.as_deref(), Some(SHARD_1));
-        assert_eq!(first.kind.as_deref(), Some("safetensors"));
+        assert_eq!(first.format.as_deref(), Some("safetensors"));
 
         let incomplete = vec![
             entry("model-00002-of-00002.safetensors", 1, Some(SHARD_2)),
@@ -980,7 +980,7 @@ mod tests {
         assert_eq!(row.resources.keys(), ["checkpoint"]);
         let checkpoint = row.resources.get("checkpoint").unwrap();
         assert_eq!(checkpoint.file, "diar_streaming_sortformer_4spk-v2.nemo");
-        assert_eq!(checkpoint.kind.as_deref(), Some("nemo"));
+        assert_eq!(checkpoint.format.as_deref(), Some("nemo"));
         assert_eq!(checkpoint.sha256.as_deref(), Some(TINY_SHA));
         assert!(
             row.description
@@ -994,7 +994,7 @@ mod tests {
         both.push(entry("model.safetensors", 10, Some(SHARD_1)));
         let row = hf.row_from_listing("org/repo", &both).unwrap();
         assert_eq!(
-            row.resources.get("checkpoint").unwrap().kind.as_deref(),
+            row.resources.get("checkpoint").unwrap().format.as_deref(),
             Some("safetensors")
         );
 
@@ -1031,12 +1031,12 @@ mod tests {
             listing.file,
             "openai--whisper-large-v3--06f233fe06e710322aca913c1bc4249a0d71fce1.json"
         );
-        assert_eq!(listing.namespace, "hf");
+        assert_eq!(listing.name, "hf");
         listing.validate().unwrap();
 
         let named = HfProvider::new().with_name("hf-dev").with_revision("dev");
         assert_eq!(named.name(), "hf-dev");
-        assert_eq!(named.listing_resource("o", "r").namespace, "hf-dev");
+        assert_eq!(named.listing_resource("o", "r").name, "hf-dev");
     }
 
     /// The listing as the hub serves it: LFS files carry a digest, the
@@ -1098,7 +1098,7 @@ mod tests {
             },
             resources::{
                 CacheStatus,
-                PretrainedCacheOptions,
+                ResourceCacheOptions,
             },
         };
 
@@ -1109,8 +1109,8 @@ mod tests {
         ]"#;
         let dir = tempfile::tempdir().unwrap();
         let cache_at = |offline: bool| {
-            PretrainedCache::new(
-                PretrainedCacheOptions::default()
+            ResourceCache::new(
+                ResourceCacheOptions::default()
                     .with_disk(
                         BunsenDiskCacheOptions::default()
                             .with_cache_dir(Some(dir.path().join("cache")))

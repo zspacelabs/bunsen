@@ -31,7 +31,7 @@ fn test_the_default_thinking_mode_is_the_templates() {
     let cache = weights_cache();
     let messages = [ChatMessage::user("Why is the sky blue?")];
     for row in HYBRID {
-        let bundle = factory.resolve(row, &cache).unwrap().to_resource_bundle();
+        let bundle = factory.resolve(row, &cache).unwrap().to_resource_set();
         let config = bundle
             .get(TOKENIZER_CONFIG)
             .expect("a tokenizer_config.json");

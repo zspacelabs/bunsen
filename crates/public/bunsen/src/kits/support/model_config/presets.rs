@@ -115,7 +115,7 @@ where
 /// the ref's [`selection`](PretrainedRef::selection).
 ///
 /// `family` stands in for a row with no presets of its own, such as an
-/// `hf:` repo's, and for a given resource bundle, which has no row: the
+/// `hf:` repo's, and for a given resource set, which has no row: the
 /// presets of the model family the hook found the files to be (empty when
 /// the kit keeps none). A given bundle takes its family's default.
 ///
@@ -393,7 +393,7 @@ mod tests {
     fn test_resolve_ref_presets_falls_back_to_the_family() {
         use crate::data::{
             builds::Pretrained,
-            resources::ResourceBundle,
+            resources::ResourceSet,
         };
 
         let named = |presets: ResolvedPresetSet, selection: PresetSelection| PretrainedRef::Named {
@@ -405,7 +405,7 @@ mod tests {
                 license: None,
                 origin: None,
                 prefab: None,
-                resources: ResourceBundle::new("org/repo"),
+                resources: ResourceSet::new("org/repo"),
                 presets,
                 args: Default::default(),
                 tags: Default::default(),
@@ -434,7 +434,7 @@ mod tests {
         .unwrap();
         assert_eq!(r.presets, ["no-thinking"]);
 
-        let given = PretrainedRef::Given(ResourceBundle::new("files"));
+        let given = PretrainedRef::Given(ResourceSet::new("files"));
         let r = resolve_ref_presets(&base(), &given, &family).unwrap();
         assert_eq!(r.presets, ["thinking"]);
         let r = resolve_ref_presets(&base(), &given, &ResolvedPresetSet::default()).unwrap();

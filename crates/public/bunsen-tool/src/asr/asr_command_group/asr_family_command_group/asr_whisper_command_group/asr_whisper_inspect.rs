@@ -1,7 +1,7 @@
 //! `asr family whisper inspect`.
 
 use bunsen::{
-    data::resources::PretrainedCache,
+    data::resources::ResourceCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -56,7 +56,7 @@ impl AsrWhisperInspectCommand {
     pub fn run(&self) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
-        let cache: PretrainedCache = self.cache.init()?;
+        let cache: ResourceCache = self.cache.init()?;
         let model = whisper::resolve(&self.name, None, &cache)?;
         println!("model: {}", model.id());
         if let Some((provider, row)) = model.model.named() {
@@ -68,7 +68,7 @@ impl AsrWhisperInspectCommand {
             println!("  description: {}", row.description);
         }
 
-        let map = model.to_resource_bundle();
+        let map = model.to_resource_set();
         println!("resources:");
         for (key, r) in &map.resources {
             let pin = match &r.sha256 {
@@ -78,7 +78,7 @@ impl AsrWhisperInspectCommand {
             println!(
                 "  {key}: {} ({}, {pin}) [{}]",
                 r.file,
-                r.kind.as_deref().unwrap_or("unlabeled"),
+                r.format.as_deref().unwrap_or("unlabeled"),
                 cache.status(r),
             );
             for source in &r.sources {
@@ -129,7 +129,7 @@ impl AsrWhisperInspectCommand {
         // A row declares its vocabulary, listed above; a path has only the
         // rule, applied to what the scan found.
         if map.get(VOCABULARY).is_none() {
-            let vocab = WhisperVocabulary::for_layout(&layout_of(&cfg)?).resource_bundle();
+            let vocab = WhisperVocabulary::for_layout(&layout_of(&cfg)?).resource_set();
             let r = vocab.try_get(VOCABULARY)?;
             println!(
                 "vocabulary (by the checkpoint's layout): {} ({})",

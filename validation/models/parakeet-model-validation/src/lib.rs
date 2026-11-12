@@ -221,14 +221,14 @@ pub fn synthetic_waveform(
 /// pinned file the first time it is asked for; offline when
 /// `BUNSEN_VALIDATE_OFFLINE` is set. Routing the checkpoints through the
 /// library's own factory is also what this crate is validating.
-pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
     use bunsen::data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     };
     let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
-    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
-        .expect("open the pretrained cache")
+    ResourceCache::new(ResourceCacheOptions::default().with_offline(offline))
+        .expect("open the resource cache")
 }
 
 /// A Parakeet pretrained by name, through bunsen's factory and

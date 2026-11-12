@@ -23,8 +23,8 @@ use crate::{
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
             SAFETENSORS_INDEX,
         },
     },
@@ -76,26 +76,26 @@ impl ConstructInit for VoxtralConstructConfig {
 
     /// The hook, for a safetensors checkpoint (one file or shards) with a
     /// `tekken.json` vocabulary.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
             None => map.try_get(CHECKPOINT)?,
         };
         if !matches!(
-            checkpoint.kind.as_deref(),
+            checkpoint.format.as_deref(),
             Some(SAFETENSORS | SAFETENSORS_INDEX)
         ) {
             return Err(BunsenError::unsupported(format!(
                 "no Voxtral reader for a checkpoint of kind {:?}",
-                checkpoint.kind
+                checkpoint.format
             )));
         }
         let vocab = map.try_get(VOCABULARY)?;
-        if vocab.kind.as_deref() != Some(TEKKEN_JSON) {
+        if vocab.format.as_deref() != Some(TEKKEN_JSON) {
             return Err(BunsenError::unsupported(format!(
                 "no Voxtral vocabulary reader for kind {:?}",
-                vocab.kind
+                vocab.format
             )));
         }
         Ok(Self)
@@ -104,7 +104,7 @@ impl ConstructInit for VoxtralConstructConfig {
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
-        VoxtralConstructConfig::for_resource_bundle(
+        VoxtralConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("mistralai/voxtral-mini-4b-realtime-2602")
                 .unwrap(),
         )

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bunsen::{
     data::{
         formats::LoadPolicy,
-        resources::PretrainedCache,
+        resources::ResourceCache,
     },
     errors::{
         BunsenError,
@@ -114,7 +114,7 @@ impl VadArgs {
 pub fn with_vad<E: AsrEngine>(
     driver: AsrStreamDriver<E>,
     vad: Option<&str>,
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     device: &Device,
 ) -> BunsenResult<AsrStreamDriver<E>> {
     let Some(vad) = vad else {

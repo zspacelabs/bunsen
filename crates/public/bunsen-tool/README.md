@@ -713,7 +713,7 @@ also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `
 NAME...` brings every file of the named models into the cache and prints where each one is (`--verify` re-hashes each
 pinned file): a deployment that runs `--offline` fills its cache this way ahead of time.
 
-`transcribe` loads `--model` (the family's default unless named) through bunsen's pretrained cache, fetching it on
+`transcribe` loads `--model` (the family's default unless named) through bunsen's resource cache, fetching it on
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints
 each file's text. `--json` prints JSON lines instead ([where the transcript goes](#where-the-transcript-goes)): each
 file's statements, then its `transcript`: the text, the language when the model names one (Qwen3-ASR, Whisper), each

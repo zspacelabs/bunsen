@@ -36,7 +36,7 @@ use bunsen::{
             PretrainedFactory,
         },
         catalog::presets::ResolvedPresetSet,
-        resources::PretrainedCache,
+        resources::ResourceCache,
     },
     errors::{
         BunsenError,
@@ -297,7 +297,7 @@ pub fn render(
 /// As a family's default factory, if two of its providers share a name; as
 /// a row's policy, under `policies`.
 pub fn card(
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     policies: bool,
 ) -> BunsenResult<Value> {
     Ok(Value::map([
@@ -338,7 +338,7 @@ fn build() -> Value {
 /// The weights cache: where it is, whether this run keeps it off the
 /// network (`--offline`), whether the build can fetch at all, and that a
 /// load marks the files it finds used (`cache list`'s last use).
-fn cache_config(cache: &PretrainedCache) -> Value {
+fn cache_config(cache: &ResourceCache) -> Value {
     Value::map([
         ("dir", Value::str(cache.cache_dir().display().to_string())),
         ("offline", Value::Bool(cache.offline())),
@@ -562,7 +562,7 @@ mod tests {
     use super::*;
 
     #[cfg(feature = "speech")]
-    fn offline_cache() -> PretrainedCache {
+    fn offline_cache() -> ResourceCache {
         WeightsCacheArgs {
             cache_dir: Some(std::env::temp_dir().join("bunsen-tool-card-test")),
             offline: true,

@@ -145,7 +145,7 @@ pub struct TemplateLink<'a> {
     pub class: &'a TemplateClassEntry,
 }
 
-/// The root names no catalog may declare: the pretrained cache keeps files
+/// The root names no catalog may declare: the resource cache keeps files
 /// off the catalog under them (`hf:` repos', and paths').
 pub const RESERVED_ROOTS: [&str; 2] = ["hf", "given"];
 
@@ -203,7 +203,7 @@ impl BunsenCatalogStack {
             return Err(catalog_error(
                 CatalogRule::Name,
                 format!(
-                    "`{}` is reserved: the pretrained cache keeps the files no catalog names \
+                    "`{}` is reserved: the resource cache keeps the files no catalog names \
                      under `hf` and `given`, so no catalog root is called either",
                     reserved.name()
                 ),

@@ -18,7 +18,7 @@ use serde::{
 };
 
 #[cfg(doc)]
-use crate::data::resources::ResourceBundle;
+use crate::data::resources::ResourceSet;
 use crate::{
     data::{
         builds::{
@@ -34,7 +34,7 @@ use crate::{
         formats::LoadPolicy,
         not_found,
         pretrained::tags::KIT,
-        resources::PretrainedCache,
+        resources::ResourceCache,
     },
     errors::{
         BunsenError,
@@ -56,12 +56,12 @@ use crate::{
 /// listing. [`load`](Self::load)`("[provider:]name", &cache, &device)`
 /// is the whole pathway, from a name to a [`Loaded`] model.
 /// [`resolve`](Self::resolve) is its index half: a [`Deferred`] model that
-/// carries the hook its resource bundle calls for, so that a caller can overlay
+/// carries the hook its resource set calls for, so that a caller can overlay
 /// a row ([`Deferred::with_overlay`]) before loading it, and never builds or
 /// passes a hook. [`list`](Self::list), [`ids`](Self::ids) and
 /// [`for_prefab`](Self::for_prefab) answer a listing. A file on disk is
-/// not the factory's business: that is a given [`ResourceBundle`], through
-/// [`Deferred::from_resource_bundle`].
+/// not the factory's business: that is a given [`ResourceSet`], through
+/// [`Deferred::from_resource_set`].
 ///
 /// # Lookup expressions
 ///
@@ -373,7 +373,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     /// The row `spec` names, dispatched as [`lookup`](Self::lookup) is but
     /// through each provider's [`resolve`](PretrainedProvider::resolve)
     /// with `cache` to hand, as a [`Deferred`] model with the hook its resource
-    /// bundle calls for: the index half of [`load`](Self::load), for a caller
+    /// set calls for: the index half of [`load`](Self::load), for a caller
     /// that overlays the row before loading it. A table answers from its
     /// rows; a hub asks what the repo holds, once, and keeps the answer in
     /// the cache.
@@ -386,7 +386,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     pub fn resolve(
         &self,
         spec: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<Deferred<H>> {
         let resolve = || -> BunsenResult<Deferred<H>> {
             let expr = LookupExpr::parse(spec)?;
@@ -420,7 +420,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     pub fn load(
         &self,
         spec: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Loaded<H::Construct>> {
@@ -435,7 +435,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     pub fn load_construct(
         &self,
         spec: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Arc<H::Construct>> {
@@ -506,14 +506,14 @@ pub(crate) mod testing {
 
     use super::*;
     use crate::data::resources::{
-        LoadedResources,
+        LoadedResourceSet,
         Resource,
-        ResourceBundle,
+        ResourceSet,
         Source,
     };
 
     /// A provider that can look up but not list: the shape of a hub
-    /// wrapper. Answers `hub:<org>/<repo>` with a two-file resource bundle of
+    /// wrapper. Answers `hub:<org>/<repo>` with a two-file resource set of
     /// URLs, and counts how often it was asked, so a test can pin that a bare
     /// name never reached it.
     #[derive(Debug, Default)]
@@ -558,14 +558,14 @@ pub(crate) mod testing {
             let file = |key: &str, file: &str, kind: &str| Resource {
                 size: None,
                 dtype: None,
-                key: key.to_string(),
+                slot: key.to_string(),
                 file: file.to_string(),
                 sha256: None,
-                kind: Some(kind.to_string()),
-                namespace: "hub".to_string(),
+                format: Some(kind.to_string()),
+                name: "hub".to_string(),
                 sources: vec![Source::Url(format!("{base}/{file}"))],
             };
-            let resources = ResourceBundle::new(name)
+            let resources = ResourceSet::new(name)
                 .with_resource(file("checkpoint", "model.safetensors", "safetensors"))
                 .with_resource(file("config", "config.json", "json"));
             Ok(Some(Pretrained {
@@ -613,7 +613,7 @@ pub(crate) mod testing {
     }
 
     /// A hook for kit `kit` that builds the checkpoint's path, whatever the
-    /// resource bundle says.
+    /// resource set says.
     #[derive(Clone, Debug, Default)]
     pub struct CheckpointPath;
 
@@ -622,14 +622,14 @@ pub(crate) mod testing {
 
         const KIT: &'static str = "kit";
 
-        fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+        fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
             Ok(Self)
         }
 
         fn try_init(
             &self,
             _model: &PretrainedRef,
-            loaded: &LoadedResources,
+            loaded: &LoadedResourceSet,
             _device: &Device,
             _policy: LoadPolicy,
         ) -> BunsenResult<Arc<PathBuf>> {
@@ -647,14 +647,14 @@ pub(crate) mod testing {
         const KIT: &'static str = "kit";
         const RESOLVES_PRESETS: bool = true;
 
-        fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+        fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
             Ok(Self)
         }
 
         fn try_init(
             &self,
             model: &PretrainedRef,
-            loaded: &LoadedResources,
+            loaded: &LoadedResourceSet,
             device: &Device,
             policy: LoadPolicy,
         ) -> BunsenResult<Arc<PathBuf>> {
@@ -686,7 +686,7 @@ mod tests {
             },
             resources::{
                 Resource,
-                ResourceBundle,
+                ResourceSet,
                 Source,
             },
         },
@@ -712,14 +712,14 @@ mod tests {
             license: None,
             origin: None,
             prefab: Some(prefab.to_string()),
-            resources: ResourceBundle::new(name).with_resource(Resource {
+            resources: ResourceSet::new(name).with_resource(Resource {
                 size: None,
                 dtype: None,
-                key: "checkpoint".to_string(),
+                slot: "checkpoint".to_string(),
                 file: format!("{name}.pt"),
                 sha256: None,
-                kind: Some("pytorch".to_string()),
-                namespace: "t".to_string(),
+                format: Some("pytorch".to_string()),
+                name: "t".to_string(),
                 sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
             }),
             presets: Default::default(),
@@ -740,7 +740,7 @@ mod tests {
             license: None,
             origin: None,
             prefab: None,
-            resources: ResourceBundle::given(name, "checkpoint", path),
+            resources: ResourceSet::given(name, "checkpoint", path),
             presets: Default::default(),
             args: Default::default(),
             tags: Default::default(),
@@ -796,13 +796,13 @@ mod tests {
 
     /// An offline cache rooted under `dir`: nothing is fetched, nothing
     /// reports.
-    fn offline_cache(dir: &std::path::Path) -> PretrainedCache {
+    fn offline_cache(dir: &std::path::Path) -> ResourceCache {
         use crate::data::{
             cache::BunsenDiskCacheOptions,
-            resources::PretrainedCacheOptions,
+            resources::ResourceCacheOptions,
         };
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))
@@ -998,7 +998,7 @@ mod tests {
             model.model.named().map(|(p, row)| (p, row.name.as_str())),
             Some(("well-known", "a/small"))
         );
-        assert_eq!(model.to_resource_bundle().name, "well-known:a/small");
+        assert_eq!(model.to_resource_set().name, "well-known:a/small");
         assert!(format!("{:?}", model.config).contains("CheckpointPath"));
         let model = factory.resolve("hub:x/y", &cache).unwrap();
         assert_eq!(model.id(), "hub:x/y");
@@ -1012,7 +1012,7 @@ mod tests {
             .assert_err(&factory.resolve("well-known:a/gigantic", &cache));
     }
 
-    /// `load` runs the whole pathway through the hook the resource bundle
+    /// `load` runs the whole pathway through the hook the resource set
     /// called for; a ref the caller overlays first goes through the same hook.
     #[test]
     fn test_load_goes_through_the_hook() {
@@ -1050,7 +1050,7 @@ mod tests {
         let loaded = factory
             .resolve("ckpt", &cache)
             .unwrap()
-            .with_overlay(ResourceBundle::given("mine", "checkpoint", &other))
+            .with_overlay(ResourceSet::given("mine", "checkpoint", &other))
             .unwrap()
             .load(
                 &cache,

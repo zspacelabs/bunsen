@@ -23,8 +23,8 @@ use bunsen::{
         },
         formats::LoadPolicy,
         resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
+            ResourceCache,
+            ResourceCacheOptions,
         },
     },
     errors::{
@@ -187,7 +187,7 @@ impl Family {
         self,
         spec: &str,
         flags: &F,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
     ) -> BunsenResult<Loaded> {
         Ok(match self {
@@ -295,7 +295,7 @@ impl Kit {
     pub fn fetch(
         self,
         names: &[String],
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         verify: bool,
         out: &mut impl Write,
     ) -> BunsenResult<()> {
@@ -323,7 +323,7 @@ impl Kit {
 pub fn fetch_with<H: ConstructInit>(
     factory: PretrainedFactory<H>,
     names: &[String],
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     verify: bool,
     out: &mut impl Write,
 ) -> BunsenResult<()> {
@@ -361,7 +361,7 @@ pub fn fetch_with<H: ConstructInit>(
 /// from: the model's info card.
 pub fn load_logged<H: ConstructInit>(
     deferred: Deferred<H>,
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     device: &Device,
 ) -> BunsenResult<Arc<H::Construct>> {
     let t0 = Instant::now();
@@ -393,8 +393,8 @@ pub trait FamilyFlags: std::fmt::Debug {
     /// The cache options these flags call for, over `options`.
     fn cache_options(
         &self,
-        options: PretrainedCacheOptions,
-    ) -> PretrainedCacheOptions {
+        options: ResourceCacheOptions,
+    ) -> ResourceCacheOptions {
         match self.whisper() {
             Some(whisper) => whisper.cache_options(options),
             None => options,

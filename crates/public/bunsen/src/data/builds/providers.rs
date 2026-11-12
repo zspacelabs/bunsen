@@ -8,7 +8,7 @@ use alloc::{
 use core::fmt;
 
 #[cfg(feature = "cache")]
-use crate::data::resources::PretrainedCache;
+use crate::data::resources::ResourceCache;
 use crate::{
     data::builds::Pretrained,
     errors::BunsenResult,
@@ -103,7 +103,7 @@ pub trait PretrainedProvider: Send + Sync + fmt::Debug {
     fn resolve(
         &self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<Option<Pretrained>> {
         let _ = cache;
         self.lookup(name)
@@ -312,7 +312,7 @@ mod tests {
     use super::*;
     use crate::data::resources::{
         Resource,
-        ResourceBundle,
+        ResourceSet,
         Source,
     };
 
@@ -331,14 +331,14 @@ mod tests {
             license: None,
             origin: None,
             prefab: Some(prefab.to_string()),
-            resources: ResourceBundle::new(name).with_resource(Resource {
+            resources: ResourceSet::new(name).with_resource(Resource {
                 size: None,
                 dtype: None,
-                key: "weights".to_string(),
+                slot: "weights".to_string(),
                 file: file.to_string(),
                 sha256: None,
-                kind: None,
-                namespace: "t".to_string(),
+                format: None,
+                name: "t".to_string(),
                 sources: alloc::vec![Source::Url(format!("{base}/{file}"))],
             }),
             presets: Default::default(),

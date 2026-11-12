@@ -11,9 +11,9 @@ use bunsen::{
     data::{
         builds::Deferred,
         resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
-            ResourceBundle,
+            ResourceCache,
+            ResourceCacheOptions,
+            ResourceSet,
         },
     },
     errors::{
@@ -75,8 +75,8 @@ impl WhisperFlags {
     /// `options`, with `--upstream-cache-dir` as `openai-whisper`'s cache.
     pub fn cache_options(
         &self,
-        options: PretrainedCacheOptions,
-    ) -> PretrainedCacheOptions {
+        options: ResourceCacheOptions,
+    ) -> ResourceCacheOptions {
         match &self.upstream_cache_dir {
             Some(dir) => options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone()),
             None => options,
@@ -84,7 +84,7 @@ impl WhisperFlags {
     }
 }
 
-/// What `--model` names: a checkpoint on disk, as a one-resource bundle under
+/// What `--model` names: a checkpoint on disk, as a one-resource set under
 /// [`CHECKPOINT`] (its vocabulary the one its layout selects), or a row of
 /// the Whisper factory; `--vocab` over either.
 ///
@@ -95,11 +95,11 @@ impl WhisperFlags {
 pub fn resolve(
     spec: &str,
     flags: Option<&WhisperFlags>,
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
 ) -> BunsenResult<Deferred<WhisperConstructConfig>> {
     let path = Path::new(spec);
     let mut model = if path.is_file() {
-        Deferred::from_resource_bundle(ResourceBundle::given(spec, CHECKPOINT, path)).as_policy()?
+        Deferred::from_resource_set(ResourceSet::given(spec, CHECKPOINT, path)).as_policy()?
     } else {
         default_whisper_factory()?
             .resolve(spec, cache)
@@ -107,7 +107,7 @@ pub fn resolve(
     };
     if let Some(vocab) = flags.and_then(|f| f.vocab.as_ref()) {
         model = model
-            .with_overlay(ResourceBundle::given("--vocab", VOCABULARY, vocab))
+            .with_overlay(ResourceSet::given("--vocab", VOCABULARY, vocab))
             .as_policy()?;
     }
     Ok(model)

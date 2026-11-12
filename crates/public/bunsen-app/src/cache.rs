@@ -20,8 +20,8 @@ use bunsen::{
         resources::{
             CacheSelector,
             CachedFile,
-            PretrainedCache,
-            PretrainedCacheOptions,
+            ResourceCache,
+            ResourceCacheOptions,
         },
     },
     errors::{
@@ -54,8 +54,8 @@ pub struct WeightsCacheArgs {
 
 impl WeightsCacheArgs {
     /// The cache options these flags give.
-    pub fn options(&self) -> PretrainedCacheOptions {
-        PretrainedCacheOptions::default()
+    pub fn options(&self) -> ResourceCacheOptions {
+        ResourceCacheOptions::default()
             .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
             .with_offline(self.offline)
     }
@@ -63,10 +63,10 @@ impl WeightsCacheArgs {
     /// Opens the cache.
     ///
     /// # Errors
-    /// As [`PretrainedCache::new`], as policy: the options come from the
+    /// As [`ResourceCache::new`], as policy: the options come from the
     /// command line.
-    pub fn init(&self) -> BunsenResult<PretrainedCache> {
-        PretrainedCache::new(self.options()).as_policy()
+    pub fn init(&self) -> BunsenResult<ResourceCache> {
+        ResourceCache::new(self.options()).as_policy()
     }
 }
 
@@ -142,13 +142,13 @@ impl CacheAction {
     /// Runs the action on `cache`, writing to `out`.
     ///
     /// # Errors
-    /// As [`PretrainedCache::cached_files`] and
-    /// [`PretrainedCache::remove_cached`]; a
+    /// As [`ResourceCache::cached_files`] and
+    /// [`ResourceCache::remove_cached`]; a
     /// [`Sys`](bunsen::errors::BunsenErrorKind::Sys) error if `out` cannot be
     /// written.
     pub fn run(
         &self,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         out: &mut impl Write,
     ) -> BunsenResult<()> {
         let w = sys_at("write to", "stdout");
@@ -324,7 +324,7 @@ mod tests {
         Cache(CacheCommand),
     }
 
-    fn cache_in(dir: &std::path::Path) -> PretrainedCache {
+    fn cache_in(dir: &std::path::Path) -> ResourceCache {
         WeightsCacheArgs {
             cache_dir: Some(dir.to_path_buf()),
             offline: true,
@@ -334,7 +334,7 @@ mod tests {
     }
 
     fn put(
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         rel: &str,
         bytes: usize,
     ) {
@@ -345,7 +345,7 @@ mod tests {
 
     fn run(
         action: &CacheAction,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> String {
         let mut out = Vec::new();
         action.run(cache, &mut out).unwrap();

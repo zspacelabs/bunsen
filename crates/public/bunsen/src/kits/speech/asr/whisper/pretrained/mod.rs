@@ -46,7 +46,7 @@
 //! [`WHISPER_PREFABS`], so a name means a shape before any bytes are
 //! fetched, and a checkpoint of another shape under the name is refused. A
 //! prefab is a shape without weights; a resource is where the bytes come
-//! from and the digest that pins them. A path arrives as a one-resource bundle,
+//! from and the digest that pins them. A path arrives as a one-resource set,
 //! and gets its vocabulary from the same rule,
 //! [`WhisperVocabulary::for_layout`].
 //!
@@ -65,7 +65,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_resource_bundle`](crate::data::builds::Deferred::from_resource_bundle).
+//! through [`Deferred::from_resource_set`](crate::data::builds::Deferred::from_resource_set).
 //!
 //! # Example
 //!
@@ -95,7 +95,7 @@
 //!
 //! // The row's vocabulary is the one that geometry's token layout selects.
 //! let ids = WhisperSpecialIds::from_vocab_size(geometry.vocab_size)?;
-//! let rule = WhisperVocabulary::for_layout(&ids).resource_bundle();
+//! let rule = WhisperVocabulary::for_layout(&ids).resource_set();
 //! assert_eq!(
 //!     row.resources.try_get(VOCABULARY)?.file,
 //!     rule.try_get(VOCABULARY)?.file,
@@ -112,7 +112,7 @@ mod prefabs;
 #[cfg(feature = "store")]
 mod providers;
 #[cfg(feature = "store")]
-mod resource_bundles;
+mod resource_sets;
 #[cfg(feature = "store")]
 mod vocab;
 
@@ -124,7 +124,7 @@ pub use prefabs::*;
 #[cfg(feature = "store")]
 pub use providers::*;
 #[cfg(feature = "store")]
-pub use resource_bundles::*;
+pub use resource_sets::*;
 #[cfg(feature = "store")]
 pub use vocab::*;
 

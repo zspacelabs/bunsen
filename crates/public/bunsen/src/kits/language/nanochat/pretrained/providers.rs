@@ -104,8 +104,8 @@ mod tests {
             let map = &row.resources;
             map.validate().unwrap();
             for resource in map.resources.values() {
-                assert!(resource.is_pinned(), "{name}: {}", resource.key);
-                assert_eq!(resource.urls().len(), 1, "{name}: {}", resource.key);
+                assert!(resource.is_pinned(), "{name}: {}", resource.slot);
+                assert_eq!(resource.urls().len(), 1, "{name}: {}", resource.slot);
             }
             for key in [CHECKPOINT, META, TOKENIZER, TOKEN_BYTES] {
                 assert!(map.get(key).is_some(), "{name}: {key}");

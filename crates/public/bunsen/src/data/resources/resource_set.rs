@@ -1,4 +1,4 @@
-//! Resource bundles: named sets of resources, and how two of them fuse.
+//! Resource sets: named sets of resources, and how two of them fuse.
 
 use alloc::{
     collections::BTreeMap,
@@ -37,13 +37,13 @@ use crate::{
     },
 };
 
-/// How two resource bundles combine when a key is in both.
+/// How two resource sets combine when a key is in both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Fuse {
     /// A repeated key is an error: for authoring, where it is a mistake.
     Strict,
 
-    /// A repeated key takes the right resource bundle's resource: for an
+    /// A repeated key takes the right resource set's resource: for an
     /// override.
     Overlay,
 }
@@ -53,20 +53,21 @@ pub enum Fuse {
 /// The unit a pretrained is described in, cached by, and fused from. The
 /// keys are the kit's; nothing here knows which one is the model. A
 /// [`Pretrained`](crate::data::builds::Pretrained) row is one resource
-/// bundle, fused from the resource bundles it lists; [`ResourceBundle::given`]
+/// set, fused from the resource sets it lists; [`ResourceSet::given`]
 /// is a path as a resource
-/// bundle; [`PretrainedCache::load`](super::PretrainedCache::load) brings a
-/// whole resource bundle local, as [`LoadedResources`](super::LoadedResources).
+/// set; [`ResourceCache::load`](super::ResourceCache::load) brings a
+/// whole resource set local, as
+/// [`LoadedResourceSet`](super::LoadedResourceSet).
 ///
 /// Built from a build catalog's build, deserialized, or assembled at runtime;
-/// [`validate`](Self::validate) checks a hand-built one. Two resource bundles
+/// [`validate`](Self::validate) checks a hand-built one. Two resource sets
 /// [fuse](Self::fuse) by key, with no memory of where a resource came from:
 /// [`Fuse::Strict`] for authoring, where a repeated key is a mistake, or
-/// [`Fuse::Overlay`] for an override, where the right-hand resource bundle
+/// [`Fuse::Overlay`] for an override, where the right-hand resource set
 /// wins.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ResourceBundle {
-    /// The resource bundle's name, for messages.
+pub struct ResourceSet {
+    /// The resource set's name, for messages.
     pub name: String,
 
     /// A line for a listing.
@@ -82,8 +83,8 @@ pub struct ResourceBundle {
     pub resources: BTreeMap<String, Resource>,
 }
 
-impl ResourceBundle {
-    /// An empty resource bundle called `name`.
+impl ResourceSet {
+    /// An empty resource set called `name`.
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -94,7 +95,7 @@ impl ResourceBundle {
         }
     }
 
-    /// A resource bundle of one resource: a file on disk already, under `key`.
+    /// A resource set of one resource: a file on disk already, under `key`.
     /// What a path on a command line becomes.
     pub fn given(
         name: impl Into<String>,
@@ -118,7 +119,7 @@ impl ResourceBundle {
         &mut self,
         resource: Resource,
     ) -> Option<Resource> {
-        self.resources.insert(resource.key.clone(), resource)
+        self.resources.insert(resource.slot.clone(), resource)
     }
 
     /// The bundle's size in bytes: the sum of its resources' sizes, when
@@ -143,13 +144,13 @@ impl ResourceBundle {
         self.resources.keys().map(String::as_str).collect()
     }
 
-    /// The resources keyed `key` or `key.<part>`, as a resource bundle of their
-    /// own under this resource bundle's name: a checkpoint that is one file, or
+    /// The resources keyed `key` or `key.<part>`, as a resource set of their
+    /// own under this resource set's name: a checkpoint that is one file, or
     /// one split across several (`checkpoint.index`, `checkpoint.00001`, ...).
     pub fn family(
         &self,
         key: &str,
-    ) -> ResourceBundle {
+    ) -> ResourceSet {
         let prefix = format!("{key}.");
         let mut family = Self::new(self.name.clone());
         family.description.clone_from(&self.description);
@@ -185,7 +186,7 @@ impl ResourceBundle {
     ///
     /// # Errors
     /// [`Lookup`](BunsenErrorKind::Lookup), with a [`LookupError`] naming the
-    /// keys there are, under a frame naming the resource bundle.
+    /// keys there are, under a frame naming the resource set.
     pub fn try_get(
         &self,
         key: &str,
@@ -194,20 +195,20 @@ impl ResourceBundle {
             .ok_or_else(|| not_found(Some(&self.name), "resource", key, &self.keys()))
     }
 
-    /// Checks the resource bundle hangs together: every resource validates and
+    /// Checks the resource set hangs together: every resource validates and
     /// sits under its own key.
     ///
     /// # Errors
     /// [`Illegal`](BunsenErrorKind::Illegal) naming the first problem,
-    /// under a frame naming the resource bundle: a resource filed under a key
+    /// under a frame naming the resource set: a resource filed under a key
     /// not its own, or one that does not [validate](Resource::validate). The
-    /// resource bundle is declared wrong.
+    /// resource set is declared wrong.
     pub fn validate(&self) -> BunsenResult<()> {
         for (key, resource) in &self.resources {
-            if key != &resource.key {
+            if key != &resource.slot {
                 return Err(BunsenError::illegal(format!(
                     "resource {:?} is filed under {key:?}",
-                    resource.key
+                    resource.slot
                 ))
                 .context(&self.name));
             }
@@ -216,13 +217,13 @@ impl ResourceBundle {
         Ok(())
     }
 
-    /// The union of this resource bundle and `other`, by key, keeping this
-    /// resource bundle's name and listing fields.
+    /// The union of this resource set and `other`, by key, keeping this
+    /// resource set's name and listing fields.
     ///
     /// # Errors
     /// Under [`Fuse::Strict`], [`Illegal`](BunsenErrorKind::Illegal), with a
     /// [`LookupError`] for the key in both, under a frame naming the resource
-    /// bundles: the resource bundles were authored to be disjoint.
+    /// sets: the resource sets were authored to be disjoint.
     pub fn fuse(
         mut self,
         other: Self,
@@ -241,15 +242,15 @@ impl ResourceBundle {
         Ok(self)
     }
 
-    /// This resource bundle with the named resources served from files on disk,
+    /// This resource set with the named resources served from files on disk,
     /// in place: each resource's sources become one local-dir source called
     /// `name` at its file's directory. What a bundle laid out at build time
     /// becomes a provider through.
     ///
     /// # Errors
-    /// As [`try_get`](Self::try_get) for a key the resource bundle lacks;
+    /// As [`try_get`](Self::try_get) for a key the resource set lacks;
     /// [`Illegal`](BunsenErrorKind::Illegal), under a frame naming the resource
-    /// bundle, when a path's file name is not the resource's.
+    /// set, when a path's file name is not the resource's.
     pub fn with_local_files(
         mut self,
         name: &str,
@@ -311,7 +312,7 @@ mod tests {
             }]
         );
         assert_eq!(r.sha256, map.get("checkpoint").unwrap().sha256);
-        assert_eq!(r.namespace, "a");
+        assert_eq!(r.name, "a");
         assert_eq!(
             bundled.get("vocabulary").unwrap().sources,
             map.get("vocabulary").unwrap().sources,
@@ -339,10 +340,10 @@ mod tests {
         Some(PathBuf::from("/home/someone/.cache/whisper"))
     }
 
-    /// A one-file resource bundle with two sources: a checkpoint, as the
+    /// A one-file resource set with two sources: a checkpoint, as the
     /// whisper catalog spells one.
-    fn checkpoint() -> ResourceBundle {
-        ResourceBundle {
+    fn checkpoint() -> ResourceSet {
+        ResourceSet {
             name: "a/tiny.en.pt".to_string(),
             description: "a checkpoint".to_string(),
             license: Some("MIT".to_string()),
@@ -352,11 +353,11 @@ mod tests {
         .with_resource(Resource {
             size: None,
             dtype: None,
-            key: "checkpoint".to_string(),
+            slot: "checkpoint".to_string(),
             file: "tiny.en.pt".to_string(),
             sha256: Some(ABC_SHA256.to_string()),
-            kind: Some("pytorch fp16".to_string()),
-            namespace: "a".to_string(),
+            format: Some("pytorch fp16".to_string()),
+            name: "a".to_string(),
             sources: vec![
                 Source::LocalDir {
                     name: "upstream".to_string(),
@@ -367,16 +368,16 @@ mod tests {
         })
     }
 
-    /// A one-file resource bundle with a mirror and a URL: a vocabulary.
-    fn vocabulary() -> ResourceBundle {
-        ResourceBundle::new("a/gpt2.tiktoken").with_resource(Resource {
+    /// A one-file resource set with a mirror and a URL: a vocabulary.
+    fn vocabulary() -> ResourceSet {
+        ResourceSet::new("a/gpt2.tiktoken").with_resource(Resource {
             size: None,
             dtype: None,
-            key: "vocabulary".to_string(),
+            slot: "vocabulary".to_string(),
             file: "gpt2.tiktoken".to_string(),
             sha256: None,
-            kind: Some("tiktoken".to_string()),
-            namespace: "a".to_string(),
+            format: Some("tiktoken".to_string()),
+            name: "a".to_string(),
             sources: vec![
                 Source::Url("https://mirror.example/gpt2.tiktoken".to_string()),
                 Source::Url("https://raw.example/assets/gpt2.tiktoken".to_string()),
@@ -394,12 +395,12 @@ mod tests {
         assert_eq!(map.len(), 1);
         assert!(!map.is_empty());
         assert_eq!(map.keys(), ["checkpoint"]);
-        assert_eq!(map.get("checkpoint").unwrap().namespace, "a");
+        assert_eq!(map.get("checkpoint").unwrap().name, "a");
         assert!(map.get("vocabulary").is_none());
         map.validate().unwrap();
 
         let json = serde_json::to_string(&map).unwrap();
-        assert_eq!(serde_json::from_str::<ResourceBundle>(&json).unwrap(), map);
+        assert_eq!(serde_json::from_str::<ResourceSet>(&json).unwrap(), map);
     }
 
     /// A bundle's size is known when every resource's is; its dtypes are
@@ -419,10 +420,10 @@ mod tests {
         assert_eq!(sized.dtypes(), ["bfloat16"]);
         sized.resources.get_mut("vocabulary").unwrap().dtype = Some("float32".to_string());
         assert_eq!(sized.dtypes(), ["bfloat16", "float32"]);
-        assert_eq!(ResourceBundle::new("empty").size(), Some(0));
+        assert_eq!(ResourceSet::new("empty").size(), Some(0));
     }
 
-    /// A strict fuse takes the union and keeps the left resource bundle's name;
+    /// A strict fuse takes the union and keeps the left resource set's name;
     /// a repeated key is refused and named.
     #[test]
     fn test_fuse_strict() {
@@ -448,23 +449,23 @@ mod tests {
             .assert_err(&checkpoint().fuse(checkpoint(), Fuse::Strict));
     }
 
-    /// An overlay lets the right resource bundle replace: a given path over a
+    /// An overlay lets the right resource set replace: a given path over a
     /// row.
     #[test]
     fn test_fuse_overlay() {
         let row = checkpoint().fuse(vocabulary(), Fuse::Strict).unwrap();
         let overlaid = row
             .fuse(
-                ResourceBundle::given("flags", "vocabulary", "/mine/vocab.tiktoken"),
+                ResourceSet::given("flags", "vocabulary", "/mine/vocab.tiktoken"),
                 Fuse::Overlay,
             )
             .unwrap();
         assert_eq!(overlaid.name, "a/tiny.en.pt");
         assert_eq!(overlaid.keys(), ["checkpoint", "vocabulary"]);
         let vocab = overlaid.get("vocabulary").unwrap();
-        assert_eq!(vocab.namespace, GIVEN_NAMESPACE);
+        assert_eq!(vocab.name, GIVEN_NAMESPACE);
         assert_eq!(vocab.file, "vocab.tiktoken");
-        assert_eq!(vocab.kind, None);
+        assert_eq!(vocab.format, None);
         assert_eq!(
             vocab.sources,
             vec![Source::LocalDir {
@@ -477,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_given_insert_and_lookup() {
-        let mut map = ResourceBundle::given("flags", "checkpoint", "/models/my.pt");
+        let mut map = ResourceSet::given("flags", "checkpoint", "/models/my.pt");
         assert_eq!(map.keys(), ["checkpoint"]);
         assert_eq!(map.try_get("checkpoint").unwrap().file, "my.pt");
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -493,7 +494,7 @@ mod tests {
         assert_eq!(replaced.map(|r| r.file), Some("my.pt".to_string()));
         assert_eq!(map.get("checkpoint").unwrap().file, "other.pt");
 
-        let empty = ResourceBundle::new("empty");
+        let empty = ResourceSet::new("empty");
         assert!(empty.is_empty());
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .display(text::eq("empty: no resource \"x\""))
@@ -501,12 +502,12 @@ mod tests {
         empty.validate().unwrap();
     }
 
-    /// A hand-built resource bundle is checked: a resource filed under the
+    /// A hand-built resource set is checked: a resource filed under the
     /// wrong key, or one that does not validate itself, is named with the
-    /// resource bundle.
+    /// resource set.
     #[test]
     fn test_validate_names_the_problem() {
-        let mut misfiled = ResourceBundle::new("m");
+        let mut misfiled = ResourceSet::new("m");
         misfiled.resources.insert(
             "vocabulary".to_string(),
             Resource::given("checkpoint", "/x.pt"),
@@ -517,7 +518,7 @@ mod tests {
             ))
             .assert_err(&misfiled.validate());
 
-        let mut no_source = ResourceBundle::given("m", "checkpoint", "/x.pt");
+        let mut no_source = ResourceSet::given("m", "checkpoint", "/x.pt");
         no_source
             .resources
             .get_mut("checkpoint")

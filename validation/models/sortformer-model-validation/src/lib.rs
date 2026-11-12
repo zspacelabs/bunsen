@@ -330,14 +330,14 @@ pub fn ami_reference_v2() -> AmiReferenceV2 {
 /// `BUNSEN_VALIDATE_OFFLINE` is set. Routing the checkpoints through the
 /// library's own factories is also what this crate is validating.
 #[cfg(feature = "checkpoints")]
-pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
     use bunsen::data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     };
     let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
-    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
-        .expect("open the pretrained cache")
+    ResourceCache::new(ResourceCacheOptions::default().with_offline(offline))
+        .expect("open the resource cache")
 }
 
 /// A Sortformer row's file under `key`, fetched into [`weights_cache`]
@@ -348,14 +348,14 @@ pub fn row_file(
     key: &str,
 ) -> std::path::PathBuf {
     use bunsen::{
-        data::resources::ResourceBundle,
+        data::resources::ResourceSet,
         kits::speech::diarization::sortformer::pretrained::default_sortformer_factory,
     };
     let (_, found) = default_sortformer_factory()
         .expect("the sortformer factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = ResourceBundle::new(found.resources.name.clone());
+    let mut map = ResourceSet::new(found.resources.name.clone());
     map.insert(found.resources.try_get(key).expect("the resource").clone());
     weights_cache()
         .load(&map)

@@ -1,7 +1,7 @@
 //! # Whisper vocabularies
 
 use crate::{
-    data::resources::PretrainedCache,
+    data::resources::ResourceCache,
     errors::BunsenResult,
     kits::{
         speech::asr::whisper::pretrained::{
@@ -27,13 +27,13 @@ impl WhisperVocabulary {
     /// vocabulary; this is for a caller that wants the ranks alone.
     ///
     /// # Errors
-    /// As [`PretrainedCache::resolve`], and [`TiktokenRanks::load`] if the
+    /// As [`ResourceCache::resolve`], and [`TiktokenRanks::load`] if the
     /// file cannot be parsed.
     pub fn load(
         self,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<TiktokenRanks> {
-        let map = self.resource_bundle();
+        let map = self.resource_set();
         let resolved = cache.resolve(map.try_get(VOCABULARY)?)?;
         TiktokenRanks::load(&resolved.path)
     }
@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn test_the_bundles_pin_the_commit() {
         for vocabulary in WhisperVocabulary::ALL {
-            let owned = vocabulary.resource_bundle();
+            let owned = vocabulary.resource_set();
             let r = owned.try_get(VOCABULARY).unwrap();
             assert!(r.is_pinned(), "{}", owned.name);
             for url in r.urls() {

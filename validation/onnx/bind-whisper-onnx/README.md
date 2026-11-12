@@ -3,7 +3,7 @@
 Whisper's pretrained assets for [`bunsen`](https://crates.io/crates/bunsen)'s Whisper kit, fetched at build time.
 
 **This crate hosts nothing.** Its build script downloads each asset into the build directory and checks it against a
-pinned SHA-256; the checkpoint and vocabularies are laid out there as a bunsen pretrained cache. Each asset is behind a
+pinned SHA-256; the checkpoint and vocabularies are laid out there as a bunsen resource cache. Each asset is behind a
 feature, and none is on by default, so a plain build fetches nothing:
 
 - `checkpoint`: OpenAI's multilingual `base.pt` (145 MB);
@@ -11,7 +11,7 @@ feature, and none is on by default, so a plain build fetches nothing:
 - `onnx_gen`: the `onnx-community/whisper-base` ONNX export, and the Rust models generated from it, the reference
   that bunsen's Whisper implementation is validated against.
 
-`whisper-model-validation` depends on it, under its `weights` and `download` features; a `PretrainedCache` rooted at
+`whisper-model-validation` depends on it, under its `weights` and `download` features; a `ResourceCache` rooted at
 `cache_dir()` resolves `openai/base` from it, offline. A build without the network can point the `WHISPER_*` environment
 variables at local copies; the API docs list them.
 

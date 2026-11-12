@@ -16,7 +16,7 @@ use crate::{
         catalog::presets::ResolvedPresetSet,
         formats::NamedTensorsApplied,
         pretrained::StaticPreFabMap,
-        resources::LoadedResources,
+        resources::LoadedResourceSet,
     },
     errors::BunsenResult,
     kits::{
@@ -83,7 +83,7 @@ impl TransformersLmKit for Qwen3ConstructConfig {
     /// catalog builder probes a row's: its `generation_config.json`, when it
     /// has one (the stop tokens and sampling), and the chat template its
     /// `tokenizer_config.json` holds, probed into the base.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
+    fn probed(loaded: &LoadedResourceSet) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[
@@ -105,20 +105,20 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        Qwen3ConstructConfig::for_resource_bundle(
+        Qwen3ConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("qwen/qwen3-0.6b").unwrap(),
         )
         .unwrap();
-        Qwen3ConstructConfig::for_resource_bundle(
+        Qwen3ConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("qwen/qwen3-4b").unwrap(),
         )
         .unwrap();
 
         let mut gguf = crate::data::builds::builtin_build_bundle("qwen/qwen3-0.6b").unwrap();
-        gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
+        gguf.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
-            .assert_err(&Qwen3ConstructConfig::for_resource_bundle(&gguf));
+            .assert_err(&Qwen3ConstructConfig::for_resource_set(&gguf));
     }
 
     /// The hybrid chat rows think by default and answer at once by name,

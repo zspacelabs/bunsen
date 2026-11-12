@@ -44,7 +44,7 @@ fn test_bundled_vocabularies_resolve_offline() {
     for prefab in ["tiny", "tiny.en"] {
         let ids = ids_of(prefab);
         let vocabulary = WhisperVocabulary::for_layout(&ids);
-        let map = vocabulary.resource_bundle();
+        let map = vocabulary.resource_set();
         let r = map.try_get(VOCABULARY).unwrap();
         assert_eq!(cache.status(r), CacheStatus::Cached, "{prefab}");
         let resolved = cache.resolve(r).unwrap();

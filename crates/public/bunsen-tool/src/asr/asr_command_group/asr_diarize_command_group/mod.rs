@@ -10,7 +10,7 @@ use std::sync::Arc;
 pub use asr_diarize_live::*;
 pub use asr_diarize_run::*;
 use bunsen::{
-    data::resources::PretrainedCache,
+    data::resources::ResourceCache,
     errors::BunsenResult,
     kits::speech::diarization::{
         SpeakerActivityModel,
@@ -100,7 +100,7 @@ impl AsrDiarizerArgs {
     /// As [`load_diarizer`].
     pub fn load(
         &self,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let model = self
@@ -116,7 +116,7 @@ impl AsrDiarizerArgs {
 /// As the factory resolving the name, and the load.
 pub fn load_diarizer(
     model: &str,
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     device: &Device,
 ) -> BunsenResult<Arc<SortformerConstruct>> {
     let bundle = load_logged(
@@ -156,7 +156,7 @@ impl AsrSpeakerArgs {
     /// As [`load_diarizer`].
     pub fn diarizer(
         &self,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
     ) -> BunsenResult<Option<Arc<dyn SpeakerActivityModel>>> {
         let Some(model) = &self.diarize else {

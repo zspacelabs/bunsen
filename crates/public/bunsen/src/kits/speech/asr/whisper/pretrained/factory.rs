@@ -11,8 +11,8 @@ use crate::{
             PretrainedFactory,
         },
         resources::{
-            LoadedResources,
-            PretrainedCache,
+            LoadedResourceSet,
+            ResourceCache,
         },
     },
     errors::BunsenResult,
@@ -36,7 +36,7 @@ use crate::{
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`WhisperConstruct`]; the caller never builds or passes a hook. A
 /// checkpoint on disk is not the factory's: it is a given map through
-/// [`Deferred::from_resource_bundle`], which gets its hook the same way. A
+/// [`Deferred::from_resource_set`], which gets its hook the same way. A
 /// caller with a provider of its own, a mirror say, adds it with
 /// [`with_provider`](PretrainedFactory::with_provider).
 ///
@@ -56,7 +56,7 @@ impl Deferred<WhisperConstructConfig> {
     /// As [`WhisperConstructConfig::scan`].
     pub fn scan(
         &self,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
     ) -> BunsenResult<WhisperApiConfig> {
         self.config.scan(&self.model, loaded)
     }
@@ -67,7 +67,7 @@ impl Deferred<WhisperConstructConfig> {
     /// As [`load`](Self::load).
     pub fn load_construct(
         &self,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
@@ -87,8 +87,8 @@ mod tests {
             },
             cache::BunsenDiskCacheOptions,
             resources::{
-                PretrainedCacheOptions,
-                ResourceBundle,
+                ResourceCacheOptions,
+                ResourceSet,
             },
         },
         errors::{
@@ -103,9 +103,9 @@ mod tests {
     };
 
     /// An offline cache under `dir`: nothing fetched, nothing reported.
-    fn offline_cache_in(dir: &std::path::Path) -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
+    fn offline_cache_in(dir: &std::path::Path) -> ResourceCache {
+        ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))
@@ -183,9 +183,9 @@ mod tests {
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
-        let given = Deferred::<WhisperConstructConfig>::from_resource_bundle(
-            ResourceBundle::given(spec, CHECKPOINT, &file),
-        )
+        let given = Deferred::<WhisperConstructConfig>::from_resource_set(ResourceSet::given(
+            spec, CHECKPOINT, &file,
+        ))
         .unwrap();
         assert_eq!(given.id(), spec);
         assert!(given.model.named().is_none());
@@ -278,9 +278,9 @@ mod hub_tests {
 
     use crate::{
         data::resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
             Provenance,
+            ResourceCache,
+            ResourceCacheOptions,
         },
         kits::speech::asr::whisper::{
             WhisperMeta,
@@ -304,11 +304,11 @@ mod hub_tests {
     #[test]
     fn test_hf_whisper_tiny_is_openai_tiny() {
         let device = cpu_device();
-        let cache = PretrainedCache::new(PretrainedCacheOptions::default()).unwrap();
+        let cache = ResourceCache::new(ResourceCacheOptions::default()).unwrap();
         let factory = default_whisper_factory().unwrap();
 
         let model = factory.resolve("hf:openai/whisper-tiny", &cache).unwrap();
-        let checkpoint = model.to_resource_bundle();
+        let checkpoint = model.to_resource_set();
         let checkpoint = checkpoint.get(CHECKPOINT).unwrap();
         assert_eq!(checkpoint.file, "model.safetensors");
         assert!(checkpoint.is_pinned(), "pinned by the hub's listing");

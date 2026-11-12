@@ -6,9 +6,9 @@ use crate::{
     data::{
         builds::PretrainedRef,
         resources::{
-            LoadedResources,
-            PretrainedCache,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceCache,
+            ResourceSet,
         },
     },
     errors::BunsenResult,
@@ -20,22 +20,22 @@ use crate::{
 /// Each kit's `{Kit}ConstructConfig` implements it, and builds the kit's
 /// construct. It says what the kit is called ([`KIT`](Self::KIT)), what it
 /// builds for a backend ([`Construct`](Self::Construct)), which hook a resource
-/// bundle calls for ([`for_resource_bundle`](Self::for_resource_bundle)), how a
-/// ref's resource bundle is completed before it is loaded
+/// set calls for ([`for_resource_set`](Self::for_resource_set)), how a
+/// ref's resource set is completed before it is loaded
 /// ([`plan`](Self::plan)), and how the loaded parts become the built thing,
 /// behind an `Arc` ([`try_init`](Self::try_init)). A
 /// [`Deferred`](super::Deferred) model pairs a ref with its construct config
-/// and runs the whole way: plan, [`PretrainedCache::load`], `try_init`.
+/// and runs the whole way: plan, [`ResourceCache::load`], `try_init`.
 ///
 /// Not object-safe: [`try_init`](Self::try_init) is generic over the
 /// backend so that [`Construct`](Self::Construct) is a real type. A
-/// construct config is a value, chosen for a resource bundle by
-/// [`for_resource_bundle`](Self::for_resource_bundle) and carried by the
+/// construct config is a value, chosen for a resource set by
+/// [`for_resource_set`](Self::for_resource_set) and carried by the
 /// deferred model it builds: different providers' rows may be read by different
-/// mechanisms, and the resource bundle's resources, their `kind`s, say which. A
+/// mechanisms, and the resource set's resources, their `format`s, say which. A
 /// caller never builds one; it may adjust the one it was given.
 ///
-/// Both steps see the ref, not just its resource bundle: what a row promises
+/// Both steps see the ref, not just its resource set: what a row promises
 /// (its prefab) is checked in [`plan`](Self::plan) before bytes are fetched,
 /// and a kit whose checkpoint does not describe itself takes its config
 /// from the row in [`try_init`](Self::try_init).
@@ -53,30 +53,30 @@ pub trait ConstructInit: Sized {
     /// What construction yields, for a backend.
     type Construct;
 
-    /// The construct config for `map`: the reader its resources' `kind`s call
+    /// The construct config for `map`: the reader its resources' `format`s call
     /// for.
     ///
     /// # Errors
     /// The kit's: a resource of a kind it has no reader for, refused by
     /// name rather than misread.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self>;
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self>;
 
-    /// Completes the ref's resource bundle before it is loaded: a kit rule that
+    /// Completes the ref's resource set before it is loaded: a kit rule that
     /// names a resource from another, or checks a declared one against the
     /// rule, or checks the checkpoint against what the row promised. The
-    /// default is the resource bundle as it stands. It may resolve a resource
+    /// default is the resource set as it stands. It may resolve a resource
     /// through the cache to look at it; a scan that reads shapes only is the
     /// intended use.
     ///
     /// # Errors
-    /// The kit's: a resource bundle the rule cannot complete, or one that
+    /// The kit's: a resource set the rule cannot complete, or one that
     /// contradicts it.
     fn plan(
         &self,
         model: &PretrainedRef,
-        _cache: &PretrainedCache,
-    ) -> BunsenResult<ResourceBundle> {
-        Ok(model.to_resource_bundle())
+        _cache: &ResourceCache,
+    ) -> BunsenResult<ResourceSet> {
+        Ok(model.to_resource_set())
     }
 
     /// Builds from every part local. Never fetches. `model` is the ref
@@ -85,13 +85,13 @@ pub trait ConstructInit: Sized {
     /// ([`LoadPolicy::resolve`](crate::data::formats::LoadPolicy::resolve)).
     ///
     /// # Errors
-    /// The kit's: a part the resource bundle lacks
-    /// ([`LoadedResources::expect`]), or one that does not read as what its
+    /// The kit's: a part the resource set lacks
+    /// ([`LoadedResourceSet::expect`]), or one that does not read as what its
     /// key says.
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Self::Construct>>;
@@ -104,15 +104,15 @@ pub trait ConstructInit: Sized {
 /// Cloning shares the handle; the built thing is constructed once.
 #[derive(Debug)]
 pub struct Loaded<T> {
-    /// The resource bundle's name: the pretrained's id, or the caller's for a
-    /// given resource bundle.
+    /// The resource set's name: the pretrained's id, or the caller's for a
+    /// given resource set.
     pub name: String,
 
     /// What was built, shared.
     pub handle: Arc<T>,
 
     /// Where every part came from.
-    pub resources: LoadedResources,
+    pub resources: LoadedResourceSet,
 }
 
 impl<T> Clone for Loaded<T> {
@@ -139,8 +139,8 @@ mod tests {
             cache::BunsenDiskCacheOptions,
             resources::{
                 Fuse,
-                PretrainedCacheOptions,
                 Provenance,
+                ResourceCacheOptions,
             },
         },
         errors::{
@@ -156,7 +156,7 @@ mod tests {
     };
 
     /// A hook that builds the list of its parts' paths, in key order, and
-    /// completes a resource bundle with a vocabulary when one is missing.
+    /// completes a resource set with a vocabulary when one is missing.
     struct Paths {
         vocabulary: Option<PathBuf>,
     }
@@ -166,19 +166,19 @@ mod tests {
 
         const KIT: &'static str = "paths";
 
-        fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+        fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
             Ok(Paths { vocabulary: None })
         }
 
         fn plan(
             &self,
             model: &PretrainedRef,
-            _cache: &PretrainedCache,
-        ) -> BunsenResult<ResourceBundle> {
-            let map = model.to_resource_bundle();
+            _cache: &ResourceCache,
+        ) -> BunsenResult<ResourceSet> {
+            let map = model.to_resource_set();
             match &self.vocabulary {
                 Some(path) if map.get("vocabulary").is_none() => map.fuse(
-                    ResourceBundle::given("derived", "vocabulary", path),
+                    ResourceSet::given("derived", "vocabulary", path),
                     Fuse::Strict,
                 ),
                 _ => Ok(map),
@@ -188,7 +188,7 @@ mod tests {
         fn try_init(
             &self,
             _model: &PretrainedRef,
-            loaded: &LoadedResources,
+            loaded: &LoadedResourceSet,
             _device: &Device,
             _policy: crate::data::formats::LoadPolicy,
         ) -> BunsenResult<Arc<Vec<PathBuf>>> {
@@ -199,7 +199,7 @@ mod tests {
         }
     }
 
-    /// A hook that asks for a key no resource bundle of these tests has, and
+    /// A hook that asks for a key no resource set of these tests has, and
     /// takes the default plan.
     struct NeedsConfig;
 
@@ -208,14 +208,14 @@ mod tests {
 
         const KIT: &'static str = "paths";
 
-        fn for_resource_bundle(_map: &ResourceBundle) -> BunsenResult<Self> {
+        fn for_resource_set(_map: &ResourceSet) -> BunsenResult<Self> {
             Ok(NeedsConfig)
         }
 
         fn try_init(
             &self,
             _model: &PretrainedRef,
-            loaded: &LoadedResources,
+            loaded: &LoadedResourceSet,
             _device: &Device,
             _policy: crate::data::formats::LoadPolicy,
         ) -> BunsenResult<Arc<()>> {
@@ -224,9 +224,9 @@ mod tests {
         }
     }
 
-    fn cache_in(dir: &std::path::Path) -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
+    fn cache_in(dir: &std::path::Path) -> ResourceCache {
+        ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))
@@ -237,7 +237,7 @@ mod tests {
         .unwrap()
     }
 
-    /// Plan completes the resource bundle, load brings every part local,
+    /// Plan completes the resource set, load brings every part local,
     /// construct builds; the handle is shared by clones and the resources say
     /// where each part came from.
     #[test]
@@ -253,7 +253,7 @@ mod tests {
         };
 
         let loaded = Deferred {
-            model: PretrainedRef::from(ResourceBundle::given("mine", "checkpoint", &checkpoint)),
+            model: PretrainedRef::from(ResourceSet::given("mine", "checkpoint", &checkpoint)),
             config,
         }
         .load(
@@ -276,8 +276,8 @@ mod tests {
         assert!(Arc::ptr_eq(&loaded.handle, &again.handle));
     }
 
-    /// With nothing to derive, the default plan is the ref's resource bundle,
-    /// and a resource bundle that already has the key is left alone.
+    /// With nothing to derive, the default plan is the ref's resource set,
+    /// and a resource set that already has the key is left alone.
     #[test]
     fn test_plan_leaves_a_complete_map_alone() {
         let dir = tempfile::tempdir().unwrap();
@@ -287,9 +287,9 @@ mod tests {
         fs::write(&vocabulary, b"y").unwrap();
         let cache = cache_in(dir.path());
         let model = PretrainedRef::from(
-            ResourceBundle::given("mine", "checkpoint", &checkpoint)
+            ResourceSet::given("mine", "checkpoint", &checkpoint)
                 .fuse(
-                    ResourceBundle::given("flags", "vocabulary", &vocabulary),
+                    ResourceSet::given("flags", "vocabulary", &vocabulary),
                     Fuse::Strict,
                 )
                 .unwrap(),
@@ -310,7 +310,7 @@ mod tests {
         .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
 
-        // The hook a resource bundle calls for, with no rule of its own.
+        // The hook a resource set calls for, with no rule of its own.
         let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
         assert!(no_rule.config.vocabulary.is_none());
         let loaded = no_rule
@@ -324,12 +324,12 @@ mod tests {
 
         assert_eq!(
             NeedsConfig.plan(&model, &cache).unwrap(),
-            model.to_resource_bundle()
+            model.to_resource_set()
         );
     }
 
-    /// A hook that asks for a part the resource bundle lacks gets a lookup
-    /// error naming the keys there are; a resource bundle with a part that is
+    /// A hook that asks for a part the resource set lacks gets a lookup
+    /// error naming the keys there are; a resource set with a part that is
     /// not on disk fails at the load, before the hook runs, naming the path.
     #[test]
     fn test_a_missing_part_is_named() {
@@ -338,7 +338,7 @@ mod tests {
         fs::write(&checkpoint, b"x").unwrap();
         let cache = cache_in(dir.path());
 
-        let err = Deferred::<NeedsConfig>::from_resource_bundle(ResourceBundle::given(
+        let err = Deferred::<NeedsConfig>::from_resource_set(ResourceSet::given(
             "mine",
             "checkpoint",
             &checkpoint,
@@ -358,18 +358,15 @@ mod tests {
             .assert(&err);
 
         let absent = dir.path().join("absent.pt");
-        let err = Deferred::<Paths>::from_resource_bundle(ResourceBundle::given(
-            "mine",
-            "checkpoint",
-            &absent,
-        ))
-        .unwrap()
-        .load(
-            &cache,
-            &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
-        )
-        .unwrap_err();
+        let err =
+            Deferred::<Paths>::from_resource_set(ResourceSet::given("mine", "checkpoint", &absent))
+                .unwrap()
+                .load(
+                    &cache,
+                    &cpu_device(),
+                    crate::data::formats::LoadPolicy::as_stored(),
+                )
+                .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .cause(predicate("the absent path", move |c: &LookupError| {
                 c.problem == LookupProblem::Missing && c.key == absent.display().to_string()

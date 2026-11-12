@@ -14,7 +14,7 @@ use crate::{
 /// The Sortformer kit's name: its rows' `kit` tag.
 pub const SORTFORMER_KIT: &str = "sortformer";
 
-/// The key of the checkpoint in a Sortformer resource bundle.
+/// The key of the checkpoint in a Sortformer resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
 /// The `kind` of a `transformers` `model.safetensors` checkpoint.
@@ -86,7 +86,7 @@ mod tests {
             assert!(checkpoint.is_pinned(), "{name}");
             assert_eq!(checkpoint.urls().len(), 1, "{name}");
             assert!(checkpoint.urls()[0].ends_with(&checkpoint.file));
-            assert_eq!(checkpoint.kind.as_deref(), Some(kind), "{name}");
+            assert_eq!(checkpoint.format.as_deref(), Some(kind), "{name}");
         }
 
         let factory = default_sortformer_factory().unwrap();

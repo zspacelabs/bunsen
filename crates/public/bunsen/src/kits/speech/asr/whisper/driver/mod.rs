@@ -47,8 +47,8 @@
 //!
 //! 1. A [`WhisperConstruct`]: from a name, through
 //!    [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory)
-//!    and a [`PretrainedCache`](crate::data::resources::PretrainedCache), or
-//!    over a model already in hand.
+//!    and a [`ResourceCache`](crate::data::resources::ResourceCache), or over a
+//!    model already in hand.
 //! 2. A [`WhisperStreamDriverConfig`] (language, task, timestamps, search,
 //!    [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy),
 //!    fallback ladder), built into a driver over the construct by

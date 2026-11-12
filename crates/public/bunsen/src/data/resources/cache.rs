@@ -1,4 +1,4 @@
-//! The pretrained cache: digest-pinned resources under the disk cache.
+//! The resource cache: digest-pinned resources under the disk cache.
 
 use alloc::{
     collections::BTreeMap,
@@ -42,9 +42,9 @@ use crate::{
             verify_sha256,
         },
         resources::{
-            LoadedResources,
+            LoadedResourceSet,
             Resource,
-            ResourceBundle,
+            ResourceSet,
             Source,
         },
     },
@@ -59,14 +59,14 @@ use crate::{
     },
 };
 
-/// Options for [`PretrainedCache`], which [`PretrainedCache::new`] opens a
+/// Options for [`ResourceCache`], which [`ResourceCache::new`] opens a
 /// cache with.
 ///
 /// The default is online, with the disk cache's default directories and
 /// observers, no local-dir overrides, local dirs trusted unhashed, and the
 /// default fetch policy.
 #[derive(Clone, Debug, Default)]
-pub struct PretrainedCacheOptions {
+pub struct ResourceCacheOptions {
     /// The disk cache underneath: where the cache directory is, and who
     /// watches transfers.
     pub disk: BunsenDiskCacheOptions,
@@ -84,12 +84,12 @@ pub struct PretrainedCacheOptions {
     /// is not sure has `verify_sha256`.
     pub verify_local_dirs: bool,
 
-    /// How the remote resources of a resource bundle are fetched together.
+    /// How the remote resources of a resource set are fetched together.
     #[cfg(feature = "fetch")]
     pub fetch: FetchPolicy,
 }
 
-impl PretrainedCacheOptions {
+impl ResourceCacheOptions {
     /// Sets the disk cache options.
     pub fn with_disk(
         mut self,
@@ -127,7 +127,7 @@ impl PretrainedCacheOptions {
         self
     }
 
-    /// Sets how a resource bundle's remote resources are fetched together.
+    /// Sets how a resource set's remote resources are fetched together.
     #[cfg(feature = "fetch")]
     pub fn with_fetch_policy(
         mut self,
@@ -213,7 +213,7 @@ enum Local {
     Remote { dest: PathBuf, urls: Vec<String> },
 }
 
-/// A resource that loading a resource bundle has to fetch.
+/// A resource that loading a resource set has to fetch.
 #[cfg_attr(not(feature = "fetch"), allow(dead_code))]
 struct RemotePart {
     key: String,
@@ -239,7 +239,7 @@ fn offline(
         "not in the cache ({}), and the cache is offline",
         dest.display()
     ))
-    .context(&res.key)
+    .context(&res.slot)
 }
 
 /// The first `len` bytes of the first of `urls` that answers.
@@ -274,17 +274,17 @@ fn fetch_prefix(
 }
 
 /// Digest-pinned resources under the disk cache's cache directory: where a
-/// [`ResourceBundle`]'s files are brought local.
+/// [`ResourceSet`]'s files are brought local.
 ///
 /// [`BunsenDiskCache`] decides *where* the cache directory is; this decides
 /// *what is trusted there*. A caller opens one from
-/// [`PretrainedCacheOptions`] (offline or not, local-dir overrides and
+/// [`ResourceCacheOptions`] (offline or not, local-dir overrides and
 /// verification, and with `fetch` the batch policy) and passes it to every
 /// load. [`Deferred::load`](crate::data::builds::Deferred::load)
 /// calls [`load`](Self::load) between the kit hook's
 /// [`plan`](crate::data::builds::ConstructInit::plan) and
 /// [`try_init`](crate::data::builds::ConstructInit::try_init), and
-/// the [`LoadedResources`] it returns are what the hook builds from. A
+/// the [`LoadedResourceSet`] it returns are what the hook builds from. A
 /// [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
 /// hands the cache to its providers too, so that a hub
 /// ([`HfProvider`](crate::data::builds::HfProvider)) can keep what it asked
@@ -319,13 +319,13 @@ fn fetch_prefix(
 ///
 /// A local-dir source is a "trust me" source: its file is used in place,
 /// and hashed first only when
-/// [`verify_local_dirs`](PretrainedCacheOptions::verify_local_dirs) asks.
+/// [`verify_local_dirs`](ResourceCacheOptions::verify_local_dirs) asks.
 /// An unpinned file is trusted by its name alone.
 ///
 /// # Source order
 ///
 /// [`resolve`](Self::resolve), for one resource, and [`load`](Self::load),
-/// for a resource bundle, look in the same order:
+/// for a resource set, look in the same order:
 ///
 /// 1. the cache path: a file there is [`Provenance::Cached`];
 /// 2. the resource's local sources, in the order listed: a [`Source::LocalDir`]
@@ -335,7 +335,7 @@ fn fetch_prefix(
 /// 3. only then its [`Source::Url`]s, in the order listed: streamed to a
 ///    `.partial`, checked against the digest when pinned and against the length
 ///    the server sent, and renamed into place. [`load`](Self::load) fetches
-///    every remote resource of a resource bundle together, under the options'
+///    every remote resource of a resource set together, under the options'
 ///    fetch policy.
 ///
 /// # Use
@@ -356,7 +356,7 @@ fn fetch_prefix(
 /// [`Policy`](crate::errors::BunsenErrorKind::Policy) error on an offline
 /// cache, and [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported)
 /// without the `fetch` feature, which step 3 needs.
-pub struct PretrainedCache {
+pub struct ResourceCache {
     disk: BunsenDiskCache,
     offline: bool,
     local_dirs: BTreeMap<String, PathBuf>,
@@ -365,12 +365,12 @@ pub struct PretrainedCache {
     fetch: FetchPolicy,
 }
 
-impl PretrainedCache {
+impl ResourceCache {
     /// Opens the cache.
     ///
     /// # Errors
     /// As [`BunsenDiskCache::new`].
-    pub fn new(options: PretrainedCacheOptions) -> BunsenResult<Self> {
+    pub fn new(options: ResourceCacheOptions) -> BunsenResult<Self> {
         Ok(Self {
             disk: BunsenDiskCache::new(options.disk)?,
             offline: options.offline,
@@ -436,7 +436,7 @@ impl PretrainedCache {
         };
         self.disk.cache_path(
             &core::iter::once(PRETRAINED_DIR)
-                .chain(res.namespace.split('/'))
+                .chain(res.name.split('/'))
                 .chain(core::iter::once(pin.as_str()))
                 .collect::<Vec<_>>(),
             &res.file,
@@ -470,7 +470,7 @@ impl PretrainedCache {
     /// Where every resource of `map` stands, by key.
     pub fn map_status(
         &self,
-        map: &ResourceBundle,
+        map: &ResourceSet,
     ) -> BTreeMap<String, CacheStatus> {
         map.resources
             .iter()
@@ -560,7 +560,7 @@ impl PretrainedCache {
                 if self.offline {
                     return Err(offline(&dest, res));
                 }
-                fetch_prefix(&dest, &urls, len).map_err(|e| e.context(&res.key))
+                fetch_prefix(&dest, &urls, len).map_err(|e| e.context(&res.slot))
             }
         }
     }
@@ -575,7 +575,7 @@ impl PretrainedCache {
     ///
     /// # Errors
     /// As [`resolve`](Self::resolve) for a resource looked for locally.
-    /// Under a frame naming the resource bundle:
+    /// Under a frame naming the resource set:
     /// [`Policy`](crate::errors::BunsenErrorKind::Policy) naming the remote
     /// keys when the cache is offline, and
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when the
@@ -584,8 +584,8 @@ impl PretrainedCache {
     /// its key, whose kind comes from them.
     pub fn load(
         &self,
-        map: &ResourceBundle,
-    ) -> BunsenResult<LoadedResources> {
+        map: &ResourceSet,
+    ) -> BunsenResult<LoadedResourceSet> {
         let mut parts = BTreeMap::new();
         let mut remote = Vec::new();
         for (key, res) in &map.resources {
@@ -612,7 +612,7 @@ impl PretrainedCache {
             }
             self.fetch_remote(&map.name, remote, &mut parts)?;
         }
-        Ok(LoadedResources {
+        Ok(LoadedResourceSet {
             map: map.clone(),
             parts,
         })
@@ -676,7 +676,7 @@ impl PretrainedCache {
             return Err(
                 BunsenError::lookup(LookupError::path(missing, LookupProblem::Missing))
                     .with_details(format!("no URL to fetch it from; looked in:{looked_in}"))
-                    .context(&res.key),
+                    .context(&res.slot),
             );
         }
         Ok(Local::Remote { dest, urls })
@@ -693,14 +693,16 @@ impl PretrainedCache {
         bytes: &[u8],
     ) -> BunsenResult<ResolvedResource> {
         let Some(sha256) = res.sha256.as_deref() else {
-            return Err(BunsenError::from(Resource::bundled_without_digest()).context(&res.key));
+            return Err(BunsenError::from(Resource::bundled_without_digest()).context(&res.slot));
         };
         let found = Sha256::digest(bytes)
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect::<String>();
         if found != sha256 {
-            return Err(DigestMismatch::new(&res.key, DigestOrigin::Bundled, sha256, found).into());
+            return Err(
+                DigestMismatch::new(&res.slot, DigestOrigin::Bundled, sha256, found).into(),
+            );
         }
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent).map_err(sys_at("create", parent))?;
@@ -874,9 +876,9 @@ mod tests {
     fn cache_in(
         dir: &Path,
         offline: bool,
-    ) -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
+    ) -> ResourceCache {
+        ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))
@@ -902,11 +904,11 @@ mod tests {
         Resource {
             size: None,
             dtype: None,
-            key: key.to_string(),
+            slot: key.to_string(),
             file: format!("{key}.bin"),
             sha256: sha256.map(str::to_string),
-            kind: None,
-            namespace: "prov".to_string(),
+            format: None,
+            name: "prov".to_string(),
             sources,
         }
     }
@@ -1023,7 +1025,7 @@ mod tests {
             cache.resolve(&ordered).unwrap().provenance,
             Provenance::LocalDir
         );
-        let map = ResourceBundle::new("m").with_resource(bundled.clone());
+        let map = ResourceSet::new("m").with_resource(bundled.clone());
         let loaded = cache.load(&map).unwrap();
         assert_eq!(loaded.get("abc").unwrap().provenance, Provenance::Cached);
     }
@@ -1082,7 +1084,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/abc.bin")],
         );
-        pinned.namespace = "pub/fam/build/checkpoint".to_string();
+        pinned.name = "pub/fam/build/checkpoint".to_string();
         assert_eq!(
             cache.resource_path(&pinned),
             root.join("pub")
@@ -1142,10 +1144,10 @@ mod tests {
     }
 
     /// A load that finds a file in the cache marks it used, and a probe
-    /// does not: [`status`](PretrainedCache::status),
-    /// [`map_status`](PretrainedCache::map_status),
-    /// [`read_prefix`](PretrainedCache::read_prefix) and
-    /// [`cached_files`](PretrainedCache::cached_files) leave its times as
+    /// does not: [`status`](ResourceCache::status),
+    /// [`map_status`](ResourceCache::map_status),
+    /// [`read_prefix`](ResourceCache::read_prefix) and
+    /// [`cached_files`](ResourceCache::cached_files) leave its times as
     /// they were. A file the process cannot write loads, its times kept.
     #[test]
     fn test_a_load_marks_a_cached_file_used() {
@@ -1171,7 +1173,7 @@ mod tests {
                 .unwrap()
         };
         let modified = || fs::metadata(&dest).unwrap().modified().unwrap();
-        let map = ResourceBundle::new("m").with_resource(r.clone());
+        let map = ResourceSet::new("m").with_resource(r.clone());
 
         age();
         assert_eq!(cache.status(&r), CacheStatus::Cached);
@@ -1227,8 +1229,8 @@ mod tests {
         assert_eq!(resolved.path, upstream.join("abc.bin"));
         assert!(!dir.path().join("cache").join("pretrained").exists());
 
-        let verifying = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let verifying = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().join("cache")))
@@ -1250,8 +1252,8 @@ mod tests {
         let elsewhere = dir.path().join("elsewhere");
         fs::create_dir_all(&elsewhere).unwrap();
         fs::write(elsewhere.join("abc.bin"), b"abc").unwrap();
-        let overridden = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let overridden = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().join("cache")))
@@ -1343,7 +1345,7 @@ mod tests {
         assert!(!cache.resource_path(&r).exists());
     }
 
-    /// A resource bundle loads with one provenance per resource: the cached one
+    /// A resource set loads with one provenance per resource: the cached one
     /// is trusted, the local-dir one used in place, the remote one fetched.
     #[cfg(feature = "fetch")]
     #[test]
@@ -1369,7 +1371,7 @@ mod tests {
             vec![local_dir(&upstream), url("https://a.example/local.bin")],
         );
         let remote = res("remote", Some(ABC_SHA256), vec![url(&live)]);
-        let map = ResourceBundle::new("m")
+        let map = ResourceSet::new("m")
             .with_resource(cached)
             .with_resource(local.clone())
             .with_resource(remote.clone());
@@ -1409,8 +1411,8 @@ mod tests {
     #[test]
     fn test_load_names_the_key_that_did_not_land() {
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().join("cache")))
@@ -1429,7 +1431,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url(&refused_url("dead.bin"))],
         );
-        let map = ResourceBundle::new("m")
+        let map = ResourceSet::new("m")
             .with_resource(live.clone())
             .with_resource(dead);
 
@@ -1445,8 +1447,8 @@ mod tests {
         assert!(cache.resource_path(&live).is_file());
     }
 
-    /// Offline, a resource bundle with a remote resource is not found, and the
-    /// error names the remote keys; a resource bundle of local resources loads.
+    /// Offline, a resource set with a remote resource is not found, and the
+    /// error names the remote keys; a resource set of local resources loads.
     #[test]
     fn test_load_offline_names_the_remote_keys() {
         let dir = tempfile::tempdir().unwrap();
@@ -1464,7 +1466,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/remote.bin")],
         );
-        let map = ResourceBundle::new("m")
+        let map = ResourceSet::new("m")
             .with_resource(cached)
             .with_resource(remote);
 
@@ -1473,7 +1475,7 @@ mod tests {
             .frame_contains("m")
             .assert_err(&cache.load(&map));
 
-        let local_only = ResourceBundle::new("m").with_resource(res(
+        let local_only = ResourceSet::new("m").with_resource(res(
             "cached",
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],

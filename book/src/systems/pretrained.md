@@ -5,7 +5,7 @@ becomes a loaded model: what a name means, who answers it, where the files
 land, and why bunsen trusts them once they are there. The reference is
 [`bunsen::data`], whose
 [lifecycle diagram](bunsen::data#lifecycle) links every step,
-[`bunsen::data::pretrained`] for the data side (rows, resource bundles,
+[`bunsen::data::pretrained`] for the data side (rows, resource sets,
 providers, the cache), and
 [`bunsen::kits::support::construct`] for the construct side (the hook, the
 deferred model, the factory, the loaded handle).
@@ -25,7 +25,7 @@ is the smallest: one compiled-in row, upstream's 16 kHz checkpoint.
 spec ("tiny", "hf:org/repo")
   │  the kit's factory asks its providers
   ▼
-row: a name over a resource bundle of pinned resources
+row: a name over a resource set of pinned resources
   │  paired with the kit's hook, optionally overlaid
   ▼
 deferred model
@@ -38,7 +38,7 @@ A [`PretrainedFactory`](bunsen::data::builds::PretrainedFactory) is the
 one object a caller holds for a kit, and its
 [`load`](bunsen::data::builds::PretrainedFactory::load) runs the whole
 pathway. A file on disk does not go through the factory at all: it is a
-given resource bundle ([`ResourceBundle::given`](bunsen::data::resources::ResourceBundle::given)),
+given resource set ([`ResourceSet::given`](bunsen::data::resources::ResourceSet::given)),
 loaded the same way from the deferred step on.
 
 ## Prefabs, rows and resources
@@ -50,14 +50,14 @@ Three things are kept apart, because they vary independently:
   [`StaticPreFabMap`](bunsen::data::pretrained::StaticPreFabMap).
 - A **row**, a [`Pretrained`](bunsen::data::builds::Pretrained), is a
   name in a provider, with its aliases, the prefab it instantiates, and the
-  resource bundles it is made of.
+  resource sets it is made of.
 - A **resource**, a [`Resource`](bunsen::data::resources::Resource), is one
   file: the key the kit reads it by, the SHA-256 that pins it, a `kind`
   label, and the places it can be had from, in order.
 
 One prefab has many rows, in many providers. One file can serve many rows:
 Whisper's two vocabulary files serve its twelve checkpoints, each as a
-resource bundle of its own that the rows reference. Rows, resource bundles and resources
+resource set of its own that the rows reference. Rows, resource sets and resources
 know nothing about how a model is built: that is the kit's business. They
 are plain serde data, so a manifest can carry them ([prefabs, rows and
 resources](bunsen::data::pretrained#prefabs-rows-and-resources)).
@@ -162,7 +162,7 @@ the config each row's default selection resolves to.
 
 ## The cache and its trust model
 
-A [`PretrainedCache`](bunsen::data::resources::PretrainedCache) keeps each
+A [`ResourceCache`](bunsen::data::resources::ResourceCache) keeps each
 pinned file at `<cache>/pretrained/<namespace>/<sha256>/<file>`, the namespace a
 catalog resource's full name (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two
 builds share is cached once; files off the catalog sit under `hf` and `given`. **The
@@ -171,11 +171,11 @@ written, so later runs trust it without re-hashing gigabytes, and a model
 whose pin changes can never collide with a stale copy. The cache trusts the
 path whoever wrote it: a download, bundled bytes, or a build script or a
 deployment that laid the directory out ahead of time
-([trust model](bunsen::data::resources::PretrainedCache#trust-model)).
+([trust model](bunsen::data::resources::ResourceCache#trust-model)).
 
 The cache looks at that path first, then at a resource's local sources, and
 only then at its URLs
-([source order](bunsen::data::resources::PretrainedCache#source-order)). A
+([source order](bunsen::data::resources::ResourceCache#source-order)). A
 local directory, such as `openai-whisper`'s own cache, is a "trust me"
 source: its file is used in place and hashed only when the cache's options
 ask for verification. Nothing is linked or copied into the cache, and only
@@ -190,7 +190,7 @@ need a special kind of source. It needs a cache directory that is already
 full. [`bind-whisper-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx),
 the Whisper validation crate's asset crate, fetches Whisper's
 `base` files at build time into its build directory, laid out as a cache,
-and a `PretrainedCache` rooted there finds them without knowing they were
+and a `ResourceCache` rooted there finds them without knowing they were
 bundled. An offline deployment does the same thing at install time: fill a
 cache directory ahead of time, and point the cache at it.
 
@@ -203,16 +203,16 @@ described under
 ## Deferred models and the kit's hook
 
 What a name resolves to is a
-[`Deferred`](bunsen::data::builds::Deferred) model: the row's resource bundle, plus
+[`Deferred`](bunsen::data::builds::Deferred) model: the row's resource set, plus
 the kit's [`ConstructInit`](bunsen::data::builds::ConstructInit) hook. The hook
-is chosen for the resource bundle by
-[`for_resource_bundle`](bunsen::data::builds::ConstructInit::for_resource_bundle), from the
-resources' `kind`s, because rows from different providers can need
+is chosen for the resource set by
+[`for_resource_set`](bunsen::data::builds::ConstructInit::for_resource_set), from the
+resources' `format`s, because rows from different providers can need
 different readers: an OpenAI `.pt` checkpoint and a Hugging Face safetensors
 repo are both Whisper, read two ways.
 
 Loading runs three steps. The hook's
-[`plan`](bunsen::data::builds::ConstructInit::plan) completes the resource bundle and
+[`plan`](bunsen::data::builds::ConstructInit::plan) completes the resource set and
 checks what the row promises, such as its prefab, before any bytes are
 fetched. The cache then brings the files local. Finally the hook's
 [`try_init`](bunsen::data::builds::ConstructInit::try_init) builds the

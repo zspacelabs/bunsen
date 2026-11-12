@@ -79,7 +79,7 @@
 //! - **A bundled-asset crate.** Optional. `validation/onnx/bind-{model}-onnx`,
 //!   in the validation workspace, unpublished: the checkpoints and reference
 //!   graphs its validation crate compares, fetched at build time and laid out
-//!   as a pretrained cache, and the reference model generated from the graphs.
+//!   as a resource cache, and the reference model generated from the graphs.
 //! - **A validation crate.** Optional. A crate under `validation/models`, in
 //!   the validation workspace, that compares the kit's outputs with its
 //!   upstream reference implementation.

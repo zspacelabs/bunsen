@@ -19,9 +19,9 @@ use crate::{
         },
         formats::SafetensorsCheckpoint,
         resources::{
-            LoadedResources,
-            PretrainedCache,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceCache,
+            ResourceSet,
             SAFETENSORS_INDEX,
         },
     },
@@ -117,7 +117,7 @@ impl SortformerConstructConfig {
 
     /// A Nemotron construct from a `transformers` checkpoint.
     fn construct_safetensors(
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
@@ -141,8 +141,8 @@ impl SortformerConstructConfig {
     /// gzipped one, is checked once it is fetched, in
     /// [`try_init`](ConstructInit::try_init).
     fn check_nemo_config(
-        map: &ResourceBundle,
-        cache: &PretrainedCache,
+        map: &ResourceSet,
+        cache: &ResourceCache,
     ) -> BunsenResult<()> {
         use crate::kits::speech::{
             diarization::sortformer::NemoSortformerConfig,
@@ -162,7 +162,7 @@ impl SortformerConstructConfig {
 
     /// A Sortformer v2 construct from a `.nemo`.
     fn construct_nemo(
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
@@ -194,23 +194,23 @@ impl ConstructInit for SortformerConstructConfig {
 
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
             None => map.try_get(CHECKPOINT)?,
         };
         Ok(Self {
-            reader: SortformerReader::for_kind(checkpoint.kind.as_deref())?,
+            reader: SortformerReader::for_kind(checkpoint.format.as_deref())?,
         })
     }
 
     fn plan(
         &self,
         model: &PretrainedRef,
-        cache: &PretrainedCache,
-    ) -> BunsenResult<ResourceBundle> {
-        let map = model.to_resource_bundle();
+        cache: &ResourceCache,
+    ) -> BunsenResult<ResourceSet> {
+        let map = model.to_resource_set();
         match self.reader {
             SortformerReader::Safetensors => {
                 if let Some(config) = map.get(CONFIG) {
@@ -229,7 +229,7 @@ impl ConstructInit for SortformerConstructConfig {
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let hook = SortformerConstructConfig::for_resource_bundle(
+        let hook = SortformerConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap(),
         )
         .unwrap();
@@ -259,9 +259,9 @@ mod tests {
         let mut map =
             crate::data::builds::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap();
         for res in map.resources.values_mut() {
-            res.kind = Some("pytorch".into());
+            res.format = Some("pytorch".into());
         }
-        assert!(SortformerConstructConfig::for_resource_bundle(&map).is_err());
+        assert!(SortformerConstructConfig::for_resource_set(&map).is_err());
         assert!(SortformerReader::for_kind(None).is_err());
         assert_eq!(
             SortformerReader::for_kind(Some(NEMO)).ok(),
@@ -277,7 +277,7 @@ mod tests {
             data::{
                 builds::Deferred,
                 cache::BunsenDiskCacheOptions,
-                resources::PretrainedCacheOptions,
+                resources::ResourceCacheOptions,
             },
             kits::speech::{
                 diarization::sortformer::SortformerMeta,
@@ -287,12 +287,12 @@ mod tests {
         };
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/nemo/toy_sortformer_v2.nemo");
-        let mut map = ResourceBundle::given("toy", CHECKPOINT, &path);
-        map.resources.get_mut(CHECKPOINT).unwrap().kind = Some(NEMO.into());
+        let mut map = ResourceSet::given("toy", CHECKPOINT, &path);
+        map.resources.get_mut(CHECKPOINT).unwrap().format = Some(NEMO.into());
 
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().to_path_buf()))
@@ -301,7 +301,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let bundle = Deferred::<SortformerConstructConfig>::from_resource_bundle(map)
+        let bundle = Deferred::<SortformerConstructConfig>::from_resource_set(map)
             .unwrap()
             .load(
                 &cache,
@@ -435,8 +435,8 @@ mod tests {
                 },
                 resources::{
                     CacheStatus,
-                    PretrainedCacheOptions,
                     Resource,
+                    ResourceCacheOptions,
                     Source,
                 },
             },
@@ -453,8 +453,8 @@ mod tests {
         let toy = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/nemo/toy_sortformer_v2.nemo");
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default().with_disk(
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default().with_disk(
                 BunsenDiskCacheOptions::default()
                     .with_cache_dir(Some(dir.path().join("cache")))
                     .without_transfer_observers(),
@@ -465,8 +465,8 @@ mod tests {
             reader: SortformerReader::Nemo,
         };
 
-        let mut given = ResourceBundle::given("toy", CHECKPOINT, &toy);
-        given.resources.get_mut(CHECKPOINT).unwrap().kind = Some(NEMO.into());
+        let mut given = ResourceSet::given("toy", CHECKPOINT, &toy);
+        given.resources.get_mut(CHECKPOINT).unwrap().format = Some(NEMO.into());
         hook.plan(&PretrainedRef::from(given), &cache).unwrap();
 
         // An archive of the toy's config, edited, and stand-in weights.
@@ -486,15 +486,15 @@ mod tests {
             Box::leak(tar.into_inner().unwrap().into_boxed_slice())
         };
         let remote = |body: &'static [u8]| {
-            let mut map = ResourceBundle::new("remote");
+            let mut map = ResourceSet::new("remote");
             map.insert(Resource {
                 size: None,
                 dtype: None,
-                key: CHECKPOINT.into(),
+                slot: CHECKPOINT.into(),
                 file: "remote.nemo".into(),
                 sha256: None,
-                kind: Some(NEMO.into()),
-                namespace: "test".into(),
+                format: Some(NEMO.into()),
+                name: "test".into(),
                 sources: vec![Source::Url(serve_ranges("remote.nemo", body, 1))],
             });
             map

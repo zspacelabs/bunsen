@@ -14,8 +14,8 @@ use crate::{
             PretrainedRef,
         },
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
         },
     },
     errors::{
@@ -56,9 +56,9 @@ impl ConstructInit for NanoChatConstructConfig {
     const RESOLVES_PRESETS: bool = true;
 
     /// The hook for a `PyTorch` state dict with its meta.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         map.try_get(META)?;
-        match map.try_get(CHECKPOINT)?.kind.as_deref() {
+        match map.try_get(CHECKPOINT)?.format.as_deref() {
             Some(PYTORCH) => Ok(Self),
             other => Err(BunsenError::unsupported(format!(
                 "no nanochat reader for a checkpoint of kind {other:?}"
@@ -69,7 +69,7 @@ impl ConstructInit for NanoChatConstructConfig {
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
@@ -98,20 +98,20 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        NanoChatConstructConfig::for_resource_bundle(
+        NanoChatConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap(),
         )
         .unwrap();
-        NanoChatConstructConfig::for_resource_bundle(
+        NanoChatConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("nitishpandey04/nanochat-d18-sft").unwrap(),
         )
         .unwrap();
 
         let mut safetensors =
             crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap();
-        safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
+        safetensors.resources.get_mut(CHECKPOINT).unwrap().format = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")
-            .assert_err(&NanoChatConstructConfig::for_resource_bundle(&safetensors));
+            .assert_err(&NanoChatConstructConfig::for_resource_set(&safetensors));
     }
 }

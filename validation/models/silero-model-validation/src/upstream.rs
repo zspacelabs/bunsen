@@ -17,13 +17,13 @@
 use bunsen::data::{
     cache::BunsenDiskCacheOptions,
     resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
         Provenance,
+        ResourceCache,
+        ResourceCacheOptions,
     },
 };
 use bunsen::{
-    data::resources::ResourceBundle,
+    data::resources::ResourceSet,
     kits::speech::{
         testing::RecordedVoiceActivity,
         vad::silero_vad::{
@@ -61,7 +61,7 @@ fn upstream_file() -> std::path::PathBuf {
         .unwrap()
         .lookup("silero/vad-16k")
         .unwrap();
-    let mut map = ResourceBundle::new(row.resources.name.clone());
+    let mut map = ResourceSet::new(row.resources.name.clone());
     map.insert(row.resources.try_get(CHECKPOINT).unwrap().clone());
     crate::weights_cache()
         .load(&map)
@@ -78,9 +78,9 @@ fn upstream(device: &burn::tensor::Device) -> SileroVad {
 
 /// A cache rooted at the bundle's directory, offline.
 #[cfg(feature = "reference")]
-fn bundled_cache() -> PretrainedCache {
-    PretrainedCache::new(
-        PretrainedCacheOptions::default()
+fn bundled_cache() -> ResourceCache {
+    ResourceCache::new(
+        ResourceCacheOptions::default()
             .with_disk(
                 BunsenDiskCacheOptions::default()
                     .with_cache_dir(Some(bind_silero_onnx::cache_dir().to_path_buf()))

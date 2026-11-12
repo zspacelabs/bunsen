@@ -16,7 +16,7 @@ use serde::{
 use crate::{
     data::resources::{
         Resource,
-        ResourceBundle,
+        ResourceSet,
         Source,
     },
     errors::{
@@ -161,8 +161,8 @@ impl From<&StaticShardSetDescriptor<'_>> for ShardSetDescriptor {
 /// checks a hand-built one. [`select`](Self::select) turns slices into
 /// shard ids. A [`ShardSet`](super::ShardSet) binds the descriptor to a
 /// directory and brings its shards in, and
-/// [`to_resource_bundle`](Self::to_resource_bundle) makes a selection of shards
-/// a [`ResourceBundle`], for a pretrained row that fuses a shard set in.
+/// [`to_resource_set`](Self::to_resource_set) makes a selection of shards
+/// a [`ResourceSet`], for a pretrained row that fuses a shard set in.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShardSetDescriptor {
     /// The set's name, unique within its map.
@@ -316,21 +316,21 @@ impl ShardSetDescriptor {
         }
     }
 
-    /// The shards `ids` name as a resource bundle: one resource per shard,
+    /// The shards `ids` name as a resource set: one resource per shard,
     /// keyed by its file name, pinned by the table when the set is, labeled
     /// by the set's format, under the set's name as its namespace, and
     /// reachable from every base URL in order. What a pretrained row fuses a
-    /// shard set in as, and what the pretrained cache's `load` brings in
+    /// shard set in as, and what the resource cache's `load` brings in
     /// together.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
     /// [`LookupError`] cause, for an id outside the set.
-    pub fn to_resource_bundle(
+    pub fn to_resource_set(
         &self,
         ids: &[ShardId],
-    ) -> BunsenResult<ResourceBundle> {
-        let mut map = ResourceBundle::new(&self.name);
+    ) -> BunsenResult<ResourceSet> {
+        let mut map = ResourceSet::new(&self.name);
         map.description = self.description.clone();
         map.license = self.license.clone();
         map.origin = self.origin.clone();
@@ -345,11 +345,11 @@ impl ShardSetDescriptor {
             map.insert(Resource {
                 size: None,
                 dtype: None,
-                key: file.clone(),
+                slot: file.clone(),
                 file,
                 sha256: self.digest(id).map(str::to_string),
-                kind: Some(self.format.clone()),
-                namespace: self.name.clone(),
+                format: Some(self.format.clone()),
+                name: self.name.clone(),
                 sources: self.urls(id).into_iter().map(Source::Url).collect(),
             });
         }
@@ -609,10 +609,10 @@ mod tests {
     /// The shards a slice names, as a map: keyed by file name, pinned when
     /// the set is, labeled by the format, one URL per base in order.
     #[test]
-    fn test_to_resource_bundle() {
+    fn test_to_resource_set() {
         let d = tiny_pinned().to_descriptor();
         let ids = d.select(&[Slice::from(..2)]).unwrap();
-        let map = d.to_resource_bundle(&ids).unwrap();
+        let map = d.to_resource_set(&ids).unwrap();
         assert_eq!(map.name, "tiny");
         assert_eq!(map.description, "a tiny set");
         assert_eq!(map.license.as_deref(), Some("CC0"));
@@ -620,8 +620,8 @@ mod tests {
         let r = map.get("shard_001.bin").unwrap();
         assert_eq!(r.file, "shard_001.bin");
         assert_eq!(r.sha256.as_deref(), Some(TINY_SHA256[1]));
-        assert_eq!(r.kind.as_deref(), Some("bin"));
-        assert_eq!(r.namespace, "tiny");
+        assert_eq!(r.format.as_deref(), Some("bin"));
+        assert_eq!(r.name, "tiny");
         assert_eq!(
             r.urls(),
             [
@@ -633,7 +633,7 @@ mod tests {
 
         let unpinned = tiny()
             .to_descriptor()
-            .to_resource_bundle(&[ShardId(3)])
+            .to_resource_set(&[ShardId(3)])
             .unwrap();
         assert!(unpinned.get("shard_003.bin").unwrap().sha256.is_none());
         assert_eq!(unpinned.len(), 1);
@@ -643,7 +643,7 @@ mod tests {
             .cause(predicate("shard 12 of 12", |l: &LookupError| {
                 l.problem == LookupProblem::OutOfRange { len: 12 }
             }))
-            .assert_err(&d.to_resource_bundle(&[ShardId(12)]));
+            .assert_err(&d.to_resource_set(&[ShardId(12)]));
     }
 
     #[test]

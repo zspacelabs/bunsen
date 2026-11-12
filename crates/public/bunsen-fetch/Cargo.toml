@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-fetch"
-description = "Bunsen's file fetching: stream a URL to disk, hashed as it lands and pinned to a SHA-256, report the transfer to observers, place the file where it belongs, and lay pinned files out as a pretrained cache. Used by bunsen's cache at run time and by its bundled-asset crates' build scripts."
+description = "Bunsen's file fetching: stream a URL to disk, hashed as it lands and pinned to a SHA-256, report the transfer to observers, place the file where it belongs, and lay pinned files out as a resource cache. Used by bunsen's cache at run time and by its bundled-asset crates' build scripts."
 publish = true
 
 authors.workspace = true

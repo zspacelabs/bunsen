@@ -22,8 +22,8 @@ use crate::{
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
             SAFETENSORS_INDEX,
         },
     },
@@ -80,7 +80,7 @@ impl ParakeetReader {
     /// Reads the weights and the vocabulary.
     fn read(
         self,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ParakeetVocabulary)> {
         match self {
             Self::PhononArchive => {
@@ -121,19 +121,19 @@ impl ConstructInit for ParakeetConstructConfig {
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index; a Safetensors checkpoint must come with a `tokenizer.json`
     /// vocabulary.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
             None => map.try_get(CHECKPOINT)?,
         };
-        let reader = ParakeetReader::for_kind(checkpoint.kind.as_deref())?;
+        let reader = ParakeetReader::for_kind(checkpoint.format.as_deref())?;
         if reader == ParakeetReader::Safetensors {
             let vocab = map.try_get(VOCABULARY)?;
-            if vocab.kind.as_deref() != Some(TOKENIZER_JSON) {
+            if vocab.format.as_deref() != Some(TOKENIZER_JSON) {
                 return Err(BunsenError::unsupported(format!(
                     "no Parakeet vocabulary reader for kind {:?}",
-                    vocab.kind
+                    vocab.format
                 )));
             }
         }
@@ -143,7 +143,7 @@ impl ConstructInit for ParakeetConstructConfig {
     fn try_init(
         &self,
         model: &PretrainedRef,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
@@ -180,13 +180,13 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let nvidia = ParakeetConstructConfig::for_resource_bundle(
+        let nvidia = ParakeetConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("nvidia/parakeet-tdt-0.6b-v3").unwrap(),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
-        let phonon = ParakeetConstructConfig::for_resource_bundle(
+        let phonon = ParakeetConstructConfig::for_resource_set(
             &crate::data::builds::builtin_build_bundle("fermion/phonon-2").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);

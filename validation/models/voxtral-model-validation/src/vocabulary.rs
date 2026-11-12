@@ -14,7 +14,7 @@ use super::*;
 /// The published row's `tekken.json`, fetched into the weights cache alone.
 fn tekken_json() -> String {
     use bunsen::{
-        data::resources::ResourceBundle,
+        data::resources::ResourceSet,
         kits::speech::asr::voxtral::pretrained::{
             DEFAULT_VOXTRAL_MODEL,
             VOCABULARY,
@@ -25,7 +25,7 @@ fn tekken_json() -> String {
         .expect("the voxtral factory")
         .lookup(DEFAULT_VOXTRAL_MODEL)
         .expect("the published row");
-    let mut map = ResourceBundle::new(row.resources.name.clone());
+    let mut map = ResourceSet::new(row.resources.name.clone());
     map.insert(
         row.resources
             .try_get(VOCABULARY)

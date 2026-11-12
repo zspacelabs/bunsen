@@ -13,7 +13,7 @@ use bunsen::kits::speech::{
     asr::whisper::driver::WhisperStreamContext,
 };
 use bunsen::{
-    data::resources::PretrainedCache,
+    data::resources::ResourceCache,
     errors::BunsenResult,
     kits::speech::{
         asr::{
@@ -57,7 +57,7 @@ impl Driver {
         emission: Emission,
         vad: Option<&str>,
         speakers: Option<Arc<dyn SpeakerActivityModel>>,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
     ) -> BunsenResult<Self> {
         Ok(match loaded {
