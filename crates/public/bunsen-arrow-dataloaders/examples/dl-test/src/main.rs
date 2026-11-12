@@ -4,8 +4,11 @@ use std::sync::{
 };
 
 use bunsen::{
-    data::cache::BunsenDiskCache,
-    kits::language::nanochat::datasets::NANOCHAT_SHARD_SETS,
+    data::{
+        cache::BunsenDiskCache,
+        datasets::ShardSetDescriptor,
+    },
+    kits::language::nanochat::datasets::FINEWEB_EDU_100B_SHUFFLE,
     support::testing::performance_device,
 };
 use bunsen_app::{
@@ -98,7 +101,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(
         &shard_cache,
-        NANOCHAT_SHARD_SETS.expect_lookup("fineweb-edu-100b-shuffle"),
+        ShardSetDescriptor::from_builtin(FINEWEB_EDU_100B_SHUFFLE)?,
     )?;
 
     let mut wc_disk_cache: WordchipperDiskCache = Default::default();

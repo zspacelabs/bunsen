@@ -14,10 +14,18 @@ use serde::{
 };
 
 use crate::{
-    data::resources::{
-        Resource,
-        ResourceSet,
-        Source,
+    data::{
+        catalog::{
+            BuiltinCatalog,
+            ResolvedBuild,
+            document::ResourceSource,
+        },
+        resources::{
+            Resource,
+            ResourceSet,
+            Source,
+            hub::HubRepo,
+        },
     },
     errors::{
         BunsenError,
@@ -51,29 +59,6 @@ impl fmt::Display for ShardId {
     }
 }
 
-/// How a set's shards are pinned, as a compiled-in table spells it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum StaticShardDigests<'a> {
-    /// No digests: a shard is trusted on its length.
-    #[default]
-    Unpinned,
-
-    /// One lowercase hex SHA-256 per shard, index-ordered.
-    Table(&'a [&'a str]),
-}
-
-impl StaticShardDigests<'_> {
-    /// The owned twin.
-    pub fn to_digests(&self) -> ShardDigests {
-        match self {
-            Self::Unpinned => ShardDigests::Unpinned,
-            Self::Table(table) => {
-                ShardDigests::Table(table.iter().map(|s| s.to_string()).collect())
-            }
-        }
-    }
-}
-
 /// How a set's shards are pinned.
 ///
 /// [`Unpinned`](Self::Unpinned): a fetched shard is checked against its
@@ -91,81 +76,22 @@ pub enum ShardDigests {
     Table(Vec<String>),
 }
 
-/// A shard set, as a compiled-in table spells it.
-///
-/// [`to_descriptor`](Self::to_descriptor) gives the owned twin,
-/// [`ShardSetDescriptor`], which is where the behavior lives.
-#[derive(Debug)]
-pub struct StaticShardSetDescriptor<'a> {
-    /// The set's name, unique within its map.
-    pub name: &'a str,
-
-    /// What the set is.
-    pub description: &'a str,
-
-    /// The data's license.
-    pub license: Option<&'a str>,
-
-    /// Where the set is published.
-    pub origin: Option<&'a str>,
-
-    /// Base URLs the shard file name is appended to: mirrors, tried in order.
-    pub base_urls: &'a [&'a str],
-
-    /// The shard file name, with [`INDEX_PLACEHOLDER`] where the index goes.
-    pub template: &'a str,
-
-    /// The zero-padded width of the index in a file name.
-    pub index_width: usize,
-
-    /// How many shards there are: ids are `0..count`.
-    pub count: usize,
-
-    /// The shards' format, as a label (`"parquet"`).
-    pub format: &'a str,
-
-    /// How the shards are pinned.
-    pub digests: StaticShardDigests<'a>,
-}
-
-impl StaticShardSetDescriptor<'_> {
-    /// The owned twin.
-    pub fn to_descriptor(&self) -> ShardSetDescriptor {
-        ShardSetDescriptor {
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            license: self.license.map(str::to_string),
-            origin: self.origin.map(str::to_string),
-            base_urls: self.base_urls.iter().map(|s| s.to_string()).collect(),
-            template: self.template.to_string(),
-            index_width: self.index_width,
-            count: self.count,
-            format: self.format.to_string(),
-            digests: self.digests.to_digests(),
-        }
-    }
-}
-
-impl From<&StaticShardSetDescriptor<'_>> for ShardSetDescriptor {
-    fn from(descriptor: &StaticShardSetDescriptor<'_>) -> Self {
-        descriptor.to_descriptor()
-    }
-}
-
 /// A shard set: what it is, and how its shards are named and reached.
 ///
 /// Its name, where its shards come from, how they are named and numbered,
-/// and whether they are pinned. Built from a [`StaticShardSetDescriptor`]
-/// (usually a [`StaticShardSetMap`](super::StaticShardSetMap) lookup),
-/// deserialized, or assembled at runtime; [`validate`](Self::validate)
-/// checks a hand-built one. [`select`](Self::select) turns slices into
-/// shard ids. A [`ShardSet`](super::ShardSet) binds the descriptor to a
-/// directory and brings its shards in, and
-/// [`to_resource_set`](Self::to_resource_set) makes a selection of shards
-/// a [`ResourceSet`], for a pretrained row that fuses a shard set in.
+/// and whether they are pinned. A view of a catalog build's templated
+/// [`SHARDS`](super::SHARDS) resource ([`from_build`](Self::from_build),
+/// [`from_builtin`](Self::from_builtin)), deserialized, or assembled at
+/// runtime; [`validate`](Self::validate) checks a hand-built one.
+/// [`select`](Self::select) turns slices into shard ids. A
+/// [`ShardSet`](super::ShardSet) binds the descriptor to a directory and brings
+/// its shards in, and [`to_resource_set`](Self::to_resource_set) makes a
+/// selection of shards a [`ResourceSet`], for a pretrained row that fuses a
+/// shard set in.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShardSetDescriptor {
-    /// The set's name, unique within its map.
+    /// The set's name: its build's full name
+    /// (`karpathy/fineweb-edu-100b-shuffle`).
     pub name: String,
 
     /// What the set is.
@@ -197,6 +123,77 @@ pub struct ShardSetDescriptor {
 }
 
 impl ShardSetDescriptor {
+    /// The shard set `build` is: its [`SHARDS`](super::SHARDS) slot's
+    /// templated resource, its files had from each of the resource's Hub
+    /// repos and base URLs in order, pinned when the catalog lists the
+    /// files (`$shards`), and named for the build.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a build with no
+    /// such slot; [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a
+    /// resource that isn't templated, or has no Hub repo or base URL, under
+    /// a frame naming the build.
+    pub fn from_build(build: &ResolvedBuild) -> BunsenResult<Self> {
+        let name = build.name.to_string();
+        let bound = build.resources.get(super::SHARDS).ok_or_else(|| {
+            BunsenError::lookup(LookupError::missing("resource slot", super::SHARDS)).context(&name)
+        })?;
+        let entry = &bound.entry;
+        let (Some(index_width), Some(count)) = (entry.index_width, entry.count) else {
+            return Err(BunsenError::illegal(format!(
+                "its `{}` resource is no templated set of files",
+                super::SHARDS
+            ))
+            .context(&name));
+        };
+        let base_urls = entry
+            .sources
+            .iter()
+            .filter_map(|source| match source {
+                ResourceSource::Hub {
+                    repo,
+                    revision,
+                    dataset,
+                } => {
+                    let hub = HubRepo::new(repo.as_str(), revision.as_str());
+                    let hub = if *dataset { hub.dataset() } else { hub };
+                    Some(hub.file_url("").trim_end_matches('/').to_string())
+                }
+                ResourceSource::BaseUrl(base) => Some(base.clone()),
+                ResourceSource::Url(_) | ResourceSource::LocalDir { .. } => None,
+            })
+            .collect();
+        let digests = if entry.shards.is_empty() {
+            ShardDigests::Unpinned
+        } else {
+            ShardDigests::Table(entry.shards.iter().map(|s| s.sha256.clone()).collect())
+        };
+        let descriptor = Self {
+            name,
+            description: build.description.clone(),
+            license: build.license.clone(),
+            origin: build.origin.clone(),
+            base_urls,
+            template: entry.file.clone(),
+            index_width,
+            count,
+            format: entry.format.clone(),
+            digests,
+        };
+        descriptor.validate()?;
+        Ok(descriptor)
+    }
+
+    /// The shard set the built-in catalog's build `name` is
+    /// ([`from_build`](Self::from_build)), by any spelling the catalog's
+    /// lookups take (`fineweb-edu-100b-shuffle`).
+    ///
+    /// # Errors
+    /// As [`BuiltinCatalog::build`] and [`from_build`](Self::from_build).
+    pub fn from_builtin(name: &str) -> BunsenResult<Self> {
+        Self::from_build(BuiltinCatalog::get()?.build(name)?)
+    }
+
     /// Checks the descriptor hangs together: a template with exactly one
     /// [`INDEX_PLACEHOLDER`], at least one base URL, at least one shard.
     ///
@@ -421,18 +418,21 @@ mod tests {
         },
     };
 
-    pub(crate) fn tiny() -> StaticShardSetDescriptor<'static> {
-        StaticShardSetDescriptor {
-            name: "tiny",
-            description: "a tiny set",
-            license: Some("CC0"),
-            origin: Some("https://example.invalid/tiny"),
-            base_urls: &["https://a.example/tiny/", "https://b.example/mirror"],
-            template: "shard_{index}.bin",
+    pub(crate) fn tiny() -> ShardSetDescriptor {
+        ShardSetDescriptor {
+            name: "tiny".into(),
+            description: "a tiny set".into(),
+            license: Some("CC0".into()),
+            origin: Some("https://example.invalid/tiny".into()),
+            base_urls: vec![
+                "https://a.example/tiny/".into(),
+                "https://b.example/mirror".into(),
+            ],
+            template: "shard_{index}.bin".into(),
             index_width: 3,
             count: 12,
-            format: "bin",
-            digests: StaticShardDigests::Unpinned,
+            format: "bin".into(),
+            digests: ShardDigests::Unpinned,
         }
     }
 
@@ -440,9 +440,9 @@ mod tests {
     static TINY_SHA256: [&str; 12] =
         ["ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"; 12];
 
-    fn tiny_pinned() -> StaticShardSetDescriptor<'static> {
-        StaticShardSetDescriptor {
-            digests: StaticShardDigests::Table(&TINY_SHA256),
+    fn tiny_pinned() -> ShardSetDescriptor {
+        ShardSetDescriptor {
+            digests: ShardDigests::Table(TINY_SHA256.iter().map(|d| d.to_string()).collect()),
             ..tiny()
         }
     }
@@ -451,9 +451,9 @@ mod tests {
     /// answers `digest` by index; a short or malformed table is refused.
     #[test]
     fn test_table_digests() {
-        let d = tiny_pinned().to_descriptor();
+        let d = tiny_pinned();
         assert!(d.is_pinned());
-        assert!(!tiny().to_descriptor().is_pinned());
+        assert!(!tiny().is_pinned());
         assert_eq!(
             d.digests,
             ShardDigests::Table(vec![TINY_SHA256[0].to_string(); 12])
@@ -489,19 +489,11 @@ mod tests {
             .assert_err(&bad.validate());
     }
 
+    /// A descriptor serializes and reads back as itself.
     #[test]
-    fn test_static_to_owned_round_trip() {
-        let s = tiny();
-        let d = s.to_descriptor();
-        assert_eq!(d.name, "tiny");
-        assert_eq!(d.license.as_deref(), Some("CC0"));
-        assert_eq!(d.base_urls.len(), 2);
-        assert_eq!(d.template, "shard_{index}.bin");
-        assert_eq!((d.index_width, d.count), (3, 12));
-        assert_eq!(d.digests, ShardDigests::Unpinned);
-        assert_eq!(ShardSetDescriptor::from(&s), d);
+    fn test_serde_round_trip() {
+        let d = tiny();
         d.validate().unwrap();
-
         let json = serde_json::to_string(&d).unwrap();
         assert_eq!(
             serde_json::from_str::<ShardSetDescriptor>(&json).unwrap(),
@@ -509,9 +501,33 @@ mod tests {
         );
     }
 
+    /// The built-in catalog's fineweb-edu build is a pinned set of 1823
+    /// shards at its revision of the Hub's dataset repo.
+    #[test]
+    fn test_a_builtin_build_is_a_shard_set() {
+        let d = ShardSetDescriptor::from_builtin("fineweb-edu-100b-shuffle").unwrap();
+        assert_eq!(d.name, "karpathy/fineweb-edu-100b-shuffle");
+        assert_eq!(d.count, 1823);
+        assert_eq!(d.format, "parquet");
+        assert_eq!(d.file_name(ShardId(7)), "shard_00007.parquet");
+        assert_eq!(
+            d.base_urls,
+            [
+                "https://huggingface.co/datasets/karpathy/fineweb-edu-100b-shuffle/resolve/4c8f30d6756da75362432a4d5569e1b229263b71"
+            ]
+        );
+        assert!(d.is_pinned());
+        assert_eq!(
+            d.digest(ShardId(0)),
+            Some("6a3450ea745ee6b6830c09819c0f2c72682eba443022de595bcb50ceb3092c22")
+        );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&ShardSetDescriptor::from_builtin("openai/whisper/tiny"));
+    }
+
     #[test]
     fn test_validate_names_the_problem() {
-        let mut d = tiny().to_descriptor();
+        let mut d = tiny();
         d.template = "shard.bin".to_string();
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("exactly once")
@@ -529,18 +545,18 @@ mod tests {
                 }))
         };
 
-        let mut d = tiny().to_descriptor();
+        let mut d = tiny();
         d.base_urls.clear();
         zero_or_empty("base_urls").assert_err(&d.validate());
 
-        let mut d = tiny().to_descriptor();
+        let mut d = tiny();
         d.count = 0;
         zero_or_empty("count").assert_err(&d.validate());
     }
 
     #[test]
     fn test_names_and_urls() {
-        let d = tiny().to_descriptor();
+        let d = tiny();
         assert_eq!(d.file_name(ShardId(0)), "shard_000.bin");
         assert_eq!(d.file_name(ShardId(11)), "shard_011.bin");
         assert_eq!(
@@ -570,7 +586,7 @@ mod tests {
 
     #[test]
     fn test_select_resolves_slices_in_order_without_repeats() {
-        let d = tiny().to_descriptor();
+        let d = tiny();
         let ids = |v: &[usize]| v.iter().copied().map(ShardId).collect::<Vec<_>>();
 
         assert_eq!(d.select(&[]).unwrap(), ids(&[]));
@@ -610,7 +626,7 @@ mod tests {
     /// the set is, labeled by the format, one URL per base in order.
     #[test]
     fn test_to_resource_set() {
-        let d = tiny_pinned().to_descriptor();
+        let d = tiny_pinned();
         let ids = d.select(&[Slice::from(..2)]).unwrap();
         let map = d.to_resource_set(&ids).unwrap();
         assert_eq!(map.name, "tiny");
@@ -631,10 +647,7 @@ mod tests {
         );
         map.validate().unwrap();
 
-        let unpinned = tiny()
-            .to_descriptor()
-            .to_resource_set(&[ShardId(3)])
-            .unwrap();
+        let unpinned = tiny().to_resource_set(&[ShardId(3)]).unwrap();
         assert!(unpinned.get("shard_003.bin").unwrap().sha256.is_none());
         assert_eq!(unpinned.len(), 1);
 
@@ -648,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_select_is_ordered_without_repeats_twice_over() {
-        let d = tiny().to_descriptor();
+        let d = tiny();
         let ids = |v: &[usize]| v.iter().copied().map(ShardId).collect::<Vec<_>>();
         assert_eq!(
             d.select(&[Slice::index(1), Slice::index(1)]).unwrap(),

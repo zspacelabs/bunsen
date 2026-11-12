@@ -29,7 +29,7 @@ use bunsen::{
         NanoChatGpt,
         NanoChatGptContractConfig,
         NanoChatGptMeta,
-        datasets::NANOCHAT_SHARD_SETS,
+        datasets::FINEWEB_EDU_100B_SHUFFLE,
     },
     public::hashbrown::HashSet,
 };
@@ -213,7 +213,7 @@ fn run(args: &Args) -> BunsenResult<()> {
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(
         &shard_cache,
-        NANOCHAT_SHARD_SETS.expect_lookup("fineweb-edu-100b-shuffle"),
+        bunsen::data::datasets::ShardSetDescriptor::from_builtin(FINEWEB_EDU_100B_SHUFFLE)?,
     )?;
 
     let mut disk_cache = WordchipperDiskCache::default();

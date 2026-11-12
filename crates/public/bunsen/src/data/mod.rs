@@ -81,7 +81,7 @@
 //! ([`Prefabs`]), and a build states the geometry it is built in
 //! ([`BuildRef::stated`]), which a kit's tests check against its prefabs.
 //!
-//! Shards take a shorter path: a [`StaticShardSetMap`] entry becomes a
+//! Shards take a shorter path: a dataset's build becomes a
 //! [`ShardSetDescriptor`], a [`ShardSet`] binds it to a directory, and its
 //! `locate` / `fetch` / `fetch_many` give paths to a data loader. See
 //! [`datasets`].
@@ -140,7 +140,6 @@
 //! [`ShardSet`]: datasets::ShardSet
 //! [`ShardSetDescriptor`]: datasets::ShardSetDescriptor
 //! [`Prefabs`]: pretrained::Prefabs
-//! [`StaticShardSetMap`]: datasets::StaticShardSetMap
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
