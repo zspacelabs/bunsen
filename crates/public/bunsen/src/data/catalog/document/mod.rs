@@ -624,7 +624,11 @@ pub struct BuildEntry {
     pub merge: MergeMode,
 
     /// What the build is, for a person.
-    #[serde(rename = "$description")]
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub description: String,
 
     /// Further memberships, release memberships among them.

@@ -159,6 +159,8 @@ An occurrence's `$merge` says how it meets an existing entry of its name:
 - `update` updates it, as its kind defines:
   - a `namespace` adds its children, each of which meets any existing child by its own
     `$merge`, and may assert the `$facet` it expects;
+  - a `build` carries only its `$kind` and children: it is a scope, through which its own
+    entries (a resource it declares) are reached and updated;
   - a `resource` must match every field but `$sources`, and its new sources are tried first;
   - an `alias` takes the occurrence's `$ref` (and `$description`, when it has one): it is
     retargeted;

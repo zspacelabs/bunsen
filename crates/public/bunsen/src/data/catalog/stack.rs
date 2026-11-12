@@ -1615,6 +1615,26 @@ fn update(
             current.sources.splice(0..0, new);
             Ok(())
         }
+        (CatalogEntry::Build(_), CatalogEntry::Build(scope)) => {
+            let bare = scope.description.is_empty()
+                && scope.join.is_empty()
+                && scope.template_class.is_none()
+                && scope.license.is_none()
+                && scope.origin.is_none()
+                && scope.tags.is_empty()
+                && scope.presets.is_empty()
+                && scope.contract.is_none()
+                && scope.resources.is_empty()
+                && scope.args.is_empty();
+            if !bare {
+                return Err(catalog_error(
+                    CatalogRule::Merge,
+                    "an extending build occurrence carries only its `$kind` and children: a \
+                     build is changed by replacing it",
+                ));
+            }
+            Ok(())
+        }
         (CatalogEntry::Alias(current), CatalogEntry::Alias(update)) => {
             current.target = update.target.clone();
             if update.description.is_some() {
@@ -2143,7 +2163,56 @@ openai:
         let build = refused(
             "qwen:\n  $kind: namespace\n  $merge: update\n  qwen3:\n    $kind: namespace\n    $merge: update\n    qwen3-0.6b: { $kind: build, $merge: update, $description: \"B.\" }\n",
         );
-        assert!(build.mentions("a build can't be updated"), "{build}");
+        assert!(
+            build.mentions("an extending build occurrence carries only its `$kind`"),
+            "{build}"
+        );
+
+        // A bare build occurrence is a scope: through it, an update reaches
+        // a resource the build declares.
+        stack
+            .push_yaml(
+                "local",
+                r#"
+openai:
+  $kind: namespace
+  $merge: update
+  whisper:
+    $kind: namespace
+    $merge: update
+    large:
+      $kind: namespace
+      $merge: update
+      large-v2:
+        $kind: build
+        $merge: update
+        checkpoint:
+          $kind: resource
+          $merge: update
+          $file: large-v2.pt
+          $format: pytorch
+          $dtype: float16
+          $sha256: "3000000000000000000000000000000000000000000000000000000000000002"
+          $sources: [{ $local_dir: { $name: shipped, $default: ["/opt/whisper"] } }]
+"#,
+            )
+            .unwrap();
+        let v2 = stack
+            .resolve_build(&n("openai/whisper/large/large-v2"))
+            .unwrap();
+        let sources = &v2.resources["checkpoint"].entry.sources;
+        assert_eq!(sources.len(), 2);
+        assert!(
+            matches!(
+                &sources[0],
+                crate::data::catalog::document::ResourceSource::LocalDir { name, .. } if name == "shipped"
+            ),
+            "{sources:?}"
+        );
+        assert_eq!(
+            v2.description, "Whisper large-v2.",
+            "the build is unchanged"
+        );
     }
 
     #[test]

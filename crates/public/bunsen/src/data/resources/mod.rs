@@ -34,9 +34,9 @@
 //! - Files fetched at build time are a populated cache directory.
 //!   `bind-whisper-onnx` lays its `OUT_DIR` out in this layout, so a
 //!   [`ResourceCache`] rooted there finds the files without knowing they were
-//!   bundled. (`whisper-model-validation` also registers a
-//!   `bundled:openai/base` row over the same files, served in place as
-//!   local-dir sources.)
+//!   bundled. (`whisper-model-validation` also imports a catalog layer that
+//!   adds the same files to `openai/whisper/base` as local-dir sources, served
+//!   in place.)
 //!
 //! The second form is the general one: bundling a fetched asset means
 //! populating a cache directory, not adding a kind of source. A deployment

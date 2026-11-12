@@ -1,6 +1,6 @@
 # What the silero_vad kit's loader reads from a catalog build: upstream's
-# 16 kHz state dict. A bundled burnpack is the `bundled:` provider's, apart
-# from the catalog.
+# 16 kHz state dict. A bundled burnpack is read apart from the catalog, as a
+# given resource set.
 silero-vad:
   $kind: contract
   $description: "The Silero voice-activity detector at 16 kHz: upstream's state dict."

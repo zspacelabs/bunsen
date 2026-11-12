@@ -18,15 +18,6 @@ use crate::{
 /// `catalog:openai/tiny`.
 pub const CATALOG: &str = "catalog";
 
-/// The name of the provider whose rows a build ships with:
-/// `bundled:openai/base`. A caller registers one after [`CATALOG`], so
-/// that a bare name means the same row with it or without. A bundled row is
-/// served from the bundle rather than fetched: in place from files the build
-/// laid out (`bundled:openai/base`, the same files as
-/// `catalog:openai/base`), or from bytes linked into the binary
-/// ([`Source::Bundled`](crate::data::resources::Source::Bundled)).
-pub const BUNDLED: &str = "bundled";
-
 /// A namespace of pretrained rows: the `provider` of `provider:ref`.
 ///
 /// A provider names and looks up, and lists when it can. It knows no hook,
@@ -41,7 +32,7 @@ pub const BUNDLED: &str = "bundled";
 /// holds a kit's providers in search order and offers each spec to them; its
 /// [dispatch rules] are where `Ok(None)` and an error part ways. The
 /// implementations in bunsen are [`PretrainedTable`], for compiled-in rows
-/// ([`CATALOG`], [`BUNDLED`]) and for any table read from a manifest, and
+/// ([`CATALOG`]) and for any table read from a manifest, and
 /// [`HfProvider`](super::HfProvider), for `hf:org/repo`.
 ///
 /// [dispatch rules]: crate::data::builds::BuildFactory#dispatch

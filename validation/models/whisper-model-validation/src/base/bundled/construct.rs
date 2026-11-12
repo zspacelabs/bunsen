@@ -43,6 +43,7 @@ use bunsen::{
 use serial_test::serial;
 
 use super::{
+    BUNDLE,
     base_checkpoint,
     cache_in,
     factory_with_bundle,
@@ -152,7 +153,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
     let dir = tempfile::tempdir().unwrap();
     let cache = cache_in(dir.path().join("cache"));
     let model = factory_with_bundle()
-        .resolve("bundled:openai/base", &cache)
+        .resolve("openai/base", &cache)
         .unwrap()
         .model;
     let planned = WhisperConstructConfig::new().plan(&model, &cache).unwrap();
@@ -160,8 +161,8 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
     let vocabulary = planned.get(VOCABULARY).unwrap();
     assert_eq!(vocabulary.file, "multilingual.tiktoken");
     assert!(
-        matches!(vocabulary.sources.as_slice(), [Source::LocalDir { name, .. }] if name == "bundled"),
-        "the row's own sources stand: {:?}",
+        matches!(vocabulary.sources.first(), Some(Source::LocalDir { name, .. }) if name == BUNDLE),
+        "the bundle's source first: {:?}",
         vocabulary.sources
     );
     assert!(!dir.path().join("cache").exists(), "nothing was written");

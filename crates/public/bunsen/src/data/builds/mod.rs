@@ -75,13 +75,14 @@
 //!
 //! A [`BuildProvider`] is a namespace over rows: the `provider` of
 //! `provider:ref`. It looks a name up, and lists what it has when it can.
-//! Three are in use:
+//! Two are in use:
 //!
-//! - `catalog:` ([`CATALOG`]) holds the compiled-in rows, a [`PretrainedTable`]
-//!   of [`PretrainedGroup`]s. `catalog:openai/tiny` is the `tiny` row of the
-//!   `openai` group; a bare `openai/tiny`, or `tiny`, finds it too.
-//! - `bundled:` ([`BUNDLED`]) holds the rows a build ships with: a table a
-//!   caller registers over files it lays out or bytes it links in.
+//! - `catalog:` ([`CATALOG`]) is a [`CatalogBuildProvider`]: the builds of the
+//!   kit's contract in the built-in catalog, and in any extension layer
+//!   imported over it. `catalog:openai/whisper/tiny` is the build; a bare
+//!   `openai/tiny`, or `tiny`, finds it too. Files a deployment ships are such
+//!   a layer: an update of the builds' resources that adds the files as
+//!   local-dir sources, so the same name loads them.
 //! - `hf:` ([`HF`]) is an [`HfProvider`]: a Hugging Face repo, by `org/repo`.
 //!   It lists nothing and never answers a bare name.
 //!

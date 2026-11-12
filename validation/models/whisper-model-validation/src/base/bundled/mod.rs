@@ -8,12 +8,17 @@ use std::{
 use bunsen::{
     data::{
         builds::{
-            BUNDLED,
             BuildFactory,
-            PretrainedGroup,
-            PretrainedTable,
+            CATALOG,
+            CatalogBuildProvider,
         },
         cache::BunsenDiskCacheOptions,
+        catalog::{
+            BuiltinCatalog,
+            BunsenCatalog,
+            CatalogName,
+            builtin_stack,
+        },
         resources::{
             ResourceCache,
             ResourceCacheOptions,
@@ -26,14 +31,17 @@ use bunsen::{
             pretrained::{
                 CHECKPOINT,
                 VOCABULARY,
+                WHISPER_CATALOG_CONTRACT,
+                WHISPER_KIT,
                 WhisperConstructConfig,
                 WhisperVocabulary,
-                default_whisper_factory,
+                default_whisper_providers,
             },
         },
         support::tokens::TiktokenRanks,
     },
 };
+use serde_json::json;
 
 mod cache;
 mod construct;
@@ -84,47 +92,82 @@ pub fn base_checkpoint() -> ResourceSet {
         .unwrap()
 }
 
-/// A [`BUNDLED`] table of one row, `bundled:openai/base`: the catalog
-/// `openai/whisper/base` row with its two resources served in place from
-/// the bundle's files rather than fetched.
+/// The local dir the bundle layer names: what a caller would override to
+/// serve the bundle's files from elsewhere.
+pub const BUNDLE: &str = "whisper-bundle";
+
+/// The extension layer that serves `openai/whisper/base`'s files from the
+/// bundle, in place: an update of each resource the build binds (its
+/// checkpoint, and the multilingual vocabulary), with the directory the
+/// bundle keeps the file in as a local-dir source ([`BUNDLE`]), tried first.
 ///
-/// It is how a deployment that ships its files would serve them, so it is
-/// built here the way such a caller would.
-pub fn bundled_table() -> PretrainedTable {
-    let (_, mut base) = default_whisper_factory()
+/// It is how a deployment that ships its files serves them, so it is built
+/// here the way such a caller would: from the catalog's own entries, which
+/// an update must match in every field but `$sources`.
+pub fn bundle_layer() -> BunsenCatalog {
+    let stack = builtin_stack().unwrap();
+    let base = BuiltinCatalog::get()
         .unwrap()
-        .lookup("openai/whisper/base")
+        .build("openai/whisper/base")
         .unwrap();
-    base.name = "base".to_string();
-    base.aliases.clear();
-    base.resources = base
-        .resources
-        .with_local_files(
-            BUNDLED,
-            &[
-                (CHECKPOINT, bind_whisper_onnx::base_pt()),
-                (VOCABULARY, bind_whisper_onnx::multilingual_tiktoken()),
-            ],
-        )
-        .unwrap();
-    PretrainedTable {
-        name: BUNDLED.to_string(),
-        description: "the Whisper assets bind-whisper-onnx ships, used in place".to_string(),
-        groups: vec![PretrainedGroup {
-            name: "openai".to_string(),
-            description: "OpenAI's Whisper checkpoints".to_string(),
-            license: None,
-            origin: None,
-            items: vec![base],
-        }],
-        case_sensitive: false,
+    let mut root = serde_json::Map::new();
+    root.insert(
+        "$description".to_string(),
+        json!("The Whisper base files bind-whisper-onnx ships, used in place."),
+    );
+    for (slot, path) in [
+        (CHECKPOINT, bind_whisper_onnx::base_pt()),
+        (VOCABULARY, bind_whisper_onnx::multilingual_tiktoken()),
+    ] {
+        let bound = &base.resources[slot];
+        let mut entry = serde_json::to_value(&bound.entry).unwrap();
+        entry["$kind"] = json!("resource");
+        entry["$merge"] = json!("update");
+        entry["$sources"] = json!([{
+            "$local_dir": {
+                "$name": BUNDLE,
+                "$default": [path.parent().unwrap().display().to_string()],
+            }
+        }]);
+        // The scopes down to it, each an extending occurrence of its kind.
+        let segments = bound.resource.segments();
+        let mut node = &mut root;
+        let mut scope: Option<CatalogName> = None;
+        for segment in &segments[..segments.len() - 1] {
+            let name = CatalogName::under(scope.as_ref(), segment).unwrap();
+            let kind = stack.declaration(&name).unwrap().kind();
+            node = node
+                .entry(segment.clone())
+                .or_insert_with(|| json!({ "$kind": kind.as_str(), "$merge": "update" }))
+                .as_object_mut()
+                .unwrap();
+            scope = Some(name);
+        }
+        node.insert(segments[segments.len() - 1].clone(), entry);
     }
+    BunsenCatalog::from_json(&serde_json::Value::Object(root).to_string()).unwrap()
 }
 
-/// The default Whisper factory with [`bundled_table`] registered.
+/// The default Whisper factory over the built-in catalog with
+/// [`bundle_layer`] imported on top: the same names, `openai/whisper/base`
+/// served from the bundle.
 pub fn factory_with_bundle() -> BuildFactory<WhisperConstructConfig> {
-    default_whisper_factory()
+    let mut stack = builtin_stack().unwrap();
+    stack.push("whisper-bundle", None, bundle_layer()).unwrap();
+    let catalog = CatalogBuildProvider::new(
+        CATALOG,
+        "the built-in catalog, with the bundle's files",
+        &stack,
+        WHISPER_CATALOG_CONTRACT,
+        WHISPER_KIT,
+    )
+    .unwrap();
+    let rest = default_whisper_providers()
+        .into_iter()
+        .filter(|p| p.name() != CATALOG);
+    BuildFactory::new()
+        .with_provider(Arc::new(catalog))
         .unwrap()
-        .with_provider(Arc::new(bundled_table()))
+        .with_providers(rest)
         .unwrap()
 }

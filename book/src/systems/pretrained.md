@@ -65,9 +65,10 @@ resources](bunsen::data::pretrained#prefabs-rows-and-resources)).
 ## Providers
 
 A [`BuildProvider`](bunsen::data::builds::BuildProvider) is a
-namespace of rows: the `provider` in `provider:ref`. Three are in use.
-`catalog:` holds the compiled-in rows. `bundled:` holds the rows a build
-ships with, a table its caller registers. `hf:`, an
+namespace of rows: the `provider` in `provider:ref`. Two are in use.
+`catalog:` holds the builds of the kit's contract in the built-in catalog, and
+in any extension layer imported over it: a build that ships its files is a
+layer that adds them as sources. `hf:`, an
 [`HfProvider`](bunsen::data::builds::HfProvider), is a Hugging Face repo,
 by `org/repo`.
 
