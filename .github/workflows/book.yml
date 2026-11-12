@@ -82,7 +82,11 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: mdbook@0.5.4,mdbook-katex@0.10.0,mdbook-mermaid@0.17.1,mdbook-linkcheck2@0.13.0,mdbook-rustdoc-links@3.0.2
+      # Cargo's legacy build-dir layout, which mdbook-rustdoc-links 3.0.2
+      # needs: `Makefile.toml`'s book tasks explain it.
       - name: Build the book
+        env:
+          __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT: "1"
         run: mdbook build book
       - name: Publish to gh-pages
         env:

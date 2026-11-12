@@ -254,27 +254,37 @@ dependencies = [
 
 # ── mdBook ────────────────────────────────────────────────────────────────────
 
+# Every book task keeps cargo's legacy build-dir layout
+# (`__CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT`), as the workflows'
+# book builds do: mdbook-rustdoc-links 3.0.2 gives rustdoc one library
+# directory per crate, and under the per-unit layout (cargo 1.100's default)
+# that misses the units a crate was built against, so no API link resolves.
+# The opt-out goes when the tool handles the per-unit layout; cargo plans to
+# remove it.
+
 [tasks.book]
 description = "Build the mdBook in ./book, linking into local API docs (book/src/api)"
 dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
+env = { __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT = "1" }
 command = "mdbook"
 args = ["build"]
 
 [tasks.book-check]
 description = "Build the book as CI does: every unresolved API link is an error"
 extend = "book"
-env = { MDBOOK_PREPROCESSOR__RUSTDOC_LINKS__FAIL_ON_WARNINGS = "always" }
+env = { __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT = "1", MDBOOK_PREPROCESSOR__RUSTDOC_LINKS__FAIL_ON_WARNINGS = "always" }
 
 [tasks.book-release]
 description = "Build the book for publishing: API links pinned to this version on docs.rs"
 extend = "book"
-env = { CI = "1", MDBOOK_OUTPUT__HTML__SITE_URL = "/bunsen/book/" }
+env = { __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT = "1", CI = "1", MDBOOK_OUTPUT__HTML__SITE_URL = "/bunsen/book/" }
 
 [tasks.book-serve]
 description = "Serve the mdBook locally with live reload"
 dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
+env = { __CARGO_TEMPORARY_BUILD_DIR_NEW_LAYOUT_OPT_OUT = "1" }
 command = "mdbook"
 args = ["serve", "--open"]
 
