@@ -11,15 +11,12 @@ use bunsen::{
             BuildFactory,
             BuildProvider,
             ConstructInit,
-            Deferred,
+            DeferredBuild,
         },
         cache::verify_sha256,
         catalog::{
             ResolvedBuild,
-            lookup::{
-                LeafMatch,
-                name_matches,
-            },
+            lookup::LeafMatch,
         },
         formats::LoadPolicy,
         resources::{
@@ -254,7 +251,7 @@ impl AsrKit {
                 Some(_) => return false,
                 None => name,
             };
-            name_matches(bare, &row.name, LeafMatch::Exact) || row.answers_to(bare)
+            row.name.matches_query(bare, LeafMatch::Exact) || row.answers_to(bare)
         }))
     }
 
@@ -365,7 +362,7 @@ pub fn fetch_with<H: ConstructInit>(
 /// Resolves and loads `spec`, logging what it is and where its files came
 /// from: the model's info card.
 pub fn load_logged<H: ConstructInit>(
-    deferred: Deferred<H>,
+    deferred: DeferredBuild<H>,
     cache: &ResourceCache,
     device: &Device,
 ) -> BunsenResult<Arc<H::Construct>> {

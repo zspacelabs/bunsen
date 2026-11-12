@@ -1,4 +1,4 @@
-//! Deferred models: a resolved ref and its hook, not yet loaded.
+//! Deferred builds: a resolved ref and its hook, not yet loaded.
 
 use alloc::collections::BTreeMap;
 
@@ -44,7 +44,7 @@ use crate::{
 ///
 /// [`BuildFactory::resolve`]: super::BuildFactory::resolve
 #[derive(Clone, Debug)]
-pub struct Deferred<H: ConstructInit> {
+pub struct DeferredBuild<H: ConstructInit> {
     /// What resolved: a row of a provider, or a given resource set.
     pub model: BuildRef,
 
@@ -54,7 +54,7 @@ pub struct Deferred<H: ConstructInit> {
     pub config: H,
 }
 
-impl<H: ConstructInit> Deferred<H> {
+impl<H: ConstructInit> DeferredBuild<H> {
     /// `model` with the hook its resource set calls for.
     ///
     /// # Errors
@@ -230,7 +230,7 @@ mod tests {
         fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
 
-        let given = Deferred::<CheckpointPath>::from_resource_set(ResourceSet::given(
+        let given = DeferredBuild::<CheckpointPath>::from_resource_set(ResourceSet::given(
             spec,
             "checkpoint",
             &file,
@@ -254,7 +254,7 @@ mod tests {
         );
         assert!(format!("{given:?}").contains("CheckpointPath"));
 
-        let named = Deferred::<CheckpointPath>::new(named()).unwrap();
+        let named = DeferredBuild::<CheckpointPath>::new(named()).unwrap();
         assert_eq!(named.id(), "catalog:a/small");
         assert_eq!(named.status(&cache)["checkpoint"], CacheStatus::Remote);
         ErrorMatcher::kind(BunsenErrorKind::Policy)
@@ -275,7 +275,7 @@ mod tests {
         let other = dir.path().join("other.pt");
         fs::write(&other, b"y").unwrap();
 
-        let model = Deferred::<CheckpointPath>::new(named())
+        let model = DeferredBuild::<CheckpointPath>::new(named())
             .unwrap()
             .with_overlay(ResourceSet::given("mine", "checkpoint", &other))
             .unwrap();

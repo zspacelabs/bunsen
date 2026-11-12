@@ -25,7 +25,7 @@ use crate::{
             BuildProvider,
             BuildRef,
             ConstructInit,
-            Deferred,
+            DeferredBuild,
             Loaded,
             LookupExpr,
         },
@@ -50,19 +50,19 @@ use crate::{
     },
 };
 
-/// A kit's providers, in search order, resolving names to [`Deferred`]
+/// A kit's providers, in search order, resolving names to [`DeferredBuild`]
 /// models built through the kit's hook `H`.
 ///
 /// The one object a caller holds for a kit. Its interface is names and a
 /// listing. [`load`](Self::load)`("[provider:]name", &cache, &device)`
 /// is the whole pathway, from a name to a [`Loaded`] model.
-/// [`resolve`](Self::resolve) is its index half: a [`Deferred`] model that
+/// [`resolve`](Self::resolve) is its index half: a [`DeferredBuild`] model that
 /// carries the hook its resource set calls for, so that a caller can overlay
-/// a build ([`Deferred::with_overlay`]) before loading it, and never builds or
-/// passes a hook. [`list`](Self::list) and [`ids`](Self::ids) answer a
-/// listing. A file on disk is
+/// a build ([`DeferredBuild::with_overlay`]) before loading it, and never
+/// builds or passes a hook. [`list`](Self::list) and [`ids`](Self::ids) answer
+/// a listing. A file on disk is
 /// not the factory's business: that is a given [`ResourceSet`], through
-/// [`Deferred::from_resource_set`].
+/// [`DeferredBuild::from_resource_set`].
 ///
 /// # Lookup expressions
 ///
@@ -346,14 +346,14 @@ impl<H: ConstructInit> BuildFactory<H> {
 
     /// The row `spec` names, dispatched as [`lookup`](Self::lookup) is but
     /// through each provider's [`resolve`](BuildProvider::resolve)
-    /// with `cache` to hand, as a [`Deferred`] model with the hook its resource
-    /// set calls for: the index half of [`load`](Self::load), for a caller
-    /// that overlays the row before loading it. A table answers from its
+    /// with `cache` to hand, as a [`DeferredBuild`] model with the hook its
+    /// resource set calls for: the index half of [`load`](Self::load), for a
+    /// caller that overlays the row before loading it. A table answers from its
     /// rows; a hub asks what the repo holds, once, and keeps the answer in
     /// the cache.
     ///
     /// # Errors
-    /// As [`lookup`](Self::lookup) and [`Deferred::new`]. The spec is the
+    /// As [`lookup`](Self::lookup) and [`DeferredBuild::new`]. The spec is the
     /// caller's input, a name from a command line say: an
     /// [`Illegal`](BunsenErrorKind::Illegal) error it causes, a malformed
     /// `hf:` ref say, is re-marked [`Policy`](BunsenErrorKind::Policy).
@@ -361,8 +361,8 @@ impl<H: ConstructInit> BuildFactory<H> {
         &self,
         spec: &str,
         cache: &ResourceCache,
-    ) -> BunsenResult<Deferred<H>> {
-        let resolve = || -> BunsenResult<Deferred<H>> {
+    ) -> BunsenResult<DeferredBuild<H>> {
+        let resolve = || -> BunsenResult<DeferredBuild<H>> {
             let expr = LookupExpr::parse(spec)?;
             let found = self.find(&expr.name, |provider, name| provider.resolve(name, cache))?;
             let (provider, build) = match found {
@@ -370,7 +370,7 @@ impl<H: ConstructInit> BuildFactory<H> {
                 None => return Err(self.not_found(&expr.name)),
             };
             Self::check_selection(&build, &expr.selection)?;
-            Deferred::new(BuildRef::named(provider, build, expr.selection))
+            DeferredBuild::new(BuildRef::named(provider, build, expr.selection))
         };
 
         let defered = resolve().as_policy()?;
@@ -383,10 +383,10 @@ impl<H: ConstructInit> BuildFactory<H> {
     }
 
     /// A name to what the kit builds: [`resolve`](Self::resolve), then
-    /// [`Deferred::load`] under `policy`. The whole pathway.
+    /// [`DeferredBuild::load`] under `policy`. The whole pathway.
     ///
     /// # Errors
-    /// As [`resolve`](Self::resolve) and [`Deferred::load`].
+    /// As [`resolve`](Self::resolve) and [`DeferredBuild::load`].
     pub fn load(
         &self,
         spec: &str,

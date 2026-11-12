@@ -7,7 +7,6 @@ use alloc::{
 
 use crate::{
     data::{
-        builds::qualified_id,
         catalog::{
             ResolvedBuild,
             presets::PresetSelection,
@@ -27,9 +26,9 @@ use crate::{
 /// [`BuildFactory`](crate::data::builds::BuildFactory) makes a
 /// [`Named`](Self::Named) ref from a spec; a path or a manifest becomes a
 /// [`Given`](Self::Given) one through `From<ResourceSet>`. A
-/// [`Deferred`](crate::data::builds::Deferred) model pairs the ref with the
-/// kit's hook and loads it, and the hook plans and builds from the ref:
-/// [`to_resource_set`](Self::to_resource_set) for its files,
+/// [`DeferredBuild`](crate::data::builds::DeferredBuild) model pairs the ref
+/// with the kit's hook and loads it, and the hook plans and builds from the
+/// ref: [`to_resource_set`](Self::to_resource_set) for its files,
 /// [`stated`](Self::stated) for an argument the build binds, such as the
 /// geometry it promises.
 ///
@@ -82,13 +81,13 @@ impl BuildRef {
     }
 
     /// The qualified id, `provider:ref`
-    /// ([`qualified_id`](crate::data::builds::qualified_id)), or the given
+    /// ([`qualified_id`](ResolvedBuild::qualified_id)), or the given
     /// resource set's name.
     pub fn id(&self) -> String {
         match self {
             Self::Named {
                 provider, build, ..
-            } => qualified_id(provider, build),
+            } => build.qualified_id(provider),
             Self::Given(map) => map.name.clone(),
         }
     }

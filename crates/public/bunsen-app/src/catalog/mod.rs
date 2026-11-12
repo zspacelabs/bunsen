@@ -19,7 +19,7 @@
 //! `select` stands in for a tool that chooses builds: it turns its preset
 //! flags into the presets it applies and a prefix that keeps only the builds
 //! they apply to
-//! ([`preset_prefix`](bunsen::data::catalog::select::choose::preset_prefix)),
+//! ([`prefix_stage`](bunsen::data::catalog::presets::PresetSelection::prefix_stage)),
 //! its other flags into stages, in command-line order, and composes them over
 //! its defaults
 //! ([`SelectionContext::compose`](bunsen::data::catalog::select::choose::SelectionContext::compose)).

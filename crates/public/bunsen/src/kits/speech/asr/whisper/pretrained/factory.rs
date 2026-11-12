@@ -8,7 +8,7 @@ use crate::{
     data::{
         builds::{
             BuildFactory,
-            Deferred,
+            DeferredBuild,
         },
         resources::{
             LoadedResourceSet,
@@ -30,13 +30,13 @@ use crate::{
 /// [`WhisperConstructConfig`].
 ///
 /// The index a caller holds: Whisper's providers, resolving names to
-/// [`Deferred`] models that carry the kit's [`WhisperConstructConfig`] hook,
-/// chosen by what each row's map says about its checkpoint.
+/// [`DeferredBuild`] models that carry the kit's [`WhisperConstructConfig`]
+/// hook, chosen by what each row's map says about its checkpoint.
 /// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`WhisperConstruct`]; the caller never builds or passes a hook. A
 /// checkpoint on disk is not the factory's: it is a given map through
-/// [`Deferred::from_resource_set`], which gets its hook the same way. A
+/// [`DeferredBuild::from_resource_set`], which gets its hook the same way. A
 /// caller with a provider of its own, a mirror say, adds it with
 /// [`with_provider`](BuildFactory::with_provider).
 ///
@@ -47,7 +47,7 @@ pub fn default_whisper_factory() -> BunsenResult<BuildFactory<WhisperConstructCo
     BuildFactory::new().with_providers(default_whisper_providers())
 }
 
-impl Deferred<WhisperConstructConfig> {
+impl DeferredBuild<WhisperConstructConfig> {
     /// Scans the checkpoint in `loaded` for its config without loading its
     /// weights, and checks it against the geometry this model promises:
     /// the read-only half, for a listing.
@@ -181,7 +181,7 @@ mod tests {
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
-        let given = Deferred::<WhisperConstructConfig>::from_resource_set(ResourceSet::given(
+        let given = DeferredBuild::<WhisperConstructConfig>::from_resource_set(ResourceSet::given(
             spec, CHECKPOINT, &file,
         ))
         .unwrap();

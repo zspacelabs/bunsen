@@ -6,10 +6,10 @@
 //! the tool's prefix ++ defaults ++ the request (each `use` spliced in place) ++ the tail
 //! ```
 //!
-//! - **The prefix** ([`preset_prefix`]) is the applicability of the presets a
-//!   tool will apply: one `keep: {$presets: [..]}`, first. No stage adds a row,
-//!   so every row of the result can take those presets, whatever stages follow,
-//!   and the query needn't mention them.
+//! - **The prefix** ([`PresetSelection::prefix_stage`]) is the applicability of
+//!   the presets a tool will apply: one `keep: {$presets: [..]}`, first. No
+//!   stage adds a row, so every row of the result can take those presets,
+//!   whatever stages follow, and the query needn't mention them.
 //! - **The defaults** ([`SelectionContext::defaults`]) apply to every request
 //!   but one whose only name is one build. They should hold only stages that
 //!   commute: `from`, fixed tests, and multiplying `weigh`s.
@@ -181,73 +181,79 @@ pub struct ComposedQuery {
     pub exact: Option<CatalogName>,
 }
 
-/// The prefix a tool injects for the presets it will apply: one
-/// `keep: {$presets: [..]}`, attributed to `flags` (the flags as written).
-/// `None` when there are no presets.
-pub fn preset_prefix(
-    presets: &PresetSelection,
-    flags: Vec<String>,
-) -> Option<OriginStage> {
-    if presets.presets.is_empty() {
-        return None;
-    }
-    let names = presets.presets.iter().cloned().map(Value::String).collect();
-    Some(OriginStage::new(
-        Stage::Keep(Predicate::Test {
-            key: "$presets".to_string(),
-            value: Value::Array(names),
-        }),
-        StageOrigin::Prefix(flags),
-    ))
-}
-
-/// The member of the bool axis `axis` (a lookup) that `--on` (`on`) or
-/// `--off` names: `X` or `no-X`. It is read from the axis's declaration, so
-/// it needs no build.
-///
-/// # Errors
-/// [`CatalogRule::Selection`](crate::data::catalog::CatalogRule::Selection)
-/// when `axis` names no axis, or one that isn't bool.
-pub fn bool_axis_member(
-    stack: &BunsenCatalogStack,
-    axis: &str,
-    on: bool,
-) -> BunsenResult<String> {
-    let name = stack
-        .find(axis, &[EntryKind::Axis], LeafMatch::Exact)
-        .map_err(|e| query_error(format!("`{axis}`: {}", e.problem_message())))?;
-    let decl = stack.declaration(&name).expect("found");
-    match decl.body() {
-        CatalogEntry::Axis(a) if a.axis == AxisKind::Bool => Ok(if on {
-            a.name.clone()
-        } else {
-            a.negate(&a.name).expect("a bool axis negates its positive")
-        }),
-        _ => Err(query_error(format!(
-            "`{name}` is not a bool axis: name its member as a preset"
-        ))),
+impl PresetSelection {
+    /// The prefix a tool injects for these presets, which it will apply: one
+    /// `keep: {$presets: [..]}`, attributed to `flags` (the flags as written).
+    /// `None` when there are no presets.
+    pub fn prefix_stage(
+        &self,
+        flags: Vec<String>,
+    ) -> Option<OriginStage> {
+        if self.presets.is_empty() {
+            return None;
+        }
+        let names = self.presets.iter().cloned().map(Value::String).collect();
+        Some(OriginStage::new(
+            Stage::Keep(Predicate::Test {
+                key: "$presets".to_string(),
+                value: Value::Array(names),
+            }),
+            StageOrigin::Prefix(flags),
+        ))
     }
 }
 
-/// The error for an empty result, with the stages that removed rows.
-pub fn empty_error(run: &SelectRun) -> BunsenError {
-    let stages: Vec<String> = run
-        .trace
-        .stages
-        .iter()
-        .filter(|s| s.dropped > 0)
-        .map(|s| {
-            format!(
-                "stage {} (`{}`, {}) dropped {}",
-                s.index, s.op, s.origin, s.dropped
-            )
-        })
-        .collect();
-    let mut message = "no build is left to choose".to_string();
-    if !stages.is_empty() {
-        message.push_str(&format!(": {}", stages.join("; ")));
+impl BunsenCatalogStack {
+    /// The member of the bool axis `axis` (a lookup) that `--on` (`on`) or
+    /// `--off` names: `X` or `no-X`. It is read from the axis's declaration, so
+    /// it needs no build.
+    ///
+    /// # Errors
+    /// [`CatalogRule::Selection`](crate::data::catalog::CatalogRule::Selection)
+    /// when `axis` names no axis, or one that isn't bool.
+    pub fn bool_axis_member(
+        &self,
+        axis: &str,
+        on: bool,
+    ) -> BunsenResult<String> {
+        let name = self
+            .find(axis, &[EntryKind::Axis], LeafMatch::Exact)
+            .map_err(|e| query_error(format!("`{axis}`: {}", e.problem_message())))?;
+        let decl = self.declaration(&name).expect("found");
+        match decl.body() {
+            CatalogEntry::Axis(a) if a.axis == AxisKind::Bool => Ok(if on {
+                a.name.clone()
+            } else {
+                a.negate(&a.name).expect("a bool axis negates its positive")
+            }),
+            _ => Err(query_error(format!(
+                "`{name}` is not a bool axis: name its member as a preset"
+            ))),
+        }
     }
-    query_error(message)
+}
+
+impl SelectRun {
+    /// The error for this empty result, with the stages that removed rows.
+    pub fn empty_error(&self) -> BunsenError {
+        let stages: Vec<String> = self
+            .trace
+            .stages
+            .iter()
+            .filter(|s| s.dropped > 0)
+            .map(|s| {
+                format!(
+                    "stage {} (`{}`, {}) dropped {}",
+                    s.index, s.op, s.origin, s.dropped
+                )
+            })
+            .collect();
+        let mut message = "no build is left to choose".to_string();
+        if !stages.is_empty() {
+            message.push_str(&format!(": {}", stages.join("; ")));
+        }
+        query_error(message)
+    }
 }
 
 /// How deep `use` may nest.
@@ -458,7 +464,8 @@ impl SelectionContext {
     /// model does: the first of the result, by the tail's `limit: 1`.
     ///
     /// # Errors
-    /// As [`rank`](Self::rank), and [`empty_error`] when no build is left.
+    /// As [`rank`](Self::rank), and [`SelectRun::empty_error`] when no build is
+    /// left.
     pub fn choose(
         &self,
         env: &SelectEnv<'_>,
@@ -475,7 +482,7 @@ impl SelectionContext {
         let composed = self.compose(env, prefix, request, true)?;
         let run = self.run_composed(env, universe, &composed)?;
         let Some(row) = run.table.rows.first() else {
-            return Err(empty_error(&run));
+            return Err(run.empty_error());
         };
         let build = env.build(&row.entry.path)?;
         Ok((build, run))
@@ -552,14 +559,10 @@ mod tests {
     fn test_the_prefix_holds_for_every_row_whatever_follows() {
         let stack = fixtures::example_stack().unwrap();
         let env = SelectEnv::new(&stack);
-        let off = bool_axis_member(&stack, "thinking", false).unwrap();
+        let off = stack.bool_axis_member("thinking", false).unwrap();
         assert_eq!(off, "no-thinking");
-        let prefix = || {
-            preset_prefix(
-                &PresetSelection::of([off.as_str()]),
-                vec!["--off thinking".into()],
-            )
-        };
+        let prefix =
+            || PresetSelection::of([off.as_str()]).prefix_stage(vec!["--off thinking".into()]);
         // A `limit` first still yields only builds that can take the preset.
         let request = SelectRequest::default()
             .stage(Stage::Limit(1), StageOrigin::Flag("--limit 1".into()))
@@ -580,7 +583,7 @@ mod tests {
             "{err}"
         );
         assert!(err.problem_message().contains("no-thinking"), "{err}");
-        assert!(bool_axis_member(&stack, "task", true).is_err());
+        assert!(stack.bool_axis_member("task", true).is_err());
     }
 
     #[test]

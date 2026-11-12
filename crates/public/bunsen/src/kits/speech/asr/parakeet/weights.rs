@@ -22,10 +22,7 @@ use crate::{
         CanonicalKeys,
         Rekey,
     },
-    data::formats::{
-        NamedTensorsApplied,
-        apply_rekeyed_tensors,
-    },
+    data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
@@ -92,7 +89,7 @@ pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 /// stage count and flatten order fix its map.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+/// [`Rekey::apply_to`] resolves to `gamma` / `beta`.
 pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     Rekey::keep_rest()
         .drop_suffix(".num_batches_tracked")
@@ -106,11 +103,11 @@ pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `ParakeetForTDT` state dict into
-/// `model`: [`apply_rekeyed_tensors`] under [`transformers_rekey`], at
+/// `model`: [`Rekey::apply_to`] under [`transformers_rekey`], at
 /// `model`'s subsampling.
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors`];
+/// As [`Rekey::apply_to`];
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
 /// `model`'s encoder does not subsample by depthwise striding.
 pub fn load_transformers_tensors(
@@ -122,7 +119,7 @@ pub fn load_transformers_tensors(
     })?;
     let rekey = transformers_rekey(striding);
     let rekey = rekey.then(model.canonical_rekey());
-    apply_rekeyed_tensors(model, tensors, &rekey)
+    rekey.apply_to(model, tensors)
 }
 
 /// The [`ParakeetTdtConfig`] of a `transformers` `ParakeetForTDT`

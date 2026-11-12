@@ -178,7 +178,7 @@
 //!
 //! use bunsen::{
 //!     data::{
-//!         builds::Deferred,
+//!         builds::DeferredBuild,
 //!         resources::{
 //!             ResourceCache,
 //!             ResourceSet,
@@ -214,7 +214,7 @@
 //!     cache: &ResourceCache,
 //!     device: &Device,
 //! ) -> BunsenResult<Arc<WhisperConstruct>> {
-//!     Deferred::<WhisperConstructConfig>::from_resource_set(
+//!     DeferredBuild::<WhisperConstructConfig>::from_resource_set(
 //!         ResourceSet::given("mine", CHECKPOINT, path),
 //!     )?
 //!     .load_construct(

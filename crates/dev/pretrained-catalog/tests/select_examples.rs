@@ -32,8 +32,6 @@ use bunsen::data::catalog::{
             NamedSelection,
             SelectRequest,
             SelectionContext,
-            bool_axis_member,
-            preset_prefix,
         },
         query::{
             LabeledStage,
@@ -722,7 +720,7 @@ fn ranked(
     request: &SelectRequest,
 ) -> Vec<String> {
     let env = SelectEnv::new(stack);
-    let prefix = preset_prefix(&PresetSelection::of(presets.iter().copied()), Vec::new());
+    let prefix = PresetSelection::of(presets.iter().copied()).prefix_stage(Vec::new());
     leaves(
         &context
             .rank(&env, None, prefix, request)
@@ -804,7 +802,7 @@ fn an_axis_flag_is_a_preset_and_the_prefix_that_keeps_its_builds() {
     let env = SelectEnv::new(&stack);
     // `--off thinking` is the preset `no-thinking`; the prefix keeps the
     // builds that can take it, and the caller applies it.
-    let off = bool_axis_member(&stack, "thinking", false).unwrap();
+    let off = stack.bool_axis_member("thinking", false).unwrap();
     let presets = PresetSelection::of([off.as_str()]);
     let context = SelectionContext::default();
     let request = SelectRequest::default().name("qwen3");
@@ -812,12 +810,12 @@ fn an_axis_flag_is_a_preset_and_the_prefix_that_keeps_its_builds() {
         ranked(&stack, &context, &[off.as_str()], &request),
         ["qwen3-0.6b", "qwen3-0.6b-base"]
     );
-    let prefix = preset_prefix(&presets, vec!["--off thinking".into()]);
+    let prefix = presets.prefix_stage(vec!["--off thinking".into()]);
     let (build, _) = context.choose(&env, None, prefix, &request).unwrap();
     let applied = build.build.presets.select(json!({}), &presets).unwrap();
     assert_eq!(applied.applied, ["no-thinking"]);
     // On a build that fixes the other mode, the prefix's reason is the error.
-    let prefix = preset_prefix(&presets, vec!["--off thinking".into()]);
+    let prefix = presets.prefix_stage(vec!["--off thinking".into()]);
     let err = context
         .choose(
             &env,
@@ -836,10 +834,7 @@ fn an_axis_flag_is_a_preset_and_the_prefix_that_keeps_its_builds() {
 fn a_preset_prefix_narrows_with_reasons() {
     let stack = fixtures::example_stack().unwrap();
     let env = SelectEnv::new(&stack);
-    let prefix = preset_prefix(
-        &PresetSelection::of(["translate"]),
-        vec!["--preset translate".into()],
-    );
+    let prefix = PresetSelection::of(["translate"]).prefix_stage(vec!["--preset translate".into()]);
     let run = SelectionContext::default()
         .rank(
             &env,

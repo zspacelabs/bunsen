@@ -306,7 +306,7 @@ impl AsrConstructArgs {
         if let Some(chunk_ms) = self.chunk_ms {
             resolved.chunk_ms = chunk_ms;
         }
-        log::info!(
+        log::debug!(
             "preset {} ({}): {}",
             resolved.preset,
             resolved.need,

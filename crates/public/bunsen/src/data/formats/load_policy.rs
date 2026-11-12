@@ -29,7 +29,7 @@ use crate::{
 /// How a load chooses the float dtype its parameters are placed in: a plain
 /// part of the load call
 /// ([`BuildFactory::load`](crate::data::builds::BuildFactory::load),
-/// [`Deferred::load`](crate::data::builds::Deferred::load),
+/// [`DeferredBuild::load`](crate::data::builds::DeferredBuild::load),
 /// [`ConstructInit::try_init`](crate::data::builds::ConstructInit::try_init)),
 /// made by intent at the call site, never guessed by the loader.
 ///

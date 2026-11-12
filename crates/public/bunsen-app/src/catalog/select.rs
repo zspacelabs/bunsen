@@ -12,9 +12,6 @@ use bunsen::{
                 OriginStage,
                 SelectRequest,
                 SelectionContext,
-                bool_axis_member,
-                empty_error,
-                preset_prefix,
             },
             query::{
                 LabeledStage,
@@ -202,7 +199,7 @@ impl SelectionFlags {
     /// The prefix the presets make: one `keep: {$presets: [..]}`, or `None`
     /// without presets.
     pub fn prefix(&self) -> Option<OriginStage> {
-        preset_prefix(&self.presets, self.preset_flags.clone())
+        self.presets.prefix_stage(self.preset_flags.clone())
     }
 }
 
@@ -366,7 +363,8 @@ fn select_flags(
     for (id, on) in [("on", true), ("off", false)] {
         for (at, v) in occurrences(matches, id, 1) {
             let flag = format!("--{id} {}", v[0]);
-            let member = bool_axis_member(stack, &v[0], on)
+            let member = stack
+                .bool_axis_member(&v[0], on)
                 .map_err(|e| format!("`{flag}`: {}", e.problem_message()))?;
             flags.push((at, SelectFlag::Preset(member, flag)));
         }
@@ -664,7 +662,7 @@ pub(super) fn select(
         .run_composed(&env, None, &composed)
         .map_err(|e| e.problem_message())?;
     if run.table.is_empty() {
-        return Err(empty_error(&run).problem_message());
+        return Err(run.empty_error().problem_message());
     }
     let results = run
         .table

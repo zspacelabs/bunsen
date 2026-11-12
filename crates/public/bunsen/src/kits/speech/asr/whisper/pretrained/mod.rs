@@ -57,7 +57,7 @@
 //! is the whole pathway from a name to a
 //! [`WhisperConstruct`](crate::kits::speech::asr::whisper::driver::WhisperConstruct)
 //! behind an `Arc`. The factory resolves the name to a
-//! [`Deferred`](crate::data::builds::Deferred) model carrying the
+//! [`DeferredBuild`](crate::data::builds::DeferredBuild) model carrying the
 //! kit's hook, [`WhisperConstructConfig`], with the [`WhisperReader`] its
 //! checkpoint's `kind` names (`OpenAI`'s `.pt`, or `transformers`'
 //! `model.safetensors`, one file or shards). The hook's plan brings the
@@ -66,7 +66,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_resource_set`](crate::data::builds::Deferred::from_resource_set).
+//! through [`DeferredBuild::from_resource_set`](crate::data::builds::DeferredBuild::from_resource_set).
 //!
 //! # Example
 //!

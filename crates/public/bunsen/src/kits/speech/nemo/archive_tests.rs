@@ -271,10 +271,7 @@ fn test_conformer_loads_in_either_flatten_order() {
         },
     };
 
-    use crate::{
-        blocks::signals::DwStridingFlattenOrder,
-        data::formats::apply_rekeyed_tensors,
-    };
+    use crate::blocks::signals::DwStridingFlattenOrder;
 
     let device = cpu_device();
     let config: ToyConfig = toy().config().unwrap();
@@ -292,7 +289,7 @@ fn test_conformer_loads_in_either_flatten_order() {
         let tensors = weights()
             .into_iter()
             .filter(|t| t.name.starts_with("encoder."));
-        apply_rekeyed_tensors(&mut encoder, tensors, &rekey).unwrap();
+        rekey.apply_to(&mut encoder, tensors).unwrap();
         (conformer, encoder)
     };
     let (conformer, upstream) = load(DwStridingFlattenOrder::ChannelsFreqs);

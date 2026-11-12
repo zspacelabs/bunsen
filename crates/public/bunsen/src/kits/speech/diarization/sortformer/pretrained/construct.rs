@@ -283,7 +283,7 @@ mod tests {
     fn test_a_nemo_builds_a_v2_bundle() {
         use crate::{
             data::{
-                builds::Deferred,
+                builds::DeferredBuild,
                 cache::BunsenDiskCacheOptions,
                 resources::ResourceCacheOptions,
             },
@@ -309,7 +309,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let bundle = Deferred::<SortformerConstructConfig>::from_resource_set(map)
+        let bundle = DeferredBuild::<SortformerConstructConfig>::from_resource_set(map)
             .unwrap()
             .load(
                 &cache,

@@ -149,7 +149,7 @@ mod tests {
                 builds::{
                     BuildRef,
                     ConstructInit,
-                    Deferred,
+                    DeferredBuild,
                 },
                 cache::BunsenDiskCacheOptions,
                 resources::{
@@ -230,7 +230,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let err = Deferred::<ResNetConstructConfig>::from_resource_set(ResourceSet::given(
+        let err = DeferredBuild::<ResNetConstructConfig>::from_resource_set(ResourceSet::given(
             "mine", CHECKPOINT, &file,
         ))
         .unwrap()

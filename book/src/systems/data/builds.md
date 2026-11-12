@@ -65,7 +65,7 @@ to that factory ([no registry](bunsen::data::builds::BuildFactory#no-registry)).
 
 ## Deferred models and the kit's hook
 
-What a name resolves to is a [`Deferred`](bunsen::data::builds::Deferred)
+What a name resolves to is a [`DeferredBuild`](bunsen::data::builds::DeferredBuild)
 model: a [`BuildRef`](bunsen::data::builds::BuildRef) (the build, or a given
 resource set), plus the kit's
 [`ConstructInit`](bunsen::data::builds::ConstructInit) hook. The hook is
@@ -81,6 +81,6 @@ set and checks what the build promises, such as its stated geometry, before
 any bytes are fetched. The cache then brings the files local. Finally the
 hook's [`try_init`](bunsen::data::builds::ConstructInit::try_init) builds the
 model from them. Before loading, a caller can lay its own resources over the
-build's with [`with_overlay`](bunsen::data::builds::Deferred::with_overlay),
+build's with [`with_overlay`](bunsen::data::builds::DeferredBuild::with_overlay),
 where the caller's resource wins by slot. `bunsen-tool asr family whisper`'s
 `--vocab` flag works this way.

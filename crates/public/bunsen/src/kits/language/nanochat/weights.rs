@@ -35,7 +35,6 @@ use crate::{
     },
     data::formats::{
         NamedTensorsApplied,
-        apply_rekeyed_tensors_as,
         read_pytorch_tensors,
         stored_float_dtype,
     },
@@ -248,7 +247,7 @@ pub fn pt_rekey() -> Rekey {
 /// # Errors
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) naming any
 /// tensor the model has no parameter for; otherwise as
-/// [`apply_rekeyed_tensors_as`].
+/// [`Rekey::apply_as`].
 pub fn load_pt_tensors(
     model: &mut NanoChatGpt,
     tensors: impl IntoIterator<Item = PackTensor>,
@@ -279,7 +278,7 @@ pub fn load_pt_tensors(
         .mount_canonical("", model);
     tensors.extend(scales);
     let rekey = pt_rekey().then(last);
-    let applied = apply_rekeyed_tensors_as(model, tensors, &rekey, Some(dtype.into()))?;
+    let applied = rekey.apply_as(model, tensors, Some(dtype.into()))?;
     if !applied.unused.is_empty() {
         return Err(BunsenError::unsupported(format!(
             "a nanochat state dict with tensors the model has no parameter for: {}",

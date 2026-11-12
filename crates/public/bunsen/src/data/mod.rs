@@ -46,7 +46,7 @@
 //!   args, resources in the catalog's form        │
 //!   │ BuildRef::Named                            │ BuildRef::Given
 //!   ▼                                            ▼
-//! Deferred<H>: the ref, and the hook H::for_resource_set(its files) picks
+//! DeferredBuild<H>: the ref, and the hook H::for_resource_set(its files) picks
 //!   │ [with_overlay(resource set)]: the caller's resources win, by slot
 //!   │ load(&cache, &device):
 //!   │   H::plan(ref, cache)              -> the completed ResourceSet
@@ -66,11 +66,12 @@
 //!   form are a [`ResourceSet`] of [`Resource`]s. A path or a manifest skips
 //!   this step, since it is a resource set already.
 //! - **Build to deferred model.** The build, or the given resource set, becomes
-//!   a [`BuildRef`]. [`Deferred::new`] or [`Deferred::from_resource_set`] pairs
-//!   it with the kit's hook, chosen by [`ConstructInit::for_resource_set`] from
-//!   the resources' `format`s. [`Deferred::with_overlay`] lays the caller's
-//!   resources over the build's.
-//! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
+//!   a [`BuildRef`]. [`DeferredBuild::new`] or
+//!   [`DeferredBuild::from_resource_set`] pairs it with the kit's hook, chosen
+//!   by [`ConstructInit::for_resource_set`] from the resources' `format`s.
+//!   [`DeferredBuild::with_overlay`] lays the caller's resources over the
+//!   build's.
+//! - **Deferred to loaded.** [`DeferredBuild::load`] runs the hook's
 //!   [`plan`](crate::data::builds::ConstructInit::plan), then
 //!   [`ResourceCache::load`] (in its [source order], into
 //!   [`LoadedResourceSet`]), then the hook's
@@ -102,7 +103,7 @@
 //!
 //! | Feature | Default | What it adds here |
 //! |---------|---------|-------------------|
-//! | `cache` | yes, through `store` | the [`cache`] module; [`ResourceCache`], [`BuildFactory`], [`Deferred`], [`ConstructInit`], [`Loaded`], [`LoadedResourceSet`]; [`ShardSet`]. All local. |
+//! | `cache` | yes, through `store` | the [`cache`] module; [`ResourceCache`], [`BuildFactory`], [`DeferredBuild`], [`ConstructInit`], [`Loaded`], [`LoadedResourceSet`]; [`ShardSet`]. All local. |
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`ResourceCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
 //! | `store` | yes | the checkpoint readers: [`SafetensorsCheckpoint`] (the reader for `hf:` rows), the `PyTorch` reader kits read `.pt` checkpoints with, the burnpack, `.nemo` and Phonon ([`fermion`](formats::fermion)) readers. |
@@ -116,11 +117,11 @@
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
 //! [`ConstructInit`]: crate::data::builds::ConstructInit
 //! [`ConstructInit::for_resource_set`]: crate::data::builds::ConstructInit::for_resource_set
-//! [`Deferred`]: crate::data::builds::Deferred
-//! [`Deferred::from_resource_set`]: crate::data::builds::Deferred::from_resource_set
-//! [`Deferred::load`]: crate::data::builds::Deferred::load
-//! [`Deferred::new`]: crate::data::builds::Deferred::new
-//! [`Deferred::with_overlay`]: crate::data::builds::Deferred::with_overlay
+//! [`DeferredBuild`]: crate::data::builds::DeferredBuild
+//! [`DeferredBuild::from_resource_set`]: crate::data::builds::DeferredBuild::from_resource_set
+//! [`DeferredBuild::load`]: crate::data::builds::DeferredBuild::load
+//! [`DeferredBuild::new`]: crate::data::builds::DeferredBuild::new
+//! [`DeferredBuild::with_overlay`]: crate::data::builds::DeferredBuild::with_overlay
 //! [`HfProvider`]: crate::data::builds::HfProvider
 //! [`Loaded`]: crate::data::builds::Loaded
 //! [`LoadedResourceSet`]: resources::LoadedResourceSet

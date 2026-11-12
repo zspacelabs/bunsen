@@ -18,10 +18,7 @@ use crate::{
         ModuleInit,
         Rekey,
     },
-    data::formats::{
-        SafetensorsCheckpoint,
-        apply_rekeyed_tensors,
-    },
+    data::formats::SafetensorsCheckpoint,
     errors::{
         BunsenError,
         BunsenResult,
@@ -47,7 +44,7 @@ use crate::{
 /// `model.` (a tied `proj_out.weight`) is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+/// [`Rekey::apply_to`] resolves to `gamma` / `beta`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest().mount(
         "model.",
@@ -192,7 +189,7 @@ impl SafetensorsWhisperScanner {
     ///
     /// # Errors
     /// As [`scan_cfg`](Self::scan_cfg),
-    /// [`SafetensorsCheckpoint::tensors`] and [`apply_rekeyed_tensors`].
+    /// [`SafetensorsCheckpoint::tensors`] and [`Rekey::apply_to`].
     pub fn load(
         &self,
         checkpoint: &SafetensorsCheckpoint,
@@ -201,7 +198,7 @@ impl SafetensorsWhisperScanner {
         let cfg = self.scan_cfg(checkpoint)?;
         let mut module: Whisper = cfg.try_init(device)?;
         let rekey = transformers_rekey().then(module.canonical_rekey());
-        apply_rekeyed_tensors(&mut module, checkpoint.tensors()?, &rekey)?;
+        rekey.apply_to(&mut module, checkpoint.tensors()?)?;
         Ok((module, cfg))
     }
 }

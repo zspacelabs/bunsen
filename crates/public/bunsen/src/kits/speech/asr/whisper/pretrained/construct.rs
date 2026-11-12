@@ -546,7 +546,7 @@ mod preset_tests {
 mod reader_tests {
     use super::*;
     use crate::{
-        data::builds::Deferred,
+        data::builds::DeferredBuild,
         errors::testing::ErrorMatcher,
     };
 
@@ -569,7 +569,9 @@ mod reader_tests {
         {
             let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
             assert!(matches!(hook.reader, WhisperReader::Safetensors(_)));
-            assert!(Deferred::<WhisperConstructConfig>::from_resource_set(map.clone()).is_ok());
+            assert!(
+                DeferredBuild::<WhisperConstructConfig>::from_resource_set(map.clone()).is_ok()
+            );
         }
 
         // A sharded family under the key: its first resource speaks.
@@ -595,7 +597,7 @@ mod reader_tests {
             .frame_contains("checkpoint")
             .display_contains("checkpoint: no reader for a \"burnpack\"")
             .assert_err(&WhisperConstructConfig::for_resource_set(&map));
-        ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(&Deferred::<
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(&DeferredBuild::<
             WhisperConstructConfig,
         >::from_resource_set(
             map

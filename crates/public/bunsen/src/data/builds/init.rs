@@ -24,8 +24,8 @@ use crate::{
 /// ref's resource set is completed before it is loaded
 /// ([`plan`](Self::plan)), and how the loaded parts become the built thing,
 /// behind an `Arc` ([`try_init`](Self::try_init)). A
-/// [`Deferred`](super::Deferred) model pairs a ref with its construct config
-/// and runs the whole way: plan, [`ResourceCache::load`], `try_init`.
+/// [`DeferredBuild`](super::DeferredBuild) model pairs a ref with its construct
+/// config and runs the whole way: plan, [`ResourceCache::load`], `try_init`.
 ///
 /// Not object-safe: [`try_init`](Self::try_init) is generic over the
 /// backend so that [`Construct`](Self::Construct) is a real type. A
@@ -98,7 +98,8 @@ pub trait ConstructInit: Sized {
 
 /// The handle a pretrained hands back: bound by what was built.
 ///
-/// The end of the pathway: what [`Deferred::load`](super::Deferred::load)
+/// The end of the pathway: what
+/// [`DeferredBuild::load`](super::DeferredBuild::load)
 /// and [`BuildFactory::load`](super::BuildFactory::load) return.
 /// Cloning shares the handle; the built thing is constructed once.
 #[derive(Debug)]
@@ -134,7 +135,7 @@ mod tests {
     use super::*;
     use crate::{
         data::{
-            builds::Deferred,
+            builds::DeferredBuild,
             cache::BunsenDiskCacheOptions,
             resources::{
                 Fuse,
@@ -251,7 +252,7 @@ mod tests {
             vocabulary: Some(vocabulary.clone()),
         };
 
-        let loaded = Deferred {
+        let loaded = DeferredBuild {
             model: BuildRef::from(ResourceSet::given("mine", "checkpoint", &checkpoint)),
             config,
         }
@@ -297,7 +298,7 @@ mod tests {
         let config = Paths {
             vocabulary: Some(dir.path().join("never-read.tiktoken")),
         };
-        let loaded = Deferred {
+        let loaded = DeferredBuild {
             model: model.clone(),
             config,
         }
@@ -310,7 +311,7 @@ mod tests {
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
 
         // The hook a resource set calls for, with no rule of its own.
-        let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
+        let no_rule = DeferredBuild::<Paths>::new(model.clone()).unwrap();
         assert!(no_rule.config.vocabulary.is_none());
         let loaded = no_rule
             .load(
@@ -337,7 +338,7 @@ mod tests {
         fs::write(&checkpoint, b"x").unwrap();
         let cache = cache_in(dir.path());
 
-        let err = Deferred::<NeedsConfig>::from_resource_set(ResourceSet::given(
+        let err = DeferredBuild::<NeedsConfig>::from_resource_set(ResourceSet::given(
             "mine",
             "checkpoint",
             &checkpoint,
@@ -357,15 +358,18 @@ mod tests {
             .assert(&err);
 
         let absent = dir.path().join("absent.pt");
-        let err =
-            Deferred::<Paths>::from_resource_set(ResourceSet::given("mine", "checkpoint", &absent))
-                .unwrap()
-                .load(
-                    &cache,
-                    &cpu_device(),
-                    crate::data::formats::LoadPolicy::as_stored(),
-                )
-                .unwrap_err();
+        let err = DeferredBuild::<Paths>::from_resource_set(ResourceSet::given(
+            "mine",
+            "checkpoint",
+            &absent,
+        ))
+        .unwrap()
+        .load(
+            &cache,
+            &cpu_device(),
+            crate::data::formats::LoadPolicy::as_stored(),
+        )
+        .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .cause(predicate("the absent path", move |c: &LookupError| {
                 c.problem == LookupProblem::Missing && c.key == absent.display().to_string()

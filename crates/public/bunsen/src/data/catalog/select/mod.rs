@@ -12,7 +12,7 @@
 //!
 //! A query only filters, weighs and orders. The caller applies the presets
 //! it chose, and filters out the builds they can't apply to with a prefix
-//! ([`choose::preset_prefix`]).
+//! ([`PresetSelection::prefix_stage`](crate::data::catalog::presets::PresetSelection::prefix_stage)).
 
 pub mod choose;
 pub mod query;

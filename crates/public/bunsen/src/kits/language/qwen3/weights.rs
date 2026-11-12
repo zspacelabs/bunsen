@@ -47,7 +47,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_rekeyed`](crate::data::formats::load_rekeyed) resolves to `gamma`.
+/// [`Rekey::load`](crate::burner::module::Rekey::load) resolves to `gamma`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(

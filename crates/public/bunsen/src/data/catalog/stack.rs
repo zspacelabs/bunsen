@@ -990,26 +990,26 @@ impl BunsenCatalogStack {
             }
             CatalogEntry::Facet(f) => {
                 push(&mut errors, described(&f.description));
-                push(&mut errors, reserved_tag_name(entry.name()));
+                push(&mut errors, entry.name().check_not_reserved_tag());
             }
             CatalogEntry::Tag(t) => {
                 push(&mut errors, described(&t.description));
-                push(&mut errors, reserved_tag_name(entry.name()));
+                push(&mut errors, entry.name().check_not_reserved_tag());
                 if matches!(
                     t.tag_type,
                     crate::data::catalog::document::TypeExpr::Primitive(
                         crate::data::catalog::document::Primitive::Bool
                     )
                 ) {
-                    push(&mut errors, positive_bool_name("tag", entry.name()));
+                    push(&mut errors, entry.name().check_positive_bool("tag"));
                 }
                 push(&mut errors, self.resolve_type(from, &t.tag_type));
             }
             CatalogEntry::Axis(a) => {
                 push(&mut errors, described(&a.description));
-                push(&mut errors, reserved_tag_name(entry.name()));
+                push(&mut errors, entry.name().check_not_reserved_tag());
                 if a.axis == crate::data::catalog::document::AxisKind::Bool {
-                    push(&mut errors, positive_bool_name("axis", entry.name()));
+                    push(&mut errors, entry.name().check_positive_bool("axis"));
                 }
                 let problem = match a.axis {
                     crate::data::catalog::document::AxisKind::Bool if !a.members.is_empty() => {
@@ -1738,45 +1738,49 @@ fn update(
     }
 }
 
-/// Tags, axes and facets name tags; the contract's implied tag takes one
-/// name from them.
-fn reserved_tag_name(name: &CatalogName) -> BunsenResult<()> {
-    if *name == crate::data::catalog::resolve::CONTRACT_TAG {
-        Err(catalog_error(
-            CatalogRule::Conflict,
-            format!(
-                "`{name}` is the tag every build's contract implies; nothing else may declare it"
-            ),
-        ))
-    } else {
-        Ok(())
+impl CatalogName {
+    /// Tags, axes and facets name tags; the contract's implied tag takes one
+    /// name from them.
+    fn check_not_reserved_tag(&self) -> BunsenResult<()> {
+        if *self == crate::data::catalog::resolve::CONTRACT_TAG {
+            Err(catalog_error(
+                CatalogRule::Conflict,
+                format!(
+                    "`{self}` is the tag every build's contract implies; nothing else may declare it"
+                ),
+            ))
+        } else {
+            Ok(())
+        }
     }
 }
 
 /// The prefixes that name a bool by its negative.
 const NEGATIVE_PREFIXES: [&str; 4] = ["no", "non", "not", "without"];
 
-/// A bool tag or axis is named by its positive: `timestamps`, not
-/// `no_timestamps`. A bool axis `X` generates its own negative, `no-X`.
-fn positive_bool_name(
-    what: &str,
-    name: &CatalogName,
-) -> BunsenResult<()> {
-    let leaf = name.leaf().to_ascii_lowercase();
-    let negative = NEGATIVE_PREFIXES.iter().find_map(|prefix| {
-        leaf.strip_prefix(prefix)
-            .and_then(|rest| rest.strip_prefix(['_', '-']))
-            .filter(|rest| !rest.is_empty())
-    });
-    match negative {
-        Some(positive) => Err(catalog_error(
-            CatalogRule::Name,
-            format!(
-                "a bool {what} is named by its positive: `{positive}`, not `{}`",
-                name.leaf()
-            ),
-        )),
-        None => Ok(()),
+impl CatalogName {
+    /// A bool tag or axis is named by its positive: `timestamps`, not
+    /// `no_timestamps`. A bool axis `X` generates its own negative, `no-X`.
+    fn check_positive_bool(
+        &self,
+        what: &str,
+    ) -> BunsenResult<()> {
+        let leaf = self.leaf().to_ascii_lowercase();
+        let negative = NEGATIVE_PREFIXES.iter().find_map(|prefix| {
+            leaf.strip_prefix(prefix)
+                .and_then(|rest| rest.strip_prefix(['_', '-']))
+                .filter(|rest| !rest.is_empty())
+        });
+        match negative {
+            Some(positive) => Err(catalog_error(
+                CatalogRule::Name,
+                format!(
+                    "a bool {what} is named by its positive: `{positive}`, not `{}`",
+                    self.leaf()
+                ),
+            )),
+            None => Ok(()),
+        }
     }
 }
 
