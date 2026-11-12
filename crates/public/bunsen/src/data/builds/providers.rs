@@ -7,10 +7,12 @@ use alloc::{
 };
 use core::fmt;
 
-use super::Pretrained;
 #[cfg(feature = "cache")]
 use crate::data::resources::PretrainedCache;
-use crate::errors::BunsenResult;
+use crate::{
+    data::builds::Pretrained,
+    errors::BunsenResult,
+};
 
 /// The name of the provider the compiled-in rows sit behind:
 /// `well-known:openai/tiny`.
@@ -35,14 +37,14 @@ pub const BUNDLED: &str = "bundled";
 /// scanning the listing ([`for_prefab`](Self::for_prefab)). One prefab,
 /// many rows, many providers.
 ///
-/// A [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+/// A [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
 /// holds a kit's providers in search order and offers each spec to them; its
 /// [dispatch rules] are where `Ok(None)` and an error part ways. The
 /// implementations in bunsen are [`PretrainedTable`], for compiled-in rows
 /// ([`WELL_KNOWN`], [`BUNDLED`]) and for any table read from a manifest, and
 /// [`HfProvider`](super::HfProvider), for `hf:org/repo`.
 ///
-/// [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
+/// [dispatch rules]: crate::data::builds::PretrainedFactory#dispatch
 ///
 /// Object-safe by construction, so a factory holds any mix of these behind
 /// `Arc<dyn PretrainedProvider>`. [`list`](Self::list) and

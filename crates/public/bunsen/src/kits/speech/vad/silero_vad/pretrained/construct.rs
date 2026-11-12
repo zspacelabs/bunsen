@@ -6,8 +6,11 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
         catalog::presets::ResolvedPresetSet,
-        pretrained::PretrainedRef,
         resources::{
             LoadedResources,
             ResourceBundle,
@@ -30,10 +33,7 @@ use crate::{
                 SILERO_KIT,
             },
         },
-        support::{
-            construct::ConstructInit,
-            model_config::resolve_ref_presets,
-        },
+        support::model_config::resolve_ref_presets,
     },
 };
 
@@ -162,7 +162,7 @@ mod tests {
 
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
-                &crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap()
+                &crate::data::builds::builtin_build_bundle("vad-16k").unwrap()
             )
             .unwrap()
             .reader,

@@ -29,12 +29,12 @@ use crate::{
 ///
 /// What [`PretrainedCache::load`](super::PretrainedCache::load) returns,
 /// and what a kit's
-/// [`ConstructInit::try_init`](crate::kits::support::construct::ConstructInit::try_init)
+/// [`ConstructInit::try_init`](crate::data::builds::ConstructInit::try_init)
 /// is handed: all it is handed, besides the ref. The hook reads its parts
 /// by key, with [`expect`](Self::expect), [`get`](Self::get), or
 /// [`family`](Self::family) for a checkpoint split across files (as
 /// [`SafetensorsCheckpoint::from_loaded`](crate::data::formats::SafetensorsCheckpoint::from_loaded)
-/// does). The [`Loaded`](crate::kits::support::construct::Loaded) handle keeps
+/// does). The [`Loaded`](crate::data::builds::Loaded) handle keeps
 /// it as `resources`, so a caller can say where every part came from
 /// ([`Provenance`](super::Provenance)).
 ///

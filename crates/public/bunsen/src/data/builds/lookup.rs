@@ -42,7 +42,7 @@ use crate::{
 /// mapping, which parses back to the same expression.
 ///
 /// ```
-/// use bunsen::kits::support::construct::LookupExpr;
+/// use bunsen::data::builds::LookupExpr;
 /// use serde_json::json;
 ///
 /// let expr = LookupExpr::parse("openai/small[translate]{beam_size: 1}")?;

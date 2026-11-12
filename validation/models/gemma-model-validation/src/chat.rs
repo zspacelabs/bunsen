@@ -93,7 +93,7 @@ fn check_row(row: &str) {
         None => ChatTemplate::from_file(&config),
     }
     .unwrap();
-    let family = bunsen::data::pretrained::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
+    let family = bunsen::data::builds::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
         .unwrap()
         .common["generation"]["chat_template"]
         .as_str()

@@ -12,7 +12,7 @@ use std::{
 
 use crate::{
     data::{
-        pretrained::HF,
+        builds::HF,
         resources::{
             GIVEN_NAMESPACE,
             PRETRAINED_DIR,

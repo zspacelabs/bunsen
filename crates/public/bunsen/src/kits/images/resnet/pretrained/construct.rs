@@ -7,7 +7,8 @@ use burn::tensor::Device;
 use crate::{
     burner::module::ModuleInit,
     data::{
-        pretrained::{
+        builds::{
+            ConstructInit,
             GEOMETRY,
             PretrainedRef,
         },
@@ -22,17 +23,14 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::{
-        images::resnet::{
-            ResNet,
-            ResNetContractConfig,
-            pretrained::{
-                CHECKPOINT,
-                RESNET_KIT,
-                RESNET_PREFABS,
-            },
+    kits::images::resnet::{
+        ResNet,
+        ResNetContractConfig,
+        pretrained::{
+            CHECKPOINT,
+            RESNET_KIT,
+            RESNET_PREFABS,
         },
-        support::construct::ConstructInit,
     },
 };
 
@@ -148,8 +146,12 @@ mod tests {
 
         use crate::{
             data::{
+                builds::{
+                    ConstructInit,
+                    Deferred,
+                    PretrainedRef,
+                },
                 cache::BunsenDiskCacheOptions,
-                pretrained::PretrainedRef,
                 resources::{
                     PretrainedCache,
                     PretrainedCacheOptions,
@@ -163,10 +165,6 @@ mod tests {
                     predicate,
                     value,
                 },
-            },
-            kits::support::construct::{
-                ConstructInit,
-                Deferred,
             },
             support::testing::cpu_device,
         };

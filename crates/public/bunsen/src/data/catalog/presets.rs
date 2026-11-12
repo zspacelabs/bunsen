@@ -114,7 +114,7 @@ pub struct PresetLink<'a> {
 /// A build's presets, folded along its chain.
 ///
 /// A pretrained row carries one
-/// ([`Pretrained::presets`](crate::data::pretrained::Pretrained::presets)), and
+/// ([`Pretrained::presets`](crate::data::builds::Pretrained::presets)), and
 /// a kit resolves its config through it at construct time.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ResolvedPresetSet {

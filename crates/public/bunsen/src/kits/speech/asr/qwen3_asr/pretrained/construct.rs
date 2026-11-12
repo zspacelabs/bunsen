@@ -15,13 +15,14 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::{
-        catalog::presets::ResolvedPresetSet,
-        formats::SafetensorsCheckpoint,
-        pretrained::{
+        builds::{
             CONFIG,
+            ConstructInit,
             GEOMETRY,
             PretrainedRef,
         },
+        catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResources,
             ResourceBundle,
@@ -46,7 +47,6 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
             model_config::resolve_ref_presets,
             tokens::ByteLevelVocabulary,
         },
@@ -199,13 +199,13 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         let qwen = Qwen3AsrConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-asr-0.6b").unwrap(),
+            &crate::data::builds::builtin_build_bundle("qwen/qwen3-asr-0.6b").unwrap(),
         )
         .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
         let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("fermion/phonon-1").unwrap(),
+            &crate::data::builds::builtin_build_bundle("fermion/phonon-1").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());

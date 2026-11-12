@@ -12,8 +12,11 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::{
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
         formats::SafetensorsCheckpoint,
-        pretrained::PretrainedRef,
         resources::{
             LoadedResources,
             ResourceBundle,
@@ -35,7 +38,6 @@ use crate::{
                 load_laya_tensors,
             },
         },
-        support::construct::ConstructInit,
         text::encoders::modernbert::weights::modernbert_config_from_transformers,
     },
 };
@@ -113,11 +115,11 @@ mod tests {
             "laya/laya-typed-decisions",
         ] {
             LayaConstructConfig::for_resource_bundle(
-                &crate::data::pretrained::builtin_build_bundle(name).unwrap(),
+                &crate::data::builds::builtin_build_bundle(name).unwrap(),
             )
             .unwrap();
         }
-        let mut other = crate::data::pretrained::builtin_build_bundle("laya/laya").unwrap();
+        let mut other = crate::data::builds::builtin_build_bundle("laya/laya").unwrap();
         other.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

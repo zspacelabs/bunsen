@@ -10,12 +10,13 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
-        catalog::presets::ResolvedPresetSet,
-        formats::SafetensorsCheckpoint,
-        pretrained::{
+        builds::{
+            ConstructInit,
             GEOMETRY,
             PretrainedRef,
         },
+        catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         resources::{
             Fuse,
             GIVEN_NAMESPACE,
@@ -51,7 +52,6 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
             model_config::resolve_ref_presets,
             tokens::TiktokenRanks,
         },
@@ -459,7 +459,7 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            crate::data::pretrained::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
+            crate::data::builds::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
         } else {
             ResolvedPresetSet::default()
         };
@@ -551,8 +551,8 @@ mod preset_tests {
 mod reader_tests {
     use super::*;
     use crate::{
+        data::builds::Deferred,
         errors::testing::ErrorMatcher,
-        kits::support::construct::Deferred,
     };
 
     /// The checkpoint's `kind` chooses the reader when the hook is chosen,

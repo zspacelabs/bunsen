@@ -12,20 +12,22 @@ use alloc::{
 
 use serde::Deserialize;
 
-use super::{
-    Pretrained,
-    PretrainedProvider,
-};
 #[cfg(feature = "cache")]
 use crate::data::resources::PretrainedCache;
 use crate::{
-    data::resources::{
-        Resource,
-        ResourceBundle,
-        SAFETENSORS,
-        SAFETENSORS_INDEX,
-        Source,
-        is_sha256_hex,
+    data::{
+        builds::{
+            Pretrained,
+            PretrainedProvider,
+        },
+        resources::{
+            Resource,
+            ResourceBundle,
+            SAFETENSORS,
+            SAFETENSORS_INDEX,
+            Source,
+            is_sha256_hex,
+        },
     },
     errors::{
         BunsenError,
@@ -368,7 +370,7 @@ impl HfProvider {
     /// [`Illegal`](BunsenErrorKind::Illegal), with a [`ParseError`], for
     /// anything else. A caller that took the ref from outside the program
     /// re-marks it [`as_policy`](BunsenError::as_policy), as
-    /// [`PretrainedFactory::resolve`](crate::kits::support::construct::PretrainedFactory::resolve)
+    /// [`PretrainedFactory::resolve`](crate::data::builds::PretrainedFactory::resolve)
     /// does.
     pub fn split<'a>(
         &self,

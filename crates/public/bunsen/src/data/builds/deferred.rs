@@ -4,13 +4,13 @@ use alloc::collections::BTreeMap;
 
 use burn::tensor::Device;
 
-use super::{
-    ConstructInit,
-    Loaded,
-};
 use crate::{
     data::{
-        pretrained::PretrainedRef,
+        builds::{
+            ConstructInit,
+            Loaded,
+            PretrainedRef,
+        },
         resources::{
             CacheStatus,
             PretrainedCache,
@@ -167,8 +167,11 @@ mod tests {
     use super::*;
     use crate::{
         data::{
+            builds::{
+                Pretrained,
+                testing::CheckpointPath,
+            },
             cache::BunsenDiskCacheOptions,
-            pretrained::Pretrained,
             resources::{
                 PretrainedCacheOptions,
                 Provenance,
@@ -180,7 +183,6 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::support::construct::testing::CheckpointPath,
         support::testing::cpu_device,
     };
 

@@ -3,9 +3,11 @@ use alloc::sync::Arc;
 
 use super::NanoChatConstructConfig;
 use crate::{
-    data::pretrained::PretrainedProvider,
+    data::builds::{
+        PretrainedFactory,
+        PretrainedProvider,
+    },
     errors::BunsenResult,
-    kits::support::construct::PretrainedFactory,
 };
 
 /// The nanochat kit's name: its rows' `kit` tag.
@@ -37,7 +39,7 @@ pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
 /// nanochat's compiled-in providers: the well-known table.
 pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(
-        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+        crate::data::builds::BuildCatalogProvider::expect_builtin(
             NANOCHAT_CATALOG_CONTRACT,
             NANOCHAT_KIT,
         ),

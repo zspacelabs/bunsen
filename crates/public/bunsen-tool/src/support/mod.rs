@@ -9,12 +9,14 @@ mod model_row;
 mod output_format;
 
 use bunsen::{
-    data::catalog::presets::ResolvedPresetSet,
+    data::{
+        builds::LookupExpr,
+        catalog::presets::ResolvedPresetSet,
+    },
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::construct::LookupExpr,
     support::merge_patch,
 };
 pub use choose_args::*;

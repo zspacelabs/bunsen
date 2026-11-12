@@ -16,7 +16,6 @@ use burn::{
 };
 
 use super::{
-    ConstructInit,
     LmConstruct,
     LmPolicy,
 };
@@ -28,6 +27,11 @@ use crate::{
         Rekey,
     },
     data::{
+        builds::{
+            CONFIG,
+            ConstructInit,
+            PretrainedRef,
+        },
         catalog::presets::ResolvedPresetSet,
         formats::{
             LoadPolicy,
@@ -36,11 +40,7 @@ use crate::{
             load_rekeyed,
             stored_float_dtype,
         },
-        pretrained::{
-            CONFIG,
-            PretrainedRef,
-            StaticPreFabMap,
-        },
+        pretrained::StaticPreFabMap,
         resources::{
             LoadedResources,
             ResourceBundle,

@@ -6,24 +6,27 @@ use std::{
 };
 
 use bunsen::{
-    data::catalog::{
-        CatalogErrorExt,
-        CatalogName,
-        resolve::ResolvedBuild,
-        select::{
-            choose::{
-                SelectRequest,
-                SelectionContext,
-            },
-            query::{
-                LabeledStage,
-                SortKeys,
-                Stage,
-            },
-            state::{
-                DeriveTags,
-                DerivedKey,
-                SelectEnv,
+    data::{
+        builds::LookupExpr,
+        catalog::{
+            CatalogErrorExt,
+            CatalogName,
+            resolve::ResolvedBuild,
+            select::{
+                choose::{
+                    SelectRequest,
+                    SelectionContext,
+                },
+                query::{
+                    LabeledStage,
+                    SortKeys,
+                    Stage,
+                },
+                state::{
+                    DeriveTags,
+                    DerivedKey,
+                    SelectEnv,
+                },
             },
         },
     },
@@ -32,7 +35,6 @@ use bunsen::{
         BunsenResult,
         LookupError,
     },
-    kits::support::construct::LookupExpr,
 };
 use serde::{
     Deserialize,

@@ -52,7 +52,7 @@ pub enum Fuse {
 ///
 /// The unit a pretrained is described in, cached by, and fused from. The
 /// keys are the kit's; nothing here knows which one is the model. A
-/// [`Pretrained`](crate::data::pretrained::Pretrained) row is one resource
+/// [`Pretrained`](crate::data::builds::Pretrained) row is one resource
 /// bundle, fused from the resource bundles it lists; [`ResourceBundle::given`]
 /// is a path as a resource
 /// bundle; [`PretrainedCache::load`](super::PretrainedCache::load) brings a

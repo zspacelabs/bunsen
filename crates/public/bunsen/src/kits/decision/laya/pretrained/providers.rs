@@ -3,9 +3,11 @@ use alloc::sync::Arc;
 
 use super::LayaConstructConfig;
 use crate::{
-    data::pretrained::PretrainedProvider,
+    data::builds::{
+        PretrainedFactory,
+        PretrainedProvider,
+    },
     errors::BunsenResult,
-    kits::support::construct::PretrainedFactory,
 };
 
 /// The Laya kit's name: its rows' `kit` tag.
@@ -36,10 +38,7 @@ pub const DEFAULT_LAYA_MODEL: &str = "laya/laya/laya";
 /// Laya's compiled-in providers: the well-known table.
 pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(
-        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-            LAYA_CATALOG_CONTRACT,
-            LAYA_KIT,
-        ),
+        crate::data::builds::BuildCatalogProvider::expect_builtin(LAYA_CATALOG_CONTRACT, LAYA_KIT),
     )]
 }
 

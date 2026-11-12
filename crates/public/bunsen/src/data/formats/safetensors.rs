@@ -196,9 +196,9 @@ impl SafetensorsIndex {
 /// gathers it from a [family](crate::data::resources::LoadedResources::family)
 /// of resources under the kit's checkpoint key, the one file or the index and
 /// the shards it names. That is the layout an
-/// [`HfProvider`](crate::data::pretrained::HfProvider) row has.
+/// [`HfProvider`](crate::data::builds::HfProvider) row has.
 ///
-/// A kit's [`ConstructInit`](crate::kits::support::construct::ConstructInit)
+/// A kit's [`ConstructInit`](crate::data::builds::ConstructInit)
 /// hook makes one from the [`LoadedResources`] the cache brought local.
 /// [`headers`](Self::headers) reads every tensor's name, element type and shape
 /// without touching the data. [`load_into`](Self::load_into) loads every shard

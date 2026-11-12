@@ -6,7 +6,7 @@
 
 use bunsen::{
     data::{
-        pretrained::CONFIG,
+        builds::CONFIG,
         resources::ResourceBundle,
     },
     kits::language::qwen3_5::{

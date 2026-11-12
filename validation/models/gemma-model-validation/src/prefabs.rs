@@ -7,7 +7,7 @@
 
 use bunsen::{
     data::{
-        pretrained::CONFIG,
+        builds::CONFIG,
         resources::ResourceBundle,
     },
     kits::language::gemma::{

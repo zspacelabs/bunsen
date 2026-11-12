@@ -280,14 +280,14 @@ fn fetch_prefix(
 /// *what is trusted there*. A caller opens one from
 /// [`PretrainedCacheOptions`] (offline or not, local-dir overrides and
 /// verification, and with `fetch` the batch policy) and passes it to every
-/// load. [`Deferred::load`](crate::kits::support::construct::Deferred::load)
+/// load. [`Deferred::load`](crate::data::builds::Deferred::load)
 /// calls [`load`](Self::load) between the kit hook's
-/// [`plan`](crate::kits::support::construct::ConstructInit::plan) and
-/// [`try_init`](crate::kits::support::construct::ConstructInit::try_init), and
+/// [`plan`](crate::data::builds::ConstructInit::plan) and
+/// [`try_init`](crate::data::builds::ConstructInit::try_init), and
 /// the [`LoadedResources`] it returns are what the hook builds from. A
-/// [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+/// [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
 /// hands the cache to its providers too, so that a hub
-/// ([`HfProvider`](crate::data::pretrained::HfProvider)) can keep what it asked
+/// ([`HfProvider`](crate::data::builds::HfProvider)) can keep what it asked
 /// for. [`status`](Self::status) and [`map_status`](Self::map_status) answer a
 /// listing without touching any bytes.
 ///

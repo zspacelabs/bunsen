@@ -3,12 +3,12 @@ use alloc::sync::Arc;
 
 use super::SortformerConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::support::construct::PretrainedFactory,
 };
 
 /// The Sortformer kit's name: its rows' `kit` tag.
@@ -42,12 +42,10 @@ pub const DEFAULT_SORTFORMER_MODEL: &str = "nvidia/sortformer/nemotron-3-diariza
 /// holding a `NeMo` `.nemo` alone.
 pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                SORTFORMER_CATALOG_CONTRACT,
-                SORTFORMER_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            SORTFORMER_CATALOG_CONTRACT,
+            SORTFORMER_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -82,7 +80,7 @@ mod tests {
             ("nvidia/diar_streaming_sortformer_4spk-v2", NEMO),
             ("nvidia/diar_streaming_sortformer_4spk-v2.1", NEMO),
         ] {
-            let map = crate::data::pretrained::builtin_build_bundle(name).unwrap();
+            let map = crate::data::builds::builtin_build_bundle(name).unwrap();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{name}");

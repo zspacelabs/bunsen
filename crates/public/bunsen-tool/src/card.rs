@@ -31,6 +31,10 @@ use bunsen::kits::speech::{
 };
 use bunsen::{
     data::{
+        builds::{
+            ConstructInit,
+            PretrainedFactory,
+        },
         catalog::presets::ResolvedPresetSet,
         resources::PretrainedCache,
     },
@@ -55,10 +59,6 @@ use bunsen::{
                 Qwen3_5Policy,
                 pretrained::default_qwen3_5_factory,
             },
-        },
-        support::construct::{
-            ConstructInit,
-            PretrainedFactory,
         },
     },
 };

@@ -8,9 +8,9 @@ use alloc::{
 
 use serde_json::Value;
 
-use super::Tags;
 use crate::data::{
     catalog::presets::ResolvedPresetSet,
+    pretrained::Tags,
     resources::ResourceBundle,
 };
 
@@ -30,7 +30,7 @@ use crate::data::{
 /// names them `group/name`. A factory wraps the row it found in a
 /// [`PretrainedRef::Named`](super::PretrainedRef::Named), the next step
 /// toward a model. The [`prefab`](Self::prefab) field joins the row to the
-/// kit's [`StaticPreFabMap`](super::StaticPreFabMap), through
+/// kit's [`StaticPreFabMap`](crate::data::pretrained::StaticPreFabMap), through
 /// [`PretrainedRef::prefab`](super::PretrainedRef::prefab).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pretrained {
@@ -67,8 +67,9 @@ pub struct Pretrained {
     pub args: BTreeMap<String, Value>,
 
     /// Its tags: facts about the model, for listings and selection
-    /// ([`tags`](super::tags)). A catalog lays a row's over its group's and
-    /// family's, and writes its [`KIT`](super::tags::KIT) tag.
+    /// ([`tags`](crate::data::pretrained::tags)). A catalog lays a row's over
+    /// its group's and family's, and writes its
+    /// [`KIT`](crate::data::pretrained::tags::KIT) tag.
     pub tags: Tags,
 }
 

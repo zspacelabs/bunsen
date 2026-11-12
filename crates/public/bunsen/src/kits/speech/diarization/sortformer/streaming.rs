@@ -187,7 +187,7 @@ mod tests {
             "nvidia/sortformer/sortformer-v2"
         );
         for family in [SortformerFamily::Nemotron, SortformerFamily::SortformerV2] {
-            crate::data::pretrained::builtin_template_presets(family.template_class()).unwrap();
+            crate::data::builds::builtin_template_presets(family.template_class()).unwrap();
         }
     }
 

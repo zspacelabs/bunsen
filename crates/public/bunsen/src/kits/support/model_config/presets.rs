@@ -8,11 +8,11 @@ use serde_json::Value;
 
 use crate::{
     data::{
+        builds::PretrainedRef,
         catalog::presets::{
             PresetSelection,
             ResolvedPresetSet,
         },
-        pretrained::PretrainedRef,
     },
     errors::{
         BunsenError,
@@ -392,7 +392,7 @@ mod tests {
     #[test]
     fn test_resolve_ref_presets_falls_back_to_the_family() {
         use crate::data::{
-            pretrained::Pretrained,
+            builds::Pretrained,
             resources::ResourceBundle,
         };
 

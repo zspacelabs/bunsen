@@ -14,13 +14,14 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::{
-        catalog::presets::ResolvedPresetSet,
-        formats::SafetensorsCheckpoint,
-        pretrained::{
+        builds::{
             CONFIG,
+            ConstructInit,
             GEOMETRY,
             PretrainedRef,
         },
+        catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResources,
             ResourceBundle,
@@ -45,7 +46,6 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
             model_config::resolve_ref_presets,
             tokens::TekkenVocabulary,
         },
@@ -159,10 +159,8 @@ mod tests {
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
         VoxtralConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle(
-                "mistralai/voxtral-mini-4b-realtime-2602",
-            )
-            .unwrap(),
+            &crate::data::builds::builtin_build_bundle("mistralai/voxtral-mini-4b-realtime-2602")
+                .unwrap(),
         )
         .unwrap();
     }

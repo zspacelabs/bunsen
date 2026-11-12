@@ -5,11 +5,13 @@ use std::sync::Arc;
 use bunsen::{
     burner::device::DeviceSession,
     data::{
-        formats::LoadPolicy,
-        pretrained::{
+        builds::{
+            ConstructInit,
             Pretrained,
+            PretrainedFactory,
             WELL_KNOWN,
         },
+        formats::LoadPolicy,
         resources::PretrainedCache,
     },
     errors::BunsenResult,
@@ -36,11 +38,7 @@ use bunsen::{
                 default_qwen3_5_factory,
             },
         },
-        support::construct::{
-            ConstructInit,
-            LmPolicy,
-            PretrainedFactory,
-        },
+        support::construct::LmPolicy,
     },
 };
 

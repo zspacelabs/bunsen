@@ -3,12 +3,12 @@ use alloc::sync::Arc;
 
 use super::VoxtralConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::support::construct::PretrainedFactory,
 };
 
 /// The Voxtral kit's name: its rows' `kit` tag.
@@ -44,12 +44,10 @@ pub const DEFAULT_VOXTRAL_MODEL: &str = "mistralai/voxtral/voxtral-mini-4b-realt
 /// `tekken.json` as the vocabulary).
 pub fn default_voxtral_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                VOXTRAL_CATALOG_CONTRACT,
-                VOXTRAL_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            VOXTRAL_CATALOG_CONTRACT,
+            VOXTRAL_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -81,10 +79,9 @@ mod tests {
     /// qualified, short and aliased names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        let map = crate::data::pretrained::builtin_build_bundle(
-            "mistralai/voxtral-mini-4b-realtime-2602",
-        )
-        .unwrap();
+        let map =
+            crate::data::builds::builtin_build_bundle("mistralai/voxtral-mini-4b-realtime-2602")
+                .unwrap();
         map.validate().unwrap();
         for key in [CHECKPOINT, VOCABULARY] {
             let resource = map.get(key).unwrap();
@@ -115,7 +112,7 @@ mod tests {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, DEFAULT_VOXTRAL_MODEL, "{spec}");
             // Its geometry is stated, reads as a config, and is a prefab's.
-            let geometry = &row.args[crate::data::pretrained::GEOMETRY];
+            let geometry = &row.args[crate::data::builds::GEOMETRY];
             serde_json::from_value::<crate::kits::speech::asr::voxtral::VoxtralRealtimeConfig>(
                 geometry.clone(),
             )
@@ -134,7 +131,7 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::CONFIG,
+            data::builds::CONFIG,
             kits::support::catalog_contracts::testing::contract_lines,
         };
         assert_eq!(

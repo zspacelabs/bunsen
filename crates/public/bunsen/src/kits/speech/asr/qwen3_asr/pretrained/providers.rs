@@ -3,12 +3,12 @@ use alloc::sync::Arc;
 
 use super::Qwen3AsrConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::support::construct::PretrainedFactory,
 };
 
 /// The Qwen3-ASR kit's name: its rows' `kit` tag.
@@ -49,12 +49,10 @@ pub const DEFAULT_QWEN3_ASR_MODEL: &str = "fermion/phonon-1";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                QWEN3_ASR_CATALOG_CONTRACT,
-                QWEN3_ASR_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            QWEN3_ASR_CATALOG_CONTRACT,
+            QWEN3_ASR_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -133,7 +131,7 @@ mod tests {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, name);
             // Its geometry is stated, reads as a config, and is a prefab's.
-            let geometry = &row.args[crate::data::pretrained::GEOMETRY];
+            let geometry = &row.args[crate::data::builds::GEOMETRY];
             serde_json::from_value::<crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig>(
                 geometry.clone(),
             )
@@ -152,7 +150,7 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::CONFIG,
+            data::builds::CONFIG,
             kits::support::catalog_contracts::testing::contract_lines,
         };
         assert_eq!(

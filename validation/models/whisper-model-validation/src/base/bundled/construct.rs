@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use bunsen::{
     data::{
-        pretrained::PretrainedRef,
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
         resources::{
             Fuse,
             LoadedResources,
@@ -21,22 +24,19 @@ use bunsen::{
             predicate,
         },
     },
-    kits::{
-        speech::asr::whisper::{
-            WhisperGeometry,
-            WhisperMeta,
-            pretrained::{
-                CHECKPOINT,
-                GeometryMismatch,
-                PytorchWhisperScanner,
-                VOCABULARY,
-                WHISPER_PREFABS,
-                WhisperConstructConfig,
-                WhisperVocabulary,
-                default_whisper_factory,
-            },
+    kits::speech::asr::whisper::{
+        WhisperGeometry,
+        WhisperMeta,
+        pretrained::{
+            CHECKPOINT,
+            GeometryMismatch,
+            PytorchWhisperScanner,
+            VOCABULARY,
+            WHISPER_PREFABS,
+            WhisperConstructConfig,
+            WhisperVocabulary,
+            default_whisper_factory,
         },
-        support::construct::ConstructInit,
     },
     support::testing::performance_device,
 };

@@ -10,15 +10,13 @@ use alloc::{
     vec::Vec,
 };
 
-use super::{
-    Pretrained,
-    PretrainedProvider,
-    Tags,
-    WELL_KNOWN,
-    tags::KIT,
-};
 use crate::{
     data::{
+        builds::{
+            Pretrained,
+            PretrainedProvider,
+            WELL_KNOWN,
+        },
         catalog::{
             CatalogName,
             CatalogRef,
@@ -38,6 +36,10 @@ use crate::{
                 name_matches,
             },
             presets::ResolvedPresetSet,
+        },
+        pretrained::{
+            Tags,
+            tags::KIT,
         },
         resources::{
             Resource,

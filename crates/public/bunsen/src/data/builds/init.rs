@@ -4,7 +4,7 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
-        pretrained::PretrainedRef,
+        builds::PretrainedRef,
         resources::{
             LoadedResources,
             PretrainedCache,
@@ -135,6 +135,7 @@ mod tests {
     use super::*;
     use crate::{
         data::{
+            builds::Deferred,
             cache::BunsenDiskCacheOptions,
             resources::{
                 Fuse,
@@ -151,7 +152,6 @@ mod tests {
                 predicate,
             },
         },
-        kits::support::construct::Deferred,
         support::testing::cpu_device,
     };
 

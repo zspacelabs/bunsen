@@ -53,7 +53,7 @@ pub const END_OF_TEXT: &str = "<|endoftext|>";
 /// its key.
 ///
 /// The Qwen3.5 kit's construct config: its
-/// [`ConstructInit`](crate::kits::support::construct::ConstructInit) hook, by
+/// [`ConstructInit`](crate::data::builds::ConstructInit) hook, by
 /// [`TransformersLmKit`].
 /// [`default_qwen3_5_factory`](super::default_qwen3_5_factory) attaches it; a
 /// caller never builds one.
@@ -108,25 +108,25 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::{
-        language::qwen3_5::{
+    use crate::{
+        data::builds::ConstructInit,
+        kits::language::qwen3_5::{
             Qwen3_5Policy,
             pretrained::default_qwen3_5_factory,
         },
-        support::construct::ConstructInit,
     };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         Qwen3_5ConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap(),
+            &crate::data::builds::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap(),
         )
         .unwrap();
         Qwen3_5ConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3.5-9b").unwrap(),
+            &crate::data::builds::builtin_build_bundle("qwen/qwen3.5-9b").unwrap(),
         )
         .unwrap();
-        let mut gguf = crate::data::pretrained::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap();
+        let mut gguf = crate::data::builds::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap();
         gguf.resources.get_mut("checkpoint.index").unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

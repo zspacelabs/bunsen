@@ -58,7 +58,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`Qwen3ConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint into its
 //! geometry through

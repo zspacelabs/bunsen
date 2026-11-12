@@ -17,25 +17,23 @@ use serde::{
     de::DeserializeOwned,
 };
 
-use super::{
-    ConstructInit,
-    Deferred,
-    Loaded,
-    LookupExpr,
-};
 #[cfg(doc)]
 use crate::data::resources::ResourceBundle;
 use crate::{
     data::{
-        catalog::presets::PresetSelection,
-        formats::LoadPolicy,
-        not_found,
-        pretrained::{
+        builds::{
+            ConstructInit,
+            Deferred,
+            Loaded,
+            LookupExpr,
             Pretrained,
             PretrainedProvider,
             PretrainedRef,
-            tags::KIT,
         },
+        catalog::presets::PresetSelection,
+        formats::LoadPolicy,
+        not_found,
+        pretrained::tags::KIT,
         resources::PretrainedCache,
     },
     errors::{
@@ -78,7 +76,7 @@ use crate::{
 /// hook, which resolves its config through it.
 ///
 /// A table compares names ignoring ASCII case unless it is
-/// [`case_sensitive`](crate::data::pretrained::PretrainedTable::case_sensitive):
+/// [`case_sensitive`](crate::data::builds::PretrainedTable::case_sensitive):
 /// `Qwen/Qwen3-0.6B` finds `qwen/qwen3-0.6b`. A hub compares as it is asked,
 /// since its names are paths in URLs.
 ///
@@ -90,8 +88,8 @@ use crate::{
 ///   offered whole to each provider that [answers bare
 ///   names](PretrainedProvider::answers_bare_names), in registration order, and
 ///   the first row wins. A hub such as
-///   [`HfProvider`](crate::data::pretrained::HfProvider) declines bare names,
-///   so it is only reached qualified.
+///   [`HfProvider`](crate::data::builds::HfProvider) declines bare names, so it
+///   is only reached qualified.
 /// - A provider's "not here" is `Ok(None)`, and the search moves on. Any error
 ///   a provider returns aborts the lookup: a hub that cannot be reached is not
 ///   the same as a hub that has no such row.
@@ -681,7 +679,7 @@ mod tests {
     };
     use crate::{
         data::{
-            pretrained::{
+            builds::{
                 PretrainedGroup,
                 PretrainedTable,
                 WELL_KNOWN,

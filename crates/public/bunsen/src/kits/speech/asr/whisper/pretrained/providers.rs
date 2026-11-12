@@ -3,7 +3,7 @@
 use alloc::sync::Arc;
 
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
         PretrainedProvider,
     },
@@ -37,12 +37,10 @@ pub const WHISPER_CATALOG_CONTRACT: &str = "whisper-asr";
 /// [`default_whisper_factory`](super::default_whisper_factory).
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                WHISPER_CATALOG_CONTRACT,
-                WHISPER_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            WHISPER_CATALOG_CONTRACT,
+            WHISPER_KIT,
+        )),
         Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
     ]
 }
@@ -67,8 +65,8 @@ mod tests {
             .ids()
     }
 
-    fn well_known() -> crate::data::pretrained::BuildCatalogProvider {
-        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+    fn well_known() -> crate::data::builds::BuildCatalogProvider {
+        crate::data::builds::BuildCatalogProvider::expect_builtin(
             WHISPER_CATALOG_CONTRACT,
             WHISPER_KIT,
         )
@@ -79,10 +77,10 @@ mod tests {
     }
 
     /// The prefab whose geometry the row states.
-    fn prefab_of(row: &crate::data::pretrained::Pretrained) -> &'static str {
+    fn prefab_of(row: &crate::data::builds::Pretrained) -> &'static str {
         let geometry: crate::kits::speech::asr::whisper::WhisperGeometry = serde_json::from_value(
             row.args
-                .get(crate::data::pretrained::GEOMETRY)
+                .get(crate::data::builds::GEOMETRY)
                 .unwrap_or_else(|| panic!("{}: no stated geometry", row.name))
                 .clone(),
         )

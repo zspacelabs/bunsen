@@ -7,6 +7,12 @@ use std::{
 
 use bunsen::{
     data::{
+        builds::{
+            ConstructInit,
+            Deferred,
+            Pretrained,
+            PretrainedFactory,
+        },
         cache::verify_sha256,
         catalog::{
             CatalogName,
@@ -16,7 +22,6 @@ use bunsen::{
             },
         },
         formats::LoadPolicy,
-        pretrained::Pretrained,
         resources::{
             PretrainedCache,
             PretrainedCacheOptions,
@@ -26,44 +31,37 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::{
-        speech::{
-            asr::{
-                parakeet::{
-                    ParakeetConstruct,
-                    pretrained::{
-                        DEFAULT_PARAKEET_MODEL,
-                        default_parakeet_factory,
-                    },
-                },
-                qwen3_asr::{
-                    Qwen3AsrConstruct,
-                    pretrained::{
-                        DEFAULT_QWEN3_ASR_MODEL,
-                        default_qwen3_asr_factory,
-                    },
-                },
-                voxtral::{
-                    VoxtralConstruct,
-                    pretrained::{
-                        DEFAULT_VOXTRAL_MODEL,
-                        default_voxtral_factory,
-                    },
-                },
-                whisper::{
-                    driver::WhisperConstruct,
-                    pretrained::default_whisper_factory,
+    kits::speech::{
+        asr::{
+            parakeet::{
+                ParakeetConstruct,
+                pretrained::{
+                    DEFAULT_PARAKEET_MODEL,
+                    default_parakeet_factory,
                 },
             },
-            diarization::sortformer::pretrained::{
-                DEFAULT_SORTFORMER_MODEL,
-                default_sortformer_factory,
+            qwen3_asr::{
+                Qwen3AsrConstruct,
+                pretrained::{
+                    DEFAULT_QWEN3_ASR_MODEL,
+                    default_qwen3_asr_factory,
+                },
+            },
+            voxtral::{
+                VoxtralConstruct,
+                pretrained::{
+                    DEFAULT_VOXTRAL_MODEL,
+                    default_voxtral_factory,
+                },
+            },
+            whisper::{
+                driver::WhisperConstruct,
+                pretrained::default_whisper_factory,
             },
         },
-        support::construct::{
-            ConstructInit,
-            Deferred,
-            PretrainedFactory,
+        diarization::sortformer::pretrained::{
+            DEFAULT_SORTFORMER_MODEL,
+            default_sortformer_factory,
         },
     },
 };

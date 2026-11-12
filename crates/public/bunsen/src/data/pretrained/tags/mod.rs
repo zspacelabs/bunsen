@@ -1,10 +1,10 @@
 //! # Tags: what a pretrained model is, as facts a selection can read
 //!
-//! A [`Pretrained`](super::Pretrained) row carries [`Tags`]: a typeless map
-//! from keys to JSON values (`thinking: "switch"`, `language: ["en", "*"]`,
-//! `parameters: 600000000`). Tags are distinct from presets: a preset is a
-//! delta over the config a model is built from; a tag is a fact about the
-//! model, for listings and for choosing among models.
+//! A [`Pretrained`](crate::data::builds::Pretrained) row carries [`Tags`]: a
+//! typeless map from keys to JSON values (`thinking: "switch"`, `language:
+//! ["en", "*"]`, `parameters: 600000000`). Tags are distinct from presets: a
+//! preset is a delta over the config a model is built from; a tag is a fact
+//! about the model, for listings and for choosing among models.
 //!
 //! The keys form a loosely closed, shared vocabulary. Shared keys are bare
 //! (`language`); a key only one kit uses is prefixed with the kit's name and a
@@ -12,9 +12,9 @@
 //! convention of the vocabulary. Nothing at run time refuses a tag.
 //!
 //! A build catalog writes a row's tags from its build's tag fields, and a
-//! [`BuildCatalogProvider`](super::BuildCatalogProvider) writes the row's
-//! [`KIT`] tag. A factory writes the [`KIT`] tag on a row of any provider
-//! that lacks one, an `hf:` repo's among them.
+//! [`BuildCatalogProvider`](crate::data::builds::BuildCatalogProvider) writes
+//! the row's [`KIT`] tag. A factory writes the [`KIT`] tag on a row of any
+//! provider that lacks one, an `hf:` repo's among them.
 //!
 //! ## The vocabulary
 //!

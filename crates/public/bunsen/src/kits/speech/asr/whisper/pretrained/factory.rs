@@ -5,23 +5,23 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
-    data::resources::{
-        LoadedResources,
-        PretrainedCache,
-    },
-    errors::BunsenResult,
-    kits::{
-        speech::asr::whisper::{
-            WhisperApiConfig,
-            driver::WhisperConstruct,
-            pretrained::{
-                WhisperConstructConfig,
-                default_whisper_providers,
-            },
-        },
-        support::construct::{
+    data::{
+        builds::{
             Deferred,
             PretrainedFactory,
+        },
+        resources::{
+            LoadedResources,
+            PretrainedCache,
+        },
+    },
+    errors::BunsenResult,
+    kits::speech::asr::whisper::{
+        WhisperApiConfig,
+        driver::WhisperConstruct,
+        pretrained::{
+            WhisperConstructConfig,
+            default_whisper_providers,
         },
     },
 };
@@ -80,11 +80,12 @@ mod tests {
     use super::*;
     use crate::{
         data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::{
+            builds::{
                 PretrainedRef,
                 WELL_KNOWN,
+                testing::ListsNothing,
             },
+            cache::BunsenDiskCacheOptions,
             resources::{
                 PretrainedCacheOptions,
                 ResourceBundle,
@@ -94,13 +95,10 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::{
-            speech::asr::whisper::pretrained::{
-                CHECKPOINT,
-                WHISPER_KIT,
-                WhisperReader,
-            },
-            support::construct::testing::ListsNothing,
+        kits::speech::asr::whisper::pretrained::{
+            CHECKPOINT,
+            WHISPER_KIT,
+            WhisperReader,
         },
     };
 
@@ -209,7 +207,7 @@ mod tests {
     }
 
     /// The factory's rows name no prefab: each states its geometry instead
-    /// ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)).
+    /// ([`GEOMETRY`](crate::data::builds::GEOMETRY)).
     #[test]
     fn test_the_rows_name_no_prefab() {
         assert!(

@@ -2,7 +2,7 @@
 
 use bunsen::{
     data::{
-        pretrained::BUNDLED,
+        builds::BUNDLED,
         resources::{
             CacheStatus,
             Fuse,

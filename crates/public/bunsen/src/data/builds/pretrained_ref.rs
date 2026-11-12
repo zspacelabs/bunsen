@@ -8,14 +8,14 @@ use core::fmt::Debug;
 
 use burn::config::Config;
 
-use super::{
-    PreFabConfig,
-    Pretrained,
-    StaticPreFabMap,
-};
 use crate::{
     data::{
+        builds::Pretrained,
         catalog::presets::PresetSelection,
+        pretrained::{
+            PreFabConfig,
+            StaticPreFabMap,
+        },
         resources::{
             Fuse,
             ResourceBundle,
@@ -28,10 +28,10 @@ use crate::{
 /// bundle from somewhere else, such as a path.
 ///
 /// The first step of the name-to-model pathway, shared by every kit. A
-/// [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
+/// [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
 /// makes a [`Named`](Self::Named) ref from a spec; a path or a manifest becomes
 /// a [`Given`](Self::Given) one through `From<ResourceBundle>`. A
-/// [`Deferred`](crate::kits::support::construct::Deferred) model pairs the ref
+/// [`Deferred`](crate::data::builds::Deferred) model pairs the ref
 /// with the kit's hook and loads it, and the hook plans and builds from the
 /// ref: [`to_resource_bundle`](Self::to_resource_bundle) for its files,
 /// [`prefab`](Self::prefab) for the geometry a row promises.

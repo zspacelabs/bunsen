@@ -7,13 +7,14 @@ use std::{
 
 use bunsen::{
     data::{
-        cache::BunsenDiskCacheOptions,
-        pretrained::{
+        builds::{
             BUNDLED,
+            PretrainedFactory,
             PretrainedGroup,
             PretrainedTable,
             builtin_resource_bundle,
         },
+        cache::BunsenDiskCacheOptions,
         resources::{
             PretrainedCache,
             PretrainedCacheOptions,
@@ -31,10 +32,7 @@ use bunsen::{
                 default_whisper_factory,
             },
         },
-        support::{
-            construct::PretrainedFactory,
-            tokens::TiktokenRanks,
-        },
+        support::tokens::TiktokenRanks,
     },
 };
 
