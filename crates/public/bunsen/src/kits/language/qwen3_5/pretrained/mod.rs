@@ -9,11 +9,12 @@
 //!
 //! [`default_qwen3_5_factory`] is the index a caller holds, over two
 //! providers. First the catalog rows, the built-in catalog's builds of
-//! [`QWEN3_5_CATALOG_CONTRACT`], whose geometries are [`QWEN3_5_PREFABS`]';
-//! each is a `transformers` checkpoint in bf16 (a
-//! `Qwen3_5ForConditionalGeneration`'s, whose text model alone is loaded), its
-//! `config.json`, `tokenizer.json` and `tokenizer_config.json`, and a chat
-//! model's `chat_template.jinja`:
+//! [`QWEN3_5_CATALOG_CONTRACT`], whose geometries are
+//! [`Qwen3_5Config`](crate::kits::language::qwen3_5::Qwen3_5Config)'s prefabs';
+//! each is a `transformers` checkpoint in
+//! bf16 (a `Qwen3_5ForConditionalGeneration`'s, whose text model alone is
+//! loaded), its `config.json`, `tokenizer.json` and `tokenizer_config.json`,
+//! and a chat model's `chat_template.jinja`:
 //!
 //! - `qwen/qwen3.5-0.8b`, `-2b`, `-4b` and `-9b`, and their `-base` builds;
 //!   `qwen/qwen3.5-0.8b` is the default;
@@ -54,5 +55,4 @@ mod prefabs;
 mod providers;
 
 pub use construct::*;
-pub use prefabs::*;
 pub use providers::*;

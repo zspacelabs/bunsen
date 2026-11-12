@@ -40,7 +40,6 @@ use crate::{
             load_rekeyed,
             stored_float_dtype,
         },
-        pretrained::StaticPreFabMap,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -88,9 +87,6 @@ pub trait TransformersLmKit: Default {
 
     /// The model.
     type Model: burn::module::Module;
-
-    /// The kit's prefabs, which a row without a `config.json` names.
-    fn prefabs() -> &'static StaticPreFabMap<Self::Config>;
 
     /// The config of a `config.json`.
     ///

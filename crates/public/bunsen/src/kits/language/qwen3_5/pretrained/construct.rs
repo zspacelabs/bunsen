@@ -9,13 +9,11 @@ use burn::{
 use super::{
     CHECKPOINT,
     QWEN3_5_KIT,
-    QWEN3_5_PREFABS,
 };
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
         formats::NamedTensorsApplied,
-        pretrained::StaticPreFabMap,
         resources::LoadedResourceSet,
     },
     errors::BunsenResult,
@@ -34,7 +32,7 @@ use crate::{
         support::{
             construct::TransformersLmKit,
             model_config::{
-                CatalogProbe,
+                ProbeSpec,
                 probe_loaded,
             },
         },
@@ -68,10 +66,6 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
     const KIT: &'static str = QWEN3_5_KIT;
     const NAME: &'static str = "Qwen3.5";
 
-    fn prefabs() -> &'static StaticPreFabMap<Qwen3_5Config> {
-        &QWEN3_5_PREFABS
-    }
-
     fn config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Config> {
         qwen3_5_config_from_transformers(json)
     }
@@ -93,12 +87,11 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
         probe_loaded(
             loaded,
             &[
-                CatalogProbe::into_base("generation_config", GENERATION_CONFIG),
-                CatalogProbe::into_base("tokenizer_config", TOKENIZER_CONFIG),
-                CatalogProbe::into_base("tokenizer_config", TOKENIZER_CONFIG)
-                    .with_token(END_OF_TEXT),
-                CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
-                CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
+                ProbeSpec::into_base("generation_config", GENERATION_CONFIG),
+                ProbeSpec::into_base("tokenizer_config", TOKENIZER_CONFIG),
+                ProbeSpec::into_base("tokenizer_config", TOKENIZER_CONFIG).with_token(END_OF_TEXT),
+                ProbeSpec::into_base("chat_template", TOKENIZER_CONFIG),
+                ProbeSpec::into_base("chat_template", CHAT_TEMPLATE),
             ],
             &ResolvedPresetSet::default(),
         )

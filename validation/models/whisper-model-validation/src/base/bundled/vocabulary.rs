@@ -1,12 +1,16 @@
 //! The rank files, against upstream's `whisper.tokenizer`.
 
 use bunsen::{
-    data::resources::{
-        CacheStatus,
-        Provenance,
+    data::{
+        pretrained::Prefabs,
+        resources::{
+            CacheStatus,
+            Provenance,
+        },
     },
     kits::{
         speech::asr::whisper::{
+            WhisperApiConfig,
             blocks::WhisperTokenLayoutConfig,
             driver::{
                 WhisperSpecialIds,
@@ -14,7 +18,6 @@ use bunsen::{
             },
             pretrained::{
                 VOCABULARY,
-                WHISPER_PREFABS,
                 WhisperVocabulary,
             },
         },
@@ -29,7 +32,7 @@ use super::{
 };
 
 fn ids_of(prefab: &str) -> WhisperSpecialIds {
-    let cfg = WHISPER_PREFABS.expect_lookup_prefab(prefab).to_config();
+    let cfg = WhisperApiConfig::expect_prefab(prefab);
     *cfg.token_layout
         .policy_for_vocab(cfg.vocab_size)
         .unwrap()

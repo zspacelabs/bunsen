@@ -6,7 +6,9 @@
 //! the hook and the factory need the `store` and `cache` features,
 //! both default. Fetching a checkpoint needs `fetch`.
 //!
-//! The geometries are [`RESNET_PREFABS`]: six
+//! The geometries are
+//! [`ResNetContractConfig`](crate::kits::images::resnet::ResNetContractConfig)'
+//! s prefabs: six
 //! [`ResNetContractConfig`](super::ResNetContractConfig)s by name,
 //! `resnet18` to `resnet152`, each with 1000 classes. The checkpoints are
 //! 14 rows, the built-in catalog's builds of [`RESNET_CATALOG_CONTRACT`], in
@@ -34,16 +36,17 @@
 //!
 //! use bunsen::{
 //!     blocks::activation::BunsenActivationConfig,
-//!     data::resources::{
-//!         ResourceCache,
-//!         ResourceCacheOptions,
+//!     data::{
+//!         pretrained::Prefabs,
+//!         resources::{
+//!             ResourceCache,
+//!             ResourceCacheOptions,
+//!         },
 //!     },
 //!     kits::images::resnet::{
 //!         ResNet,
-//!         pretrained::{
-//!             RESNET_PREFABS,
-//!             default_resnet_factory,
-//!         },
+//!         ResNetContractConfig,
+//!         pretrained::default_resnet_factory,
 //!     },
 //!     support::testing::cpu_device,
 //! };
@@ -51,9 +54,7 @@
 //! let device = cpu_device();
 //! let cache = ResourceCache::new(ResourceCacheOptions::default())?;
 //!
-//! let config = RESNET_PREFABS
-//!     .expect_lookup_prefab("resnet18")
-//!     .to_config()
+//! let config = ResNetContractConfig::expect_prefab("resnet18")
 //!     .with_activation(BunsenActivationConfig::Gelu);
 //!
 //! let mut model =
@@ -84,6 +85,5 @@ mod providers;
 pub use construct::*;
 #[cfg(feature = "store")]
 pub use factory::*;
-pub use prefabs::*;
 #[cfg(feature = "store")]
 pub use providers::*;

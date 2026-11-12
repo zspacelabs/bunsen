@@ -11,7 +11,8 @@
 //! [`default_qwen3_asr_factory`] is the index a caller holds, over two
 //! providers. First the catalog rows, the built-in catalog's builds of
 //! [`QWEN3_ASR_CATALOG_CONTRACT`], each stating its geometry, one of
-//! [`QWEN3_ASR_PREFABS`]:
+//! [`Qwen3AsrConfig`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig)'s
+//! prefabs:
 //!
 //! - `fermion/phonon-1` (`phonon-1`): `FermionResearch`'s Phonon-1, an English
 //!   fine-tune of `Qwen3-ASR-0.6B` (other speech comes out as broken English),
@@ -49,5 +50,4 @@ mod prefabs;
 mod providers;
 
 pub use construct::*;
-pub use prefabs::*;
 pub use providers::*;

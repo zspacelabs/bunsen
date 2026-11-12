@@ -38,10 +38,9 @@ use crate::{
 /// Both steps see the ref, not just its resource set: what a row promises
 /// (its prefab) is checked in [`plan`](Self::plan) before bytes are fetched,
 /// and a kit whose checkpoint does not describe itself takes its config
-/// from the row in [`try_init`](Self::try_init).
+/// from the build in [`try_init`](Self::try_init).
 pub trait ConstructInit: Sized {
-    /// The kit's name: the `kit` tag of its rows, and the name its errors
-    /// and listings give it.
+    /// The kit's name: what its factory, its errors and its listings call it.
     const KIT: &'static str;
 
     /// Whether [`try_init`](Self::try_init) resolves the ref's preset

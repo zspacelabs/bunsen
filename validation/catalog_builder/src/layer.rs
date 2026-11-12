@@ -30,8 +30,8 @@ use bunsen::{
         },
     },
     kits::support::model_config::{
-        CatalogProbe,
         Probe,
+        ProbeSpec,
         accumulate_probed,
         builtin_probes,
     },
@@ -69,15 +69,6 @@ pub struct LayerBuilder<'a> {
     listings: BTreeMap<HubRepo, BTreeMap<String, HubEntry>>,
     /// The bytes of the files fetched, by the resource's path in the layer.
     fetched: BTreeMap<String, Vec<u8>>,
-}
-
-/// One `$probes` entry of a build.
-#[derive(Clone, Debug)]
-struct ProbeSpec {
-    probe: String,
-    slot: String,
-    into: Vec<String>,
-    token: Option<String>,
 }
 
 /// A build whose resources are filled before its dtypes and probes are.
@@ -357,14 +348,8 @@ impl<'a> LayerBuilder<'a> {
                         let names: Vec<_> = probes.iter().map(|p| p.name()).collect();
                         format!("{at}: no such probe; there are {}", names.join(", "))
                     })?;
-                let entry = CatalogProbe {
-                    probe: spec.probe.clone(),
-                    file: spec.slot.clone(),
-                    into: spec.into.clone(),
-                    token: spec.token.clone(),
-                };
                 let patch = probe
-                    .probe(&bytes, &entry)
+                    .probe(&bytes, spec)
                     .map_err(|e| format!("{at}: {e}"))?;
                 for into in &spec.into {
                     accumulate_probed(

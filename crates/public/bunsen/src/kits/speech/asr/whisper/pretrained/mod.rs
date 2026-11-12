@@ -43,8 +43,9 @@
 //! token layout selects ([`WhisperVocabulary`]), which the plan checks
 //! against the checkpoint. It states the geometry its checkpoint must have
 //! ([`GEOMETRY`](crate::data::builds::GEOMETRY)), a prefab's of
-//! [`WHISPER_PREFABS`], so a name means a shape before any bytes are
-//! fetched, and a checkpoint of another shape under the name is refused. A
+//! [`WhisperApiConfig`](crate::kits::speech::asr::whisper::WhisperApiConfig)'s
+//! prefabs, so a name means a shape before any bytes
+//! are fetched, and a checkpoint of another shape under the name is refused. A
 //! prefab is a shape without weights; a resource is where the bytes come
 //! from and the digest that pins them. A path arrives as a one-resource set,
 //! and gets its vocabulary from the same rule,
@@ -73,13 +74,16 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "store")] {
-//! use bunsen::kits::speech::asr::whisper::{
-//!     driver::WhisperSpecialIds,
-//!     pretrained::{
-//!         VOCABULARY,
-//!         WHISPER_PREFABS,
-//!         WhisperVocabulary,
-//!         default_whisper_factory,
+//! use bunsen::{
+//!     data::pretrained::Prefabs,
+//!     kits::speech::asr::whisper::{
+//!         WhisperApiConfig,
+//!         driver::WhisperSpecialIds,
+//!         pretrained::{
+//!             VOCABULARY,
+//!             WhisperVocabulary,
+//!             default_whisper_factory,
+//!         },
 //!     },
 //! };
 //!
@@ -89,8 +93,7 @@
 //! // geometry its checkpoint carries.
 //! let (_, row) = factory.lookup("large")?;
 //! assert_eq!(row.name, "openai/whisper/large/large-v3");
-//! let prefab = WHISPER_PREFABS.try_lookup_prefab("large-v3")?;
-//! let geometry = prefab.to_config().geometry();
+//! let geometry = WhisperApiConfig::try_prefab("large-v3")?.geometry();
 //! assert_eq!((geometry.n_mels, geometry.vocab_size), (128, 51866));
 //!
 //! // The row's vocabulary is the one that geometry's token layout selects.
@@ -120,7 +123,6 @@ mod vocab;
 pub use construct::*;
 #[cfg(feature = "store")]
 pub use factory::*;
-pub use prefabs::*;
 #[cfg(feature = "store")]
 pub use providers::*;
 #[cfg(feature = "store")]

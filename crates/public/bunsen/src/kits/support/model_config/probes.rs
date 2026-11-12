@@ -16,12 +16,12 @@ use crate::errors::{
 /// One probe of a pretrained's files: a named reader of one of its files,
 /// and where what it finds goes.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CatalogProbe {
+pub struct ProbeSpec {
     /// The probe, by name: `generation_config`, say.
     pub probe: String,
 
-    /// The file it reads, by its resource key.
-    pub file: String,
+    /// The resource slot of the file it reads.
+    pub slot: String,
 
     /// Where its patch goes: `base`, the set's common patch, or presets by
     /// name.
@@ -43,7 +43,7 @@ pub trait Probe: Send + Sync + fmt::Debug {
     fn name(&self) -> &'static str;
 
     /// The patch `file`'s bytes say, as `entry` asks: the file's resource
-    /// key is `entry.file`, and a probe that reads a token by name reads
+    /// key is `entry.slot`, and a probe that reads a token by name reads
     /// `entry.token`.
     ///
     /// # Errors
@@ -54,7 +54,7 @@ pub trait Probe: Send + Sync + fmt::Debug {
     fn probe(
         &self,
         file: &[u8],
-        entry: &CatalogProbe,
+        entry: &ProbeSpec,
     ) -> BunsenResult<Value>;
 }
 
@@ -87,7 +87,7 @@ impl Probe for GenerationConfigProbe {
     fn probe(
         &self,
         file: &[u8],
-        entry: &CatalogProbe,
+        entry: &ProbeSpec,
     ) -> BunsenResult<Value> {
         no_token(self.name(), entry.token.as_deref())?;
         let c = read_json(file, "a generation_config.json")?;
@@ -134,7 +134,7 @@ impl Probe for TokenizerConfigProbe {
     fn probe(
         &self,
         file: &[u8],
-        entry: &CatalogProbe,
+        entry: &ProbeSpec,
     ) -> BunsenResult<Value> {
         let c = read_json(file, "a tokenizer_config.json")?;
         let eos = match (entry.token.as_deref(), c.get("eos_token")) {
@@ -187,7 +187,7 @@ impl Probe for ChatTemplateProbe {
     fn probe(
         &self,
         file: &[u8],
-        entry: &CatalogProbe,
+        entry: &ProbeSpec,
     ) -> BunsenResult<Value> {
         no_token(self.name(), entry.token.as_deref())?;
         let holds = match serde_json::from_slice::<Value>(file) {
@@ -200,7 +200,7 @@ impl Probe for ChatTemplateProbe {
                 .is_empty(),
         };
         Ok(if holds {
-            json!({ "generation": { "chat_template": { "file": entry.file } } })
+            json!({ "generation": { "chat_template": { "file": entry.slot } } })
         } else {
             json!({})
         })
@@ -278,7 +278,7 @@ pub fn accumulate_probed(
 #[cfg(feature = "cache")]
 pub fn probe_loaded(
     loaded: &crate::data::resources::LoadedResourceSet,
-    entries: &[CatalogProbe],
+    entries: &[ProbeSpec],
     family: &crate::data::catalog::presets::ResolvedPresetSet,
 ) -> BunsenResult<crate::data::catalog::presets::ResolvedPresetSet> {
     use alloc::collections::BTreeMap;
@@ -292,7 +292,7 @@ pub fn probe_loaded(
     let mut common = Value::Object(Map::new());
     let mut found: BTreeMap<String, Value> = BTreeMap::new();
     for entry in entries {
-        let Some(part) = loaded.get(&entry.file) else {
+        let Some(part) = loaded.get(&entry.slot) else {
             continue;
         };
         let bytes = std::fs::read(&part.path).map_err(crate::errors::sys_at("read", &part.path))?;
@@ -307,7 +307,7 @@ pub fn probe_loaded(
             })?;
         let patch = probe
             .probe(&bytes, entry)
-            .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.file)))?;
+            .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.slot)))?;
         for into in &entry.into {
             if into == "base" {
                 accumulate_probed(&mut common, &patch);
@@ -337,15 +337,15 @@ pub fn probe_loaded(
     Ok(out)
 }
 
-impl CatalogProbe {
-    /// The probe `probe` of the file under `file`, into the base.
+impl ProbeSpec {
+    /// The probe `probe` of the file in `slot`, into the base.
     pub fn into_base(
         probe: impl Into<String>,
-        file: impl Into<String>,
+        slot: impl Into<String>,
     ) -> Self {
         Self {
             probe: probe.into(),
-            file: file.into(),
+            slot: slot.into(),
             into: vec!["base".to_string()],
             token: None,
         }
@@ -387,10 +387,10 @@ mod tests {
     }"#;
 
     /// A probe's entry, under the `file` key, with `token`.
-    fn args(token: Option<&str>) -> CatalogProbe {
-        CatalogProbe {
+    fn args(token: Option<&str>) -> ProbeSpec {
+        ProbeSpec {
             probe: String::new(),
-            file: "file".to_string(),
+            slot: "file".to_string(),
             into: vec!["base".to_string()],
             token: token.map(str::to_string),
         }
@@ -459,10 +459,10 @@ mod tests {
         probe: &str,
         file: &str,
         into: &[&str],
-    ) -> CatalogProbe {
-        CatalogProbe {
+    ) -> ProbeSpec {
+        ProbeSpec {
             probe: probe.to_string(),
-            file: file.to_string(),
+            slot: file.to_string(),
             into: into.iter().map(|s| s.to_string()).collect(),
             token: None,
         }
@@ -634,8 +634,8 @@ mod tests {
     /// in order, the later file is the template.
     #[test]
     fn test_chat_template() {
-        let keyed = |file: &str| CatalogProbe {
-            file: file.to_string(),
+        let keyed = |file: &str| ProbeSpec {
+            slot: file.to_string(),
             ..args(None)
         };
         let holds = br#"{"chat_template": "{{ bos_token }}"}"#;

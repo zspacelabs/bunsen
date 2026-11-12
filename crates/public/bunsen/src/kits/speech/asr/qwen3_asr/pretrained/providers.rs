@@ -77,7 +77,10 @@ pub fn default_qwen3_asr_factory() -> BunsenResult<BuildFactory<Qwen3AsrConstruc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::qwen3_asr::pretrained::QWEN3_ASR_PREFABS;
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::speech::asr::qwen3_asr::Qwen3AsrConfig,
+    };
 
     /// Every row is pinned and answers by its qualified and short names; a
     /// row that states its geometry states a prefab's.
@@ -136,9 +139,9 @@ mod tests {
             )
             .unwrap();
             assert!(
-                QWEN3_ASR_PREFABS
+                Qwen3AsrConfig::PREFABS
                     .iter()
-                    .any(|p| serde_json::to_value(p.to_config()).unwrap() == *geometry),
+                    .any(|(_, prefab)| serde_json::to_value(prefab()).unwrap() == *geometry),
                 "{name}: its geometry is no prefab's"
             );
         }

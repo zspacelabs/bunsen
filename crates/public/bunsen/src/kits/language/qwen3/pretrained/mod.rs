@@ -9,8 +9,9 @@
 //!
 //! [`default_qwen3_factory`] is the index a caller holds, over two providers.
 //! First the catalog rows, the built-in catalog's builds of
-//! [`QWEN3_CATALOG_CONTRACT`], whose geometries are [`QWEN3_PREFABS`]'; each is
-//! a `transformers` checkpoint (bf16), its `config.json`, `tokenizer.json`,
+//! [`QWEN3_CATALOG_CONTRACT`], whose geometries are
+//! [`Qwen3Config`](crate::kits::language::qwen3::Qwen3Config)'s prefabs'; each
+//! is a `transformers` checkpoint (bf16), its `config.json`, `tokenizer.json`,
 //! `tokenizer_config.json` and `generation_config.json`:
 //!
 //! - `qwen/qwen3-0.6b` (`qwen3-0.6b`): the default, 1.5 GB.
@@ -71,5 +72,4 @@ mod prefabs;
 mod providers;
 
 pub use construct::*;
-pub use prefabs::*;
 pub use providers::*;

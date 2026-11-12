@@ -94,9 +94,12 @@ pub fn default_qwen3_factory() -> BunsenResult<BuildFactory<Qwen3ConstructConfig
 mod tests {
     use super::*;
     use crate::{
-        data::builds::CONFIG,
+        data::{
+            builds::CONFIG,
+            pretrained::Prefabs,
+        },
         kits::language::qwen3::{
-            pretrained::QWEN3_PREFABS,
+            Qwen3Config,
             weights::qwen3_config_from_transformers,
         },
     };
@@ -169,9 +172,9 @@ mod tests {
                 qwen3_config_from_transformers(&std::fs::read_to_string(&path).unwrap()).unwrap();
             let config = format!("{config:?}");
             assert!(
-                QWEN3_PREFABS
+                Qwen3Config::PREFABS
                     .iter()
-                    .any(|p| format!("{:?}", p.to_config()) == config),
+                    .any(|(_, prefab)| format!("{:?}", prefab()) == config),
                 "{name}: its config.json is no prefab's geometry"
             );
         }

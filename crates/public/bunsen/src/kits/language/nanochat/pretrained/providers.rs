@@ -60,15 +60,18 @@ pub fn default_nanochat_factory() -> BunsenResult<BuildFactory<NanoChatConstruct
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::language::nanochat::{
-        CHECKPOINT,
-        META,
-        TOKEN_BYTES,
-        TOKENIZER,
-        pretrained::NANOCHAT_PREFABS,
-        weights::{
-            NanoChatGeneration,
-            NanoChatMeta,
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::language::nanochat::{
+            CHECKPOINT,
+            META,
+            NanoChatGptContractConfig,
+            TOKEN_BYTES,
+            TOKENIZER,
+            weights::{
+                NanoChatGeneration,
+                NanoChatMeta,
+            },
         },
     };
 
@@ -122,9 +125,9 @@ mod tests {
             };
             let config = format!("{:?}", meta.gpt_config(generation));
             assert!(
-                NANOCHAT_PREFABS
+                NanoChatGptContractConfig::PREFABS
                     .iter()
-                    .any(|p| format!("{:?}", p.to_config()) == config),
+                    .any(|(_, prefab)| format!("{:?}", prefab()) == config),
                 "{name}: its meta is no prefab's geometry"
             );
         }

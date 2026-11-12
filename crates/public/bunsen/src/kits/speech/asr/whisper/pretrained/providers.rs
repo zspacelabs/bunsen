@@ -47,17 +47,20 @@ pub fn default_whisper_providers() -> Vec<Arc<dyn BuildProvider>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::whisper::{
-        driver::WhisperSpecialIds,
-        pretrained::{
-            VOCABULARY,
-            WHISPER_PREFABS,
-            WhisperVocabulary,
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::speech::asr::whisper::{
+            WhisperApiConfig,
+            driver::WhisperSpecialIds,
+            pretrained::{
+                VOCABULARY,
+                WhisperVocabulary,
+            },
         },
     };
 
     fn layout_of(prefab: &str) -> WhisperSpecialIds {
-        let cfg = WHISPER_PREFABS.expect_lookup_prefab(prefab).to_config();
+        let cfg = WhisperApiConfig::expect_prefab(prefab);
         *cfg.token_layout
             .policy_for_vocab(cfg.vocab_size)
             .unwrap()
@@ -85,7 +88,6 @@ mod tests {
         geometry
             .prefab()
             .unwrap_or_else(|| panic!("{}: no prefab has its geometry", row.name))
-            .name
     }
 
     /// Every row states the geometry of the prefab of its name (`large-v1`

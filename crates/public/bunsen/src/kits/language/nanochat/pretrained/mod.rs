@@ -9,11 +9,12 @@
 //!
 //! [`default_nanochat_factory`] is the index a caller holds, over the
 //! catalog rows, the built-in catalog's builds of
-//! [`NANOCHAT_CATALOG_CONTRACT`], whose geometries are [`NANOCHAT_PREFABS`]'.
-//! There are no official nanochat releases; each row is a community upload of
-//! upstream's own checkpoint files, unconverted: a `model_<step>.pt` (about 2
-//! GB), its `meta_<step>.json`, and the tokenizer (`tokenizer.pkl`,
-//! `token_bytes.pt`).
+//! [`NANOCHAT_CATALOG_CONTRACT`], whose geometries are
+//! [`NanoChatGptContractConfig`](crate::kits::language::nanochat::NanoChatGptContractConfig)'s
+//! prefabs'. There are no official nanochat
+//! releases; each row is a community upload of upstream's own checkpoint files,
+//! unconverted: a `model_<step>.pt` (about 2 GB), its `meta_<step>.json`, and
+//! the tokenizer (`tokenizer.pkl`, `token_bytes.pt`).
 //!
 //! - `nanochat-students/rl-d20` (`nanochat-d20-rl`): the default, a d20 (561M)
 //!   of upstream's 2025 model after its RL stage.
@@ -44,5 +45,4 @@ mod prefabs;
 mod providers;
 
 pub use construct::*;
-pub use prefabs::*;
 pub use providers::*;
