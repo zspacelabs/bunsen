@@ -1068,6 +1068,46 @@ impl BunsenCatalogStack {
                 if let Err(why) = check_file_path(&r.file) {
                     bad(why);
                 }
+                let placeholder = crate::data::datasets::INDEX_PLACEHOLDER;
+                match (r.index_width, r.count) {
+                    (Some(_), Some(count)) => {
+                        if r.file.matches(placeholder).count() != 1 {
+                            bad(format!(
+                                "a templated resource's `$file` writes `{placeholder}` exactly once"
+                            ));
+                        }
+                        if count == 0 {
+                            bad("a templated resource has at least one file (`$count`)".into());
+                        }
+                        if r.sha256.is_some() || r.size.is_some() {
+                            bad(
+                                "a templated resource pins its files in `$shards`, not itself"
+                                    .into(),
+                            );
+                        }
+                        if r.unpinned && !r.shards.is_empty() {
+                            bad("an `$unpinned` resource lists no `$shards`".into());
+                        }
+                        if !r.shards.is_empty() {
+                            let expected: Vec<String> =
+                                (0..count).map(|i| r.templated_file(i)).collect();
+                            let listed: Vec<&str> =
+                                r.shards.iter().map(|s| s.file.as_str()).collect();
+                            if listed != expected.iter().map(String::as_str).collect::<Vec<_>>() {
+                                bad(format!(
+                                    "a templated resource's `$shards` are its `{count}` files, \
+                                     in index order"
+                                ));
+                            }
+                        }
+                    }
+                    (None, None) => {
+                        if r.unpinned {
+                            bad("only a templated resource is `$unpinned`".into());
+                        }
+                    }
+                    _ => bad("a templated resource writes both `$index_width` and `$count`".into()),
+                }
                 if r.format.trim().is_empty() {
                     bad("a resource names its format".into());
                 }
@@ -1595,6 +1635,9 @@ fn update(
                 || update.size != current.size
                 || update.dtype != current.dtype
                 || update.shards != current.shards
+                || update.index_width != current.index_width
+                || update.count != current.count
+                || update.unpinned != current.unpinned
                 || update
                     .description
                     .as_ref()
@@ -2213,6 +2256,76 @@ openai:
             v2.description, "Whisper large-v2.",
             "the build is unchanged"
         );
+    }
+
+    /// A templated resource is a numbered set of files: its `$shards`, when
+    /// listed, are its files in index order, and its own pins are refused.
+    #[test]
+    fn test_templated_resources() {
+        let shard = |i: usize, digit: char| {
+            format!(
+                "{{ $file: shard_{i:02}.parquet, $sha256: \"{}\", $size: 9 }}",
+                digit.to_string().repeat(64)
+            )
+        };
+        let set = |extra: &str, shards: &str| {
+            format!(
+                r#"
+data:
+  $kind: namespace
+  $description: "Data."
+  set:
+    $kind: resource
+    $file: "shard_{{index}}.parquet"
+    $format: parquet
+    $index_width: 2
+    $count: 2
+    $sources: [{{ $hub: {{ $repo: o/set, $revision: abc, $dataset: true }} }}]
+    {extra}
+    {shards}
+"#
+            )
+        };
+        let mut stack = fixtures::example_stack().unwrap();
+        stack
+            .push_yaml(
+                "pinned",
+                &set(
+                    "",
+                    &format!("$shards: [{}, {}]", shard(0, 'a'), shard(1, 'b')),
+                ),
+            )
+            .unwrap();
+        let mut stack2 = fixtures::example_stack().unwrap();
+        stack2
+            .push_yaml("loose", &set("$unpinned: true", ""))
+            .unwrap();
+
+        for (bad, why) in [
+            (
+                set(
+                    "",
+                    &format!("$shards: [{}, {}]", shard(1, 'a'), shard(0, 'b')),
+                ),
+                "its `2` files, in index order",
+            ),
+            (
+                set(
+                    "$unpinned: true",
+                    &format!("$shards: [{}, {}]", shard(0, 'a'), shard(1, 'b')),
+                ),
+                "lists no `$shards`",
+            ),
+            (set("$sha256: \"cc\"", ""), "pins its files in `$shards`"),
+            (
+                set("", "").replace("$count: 2", ""),
+                "both `$index_width` and `$count`",
+            ),
+            (set("", "").replace("{index}", "all"), "exactly once"),
+        ] {
+            let err = refused(&bad);
+            assert!(err.mentions(why), "{why}: {err}");
+        }
     }
 
     #[test]

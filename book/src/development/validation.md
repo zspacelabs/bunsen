@@ -81,9 +81,9 @@ records where each clip came from and under what licence; a fixture that is a
 model's output on a clip stays in the `testdata/` of that model's validation
 crate.
 
-The same pattern pins data. `tools/gen_shard_digests.py` reads a dataset's
-listing at a pinned revision and writes the digest table that a
-[shard set](../systems/shards.md) verifies against.
+Data is pinned the way models are: `cargo catalog` reads a dataset's listing
+at a pinned revision and lists the digests a [shard set](../systems/shards.md)
+verifies against.
 
 ## Running validation
 

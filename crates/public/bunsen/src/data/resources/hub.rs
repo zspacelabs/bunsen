@@ -24,7 +24,7 @@ pub const HUB_ORIGIN: &str = "https://huggingface.co";
 /// The revision a repo is read at unless another is named.
 pub const HUB_MAIN: &str = "main";
 
-/// A Hub repo at a revision.
+/// A Hub repo at a revision: a model's, or a dataset's.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HubRepo {
     /// `org/name`.
@@ -32,6 +32,10 @@ pub struct HubRepo {
 
     /// A branch, tag or commit.
     pub revision: String,
+
+    /// Whether the repo is a dataset's: the Hub serves those under
+    /// `datasets/`.
+    pub dataset: bool,
 }
 
 impl HubRepo {
@@ -43,7 +47,20 @@ impl HubRepo {
         Self {
             repo: repo.into(),
             revision: revision.into(),
+            dataset: false,
         }
+    }
+
+    /// The same repo, as a dataset's.
+    pub fn dataset(mut self) -> Self {
+        self.dataset = true;
+        self
+    }
+
+    /// `datasets/` for a dataset's repo, nothing for a model's: where the
+    /// Hub serves its files.
+    fn kind_prefix(&self) -> &'static str {
+        if self.dataset { "datasets/" } else { "" }
     }
 
     /// The URL the Hub serves `file` of the repo at.
@@ -60,7 +77,12 @@ impl HubRepo {
         origin: &str,
         file: &str,
     ) -> String {
-        format!("{origin}/{}/resolve/{}/{file}", self.repo, self.revision)
+        format!(
+            "{origin}/{}{}/resolve/{}/{file}",
+            self.kind_prefix(),
+            self.repo,
+            self.revision
+        )
     }
 
     /// The URL of the repo's tree listing, recursive: every file, in every
@@ -75,7 +97,8 @@ impl HubRepo {
         &self,
         origin: &str,
     ) -> String {
-        format!("{origin}/api/models/{}/tree/{}", self.repo, self.revision)
+        let api = if self.dataset { "datasets" } else { "models" };
+        format!("{origin}/api/{api}/{}/tree/{}", self.repo, self.revision)
     }
 }
 
@@ -152,6 +175,15 @@ mod tests {
         assert_eq!(
             repo.tree_url_at("http://h"),
             "http://h/api/models/org/name/tree/abc"
+        );
+        let data = HubRepo::new("org/set", "abc").dataset();
+        assert_eq!(
+            data.file_url("shard_00000.parquet"),
+            "https://huggingface.co/datasets/org/set/resolve/abc/shard_00000.parquet"
+        );
+        assert_eq!(
+            data.listing_url(),
+            "https://huggingface.co/api/datasets/org/set/tree/abc?recursive=true"
         );
     }
 

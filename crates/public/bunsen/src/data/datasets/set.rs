@@ -299,10 +299,7 @@ mod tests {
     use crate::{
         data::{
             cache::BunsenDiskCacheOptions,
-            datasets::{
-                StaticShardDigests,
-                StaticShardSetDescriptor,
-            },
+            datasets::ShardDigests,
         },
         errors::{
             BunsenErrorKind,
@@ -326,30 +323,29 @@ mod tests {
 
     /// A set whose shards all resolve to the same `serve_n` body.
     fn served(
-        base_urls: &'static [&'static str],
+        base_urls: &[&str],
         count: usize,
-        digests: StaticShardDigests<'static>,
+        digests: ShardDigests,
     ) -> ShardSetDescriptor {
-        StaticShardSetDescriptor {
-            name: "served",
-            description: "served off a loopback port",
+        ShardSetDescriptor {
+            name: "served".into(),
+            description: "served off a loopback port".into(),
             license: None,
             origin: None,
-            base_urls,
-            template: "shard_{index}.bin",
+            base_urls: base_urls.iter().map(|b| b.to_string()).collect(),
+            template: "shard_{index}.bin".into(),
             index_width: 2,
             count,
-            format: "bin",
+            format: "bin".into(),
             digests,
         }
-        .to_descriptor()
     }
 
     #[test]
     fn test_roots_and_paths() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path());
-        let desc = served(&["https://a.example"], 3, StaticShardDigests::Unpinned);
+        let desc = served(&["https://a.example"], 3, ShardDigests::Unpinned);
 
         let set = ShardSet::in_cache(&cache, desc.clone());
         assert_eq!(
@@ -383,7 +379,7 @@ mod tests {
         let cache = cache_in(dir.path());
         let set = ShardSet::at_dir(
             &cache,
-            served(&["https://a.example"], 10, StaticShardDigests::Unpinned),
+            served(&["https://a.example"], 10, ShardDigests::Unpinned),
             dir.path(),
         );
 
@@ -423,7 +419,7 @@ mod tests {
             ]
             .into_boxed_slice(),
         );
-        let set = ShardSet::in_cache(&cache, served(bases, 3, StaticShardDigests::Unpinned));
+        let set = ShardSet::in_cache(&cache, served(bases, 3, ShardDigests::Unpinned));
 
         let path = set.fetch(ShardId(1)).unwrap();
         assert_eq!(path, set.path(ShardId(1)));
@@ -470,7 +466,14 @@ mod tests {
         let live = serve_n("", b"abc", 3);
         let bases: &'static [&'static str] =
             Box::leak(vec![Box::leak(live.into_boxed_str()) as &str].into_boxed_slice());
-        let set = ShardSet::in_cache(&cache, served(bases, 2, StaticShardDigests::Table(&PINNED)));
+        let set = ShardSet::in_cache(
+            &cache,
+            served(
+                bases,
+                2,
+                ShardDigests::Table(PINNED.iter().map(|d| d.to_string()).collect()),
+            ),
+        );
         assert!(set.descriptor().is_pinned());
 
         let good = set.fetch(ShardId(0)).unwrap();
@@ -515,7 +518,7 @@ mod tests {
         let live = serve_n("", b"abc", 2);
         let bases: &'static [&'static str] =
             Box::leak(vec![Box::leak(live.into_boxed_str()) as &str].into_boxed_slice());
-        let desc = served(bases, 2, StaticShardDigests::Unpinned);
+        let desc = served(bases, 2, ShardDigests::Unpinned);
         let map = desc.to_resource_set(&[ShardId(0), ShardId(1)]).unwrap();
         assert_eq!(map.keys(), ["shard_00.bin", "shard_01.bin"]);
 

@@ -175,6 +175,9 @@ impl<'a> LayerBuilder<'a> {
         let file = string_field(resource, "$file")?.to_string();
         let sources = sources_of(resource)?;
         let hub = hub_of(&sources)?;
+        if get(resource, "$index_width").is_some() {
+            return self.fill_templated(resource, &file, hub.as_ref());
+        }
         let url = first_url(&sources, hub.as_ref(), &file);
 
         let pin = self.pin(
@@ -231,6 +234,46 @@ impl<'a> LayerBuilder<'a> {
             );
             set(shard, "$size", OrderedNode::Scalar(Value::from(size)));
         }
+        Ok(())
+    }
+
+    /// Fills a templated resource's `$shards`: each of its `$count` files,
+    /// in index order, pinned from its Hub repo's listing. An `$unpinned`
+    /// one lists none.
+    fn fill_templated(
+        &mut self,
+        resource: &mut OrderedNode,
+        template: &str,
+        hub: Option<&HubRepo>,
+    ) -> Result<(), String> {
+        if get(resource, "$unpinned").is_some_and(|n| n.clone().into_value() == Value::Bool(true)) {
+            return Ok(());
+        }
+        let number = |key: &str| {
+            get(resource, key)
+                .and_then(|n| n.clone().into_value().as_u64())
+                .map(|n| n as usize)
+                .ok_or_else(|| format!("a templated resource writes `{key}` as a count"))
+        };
+        let (width, count) = (number("$index_width")?, number("$count")?);
+        let hub = hub.ok_or("a templated resource is pinned from its `$hub`'s listing")?;
+        let mut shards = Vec::with_capacity(count);
+        for index in 0..count {
+            let file = template.replace("{index}", &format!("{index:0width$}"));
+            let pin = self
+                .pin(&file, None, None, Some(hub), Some(&hub.file_url(&file)))
+                .map_err(|e| format!("the file {file}: {e}"))?;
+            let size = pin
+                .size
+                .ok_or_else(|| format!("the file {file}: no size"))?;
+            let scalar = |v: Value| OrderedNode::Scalar(v);
+            shards.push(OrderedNode::Map(vec![
+                ("$file".to_string(), scalar(Value::String(file))),
+                ("$sha256".to_string(), scalar(Value::String(pin.sha256))),
+                ("$size".to_string(), scalar(Value::from(size))),
+            ]));
+        }
+        set(resource, "$shards", OrderedNode::Seq(shards));
         Ok(())
     }
 
@@ -545,6 +588,10 @@ fn hub_repo(value: &Value) -> Result<HubRepo, String> {
     Ok(HubRepo {
         repo: field("$repo")?,
         revision: field("$revision")?,
+        dataset: value
+            .get("$dataset")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
     })
 }
 
@@ -552,10 +599,20 @@ fn hub_source(repo: &HubRepo) -> OrderedNode {
     let scalar = |s: &str| OrderedNode::Scalar(Value::String(s.to_string()));
     OrderedNode::Map(vec![(
         "$hub".to_string(),
-        OrderedNode::Map(vec![
-            ("$repo".to_string(), scalar(&repo.repo)),
-            ("$revision".to_string(), scalar(&repo.revision)),
-        ]),
+        OrderedNode::Map(
+            [
+                ("$repo".to_string(), scalar(&repo.repo)),
+                ("$revision".to_string(), scalar(&repo.revision)),
+            ]
+            .into_iter()
+            .chain(repo.dataset.then(|| {
+                (
+                    "$dataset".to_string(),
+                    OrderedNode::Scalar(Value::Bool(true)),
+                )
+            }))
+            .collect(),
+        ),
     )])
 }
 
@@ -691,10 +748,7 @@ mod tests {
     const WEIGHTS: &[u8] = b"weights";
 
     fn repo() -> HubRepo {
-        HubRepo {
-            repo: "o/m".into(),
-            revision: "abc".into(),
-        }
+        HubRepo::new("o/m", "abc")
     }
 
     fn fake() -> FakeRemote {
@@ -920,5 +974,63 @@ o:
             .build(node, None)
             .unwrap_err();
         assert!(err.contains("hashes to"), "{err}");
+    }
+
+    const DATASET: &str = r#"
+$description: "A test layer."
+o:
+  $kind: namespace
+  $merge: update
+  set:
+    $kind: build
+    $description: "A set."
+    $hub: { $repo: o/set, $revision: abc, $dataset: true }
+    $resources: { shards: shards }
+    shards: { $kind: resource, $file: "shard_{index}.parquet", $format: parquet, $index_width: 2, $count: 2 }
+  loose:
+    $kind: build
+    $description: "An unpinned set."
+    $hub: { $repo: o/set, $revision: abc, $dataset: true }
+    $resources: { shards: shards }
+    shards:
+      $kind: resource
+      $file: "shard_{index}.parquet"
+      $format: parquet
+      $index_width: 2
+      $count: 2
+      $unpinned: true
+"#;
+
+    /// A templated resource's files are pinned from its dataset repo's
+    /// listing, in index order; an `$unpinned` one lists none.
+    #[test]
+    fn test_a_templated_resource_is_pinned_from_the_listing() {
+        let data = HubRepo::new("o/set", "abc").dataset();
+        let fake = FakeRemote::default().with_repo(
+            &data,
+            &[],
+            &[("shard_00.parquet", b"a"), ("shard_01.parquet", b"b")],
+        );
+        let built = build(&fake, DATASET).unwrap();
+        let shards = value(&built, "o/set/shards");
+        assert_eq!(
+            shards["$shards"],
+            serde_json::json!([
+                {"$file": "shard_00.parquet", "$sha256": sha256_of(b"a"), "$size": 1000},
+                {"$file": "shard_01.parquet", "$sha256": sha256_of(b"b"), "$size": 1000},
+            ])
+        );
+        assert_eq!(
+            shards["$sources"],
+            serde_json::json!([{"$hub": {"$repo": "o/set", "$revision": "abc", "$dataset": true}}])
+        );
+        assert!(value(&built, "o/loose/shards").get("$shards").is_none());
+
+        let missing = FakeRemote::default().with_repo(&data, &[], &[("shard_00.parquet", b"a")]);
+        let err = build(&missing, DATASET).unwrap_err();
+        assert!(
+            err.contains("shard_01.parquet is not in o/set's listing"),
+            "{err}"
+        );
     }
 }

@@ -84,6 +84,28 @@ fn slot_resources(
     let sources_of = |sources: &mut dyn Iterator<Item = &ResourceSource>, file: &str| {
         sources.map(|s| to_source(s, file)).collect::<Vec<_>>()
     };
+    if let (Some(width), Some(count)) = (entry.index_width, entry.count) {
+        // A templated resource: its files, each in a slot numbered by its
+        // index, pinned by `$shards` when the catalog lists them.
+        return (0..count)
+            .map(|index| {
+                let pinned = entry.shards.get(index);
+                let file = entry.templated_file(index);
+                let sources = match pinned {
+                    Some(shard) => sources_of(&mut entry.shard_sources(shard), &file),
+                    None => sources_of(&mut entry.sources.iter().filter(|s| s.is_place()), &file),
+                };
+                resource(
+                    format!("{slot}.{index:0width$}"),
+                    &file,
+                    pinned.map(|s| &s.sha256),
+                    pinned.map(|s| s.size),
+                    &entry.format,
+                    sources,
+                )
+            })
+            .collect();
+    }
     if entry.shards.is_empty() {
         return alloc::vec![resource(
             slot.to_string(),
@@ -128,12 +150,114 @@ fn to_source(
         ResourceSource::BaseUrl(base) => {
             Source::Url(format!("{}/{file}", base.trim_end_matches('/')))
         }
-        ResourceSource::Hub { repo, revision } => {
-            Source::Url(HubRepo::new(repo.as_str(), revision.as_str()).file_url(file))
+        ResourceSource::Hub {
+            repo,
+            revision,
+            dataset,
+        } => {
+            let hub = HubRepo::new(repo.as_str(), revision.as_str());
+            let hub = if *dataset { hub.dataset() } else { hub };
+            Source::Url(hub.file_url(file))
         }
         ResourceSource::LocalDir { name, default } => Source::LocalDir {
             name: name.clone(),
             dir: default.iter().find_map(|t| resolve_dir_template(t)),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use crate::data::catalog::{
+        BunsenCatalogStack,
+        CatalogName,
+    };
+
+    /// A templated resource is a slot per file, numbered by its index: pinned
+    /// from `$shards`, or, unpinned, each had from the resource's places.
+    #[test]
+    fn test_a_templated_resource_is_a_slot_per_file() {
+        let mut stack = BunsenCatalogStack::new();
+        stack
+            .push_yaml(
+                "prelude",
+                r#"
+$contracts:
+  data-set:
+    $kind: contract
+    $description: "Numbered files."
+    $resources: { shards: { $format: [parquet] } }
+template_class_root: { $kind: template_class, $description: "The root." }
+"#,
+            )
+            .unwrap();
+        stack
+            .push_yaml(
+                "data",
+                &format!(
+                    r#"
+data:
+  $kind: namespace
+  $description: "Data."
+  set:
+    $kind: build
+    $description: "A set."
+    $contract: data-set
+    $resources: {{ shards: shards }}
+    shards:
+      $kind: resource
+      $file: "shard_{{index}}.parquet"
+      $format: parquet
+      $index_width: 3
+      $count: 2
+      $sources: [{{ $hub: {{ $repo: o/set, $revision: abc, $dataset: true }} }}]
+      $shards:
+        - {{ $file: shard_000.parquet, $sha256: "{a}", $size: 9 }}
+        - {{ $file: shard_001.parquet, $sha256: "{b}", $size: 8 }}
+  loose:
+    $kind: build
+    $description: "An unpinned set."
+    $contract: data-set
+    $resources: {{ shards: shards }}
+    shards:
+      $kind: resource
+      $file: "shard_{{index}}.parquet"
+      $format: parquet
+      $index_width: 3
+      $count: 2
+      $unpinned: true
+      $sources: [{{ $base_url: "https://data.example/set" }}]
+"#,
+                    a = "a".repeat(64),
+                    b = "b".repeat(64)
+                ),
+            )
+            .unwrap();
+        let n = |name: &str| CatalogName::parse(name).unwrap();
+
+        let set = stack.resolve_build(&n("data/set")).unwrap().resource_set();
+        assert_eq!(set.keys(), ["shards.000", "shards.001"]);
+        let first = set.get("shards.000").unwrap();
+        assert_eq!(first.file, "shard_000.parquet");
+        assert_eq!(first.sha256, Some("a".repeat(64)));
+        assert_eq!(first.size, Some(9));
+        assert_eq!(first.name, "data/set/shards");
+        assert_eq!(
+            first.urls(),
+            vec!["https://huggingface.co/datasets/o/set/resolve/abc/shard_000.parquet"]
+        );
+
+        let loose = stack
+            .resolve_build(&n("data/loose"))
+            .unwrap()
+            .resource_set();
+        let second = loose.get("shards.001").unwrap();
+        assert_eq!(second.sha256, None);
+        assert_eq!(
+            second.urls(),
+            vec!["https://data.example/set/shard_001.parquet"]
+        );
     }
 }

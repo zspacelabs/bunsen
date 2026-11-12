@@ -39,7 +39,7 @@ use burn::tensor::Slice;
 ///    let cache = BunsenDiskCache::default();
 ///    let paths = args.shards.fetch_paths(
 ///        &cache,
-///        NANOCHAT_SHARD_SETS.expect_lookup("fineweb-edu-100b-shuffle"),
+///        ShardSetDescriptor::from_builtin(FINEWEB_EDU_100B_SHUFFLE)?,
 ///    )?;
 ///    ...
 /// }

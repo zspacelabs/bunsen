@@ -410,10 +410,7 @@ qwen:
 
     fn fake() -> FakeRemote {
         FakeRemote::default().with_repo(
-            &HubRepo {
-                repo: "o/m".into(),
-                revision: "abc".into(),
-            },
+            &HubRepo::new("o/m", "abc"),
             &[
                 ("config.json", br#"{"torch_dtype": "bfloat16"}"#),
                 ("tokenizer.json", b"{}"),

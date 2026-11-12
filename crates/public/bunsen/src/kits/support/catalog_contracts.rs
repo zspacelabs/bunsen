@@ -70,6 +70,10 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
     let contract = |kit, yaml| KitCatalogContract { kit, yaml };
     #[allow(unused_mut)]
     let mut contracts = alloc::vec![
+        contract(
+            crate::data::datasets::DATASETS_KIT,
+            crate::data::datasets::PARQUET_SHARDS_CONTRACT,
+        ),
         contract(LAYA_KIT, LAYA_CONTRACT),
         contract(RESNET_KIT, RESNET_CONTRACT),
         contract(GEMMA_KIT, GEMMA_CONTRACT),

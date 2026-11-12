@@ -9,8 +9,8 @@ those files, and where they go next. The reference is
 ## The pathway
 
 ```text
-a kit's shard set table      names its sets, compiled in
-  │  look up, select a range of shards
+a catalog build             a dataset, a templated resource of numbered files
+  │  view it, select a range of shards
   ▼
 ShardSet                     the set, bound to a directory
   │  locate / fetch / fetch_many
@@ -23,11 +23,11 @@ a data loader                bunsen-arrow-dataloaders, in train-chat
 
 A [`ShardSetDescriptor`](bunsen::data::datasets::ShardSetDescriptor) says
 what a set is: its name, the base URLs its files come from, how they are
-named and numbered, and whether they are pinned. It is plain data, and it
-follows the same split as [pretrained models](./pretrained.md): a static
-twin for tables compiled into a kit, such as
-[NanoChat's corpus](bunsen::kits::language::nanochat::datasets), and an owned
-twin for a set built at run time. A
+named and numbered, and whether they are pinned. It is plain data, a view of
+a catalog build of a dataset contract (`parquet-shards`), whose shards are
+one templated resource; [NanoChat's corpus](bunsen::kits::language::nanochat::datasets)
+is the built-in catalog's `karpathy/fineweb-edu-100b-shuffle`
+([`from_builtin`](bunsen::data::datasets::ShardSetDescriptor::from_builtin)). A
 [`ShardSet`](bunsen::data::datasets::ShardSet) binds a descriptor to a
 directory, the disk cache's or one the caller gives, and brings shards in.
 Binding needs the `cache` feature; downloading needs `fetch`. Without
@@ -36,13 +36,11 @@ Binding needs the `cache` feature; downloading needs `fetch`. Without
 ## Pinned shards
 
 A pinned set carries one SHA-256 per shard, and a fetch verifies each file
-as its bytes land. The tables are generated, not typed:
-[`tools/gen_shard_digests.py`](https://github.com/zspacelabs/bunsen/blob/main/tools/gen_shard_digests.py)
-reads the dataset's file listing at a pinned revision of its Hugging Face
-repository, and the descriptor's base URL resolves that same revision. The
-files and their digests therefore can't drift apart. Like the other
-fixture generators, the script is run once by hand and its output committed
-([Validation](../development/validation.md#fixtures-generated-once)).
+as its bytes land. The pins are generated, not typed: `cargo catalog` reads
+the dataset's file listing at a pinned revision of its Hugging Face
+repository and lists each shard's digest in the build's resource, and the
+descriptor's base URL resolves that same revision. The files and their
+digests therefore can't drift apart.
 
 ## bunsen stops at paths
 

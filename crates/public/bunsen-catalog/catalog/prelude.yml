@@ -2,6 +2,14 @@
 $description: "bunsen's vocabulary: the contracts, facets, registered axes and tags, and the
   template-class root."
 $contracts:
+  parquet-shards:
+    $kind: contract
+    $description: A dataset as numbered parquet shards, each a table of rows.
+    $resources:
+      shards:
+        $description: "The shards: a templated resource, one file per index."
+        $format:
+          - parquet
   laya-decision:
     $kind: contract
     $description: "A Laya decision model: a ModernBERT encoder and a decision head, in one
