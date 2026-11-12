@@ -34,7 +34,7 @@ use crate::{
         support::{
             construct::TransformersLmKit,
             model_config::{
-                CatalogProbe,
+                ProbeSpec,
                 probe_loaded,
             },
         },
@@ -93,12 +93,11 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
         probe_loaded(
             loaded,
             &[
-                CatalogProbe::into_base("generation_config", GENERATION_CONFIG),
-                CatalogProbe::into_base("tokenizer_config", TOKENIZER_CONFIG),
-                CatalogProbe::into_base("tokenizer_config", TOKENIZER_CONFIG)
-                    .with_token(END_OF_TEXT),
-                CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
-                CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
+                ProbeSpec::into_base("generation_config", GENERATION_CONFIG),
+                ProbeSpec::into_base("tokenizer_config", TOKENIZER_CONFIG),
+                ProbeSpec::into_base("tokenizer_config", TOKENIZER_CONFIG).with_token(END_OF_TEXT),
+                ProbeSpec::into_base("chat_template", TOKENIZER_CONFIG),
+                ProbeSpec::into_base("chat_template", CHAT_TEMPLATE),
             ],
             &ResolvedPresetSet::default(),
         )

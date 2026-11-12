@@ -36,7 +36,7 @@ use crate::{
         support::{
             construct::TransformersLmKit,
             model_config::{
-                CatalogProbe,
+                ProbeSpec,
                 probe_loaded,
             },
         },
@@ -93,11 +93,10 @@ impl TransformersLmKit for GemmaConstructConfig {
         probe_loaded(
             loaded,
             &[
-                CatalogProbe::into_base("generation_config", GENERATION_CONFIG),
-                CatalogProbe::into_base("tokenizer_config", TOKENIZER_CONFIG)
-                    .with_token(END_OF_TURN),
-                CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
-                CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
+                ProbeSpec::into_base("generation_config", GENERATION_CONFIG),
+                ProbeSpec::into_base("tokenizer_config", TOKENIZER_CONFIG).with_token(END_OF_TURN),
+                ProbeSpec::into_base("chat_template", TOKENIZER_CONFIG),
+                ProbeSpec::into_base("chat_template", CHAT_TEMPLATE),
             ],
             &crate::data::catalog::BuiltinCatalog::get()?.template_presets(GEMMA_TEMPLATE_CLASS)?,
         )
