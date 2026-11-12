@@ -30,9 +30,11 @@ END = "<!-- /card -->"
 
 
 def card() -> str:
-    """The kits card, as YAML: from a build of `bunsen-tool` without its optional features."""
+    """The kits card, as YAML: from a build of `bunsen-tool` with every kit (`speech`), and
+    none of its device or I/O features."""
     out = subprocess.run(
-        ["cargo", "run", "-q", "-p", "bunsen-tool", "--no-default-features", "--",
+        ["cargo", "run", "-q", "-p", "bunsen-tool", "--no-default-features",
+         "--features", "speech", "--",
          "card", "--section", "kits", "--format", "yml"],
         check=True, capture_output=True, text=True)
     return out.stdout
