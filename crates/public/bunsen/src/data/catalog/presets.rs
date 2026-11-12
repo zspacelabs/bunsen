@@ -30,7 +30,6 @@ use crate::{
         },
         error::{
             CatalogErrorExt,
-            CatalogResult,
             CatalogRule,
             catalog_error,
         },
@@ -40,7 +39,10 @@ use crate::{
             is_segment,
         },
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     support::merge_patch,
 };
 
@@ -289,7 +291,7 @@ impl ResolvedPresetSet {
     /// problem found.
     pub fn fold(
         links: &[PresetLink<'_>],
-        axis: &dyn Fn(&PresetLink<'_>, &CatalogRef) -> CatalogResult<AxisInfo>,
+        axis: &dyn Fn(&PresetLink<'_>, &CatalogRef) -> BunsenResult<AxisInfo>,
     ) -> Result<Self, Vec<BunsenError>> {
         let mut errors = Vec::new();
         let mut set = Self {
@@ -585,7 +587,7 @@ impl ResolvedPresetSet {
         &self,
         axis: &CatalogName,
         on: bool,
-    ) -> CatalogResult<String> {
+    ) -> BunsenResult<String> {
         let Some(using) = self.axis_use(axis) else {
             return Err(catalog_error(
                 CatalogRule::Selection,
@@ -621,7 +623,7 @@ impl ResolvedPresetSet {
     pub fn check_selection(
         &self,
         selection: &PresetSelection,
-    ) -> CatalogResult<Vec<String>> {
+    ) -> BunsenResult<Vec<String>> {
         let mut selected: Vec<String> = Vec::new();
         for name in &selection.presets {
             let preset = self.get(name).or_else(|| {
@@ -727,7 +729,7 @@ impl ResolvedPresetSet {
         &self,
         base: Value,
         selection: &PresetSelection,
-    ) -> CatalogResult<AppliedPresets> {
+    ) -> BunsenResult<AppliedPresets> {
         let selected = self.check_selection(selection)?;
         let applied = self.applied(&selected);
         let mut document = base;
@@ -809,7 +811,7 @@ mod tests {
     fn lookup(
         _link: &PresetLink<'_>,
         name: &CatalogRef,
-    ) -> CatalogResult<AxisInfo> {
+    ) -> BunsenResult<AxisInfo> {
         if name.to_string() == "thinking" {
             Ok(thinking())
         } else {

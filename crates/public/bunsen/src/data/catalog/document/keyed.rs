@@ -47,18 +47,22 @@ use crate::{
             TagEntry,
             TemplateClassEntry,
             TypeEntry,
-            empty_object,
-            is_empty_object,
+            support::{
+                empty_object,
+                is_empty_object,
+            },
         },
         error::{
             CatalogErrorExt,
-            CatalogResult,
             CatalogRule,
             catalog_error,
         },
         name::CatalogRef,
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// A YAML or JSON document as a tree whose maps keep their order and hold
@@ -84,7 +88,7 @@ impl OrderedNode {
     ///
     /// # Errors
     /// [`CatalogRule::Parse`] when it isn't YAML, or repeats a key.
-    pub fn from_yaml(yaml: &str) -> CatalogResult<Self> {
+    pub fn from_yaml(yaml: &str) -> BunsenResult<Self> {
         serde_saphyr::from_str(yaml).map_err(|e| parse_error("", e))
     }
 
@@ -92,7 +96,7 @@ impl OrderedNode {
     ///
     /// # Errors
     /// [`CatalogRule::Parse`] when it isn't JSON, or repeats a key.
-    pub fn from_json(json: &str) -> CatalogResult<Self> {
+    pub fn from_json(json: &str) -> BunsenResult<Self> {
         serde_json::from_str(json).map_err(|e| parse_error("", e))
     }
 
@@ -100,7 +104,7 @@ impl OrderedNode {
     ///
     /// # Errors
     /// [`CatalogRule::Parse`] when it doesn't serialize.
-    pub fn to_yaml(&self) -> CatalogResult<String> {
+    pub fn to_yaml(&self) -> BunsenResult<String> {
         serde_saphyr::to_string(self).map_err(|e| parse_error("", e))
     }
 
@@ -108,7 +112,7 @@ impl OrderedNode {
     ///
     /// # Errors
     /// [`CatalogRule::Parse`] when it doesn't serialize.
-    pub fn to_json(&self) -> CatalogResult<String> {
+    pub fn to_json(&self) -> BunsenResult<String> {
         serde_json::to_string_pretty(self).map_err(|e| parse_error("", e))
     }
 
@@ -116,7 +120,7 @@ impl OrderedNode {
     ///
     /// # Errors
     /// [`CatalogRule::Parse`] when it doesn't serialize.
-    pub fn from_serialize<T: Serialize>(value: &T) -> CatalogResult<Self> {
+    pub fn from_serialize<T: Serialize>(value: &T) -> BunsenResult<Self> {
         let text = serde_json::to_string(value).map_err(|e| parse_error("", e))?;
         Self::from_json(&text)
     }
@@ -338,7 +342,7 @@ fn expect_map(
     node: OrderedNode,
     path: &str,
     what: &str,
-) -> CatalogResult<Vec<(String, OrderedNode)>> {
+) -> BunsenResult<Vec<(String, OrderedNode)>> {
     match node {
         OrderedNode::Map(entries) => Ok(entries),
         _ => Err(parse_error(path, format!("{what} is not a map"))),
@@ -349,13 +353,13 @@ fn typed<T: DeserializeOwned>(
     fields: serde_json::Map<String, Value>,
     path: &str,
     what: &str,
-) -> CatalogResult<T> {
+) -> BunsenResult<T> {
     serde_json::from_value(Value::Object(fields))
         .map_err(|e| parse_error(path, format!("{what}: {e}")))
 }
 
 /// Reads a catalog document from its tree.
-pub(super) fn read_catalog(node: OrderedNode) -> CatalogResult<BunsenCatalog> {
+pub(super) fn read_catalog(node: OrderedNode) -> BunsenResult<BunsenCatalog> {
     let mut catalog = BunsenCatalog::default();
     for (key, value) in expect_map(node, "", "the catalog")? {
         match key.as_str() {
@@ -392,7 +396,7 @@ pub(super) fn read_catalog(node: OrderedNode) -> CatalogResult<BunsenCatalog> {
 fn entry_kind(
     text: &str,
     path: &str,
-) -> CatalogResult<EntryKind> {
+) -> BunsenResult<EntryKind> {
     EntryKind::from_name(text).ok_or_else(|| parse_error(path, format!("`{text}` is not a kind")))
 }
 
@@ -400,7 +404,7 @@ fn read_entry(
     name: String,
     node: OrderedNode,
     path: &str,
-) -> CatalogResult<CatalogEntry> {
+) -> BunsenResult<CatalogEntry> {
     let entries = expect_map(node, path, "an entry")?;
     let kind = match entries.iter().find(|(k, _)| k == "$kind") {
         Some((_, OrderedNode::Scalar(Value::String(kind)))) => entry_kind(kind, path)?,
@@ -515,7 +519,7 @@ struct AxisUseFields {
 fn read_presets(
     node: OrderedNode,
     path: &str,
-) -> CatalogResult<PresetSetEntry> {
+) -> BunsenResult<PresetSetEntry> {
     let mut set = PresetSetEntry::default();
     for (key, value) in expect_map(node, path, "`$presets`")? {
         match key.as_str() {

@@ -1,14 +1,15 @@
-//! Errors: every failure is a [`BunsenError`]. A catalog problem carries a
-//! [`CatalogProblem`] as its cause: the rule it breaks, and where it was
-//! found. A validation pass that finds several reports them together, each a
-//! member of a [`Multiple`].
+//! Errors: every failure is a [`BunsenError`], and every fallible catalog
+//! function returns a [`BunsenResult`](crate::errors::BunsenResult). A catalog
+//! problem carries a [`CatalogProblem`] as its cause: the rule it breaks, and
+//! where it was found. A validation pass that finds several reports them
+//! together, each a member of a [`Multiple`]; [`CatalogErrorExt`] reads the
+//! problems back out of either.
 
 use alloc::fmt;
 
 use crate::errors::{
     BunsenError,
     BunsenErrorKind,
-    BunsenResult,
     Multiple,
 };
 
@@ -302,7 +303,3 @@ impl Placed for BunsenError {
         self
     }
 }
-
-/// A result whose error is a [`BunsenError`], a catalog's carrying its
-/// [`CatalogProblem`]s.
-pub type CatalogResult<T> = BunsenResult<T>;

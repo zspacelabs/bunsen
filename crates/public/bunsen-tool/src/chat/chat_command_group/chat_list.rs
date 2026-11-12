@@ -52,28 +52,9 @@ impl ChatListCommand {
             for (id, row) in family.rows()? {
                 print_model_row(&cache, &id, &row, default, self.urls);
             }
-            match family {
-                ChatModelFamily::Qwen3 => {
-                    println!();
-                    println!(
-                        "hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout"
-                    );
-                }
-                ChatModelFamily::Qwen3_5 => {
-                    println!();
-                    println!(
-                        "hf:org/repo (under `family qwen3.5`): any Hugging Face repo in a \
-                         transformers Qwen3.5's layout"
-                    );
-                }
-                ChatModelFamily::Gemma => {
-                    println!();
-                    println!(
-                        "hf:org/repo (under `family gemma`): any Hugging Face repo in a \
-                         transformers Gemma's layout"
-                    );
-                }
-                ChatModelFamily::NanoChat => {}
+            if let Some(note) = family.hf_note() {
+                println!();
+                println!("{note}");
             }
         }
         Ok(())

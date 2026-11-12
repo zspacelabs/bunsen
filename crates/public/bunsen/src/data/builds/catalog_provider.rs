@@ -193,7 +193,7 @@ impl BuiltinCatalog {
 mod tests {
     use super::*;
     use crate::data::{
-        catalog::fixtures,
+        catalog::testing::fixtures,
         resources::Source,
     };
 

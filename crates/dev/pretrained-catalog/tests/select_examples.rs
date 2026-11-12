@@ -25,7 +25,6 @@ use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogName,
     document::EntryKind,
-    fixtures,
     presets::PresetSelection,
     resolve::ResolvedBuild,
     select::{
@@ -50,6 +49,7 @@ use bunsen::data::catalog::{
             StageOrigin,
         },
     },
+    testing::fixtures,
 };
 use serde_json::{
     Value,

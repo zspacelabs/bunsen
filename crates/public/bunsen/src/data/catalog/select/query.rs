@@ -52,7 +52,6 @@ use crate::{
         document::EntryKind,
         error::{
             CatalogErrorExt,
-            CatalogResult,
             CatalogRule,
             catalog_error,
         },
@@ -61,7 +60,10 @@ use crate::{
             state::SelectEnv,
         },
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 pub(crate) fn query_error(message: impl Into<String>) -> BunsenError {
@@ -107,7 +109,7 @@ impl SelectQuery {
     ///
     /// # Errors
     /// [`CatalogRule::Selection`] when it isn't a query.
-    pub fn from_value(value: &Value) -> CatalogResult<Self> {
+    pub fn from_value(value: &Value) -> BunsenResult<Self> {
         let query: Self = serde_json::from_value(value.clone())
             .map_err(|e| query_error(format!("a query: {e}")))?;
         if let Some(floor) = query.floor
@@ -124,7 +126,7 @@ impl SelectQuery {
     ///
     /// # Errors
     /// As [`from_value`](Self::from_value), and when it isn't YAML.
-    pub fn from_yaml(yaml: &str) -> CatalogResult<Self> {
+    pub fn from_yaml(yaml: &str) -> BunsenResult<Self> {
         let value: Value = serde_saphyr::from_str(yaml)
             .map_err(|e| query_error(format!("a query is YAML: {e}")))?;
         Self::from_value(&value)
@@ -144,7 +146,7 @@ impl SelectQuery {
     pub fn compile(
         &self,
         env: &SelectEnv<'_>,
-    ) -> CatalogResult<CompiledQuery> {
+    ) -> BunsenResult<CompiledQuery> {
         CompiledQuery::compile(self, env)
     }
 }
@@ -350,11 +352,11 @@ impl WeighEntry {
         !matches!(self, Self::Add(_) | Self::Clip(..))
     }
 
-    fn from_value(value: &Value) -> CatalogResult<Self> {
+    fn from_value(value: &Value) -> BunsenResult<Self> {
         let Value::Object(fields) = value else {
             return Err(query_error(format!("a `by` entry is a map, not {value}")));
         };
-        let number = |key: &str, default: f64| -> CatalogResult<f64> {
+        let number = |key: &str, default: f64| -> BunsenResult<f64> {
             match fields.get(key) {
                 None => Ok(default),
                 Some(v) => v
@@ -363,7 +365,7 @@ impl WeighEntry {
                     .ok_or_else(|| query_error(format!("`{key}` is a number, not {v}"))),
             }
         };
-        let only = |allowed: &[&str]| -> CatalogResult<()> {
+        let only = |allowed: &[&str]| -> BunsenResult<()> {
             match fields.keys().find(|k| !allowed.contains(&k.as_str())) {
                 Some(k) => Err(query_error(format!(
                     "this `by` entry takes {allowed:?}, not `{k}`"
@@ -560,20 +562,20 @@ impl Predicate {
     ///
     /// # Errors
     /// [`CatalogRule::Selection`] for a shape no predicate has.
-    pub fn from_value(value: &Value) -> CatalogResult<Self> {
+    pub fn from_value(value: &Value) -> BunsenResult<Self> {
         match value {
             Value::String(name) => Ok(Self::Name(name.clone())),
             Value::Array(items) => Ok(Self::All(
                 items
                     .iter()
                     .map(Self::from_value)
-                    .collect::<CatalogResult<_>>()?,
+                    .collect::<BunsenResult<_>>()?,
             )),
             Value::Object(entries) => {
                 let mut all = entries
                     .iter()
                     .map(|(key, value)| Self::entry(key, value))
-                    .collect::<CatalogResult<Vec<_>>>()?;
+                    .collect::<BunsenResult<Vec<_>>>()?;
                 match all.len() {
                     0 => Err(query_error("an empty map is not a predicate")),
                     1 => Ok(all.pop().expect("one")),
@@ -589,8 +591,8 @@ impl Predicate {
     fn entry(
         key: &str,
         value: &Value,
-    ) -> CatalogResult<Self> {
-        let operands = |op: &str| -> CatalogResult<Vec<Predicate>> {
+    ) -> BunsenResult<Self> {
+        let operands = |op: &str| -> BunsenResult<Vec<Predicate>> {
             let Value::Array(items) = value else {
                 return Err(query_error(format!("`{op}` takes a list, not {value}")));
             };
@@ -679,7 +681,7 @@ impl SortKey {
         }
     }
 
-    fn from_value(value: &Value) -> CatalogResult<Self> {
+    fn from_value(value: &Value) -> BunsenResult<Self> {
         match value {
             Value::String(key) => Ok(Self::asc(key.clone())),
             Value::Object(fields) => {
@@ -757,7 +759,7 @@ impl<'de> Deserialize<'de> for SortKeys {
             Value::Array(items) => items
                 .iter()
                 .map(SortKey::from_value)
-                .collect::<CatalogResult<Vec<_>>>(),
+                .collect::<BunsenResult<Vec<_>>>(),
             one => SortKey::from_value(one).map(|k| vec![k]),
         };
         keys.map(SortKeys)

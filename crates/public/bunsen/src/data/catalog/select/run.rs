@@ -58,54 +58,54 @@ use core::cmp::Ordering;
 
 use serde_json::Value;
 
-use crate::data::catalog::{
-    document::{
-        AxisKind,
-        CatalogEntry,
-        EntryKind,
-        Primitive,
-    },
-    error::{
-        CatalogErrorExt,
-        CatalogResult,
-    },
-    lookup::LeafMatch,
-    name::{
-        CatalogName,
-        CatalogRef,
-    },
-    presets::PresetSelection,
-    release_time::ReleaseTime,
-    resolve::CONTRACT_TAG,
-    select::{
-        query::{
-            LabeledStage,
-            PerGroup,
-            Predicate,
-            SelectQuery,
-            SortKey,
-            Stage,
-            WeighEntry,
-            flow,
-            query_error,
+use crate::{
+    data::catalog::{
+        document::{
+            AxisKind,
+            CatalogEntry,
+            EntryKind,
+            Primitive,
         },
-        state::{
-            DroppedRow,
-            SelectEntry,
-            SelectEnv,
-            SelectRow,
-            SelectRun,
-            SelectTable,
-            SelectTrace,
-            StageOrigin,
-            StageTrace,
+        error::CatalogErrorExt,
+        lookup::LeafMatch,
+        name::{
+            CatalogName,
+            CatalogRef,
         },
-        typed::{
-            LanguageMatch,
-            match_language,
+        presets::PresetSelection,
+        release_time::ReleaseTime,
+        resolve::CONTRACT_TAG,
+        select::{
+            query::{
+                LabeledStage,
+                PerGroup,
+                Predicate,
+                SelectQuery,
+                SortKey,
+                Stage,
+                WeighEntry,
+                flow,
+                query_error,
+            },
+            state::{
+                DroppedRow,
+                SelectEntry,
+                SelectEnv,
+                SelectRow,
+                SelectRun,
+                SelectTable,
+                SelectTrace,
+                StageOrigin,
+                StageTrace,
+            },
+            typed::{
+                LanguageMatch,
+                match_language,
+            },
         },
+        tags::ResolvedType,
     },
-    tags::ResolvedType,
+    errors::BunsenResult,
 };
 
 /// The kinds a membership name may name.
@@ -362,7 +362,7 @@ impl CompiledQuery {
     pub fn compile(
         query: &SelectQuery,
         env: &SelectEnv<'_>,
-    ) -> CatalogResult<Self> {
+    ) -> BunsenResult<Self> {
         let compiler = Compiler {
             env,
             kind: query.kind,
@@ -396,7 +396,7 @@ impl CompiledQuery {
         &self,
         env: &SelectEnv<'_>,
         table: SelectTable,
-    ) -> CatalogResult<SelectTable> {
+    ) -> BunsenResult<SelectTable> {
         self.execute(env, table, None)
     }
 
@@ -408,7 +408,7 @@ impl CompiledQuery {
         &self,
         env: &SelectEnv<'_>,
         table: SelectTable,
-    ) -> CatalogResult<SelectRun> {
+    ) -> BunsenResult<SelectRun> {
         let mut trace = SelectTrace::default();
         let table = self.execute(env, table, Some(&mut trace))?;
         Ok(SelectRun { table, trace })
@@ -419,7 +419,7 @@ impl CompiledQuery {
         env: &SelectEnv<'_>,
         table: SelectTable,
         trace: Option<&mut SelectTrace>,
-    ) -> CatalogResult<SelectTable> {
+    ) -> BunsenResult<SelectTable> {
         if table.kind != self.kind {
             return Err(query_error(format!(
                 "a query of `{}` entries can't run on a table of `{}` entries",
@@ -436,7 +436,7 @@ impl CompiledQuery {
         env: &SelectEnv<'_>,
         mut table: SelectTable,
         mut trace: Option<&mut SelectTrace>,
-    ) -> CatalogResult<SelectTable> {
+    ) -> BunsenResult<SelectTable> {
         for (index, stage) in stages.iter().enumerate() {
             let before: BTreeSet<CatalogName> =
                 table.rows.iter().map(|r| r.entry.path.clone()).collect();
@@ -700,7 +700,7 @@ impl Update {
         &self,
         env: &SelectEnv<'_>,
         row: &Row<'_>,
-    ) -> CatalogResult<f64> {
+    ) -> BunsenResult<f64> {
         let weight = row.weight;
         Ok(match self {
             Self::When {
@@ -882,7 +882,7 @@ impl Compiler<'_, '_> {
         &self,
         kinds: &[EntryKind],
         what: &str,
-    ) -> CatalogResult<()> {
+    ) -> BunsenResult<()> {
         if kinds.contains(&self.kind) {
             return Ok(());
         }
@@ -907,7 +907,7 @@ impl Compiler<'_, '_> {
     fn stages(
         &self,
         run: &[LabeledStage],
-    ) -> CatalogResult<Vec<CompiledStage>> {
+    ) -> BunsenResult<Vec<CompiledStage>> {
         run.iter()
             .enumerate()
             .map(|(i, labeled)| {
@@ -931,7 +931,7 @@ impl Compiler<'_, '_> {
     fn stage(
         &self,
         stage: &Stage,
-    ) -> CatalogResult<CompiledStage> {
+    ) -> BunsenResult<CompiledStage> {
         let written = serde_json::to_value(stage)
             .ok()
             .and_then(|v| v.get(stage.op()).cloned())
@@ -943,7 +943,7 @@ impl Compiler<'_, '_> {
                         .0
                         .iter()
                         .map(|n| self.member(n).map(Test::Member))
-                        .collect::<CatalogResult<_>>()?,
+                        .collect::<BunsenResult<_>>()?,
                 ),
                 keep_if: true,
             },
@@ -968,7 +968,7 @@ impl Compiler<'_, '_> {
                         .by
                         .iter()
                         .map(|e| self.update(e))
-                        .collect::<CatalogResult<_>>()?,
+                        .collect::<BunsenResult<_>>()?,
                     floor: block.floor,
                 }
             }
@@ -976,7 +976,7 @@ impl Compiler<'_, '_> {
                 keys.0
                     .iter()
                     .map(|k| self.sort_key(k))
-                    .collect::<CatalogResult<_>>()?,
+                    .collect::<BunsenResult<_>>()?,
             ),
             Stage::Limit(n) => {
                 if *n == 0 {
@@ -994,7 +994,7 @@ impl Compiler<'_, '_> {
                         names
                             .iter()
                             .map(|n| self.member(n))
-                            .collect::<CatalogResult<_>>()?,
+                            .collect::<BunsenResult<_>>()?,
                     ),
                 };
                 Step::Per {
@@ -1027,7 +1027,7 @@ impl Compiler<'_, '_> {
     fn update(
         &self,
         entry: &WeighEntry,
-    ) -> CatalogResult<Update> {
+    ) -> BunsenResult<Update> {
         Ok(match entry {
             WeighEntry::When {
                 when,
@@ -1078,7 +1078,7 @@ impl Compiler<'_, '_> {
         &self,
         name: &str,
         kinds: &[EntryKind],
-    ) -> CatalogResult<CatalogName> {
+    ) -> BunsenResult<CatalogName> {
         let stack = self.env.stack();
         match CatalogRef::parse(name) {
             Ok(r) if r.is_absolute() => stack
@@ -1093,7 +1093,7 @@ impl Compiler<'_, '_> {
     fn member(
         &self,
         name: &str,
-    ) -> CatalogResult<Member> {
+    ) -> BunsenResult<Member> {
         let found = self.find(name, &self.member_kinds())?;
         let kind = self
             .env
@@ -1107,7 +1107,7 @@ impl Compiler<'_, '_> {
     fn resolve(
         &self,
         name: &str,
-    ) -> CatalogResult<Resolved> {
+    ) -> BunsenResult<Resolved> {
         if name == CONTRACT_TAG {
             return Err(query_error(
                 "the build's contract is the `$` word `$contract`, or a contract's name",
@@ -1138,7 +1138,7 @@ impl Compiler<'_, '_> {
     fn predicate(
         &self,
         predicate: &Predicate,
-    ) -> CatalogResult<Test> {
+    ) -> BunsenResult<Test> {
         Ok(match predicate {
             Predicate::All(items) => Test::All(self.predicates(items)?),
             Predicate::Any(items) => Test::Any(self.predicates(items)?),
@@ -1189,7 +1189,7 @@ impl Compiler<'_, '_> {
     fn predicates(
         &self,
         items: &[Predicate],
-    ) -> CatalogResult<Vec<Test>> {
+    ) -> BunsenResult<Vec<Test>> {
         items.iter().map(|p| self.predicate(p)).collect()
     }
 
@@ -1197,7 +1197,7 @@ impl Compiler<'_, '_> {
         &self,
         key: &str,
         value: &Value,
-    ) -> CatalogResult<Test> {
+    ) -> BunsenResult<Test> {
         if let Some(word) = key.strip_prefix('$') {
             return self.word_test(word, value);
         }
@@ -1270,7 +1270,7 @@ impl Compiler<'_, '_> {
         &self,
         word: &str,
         value: &Value,
-    ) -> CatalogResult<Test> {
+    ) -> BunsenResult<Test> {
         let builds = [EntryKind::Build];
         match word {
             "presets" => self.only(&[EntryKind::Build, EntryKind::TemplateClass], "`$presets`")?,
@@ -1294,7 +1294,7 @@ impl Compiler<'_, '_> {
                                 .map(str::to_string)
                                 .ok_or_else(|| query_error(format!("{v} is not a preset name")))
                         })
-                        .collect::<CatalogResult<_>>()?,
+                        .collect::<BunsenResult<_>>()?,
                     other => {
                         return Err(query_error(format!(
                             "`$presets` takes a preset name or a list of them, not {other}"
@@ -1355,8 +1355,8 @@ impl Compiler<'_, '_> {
         &self,
         mut check: ValueCheck,
         kinds: &[EntryKind],
-    ) -> CatalogResult<ValueCheck> {
-        let resolve = |v: &mut Value| -> CatalogResult<()> {
+    ) -> BunsenResult<ValueCheck> {
+        let resolve = |v: &mut Value| -> BunsenResult<()> {
             let name = v
                 .as_str()
                 .ok_or_else(|| query_error(format!("{v} is not a name")))?;
@@ -1378,8 +1378,8 @@ impl Compiler<'_, '_> {
         &self,
         kind: ValueKind,
         written: &Value,
-    ) -> CatalogResult<ValueCheck> {
-        let fits = |v: &Value| -> CatalogResult<()> {
+    ) -> BunsenResult<ValueCheck> {
+        let fits = |v: &Value| -> BunsenResult<()> {
             let ok = match &kind {
                 ValueKind::Bool => v.is_boolean(),
                 ValueKind::Number => v.is_number(),
@@ -1400,7 +1400,7 @@ impl Compiler<'_, '_> {
                 Err(query_error(format!("{v} is not {}", kind.describe())))
             }
         };
-        let list = |op: &str, v: &Value| -> CatalogResult<Vec<Value>> {
+        let list = |op: &str, v: &Value| -> BunsenResult<Vec<Value>> {
             let Value::Array(items) = v else {
                 return Err(query_error(format!("`{op}` takes a list, not {v}")));
             };
@@ -1411,7 +1411,7 @@ impl Compiler<'_, '_> {
             Value::Object(ops) => {
                 let mut cmps = Vec::new();
                 for (op, v) in ops {
-                    let scalar_only = |cmp: Cmp| -> CatalogResult<Cmp> {
+                    let scalar_only = |cmp: Cmp| -> BunsenResult<Cmp> {
                         if kind.is_set() {
                             Err(query_error(format!(
                                 "`{op}` tests a single value; a set takes `has`, `has_all`, \
@@ -1421,7 +1421,7 @@ impl Compiler<'_, '_> {
                             Ok(cmp)
                         }
                     };
-                    let ordered = |cmp: Cmp| -> CatalogResult<Cmp> {
+                    let ordered = |cmp: Cmp| -> BunsenResult<Cmp> {
                         if kind.is_ordered() {
                             Ok(cmp)
                         } else {
@@ -1431,7 +1431,7 @@ impl Compiler<'_, '_> {
                             )))
                         }
                     };
-                    let set_only = |cmp: Cmp| -> CatalogResult<Cmp> {
+                    let set_only = |cmp: Cmp| -> BunsenResult<Cmp> {
                         if kind.is_set() {
                             Ok(cmp)
                         } else {
@@ -1514,7 +1514,7 @@ impl Compiler<'_, '_> {
     fn sort_key(
         &self,
         key: &SortKey,
-    ) -> CatalogResult<CompiledSortKey> {
+    ) -> BunsenResult<CompiledSortKey> {
         let (subject, kind) = match key.key.strip_prefix('$') {
             Some("weight") => (Subject::Weight, ValueKind::Number),
             Some("name") => (Subject::Name, ValueKind::Text),

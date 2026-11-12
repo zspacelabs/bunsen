@@ -44,6 +44,7 @@ use bunsen::{
 };
 
 use crate::chat::{
+    ChatBackend,
     ChatModel,
     GemmaChat,
     NanoChatChat,
@@ -76,6 +77,35 @@ pub enum LoadedChat {
     Qwen3_5(Arc<ChatModel<Qwen3_5Chat>>),
     Gemma(Arc<ChatModel<GemmaChat>>),
     NanoChat(Arc<ChatModel<NanoChatChat>>),
+}
+
+/// An operation over a loaded chat, whatever its kit:
+/// [`LoadedChat::visit`] hands it the typed model.
+pub trait ChatVisitor {
+    /// What the operation gives.
+    type Output;
+
+    /// Runs the operation over `chat`.
+    fn visit<B: ChatBackend>(
+        self,
+        chat: &Arc<ChatModel<B>>,
+    ) -> Self::Output;
+}
+
+impl LoadedChat {
+    /// Runs `visitor` over the typed model: the one place a loaded chat's
+    /// kit is matched.
+    pub fn visit<V: ChatVisitor>(
+        &self,
+        visitor: V,
+    ) -> V::Output {
+        match self {
+            LoadedChat::Qwen3(chat) => visitor.visit(chat),
+            LoadedChat::Qwen3_5(chat) => visitor.visit(chat),
+            LoadedChat::Gemma(chat) => visitor.visit(chat),
+            LoadedChat::NanoChat(chat) => visitor.visit(chat),
+        }
+    }
 }
 
 /// A model family: one kit, its factory, and its default checkpoint.
@@ -130,6 +160,25 @@ impl ChatModelFamily {
             ChatModelFamily::Qwen3_5 => QWEN3_5_KIT,
             ChatModelFamily::Gemma => GEMMA_KIT,
             ChatModelFamily::NanoChat => NANOCHAT_KIT,
+        }
+    }
+
+    /// What an `hf:org/repo` checkpoint of the family can be, for a
+    /// listing; `None` when the family takes none.
+    pub fn hf_note(self) -> Option<&'static str> {
+        match self {
+            ChatModelFamily::Qwen3 => {
+                Some("hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout")
+            }
+            ChatModelFamily::Qwen3_5 => Some(
+                "hf:org/repo (under `family qwen3.5`): any Hugging Face repo in a \
+                 transformers Qwen3.5's layout",
+            ),
+            ChatModelFamily::Gemma => Some(
+                "hf:org/repo (under `family gemma`): any Hugging Face repo in a \
+                 transformers Gemma's layout",
+            ),
+            ChatModelFamily::NanoChat => None,
         }
     }
 

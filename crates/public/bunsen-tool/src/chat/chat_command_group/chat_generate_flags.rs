@@ -40,6 +40,7 @@ use crate::{
         ChatReply,
         ChatSession,
         ChatSessionConfig,
+        ChatVisitor,
         LoadedChat,
         choose_checkpoint,
         search_config,
@@ -271,8 +272,44 @@ impl ChatGenerateFlags {
         Ok(reply)
     }
 
+    /// Answers `prompt` with `chat`, `model` the lookup expression loaded,
+    /// once.
+    pub(super) fn run_once(
+        &self,
+        chat: &LoadedChat,
+        family: &impl ChatModelFamilyFlags,
+        device: &DeviceSession,
+        model: &str,
+        prompt: &str,
+    ) -> BunsenResult<()> {
+        chat.visit(RunOnce {
+            flags: self,
+            family,
+            device,
+            model,
+            prompt,
+        })
+    }
+
+    /// Holds a conversation on stdin with `chat`, `model` the lookup
+    /// expression loaded.
+    pub(super) fn converse(
+        &self,
+        chat: &LoadedChat,
+        family: &impl ChatModelFamilyFlags,
+        device: &DeviceSession,
+        model: &str,
+    ) -> BunsenResult<()> {
+        chat.visit(Converse {
+            flags: self,
+            family,
+            device,
+            model,
+        })
+    }
+
     /// Answers `prompt` with `model`, the lookup expression loaded, once.
-    pub(super) fn run_once<B: ChatBackend>(
+    fn run_once_with<B: ChatBackend>(
         &self,
         chat: &Arc<ChatModel<B>>,
         family: &impl ChatModelFamilyFlags,
@@ -287,7 +324,7 @@ impl ChatGenerateFlags {
 
     /// Holds a conversation on stdin with `model`, the lookup expression
     /// loaded.
-    pub(super) fn converse<B: ChatBackend>(
+    fn converse_with<B: ChatBackend>(
         &self,
         chat: &Arc<ChatModel<B>>,
         family: &impl ChatModelFamilyFlags,
@@ -315,6 +352,47 @@ impl ChatGenerateFlags {
             }
         }
         Ok(())
+    }
+}
+
+/// [`ChatGenerateFlags::run_once`] over a typed model.
+struct RunOnce<'a, F> {
+    flags: &'a ChatGenerateFlags,
+    family: &'a F,
+    device: &'a DeviceSession,
+    model: &'a str,
+    prompt: &'a str,
+}
+
+impl<F: ChatModelFamilyFlags> ChatVisitor for RunOnce<'_, F> {
+    type Output = BunsenResult<()>;
+
+    fn visit<B: ChatBackend>(
+        self,
+        chat: &Arc<ChatModel<B>>,
+    ) -> Self::Output {
+        self.flags
+            .run_once_with(chat, self.family, self.device, self.model, self.prompt)
+    }
+}
+
+/// [`ChatGenerateFlags::converse`] over a typed model.
+struct Converse<'a, F> {
+    flags: &'a ChatGenerateFlags,
+    family: &'a F,
+    device: &'a DeviceSession,
+    model: &'a str,
+}
+
+impl<F: ChatModelFamilyFlags> ChatVisitor for Converse<'_, F> {
+    type Output = BunsenResult<()>;
+
+    fn visit<B: ChatBackend>(
+        self,
+        chat: &Arc<ChatModel<B>>,
+    ) -> Self::Output {
+        self.flags
+            .converse_with(chat, self.family, self.device, self.model)
     }
 }
 

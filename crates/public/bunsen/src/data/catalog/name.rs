@@ -16,11 +16,13 @@ use serde::{
 use crate::{
     data::catalog::error::{
         CatalogErrorExt,
-        CatalogResult,
         CatalogRule,
         catalog_error,
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// The words YAML reads as something other than a string, in any case.
@@ -64,7 +66,7 @@ pub fn is_hub_segment(segment: &str) -> bool {
 ///
 /// # Errors
 /// [`CatalogRule::Name`] when it is not a legal segment.
-pub fn check_segment(segment: &str) -> CatalogResult<()> {
+pub fn check_segment(segment: &str) -> BunsenResult<()> {
     if is_segment(segment) {
         Ok(())
     } else {
@@ -124,7 +126,7 @@ impl CatalogName {
     /// # Errors
     /// [`CatalogRule::Name`] when it is empty or a segment is not
     /// legal.
-    pub fn parse(name: &str) -> CatalogResult<Self> {
+    pub fn parse(name: &str) -> BunsenResult<Self> {
         if name.is_empty() {
             return Err(catalog_error(CatalogRule::Name, "a name is empty"));
         }
@@ -179,7 +181,7 @@ impl CatalogName {
     ///
     /// # Errors
     /// [`CatalogRule::Name`] when `segment` is not legal.
-    pub fn root(segment: &str) -> CatalogResult<Self> {
+    pub fn root(segment: &str) -> BunsenResult<Self> {
         check_segment(segment)?;
         Ok(Self(vec![segment.to_string()]))
     }
@@ -191,7 +193,7 @@ impl CatalogName {
     pub fn child(
         &self,
         segment: &str,
-    ) -> CatalogResult<Self> {
+    ) -> BunsenResult<Self> {
         check_segment(segment)?;
         let mut segments = self.0.clone();
         segments.push(segment.to_string());
@@ -205,7 +207,7 @@ impl CatalogName {
     pub fn under(
         scope: Option<&CatalogName>,
         segment: &str,
-    ) -> CatalogResult<Self> {
+    ) -> BunsenResult<Self> {
         match scope {
             Some(scope) => scope.child(segment),
             None => Self::root(segment),
@@ -271,7 +273,7 @@ impl fmt::Debug for CatalogName {
 impl FromStr for CatalogName {
     type Err = BunsenError;
 
-    fn from_str(s: &str) -> CatalogResult<Self> {
+    fn from_str(s: &str) -> BunsenResult<Self> {
         Self::parse(s)
     }
 }
@@ -322,7 +324,7 @@ impl CatalogRef {
     ///
     /// # Errors
     /// [`CatalogRule::Name`] when the name isn't legal.
-    pub fn parse(reference: &str) -> CatalogResult<Self> {
+    pub fn parse(reference: &str) -> BunsenResult<Self> {
         let (absolute, rest) = match reference.strip_prefix('/') {
             Some(rest) => (true, rest),
             None => (false, reference),
@@ -394,7 +396,7 @@ impl fmt::Debug for CatalogRef {
 impl FromStr for CatalogRef {
     type Err = BunsenError;
 
-    fn from_str(s: &str) -> CatalogResult<Self> {
+    fn from_str(s: &str) -> BunsenResult<Self> {
         Self::parse(s)
     }
 }

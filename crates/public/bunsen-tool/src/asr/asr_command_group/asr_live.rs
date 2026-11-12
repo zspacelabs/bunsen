@@ -2,11 +2,11 @@
 
 use bunsen::errors::BunsenResult;
 
-use super::asr_construct_args::with_flags;
 use crate::asr::{
     AsrConstructArgs,
     AsrLiveIo,
     Mode,
+    with_flags,
 };
 
 /// Transcribes the microphone, as it speaks, with a preset's model for
@@ -28,7 +28,7 @@ impl AsrLiveCommand {
     pub fn run(&self) -> BunsenResult<()> {
         self.io.init_logging()?;
         let resolved = self.preset.resolve(Mode::Live)?;
-        with_flags!(resolved, flags => self.io.run(
+        with_flags!(resolved.family, flags => self.io.run(
             resolved.family,
             &resolved.model,
             &flags,

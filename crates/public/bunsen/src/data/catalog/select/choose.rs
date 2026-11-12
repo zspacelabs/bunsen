@@ -35,10 +35,7 @@ use crate::{
             CatalogEntry,
             EntryKind,
         },
-        error::{
-            CatalogErrorExt,
-            CatalogResult,
-        },
+        error::CatalogErrorExt,
         lookup::LeafMatch,
         name::CatalogName,
         presets::PresetSelection,
@@ -65,7 +62,10 @@ use crate::{
         },
         stack::BunsenCatalogStack,
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// A stage, with its label and where it came from.
@@ -212,7 +212,7 @@ pub fn bool_axis_member(
     stack: &BunsenCatalogStack,
     axis: &str,
     on: bool,
-) -> CatalogResult<String> {
+) -> BunsenResult<String> {
     let name = stack
         .find(axis, &[EntryKind::Axis], LeafMatch::Exact)
         .map_err(|e| query_error(format!("`{axis}`: {}", e.problem_message())))?;
@@ -277,7 +277,7 @@ impl SelectionContext {
         prefix: Option<OriginStage>,
         request: &SelectRequest,
         choosing: bool,
-    ) -> CatalogResult<ComposedQuery> {
+    ) -> BunsenResult<ComposedQuery> {
         let mut stages: Vec<OriginStage> = prefix.into_iter().collect();
         let (uses, refs): (Vec<&String>, Vec<&String>) =
             request.names.iter().partition(|n| self.named(n).is_some());
@@ -344,7 +344,7 @@ impl SelectionContext {
         stage: &LabeledStage,
         origin: StageOrigin,
         depth: usize,
-    ) -> CatalogResult<()> {
+    ) -> BunsenResult<()> {
         match &stage.stage {
             Stage::Use(name) => {
                 for inner in &self.named_run(name, depth)?.run {
@@ -390,7 +390,7 @@ impl SelectionContext {
         &self,
         name: &str,
         depth: usize,
-    ) -> CatalogResult<&NamedSelection> {
+    ) -> BunsenResult<&NamedSelection> {
         if depth >= MAX_USE_DEPTH {
             return Err(query_error(format!(
                 "`use: {name}` nests more than {MAX_USE_DEPTH} deep"
@@ -411,7 +411,7 @@ impl SelectionContext {
         env: &SelectEnv<'_>,
         universe: Option<&[CatalogName]>,
         composed: &ComposedQuery,
-    ) -> CatalogResult<SelectRun> {
+    ) -> BunsenResult<SelectRun> {
         let mut compiled = composed.query.compile(env)?;
         for (index, origin) in composed.origins.iter().enumerate() {
             compiled.set_origin(index, origin.clone());
@@ -449,7 +449,7 @@ impl SelectionContext {
         universe: Option<&[CatalogName]>,
         prefix: Option<OriginStage>,
         request: &SelectRequest,
-    ) -> CatalogResult<SelectRun> {
+    ) -> BunsenResult<SelectRun> {
         let composed = self.compose(env, prefix, request, false)?;
         self.run_composed(env, universe, &composed)
     }
@@ -465,7 +465,7 @@ impl SelectionContext {
         universe: Option<&[CatalogName]>,
         prefix: Option<OriginStage>,
         request: &SelectRequest,
-    ) -> CatalogResult<(Rc<SelectBuild>, SelectRun)> {
+    ) -> BunsenResult<(Rc<SelectBuild>, SelectRun)> {
         if request.kind != EntryKind::Build {
             return Err(query_error(format!(
                 "choosing takes a build, not a `{}`; rank a query of other kinds",
@@ -485,7 +485,7 @@ impl SelectionContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::catalog::fixtures;
+    use crate::data::catalog::testing::fixtures;
 
     fn leaves(run: &SelectRun) -> Vec<String> {
         run.table

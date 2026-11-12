@@ -1,7 +1,7 @@
 //! `pretrained-catalog`: `bunsen-tool catalog`'s commands
 //! ([`bunsen_app::catalog`]) over the example catalogs
-//! (`catalog::fixtures`) rather than the built-in one, without the model
-//! kits bunsen-tool builds.
+//! (`catalog::testing::fixtures`) rather than the built-in one, without the
+//! model kits bunsen-tool builds.
 //!
 //! ```text
 //! pretrained-catalog tree
@@ -34,7 +34,7 @@ fn main() -> ExitCode {
         Ok(cli) => cli,
         Err(error) => error.exit(),
     };
-    let base = match bunsen::data::catalog::fixtures::example_stack() {
+    let base = match bunsen::data::catalog::testing::fixtures::example_stack() {
         Ok(base) => base,
         Err(error) => {
             eprintln!("{error}");

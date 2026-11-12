@@ -1,6 +1,20 @@
 //! `tree`, a directory view of the namespace, and `dump`.
 
-use super::*;
+use bunsen::data::catalog::{
+    BunsenCatalogStack,
+    CatalogErrorExt,
+    CatalogName,
+    document::{
+        CatalogEntry,
+        EntryKind,
+        OrderedNode,
+    },
+    lookup::SEARCHABLE,
+    presets::ResolvedAxisUse,
+};
+use serde_json::Value;
+
+use super::support::*;
 
 /// The format `dump` writes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]

@@ -46,7 +46,6 @@ use crate::{
         },
         error::{
             CatalogErrorExt,
-            CatalogResult,
             CatalogRule,
             catalog_error,
             catalog_errors,
@@ -63,7 +62,10 @@ use crate::{
         release_time::ReleaseTime,
         tags::check_value,
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// One change an import made to an entry: the catalog, and how.
@@ -177,7 +179,7 @@ impl BunsenCatalogStack {
         label: impl Into<String>,
         path: Option<PathBuf>,
         document: BunsenCatalog,
-    ) -> CatalogResult<()> {
+    ) -> BunsenResult<()> {
         let layer = BunsenCatalogLayer::new(label, path, document)?;
         let label = layer.label().to_string();
         let declares_contracts = layer.document().contracts.is_some();
@@ -250,7 +252,7 @@ impl BunsenCatalogStack {
         &mut self,
         label: impl Into<String>,
         yaml: &str,
-    ) -> CatalogResult<()> {
+    ) -> BunsenResult<()> {
         let label = label.into();
         let document = BunsenCatalog::from_yaml(yaml).map_err(|e| e.in_layer(&label))?;
         self.push(label, None, document)
@@ -264,7 +266,7 @@ impl BunsenCatalogStack {
     pub fn push_file(
         &mut self,
         path: impl AsRef<Path>,
-    ) -> CatalogResult<()> {
+    ) -> BunsenResult<()> {
         let path = path.as_ref();
         let label = path
             .file_stem()
@@ -390,7 +392,7 @@ impl BunsenCatalogStack {
         reference: &CatalogRef,
         what: &str,
         kinds: &[EntryKind],
-    ) -> CatalogResult<EntryRef<'_>> {
+    ) -> BunsenResult<EntryRef<'_>> {
         match self.resolve_ref(from, reference) {
             Some(decl) if kinds.contains(&decl.kind()) => Ok(decl),
             Some(decl) => Err(catalog_error(
@@ -415,7 +417,7 @@ impl BunsenCatalogStack {
         name: &CatalogName,
         what: &str,
         kinds: &[EntryKind],
-    ) -> CatalogResult<EntryRef<'_>> {
+    ) -> BunsenResult<EntryRef<'_>> {
         match self.declaration(name) {
             Some(decl) if kinds.contains(&decl.kind()) => Ok(decl),
             Some(decl) => Err(catalog_error(
@@ -592,7 +594,7 @@ impl BunsenCatalogStack {
         &self,
         from: &CatalogName,
         start: Option<&CatalogRef>,
-    ) -> CatalogResult<Vec<TemplateLink<'_>>> {
+    ) -> BunsenResult<Vec<TemplateLink<'_>>> {
         let root = CatalogName::root(TEMPLATE_CLASS_ROOT).expect("a legal segment");
         let class_kind = [EntryKind::TemplateClass];
         let the_root = || {
@@ -643,7 +645,7 @@ impl BunsenCatalogStack {
     pub fn releases(
         &self,
         group: &CatalogName,
-    ) -> CatalogResult<Vec<(CatalogName, ReleaseTime)>> {
+    ) -> BunsenResult<Vec<(CatalogName, ReleaseTime)>> {
         self.expect(group, "release group", &[EntryKind::Release])?;
         let mut out: Vec<(CatalogName, ReleaseTime)> = self
             .of_kind(EntryKind::Build)
@@ -677,7 +679,7 @@ impl BunsenCatalogStack {
     pub fn latest(
         &self,
         group: &CatalogName,
-    ) -> CatalogResult<Option<CatalogName>> {
+    ) -> BunsenResult<Option<CatalogName>> {
         Ok(self.releases(group)?.pop().map(|(name, _)| name))
     }
 
@@ -930,7 +932,7 @@ impl BunsenCatalogStack {
         let mut errors = Vec::new();
         fn push<T>(
             errors: &mut Vec<BunsenError>,
-            r: CatalogResult<T>,
+            r: BunsenResult<T>,
         ) {
             if let Err(e) = r {
                 errors.push(e);
@@ -1221,7 +1223,7 @@ impl BunsenCatalogStack {
         &self,
         from: &CatalogName,
         joined: &CatalogRef,
-    ) -> CatalogResult<CatalogName> {
+    ) -> BunsenResult<CatalogName> {
         let decl = self.expect_ref(
             from,
             joined,
@@ -1247,7 +1249,7 @@ impl BunsenCatalogStack {
         from: &CatalogName,
         tag: &CatalogRef,
         value: &serde_json::Value,
-    ) -> CatalogResult<CatalogName> {
+    ) -> BunsenResult<CatalogName> {
         let Some(decl) = self.resolve_ref(from, tag) else {
             return Err(catalog_error(
                 CatalogRule::Reference,
@@ -1285,7 +1287,7 @@ impl BunsenCatalogStack {
         &self,
         from: &CatalogName,
         resource: &CatalogRef,
-    ) -> CatalogResult<CatalogName> {
+    ) -> BunsenResult<CatalogName> {
         self.expect_ref(from, resource, "resource", &[EntryKind::Resource])
             .map(|d| d.name().clone())
     }
@@ -1335,7 +1337,7 @@ impl BunsenCatalogStack {
     pub fn expect_contract(
         &self,
         reference: &CatalogRef,
-    ) -> CatalogResult<EntryRef<'_>> {
+    ) -> BunsenResult<EntryRef<'_>> {
         let name = CatalogName::contracts_root().join(reference.path());
         match self.declaration(&name) {
             Some(decl) if decl.kind() == EntryKind::Contract => Ok(decl),
@@ -1475,7 +1477,7 @@ impl BunsenCatalogStack {
         &self,
         from: &CatalogName,
         axis: &CatalogRef,
-    ) -> CatalogResult<crate::data::catalog::presets::AxisInfo> {
+    ) -> BunsenResult<crate::data::catalog::presets::AxisInfo> {
         let decl = self.expect_ref(from, axis, "axis", &[EntryKind::Axis])?;
         let CatalogEntry::Axis(a) = decl.body() else {
             unreachable!("expected an axis")
@@ -1652,7 +1654,7 @@ fn reset_merge(entry: &mut CatalogEntry) {
 fn update(
     current: &mut CatalogEntry,
     occurrence: &CatalogEntry,
-) -> CatalogResult<()> {
+) -> BunsenResult<()> {
     match (current, occurrence) {
         (CatalogEntry::Namespace(_), CatalogEntry::Namespace(group)) => {
             if group.description.is_some() || !group.join.is_empty() || !group.requires.is_empty() {
@@ -1738,7 +1740,7 @@ fn update(
 
 /// Tags, axes and facets name tags; the contract's implied tag takes one
 /// name from them.
-fn reserved_tag_name(name: &CatalogName) -> CatalogResult<()> {
+fn reserved_tag_name(name: &CatalogName) -> BunsenResult<()> {
     if *name == crate::data::catalog::resolve::CONTRACT_TAG {
         Err(catalog_error(
             CatalogRule::Conflict,
@@ -1759,7 +1761,7 @@ const NEGATIVE_PREFIXES: [&str; 4] = ["no", "non", "not", "without"];
 fn positive_bool_name(
     what: &str,
     name: &CatalogName,
-) -> CatalogResult<()> {
+) -> BunsenResult<()> {
     let leaf = name.leaf().to_ascii_lowercase();
     let negative = NEGATIVE_PREFIXES.iter().find_map(|prefix| {
         leaf.strip_prefix(prefix)
@@ -1791,8 +1793,8 @@ pub(crate) fn with_article(word: &str) -> String {
 mod tests {
     use super::*;
     use crate::data::catalog::{
-        fixtures,
         lookup::LeafMatch,
+        testing::fixtures,
     };
 
     fn n(s: &str) -> CatalogName {

@@ -15,14 +15,16 @@ use alloc::{
     vec::Vec,
 };
 
-use crate::data::catalog::{
-    document::OrderedNode,
-    error::{
-        CatalogErrorExt,
-        CatalogResult,
-        CatalogRule,
-        catalog_error,
+use crate::{
+    data::catalog::{
+        document::OrderedNode,
+        error::{
+            CatalogErrorExt,
+            CatalogRule,
+            catalog_error,
+        },
     },
+    errors::BunsenResult,
 };
 
 /// One kit's contract fragment.
@@ -132,7 +134,7 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
 /// # Errors
 /// [`CatalogRule::Parse`] when a fragment isn't a YAML map, and
 /// [`CatalogRule::Structure`] when two fragments declare one name.
-pub fn contracts_section(contracts: &[KitCatalogContract]) -> CatalogResult<OrderedNode> {
+pub fn contracts_section(contracts: &[KitCatalogContract]) -> BunsenResult<OrderedNode> {
     let mut entries: Vec<(String, OrderedNode)> = Vec::new();
     for contract in contracts {
         let at = alloc::format!("the {} kit's contract", contract.kit);

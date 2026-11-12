@@ -1,9 +1,10 @@
 //! Example catalogs, compiled in, and the stacks they make: what the tests,
-//! the examples and the [`usage`](super::usage) guide run against.
+//! the examples and the [`usage`](crate::data::catalog::usage) guide run
+//! against.
 
-use crate::data::catalog::{
-    error::CatalogResult,
-    stack::BunsenCatalogStack,
+use crate::{
+    data::catalog::stack::BunsenCatalogStack,
+    errors::BunsenResult,
 };
 
 /// `prelude.yml`: facets, registered axes and tags, and the
@@ -26,7 +27,7 @@ pub const SUPPLEMENTAL: &str = include_str!("supplemental.yml");
 ///
 /// # Errors
 /// Whatever a push finds, which would be a bug in the fixtures.
-pub fn example_stack() -> CatalogResult<BunsenCatalogStack> {
+pub fn example_stack() -> BunsenResult<BunsenCatalogStack> {
     let mut stack = BunsenCatalogStack::new();
     for (label, yaml) in [
         ("prelude", PRELUDE),
@@ -43,7 +44,7 @@ pub fn example_stack() -> CatalogResult<BunsenCatalogStack> {
 ///
 /// # Errors
 /// As [`example_stack`].
-pub fn supplemented_example_stack() -> CatalogResult<BunsenCatalogStack> {
+pub fn supplemented_example_stack() -> BunsenResult<BunsenCatalogStack> {
     let mut stack = example_stack()?;
     stack.push_yaml("supplemental", SUPPLEMENTAL)?;
     Ok(stack)
