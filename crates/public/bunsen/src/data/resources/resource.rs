@@ -34,7 +34,7 @@ const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
 /// A cache key (a bare directory name) from a name and a URL: the URL's
 /// checksum and its base name, so that two unpinned files with one name
 /// from two places do not share a slot.
-pub fn url_to_cache_key(
+pub(crate) fn url_to_cache_key(
     name: Option<&str>,
     url: &str,
 ) -> String {

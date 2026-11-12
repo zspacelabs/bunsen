@@ -17,10 +17,11 @@
 //!   token cap, the template's kwargs), the call-time half of a chat family's
 //!   config, carried for a driver to read.
 //! - [`Probe`]s: readers of a pretrained's files that find its presets' values
-//!   ([`GenerationConfigProbe`], [`TokenizerConfigProbe`]). What they find
-//!   accumulates ([`accumulate_probed`]). The catalog builder (`cargo catalog`)
-//!   runs them when it builds the built-in catalog, and [`probe_loaded`] runs
-//!   them over a checkpoint no catalog build describes.
+//!   (`generation_config`, `tokenizer_config`, `chat_template`:
+//!   [`builtin_probes`]). What they find accumulates ([`accumulate_probed`]).
+//!   The catalog builder (`cargo catalog`) runs them when it builds the
+//!   built-in catalog, and [`probe_loaded`] runs them over a checkpoint no
+//!   catalog build describes.
 
 mod generation;
 mod presets;

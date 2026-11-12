@@ -13,7 +13,7 @@ use std::path::{
 /// # Arguments
 /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
 /// * `file` - the final file name.
-pub fn extend_path<P, S, F>(
+pub(crate) fn extend_path<P, S, F>(
     path: P,
     context: &[S],
     filename: F,

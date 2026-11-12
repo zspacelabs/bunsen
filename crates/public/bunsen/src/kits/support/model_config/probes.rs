@@ -77,7 +77,7 @@ fn no_token(
 /// names one. Its patch is under `generation`
 /// ([`GenerationPolicy`](super::GenerationPolicy)).
 #[derive(Clone, Copy, Debug, Default)]
-pub struct GenerationConfigProbe;
+pub(crate) struct GenerationConfigProbe;
 
 impl Probe for GenerationConfigProbe {
     fn name(&self) -> &'static str {
@@ -124,7 +124,7 @@ impl Probe for GenerationConfigProbe {
 /// a token by name, that one (the turn's end a chat template closes each
 /// turn with: Gemma's `<end_of_turn>`). Its patch is under `generation`.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct TokenizerConfigProbe;
+pub(crate) struct TokenizerConfigProbe;
 
 impl Probe for TokenizerConfigProbe {
     fn name(&self) -> &'static str {
@@ -177,7 +177,7 @@ impl Probe for TokenizerConfigProbe {
 /// Probed after a `tokenizer_config.json`, a `chat_template.jinja` is the
 /// template, as `transformers` prefers it.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct ChatTemplateProbe;
+pub(crate) struct ChatTemplateProbe;
 
 impl Probe for ChatTemplateProbe {
     fn name(&self) -> &'static str {
@@ -222,8 +222,9 @@ fn read_json(
     }
 }
 
-/// The probes bunsen has: [`GenerationConfigProbe`] and
-/// [`TokenizerConfigProbe`].
+/// The probes bunsen has: `generation_config` (a `generation_config.json`'s
+/// sampling and stop ids), `tokenizer_config` and `chat_template` (a chat
+/// template's file and the tokens it names).
 pub fn builtin_probes() -> Vec<Box<dyn Probe>> {
     vec![
         Box::new(GenerationConfigProbe),

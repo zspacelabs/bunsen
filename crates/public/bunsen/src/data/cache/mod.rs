@@ -86,5 +86,4 @@ pub use files::*;
 #[cfg(feature = "indicatif")]
 pub use indicatif_observer::*;
 pub use path_resolver::*;
-pub use path_utils::*;
 pub use transfer::*;

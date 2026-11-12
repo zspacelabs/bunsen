@@ -303,7 +303,7 @@ fn fetch_prefix(
 /// `hf:` repo's file,
 /// and `given` for a path's. `<file>` is the file's path, kept whole. An
 /// unpinned resource sits under a cache key in place of `<sha256>`: one derived
-/// from its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its
+/// from its first URL (a checksum of the URL, and its last segment), or its
 /// file name when it has no URL. [`resource_path`](Self::resource_path)
 /// names the path, present or not.
 ///

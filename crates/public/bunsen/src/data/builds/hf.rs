@@ -50,19 +50,19 @@ use crate::{
 pub const HF: &str = "hf";
 
 /// The file a `transformers` repo keeps its weights in, when they fit one.
-pub const HF_SINGLE_FILE: &str = "model.safetensors";
+const HF_SINGLE_FILE: &str = "model.safetensors";
 
 /// The index of a sharded checkpoint: the shard each tensor is in.
-pub const HF_INDEX_FILE: &str = "model.safetensors.index.json";
+const HF_INDEX_FILE: &str = "model.safetensors.index.json";
 
 /// The model's config, as `transformers` writes it.
-pub const HF_CONFIG_FILE: &str = "config.json";
+const HF_CONFIG_FILE: &str = "config.json";
 
 /// The key `config.json` rides under.
 pub const CONFIG: &str = "config";
 
 /// The key the checkpoint is under unless the kit names another.
-pub const DEFAULT_CHECKPOINT_KEY: &str = "checkpoint";
+const DEFAULT_CHECKPOINT_KEY: &str = "checkpoint";
 
 /// The shard number and count of `model-00001-of-00002.safetensors`.
 fn shard_numbers(file: &str) -> Option<(usize, usize)> {
@@ -423,11 +423,11 @@ impl HfProvider {
     /// # Errors
     /// As [`split`](Self::split) for a malformed ref.
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
-    /// naming the ref, when the listing has neither [`HF_SINGLE_FILE`] nor
-    /// [`HF_INDEX_FILE`] with a complete set of shards, nor an archive
-    /// checkpoint, naming what it has instead, and the shards a set of one
-    /// `N` lacks: the repo is not the checkpoint a ref names. So too when it
-    /// holds two files of an archive checkpoint's ending.
+    /// naming the ref, when the listing has neither `model.safetensors` nor
+    /// `model.safetensors.index.json` with a complete set of shards, nor an
+    /// archive checkpoint, naming what it has instead, and the shards a set of
+    /// one `N` lacks: the repo is not the checkpoint a ref names. So too when
+    /// it holds two files of an archive checkpoint's ending.
     pub fn build_from_listing(
         &self,
         name: &str,
