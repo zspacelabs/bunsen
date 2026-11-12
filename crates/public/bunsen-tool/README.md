@@ -609,15 +609,16 @@ cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech mu
 
 | ASR preset | for | selects | `transcribe` runs | `live` runs |
 |---|---|---|---|---|
-| `en` (`default`) | English | `require: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
-| `multi` | many languages, found from the speech | `require: {multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
-| `translate-en` | other speech, as English text | `require: {translate: true}` | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/tiny[translate]{beam_size: 1}`, `conservative` |
+| `en` (`default`) | English | `keep: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
+| `multi` | many languages, found from the speech | `keep: {$multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
+| `translate-en` | other speech, as English text | `keep: {translate: true}` | `whisper` `openai/whisper/large/large-v3[translate]{beam_size: 5}` | `whisper` `openai/whisper/tiny[translate]{beam_size: 1}`, `conservative` |
 
-An ASR preset's selection chooses its model among every speech family's checkpoints, by their tags ([Choosing a
-model](#choosing-a-model)), over the table's own: the newest of a release group, then the lowest published English
-word error rate (`scores: {wer.en}`), a model without one after those with. `multilingual` is a checkpoint whose
-`language` lists more than one language, or `"*"`. `--quality fast` and `live` add `require: {parameters: {max: 1e9}}`,
-a model small enough to keep up; `--quality good` takes the larger among equals. The ASR presets are this binary's, and
+An ASR preset's stages choose its model among every speech family's builds, by their tags ([Choosing a
+model](#choosing-a-model)), after the table's own default (each release group's newest weighted first), and then the
+table's order: the heaviest, then the lowest published English word error rate (`$wer_en`, from `scores: {wer.en}`), a
+model without one after those with, then the smallest. `$multilingual` is a build whose `language` lists more than one
+language, or `"*"`. `--quality fast` and `live` add `keep: {parameters: {le: 1e9}}`, a model small enough to keep up;
+`--quality good` orders the larger first among equals. The ASR presets are this binary's, and
 improve with it: when a better model arrives, its tags choose it, and the command lines that name the ASR preset do not
 change. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
 command it runs, `-v` logs it before a run, and `transcribe --json` records `preset`, `need` (the point served:
