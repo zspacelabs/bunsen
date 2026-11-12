@@ -18,13 +18,8 @@
 //! bundles, resources, prefabs and providers are plain data and are always
 //! here.
 //!
-//! A hook reads its checkpoint's own format with the readers here: the
-//! safetensors checkpoint and header ([`SafetensorsCheckpoint`]), MLX's
-//! affine-quantized tensors ([`mlx`]), `FermionResearch`'s Phonon formats
-//! ([`fermion`]), and [`apply_named_tensors`], which loads any of them into a
-//! module under a kit's name resource bundle, or [`apply_rekeyed_tensors`],
-//! under a [`Rekey`](crate::burner::module::Rekey) whose targets may also
-//! change a tensor's data on the way.
+//! A hook reads its checkpoint's own format with the readers in
+//! [`formats`](crate::data::formats).
 //!
 //! ## Prefabs, rows and resources
 //!
@@ -152,7 +147,7 @@
 //!         _model: &PretrainedRef,
 //!         loaded: &LoadedResources,
 //!         _device: &Device,
-//!         _policy: bunsen::kits::support::construct::LoadPolicy,
+//!         _policy: bunsen::data::formats::LoadPolicy,
 //!     ) -> BunsenResult<Arc<String>> {
 //!         let path = loaded.expect("text")?;
 //!         let text =
@@ -227,7 +222,7 @@
 //!     "hi",
 //!     &cache,
 //!     &Default::default(),
-//!     bunsen::kits::support::construct::LoadPolicy::as_stored(),
+//!     bunsen::data::formats::LoadPolicy::as_stored(),
 //! )?;
 //! assert_eq!(loaded.name, "well-known:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
@@ -242,7 +237,7 @@
 //! let loaded = given.load(
 //!     &cache,
 //!     &Default::default(),
-//!     bunsen::kits::support::construct::LoadPolicy::as_stored(),
+//!     bunsen::data::formats::LoadPolicy::as_stored(),
 //! )?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
@@ -265,33 +260,18 @@
 //! [`Source`]: crate::data::resources::Source
 //! [`resolve_dir_template`]: crate::data::resources::resolve_dir_template
 
-#[cfg(feature = "store")]
-mod apply_named;
 mod catalog_provider;
-#[cfg(feature = "store")]
-pub mod fermion;
 mod hf;
-pub mod mlx;
 mod prefabs;
 mod pretrained_ref;
 mod providers;
-#[cfg(feature = "store")]
-mod pytorch;
 mod rows;
-#[cfg(feature = "store")]
-mod safetensors;
 pub mod tags;
 
-#[cfg(feature = "store")]
-pub use apply_named::*;
 pub use catalog_provider::*;
 pub use hf::*;
 pub use prefabs::*;
 pub use pretrained_ref::*;
 pub use providers::*;
-#[cfg(feature = "store")]
-pub use pytorch::*;
 pub use rows::*;
-#[cfg(feature = "store")]
-pub use safetensors::*;
 pub use tags::Tags;

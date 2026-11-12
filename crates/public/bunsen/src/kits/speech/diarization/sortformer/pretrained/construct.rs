@@ -12,10 +12,10 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::{
+        formats::SafetensorsCheckpoint,
         pretrained::{
             CONFIG,
             PretrainedRef,
-            SafetensorsCheckpoint,
         },
         resources::{
             LoadedResources,
@@ -121,7 +121,7 @@ impl SortformerConstructConfig {
     fn construct_safetensors(
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         let config = match loaded.get(CONFIG) {
             Some(part) => Self::read_config(&part.path)?,
@@ -166,7 +166,7 @@ impl SortformerConstructConfig {
     fn construct_nemo(
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         use crate::kits::speech::{
             diarization::sortformer::{
@@ -233,7 +233,7 @@ impl ConstructInit for SortformerConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let bundle = match self.reader {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
@@ -312,7 +312,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap()
             .handle;

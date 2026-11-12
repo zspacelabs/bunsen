@@ -54,10 +54,8 @@ use bunsen::{
         LmDecoderOps,
         LmKvForwardHidden,
     },
-    kits::{
-        language::gemma::GemmaConstruct,
-        support::construct::LoadPolicy,
-    },
+    data::formats::LoadPolicy,
+    kits::language::gemma::GemmaConstruct,
     ops::transformers::attention::{
         KVCacheModel,
         KVCacheStorage,

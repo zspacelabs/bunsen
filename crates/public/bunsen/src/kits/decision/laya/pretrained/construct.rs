@@ -12,10 +12,8 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::{
-        pretrained::{
-            PretrainedRef,
-            SafetensorsCheckpoint,
-        },
+        formats::SafetensorsCheckpoint,
+        pretrained::PretrainedRef,
         resources::{
             LoadedResources,
             ResourceBundle,
@@ -85,12 +83,12 @@ impl ConstructInit for LayaConstructConfig {
         _model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
+        policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<LayaConstruct>> {
         let encoder = modernbert_config_from_transformers(&read(loaded, ENCODER_CONFIG)?)?;
         let agent = LayaAgentConfig::parse(&read(loaded, AGENT_CONFIG)?)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+        let stored = crate::data::formats::stored_float_dtype(&tensors)
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = policy.resolve(stored, device, |_| true)?;
         let mut model: LayaModel = laya_config(encoder, &agent).try_init(device)?;

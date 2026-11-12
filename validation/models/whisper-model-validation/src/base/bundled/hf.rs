@@ -1,5 +1,5 @@
 use bunsen::{
-    data::pretrained::SafetensorsCheckpoint,
+    data::formats::SafetensorsCheckpoint,
     kits::speech::asr::whisper::pretrained::{
         PytorchWhisperScanner,
         SafetensorsWhisperScanner,

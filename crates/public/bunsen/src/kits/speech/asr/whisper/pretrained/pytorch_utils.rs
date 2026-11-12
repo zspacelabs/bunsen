@@ -18,7 +18,7 @@ use crate::{
         CanonicalKeys,
         ModuleInit,
     },
-    data::pretrained::{
+    data::formats::{
         apply_rekeyed_tensors,
         pytorch_store_error,
     },

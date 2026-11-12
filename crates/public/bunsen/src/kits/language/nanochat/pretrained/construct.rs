@@ -71,7 +71,7 @@ impl ConstructInit for NanoChatConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
         let meta = loaded.expect(META)?;
         let checkpoint = loaded.expect(CHECKPOINT)?;

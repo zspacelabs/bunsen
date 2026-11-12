@@ -246,7 +246,7 @@ impl SileroVad {
     /// `silero_vad_16k.safetensors` names them ([`upstream_rekey`]).
     ///
     /// # Errors
-    /// As [`apply_rekeyed_tensors`](crate::data::pretrained::apply_rekeyed_tensors):
+    /// As [`apply_rekeyed_tensors`](crate::data::formats::apply_rekeyed_tensors):
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
     /// when a tensor does not fit, or a parameter is missing.
     pub fn load_16khz_from_upstream_tensors(
@@ -254,7 +254,7 @@ impl SileroVad {
         device: &Device,
     ) -> BunsenResult<Self> {
         let mut vad: Self = SileroVadSignalConfig::standard_16khz().try_init(device)?;
-        crate::data::pretrained::apply_rekeyed_tensors(&mut vad, tensors, &upstream_rekey())?;
+        crate::data::formats::apply_rekeyed_tensors(&mut vad, tensors, &upstream_rekey())?;
         Ok(vad)
     }
 

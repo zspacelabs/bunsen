@@ -20,7 +20,6 @@ use serde::{
 use super::{
     ConstructInit,
     Deferred,
-    LoadPolicy,
     Loaded,
     LookupExpr,
 };
@@ -29,6 +28,7 @@ use crate::data::resources::ResourceBundle;
 use crate::{
     data::{
         catalog::presets::PresetSelection,
+        formats::LoadPolicy,
         not_found,
         pretrained::{
             Pretrained,
@@ -1037,7 +1037,7 @@ mod tests {
                 "disk:l/ckpt",
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, file);
@@ -1057,7 +1057,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, other);
@@ -1070,7 +1070,7 @@ mod tests {
                 "well-known:a/small",
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             ));
     }
 

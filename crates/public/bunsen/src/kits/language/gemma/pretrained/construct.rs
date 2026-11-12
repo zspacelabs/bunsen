@@ -15,10 +15,8 @@ use super::{
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
-        pretrained::{
-            NamedTensorsApplied,
-            StaticPreFabMap,
-        },
+        formats::NamedTensorsApplied,
+        pretrained::StaticPreFabMap,
         resources::LoadedResources,
     },
     errors::BunsenResult,

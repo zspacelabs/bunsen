@@ -104,7 +104,7 @@
 //!         name,
 //!         &cache,
 //!         device,
-//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )?;
 //!
 //!     WhisperStreamDriverConfig::new().init_from_construct(construct, device)
@@ -220,7 +220,7 @@
 //!     .load_construct(
 //!         cache,
 //!         device,
-//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )
 //! }
 //!
@@ -233,7 +233,7 @@
 //!         "hf:openai/whisper-large-v3",
 //!         cache,
 //!         device,
-//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )
 //! }
 //!
@@ -251,7 +251,7 @@
 //!         .load_construct(
 //!             cache,
 //!             device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )
 //! }
 //!
@@ -269,7 +269,7 @@
 //!             "silero/vad-16k[silero]",
 //!             cache,
 //!             device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )?
 //!         .handle;
 //!     // The 16 kHz branch, the model's rate, and the filter the preset

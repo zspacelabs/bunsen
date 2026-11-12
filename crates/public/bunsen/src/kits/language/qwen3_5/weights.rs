@@ -17,7 +17,7 @@ use crate::{
         Select,
         TensorLoadTransform,
     },
-    data::pretrained::NamedTensorsApplied,
+    data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
@@ -103,7 +103,7 @@ pub fn transformers_rekey() -> Rekey {
 
 /// Loads tensors named as a `transformers` Qwen3.5 state dict into `model`'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
-/// [`load_rekeyed`](crate::data::pretrained::load_rekeyed) under
+/// [`load_rekeyed`](crate::data::formats::load_rekeyed) under
 /// [`transformers_rekey`], in the dtype `model` was built in.
 ///
 /// # Errors

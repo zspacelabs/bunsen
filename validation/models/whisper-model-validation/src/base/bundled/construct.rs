@@ -81,7 +81,7 @@ fn test_the_factory_builds_the_construct() {
             "openai/base",
             &cache,
             &performance_device(),
-            bunsen::kits::support::construct::LoadPolicy::as_stored(),
+            bunsen::data::formats::LoadPolicy::as_stored(),
         )
         .unwrap();
 

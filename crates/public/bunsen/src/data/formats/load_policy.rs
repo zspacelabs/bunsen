@@ -28,9 +28,9 @@ use crate::{
 
 /// How a load chooses the float dtype its parameters are placed in: a plain
 /// part of the load call
-/// ([`PretrainedFactory::load`](super::PretrainedFactory::load),
-/// [`Deferred::load`](super::Deferred::load),
-/// [`ConstructInit::try_init`](super::ConstructInit::try_init)), made by
+/// ([`PretrainedFactory::load`](crate::kits::support::construct::PretrainedFactory::load),
+/// [`Deferred::load`](crate::kits::support::construct::Deferred::load),
+/// [`ConstructInit::try_init`](crate::kits::support::construct::ConstructInit::try_init)), made by
 /// intent at the call site, never guessed by the loader.
 ///
 /// A load only ever widens: a tensor goes in the dtype it was stored in, or

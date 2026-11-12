@@ -252,7 +252,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
             let loaded = model.load(
                 &cache,
                 &device,
-                bunsen::kits::support::construct::LoadPolicy::performance(),
+                bunsen::data::formats::LoadPolicy::performance(),
             )?;
 
             Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))

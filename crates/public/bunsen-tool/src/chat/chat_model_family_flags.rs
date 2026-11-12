@@ -5,6 +5,7 @@ use std::sync::Arc;
 use bunsen::{
     burner::device::DeviceSession,
     data::{
+        formats::LoadPolicy,
         pretrained::{
             Pretrained,
             WELL_KNOWN,
@@ -38,7 +39,6 @@ use bunsen::{
         support::construct::{
             ConstructInit,
             LmPolicy,
-            LoadPolicy,
             PretrainedFactory,
         },
     },

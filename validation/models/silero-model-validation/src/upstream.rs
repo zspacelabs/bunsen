@@ -190,7 +190,7 @@ mod vad_16k {
                 "silero/vad-16k",
                 &bundled_cache(),
                 &device,
-                bunsen::kits::support::construct::LoadPolicy::as_stored(),
+                bunsen::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         let part = loaded.resources.get(CHECKPOINT).unwrap();

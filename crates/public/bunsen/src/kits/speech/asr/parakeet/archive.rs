@@ -5,7 +5,7 @@ use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::ParakeetVocabulary;
 use crate::{
-    data::pretrained::fermion::{
+    data::formats::fermion::{
         PhononArchive,
         read_five_value_bytes,
     },
@@ -28,7 +28,7 @@ pub const PHONON_2_CONFIG: &str = "config.json";
 ///
 /// # Errors
 /// As [`PhononArchive::read`] and
-/// [`read_five_value_bytes`](crate::data::pretrained::fermion::read_five_value_bytes);
+/// [`read_five_value_bytes`](crate::data::formats::fermion::read_five_value_bytes);
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for an
 /// archive without either member or a config that does not parse; all under
 /// a frame naming the path.

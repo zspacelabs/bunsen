@@ -9,6 +9,7 @@ use std::{
 };
 
 use bunsen::{
+    data::formats::LoadPolicy,
     errors::{
         BunsenError,
         BunsenResult,
@@ -22,10 +23,7 @@ use bunsen::{
             LayaSpecials,
             pretrained::default_laya_factory,
         },
-        support::{
-            construct::LoadPolicy,
-            tokens::BunsenTokenizer,
-        },
+        support::tokens::BunsenTokenizer,
     },
 };
 use bunsen_app::{

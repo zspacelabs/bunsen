@@ -28,8 +28,6 @@ mod factory;
 mod init;
 mod lm_construct;
 #[cfg(feature = "cache")]
-mod load_policy;
-#[cfg(feature = "cache")]
 mod lookup;
 #[cfg(feature = "store")]
 mod transformers_lm;
@@ -41,8 +39,6 @@ pub use factory::*;
 #[cfg(feature = "cache")]
 pub use init::*;
 pub use lm_construct::*;
-#[cfg(feature = "cache")]
-pub use load_policy::*;
 #[cfg(feature = "cache")]
 pub use lookup::*;
 #[cfg(feature = "store")]

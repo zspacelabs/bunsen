@@ -107,7 +107,7 @@ pub fn load_base(
             "openai/base",
             &weights_cache(),
             device,
-            bunsen::kits::support::construct::LoadPolicy::as_stored(),
+            bunsen::data::formats::LoadPolicy::as_stored(),
         )
         .expect("load openai/base")
 }

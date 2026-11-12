@@ -11,10 +11,10 @@ use burn::tensor::Device;
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         pretrained::{
             GEOMETRY,
             PretrainedRef,
-            SafetensorsCheckpoint,
         },
         resources::{
             Fuse,
@@ -444,7 +444,7 @@ impl ConstructInit for WhisperConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
         let (whisper, cfg) = self.reader.load(loaded, device)?;
         // The readers load at the files' precision (OpenAI's checkpoints ship

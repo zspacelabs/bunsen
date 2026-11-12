@@ -122,7 +122,7 @@ impl ConstructInit for SileroConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SileroConstruct>> {
         let policy = resolve_ref_presets(
             &SileroPolicy::default(),

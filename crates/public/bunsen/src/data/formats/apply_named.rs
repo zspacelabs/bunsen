@@ -222,7 +222,7 @@ pub fn apply_rekeyed_tensors<M: ModuleSnapshot>(
 
 /// The float dtype most of `tensors`' float elements are stored in: what a
 /// checkpoint's floats are, for a hook to resolve its
-/// [`LoadPolicy`](crate::kits::support::construct::LoadPolicy) against; `None`
+/// [`LoadPolicy`](crate::data::formats::LoadPolicy) against; `None`
 /// for a checkpoint with no float tensor.
 pub fn stored_float_dtype(tensors: &[PackTensor]) -> Option<FloatDType> {
     let mut counts: Vec<(DType, usize)> = Vec::new();

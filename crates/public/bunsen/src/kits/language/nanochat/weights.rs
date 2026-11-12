@@ -33,7 +33,7 @@ use crate::{
         ModuleInit,
         Rekey,
     },
-    data::pretrained::{
+    data::formats::{
         NamedTensorsApplied,
         apply_rekeyed_tensors_as,
         read_pytorch_tensors,
@@ -307,18 +307,18 @@ fn is_norm_scale(
 /// ([`NanoChatMeta::generation`], [`NanoChatMeta::gpt_config`]), built, and
 /// loaded ([`load_pt_tensors`]) at the dtype `policy` resolves the state
 /// dict's stored dtype to on `device`
-/// ([`LoadPolicy::resolve`](crate::kits::support::construct::LoadPolicy::resolve)).
+/// ([`LoadPolicy::resolve`](crate::data::formats::LoadPolicy::resolve)).
 ///
 /// # Errors
 /// As [`NanoChatMeta::from_file`],
 /// [`read_pytorch_tensors`], [`NanoChatMeta::generation`],
-/// [`LoadPolicy::resolve`](crate::kits::support::construct::LoadPolicy::resolve)
+/// [`LoadPolicy::resolve`](crate::data::formats::LoadPolicy::resolve)
 /// and [`load_pt_tensors`]; each names the file it is about.
 pub fn load_pt_checkpoint(
     meta: &Path,
     model: &Path,
     device: &Device,
-    policy: crate::kits::support::construct::LoadPolicy,
+    policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<(NanoChatGpt, NanoChatGeneration)> {
     let meta_data = NanoChatMeta::from_file(meta)?;
     let tensors = read_pytorch_tensors(model)?;

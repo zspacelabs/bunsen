@@ -15,11 +15,11 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         pretrained::{
             CONFIG,
             GEOMETRY,
             PretrainedRef,
-            SafetensorsCheckpoint,
         },
         resources::{
             LoadedResources,
@@ -106,7 +106,7 @@ impl ConstructInit for VoxtralConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
         let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;
@@ -136,7 +136,7 @@ impl ConstructInit for VoxtralConstructConfig {
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         // The stored dtype (bf16), where the policy and the device allow it.
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+        let stored = crate::data::formats::stored_float_dtype(&tensors)
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |_| true)?;
         load_transformers_tensors_as(&mut voxtral, tensors, dtype)?;

@@ -69,7 +69,7 @@ impl Deferred<WhisperConstructConfig> {
         &self,
         cache: &PretrainedCache,
         device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
+        policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
         Ok(self.load(cache, device, policy)?.handle)
     }
@@ -319,7 +319,7 @@ mod hub_tests {
             .load(
                 &cache,
                 &device,
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert!(matches!(
@@ -346,7 +346,7 @@ mod hub_tests {
                 "openai/tiny",
                 &cache,
                 &device,
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         let close = |a: Tensor<2>, b: Tensor<2>| {

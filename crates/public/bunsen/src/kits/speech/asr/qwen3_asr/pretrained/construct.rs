@@ -16,11 +16,11 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         pretrained::{
             CONFIG,
             GEOMETRY,
             PretrainedRef,
-            SafetensorsCheckpoint,
         },
         resources::{
             LoadedResources,
@@ -150,7 +150,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
@@ -170,7 +170,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         let n_mels = config.audio.n_mels;
         // The stored dtype (bf16), where the policy and the device allow it;
         // never f16, which overflows its Qwen3 text model.
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+        let stored = crate::data::formats::stored_float_dtype(&tensors)
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut asr: Qwen3Asr = config.try_init(device)?;

@@ -15,7 +15,7 @@ use crate::{
         CanonicalKeys,
         Rekey,
     },
-    data::pretrained::{
+    data::formats::{
         NamedTensorsApplied,
         apply_rekeyed_tensors,
     },

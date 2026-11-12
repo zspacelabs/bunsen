@@ -64,7 +64,7 @@
 //!         .load(
 //!             &cache,
 //!             &device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )?
 //!         .handle,
 //! );

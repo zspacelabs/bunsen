@@ -33,7 +33,7 @@ use crate::{
 /// is handed: all it is handed, besides the ref. The hook reads its parts
 /// by key, with [`expect`](Self::expect), [`get`](Self::get), or
 /// [`family`](Self::family) for a checkpoint split across files (as
-/// [`SafetensorsCheckpoint::from_loaded`](crate::data::pretrained::SafetensorsCheckpoint::from_loaded)
+/// [`SafetensorsCheckpoint::from_loaded`](crate::data::formats::SafetensorsCheckpoint::from_loaded)
 /// does). The [`Loaded`](crate::kits::support::construct::Loaded) handle keeps
 /// it as `resources`, so a caller can say where every part came from
 /// ([`Provenance`](super::Provenance)).

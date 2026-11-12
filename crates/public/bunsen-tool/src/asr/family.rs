@@ -15,6 +15,7 @@ use bunsen::{
                 name_matches,
             },
         },
+        formats::LoadPolicy,
         pretrained::Pretrained,
         resources::{
             PretrainedCache,
@@ -62,7 +63,6 @@ use bunsen::{
         support::construct::{
             ConstructInit,
             Deferred,
-            LoadPolicy,
             PretrainedFactory,
         },
     },

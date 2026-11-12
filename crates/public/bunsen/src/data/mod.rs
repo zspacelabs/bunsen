@@ -1,7 +1,7 @@
 //! # Files, caches and pretrained models
 //!
 //! Where files land, what a name means, and how a name becomes a model.
-//! Five submodules, each built on the one before:
+//! Six submodules, each built on the one before:
 //!
 //! - [`cache`]: where files land. A [`BunsenDiskCache`] picks a cache directory
 //!   and a data directory, and reports every transfer to its observers.
@@ -14,6 +14,9 @@
 //!   contracts, builds, resources, tags and presets, the built-in one compiled
 //!   in, which resolves a build's name to its files and arguments and chooses
 //!   among builds by their tags.
+//! - [`formats`]: reading the files: safetensors, `PyTorch`, MLX and the Phonon
+//!   formats, named tensors applied to a module, and the
+//!   [`LoadPolicy`](formats::LoadPolicy) a load places its floats by.
 //! - [`pretrained`]: what a name means, and how it becomes a model. A *prefab*
 //!   is a geometry by name, and a *row* is a name over a resource bundle.
 //!   Providers answer names with rows, a [`PretrainedFactory`] dispatches a
@@ -103,7 +106,7 @@
 //! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`ConstructInit`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
-//! | `store` | yes | the checkpoint readers: [`SafetensorsCheckpoint`] (the reader for `hf:` rows), the `PyTorch` reader kits read `.pt` checkpoints with, the burnpack, `.nemo` and Phonon ([`fermion`](pretrained::fermion)) readers. |
+//! | `store` | yes | the checkpoint readers: [`SafetensorsCheckpoint`] (the reader for `hf:` rows), the `PyTorch` reader kits read `.pt` checkpoints with, the burnpack, `.nemo` and Phonon ([`fermion`](formats::fermion)) readers. |
 //!
 //! No bunsen feature reaches the network at build time. `reference` is a
 //! conventional name (see `STYLE.md`), not a bunsen feature: it means "the
@@ -135,7 +138,7 @@
 //! [`PretrainedTable`]: pretrained::PretrainedTable
 //! [`Resource`]: resources::Resource
 //! [`ResourceBundle`]: resources::ResourceBundle
-//! [`SafetensorsCheckpoint`]: pretrained::SafetensorsCheckpoint
+//! [`SafetensorsCheckpoint`]: crate::data::formats::SafetensorsCheckpoint
 //! [`ShardSet`]: shards::ShardSet
 //! [`ShardSetDescriptor`]: shards::ShardSetDescriptor
 //! [`StaticPreFabMap`]: pretrained::StaticPreFabMap
@@ -150,6 +153,8 @@
 pub mod cache;
 
 pub mod catalog;
+
+pub mod formats;
 
 pub mod pretrained;
 

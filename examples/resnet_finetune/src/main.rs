@@ -318,7 +318,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         .load(
             &cache,
             &device,
-            bunsen::kits::support::construct::LoadPolicy::performance(),
+            bunsen::data::formats::LoadPolicy::performance(),
         )
         .context("loading pretrained weights")?;
 

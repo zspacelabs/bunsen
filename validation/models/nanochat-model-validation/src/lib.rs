@@ -262,17 +262,17 @@ pub fn load_construct(
     load_construct_with(
         name,
         device,
-        bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
     )
 }
 
 /// A nanochat pretrained by name under `policy`: the bf16 checks load with
-/// [`LoadPolicy::performance`](bunsen::kits::support::construct::LoadPolicy::performance),
+/// [`LoadPolicy::performance`](bunsen::data::formats::LoadPolicy::performance),
 /// bf16 on a device that accelerates it.
 pub fn load_construct_with(
     name: &str,
     device: &Device,
-    policy: bunsen::kits::support::construct::LoadPolicy,
+    policy: bunsen::data::formats::LoadPolicy,
 ) -> std::sync::Arc<NanoChatConstruct> {
     bunsen::kits::language::nanochat::pretrained::default_nanochat_factory()
         .expect("the nanochat factory")

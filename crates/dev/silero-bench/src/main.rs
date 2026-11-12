@@ -60,7 +60,7 @@ fn main() -> BunsenResult<()> {
             "silero/vad-16k",
             &cache,
             &device,
-            bunsen::kits::support::construct::LoadPolicy::performance(),
+            bunsen::data::formats::LoadPolicy::performance(),
         )?
         .handle
         .try_branch(args.sample_rate)?

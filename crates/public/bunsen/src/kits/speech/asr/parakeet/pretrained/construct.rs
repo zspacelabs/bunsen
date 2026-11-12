@@ -15,10 +15,10 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
         pretrained::{
             CONFIG,
             PretrainedRef,
-            SafetensorsCheckpoint,
         },
         resources::{
             LoadedResources,
@@ -147,7 +147,7 @@ impl ConstructInit for ParakeetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {

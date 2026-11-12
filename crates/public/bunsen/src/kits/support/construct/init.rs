@@ -82,7 +82,7 @@ pub trait ConstructInit: Sized {
     /// Builds from every part local. Never fetches. `model` is the ref
     /// [`plan`](Self::plan) saw; `policy` is the call's dtype policy, by
     /// which the hook places its float parameters
-    /// ([`LoadPolicy::resolve`](super::LoadPolicy::resolve)).
+    /// ([`LoadPolicy::resolve`](crate::data::formats::LoadPolicy::resolve)).
     ///
     /// # Errors
     /// The kit's: a part the resource bundle lacks
@@ -93,7 +93,7 @@ pub trait ConstructInit: Sized {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        policy: super::LoadPolicy,
+        policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Self::Construct>>;
 }
 
@@ -190,7 +190,7 @@ mod tests {
             _model: &PretrainedRef,
             loaded: &LoadedResources,
             _device: &Device,
-            _policy: crate::kits::support::construct::LoadPolicy,
+            _policy: crate::data::formats::LoadPolicy,
         ) -> BunsenResult<Arc<Vec<PathBuf>>> {
             loaded.expect("checkpoint")?;
             Ok(Arc::new(
@@ -217,7 +217,7 @@ mod tests {
             _model: &PretrainedRef,
             loaded: &LoadedResources,
             _device: &Device,
-            _policy: crate::kits::support::construct::LoadPolicy,
+            _policy: crate::data::formats::LoadPolicy,
         ) -> BunsenResult<Arc<()>> {
             loaded.expect("config")?;
             Ok(Arc::new(()))
@@ -259,7 +259,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::kits::support::construct::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::as_stored(),
         )
         .unwrap();
 
@@ -305,7 +305,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::kits::support::construct::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::as_stored(),
         )
         .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
@@ -317,7 +317,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
@@ -347,7 +347,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::kits::support::construct::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::as_stored(),
         )
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -367,7 +367,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::kits::support::construct::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::as_stored(),
         )
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)

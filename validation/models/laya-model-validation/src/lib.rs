@@ -37,12 +37,10 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::{
-        decision::laya::{
-            LayaConstruct,
-            LayaQuestion,
-        },
-        support::construct::LoadPolicy,
+    data::formats::LoadPolicy,
+    kits::decision::laya::{
+        LayaConstruct,
+        LayaQuestion,
     },
     support::testing::TensorRecord,
 };

@@ -60,10 +60,8 @@ use bunsen::{
         LmDecoderOps,
         LmKvForwardHidden,
     },
-    kits::{
-        language::qwen3::Qwen3Construct,
-        support::construct::LoadPolicy,
-    },
+    data::formats::LoadPolicy,
+    kits::language::qwen3::Qwen3Construct,
     ops::transformers::attention::{
         KVCacheModel,
         KVCacheStorage,

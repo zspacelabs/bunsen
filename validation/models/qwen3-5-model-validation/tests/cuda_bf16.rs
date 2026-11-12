@@ -8,7 +8,7 @@
 //! suites stay off CUDA. Needs `checkpoints`, `gpu-tests` and `cuda`.
 #![cfg(all(feature = "checkpoints", feature = "gpu-tests", feature = "cuda"))]
 
-use bunsen::kits::support::construct::LoadPolicy;
+use bunsen::data::formats::LoadPolicy;
 use burn::{
     prelude::*,
     tensor::DType,

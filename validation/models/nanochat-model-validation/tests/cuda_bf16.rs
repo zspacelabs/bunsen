@@ -9,19 +9,19 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::read_pytorch_tensors,
+    data::formats::{
+        LoadPolicy,
+        read_pytorch_tensors,
+    },
     kits::{
         language::nanochat::{
             CHECKPOINT,
             NanoChatConstruct,
             pretrained::DEFAULT_NANOCHAT_MODEL,
         },
-        support::{
-            construct::LoadPolicy,
-            decoding::{
-                GreedySearch,
-                TokenSearch,
-            },
+        support::decoding::{
+            GreedySearch,
+            TokenSearch,
         },
     },
     ops::transformers::attention::KVCacheStorage,

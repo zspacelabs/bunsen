@@ -151,7 +151,7 @@ fn missing_shards(
 /// tables and under its own checkpoint key
 /// ([`with_checkpoint_key`](Self::with_checkpoint_key)); Whisper's does.
 /// The kit's hook then reads the row with
-/// [`SafetensorsCheckpoint`](super::SafetensorsCheckpoint).
+/// [`SafetensorsCheckpoint`](crate::data::formats::SafetensorsCheckpoint).
 ///
 /// # Resolving a ref
 ///
@@ -191,7 +191,7 @@ fn missing_shards(
 /// listing that lacks any is refused, naming them, before anything is
 /// fetched. The listing says nothing of what the index holds; that the
 /// index names exactly these shards is checked when the checkpoint is read
-/// ([`SafetensorsCheckpoint::from_loaded`](super::SafetensorsCheckpoint::from_loaded)).
+/// ([`SafetensorsCheckpoint::from_loaded`](crate::data::formats::SafetensorsCheckpoint::from_loaded)).
 ///
 /// # Revisions
 ///

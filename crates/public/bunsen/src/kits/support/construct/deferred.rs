@@ -140,7 +140,7 @@ impl<H: ConstructInit> Deferred<H> {
         &self,
         cache: &PretrainedCache,
         device: &Device,
-        policy: super::LoadPolicy,
+        policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Loaded<H::Construct>> {
         let load = || -> BunsenResult<Loaded<H::Construct>> {
             let planned = self.config.plan(&self.model, cache)?;
@@ -250,7 +250,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, file);
@@ -270,7 +270,7 @@ mod tests {
             .assert_err(&named.load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             ));
     }
 
@@ -295,7 +295,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, other);

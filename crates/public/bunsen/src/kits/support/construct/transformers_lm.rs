@@ -19,7 +19,6 @@ use super::{
     ConstructInit,
     LmConstruct,
     LmPolicy,
-    LoadPolicy,
 };
 use crate::{
     blocks::transformers::models::language_decoder::LmDecoderHolder,
@@ -30,14 +29,17 @@ use crate::{
     },
     data::{
         catalog::presets::ResolvedPresetSet,
-        pretrained::{
-            CONFIG,
+        formats::{
+            LoadPolicy,
             NamedTensorsApplied,
-            PretrainedRef,
             SafetensorsCheckpoint,
-            StaticPreFabMap,
             load_rekeyed,
             stored_float_dtype,
+        },
+        pretrained::{
+            CONFIG,
+            PretrainedRef,
+            StaticPreFabMap,
         },
         resources::{
             LoadedResources,
