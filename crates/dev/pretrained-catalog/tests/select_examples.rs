@@ -21,9 +21,9 @@
 use std::collections::BTreeMap;
 
 use bunsen::data::catalog::{
+    BunsenCatalogStack,
     CatalogErrorExt,
     CatalogName,
-    PretrainedCatalogStack,
     document::EntryKind,
     fixtures,
     presets::PresetSelection,
@@ -716,7 +716,7 @@ fn stages(run: &str) -> Vec<LabeledStage> {
 
 /// The builds `request` ranks over `context`, with `prefix` from `presets`.
 fn ranked(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     context: &SelectionContext,
     presets: &[&str],
     request: &SelectRequest,

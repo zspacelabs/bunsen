@@ -129,7 +129,7 @@ impl SelectionFlags {
     /// whose value doesn't read, an `--on`/`--off` of no bool axis, or a
     /// `--per` without its `--end`.
     pub fn read(
-        stack: &PretrainedCatalogStack,
+        stack: &BunsenCatalogStack,
         matches: &ArgMatches,
     ) -> BunsenResult<Self> {
         read_selection(stack, matches).map_err(BunsenError::policy)
@@ -207,7 +207,7 @@ fn stages_of(text: &str) -> Result<Vec<LabeledStage>, String> {
 
 /// The `select` flags, in command-line order.
 fn select_flags(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     matches: &ArgMatches,
 ) -> Result<Vec<SelectFlag>, String> {
     let mut flags: Vec<(usize, SelectFlag)> = Vec::new();
@@ -325,7 +325,7 @@ fn select_flags(
 
 /// [`SelectionFlags::read`], with its errors as messages.
 fn read_selection(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     matches: &ArgMatches,
 ) -> Result<SelectionFlags, String> {
     let mut presets = PresetSelection::default();
@@ -568,7 +568,7 @@ fn record(
 
 pub(super) fn select(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     matches: &ArgMatches,
     args: SelectArgs,
 ) -> Result<(), String> {

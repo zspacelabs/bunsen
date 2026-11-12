@@ -1,4 +1,4 @@
-//! # `cargo catalog`: builds bunsen's built-in pretrained catalog
+//! # `cargo catalog`: builds bunsen's built-in catalog
 //!
 //! ```text
 //! cargo catalog build  [--kit K]... [--verify-remote]
@@ -48,7 +48,7 @@ pub mod layer;
 pub mod remote;
 pub mod tree;
 
-/// Builds bunsen's built-in pretrained catalog from its probe contracts.
+/// Builds bunsen's built-in catalog from its probe contracts.
 #[derive(Debug, Parser)]
 #[command(name = "cargo catalog")]
 struct Cli {

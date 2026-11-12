@@ -146,7 +146,7 @@ tags implied by the axes used (`thinking: always | switch | never`) and by the f
 
 ## The stack
 
-`PretrainedCatalogStack` imports catalogs one after another into one materialized state.
+`BunsenCatalogStack` imports catalogs one after another into one materialized state.
 Importing a catalog applies its occurrences, in order, to a copy of the state, then validates
 the copy as a whole, and commits it only if it is clean. The state before was valid, so any
 problem is the importing catalog's, and it is refused whole. Queries read the state. The

@@ -5,11 +5,11 @@
 //! chosen from it. Probing, building, caching and model loading are out of
 //! its scope.
 //!
-//! - [`document`]: the catalog document ([`PretrainedCatalog`]) and the serde
-//!   form it is read from and written to, as YAML or JSON. Every entry names
-//!   its kind; groups and builds may nest their children.
+//! - [`document`]: the catalog document ([`BunsenCatalog`]) and the serde form
+//!   it is read from and written to, as YAML or JSON. Every entry names its
+//!   kind; groups and builds may nest their children.
 //! - [`layer`]: one loaded catalog, flattened to full names.
-//! - [`stack`]: [`PretrainedCatalogStack`], an ordered list of layers. Each new
+//! - [`stack`]: [`BunsenCatalogStack`], an ordered list of layers. Each new
 //!   layer is checked against the layers below it; queries fall through the
 //!   list. A group written in several places has one declaring occurrence and
 //!   any number of extending occurrences.
@@ -36,12 +36,12 @@
 //!
 //! ```
 //! use bunsen::data::catalog::{
-//!     PretrainedCatalogStack,
+//!     BunsenCatalogStack,
 //!     presets::PresetSelection,
 //! };
 //! use serde_json::json;
 //!
-//! let mut stack = PretrainedCatalogStack::new();
+//! let mut stack = BunsenCatalogStack::new();
 //! stack
 //!     .push_yaml(
 //!         "prelude",
@@ -108,7 +108,7 @@ pub mod catalog_format {}
 pub mod usage {}
 
 pub use builtin::builtin_stack;
-pub use document::PretrainedCatalog;
+pub use document::BunsenCatalog;
 pub use error::{
     CatalogErrorExt,
     CatalogProblem,
@@ -121,4 +121,4 @@ pub use name::{
     CatalogRef,
 };
 pub use resolve::ResolvedBuild;
-pub use stack::PretrainedCatalogStack;
+pub use stack::BunsenCatalogStack;

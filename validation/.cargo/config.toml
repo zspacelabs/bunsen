@@ -2,6 +2,6 @@
 # Runs the validation crates under a profile (`tools/validate`; README.md,
 # "Choosing what to validate").
 validate = "run -q -p validate --"
-# Builds bunsen's built-in pretrained catalog from its probe contracts
+# Builds bunsen's built-in catalog from its probe contracts
 # (`catalog_builder`).
 catalog = "run -q -p catalog-builder --"

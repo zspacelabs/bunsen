@@ -18,10 +18,10 @@ use crate::{
             WELL_KNOWN,
         },
         catalog::{
+            BunsenCatalogStack,
             CatalogName,
             CatalogRef,
             CatalogRule,
-            PretrainedCatalogStack,
             ResolvedBuild,
             builtin_stack,
             catalog_error,
@@ -92,7 +92,7 @@ impl BuildCatalogProvider {
     pub fn new(
         name: impl Into<String>,
         description: impl Into<String>,
-        stack: &PretrainedCatalogStack,
+        stack: &BunsenCatalogStack,
         contract: &str,
         kit: &str,
     ) -> BunsenResult<Self> {

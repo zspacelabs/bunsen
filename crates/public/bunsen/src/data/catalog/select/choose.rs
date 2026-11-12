@@ -63,7 +63,7 @@ use crate::{
                 StageOrigin,
             },
         },
-        stack::PretrainedCatalogStack,
+        stack::BunsenCatalogStack,
     },
     errors::BunsenError,
 };
@@ -209,7 +209,7 @@ pub fn preset_prefix(
 /// [`CatalogRule::Selection`](crate::data::catalog::CatalogRule::Selection)
 /// when `axis` names no axis, or one that isn't bool.
 pub fn bool_axis_member(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     axis: &str,
     on: bool,
 ) -> CatalogResult<String> {

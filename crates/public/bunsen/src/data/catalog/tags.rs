@@ -24,7 +24,7 @@ use crate::data::catalog::{
         catalog_error,
     },
     name::CatalogName,
-    stack::PretrainedCatalogStack,
+    stack::BunsenCatalogStack,
 };
 
 /// A type expression with its references to `type` entries resolved.
@@ -42,7 +42,7 @@ pub enum ResolvedType {
     Record(BTreeMap<String, (ResolvedType, bool)>),
 }
 
-impl PretrainedCatalogStack {
+impl BunsenCatalogStack {
     /// Resolves `expr`, written in the entry `from`: each reference to a
     /// `type` entry, resolved from where it is written, is replaced by the
     /// type's own expression.

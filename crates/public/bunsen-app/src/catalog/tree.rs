@@ -14,7 +14,7 @@ pub enum DumpFormat {
 
 pub(super) fn dump(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     format: DumpFormat,
 ) -> Result<(), String> {
     let layers = stack
@@ -65,7 +65,7 @@ const TREE_KINDS: [EntryKind; 3] = [EntryKind::Namespace, EntryKind::Build, Entr
 /// Whether `tree` shows `name` for `kinds`: an alias only when its target's
 /// kind is shown too.
 fn tree_shows(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     name: &CatalogName,
     kinds: &[EntryKind],
 ) -> bool {
@@ -140,7 +140,7 @@ fn alias_text(
 
 /// An entry's tree line, after its tree glyph.
 fn tree_line(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     name: &CatalogName,
     label: &str,
     inline_aliases: bool,
@@ -220,7 +220,7 @@ fn tree_line(
 
 pub(super) fn tree(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     root: Option<&str>,
     kinds: &[String],
     all: bool,
@@ -244,7 +244,7 @@ pub(super) fn tree(
     // Whether `name` is shown: it is of a wanted kind, or something below it
     // is.
     fn shown(
-        stack: &PretrainedCatalogStack,
+        stack: &BunsenCatalogStack,
         name: &CatalogName,
         kinds: &[EntryKind],
     ) -> bool {
@@ -256,7 +256,7 @@ pub(super) fn tree(
     }
     fn walk(
         out: &mut String,
-        stack: &PretrainedCatalogStack,
+        stack: &BunsenCatalogStack,
         names: &[CatalogName],
         prefix: &str,
         kinds: &[EntryKind],

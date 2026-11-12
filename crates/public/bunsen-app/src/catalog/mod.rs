@@ -30,9 +30,9 @@ use std::path::PathBuf;
 
 use bunsen::{
     data::catalog::{
+        BunsenCatalogStack,
         CatalogErrorExt,
         CatalogName,
-        PretrainedCatalogStack,
         document::{
             CatalogEntry,
             EntryKind,
@@ -148,7 +148,7 @@ impl CatalogCommand {
     pub fn run(
         &self,
         matches: &ArgMatches,
-        base: PretrainedCatalogStack,
+        base: BunsenCatalogStack,
     ) -> BunsenResult<()> {
         let mut out = String::new();
         let result = self.run_into(matches, base, &mut out);
@@ -164,7 +164,7 @@ impl CatalogCommand {
     pub fn run_into(
         &self,
         matches: &ArgMatches,
-        base: PretrainedCatalogStack,
+        base: BunsenCatalogStack,
         out: &mut String,
     ) -> Result<(), String> {
         let stack = extend(base, &self.catalogs)?;
@@ -303,9 +303,9 @@ fn errors(e: BunsenError) -> String {
 
 /// `base` with each of `extensions` imported over it, in order.
 fn extend(
-    mut stack: PretrainedCatalogStack,
+    mut stack: BunsenCatalogStack,
     extensions: &[PathBuf],
-) -> Result<PretrainedCatalogStack, String> {
+) -> Result<BunsenCatalogStack, String> {
     for path in extensions {
         stack.push_file(path).map_err(errors)?;
     }
@@ -320,7 +320,7 @@ fn parse_kind(kind: &str) -> Result<EntryKind, String> {
 }
 
 fn find(
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     query: &str,
     kinds: &[EntryKind],
 ) -> Result<CatalogName, String> {
@@ -331,7 +331,7 @@ fn find(
 
 fn layers(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
 ) {
     for (i, layer) in stack.layers().iter().enumerate() {
         let path = layer
@@ -349,7 +349,7 @@ fn layers(
 
 fn show(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     query: &str,
 ) -> Result<(), String> {
     let mut kinds = SEARCHABLE.to_vec();
@@ -390,7 +390,7 @@ fn parse_value(text: &str) -> Result<Value, String> {
 
 fn resolve(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     query: &str,
     args: &PresetArgs,
     patch: Option<&str>,
@@ -488,7 +488,7 @@ fn resolve(
 
 fn releases(
     out: &mut String,
-    stack: &PretrainedCatalogStack,
+    stack: &BunsenCatalogStack,
     query: &str,
 ) -> Result<(), String> {
     let group = find(stack, query, &[EntryKind::Release])?;

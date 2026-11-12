@@ -3,7 +3,7 @@
 
 use crate::data::catalog::{
     error::CatalogResult,
-    stack::PretrainedCatalogStack,
+    stack::BunsenCatalogStack,
 };
 
 /// `prelude.yml`: facets, registered axes and tags, and the
@@ -26,8 +26,8 @@ pub const SUPPLEMENTAL: &str = include_str!("supplemental.yml");
 ///
 /// # Errors
 /// Whatever a push finds, which would be a bug in the fixtures.
-pub fn example_stack() -> CatalogResult<PretrainedCatalogStack> {
-    let mut stack = PretrainedCatalogStack::new();
+pub fn example_stack() -> CatalogResult<BunsenCatalogStack> {
+    let mut stack = BunsenCatalogStack::new();
     for (label, yaml) in [
         ("prelude", PRELUDE),
         ("commons", COMMONS),
@@ -43,7 +43,7 @@ pub fn example_stack() -> CatalogResult<PretrainedCatalogStack> {
 ///
 /// # Errors
 /// As [`example_stack`].
-pub fn supplemented_example_stack() -> CatalogResult<PretrainedCatalogStack> {
+pub fn supplemented_example_stack() -> CatalogResult<BunsenCatalogStack> {
     let mut stack = example_stack()?;
     stack.push_yaml("supplemental", SUPPLEMENTAL)?;
     Ok(stack)

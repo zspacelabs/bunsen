@@ -1,4 +1,4 @@
-//! One loaded catalog: [`PretrainedCatalogLayer`], the document plus its
+//! One loaded catalog: [`BunsenCatalogLayer`], the document plus its
 //! entries flattened to full names.
 //!
 //! Flattening resolves the nesting: a child's full name is its container's
@@ -13,9 +13,9 @@ use std::path::{
 use crate::{
     data::catalog::{
         document::{
+            BunsenCatalog,
             CatalogEntry,
             EntryKind,
-            PretrainedCatalog,
         },
         error::{
             CatalogErrorExt,
@@ -60,14 +60,14 @@ impl LayerEntry {
 /// One catalog in a stack: a label, where it was read from, the document,
 /// and its flat entries.
 #[derive(Clone, Debug)]
-pub struct PretrainedCatalogLayer {
+pub struct BunsenCatalogLayer {
     label: String,
     path: Option<PathBuf>,
-    document: PretrainedCatalog,
+    document: BunsenCatalog,
     entries: Vec<LayerEntry>,
 }
 
-impl PretrainedCatalogLayer {
+impl BunsenCatalogLayer {
     /// Flattens `document` into a layer. This checks only what flattening
     /// needs: name segments, and which kinds may nest where. Everything else
     /// is checked when the layer joins a stack.
@@ -78,7 +78,7 @@ impl PretrainedCatalogLayer {
     pub fn new(
         label: impl Into<String>,
         path: Option<PathBuf>,
-        document: PretrainedCatalog,
+        document: BunsenCatalog,
     ) -> CatalogResult<Self> {
         let label = label.into();
         let mut entries = Vec::new();
@@ -118,7 +118,7 @@ impl PretrainedCatalogLayer {
     }
 
     /// The document as read.
-    pub fn document(&self) -> &PretrainedCatalog {
+    pub fn document(&self) -> &BunsenCatalog {
         &self.document
     }
 
@@ -212,11 +212,11 @@ fn name_of(
 mod tests {
     use super::*;
 
-    fn layer(yaml: &str) -> CatalogResult<PretrainedCatalogLayer> {
-        PretrainedCatalogLayer::new("test", None, PretrainedCatalog::from_yaml(yaml).unwrap())
+    fn layer(yaml: &str) -> CatalogResult<BunsenCatalogLayer> {
+        BunsenCatalogLayer::new("test", None, BunsenCatalog::from_yaml(yaml).unwrap())
     }
 
-    fn names(layer: &PretrainedCatalogLayer) -> Vec<String> {
+    fn names(layer: &BunsenCatalogLayer) -> Vec<String> {
         layer.entries().iter().map(|e| e.name.to_string()).collect()
     }
 

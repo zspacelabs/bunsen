@@ -164,7 +164,7 @@ The nine published crates, in `crates/public/`, are versioned in **lockstep**: t
 (`version_group = "bunsen"` in `release-plz.toml`, matching `version.workspace = true` in the root `Cargo.toml`):
 
 - `bunsen`
-- `bunsen-catalog` (the built-in pretrained catalog, which `cargo catalog update` writes)
+- `bunsen-catalog` (the built-in catalog, which `cargo catalog update` writes)
 - `bunsen-contracts-macros`
 - `bunsen-fetch`
 - `bunsen-firehose`

@@ -8,8 +8,8 @@
 //! this build of bunsen doesn't have.
 
 use crate::data::catalog::{
-    PretrainedCatalog,
-    PretrainedCatalogStack,
+    BunsenCatalog,
+    BunsenCatalogStack,
     error::{
         CatalogErrorExt,
         CatalogResult,
@@ -58,17 +58,17 @@ pub fn builtin_layers() -> CatalogResult<Vec<(bunsen_catalog::CatalogFile, bool)
 /// # Errors
 /// Whatever a push finds, which would be a bug in the built catalog: the
 /// builder imports every layer before it writes them.
-pub fn builtin_stack() -> CatalogResult<PretrainedCatalogStack> {
-    let mut stack = PretrainedCatalogStack::new();
+pub fn builtin_stack() -> CatalogResult<BunsenCatalogStack> {
+    let mut stack = BunsenCatalogStack::new();
     for (file, imported) in builtin_layers()? {
         if !imported {
             continue;
         }
         let label = file.label();
         let document = if file.name.ends_with(".json") {
-            PretrainedCatalog::from_json(file.text)
+            BunsenCatalog::from_json(file.text)
         } else {
-            PretrainedCatalog::from_yaml(file.text)
+            BunsenCatalog::from_yaml(file.text)
         }
         .map_err(|e| e.in_layer(label))?;
         stack.push(label, None, document)?;
@@ -107,7 +107,7 @@ mod tests {
 
         let stack = builtin_stack().unwrap();
         let built = stack.layers()[0].document().contracts.clone().unwrap();
-        let fragments = PretrainedCatalog::from_node(OrderedNode::Map(vec![(
+        let fragments = BunsenCatalog::from_node(OrderedNode::Map(vec![(
             "$contracts".to_string(),
             contracts_section(&kit_catalog_contracts()).unwrap(),
         )]))

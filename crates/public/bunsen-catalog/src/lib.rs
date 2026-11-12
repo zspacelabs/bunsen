@@ -1,4 +1,4 @@
-//! # bunsen's built-in pretrained catalog
+//! # bunsen's built-in catalog
 //!
 //! The layers of the build catalog bunsen imports, as the catalog builder
 //! (`validation/catalog_builder`, `cargo catalog update`) writes them from

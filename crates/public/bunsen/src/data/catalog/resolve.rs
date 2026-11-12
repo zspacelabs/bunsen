@@ -36,7 +36,7 @@ use crate::{
             ResolvedPresetSet,
         },
         release_time::ReleaseTime,
-        stack::PretrainedCatalogStack,
+        stack::BunsenCatalogStack,
         tags::{
             axis_tag_value,
             check_value,
@@ -165,7 +165,7 @@ pub struct ResolvedTemplateClass {
     pub presets: ResolvedPresetSet,
 }
 
-impl PretrainedCatalogStack {
+impl BunsenCatalogStack {
     /// Resolves the build `name`.
     ///
     /// # Errors
@@ -719,7 +719,7 @@ mod tests {
     }
 
     fn resolve(
-        stack: &PretrainedCatalogStack,
+        stack: &BunsenCatalogStack,
         query: &str,
     ) -> ResolvedBuild {
         let name = stack.find_build(query).unwrap();
@@ -1061,16 +1061,16 @@ lab:
   c: { $kind: resource, $file: config.json, $format: json, $sources: [{ $url: "https://x/c" }] }
 "#;
 
-    fn variants() -> PretrainedCatalogStack {
-        let mut stack = PretrainedCatalogStack::new();
+    fn variants() -> BunsenCatalogStack {
+        let mut stack = BunsenCatalogStack::new();
         stack.push_yaml("base", VARIANTS).unwrap();
         stack
     }
 
     fn build_in(
-        stack: &PretrainedCatalogStack,
+        stack: &BunsenCatalogStack,
         build: &str,
-    ) -> CatalogResult<PretrainedCatalogStack> {
+    ) -> CatalogResult<BunsenCatalogStack> {
         let mut stack = stack.clone();
         stack.push_yaml(
             "builds",
@@ -1156,7 +1156,7 @@ lab:
     #[test]
     fn test_contract_declarations_are_checked() {
         let base = |contracts: &str| {
-            let mut stack = PretrainedCatalogStack::new();
+            let mut stack = BunsenCatalogStack::new();
             stack
                 .push_yaml("base", &format!("$contracts:\n{contracts}"))
                 .unwrap_err()
@@ -1189,7 +1189,7 @@ lab:
             "{cyclic}"
         );
         // Only the base catalog declares `$contracts`, and it must.
-        let mut stack = PretrainedCatalogStack::new();
+        let mut stack = BunsenCatalogStack::new();
         let missing = stack
             .push_yaml("base", "$description: \"No contracts.\"\n")
             .unwrap_err();

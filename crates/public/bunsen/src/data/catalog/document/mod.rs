@@ -1,4 +1,4 @@
-//! The catalog document: [`PretrainedCatalog`] and its entries, with the
+//! The catalog document: [`BunsenCatalog`] and its entries, with the
 //! keyed form they are read from and written to (YAML or JSON).
 //!
 //! The document is the namespace tree. **Every key the catalog language
@@ -73,7 +73,7 @@ pub const TEMPLATE_CLASS_ROOT: &str = "template_class_root";
 /// One catalog document: `$description`, `$contracts` in the base catalog,
 /// and the top-level entries keyed by their segments ([module](self)).
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct PretrainedCatalog {
+pub struct BunsenCatalog {
     /// What the catalog holds, for a person.
     pub description: Option<String>,
 
@@ -86,7 +86,7 @@ pub struct PretrainedCatalog {
     pub entries: Vec<CatalogEntry>,
 }
 
-impl PretrainedCatalog {
+impl BunsenCatalog {
     /// Parses a YAML document.
     ///
     /// # Errors
@@ -1179,7 +1179,7 @@ qwen:
 
     #[test]
     fn test_yaml_parses_every_kind_written() {
-        let doc = PretrainedCatalog::from_yaml(SAMPLE).unwrap();
+        let doc = BunsenCatalog::from_yaml(SAMPLE).unwrap();
         let kinds: Vec<EntryKind> = doc.entries.iter().map(CatalogEntry::kind).collect();
         assert_eq!(
             kinds,
@@ -1200,28 +1200,28 @@ qwen:
 
     #[test]
     fn test_yaml_and_json_round_trip() {
-        let doc = PretrainedCatalog::from_yaml(SAMPLE).unwrap();
+        let doc = BunsenCatalog::from_yaml(SAMPLE).unwrap();
         let json = doc.to_json().unwrap();
-        assert_eq!(PretrainedCatalog::from_json(&json).unwrap(), doc);
+        assert_eq!(BunsenCatalog::from_json(&json).unwrap(), doc);
         let yaml = doc.to_yaml().unwrap();
-        assert_eq!(PretrainedCatalog::from_yaml(&yaml).unwrap(), doc);
+        assert_eq!(BunsenCatalog::from_yaml(&yaml).unwrap(), doc);
     }
 
     #[test]
     fn test_unknown_fields_and_kinds_are_refused() {
         let unknown_field = "f: { $kind: facet, $description: \"d\", $extra: 1 }\n";
-        assert!(PretrainedCatalog::from_yaml(unknown_field).is_err());
+        assert!(BunsenCatalog::from_yaml(unknown_field).is_err());
         let unknown_kind = "f: { $kind: family, $description: \"d\" }\n";
-        assert!(PretrainedCatalog::from_yaml(unknown_kind).is_err());
+        assert!(BunsenCatalog::from_yaml(unknown_kind).is_err());
     }
 
     fn refused(yaml: &str) -> String {
-        PretrainedCatalog::from_yaml(yaml).unwrap_err().to_string()
+        BunsenCatalog::from_yaml(yaml).unwrap_err().to_string()
     }
 
     #[test]
     fn test_a_bare_key_is_a_child_or_a_tag_by_kind_and_shape() {
-        let doc = PretrainedCatalog::from_yaml(
+        let doc = BunsenCatalog::from_yaml(
             r#"
 g:
   $kind: namespace
@@ -1279,7 +1279,7 @@ g:
 
     #[test]
     fn test_the_file_order_is_kept() {
-        let doc = PretrainedCatalog::from_yaml(
+        let doc = BunsenCatalog::from_yaml(
             r#"
 zeta: { $kind: facet, $description: "Z." }
 alpha:
@@ -1315,7 +1315,7 @@ c:
         let presets: Vec<&str> = c.presets.presets.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(presets, ["second", "first"]);
         // Written back, the order holds.
-        let again = PretrainedCatalog::from_yaml(&doc.to_yaml().unwrap()).unwrap();
+        let again = BunsenCatalog::from_yaml(&doc.to_yaml().unwrap()).unwrap();
         assert_eq!(again, doc);
         assert!(doc.to_yaml().unwrap().starts_with("zeta:"));
     }
@@ -1329,11 +1329,11 @@ c:
         // Move the namespace first; the catalog reads it in the new order.
         let qwen = entries.pop().unwrap();
         entries.insert(0, qwen);
-        let doc = PretrainedCatalog::from_node(node.clone()).unwrap();
+        let doc = BunsenCatalog::from_node(node.clone()).unwrap();
         assert_eq!(doc.entries[0].name(), "qwen");
         // Written back, the entries keep their order; each entry's fields
         // come in their declared order.
-        assert_eq!(PretrainedCatalog::from_node(doc.to_node()).unwrap(), doc);
+        assert_eq!(BunsenCatalog::from_node(doc.to_node()).unwrap(), doc);
         assert_eq!(
             doc.entries[0].to_node().get("$kind"),
             Some(&OrderedNode::Scalar(Value::String("namespace".into())))

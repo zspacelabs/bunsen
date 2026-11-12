@@ -8,8 +8,8 @@
 use std::path::PathBuf;
 
 use bunsen::data::catalog::{
+    BunsenCatalogStack,
     CatalogName,
-    PretrainedCatalogStack,
     document::EntryKind,
     lookup::LeafMatch,
 };
@@ -17,7 +17,7 @@ use bunsen::data::catalog::{
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../public/bunsen/src/data/catalog/fixtures");
-    let mut stack = PretrainedCatalogStack::new();
+    let mut stack = BunsenCatalogStack::new();
     for file in ["prelude.yml", "commons.yml", "qwen3.yml", "whisper.yml"] {
         stack.push_file(dir.join(file))?;
     }

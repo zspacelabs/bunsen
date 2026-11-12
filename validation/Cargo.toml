@@ -18,7 +18,7 @@ members = [
     "models/*",
     # `cargo validate`: runs the crates under a profile.
     "tools/validate",
-    # `cargo catalog`: builds bunsen's built-in pretrained catalog.
+    # `cargo catalog`: builds bunsen's built-in catalog.
     "catalog_builder",
 ]
 

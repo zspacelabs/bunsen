@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use bunsen::{
     data::catalog::{
+        BunsenCatalogStack,
         CatalogErrorExt,
-        PretrainedCatalogStack,
         builtin_stack,
         select::state::SelectRun,
     },
@@ -30,9 +30,9 @@ use serde_json::{
 /// # Errors
 /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the built-in
 /// catalog doesn't load, which would be a bug in the built catalog.
-pub fn builtin_catalog() -> BunsenResult<Rc<PretrainedCatalogStack>> {
+pub fn builtin_catalog() -> BunsenResult<Rc<BunsenCatalogStack>> {
     thread_local! {
-        static STACK: Result<Rc<PretrainedCatalogStack>, String> =
+        static STACK: Result<Rc<BunsenCatalogStack>, String> =
             builtin_stack().map(Rc::new).map_err(|e| e.problem_message());
     }
     STACK.with(|s| s.clone().map_err(BunsenError::policy))

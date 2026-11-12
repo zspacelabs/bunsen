@@ -34,6 +34,7 @@ use crate::{
             AxisEntry,
             AxisUse,
             BuildEntry,
+            BunsenCatalog,
             CatalogEntry,
             ContractEntry,
             EntryKind,
@@ -41,7 +42,6 @@ use crate::{
             GroupEntry,
             PresetEntry,
             PresetSetEntry,
-            PretrainedCatalog,
             ReleaseEntry,
             ResourceEntry,
             TagEntry,
@@ -66,8 +66,8 @@ use crate::{
 ///
 /// A catalog editor reads a document as a tree, changes it, and writes it
 /// back with every map's order kept, as written;
-/// [`PretrainedCatalog::from_node`] reads the catalog the tree writes, and
-/// [`PretrainedCatalog::to_node`] writes one back. A repeated key is refused
+/// [`BunsenCatalog::from_node`] reads the catalog the tree writes, and
+/// [`BunsenCatalog::to_node`] writes one back. A repeated key is refused
 /// when the tree is read.
 #[derive(Clone, Debug, PartialEq)]
 pub enum OrderedNode {
@@ -287,7 +287,7 @@ impl Serialize for OrderedNode {
     }
 }
 
-impl Serialize for PretrainedCatalog {
+impl Serialize for BunsenCatalog {
     fn serialize<S: Serializer>(
         &self,
         serializer: S,
@@ -296,7 +296,7 @@ impl Serialize for PretrainedCatalog {
     }
 }
 
-impl<'de> Deserialize<'de> for PretrainedCatalog {
+impl<'de> Deserialize<'de> for BunsenCatalog {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         read_catalog(OrderedNode::deserialize(deserializer)?).map_err(de::Error::custom)
     }
@@ -355,8 +355,8 @@ fn typed<T: DeserializeOwned>(
 }
 
 /// Reads a catalog document from its tree.
-pub(super) fn read_catalog(node: OrderedNode) -> CatalogResult<PretrainedCatalog> {
-    let mut catalog = PretrainedCatalog::default();
+pub(super) fn read_catalog(node: OrderedNode) -> CatalogResult<BunsenCatalog> {
+    let mut catalog = BunsenCatalog::default();
     for (key, value) in expect_map(node, "", "the catalog")? {
         match key.as_str() {
             "$description" => match value {
@@ -586,7 +586,7 @@ fn read_presets(
 }
 
 /// Writes a catalog document as its tree.
-pub(super) fn write_catalog(catalog: &PretrainedCatalog) -> OrderedNode {
+pub(super) fn write_catalog(catalog: &BunsenCatalog) -> OrderedNode {
     let mut entries = Vec::new();
     if let Some(description) = &catalog.description {
         entries.push((
