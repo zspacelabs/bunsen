@@ -66,6 +66,10 @@
       <sourceFolder url="file://$MODULE_DIR$/validation/models/laya-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-5-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-5-model-validation/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/pretrained-catalog/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/pretrained-catalog/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/pretrained-catalog/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-catalog/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
