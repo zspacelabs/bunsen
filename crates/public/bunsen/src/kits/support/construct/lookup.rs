@@ -12,10 +12,7 @@ use core::fmt;
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::{
-        PresetSelection,
-        is_preset_name,
-    },
+    data::pretrained::PresetSelection,
     errors::{
         BunsenError,
         BunsenErrorKind,
@@ -150,6 +147,15 @@ impl fmt::Display for LookupExpr {
     }
 }
 
+/// Whether `name` is in the preset alphabet: non-empty ASCII letters,
+/// digits, `-`, `_` and `.`.
+pub fn is_preset_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
@@ -159,6 +165,16 @@ mod tests {
 
     fn parse(spec: &str) -> LookupExpr {
         LookupExpr::parse(spec).unwrap()
+    }
+
+    #[test]
+    fn test_preset_names() {
+        assert!(is_preset_name("yarn-128k"));
+        assert!(is_preset_name("faster_whisper.v2"));
+        assert!(!is_preset_name(""));
+        assert!(!is_preset_name("a,b"));
+        assert!(!is_preset_name("a b"));
+        assert!(!is_preset_name("x[y]"));
     }
 
     #[test]

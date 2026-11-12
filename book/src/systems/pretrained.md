@@ -102,23 +102,27 @@ to that factory ([no registry](bunsen::kits::support::construct::PretrainedFacto
 A row's presets are named, described
 [merge patches](bunsen::support::merge_patch) over the config its kit
 builds the model under: a Whisper policy, a Sortformer streaming setup, a
-Qwen3 generation policy ([`Preset`](bunsen::data::pretrained::Preset)). Which
-fields a preset may set is the config's business. A field the construction
-reads changes what is built, and one a driver reads changes how it runs.
+Qwen3 generation policy
+([`PresetEntry`](bunsen::data::pretrained::build_catalog::document::PresetEntry)).
+Which fields a preset may set is the config's business. A field the
+construction reads changes what is built, and one a driver reads changes how
+it runs.
 
-A row's [`PresetSet`](bunsen::data::pretrained::PresetSet) groups them. An
-axis holds presets that exclude one another, such as Whisper's `task`
-(`transcribe`, `translate`) or Sortformer's `latency`; a selection names at
-most one member of each. The default selection is explicit: the row's
-config with nothing selected is its config under the default presets. A
-`base` patch holds what every selection keeps, such as the stop tokens a
-checkpoint's `generation_config.json` names.
+A row's [`ResolvedPresetSet`](bunsen::data::pretrained::ResolvedPresetSet)
+groups them. An axis holds presets that exclude one another, such as
+Whisper's `task` (`transcribe`, `translate`) or Sortformer's `latency`; a
+selection names at most one member of each. The default selection is
+explicit: each axis has a default member, and the set names the presets on
+no axis that apply by default, so the row's config with nothing selected is
+its config under the default presets. A `common` patch holds what every
+selection keeps, such as the stop tokens a checkpoint's
+`generation_config.json` names.
 
 Resolution stacks the layers, each a patch over the one before
 ([`resolve_presets`](bunsen::kits::support::model_config::resolve_presets)):
 
 1. the family's config, serialized;
-2. the set's `base`;
+2. the set's `common` patch;
 3. the default presets, except where the selection names another member of
    the same axis;
 4. the selected presets, as one layer: two that set the same path are an

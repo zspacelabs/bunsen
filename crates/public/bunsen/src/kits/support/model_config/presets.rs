@@ -82,7 +82,7 @@ pub fn resolve_presets<C>(
 where
     C: Serialize + DeserializeOwned,
 {
-    let selected = set.check_selection(&selection.to_catalog_selection())?;
+    let selected = set.check_selection(selection)?;
     let presets = set.applied(&selected);
 
     let mut value = serde_json::to_value(base)
@@ -166,10 +166,17 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::pretrained::{
-            Preset,
-            PresetAxis,
-            PresetSet,
+        data::pretrained::build_catalog::{
+            CatalogName,
+            document::{
+                AxisKind,
+                MergeMode,
+                PresetEntry,
+            },
+            presets::{
+                AxisInfo,
+                ResolvedAxisUse,
+            },
         },
         errors::{
             BunsenErrorKind,
@@ -207,16 +214,18 @@ mod tests {
     fn preset(
         name: &str,
         patch: Value,
-    ) -> Preset {
-        Preset {
+    ) -> PresetEntry {
+        PresetEntry {
             name: name.to_string(),
+            merge: MergeMode::Update,
             description: format!("the {name} preset"),
             patch,
         }
     }
 
     fn set() -> ResolvedPresetSet {
-        let set = PresetSet {
+        let thinking_mode = vec!["thinking".to_string(), "no-thinking".to_string()];
+        ResolvedPresetSet {
             presets: vec![
                 preset(
                     "thinking",
@@ -230,16 +239,18 @@ mod tests {
                 preset("wide", json!({"beam": 5})),
                 preset("narrow", json!({"beam": 2})),
             ],
-            axes: vec![PresetAxis {
-                name: "thinking-mode".to_string(),
-                description: "whether the model thinks before it answers".to_string(),
-                members: vec!["thinking".to_string(), "no-thinking".to_string()],
+            axes: vec![ResolvedAxisUse {
+                axis: AxisInfo {
+                    name: CatalogName::root("thinking-mode").unwrap(),
+                    kind: AxisKind::Categorical,
+                    members: thinking_mode.clone(),
+                    description: "whether the model thinks before it answers".to_string(),
+                },
+                offers: thinking_mode,
+                default: "thinking".to_string(),
             }],
-            default: vec!["thinking".to_string()],
             ..Default::default()
-        };
-        set.validate().unwrap();
-        set.to_resolved().unwrap()
+        }
     }
 
     fn resolved(selection: PresetSelection) -> BunsenResult<ResolvedPresets<Toy>> {
@@ -266,19 +277,19 @@ mod tests {
 
     #[test]
     fn test_an_axis_member_displaces_the_default() {
-        let r = resolved(PresetSelection::new(["no-thinking"])).unwrap();
+        let r = resolved(PresetSelection::of(["no-thinking"])).unwrap();
         assert_eq!(r.presets, vec!["no-thinking"]);
         assert!(!r.config.thinking);
         assert_eq!(r.config.sampling.temperature, 0.7);
 
         // Selecting the default's own member is the default.
-        let r = resolved(PresetSelection::new(["thinking"])).unwrap();
+        let r = resolved(PresetSelection::of(["thinking"])).unwrap();
         assert_eq!(r.presets, vec!["thinking"]);
     }
 
     #[test]
     fn test_presets_off_the_axis_add_to_the_default() {
-        let r = resolved(PresetSelection::new(["yarn-128k", "wide"])).unwrap();
+        let r = resolved(PresetSelection::of(["yarn-128k", "wide"])).unwrap();
         assert_eq!(r.presets, vec!["thinking", "yarn-128k", "wide"]);
         assert_eq!(r.config.yarn, Some(4.0));
         assert_eq!(r.config.beam, 5);
@@ -287,15 +298,15 @@ mod tests {
 
     #[test]
     fn test_selected_presets_commute() {
-        let a = resolved(PresetSelection::new(["no-thinking", "yarn-128k"])).unwrap();
-        let b = resolved(PresetSelection::new(["yarn-128k", "no-thinking"])).unwrap();
+        let a = resolved(PresetSelection::of(["no-thinking", "yarn-128k"])).unwrap();
+        let b = resolved(PresetSelection::of(["yarn-128k", "no-thinking"])).unwrap();
         assert_eq!(a.config, b.config);
     }
 
     #[test]
     fn test_the_patch_is_last() {
         let r = resolved(
-            PresetSelection::new(["wide"])
+            PresetSelection::of(["wide"])
                 .with_patch(json!({"beam": 3, "sampling": {"top_p": 0.5}})),
         )
         .unwrap();
@@ -314,14 +325,14 @@ mod tests {
             .message_contains(
                 "no preset `thinkin`; there are: thinking, no-thinking, yarn-128k, wide, narrow",
             )
-            .assert_err(&resolved(PresetSelection::new(["thinkin"])));
+            .assert_err(&resolved(PresetSelection::of(["thinkin"])));
     }
 
     #[test]
     fn test_a_preset_selected_twice() {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .message_contains("the preset `wide` is selected twice")
-            .assert_err(&resolved(PresetSelection::new(["wide", "wide"])));
+            .assert_err(&resolved(PresetSelection::of(["wide", "wide"])));
     }
 
     #[test]
@@ -330,14 +341,14 @@ mod tests {
             .message_contains(
                 "`thinking` and `no-thinking` are both on the axis `thinking-mode`: select one",
             )
-            .assert_err(&resolved(PresetSelection::new(["thinking", "no-thinking"])));
+            .assert_err(&resolved(PresetSelection::of(["thinking", "no-thinking"])));
     }
 
     #[test]
     fn test_selected_presets_that_set_one_path() {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .message_contains("the presets `wide` and `narrow` each set `beam`: select one")
-            .assert_err(&resolved(PresetSelection::new(["wide", "narrow"])));
+            .assert_err(&resolved(PresetSelection::of(["wide", "narrow"])));
     }
 
     #[test]
@@ -383,7 +394,7 @@ mod tests {
             ResourceBundle,
         };
 
-        let named = |presets: PresetSet, selection: PresetSelection| PretrainedRef::Named {
+        let named = |presets: ResolvedPresetSet, selection: PresetSelection| PretrainedRef::Named {
             provider: "hf".to_string(),
             pretrained: Box::new(Pretrained {
                 name: "org/repo".to_string(),
@@ -393,7 +404,7 @@ mod tests {
                 origin: None,
                 prefab: None,
                 resources: ResourceBundle::new("org/repo"),
-                presets: presets.to_resolved().unwrap(),
+                presets,
                 args: Default::default(),
                 tags: Default::default(),
             }),
@@ -401,22 +412,21 @@ mod tests {
         };
         let family = set();
 
-        let own = PresetSet {
+        let own = ResolvedPresetSet {
             presets: vec![preset("wide", json!({"beam": 9}))],
             ..Default::default()
         };
-        let r = resolve_ref_presets(
-            &base(),
-            &named(own, PresetSelection::new(["wide"])),
-            &family,
-        )
-        .unwrap();
+        let r = resolve_ref_presets(&base(), &named(own, PresetSelection::of(["wide"])), &family)
+            .unwrap();
         assert_eq!(r.config.beam, 9);
         assert!(!r.config.thinking, "the row's own set, not the family's");
 
         let r = resolve_ref_presets(
             &base(),
-            &named(PresetSet::default(), PresetSelection::new(["no-thinking"])),
+            &named(
+                ResolvedPresetSet::default(),
+                PresetSelection::of(["no-thinking"]),
+            ),
             &family,
         )
         .unwrap();
@@ -437,12 +447,8 @@ mod tests {
         set.common = json!({"beam": 3, "yarn": 2.0});
         let r = resolve_presets(&base(), &set, &PresetSelection::default()).unwrap();
         assert_eq!((r.config.beam, r.config.yarn), (3, Some(2.0)));
-        let r = resolve_presets(
-            &base(),
-            &set,
-            &PresetSelection::new(["no-thinking", "wide"]),
-        )
-        .unwrap();
+        let r =
+            resolve_presets(&base(), &set, &PresetSelection::of(["no-thinking", "wide"])).unwrap();
         assert_eq!((r.config.beam, r.config.yarn), (5, Some(2.0)));
 
         set.common = json!({"bean": 3});

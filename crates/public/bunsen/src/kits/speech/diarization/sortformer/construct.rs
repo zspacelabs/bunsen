@@ -354,7 +354,7 @@ mod tests {
                 streaming: Some(streaming.clone()),
                 turns: TurnFilterConfig::none().with_onset(0.6),
             },
-            PresetSelection::new(["low"]),
+            PresetSelection::of(["low"]),
         );
         assert_eq!(bundle.streaming().unwrap(), streaming);
         assert_eq!(bundle.turns().onset, 0.6);

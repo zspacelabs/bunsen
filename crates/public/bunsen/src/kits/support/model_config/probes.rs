@@ -1,9 +1,6 @@
 //! Probes: readers of a pretrained's files that find its presets' values.
 
-use alloc::{
-    collections::BTreeMap,
-    fmt,
-};
+use alloc::fmt;
 
 use serde_json::{
     Map,
@@ -11,17 +8,9 @@ use serde_json::{
     json,
 };
 
-use crate::{
-    data::pretrained::{
-        Preset,
-        PresetSet,
-    },
-    errors::{
-        BunsenError,
-        BunsenResult,
-        LookupError,
-    },
-    support::merge_patch,
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
 };
 
 /// One probe of a pretrained's files: a named reader of one of its files,
@@ -48,9 +37,7 @@ pub struct CatalogProbe {
 /// presets: a merge patch over the family's config.
 ///
 /// Probes are found by [`name`](Self::name). The built-in ones
-/// ([`builtin_probes`]) read the files a Hugging Face repo carries; a caller
-/// with more, a template renderer say, passes them to
-/// [`apply_probes_with`].
+/// ([`builtin_probes`]) read the files a Hugging Face repo carries.
 pub trait Probe: Send + Sync + fmt::Debug {
     /// Its name, as a catalog row's `probe` entry names it.
     fn name(&self) -> &'static str;
@@ -81,54 +68,6 @@ fn no_token(
         Some(token) => Err(BunsenError::illegal(format!(
             "the {probe} probe reads no token by name, but was given {token:?}"
         ))),
-    }
-}
-
-/// A pretrained's files, by resource key, for its probes to read.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ProbeFiles {
-    files: BTreeMap<String, Vec<u8>>,
-}
-
-impl ProbeFiles {
-    /// No files.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// The files with `bytes` under `key`.
-    pub fn with(
-        mut self,
-        key: impl Into<String>,
-        bytes: impl Into<Vec<u8>>,
-    ) -> Self {
-        self.insert(key, bytes);
-        self
-    }
-
-    /// Puts `bytes` under `key`.
-    pub fn insert(
-        &mut self,
-        key: impl Into<String>,
-        bytes: impl Into<Vec<u8>>,
-    ) {
-        self.files.insert(key.into(), bytes.into());
-    }
-
-    /// The file under `key`.
-    ///
-    /// # Errors
-    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when there is none;
-    /// its candidates are the keys there are.
-    pub fn get(
-        &self,
-        key: &str,
-    ) -> BunsenResult<&[u8]> {
-        self.files.get(key).map(Vec::as_slice).ok_or_else(|| {
-            BunsenError::lookup(
-                LookupError::missing("probe file", key).with_candidates(self.files.keys().cloned()),
-            )
-        })
     }
 }
 
@@ -293,22 +232,6 @@ pub fn builtin_probes() -> Vec<Box<dyn Probe>> {
     ]
 }
 
-/// `set` with what `entries` find in `files` beneath it, by the built-in
-/// probes: [`apply_probes_with`] over [`builtin_probes`].
-///
-/// # Errors
-/// As [`apply_probes_with`].
-pub fn apply_probes(
-    set: &PresetSet,
-    family: &PresetSet,
-    entries: &[CatalogProbe],
-    files: &ProbeFiles,
-) -> BunsenResult<PresetSet> {
-    let probes = builtin_probes();
-    let probes: Vec<&dyn Probe> = probes.iter().map(Box::as_ref).collect();
-    apply_probes_with(set, family, entries, files, &probes)
-}
-
 /// `into`, with what one more probe found: what probes find accumulates.
 /// Objects join field by field, an array gains the values it lacks, in
 /// order (two probes' stop ids join: `generation_config.json`'s end of the
@@ -341,86 +264,6 @@ pub fn accumulate_probed(
     }
 }
 
-/// `set` with what `entries` find in `files` beneath it: each entry's probe
-/// reads its file, and its patch goes into the set's base (`into: [base]`)
-/// or into the presets it names, accumulating with the other probes'
-/// (arrays join: two probes' stop ids together); then `set`'s own base and
-/// presets are laid over what was found, as merge patches, so a
-/// hand-written patch extends or corrects a probed one (and replaces a
-/// probed array). A preset an entry names must be one `set` or its `family`
-/// declares (empty for a row with none); one only the family declares joins
-/// `set` as the probed patch alone, with no description, to be laid over the
-/// family's ([`PresetSet::over`]).
-///
-/// # Errors
-/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): an unknown probe (its
-///   candidates are `probes`), a file `files` lacks, or a preset `set` does not
-///   declare.
-/// - As a probe's [`probe`](Probe::probe), under a frame naming the entry.
-pub fn apply_probes_with(
-    set: &PresetSet,
-    family: &PresetSet,
-    entries: &[CatalogProbe],
-    files: &ProbeFiles,
-    probes: &[&dyn Probe],
-) -> BunsenResult<PresetSet> {
-    let mut base = Value::Object(Map::new());
-    let mut found: BTreeMap<String, Value> = BTreeMap::new();
-    for entry in entries {
-        let probe = probes
-            .iter()
-            .find(|p| p.name() == entry.probe)
-            .ok_or_else(|| {
-                BunsenError::lookup(
-                    LookupError::missing("probe", entry.probe.clone())
-                        .with_candidates(probes.iter().map(|p| p.name())),
-                )
-            })?;
-        let patch = probe
-            .probe(files.get(&entry.file)?, entry)
-            .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.file)))?;
-        for into in &entry.into {
-            if into == "base" {
-                accumulate_probed(&mut base, &patch);
-                continue;
-            }
-            if set.get(into).is_none() && family.get(into).is_none() {
-                return Err(BunsenError::lookup(
-                    LookupError::missing("preset", into.clone())
-                        .with_candidates(set.names().chain(family.names())),
-                )
-                .context(format!("the {} probe's `into`", entry.probe)));
-            }
-            accumulate_probed(
-                found
-                    .entry(into.clone())
-                    .or_insert_with(|| Value::Object(Map::new())),
-                &patch,
-            );
-        }
-    }
-
-    let mut out = set.clone();
-    merge_patch::apply(&mut base, &set.base);
-    out.base = base;
-    for preset in &mut out.presets {
-        if let Some(probed) = found.remove(&preset.name) {
-            let mut patch = probed;
-            merge_patch::apply(&mut patch, &preset.patch);
-            preset.patch = patch;
-        }
-    }
-    // What is left went into presets only the family declares.
-    for (name, patch) in found {
-        out.presets.push(Preset {
-            name,
-            description: String::new(),
-            patch,
-        });
-    }
-    Ok(out)
-}
-
 /// The presets of a checkpoint no catalog build describes (an `hf:` repo's),
 /// as the catalog builder probes a build's: `family`'s, with what each of
 /// `entries` whose file `loaded` has finds laid over them, the rest skipped.
@@ -438,6 +281,13 @@ pub fn probe_loaded(
     entries: &[CatalogProbe],
     family: &crate::data::pretrained::ResolvedPresetSet,
 ) -> BunsenResult<crate::data::pretrained::ResolvedPresetSet> {
+    use alloc::collections::BTreeMap;
+
+    use crate::{
+        errors::LookupError,
+        support::merge_patch,
+    };
+
     let probes = builtin_probes();
     let mut common = Value::Object(Map::new());
     let mut found: BTreeMap<String, Value> = BTreeMap::new();
@@ -526,6 +376,7 @@ mod tests {
             GenerationPolicy,
             SamplingPolicy,
         },
+        support::merge_patch,
     };
 
     const QWEN3_GENERATION: &str = r#"{
@@ -603,6 +454,7 @@ mod tests {
             .assert_err(&TokenizerConfigProbe.probe(br#"{"eos_token": "?"}"#, &args(None)));
     }
 
+    #[cfg(feature = "cache")]
     fn entry(
         probe: &str,
         file: &str,
@@ -616,45 +468,79 @@ mod tests {
         }
     }
 
-    /// What probes find goes into the base or the presets they name, and the
-    /// set's own patches are laid over it.
+    /// What probes find goes into the common patch or the presets they
+    /// name, over the family's own; a file the checkpoint lacks is skipped.
+    #[cfg(feature = "cache")]
     #[test]
-    fn test_apply_probes() {
-        let set = PresetSet {
-            base: json!({"generation": {"max_new_tokens": 512}}),
-            presets: vec![
-                Preset {
-                    name: "thinking".to_string(),
-                    description: "think first".to_string(),
-                    patch: json!({"generation": {"template_kwargs": {"enable_thinking": true}}}),
-                },
-                Preset {
-                    name: "no-thinking".to_string(),
-                    description: "answer at once".to_string(),
-                    patch: json!({"generation": {"sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": null}}}),
-                },
-            ],
-            ..Default::default()
+    fn test_probe_loaded() {
+        use std::path::PathBuf;
+
+        use crate::data::pretrained::{
+            LoadedResources,
+            Provenance,
+            ResolvedPresetSet,
+            ResolvedResource,
+            ResourceBundle,
+            build_catalog::document::{
+                MergeMode,
+                PresetEntry,
+            },
         };
-        let files = ProbeFiles::new().with("generation_config", QWEN3_GENERATION);
-        let probed = apply_probes(
-            &set,
-            &PresetSet::default(),
+
+        let dir = tempfile::tempdir().unwrap();
+        let path: PathBuf = dir.path().join("generation_config.json");
+        std::fs::write(&path, QWEN3_GENERATION).unwrap();
+        let loaded = LoadedResources {
+            map: ResourceBundle::new("qwen3"),
+            parts: [(
+                "generation_config".to_string(),
+                ResolvedResource {
+                    path,
+                    provenance: Provenance::LocalDir,
+                },
+            )]
+            .into_iter()
+            .collect(),
+        };
+        let preset = |name: &str, description: &str, patch: Value| PresetEntry {
+            name: name.to_string(),
+            merge: MergeMode::Update,
+            description: description.to_string(),
+            patch,
+        };
+        let family = ResolvedPresetSet {
+            common: json!({"generation": {"max_new_tokens": 512}}),
+            presets: vec![
+                preset(
+                    "thinking",
+                    "think first",
+                    json!({"generation": {"template_kwargs": {"enable_thinking": true}}}),
+                ),
+                preset(
+                    "no-thinking",
+                    "answer at once",
+                    json!({"generation": {"sampling": {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": null}}}),
+                ),
+            ],
+            ..ResolvedPresetSet::default()
+        };
+        let probed = probe_loaded(
+            &loaded,
             &[entry(
                 "generation_config",
                 "generation_config",
                 &["base", "thinking"],
             )],
-            &files,
+            &family,
         )
         .unwrap();
 
-        let base = probed_policy(&probed.base);
-        assert_eq!(base.stop_ids, [151645, 151643]);
+        let common = probed_policy(&probed.common);
+        assert_eq!(common.stop_ids, [151645, 151643]);
         assert_eq!(
-            base.max_new_tokens,
+            common.max_new_tokens,
             Some(512),
-            "the set's own base over the probe's"
+            "the family's common patch kept"
         );
         let thinking = &probed.get("thinking").unwrap().patch;
         assert_eq!(thinking["generation"]["sampling"]["temperature"], 0.6);
@@ -664,66 +550,33 @@ mod tests {
         );
         assert_eq!(
             probed.get("no-thinking").unwrap().patch,
-            set.get("no-thinking").unwrap().patch
+            family.get("no-thinking").unwrap().patch
         );
 
+        assert_eq!(
+            probe_loaded(
+                &loaded,
+                &[entry("tokenizer_config", "tokenizer_config", &["base"])],
+                &family,
+            )
+            .unwrap(),
+            family,
+            "a file the checkpoint lacks is skipped"
+        );
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .message_contains("no probe \"sampling_card\"")
-            .assert_err(&apply_probes(
-                &set,
-                &PresetSet::default(),
+            .assert_err(&probe_loaded(
+                &loaded,
                 &[entry("sampling_card", "generation_config", &["base"])],
-                &files,
-            ));
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_contains("no probe file \"tokenizer_config\"")
-            .assert_err(&apply_probes(
-                &set,
-                &PresetSet::default(),
-                &[entry("tokenizer_config", "tokenizer_config", &["base"])],
-                &files,
+                &family,
             ));
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .message_contains("no preset \"fast\"")
-            .assert_err(&apply_probes(
-                &set,
-                &PresetSet::default(),
+            .assert_err(&probe_loaded(
+                &loaded,
                 &[entry("generation_config", "generation_config", &["fast"])],
-                &files,
+                &family,
             ));
-    }
-
-    /// A probe into a preset only the row's family declares makes a partial
-    /// row preset, which the family's is laid under at load.
-    #[test]
-    fn test_apply_probes_into_a_family_preset() {
-        let family = PresetSet {
-            presets: vec![Preset {
-                name: "thinking".to_string(),
-                description: "think first".to_string(),
-                patch: json!({"generation": {"template_kwargs": {"enable_thinking": true}}}),
-            }],
-            ..Default::default()
-        };
-        let files = ProbeFiles::new().with("generation_config", QWEN3_GENERATION);
-        let row = apply_probes(
-            &PresetSet::default(),
-            &family,
-            &[entry(
-                "generation_config",
-                "generation_config",
-                &["thinking"],
-            )],
-            &files,
-        )
-        .unwrap();
-        let partial = row.get("thinking").unwrap();
-        assert!(partial.description.is_empty());
-        let merged = row.over(&family);
-        merged.validate().unwrap();
-        let thinking = &merged.get("thinking").unwrap().patch["generation"];
-        assert_eq!(thinking["template_kwargs"]["enable_thinking"], true);
-        assert_eq!(thinking["sampling"]["top_k"], 20);
     }
 
     /// Given a token by name, the `tokenizer_config` probe gives that added
@@ -746,41 +599,30 @@ mod tests {
     }
 
     /// Probes accumulate: two probes' stop ids join, in order, without a
-    /// repeat. A hand-written base laid over them replaces the array.
+    /// repeat. A hand-written patch laid over them replaces the array.
     #[test]
     fn test_probes_accumulate_and_hand_written_replaces() {
-        let files = ProbeFiles::new()
-            .with("generation_config", br#"{"eos_token_id": [1]}"#.to_vec())
-            .with(
-                "tokenizer_config",
-                br#"{"eos_token": "<eos>", "added_tokens_decoder": {
-                    "1": {"content": "<eos>"}, "107": {"content": "<end_of_turn>"}}}"#
-                    .to_vec(),
-            );
-        let turn = CatalogProbe {
-            token: Some("<end_of_turn>".to_string()),
-            ..entry("tokenizer_config", "tokenizer_config", &["base"])
-        };
-        let entries = [
-            entry("generation_config", "generation_config", &["base"]),
-            turn.clone(),
-            entry("tokenizer_config", "tokenizer_config", &["base"]),
+        let tokenizer_config = br#"{"eos_token": "<eos>", "added_tokens_decoder": {
+            "1": {"content": "<eos>"}, "107": {"content": "<end_of_turn>"}}}"#;
+        let found = [
+            GenerationConfigProbe
+                .probe(br#"{"eos_token_id": [1]}"#, &args(None))
+                .unwrap(),
+            TokenizerConfigProbe
+                .probe(tokenizer_config, &args(Some("<end_of_turn>")))
+                .unwrap(),
+            TokenizerConfigProbe
+                .probe(tokenizer_config, &args(None))
+                .unwrap(),
         ];
-        let probed = apply_probes(
-            &PresetSet::default(),
-            &PresetSet::default(),
-            &entries,
-            &files,
-        )
-        .unwrap();
-        assert_eq!(probed_policy(&probed.base).stop_ids, [1, 107]);
+        let mut probed = Value::Object(Map::new());
+        for patch in &found {
+            accumulate_probed(&mut probed, patch);
+        }
+        assert_eq!(probed_policy(&probed).stop_ids, [1, 107]);
 
-        let hand = PresetSet {
-            base: json!({"generation": {"stop_ids": [7]}}),
-            ..PresetSet::default()
-        };
-        let over = apply_probes(&hand, &PresetSet::default(), &entries, &files).unwrap();
-        assert_eq!(probed_policy(&over.base).stop_ids, [7]);
+        merge_patch::apply(&mut probed, &json!({"generation": {"stop_ids": [7]}}));
+        assert_eq!(probed_policy(&probed).stop_ids, [7]);
     }
 
     /// A `tokenizer_config.json` that holds a template, or a template file,
@@ -824,21 +666,18 @@ mod tests {
             })
         );
 
-        let files = ProbeFiles::new()
-            .with("tokenizer_config", holds.to_vec())
-            .with("chat_template", b"{{ bos_token }}".to_vec());
-        let probed = apply_probes(
-            &PresetSet::default(),
-            &PresetSet::default(),
-            &[
-                entry("chat_template", "tokenizer_config", &["base"]),
-                entry("chat_template", "chat_template", &["base"]),
-            ],
-            &files,
-        )
-        .unwrap();
+        let mut probed = Value::Object(Map::new());
+        for (file, bytes) in [
+            ("tokenizer_config", &holds[..]),
+            ("chat_template", b"{{ bos_token }}"),
+        ] {
+            accumulate_probed(
+                &mut probed,
+                &ChatTemplateProbe.probe(bytes, &keyed(file)).unwrap(),
+            );
+        }
         assert_eq!(
-            probed_policy(&probed.base).chat_template,
+            probed_policy(&probed).chat_template,
             Some(ChatTemplateSource::File {
                 file: "chat_template".to_string()
             })

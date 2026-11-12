@@ -354,7 +354,7 @@ mod tests {
             resolve_presets(
                 &SortformerPolicy::default(),
                 &family_presets(family),
-                &PresetSelection::new(presets.iter().copied()),
+                &PresetSelection::of(presets.iter().copied()),
             )
             .unwrap()
             .config

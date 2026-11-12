@@ -35,12 +35,12 @@
 //!   [`StaticPreFabMap`].
 //! - A **row**, a [`Pretrained`], is a name in a provider: its aliases and
 //!   listing fields, its [`tags`] (facts about the model, for listings and for
-//!   choosing among models, [`selection`]), the prefab it instantiates when the
-//!   kit keeps one, and the resource bundles it is made of, fused strictly into
-//!   one [`ResourceBundle`]. A file many rows share is a resource bundle of its
-//!   own that each row references (Whisper's two vocabularies serve its twelve
-//!   checkpoints); a one-file model is a row of one resource bundle. One prefab
-//!   may have many rows, in many providers.
+//!   choosing among models, [`build_catalog::select`]), the prefab it
+//!   instantiates when the kit keeps one, and the resource bundles it is made
+//!   of, fused strictly into one [`ResourceBundle`]. A file many rows share is
+//!   a resource bundle of its own that each row references (Whisper's two
+//!   vocabularies serve its twelve checkpoints); a one-file model is a row of
+//!   one resource bundle. One prefab may have many rows, in many providers.
 //! - A **resource**, a [`Resource`], is one file: its key in the resource
 //!   bundle (`checkpoint`, `vocabulary`: the kit's constants), the file name it
 //!   lands as, the SHA-256 that pins it, a `kind` label, and the [`Source`]s it
@@ -297,7 +297,6 @@ mod hf;
 mod loaded;
 pub mod mlx;
 mod prefabs;
-mod presets;
 mod pretrained_ref;
 mod providers;
 #[cfg(feature = "store")]
@@ -307,12 +306,14 @@ mod resource_bundle;
 mod rows;
 #[cfg(feature = "store")]
 mod safetensors;
-pub mod selection;
 pub mod tags;
 
 #[cfg(feature = "store")]
 pub use apply_named::*;
-pub use build_catalog::presets::ResolvedPresetSet;
+pub use build_catalog::presets::{
+    PresetSelection,
+    ResolvedPresetSet,
+};
 #[cfg(feature = "cache")]
 pub use cache::*;
 #[cfg(feature = "cache")]
@@ -322,7 +323,6 @@ pub use hf::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use prefabs::*;
-pub use presets::*;
 pub use pretrained_ref::*;
 pub use providers::*;
 #[cfg(feature = "store")]

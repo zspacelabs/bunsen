@@ -17,12 +17,6 @@ pub const CHECKPOINT: &str = "checkpoint";
 /// fp32.
 pub const PYTORCH_FP32: &str = "pytorch fp32";
 
-/// The namespace the torchvision checkpoints are cached under.
-pub const TORCHVISION_NAMESPACE: &str = "torchvision";
-
-/// The namespace the `pytorch-image-models` checkpoints are cached under.
-pub const TIMM_NAMESPACE: &str = "timm";
-
 /// What the resnet kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
@@ -75,10 +69,7 @@ mod tests {
             assert_eq!(map.keys(), [CHECKPOINT], "{name}");
             let checkpoint = map.get(CHECKPOINT).unwrap();
             let namespace = name.split('/').next().unwrap();
-            assert!(
-                [TORCHVISION_NAMESPACE, TIMM_NAMESPACE].contains(&namespace),
-                "{name}"
-            );
+            assert!(["torchvision", "timm"].contains(&namespace), "{name}");
             assert!(
                 checkpoint.namespace.starts_with(&format!("{namespace}/")),
                 "{name}: {}",
