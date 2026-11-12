@@ -24,7 +24,10 @@ use crate::{
             Resource,
             ResourceSet,
             Source,
-            hub::HubRepo,
+            hub::{
+                HUB_ORIGIN,
+                HubRepo,
+            },
         },
     },
     errors::{
@@ -125,8 +128,9 @@ pub struct ShardSetDescriptor {
 impl ShardSetDescriptor {
     /// The shard set `build` is: its [`SHARDS`](super::SHARDS) slot's
     /// templated resource, its files had from each of the resource's Hub
-    /// repos and base URLs in order, pinned when the catalog lists the
-    /// files (`$shards`), and named for the build.
+    /// repos (at each of the build's Hub mirrors) and base URLs in order,
+    /// pinned when the catalog lists the files (`$shards`), and named for the
+    /// build.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a build with no
@@ -146,10 +150,15 @@ impl ShardSetDescriptor {
             ))
             .context(&name));
         };
+        let origins: Vec<&str> = if build.hub_origins.is_empty() {
+            vec![HUB_ORIGIN]
+        } else {
+            build.hub_origins.iter().map(String::as_str).collect()
+        };
         let base_urls = entry
             .sources
             .iter()
-            .filter_map(|source| match source {
+            .flat_map(|source| match source {
                 ResourceSource::Hub {
                     repo,
                     revision,
@@ -157,10 +166,17 @@ impl ShardSetDescriptor {
                 } => {
                     let hub = HubRepo::new(repo.as_str(), revision.as_str());
                     let hub = if *dataset { hub.dataset() } else { hub };
-                    Some(hub.file_url("").trim_end_matches('/').to_string())
+                    origins
+                        .iter()
+                        .map(|origin| {
+                            hub.file_url_at(origin, "")
+                                .trim_end_matches('/')
+                                .to_string()
+                        })
+                        .collect()
                 }
-                ResourceSource::BaseUrl(base) => Some(base.clone()),
-                ResourceSource::Url(_) | ResourceSource::LocalDir { .. } => None,
+                ResourceSource::BaseUrl(base) => vec![base.clone()],
+                ResourceSource::Url(_) | ResourceSource::LocalDir { .. } => Vec::new(),
             })
             .collect();
         let digests = if entry.shards.is_empty() {

@@ -3,6 +3,7 @@
 # validation/catalog_builder/probe_contracts/; don't edit by hand.
 prelude.yml
 commons.yml
+hub.yml
 datasets.yml
 laya.yml kits
 resnet.yml kits

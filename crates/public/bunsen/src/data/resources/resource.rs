@@ -29,23 +29,6 @@ use crate::errors::{
 /// The namespace of a resource that arrived as a path rather than a row.
 pub const GIVEN_NAMESPACE: &str = "given";
 
-const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
-
-/// A cache key (a bare directory name) from a name and a URL: the URL's
-/// checksum and its base name, so that two unpinned files with one name
-/// from two places do not share a slot.
-pub(crate) fn url_to_cache_key(
-    name: Option<&str>,
-    url: &str,
-) -> String {
-    let hash = X25.checksum(url.as_bytes()).to_string();
-    let base_name = url.rsplit_once('/').map_or(url, |(_, name)| name);
-    match name {
-        Some(n) => format!("{}-{}-{}", n, hash, base_name),
-        None => format!("{}-{}", hash, base_name),
-    }
-}
-
 /// The format of a safetensors weights file: a whole checkpoint, or one
 /// shard of a checkpoint split across several.
 pub const SAFETENSORS: &str = "safetensors";
@@ -328,16 +311,6 @@ impl Resource {
             "a bundled source needs a digest to be cached under",
         )
     }
-
-    /// The cache directory of an unpinned resource: keyed by its first URL,
-    /// as the older unpinned layout is, or by its file name when it has
-    /// none.
-    pub fn cache_key(&self) -> String {
-        match self.urls().first() {
-            Some(url) => url_to_cache_key(None, url),
-            None => self.file.clone(),
-        }
-    }
 }
 
 impl fmt::Display for Resource {
@@ -439,10 +412,6 @@ mod tests {
             serde_json::to_string(&bundled).is_err(),
             "in-binary bytes have no manifest form"
         );
-        assert_eq!(
-            url_to_cache_key(Some("m"), "https://a.example/m.pt"),
-            format!("m-{}-m.pt", X25.checksum(b"https://a.example/m.pt"))
-        );
     }
 
     /// A bundled source is cached under the digest, so it needs one.
@@ -499,8 +468,8 @@ mod tests {
         }
     }
 
-    /// A resource's URLs are its URL sources in order; its cache key comes
-    /// from the first; it prints as a listing shows it, and round-trips.
+    /// A resource's URLs are its URL sources in order; it prints as a listing
+    /// shows it, and round-trips.
     #[test]
     fn test_resource_urls_key_and_display() {
         let r = checkpoint();
@@ -511,10 +480,6 @@ mod tests {
                 "https://mirror.example/tiny.en.pt",
                 "https://a.example/models/tiny.en.pt"
             ]
-        );
-        assert_eq!(
-            r.cache_key(),
-            url_to_cache_key(None, "https://mirror.example/tiny.en.pt")
         );
         assert_eq!(
             r.to_string(),
@@ -544,7 +509,6 @@ mod tests {
             }]
         );
         assert!(r.urls().is_empty());
-        assert_eq!(r.cache_key(), "my.pt");
         assert_eq!(r.to_string(), "checkpoint: my.pt (unpinned)");
         r.validate().unwrap();
 

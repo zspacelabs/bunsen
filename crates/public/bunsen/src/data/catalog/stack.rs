@@ -1290,6 +1290,42 @@ impl BunsenCatalogStack {
             .map(|d| d.name().clone())
     }
 
+    /// The Hub mirror set: the origin each build of the `hf-mirror`
+    /// contract states
+    /// ([`HF_MIRROR_CONTRACT`](crate::data::resources::hub::HF_MIRROR_CONTRACT)),
+    /// in the catalog's order, so a layer that declares a mirror adds it after
+    /// the ones below it. Read from the builds' declarations, each naming the
+    /// contract itself; empty when the catalog has no such contract.
+    pub fn hub_origins(&self) -> Vec<String> {
+        use crate::data::resources::hub::{
+            HF_MIRROR_CATALOG_CONTRACT,
+            HF_MIRROR_ORIGIN,
+        };
+        let mirror = CatalogName::contracts_root().join(
+            CatalogRef::parse(HF_MIRROR_CATALOG_CONTRACT)
+                .expect("a contract name")
+                .path(),
+        );
+        self.of_kind(EntryKind::Build)
+            .iter()
+            .filter_map(|entry| {
+                let CatalogEntry::Build(build) = entry.body() else {
+                    return None;
+                };
+                let named = self.expect_contract(build.contract.as_ref()?).ok()?;
+                (named.name() == &mirror)
+                    .then(|| {
+                        build
+                            .args
+                            .get(HF_MIRROR_ORIGIN)?
+                            .as_str()
+                            .map(str::to_string)
+                    })
+                    .flatten()
+            })
+            .collect()
+    }
+
     /// The contract `reference` names in `$contracts`
     /// (`qwen3-asr/stated` is `$contracts/qwen3-asr/stated`).
     ///

@@ -16,7 +16,10 @@ use bunsen_app::{
 };
 use log::LevelFilter;
 
-use crate::support::print_model_row;
+use crate::support::{
+    print_model_row,
+    print_providers,
+};
 
 /// Lists the checkpoints.
 #[derive(clap::Args, Debug)]
@@ -42,6 +45,7 @@ impl DecideListCommand {
         println!();
         println!("# laya checkpoints (the default: {DEFAULT_LAYA_MODEL})");
         let factory = default_laya_factory()?;
+        print_providers(factory.providers());
         for id in factory.ids() {
             let (_, row) = factory.lookup(&id)?;
             print_model_row(&cache, &id, &row, DEFAULT_LAYA_MODEL, self.urls);

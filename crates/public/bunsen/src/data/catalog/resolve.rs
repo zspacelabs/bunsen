@@ -133,6 +133,10 @@ pub struct ResolvedBuild {
     pub resources: BTreeMap<String, ResolvedResource>,
     /// Its contract's argument slots, bound, by slot name.
     pub args: BTreeMap<String, ResolvedArg>,
+    /// The origins its `$hub` sources are had from, in order: its catalog's
+    /// Hub mirror set ([`BunsenCatalogStack::hub_origins`]); the Hub's own
+    /// origin when empty.
+    pub hub_origins: Vec<String>,
 }
 
 impl ResolvedBuild {
@@ -160,6 +164,7 @@ impl ResolvedBuild {
             presets: ResolvedPresetSet::default(),
             resources: BTreeMap::new(),
             args: BTreeMap::new(),
+            hub_origins: Vec::new(),
         }
     }
 
@@ -658,6 +663,7 @@ impl BunsenCatalogStack {
             presets,
             resources,
             args,
+            hub_origins: self.hub_origins(),
         })
     }
 

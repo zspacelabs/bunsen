@@ -19,6 +19,12 @@ use std::{
 /// `bunsen_fetch`'s, so the bundled-asset build scripts, which lay files out
 /// with `bunsen_fetch::resource_cache_path`, write where this cache reads.
 pub use bunsen_fetch::RESOURCES_DIR;
+
+use super::cached_files::is_sha256;
+
+/// The directory under a resource's name where an unpinned download lands
+/// before it is hashed and filed under its digest.
+pub(super) const FETCHING_DIR: &str = ".fetching";
 use sha2::{
     Digest,
     Sha256,
@@ -181,6 +187,9 @@ pub struct ResolvedResource {
 pub enum CacheStatus {
     /// In the cache.
     Cached,
+    /// More than one copy of an unpinned resource is in the cache: loading
+    /// it fails until all but one are removed.
+    Conflicting,
     /// Not in the cache, but another tool's directory has a file of that
     /// name, unchecked.
     LocalDir,
@@ -197,6 +206,7 @@ impl fmt::Display for CacheStatus {
     ) -> fmt::Result {
         f.write_str(match self {
             Self::Cached => "cached",
+            Self::Conflicting => "conflicting copies",
             Self::LocalDir => "local dir",
             Self::Bundled => "bundled",
             Self::Remote => "remote",
@@ -219,7 +229,7 @@ struct RemotePart {
     key: String,
     dest: PathBuf,
     urls: Vec<String>,
-    sha256: Option<String>,
+    res: Resource,
 }
 
 fn remote_keys(remote: &[RemotePart]) -> String {
@@ -301,11 +311,16 @@ fn fetch_prefix(
 /// directory (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two builds
 /// share is cached once, under its own name; `hf/<org>/<repo>/<slot>` for an
 /// `hf:` repo's file,
-/// and `given` for a path's. `<file>` is the file's path, kept whole. An
-/// unpinned resource sits under a cache key in place of `<sha256>`: one derived
-/// from its first URL (a checksum of the URL, and its last segment), or its
-/// file name when it has no URL. [`resource_path`](Self::resource_path)
-/// names the path, present or not.
+/// and `given` for a path's. `<file>` is the file's path, kept whole.
+///
+/// A file is cached under its content's digest whether or not the resource
+/// is pinned. An unpinned resource's download lands in
+/// `<name>/.fetching/<file>`, is hashed, and is moved to
+/// `<name>/<sha256>/<file>`; looking it up finds the one copy under its name,
+/// whatever the digest, and two or more are an error (removing them is the
+/// way to fetch it afresh). [`resource_path`](Self::resource_path) names a
+/// pinned resource's path, present or not, and
+/// [`cached_path`](Self::cached_path) the copy the cache holds.
 ///
 /// # Trust model
 ///
@@ -321,7 +336,8 @@ fn fetch_prefix(
 /// A local-dir source is a "trust me" source: its file is used in place,
 /// and hashed first only when
 /// [`verify_local_dirs`](ResourceCacheOptions::verify_local_dirs) asks.
-/// An unpinned file is trusted by its name alone.
+/// An unpinned file is trusted by its name alone: the digest it is filed
+/// under was taken when it landed, and checks nothing against the catalog.
 ///
 /// # Source order
 ///
@@ -348,6 +364,7 @@ fn fetch_prefix(
 /// load's, and old files can be cleared by it. A probe marks nothing:
 /// [`status`](Self::status), [`map_status`](Self::map_status),
 /// [`resource_path`](Self::resource_path),
+/// [`cached_path`](Self::cached_path),
 /// [`read_prefix`](Self::read_prefix) and
 /// [`cached_files`](Self::cached_files) read without writing.
 ///
@@ -421,27 +438,155 @@ impl ResourceCache {
         }
     }
 
-    /// Where a resource's file lives in the cache, present or not:
-    /// `resources/<name>/<sha256>/<file>` when it is pinned, and
-    /// `resources/<name>/<cache key>/<file>` when not. A catalog
-    /// resource's namespace is its full name
-    /// (`qwen/qwen3/qwen3-0.6b/checkpoint`), each `/` a directory; an `hf:`
-    /// repo's is `hf`, and a path's `given`.
+    /// Where a pinned resource's file lives in the cache, present or not:
+    /// `resources/<name>/<sha256>/<file>`. A catalog resource's name is its
+    /// full name (`qwen/qwen3/qwen3-0.6b/checkpoint`), each `/` a directory;
+    /// an `hf:` repo's is `hf/<org>/<repo>/<slot>`, and a path's `given`.
+    ///
+    /// `None` for an unpinned resource, whose directory is the digest of
+    /// whatever copy landed: [`cached_path`](Self::cached_path) finds it.
     pub fn resource_path(
         &self,
         res: &Resource,
+    ) -> Option<PathBuf> {
+        res.sha256
+            .as_deref()
+            .map(|sha256| self.path_under(res, sha256))
+    }
+
+    /// The copy of a resource's file the cache holds, if it holds one: a
+    /// pinned resource's at its [`resource_path`](Self::resource_path); an
+    /// unpinned one's the one `resources/<name>/<sha256>/<file>` there is,
+    /// whatever the digest.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] whose problem is
+    /// [`Duplicate`](LookupProblem::Duplicate), naming every copy, when an
+    /// unpinned resource has more than one; a
+    /// [`Sys`](crate::errors::BunsenErrorKind::Sys) error if its name's
+    /// directory cannot be read.
+    pub fn cached_path(
+        &self,
+        res: &Resource,
+    ) -> BunsenResult<Option<PathBuf>> {
+        if let Some(path) = self.resource_path(res) {
+            return Ok(path.is_file().then_some(path));
+        }
+        let mut copies = self.unpinned_copies(res)?;
+        match copies.len() {
+            0 => Ok(None),
+            1 => Ok(copies.pop()),
+            _ => {
+                let listed = copies
+                    .iter()
+                    .map(|p| format!("\n  {}", p.display()))
+                    .collect::<String>();
+                Err(BunsenError::lookup(LookupError::path(
+                    copies.swap_remove(0),
+                    LookupProblem::Duplicate,
+                ))
+                .with_details(format!(
+                    "an unpinned resource has {} copies in the cache; remove all but \
+                     one to choose it, or all to fetch it afresh:{listed}",
+                    copies.len() + 1
+                ))
+                .context(&res.slot))
+            }
+        }
+    }
+
+    /// `resources/<name>/<pin>/<file>`.
+    fn path_under(
+        &self,
+        res: &Resource,
+        pin: &str,
     ) -> PathBuf {
-        let pin = match &res.sha256 {
-            Some(sha256) => sha256.clone(),
-            None => res.cache_key(),
-        };
         self.disk.cache_path(
             &core::iter::once(RESOURCES_DIR)
                 .chain(res.name.split('/'))
-                .chain(core::iter::once(pin.as_str()))
+                .chain(core::iter::once(pin))
                 .collect::<Vec<_>>(),
             &res.file,
         )
+    }
+
+    /// `resources/<name>`, the directory a resource's copies are under.
+    fn name_dir(
+        &self,
+        res: &Resource,
+    ) -> PathBuf {
+        let mut dir = self.disk.cache_path(&[RESOURCES_DIR], "");
+        dir.extend(res.name.split('/'));
+        dir
+    }
+
+    /// Where an unpinned resource's download lands before it is hashed:
+    /// `resources/<name>/.fetching/<file>`.
+    fn staging_path(
+        &self,
+        res: &Resource,
+    ) -> PathBuf {
+        self.path_under(res, FETCHING_DIR)
+    }
+
+    /// Every `resources/<name>/<sha256>/<file>` of a resource, in path order.
+    fn unpinned_copies(
+        &self,
+        res: &Resource,
+    ) -> BunsenResult<Vec<PathBuf>> {
+        let dir = self.name_dir(res);
+        let entries = match fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(sys_at("read the directory", &dir)(e)),
+        };
+        let mut copies = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(sys_at("read the directory", &dir))?;
+            if entry.file_name().to_str().is_some_and(is_sha256) {
+                let path = entry.path().join(&res.file);
+                if path.is_file() {
+                    copies.push(path);
+                }
+            }
+        }
+        copies.sort();
+        Ok(copies)
+    }
+
+    /// Files a downloaded unpinned resource under its digest: the staged
+    /// file is hashed and moved to `resources/<name>/<sha256>/<file>` (or
+    /// dropped, when that copy is there already), and the staging
+    /// directories it leaves empty are removed.
+    ///
+    /// # Returns
+    /// Where it is filed.
+    #[cfg(feature = "fetch")]
+    fn file_under_digest(
+        &self,
+        res: &Resource,
+        staged: &Path,
+    ) -> BunsenResult<PathBuf> {
+        let sha256 = crate::data::cache::sha256_of(staged)?;
+        let dest = self.path_under(res, &sha256);
+        if dest.is_file() {
+            fs::remove_file(staged).map_err(sys_at("remove", staged))?;
+        } else {
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent).map_err(sys_at("create", parent))?;
+            }
+            fs::rename(staged, &dest).map_err(sys_at("move", staged))?;
+        }
+        let top = self.name_dir(res);
+        let mut dir = staged.parent();
+        while let Some(d) = dir
+            && d != top
+            && fs::remove_dir(d).is_ok()
+        {
+            dir = d.parent();
+        }
+        Ok(dest)
     }
 
     /// Where a resource stands, without fetching or hashing anything.
@@ -449,8 +594,10 @@ impl ResourceCache {
         &self,
         res: &Resource,
     ) -> CacheStatus {
-        if self.resource_path(res).is_file() {
-            return CacheStatus::Cached;
+        match self.cached_path(res) {
+            Ok(Some(_)) => return CacheStatus::Cached,
+            Err(_) => return CacheStatus::Conflicting,
+            Ok(None) => {}
         }
         for source in &res.sources {
             match source {
@@ -521,7 +668,7 @@ impl ResourceCache {
                     return Err(offline(&dest, res));
                 }
                 let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
-                self.download(dest, &urls, res.sha256.as_deref())
+                self.download(res, dest, &urls)
             }
         }
     }
@@ -599,7 +746,7 @@ impl ResourceCache {
                     key: key.clone(),
                     dest,
                     urls,
-                    sha256: res.sha256.clone(),
+                    res: res.clone(),
                 }),
             }
         }
@@ -625,13 +772,16 @@ impl ResourceCache {
         &self,
         res: &Resource,
     ) -> BunsenResult<Local> {
-        let dest = self.resource_path(res);
-        if dest.is_file() {
+        if let Some(path) = self.cached_path(res)? {
             return Ok(Local::Found(ResolvedResource {
-                path: dest,
+                path,
                 provenance: Provenance::Cached,
             }));
         }
+        let dest = match self.resource_path(res) {
+            Some(path) => path,
+            None => self.staging_path(res),
+        };
 
         let mut urls = Vec::new();
         let mut tried = Vec::new();
@@ -730,14 +880,23 @@ impl ResourceCache {
     #[cfg(feature = "fetch")]
     fn download(
         &self,
+        res: &Resource,
         dest: PathBuf,
         urls: &[&str],
-        sha256: Option<&str>,
     ) -> BunsenResult<ResolvedResource> {
-        self.disk
-            .fetch_from_urls_retrying(urls, &dest, sha256, self.fetch.retries)?;
+        self.disk.fetch_from_urls_retrying(
+            urls,
+            &dest,
+            res.sha256.as_deref(),
+            self.fetch.retries,
+        )?;
+        let path = if res.is_pinned() {
+            dest
+        } else {
+            self.file_under_digest(res, &dest)?
+        };
         Ok(ResolvedResource {
-            path: dest,
+            path,
             provenance: Provenance::Downloaded,
         })
     }
@@ -747,9 +906,9 @@ impl ResourceCache {
     #[cfg(not(feature = "fetch"))]
     fn download(
         &self,
+        _res: &Resource,
         dest: PathBuf,
         _urls: &[&str],
-        _sha256: Option<&str>,
     ) -> BunsenResult<ResolvedResource> {
         Err(BunsenError::unsupported(format!(
             "{}: not local, and fetching needs the `fetch` feature",
@@ -769,7 +928,7 @@ impl ResourceCache {
             .iter()
             .map(|r| {
                 let mut job = FetchJob::new(r.urls.clone(), r.dest.clone());
-                job.sha256 = r.sha256.clone();
+                job.sha256 = r.res.sha256.clone();
                 job
             })
             .collect();
@@ -790,13 +949,18 @@ impl ResourceCache {
                     continue;
                 }
             };
-            parts.insert(
-                part.key,
-                ResolvedResource {
-                    path: part.dest,
-                    provenance,
-                },
-            );
+            let path = if part.res.is_pinned() {
+                part.dest
+            } else {
+                match self.file_under_digest(&part.res, &part.dest) {
+                    Ok(path) => path,
+                    Err(error) => {
+                        failed.push((part.key, error));
+                        continue;
+                    }
+                }
+            };
+            parts.insert(part.key, ResolvedResource { path, provenance });
         }
         if failed.is_empty() && skipped.is_empty() {
             return Ok(());
@@ -951,7 +1115,7 @@ mod tests {
                 ],
             );
             assert_eq!(cache.read_prefix(&remote, 2).unwrap(), b"ab");
-            assert!(!cache.resource_path(&remote).exists());
+            assert!(!cache.resource_path(&remote).unwrap().exists());
             assert_eq!(cache.status(&remote), CacheStatus::Remote);
         }
     }
@@ -973,7 +1137,7 @@ mod tests {
         assert_eq!(cache.status(&bundled), CacheStatus::Bundled);
         let resolved = cache.resolve(&bundled).unwrap();
         assert_eq!(resolved.provenance, Provenance::Bundled);
-        assert_eq!(resolved.path, cache.resource_path(&bundled));
+        assert_eq!(resolved.path, cache.resource_path(&bundled).unwrap());
         assert_eq!(std::fs::read(&resolved.path).unwrap(), b"abc");
         assert_eq!(cache.status(&bundled), CacheStatus::Cached);
         assert_eq!(
@@ -992,7 +1156,7 @@ mod tests {
                 c.origin == DigestOrigin::Bundled && c.subject == "abd" && c.expected == ABC_SHA256
             }))
             .assert_err(&cache.resolve(&wrong));
-        assert!(!cache.resource_path(&wrong).exists());
+        assert!(!cache.resource_path(&wrong).unwrap().exists());
 
         // The cache checks the rule `validate` does, with the same error.
         let unpinned = res("abe", None, vec![Source::Bundled(BundledBytes(b"abe"))]);
@@ -1046,7 +1210,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![Source::Bundled(BundledBytes(b"abc"))],
         );
-        let dest = cache.resource_path(&bundled);
+        let dest = cache.resource_path(&bundled).unwrap();
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
 
         // A truncated file at the path is the pin's: trusted, not re-hashed.
@@ -1087,7 +1251,7 @@ mod tests {
         );
         pinned.name = "pub/fam/build/checkpoint".to_string();
         assert_eq!(
-            cache.resource_path(&pinned),
+            cache.resource_path(&pinned).unwrap(),
             root.join("pub")
                 .join("fam")
                 .join("build")
@@ -1097,7 +1261,7 @@ mod tests {
         );
         // Where a bundled-asset build script lays the same file out.
         assert_eq!(
-            cache.resource_path(&pinned),
+            cache.resource_path(&pinned).unwrap(),
             bunsen_fetch::resource_cache_path(
                 cache.cache_dir(),
                 "pub/fam/build/checkpoint",
@@ -1109,8 +1273,8 @@ mod tests {
         let unpinned = res("abc", None, vec![url("https://a.example/abc.bin")]);
         assert_eq!(
             cache.resource_path(&unpinned),
-            root.join("prov").join(unpinned.cache_key()).join("abc.bin"),
-            "unpinned is keyed by its first URL"
+            None,
+            "an unpinned file's directory is the digest of its copy"
         );
         assert_eq!(cache.cache_dir(), dir.path().join("cache"));
         assert!(cache.offline());
@@ -1130,7 +1294,7 @@ mod tests {
         );
 
         assert_eq!(cache.status(&r), CacheStatus::Remote);
-        let dest = cache.resource_path(&r);
+        let dest = cache.resource_path(&r).unwrap();
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"not really abc").unwrap();
 
@@ -1161,7 +1325,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/abc.bin")],
         );
-        let dest = cache.resource_path(&r);
+        let dest = cache.resource_path(&r).unwrap();
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"abc").unwrap();
         let old = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
@@ -1323,7 +1487,7 @@ mod tests {
             .assert_err(&offline.resolve(&given));
     }
 
-    /// A URL is fetched, checked and written under `pretrained/`; the next
+    /// A URL is fetched, checked and written under `resources/`; the next
     /// resolve is cached. The wrong bytes under another pin are refused
     /// and leave nothing.
     #[cfg(feature = "fetch")]
@@ -1336,14 +1500,104 @@ mod tests {
 
         let resolved = cache.resolve(&r).unwrap();
         assert_eq!(resolved.provenance, Provenance::Downloaded);
-        assert_eq!(resolved.path, cache.resource_path(&r));
+        assert_eq!(resolved.path, cache.resource_path(&r).unwrap());
         assert_eq!(fs::read(&resolved.path).unwrap(), b"abc");
         assert_eq!(cache.resolve(&r).unwrap().provenance, Provenance::Cached);
 
         let wrong = serve_once("abd.bin", b"abd");
         let r = res("abd", Some(ABC_SHA256), vec![url(&wrong)]);
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&cache.resolve(&r));
-        assert!(!cache.resource_path(&r).exists());
+        assert!(!cache.resource_path(&r).unwrap().exists());
+    }
+
+    /// An unpinned URL is fetched into `.fetching/`, hashed, and filed under
+    /// its digest, by a resolve and by a load; the next resolve finds that
+    /// copy.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_an_unpinned_download_is_filed_under_its_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), false);
+        let prov = cache.resources_dir().join("prov");
+        let live = serve_once("abc.bin", b"abc");
+        let r = res("abc", None, vec![url(&live)]);
+        assert_eq!(cache.status(&r), CacheStatus::Remote);
+
+        let resolved = cache.resolve(&r).unwrap();
+        let filed = prov.join(ABC_SHA256).join("abc.bin");
+        assert_eq!(resolved.provenance, Provenance::Downloaded);
+        assert_eq!(resolved.path, filed);
+        assert_eq!(fs::read(&filed).unwrap(), b"abc");
+        assert!(!prov.join(FETCHING_DIR).exists());
+        assert_eq!(cache.cached_path(&r).unwrap(), Some(filed.clone()));
+        assert_eq!(cache.status(&r), CacheStatus::Cached);
+        let again = cache.resolve(&r).unwrap();
+        assert_eq!((again.path, again.provenance), (filed, Provenance::Cached));
+
+        let live = serve_once("abd.bin", b"abd");
+        let abd = res("abd", None, vec![url(&live)]);
+        let loaded = cache
+            .load(&ResourceSet::new("m").with_resource(abd.clone()))
+            .unwrap();
+        let path = loaded.expect("abd").unwrap();
+        assert_eq!(
+            path,
+            prov.join(crate::data::cache::sha256_of(&path).unwrap())
+                .join("abd.bin")
+        );
+        assert_eq!(cache.cached_path(&abd).unwrap(), Some(path.to_path_buf()));
+        assert!(!prov.join(FETCHING_DIR).exists());
+    }
+
+    /// Without a digest, the one copy under the name is the cache's,
+    /// whatever its digest; two are an error, from a lookup, a resolve and
+    /// a load alike, that changes nothing on disk.
+    #[test]
+    fn test_unpinned_copies() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let prov = cache.resources_dir().join("prov");
+        let put = |pin: &str, bytes: &[u8]| {
+            let path = prov.join(pin).join("abc.bin");
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, bytes).unwrap();
+            path
+        };
+        let r = res("abc", None, vec![url("https://a.example/abc.bin")]);
+        assert_eq!(cache.cached_path(&r).unwrap(), None);
+
+        // Neither a staged download nor a directory that is not a digest is
+        // a copy.
+        put(FETCHING_DIR, b"ab");
+        put("12345-abc.bin", b"abc");
+        assert_eq!(cache.cached_path(&r).unwrap(), None);
+        assert_eq!(cache.status(&r), CacheStatus::Remote);
+
+        let one = put(ABC_SHA256, b"abc");
+        assert_eq!(cache.cached_path(&r).unwrap(), Some(one.clone()));
+        let found = cache.resolve(&r).unwrap();
+        assert_eq!((found.path, found.provenance), (one, Provenance::Cached));
+
+        put(&"0".repeat(64), b"abd");
+        let listed = || {
+            let mut files = Vec::new();
+            for (path, _) in super::super::cached_files::files_under(&prov).unwrap() {
+                files.push((path.clone(), fs::read(path).unwrap()));
+            }
+            files
+        };
+        let before = listed();
+        assert_eq!(cache.status(&r), CacheStatus::Conflicting);
+        let duplicate = || {
+            ErrorMatcher::kind(BunsenErrorKind::Lookup)
+                .cause(predicate("a duplicate copy", |c: &LookupError| {
+                    c.problem == LookupProblem::Duplicate
+                }))
+        };
+        duplicate().assert_err(&cache.cached_path(&r));
+        duplicate().assert_err(&cache.resolve(&r));
+        duplicate().assert_err(&cache.load(&ResourceSet::new("m").with_resource(r.clone())));
+        assert_eq!(listed(), before);
     }
 
     /// A resource set loads with one provenance per resource: the cached one
@@ -1363,7 +1617,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],
         );
-        let dest = cache.resource_path(&cached);
+        let dest = cache.resource_path(&cached).unwrap();
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"abc").unwrap();
         let local = res(
@@ -1400,9 +1654,9 @@ mod tests {
         );
         assert_eq!(
             loaded.expect("remote").unwrap(),
-            cache.resource_path(&remote)
+            cache.resource_path(&remote).unwrap()
         );
-        assert!(!cache.resource_path(&local).exists());
+        assert!(!cache.resource_path(&local).unwrap().exists());
         assert_eq!(cache.map_status(&map)["remote"], CacheStatus::Cached);
     }
 
@@ -1445,7 +1699,7 @@ mod tests {
                 c.members.len() == 1 && c.members[0].0 == "dead"
             }))
             .assert(&err);
-        assert!(cache.resource_path(&live).is_file());
+        assert!(cache.resource_path(&live).unwrap().is_file());
     }
 
     /// Offline, a resource set with a remote resource is not found, and the
@@ -1459,7 +1713,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],
         );
-        let dest = cache.resource_path(&cached);
+        let dest = cache.resource_path(&cached).unwrap();
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"abc").unwrap();
         let remote = res(

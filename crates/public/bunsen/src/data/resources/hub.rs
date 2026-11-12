@@ -5,6 +5,13 @@
 //! listing's entries ([`HubEntry`]), whose LFS digests pin the files. Plain
 //! data and URLs: fetching is the caller's (the `hf:` provider's, through the
 //! resource cache; `cargo catalog`'s, through its own client).
+//!
+//! The Hub may be mirrored: an origin that serves the same paths. A catalog
+//! declares its mirror set as builds of the `hf-mirror` contract
+//! ([`HF_MIRROR_CONTRACT`]), the built-in catalog's first the Hub itself, and a
+//! Hub file's sources are one URL per mirror, in order
+//! ([`HubRepo::file_url_at`]); the resource cache tries them in turn, and a
+//! file is pinned and cached the same whichever mirror served it.
 
 use alloc::{
     format,
@@ -18,8 +25,24 @@ use serde::{
 
 use crate::data::resources::is_sha256_hex;
 
-/// Where the Hub is.
+/// Where the Hub is: the origin a fetch uses when no mirror set is known.
 pub const HUB_ORIGIN: &str = "https://huggingface.co";
+
+/// The name the Hub's contracts are gathered under, beside the kits'.
+pub const HUB_KIT: &str = "hub";
+
+/// The contract a Hub mirror's builds are of, `hf-mirror`: one argument,
+/// [`HF_MIRROR_ORIGIN`], the origin that serves the Hub's paths. Every build
+/// of it is a mirror, and a catalog's mirror set is its builds, in the
+/// catalog's order
+/// ([`BunsenCatalogStack::hub_origins`](crate::data::catalog::BunsenCatalogStack::hub_origins)).
+pub const HF_MIRROR_CONTRACT: &str = include_str!("hf_mirror.yml");
+
+/// The contract of a Hub mirror, by its name in a catalog's `$contracts`.
+pub const HF_MIRROR_CATALOG_CONTRACT: &str = "hf-mirror";
+
+/// The argument slot a mirror states its origin in.
+pub const HF_MIRROR_ORIGIN: &str = "origin";
 
 /// The revision a repo is read at unless another is named.
 pub const HUB_MAIN: &str = "main";
@@ -88,7 +111,15 @@ impl HubRepo {
     /// The URL of the repo's tree listing, recursive: every file, in every
     /// directory.
     pub fn listing_url(&self) -> String {
-        format!("{}?recursive=true", self.tree_url_at(HUB_ORIGIN))
+        self.listing_url_at(HUB_ORIGIN)
+    }
+
+    /// [`listing_url`](Self::listing_url), at a Hub served from `origin`.
+    pub fn listing_url_at(
+        &self,
+        origin: &str,
+    ) -> String {
+        format!("{}?recursive=true", self.tree_url_at(origin))
     }
 
     /// The URL of the repo's top-level tree listing, at a Hub served from

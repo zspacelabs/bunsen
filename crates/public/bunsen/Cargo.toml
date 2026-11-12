@@ -288,7 +288,6 @@ serde = { version = "1.0.229", default-features = false, features = ["derive", "
 serde_json = { version = "1.0.151", default-features = false, features = ["alloc"] }
 ciborium = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
-crc = { workspace = true }
 # `zlib-rs`, in every build: Whisper's `compression_ratio` must compress as
 # upstream's zlib does, and flate2's default backend, `miniz_oxide`,
 # compresses short loops far less tightly. Without the feature here, the

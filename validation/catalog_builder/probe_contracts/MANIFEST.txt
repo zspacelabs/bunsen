@@ -2,6 +2,7 @@
 # needs; the first is the base catalog.
 prelude.yml
 commons.yml
+hub.yml
 datasets.yml
 laya.yml kits
 resnet.yml kits

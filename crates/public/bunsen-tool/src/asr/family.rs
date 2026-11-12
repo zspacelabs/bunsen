@@ -9,6 +9,7 @@ use bunsen::{
     data::{
         builds::{
             BuildFactory,
+            BuildProvider,
             ConstructInit,
             Deferred,
         },
@@ -112,6 +113,9 @@ impl From<Family> for Kit {
 pub struct Listing {
     /// The listed rows, by provider.
     pub rows: Vec<(String, ResolvedBuild)>,
+
+    /// Every provider, in search order.
+    pub providers: Vec<Arc<dyn BuildProvider>>,
 
     /// The providers that list nothing.
     pub unlisted: Vec<String>,
@@ -265,7 +269,11 @@ impl Kit {
                 .map(|p| p.name().to_string())
                 .filter(|p| !listed.contains(&p.as_str()))
                 .collect();
-            Listing { rows, unlisted }
+            Listing {
+                rows,
+                providers: factory.providers().to_vec(),
+                unlisted,
+            }
         }
         Ok(match self {
             Kit::Asr(Family::Parakeet) => split(default_parakeet_factory()?),

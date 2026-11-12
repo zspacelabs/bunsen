@@ -525,7 +525,10 @@ fn family<H: ConstructInit>(
     let providers = factory.providers().iter().map(|provider| {
         Value::map([(
             "provider",
-            Value::map([("name", Value::str(provider.name()))]),
+            Value::map([
+                ("name", Value::str(provider.name())),
+                ("description", Value::str(provider.description())),
+            ]),
         )])
     });
     let mut models = Vec::new();

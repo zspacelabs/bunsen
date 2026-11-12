@@ -7,6 +7,7 @@ use bunsen::{
     data::{
         builds::{
             BuildFactory,
+            BuildProvider,
             CATALOG,
             ConstructInit,
         },
@@ -130,6 +131,19 @@ impl ChatModelFamily {
             ChatModelFamily::Gemma => GEMMA_KIT,
             ChatModelFamily::NanoChat => NANOCHAT_KIT,
         }
+    }
+
+    /// The family's providers, in search order.
+    pub fn providers(self) -> BunsenResult<Vec<Arc<dyn BuildProvider>>> {
+        fn of<H: ConstructInit>(factory: BuildFactory<H>) -> Vec<Arc<dyn BuildProvider>> {
+            factory.providers().to_vec()
+        }
+        Ok(match self {
+            ChatModelFamily::Qwen3 => of(default_qwen3_factory()?),
+            ChatModelFamily::Qwen3_5 => of(default_qwen3_5_factory()?),
+            ChatModelFamily::Gemma => of(default_gemma_factory()?),
+            ChatModelFamily::NanoChat => of(default_nanochat_factory()?),
+        })
     }
 
     /// The family's checkpoints by name: each row, by its id.
