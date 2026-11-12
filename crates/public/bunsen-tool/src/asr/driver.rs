@@ -26,8 +26,8 @@ use bunsen::{
 use burn::tensor::Device;
 
 use crate::asr::{
+    AsrConstructWrapper,
     Emission,
-    Loaded,
     Transcript,
     parakeet,
     qwen3_asr,
@@ -50,7 +50,7 @@ impl Driver {
     /// gives one when the emission finds speech regions), and `speakers` when
     /// there is a diarizer.
     pub fn build(
-        loaded: Loaded,
+        loaded: AsrConstructWrapper,
         emission: Emission,
         vad: Option<&str>,
         speakers: Option<Arc<dyn SpeakerActivityModel>>,
@@ -58,27 +58,29 @@ impl Driver {
         device: &Device,
     ) -> BunsenResult<Self> {
         Ok(match loaded {
-            Loaded::Parakeet(bundle) => Driver::Parakeet(stream::with_speakers(
+            AsrConstructWrapper::Parakeet(bundle) => Driver::Parakeet(stream::with_speakers(
                 stream::with_vad(parakeet::driver(bundle, emission)?, vad, cache, device)?,
                 speakers,
             )?),
-            Loaded::Qwen3Asr(bundle) => Driver::Qwen3Asr(stream::with_speakers(
+            AsrConstructWrapper::Qwen3Asr(bundle) => Driver::Qwen3Asr(stream::with_speakers(
                 stream::with_vad(qwen3_asr::driver(bundle, emission)?, vad, cache, device)?,
                 speakers,
             )?),
-            Loaded::Voxtral(bundle) => Driver::Voxtral(stream::with_speakers(
+            AsrConstructWrapper::Voxtral(bundle) => Driver::Voxtral(stream::with_speakers(
                 stream::with_vad(voxtral::driver(bundle, emission)?, vad, cache, device)?,
                 speakers,
             )?),
-            Loaded::Whisper(bundle) => Driver::Whisper(Box::new(stream::with_speakers(
-                stream::with_vad(
-                    whisper::driver(bundle, emission, device)?,
-                    vad,
-                    cache,
-                    device,
-                )?,
-                speakers,
-            )?)),
+            AsrConstructWrapper::Whisper(bundle) => {
+                Driver::Whisper(Box::new(stream::with_speakers(
+                    stream::with_vad(
+                        whisper::driver(bundle, emission, device)?,
+                        vad,
+                        cache,
+                        device,
+                    )?,
+                    speakers,
+                )?))
+            }
         })
     }
 

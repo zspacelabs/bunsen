@@ -10,7 +10,7 @@ use bunsen_app::{
     },
 };
 
-use crate::asr::Kit;
+use crate::asr::AsrKit;
 
 /// Brings every file of the named models into the weights cache, fetching
 /// what is not local, and prints where each one is: a deployment that
@@ -35,7 +35,7 @@ pub struct AsrKitFetchCommand {
 impl AsrKitFetchCommand {
     pub fn run(
         &self,
-        kit: Kit,
+        kit: AsrKit,
     ) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;

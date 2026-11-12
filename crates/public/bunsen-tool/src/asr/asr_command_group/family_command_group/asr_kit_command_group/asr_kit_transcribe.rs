@@ -28,10 +28,10 @@ use bunsen_app::{
 
 use crate::{
     asr::{
+        AsrFamily,
         AsrSpeakerArgs,
         Driver,
         Emission,
-        Family,
         FamilyFlags,
         Stamp,
         Streaming,
@@ -114,7 +114,7 @@ pub struct AsrTranscribeIo {
 impl<F: clap::Args + FamilyFlags> AsrKitTranscribeCommand<F> {
     pub fn run(
         &self,
-        family: Family,
+        family: AsrFamily,
     ) -> BunsenResult<()> {
         self.io.init_logging()?;
         let model = self
@@ -142,7 +142,7 @@ impl AsrTranscribeIo {
     /// transcript with `stamp`, what chose them.
     pub fn run<F: FamilyFlags>(
         &self,
-        family: Family,
+        family: AsrFamily,
         model: &str,
         flags: &F,
         streaming: &Streaming,

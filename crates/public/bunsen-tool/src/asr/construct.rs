@@ -47,9 +47,9 @@ use serde_json::{
 
 use crate::{
     asr::{
+        AsrFamily,
+        AsrKit,
         Emission,
-        Family,
-        Kit,
         Streaming,
         VadArgs,
     },
@@ -194,7 +194,7 @@ pub struct AsrRecipe {
 /// A recipe's engine: a family, and its model as a lookup expression.
 #[derive(Clone, Debug)]
 pub struct EngineSlot {
-    pub family: Family,
+    pub family: AsrFamily,
 
     /// The model, as `--model` names it.
     pub model: String,
@@ -529,7 +529,7 @@ pub struct AsrConstructConfig {
     /// What each family's engine takes from the command line, by family;
     /// [`engine`](Self::engine) gives a family not named none.
     #[serde(default)]
-    pub engines: BTreeMap<Family, EngineTraits>,
+    pub engines: BTreeMap<AsrFamily, EngineTraits>,
 
     /// What `--language` implies.
     pub language: LanguageRule,
@@ -539,7 +539,7 @@ pub struct AsrConstructConfig {
     pub vad: String,
 
     /// How each family runs in each mode.
-    pub recipes: BTreeMap<Family, FamilyRecipes>,
+    pub recipes: BTreeMap<AsrFamily, FamilyRecipes>,
 }
 
 /// The table, from the binary's `asr_construct.yml`.
@@ -560,7 +560,7 @@ impl AsrConstructConfig {
     /// family `engines` does not name.
     pub fn engine(
         &self,
-        family: Family,
+        family: AsrFamily,
     ) -> &EngineTraits {
         static NONE: EngineTraits = EngineTraits {
             language: None,
@@ -719,13 +719,13 @@ impl DeriveTags for SpeechTags {
 /// what the presets choose among.
 ///
 /// # Errors
-/// As [`Kit::listing`], and
+/// As [`AsrKit::listing`], and
 /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) for a row whose name
 /// is not a catalog name.
-pub fn asr_builds() -> BunsenResult<Vec<(CatalogName, Family)>> {
+pub fn asr_builds() -> BunsenResult<Vec<(CatalogName, AsrFamily)>> {
     let mut builds = Vec::new();
-    for family in Family::ALL {
-        for (_, row) in Kit::Asr(family).listing()?.rows {
+    for family in AsrFamily::ALL {
+        for (_, row) in AsrKit::Asr(family).listing()?.rows {
             builds.push((row.name, family));
         }
     }
@@ -771,7 +771,7 @@ pub struct AsrConstruct {
     pub need: Need,
 
     pub mode: Mode,
-    pub family: Family,
+    pub family: AsrFamily,
     pub model: String,
     pub emission: Emission,
     pub chunk_ms: usize,
@@ -946,7 +946,7 @@ pub struct AsrRecipeStamp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::asr::Kit;
+    use crate::asr::AsrKit;
 
     fn resolve(
         name: &str,
@@ -1056,7 +1056,7 @@ mod tests {
         let recipe = construct_config()
             .pick(multi, multi.need, Offline, Some("de"))
             .unwrap();
-        assert_ne!(recipe.engine.family, Family::Parakeet);
+        assert_ne!(recipe.engine.family, AsrFamily::Parakeet);
     }
 
     /// Every speech build has its family, and the keys the construct
@@ -1072,8 +1072,8 @@ mod tests {
                 .map(|(_, f)| *f)
                 .unwrap_or_else(|| panic!("{name}"))
         };
-        assert_eq!(family("fermion/phonon-2"), Family::Parakeet);
-        assert_eq!(family("openai/whisper/tiny"), Family::Whisper);
+        assert_eq!(family("fermion/phonon-2"), AsrFamily::Parakeet);
+        assert_eq!(family("openai/whisper/tiny"), AsrFamily::Whisper);
 
         let stack = builtin_catalog().unwrap();
         let tags = |name: &str| {
@@ -1129,7 +1129,7 @@ mod tests {
         r.model = "openai/whisper/small{task: Translate}".to_string();
         assert_eq!(r.task(), Task::Translate);
         let tasks = construct_config()
-            .engine(Family::Whisper)
+            .engine(AsrFamily::Whisper)
             .tasks
             .as_ref()
             .unwrap();
@@ -1148,7 +1148,7 @@ mod tests {
         );
         // A family the construct names no engine traits for transcribes, and
         // takes no language.
-        let parakeet = construct_config().engine(Family::Parakeet);
+        let parakeet = construct_config().engine(AsrFamily::Parakeet);
         assert!(parakeet.tasks.is_none() && parakeet.language.is_none());
     }
 
@@ -1233,7 +1233,7 @@ mod tests {
             )
         );
 
-        for family in Family::ALL {
+        for family in AsrFamily::ALL {
             assert!(table.recipes.contains_key(&family), "{}", family.name());
         }
         for preset in presets() {
@@ -1241,16 +1241,16 @@ mod tests {
                 let recipe = preset.recipe(mode).unwrap();
                 let model = &recipe.engine.model;
                 let looked = match recipe.engine.family {
-                    Family::Parakeet => default_parakeet_factory()
+                    AsrFamily::Parakeet => default_parakeet_factory()
                         .and_then(|f| f.lookup(model))
                         .map(drop),
-                    Family::Qwen3Asr => default_qwen3_asr_factory()
+                    AsrFamily::Qwen3Asr => default_qwen3_asr_factory()
                         .and_then(|f| f.lookup(model))
                         .map(drop),
-                    Family::Voxtral => default_voxtral_factory()
+                    AsrFamily::Voxtral => default_voxtral_factory()
                         .and_then(|f| f.lookup(model))
                         .map(drop),
-                    Family::Whisper => default_whisper_factory()
+                    AsrFamily::Whisper => default_whisper_factory()
                         .and_then(|f| f.lookup(model))
                         .map(drop),
                 };
@@ -1263,7 +1263,7 @@ mod tests {
             let Some(tasks) = &engine.tasks else {
                 continue;
             };
-            let listing = Kit::Asr(*family).listing().unwrap();
+            let listing = AsrKit::Asr(*family).listing().unwrap();
             for preset in tasks.presets.values() {
                 assert!(
                     listing

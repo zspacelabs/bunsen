@@ -14,7 +14,7 @@ use bunsen_app::{
 };
 
 use crate::{
-    asr::Kit,
+    asr::AsrKit,
     support::{
         preset_lines,
         print_providers,
@@ -35,7 +35,7 @@ pub struct AsrKitListCommand {
 impl AsrKitListCommand {
     pub fn run(
         &self,
-        kit: Kit,
+        kit: AsrKit,
     ) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;

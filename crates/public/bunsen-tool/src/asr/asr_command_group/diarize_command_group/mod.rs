@@ -20,9 +20,9 @@ use support::{
 };
 
 use crate::asr::{
+    AsrKit,
     AsrKitFetchCommand,
     AsrKitListCommand,
-    Kit,
 };
 
 /// The diarizer's commands.
@@ -53,8 +53,8 @@ enum AsrDiarizeSubCommand {
 impl AsrDiarizeCommandGroup {
     pub fn run(&self) -> BunsenResult<()> {
         match &self.action {
-            AsrDiarizeSubCommand::List(list) => list.run(Kit::Diarizer),
-            AsrDiarizeSubCommand::Fetch(fetch) => fetch.run(Kit::Diarizer),
+            AsrDiarizeSubCommand::List(list) => list.run(AsrKit::Diarizer),
+            AsrDiarizeSubCommand::Fetch(fetch) => fetch.run(AsrKit::Diarizer),
             AsrDiarizeSubCommand::Run(run) => run.run(),
             #[cfg(feature = "live")]
             AsrDiarizeSubCommand::Live(live) => live.run(),

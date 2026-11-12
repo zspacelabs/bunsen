@@ -8,7 +8,7 @@ pub use asr_whisper_command_group::*;
 use bunsen::errors::BunsenResult;
 
 use crate::asr::{
-    Family,
+    AsrFamily,
     parakeet::ParakeetFlags,
     qwen3_asr::Qwen3AsrFlags,
     voxtral::VoxtralFlags,
@@ -42,9 +42,9 @@ enum AsrFamilySubCommand {
 impl AsrFamilyCommandGroup {
     pub fn run(&self) -> BunsenResult<()> {
         match &self.family {
-            AsrFamilySubCommand::Parakeet(cmd) => cmd.run(Family::Parakeet),
-            AsrFamilySubCommand::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
-            AsrFamilySubCommand::Voxtral(cmd) => cmd.run(Family::Voxtral),
+            AsrFamilySubCommand::Parakeet(cmd) => cmd.run(AsrFamily::Parakeet),
+            AsrFamilySubCommand::Qwen3Asr(cmd) => cmd.run(AsrFamily::Qwen3Asr),
+            AsrFamilySubCommand::Voxtral(cmd) => cmd.run(AsrFamily::Voxtral),
             AsrFamilySubCommand::Whisper(cmd) => cmd.run(),
         }
     }
