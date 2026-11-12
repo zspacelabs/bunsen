@@ -10,8 +10,6 @@ use alloc::{
     vec::Vec,
 };
 
-use serde::Deserialize;
-
 #[cfg(feature = "cache")]
 use crate::data::resources::ResourceCache;
 use crate::{
@@ -26,7 +24,12 @@ use crate::{
             SAFETENSORS,
             SAFETENSORS_INDEX,
             Source,
-            is_sha256_hex,
+            hub::{
+                HUB_MAIN,
+                HUB_ORIGIN,
+                HubEntry,
+                HubRepo,
+            },
         },
     },
     errors::{
@@ -40,12 +43,6 @@ use crate::{
 /// The provider's default name: the `hf` of `hf:openai/whisper-tiny`, and
 /// the namespace its files are cached under.
 pub const HF: &str = "hf";
-
-/// Where the hub is.
-pub const HF_ORIGIN: &str = "https://huggingface.co";
-
-/// The revision a ref resolves at unless another is named.
-pub const HF_MAIN: &str = "main";
 
 /// The file a `transformers` repo keeps its weights in, when they fit one.
 pub const HF_SINGLE_FILE: &str = "model.safetensors";
@@ -62,48 +59,6 @@ pub const CONFIG: &str = "config";
 /// The key the checkpoint is under unless the kit names another.
 pub const DEFAULT_CHECKPOINT_KEY: &str = "checkpoint";
 
-/// One entry of the hub's file listing, as its tree API spells it.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct HfTreeEntry {
-    /// `file` or `directory`.
-    #[serde(rename = "type")]
-    pub kind: String,
-
-    /// The path within the repo.
-    pub path: String,
-
-    /// The size in bytes.
-    #[serde(default)]
-    pub size: u64,
-
-    /// The LFS pointer, for a file stored through LFS: its `oid` is the
-    /// file's SHA-256.
-    #[serde(default)]
-    pub lfs: Option<HfLfs>,
-}
-
-/// The LFS part of a listing entry.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct HfLfs {
-    /// The file's SHA-256 in hex, as the listing spells it (the hub's is
-    /// lowercase); [`HfTreeEntry::sha256`] is the pin made from it.
-    pub oid: String,
-
-    /// The size in bytes.
-    #[serde(default)]
-    pub size: u64,
-}
-
-impl HfTreeEntry {
-    /// The digest that pins this file, when LFS holds it: its oid, in
-    /// lowercase hex, the one spelling of a digest the cache's pins, paths
-    /// and checks use. An oid that is not 64 hex digits pins nothing.
-    pub fn sha256(&self) -> Option<String> {
-        let oid = self.lfs.as_ref()?.oid.to_ascii_lowercase();
-        is_sha256_hex(&oid).then_some(oid)
-    }
-}
-
 /// The shard number and count of `model-00001-of-00002.safetensors`.
 fn shard_numbers(file: &str) -> Option<(usize, usize)> {
     let rest = file.strip_prefix("model-")?.strip_suffix(".safetensors")?;
@@ -116,7 +71,7 @@ fn shard_numbers(file: &str) -> Option<(usize, usize)> {
 /// lacks none.
 fn missing_shards(
     of: usize,
-    shards: &[(usize, usize, &HfTreeEntry)],
+    shards: &[(usize, usize, &HubEntry)],
 ) -> String {
     let present: BTreeSet<usize> = shards
         .iter()
@@ -197,7 +152,7 @@ fn missing_shards(
 ///
 /// # Revisions
 ///
-/// The listing is at a revision: [`HF_MAIN`] unless another is named
+/// The listing is at a revision: [`HUB_MAIN`] unless another is named
 /// ([`with_revision`](Self::with_revision)). A repo whose `main` moves is
 /// seen again only when the cache is cleared or the revision is named.
 /// [`with_origin`](Self::with_origin) points the provider at a mirror, and
@@ -208,7 +163,7 @@ pub struct HfProvider {
     /// The provider's name, and the namespace its files are cached under.
     pub name: String,
 
-    /// Where the hub is: [`HF_ORIGIN`], or a mirror.
+    /// Where the hub is: [`HUB_ORIGIN`], or a mirror.
     pub origin: String,
 
     /// The revision every ref resolves at: a branch, a tag, or a commit.
@@ -259,12 +214,12 @@ impl Default for HfProvider {
 }
 
 impl HfProvider {
-    /// `hf`, at [`HF_MAIN`], the checkpoint under `checkpoint`.
+    /// `hf`, at [`HUB_MAIN`], the checkpoint under `checkpoint`.
     pub fn new() -> Self {
         Self {
             name: HF.to_string(),
-            origin: HF_ORIGIN.to_string(),
-            revision: HF_MAIN.to_string(),
+            origin: HUB_ORIGIN.to_string(),
+            revision: HUB_MAIN.to_string(),
             checkpoint_key: DEFAULT_CHECKPOINT_KEY.to_string(),
             extra_files: Vec::new(),
             archive_checkpoints: Vec::new(),
@@ -346,10 +301,7 @@ impl HfProvider {
         repo: &str,
         file: &str,
     ) -> String {
-        format!(
-            "{}/{org}/{repo}/resolve/{}/{file}",
-            self.origin, self.revision
-        )
+        HubRepo::new(format!("{org}/{repo}"), &self.revision).file_url_at(&self.origin, file)
     }
 
     /// The URL of `org/repo`'s file listing at this provider's revision.
@@ -358,10 +310,7 @@ impl HfProvider {
         org: &str,
         repo: &str,
     ) -> String {
-        format!(
-            "{}/api/models/{org}/{repo}/tree/{}",
-            self.origin, self.revision
-        )
+        HubRepo::new(format!("{org}/{repo}"), &self.revision).tree_url_at(&self.origin)
     }
 
     /// The `org` and `repo` of a ref, which is exactly `org/repo`.
@@ -415,7 +364,7 @@ impl HfProvider {
         org: &str,
         repo: &str,
         key: &str,
-        entry: &HfTreeEntry,
+        entry: &HubEntry,
         kind: &str,
     ) -> Resource {
         Resource {
@@ -447,10 +396,10 @@ impl HfProvider {
     pub fn row_from_listing(
         &self,
         name: &str,
-        listing: &[HfTreeEntry],
+        listing: &[HubEntry],
     ) -> BunsenResult<Pretrained> {
         let (org, repo) = self.split(name)?;
-        let files: Vec<&HfTreeEntry> = listing.iter().filter(|e| e.kind == "file").collect();
+        let files: Vec<&HubEntry> = listing.iter().filter(|e| e.is_file()).collect();
         let file = |path: &str| files.iter().copied().find(|e| e.path == path);
         let origin = format!("{}/{org}/{repo}", self.origin);
         let key = self.checkpoint_key.as_str();
@@ -462,7 +411,7 @@ impl HfProvider {
             resources.insert(self.resource(org, repo, key, single, SAFETENSORS));
             what = format!("{HF_SINGLE_FILE}, {}", megabytes(single.size));
         } else if let Some(index) = file(HF_INDEX_FILE) {
-            let mut shards: Vec<(usize, usize, &HfTreeEntry)> = files
+            let mut shards: Vec<(usize, usize, &HubEntry)> = files
                 .iter()
                 .filter_map(|e| shard_numbers(&e.path).map(|(n, of)| (n, of, *e)))
                 .collect();
@@ -587,10 +536,10 @@ impl HfProvider {
     fn archive_checkpoint<'e>(
         &'e self,
         name: &str,
-        files: &[&'e HfTreeEntry],
-    ) -> BunsenResult<Option<(&'e HfTreeEntry, &'e str)>> {
+        files: &[&'e HubEntry],
+    ) -> BunsenResult<Option<(&'e HubEntry, &'e str)>> {
         for archive in &self.archive_checkpoints {
-            let found: Vec<&HfTreeEntry> = files
+            let found: Vec<&HubEntry> = files
                 .iter()
                 .copied()
                 .filter(|e| e.path.ends_with(&archive.extension))
@@ -620,7 +569,7 @@ impl HfProvider {
         &self,
         name: &str,
         cache: &ResourceCache,
-    ) -> BunsenResult<Vec<HfTreeEntry>> {
+    ) -> BunsenResult<Vec<HubEntry>> {
         use crate::errors::{
             LookupError,
             LookupProblem,
@@ -678,7 +627,7 @@ impl BuildProvider for HfProvider {
     }
 
     fn origin(&self) -> Option<&str> {
-        Some(HF_ORIGIN)
+        Some(HUB_ORIGIN)
     }
 
     /// Nothing: the hub is not enumerable.
@@ -747,21 +696,24 @@ fn megabytes(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::testing::{
-        ErrorMatcher,
-        text,
+    use crate::{
+        data::resources::hub::HubLfs,
+        errors::testing::{
+            ErrorMatcher,
+            text,
+        },
     };
 
     fn entry(
         path: &str,
         size: u64,
         sha256: Option<&str>,
-    ) -> HfTreeEntry {
-        HfTreeEntry {
+    ) -> HubEntry {
+        HubEntry {
             kind: "file".to_string(),
             path: path.to_string(),
             size,
-            lfs: sha256.map(|oid| HfLfs {
+            lfs: sha256.map(|oid| HubLfs {
                 oid: oid.to_string(),
                 size,
             }),
@@ -1049,7 +1001,7 @@ mod tests {
            "lfs":{"oid":"7ebd0e69e78190ff5b1b2e6c7c0a6a9b1a4e2f0f0b3d2c1a9f8e7d6c5b4a3f2e","size":151061672,"pointerSize":135}},
           {"type":"directory","oid":"ghi","size":0,"path":"onnx"}
         ]"#;
-        let listing: Vec<HfTreeEntry> = serde_json::from_str(json).unwrap();
+        let listing: Vec<HubEntry> = serde_json::from_str(json).unwrap();
         assert_eq!(listing.len(), 3);
         assert_eq!(listing[0].sha256(), None);
         assert_eq!(listing[1].sha256().as_deref(), Some(TINY_SHA));
@@ -1069,7 +1021,7 @@ mod tests {
             r#"[{{"type":"file","size":3,"path":"model.safetensors","lfs":{{"oid":"{}","size":3}}}}]"#,
             TINY_SHA.to_uppercase()
         );
-        let listing: Vec<HfTreeEntry> = serde_json::from_str(&json).unwrap();
+        let listing: Vec<HubEntry> = serde_json::from_str(&json).unwrap();
         assert_eq!(listing[0].sha256().as_deref(), Some(TINY_SHA));
         let row = HfProvider::new()
             .row_from_listing("org/repo", &listing)

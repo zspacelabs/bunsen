@@ -48,6 +48,7 @@
 mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
+pub mod hub;
 #[cfg(feature = "cache")]
 mod loaded;
 mod resource;

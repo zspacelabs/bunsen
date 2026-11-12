@@ -21,6 +21,7 @@ use crate::data::{
         Resource,
         ResourceSet,
         Source,
+        hub::HubRepo,
         resolve_dir_template,
     },
 };
@@ -127,9 +128,9 @@ fn to_source(
         ResourceSource::BaseUrl(base) => {
             Source::Url(format!("{}/{file}", base.trim_end_matches('/')))
         }
-        ResourceSource::Hub { repo, revision } => Source::Url(format!(
-            "https://huggingface.co/{repo}/resolve/{revision}/{file}"
-        )),
+        ResourceSource::Hub { repo, revision } => {
+            Source::Url(HubRepo::new(repo.as_str(), revision.as_str()).file_url(file))
+        }
         ResourceSource::LocalDir { name, default } => Source::LocalDir {
             name: name.clone(),
             dir: default.iter().find_map(|t| resolve_dir_template(t)),

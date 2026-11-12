@@ -6,7 +6,10 @@ use std::{
     io::Read,
 };
 
-use serde::Deserialize;
+use bunsen::data::resources::hub::{
+    HubEntry,
+    HubRepo,
+};
 use sha2::{
     Digest,
     Sha256,
@@ -149,66 +152,6 @@ pub fn sha256_of(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))
 }
 
-/// A Hugging Face Hub repo at a revision.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct HubRepo {
-    /// `org/name`.
-    pub repo: String,
-
-    /// A commit.
-    pub revision: String,
-}
-
-impl HubRepo {
-    /// The URL `file` is downloaded from.
-    pub fn file_url(
-        &self,
-        file: &str,
-    ) -> String {
-        format!(
-            "https://huggingface.co/{}/resolve/{}/{file}",
-            self.repo, self.revision
-        )
-    }
-
-    /// The URL of the repo's recursive tree listing.
-    pub fn listing_url(&self) -> String {
-        format!(
-            "https://huggingface.co/api/models/{}/tree/{}?recursive=true",
-            self.repo, self.revision
-        )
-    }
-}
-
-/// One file in a Hub repo's tree listing.
-#[derive(Clone, Debug, Deserialize)]
-pub struct HubFile {
-    /// `file` or `directory`.
-    #[serde(rename = "type")]
-    pub kind: String,
-
-    /// The path in the repo.
-    pub path: String,
-
-    /// The size of what git stores: an LFS pointer's, for an LFS file.
-    #[serde(default)]
-    pub size: u64,
-
-    /// The LFS object, for a file stored in LFS.
-    #[serde(default)]
-    pub lfs: Option<HubLfs>,
-}
-
-/// An LFS file's object: its digest and size.
-#[derive(Clone, Debug, Deserialize)]
-pub struct HubLfs {
-    /// The SHA-256 of the file.
-    pub oid: String,
-
-    /// The file's size.
-    pub size: u64,
-}
-
 /// The files of `repo`, by path, across the listing's pages.
 ///
 /// # Errors
@@ -216,15 +159,15 @@ pub struct HubLfs {
 pub fn hub_listing(
     remote: &dyn Remote,
     repo: &HubRepo,
-) -> Result<BTreeMap<String, HubFile>, String> {
+) -> Result<BTreeMap<String, HubEntry>, String> {
     let mut url = Some(repo.listing_url());
     let mut files = BTreeMap::new();
     while let Some(page) = url {
         let (body, next) = remote.get_page(&page)?;
-        let entries: Vec<HubFile> = serde_json::from_slice(&body)
+        let entries: Vec<HubEntry> = serde_json::from_slice(&body)
             .map_err(|e| format!("{page}: not a tree listing: {e}"))?;
         for entry in entries {
-            if entry.kind == "file" {
+            if entry.is_file() {
                 files.insert(entry.path.clone(), entry);
             }
         }
