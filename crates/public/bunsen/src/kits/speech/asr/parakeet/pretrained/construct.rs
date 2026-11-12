@@ -13,14 +13,18 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        CONFIG,
-        LoadedResources,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+    data::{
+        pretrained::{
+            CONFIG,
+            PretrainedRef,
+            ResolvedPresetSet,
+            SafetensorsCheckpoint,
+        },
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+            SAFETENSORS_INDEX,
+        },
     },
     errors::{
         BunsenError,

@@ -14,8 +14,10 @@ use core::fmt::Debug;
 
 use burn::config::Config;
 
-use super::not_found;
-use crate::errors::BunsenResult;
+use crate::{
+    data::not_found,
+    errors::BunsenResult,
+};
 
 /// One prefab, as a compiled-in table spells it: a name, a line for a
 /// listing, and a builder of the config.

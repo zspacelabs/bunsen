@@ -9,7 +9,7 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::{
         BunsenResult,
         ResultContext,

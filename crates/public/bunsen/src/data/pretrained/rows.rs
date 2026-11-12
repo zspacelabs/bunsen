@@ -9,10 +9,10 @@ use alloc::{
 use serde_json::Value;
 
 use super::{
-    ResourceBundle,
     Tags,
     build_catalog::presets::ResolvedPresetSet,
 };
+use crate::data::resources::ResourceBundle;
 
 /// A pretrained row: a name in a provider, over a resource bundle.
 ///
@@ -102,7 +102,7 @@ impl Pretrained {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::Resource;
+    use crate::data::resources::Resource;
 
     /// A row answers to its name and aliases.
     #[test]

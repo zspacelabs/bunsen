@@ -237,7 +237,7 @@ mod vad_16k {
         use bunsen::{
             data::{
                 cache::BunsenDiskCacheOptions,
-                pretrained::{
+                resources::{
                     PretrainedCache,
                     PretrainedCacheOptions,
                 },

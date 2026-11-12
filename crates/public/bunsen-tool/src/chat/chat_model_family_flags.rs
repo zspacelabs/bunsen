@@ -4,10 +4,12 @@ use std::sync::Arc;
 
 use bunsen::{
     burner::device::DeviceSession,
-    data::pretrained::{
-        Pretrained,
-        PretrainedCache,
-        WELL_KNOWN,
+    data::{
+        pretrained::{
+            Pretrained,
+            WELL_KNOWN,
+        },
+        resources::PretrainedCache,
     },
     errors::BunsenResult,
     kits::{

@@ -30,9 +30,9 @@ use bunsen::kits::speech::{
     },
 };
 use bunsen::{
-    data::pretrained::{
-        PretrainedCache,
-        ResolvedPresetSet,
+    data::{
+        pretrained::ResolvedPresetSet,
+        resources::PretrainedCache,
     },
     errors::{
         BunsenError,

@@ -32,7 +32,7 @@
 //! which the fetch verifies as the bytes land. The digest tables in the
 //! tree are generated from the source's listing by
 //! `tools/gen_shard_digests.py`. A selection of shards is also a
-//! [`ResourceBundle`](crate::data::pretrained::ResourceBundle)
+//! [`ResourceBundle`](crate::data::resources::ResourceBundle)
 //! ([`ShardSetDescriptor::to_resource_bundle`]), for a pretrained row that
 //! fuses a shard set in.
 

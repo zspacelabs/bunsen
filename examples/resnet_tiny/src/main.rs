@@ -16,7 +16,7 @@ use bunsen::{
         ModuleInit,
         ToStructureConfig,
     },
-    data::pretrained::{
+    data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     },

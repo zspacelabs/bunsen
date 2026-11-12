@@ -86,8 +86,8 @@ pub const N_FRAMES: usize = 3000;
 /// offline when `BUNSEN_VALIDATE_OFFLINE` is set. Routing the assets through
 /// the library's own cache is also what this crate is validating. The
 /// bundle's own cache, the build-time layout, is the `bundled` checks'.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

@@ -80,9 +80,9 @@ pub enum OnFailure {
 /// How a batch of fetches runs: how many transfers run together, how many
 /// times a file is retried, and whether one failure stops the rest.
 ///
-/// A [`PretrainedCache`](crate::data::pretrained::PretrainedCache) fetches
+/// A [`PretrainedCache`](crate::data::resources::PretrainedCache) fetches
 /// the remote resources of a map under the one its options carry
-/// ([`PretrainedCacheOptions::with_fetch_policy`](crate::data::pretrained::PretrainedCacheOptions::with_fetch_policy)),
+/// ([`PretrainedCacheOptions::with_fetch_policy`](crate::data::resources::PretrainedCacheOptions::with_fetch_policy)),
 /// and a caller hands one to [`BunsenDiskCache::fetch_many`] or
 /// [`ShardSet::fetch_many`](crate::data::shards::ShardSet::fetch_many).
 /// The batch itself never fails: each job ends as a [`FetchOutcome`] in

@@ -790,7 +790,7 @@ mod tests {
     #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch(spec: &str) -> BunsenResult<()> {
         use crate::{
-            data::pretrained::{
+            data::resources::{
                 PretrainedCache,
                 PretrainedCacheOptions,
             },

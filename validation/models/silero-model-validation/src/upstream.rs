@@ -16,14 +16,14 @@
 #[cfg(feature = "reference")]
 use bunsen::data::{
     cache::BunsenDiskCacheOptions,
-    pretrained::{
+    resources::{
         PretrainedCache,
         PretrainedCacheOptions,
         Provenance,
     },
 };
 use bunsen::{
-    data::pretrained::ResourceBundle,
+    data::resources::ResourceBundle,
     kits::speech::{
         testing::RecordedVoiceActivity,
         vad::silero_vad::{

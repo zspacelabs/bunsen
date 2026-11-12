@@ -1,18 +1,20 @@
 //! # Files, caches and pretrained models
 //!
 //! Where files land, what a name means, and how a name becomes a model.
-//! Three submodules, each built on the one before:
+//! Four submodules, each built on the one before:
 //!
 //! - [`cache`]: where files land. A [`BunsenDiskCache`] picks a cache directory
 //!   and a data directory, and reports every transfer to its observers.
 //!   Digests, links and `.partial` files are here too. With the `fetch`
 //!   feature, so are the downloads.
+//! - [`resources`]: pinned files. A *resource* is one pinned file with the
+//!   places it can be had from, a [`ResourceBundle`] a named set of them, and a
+//!   [`PretrainedCache`] brings a bundle's files local.
 //! - [`pretrained`]: what a name means, and how it becomes a model. A *prefab*
-//!   is a geometry by name, a *row* is a name over a resource bundle, and a
-//!   *resource* is one pinned file with the places it can be had from.
+//!   is a geometry by name, and a *row* is a name over a resource bundle.
 //!   Providers answer names with rows, a [`PretrainedFactory`] dispatches a
-//!   spec to them, and a [`PretrainedCache`] brings the files local for the
-//!   kit's [`ConstructInit`] hook to build from.
+//!   spec to them, and the kit's [`ConstructInit`] hook builds from the files
+//!   the cache brought local.
 //! - [`shards`]: numbered dataset files. A [`ShardSetDescriptor`] names a
 //!   family of files (`shard_00000.parquet`, ...), and a [`ShardSet`] binds one
 //!   to a directory and brings shards in through the disk cache.
@@ -115,10 +117,10 @@
 //! [`Deferred::with_overlay`]: crate::kits::support::construct::Deferred::with_overlay
 //! [`HfProvider`]: pretrained::HfProvider
 //! [`Loaded`]: crate::kits::support::construct::Loaded
-//! [`LoadedResources`]: pretrained::LoadedResources
+//! [`LoadedResources`]: resources::LoadedResources
 //! [`Pretrained`]: pretrained::Pretrained
-//! [`PretrainedCache`]: pretrained::PretrainedCache
-//! [`PretrainedCache::load`]: pretrained::PretrainedCache::load
+//! [`PretrainedCache`]: resources::PretrainedCache
+//! [`PretrainedCache::load`]: resources::PretrainedCache::load
 //! [`PretrainedFactory`]: crate::kits::support::construct::PretrainedFactory
 //! [`PretrainedFactory::for_prefab`]: crate::kits::support::construct::PretrainedFactory::for_prefab
 //! [`PretrainedFactory::load`]: crate::kits::support::construct::PretrainedFactory::load
@@ -127,8 +129,8 @@
 //! [`PretrainedRef`]: pretrained::PretrainedRef
 //! [`PretrainedRef::prefab`]: pretrained::PretrainedRef::prefab
 //! [`PretrainedTable`]: pretrained::PretrainedTable
-//! [`Resource`]: pretrained::Resource
-//! [`ResourceBundle`]: pretrained::ResourceBundle
+//! [`Resource`]: resources::Resource
+//! [`ResourceBundle`]: resources::ResourceBundle
 //! [`SafetensorsCheckpoint`]: pretrained::SafetensorsCheckpoint
 //! [`ShardSet`]: shards::ShardSet
 //! [`ShardSetDescriptor`]: shards::ShardSetDescriptor
@@ -138,11 +140,34 @@
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
 //! [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
-//! [source order]: pretrained::PretrainedCache#source-order
+//! [source order]: resources::PretrainedCache#source-order
 
 #[cfg(feature = "cache")]
 pub mod cache;
 
 pub mod pretrained;
 
+pub mod resources;
+
 pub mod shards;
+
+/// A [`Lookup`](crate::errors::BunsenErrorKind::Lookup) error for a name a
+/// table does not have: a [`LookupError`](crate::errors::LookupError) for
+/// `name` among the `kind`s, with the names the table has as candidates, under
+/// a frame naming the table when there is one: `"<table>: no <kind> "x";
+/// there are: a, b"`.
+#[track_caller]
+pub(crate) fn not_found(
+    table: Option<&str>,
+    kind: &'static str,
+    name: &str,
+    names: &[&str],
+) -> crate::errors::BunsenError {
+    let error = crate::errors::BunsenError::lookup(
+        crate::errors::LookupError::missing(kind, name).with_candidates(names.iter().copied()),
+    );
+    match table {
+        Some(table) => error.context(table),
+        None => error,
+    }
+}

@@ -13,11 +13,13 @@ use super::{
     GEMMA_TEMPLATE_CLASS,
 };
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        NamedTensorsApplied,
-        ResolvedPresetSet,
-        StaticPreFabMap,
+    data::{
+        pretrained::{
+            NamedTensorsApplied,
+            ResolvedPresetSet,
+            StaticPreFabMap,
+        },
+        resources::LoadedResources,
     },
     errors::BunsenResult,
     kits::{

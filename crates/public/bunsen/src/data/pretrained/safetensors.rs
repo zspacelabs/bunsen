@@ -19,13 +19,15 @@ use burn::store::{
 };
 use serde::Deserialize;
 
-use super::LoadedResources;
-use crate::errors::{
-    BunsenError,
-    BunsenErrorKind,
-    BunsenResult,
-    ParseError,
-    sys_at,
+use crate::{
+    data::resources::LoadedResources,
+    errors::{
+        BunsenError,
+        BunsenErrorKind,
+        BunsenResult,
+        ParseError,
+        sys_at,
+    },
 };
 
 /// The longest header accepted, `safetensors`' own bound: 100 MB.
@@ -191,8 +193,8 @@ impl SafetensorsIndex {
 /// with `model.safetensors.index.json`, whose `weight_map`
 /// ([`SafetensorsIndex`]) names the shard each tensor is in. A
 /// `SafetensorsCheckpoint` is either: [`from_loaded`](Self::from_loaded)
-/// gathers it from a [family](super::LoadedResources::family) of
-/// resources under the kit's checkpoint key, the one file or the index and
+/// gathers it from a [family](crate::data::resources::LoadedResources::family)
+/// of resources under the kit's checkpoint key, the one file or the index and
 /// the shards it names. That is the layout an
 /// [`HfProvider`](super::HfProvider) row has.
 ///
@@ -495,7 +497,7 @@ mod tests {
     /// shards that are not the index's are refused.
     #[test]
     fn test_a_checkpoint_from_loaded_resources() {
-        use crate::data::pretrained::{
+        use crate::data::resources::{
             Provenance,
             ResolvedResource,
             ResourceBundle,

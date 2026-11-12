@@ -5,7 +5,7 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
-    data::pretrained::{
+    data::resources::{
         LoadedResources,
         PretrainedCache,
     },
@@ -82,10 +82,12 @@ mod tests {
         data::{
             cache::BunsenDiskCacheOptions,
             pretrained::{
-                PretrainedCacheOptions,
                 PretrainedRef,
-                ResourceBundle,
                 WELL_KNOWN,
+            },
+            resources::{
+                PretrainedCacheOptions,
+                ResourceBundle,
             },
         },
         errors::{
@@ -277,7 +279,7 @@ mod hub_tests {
     };
 
     use crate::{
-        data::pretrained::{
+        data::resources::{
             PretrainedCache,
             PretrainedCacheOptions,
             Provenance,

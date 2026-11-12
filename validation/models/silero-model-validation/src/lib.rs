@@ -66,8 +66,8 @@ mod upstream;
 /// bunsen's own (`BUNSEN_CACHE_DIR`, or the user's cache directory); offline
 /// when `BUNSEN_VALIDATE_OFFLINE` is set.
 #[cfg(feature = "checkpoints")]
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

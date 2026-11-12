@@ -314,8 +314,8 @@ pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
 
 /// The weights cache the tests load the checkpoints through: bunsen's own,
 /// offline when `BUNSEN_VALIDATE_OFFLINE` is set, for a run on a warm cache.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

@@ -101,8 +101,8 @@ pub fn upstream_reference() -> BTreeMap<String, RowRecord> {
 }
 
 /// The weights cache, offline under `BUNSEN_VALIDATE_OFFLINE`.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

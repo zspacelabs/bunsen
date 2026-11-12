@@ -6,11 +6,15 @@ use burn::tensor::Device;
 
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        GEOMETRY,
-        LoadedResources,
-        PretrainedRef,
-        ResourceBundle,
+    data::{
+        pretrained::{
+            GEOMETRY,
+            PretrainedRef,
+        },
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenError,
@@ -145,10 +149,10 @@ mod tests {
         use crate::{
             data::{
                 cache::BunsenDiskCacheOptions,
-                pretrained::{
+                pretrained::PretrainedRef,
+                resources::{
                     PretrainedCache,
                     PretrainedCacheOptions,
-                    PretrainedRef,
                     ResourceBundle,
                 },
             },

@@ -25,7 +25,7 @@
 //!
 //! # Lifecycle
 //!
-//! 1. A [`PretrainedCache`](crate::data::pretrained::PretrainedCache): where
+//! 1. A [`PretrainedCache`](crate::data::resources::PretrainedCache): where
 //!    checkpoints and vocabularies land, pinned by digest.
 //! 2. The factory,
 //!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
@@ -65,7 +65,7 @@
 //! ```rust,no_run
 //! # #[cfg(feature = "store")] {
 //! use bunsen::{
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
@@ -177,7 +177,7 @@
 //! };
 //!
 //! use bunsen::{
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         ResourceBundle,
 //!     },

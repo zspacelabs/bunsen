@@ -11,12 +11,16 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        LoadedResources,
-        PretrainedRef,
-        ResourceBundle,
-        SAFETENSORS,
-        SafetensorsCheckpoint,
+    data::{
+        pretrained::{
+            PretrainedRef,
+            SafetensorsCheckpoint,
+        },
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+            SAFETENSORS,
+        },
     },
     errors::{
         BunsenError,

@@ -21,7 +21,7 @@ https://github.com/tracel-ai/models/blob/main/resnet-burn/examples/finetune/exam
   pretrained checkpoints by name.
 - `bunsen::burner::module` — `ModuleInit` for building/initializing the module
   and `DTypeMapper` for dtype remapping during load.
-- `bunsen::data::pretrained::PretrainedCache` — the digest-pinned cache the
+- `bunsen::data::resources::PretrainedCache` — the digest-pinned cache the
   pretrained weights are fetched into.
 
 It demonstrates pretrained-weight loading plus post-hoc module rewriting

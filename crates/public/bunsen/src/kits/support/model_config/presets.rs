@@ -389,9 +389,9 @@ mod tests {
     /// repo's) and a given bundle resolve through the family's.
     #[test]
     fn test_resolve_ref_presets_falls_back_to_the_family() {
-        use crate::data::pretrained::{
-            Pretrained,
-            ResourceBundle,
+        use crate::data::{
+            pretrained::Pretrained,
+            resources::ResourceBundle,
         };
 
         let named = |presets: ResolvedPresetSet, selection: PresetSelection| PretrainedRef::Named {

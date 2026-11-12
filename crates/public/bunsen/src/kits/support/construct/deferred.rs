@@ -9,11 +9,13 @@ use super::{
     Loaded,
 };
 use crate::{
-    data::pretrained::{
-        CacheStatus,
-        PretrainedCache,
-        PretrainedRef,
-        ResourceBundle,
+    data::{
+        pretrained::PretrainedRef,
+        resources::{
+            CacheStatus,
+            PretrainedCache,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenResult,
@@ -166,8 +168,8 @@ mod tests {
     use crate::{
         data::{
             cache::BunsenDiskCacheOptions,
-            pretrained::{
-                Pretrained,
+            pretrained::Pretrained,
+            resources::{
                 PretrainedCacheOptions,
                 Provenance,
                 Resource,

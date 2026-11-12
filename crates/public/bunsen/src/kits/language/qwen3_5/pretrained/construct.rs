@@ -12,11 +12,13 @@ use super::{
     QWEN3_5_PREFABS,
 };
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        NamedTensorsApplied,
-        ResolvedPresetSet,
-        StaticPreFabMap,
+    data::{
+        pretrained::{
+            NamedTensorsApplied,
+            ResolvedPresetSet,
+            StaticPreFabMap,
+        },
+        resources::LoadedResources,
     },
     errors::BunsenResult,
     kits::{

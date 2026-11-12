@@ -24,18 +24,29 @@ use sha2::{
     Sha256,
 };
 
-use super::{
-    LoadedResources,
-    Resource,
-    ResourceBundle,
-    Source,
-};
+#[cfg(feature = "fetch")]
 use crate::{
     data::cache::{
-        BunsenDiskCache,
-        BunsenDiskCacheOptions,
-        partial_path,
-        verify_sha256,
+        FetchJob,
+        FetchOutcome,
+        FetchPolicy,
+    },
+    errors::Multiple,
+};
+use crate::{
+    data::{
+        cache::{
+            BunsenDiskCache,
+            BunsenDiskCacheOptions,
+            partial_path,
+            verify_sha256,
+        },
+        resources::{
+            LoadedResources,
+            Resource,
+            ResourceBundle,
+            Source,
+        },
     },
     errors::{
         BunsenError,
@@ -46,15 +57,6 @@ use crate::{
         LookupProblem,
         sys_at,
     },
-};
-#[cfg(feature = "fetch")]
-use crate::{
-    data::cache::{
-        FetchJob,
-        FetchOutcome,
-        FetchPolicy,
-    },
-    errors::Multiple,
 };
 
 /// Options for [`PretrainedCache`], which [`PretrainedCache::new`] opens a
@@ -285,8 +287,8 @@ fn fetch_prefix(
 /// the [`LoadedResources`] it returns are what the hook builds from. A
 /// [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
 /// hands the cache to its providers too, so that a hub
-/// ([`HfProvider`](super::HfProvider)) can keep what it asked for.
-/// [`status`](Self::status) and [`map_status`](Self::map_status) answer a
+/// ([`HfProvider`](crate::data::pretrained::HfProvider)) can keep what it asked
+/// for. [`status`](Self::status) and [`map_status`](Self::map_status) answer a
 /// listing without touching any bytes.
 ///
 /// # Cache layout
@@ -885,7 +887,7 @@ mod tests {
         .unwrap()
     }
 
-    use crate::data::pretrained::BundledBytes;
+    use crate::data::resources::BundledBytes;
 
     fn url(u: &str) -> Source {
         Source::Url(u.to_string())

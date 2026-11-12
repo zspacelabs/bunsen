@@ -14,7 +14,7 @@ use super::*;
 /// The published row's `tekken.json`, fetched into the weights cache alone.
 fn tekken_json() -> String {
     use bunsen::{
-        data::pretrained::ResourceBundle,
+        data::resources::ResourceBundle,
         kits::speech::asr::voxtral::pretrained::{
             DEFAULT_VOXTRAL_MODEL,
             VOCABULARY,

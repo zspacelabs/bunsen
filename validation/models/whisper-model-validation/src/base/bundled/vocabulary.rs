@@ -1,7 +1,7 @@
 //! The rank files, against upstream's `whisper.tokenizer`.
 
 use bunsen::{
-    data::pretrained::{
+    data::resources::{
         CacheStatus,
         Provenance,
     },

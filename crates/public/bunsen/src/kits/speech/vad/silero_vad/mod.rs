@@ -33,7 +33,7 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },

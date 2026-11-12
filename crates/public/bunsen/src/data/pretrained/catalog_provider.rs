@@ -13,9 +13,6 @@ use alloc::{
 use super::{
     Pretrained,
     PretrainedProvider,
-    Resource,
-    ResourceBundle,
-    Source,
     Tags,
     WELL_KNOWN,
     build_catalog::{
@@ -38,10 +35,17 @@ use super::{
         },
         presets::ResolvedPresetSet,
     },
-    resolve_dir_template,
     tags::KIT,
 };
-use crate::errors::BunsenResult;
+use crate::{
+    data::resources::{
+        Resource,
+        ResourceBundle,
+        Source,
+        resolve_dir_template,
+    },
+    errors::BunsenResult,
+};
 
 /// The argument slot a contract states a geometry in
 /// ([`PretrainedRef::stated`](super::PretrainedRef::stated)): for weights

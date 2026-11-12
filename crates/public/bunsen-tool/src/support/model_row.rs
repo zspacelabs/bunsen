@@ -1,8 +1,8 @@
 //! A checkpoint's row, as the `list` commands print it.
 
-use bunsen::data::pretrained::{
-    Pretrained,
-    PretrainedCache,
+use bunsen::data::{
+    pretrained::Pretrained,
+    resources::PretrainedCache,
 };
 use bunsen_app::cache::human_bytes;
 

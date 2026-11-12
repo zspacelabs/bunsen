@@ -20,17 +20,21 @@ use serde::{
     Serialize,
 };
 
-use super::{
-    Resource,
-    Source,
-    not_found,
-};
-use crate::errors::{
-    BunsenError,
-    BunsenErrorKind,
-    BunsenResult,
-    LookupError,
-    ResultContext,
+use crate::{
+    data::{
+        not_found,
+        resources::{
+            Resource,
+            Source,
+        },
+    },
+    errors::{
+        BunsenError,
+        BunsenErrorKind,
+        BunsenResult,
+        LookupError,
+        ResultContext,
+    },
 };
 
 /// How two resource bundles combine when a key is in both.
@@ -48,8 +52,9 @@ pub enum Fuse {
 ///
 /// The unit a pretrained is described in, cached by, and fused from. The
 /// keys are the kit's; nothing here knows which one is the model. A
-/// [`Pretrained`](super::Pretrained) row is one resource bundle, fused from the
-/// resource bundles it lists; [`ResourceBundle::given`] is a path as a resource
+/// [`Pretrained`](crate::data::pretrained::Pretrained) row is one resource
+/// bundle, fused from the resource bundles it lists; [`ResourceBundle::given`]
+/// is a path as a resource
 /// bundle; [`PretrainedCache::load`](super::PretrainedCache::load) brings a
 /// whole resource bundle local, as [`LoadedResources`](super::LoadedResources).
 ///
@@ -326,7 +331,7 @@ mod tests {
                 &map.with_local_files("bundled", &[("config", Path::new("/x/config.json"))]),
             );
     }
-    use crate::data::pretrained::GIVEN_NAMESPACE;
+    use crate::data::resources::GIVEN_NAMESPACE;
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 

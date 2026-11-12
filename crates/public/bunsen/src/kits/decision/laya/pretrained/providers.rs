@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::SAFETENSORS,
+            data::resources::SAFETENSORS,
             kits::support::{
                 catalog_contracts::testing::contract_lines,
                 construct::{

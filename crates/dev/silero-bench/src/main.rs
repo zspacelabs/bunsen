@@ -1,5 +1,5 @@
 use bunsen::{
-    data::pretrained::{
+    data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     },

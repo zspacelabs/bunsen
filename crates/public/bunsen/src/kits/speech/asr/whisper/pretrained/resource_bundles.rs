@@ -1,7 +1,7 @@
 //! # Whisper resource bundles
 
 use crate::{
-    data::pretrained::ResourceBundle,
+    data::resources::ResourceBundle,
     kits::speech::asr::whisper::driver::WhisperSpecialIds,
 };
 
@@ -78,7 +78,7 @@ impl WhisperVocabulary {
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::{
+        data::resources::{
             Source,
             resolve_dir_template,
         },

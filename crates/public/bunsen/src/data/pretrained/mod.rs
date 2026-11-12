@@ -51,10 +51,10 @@
 //! hook. Rows, resource bundles and resources are plain serde data, so a
 //! manifest can carry them. An owned resource carries its resource bundle's
 //! bases appended to its own sources, so it stands alone, and two resource
-//! bundles [fuse](ResourceBundle::fuse) by key with no memory of where a
-//! resource came from: strictly for authoring, where a repeated key is a
-//! mistake, or as an overlay for an override, where the right-hand resource
-//! bundle wins.
+//! bundles [fuse](crate::data::resources::ResourceBundle::fuse) by key with no
+//! memory of where a resource came from: strictly for authoring, where a
+//! repeated key is a mistake, or as an overlay for an override, where the
+//! right-hand resource bundle wins.
 //!
 //! A kit's rows are data: the builds of the kit's contract in the built-in
 //! build catalog ([`build_catalog`]), which a [`BuildCatalogProvider`] serves
@@ -85,36 +85,8 @@
 //!
 //! [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
 //!
-//! ## The cache and bundles
-//!
-//! The [`PretrainedCache`] keeps a pinned file at
-//! `<cache>/pretrained/<namespace>/<sha256>/<file>`, `<namespace>` a catalog
-//! resource's full name (`hf` or `given` off the catalog). The digest in
-//! the path is the pin: a file there was verified when it was written, and
-//! is trusted without re-hashing (the
-//! [trust model](PretrainedCache#trust-model)). The cache looks there
-//! before it tries any of a resource's sources (the
-//! [source order](PretrainedCache#source-order)).
-//! [`cached_files`](PretrainedCache::cached_files) lists what a cache holds,
-//! a [`CachedFile`] each, by kit and namespace ([`CacheSelector`]), and
-//! [`remove_cached`](PretrainedCache::remove_cached) clears them.
-//!
-//! A bundle takes one of two forms:
-//!
-//! - Bytes linked into the binary are a [`Source::Bundled`], written into the
-//!   cache under their digest on first use.
-//! - Files fetched at build time are a populated cache directory.
-//!   `bind-whisper-onnx` lays its `OUT_DIR` out in this layout, so a
-//!   [`PretrainedCache`] rooted there finds the files without knowing they were
-//!   bundled. (`whisper-model-validation` also registers a
-//!   `bundled:openai/base` row over the same files, served in place as
-//!   local-dir sources.)
-//!
-//! The second form is the general one: bundling a fetched asset means
-//! populating a cache directory, not adding a kind of source. A deployment
-//! that has to run offline does the same thing at install time: it fills
-//! the cache directory ahead of time (`bunsen-tool asr family <family> fetch`)
-//! and points the cache at it.
+//! Files, the pinned cache and loaded resource sets are
+//! [`resources`](crate::data::resources).
 //!
 //! ## Example
 //!
@@ -133,18 +105,20 @@
 //!             sha256_of,
 //!         },
 //!         pretrained::{
-//!             LoadedResources,
 //!             Pretrained,
-//!             PretrainedCache,
-//!             PretrainedCacheOptions,
 //!             PretrainedGroup,
 //!             PretrainedRef,
 //!             PretrainedTable,
+//!             WELL_KNOWN,
+//!         },
+//!         resources::{
+//!             LoadedResources,
+//!             PretrainedCache,
+//!             PretrainedCacheOptions,
 //!             Provenance,
 //!             Resource,
 //!             ResourceBundle,
 //!             Source,
-//!             WELL_KNOWN,
 //!         },
 //!     },
 //!     errors::{
@@ -281,28 +255,27 @@
 //! [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory)
 //! and
 //! [`default_silero_factory`](crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory).
+//!
+//! [`PretrainedCache`]: crate::data::resources::PretrainedCache
+//! [`Resource`]: crate::data::resources::Resource
+//! [`ResourceBundle`]: crate::data::resources::ResourceBundle
+//! [`ResourceBundle::fuse`]: crate::data::resources::ResourceBundle::fuse
+//! [`Source`]: crate::data::resources::Source
+//! [`resolve_dir_template`]: crate::data::resources::resolve_dir_template
 
 #[cfg(feature = "store")]
 mod apply_named;
 pub mod build_catalog;
-#[cfg(feature = "cache")]
-mod cache;
-#[cfg(feature = "cache")]
-mod cached_files;
 mod catalog_provider;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
-#[cfg(feature = "cache")]
-mod loaded;
 pub mod mlx;
 mod prefabs;
 mod pretrained_ref;
 mod providers;
 #[cfg(feature = "store")]
 mod pytorch;
-mod resource;
-mod resource_bundle;
 mod rows;
 #[cfg(feature = "store")]
 mod safetensors;
@@ -314,43 +287,14 @@ pub use build_catalog::presets::{
     PresetSelection,
     ResolvedPresetSet,
 };
-#[cfg(feature = "cache")]
-pub use cache::*;
-#[cfg(feature = "cache")]
-pub use cached_files::*;
 pub use catalog_provider::*;
 pub use hf::*;
-#[cfg(feature = "cache")]
-pub use loaded::*;
 pub use prefabs::*;
 pub use pretrained_ref::*;
 pub use providers::*;
 #[cfg(feature = "store")]
 pub use pytorch::*;
-pub use resource::*;
-pub use resource_bundle::*;
 pub use rows::*;
 #[cfg(feature = "store")]
 pub use safetensors::*;
 pub use tags::Tags;
-
-/// A [`Lookup`](crate::errors::BunsenErrorKind::Lookup) error for a name a
-/// table does not have: a [`LookupError`](crate::errors::LookupError) for
-/// `name` among the `kind`s, with the names the table has as candidates, under
-/// a frame naming the table when there is one: `"<table>: no <kind> "x";
-/// there are: a, b"`.
-#[track_caller]
-pub(crate) fn not_found(
-    table: Option<&str>,
-    kind: &'static str,
-    name: &str,
-    names: &[&str],
-) -> crate::errors::BunsenError {
-    let error = crate::errors::BunsenError::lookup(
-        crate::errors::LookupError::missing(kind, name).with_candidates(names.iter().copied()),
-    );
-    match table {
-        Some(table) => error.context(table),
-        None => error,
-    }
-}

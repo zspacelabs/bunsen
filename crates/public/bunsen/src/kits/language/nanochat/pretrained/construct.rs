@@ -8,10 +8,12 @@ use super::{
     PYTORCH,
 };
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        PretrainedRef,
-        ResourceBundle,
+    data::{
+        pretrained::PretrainedRef,
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenError,

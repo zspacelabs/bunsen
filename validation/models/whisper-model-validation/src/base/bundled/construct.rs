@@ -3,13 +3,15 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::{
-        Fuse,
-        LoadedResources,
-        PretrainedRef,
-        Provenance,
-        ResourceBundle,
-        Source,
+    data::{
+        pretrained::PretrainedRef,
+        resources::{
+            Fuse,
+            LoadedResources,
+            Provenance,
+            ResourceBundle,
+            Source,
+        },
     },
     errors::{
         BunsenErrorKind,

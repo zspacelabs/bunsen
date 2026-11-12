@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,

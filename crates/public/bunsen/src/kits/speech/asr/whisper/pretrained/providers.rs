@@ -14,7 +14,7 @@ use crate::{
 pub const WHISPER_KIT: &str = "whisper";
 
 /// The name of the local-dir base that is `openai-whisper`'s download
-/// root; a [`PretrainedCacheOptions`](crate::data::pretrained::PretrainedCacheOptions)
+/// root; a [`PretrainedCacheOptions`](crate::data::resources::PretrainedCacheOptions)
 /// override by this name points it elsewhere.
 pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 

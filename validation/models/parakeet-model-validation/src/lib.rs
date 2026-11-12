@@ -221,8 +221,8 @@ pub fn synthetic_waveform(
 /// pinned file the first time it is asked for; offline when
 /// `BUNSEN_VALIDATE_OFFLINE` is set. Routing the checkpoints through the
 /// library's own factory is also what this crate is validating.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

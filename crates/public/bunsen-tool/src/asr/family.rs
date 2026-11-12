@@ -10,8 +10,6 @@ use bunsen::{
         cache::verify_sha256,
         pretrained::{
             Pretrained,
-            PretrainedCache,
-            PretrainedCacheOptions,
             build_catalog::{
                 CatalogName,
                 lookup::{
@@ -19,6 +17,10 @@ use bunsen::{
                     name_matches,
                 },
             },
+        },
+        resources::{
+            PretrainedCache,
+            PretrainedCacheOptions,
         },
     },
     errors::{

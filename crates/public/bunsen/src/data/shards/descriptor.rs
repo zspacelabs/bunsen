@@ -14,7 +14,7 @@ use serde::{
 };
 
 use crate::{
-    data::pretrained::{
+    data::resources::{
         Resource,
         ResourceBundle,
         Source,

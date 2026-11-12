@@ -25,16 +25,18 @@ use super::{
     LookupExpr,
 };
 #[cfg(doc)]
-use crate::data::pretrained::ResourceBundle;
+use crate::data::resources::ResourceBundle;
 use crate::{
-    data::pretrained::{
-        PresetSelection,
-        Pretrained,
-        PretrainedCache,
-        PretrainedProvider,
-        PretrainedRef,
+    data::{
         not_found,
-        tags::KIT,
+        pretrained::{
+            PresetSelection,
+            Pretrained,
+            PretrainedProvider,
+            PretrainedRef,
+            tags::KIT,
+        },
+        resources::PretrainedCache,
     },
     errors::{
         BunsenError,
@@ -505,7 +507,7 @@ pub(crate) mod testing {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::data::pretrained::{
+    use crate::data::resources::{
         LoadedResources,
         Resource,
         ResourceBundle,
@@ -678,13 +680,17 @@ mod tests {
         *,
     };
     use crate::{
-        data::pretrained::{
-            PretrainedGroup,
-            PretrainedTable,
-            Resource,
-            ResourceBundle,
-            Source,
-            WELL_KNOWN,
+        data::{
+            pretrained::{
+                PretrainedGroup,
+                PretrainedTable,
+                WELL_KNOWN,
+            },
+            resources::{
+                Resource,
+                ResourceBundle,
+                Source,
+            },
         },
         errors::{
             LookupProblem,
@@ -795,7 +801,7 @@ mod tests {
     fn offline_cache(dir: &std::path::Path) -> PretrainedCache {
         use crate::data::{
             cache::BunsenDiskCacheOptions,
-            pretrained::PretrainedCacheOptions,
+            resources::PretrainedCacheOptions,
         };
         PretrainedCache::new(
             PretrainedCacheOptions::default()
@@ -1013,7 +1019,7 @@ mod tests {
     #[test]
     fn test_load_goes_through_the_hook() {
         use crate::{
-            data::pretrained::Provenance,
+            data::resources::Provenance,
             support::testing::cpu_device,
         };
 

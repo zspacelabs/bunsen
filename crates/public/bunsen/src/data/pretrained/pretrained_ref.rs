@@ -9,14 +9,18 @@ use core::fmt::Debug;
 use burn::config::Config;
 
 use super::{
-    Fuse,
     PreFabConfig,
     PresetSelection,
     Pretrained,
-    ResourceBundle,
     StaticPreFabMap,
 };
-use crate::errors::BunsenResult;
+use crate::{
+    data::resources::{
+        Fuse,
+        ResourceBundle,
+    },
+    errors::BunsenResult,
+};
 
 /// What a spec resolved to: a row copied out of a provider, or a resource
 /// bundle from somewhere else, such as a path.
@@ -181,11 +185,13 @@ mod tests {
     use alloc::vec;
 
     use super::*;
-    use crate::data::pretrained::{
-        GIVEN_NAMESPACE,
-        Resource,
-        Source,
-        StaticPreFabConfig,
+    use crate::data::{
+        pretrained::StaticPreFabConfig,
+        resources::{
+            GIVEN_NAMESPACE,
+            Resource,
+            Source,
+        },
     };
 
     #[derive(Config, Debug)]

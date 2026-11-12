@@ -38,7 +38,7 @@ A [`PretrainedFactory`](bunsen::kits::support::construct::PretrainedFactory) is 
 one object a caller holds for a kit, and its
 [`load`](bunsen::kits::support::construct::PretrainedFactory::load) runs the whole
 pathway. A file on disk does not go through the factory at all: it is a
-given resource bundle ([`ResourceBundle::given`](bunsen::data::pretrained::ResourceBundle::given)),
+given resource bundle ([`ResourceBundle::given`](bunsen::data::resources::ResourceBundle::given)),
 loaded the same way from the deferred step on.
 
 ## Prefabs, rows and resources
@@ -51,7 +51,7 @@ Three things are kept apart, because they vary independently:
 - A **row**, a [`Pretrained`](bunsen::data::pretrained::Pretrained), is a
   name in a provider, with its aliases, the prefab it instantiates, and the
   resource bundles it is made of.
-- A **resource**, a [`Resource`](bunsen::data::pretrained::Resource), is one
+- A **resource**, a [`Resource`](bunsen::data::resources::Resource), is one
   file: the key the kit reads it by, the SHA-256 that pins it, a `kind`
   label, and the places it can be had from, in order.
 
@@ -162,7 +162,7 @@ the config each row's default selection resolves to.
 
 ## The cache and its trust model
 
-A [`PretrainedCache`](bunsen::data::pretrained::PretrainedCache) keeps each
+A [`PretrainedCache`](bunsen::data::resources::PretrainedCache) keeps each
 pinned file at `<cache>/pretrained/<namespace>/<sha256>/<file>`, the namespace a
 catalog resource's full name (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two
 builds share is cached once; files off the catalog sit under `hf` and `given`. **The
@@ -171,11 +171,11 @@ written, so later runs trust it without re-hashing gigabytes, and a model
 whose pin changes can never collide with a stale copy. The cache trusts the
 path whoever wrote it: a download, bundled bytes, or a build script or a
 deployment that laid the directory out ahead of time
-([trust model](bunsen::data::pretrained::PretrainedCache#trust-model)).
+([trust model](bunsen::data::resources::PretrainedCache#trust-model)).
 
 The cache looks at that path first, then at a resource's local sources, and
 only then at its URLs
-([source order](bunsen::data::pretrained::PretrainedCache#source-order)). A
+([source order](bunsen::data::resources::PretrainedCache#source-order)). A
 local directory, such as `openai-whisper`'s own cache, is a "trust me"
 source: its file is used in place and hashed only when the cache's options
 ask for verification. Nothing is linked or copied into the cache, and only
@@ -195,10 +195,10 @@ bundled. An offline deployment does the same thing at install time: fill a
 cache directory ahead of time, and point the cache at it.
 
 The other form links the bytes into the binary: a
-[`Source::Bundled`](bunsen::data::pretrained::Source::Bundled), checked
+[`Source::Bundled`](bunsen::data::resources::Source::Bundled), checked
 against its digest and written into the cache on first use. Both forms are
 described under
-[the cache and bundles](bunsen::data::pretrained#the-cache-and-bundles).
+[the cache and bundles](bunsen::data::resources#the-cache-and-bundles).
 
 ## Deferred models and the kit's hook
 

@@ -1,11 +1,13 @@
 //! The bundle's directory as a pretrained cache, and its files as a table.
 
 use bunsen::{
-    data::pretrained::{
-        BUNDLED,
-        CacheStatus,
-        Fuse,
-        Provenance,
+    data::{
+        pretrained::BUNDLED,
+        resources::{
+            CacheStatus,
+            Fuse,
+            Provenance,
+        },
     },
     kits::speech::asr::whisper::pretrained::{
         CHECKPOINT,

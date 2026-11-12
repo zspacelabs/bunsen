@@ -9,13 +9,15 @@ use std::{
     },
 };
 
-use super::{
-    ResolvedResource,
-    ResourceBundle,
-    not_found,
-};
 use crate::{
-    data::cache::link_or_copy,
+    data::{
+        cache::link_or_copy,
+        not_found,
+        resources::{
+            ResolvedResource,
+            ResourceBundle,
+        },
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -31,7 +33,7 @@ use crate::{
 /// is handed: all it is handed, besides the ref. The hook reads its parts
 /// by key, with [`expect`](Self::expect), [`get`](Self::get), or
 /// [`family`](Self::family) for a checkpoint split across files (as
-/// [`SafetensorsCheckpoint::from_loaded`](super::SafetensorsCheckpoint::from_loaded)
+/// [`SafetensorsCheckpoint::from_loaded`](crate::data::pretrained::SafetensorsCheckpoint::from_loaded)
 /// does). The [`Loaded`](crate::kits::support::construct::Loaded) handle keeps
 /// it as `resources`, so a caller can say where every part came from
 /// ([`Provenance`](super::Provenance)).
@@ -155,7 +157,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::pretrained::{
+        data::resources::{
             Provenance,
             Resource,
         },

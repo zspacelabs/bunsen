@@ -10,12 +10,14 @@ use bunsen::{
         cache::BunsenDiskCacheOptions,
         pretrained::{
             BUNDLED,
-            PretrainedCache,
-            PretrainedCacheOptions,
             PretrainedGroup,
             PretrainedTable,
-            ResourceBundle,
             builtin_resource_bundle,
+        },
+        resources::{
+            PretrainedCache,
+            PretrainedCacheOptions,
+            ResourceBundle,
         },
     },
     kits::{

@@ -160,10 +160,12 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::{
-                CONFIG,
-                SAFETENSORS,
-                SAFETENSORS_INDEX,
+            data::{
+                pretrained::CONFIG,
+                resources::{
+                    SAFETENSORS,
+                    SAFETENSORS_INDEX,
+                },
             },
             kits::support::{
                 catalog_contracts::testing::contract_lines,

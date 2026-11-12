@@ -12,23 +12,27 @@ use alloc::{
 
 use serde::Deserialize;
 
-#[cfg(feature = "cache")]
-use super::PretrainedCache;
 use super::{
     Pretrained,
     PretrainedProvider,
-    Resource,
-    ResourceBundle,
-    SAFETENSORS,
-    SAFETENSORS_INDEX,
-    Source,
-    is_sha256_hex,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenErrorKind,
-    BunsenResult,
-    ParseError,
+#[cfg(feature = "cache")]
+use crate::data::resources::PretrainedCache;
+use crate::{
+    data::resources::{
+        Resource,
+        ResourceBundle,
+        SAFETENSORS,
+        SAFETENSORS_INDEX,
+        Source,
+        is_sha256_hex,
+    },
+    errors::{
+        BunsenError,
+        BunsenErrorKind,
+        BunsenResult,
+        ParseError,
+    },
 };
 
 /// The provider's default name: the `hf` of `hf:openai/whisper-tiny`, and
@@ -153,9 +157,9 @@ fn missing_shards(
 ///
 /// What a repo holds comes from the hub's file listing (its tree API, at
 /// [`tree_url`](Self::tree_url)). The listing is fetched once through the
-/// [`PretrainedCache`](super::PretrainedCache) and kept there, so a ref
-/// resolved once resolves again offline. The listing names the files and
-/// pins each LFS file by its SHA-256, so the checkpoint is
+/// [`PretrainedCache`](crate::data::resources::PretrainedCache) and kept there,
+/// so a ref resolved once resolves again offline. The listing names the files
+/// and pins each LFS file by its SHA-256, so the checkpoint is
 /// digest-addressed in the cache like a well-known row's:
 /// `<cache>/pretrained/hf/<sha256>/<file>`. Fetching the listing
 /// needs the `fetch` feature, unless the cache has it already.
@@ -1090,7 +1094,7 @@ mod tests {
                     serve_status,
                 },
             },
-            pretrained::{
+            resources::{
                 CacheStatus,
                 PretrainedCacheOptions,
             },

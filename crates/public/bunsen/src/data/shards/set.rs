@@ -504,7 +504,7 @@ mod tests {
     #[cfg(feature = "fetch")]
     #[test]
     fn test_a_set_loads_as_a_map_through_the_pretrained_cache() {
-        use crate::data::pretrained::{
+        use crate::data::resources::{
             PretrainedCache,
             PretrainedCacheOptions,
             Provenance,

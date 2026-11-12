@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use bunsen::{
-    data::pretrained::ResourceBundle,
+    data::resources::ResourceBundle,
     kits::{
         language::gemma::{
             CHAT_TEMPLATE,

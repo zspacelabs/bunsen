@@ -11,14 +11,18 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        CONFIG,
-        LoadedResources,
-        PretrainedCache,
-        PretrainedRef,
-        ResourceBundle,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+    data::{
+        pretrained::{
+            CONFIG,
+            PretrainedRef,
+            SafetensorsCheckpoint,
+        },
+        resources::{
+            LoadedResources,
+            PretrainedCache,
+            ResourceBundle,
+            SAFETENSORS_INDEX,
+        },
     },
     errors::{
         BunsenError,
@@ -276,7 +280,7 @@ mod tests {
         use crate::{
             data::{
                 cache::BunsenDiskCacheOptions,
-                pretrained::PretrainedCacheOptions,
+                resources::PretrainedCacheOptions,
             },
             kits::{
                 speech::{
@@ -437,7 +441,7 @@ mod tests {
                     BunsenDiskCacheOptions,
                     testing::serve_ranges,
                 },
-                pretrained::{
+                resources::{
                     CacheStatus,
                     PretrainedCacheOptions,
                     Resource,

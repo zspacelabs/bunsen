@@ -10,16 +10,20 @@ use std::{
     time::SystemTime,
 };
 
-use super::{
-    GIVEN_NAMESPACE,
-    HF,
-    PRETRAINED_DIR,
-    PretrainedCache,
-};
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-    sys_at,
+use crate::{
+    data::{
+        pretrained::HF,
+        resources::{
+            GIVEN_NAMESPACE,
+            PRETRAINED_DIR,
+            PretrainedCache,
+        },
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        sys_at,
+    },
 };
 
 /// A file in a [`PretrainedCache`]:
@@ -268,7 +272,7 @@ mod tests {
     use super::*;
     use crate::data::{
         cache::BunsenDiskCacheOptions,
-        pretrained::PretrainedCacheOptions,
+        resources::PretrainedCacheOptions,
     };
 
     fn cache_in(dir: &Path) -> PretrainedCache {

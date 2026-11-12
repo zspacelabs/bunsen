@@ -17,7 +17,7 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    data::pretrained::{
+    data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     },

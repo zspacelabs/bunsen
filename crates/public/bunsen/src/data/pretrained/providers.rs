@@ -9,7 +9,7 @@ use core::fmt;
 
 use super::Pretrained;
 #[cfg(feature = "cache")]
-use super::PretrainedCache;
+use crate::data::resources::PretrainedCache;
 use crate::errors::BunsenResult;
 
 /// The name of the provider the compiled-in rows sit behind:
@@ -22,7 +22,7 @@ pub const WELL_KNOWN: &str = "well-known";
 /// served from the bundle rather than fetched: in place from files the build
 /// laid out (`bundled:openai/base`, the same files as
 /// `well-known:openai/base`), or from bytes linked into the binary
-/// ([`Source::Bundled`](super::Source::Bundled)).
+/// ([`Source::Bundled`](crate::data::resources::Source::Bundled)).
 pub const BUNDLED: &str = "bundled";
 
 /// A namespace of pretrained rows: the `provider` of `provider:ref`.
@@ -308,7 +308,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::data::pretrained::{
+    use crate::data::resources::{
         Resource,
         ResourceBundle,
         Source,

@@ -5,11 +5,15 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
+    data::{
+        pretrained::{
+            PretrainedRef,
+            ResolvedPresetSet,
+        },
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenError,
@@ -167,8 +171,8 @@ mod tests {
             SileroReader::Safetensors
         );
         // A burnpack given by path: unlabeled, read as a burnpack.
-        let mut burnpack = crate::data::pretrained::ResourceBundle::new("a burnpack");
-        burnpack.insert(crate::data::pretrained::Resource::given(
+        let mut burnpack = crate::data::resources::ResourceBundle::new("a burnpack");
+        burnpack.insert(crate::data::resources::Resource::given(
             BURNPACK,
             "/models/silero_vad.bpk",
         ));

@@ -9,17 +9,21 @@ use core::error::Error;
 use burn::tensor::Device;
 
 use crate::{
-    data::pretrained::{
-        Fuse,
-        GEOMETRY,
-        GIVEN_NAMESPACE,
-        LoadedResources,
-        PretrainedCache,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
-        SAFETENSORS,
-        SafetensorsCheckpoint,
+    data::{
+        pretrained::{
+            GEOMETRY,
+            PretrainedRef,
+            ResolvedPresetSet,
+            SafetensorsCheckpoint,
+        },
+        resources::{
+            Fuse,
+            GIVEN_NAMESPACE,
+            LoadedResources,
+            PretrainedCache,
+            ResourceBundle,
+            SAFETENSORS,
+        },
     },
     errors::{
         BunsenError,
@@ -576,9 +580,9 @@ mod reader_tests {
         // A sharded family under the key: its first resource speaks.
         let mut sharded = ResourceBundle::new("sharded");
         for key in ["checkpoint.00001", "checkpoint.00002", "checkpoint.index"] {
-            let mut r = crate::data::pretrained::Resource::given(key, format!("/no/such/{key}"));
+            let mut r = crate::data::resources::Resource::given(key, format!("/no/such/{key}"));
             r.kind = Some(if key.ends_with("index") {
-                crate::data::pretrained::SAFETENSORS_INDEX.to_string()
+                crate::data::resources::SAFETENSORS_INDEX.to_string()
             } else {
                 SAFETENSORS.to_string()
             });

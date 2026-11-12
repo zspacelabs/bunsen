@@ -34,7 +34,7 @@
 //!
 //! use bunsen::{
 //!     blocks::activation::BunsenActivationConfig,
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },

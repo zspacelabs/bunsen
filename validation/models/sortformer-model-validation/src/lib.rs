@@ -330,8 +330,8 @@ pub fn ami_reference_v2() -> AmiReferenceV2 {
 /// `BUNSEN_VALIDATE_OFFLINE` is set. Routing the checkpoints through the
 /// library's own factories is also what this crate is validating.
 #[cfg(feature = "checkpoints")]
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
@@ -348,7 +348,7 @@ pub fn row_file(
     key: &str,
 ) -> std::path::PathBuf {
     use bunsen::{
-        data::pretrained::ResourceBundle,
+        data::resources::ResourceBundle,
         kits::speech::diarization::sortformer::pretrained::default_sortformer_factory,
     };
     let (_, found) = default_sortformer_factory()

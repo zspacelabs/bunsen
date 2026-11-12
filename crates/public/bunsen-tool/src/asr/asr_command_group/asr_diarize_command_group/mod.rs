@@ -10,7 +10,7 @@ use std::sync::Arc;
 pub use asr_diarize_live::*;
 pub use asr_diarize_run::*;
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::BunsenResult,
     kits::speech::diarization::{
         SpeakerActivityModel,

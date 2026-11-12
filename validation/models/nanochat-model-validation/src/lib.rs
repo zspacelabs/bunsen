@@ -230,7 +230,7 @@ pub fn row_file(
         .expect("the nanochat factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = bunsen::data::pretrained::ResourceBundle::new(found.resources.name.clone());
+    let mut map = bunsen::data::resources::ResourceBundle::new(found.resources.name.clone());
     map.insert(found.resources.try_get(key).expect("the resource").clone());
     let loaded = weights_cache()
         .load(&map)
@@ -242,8 +242,8 @@ pub fn row_file(
 /// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
 /// pinned file the first time it is asked for; offline when
 /// `BUNSEN_VALIDATE_OFFLINE` is set.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
