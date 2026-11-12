@@ -450,7 +450,13 @@ impl<H: ConstructInit> BuildFactory<H> {
                 return not_found(Some(provider.name()), "pretrained", rest, &ids);
             }
             let names: Vec<&str> = self.providers.iter().map(|p| p.name()).collect();
-            return not_found(Some(H::KIT), "provider", head, &names);
+            let described: Vec<String> = self
+                .providers
+                .iter()
+                .map(|p| format!("{}: {}", p.name(), p.description()))
+                .collect();
+            return not_found(Some(H::KIT), "provider", head, &names)
+                .with_details(described.join("\n"));
         }
         let ids = self.ids();
         let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
@@ -824,6 +830,8 @@ a:
             .cause(predicate("the providers there are", |c: &LookupError| {
                 c.candidates == ["catalog", "hub"]
             }))
+            .details_contains("catalog: the catalog builds")
+            .details_contains("hub: answers `hub:<org>/<repo>`; lists nothing")
             .assert_err(&factory.lookup("nobody:a/small"));
     }
 

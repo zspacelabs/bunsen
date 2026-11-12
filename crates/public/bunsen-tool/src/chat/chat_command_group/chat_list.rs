@@ -12,7 +12,10 @@ use bunsen_app::{
 
 use crate::{
     chat::ChatModelFamily,
-    support::print_model_row,
+    support::{
+        print_model_row,
+        print_providers,
+    },
 };
 
 /// Lists checkpoints: every family's under `chat list`, one family's under
@@ -45,6 +48,7 @@ impl ChatListCommand {
             let default = family.default_model();
             println!();
             println!("# {} checkpoints (the default: {default})", family.name());
+            print_providers(&family.providers()?);
             for (id, row) in family.rows()? {
                 print_model_row(&cache, &id, &row, default, self.urls);
             }

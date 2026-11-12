@@ -1,12 +1,29 @@
 //! A checkpoint's row, as the `list` commands print it.
 
+use std::sync::Arc;
+
 use bunsen::data::{
+    builds::BuildProvider,
     catalog::ResolvedBuild,
     resources::ResourceCache,
 };
 use bunsen_app::cache::human_bytes;
 
 use crate::support::preset_lines;
+
+/// A `list`'s providers, each by its name and description, in search order:
+///
+/// ```text
+/// providers:
+///   catalog: A Qwen3-architecture causal LM, as transformers lays it out.
+///   hf: Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint ...
+/// ```
+pub fn print_providers(providers: &[Arc<dyn BuildProvider>]) {
+    println!("providers:");
+    for provider in providers {
+        println!("  {}: {}", provider.name(), provider.description());
+    }
+}
 
 /// One row of a checkpoint `list` (`chat`'s, `decide`'s): its id, aliases,
 /// description and origin, and each file's state in `cache` and path in its

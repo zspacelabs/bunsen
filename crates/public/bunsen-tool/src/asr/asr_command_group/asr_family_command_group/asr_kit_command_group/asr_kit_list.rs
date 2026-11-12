@@ -15,7 +15,10 @@ use bunsen_app::{
 
 use crate::{
     asr::Kit,
-    support::preset_lines,
+    support::{
+        preset_lines,
+        print_providers,
+    },
 };
 
 /// Lists the models `--model` can name, their licences, their presets, and
@@ -43,6 +46,7 @@ impl AsrKitListCommand {
             kit.name(),
             cache.cache_dir().display()
         );
+        print_providers(&listing.providers);
         for (provider, row) in listing.rows {
             let default = if row.name == kit.default_model() {
                 " (default)"
@@ -77,11 +81,11 @@ impl AsrKitListCommand {
                 );
             }
         }
-        for provider in listing.unlisted {
-            println!();
-            println!(
-                "{provider}:org/repo  any Hugging Face repo in transformers' layout, resolved on use"
-            );
+        for provider in &listing.providers {
+            if listing.unlisted.iter().any(|p| p == provider.name()) {
+                println!();
+                println!("{}:org/repo  {}", provider.name(), provider.description());
+            }
         }
         Ok(())
     }
