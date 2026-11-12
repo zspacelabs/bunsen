@@ -9,22 +9,24 @@ use alloc::collections::{
 
 use serde_json::Value;
 
-use crate::data::catalog::{
-    document::{
-        AxisKind,
-        CatalogEntry,
-        EntryKind,
-        Primitive,
-        TypeExpr,
+use crate::{
+    data::catalog::{
+        document::{
+            AxisKind,
+            CatalogEntry,
+            EntryKind,
+            Primitive,
+            TypeExpr,
+        },
+        error::{
+            CatalogErrorExt,
+            CatalogRule,
+            catalog_error,
+        },
+        name::CatalogName,
+        stack::BunsenCatalogStack,
     },
-    error::{
-        CatalogErrorExt,
-        CatalogResult,
-        CatalogRule,
-        catalog_error,
-    },
-    name::CatalogName,
-    stack::BunsenCatalogStack,
+    errors::BunsenResult,
 };
 
 /// A type expression with its references to `type` entries resolved.
@@ -54,7 +56,7 @@ impl BunsenCatalogStack {
         &self,
         from: &CatalogName,
         expr: &TypeExpr,
-    ) -> CatalogResult<ResolvedType> {
+    ) -> BunsenResult<ResolvedType> {
         self.resolve_type_in(from, expr, &mut BTreeSet::new())
     }
 
@@ -63,7 +65,7 @@ impl BunsenCatalogStack {
         from: &CatalogName,
         expr: &TypeExpr,
         open: &mut BTreeSet<CatalogName>,
-    ) -> CatalogResult<ResolvedType> {
+    ) -> BunsenResult<ResolvedType> {
         Ok(match expr {
             TypeExpr::Primitive(p) => ResolvedType::Primitive(*p),
             TypeExpr::List(inner) => {
@@ -86,7 +88,7 @@ impl BunsenCatalogStack {
                                 )
                             })
                     })
-                    .collect::<CatalogResult<_>>()?,
+                    .collect::<BunsenResult<_>>()?,
             ),
             TypeExpr::Named(reference) => {
                 let decl = self.expect_ref(from, reference, "type", &[EntryKind::Type])?;

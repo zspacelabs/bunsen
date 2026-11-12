@@ -12,7 +12,6 @@
 use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogName,
-    fixtures,
     presets::PresetSelection,
     select::{
         choose::{
@@ -26,6 +25,7 @@ use bunsen::data::catalog::{
             StageOrigin,
         },
     },
+    testing::fixtures,
 };
 use serde_json::json;
 

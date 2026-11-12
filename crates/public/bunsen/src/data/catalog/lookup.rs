@@ -6,21 +6,23 @@
 //! match `openai/whisper/large-v3`. A query resolves when exactly one entry
 //! matches, or when it is some entry's full name.
 
-use crate::data::catalog::{
-    document::{
-        CatalogEntry,
-        EntryKind,
+use crate::{
+    data::catalog::{
+        document::{
+            CatalogEntry,
+            EntryKind,
+        },
+        error::{
+            CatalogRule,
+            catalog_error,
+        },
+        name::CatalogName,
+        stack::{
+            BunsenCatalogStack,
+            EntryRef,
+        },
     },
-    error::{
-        CatalogResult,
-        CatalogRule,
-        catalog_error,
-    },
-    name::CatalogName,
-    stack::{
-        BunsenCatalogStack,
-        EntryRef,
-    },
+    errors::BunsenResult,
 };
 
 /// The kinds a lookup searches when it isn't told which: every kind but
@@ -191,7 +193,7 @@ impl BunsenCatalogStack {
         query: &str,
         kinds: &[EntryKind],
         leaf: LeafMatch,
-    ) -> CatalogResult<CatalogName> {
+    ) -> BunsenResult<CatalogName> {
         if let Ok(full) = CatalogName::parse(query)
             && let Some(found) = self
                 .cased(&full)
@@ -227,7 +229,7 @@ impl BunsenCatalogStack {
     pub fn find_build(
         &self,
         query: &str,
-    ) -> CatalogResult<CatalogName> {
+    ) -> BunsenResult<CatalogName> {
         self.find(query, &[EntryKind::Build], LeafMatch::Exact)
     }
 
@@ -293,7 +295,7 @@ mod tests {
     use super::*;
     use crate::data::catalog::{
         error::CatalogErrorExt,
-        fixtures,
+        testing::fixtures,
     };
 
     #[test]

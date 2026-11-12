@@ -5,7 +5,7 @@ language that does the choosing. The document form (the keyed `$` form, entry ki
 references, `$merge`) is described in [`catalog_format`](catalog_format). This guide uses as much of it as
 selection needs.
 
-The examples run against the example catalogs in [`fixtures`](fixtures), which `fixtures::example_stack()`
+The examples run against the example catalogs in `testing::fixtures` (the `testing` feature), which `fixtures::example_stack()`
 imports in this order: `prelude`, `commons`, `qwen3`, `whisper`. Their builds (a query's run
 starts from them in full-name order: Whisper's `openai/...` first):
 
@@ -76,7 +76,7 @@ use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogRule,
     BunsenCatalogStack,
-    fixtures,
+    testing::fixtures,
 };
 
 let mut stack = fixtures::example_stack().unwrap();
@@ -116,7 +116,7 @@ empty.push_yaml("prelude", fixtures::PRELUDE).unwrap();
 
 The first catalog is usually a prelude: the facets, registered axes and tags, and
 `template_class_root`. A catalog can refer to anything below it in the stack, and its extending
-occurrences (`$merge: update`) add to groups an earlier catalog declared. `fixtures/supplemental.yml`
+occurrences (`$merge: update`) add to groups an earlier catalog declared. `testing/fixtures/supplemental.yml`
 shows a local addition.
 
 `builtin_stack()` is bunsen's own catalog, the layers `bunsen-catalog` carries: a prelude whose
@@ -135,7 +135,7 @@ name for an entry: a lookup for its target's kind finds the target through it.
 use bunsen::data::catalog::{
     CatalogName,
     document::EntryKind,
-    fixtures,
+    testing::fixtures,
     lookup::{
         LeafMatch,
         SEARCHABLE,
@@ -217,7 +217,7 @@ assert_eq!(stack.latest(&release).unwrap(), Some(v3.clone()));
 ```rust
 use bunsen::data::catalog::{
     CatalogName,
-    fixtures,
+    testing::fixtures,
 };
 use serde_json::json;
 
@@ -272,7 +272,7 @@ With nothing inherited, the preset is declared, whatever its mode.
 ```rust
 use bunsen::data::catalog::{
     CatalogName,
-    fixtures,
+    testing::fixtures,
     presets::PresetSelection,
 };
 use serde_json::json;
@@ -316,7 +316,7 @@ first stage, which keeps only the builds that can take them.
 
 ```rust
 use bunsen::data::catalog::{
-    fixtures,
+    testing::fixtures,
     presets::PresetSelection,
     select::{
         choose::{
@@ -402,7 +402,7 @@ use std::collections::BTreeMap;
 
 use bunsen::data::catalog::{
     document::EntryKind,
-    fixtures,
+    testing::fixtures,
     resolve::ResolvedBuild,
     select::{
         query::SelectQuery,
@@ -685,7 +685,7 @@ no tail.
 ```rust
 use bunsen::data::catalog::{
     document::EntryKind,
-    fixtures,
+    testing::fixtures,
     select::{
         query::SelectQuery,
         state::{

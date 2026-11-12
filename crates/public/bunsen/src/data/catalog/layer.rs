@@ -19,7 +19,6 @@ use crate::{
         },
         error::{
             CatalogErrorExt,
-            CatalogResult,
             CatalogRule,
             catalog_error,
             catalog_errors,
@@ -29,7 +28,10 @@ use crate::{
             CatalogName,
         },
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// One entry of a layer, under its full name.
@@ -79,7 +81,7 @@ impl BunsenCatalogLayer {
         label: impl Into<String>,
         path: Option<PathBuf>,
         document: BunsenCatalog,
-    ) -> CatalogResult<Self> {
+    ) -> BunsenResult<Self> {
         let label = label.into();
         let mut entries = Vec::new();
         let mut errors = Vec::new();
@@ -212,7 +214,7 @@ fn name_of(
 mod tests {
     use super::*;
 
-    fn layer(yaml: &str) -> CatalogResult<BunsenCatalogLayer> {
+    fn layer(yaml: &str) -> BunsenResult<BunsenCatalogLayer> {
         BunsenCatalogLayer::new("test", None, BunsenCatalog::from_yaml(yaml).unwrap())
     }
 

@@ -17,31 +17,33 @@ use alloc::{
     vec::Vec,
 };
 
-use crate::data::{
-    catalog::{
-        BunsenCatalog,
-        BunsenCatalogStack,
-        CatalogName,
-        ResolvedBuild,
-        document::{
-            CatalogEntry,
-            EntryKind,
-            ResourceEntry,
+use crate::{
+    data::{
+        catalog::{
+            BunsenCatalog,
+            BunsenCatalogStack,
+            CatalogName,
+            ResolvedBuild,
+            document::{
+                CatalogEntry,
+                EntryKind,
+                ResourceEntry,
+            },
+            error::{
+                CatalogErrorExt,
+                CatalogRule,
+                catalog_error,
+            },
+            loader_form::entry_resource_set,
+            lookup::{
+                LeafMatch,
+                name_matches,
+            },
+            presets::ResolvedPresetSet,
         },
-        error::{
-            CatalogErrorExt,
-            CatalogResult,
-            CatalogRule,
-            catalog_error,
-        },
-        loader_form::entry_resource_set,
-        lookup::{
-            LeafMatch,
-            name_matches,
-        },
-        presets::ResolvedPresetSet,
+        resources::ResourceSet,
     },
-    resources::ResourceSet,
+    errors::BunsenResult,
 };
 
 /// Whether this build of bunsen has `feature`, as the built-in catalog's
@@ -49,7 +51,7 @@ use crate::data::{
 ///
 /// # Errors
 /// [`CatalogRule::Parse`] for a feature bunsen doesn't know.
-fn compiled(feature: &str) -> CatalogResult<bool> {
+fn compiled(feature: &str) -> BunsenResult<bool> {
     match feature {
         "kits" => Ok(cfg!(feature = "kits")),
         "speech" => Ok(cfg!(feature = "speech")),
@@ -65,7 +67,7 @@ fn compiled(feature: &str) -> CatalogResult<bool> {
 ///
 /// # Errors
 /// [`CatalogRule::Parse`] for a layer whose feature bunsen doesn't know.
-pub fn builtin_layers() -> CatalogResult<Vec<(bunsen_catalog::CatalogFile, bool)>> {
+pub fn builtin_layers() -> BunsenResult<Vec<(bunsen_catalog::CatalogFile, bool)>> {
     bunsen_catalog::files()
         .into_iter()
         .map(|file| {
@@ -84,7 +86,7 @@ pub fn builtin_layers() -> CatalogResult<Vec<(bunsen_catalog::CatalogFile, bool)
 /// # Errors
 /// Whatever a push finds, which would be a bug in the built catalog: the
 /// builder imports every layer before it writes them.
-pub fn builtin_stack() -> CatalogResult<BunsenCatalogStack> {
+pub fn builtin_stack() -> BunsenResult<BunsenCatalogStack> {
     let mut stack = BunsenCatalogStack::new();
     for (file, imported) in builtin_layers()? {
         if !imported {
@@ -137,7 +139,7 @@ impl BuiltinCatalog {
     /// # Errors
     /// As [`builtin_stack`] and [`BunsenCatalogStack::resolve_build`]: a bug
     /// in the built catalog, which its tests import whole.
-    pub fn get() -> CatalogResult<&'static BuiltinCatalog> {
+    pub fn get() -> BunsenResult<&'static BuiltinCatalog> {
         static BUILTIN: std::sync::OnceLock<Result<BuiltinCatalog, String>> =
             std::sync::OnceLock::new();
         BUILTIN
@@ -150,7 +152,7 @@ impl BuiltinCatalog {
             .map_err(|e| catalog_error(CatalogRule::Parse, format!("the built-in catalog: {e}")))
     }
 
-    fn resolve(stack: &BunsenCatalogStack) -> CatalogResult<Self> {
+    fn resolve(stack: &BunsenCatalogStack) -> BunsenResult<Self> {
         let mut builds = Vec::new();
         let mut names = Vec::new();
         for build in stack.of_kind(EntryKind::Build) {
@@ -191,7 +193,7 @@ impl BuiltinCatalog {
     ///
     /// # Errors
     /// As [`builtin_stack`].
-    pub fn stack(&self) -> CatalogResult<BunsenCatalogStack> {
+    pub fn stack(&self) -> BunsenResult<BunsenCatalogStack> {
         builtin_stack()
     }
 
@@ -210,7 +212,7 @@ impl BuiltinCatalog {
     pub fn build(
         &self,
         name: &str,
-    ) -> CatalogResult<&ResolvedBuild> {
+    ) -> BunsenResult<&ResolvedBuild> {
         let found = find_spelling(&self.names, name, |i| self.builds[i].name.to_string())?;
         found.map(|i| &self.builds[i]).ok_or_else(|| {
             catalog_error(
@@ -232,7 +234,7 @@ impl BuiltinCatalog {
         &self,
         name: &str,
         slot: &str,
-    ) -> CatalogResult<ResourceSet> {
+    ) -> BunsenResult<ResourceSet> {
         let full = CatalogName::parse(name)?;
         let entry = self.resources.get(&full).ok_or_else(|| {
             catalog_error(
@@ -258,7 +260,7 @@ impl BuiltinCatalog {
     pub fn template_presets(
         &self,
         class: &str,
-    ) -> CatalogResult<ResolvedPresetSet> {
+    ) -> BunsenResult<ResolvedPresetSet> {
         let name = CatalogName::parse(class)?;
         self.classes.get(&name).cloned().ok_or_else(|| {
             catalog_error(
@@ -295,7 +297,7 @@ pub(crate) fn find_spelling(
     names: &[(CatalogName, usize)],
     spelling: &str,
     label: impl Fn(usize) -> String,
-) -> CatalogResult<Option<usize>> {
+) -> BunsenResult<Option<usize>> {
     if let Some((_, i)) = names
         .iter()
         .find(|(n, _)| n.to_string().eq_ignore_ascii_case(spelling))

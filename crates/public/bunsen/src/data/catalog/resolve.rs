@@ -21,7 +21,6 @@ use crate::{
         },
         error::{
             CatalogErrorExt,
-            CatalogResult,
             CatalogRule,
             catalog_error,
             catalog_errors,
@@ -42,7 +41,10 @@ use crate::{
             check_value,
         },
     },
-    errors::BunsenError,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// Where a resolved tag's value comes from.
@@ -244,7 +246,7 @@ impl BunsenCatalogStack {
     pub fn resolve_build(
         &self,
         name: &CatalogName,
-    ) -> CatalogResult<ResolvedBuild> {
+    ) -> BunsenResult<ResolvedBuild> {
         let mut errors: Vec<BunsenError> = Vec::new();
         let decl = self
             .expect(name, "build", &[EntryKind::Build])
@@ -678,7 +680,7 @@ impl BunsenCatalogStack {
     pub fn resolve_template_class(
         &self,
         name: &CatalogName,
-    ) -> CatalogResult<ResolvedTemplateClass> {
+    ) -> BunsenResult<ResolvedTemplateClass> {
         let decl = self
             .expect(name, "template class", &[EntryKind::TemplateClass])
             .map_err(|e| e.at(name))?;
@@ -781,8 +783,8 @@ mod tests {
 
     use super::*;
     use crate::data::catalog::{
-        fixtures,
         presets::PresetSelection,
+        testing::fixtures,
     };
 
     fn n(s: &str) -> CatalogName {
@@ -1141,7 +1143,7 @@ lab:
     fn build_in(
         stack: &BunsenCatalogStack,
         build: &str,
-    ) -> CatalogResult<BunsenCatalogStack> {
+    ) -> BunsenResult<BunsenCatalogStack> {
         let mut stack = stack.clone();
         stack.push_yaml(
             "builds",

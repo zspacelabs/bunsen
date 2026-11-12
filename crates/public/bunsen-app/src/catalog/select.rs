@@ -1,8 +1,60 @@
 //! `select`: its flags, as stages in command-line order, and its report.
 
-use super::*;
+use bunsen::{
+    data::catalog::{
+        BunsenCatalogStack,
+        CatalogErrorExt,
+        CatalogName,
+        document::EntryKind,
+        presets::PresetSelection,
+        select::{
+            choose::{
+                OriginStage,
+                SelectRequest,
+                SelectionContext,
+                bool_axis_member,
+                empty_error,
+                preset_prefix,
+            },
+            query::{
+                LabeledStage,
+                PerGroup,
+                PerStage,
+                Predicate,
+                SelectQuery,
+                SortKey,
+                SortKeys,
+                Stage,
+                WeighBlock,
+                WeighEntry,
+            },
+            state::{
+                SelectEnv,
+                SelectRun,
+                StageOrigin,
+                StageTrace,
+            },
+        },
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+};
+use clap::ArgMatches;
+use serde::Serialize;
+use serde_json::{
+    Value,
+    json,
+};
 
-/// The `select` flags: see [`CatalogAction::Select`].
+use super::{
+    PresetArgs,
+    support::*,
+};
+
+/// The `select` flags: see
+/// [`CatalogAction::Select`](`bunsen-catalog::CatalogAction::Select`).
 #[derive(clap::Args, Clone, Debug)]
 pub struct SelectArgs {
     /// The kind of entry to select.

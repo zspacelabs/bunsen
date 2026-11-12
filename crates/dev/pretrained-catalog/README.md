@@ -36,7 +36,7 @@ cargo run -p pretrained-catalog --example think_flags    # --think / --no-think 
 cargo run -p pretrained-catalog --example supplemental   # extensions, fall-through, refusals
 ```
 
-The bin runs over the module's example catalogs (`catalog::fixtures`: `prelude`,
+The bin runs over the module's example catalogs (`catalog::testing::fixtures`: `prelude`,
 `commons`, `qwen3`, `whisper`), which the tests and examples use too. Their SHA-256s and
 revisions are placeholders. `tests/select_examples.rs` works through the select language over
 them, each query with the builds it selects, and why.

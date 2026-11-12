@@ -7,7 +7,6 @@ use crate::chat::{
     ChatGenerateFlags,
     ChatModelFamily,
     ChatModelFamilyFlags,
-    LoadedChat,
 };
 
 /// Holds a conversation on stdin; `F` is the family's own generation flags.
@@ -31,16 +30,7 @@ impl<F: ChatModelFamilyFlags> ChatReplCommand<F> {
         matches: &ArgMatches,
     ) -> BunsenResult<()> {
         let (device, chat, model) = self.flags.load(family, &self.family.presets(), matches)?;
-        match &chat {
-            LoadedChat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
-            LoadedChat::Qwen3_5(chat) => {
-                self.flags.converse(chat, &self.family, &device, &model)?
-            }
-            LoadedChat::Gemma(chat) => self.flags.converse(chat, &self.family, &device, &model)?,
-            LoadedChat::NanoChat(chat) => {
-                self.flags.converse(chat, &self.family, &device, &model)?
-            }
-        }
+        self.flags.converse(&chat, &self.family, &device, &model)?;
         drop(chat);
         device.close()
     }

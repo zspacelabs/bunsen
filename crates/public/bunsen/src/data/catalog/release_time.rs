@@ -15,10 +15,12 @@ use time::{
     Time,
 };
 
-use crate::data::catalog::error::{
-    CatalogResult,
-    CatalogRule,
-    catalog_error,
+use crate::{
+    data::catalog::error::{
+        CatalogRule,
+        catalog_error,
+    },
+    errors::BunsenResult,
 };
 
 /// How precisely a release timestamp is pinned.
@@ -69,7 +71,7 @@ impl ReleaseTime {
     /// # Errors
     /// [`CatalogRule::Release`] when it isn't one, or names no real
     /// time.
-    pub fn parse(spelling: &str) -> CatalogResult<Self> {
+    pub fn parse(spelling: &str) -> BunsenResult<Self> {
         let bad = |why: &str| {
             catalog_error(
                 CatalogRule::Release,
@@ -80,7 +82,7 @@ impl ReleaseTime {
             )
         };
         let precision = ReleasePrecision::of(spelling).ok_or_else(|| bad("its length"))?;
-        let field = |range: core::ops::Range<usize>| -> CatalogResult<u32> {
+        let field = |range: core::ops::Range<usize>| -> BunsenResult<u32> {
             let digits = spelling.get(range).ok_or_else(|| bad("its shape"))?;
             if !digits.bytes().all(|b| b.is_ascii_digit()) {
                 return Err(bad("its shape"));

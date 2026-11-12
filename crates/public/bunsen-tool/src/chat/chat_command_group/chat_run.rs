@@ -12,7 +12,6 @@ use crate::chat::{
     ChatGenerateFlags,
     ChatModelFamily,
     ChatModelFamilyFlags,
-    LoadedChat,
 };
 
 /// Answers one prompt; `F` is the family's own generation flags.
@@ -50,24 +49,8 @@ impl<F: ChatModelFamilyFlags> ChatRunCommand<F> {
         };
         let prompt = prompt.trim_end();
         let (device, chat, model) = self.flags.load(family, &self.family.presets(), matches)?;
-        match &chat {
-            LoadedChat::Qwen3(chat) => {
-                self.flags
-                    .run_once(chat, &self.family, &device, &model, prompt)?
-            }
-            LoadedChat::Qwen3_5(chat) => {
-                self.flags
-                    .run_once(chat, &self.family, &device, &model, prompt)?
-            }
-            LoadedChat::Gemma(chat) => {
-                self.flags
-                    .run_once(chat, &self.family, &device, &model, prompt)?
-            }
-            LoadedChat::NanoChat(chat) => {
-                self.flags
-                    .run_once(chat, &self.family, &device, &model, prompt)?
-            }
-        }
+        self.flags
+            .run_once(&chat, &self.family, &device, &model, prompt)?;
         drop(chat);
         device.close()
     }

@@ -1,7 +1,14 @@
 //! The commands, run over the example catalogs, the supplemental one as an
 //! extension.
 
-use serde_json::json;
+use bunsen::data::catalog::{
+    BunsenCatalogStack,
+    document::OrderedNode,
+};
+use serde_json::{
+    Value,
+    json,
+};
 
 use super::*;
 
@@ -36,7 +43,7 @@ fn run_argv(
 fn cli(args: &str) -> Result<String, String> {
     let dir = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../bunsen/src/data/catalog/fixtures"
+        "/../bunsen/src/data/catalog/testing/fixtures"
     );
     let mut argv = vec![
         "catalog".to_string(),
@@ -48,7 +55,7 @@ fn cli(args: &str) -> Result<String, String> {
 }
 
 fn examples() -> BunsenCatalogStack {
-    bunsen::data::catalog::fixtures::example_stack().unwrap()
+    bunsen::data::catalog::testing::fixtures::example_stack().unwrap()
 }
 
 /// `args` split on spaces, keeping single-quoted runs together.
@@ -431,7 +438,7 @@ fn test_dump_nests_each_catalog_in_order() {
     };
     let node = items[2].get("catalog").unwrap().clone();
     let catalog = bunsen::data::catalog::BunsenCatalog::from_node(node).unwrap();
-    let stack = bunsen::data::catalog::fixtures::supplemented_example_stack().unwrap();
+    let stack = bunsen::data::catalog::testing::fixtures::supplemented_example_stack().unwrap();
     assert_eq!(&catalog, stack.layers()[2].document());
     let json: Value = serde_json::from_str(&cli("dump --format json").unwrap()).unwrap();
     assert_eq!(json, docs);
@@ -459,7 +466,7 @@ fn test_extensions_import_over_the_base() {
 
     let prelude = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../bunsen/src/data/catalog/fixtures/prelude.yml"
+        "/../bunsen/src/data/catalog/testing/fixtures/prelude.yml"
     );
     let err = run_argv(
         vec![
@@ -491,7 +498,7 @@ fn test_selection_flags_flatten_into_a_command() {
         stages: SelectionStageArgs,
     }
 
-    let stack = bunsen::data::catalog::fixtures::example_stack().unwrap();
+    let stack = bunsen::data::catalog::testing::fixtures::example_stack().unwrap();
     let matches = Tool::command()
         .try_get_matches_from([
             "tool", "--model", "qwen3", "--limit", "2", "--off", "thinking", "--keep", "instruct",

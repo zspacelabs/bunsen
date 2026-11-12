@@ -23,24 +23,26 @@ use core::{
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::data::catalog::{
-    document::{
-        CatalogEntry,
-        EntryKind,
+use crate::{
+    data::catalog::{
+        document::{
+            CatalogEntry,
+            EntryKind,
+        },
+        error::{
+            CatalogRule,
+            catalog_error,
+        },
+        name::CatalogName,
+        presets::ResolvedPresetSet,
+        resolve::{
+            ResolvedBuild,
+            ResolvedTag,
+            ResolvedTemplateClass,
+        },
+        stack::BunsenCatalogStack,
     },
-    error::{
-        CatalogResult,
-        CatalogRule,
-        catalog_error,
-    },
-    name::CatalogName,
-    presets::ResolvedPresetSet,
-    resolve::{
-        ResolvedBuild,
-        ResolvedTag,
-        ResolvedTemplateClass,
-    },
-    stack::BunsenCatalogStack,
+    errors::BunsenResult,
 };
 
 /// An entry, by its full name and its kind.
@@ -268,7 +270,7 @@ impl<'a> SelectEnv<'a> {
     pub fn with_derive(
         stack: &'a BunsenCatalogStack,
         derive: Vec<&'a dyn DeriveTags>,
-    ) -> CatalogResult<Self> {
+    ) -> BunsenResult<Self> {
         let mut derived_keys: Vec<DerivedKey> = Vec::new();
         for key in derive.iter().flat_map(|d| d.keys()) {
             if RESERVED_WORDS.contains(&key.name.as_str()) {
@@ -316,7 +318,7 @@ impl<'a> SelectEnv<'a> {
     pub fn build(
         &self,
         name: &CatalogName,
-    ) -> CatalogResult<Rc<SelectBuild>> {
+    ) -> BunsenResult<Rc<SelectBuild>> {
         if let Some(found) = self.builds.borrow().get(name) {
             return Ok(found.clone());
         }
@@ -346,7 +348,7 @@ impl SelectEnv<'_> {
     pub fn entry(
         &self,
         entry: &KindRef,
-    ) -> CatalogResult<Rc<SelectEntry>> {
+    ) -> BunsenResult<Rc<SelectEntry>> {
         if let Some(found) = self.entries.borrow().get(&entry.path) {
             return Ok(found.clone());
         }

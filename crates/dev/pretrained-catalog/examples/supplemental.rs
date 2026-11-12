@@ -7,7 +7,7 @@
 use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogName,
-    fixtures,
+    testing::fixtures,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

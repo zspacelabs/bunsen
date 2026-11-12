@@ -23,7 +23,8 @@
 //!   flags such as `--think` are explained shortcuts into presets.
 //! - [`builtin`]: the built-in catalog, `bunsen-catalog`'s layers, imported
 //!   ([`builtin_stack`]).
-//! - [`fixtures`]: example catalogs, for tests, examples and these docs.
+//! - `testing::fixtures` (the `testing` feature): example catalogs, for tests,
+//!   examples and these docs.
 //! - [`release_time`], [`tags`], [`name`]: the value types and rules the rest
 //!   is built from. Preset patches are [merge
 //!   patches](crate::support::merge_patch).
@@ -90,7 +91,6 @@
 pub mod builtin;
 pub mod document;
 pub mod error;
-pub mod fixtures;
 pub mod layer;
 mod loader_form;
 pub mod lookup;
@@ -101,6 +101,9 @@ pub mod resolve;
 pub mod select;
 pub mod stack;
 pub mod tags;
+
+#[cfg(feature = "testing")]
+pub mod testing;
 
 #[doc = include_str!("catalog_format.md")]
 pub mod catalog_format {}

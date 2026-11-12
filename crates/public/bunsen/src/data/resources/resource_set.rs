@@ -22,11 +22,11 @@ use serde::{
 
 use crate::{
     data::{
-        not_found,
         resources::{
             Resource,
             Source,
         },
+        support::not_found,
     },
     errors::{
         BunsenError,
