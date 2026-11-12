@@ -47,7 +47,7 @@
 //!
 //! 1. A [`WhisperConstruct`]: from a name, through
 //!    [`default_whisper_factory`](crate::kits::speech::asr::whisper::pretrained::default_whisper_factory)
-//!    and a [`PretrainedCache`](crate::data::pretrained::PretrainedCache), or
+//!    and a [`PretrainedCache`](crate::data::resources::PretrainedCache), or
 //!    over a model already in hand.
 //! 2. A [`WhisperStreamDriverConfig`] (language, task, timestamps, search,
 //!    [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy),

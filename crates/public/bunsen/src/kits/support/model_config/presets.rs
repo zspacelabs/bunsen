@@ -7,10 +7,12 @@ use serde::{
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::{
-        PresetSelection,
-        PretrainedRef,
-        build_catalog::presets::ResolvedPresetSet,
+    data::{
+        builds::PretrainedRef,
+        catalog::presets::{
+            PresetSelection,
+            ResolvedPresetSet,
+        },
     },
     errors::{
         BunsenError,
@@ -166,7 +168,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::pretrained::build_catalog::{
+        data::catalog::{
             CatalogName,
             document::{
                 AxisKind,
@@ -389,9 +391,9 @@ mod tests {
     /// repo's) and a given bundle resolve through the family's.
     #[test]
     fn test_resolve_ref_presets_falls_back_to_the_family() {
-        use crate::data::pretrained::{
-            Pretrained,
-            ResourceBundle,
+        use crate::data::{
+            builds::Pretrained,
+            resources::ResourceBundle,
         };
 
         let named = |presets: ResolvedPresetSet, selection: PresetSelection| PretrainedRef::Named {

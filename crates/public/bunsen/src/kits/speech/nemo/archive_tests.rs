@@ -18,7 +18,7 @@ use crate::{
         ModuleInit,
         Rekey,
     },
-    data::pretrained::apply_named_tensors,
+    data::formats::apply_named_tensors,
     errors::BunsenErrorKind,
     support::testing::cpu_device,
 };
@@ -273,7 +273,7 @@ fn test_conformer_loads_in_either_flatten_order() {
 
     use crate::{
         blocks::signals::DwStridingFlattenOrder,
-        data::pretrained::apply_rekeyed_tensors,
+        data::formats::apply_rekeyed_tensors,
     };
 
     let device = cpu_device();

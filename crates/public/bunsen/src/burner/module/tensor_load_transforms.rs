@@ -227,7 +227,7 @@ impl From<String> for Select {
 /// [`suffix`](Self::suffix) becomes one tensor per part, its rows in order,
 /// named with the part's suffix in place of it. A [`Rekey`](super::Rekey)
 /// then maps the parts' names as any others
-/// ([`split_rows`](crate::data::pretrained::split_rows)).
+/// ([`split_rows`](crate::data::formats::split_rows)).
 ///
 /// A packed `qkv` projection's weight, `[3·d, d]`, and its bias, `[3·d]`,
 /// split the same way: each part takes its run of the first axis.

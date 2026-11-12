@@ -2,7 +2,7 @@
 //! pins read from the remotes, and its probes run, into a catalog layer.
 //!
 //! A source is a keyed catalog layer
-//! ([`catalog_format`](bunsen::data::pretrained::build_catalog::catalog_format))
+//! ([`catalog_format`](bunsen::data::catalog::catalog_format))
 //! with three things the builder fills in, and strips:
 //!
 //! - **`$hub: {$repo, $revision}` on a build**: the source of each of the
@@ -22,7 +22,7 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    data::pretrained::build_catalog::document::OrderedNode,
+    data::catalog::document::OrderedNode,
     kits::support::model_config::{
         CatalogProbe,
         Probe,
@@ -691,7 +691,7 @@ fn check_languages(
 
 #[cfg(test)]
 mod tests {
-    use bunsen::data::pretrained::build_catalog::PretrainedCatalog;
+    use bunsen::data::catalog::PretrainedCatalog;
 
     use super::*;
     use crate::remote::testing::FakeRemote;

@@ -47,7 +47,7 @@ pub enum BunsenErrorKind {
     /// download, a cache entry, a checkpoint, a stream, a host timestamp,
     /// model output. Neither the code nor its configuration is at fault. A
     /// broken *declaration* of a resource, such as a
-    /// [`Resource`](crate::data::pretrained::Resource) that fails its own
+    /// [`Resource`](crate::data::resources::Resource) that fails its own
     /// validation, is not this kind: it is [`Illegal`](Self::Illegal) or
     /// [`Policy`](Self::Policy).
     InvalidResource,

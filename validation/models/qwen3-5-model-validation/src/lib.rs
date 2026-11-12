@@ -45,17 +45,15 @@ use std::collections::BTreeMap;
 
 use bunsen::{
     blocks::transformers::models::language_decoder::LmDecoderOps,
+    data::formats::LoadPolicy,
     kits::{
         language::{
             driver::CachedLm,
             qwen3_5::Qwen3_5Construct,
         },
-        support::{
-            construct::LoadPolicy,
-            decoding::{
-                CachedStep,
-                StackedLm,
-            },
+        support::decoding::{
+            CachedStep,
+            StackedLm,
         },
     },
     ops::transformers::attention::KVCacheStorage,
@@ -247,8 +245,8 @@ pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
 
 /// The weights cache the tests load the checkpoints through: bunsen's own,
 /// offline when `BUNSEN_VALIDATE_OFFLINE` is set, for a run on a warm cache.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

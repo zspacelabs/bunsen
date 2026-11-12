@@ -222,8 +222,8 @@ pub fn window_bias(
 /// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
 /// pinned file the first time it is asked for; offline when
 /// `BUNSEN_VALIDATE_OFFLINE` is set.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
@@ -244,7 +244,7 @@ pub fn load_construct(
             name,
             &weights_cache(),
             device,
-            bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+            bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
         )
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }

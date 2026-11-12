@@ -602,13 +602,13 @@ impl ResNet {
     ///
     /// # Errors
     ///
-    /// As [`read_pytorch_tensors`](crate::data::pretrained::read_pytorch_tensors)
+    /// As [`read_pytorch_tensors`](crate::data::formats::read_pytorch_tensors)
     /// reading the file: a missing or forbidden file is a
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), a file that is not a
     /// `PyTorch` checkpoint an
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource);
     /// otherwise as
-    /// [`apply_rekeyed_tensors`](crate::data::pretrained::apply_rekeyed_tensors),
+    /// [`apply_rekeyed_tensors`](crate::data::formats::apply_rekeyed_tensors),
     /// if the checkpoint does not load into the model.
     #[cfg(feature = "store")]
     pub fn load_pytorch_weights(
@@ -618,13 +618,9 @@ impl ResNet {
         let path = path.into();
         // The names are mapped by `torchvision_rekey`, whose indices are the
         // checkpoint's own: the reader does not renumber them.
-        let tensors = crate::data::pretrained::read_pytorch_tensors(&path)?;
-        crate::data::pretrained::apply_rekeyed_tensors(
-            &mut self,
-            tensors,
-            &Self::torchvision_rekey(),
-        )
-        .with_context(|| format!("loading {}", path.display()))?;
+        let tensors = crate::data::formats::read_pytorch_tensors(&path)?;
+        crate::data::formats::apply_rekeyed_tensors(&mut self, tensors, &Self::torchvision_rekey())
+            .with_context(|| format!("loading {}", path.display()))?;
 
         Ok(self)
     }
@@ -790,7 +786,7 @@ mod tests {
     #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch(spec: &str) -> BunsenResult<()> {
         use crate::{
-            data::pretrained::{
+            data::resources::{
                 PretrainedCache,
                 PretrainedCacheOptions,
             },
@@ -803,7 +799,7 @@ mod tests {
             spec,
             &cache,
             &device,
-            crate::kits::support::construct::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::as_stored(),
         )?;
         let _model: &ResNet = &loaded.handle;
         Ok(())

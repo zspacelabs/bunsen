@@ -3,13 +3,18 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::{
-        Fuse,
-        LoadedResources,
-        PretrainedRef,
-        Provenance,
-        ResourceBundle,
-        Source,
+    data::{
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
+        resources::{
+            Fuse,
+            LoadedResources,
+            Provenance,
+            ResourceBundle,
+            Source,
+        },
     },
     errors::{
         BunsenErrorKind,
@@ -19,22 +24,19 @@ use bunsen::{
             predicate,
         },
     },
-    kits::{
-        speech::asr::whisper::{
-            WhisperGeometry,
-            WhisperMeta,
-            pretrained::{
-                CHECKPOINT,
-                GeometryMismatch,
-                PytorchWhisperScanner,
-                VOCABULARY,
-                WHISPER_PREFABS,
-                WhisperConstructConfig,
-                WhisperVocabulary,
-                default_whisper_factory,
-            },
+    kits::speech::asr::whisper::{
+        WhisperGeometry,
+        WhisperMeta,
+        pretrained::{
+            CHECKPOINT,
+            GeometryMismatch,
+            PytorchWhisperScanner,
+            VOCABULARY,
+            WHISPER_PREFABS,
+            WhisperConstructConfig,
+            WhisperVocabulary,
+            default_whisper_factory,
         },
-        support::construct::ConstructInit,
     },
     support::testing::performance_device,
 };
@@ -79,7 +81,7 @@ fn test_the_factory_builds_the_construct() {
             "openai/base",
             &cache,
             &performance_device(),
-            bunsen::kits::support::construct::LoadPolicy::as_stored(),
+            bunsen::data::formats::LoadPolicy::as_stored(),
         )
         .unwrap();
 

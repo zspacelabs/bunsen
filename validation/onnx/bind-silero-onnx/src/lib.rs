@@ -12,7 +12,7 @@
 //!
 //! The checkpoint is laid out as a **pretrained cache**,
 //! `pretrained/silero/silero_vad/vad-16k/checkpoint/<sha256>/<file>`, which is
-//! how bunsen's `data::pretrained::PretrainedCache` roots a resource: a cache
+//! how bunsen's `data::resources::PretrainedCache` roots a resource: a cache
 //! pointed at `cache_dir()`, offline, resolves `silero/vad-16k` without knowing
 //! it was bundled. `silero-model-validation`'s `weights` feature turns on
 //! `checkpoint`.
@@ -31,7 +31,7 @@
 extern crate alloc;
 
 /// `OUT_DIR` laid out as a pretrained cache: the root a
-/// `bunsen::data::pretrained::PretrainedCache` is pointed at to resolve
+/// `bunsen::data::resources::PretrainedCache` is pointed at to resolve
 /// `silero/vad-16k` offline.
 #[cfg(feature = "checkpoint")]
 pub fn cache_dir() -> &'static std::path::Path {

@@ -33,7 +33,7 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
@@ -61,7 +61,7 @@
 //!             "silero/vad-16k",
 //!             &cache,
 //!             device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )?
 //!         .handle)
 //! }

@@ -11,12 +11,17 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        LoadedResources,
-        PretrainedRef,
-        ResourceBundle,
-        SAFETENSORS,
-        SafetensorsCheckpoint,
+    data::{
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
+        formats::SafetensorsCheckpoint,
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+            SAFETENSORS,
+        },
     },
     errors::{
         BunsenError,
@@ -33,7 +38,6 @@ use crate::{
                 load_laya_tensors,
             },
         },
-        support::construct::ConstructInit,
         text::encoders::modernbert::weights::modernbert_config_from_transformers,
     },
 };
@@ -81,12 +85,12 @@ impl ConstructInit for LayaConstructConfig {
         _model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
+        policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<LayaConstruct>> {
         let encoder = modernbert_config_from_transformers(&read(loaded, ENCODER_CONFIG)?)?;
         let agent = LayaAgentConfig::parse(&read(loaded, AGENT_CONFIG)?)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+        let stored = crate::data::formats::stored_float_dtype(&tensors)
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = policy.resolve(stored, device, |_| true)?;
         let mut model: LayaModel = laya_config(encoder, &agent).try_init(device)?;
@@ -111,11 +115,11 @@ mod tests {
             "laya/laya-typed-decisions",
         ] {
             LayaConstructConfig::for_resource_bundle(
-                &crate::data::pretrained::builtin_build_bundle(name).unwrap(),
+                &crate::data::builds::builtin_build_bundle(name).unwrap(),
             )
             .unwrap();
         }
-        let mut other = crate::data::pretrained::builtin_build_bundle("laya/laya").unwrap();
+        let mut other = crate::data::builds::builtin_build_bundle("laya/laya").unwrap();
         other.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

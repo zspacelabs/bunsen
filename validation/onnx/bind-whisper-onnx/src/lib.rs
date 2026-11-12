@@ -10,7 +10,7 @@
 //! The pretrained assets are laid out in `OUT_DIR` as a **pretrained cache**,
 //! `pretrained/<resource>/<sha256>/<file>`, `<resource>` each asset's full name
 //! in the built-in catalog (`openai/whisper/base/checkpoint`), which is how
-//! bunsen's `data::pretrained::PretrainedCache` roots a resource. A cache
+//! bunsen's `data::resources::PretrainedCache` roots a resource. A cache
 //! pointed at `cache_dir()`, offline, hits `openai/base` and both vocabularies
 //! without knowing they were bundled: bundling is a populated cache directory,
 //! not a kind of source. `whisper-model-validation` does exactly that, and also
@@ -66,7 +66,7 @@
 #![doc = document_features::document_features!()]
 
 /// `OUT_DIR` laid out as a pretrained cache: the root a
-/// `bunsen::data::pretrained::PretrainedCache` is pointed at to read the
+/// `bunsen::data::resources::PretrainedCache` is pointed at to read the
 /// bundled assets. Nothing under it changes after the build; a cache that
 /// fetches other models into it will, so a test wants it offline.
 ///

@@ -59,19 +59,18 @@
 //!   slots and arguments a build catalog's builds bind
 //!   ([`catalog_contracts`](support::catalog_contracts)).
 //! - **A construct config.** `{Kit}ConstructConfig` is the kit's hook, its
-//!   [`ConstructInit`](crate::kits::support::construct::ConstructInit): the
-//!   kit's name (`{KIT}_KIT`), and how the loaded files become its construct,
+//!   [`ConstructInit`](crate::data::builds::ConstructInit): the kit's name
+//!   (`{KIT}_KIT`), and how the loaded files become its construct,
 //!   `{Kit}Construct`.
 //! - **`default_{kit}_factory()`.** A
-//!   [`PretrainedFactory`](crate::kits::support::construct::PretrainedFactory)
-//!   over the default providers, behind the construct config. A name to a model
-//!   is one call: `default_{kit}_factory()?.load(name, &cache, &device)`. There
-//!   is [no registry](support::construct::PretrainedFactory#no-registry): a
-//!   caller who wants another provider adds it to the factory.
+//!   [`PretrainedFactory`](crate::data::builds::PretrainedFactory) over the
+//!   default providers, behind the construct config. A name to a model is one
+//!   call: `default_{kit}_factory()?.load(name, &cache, &device)`. There is [no
+//!   registry](crate::data::builds::PretrainedFactory#no-registry): a caller
+//!   who wants another provider adds it to the factory.
 //! - **The built handle.** What `load` returns: a
-//!   [`Loaded`](crate::kits::support::construct::Loaded) whose `handle` is an
-//!   `Arc` of the config's `Construct` type, the model or a construct around
-//!   it.
+//!   [`Loaded`](crate::data::builds::Loaded) whose `handle` is an `Arc` of the
+//!   config's `Construct` type, the model or a construct around it.
 //! - **A driver or context.** Optional. The state a stream or a decode carries
 //!   is injected, never owned by the model ([the
 //!   rule](crate::ops#ops-and-blocks)): the model is immutable, and the caller
@@ -110,7 +109,7 @@
 //! The other kits have a model, its configs, and an example, and no prefabs
 //! or weights. Swin is Stacked
 //! (`examples/swin_tiny`). `NanoChat` is Stacked too, and adds a table of
-//! the corpus it trains on, a [`data::shards`](crate::data::shards) shard
+//! the corpus it trains on, a [`data::datasets`](crate::data::datasets) shard
 //! set (`examples/train-chat`).
 //!
 //! Three seams are shared across kits:

@@ -18,7 +18,7 @@ use crate::{
         ModuleInit,
         Rekey,
     },
-    data::pretrained::{
+    data::formats::{
         SafetensorsCheckpoint,
         apply_rekeyed_tensors,
     },
@@ -221,7 +221,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::pretrained::safetensors_header,
+        data::formats::safetensors_header,
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,

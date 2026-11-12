@@ -1,7 +1,7 @@
 //! # Whisper vocabularies
 
 use crate::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::BunsenResult,
     kits::{
         speech::asr::whisper::pretrained::{

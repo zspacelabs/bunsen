@@ -14,7 +14,7 @@
 #![cfg(all(feature = "checkpoints", feature = "gpu-tests", feature = "cuda"))]
 
 use bunsen::{
-    kits::support::construct::LoadPolicy,
+    data::formats::LoadPolicy,
     ops::transformers::attention::KVCacheStorage,
 };
 use burn::{

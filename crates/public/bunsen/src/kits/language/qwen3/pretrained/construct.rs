@@ -12,11 +12,11 @@ use super::{
     QWEN3_PREFABS,
 };
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        NamedTensorsApplied,
-        ResolvedPresetSet,
-        StaticPreFabMap,
+    data::{
+        catalog::presets::ResolvedPresetSet,
+        formats::NamedTensorsApplied,
+        pretrained::StaticPreFabMap,
+        resources::LoadedResources,
     },
     errors::BunsenResult,
     kits::{
@@ -48,7 +48,7 @@ use crate::{
 /// its key.
 ///
 /// The Qwen3 kit's construct config: its
-/// [`ConstructInit`](crate::kits::support::construct::ConstructInit) hook, by
+/// [`ConstructInit`](crate::data::builds::ConstructInit) hook, by
 /// [`TransformersLmKit`].
 /// [`default_qwen3_factory`](super::default_qwen3_factory) attaches it; a
 /// caller never builds one.
@@ -98,23 +98,23 @@ impl TransformersLmKit for Qwen3ConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::{
-        language::qwen3::Qwen3Policy,
-        support::construct::ConstructInit,
+    use crate::{
+        data::builds::ConstructInit,
+        kits::language::qwen3::Qwen3Policy,
     };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         Qwen3ConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-0.6b").unwrap(),
+            &crate::data::builds::builtin_build_bundle("qwen/qwen3-0.6b").unwrap(),
         )
         .unwrap();
         Qwen3ConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-4b").unwrap(),
+            &crate::data::builds::builtin_build_bundle("qwen/qwen3-4b").unwrap(),
         )
         .unwrap();
 
-        let mut gguf = crate::data::pretrained::builtin_build_bundle("qwen/qwen3-0.6b").unwrap();
+        let mut gguf = crate::data::builds::builtin_build_bundle("qwen/qwen3-0.6b").unwrap();
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

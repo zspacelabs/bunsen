@@ -16,10 +16,8 @@ use burn::{
 };
 
 use super::{
-    ConstructInit,
     LmConstruct,
     LmPolicy,
-    LoadPolicy,
 };
 use crate::{
     blocks::transformers::models::language_decoder::LmDecoderHolder,
@@ -28,19 +26,27 @@ use crate::{
         ModuleInit,
         Rekey,
     },
-    data::pretrained::{
-        CONFIG,
-        LoadedResources,
-        NamedTensorsApplied,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
-        SAFETENSORS,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
-        StaticPreFabMap,
-        load_rekeyed,
-        stored_float_dtype,
+    data::{
+        builds::{
+            CONFIG,
+            ConstructInit,
+            PretrainedRef,
+        },
+        catalog::presets::ResolvedPresetSet,
+        formats::{
+            LoadPolicy,
+            NamedTensorsApplied,
+            SafetensorsCheckpoint,
+            load_rekeyed,
+            stored_float_dtype,
+        },
+        pretrained::StaticPreFabMap,
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+            SAFETENSORS,
+            SAFETENSORS_INDEX,
+        },
     },
     errors::{
         BunsenError,

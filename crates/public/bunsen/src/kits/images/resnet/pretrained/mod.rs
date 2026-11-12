@@ -34,7 +34,7 @@
 //!
 //! use bunsen::{
 //!     blocks::activation::BunsenActivationConfig,
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
@@ -64,7 +64,7 @@
 //!         .load(
 //!             &cache,
 //!             &device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )?
 //!         .handle,
 //! );

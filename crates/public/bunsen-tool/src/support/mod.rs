@@ -9,12 +9,14 @@ mod model_row;
 mod output_format;
 
 use bunsen::{
-    data::pretrained::ResolvedPresetSet,
+    data::{
+        builds::LookupExpr,
+        catalog::presets::ResolvedPresetSet,
+    },
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::construct::LookupExpr,
     support::merge_patch,
 };
 pub use choose_args::*;
@@ -157,7 +159,7 @@ mod tests {
     /// nothing.
     #[test]
     fn test_preset_lines() {
-        use bunsen::data::pretrained::build_catalog::{
+        use bunsen::data::catalog::{
             CatalogName,
             document::{
                 AxisKind,

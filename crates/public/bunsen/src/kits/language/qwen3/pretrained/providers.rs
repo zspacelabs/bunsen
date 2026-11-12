@@ -3,18 +3,16 @@ use alloc::sync::Arc;
 
 use super::Qwen3ConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        language::qwen3::{
-            GENERATION_CONFIG,
-            TOKENIZER,
-            TOKENIZER_CONFIG,
-        },
-        support::construct::PretrainedFactory,
+    kits::language::qwen3::{
+        GENERATION_CONFIG,
+        TOKENIZER,
+        TOKENIZER_CONFIG,
     },
 };
 
@@ -57,12 +55,10 @@ pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3/qwen3-0.6b";
 /// [`TOKENIZER_CONFIG`] and [`GENERATION_CONFIG`] files when it has them.
 pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                QWEN3_CATALOG_CONTRACT,
-                QWEN3_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            QWEN3_CATALOG_CONTRACT,
+            QWEN3_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -99,7 +95,7 @@ pub fn default_qwen3_factory() -> BunsenResult<PretrainedFactory<Qwen3ConstructC
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::CONFIG,
+        data::builds::CONFIG,
         kits::language::qwen3::{
             pretrained::QWEN3_PREFABS,
             weights::qwen3_config_from_transformers,
@@ -191,10 +187,12 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::{
-                CONFIG,
-                SAFETENSORS,
-                SAFETENSORS_INDEX,
+            data::{
+                builds::CONFIG,
+                resources::{
+                    SAFETENSORS,
+                    SAFETENSORS_INDEX,
+                },
             },
             kits::support::{
                 catalog_contracts::testing::contract_lines,

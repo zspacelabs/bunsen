@@ -2,29 +2,29 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::{
+        formats::LoadPolicy,
+        resources::PretrainedCache,
+    },
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::{
-        speech::{
-            asr::driver::{
-                AsrEngine,
-                AsrStreamContext,
-                AsrStreamDriver,
-                EmissionMode,
-                EmissionPolicy,
-                LevelPolicy,
-                MeanActivity,
-                StreamClock,
-                TranscriptEvent,
-                TranscriptSegment,
-            },
-            diarization::SpeakerActivityModel,
-            vad::silero_vad::pretrained::default_silero_factory,
+    kits::speech::{
+        asr::driver::{
+            AsrEngine,
+            AsrStreamContext,
+            AsrStreamDriver,
+            EmissionMode,
+            EmissionPolicy,
+            LevelPolicy,
+            MeanActivity,
+            StreamClock,
+            TranscriptEvent,
+            TranscriptSegment,
         },
-        support::construct::LoadPolicy,
+        diarization::SpeakerActivityModel,
+        vad::silero_vad::pretrained::default_silero_factory,
     },
 };
 use burn::tensor::Device;

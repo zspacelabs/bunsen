@@ -27,7 +27,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`VoxtralConstructConfig`],
 //! brings every file local through the cache, and reads them into the row's
 //! prefab through

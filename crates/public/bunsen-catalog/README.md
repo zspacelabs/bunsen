@@ -1,7 +1,7 @@
 # bunsen-catalog
 
 bunsen's built-in pretrained catalog: the layers of the build catalog bunsen
-imports (`bunsen::data::pretrained::build_catalog::builtin_stack`), as
+imports (`bunsen::data::catalog::builtin_stack`), as
 `catalog_builder` builds them from their probe-contract sources in the
 repository's `validation/` workspace.
 

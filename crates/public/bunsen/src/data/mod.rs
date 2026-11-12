@@ -1,21 +1,30 @@
 //! # Files, caches and pretrained models
 //!
 //! Where files land, what a name means, and how a name becomes a model.
-//! Three submodules, each built on the one before:
+//! Seven submodules, each built on the one before:
 //!
 //! - [`cache`]: where files land. A [`BunsenDiskCache`] picks a cache directory
 //!   and a data directory, and reports every transfer to its observers.
 //!   Digests, links and `.partial` files are here too. With the `fetch`
 //!   feature, so are the downloads.
-//! - [`pretrained`]: what a name means, and how it becomes a model. A *prefab*
-//!   is a geometry by name, a *row* is a name over a resource bundle, and a
-//!   *resource* is one pinned file with the places it can be had from.
-//!   Providers answer names with rows, a [`PretrainedFactory`] dispatches a
-//!   spec to them, and a [`PretrainedCache`] brings the files local for the
-//!   kit's [`ConstructInit`] hook to build from.
-//! - [`shards`]: numbered dataset files. A [`ShardSetDescriptor`] names a
-//!   family of files (`shard_00000.parquet`, ...), and a [`ShardSet`] binds one
-//!   to a directory and brings shards in through the disk cache.
+//! - [`resources`]: pinned files. A *resource* is one pinned file with the
+//!   places it can be had from, a [`ResourceBundle`] a named set of them, and a
+//!   [`PretrainedCache`] brings a bundle's files local.
+//! - [`catalog`]: what there is to build, as data. A layered document of
+//!   contracts, builds, resources, tags and presets, the built-in one compiled
+//!   in, which resolves a build's name to its files and arguments and chooses
+//!   among builds by their tags.
+//! - [`formats`]: reading the files: safetensors, `PyTorch`, MLX and the Phonon
+//!   formats, named tensors applied to a module, and the
+//!   [`LoadPolicy`](formats::LoadPolicy) a load places its floats by.
+//! - [`builds`]: what a name means, and how it becomes a model. A *row* is a
+//!   name over a resource bundle; providers answer names with rows, a
+//!   [`PretrainedFactory`] dispatches a spec to them, and the kit's
+//!   [`ConstructInit`] hook builds from the files the cache brought local.
+//! - [`pretrained`]: the kits' prefabs (a geometry by name) and tags.
+//! - [`datasets`]: dataset shard sets, numbered files. A [`ShardSetDescriptor`]
+//!   names a family of files (`shard_00000.parquet`, ...), and a [`ShardSet`]
+//!   binds one to a directory and brings shards in through the disk cache.
 //!
 //! ## Lifecycle
 //!
@@ -62,11 +71,11 @@
 //!   [`ConstructInit::for_resource_bundle`] from the resources' `kind`s.
 //!   [`Deferred::with_overlay`] lays the caller's resources over the row's.
 //! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
-//!   [`plan`](crate::kits::support::construct::ConstructInit::plan), then
+//!   [`plan`](crate::data::builds::ConstructInit::plan), then
 //!   [`PretrainedCache::load`] (in its [source order], into
 //!   [`LoadedResources`]), then the hook's
-//!   [`try_init`](crate::kits::support::construct::ConstructInit::try_init).
-//!   The result is a [`Loaded`] handle.
+//!   [`try_init`](crate::data::builds::ConstructInit::try_init). The result is
+//!   a [`Loaded`] handle.
 //!
 //! Prefabs sit beside this pathway. A kit's [`StaticPreFabMap`] names its
 //! geometries, and a row names the prefab it instantiates;
@@ -76,7 +85,7 @@
 //! Shards take a shorter path: a [`StaticShardSetMap`] entry becomes a
 //! [`ShardSetDescriptor`], a [`ShardSet`] binds it to a directory, and its
 //! `locate` / `fetch` / `fetch_many` give paths to a data loader. See
-//! [`shards`].
+//! [`datasets`].
 //!
 //! ## The kits' factories
 //!
@@ -97,7 +106,7 @@
 //! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`ConstructInit`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
-//! | `store` | yes | the checkpoint readers: [`SafetensorsCheckpoint`] (the reader for `hf:` rows), the `PyTorch` reader kits read `.pt` checkpoints with, the burnpack, `.nemo` and Phonon ([`fermion`](pretrained::fermion)) readers. |
+//! | `store` | yes | the checkpoint readers: [`SafetensorsCheckpoint`] (the reader for `hf:` rows), the `PyTorch` reader kits read `.pt` checkpoints with, the burnpack, `.nemo` and Phonon ([`fermion`](formats::fermion)) readers. |
 //!
 //! No bunsen feature reaches the network at build time. `reference` is a
 //! conventional name (see `STYLE.md`), not a bunsen feature: it means "the
@@ -106,43 +115,72 @@
 //! run-time counterpart, and neither implies the other.
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
-//! [`ConstructInit`]: crate::kits::support::construct::ConstructInit
-//! [`ConstructInit::for_resource_bundle`]: crate::kits::support::construct::ConstructInit::for_resource_bundle
-//! [`Deferred`]: crate::kits::support::construct::Deferred
-//! [`Deferred::from_resource_bundle`]: crate::kits::support::construct::Deferred::from_resource_bundle
-//! [`Deferred::load`]: crate::kits::support::construct::Deferred::load
-//! [`Deferred::new`]: crate::kits::support::construct::Deferred::new
-//! [`Deferred::with_overlay`]: crate::kits::support::construct::Deferred::with_overlay
-//! [`HfProvider`]: pretrained::HfProvider
-//! [`Loaded`]: crate::kits::support::construct::Loaded
-//! [`LoadedResources`]: pretrained::LoadedResources
-//! [`Pretrained`]: pretrained::Pretrained
-//! [`PretrainedCache`]: pretrained::PretrainedCache
-//! [`PretrainedCache::load`]: pretrained::PretrainedCache::load
-//! [`PretrainedFactory`]: crate::kits::support::construct::PretrainedFactory
-//! [`PretrainedFactory::for_prefab`]: crate::kits::support::construct::PretrainedFactory::for_prefab
-//! [`PretrainedFactory::load`]: crate::kits::support::construct::PretrainedFactory::load
-//! [`PretrainedFactory::resolve`]: crate::kits::support::construct::PretrainedFactory::resolve
-//! [`PretrainedProvider`]: pretrained::PretrainedProvider
-//! [`PretrainedRef`]: pretrained::PretrainedRef
-//! [`PretrainedRef::prefab`]: pretrained::PretrainedRef::prefab
-//! [`PretrainedTable`]: pretrained::PretrainedTable
-//! [`Resource`]: pretrained::Resource
-//! [`ResourceBundle`]: pretrained::ResourceBundle
-//! [`SafetensorsCheckpoint`]: pretrained::SafetensorsCheckpoint
-//! [`ShardSet`]: shards::ShardSet
-//! [`ShardSetDescriptor`]: shards::ShardSetDescriptor
+//! [`ConstructInit`]: crate::data::builds::ConstructInit
+//! [`ConstructInit::for_resource_bundle`]: crate::data::builds::ConstructInit::for_resource_bundle
+//! [`Deferred`]: crate::data::builds::Deferred
+//! [`Deferred::from_resource_bundle`]: crate::data::builds::Deferred::from_resource_bundle
+//! [`Deferred::load`]: crate::data::builds::Deferred::load
+//! [`Deferred::new`]: crate::data::builds::Deferred::new
+//! [`Deferred::with_overlay`]: crate::data::builds::Deferred::with_overlay
+//! [`HfProvider`]: crate::data::builds::HfProvider
+//! [`Loaded`]: crate::data::builds::Loaded
+//! [`LoadedResources`]: resources::LoadedResources
+//! [`Pretrained`]: crate::data::builds::Pretrained
+//! [`PretrainedCache`]: resources::PretrainedCache
+//! [`PretrainedCache::load`]: resources::PretrainedCache::load
+//! [`PretrainedFactory`]: crate::data::builds::PretrainedFactory
+//! [`PretrainedFactory::for_prefab`]: crate::data::builds::PretrainedFactory::for_prefab
+//! [`PretrainedFactory::load`]: crate::data::builds::PretrainedFactory::load
+//! [`PretrainedFactory::resolve`]: crate::data::builds::PretrainedFactory::resolve
+//! [`PretrainedProvider`]: crate::data::builds::PretrainedProvider
+//! [`PretrainedRef`]: crate::data::builds::PretrainedRef
+//! [`PretrainedRef::prefab`]: crate::data::builds::PretrainedRef::prefab
+//! [`PretrainedTable`]: crate::data::builds::PretrainedTable
+//! [`Resource`]: resources::Resource
+//! [`ResourceBundle`]: resources::ResourceBundle
+//! [`SafetensorsCheckpoint`]: crate::data::formats::SafetensorsCheckpoint
+//! [`ShardSet`]: datasets::ShardSet
+//! [`ShardSetDescriptor`]: datasets::ShardSetDescriptor
 //! [`StaticPreFabMap`]: pretrained::StaticPreFabMap
-//! [`StaticShardSetMap`]: shards::StaticShardSetMap
+//! [`StaticShardSetMap`]: datasets::StaticShardSetMap
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
-//! [dispatch rules]: crate::kits::support::construct::PretrainedFactory#dispatch
-//! [source order]: pretrained::PretrainedCache#source-order
+//! [dispatch rules]: crate::data::builds::PretrainedFactory#dispatch
+//! [source order]: resources::PretrainedCache#source-order
 
 #[cfg(feature = "cache")]
 pub mod cache;
 
+pub mod builds;
+
+pub mod catalog;
+
+pub mod formats;
+
 pub mod pretrained;
 
-pub mod shards;
+pub mod resources;
+
+pub mod datasets;
+
+/// A [`Lookup`](crate::errors::BunsenErrorKind::Lookup) error for a name a
+/// table does not have: a [`LookupError`](crate::errors::LookupError) for
+/// `name` among the `kind`s, with the names the table has as candidates, under
+/// a frame naming the table when there is one: `"<table>: no <kind> "x";
+/// there are: a, b"`.
+#[track_caller]
+pub(crate) fn not_found(
+    table: Option<&str>,
+    kind: &'static str,
+    name: &str,
+    names: &[&str],
+) -> crate::errors::BunsenError {
+    let error = crate::errors::BunsenError::lookup(
+        crate::errors::LookupError::missing(kind, name).with_candidates(names.iter().copied()),
+    );
+    match table {
+        Some(table) => error.context(table),
+        None => error,
+    }
+}

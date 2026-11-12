@@ -5,11 +5,16 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
+    data::{
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
+        catalog::presets::ResolvedPresetSet,
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenError,
@@ -28,10 +33,7 @@ use crate::{
                 SILERO_KIT,
             },
         },
-        support::{
-            construct::ConstructInit,
-            model_config::resolve_ref_presets,
-        },
+        support::model_config::resolve_ref_presets,
     },
 };
 
@@ -120,7 +122,7 @@ impl ConstructInit for SileroConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SileroConstruct>> {
         let policy = resolve_ref_presets(
             &SileroPolicy::default(),
@@ -160,15 +162,15 @@ mod tests {
 
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
-                &crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap()
+                &crate::data::builds::builtin_build_bundle("vad-16k").unwrap()
             )
             .unwrap()
             .reader,
             SileroReader::Safetensors
         );
         // A burnpack given by path: unlabeled, read as a burnpack.
-        let mut burnpack = crate::data::pretrained::ResourceBundle::new("a burnpack");
-        burnpack.insert(crate::data::pretrained::Resource::given(
+        let mut burnpack = crate::data::resources::ResourceBundle::new("a burnpack");
+        burnpack.insert(crate::data::resources::Resource::given(
             BURNPACK,
             "/models/silero_vad.bpk",
         ));

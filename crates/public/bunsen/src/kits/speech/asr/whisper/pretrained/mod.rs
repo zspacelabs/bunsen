@@ -15,7 +15,7 @@
 //!   [`WHISPER_CATALOG_CONTRACT`]: the checkpoints bunsen knows by name, as
 //!   `well-known:openai/whisper/base`, `openai/base`, or `base`. They are
 //!   upstream's `_MODELS`, with upstream's aliases (`large`, `turbo`).
-//! - The data layer's [`HfProvider`](crate::data::pretrained::HfProvider):
+//! - The data layer's [`HfProvider`](crate::data::builds::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
 //!   checkpoint under [`CHECKPOINT`]. It lists nothing.
 //!
@@ -34,7 +34,7 @@
 //!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
-//! [`with_provider`](crate::kits::support::construct::PretrainedFactory::with_provider);
+//! [`with_provider`](crate::data::builds::PretrainedFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
 //! # Rows, prefabs and resources
@@ -42,7 +42,7 @@
 //! A row is a build's two resources: its checkpoint, and the vocabulary its
 //! token layout selects ([`WhisperVocabulary`]), which the plan checks
 //! against the checkpoint. It states the geometry its checkpoint must have
-//! ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)), a prefab's of
+//! ([`GEOMETRY`](crate::data::builds::GEOMETRY)), a prefab's of
 //! [`WHISPER_PREFABS`], so a name means a shape before any bytes are
 //! fetched, and a checkpoint of another shape under the name is refused. A
 //! prefab is a shape without weights; a resource is where the bytes come
@@ -52,11 +52,11 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
 //! is the whole pathway from a name to a
 //! [`WhisperConstruct`](crate::kits::speech::asr::whisper::driver::WhisperConstruct)
 //! behind an `Arc`. The factory resolves the name to a
-//! [`Deferred`](crate::kits::support::construct::Deferred) model carrying the
+//! [`Deferred`](crate::data::builds::Deferred) model carrying the
 //! kit's hook, [`WhisperConstructConfig`], with the [`WhisperReader`] its
 //! checkpoint's `kind` names (`OpenAI`'s `.pt`, or `transformers`'
 //! `model.safetensors`, one file or shards). The hook's plan brings the
@@ -65,7 +65,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_resource_bundle`](crate::kits::support::construct::Deferred::from_resource_bundle).
+//! through [`Deferred::from_resource_bundle`](crate::data::builds::Deferred::from_resource_bundle).
 //!
 //! # Example
 //!

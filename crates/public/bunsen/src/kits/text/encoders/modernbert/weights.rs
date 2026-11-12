@@ -17,7 +17,7 @@ use crate::{
         Rekey,
         TensorLoadRowSplit,
     },
-    data::pretrained::{
+    data::formats::{
         NamedTensorsApplied,
         load_rekeyed,
         split_rows,

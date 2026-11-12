@@ -9,7 +9,7 @@
 //!
 //! `cargo run -p pretrained-catalog --example think_flags`
 
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogName,
     fixtures,

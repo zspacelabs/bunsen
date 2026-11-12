@@ -21,9 +21,9 @@
 //! without touching the disk.
 //!
 //! The layers above choose the paths. The
-//! [`PretrainedCache`](crate::data::pretrained::PretrainedCache) keeps
+//! [`PretrainedCache`](crate::data::resources::PretrainedCache) keeps
 //! digest-pinned files under `<cache>/pretrained/`, and a
-//! [`ShardSet`](crate::data::shards::ShardSet) keeps a set's shards under
+//! [`ShardSet`](crate::data::datasets::ShardSet) keeps a set's shards under
 //! `<data>/shards/<name>/`.
 //!
 //! ## Digests and files
@@ -32,7 +32,7 @@
 //! [`HashingReader`]) serves digest-pinned entries. A file whose path
 //! carries its digest was verified when it was written, and is trusted on
 //! later runs without re-hashing it: the pretrained cache's
-//! [trust model](crate::data::pretrained::PretrainedCache#trust-model).
+//! [trust model](crate::data::resources::PretrainedCache#trust-model).
 //!
 //! The file helpers name and place files in the cache: the `.partial`
 //! beside a destination that a write goes to before it is renamed into

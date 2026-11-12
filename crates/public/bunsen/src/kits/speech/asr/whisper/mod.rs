@@ -25,14 +25,14 @@
 //!
 //! # Lifecycle
 //!
-//! 1. A [`PretrainedCache`](crate::data::pretrained::PretrainedCache): where
+//! 1. A [`PretrainedCache`](crate::data::resources::PretrainedCache): where
 //!    checkpoints and vocabularies land, pinned by digest.
 //! 2. The factory,
 //!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
 //!    to a row of the index, and the kit's hook to build it.
 //! 3. A [`WhisperConstruct`](driver::WhisperConstruct) behind an `Arc`, from
 //!    the factory's
-//!    [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct):
+//!    [`load_construct`](crate::data::builds::PretrainedFactory::load_construct):
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
 //!    language, task, timestamps, search, and the
@@ -65,7 +65,7 @@
 //! ```rust,no_run
 //! # #[cfg(feature = "store")] {
 //! use bunsen::{
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
@@ -104,7 +104,7 @@
 //!         name,
 //!         &cache,
 //!         device,
-//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )?;
 //!
 //!     WhisperStreamDriverConfig::new().init_from_construct(construct, device)
@@ -177,32 +177,32 @@
 //! };
 //!
 //! use bunsen::{
-//!     data::pretrained::{
-//!         PretrainedCache,
-//!         ResourceBundle,
+//!     data::{
+//!         builds::Deferred,
+//!         resources::{
+//!             PretrainedCache,
+//!             ResourceBundle,
+//!         },
 //!     },
 //!     errors::BunsenResult,
-//!     kits::{
-//!         speech::{
-//!             asr::{
-//!                 driver::EmissionPolicy,
-//!                 whisper::{
-//!                     driver::{
-//!                         WhisperConstruct,
-//!                         WhisperStreamDriver,
-//!                         WhisperStreamDriverConfig,
-//!                     },
-//!                     pretrained::{
-//!                         CHECKPOINT,
-//!                         VOCABULARY,
-//!                         WhisperConstructConfig,
-//!                         default_whisper_factory,
-//!                     },
+//!     kits::speech::{
+//!         asr::{
+//!             driver::EmissionPolicy,
+//!             whisper::{
+//!                 driver::{
+//!                     WhisperConstruct,
+//!                     WhisperStreamDriver,
+//!                     WhisperStreamDriverConfig,
+//!                 },
+//!                 pretrained::{
+//!                     CHECKPOINT,
+//!                     VOCABULARY,
+//!                     WhisperConstructConfig,
+//!                     default_whisper_factory,
 //!                 },
 //!             },
-//!             vad::silero_vad::pretrained::default_silero_factory,
 //!         },
-//!         support::construct::Deferred,
+//!         vad::silero_vad::pretrained::default_silero_factory,
 //!     },
 //! };
 //! use burn::tensor::Device;
@@ -220,7 +220,7 @@
 //!     .load_construct(
 //!         cache,
 //!         device,
-//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )
 //! }
 //!
@@ -233,7 +233,7 @@
 //!         "hf:openai/whisper-large-v3",
 //!         cache,
 //!         device,
-//!         bunsen::kits::support::construct::LoadPolicy::performance(),
+//!         bunsen::data::formats::LoadPolicy::performance(),
 //!     )
 //! }
 //!
@@ -251,7 +251,7 @@
 //!         .load_construct(
 //!             cache,
 //!             device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )
 //! }
 //!
@@ -269,7 +269,7 @@
 //!             "silero/vad-16k[silero]",
 //!             cache,
 //!             device,
-//!             bunsen::kits::support::construct::LoadPolicy::performance(),
+//!             bunsen::data::formats::LoadPolicy::performance(),
 //!         )?
 //!         .handle;
 //!     // The 16 kHz branch, the model's rate, and the filter the preset

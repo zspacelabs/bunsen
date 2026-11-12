@@ -4,7 +4,7 @@
 //!
 //! `cargo run -p pretrained-catalog --example supplemental`
 
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogName,
     fixtures,
@@ -18,9 +18,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("occurrences of `{qwen3}`:");
     for occurrence in stack.occurrences(&qwen3) {
         let what = match occurrence.entry.merge() {
-            bunsen::data::pretrained::build_catalog::document::MergeMode::Deny => "declaring",
-            bunsen::data::pretrained::build_catalog::document::MergeMode::Update => "extending",
-            bunsen::data::pretrained::build_catalog::document::MergeMode::Replace => "replacing",
+            bunsen::data::catalog::document::MergeMode::Deny => "declaring",
+            bunsen::data::catalog::document::MergeMode::Update => "extending",
+            bunsen::data::catalog::document::MergeMode::Replace => "replacing",
         };
         println!(
             "  {what:<9} in {}",

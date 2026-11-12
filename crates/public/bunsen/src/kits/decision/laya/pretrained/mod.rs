@@ -19,7 +19,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`LayaConstructConfig`],
 //! brings every file local through the cache, builds the model from its two
 //! configs ([`laya_config`](super::weights::laya_config)), and reads the

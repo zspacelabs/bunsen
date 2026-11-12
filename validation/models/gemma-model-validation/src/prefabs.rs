@@ -6,9 +6,9 @@
 //! all.
 
 use bunsen::{
-    data::pretrained::{
-        CONFIG,
-        ResourceBundle,
+    data::{
+        builds::CONFIG,
+        resources::ResourceBundle,
     },
     kits::language::gemma::{
         pretrained::{

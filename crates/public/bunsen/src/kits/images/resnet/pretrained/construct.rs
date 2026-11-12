@@ -6,11 +6,16 @@ use burn::tensor::Device;
 
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        GEOMETRY,
-        LoadedResources,
-        PretrainedRef,
-        ResourceBundle,
+    data::{
+        builds::{
+            ConstructInit,
+            GEOMETRY,
+            PretrainedRef,
+        },
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenError,
@@ -18,17 +23,14 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::{
-        images::resnet::{
-            ResNet,
-            ResNetContractConfig,
-            pretrained::{
-                CHECKPOINT,
-                RESNET_KIT,
-                RESNET_PREFABS,
-            },
+    kits::images::resnet::{
+        ResNet,
+        ResNetContractConfig,
+        pretrained::{
+            CHECKPOINT,
+            RESNET_KIT,
+            RESNET_PREFABS,
         },
-        support::construct::ConstructInit,
     },
 };
 
@@ -120,7 +122,7 @@ impl ConstructInit for ResNetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ResNet>> {
         let config = self.config_for(model)?;
         let resnet: ResNet = config.try_init(device)?;
@@ -144,11 +146,15 @@ mod tests {
 
         use crate::{
             data::{
+                builds::{
+                    ConstructInit,
+                    Deferred,
+                    PretrainedRef,
+                },
                 cache::BunsenDiskCacheOptions,
-                pretrained::{
+                resources::{
                     PretrainedCache,
                     PretrainedCacheOptions,
-                    PretrainedRef,
                     ResourceBundle,
                 },
             },
@@ -159,10 +165,6 @@ mod tests {
                     predicate,
                     value,
                 },
-            },
-            kits::support::construct::{
-                ConstructInit,
-                Deferred,
             },
             support::testing::cpu_device,
         };
@@ -235,7 +237,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::kits::support::construct::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::as_stored(),
         );
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.

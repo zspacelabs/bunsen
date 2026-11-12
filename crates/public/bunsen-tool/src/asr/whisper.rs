@@ -8,37 +8,37 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::{
-        PretrainedCache,
-        PretrainedCacheOptions,
-        ResourceBundle,
+    data::{
+        builds::Deferred,
+        resources::{
+            PretrainedCache,
+            PretrainedCacheOptions,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenResult,
         ResultContext,
     },
-    kits::{
-        speech::asr::{
+    kits::speech::asr::{
+        driver::{
+            LevelPolicy,
+            TranscriptSegment,
+        },
+        whisper::{
             driver::{
-                LevelPolicy,
-                TranscriptSegment,
+                WhisperConstruct,
+                WhisperStreamDriver,
+                WhisperStreamDriverConfig,
             },
-            whisper::{
-                driver::{
-                    WhisperConstruct,
-                    WhisperStreamDriver,
-                    WhisperStreamDriverConfig,
-                },
-                pretrained::{
-                    CHECKPOINT,
-                    OPENAI_LOCAL_DIR,
-                    VOCABULARY,
-                    WhisperConstructConfig,
-                    default_whisper_factory,
-                },
+            pretrained::{
+                CHECKPOINT,
+                OPENAI_LOCAL_DIR,
+                VOCABULARY,
+                WhisperConstructConfig,
+                default_whisper_factory,
             },
         },
-        support::construct::Deferred,
     },
 };
 use burn::tensor::Device;

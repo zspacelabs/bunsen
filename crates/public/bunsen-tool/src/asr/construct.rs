@@ -6,24 +6,27 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::build_catalog::{
-        CatalogErrorExt,
-        CatalogName,
-        resolve::ResolvedBuild,
-        select::{
-            choose::{
-                SelectRequest,
-                SelectionContext,
-            },
-            query::{
-                LabeledStage,
-                SortKeys,
-                Stage,
-            },
-            state::{
-                DeriveTags,
-                DerivedKey,
-                SelectEnv,
+    data::{
+        builds::LookupExpr,
+        catalog::{
+            CatalogErrorExt,
+            CatalogName,
+            resolve::ResolvedBuild,
+            select::{
+                choose::{
+                    SelectRequest,
+                    SelectionContext,
+                },
+                query::{
+                    LabeledStage,
+                    SortKeys,
+                    Stage,
+                },
+                state::{
+                    DeriveTags,
+                    DerivedKey,
+                    SelectEnv,
+                },
             },
         },
     },
@@ -32,7 +35,6 @@ use bunsen::{
         BunsenResult,
         LookupError,
     },
-    kits::support::construct::LookupExpr,
 };
 use serde::{
     Deserialize,
@@ -623,12 +625,12 @@ impl AsrConstructConfig {
         };
         let mut request = SelectRequest::default();
         for labeled in stages {
-            request.stages.push(
-                bunsen::data::pretrained::build_catalog::select::choose::OriginStage::labeled(
+            request
+                .stages
+                .push(bunsen::data::catalog::select::choose::OriginStage::labeled(
                     labeled,
-                    bunsen::data::pretrained::build_catalog::select::state::StageOrigin::Query,
-                ),
-            );
+                    bunsen::data::catalog::select::state::StageOrigin::Query,
+                ));
         }
         let (chosen, run) = context
             .choose(&env, Some(&universe), None, &request)

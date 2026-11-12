@@ -11,14 +11,19 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        CONFIG,
-        LoadedResources,
-        PretrainedCache,
-        PretrainedRef,
-        ResourceBundle,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+    data::{
+        builds::{
+            CONFIG,
+            ConstructInit,
+            PretrainedRef,
+        },
+        formats::SafetensorsCheckpoint,
+        resources::{
+            LoadedResources,
+            PretrainedCache,
+            ResourceBundle,
+            SAFETENSORS_INDEX,
+        },
     },
     errors::{
         BunsenError,
@@ -40,10 +45,7 @@ use crate::{
             },
             nemo::NemoMelFrontEndConfig,
         },
-        support::{
-            construct::ConstructInit,
-            model_config::resolve_ref_presets,
-        },
+        support::model_config::resolve_ref_presets,
     },
 };
 
@@ -117,7 +119,7 @@ impl SortformerConstructConfig {
     fn construct_safetensors(
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         let config = match loaded.get(CONFIG) {
             Some(part) => Self::read_config(&part.path)?,
@@ -162,7 +164,7 @@ impl SortformerConstructConfig {
     fn construct_nemo(
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         use crate::kits::speech::{
             diarization::sortformer::{
@@ -229,14 +231,13 @@ impl ConstructInit for SortformerConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let bundle = match self.reader {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
         };
-        let family =
-            crate::data::pretrained::builtin_template_presets(bundle.family.template_class())?;
+        let family = crate::data::builds::builtin_template_presets(bundle.family.template_class())?;
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
         Ok(Arc::new(
             bundle.with_policy(policy.config.clone(), policy.applied()),
@@ -251,13 +252,12 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         let hook = SortformerConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("nvidia/nemotron-3-diarization")
-                .unwrap(),
+            &crate::data::builds::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap(),
         )
         .unwrap();
         assert_eq!(hook.reader, SortformerReader::Safetensors);
         let mut map =
-            crate::data::pretrained::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap();
+            crate::data::builds::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap();
         for res in map.resources.values_mut() {
             res.kind = Some("pytorch".into());
         }
@@ -275,15 +275,13 @@ mod tests {
     fn test_a_nemo_builds_a_v2_bundle() {
         use crate::{
             data::{
+                builds::Deferred,
                 cache::BunsenDiskCacheOptions,
-                pretrained::PretrainedCacheOptions,
+                resources::PretrainedCacheOptions,
             },
-            kits::{
-                speech::{
-                    diarization::sortformer::SortformerMeta,
-                    nemo::NemoMelFrontEndMeta,
-                },
-                support::construct::Deferred,
+            kits::speech::{
+                diarization::sortformer::SortformerMeta,
+                nemo::NemoMelFrontEndMeta,
             },
             support::testing::cpu_device,
         };
@@ -308,7 +306,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap()
             .handle;
@@ -334,7 +332,7 @@ mod tests {
     #[test]
     fn test_family_presets() {
         use crate::{
-            data::pretrained::PresetSelection,
+            data::catalog::presets::PresetSelection,
             kits::{
                 speech::diarization::{
                     TurnFilterConfig,
@@ -345,10 +343,8 @@ mod tests {
         };
 
         let family_presets = |family: &str| {
-            crate::data::pretrained::builtin_template_presets(&format!(
-                "nvidia/sortformer/{family}"
-            ))
-            .unwrap()
+            crate::data::builds::builtin_template_presets(&format!("nvidia/sortformer/{family}"))
+                .unwrap()
         };
         let resolve = |family: &str, presets: &[&str]| {
             resolve_presets(
@@ -411,7 +407,7 @@ mod tests {
             0.511
         );
 
-        let provider = crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+        let provider = crate::data::builds::BuildCatalogProvider::expect_builtin(
             super::super::SORTFORMER_CATALOG_CONTRACT,
             super::super::SORTFORMER_KIT,
         );
@@ -437,7 +433,7 @@ mod tests {
                     BunsenDiskCacheOptions,
                     testing::serve_ranges,
                 },
-                pretrained::{
+                resources::{
                     CacheStatus,
                     PretrainedCacheOptions,
                     Resource,

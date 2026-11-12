@@ -957,7 +957,7 @@ impl Rekey {
     }
 
     /// [`apply`](Self::apply) as a closure, for
-    /// [`apply_named_tensors`](crate::data::pretrained::apply_named_tensors).
+    /// [`apply_named_tensors`](crate::data::formats::apply_named_tensors).
     pub fn as_fn(&self) -> impl Fn(&str) -> Option<String> + '_ {
         move |name| self.apply(name)
     }

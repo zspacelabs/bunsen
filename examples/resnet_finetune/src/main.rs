@@ -17,7 +17,7 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    data::pretrained::{
+    data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     },
@@ -318,7 +318,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
         .load(
             &cache,
             &device,
-            bunsen::kits::support::construct::LoadPolicy::performance(),
+            bunsen::data::formats::LoadPolicy::performance(),
         )
         .context("loading pretrained weights")?;
 

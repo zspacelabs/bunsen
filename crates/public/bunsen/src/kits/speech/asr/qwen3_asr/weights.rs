@@ -19,7 +19,7 @@ use crate::{
         CanonicalKeys,
         Rekey,
     },
-    data::pretrained::{
+    data::formats::{
         NamedTensorsApplied,
         load_rekeyed,
     },

@@ -11,7 +11,7 @@ use crate::{
         DecoderLayerKeys,
     },
     burner::module::Rekey,
-    data::pretrained::NamedTensorsApplied,
+    data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::support::{
         construct::load_lm_rekeyed,
@@ -47,7 +47,7 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers` ties over it under `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_rekeyed`](crate::data::pretrained::load_rekeyed) resolves to `gamma`.
+/// [`load_rekeyed`](crate::data::formats::load_rekeyed) resolves to `gamma`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -81,7 +81,7 @@ pub fn load_transformers_tensors(
 /// model was built in: a freshly built model's parameters are lazy, so they
 /// are never materialized in the build dtype first.
 ///
-/// [`LoadPolicy::resolve`]: crate::kits::support::construct::LoadPolicy::resolve
+/// [`LoadPolicy::resolve`]: crate::data::formats::LoadPolicy::resolve
 ///
 /// # Errors
 /// As [`load_lm_rekeyed`].

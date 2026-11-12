@@ -55,7 +55,7 @@
 //!
 //! Both kits load the same way, through the data layer's
 //! [`pretrained`](crate::data::pretrained) machinery: a
-//! [`PretrainedCache`](crate::data::pretrained::PretrainedCache) and a
+//! [`PretrainedCache`](crate::data::resources::PretrainedCache) and a
 //! kit factory,
 //! [`default_whisper_factory`](asr::whisper::pretrained::default_whisper_factory)
 //! (named, bundled and Hugging Face checkpoints) or

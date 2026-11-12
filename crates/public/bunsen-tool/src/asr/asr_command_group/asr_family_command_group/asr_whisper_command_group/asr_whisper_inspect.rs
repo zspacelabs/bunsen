@@ -1,7 +1,7 @@
 //! `asr family whisper inspect`.
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,

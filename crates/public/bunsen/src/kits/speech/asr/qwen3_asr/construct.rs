@@ -27,7 +27,7 @@ use crate::{
         LmPlainStackOps,
     },
     burner::module::ModuleInit,
-    data::pretrained::PresetSelection,
+    data::catalog::presets::PresetSelection,
     errors::BunsenResult,
     kits::support::tokens::ByteLevelVocabulary,
 };

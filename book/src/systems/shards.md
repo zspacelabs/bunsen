@@ -3,8 +3,8 @@
 A language model trains on a corpus too large to fetch at once, published as
 many numbered files. This chapter covers how bunsen names, pins and fetches
 those files, and where they go next. The reference is
-[`bunsen::data::shards`], whose
-[lifecycle](bunsen::data::shards#lifecycle) links every step.
+[`bunsen::data::datasets`], whose
+[lifecycle](bunsen::data::datasets#lifecycle) links every step.
 
 ## The pathway
 
@@ -21,14 +21,14 @@ shard paths
 a data loader                bunsen-arrow-dataloaders, in train-chat
 ```
 
-A [`ShardSetDescriptor`](bunsen::data::shards::ShardSetDescriptor) says
+A [`ShardSetDescriptor`](bunsen::data::datasets::ShardSetDescriptor) says
 what a set is: its name, the base URLs its files come from, how they are
 named and numbered, and whether they are pinned. It is plain data, and it
 follows the same split as [pretrained models](./pretrained.md): a static
 twin for tables compiled into a kit, such as
 [NanoChat's corpus](bunsen::kits::language::nanochat::datasets), and an owned
 twin for a set built at run time. A
-[`ShardSet`](bunsen::data::shards::ShardSet) binds a descriptor to a
+[`ShardSet`](bunsen::data::datasets::ShardSet) binds a descriptor to a
 directory, the disk cache's or one the caller gives, and brings shards in.
 Binding needs the `cache` feature; downloading needs `fetch`. Without
 `fetch`, a set works from shards that are already on disk.
@@ -57,8 +57,8 @@ fixed-shape blocks of token ids, with an optional shuffle
 ([pipeline overview](bunsen_arrow_dataloaders::dataloaders::chat#pipeline-overview)).
 
 A selection of shards can also become a
-[`ResourceBundle`](bunsen::data::pretrained::ResourceBundle), through
-[`to_resource_bundle`](bunsen::data::shards::ShardSetDescriptor::to_resource_bundle),
+[`ResourceBundle`](bunsen::data::resources::ResourceBundle), through
+[`to_resource_bundle`](bunsen::data::datasets::ShardSetDescriptor::to_resource_bundle),
 for a pretrained row that includes a shard set.
 
 ## End to end: train-chat

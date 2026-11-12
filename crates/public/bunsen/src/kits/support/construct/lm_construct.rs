@@ -11,7 +11,7 @@ use serde::{
 };
 
 use crate::{
-    data::pretrained::PresetSelection,
+    data::catalog::presets::PresetSelection,
     kits::support::model_config::GenerationPolicy,
 };
 

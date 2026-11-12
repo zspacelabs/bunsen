@@ -20,7 +20,7 @@ use crate::{
         Select,
         TensorLoadTransform,
     },
-    data::pretrained::NamedTensorsApplied,
+    data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,

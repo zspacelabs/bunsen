@@ -13,15 +13,20 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        CONFIG,
-        GEOMETRY,
-        LoadedResources,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+    data::{
+        builds::{
+            CONFIG,
+            ConstructInit,
+            GEOMETRY,
+            PretrainedRef,
+        },
+        catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+            SAFETENSORS_INDEX,
+        },
     },
     errors::{
         BunsenError,
@@ -41,7 +46,6 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
             model_config::resolve_ref_presets,
             tokens::TekkenVocabulary,
         },
@@ -102,7 +106,7 @@ impl ConstructInit for VoxtralConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
         let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;
@@ -132,7 +136,7 @@ impl ConstructInit for VoxtralConstructConfig {
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         // The stored dtype (bf16), where the policy and the device allow it.
-        let stored = crate::data::pretrained::stored_float_dtype(&tensors)
+        let stored = crate::data::formats::stored_float_dtype(&tensors)
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |_| true)?;
         load_transformers_tensors_as(&mut voxtral, tensors, dtype)?;
@@ -155,10 +159,8 @@ mod tests {
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
         VoxtralConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle(
-                "mistralai/voxtral-mini-4b-realtime-2602",
-            )
-            .unwrap(),
+            &crate::data::builds::builtin_build_bundle("mistralai/voxtral-mini-4b-realtime-2602")
+                .unwrap(),
         )
         .unwrap();
     }

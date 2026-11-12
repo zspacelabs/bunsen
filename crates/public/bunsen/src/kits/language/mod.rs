@@ -5,7 +5,7 @@
 //! [`crate::blocks::transformers`], the KV cache in
 //! [`crate::ops::transformers::attention`]. A kit here assembles them into
 //! a model, with its configs and, where it trains on a public corpus, a
-//! table of that corpus as a [`data::shards`](crate::data::shards) shard
+//! table of that corpus as a [`data::datasets`](crate::data::datasets) shard
 //! set.
 //!
 //! - [`gemma`]: Google's Gemma, generations 1 to 3 (their text models).

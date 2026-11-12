@@ -8,11 +8,11 @@
 //!   of it, read field by field, each error naming the field's dotted path. The
 //!   kits' `hf:` readers map it onto their configs.
 //! - [`resolve_presets`]: a config resolved through a pretrained's presets
-//!   ([`ResolvedPresetSet`](crate::data::pretrained::ResolvedPresetSet)) as a
-//!   [`PresetSelection`](crate::data::pretrained::PresetSelection) asks: the
-//!   family's config, the row's default presets, the selected presets, then a
-//!   final patch, each a [merge patch](crate::support::merge_patch) over the
-//!   one before.
+//!   ([`ResolvedPresetSet`](crate::data::catalog::presets::ResolvedPresetSet))
+//!   as a [`PresetSelection`](crate::data::catalog::presets::PresetSelection)
+//!   asks: the family's config, the row's default presets, the selected
+//!   presets, then a final patch, each a [merge
+//!   patch](crate::support::merge_patch) over the one before.
 //! - [`GenerationPolicy`]: how a chat model generates (stop tokens, sampling, a
 //!   token cap, the template's kwargs), the call-time half of a chat family's
 //!   config, carried for a driver to read.

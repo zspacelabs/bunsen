@@ -14,7 +14,7 @@
 //!
 //! 1. A [`VoxtralConstruct`](super::VoxtralConstruct): from a name, through
 //!    [`default_voxtral_factory`](super::pretrained::default_voxtral_factory)
-//!    and a [`PretrainedCache`](crate::data::pretrained::PretrainedCache)
+//!    and a [`PretrainedCache`](crate::data::resources::PretrainedCache)
 //!    (features `store` and `cache`), or over a model in hand;
 //!    [`with_delay_ms`](super::VoxtralConstruct::with_delay_ms) sets how far
 //!    the text runs behind the audio.

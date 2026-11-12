@@ -1,7 +1,7 @@
 //! # Whisper resource bundles
 
 use crate::{
-    data::pretrained::ResourceBundle,
+    data::resources::ResourceBundle,
     kits::speech::asr::whisper::driver::WhisperSpecialIds,
 };
 
@@ -69,7 +69,7 @@ impl WhisperVocabulary {
     /// # Panics
     /// When the built-in catalog lacks it, a bug in the catalog.
     pub fn resource_bundle(self) -> ResourceBundle {
-        crate::data::pretrained::builtin_resource_bundle(self.resource_name(), VOCABULARY)
+        crate::data::builds::builtin_resource_bundle(self.resource_name(), VOCABULARY)
             .unwrap_or_else(|e| panic!("the Whisper vocabulary {}: {e}", self.resource_name()))
     }
 }
@@ -78,7 +78,7 @@ impl WhisperVocabulary {
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::{
+        data::resources::{
             Source,
             resolve_dir_template,
         },
@@ -105,7 +105,7 @@ mod tests {
     /// `~/.cache/whisper`.
     #[test]
     fn test_checkpoints_validate_and_pin_their_urls() {
-        let provider = crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+        let provider = crate::data::builds::BuildCatalogProvider::expect_builtin(
             WHISPER_CATALOG_CONTRACT,
             WHISPER_KIT,
         );

@@ -6,7 +6,7 @@ use serde::{
 };
 
 use crate::{
-    data::pretrained::PresetSelection,
+    data::catalog::presets::PresetSelection,
     errors::BunsenResult,
     kits::speech::{
         asr::driver::VoiceActivityFilterConfig,

@@ -3,19 +3,17 @@ use alloc::sync::Arc;
 
 use super::Qwen3_5ConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        language::qwen3_5::{
-            CHAT_TEMPLATE,
-            GENERATION_CONFIG,
-            TOKENIZER,
-            TOKENIZER_CONFIG,
-        },
-        support::construct::PretrainedFactory,
+    kits::language::qwen3_5::{
+        CHAT_TEMPLATE,
+        GENERATION_CONFIG,
+        TOKENIZER,
+        TOKENIZER_CONFIG,
     },
 };
 
@@ -58,12 +56,10 @@ pub const DEFAULT_QWEN3_5_MODEL: &str = "qwen/qwen3.5/qwen3.5-0.8b";
 /// [`GENERATION_CONFIG`] and [`CHAT_TEMPLATE`] files when it has them.
 pub fn default_qwen3_5_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                QWEN3_5_CATALOG_CONTRACT,
-                QWEN3_5_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            QWEN3_5_CATALOG_CONTRACT,
+            QWEN3_5_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -96,7 +92,7 @@ pub fn default_qwen3_5_factory() -> BunsenResult<PretrainedFactory<Qwen3_5Constr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::CONFIG;
+    use crate::data::builds::CONFIG;
 
     /// The rows, by name, every file pinned to one URL on Qwen's repo, each
     /// row with its config and tokenizer files and its checkpoint's index.
@@ -160,10 +156,12 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::{
-                CONFIG,
-                SAFETENSORS,
-                SAFETENSORS_INDEX,
+            data::{
+                builds::CONFIG,
+                resources::{
+                    SAFETENSORS,
+                    SAFETENSORS_INDEX,
+                },
             },
             kits::support::{
                 catalog_contracts::testing::contract_lines,

@@ -5,9 +5,9 @@
 //! of the prefabs'.
 
 use bunsen::{
-    data::pretrained::{
-        CONFIG,
-        ResourceBundle,
+    data::{
+        builds::CONFIG,
+        resources::ResourceBundle,
     },
     kits::language::qwen3_5::{
         pretrained::{

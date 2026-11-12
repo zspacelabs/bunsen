@@ -9,17 +9,22 @@ use core::error::Error;
 use burn::tensor::Device;
 
 use crate::{
-    data::pretrained::{
-        Fuse,
-        GEOMETRY,
-        GIVEN_NAMESPACE,
-        LoadedResources,
-        PretrainedCache,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
-        SAFETENSORS,
-        SafetensorsCheckpoint,
+    data::{
+        builds::{
+            ConstructInit,
+            GEOMETRY,
+            PretrainedRef,
+        },
+        catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
+        resources::{
+            Fuse,
+            GIVEN_NAMESPACE,
+            LoadedResources,
+            PretrainedCache,
+            ResourceBundle,
+            SAFETENSORS,
+        },
     },
     errors::{
         BunsenError,
@@ -47,7 +52,6 @@ use crate::{
             },
         },
         support::{
-            construct::ConstructInit,
             model_config::resolve_ref_presets,
             tokens::TiktokenRanks,
         },
@@ -440,7 +444,7 @@ impl ConstructInit for WhisperConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
         let (whisper, cfg) = self.reader.load(loaded, device)?;
         // The readers load at the files' precision (OpenAI's checkpoints ship
@@ -455,7 +459,7 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            crate::data::pretrained::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
+            crate::data::builds::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
         } else {
             ResolvedPresetSet::default()
         };
@@ -547,8 +551,8 @@ mod preset_tests {
 mod reader_tests {
     use super::*;
     use crate::{
+        data::builds::Deferred,
         errors::testing::ErrorMatcher,
-        kits::support::construct::Deferred,
     };
 
     /// The checkpoint's `kind` chooses the reader when the hook is chosen,
@@ -576,9 +580,9 @@ mod reader_tests {
         // A sharded family under the key: its first resource speaks.
         let mut sharded = ResourceBundle::new("sharded");
         for key in ["checkpoint.00001", "checkpoint.00002", "checkpoint.index"] {
-            let mut r = crate::data::pretrained::Resource::given(key, format!("/no/such/{key}"));
+            let mut r = crate::data::resources::Resource::given(key, format!("/no/such/{key}"));
             r.kind = Some(if key.ends_with("index") {
-                crate::data::pretrained::SAFETENSORS_INDEX.to_string()
+                crate::data::resources::SAFETENSORS_INDEX.to_string()
             } else {
                 SAFETENSORS.to_string()
             });

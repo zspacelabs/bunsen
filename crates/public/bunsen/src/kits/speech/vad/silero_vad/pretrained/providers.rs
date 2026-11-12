@@ -3,12 +3,12 @@
 use alloc::sync::Arc;
 
 use crate::{
-    data::pretrained::PretrainedProvider,
-    errors::BunsenResult,
-    kits::{
-        speech::vad::silero_vad::pretrained::SileroConstructConfig,
-        support::construct::PretrainedFactory,
+    data::builds::{
+        PretrainedFactory,
+        PretrainedProvider,
     },
+    errors::BunsenResult,
+    kits::speech::vad::silero_vad::pretrained::SileroConstructConfig,
 };
 
 /// The Silero kit's name: its rows' `kit` tag.
@@ -44,7 +44,7 @@ pub const SILERO_CATALOG_CONTRACT: &str = "silero-vad";
 /// revision of `snakers4/silero-vad`.
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(
-        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+        crate::data::builds::BuildCatalogProvider::expect_builtin(
             SILERO_CATALOG_CONTRACT,
             SILERO_KIT,
         ),
@@ -92,7 +92,7 @@ mod tests {
     /// short names.
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
-        let map = crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap();
+        let map = crate::data::builds::builtin_build_bundle("vad-16k").unwrap();
         map.validate().unwrap();
         let r = map.get(CHECKPOINT).unwrap();
         assert!(r.is_pinned());

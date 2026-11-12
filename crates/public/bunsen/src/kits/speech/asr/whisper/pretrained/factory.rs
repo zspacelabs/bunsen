@@ -5,23 +5,23 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        PretrainedCache,
-    },
-    errors::BunsenResult,
-    kits::{
-        speech::asr::whisper::{
-            WhisperApiConfig,
-            driver::WhisperConstruct,
-            pretrained::{
-                WhisperConstructConfig,
-                default_whisper_providers,
-            },
-        },
-        support::construct::{
+    data::{
+        builds::{
             Deferred,
             PretrainedFactory,
+        },
+        resources::{
+            LoadedResources,
+            PretrainedCache,
+        },
+    },
+    errors::BunsenResult,
+    kits::speech::asr::whisper::{
+        WhisperApiConfig,
+        driver::WhisperConstruct,
+        pretrained::{
+            WhisperConstructConfig,
+            default_whisper_providers,
         },
     },
 };
@@ -69,7 +69,7 @@ impl Deferred<WhisperConstructConfig> {
         &self,
         cache: &PretrainedCache,
         device: &Device,
-        policy: crate::kits::support::construct::LoadPolicy,
+        policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
         Ok(self.load(cache, device, policy)?.handle)
     }
@@ -80,25 +80,25 @@ mod tests {
     use super::*;
     use crate::{
         data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::{
-                PretrainedCacheOptions,
+            builds::{
                 PretrainedRef,
-                ResourceBundle,
                 WELL_KNOWN,
+                testing::ListsNothing,
+            },
+            cache::BunsenDiskCacheOptions,
+            resources::{
+                PretrainedCacheOptions,
+                ResourceBundle,
             },
         },
         errors::{
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::{
-            speech::asr::whisper::pretrained::{
-                CHECKPOINT,
-                WHISPER_KIT,
-                WhisperReader,
-            },
-            support::construct::testing::ListsNothing,
+        kits::speech::asr::whisper::pretrained::{
+            CHECKPOINT,
+            WHISPER_KIT,
+            WhisperReader,
         },
     };
 
@@ -207,7 +207,7 @@ mod tests {
     }
 
     /// The factory's rows name no prefab: each states its geometry instead
-    /// ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)).
+    /// ([`GEOMETRY`](crate::data::builds::GEOMETRY)).
     #[test]
     fn test_the_rows_name_no_prefab() {
         assert!(
@@ -277,7 +277,7 @@ mod hub_tests {
     };
 
     use crate::{
-        data::pretrained::{
+        data::resources::{
             PretrainedCache,
             PretrainedCacheOptions,
             Provenance,
@@ -317,7 +317,7 @@ mod hub_tests {
             .load(
                 &cache,
                 &device,
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         assert!(matches!(
@@ -344,7 +344,7 @@ mod hub_tests {
                 "openai/tiny",
                 &cache,
                 &device,
-                crate::kits::support::construct::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         let close = |a: Tensor<2>, b: Tensor<2>| {

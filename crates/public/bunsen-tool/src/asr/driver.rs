@@ -13,7 +13,7 @@ use bunsen::kits::speech::{
     asr::whisper::driver::WhisperStreamContext,
 };
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::BunsenResult,
     kits::speech::{
         asr::{

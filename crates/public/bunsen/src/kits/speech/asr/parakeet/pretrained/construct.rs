@@ -13,14 +13,19 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    data::pretrained::{
-        CONFIG,
-        LoadedResources,
-        PretrainedRef,
-        ResolvedPresetSet,
-        ResourceBundle,
-        SAFETENSORS_INDEX,
-        SafetensorsCheckpoint,
+    data::{
+        builds::{
+            CONFIG,
+            ConstructInit,
+            PretrainedRef,
+        },
+        catalog::presets::ResolvedPresetSet,
+        formats::SafetensorsCheckpoint,
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+            SAFETENSORS_INDEX,
+        },
     },
     errors::{
         BunsenError,
@@ -39,10 +44,7 @@ use crate::{
                 parakeet_config_from_transformers,
             },
         },
-        support::{
-            construct::ConstructInit,
-            model_config::resolve_ref_presets,
-        },
+        support::model_config::resolve_ref_presets,
     },
 };
 
@@ -143,7 +145,7 @@ impl ConstructInit for ParakeetConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
@@ -179,13 +181,13 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         let nvidia = ParakeetConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("nvidia/parakeet-tdt-0.6b-v3").unwrap(),
+            &crate::data::builds::builtin_build_bundle("nvidia/parakeet-tdt-0.6b-v3").unwrap(),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
         let phonon = ParakeetConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("fermion/phonon-2").unwrap(),
+            &crate::data::builds::builtin_build_bundle("fermion/phonon-2").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());

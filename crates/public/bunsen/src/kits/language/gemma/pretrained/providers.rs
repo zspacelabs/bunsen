@@ -3,19 +3,17 @@ use alloc::sync::Arc;
 
 use super::GemmaConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::{
-        language::gemma::{
-            CHAT_TEMPLATE,
-            GENERATION_CONFIG,
-            TOKENIZER,
-            TOKENIZER_CONFIG,
-        },
-        support::construct::PretrainedFactory,
+    kits::language::gemma::{
+        CHAT_TEMPLATE,
+        GENERATION_CONFIG,
+        TOKENIZER,
+        TOKENIZER_CONFIG,
     },
 };
 
@@ -63,12 +61,10 @@ pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma/gemma-3-1b-it";
 /// [`GENERATION_CONFIG`] and [`CHAT_TEMPLATE`] files when it has them.
 pub fn default_gemma_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                GEMMA_CATALOG_CONTRACT,
-                GEMMA_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            GEMMA_CATALOG_CONTRACT,
+            GEMMA_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -101,7 +97,7 @@ pub fn default_gemma_factory() -> BunsenResult<PretrainedFactory<GemmaConstructC
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::CONFIG;
+    use crate::data::builds::CONFIG;
 
     /// The rows, by name, every file pinned to one URL on its mirror, each
     /// row with its config, tokenizer and generation files.
@@ -169,10 +165,12 @@ mod tests {
     #[test]
     fn test_the_contract_is_the_loaders() {
         use crate::{
-            data::pretrained::{
-                CONFIG,
-                SAFETENSORS,
-                SAFETENSORS_INDEX,
+            data::{
+                builds::CONFIG,
+                resources::{
+                    SAFETENSORS,
+                    SAFETENSORS_INDEX,
+                },
             },
             kits::support::{
                 catalog_contracts::testing::contract_lines,

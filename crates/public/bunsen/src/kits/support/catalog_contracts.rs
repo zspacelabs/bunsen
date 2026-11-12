@@ -4,7 +4,7 @@
 //! implements, a signature of the resources and arguments it reads, in a
 //! `contract.yml` beside the loader (`{KIT}_CONTRACT`). A fragment is a map
 //! of `$contracts` entries: the kit's contract, its variants and its types
-//! ([`catalog_format`](crate::data::pretrained::build_catalog::catalog_format)).
+//! ([`catalog_format`](crate::data::catalog::catalog_format)).
 //! The catalog builder gathers every kit's fragment into the base catalog's
 //! `$contracts` section, so the built catalog's contracts are the ones the
 //! loaders are written against, and each kit's tests hold its fragment to the
@@ -15,7 +15,7 @@ use alloc::{
     vec::Vec,
 };
 
-use crate::data::pretrained::build_catalog::{
+use crate::data::catalog::{
     document::OrderedNode,
     error::{
         CatalogErrorExt,
@@ -164,7 +164,7 @@ pub(crate) mod testing {
     };
 
     use super::*;
-    use crate::data::pretrained::build_catalog::{
+    use crate::data::catalog::{
         PretrainedCatalog,
         PretrainedCatalogStack,
         document::CatalogEntry,

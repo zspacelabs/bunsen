@@ -24,7 +24,7 @@
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
-//!     data::pretrained::{
+//!     data::resources::{
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
@@ -44,7 +44,7 @@
 //!     "torchvision/resnet18",
 //!     &cache,
 //!     &device,
-//!     bunsen::kits::support::construct::LoadPolicy::performance(),
+//!     bunsen::data::formats::LoadPolicy::performance(),
 //! )?;
 //!
 //! let model: ResNet = Arc::unwrap_or_clone(loaded.handle)

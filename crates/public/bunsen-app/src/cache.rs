@@ -17,7 +17,7 @@ use std::{
 use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
-        pretrained::{
+        resources::{
             CacheSelector,
             CachedFile,
             PretrainedCache,

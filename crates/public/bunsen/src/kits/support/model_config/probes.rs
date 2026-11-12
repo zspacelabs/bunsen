@@ -277,10 +277,10 @@ pub fn accumulate_probed(
 /// - As a probe's [`probe`](Probe::probe), under a frame naming the entry.
 #[cfg(feature = "cache")]
 pub fn probe_loaded(
-    loaded: &crate::data::pretrained::LoadedResources,
+    loaded: &crate::data::resources::LoadedResources,
     entries: &[CatalogProbe],
-    family: &crate::data::pretrained::ResolvedPresetSet,
-) -> BunsenResult<crate::data::pretrained::ResolvedPresetSet> {
+    family: &crate::data::catalog::presets::ResolvedPresetSet,
+) -> BunsenResult<crate::data::catalog::presets::ResolvedPresetSet> {
     use alloc::collections::BTreeMap;
 
     use crate::{
@@ -475,15 +475,19 @@ mod tests {
     fn test_probe_loaded() {
         use std::path::PathBuf;
 
-        use crate::data::pretrained::{
-            LoadedResources,
-            Provenance,
-            ResolvedPresetSet,
-            ResolvedResource,
-            ResourceBundle,
-            build_catalog::document::{
-                MergeMode,
-                PresetEntry,
+        use crate::data::{
+            catalog::{
+                document::{
+                    MergeMode,
+                    PresetEntry,
+                },
+                presets::ResolvedPresetSet,
+            },
+            resources::{
+                LoadedResources,
+                Provenance,
+                ResolvedResource,
+                ResourceBundle,
             },
         };
 

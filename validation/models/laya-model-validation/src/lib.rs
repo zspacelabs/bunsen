@@ -37,12 +37,10 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    kits::{
-        decision::laya::{
-            LayaConstruct,
-            LayaQuestion,
-        },
-        support::construct::LoadPolicy,
+    data::formats::LoadPolicy,
+    kits::decision::laya::{
+        LayaConstruct,
+        LayaQuestion,
     },
     support::testing::TensorRecord,
 };
@@ -101,8 +99,8 @@ pub fn upstream_reference() -> BTreeMap<String, RowRecord> {
 }
 
 /// The weights cache, offline under `BUNSEN_VALIDATE_OFFLINE`.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };

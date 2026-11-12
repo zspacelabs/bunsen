@@ -31,7 +31,7 @@
 //!   checkpoints, `fermion/phonon-2` the default, and the factory that loads
 //!   one into a construct. `read_phonon2_archive` (feature `store`) reads
 //!   Phonon-2's archive through the shared
-//!   [`fermion`](crate::data::pretrained::fermion) readers.
+//!   [`fermion`](crate::data::formats::fermion) readers.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `ParakeetForTDT` state dict, the names every Parakeet checkpoint format
 //!   here is read under.

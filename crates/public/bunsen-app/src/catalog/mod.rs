@@ -1,6 +1,6 @@
 //! The build catalogs' commands: dump, browse, show, resolve and select over
 //! a base catalog and the extensions the command line adds
-//! ([`bunsen::data::pretrained::build_catalog`]).
+//! ([`bunsen::data::catalog`]).
 //!
 //! ```text
 //! catalog tree
@@ -29,7 +29,7 @@
 use std::path::PathBuf;
 
 use bunsen::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         CatalogErrorExt,
         CatalogName,
         PretrainedCatalogStack,
@@ -118,7 +118,7 @@ mod tests;
 /// the extensions the command line adds.
 ///
 /// The base is the binary's: bunsen-tool's is the built-in catalog
-/// ([`builtin_stack`](bunsen::data::pretrained::build_catalog::builtin_stack)).
+/// ([`builtin_stack`](bunsen::data::catalog::builtin_stack)).
 /// An extension is imported over it, so it may add builds, template classes,
 /// groups and resources, and update what the base declares, but never
 /// declare contracts.

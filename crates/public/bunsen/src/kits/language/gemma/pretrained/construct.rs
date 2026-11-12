@@ -13,11 +13,11 @@ use super::{
     GEMMA_TEMPLATE_CLASS,
 };
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        NamedTensorsApplied,
-        ResolvedPresetSet,
-        StaticPreFabMap,
+    data::{
+        catalog::presets::ResolvedPresetSet,
+        formats::NamedTensorsApplied,
+        pretrained::StaticPreFabMap,
+        resources::LoadedResources,
     },
     errors::BunsenResult,
     kits::{
@@ -51,7 +51,7 @@ use crate::{
 /// its key.
 ///
 /// The Gemma kit's construct config: its
-/// [`ConstructInit`](crate::kits::support::construct::ConstructInit) hook, by
+/// [`ConstructInit`](crate::data::builds::ConstructInit) hook, by
 /// [`TransformersLmKit`].
 /// [`default_gemma_factory`](super::default_gemma_factory) attaches it; a
 /// caller never builds one.
@@ -99,7 +99,7 @@ impl TransformersLmKit for GemmaConstructConfig {
                 CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
                 CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
             ],
-            &crate::data::pretrained::builtin_template_presets(GEMMA_TEMPLATE_CLASS)?,
+            &crate::data::builds::builtin_template_presets(GEMMA_TEMPLATE_CLASS)?,
         )
     }
 }
@@ -107,26 +107,26 @@ impl TransformersLmKit for GemmaConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::{
-        language::gemma::{
+    use crate::{
+        data::builds::ConstructInit,
+        kits::language::gemma::{
             GemmaPolicy,
             pretrained::default_gemma_factory,
         },
-        support::construct::ConstructInit,
     };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         GemmaConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("gemma/gemma-3-270m").unwrap(),
+            &crate::data::builds::builtin_build_bundle("gemma/gemma-3-270m").unwrap(),
         )
         .unwrap();
         GemmaConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("gemma/gemma-2-9b-it").unwrap(),
+            &crate::data::builds::builtin_build_bundle("gemma/gemma-2-9b-it").unwrap(),
         )
         .unwrap();
 
-        let mut gguf = crate::data::pretrained::builtin_build_bundle("gemma/gemma-3-270m").unwrap();
+        let mut gguf = crate::data::builds::builtin_build_bundle("gemma/gemma-3-270m").unwrap();
         gguf.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
@@ -190,7 +190,7 @@ mod tests {
         };
         assert_eq!(template("gemma/gemma-3-1b-it"), file("chat_template"));
         assert_eq!(template("gemma/gemma-2-9b-it"), file("tokenizer_config"));
-        let family = crate::data::pretrained::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
+        let family = crate::data::builds::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
             .unwrap()
             .common["generation"]["chat_template"]
             .as_str()

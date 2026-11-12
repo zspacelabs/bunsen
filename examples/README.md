@@ -12,14 +12,14 @@ than an example.
   Uses `sims::lbm::d2q9` and `support::geometry::GridShape2D`.
 - [`resnet_finetune`](resnet_finetune): fine-tunes a pretrained ResNet for multi-label classification, with model
   surgery. Uses `kits::images::resnet::pretrained` (`default_resnet_factory`, `RESNET_PREFABS`),
-  `data::pretrained::PretrainedCache` and `burner::module` (`ModuleInit`, `DTypeMapper`).
+  `data::resources::PretrainedCache` and `burner::module` (`ModuleInit`, `DTypeMapper`).
 - [`resnet_tiny`](resnet_tiny): trains a ResNet on CINIC-10 through a firehose image pipeline, optionally from a
-  pretrained checkpoint. Uses `kits::images::resnet`, `data::pretrained::PretrainedCache`, `burner::module`
+  pretrained checkpoint. Uses `kits::images::resnet`, `data::resources::PretrainedCache`, `burner::module`
   (`ToStructureConfig`, `ModuleInit`, `DTypeMapper`), `bunsen-firehose` and `bunsen-firehose-image`.
 - [`swin_tiny`](swin_tiny): trains a Swin Transformer V2 on CINIC-10 with DropBlock, sharing `resnet_tiny`'s
   pipeline. Uses `kits::images::swin::v2`, `blocks::images::drop::drop_block`, `bunsen-firehose` and
   `bunsen-firehose-image`.
 - [`train-chat`](train-chat): trains a NanoChat GPT on fineweb-edu shards, with Muon and AdamW parameter groups
-  selected by module-tree reflection. Uses `kits::language::nanochat` and its `datasets`, `data::shards`,
+  selected by module-tree reflection. Uses `kits::language::nanochat` and its `datasets`, `data::datasets`,
   `data::cache::BunsenDiskCache`, `burner::module::reflection::XmlModuleTree`, `burner::optim` and
   `bunsen-arrow-dataloaders`.

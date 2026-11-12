@@ -9,7 +9,7 @@ use bunsen::{
             FetchPolicy,
             OnFailure,
         },
-        shards::{
+        datasets::{
             ShardId,
             ShardSet,
             ShardSetDescriptor,

@@ -1,13 +1,11 @@
 //! # The `ResNet` pretrained factory
 
 use crate::{
+    data::builds::PretrainedFactory,
     errors::BunsenResult,
-    kits::{
-        images::resnet::pretrained::{
-            ResNetConstructConfig,
-            default_resnet_providers,
-        },
-        support::construct::PretrainedFactory,
+    kits::images::resnet::pretrained::{
+        ResNetConstructConfig,
+        default_resnet_providers,
     },
 };
 
@@ -47,7 +45,7 @@ mod tests {
         let for_34: Vec<String> = factory
             .list()
             .iter()
-            .filter(|(_, row)| row.args.get(crate::data::pretrained::GEOMETRY) == Some(&resnet34))
+            .filter(|(_, row)| row.args.get(crate::data::builds::GEOMETRY) == Some(&resnet34))
             .map(|(p, row)| format!("{p}:{}", row.name))
             .collect();
         assert_eq!(

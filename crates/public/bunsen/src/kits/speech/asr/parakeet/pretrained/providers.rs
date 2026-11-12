@@ -3,12 +3,12 @@ use alloc::sync::Arc;
 
 use super::ParakeetConstructConfig;
 use crate::{
-    data::pretrained::{
+    data::builds::{
         HfProvider,
+        PretrainedFactory,
         PretrainedProvider,
     },
     errors::BunsenResult,
-    kits::support::construct::PretrainedFactory,
 };
 
 /// The Parakeet kit's name: its rows' `kit` tag.
@@ -49,12 +49,10 @@ pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(
-            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
-                PARAKEET_CATALOG_CONTRACT,
-                PARAKEET_KIT,
-            ),
-        ),
+        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+            PARAKEET_CATALOG_CONTRACT,
+            PARAKEET_KIT,
+        )),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)

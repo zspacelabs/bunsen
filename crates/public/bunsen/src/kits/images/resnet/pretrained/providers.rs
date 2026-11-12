@@ -5,7 +5,7 @@ use alloc::{
     vec,
 };
 
-use crate::data::pretrained::PretrainedProvider;
+use crate::data::builds::PretrainedProvider;
 
 /// The `ResNet` kit's name: its rows' `kit` tag.
 pub const RESNET_KIT: &str = "resnet";
@@ -29,7 +29,7 @@ pub const RESNET_CATALOG_CONTRACT: &str = "resnet-classifier";
 /// `ResNet`'s compiled-in providers, in search order: the well-known table.
 pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(
-        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+        crate::data::builds::BuildCatalogProvider::expect_builtin(
             RESNET_CATALOG_CONTRACT,
             RESNET_KIT,
         ),
@@ -47,7 +47,7 @@ mod tests {
     /// name.
     #[test]
     fn test_every_row_states_a_prefab_and_one_checkpoint() {
-        use crate::data::pretrained::GEOMETRY;
+        use crate::data::builds::GEOMETRY;
         let factory = super::super::default_resnet_factory().unwrap();
         let rows = factory.list();
         for (_, row) in &rows {

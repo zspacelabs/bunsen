@@ -1,0 +1,1494 @@
+//! The pretrained cache: digest-pinned resources under the disk cache.
+
+use alloc::{
+    collections::BTreeMap,
+    fmt,
+};
+use std::{
+    fs,
+    io::Write,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
+
+/// The directory under the cache dir that holds a pretrained's resources:
+/// `<cache>/pretrained/<namespace>/<sha256>/<file>`.
+///
+/// `bunsen_fetch`'s, so the bundled-asset build scripts, which lay files out
+/// with `bunsen_fetch::pretrained_cache_path`, write where this cache reads.
+pub use bunsen_fetch::PRETRAINED_DIR;
+use sha2::{
+    Digest,
+    Sha256,
+};
+
+#[cfg(feature = "fetch")]
+use crate::{
+    data::cache::{
+        FetchJob,
+        FetchOutcome,
+        FetchPolicy,
+    },
+    errors::Multiple,
+};
+use crate::{
+    data::{
+        cache::{
+            BunsenDiskCache,
+            BunsenDiskCacheOptions,
+            partial_path,
+            verify_sha256,
+        },
+        resources::{
+            LoadedResources,
+            Resource,
+            ResourceBundle,
+            Source,
+        },
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        DigestMismatch,
+        DigestOrigin,
+        LookupError,
+        LookupProblem,
+        sys_at,
+    },
+};
+
+/// Options for [`PretrainedCache`], which [`PretrainedCache::new`] opens a
+/// cache with.
+///
+/// The default is online, with the disk cache's default directories and
+/// observers, no local-dir overrides, local dirs trusted unhashed, and the
+/// default fetch policy.
+#[derive(Clone, Debug, Default)]
+pub struct PretrainedCacheOptions {
+    /// The disk cache underneath: where the cache directory is, and who
+    /// watches transfers.
+    pub disk: BunsenDiskCacheOptions,
+
+    /// Never reach the network: a resource not already local is an error.
+    pub offline: bool,
+
+    /// Overrides for [`Source::LocalDir`] sources, by the source's name:
+    /// where another tool's directory is on this machine.
+    pub local_dirs: BTreeMap<String, PathBuf>,
+
+    /// Hash a pinned file found in a local-dir source before it is used in
+    /// place. Off by default: a local dir is a "trust me" source, and
+    /// hashing a 3 GB checkpoint on every run is not trust. A caller that
+    /// is not sure has `verify_sha256`.
+    pub verify_local_dirs: bool,
+
+    /// How the remote resources of a resource bundle are fetched together.
+    #[cfg(feature = "fetch")]
+    pub fetch: FetchPolicy,
+}
+
+impl PretrainedCacheOptions {
+    /// Sets the disk cache options.
+    pub fn with_disk(
+        mut self,
+        disk: BunsenDiskCacheOptions,
+    ) -> Self {
+        self.disk = disk;
+        self
+    }
+
+    /// Sets whether the network is off limits.
+    pub fn with_offline(
+        mut self,
+        offline: bool,
+    ) -> Self {
+        self.offline = offline;
+        self
+    }
+
+    /// Overrides the directory of the local-dir source called `name`.
+    pub fn with_local_dir(
+        mut self,
+        name: impl Into<String>,
+        dir: impl Into<PathBuf>,
+    ) -> Self {
+        self.local_dirs.insert(name.into(), dir.into());
+        self
+    }
+
+    /// Sets whether a pinned local-dir file is hashed before use.
+    pub fn with_verify_local_dirs(
+        mut self,
+        verify: bool,
+    ) -> Self {
+        self.verify_local_dirs = verify;
+        self
+    }
+
+    /// Sets how a resource bundle's remote resources are fetched together.
+    #[cfg(feature = "fetch")]
+    pub fn with_fetch_policy(
+        mut self,
+        fetch: FetchPolicy,
+    ) -> Self {
+        self.fetch = fetch;
+        self
+    }
+}
+
+/// Where a resolved file came from, this run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Provenance {
+    /// Already in the cache.
+    Cached,
+    /// Found in another tool's directory, or given as a path, and used in
+    /// place.
+    LocalDir,
+    /// Fetched from a URL, checked, and written to the cache.
+    Downloaded,
+    /// Linked into the binary, checked, and written to the cache.
+    Bundled,
+}
+
+impl fmt::Display for Provenance {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        f.write_str(match self {
+            Self::Cached => "cached",
+            Self::LocalDir => "local dir",
+            Self::Downloaded => "downloaded",
+            Self::Bundled => "bundled",
+        })
+    }
+}
+
+/// A local file holding a resource.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedResource {
+    /// The file.
+    pub path: PathBuf,
+
+    /// Where it came from.
+    pub provenance: Provenance,
+}
+
+/// Where a resource stands before anything is fetched, for a listing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CacheStatus {
+    /// In the cache.
+    Cached,
+    /// Not in the cache, but another tool's directory has a file of that
+    /// name, unchecked.
+    LocalDir,
+    /// Not in the cache, but linked into the binary.
+    Bundled,
+    /// Only a URL.
+    Remote,
+}
+
+impl fmt::Display for CacheStatus {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        f.write_str(match self {
+            Self::Cached => "cached",
+            Self::LocalDir => "local dir",
+            Self::Bundled => "bundled",
+            Self::Remote => "remote",
+        })
+    }
+}
+
+/// What a resource's local lookup found.
+enum Local {
+    /// A file, with where it came from.
+    Found(ResolvedResource),
+
+    /// Nothing local: the URLs to try, in order, and where the file lands.
+    Remote { dest: PathBuf, urls: Vec<String> },
+}
+
+/// A resource that loading a resource bundle has to fetch.
+#[cfg_attr(not(feature = "fetch"), allow(dead_code))]
+struct RemotePart {
+    key: String,
+    dest: PathBuf,
+    urls: Vec<String>,
+    sha256: Option<String>,
+}
+
+fn remote_keys(remote: &[RemotePart]) -> String {
+    remote
+        .iter()
+        .map(|r| r.key.as_str())
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// A resource only a URL can supply, asked of an offline cache.
+fn offline(
+    dest: &Path,
+    res: &Resource,
+) -> BunsenError {
+    BunsenError::policy(format!(
+        "not in the cache ({}), and the cache is offline",
+        dest.display()
+    ))
+    .context(&res.key)
+}
+
+/// The first `len` bytes of the first of `urls` that answers.
+#[cfg(feature = "fetch")]
+fn fetch_prefix(
+    _dest: &Path,
+    urls: &[String],
+    len: u64,
+) -> BunsenResult<Vec<u8>> {
+    let mut last = None;
+    for url in urls {
+        match crate::data::cache::fetch_prefix(url, len) {
+            Ok(prefix) => return Ok(prefix),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(last.unwrap_or_else(|| BunsenError::illegal("a remote resource with no URL")))
+}
+
+/// Without the `fetch` feature there is no network: not local is
+/// unsupported.
+#[cfg(not(feature = "fetch"))]
+fn fetch_prefix(
+    dest: &Path,
+    _urls: &[String],
+    _len: u64,
+) -> BunsenResult<Vec<u8>> {
+    Err(BunsenError::unsupported(format!(
+        "{}: not local, and fetching needs the `fetch` feature",
+        dest.display()
+    )))
+}
+
+/// Digest-pinned resources under the disk cache's cache directory: where a
+/// [`ResourceBundle`]'s files are brought local.
+///
+/// [`BunsenDiskCache`] decides *where* the cache directory is; this decides
+/// *what is trusted there*. A caller opens one from
+/// [`PretrainedCacheOptions`] (offline or not, local-dir overrides and
+/// verification, and with `fetch` the batch policy) and passes it to every
+/// load. [`Deferred::load`](crate::data::builds::Deferred::load)
+/// calls [`load`](Self::load) between the kit hook's
+/// [`plan`](crate::data::builds::ConstructInit::plan) and
+/// [`try_init`](crate::data::builds::ConstructInit::try_init), and
+/// the [`LoadedResources`] it returns are what the hook builds from. A
+/// [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
+/// hands the cache to its providers too, so that a hub
+/// ([`HfProvider`](crate::data::builds::HfProvider)) can keep what it asked
+/// for. [`status`](Self::status) and [`map_status`](Self::map_status) answer a
+/// listing without touching any bytes.
+///
+/// # Cache layout
+///
+/// ```text
+/// <cache>/pretrained/<namespace>/<sha256>/<file>
+/// ```
+///
+/// `<namespace>` is the resource's: a catalog resource's full name, each `/` a
+/// directory (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two builds
+/// share is cached once, under its own name; `hf` for an `hf:` repo's file,
+/// and `given` for a path's. `<file>` is the file's path, kept whole. An
+/// unpinned resource sits under a cache key in place of `<sha256>`: one derived
+/// from its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its
+/// file name when it has no URL. [`resource_path`](Self::resource_path)
+/// names the path, present or not.
+///
+/// # Trust model
+///
+/// The digest in the path is the pin. A file at that path was verified when
+/// it was written, so it is trusted on later runs without re-hashing 3 GB,
+/// and a re-pinned model cannot collide with a stale one. The cache's own
+/// writes go to a `.partial` beside the path and are renamed into place
+/// once checked, so a write cut short leaves nothing there to trust. The
+/// cache trusts the path whoever wrote it: a download, bundled bytes, or a
+/// build script or a deployment that laid the directory out ahead of time.
+/// That is what makes a populated cache directory a bundle.
+///
+/// A local-dir source is a "trust me" source: its file is used in place,
+/// and hashed first only when
+/// [`verify_local_dirs`](PretrainedCacheOptions::verify_local_dirs) asks.
+/// An unpinned file is trusted by its name alone.
+///
+/// # Source order
+///
+/// [`resolve`](Self::resolve), for one resource, and [`load`](Self::load),
+/// for a resource bundle, look in the same order:
+///
+/// 1. the cache path: a file there is [`Provenance::Cached`];
+/// 2. the resource's local sources, in the order listed: a [`Source::LocalDir`]
+///    that has the file is used in place, and [`Source::Bundled`] bytes are
+///    checked against the digest, written to a `.partial`, and renamed into
+///    place;
+/// 3. only then its [`Source::Url`]s, in the order listed: streamed to a
+///    `.partial`, checked against the digest when pinned and against the length
+///    the server sent, and renamed into place. [`load`](Self::load) fetches
+///    every remote resource of a resource bundle together, under the options'
+///    fetch policy.
+///
+/// # Use
+///
+/// A [`resolve`](Self::resolve) or [`load`](Self::load) that finds a file in
+/// the cache marks it used: its modification time is set to now, when the
+/// file is writable, so a listing's last use
+/// ([`CachedFile::last_used`](super::CachedFile::last_used)) is the last
+/// load's, and old files can be cleared by it. A probe marks nothing:
+/// [`status`](Self::status), [`map_status`](Self::map_status),
+/// [`resource_path`](Self::resource_path),
+/// [`read_prefix`](Self::read_prefix) and
+/// [`cached_files`](Self::cached_files) read without writing.
+///
+/// Nothing is linked or copied into the cache: only a download, or bundled
+/// bytes, write there. Every transfer reports to the disk cache's observer
+/// stack. A resource that only a URL can supply is a
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy) error on an offline
+/// cache, and [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported)
+/// without the `fetch` feature, which step 3 needs.
+pub struct PretrainedCache {
+    disk: BunsenDiskCache,
+    offline: bool,
+    local_dirs: BTreeMap<String, PathBuf>,
+    verify_local_dirs: bool,
+    #[cfg(feature = "fetch")]
+    fetch: FetchPolicy,
+}
+
+impl PretrainedCache {
+    /// Opens the cache.
+    ///
+    /// # Errors
+    /// As [`BunsenDiskCache::new`].
+    pub fn new(options: PretrainedCacheOptions) -> BunsenResult<Self> {
+        Ok(Self {
+            disk: BunsenDiskCache::new(options.disk)?,
+            offline: options.offline,
+            local_dirs: options.local_dirs,
+            verify_local_dirs: options.verify_local_dirs,
+            #[cfg(feature = "fetch")]
+            fetch: options.fetch,
+        })
+    }
+
+    /// The disk cache underneath.
+    pub fn disk(&self) -> &BunsenDiskCache {
+        &self.disk
+    }
+
+    /// The cache directory.
+    pub fn cache_dir(&self) -> &Path {
+        self.disk.cache_dir()
+    }
+
+    /// Whether the network is off limits.
+    pub fn offline(&self) -> bool {
+        self.offline
+    }
+
+    /// Whether a pinned local-dir file is hashed before use.
+    pub fn verify_local_dirs(&self) -> bool {
+        self.verify_local_dirs
+    }
+
+    /// The local-dir overrides, by source name.
+    pub fn local_dirs(&self) -> &BTreeMap<String, PathBuf> {
+        &self.local_dirs
+    }
+
+    /// The directory a local-dir source resolves to: the override for its
+    /// name, else the directory the source carries.
+    pub fn local_dir(
+        &self,
+        source: &Source,
+    ) -> Option<PathBuf> {
+        match source {
+            Source::LocalDir { name, dir } => {
+                self.local_dirs.get(name).cloned().or_else(|| dir.clone())
+            }
+            Source::Url(_) | Source::Bundled(_) => None,
+        }
+    }
+
+    /// Where a resource's file lives in the cache, present or not:
+    /// `pretrained/<namespace>/<sha256>/<file>` when it is pinned, and
+    /// `pretrained/<namespace>/<cache key>/<file>` when not. A catalog
+    /// resource's namespace is its full name
+    /// (`qwen/qwen3/qwen3-0.6b/checkpoint`), each `/` a directory; an `hf:`
+    /// repo's is `hf`, and a path's `given`.
+    pub fn resource_path(
+        &self,
+        res: &Resource,
+    ) -> PathBuf {
+        let pin = match &res.sha256 {
+            Some(sha256) => sha256.clone(),
+            None => res.cache_key(),
+        };
+        self.disk.cache_path(
+            &core::iter::once(PRETRAINED_DIR)
+                .chain(res.namespace.split('/'))
+                .chain(core::iter::once(pin.as_str()))
+                .collect::<Vec<_>>(),
+            &res.file,
+        )
+    }
+
+    /// Where a resource stands, without fetching or hashing anything.
+    pub fn status(
+        &self,
+        res: &Resource,
+    ) -> CacheStatus {
+        if self.resource_path(res).is_file() {
+            return CacheStatus::Cached;
+        }
+        for source in &res.sources {
+            match source {
+                Source::LocalDir { .. } => {
+                    if let Some(dir) = self.local_dir(source)
+                        && dir.join(&res.file).is_file()
+                    {
+                        return CacheStatus::LocalDir;
+                    }
+                }
+                Source::Bundled(_) => return CacheStatus::Bundled,
+                Source::Url(_) => {}
+            }
+        }
+        CacheStatus::Remote
+    }
+
+    /// Where every resource of `map` stands, by key.
+    pub fn map_status(
+        &self,
+        map: &ResourceBundle,
+    ) -> BTreeMap<String, CacheStatus> {
+        map.resources
+            .iter()
+            .map(|(key, res)| (key.clone(), self.status(res)))
+            .collect()
+    }
+
+    /// Brings a resource local, and says where it came from.
+    ///
+    /// The cache is consulted first; then each source in the resource's
+    /// order: a file in another tool's directory is used in place, hashed
+    /// first only when the options ask; bytes linked into the binary are
+    /// checked and written into the cache; the URLs are fetched in order,
+    /// a mirror that is down retried as the options' fetch policy says,
+    /// checked, and written into the cache. Nothing is linked or copied
+    /// in.
+    ///
+    /// # Errors
+    /// When nothing local matches:
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) if the cache is
+    /// offline; [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported)
+    /// if the `fetch` feature is off;
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] for the path a local source names, if the resource has
+    /// no URL (a given path that is not there).
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// with a [`DigestMismatch`], if a download's or bundled bytes' digest
+    /// does not match, or a local-dir file's when the options verify them.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError), for a bundled
+    /// source without a digest, as [`Resource::validate`]. A transfer
+    /// failure is sorted by the disk cache's fetch (a missing or refused URL
+    /// is a `Lookup`, an unreachable one
+    /// [`Unavailable`](crate::errors::BunsenErrorKind::Unavailable)), and a
+    /// file-system failure by [`sys_at`].
+    pub fn resolve(
+        &self,
+        res: &Resource,
+    ) -> BunsenResult<ResolvedResource> {
+        match self.resolve_local(res)? {
+            Local::Found(found) => {
+                mark_used(&found);
+                Ok(found)
+            }
+            Local::Remote { dest, urls } => {
+                if self.offline {
+                    return Err(offline(&dest, res));
+                }
+                let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
+                self.download(dest, &urls, res.sha256.as_deref())
+            }
+        }
+    }
+
+    /// The first `len` bytes of a resource, or all of it when it is
+    /// shorter, without bringing the rest local: what a hook reads a file's
+    /// header from before the file is fetched.
+    ///
+    /// A resource [`resolve`](Self::resolve) finds locally is read from its
+    /// file. Otherwise its URLs are asked in order for the prefix alone (a
+    /// range request), and the first that answers gives it. Nothing is
+    /// written to the cache, and the prefix is not checked against the
+    /// resource's digest, which pins the whole file.
+    ///
+    /// # Errors
+    /// As [`resolve`](Self::resolve) for the local lookup, an offline cache,
+    /// and a build without the `fetch` feature; the last URL's failure when
+    /// none answers; a file-system failure through [`sys_at`].
+    pub fn read_prefix(
+        &self,
+        res: &Resource,
+        len: u64,
+    ) -> BunsenResult<Vec<u8>> {
+        match self.resolve_local(res)? {
+            Local::Found(found) => {
+                use std::io::Read;
+                let path = &found.path;
+                let mut prefix = Vec::new();
+                fs::File::open(path)
+                    .map_err(sys_at("open", path))?
+                    .take(len)
+                    .read_to_end(&mut prefix)
+                    .map_err(sys_at("read", path))?;
+                Ok(prefix)
+            }
+            Local::Remote { dest, urls } => {
+                if self.offline {
+                    return Err(offline(&dest, res));
+                }
+                fetch_prefix(&dest, &urls, len).map_err(|e| e.context(&res.key))
+            }
+        }
+    }
+
+    /// Every resource of `map` local, under `kit`, all or nothing.
+    ///
+    /// Each resource is looked for locally as [`resolve`](Self::resolve)
+    /// does; the ones only a URL can supply are then fetched together,
+    /// under the options' fetch policy, into the cache. A resource that
+    /// cannot be had fails the load with its key named; the files that did
+    /// land stay.
+    ///
+    /// # Errors
+    /// As [`resolve`](Self::resolve) for a resource looked for locally.
+    /// Under a frame naming the resource bundle:
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) naming the remote
+    /// keys when the cache is offline, and
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when the
+    /// `fetch` feature is off; when some remote resources did not land, a
+    /// [`Multiple`](crate::errors::Multiple) of each one's error, labelled by
+    /// its key, whose kind comes from them.
+    pub fn load(
+        &self,
+        map: &ResourceBundle,
+    ) -> BunsenResult<LoadedResources> {
+        let mut parts = BTreeMap::new();
+        let mut remote = Vec::new();
+        for (key, res) in &map.resources {
+            match self.resolve_local(res)? {
+                Local::Found(found) => {
+                    mark_used(&found);
+                    parts.insert(key.clone(), found);
+                }
+                Local::Remote { dest, urls } => remote.push(RemotePart {
+                    key: key.clone(),
+                    dest,
+                    urls,
+                    sha256: res.sha256.clone(),
+                }),
+            }
+        }
+        if !remote.is_empty() {
+            if self.offline {
+                return Err(BunsenError::policy(format!(
+                    "not in the cache, and the cache is offline: {}",
+                    remote_keys(&remote)
+                ))
+                .context(&map.name));
+            }
+            self.fetch_remote(&map.name, remote, &mut parts)?;
+        }
+        Ok(LoadedResources {
+            map: map.clone(),
+            parts,
+        })
+    }
+
+    /// The cache, then the local sources in order; the URLs otherwise. A
+    /// probe: what it finds is not marked used.
+    fn resolve_local(
+        &self,
+        res: &Resource,
+    ) -> BunsenResult<Local> {
+        let dest = self.resource_path(res);
+        if dest.is_file() {
+            return Ok(Local::Found(ResolvedResource {
+                path: dest,
+                provenance: Provenance::Cached,
+            }));
+        }
+
+        let mut urls = Vec::new();
+        let mut tried = Vec::new();
+        for source in &res.sources {
+            match source {
+                Source::LocalDir { .. } => {
+                    let Some(dir) = self.local_dir(source) else {
+                        continue;
+                    };
+                    let path = dir.join(&res.file);
+                    if !path.is_file() {
+                        tried.push(path);
+                        continue;
+                    }
+                    if self.verify_local_dirs
+                        && let Some(sha256) = &res.sha256
+                    {
+                        verify_sha256(&path, sha256)?;
+                    }
+                    return Ok(Local::Found(ResolvedResource {
+                        path,
+                        provenance: Provenance::LocalDir,
+                    }));
+                }
+                Source::Bundled(bytes) => {
+                    return Ok(Local::Found(self.write_bundled(res, &dest, bytes.0)?));
+                }
+                Source::Url(url) => urls.push(url.clone()),
+            }
+        }
+
+        if urls.is_empty() {
+            // Nothing to fetch: the file is missing where a local source
+            // says it is, a given path say.
+            let missing = tried
+                .first()
+                .cloned()
+                .unwrap_or_else(|| PathBuf::from(&res.file));
+            let looked_in = tried
+                .iter()
+                .map(|p| format!("\n  {}", p.display()))
+                .collect::<String>();
+            return Err(
+                BunsenError::lookup(LookupError::path(missing, LookupProblem::Missing))
+                    .with_details(format!("no URL to fetch it from; looked in:{looked_in}"))
+                    .context(&res.key),
+            );
+        }
+        Ok(Local::Remote { dest, urls })
+    }
+
+    /// Bytes linked into the binary, checked against the resource's digest,
+    /// written beside `dest`, the resource's cache path, and renamed into
+    /// place: `dest` holds the whole checked file or nothing, as after a
+    /// download.
+    fn write_bundled(
+        &self,
+        res: &Resource,
+        dest: &Path,
+        bytes: &[u8],
+    ) -> BunsenResult<ResolvedResource> {
+        let Some(sha256) = res.sha256.as_deref() else {
+            return Err(BunsenError::from(Resource::bundled_without_digest()).context(&res.key));
+        };
+        let found = Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+        if found != sha256 {
+            return Err(DigestMismatch::new(&res.key, DigestOrigin::Bundled, sha256, found).into());
+        }
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent).map_err(sys_at("create", parent))?;
+        }
+        let partial = partial_path(dest);
+        let written = (|| -> std::io::Result<()> {
+            let mut file = fs::File::create(&partial)?;
+            file.write_all(bytes)?;
+            file.sync_all()?;
+            fs::rename(&partial, dest)
+        })();
+        if let Err(e) = written {
+            let _ = fs::remove_file(&partial);
+            return Err(sys_at("write", dest)(e));
+        }
+        Ok(ResolvedResource {
+            path: dest.to_path_buf(),
+            provenance: Provenance::Bundled,
+        })
+    }
+
+    /// The URLs, in order, through the disk cache's fetch, retrying a mirror
+    /// that is down as the options' fetch policy says.
+    #[cfg(feature = "fetch")]
+    fn download(
+        &self,
+        dest: PathBuf,
+        urls: &[&str],
+        sha256: Option<&str>,
+    ) -> BunsenResult<ResolvedResource> {
+        self.disk
+            .fetch_from_urls_retrying(urls, &dest, sha256, self.fetch.retries)?;
+        Ok(ResolvedResource {
+            path: dest,
+            provenance: Provenance::Downloaded,
+        })
+    }
+
+    /// Without the `fetch` feature there is no network: not local is
+    /// unsupported.
+    #[cfg(not(feature = "fetch"))]
+    fn download(
+        &self,
+        dest: PathBuf,
+        _urls: &[&str],
+        _sha256: Option<&str>,
+    ) -> BunsenResult<ResolvedResource> {
+        Err(BunsenError::unsupported(format!(
+            "{}: not local, and fetching needs the `fetch` feature",
+            dest.display()
+        )))
+    }
+
+    /// The remote parts, together, under the fetch policy.
+    #[cfg(feature = "fetch")]
+    fn fetch_remote(
+        &self,
+        name: &str,
+        remote: Vec<RemotePart>,
+        parts: &mut BTreeMap<String, ResolvedResource>,
+    ) -> BunsenResult<()> {
+        let jobs: Vec<FetchJob> = remote
+            .iter()
+            .map(|r| {
+                let mut job = FetchJob::new(r.urls.clone(), r.dest.clone());
+                job.sha256 = r.sha256.clone();
+                job
+            })
+            .collect();
+        let report = self.disk.fetch_many(&jobs, &self.fetch);
+
+        let mut failed = Vec::new();
+        let mut skipped = Vec::new();
+        for (outcome, part) in report.outcomes.into_iter().zip(remote) {
+            let provenance = match outcome {
+                FetchOutcome::Cached(_) => Provenance::Cached,
+                FetchOutcome::Fetched(_) => Provenance::Downloaded,
+                FetchOutcome::Failed { error, .. } => {
+                    failed.push((part.key, error));
+                    continue;
+                }
+                FetchOutcome::Skipped { .. } => {
+                    skipped.push(part.key);
+                    continue;
+                }
+            };
+            parts.insert(
+                part.key,
+                ResolvedResource {
+                    path: part.dest,
+                    provenance,
+                },
+            );
+        }
+        if failed.is_empty() && skipped.is_empty() {
+            return Ok(());
+        }
+        let mut summary = format!(
+            "{} of {} resources did not land",
+            failed.len() + skipped.len(),
+            jobs.len()
+        );
+        if !skipped.is_empty() {
+            summary.push_str(&format!(
+                "; skipped after a failure: {}",
+                skipped.join(", ")
+            ));
+        }
+        Err(BunsenError::from(Multiple::new(summary, failed)).context(name))
+    }
+
+    /// Without the `fetch` feature there is no network: not local is
+    /// unsupported.
+    #[cfg(not(feature = "fetch"))]
+    fn fetch_remote(
+        &self,
+        name: &str,
+        remote: Vec<RemotePart>,
+        _parts: &mut BTreeMap<String, ResolvedResource>,
+    ) -> BunsenResult<()> {
+        Err(BunsenError::unsupported(format!(
+            "not local, and fetching needs the `fetch` feature: {}",
+            remote_keys(&remote)
+        ))
+        .context(name))
+    }
+}
+
+/// Marks a file the cache already held as used: its access and modification
+/// times set to now. A file the process cannot write (a read-only cache, a
+/// file another user owns) keeps its times; the load goes on.
+fn mark_used(found: &ResolvedResource) {
+    if found.provenance != Provenance::Cached {
+        return;
+    }
+    let now = std::time::SystemTime::now();
+    if let Ok(file) = fs::OpenOptions::new().write(true).open(&found.path) {
+        let _ = file.set_times(fs::FileTimes::new().set_accessed(now).set_modified(now));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+    use crate::{
+        data::cache::testing::ABC_SHA256,
+        errors::{
+            BunsenErrorKind,
+            ConstraintError,
+            testing::{
+                ErrorMatcher,
+                predicate,
+                text,
+            },
+        },
+    };
+    #[cfg(feature = "fetch")]
+    use crate::{
+        data::cache::{
+            OnFailure,
+            testing::{
+                refused_url,
+                serve_once,
+            },
+        },
+        errors::testing::not,
+    };
+
+    fn cache_in(
+        dir: &Path,
+        offline: bool,
+    ) -> PretrainedCache {
+        PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(offline),
+        )
+        .unwrap()
+    }
+
+    use crate::data::resources::BundledBytes;
+
+    fn url(u: &str) -> Source {
+        Source::Url(u.to_string())
+    }
+
+    /// `<key>.bin`, three bytes when pinned to `abc`, from `sources`.
+    fn res(
+        key: &str,
+        sha256: Option<&str>,
+        sources: Vec<Source>,
+    ) -> Resource {
+        Resource {
+            size: None,
+            dtype: None,
+            key: key.to_string(),
+            file: format!("{key}.bin"),
+            sha256: sha256.map(str::to_string),
+            kind: None,
+            namespace: "prov".to_string(),
+            sources,
+        }
+    }
+
+    fn local_dir(dir: &Path) -> Source {
+        Source::LocalDir {
+            name: "up".to_string(),
+            dir: Some(dir.to_path_buf()),
+        }
+    }
+
+    /// A prefix of a local file is read from it; a remote one, asked of its
+    /// URLs in order, lands nothing in the cache; an offline cache refuses
+    /// a remote one.
+    #[test]
+    fn test_read_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let up = dir.path().join("up");
+        fs::create_dir_all(&up).unwrap();
+        fs::write(up.join("local.bin"), b"abcdef").unwrap();
+        let local = res("local", None, vec![local_dir(&up)]);
+        let cache = cache_in(dir.path(), true);
+        assert_eq!(cache.read_prefix(&local, 4).unwrap(), b"abcd");
+        assert_eq!(cache.read_prefix(&local, 64).unwrap(), b"abcdef");
+
+        let remote = res("remote", None, vec![url("http://h.invalid/remote.bin")]);
+        ErrorMatcher::kind(BunsenErrorKind::Policy).assert_err(&cache.read_prefix(&remote, 4));
+
+        #[cfg(feature = "fetch")]
+        {
+            use crate::data::cache::testing::serve_ranges;
+            let cache = cache_in(dir.path(), false);
+            let remote = res(
+                "remote",
+                Some(ABC_SHA256),
+                vec![
+                    url(&refused_url("remote.bin")),
+                    url(&serve_ranges("remote.bin", b"abc", 1)),
+                ],
+            );
+            assert_eq!(cache.read_prefix(&remote, 2).unwrap(), b"ab");
+            assert!(!cache.resource_path(&remote).exists());
+            assert_eq!(cache.status(&remote), CacheStatus::Remote);
+        }
+    }
+
+    /// Bundled bytes land in the cache under the resource's digest on
+    /// first use and are `Cached` after; wrong bytes are refused and
+    /// nothing is written.
+    #[test]
+    fn test_a_bundled_source_lands_under_its_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+
+        let bundled = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![Source::Bundled(BundledBytes(b"abc"))],
+        );
+        bundled.validate().unwrap();
+        assert_eq!(cache.status(&bundled), CacheStatus::Bundled);
+        let resolved = cache.resolve(&bundled).unwrap();
+        assert_eq!(resolved.provenance, Provenance::Bundled);
+        assert_eq!(resolved.path, cache.resource_path(&bundled));
+        assert_eq!(std::fs::read(&resolved.path).unwrap(), b"abc");
+        assert_eq!(cache.status(&bundled), CacheStatus::Cached);
+        assert_eq!(
+            cache.resolve(&bundled).unwrap().provenance,
+            Provenance::Cached
+        );
+
+        let wrong = res(
+            "abd",
+            Some(ABC_SHA256),
+            vec![Source::Bundled(BundledBytes(b"abd"))],
+        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("not the pinned")
+            .cause(predicate("a bundled mismatch", |c: &DigestMismatch| {
+                c.origin == DigestOrigin::Bundled && c.subject == "abd" && c.expected == ABC_SHA256
+            }))
+            .assert_err(&cache.resolve(&wrong));
+        assert!(!cache.resource_path(&wrong).exists());
+
+        // The cache checks the rule `validate` does, with the same error.
+        let unpinned = res("abe", None, vec![Source::Bundled(BundledBytes(b"abe"))]);
+        let unpinned_err = |e: &BunsenError| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .display(text::eq(
+                    "abe: Resource.sha256: a bundled source needs a digest to be cached under",
+                ))
+                .has_cause::<ConstraintError>()
+                .assert(e);
+        };
+        unpinned_err(&unpinned.validate().unwrap_err());
+        unpinned_err(&cache.resolve(&unpinned).unwrap_err());
+
+        // The local dir comes first when it has the file; the bundle is
+        // next; a URL after a bundle is never needed.
+        let up = dir.path().join("up");
+        std::fs::create_dir_all(&up).unwrap();
+        std::fs::write(up.join("abf.bin"), b"abc").unwrap();
+        let ordered = res(
+            "abf",
+            Some(ABC_SHA256),
+            vec![
+                local_dir(&up),
+                Source::Bundled(BundledBytes(b"abc")),
+                url("https://a.example/abf.bin"),
+            ],
+        );
+        assert_eq!(cache.status(&ordered), CacheStatus::LocalDir);
+        assert_eq!(
+            cache.resolve(&ordered).unwrap().provenance,
+            Provenance::LocalDir
+        );
+        let map = ResourceBundle::new("m").with_resource(bundled.clone());
+        let loaded = cache.load(&map).unwrap();
+        assert_eq!(loaded.get("abc").unwrap().provenance, Provenance::Cached);
+    }
+
+    /// Bundled bytes are written beside the cache path and renamed into
+    /// place, as a download is, so the path holds the whole checked file or
+    /// nothing. What a write cut short at the path would leave is trusted
+    /// on the next run; a link at the path, which a write in place follows
+    /// out of the cache, shows where the bytes go.
+    #[cfg(unix)]
+    #[test]
+    fn test_a_bundled_write_is_renamed_into_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let bundled = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![Source::Bundled(BundledBytes(b"abc"))],
+        );
+        let dest = cache.resource_path(&bundled);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+
+        // A truncated file at the path is the pin's: trusted, not re-hashed.
+        fs::write(&dest, b"ab").unwrap();
+        assert_eq!(
+            cache.resolve(&bundled).unwrap().provenance,
+            Provenance::Cached
+        );
+        fs::remove_file(&dest).unwrap();
+
+        let outside = dir.path().join("outside.bin");
+        std::os::unix::fs::symlink(&outside, &dest).unwrap();
+        assert_eq!(
+            cache.resolve(&bundled).unwrap().provenance,
+            Provenance::Bundled
+        );
+        assert!(
+            !outside.exists(),
+            "the bytes were written through the cache path"
+        );
+        assert!(fs::symlink_metadata(&dest).unwrap().file_type().is_file());
+        assert_eq!(fs::read(&dest).unwrap(), b"abc");
+        assert!(!partial_path(&dest).exists());
+    }
+
+    #[test]
+    fn test_resource_paths_by_pin() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let root = dir.path().join("cache").join("pretrained");
+
+        // A catalog resource's namespace is its full name, each `/` a
+        // directory.
+        let mut pinned = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/abc.bin")],
+        );
+        pinned.namespace = "pub/fam/build/checkpoint".to_string();
+        assert_eq!(
+            cache.resource_path(&pinned),
+            root.join("pub")
+                .join("fam")
+                .join("build")
+                .join("checkpoint")
+                .join(ABC_SHA256)
+                .join("abc.bin")
+        );
+        // Where a bundled-asset build script lays the same file out.
+        assert_eq!(
+            cache.resource_path(&pinned),
+            bunsen_fetch::pretrained_cache_path(
+                cache.cache_dir(),
+                "pub/fam/build/checkpoint",
+                ABC_SHA256,
+                "abc.bin"
+            )
+        );
+
+        let unpinned = res("abc", None, vec![url("https://a.example/abc.bin")]);
+        assert_eq!(
+            cache.resource_path(&unpinned),
+            root.join("prov").join(unpinned.cache_key()).join("abc.bin"),
+            "unpinned is keyed by its first URL"
+        );
+        assert_eq!(cache.cache_dir(), dir.path().join("cache"));
+        assert!(cache.offline());
+        assert!(!cache.verify_local_dirs());
+        assert!(cache.local_dirs().is_empty());
+    }
+
+    /// Whatever is at the pinned path is taken as verified-when-written.
+    #[test]
+    fn test_a_cached_resource_is_trusted_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let r = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/abc.bin")],
+        );
+
+        assert_eq!(cache.status(&r), CacheStatus::Remote);
+        let dest = cache.resource_path(&r);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::write(&dest, b"not really abc").unwrap();
+
+        assert_eq!(cache.status(&r), CacheStatus::Cached);
+        assert_eq!(
+            cache.resolve(&r).unwrap(),
+            ResolvedResource {
+                path: dest,
+                provenance: Provenance::Cached,
+            }
+        );
+    }
+
+    /// A load that finds a file in the cache marks it used, and a probe
+    /// does not: [`status`](PretrainedCache::status),
+    /// [`map_status`](PretrainedCache::map_status),
+    /// [`read_prefix`](PretrainedCache::read_prefix) and
+    /// [`cached_files`](PretrainedCache::cached_files) leave its times as
+    /// they were. A file the process cannot write loads, its times kept.
+    #[test]
+    fn test_a_load_marks_a_cached_file_used() {
+        use core::time::Duration;
+        use std::time::SystemTime;
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let r = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/abc.bin")],
+        );
+        let dest = cache.resource_path(&r);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::write(&dest, b"abc").unwrap();
+        let old = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
+        let age = || {
+            fs::File::options()
+                .write(true)
+                .open(&dest)
+                .unwrap()
+                .set_modified(old)
+                .unwrap()
+        };
+        let modified = || fs::metadata(&dest).unwrap().modified().unwrap();
+        let map = ResourceBundle::new("m").with_resource(r.clone());
+
+        age();
+        assert_eq!(cache.status(&r), CacheStatus::Cached);
+        cache.map_status(&map);
+        cache.read_prefix(&r, 2).unwrap();
+        let listed = cache.cached_files(&Default::default()).unwrap();
+        assert_eq!(listed[0].last_used, Some(old));
+        assert_eq!(modified(), old, "a probe marks nothing");
+
+        cache.resolve(&r).unwrap();
+        assert!(modified() > old, "resolve marks it used");
+        age();
+        cache.load(&map).unwrap();
+        assert!(modified() > old, "load marks it used");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            age();
+            fs::set_permissions(&dest, fs::Permissions::from_mode(0o444)).unwrap();
+            assert_eq!(
+                cache.load(&map).unwrap().get("abc").unwrap().provenance,
+                Provenance::Cached
+            );
+            // Root writes a read-only file regardless.
+            if fs::File::options().write(true).open(&dest).is_err() {
+                assert_eq!(modified(), old, "a read-only file keeps its times");
+            }
+            fs::set_permissions(&dest, fs::Permissions::from_mode(0o644)).unwrap();
+        }
+    }
+
+    /// A file in a local dir is used where it is, and the cache stays
+    /// empty. It is not hashed unless the options ask, and then a wrong
+    /// file is an error rather than passed over. An override by name wins
+    /// over the directory the source carries.
+    #[test]
+    fn test_local_dir_is_used_in_place_and_trusted_unless_asked() {
+        let dir = tempfile::tempdir().unwrap();
+        let upstream = dir.path().join("upstream");
+        fs::create_dir_all(&upstream).unwrap();
+        let r = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![local_dir(&upstream), url("https://a.example/abc.bin")],
+        );
+        fs::write(upstream.join("abc.bin"), b"a partial download").unwrap();
+
+        let trusting = cache_in(dir.path(), true);
+        assert_eq!(trusting.status(&r), CacheStatus::LocalDir);
+        let resolved = trusting.resolve(&r).unwrap();
+        assert_eq!(resolved.provenance, Provenance::LocalDir);
+        assert_eq!(resolved.path, upstream.join("abc.bin"));
+        assert!(!dir.path().join("cache").join("pretrained").exists());
+
+        let verifying = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true)
+                .with_verify_local_dirs(true),
+        )
+        .unwrap();
+        assert!(verifying.verify_local_dirs());
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&verifying.resolve(&r));
+        fs::write(upstream.join("abc.bin"), b"abc").unwrap();
+        assert_eq!(
+            verifying.resolve(&r).unwrap().provenance,
+            Provenance::LocalDir
+        );
+        assert!(!dir.path().join("cache").join("pretrained").exists());
+
+        let elsewhere = dir.path().join("elsewhere");
+        fs::create_dir_all(&elsewhere).unwrap();
+        fs::write(elsewhere.join("abc.bin"), b"abc").unwrap();
+        let overridden = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true)
+                .with_local_dir("up", elsewhere.clone()),
+        )
+        .unwrap();
+        assert_eq!(overridden.local_dir(&r.sources[0]), Some(elsewhere.clone()));
+        assert_eq!(overridden.local_dir(&r.sources[1]), None);
+        assert_eq!(
+            overridden.resolve(&r).unwrap().path,
+            elsewhere.join("abc.bin")
+        );
+    }
+
+    /// A path on the command line resolves to itself.
+    #[test]
+    fn test_a_given_resource_resolves_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("mine.pt");
+        fs::write(&file, b"x").unwrap();
+        let cache = cache_in(dir.path(), true);
+        let r = Resource::given("checkpoint", &file);
+
+        assert_eq!(cache.status(&r), CacheStatus::LocalDir);
+        assert_eq!(
+            cache.resolve(&r).unwrap(),
+            ResolvedResource {
+                path: file,
+                provenance: Provenance::LocalDir,
+            }
+        );
+    }
+
+    /// Offline, a resource only a URL can supply is refused by the
+    /// settings; a resource with no URL that is not where its local source
+    /// says is a lookup of that path.
+    #[test]
+    fn test_resource_offline_or_without_a_url() {
+        let dir = tempfile::tempdir().unwrap();
+        let offline = cache_in(dir.path(), true);
+        let remote = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/abc.bin")],
+        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("the cache is offline")
+            .frame_contains("abc")
+            .assert_err(&offline.resolve(&remote));
+
+        let no_url = res("abc", Some(ABC_SHA256), vec![]);
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .details_contains("no URL")
+            .assert_err(&cache_in(dir.path(), false).resolve(&no_url));
+
+        let absent = dir.path().join("absent.pt");
+        let given = Resource::given("checkpoint", &absent);
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .frame_contains("checkpoint")
+            .cause(predicate("a missing path", move |c: &LookupError| {
+                c.problem == LookupProblem::Missing && c.key == absent.display().to_string()
+            }))
+            .assert_err(&offline.resolve(&given));
+    }
+
+    /// A URL is fetched, checked and written under `pretrained/`; the next
+    /// resolve is cached. The wrong bytes under another pin are refused
+    /// and leave nothing.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_a_resource_url_is_fetched_then_cached() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), false);
+        let live = serve_once("abc.bin", b"abc");
+        let r = res("abc", Some(ABC_SHA256), vec![url(&live)]);
+
+        let resolved = cache.resolve(&r).unwrap();
+        assert_eq!(resolved.provenance, Provenance::Downloaded);
+        assert_eq!(resolved.path, cache.resource_path(&r));
+        assert_eq!(fs::read(&resolved.path).unwrap(), b"abc");
+        assert_eq!(cache.resolve(&r).unwrap().provenance, Provenance::Cached);
+
+        let wrong = serve_once("abd.bin", b"abd");
+        let r = res("abd", Some(ABC_SHA256), vec![url(&wrong)]);
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&cache.resolve(&r));
+        assert!(!cache.resource_path(&r).exists());
+    }
+
+    /// A resource bundle loads with one provenance per resource: the cached one
+    /// is trusted, the local-dir one used in place, the remote one fetched.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_load_mixes_provenances() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), false);
+        let upstream = dir.path().join("upstream");
+        fs::create_dir_all(&upstream).unwrap();
+        fs::write(upstream.join("local.bin"), b"abc").unwrap();
+        let live = serve_once("remote.bin", b"abc");
+
+        let cached = res(
+            "cached",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/cached.bin")],
+        );
+        let dest = cache.resource_path(&cached);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::write(&dest, b"abc").unwrap();
+        let local = res(
+            "local",
+            Some(ABC_SHA256),
+            vec![local_dir(&upstream), url("https://a.example/local.bin")],
+        );
+        let remote = res("remote", Some(ABC_SHA256), vec![url(&live)]);
+        let map = ResourceBundle::new("m")
+            .with_resource(cached)
+            .with_resource(local.clone())
+            .with_resource(remote.clone());
+
+        let status = cache.map_status(&map);
+        assert_eq!(status["cached"], CacheStatus::Cached);
+        assert_eq!(status["local"], CacheStatus::LocalDir);
+        assert_eq!(status["remote"], CacheStatus::Remote);
+
+        let loaded = cache.load(&map).unwrap();
+        assert_eq!(loaded.map, map);
+        assert_eq!(loaded.keys(), ["cached", "local", "remote"]);
+        assert_eq!(loaded.get("cached").unwrap().provenance, Provenance::Cached);
+        assert_eq!(
+            loaded.get("local").unwrap().provenance,
+            Provenance::LocalDir
+        );
+        assert_eq!(
+            loaded.get("local").unwrap().path,
+            upstream.join("local.bin")
+        );
+        assert_eq!(
+            loaded.get("remote").unwrap().provenance,
+            Provenance::Downloaded
+        );
+        assert_eq!(
+            loaded.expect("remote").unwrap(),
+            cache.resource_path(&remote)
+        );
+        assert!(!cache.resource_path(&local).exists());
+        assert_eq!(cache.map_status(&map)["remote"], CacheStatus::Cached);
+    }
+
+    /// One remote that cannot be had fails the load and is named by key;
+    /// the one that could be had is on disk.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_load_names_the_key_that_did_not_land() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_fetch_policy(FetchPolicy::default().with_on_failure(OnFailure::Continue)),
+        )
+        .unwrap();
+        let live = res(
+            "live",
+            Some(ABC_SHA256),
+            vec![url(&serve_once("live.bin", b"abc"))],
+        );
+        let dead = res(
+            "dead",
+            Some(ABC_SHA256),
+            vec![url(&refused_url("dead.bin"))],
+        );
+        let map = ResourceBundle::new("m")
+            .with_resource(live.clone())
+            .with_resource(dead);
+
+        let err = cache.load(&map).unwrap_err();
+        ErrorMatcher::new()
+            .display(text::eq("m: 1 of 2 resources did not land"))
+            .details_contains("dead: ")
+            .details(not(text::contains("live:")))
+            .cause(predicate("one member, dead", |c: &Multiple| {
+                c.members.len() == 1 && c.members[0].0 == "dead"
+            }))
+            .assert(&err);
+        assert!(cache.resource_path(&live).is_file());
+    }
+
+    /// Offline, a resource bundle with a remote resource is not found, and the
+    /// error names the remote keys; a resource bundle of local resources loads.
+    #[test]
+    fn test_load_offline_names_the_remote_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let cached = res(
+            "cached",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/cached.bin")],
+        );
+        let dest = cache.resource_path(&cached);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::write(&dest, b"abc").unwrap();
+        let remote = res(
+            "remote",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/remote.bin")],
+        );
+        let map = ResourceBundle::new("m")
+            .with_resource(cached)
+            .with_resource(remote);
+
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message(text::ends_with("offline: remote"))
+            .frame_contains("m")
+            .assert_err(&cache.load(&map));
+
+        let local_only = ResourceBundle::new("m").with_resource(res(
+            "cached",
+            Some(ABC_SHA256),
+            vec![url("https://a.example/cached.bin")],
+        ));
+        let loaded = cache.load(&local_only).unwrap();
+        assert_eq!(loaded.get("cached").unwrap().provenance, Provenance::Cached);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(Provenance::Cached.to_string(), "cached");
+        assert_eq!(Provenance::LocalDir.to_string(), "local dir");
+        assert_eq!(Provenance::Downloaded.to_string(), "downloaded");
+        assert_eq!(CacheStatus::Cached.to_string(), "cached");
+        assert_eq!(CacheStatus::LocalDir.to_string(), "local dir");
+        assert_eq!(CacheStatus::Remote.to_string(), "remote");
+    }
+}

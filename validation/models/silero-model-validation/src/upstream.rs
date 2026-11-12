@@ -16,14 +16,14 @@
 #[cfg(feature = "reference")]
 use bunsen::data::{
     cache::BunsenDiskCacheOptions,
-    pretrained::{
+    resources::{
         PretrainedCache,
         PretrainedCacheOptions,
         Provenance,
     },
 };
 use bunsen::{
-    data::pretrained::ResourceBundle,
+    data::resources::ResourceBundle,
     kits::speech::{
         testing::RecordedVoiceActivity,
         vad::silero_vad::{
@@ -190,7 +190,7 @@ mod vad_16k {
                 "silero/vad-16k",
                 &bundled_cache(),
                 &device,
-                bunsen::kits::support::construct::LoadPolicy::as_stored(),
+                bunsen::data::formats::LoadPolicy::as_stored(),
             )
             .unwrap();
         let part = loaded.resources.get(CHECKPOINT).unwrap();

@@ -230,7 +230,7 @@ pub fn row_file(
         .expect("the nanochat factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = bunsen::data::pretrained::ResourceBundle::new(found.resources.name.clone());
+    let mut map = bunsen::data::resources::ResourceBundle::new(found.resources.name.clone());
     map.insert(found.resources.try_get(key).expect("the resource").clone());
     let loaded = weights_cache()
         .load(&map)
@@ -242,8 +242,8 @@ pub fn row_file(
 /// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
 /// pinned file the first time it is asked for; offline when
 /// `BUNSEN_VALIDATE_OFFLINE` is set.
-pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    use bunsen::data::pretrained::{
+pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+    use bunsen::data::resources::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
@@ -262,17 +262,17 @@ pub fn load_construct(
     load_construct_with(
         name,
         device,
-        bunsen::kits::support::construct::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
     )
 }
 
 /// A nanochat pretrained by name under `policy`: the bf16 checks load with
-/// [`LoadPolicy::performance`](bunsen::kits::support::construct::LoadPolicy::performance),
+/// [`LoadPolicy::performance`](bunsen::data::formats::LoadPolicy::performance),
 /// bf16 on a device that accelerates it.
 pub fn load_construct_with(
     name: &str,
     device: &Device,
-    policy: bunsen::kits::support::construct::LoadPolicy,
+    policy: bunsen::data::formats::LoadPolicy,
 ) -> std::sync::Arc<NanoChatConstruct> {
     bunsen::kits::language::nanochat::pretrained::default_nanochat_factory()
         .expect("the nanochat factory")

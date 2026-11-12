@@ -8,10 +8,15 @@ use super::{
     PYTORCH,
 };
 use crate::{
-    data::pretrained::{
-        LoadedResources,
-        PretrainedRef,
-        ResourceBundle,
+    data::{
+        builds::{
+            ConstructInit,
+            PretrainedRef,
+        },
+        resources::{
+            LoadedResources,
+            ResourceBundle,
+        },
     },
     errors::{
         BunsenError,
@@ -28,10 +33,7 @@ use crate::{
                 load_pt_checkpoint,
             },
         },
-        support::{
-            construct::ConstructInit,
-            model_config::resolve_ref_presets,
-        },
+        support::model_config::resolve_ref_presets,
     },
 };
 
@@ -69,7 +71,7 @@ impl ConstructInit for NanoChatConstructConfig {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-        load: crate::kits::support::construct::LoadPolicy,
+        load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
         let meta = loaded.expect(META)?;
         let checkpoint = loaded.expect(CHECKPOINT)?;
@@ -97,17 +99,16 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         NanoChatConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("nanochat-students/base-d20").unwrap(),
+            &crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap(),
         )
         .unwrap();
         NanoChatConstructConfig::for_resource_bundle(
-            &crate::data::pretrained::builtin_build_bundle("nitishpandey04/nanochat-d18-sft")
-                .unwrap(),
+            &crate::data::builds::builtin_build_bundle("nitishpandey04/nanochat-d18-sft").unwrap(),
         )
         .unwrap();
 
         let mut safetensors =
-            crate::data::pretrained::builtin_build_bundle("nanochat-students/base-d20").unwrap();
+            crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap();
         safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")

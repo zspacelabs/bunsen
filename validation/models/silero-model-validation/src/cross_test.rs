@@ -237,7 +237,7 @@ mod vad_16k {
         use bunsen::{
             data::{
                 cache::BunsenDiskCacheOptions,
-                pretrained::{
+                resources::{
                     PretrainedCache,
                     PretrainedCacheOptions,
                 },
@@ -260,7 +260,7 @@ mod vad_16k {
                 "silero/vad-16k",
                 &cache,
                 &device,
-                bunsen::kits::support::construct::LoadPolicy::as_stored(),
+                bunsen::data::formats::LoadPolicy::as_stored(),
             )?
             .handle;
         assert_eq!(upstream.vads.branches.len(), 1);

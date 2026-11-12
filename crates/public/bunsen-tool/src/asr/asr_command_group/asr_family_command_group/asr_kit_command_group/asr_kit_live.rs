@@ -1,7 +1,7 @@
 //! `asr family <family> live`, and what `asr live` shares.
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::resources::PretrainedCache,
     errors::{
         BunsenResult,
         ResultContext,

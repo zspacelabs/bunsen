@@ -31,7 +31,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::kits::support::construct::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
 //! resolves a name to a deferred model carrying [`NanoChatConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint through
 //! [`load_pt_checkpoint`](super::weights::load_pt_checkpoint): the meta's

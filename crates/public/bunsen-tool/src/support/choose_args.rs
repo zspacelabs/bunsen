@@ -2,7 +2,7 @@
 use std::rc::Rc;
 
 use bunsen::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         CatalogErrorExt,
         PretrainedCatalogStack,
         builtin_stack,

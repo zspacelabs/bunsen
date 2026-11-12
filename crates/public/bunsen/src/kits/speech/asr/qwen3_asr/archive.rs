@@ -14,7 +14,7 @@ use burn::{
 use serde::Deserialize;
 
 use crate::{
-    data::pretrained::{
+    data::formats::{
         fermion::{
             PhononArchive,
             decode_quint5,
