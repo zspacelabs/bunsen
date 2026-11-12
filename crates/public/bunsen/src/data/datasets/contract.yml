@@ -1,0 +1,8 @@
+# What a parquet shard set's loader reads: a dataset as numbered parquet files.
+parquet-shards:
+  $kind: contract
+  $description: "A dataset as numbered parquet shards, each a table of rows."
+  $resources:
+    shards:
+      $format: [parquet]
+      $description: "The shards: a templated resource, one file per index."

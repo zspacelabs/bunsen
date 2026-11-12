@@ -1005,13 +1005,6 @@ pub struct ResourceEntry {
     #[serde(rename = "$sources")]
     pub sources: Vec<ResourceSource>,
 
-    /// The files a sharded resource's `$file` (its index) lists: one
-    /// artifact, bound to one slot. For a templated resource
-    /// ([`index_width`](Self::index_width)), the template's files, in index
-    /// order, as `cargo catalog` pins them.
-    #[serde(rename = "$shards", default, skip_serializing_if = "Vec::is_empty")]
-    pub shards: Vec<ResourceShard>,
-
     /// For a templated resource, a numbered set of files with no index: the
     /// zero-padded width of the index its `$file` template
     /// (`shard_{index}.parquet`) writes in place of
@@ -1036,6 +1029,13 @@ pub struct ResourceEntry {
         skip_serializing_if = "core::ops::Not::not"
     )]
     pub unpinned: bool,
+
+    /// The files a sharded resource's `$file` (its index) lists: one
+    /// artifact, bound to one slot. For a templated resource
+    /// ([`index_width`](Self::index_width)), the template's files, in index
+    /// order, as `cargo catalog` pins them.
+    #[serde(rename = "$shards", default, skip_serializing_if = "Vec::is_empty")]
+    pub shards: Vec<ResourceShard>,
 }
 
 /// One shard of a sharded resource.
@@ -1294,6 +1294,28 @@ qwen:
         assert_eq!(BunsenCatalog::from_json(&json).unwrap(), doc);
         let yaml = doc.to_yaml().unwrap();
         assert_eq!(BunsenCatalog::from_yaml(&yaml).unwrap(), doc);
+    }
+
+    /// A templated resource's fields survive the keyed form.
+    #[test]
+    fn test_a_templated_resource_round_trips() {
+        let yaml = r#"
+shards:
+  $kind: resource
+  $file: "shard_{index}.parquet"
+  $format: parquet
+  $index_width: 5
+  $count: 2
+  $unpinned: true
+  $sources: [{ $hub: { $repo: o/set, $revision: abc, $dataset: true } }]
+"#;
+        let doc = BunsenCatalog::from_yaml(yaml).unwrap();
+        let written = doc.to_node().to_yaml().unwrap();
+        assert!(written.contains("$index_width: 5"), "{written}");
+        assert!(written.contains("$count: 2"), "{written}");
+        assert!(written.contains("$unpinned: true"), "{written}");
+        assert!(written.contains("$dataset: true"), "{written}");
+        assert_eq!(BunsenCatalog::from_yaml(&written).unwrap(), doc);
     }
 
     #[test]

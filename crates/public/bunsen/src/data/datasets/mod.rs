@@ -36,6 +36,20 @@
 //! ([`ShardSetDescriptor::to_resource_set`]), for a pretrained row that
 //! fuses a shard set in.
 
+/// The name the datasets' contracts are gathered under, beside the kits'.
+pub const DATASETS_KIT: &str = "datasets";
+
+/// The contract a shard set's builds are of, `parquet-shards`: one slot,
+/// [`SHARDS`], a templated resource of parquet files.
+pub const PARQUET_SHARDS_CONTRACT: &str = include_str!("contract.yml");
+
+/// The contract of a parquet shard set, by its name in the built-in
+/// catalog's `$contracts`.
+pub const PARQUET_SHARDS_CATALOG_CONTRACT: &str = "parquet-shards";
+
+/// The slot a shard set's files fill.
+pub const SHARDS: &str = "shards";
+
 mod descriptor;
 mod map;
 #[cfg(feature = "cache")]

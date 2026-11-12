@@ -1,0 +1,31 @@
+# The datasets bunsen knows by name: a probe-contract source of the built-in catalog.
+$description: The datasets bunsen knows by name.
+fineweb-edu:
+  $kind: namespace
+  $facet: family
+  $description: "FineWeb-Edu: educational web text, filtered from FineWeb."
+karpathy:
+  $kind: namespace
+  $facet: publisher
+  $description: Andrej Karpathy, nanochat's author.
+  fineweb-edu-100b-shuffle:
+    $kind: build
+    $description: "karpathy's shuffled 100B-token sample of FineWeb-Edu: 1823 parquet shards of
+      about 90 MB, the nanochat training corpus."
+    $license: ODC-By-1.0
+    $origin: https://huggingface.co/datasets/karpathy/fineweb-edu-100b-shuffle
+    $contract: parquet-shards
+    $join:
+      - fineweb-edu
+    $hub:
+      $repo: karpathy/fineweb-edu-100b-shuffle
+      $revision: 4c8f30d6756da75362432a4d5569e1b229263b71
+      $dataset: true
+    $resources:
+      shards: shards
+    shards:
+      $kind: resource
+      $file: "shard_{index}.parquet"
+      $format: parquet
+      $index_width: 5
+      $count: 1823
