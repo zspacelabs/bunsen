@@ -2,6 +2,14 @@
 $description: "bunsen's vocabulary: the contracts, facets, registered axes and tags, and the
   template-class root."
 $contracts:
+  hf-mirror:
+    $kind: contract
+    $description: "A Hugging Face Hub mirror: an origin that serves the Hub's `resolve/` files and
+      `api/` listings, tried in the catalog's order for every Hub fetch."
+    $args:
+      origin:
+        $description: "Where the mirror is: `https://huggingface.co`."
+        $type: $text
   parquet-shards:
     $kind: contract
     $description: A dataset as numbered parquet shards, each a table of rows.

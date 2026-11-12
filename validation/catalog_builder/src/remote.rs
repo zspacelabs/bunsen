@@ -152,15 +152,17 @@ pub fn sha256_of(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))
 }
 
-/// The files of `repo`, by path, across the listing's pages.
+/// The files of `repo`, by path, across the listing's pages, from the Hub
+/// served at `origin`.
 ///
 /// # Errors
 /// A page that can't be fetched, or doesn't read as a listing.
 pub fn hub_listing(
     remote: &dyn Remote,
     repo: &HubRepo,
+    origin: &str,
 ) -> Result<BTreeMap<String, HubEntry>, String> {
-    let mut url = Some(repo.listing_url());
+    let mut url = Some(repo.listing_url_at(origin));
     let mut files = BTreeMap::new();
     while let Some(page) = url {
         let (body, next) = remote.get_page(&page)?;

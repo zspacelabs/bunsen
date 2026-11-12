@@ -1,0 +1,8 @@
+# What a Hugging Face Hub mirror is: an origin that serves the Hub's files and listings.
+hf-mirror:
+  $kind: contract
+  $description: >-
+    A Hugging Face Hub mirror: an origin that serves the Hub's `resolve/` files and `api/`
+    listings, tried in the catalog's order for every Hub fetch.
+  $args:
+    origin: { $type: $text, $description: "Where the mirror is: `https://huggingface.co`." }

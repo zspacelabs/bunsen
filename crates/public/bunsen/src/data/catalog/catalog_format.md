@@ -102,7 +102,8 @@ The set of kinds is closed:
 
 **Resources** are had from their `$sources`, in order. A `$url` names one file. A place serves
 any file by its path: `$hub: {$repo, $revision}` (a Hugging Face repo at a revision, a
-dataset's with `$dataset: true`),
+dataset's with `$dataset: true`, had from each of the catalog's Hub mirrors in order: the
+builds of the `hf-mirror` contract, each stating its `origin`),
 `$base_url` (a URL the file's `$file` is appended to), and `$local_dir: {$name, $default}`
 (a directory another tool keeps its files in, which a caller can override by `$name`, else
 the first of `$default`'s path templates that resolves). A sharded resource is one artifact:

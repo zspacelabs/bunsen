@@ -118,7 +118,7 @@ fn missing_shards(
 /// # Resolving a ref
 ///
 /// What a repo holds comes from the hub's file listing (its tree API, at
-/// [`tree_url`](Self::tree_url)). The listing is fetched once through the
+/// [`tree_urls`](Self::tree_urls)). The listing is fetched once through the
 /// [`ResourceCache`](crate::data::resources::ResourceCache) and kept there,
 /// so a ref resolved once resolves again offline. The listing names the files
 /// and pins each LFS file by its SHA-256, so the checkpoint is
@@ -162,16 +162,24 @@ fn missing_shards(
 /// The listing is at a revision: [`HUB_MAIN`] unless another is named
 /// ([`with_revision`](Self::with_revision)). A repo whose `main` moves is
 /// seen again only when the cache is cleared or the revision is named.
-/// [`with_origin`](Self::with_origin) points the provider at a mirror, and
 /// [`with_name`](Self::with_name) lets two providers, at two revisions,
 /// share a factory.
+///
+/// # Mirrors
+///
+/// A listing and every file are tried at each of the provider's origins in
+/// order: the built-in catalog's Hub mirror set
+/// ([`BuiltinCatalog::hub_origins`](crate::data::catalog::BuiltinCatalog::hub_origins)),
+/// the builds of the `hf-mirror` contract, unless
+/// [`with_origins`](Self::with_origins) names others. A file is pinned and
+/// cached the same whichever origin served it.
 #[derive(Clone, Debug)]
 pub struct HfProvider {
     /// The provider's name, and the root its files are cached under.
     pub name: String,
 
-    /// Where the hub is: [`HUB_ORIGIN`], or a mirror.
-    pub origin: String,
+    /// Where the Hub is: its mirror set, tried in order; never empty.
+    pub origins: Vec<String>,
 
     /// The revision every ref resolves at: a branch, a tag, or a commit.
     pub revision: String,
@@ -221,11 +229,19 @@ impl Default for HfProvider {
 }
 
 impl HfProvider {
-    /// `hf`, at [`HUB_MAIN`], the checkpoint under `checkpoint`.
+    /// `hf`, at [`HUB_MAIN`], the checkpoint under `checkpoint`, at the
+    /// built-in catalog's Hub mirror set ([`HUB_ORIGIN`] when it names none).
     pub fn new() -> Self {
+        let origins = crate::data::catalog::BuiltinCatalog::get()
+            .map(|catalog| catalog.hub_origins().to_vec())
+            .unwrap_or_default();
         Self {
             name: HF.to_string(),
-            origin: HUB_ORIGIN.to_string(),
+            origins: if origins.is_empty() {
+                vec![HUB_ORIGIN.to_string()]
+            } else {
+                origins
+            },
             revision: HUB_MAIN.to_string(),
             checkpoint_key: DEFAULT_CHECKPOINT_KEY.to_string(),
             extra_files: Vec::new(),
@@ -233,12 +249,25 @@ impl HfProvider {
         }
     }
 
-    /// Repos at a mirror of the hub, which serves the same paths.
+    /// Repos at one origin alone, a mirror of the Hub, which serves the same
+    /// paths.
     pub fn with_origin(
-        mut self,
+        self,
         origin: impl Into<String>,
     ) -> Self {
-        self.origin = origin.into();
+        self.with_origins([origin])
+    }
+
+    /// Repos at each of `origins`, tried in order: a mirror set.
+    ///
+    /// # Panics
+    /// When `origins` is empty.
+    pub fn with_origins(
+        mut self,
+        origins: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.origins = origins.into_iter().map(Into::into).collect();
+        assert!(!self.origins.is_empty(), "a Hub provider needs an origin");
         self
     }
 
@@ -300,24 +329,30 @@ impl HfProvider {
         self
     }
 
-    /// The URL `file` in `org/repo` is served at, at this provider's
-    /// revision.
-    pub fn url(
+    /// The URLs `file` in `org/repo` is served at, at this provider's
+    /// revision: one per origin, in order.
+    pub fn urls(
         &self,
         org: &str,
         repo: &str,
         file: &str,
-    ) -> String {
-        HubRepo::new(format!("{org}/{repo}"), &self.revision).file_url_at(&self.origin, file)
+    ) -> Vec<String> {
+        let hub = HubRepo::new(format!("{org}/{repo}"), &self.revision);
+        self.origins
+            .iter()
+            .map(|origin| hub.file_url_at(origin, file))
+            .collect()
     }
 
-    /// The URL of `org/repo`'s file listing at this provider's revision.
-    pub fn tree_url(
+    /// The URLs of `org/repo`'s file listing at this provider's revision: one
+    /// per origin, in order.
+    pub fn tree_urls(
         &self,
         org: &str,
         repo: &str,
-    ) -> String {
-        HubRepo::new(format!("{org}/{repo}"), &self.revision).tree_url_at(&self.origin)
+    ) -> Vec<String> {
+        let hub = HubRepo::new(format!("{org}/{repo}"), &self.revision);
+        self.origins.iter().map(|o| hub.tree_url_at(o)).collect()
     }
 
     /// The `org` and `repo` of a ref, which is exactly `org/repo`.
@@ -360,7 +395,11 @@ impl HfProvider {
             sha256: None,
             format: Some("json".to_string()),
             name: self.resource_name(org, repo, "listing"),
-            sources: vec![Source::Url(self.tree_url(org, repo))],
+            sources: self
+                .tree_urls(org, repo)
+                .into_iter()
+                .map(Source::Url)
+                .collect(),
         }
     }
 
@@ -388,7 +427,10 @@ impl HfProvider {
         let mut declared = ResourceEntry::new(
             entry.path.clone(),
             format,
-            vec![ResourceSource::Url(self.url(org, repo, &entry.path))],
+            self.urls(org, repo, &entry.path)
+                .into_iter()
+                .map(ResourceSource::Url)
+                .collect(),
         );
         declared.sha256 = entry.sha256();
         declared.size = Some(entry.size);
@@ -436,7 +478,7 @@ impl HfProvider {
         let (org, repo) = self.split(name)?;
         let files: Vec<&HubEntry> = listing.iter().filter(|e| e.is_file()).collect();
         let file = |path: &str| files.iter().copied().find(|e| e.path == path);
-        let origin = format!("{}/{org}/{repo}", self.origin);
+        let origin = format!("{}/{org}/{repo}", self.origins[0]);
         let key = self.checkpoint_key.as_str();
 
         let mut resources: Vec<(&str, ResourceEntry)> = Vec::new();
@@ -488,7 +530,11 @@ impl HfProvider {
                     file: entry.path.clone(),
                     sha256,
                     size: entry.size,
-                    sources: vec![ResourceSource::Url(self.url(org, repo, &entry.path))],
+                    sources: self
+                        .urls(org, repo, &entry.path)
+                        .into_iter()
+                        .map(ResourceSource::Url)
+                        .collect(),
                 });
             }
             resources.push((key, checkpoint));
@@ -1012,12 +1058,35 @@ mod tests {
     fn test_urls_carry_the_revision() {
         let hf = HfProvider::new().with_revision("06f233fe06e710322aca913c1bc4249a0d71fce1");
         assert_eq!(
-            hf.url("openai", "whisper-large-v3", "model.safetensors"),
-            "https://huggingface.co/openai/whisper-large-v3/resolve/06f233fe06e710322aca913c1bc4249a0d71fce1/model.safetensors"
+            hf.urls("openai", "whisper-large-v3", "model.safetensors"),
+            [
+                "https://huggingface.co/openai/whisper-large-v3/resolve/06f233fe06e710322aca913c1bc4249a0d71fce1/model.safetensors"
+            ]
         );
         assert_eq!(
-            hf.tree_url("openai", "whisper-large-v3"),
-            "https://huggingface.co/api/models/openai/whisper-large-v3/tree/06f233fe06e710322aca913c1bc4249a0d71fce1"
+            hf.tree_urls("openai", "whisper-large-v3"),
+            [
+                "https://huggingface.co/api/models/openai/whisper-large-v3/tree/06f233fe06e710322aca913c1bc4249a0d71fce1"
+            ]
+        );
+
+        // A mirror set: every URL at each origin, in order.
+        let mirrored = HfProvider::new()
+            .with_revision("abc")
+            .with_origins(["https://huggingface.co", "https://mirror.example"]);
+        assert_eq!(
+            mirrored.urls("o", "r", "config.json"),
+            [
+                "https://huggingface.co/o/r/resolve/abc/config.json",
+                "https://mirror.example/o/r/resolve/abc/config.json",
+            ]
+        );
+        assert_eq!(
+            mirrored.listing_resource("o", "r").urls(),
+            [
+                "https://huggingface.co/api/models/o/r/tree/abc",
+                "https://mirror.example/api/models/o/r/tree/abc",
+            ]
         );
         let listing = hf.listing_resource("openai", "whisper-large-v3");
         assert_eq!(
@@ -1134,7 +1203,7 @@ mod tests {
             checkpoint.sources,
             [Source::Url(format!(
                 "{}/org/repo/resolve/main/model.safetensors",
-                hf.origin
+                hf.origins[0]
             ))]
         );
         assert_eq!(

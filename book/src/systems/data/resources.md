@@ -64,3 +64,12 @@ or a dataset's, the URLs it serves a file and its tree listing at, and the
 listing's entries, whose LFS digests pin the files. The `hf:` provider reads
 a repo's listing through the cache, and `cargo catalog` pins the catalog's
 Hub files from the same listings.
+
+The Hub may be mirrored. A mirror is a build of the `hf-mirror` contract,
+which states the origin that serves the Hub's paths, and a catalog's mirror
+set is its `hf-mirror` builds in the catalog's order: the built-in catalog's
+`hub` layer declares `huggingface/hub`, the Hub itself, and a layer above can
+add more. Every Hub fetch tries them in order: a catalog build's `$hub` files
+and an `hf:` repo's files and listing each carry one URL per mirror, and the
+cache moves to the next when one is unreachable, lacks the file or serves the
+wrong bytes. A file is pinned and cached the same whichever mirror served it.

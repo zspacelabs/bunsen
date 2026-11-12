@@ -1,0 +1,19 @@
+# The Hugging Face Hub and its mirrors: a probe-contract source of the built-in catalog.
+$description: The Hugging Face Hub and its mirrors, the origins every Hub fetch tries in order.
+hf-mirrors:
+  $kind: namespace
+  $facet: family
+  $description: "Hugging Face Hub mirrors: origins that serve the Hub's files and listings."
+huggingface:
+  $kind: namespace
+  $facet: publisher
+  $description: Hugging Face.
+  hub:
+    $kind: build
+    $description: The Hugging Face Hub itself, the first origin every Hub fetch tries.
+    $origin: https://huggingface.co
+    $contract: hf-mirror
+    $join:
+      - hf-mirrors
+    $args:
+      origin: https://huggingface.co

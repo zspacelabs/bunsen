@@ -120,6 +120,8 @@ pub fn builtin_stack() -> CatalogResult<BunsenCatalogStack> {
 #[derive(Debug)]
 pub struct BuiltinCatalog {
     builds: Vec<ResolvedBuild>,
+    /// The Hub mirror set, in the catalog's order.
+    hub_origins: Vec<String>,
     /// The names a lookup tests, each with its build's index: the build's
     /// full name and each of its aliases'.
     names: Vec<(CatalogName, usize)>,
@@ -176,6 +178,7 @@ impl BuiltinCatalog {
         }
         Ok(Self {
             builds,
+            hub_origins: stack.hub_origins(),
             names,
             classes,
             contracts,
@@ -237,7 +240,12 @@ impl BuiltinCatalog {
                 format!("the built-in catalog has no resource `{name}`"),
             )
         })?;
-        Ok(entry_resource_set(&full.to_string(), entry, slot))
+        Ok(entry_resource_set(
+            &full.to_string(),
+            entry,
+            slot,
+            &self.hub_origins,
+        ))
     }
 
     /// The presets of the template class `class`, by its full name
@@ -258,6 +266,12 @@ impl BuiltinCatalog {
                 format!("the built-in catalog has no template class `{class}`"),
             )
         })
+    }
+
+    /// The Hub mirror set: the origins every Hub fetch tries, in order
+    /// ([`BunsenCatalogStack::hub_origins`]); the Hub's own first.
+    pub fn hub_origins(&self) -> &[String] {
+        &self.hub_origins
     }
 
     /// The description of the contract `name`, by its full name under

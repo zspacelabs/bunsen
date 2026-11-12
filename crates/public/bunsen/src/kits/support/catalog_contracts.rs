@@ -71,6 +71,10 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
     #[allow(unused_mut)]
     let mut contracts = alloc::vec![
         contract(
+            crate::data::resources::hub::HUB_KIT,
+            crate::data::resources::hub::HF_MIRROR_CONTRACT,
+        ),
+        contract(
             crate::data::datasets::DATASETS_KIT,
             crate::data::datasets::PARQUET_SHARDS_CONTRACT,
         ),

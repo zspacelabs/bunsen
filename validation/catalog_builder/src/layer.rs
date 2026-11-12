@@ -66,6 +66,9 @@ const COMMON: &str = "$common";
 pub struct LayerBuilder<'a> {
     remote: &'a dyn Remote,
     verify_remote: bool,
+    /// The Hub mirror set the layers below declare, tried in order for every
+    /// Hub listing and file; the Hub's own origin when empty.
+    origins: Vec<String>,
     listings: BTreeMap<HubRepo, BTreeMap<String, HubEntry>>,
     /// The bytes of the files fetched, by the resource's path in the layer.
     fetched: BTreeMap<String, Vec<u8>>,
@@ -88,9 +91,44 @@ impl<'a> LayerBuilder<'a> {
         Self {
             remote,
             verify_remote,
+            origins: Vec::new(),
             listings: BTreeMap::new(),
             fetched: BTreeMap::new(),
         }
+    }
+
+    /// The builder, fetching from the Hub mirror set `origins` in order.
+    pub fn with_origins(
+        mut self,
+        origins: Vec<String>,
+    ) -> Self {
+        self.origins = origins;
+        self
+    }
+
+    /// The origins a Hub fetch tries, in order.
+    fn hub_origins(&self) -> Vec<String> {
+        if self.origins.is_empty() {
+            vec![bunsen::data::resources::hub::HUB_ORIGIN.to_string()]
+        } else {
+            self.origins.clone()
+        }
+    }
+
+    /// The first of `fetch`'s answers across the mirror set, or every
+    /// mirror's error.
+    fn fetch_from_mirrors<T>(
+        &self,
+        mut fetch: impl FnMut(&str) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let mut errors = Vec::new();
+        for origin in self.hub_origins() {
+            match fetch(&origin) {
+                Ok(found) => return Ok(found),
+                Err(e) => errors.push(e),
+            }
+        }
+        Err(errors.join("; "))
     }
 
     /// Builds the layer `source` writes. `contracts`, for the base layer,
@@ -135,7 +173,9 @@ impl<'a> LayerBuilder<'a> {
         repo: &HubRepo,
     ) -> Result<&BTreeMap<String, HubEntry>, String> {
         if !self.listings.contains_key(repo) {
-            let listing = crate::remote::hub_listing(self.remote, repo)?;
+            let remote = self.remote;
+            let listing =
+                self.fetch_from_mirrors(|origin| crate::remote::hub_listing(remote, repo, origin))?;
             self.listings.insert(repo.clone(), listing);
         }
         Ok(&self.listings[repo])
@@ -299,7 +339,10 @@ impl<'a> LayerBuilder<'a> {
                     None => {
                         // A small file: fetched, so its digest is derived and
                         // a probe can read it.
-                        let bytes = self.remote.get(&repo.file_url(file))?;
+                        let remote = self.remote;
+                        let bytes = self.fetch_from_mirrors(|origin| {
+                            remote.get(&repo.file_url_at(origin, file))
+                        })?;
                         (Some(sha256_of(&bytes)), Some(entry.size), Some(bytes))
                     }
                 }
@@ -1032,5 +1075,27 @@ o:
             err.contains("shard_01.parquet is not in o/set's listing"),
             "{err}"
         );
+    }
+
+    /// A Hub listing and its small files are read from the first mirror that
+    /// answers; with none answering, every mirror's error is reported.
+    #[test]
+    fn test_listings_are_read_from_the_mirrors_in_order() {
+        let fake = fake();
+        let hub = bunsen::data::resources::hub::HUB_ORIGIN.to_string();
+        let built = LayerBuilder::new(&fake, false)
+            .with_origins(vec!["https://down.example".into(), hub])
+            .build(OrderedNode::from_yaml(&layer()).unwrap(), None)
+            .unwrap();
+        assert_eq!(
+            value(&built, "o/m/config")["$sha256"],
+            Value::String(sha256_of(CONFIG))
+        );
+
+        let err = LayerBuilder::new(&fake, false)
+            .with_origins(vec!["https://down.example".into()])
+            .build(OrderedNode::from_yaml(&layer()).unwrap(), None)
+            .unwrap_err();
+        assert!(err.contains("down.example"), "{err}");
     }
 }

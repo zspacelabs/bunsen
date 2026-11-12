@@ -40,7 +40,7 @@ keep the Hub's spelling.
 The catalog bunsen ships is
 [`bunsen-catalog`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-catalog):
 the prelude (the vocabulary and the contracts), the commons (the
-publishers), the datasets, and a layer per kit, each with the bunsen feature
+publishers), the Hub's mirrors, the datasets, and a layer per kit, each with the bunsen feature
 it needs. [`BuiltinCatalog::get`](bunsen::data::catalog::BuiltinCatalog::get)
 imports and resolves it once in a process; its
 [`build`](bunsen::data::catalog::BuiltinCatalog::build) is what a name
