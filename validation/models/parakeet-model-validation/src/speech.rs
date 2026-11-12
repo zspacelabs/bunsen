@@ -235,7 +235,9 @@ fn stream(
     };
 
     let rate = bundle.front_end.sample_rate();
-    let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);
+    let engine = ParakeetEngine::new(bundle)
+        .and_then(|e| e.with_window_seconds(window_seconds))
+        .unwrap();
     let driver = ParakeetStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
     let mut stream = driver
         .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)

@@ -3,18 +3,14 @@ use std::sync::Arc;
 
 use bunsen::{
     errors::{
-        BunsenError,
         BunsenResult,
+        ResultContext,
     },
     kits::speech::asr::{
-        driver::{
-            LevelPolicy,
-            TranscriptSegment,
-        },
+        driver::TranscriptSegment,
         qwen3_asr::{
             Qwen3AsrConstruct,
             Qwen3AsrEngine,
-            Qwen3AsrFrontEndMeta,
             Qwen3AsrStreamDriver,
         },
     },
@@ -37,31 +33,20 @@ pub struct Qwen3AsrFlags {}
 /// The driver for `bundle` under its policy and `emission`.
 ///
 /// # Errors
-/// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
-/// the policy's `window_seconds` is under one frame or over
+/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
+/// `window_seconds` is under one frame or over
 /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS); as the driver
 /// and the VAD.
 pub fn driver(
     bundle: Arc<Qwen3AsrConstruct>,
     emission: Emission,
 ) -> BunsenResult<Qwen3AsrStreamDriver> {
-    let front_end = &bundle.front_end;
-    let frame = front_end.hop() as f64 / front_end.sample_rate() as f64;
-    let most = Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64;
-    let window_seconds = bundle.policy.window_seconds;
-    if !(frame..=most).contains(&window_seconds) {
-        return Err(BunsenError::illegal(format!(
-            "window_seconds {window_seconds} is outside [{frame}, {most}] s"
-        )));
-    }
-    let engine = Qwen3AsrEngine::new(bundle).with_window_seconds(window_seconds);
+    let engine = Qwen3AsrEngine::new(bundle)
+        .context("the model policy's window_seconds")
+        .as_policy()?;
     let driver = Qwen3AsrStreamDriver::new(engine, emission.into())?;
     Ok(driver)
 }
-
-/// What each window's features are scaled against: each window packaged as the
-/// front end packages a whole utterance.
-pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
 
 /// Transcribes one recording through `driver`.
 pub fn transcribe(
@@ -69,7 +54,7 @@ pub fn transcribe(
     samples: &[f32],
     chunk: usize,
 ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
-    let (segments, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
+    let (segments, ctx) = stream::stream(driver, samples, chunk)?;
     let transcript = Transcript {
         text: stream::join_text(&segments),
         turns: driver.speakers().map(|_| speaker_turns(&segments)),

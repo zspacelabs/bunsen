@@ -3,10 +3,7 @@ use std::sync::Arc;
 
 #[cfg(feature = "live")]
 use bunsen::kits::speech::{
-    asr::driver::{
-        StreamClock,
-        TranscriptEvent,
-    },
+    asr::driver::TranscriptEvent,
     asr::parakeet::ParakeetStreamContext,
     asr::qwen3_asr::Qwen3AsrStreamContext,
     asr::voxtral::driver::VoxtralStreamContext,
@@ -123,24 +120,15 @@ impl Driver {
         }
     }
 
-    /// Opens a stream, its clock at the model's rate from 0, its windows
-    /// scaled as its family's are.
+    /// Opens a stream ([`stream::open`]): its clock at the model's rate from
+    /// 0, its windows scaled as its engine's reference scales them.
     #[cfg(feature = "live")]
     pub fn open(&self) -> BunsenResult<Stream> {
-        let clock = || StreamClock::uniform(self.sample_rate());
         Ok(match self {
-            Driver::Parakeet(d) => {
-                Stream::Parakeet(Box::new(d.new_context(clock(), parakeet::LEVEL)?))
-            }
-            Driver::Qwen3Asr(d) => {
-                Stream::Qwen3Asr(Box::new(d.new_context(clock(), qwen3_asr::LEVEL)?))
-            }
-            Driver::Voxtral(d) => {
-                Stream::Voxtral(Box::new(d.new_context(clock(), voxtral::LEVEL)?))
-            }
-            Driver::Whisper(d) => {
-                Stream::Whisper(Box::new(d.new_context(clock(), whisper::LEVEL)?))
-            }
+            Driver::Parakeet(d) => Stream::Parakeet(Box::new(stream::open(d)?)),
+            Driver::Qwen3Asr(d) => Stream::Qwen3Asr(Box::new(stream::open(d)?)),
+            Driver::Voxtral(d) => Stream::Voxtral(Box::new(stream::open(d)?)),
+            Driver::Whisper(d) => Stream::Whisper(Box::new(stream::open(d)?)),
         })
     }
 }
@@ -201,10 +189,6 @@ impl Stream {
     /// The language, once the model has named one; Parakeet and Voxtral
     /// name none.
     pub fn language(&self) -> Option<&str> {
-        match self {
-            Stream::Parakeet(_) | Stream::Voxtral(_) => None,
-            Stream::Qwen3Asr(ctx) => ctx.language(),
-            Stream::Whisper(ctx) => ctx.language(),
-        }
+        each!(self, ctx => ctx.language())
     }
 }

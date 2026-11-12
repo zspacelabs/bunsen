@@ -3,17 +3,13 @@ use std::sync::Arc;
 
 use bunsen::{
     errors::{
-        BunsenError,
         BunsenResult,
+        ResultContext,
     },
     kits::speech::asr::{
-        driver::{
-            LevelPolicy,
-            TranscriptSegment,
-        },
+        driver::TranscriptSegment,
         voxtral::{
             VoxtralConstruct,
-            VoxtralFrontEndMeta,
             driver::{
                 VoxtralEngine,
                 VoxtralStreamDriver,
@@ -40,33 +36,23 @@ pub struct VoxtralFlags {}
 /// The driver for `bundle` under its policy and `emission`.
 ///
 /// # Errors
-/// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) if
-/// the policy's `window_seconds` is under one decoder position; as the driver
-/// and the VAD. The policy's `delay_ms` was applied when the model loaded.
+/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
+/// `window_seconds` is under one decoder position; as the driver and the VAD.
+/// The policy's `delay_ms` was applied when the model loaded.
 pub fn driver(
     bundle: Arc<VoxtralConstruct>,
     emission: Emission,
 ) -> BunsenResult<VoxtralStreamDriver> {
-    let position = bundle.samples_per_position() as f64 / bundle.front_end.sample_rate() as f64;
-    let window_seconds = bundle.policy.window_seconds;
-    if window_seconds.is_nan() || window_seconds < position {
-        return Err(BunsenError::illegal(format!(
-            "window_seconds {window_seconds} is under one decoder position, {position} s"
-        )));
-    }
     log::info!(
         "voxtral: delay {} ms",
         bundle.layout.delay_positions() * bundle.layout.config().position_ms
     );
-    let engine = VoxtralEngine::new(bundle).with_window_seconds(window_seconds);
+    let engine = VoxtralEngine::new(bundle)
+        .context("the model policy's window_seconds")
+        .as_policy()?;
     let driver = VoxtralStreamDriver::new(engine, emission.into())?;
     Ok(driver)
 }
-
-/// What each window's features are scaled against: nothing the stream
-/// measures, as Voxtral's front end floors under a fixed level; the window's
-/// own, which is not read.
-pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
 
 /// Transcribes one recording through `driver`: each committed segment is a
 /// word.
@@ -75,7 +61,7 @@ pub fn transcribe(
     samples: &[f32],
     chunk: usize,
 ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
-    let (segments, _) = stream::stream(driver, samples, LEVEL, chunk)?;
+    let (segments, _) = stream::stream(driver, samples, chunk)?;
     let words = segments
         .iter()
         .filter_map(|s| {

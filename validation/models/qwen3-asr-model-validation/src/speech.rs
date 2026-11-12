@@ -182,7 +182,9 @@ mod driver {
         let _memory = DeviceMemoryGuard::new(&device);
         let bundle = load_construct("fermion/phonon-1-micro", &device);
         let rate = bundle.front_end.sample_rate();
-        let engine = Qwen3AsrEngine::new(bundle.clone()).with_quiet_cut(false);
+        let engine = Qwen3AsrEngine::new(bundle.clone())
+            .unwrap()
+            .with_quiet_cut(false);
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
@@ -251,7 +253,7 @@ mod stream_driver_transcribes_like_transformers {
         let rate = bundle.front_end.sample_rate();
         // Without the quiet cut, a full window is decoded whole: the fixture's
         // windows.
-        let engine = Qwen3AsrEngine::new(bundle).with_quiet_cut(false);
+        let engine = Qwen3AsrEngine::new(bundle).unwrap().with_quiet_cut(false);
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
@@ -321,7 +323,7 @@ fn stream_quiet_cut(name: &str) -> String {
     let _memory = DeviceMemoryGuard::new(&device);
     let bundle = load_construct(name, &device);
     let rate = bundle.front_end.sample_rate();
-    let engine = Qwen3AsrEngine::new(bundle);
+    let engine = Qwen3AsrEngine::new(bundle).unwrap();
     let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
     let mut stream = driver
         .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)

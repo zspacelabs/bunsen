@@ -155,7 +155,9 @@ mod tests {
     #[test]
     fn test_streams_through_the_core() {
         let device = performance_device();
-        let engine = VoxtralEngine::new(Arc::new(toy_construct(&device))).with_window_seconds(1.0);
+        let engine = VoxtralEngine::new(Arc::new(toy_construct(&device)))
+            .and_then(|e| e.with_window_seconds(1.0))
+            .unwrap();
         assert_eq!(engine.window_frames(), 96);
         assert_eq!(engine.grid_frames(), 8);
         let driver = VoxtralStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
@@ -185,7 +187,7 @@ mod tests {
     /// an error.
     #[test]
     fn test_text() {
-        let engine = VoxtralEngine::new(Arc::new(toy_construct(&performance_device())));
+        let engine = VoxtralEngine::new(Arc::new(toy_construct(&performance_device()))).unwrap();
         assert_eq!(engine.text(&[4, 8, 3, 9]).unwrap().as_deref(), Some(" a b"));
         assert!(engine.text(&[-1]).is_err());
         assert!(engine.text(&[45]).is_err());

@@ -9,6 +9,7 @@ use crate::{
             AsrEngine,
             AsrStreamContext,
             DecodeRequest,
+            LevelPolicy,
             LogMelFeatures,
             MaxLevel,
             TimedTokens,
@@ -46,12 +47,6 @@ use crate::{
 pub type WhisperStreamContext = AsrStreamContext<WhisperEngine>;
 
 impl AsrStreamContext<WhisperEngine> {
-    /// The language the stream's prompt names, once known: configured, or
-    /// detected by the stream's first commit. A draft never sets it.
-    pub fn language(&self) -> Option<&str> {
-        self.engine_state().language.as_deref()
-    }
-
     /// The prompt the stream's next window decodes under.
     pub fn prompt_now(&self) -> Vec<i64> {
         let engine = self.driver().engine();
@@ -318,6 +313,21 @@ impl AsrEngine for WhisperEngine {
 
     fn grid_frames(&self) -> usize {
         self.frames_per_timestamp()
+    }
+
+    /// [`Running`](LevelPolicy::Running): each window floored against the
+    /// loudest the stream has been.
+    fn level_policy(&self) -> LevelPolicy {
+        LevelPolicy::Running
+    }
+
+    /// The language the stream's prompt names, once known: configured, or
+    /// detected by the stream's first commit.
+    fn language<'s>(
+        &self,
+        state: &'s WhisperStreamState,
+    ) -> Option<&'s str> {
+        state.language.as_deref()
     }
 
     /// Whisper's `stft[..., :-1]`: the stream's last frame is the end

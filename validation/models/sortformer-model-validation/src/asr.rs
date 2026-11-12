@@ -158,11 +158,13 @@ mod sortformer_speakers {
                 bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
             )
             .unwrap();
-        let driver =
-            ParakeetStreamDriver::new(ParakeetEngine::new(bundle), EmissionPolicy::offline())
-                .unwrap()
-                .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
-                .unwrap();
+        let driver = ParakeetStreamDriver::new(
+            ParakeetEngine::new(bundle).unwrap(),
+            EmissionPolicy::offline(),
+        )
+        .unwrap()
+        .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
+        .unwrap();
         score(
             "parakeet",
             &transcribe(&driver, LevelPolicy::PerWindow, &samples()),
@@ -185,11 +187,13 @@ mod sortformer_speakers {
                 bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
             )
             .unwrap();
-        let driver =
-            Qwen3AsrStreamDriver::new(Qwen3AsrEngine::new(bundle), EmissionPolicy::offline())
-                .unwrap()
-                .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
-                .unwrap();
+        let driver = Qwen3AsrStreamDriver::new(
+            Qwen3AsrEngine::new(bundle).unwrap(),
+            EmissionPolicy::offline(),
+        )
+        .unwrap()
+        .with_speakers(diarizer(&device), Arc::new(MeanActivity::default()))
+        .unwrap();
         score(
             "qwen3-asr",
             &transcribe(&driver, LevelPolicy::PerWindow, &samples()),

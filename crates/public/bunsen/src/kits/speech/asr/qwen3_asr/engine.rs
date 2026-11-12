@@ -13,10 +13,7 @@ use super::{
     Qwen3AsrTranscript,
 };
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::speech::asr::driver::{
         AsrEngine,
         AsrStreamContext,
@@ -27,6 +24,8 @@ use crate::{
         SpeakerCutConfig,
         WindowDecode,
         quiet_cut,
+        token_ids,
+        window_frames_in,
     },
 };
 
@@ -68,7 +67,8 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 ///   ([`SpeakerCutConfig::cut`]), so a window, committed whole, is one
 ///   speaker's as far as the turns go;
 ///   [`with_speaker_cut`](Self::with_speaker_cut) sets or turns off the
-///   thresholds.
+///   thresholds. A draft is never cut: it shows all the audio since the last
+///   commit, over which the core times it.
 /// - **Carry:** the language, the first a committed reply names.
 ///
 /// A stream's last frame is the end padding's, and goes, as the front end's
@@ -90,10 +90,10 @@ impl Qwen3AsrEngine {
     /// ([`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS) by
     /// default), each full one cut at a quiet point.
     ///
-    /// # Panics
-    /// As [`with_window_seconds`](Self::with_window_seconds), for a policy's
-    /// window out of range.
-    pub fn new(bundle: Arc<Qwen3AsrConstruct>) -> Self {
+    /// # Errors
+    /// As [`with_window_seconds`](Self::with_window_seconds), for the
+    /// policy's window.
+    pub fn new(bundle: Arc<Qwen3AsrConstruct>) -> BunsenResult<Self> {
         let device = bundle.model.devices()[0].clone();
         let seconds = bundle.policy.window_seconds;
         Self {
@@ -130,24 +130,26 @@ impl Qwen3AsrEngine {
     /// The engine with windows of at most `seconds`, rounded down to whole
     /// frames.
     ///
-    /// # Panics
-    /// If that is under one frame, or over
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError) cause, if that is
+    /// under one frame, or over
     /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), the most
     /// the model was trained on.
     pub fn with_window_seconds(
         mut self,
         seconds: f64,
-    ) -> Self {
+    ) -> BunsenResult<Self> {
         let front_end = &self.bundle.front_end;
-        let frames = (seconds * front_end.sample_rate() as f64 / front_end.hop() as f64) as usize;
-        let most = self.bundle.max_window() / front_end.hop();
-        assert!(
-            frames > 0 && frames <= most,
-            "a window of {seconds} s is under one frame or over {} s",
-            Qwen3AsrConstruct::MAX_WINDOW_SECONDS
-        );
-        self.window_frames = frames;
-        self
+        self.window_frames = window_frames_in(
+            "Qwen3AsrEngine::with_window_seconds",
+            seconds,
+            front_end.sample_rate(),
+            front_end.hop(),
+            1,
+            Some(self.bundle.max_window() / front_end.hop()),
+        )?;
+        Ok(self)
     }
 
     /// The construct.
@@ -210,14 +212,7 @@ impl Qwen3AsrEngine {
             language: reply.language,
         };
         if tokens.is_empty() {
-            return WindowDecode {
-                tokens,
-                skip: true,
-                segments: Vec::new(),
-                advance: frames,
-                tail: None,
-                carry,
-            };
+            return WindowDecode::skipped(frames, carry);
         }
         WindowDecode::whole(frames, tokens, carry)
     }
@@ -285,8 +280,11 @@ impl AsrEngine for Qwen3AsrEngine {
             .map(|request| {
                 let mut window = request.window;
                 let mut frames = window.dims()[1];
-                let turn = match (&self.speaker_cut, &request.speakers) {
-                    (Some(config), Some(activity)) => config.cut(
+                // A draft shows all the audio since the last commit, which it
+                // is timed over: it is never cut.
+                let cutting = !request.draft;
+                let turn = match (cutting, &self.speaker_cut, &request.speakers) {
+                    (true, Some(config), Some(activity)) => config.cut(
                         activity,
                         request.start,
                         self.hop(),
@@ -298,7 +296,7 @@ impl AsrEngine for Qwen3AsrEngine {
                 if let Some(cut) = turn {
                     frames = cut;
                     window = window.slice_dim(1, 0..frames);
-                } else if self.quiet_cut && frames >= self.window_frames {
+                } else if cutting && self.quiet_cut && frames >= self.window_frames {
                     let loudness: Vec<f32> = window
                         .clone()
                         .mean_dim(2)
@@ -332,22 +330,16 @@ impl AsrEngine for Qwen3AsrEngine {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>> {
-        let ids = tokens
-            .iter()
-            .map(|&t| {
-                usize::try_from(t).map_err(|_| {
-                    BunsenError::invalid_resource(format!("{t} is not a Qwen3-ASR token id"))
-                })
-            })
-            .collect::<BunsenResult<Vec<usize>>>()?;
+        let ids = token_ids(tokens.iter().copied(), "Qwen3-ASR")?;
         Ok(Some(self.bundle.vocab.text(&ids)?))
     }
-}
 
-impl AsrStreamContext<Qwen3AsrEngine> {
-    /// The language of the stream, once a committed reply names one.
-    pub fn language(&self) -> Option<&str> {
-        self.engine_state().language.as_deref()
+    /// The first language a committed reply names.
+    fn language<'s>(
+        &self,
+        state: &'s Qwen3AsrStreamState,
+    ) -> Option<&'s str> {
+        state.language.as_deref()
     }
 }
 
@@ -356,6 +348,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
+        errors::BunsenErrorKind,
         kits::{
             language::qwen3::Qwen3Config,
             speech::{
@@ -428,20 +421,35 @@ mod tests {
     #[test]
     fn test_window_seconds() {
         let device = performance_device();
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).unwrap();
         assert_eq!(engine.window_frames(), 3000);
-        assert_eq!(
-            engine.clone().with_window_seconds(12.345).window_frames(),
-            1234
-        );
-        assert_eq!(engine.with_window_seconds(30.0).window_frames(), 3000);
+        let frames = |seconds| {
+            engine
+                .clone()
+                .with_window_seconds(seconds)
+                .unwrap()
+                .window_frames()
+        };
+        assert_eq!(frames(12.345), 1234);
+        assert_eq!(frames(30.0), 3000);
     }
 
+    /// A window under one frame, past the model's range, or not finite is
+    /// refused.
     #[test]
-    #[should_panic(expected = "over 30 s")]
-    fn test_window_past_the_range_panics() {
+    fn test_window_out_of_range_is_illegal() {
         let device = performance_device();
-        Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).with_window_seconds(30.5);
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).unwrap();
+        for seconds in [30.5, 0.001, -1.0, f64::NAN, f64::INFINITY] {
+            let error = engine.clone().with_window_seconds(seconds).unwrap_err();
+            assert_eq!(error.kind(), BunsenErrorKind::Illegal, "{seconds}");
+            assert!(
+                error
+                    .to_string()
+                    .contains("Qwen3AsrEngine::with_window_seconds.seconds"),
+                "{error}"
+            );
+        }
     }
 
     /// A streamed window, packaged, is the front end's one-shot features,
@@ -451,7 +459,7 @@ mod tests {
     #[test]
     fn test_packaging_matches_the_one_shot_front_end() {
         let device = performance_device();
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).unwrap();
         assert_eq!(engine.window_frames(), 3000);
         let samples = ToneConfig::Duration {
             seconds: 2.0,
@@ -495,7 +503,7 @@ mod tests {
     #[test]
     fn test_lay_out_and_commit() {
         let device = performance_device();
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device)));
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(4, vec![5], &device))).unwrap();
         let reply = |tokens: Vec<usize>, language: Option<&str>| Qwen3AsrTranscript {
             tokens,
             language: language.map(String::from),
@@ -545,7 +553,8 @@ mod tests {
         let device = performance_device();
         // No end token, and a text token the model cannot produce: every
         // reply is three tokens of transcript.
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)));
+        let engine =
+            Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device))).unwrap();
         let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
         let mut stream = driver
             .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
@@ -606,7 +615,8 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)))
-            .with_window_seconds(1.0);
+            .and_then(|e| e.with_window_seconds(1.0))
+            .unwrap();
 
         let cut = commits(engine.clone());
         assert!(cut.len() >= 2, "{cut:?}");
@@ -664,7 +674,8 @@ mod tests {
                 })
                 .collect::<Vec<_>>()
         };
-        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)));
+        let engine =
+            Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device))).unwrap();
 
         let cut = commits(
             engine
@@ -686,5 +697,75 @@ mod tests {
             1,
             "a turn before the minimum does not cut: {late:?}"
         );
+    }
+
+    /// A draft is decoded whole, over the span the core times it to: neither
+    /// the quiet cut nor the speaker cut applies. A commit of the same window
+    /// is cut. Either way the decode advances by the frames it decoded,
+    /// whatever the toy model makes of them.
+    #[test]
+    fn test_drafts_are_never_cut() {
+        use crate::kits::speech::diarization::SpeakerActivity;
+
+        let device = performance_device();
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_construct(VOCAB, Vec::new(), &device)))
+            .unwrap()
+            .with_speaker_cut(Some(SpeakerCutConfig::new().with_min_window_seconds(1.0)));
+        let state = Qwen3AsrStreamState::default();
+        let features = |samples: &[f32], frames: usize| {
+            let mut front_end = engine.new_features().unwrap();
+            let mut out: Vec<_> = front_end.push(samples).unwrap().into_iter().collect();
+            out.extend(front_end.finish().unwrap());
+            Tensor::cat(out, 1).slice_dim(1, 0..frames)
+        };
+        let advances =
+            |engine: &Qwen3AsrEngine, window: &Tensor<3>, speakers: Option<SpeakerActivity>| {
+                let request = |draft| DecodeRequest {
+                    state: &state,
+                    transcript: &[],
+                    start: 0,
+                    window: window.clone(),
+                    level: MaxLevel::of(window.clone()),
+                    draft,
+                    speakers: speakers.clone(),
+                };
+                let decodes = engine.decode(vec![request(false), request(true)]).unwrap();
+                (decodes[0].advance, decodes[1].advance)
+            };
+
+        // A full 1 s window, silent from 0.8 s to 0.9 s: the commit is cut
+        // quiet there.
+        let mut samples = ToneConfig::Duration {
+            seconds: 1.6,
+            hz: 16_000.0,
+        }
+        .build();
+        samples[12_800..14_400].fill(0.0);
+        let quiet = engine.clone().with_window_seconds(1.0).unwrap();
+        let window = features(&samples, 100);
+        let (commit, draft) = advances(&quiet, &window, None);
+        assert!((80..=90).contains(&commit), "{commit}");
+        assert_eq!(draft, 100);
+
+        // 4 s, a turn at 1.5 s: the commit is cut at the turn.
+        let samples = ToneConfig::Duration {
+            seconds: 4.0,
+            hz: 16_000.0,
+        }
+        .build();
+        let window = features(&samples, 400);
+        let turn = 150;
+        let probs = (0..400)
+            .flat_map(|frame| if frame < turn { [1.0, 0.0] } else { [0.0, 1.0] })
+            .collect();
+        let activity = SpeakerActivity {
+            start: 0,
+            frame_samples: 160,
+            n_speakers: 2,
+            probs,
+        };
+        let (commit, draft) = advances(&engine, &window, Some(activity));
+        assert_eq!(commit, turn);
+        assert_eq!(draft, 400);
     }
 }

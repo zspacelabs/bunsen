@@ -3,11 +3,22 @@
 use core::fmt::Debug;
 
 use burn::Tensor;
+use num_traits::{
+    Float,
+    ToPrimitive,
+};
 
 use crate::{
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+        ConstraintError,
+    },
     kits::speech::{
-        asr::driver::LevelStatistic,
+        asr::driver::{
+            LevelPolicy,
+            LevelStatistic,
+        },
         diarization::SpeakerActivity,
     },
 };
@@ -60,6 +71,13 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
         0
     }
 
+    /// Which frames a stream's level covers unless its opener says
+    /// otherwise: what the model's reference packages a clip against.
+    /// [`PerWindow`](LevelPolicy::PerWindow) by default.
+    fn level_policy(&self) -> LevelPolicy {
+        LevelPolicy::PerWindow
+    }
+
     /// Opens a stream's feature front end.
     ///
     /// # Errors
@@ -75,7 +93,10 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
     /// as it can. It must not let one request's result depend on another's.
     ///
     /// # Errors
-    /// As the decode.
+    /// As the decode. Returning other than one decode per request is an
+    /// error the core reports in turn:
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause.
     fn decode(
         &self,
         requests: Vec<DecodeRequest<'_, Self>>,
@@ -104,6 +125,78 @@ pub trait AsrEngine: Clone + Debug + Send + Sync {
         &self,
         tokens: &[i64],
     ) -> BunsenResult<Option<String>>;
+
+    /// The language of a stream, from its carry, once the engine knows it.
+    /// `None` by default: an engine that names no language.
+    fn language<'s>(
+        &self,
+        _state: &'s Self::StreamState,
+    ) -> Option<&'s str> {
+        None
+    }
+}
+
+/// Decoded ids as indices into a vocabulary, for an engine's
+/// [`text`](AsrEngine::text).
+///
+/// # Arguments
+/// * `tokens` - the ids.
+/// * `model` - the model the ids are from, for the error.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for
+/// an id that is no index: a negative one.
+pub fn token_ids(
+    tokens: impl IntoIterator<Item = i64>,
+    model: &str,
+) -> BunsenResult<Vec<usize>> {
+    tokens
+        .into_iter()
+        .map(|t| {
+            usize::try_from(t).map_err(|_| {
+                BunsenError::invalid_resource(alloc::format!("{t} is not a {model} token id"))
+            })
+        })
+        .collect()
+}
+
+/// The frames in a window of `seconds`, rounded down to whole multiples of
+/// `grid`: what an engine's `with_window_seconds` keeps.
+///
+/// # Arguments
+/// * `owner` - the function the window was given to, for the error.
+/// * `seconds` - the window.
+/// * `sample_rate` - the engine's rate, in Hz.
+/// * `hop` - samples per frame.
+/// * `grid` - the frames a window is a whole number of.
+/// * `most` - the most frames a window may hold, if any.
+///
+/// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+/// [`ConstraintError`] cause, when `seconds` is not finite, holds no whole
+/// `grid`, or holds more than `most` frames.
+pub(crate) fn window_frames_in(
+    owner: &'static str,
+    seconds: f64,
+    sample_rate: usize,
+    hop: usize,
+    grid: usize,
+    most: Option<usize>,
+) -> BunsenResult<usize> {
+    let float = |n: usize| n.to_f64().unwrap_or(f64::NAN);
+    // A negative, non-finite or overflowing window has no frames.
+    let frames = Float::floor(seconds * float(sample_rate))
+        .to_usize()
+        .map_or(0, |samples| samples / hop / grid * grid);
+    if frames == 0 || most.is_some_and(|most| frames > most) {
+        let least = float(grid * hop) / float(sample_rate);
+        let range = match most {
+            Some(most) => alloc::format!("[{least}, {}] s", float(most * hop) / float(sample_rate)),
+            None => alloc::format!(">= {least} s"),
+        };
+        return Err(ConstraintError::out_of_range(owner, "seconds", seconds, range).into());
+    }
+    Ok(frames)
 }
 
 /// A front end that turns audio, arriving in pieces of any size, into
@@ -165,6 +258,11 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
 }
 
 /// Ids over a run of frames, relative to the start of their window.
+///
+/// The core places `start` and `end` on the stream's clock as they are. A
+/// segment belongs inside its window, but one the model puts past its end
+/// (a Whisper timestamp in the padding) is passed through, not clamped;
+/// only a decode's [`advance`](WindowDecode::advance) is held to the window.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TimedTokens {
     /// The first frame.
@@ -183,8 +281,9 @@ pub struct WindowDecode<C> {
     /// Everything decoded, in order: what a draft of the window shows.
     pub tokens: Vec<i64>,
 
-    /// The window holds no speech: nothing is committed, and the stream
-    /// moves past it whole.
+    /// What was decoded holds no speech: nothing is committed, and the
+    /// stream moves past it by `advance`, the whole window unless the engine
+    /// decoded less of it.
     pub skip: bool,
 
     /// The complete segments, in order.
@@ -225,6 +324,27 @@ impl<C> WindowDecode<C> {
             }],
             tokens,
             skip: false,
+            advance: frames,
+            tail: None,
+            carry,
+        }
+    }
+
+    /// A decode with no speech: nothing in it, and the stream moves past the
+    /// frames decoded.
+    ///
+    /// # Arguments
+    /// * `frames` - the frames decoded: the window's, or as far as the engine
+    ///   cut it.
+    /// * `carry` - for [`AsrEngine::commit`].
+    pub fn skipped(
+        frames: usize,
+        carry: C,
+    ) -> Self {
+        Self {
+            tokens: Vec::new(),
+            skip: true,
+            segments: Vec::new(),
             advance: frames,
             tail: None,
             carry,
