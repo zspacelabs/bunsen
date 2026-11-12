@@ -119,14 +119,26 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         Qwen3_5ConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("qwen/qwen3.5-0.8b")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         Qwen3_5ConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("qwen/qwen3.5-9b").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("qwen/qwen3.5-9b")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
-        let mut gguf = crate::data::builds::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap();
+        let mut gguf = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("qwen/qwen3.5-0.8b")
+            .unwrap()
+            .resource_set();
         gguf.resources.get_mut("checkpoint.index").unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

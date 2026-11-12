@@ -4,8 +4,8 @@ use alloc::sync::Arc;
 
 use crate::{
     data::builds::{
-        PretrainedFactory,
-        PretrainedProvider,
+        BuildFactory,
+        BuildProvider,
     },
     errors::BunsenResult,
     kits::speech::vad::silero_vad::pretrained::SileroConstructConfig,
@@ -33,21 +33,18 @@ pub const SAFETENSORS_FORMAT: &str = "safetensors";
 pub const SILERO_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const SILERO_CATALOG_CONTRACT: &str = "silero-vad";
 
-/// Silero's compiled-in providers: the well-known table (with
+/// Silero's compiled-in providers: the catalog provider (with
 /// `store`), and none without it.
 ///
-/// One row, `well-known:silero/vad-16k`: upstream's
+/// One row, `catalog:silero/vad-16k`: upstream's
 /// `silero_vad_16k.safetensors`, the 16 kHz model, fetched from a pinned
 /// revision of `snakers4/silero-vad`.
-pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(
-        crate::data::builds::BuildCatalogProvider::expect_builtin(
-            SILERO_CATALOG_CONTRACT,
-            SILERO_KIT,
-        ),
+pub fn default_silero_providers() -> Vec<Arc<dyn BuildProvider>> {
+    let providers: Vec<Arc<dyn BuildProvider>> = vec![Arc::new(
+        crate::data::catalog::BuiltinCatalog::expect_provider(SILERO_CATALOG_CONTRACT, SILERO_KIT),
     )];
     providers
 }
@@ -60,10 +57,10 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// of the 16 kHz model, from upstream's safetensors.
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_silero_providers())
+pub fn default_silero_factory() -> BunsenResult<BuildFactory<SileroConstructConfig>> {
+    BuildFactory::new().with_providers(default_silero_providers())
 }
 
 #[cfg(test)]
@@ -84,7 +81,7 @@ mod tests {
     fn test_only_upstream_is_listed() {
         let factory = default_silero_factory().unwrap();
         assert_eq!(factory.kit(), SILERO_KIT);
-        assert_eq!(factory.ids(), ["well-known:silero/silero_vad/vad-16k"]);
+        assert_eq!(factory.ids(), ["catalog:silero/silero_vad/vad-16k"]);
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("vad"));
     }
 
@@ -92,7 +89,11 @@ mod tests {
     /// short names.
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
-        let map = crate::data::builds::builtin_build_bundle("vad-16k").unwrap();
+        let map = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("vad-16k")
+            .unwrap()
+            .resource_set();
         map.validate().unwrap();
         let r = map.get(CHECKPOINT).unwrap();
         assert!(r.is_pinned());
@@ -104,7 +105,7 @@ mod tests {
         );
 
         let factory = default_silero_factory().unwrap();
-        for spec in ["well-known:silero/vad-16k", "silero/vad-16k", "vad-16k"] {
+        for spec in ["catalog:silero/vad-16k", "silero/vad-16k", "vad-16k"] {
             assert_eq!(
                 factory.lookup(spec).unwrap().1.name,
                 "silero/silero_vad/vad-16k",

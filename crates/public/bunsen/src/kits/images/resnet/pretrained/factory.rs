@@ -1,7 +1,7 @@
 //! # The `ResNet` pretrained factory
 
 use crate::{
-    data::builds::PretrainedFactory,
+    data::builds::BuildFactory,
     errors::BunsenResult,
     kits::images::resnet::pretrained::{
         ResNetConstructConfig,
@@ -13,10 +13,10 @@ use crate::{
 /// [`ResNetConstructConfig`].
 ///
 /// # Errors
-/// As [`PretrainedFactory::register`], if two of the defaults share a name,
+/// As [`BuildFactory::register`], if two of the defaults share a name,
 /// which the tests pin they do not.
-pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_resnet_providers())
+pub fn default_resnet_factory() -> BunsenResult<BuildFactory<ResNetConstructConfig>> {
+    BuildFactory::new().with_providers(default_resnet_providers())
 }
 
 #[cfg(test)]
@@ -24,7 +24,7 @@ mod tests {
     use super::*;
     use crate::kits::images::resnet::pretrained::RESNET_KIT;
 
-    /// The default factory is the well-known table alone, serving the
+    /// The default factory is the catalog provider alone, serving the
     /// kit; one prefab has many rows across both groups.
     #[test]
     fn test_the_defaults_register() {
@@ -33,7 +33,7 @@ mod tests {
         assert_eq!(factory.providers().len(), 1);
         assert_eq!(factory.ids().len(), 14);
         let (provider, row) = factory.lookup("resnet18_a1").unwrap();
-        assert_eq!(provider, "well-known");
+        assert_eq!(provider, "catalog");
         assert_eq!(row.name, "timm/resnet18_a1");
         // The rows that state resnet34's geometry.
         let resnet34 = serde_json::to_value(
@@ -51,15 +51,15 @@ mod tests {
         assert_eq!(
             for_34,
             [
-                "well-known:torchvision/resnet34",
-                "well-known:timm/resnet34_a1",
-                "well-known:timm/resnet34_a2",
-                "well-known:timm/resnet34_a3",
-                "well-known:timm/resnet34",
+                "catalog:torchvision/resnet34",
+                "catalog:timm/resnet34_a1",
+                "catalog:timm/resnet34_a2",
+                "catalog:timm/resnet34_a3",
+                "catalog:timm/resnet34",
             ]
         );
         assert!(
-            PretrainedFactory::<ResNetConstructConfig>::new()
+            BuildFactory::<ResNetConstructConfig>::new()
                 .with_providers(default_resnet_providers())
                 .unwrap()
                 .with_providers(default_resnet_providers())

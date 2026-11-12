@@ -10,8 +10,8 @@ use super::{
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         resources::{
             LoadedResourceSet,
@@ -68,7 +68,7 @@ impl ConstructInit for NanoChatConstructConfig {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -99,16 +99,27 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         NanoChatConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("nanochat-students/base-d20")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         NanoChatConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("nitishpandey04/nanochat-d18-sft").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("nitishpandey04/nanochat-d18-sft")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
 
-        let mut safetensors =
-            crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap();
+        let mut safetensors = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("nanochat-students/base-d20")
+            .unwrap()
+            .resource_set();
         safetensors.resources.get_mut(CHECKPOINT).unwrap().format = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")

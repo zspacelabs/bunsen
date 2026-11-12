@@ -11,9 +11,9 @@ use burn::tensor::Device;
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
             GEOMETRY,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
@@ -80,18 +80,18 @@ use crate::{
 /// };
 ///
 /// let e = BunsenError::from(GeometryMismatch::new(
-///     "well-known:openai/tiny",
+///     "catalog:openai/tiny",
 ///     WhisperGeometry::openai(80, 51865, 384, 4, 4),
 ///     WhisperGeometry::openai(80, 51865, 512, 6, 6),
 /// ));
 /// assert_eq!(e.kind(), BunsenErrorKind::InvalidResource);
 /// let mismatch = e.find::<GeometryMismatch>().unwrap();
-/// assert_eq!(mismatch.model, "well-known:openai/tiny");
+/// assert_eq!(mismatch.model, "catalog:openai/tiny");
 /// ```
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GeometryMismatch {
-    /// The model's id, as [`PretrainedRef::id`] gives it.
+    /// The model's id, as [`BuildRef::id`] gives it.
     pub model: String,
     /// The geometry the model promises.
     pub expected: WhisperGeometry,
@@ -306,11 +306,11 @@ impl WhisperConstructConfig {
     /// else none. A given bundle promises nothing.
     ///
     /// # Errors
-    /// As [`PretrainedRef::stated`], when the row's geometry doesn't read as
+    /// As [`BuildRef::stated`], when the row's geometry doesn't read as
     /// a [`WhisperGeometry`].
     pub fn expected_for(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
     ) -> BunsenResult<Option<WhisperGeometry>> {
         if self.expected.is_some() {
             return Ok(self.expected);
@@ -333,7 +333,7 @@ impl WhisperConstructConfig {
     /// that name are not the model it claims to be.
     pub fn scan(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
     ) -> BunsenResult<WhisperApiConfig> {
         let cfg = self.reader.scan_cfg(loaded)?;
@@ -344,7 +344,7 @@ impl WhisperConstructConfig {
     /// Checks a scanned geometry against the one `model` promises.
     fn check(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         found: &WhisperGeometry,
     ) -> BunsenResult<()> {
         match self.expected_for(model)? {
@@ -396,7 +396,7 @@ impl ConstructInit for WhisperConstructConfig {
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource).
     fn plan(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         cache: &ResourceCache,
     ) -> BunsenResult<ResourceSet> {
         let map = model.to_resource_set();
@@ -441,7 +441,7 @@ impl ConstructInit for WhisperConstructConfig {
     /// [`Policy`](BunsenErrorKind::Policy), under a frame naming the model.
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -459,7 +459,8 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            crate::data::builds::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
+            crate::data::catalog::BuiltinCatalog::get()?
+                .template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
         } else {
             ResolvedPresetSet::default()
         };

@@ -4,9 +4,9 @@ use alloc::sync::Arc;
 use super::Qwen3ConstructConfig;
 use crate::{
     data::builds::{
+        BuildFactory,
+        BuildProvider,
         HfProvider,
-        PretrainedFactory,
-        PretrainedProvider,
     },
     errors::BunsenResult,
     kits::language::qwen3::{
@@ -42,20 +42,20 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 pub const QWEN3_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const QWEN3_CATALOG_CONTRACT: &str = "qwen3-lm";
 
 /// The name [`default_qwen3_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_MODEL: &str = "qwen/qwen3/qwen3-0.6b";
 
-/// Qwen3's compiled-in providers, in search order: the well-known table,
+/// Qwen3's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`'
 /// `Qwen3ForCausalLM` layout (its safetensors checkpoint, one file or
 /// shards, and its `config.json`), with its [`TOKENIZER`],
 /// [`TOKENIZER_CONFIG`] and [`GENERATION_CONFIG`] files when it has them.
-pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+pub fn default_qwen3_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
-        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             QWEN3_CATALOG_CONTRACT,
             QWEN3_KIT,
         )),
@@ -80,15 +80,15 @@ pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Qwen3's factory over [`default_qwen3_providers`], building through
 /// [`Qwen3ConstructConfig`].
 ///
-/// [`load_construct`](PretrainedFactory::load_construct) with
+/// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`Qwen3Construct`](crate::kits::language::qwen3::Qwen3Construct).
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_qwen3_factory() -> BunsenResult<PretrainedFactory<Qwen3ConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_qwen3_providers())
+pub fn default_qwen3_factory() -> BunsenResult<BuildFactory<Qwen3ConstructConfig>> {
+    BuildFactory::new().with_providers(default_qwen3_providers())
 }
 
 #[cfg(test)]
@@ -115,7 +115,7 @@ mod tests {
                 .iter()
                 .map(|p| p.name())
                 .collect::<Vec<_>>(),
-            ["well-known", "hf"]
+            ["catalog", "hf"]
         );
         let names = [
             "qwen3-0.6b",
@@ -137,7 +137,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:qwen/qwen3/{n}"))
+                .map(|n| format!("catalog:qwen/qwen3/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {

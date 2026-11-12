@@ -16,10 +16,10 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             CONFIG,
             ConstructInit,
             GEOMETRY,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
@@ -147,7 +147,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -199,13 +199,21 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         let qwen = Qwen3AsrConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("qwen/qwen3-asr-0.6b").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("qwen/qwen3-asr-0.6b")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
         let phonon = Qwen3AsrConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("fermion/phonon-1").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("fermion/phonon-1")
+                .unwrap()
+                .resource_set(),
         );
         assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());

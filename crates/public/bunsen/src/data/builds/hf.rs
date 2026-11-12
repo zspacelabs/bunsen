@@ -17,8 +17,8 @@ use crate::data::resources::ResourceCache;
 use crate::{
     data::{
         builds::{
+            BuildProvider,
             Pretrained,
-            PretrainedProvider,
         },
         resources::{
             Resource,
@@ -148,7 +148,7 @@ fn missing_shards(
 /// answers such a ref with a row whose resource set is the repo's
 /// safetensors checkpoint, and it lists nothing: the hub is not enumerable, and
 /// a bare name never reaches it
-/// ([`answers_bare_names`](PretrainedProvider::answers_bare_names) is
+/// ([`answers_bare_names`](BuildProvider::answers_bare_names) is
 /// `false`). A kit registers one in its default factory, after its own
 /// tables and under its own checkpoint key
 /// ([`with_checkpoint_key`](Self::with_checkpoint_key)); Whisper's does.
@@ -162,12 +162,12 @@ fn missing_shards(
 /// [`ResourceCache`](crate::data::resources::ResourceCache) and kept there,
 /// so a ref resolved once resolves again offline. The listing names the files
 /// and pins each LFS file by its SHA-256, so the checkpoint is
-/// digest-addressed in the cache like a well-known row's:
+/// digest-addressed in the cache like a catalog row's:
 /// `<cache>/resources/hf/<sha256>/<file>`. Fetching the listing
 /// needs the `fetch` feature, unless the cache has it already.
 ///
 /// Resolving a ref without a cache is an error, and
-/// [`lookup`](PretrainedProvider::lookup) always refuses: the provider
+/// [`lookup`](BuildProvider::lookup) always refuses: the provider
 /// guesses nothing about a repo. A repo that is not there, or a gated one,
 /// answers 401, and the error says so.
 ///
@@ -370,7 +370,7 @@ impl HfProvider {
     /// [`Illegal`](BunsenErrorKind::Illegal), with a [`ParseError`], for
     /// anything else. A caller that took the ref from outside the program
     /// re-marks it [`as_policy`](BunsenError::as_policy), as
-    /// [`PretrainedFactory::resolve`](crate::data::builds::PretrainedFactory::resolve)
+    /// [`BuildFactory::resolve`](crate::data::builds::BuildFactory::resolve)
     /// does.
     pub fn split<'a>(
         &self,
@@ -668,7 +668,7 @@ impl HfProvider {
     }
 }
 
-impl PretrainedProvider for HfProvider {
+impl BuildProvider for HfProvider {
     fn name(&self) -> &str {
         &self.name
     }

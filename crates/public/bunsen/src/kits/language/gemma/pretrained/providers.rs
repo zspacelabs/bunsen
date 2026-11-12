@@ -4,9 +4,9 @@ use alloc::sync::Arc;
 use super::GemmaConstructConfig;
 use crate::{
     data::builds::{
+        BuildFactory,
+        BuildProvider,
         HfProvider,
-        PretrainedFactory,
-        PretrainedProvider,
     },
     errors::BunsenResult,
     kits::language::gemma::{
@@ -43,7 +43,7 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 pub const GEMMA_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const GEMMA_CATALOG_CONTRACT: &str = "gemma-lm";
 
 /// The built-in catalog's template class every Gemma build is of, and an
@@ -54,14 +54,14 @@ pub const GEMMA_TEMPLATE_CLASS: &str = "gemma/gemma/gemma";
 /// The name [`default_gemma_factory`] loads when a caller names none.
 pub const DEFAULT_GEMMA_MODEL: &str = "gemma/gemma/gemma-3-1b-it";
 
-/// Gemma's compiled-in providers, in search order: the well-known table,
+/// Gemma's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in a `transformers` Gemma's
 /// layout (its safetensors checkpoint, one file or shards, and its
 /// `config.json`), with its [`TOKENIZER`], [`TOKENIZER_CONFIG`],
 /// [`GENERATION_CONFIG`] and [`CHAT_TEMPLATE`] files when it has them.
-pub fn default_gemma_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+pub fn default_gemma_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
-        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             GEMMA_CATALOG_CONTRACT,
             GEMMA_KIT,
         )),
@@ -88,10 +88,10 @@ pub fn default_gemma_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// [`GemmaConstructConfig`].
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_gemma_factory() -> BunsenResult<PretrainedFactory<GemmaConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_gemma_providers())
+pub fn default_gemma_factory() -> BunsenResult<BuildFactory<GemmaConstructConfig>> {
+    BuildFactory::new().with_providers(default_gemma_providers())
 }
 
 #[cfg(test)]
@@ -111,7 +111,7 @@ mod tests {
                 .iter()
                 .map(|p| p.name())
                 .collect::<Vec<_>>(),
-            ["well-known", "hf"]
+            ["catalog", "hf"]
         );
         let names = [
             "gemma-3-270m",
@@ -133,7 +133,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:gemma/gemma/{n}"))
+                .map(|n| format!("catalog:gemma/gemma/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {

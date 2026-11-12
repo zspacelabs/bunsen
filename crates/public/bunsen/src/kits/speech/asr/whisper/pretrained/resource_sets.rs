@@ -69,7 +69,8 @@ impl WhisperVocabulary {
     /// # Panics
     /// When the built-in catalog lacks it, a bug in the catalog.
     pub fn resource_set(self) -> ResourceSet {
-        crate::data::builds::builtin_resource_set(self.resource_name(), VOCABULARY)
+        crate::data::catalog::BuiltinCatalog::get()
+            .and_then(|c| c.resource(self.resource_name(), VOCABULARY))
             .unwrap_or_else(|e| panic!("the Whisper vocabulary {}: {e}", self.resource_name()))
     }
 }
@@ -98,14 +99,14 @@ mod tests {
             .ids()
     }
 
-    /// Every well-known row's checkpoint is one pinned resource, labeled
+    /// Every catalog row's checkpoint is one pinned resource, labeled
     /// `checkpoint` under the `openai` namespace, found under upstream's root
     /// before upstream's URL, and that URL is addressed by the digest that
     /// pins it; upstream's root is `$XDG_CACHE_HOME/whisper`, else
     /// `~/.cache/whisper`.
     #[test]
     fn test_checkpoints_validate_and_pin_their_urls() {
-        let provider = crate::data::builds::BuildCatalogProvider::expect_builtin(
+        let provider = crate::data::catalog::BuiltinCatalog::expect_provider(
             WHISPER_CATALOG_CONTRACT,
             WHISPER_KIT,
         );

@@ -10,7 +10,7 @@
 //!   the part a checkpoint fixes).
 //! - [`pretrained`]: names to loaded models.
 //!   [`default_whisper_factory`](pretrained::default_whisper_factory) is the
-//!   index: `openai/base`, `large`, `well-known:openai/tiny.en`, and
+//!   index: `openai/base`, `large`, `catalog:openai/tiny.en`, and
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo. It resolves a name
 //!   to a [`WhisperConstruct`](driver::WhisperConstruct): the model at the
 //!   precision it ships in, its token layout, and its vocabulary.
@@ -32,7 +32,7 @@
 //!    to a row of the index, and the kit's hook to build it.
 //! 3. A [`WhisperConstruct`](driver::WhisperConstruct) behind an `Arc`, from
 //!    the factory's
-//!    [`load_construct`](crate::data::builds::PretrainedFactory::load_construct):
+//!    [`load_construct`](crate::data::builds::BuildFactory::load_construct):
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
 //!    language, task, timestamps, search, and the

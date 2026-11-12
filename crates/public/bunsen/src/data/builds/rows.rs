@@ -22,16 +22,16 @@ use crate::data::{
 /// hook, since the function that loads a kit's models is the kit's and
 /// supplies one, and it does not know which of its resources is the model.
 ///
-/// A [`BuildCatalogProvider`](super::BuildCatalogProvider) makes rows of a
+/// A [`CatalogBuildProvider`](super::CatalogBuildProvider) makes rows of a
 /// build catalog's builds. A
-/// [`PretrainedProvider`](super::PretrainedProvider) hands rows out from
+/// [`BuildProvider`](super::BuildProvider) hands rows out from
 /// its `list`, `lookup` and `resolve`; a
 /// [`PretrainedTable`](super::PretrainedTable) keeps them in groups and
 /// names them `group/name`. A factory wraps the row it found in a
-/// [`PretrainedRef::Named`](super::PretrainedRef::Named), the next step
+/// [`BuildRef::Named`](super::BuildRef::Named), the next step
 /// toward a model. The [`prefab`](Self::prefab) field joins the row to the
 /// kit's [`StaticPreFabMap`](crate::data::pretrained::StaticPreFabMap), through
-/// [`PretrainedRef::prefab`](super::PretrainedRef::prefab).
+/// [`BuildRef::prefab`](super::BuildRef::prefab).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pretrained {
     /// Its name, unique within its provider.

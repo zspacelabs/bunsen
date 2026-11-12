@@ -4,8 +4,8 @@ use alloc::sync::Arc;
 
 use crate::{
     data::builds::{
+        BuildProvider,
         HfProvider,
-        PretrainedProvider,
     },
     kits::speech::asr::whisper::pretrained::CHECKPOINT,
 };
@@ -24,10 +24,10 @@ pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 pub const WHISPER_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const WHISPER_CATALOG_CONTRACT: &str = "whisper-asr";
 
-/// Whisper's compiled-in providers, in search order: the well-known table,
+/// Whisper's compiled-in providers, in search order: the catalog provider,
 /// then Hugging Face, which answers only `hf:org/repo`, through the cache,
 /// and lists nothing.
 ///
@@ -35,9 +35,9 @@ pub const WHISPER_CATALOG_CONTRACT: &str = "whisper-asr";
 /// `transformers` safetensors checkpoint, one file or shards, under
 /// [`CHECKPOINT`]. The factory over these is
 /// [`default_whisper_factory`](super::default_whisper_factory).
-pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+pub fn default_whisper_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
-        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             WHISPER_CATALOG_CONTRACT,
             WHISPER_KIT,
         )),
@@ -65,11 +65,8 @@ mod tests {
             .ids()
     }
 
-    fn well_known() -> crate::data::builds::BuildCatalogProvider {
-        crate::data::builds::BuildCatalogProvider::expect_builtin(
-            WHISPER_CATALOG_CONTRACT,
-            WHISPER_KIT,
-        )
+    fn well_known() -> crate::data::builds::CatalogBuildProvider {
+        crate::data::catalog::BuiltinCatalog::expect_provider(WHISPER_CATALOG_CONTRACT, WHISPER_KIT)
     }
 
     fn leaf(name: &str) -> &str {
@@ -126,12 +123,12 @@ mod tests {
         }
     }
 
-    /// The well-known provider lists the twelve `openai` rows by full name
+    /// The catalog provider lists the twelve `openai` rows by full name
     /// and answers shorter spellings, the bare names and upstream's aliases.
     #[test]
     fn test_the_well_known_provider_lists_the_openai_rows() {
         let provider = well_known();
-        assert_eq!(provider.name(), "well-known");
+        assert_eq!(provider.name(), "catalog");
         let names: Vec<&str> = provider.rows().iter().map(|r| r.name.as_str()).collect();
         assert_eq!(names.len(), 12);
         assert!(

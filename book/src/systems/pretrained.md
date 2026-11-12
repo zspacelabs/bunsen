@@ -34,9 +34,9 @@ deferred model
 loaded model, behind an Arc
 ```
 
-A [`PretrainedFactory`](bunsen::data::builds::PretrainedFactory) is the
+A [`BuildFactory`](bunsen::data::builds::BuildFactory) is the
 one object a caller holds for a kit, and its
-[`load`](bunsen::data::builds::PretrainedFactory::load) runs the whole
+[`load`](bunsen::data::builds::BuildFactory::load) runs the whole
 pathway. A file on disk does not go through the factory at all: it is a
 given resource set ([`ResourceSet::given`](bunsen::data::resources::ResourceSet::given)),
 loaded the same way from the deferred step on.
@@ -64,9 +64,9 @@ resources](bunsen::data::pretrained#prefabs-rows-and-resources)).
 
 ## Providers
 
-A [`PretrainedProvider`](bunsen::data::builds::PretrainedProvider) is a
+A [`BuildProvider`](bunsen::data::builds::BuildProvider) is a
 namespace of rows: the `provider` in `provider:ref`. Three are in use.
-`well-known:` holds the compiled-in rows. `bundled:` holds the rows a build
+`catalog:` holds the compiled-in rows. `bundled:` holds the rows a build
 ships with, a table its caller registers. `hf:`, an
 [`HfProvider`](bunsen::data::builds::HfProvider), is a Hugging Face repo,
 by `org/repo`.
@@ -80,7 +80,7 @@ The two kinds of "no" are kept distinct. A provider that doesn't have the
 row says so (`Ok(None)`), and the search moves on. A provider that fails
 returns an error, and the error aborts the lookup, because a hub that cannot
 be reached is not the same as a hub that has no such row
-([dispatch](bunsen::data::builds::PretrainedFactory#dispatch)).
+([dispatch](bunsen::data::builds::BuildFactory#dispatch)).
 
 A spec is a lookup expression: `[provider:]name`, then an optional box of
 presets and an optional YAML patch over the resolved config, as in
@@ -88,14 +88,14 @@ presets and an optional YAML patch over the resolved config, as in
 line, since `[` and `]` glob. Only the name is dispatched. The box and the
 patch are checked against the row found before anything is fetched, and a
 kit that takes no presets refuses them rather than ignore them
-([lookup expressions](bunsen::data::builds::PretrainedFactory#lookup-expressions)).
+([lookup expressions](bunsen::data::builds::BuildFactory#lookup-expressions)).
 Well-known names compare ignoring case, so `Qwen/Qwen3-0.6B` finds
 `qwen/qwen3-0.6b`. `hf:` names compare as given, since they are paths in
 URLs.
 
 There is no process-wide registry. Each kit ships a
 `default_{kit}_factory()`, and a caller that wants another provider adds it
-to that factory ([no registry](bunsen::data::builds::PretrainedFactory#no-registry)).
+to that factory ([no registry](bunsen::data::builds::BuildFactory#no-registry)).
 
 ## Presets
 
@@ -132,7 +132,7 @@ Resolution stacks the layers, each a patch over the one before
 Every layer is checked against the config it patches, so a misspelled
 field fails, naming the preset or the patch, and the result must
 deserialize as the config. A kit's hook resolves presets before it builds,
-and [`PretrainedFactory::resolve_presets`](bunsen::data::builds::PretrainedFactory::resolve_presets)
+and [`BuildFactory::resolve_presets`](bunsen::data::builds::BuildFactory::resolve_presets)
 resolves a row's config with nothing fetched or built.
 
 A catalog states presets once per template class, and its builds inherit
@@ -140,7 +140,7 @@ them under their own. An `hf:` repo that no build describes gets its
 template class's. Some presets are read from a model's own files. A
 catalog source names probes, such as one that reads
 `generation_config.json`, and `cargo catalog` runs them when it builds the
-built-in catalog, so a well-known row's presets are fixed data in the build
+built-in catalog, so a catalog row's presets are fixed data in the build
 and need no probing when the model loads. A probe may read a token by name: Gemma's
 instruction-tuned rows read the id `tokenizer_config.json` gives
 `<end_of_turn>` into their stop tokens. A chat model's template is a preset

@@ -9,7 +9,7 @@
 //! # The index
 //!
 //! [`default_qwen3_asr_factory`] is the index a caller holds, over two
-//! providers. First the well-known rows, the built-in catalog's builds of
+//! providers. First the catalog rows, the built-in catalog's builds of
 //! [`QWEN3_ASR_CATALOG_CONTRACT`], each stating its geometry, one of
 //! [`QWEN3_ASR_PREFABS`]:
 //!
@@ -38,7 +38,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`Qwen3AsrConstructConfig`],
 //! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into the row's prefab through

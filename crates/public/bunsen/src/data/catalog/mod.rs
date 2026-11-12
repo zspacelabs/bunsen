@@ -92,6 +92,7 @@ pub mod document;
 pub mod error;
 pub mod fixtures;
 pub mod layer;
+mod loader_form;
 pub mod lookup;
 pub mod name;
 pub mod presets;
@@ -107,7 +108,10 @@ pub mod catalog_format {}
 #[doc = include_str!("usage.md")]
 pub mod usage {}
 
-pub use builtin::builtin_stack;
+pub use builtin::{
+    BuiltinCatalog,
+    builtin_stack,
+};
 pub use document::BunsenCatalog;
 pub use error::{
     CatalogErrorExt,

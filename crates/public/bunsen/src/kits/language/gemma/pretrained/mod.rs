@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_gemma_factory`] is the index a caller holds, over two providers.
-//! First the well-known rows, the built-in catalog's builds of
+//! First the catalog rows, the built-in catalog's builds of
 //! [`GEMMA_CATALOG_CONTRACT`], whose geometries are [`GEMMA_PREFABS`]'; each is
 //! a `transformers` checkpoint (bf16, but Gemma 2's base models, f32), its
 //! `config.json`, `tokenizer.json`, `tokenizer_config.json` and
@@ -30,7 +30,7 @@
 //! ([`gemma_config_from_transformers`](super::weights::gemma_config_from_transformers)), and
 //! those of its tokenizer, generation and template files it has.
 //!
-//! Every file of a well-known row is pinned to its digest and fetched from a
+//! Every file of a catalog row is pinned to its digest and fetched from a
 //! fixed revision of its mirror.
 //!
 //! # Presets
@@ -44,7 +44,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`GemmaConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint into
 //! its geometry through

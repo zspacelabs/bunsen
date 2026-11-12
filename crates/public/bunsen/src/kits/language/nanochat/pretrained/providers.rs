@@ -4,8 +4,8 @@ use alloc::sync::Arc;
 use super::NanoChatConstructConfig;
 use crate::{
     data::builds::{
-        PretrainedFactory,
-        PretrainedProvider,
+        BuildFactory,
+        BuildProvider,
     },
     errors::BunsenResult,
 };
@@ -30,16 +30,16 @@ pub const TIKTOKEN_PICKLE: &str = "tiktoken-pickle";
 pub const NANOCHAT_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const NANOCHAT_CATALOG_CONTRACT: &str = "nanochat-lm";
 
 /// The name [`default_nanochat_factory`] loads when a caller names none.
 pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
 
-/// nanochat's compiled-in providers: the well-known table.
-pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+/// nanochat's compiled-in providers: the catalog provider.
+pub fn default_nanochat_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![Arc::new(
-        crate::data::builds::BuildCatalogProvider::expect_builtin(
+        crate::data::catalog::BuiltinCatalog::expect_provider(
             NANOCHAT_CATALOG_CONTRACT,
             NANOCHAT_KIT,
         ),
@@ -49,15 +49,15 @@ pub fn default_nanochat_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// nanochat's factory over [`default_nanochat_providers`], building through
 /// [`NanoChatConstructConfig`].
 ///
-/// [`load_construct`](PretrainedFactory::load_construct) with
+/// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`NanoChatConstruct`](crate::kits::language::nanochat::NanoChatConstruct).
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_nanochat_factory() -> BunsenResult<PretrainedFactory<NanoChatConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_nanochat_providers())
+pub fn default_nanochat_factory() -> BunsenResult<BuildFactory<NanoChatConstructConfig>> {
+    BuildFactory::new().with_providers(default_nanochat_providers())
 }
 
 #[cfg(test)]
@@ -92,7 +92,7 @@ mod tests {
         assert_eq!(
             factory.ids(),
             rows.iter()
-                .map(|(group, name, _)| format!("well-known:{group}/{name}"))
+                .map(|(group, name, _)| format!("catalog:{group}/{name}"))
                 .collect::<Vec<_>>()
         );
         for (group, name, alias) in rows {

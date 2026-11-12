@@ -15,15 +15,15 @@ use crate::{
 };
 
 /// The name of the provider the compiled-in rows sit behind:
-/// `well-known:openai/tiny`.
-pub const WELL_KNOWN: &str = "well-known";
+/// `catalog:openai/tiny`.
+pub const CATALOG: &str = "catalog";
 
 /// The name of the provider whose rows a build ships with:
-/// `bundled:openai/base`. A caller registers one after [`WELL_KNOWN`], so
+/// `bundled:openai/base`. A caller registers one after [`CATALOG`], so
 /// that a bare name means the same row with it or without. A bundled row is
 /// served from the bundle rather than fetched: in place from files the build
 /// laid out (`bundled:openai/base`, the same files as
-/// `well-known:openai/base`), or from bytes linked into the binary
+/// `catalog:openai/base`), or from bytes linked into the binary
 /// ([`Source::Bundled`](crate::data::resources::Source::Bundled)).
 pub const BUNDLED: &str = "bundled";
 
@@ -37,23 +37,23 @@ pub const BUNDLED: &str = "bundled";
 /// scanning the listing ([`for_prefab`](Self::for_prefab)). One prefab,
 /// many rows, many providers.
 ///
-/// A [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
+/// A [`BuildFactory`](crate::data::builds::BuildFactory)
 /// holds a kit's providers in search order and offers each spec to them; its
 /// [dispatch rules] are where `Ok(None)` and an error part ways. The
 /// implementations in bunsen are [`PretrainedTable`], for compiled-in rows
-/// ([`WELL_KNOWN`], [`BUNDLED`]) and for any table read from a manifest, and
+/// ([`CATALOG`], [`BUNDLED`]) and for any table read from a manifest, and
 /// [`HfProvider`](super::HfProvider), for `hf:org/repo`.
 ///
-/// [dispatch rules]: crate::data::builds::PretrainedFactory#dispatch
+/// [dispatch rules]: crate::data::builds::BuildFactory#dispatch
 ///
 /// Object-safe by construction, so a factory holds any mix of these behind
-/// `Arc<dyn PretrainedProvider>`. [`list`](Self::list) and
+/// `Arc<dyn BuildProvider>`. [`list`](Self::list) and
 /// [`lookup`](Self::lookup) are separate so that a provider which cannot
 /// enumerate what it has (a hub) can still answer a ref, with an empty
 /// listing. Such a provider also says it does not
 /// [answer bare names](Self::answers_bare_names), so a spec with no
 /// `provider:` never reaches it.
-pub trait PretrainedProvider: Send + Sync + fmt::Debug {
+pub trait BuildProvider: Send + Sync + fmt::Debug {
     /// The namespace: the `provider` of `provider:ref`.
     fn name(&self) -> &str;
 
@@ -231,7 +231,7 @@ impl PretrainedGroup {
 /// `qwen/qwen3-0.6b`. A listing gives names as the table declares them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PretrainedTable {
-    /// The provider's name: [`WELL_KNOWN`] for the compiled-in rows.
+    /// The provider's name: [`CATALOG`] for the compiled-in rows.
     pub name: String,
 
     /// A line for a listing.
@@ -278,7 +278,7 @@ impl PretrainedTable {
     }
 }
 
-impl PretrainedProvider for PretrainedTable {
+impl BuildProvider for PretrainedTable {
     fn name(&self) -> &str {
         &self.name
     }
@@ -375,10 +375,10 @@ mod tests {
         }
     }
 
-    /// The two groups as the well-known table.
+    /// The two groups as the catalog provider.
     fn table() -> PretrainedTable {
         PretrainedTable {
-            name: WELL_KNOWN.to_string(),
+            name: CATALOG.to_string(),
             description: "the test rows".to_string(),
             groups: alloc::vec![
                 group_a(),
@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn test_the_table_lists_refs_and_looks_up() {
         let table = table();
-        assert_eq!(table.name(), WELL_KNOWN);
+        assert_eq!(table.name(), CATALOG);
         assert_eq!(table.description(), "the test rows");
         assert_eq!(table.license(), None, "a table's license is its groups'");
         assert!(table.answers_bare_names());
@@ -438,11 +438,11 @@ mod tests {
         assert_eq!(
             table.ids(),
             [
-                "well-known:a/small",
-                "well-known:a/large-v1",
-                "well-known:a/large-v2",
-                "well-known:b/small",
-                "well-known:b/tiny",
+                "catalog:a/small",
+                "catalog:a/large-v1",
+                "catalog:a/large-v2",
+                "catalog:b/small",
+                "catalog:b/tiny",
             ]
         );
 
@@ -465,7 +465,7 @@ mod tests {
         let listed = table.lookup("s").unwrap().unwrap();
         assert_eq!(listed.aliases, ["s"], "aliases stay as authored");
         assert_eq!(listed.resources.keys(), ["weights"]);
-        assert_eq!(table.id(&listed), "well-known:a/small");
+        assert_eq!(table.id(&listed), "catalog:a/small");
 
         assert_eq!(
             table
@@ -483,8 +483,8 @@ mod tests {
     /// every provider.
     #[test]
     fn test_a_table_behind_a_trait_object() {
-        let provider: Arc<dyn PretrainedProvider> = Arc::new(table());
-        assert_eq!(provider.name(), "well-known");
+        let provider: Arc<dyn BuildProvider> = Arc::new(table());
+        assert_eq!(provider.name(), "catalog");
         assert_eq!(provider.list().len(), 5);
         assert_eq!(
             provider
@@ -504,7 +504,7 @@ mod tests {
         #[derive(Debug)]
         struct Flat;
 
-        impl PretrainedProvider for Flat {
+        impl BuildProvider for Flat {
             fn name(&self) -> &str {
                 "flat"
             }

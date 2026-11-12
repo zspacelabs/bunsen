@@ -285,7 +285,7 @@ fn fetch_prefix(
 /// [`plan`](crate::data::builds::ConstructInit::plan) and
 /// [`try_init`](crate::data::builds::ConstructInit::try_init), and
 /// the [`LoadedResourceSet`] it returns are what the hook builds from. A
-/// [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
+/// [`BuildFactory`](crate::data::builds::BuildFactory)
 /// hands the cache to its providers too, so that a hub
 /// ([`HfProvider`](crate::data::builds::HfProvider)) can keep what it asked
 /// for. [`status`](Self::status) and [`map_status`](Self::map_status) answer a

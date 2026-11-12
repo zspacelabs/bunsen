@@ -1,7 +1,7 @@
 //! # Builds: from a name to a model
 //!
 //! From a name to a model. A kit's
-//! [`PretrainedFactory`]
+//! [`BuildFactory`]
 //! takes a spec, `provider:ref` or a bare name, and asks its providers for the
 //! row the spec names. Loading the row, the [`ResourceCache`] brings its
 //! files local and the kit's
@@ -12,13 +12,13 @@
 //!
 //! The pieces:
 //!
-//! - [`PretrainedProvider`]: a namespace over rows, the `provider` of
+//! - [`BuildProvider`]: a namespace over rows, the `provider` of
 //!   `provider:ref`.
 //! - [`ConstructInit`]: the kit's hook, which completes a resolved ref's
 //!   resource set before it is loaded and builds from the loaded parts.
 //! - [`Deferred`]: a model not yet loaded, its ref paired with the hook that
 //!   will build it.
-//! - [`PretrainedFactory`]: a kit's providers in search order, resolving lookup
+//! - [`BuildFactory`]: a kit's providers in search order, resolving lookup
 //!   expressions to [`Deferred`] models.
 //! - [`LookupExpr`]: a lookup expression, `[provider:]name[preset, …]{patch}`,
 //!   split into the name and what it asks of the row's presets.
@@ -65,7 +65,7 @@
 //!
 //! A kit's rows are data: the builds of the kit's contract in the built-in
 //! build catalog ([`catalog`](crate::data::catalog)), which a
-//! [`BuildCatalogProvider`] serves as rows named in full
+//! [`CatalogBuildProvider`] serves as rows named in full
 //! (`qwen/qwen3/qwen3-0.6b`), with the presets and arguments the catalog
 //! resolves. Its files carry their sizes and dtypes, and a local directory
 //! names where another tool keeps its files as path
@@ -73,25 +73,24 @@
 //!
 //! ## Providers
 //!
-//! A [`PretrainedProvider`] is a namespace over rows: the `provider` of
+//! A [`BuildProvider`] is a namespace over rows: the `provider` of
 //! `provider:ref`. It looks a name up, and lists what it has when it can.
 //! Three are in use:
 //!
-//! - `well-known:` ([`WELL_KNOWN`]) holds the compiled-in rows, a
-//!   [`PretrainedTable`] of [`PretrainedGroup`]s. `well-known:openai/tiny` is
-//!   the `tiny` row of the `openai` group; a bare `openai/tiny`, or `tiny`,
-//!   finds it too.
+//! - `catalog:` ([`CATALOG`]) holds the compiled-in rows, a [`PretrainedTable`]
+//!   of [`PretrainedGroup`]s. `catalog:openai/tiny` is the `tiny` row of the
+//!   `openai` group; a bare `openai/tiny`, or `tiny`, finds it too.
 //! - `bundled:` ([`BUNDLED`]) holds the rows a build ships with: a table a
 //!   caller registers over files it lays out or bytes it links in.
 //! - `hf:` ([`HF`]) is an [`HfProvider`]: a Hugging Face repo, by `org/repo`.
 //!   It lists nothing and never answers a bare name.
 //!
-//! A [`PretrainedFactory`]
+//! A [`BuildFactory`]
 //! holds a kit's providers in search order and offers a spec to them by its
 //! [dispatch rules]. A provider's `Ok(None)` means "not here", and an error
 //! aborts the lookup.
 //!
-//! [dispatch rules]: crate::data::builds::PretrainedFactory#dispatch
+//! [dispatch rules]: crate::data::builds::BuildFactory#dispatch
 //!
 //! Files, the pinned cache and loaded resource sets are
 //! [`resources`](crate::data::resources).
@@ -109,14 +108,14 @@
 //! use bunsen::{
 //!     data::{
 //!         builds::{
+//!             BuildFactory,
+//!             BuildRef,
+//!             CATALOG,
 //!             ConstructInit,
 //!             Deferred,
 //!             Pretrained,
-//!             PretrainedFactory,
 //!             PretrainedGroup,
-//!             PretrainedRef,
 //!             PretrainedTable,
-//!             WELL_KNOWN,
 //!         },
 //!         cache::{
 //!             BunsenDiskCacheOptions,
@@ -153,7 +152,7 @@
 //!
 //!     fn try_init(
 //!         &self,
-//!         _model: &PretrainedRef,
+//!         _model: &BuildRef,
 //!         loaded: &LoadedResourceSet,
 //!         _device: &Device,
 //!         _policy: bunsen::data::formats::LoadPolicy,
@@ -199,7 +198,7 @@
 //!
 //! // The kit's index: one provider, a table of one group.
 //! let table = PretrainedTable {
-//!     name: WELL_KNOWN.to_string(),
+//!     name: CATALOG.to_string(),
 //!     description: "the toy kit's rows".to_string(),
 //!     groups: vec![PretrainedGroup {
 //!         name: "toy".to_string(),
@@ -211,8 +210,8 @@
 //!     case_sensitive: false,
 //! };
 //! let factory =
-//!     PretrainedFactory::<Greeting>::new().with_provider(Arc::new(table))?;
-//! assert_eq!(factory.ids(), ["well-known:toy/hello"]);
+//!     BuildFactory::<Greeting>::new().with_provider(Arc::new(table))?;
+//! assert_eq!(factory.ids(), ["catalog:toy/hello"]);
 //!
 //! // A cache rooted in the temporary directory, and offline.
 //! let cache = ResourceCache::new(
@@ -233,7 +232,7 @@
 //!     &Default::default(),
 //!     bunsen::data::formats::LoadPolicy::as_stored(),
 //! )?;
-//! assert_eq!(loaded.name, "well-known:toy/hello");
+//! assert_eq!(loaded.name, "catalog:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
 //! let text = loaded.resources.get("text").expect("the text");
 //! assert_eq!(text.provenance, Provenance::LocalDir);
@@ -271,6 +270,7 @@
 //! [`Source`]: crate::data::resources::Source
 //! [`resolve_dir_template`]: crate::data::resources::resolve_dir_template
 
+mod build_ref;
 mod catalog_provider;
 #[cfg(feature = "cache")]
 mod deferred;
@@ -281,10 +281,10 @@ mod hf;
 mod init;
 #[cfg(feature = "cache")]
 mod lookup;
-mod pretrained_ref;
 mod providers;
 mod rows;
 
+pub use build_ref::*;
 pub use catalog_provider::*;
 #[cfg(feature = "cache")]
 pub use deferred::*;
@@ -295,6 +295,5 @@ pub use hf::*;
 pub use init::*;
 #[cfg(feature = "cache")]
 pub use lookup::*;
-pub use pretrained_ref::*;
 pub use providers::*;
 pub use rows::*;

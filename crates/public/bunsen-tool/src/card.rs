@@ -32,8 +32,8 @@ use bunsen::kits::speech::{
 use bunsen::{
     data::{
         builds::{
+            BuildFactory,
             ConstructInit,
-            PretrainedFactory,
         },
         catalog::presets::ResolvedPresetSet,
         resources::ResourceCache,
@@ -421,11 +421,11 @@ fn kits(policies: bool) -> BunsenResult<Value> {
 /// as data: what its kit's hook would build it under, with nothing fetched.
 ///
 /// # Errors
-/// As [`PretrainedFactory::resolve_presets`];
+/// As [`BuildFactory::resolve_presets`];
 /// [`Internal`](bunsen::errors::BunsenErrorKind::Internal) if the policy
 /// does not serialize.
 fn policy<H: ConstructInit, C: Default + Serialize + DeserializeOwned>(
-    factory: &PretrainedFactory<H>,
+    factory: &BuildFactory<H>,
     name: &str,
 ) -> BunsenResult<serde_json::Value> {
     let resolved = factory.resolve_presets(name, &C::default())?;
@@ -507,7 +507,7 @@ fn presets(
 }
 
 /// One family: a list of entries, each a one-key map. First a `provider:`
-/// entry for each provider its factory searches, in order (`well-known`,
+/// entry for each provider its factory searches, in order (`catalog`,
 /// `hf`, ...), its name; then a `model:` entry for each row its factory
 /// lists, a summary card: its name, its aliases (none is an empty list,
 /// which the output elides), its description, the size of its files, the
@@ -519,8 +519,8 @@ fn presets(
 /// # Errors
 /// As `policy`, for a row.
 fn family<H: ConstructInit>(
-    factory: PretrainedFactory<H>,
-    policy: Option<impl Fn(&PretrainedFactory<H>, &str) -> BunsenResult<serde_json::Value>>,
+    factory: BuildFactory<H>,
+    policy: Option<impl Fn(&BuildFactory<H>, &str) -> BunsenResult<serde_json::Value>>,
 ) -> BunsenResult<Value> {
     let providers = factory.providers().iter().map(|provider| {
         Value::map([(
@@ -572,7 +572,7 @@ mod tests {
     }
 
     /// The card has its three sections in order; every family is a list of
-    /// one-key entries, its providers first (the well-known table first of
+    /// one-key entries, its providers first (the catalog provider first of
     /// them), then its models, each a name, its aliases, a description, a
     /// size and its dtypes, in that order; every model's size is known.
     #[cfg(feature = "speech")]
@@ -659,7 +659,7 @@ mod tests {
                 );
                 assert_eq!(
                     entries[0].get("provider").and_then(|p| p.get("name")),
-                    Some(&Value::str("well-known")),
+                    Some(&Value::str("catalog")),
                     "{kind}/{family}"
                 );
                 for entry in &entries[providers..] {

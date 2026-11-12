@@ -15,9 +15,9 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             CONFIG,
             ConstructInit,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
@@ -142,7 +142,7 @@ impl ConstructInit for ParakeetConstructConfig {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -181,13 +181,21 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         let nvidia = ParakeetConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("nvidia/parakeet-tdt-0.6b-v3").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("nvidia/parakeet-tdt-0.6b-v3")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
         let phonon = ParakeetConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("fermion/phonon-2").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("fermion/phonon-2")
+                .unwrap()
+                .resource_set(),
         );
         assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());

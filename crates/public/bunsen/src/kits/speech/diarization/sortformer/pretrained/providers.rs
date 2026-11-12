@@ -4,9 +4,9 @@ use alloc::sync::Arc;
 use super::SortformerConstructConfig;
 use crate::{
     data::builds::{
+        BuildFactory,
+        BuildProvider,
         HfProvider,
-        PretrainedFactory,
-        PretrainedProvider,
     },
     errors::BunsenResult,
 };
@@ -30,19 +30,19 @@ pub const NEMO: &str = "nemo";
 pub const SORTFORMER_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const SORTFORMER_CATALOG_CONTRACT: &str = "sortformer-diarizer";
 
 /// The name [`default_sortformer_factory`] loads when a caller names none.
 pub const DEFAULT_SORTFORMER_MODEL: &str = "nvidia/sortformer/nemotron-3-diarization";
 
-/// Sortformer's compiled-in providers, in search order: the well-known table,
+/// Sortformer's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`' layout (its
 /// safetensors checkpoint, one file or shards, and its `config.json`), or one
 /// holding a `NeMo` `.nemo` alone.
-pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+pub fn default_sortformer_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
-        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             SORTFORMER_CATALOG_CONTRACT,
             SORTFORMER_KIT,
         )),
@@ -57,15 +57,15 @@ pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Sortformer's factory over [`default_sortformer_providers`], building
 /// through [`SortformerConstructConfig`].
 ///
-/// [`load_construct`](PretrainedFactory::load_construct) with
+/// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`SortformerConstruct`](crate::kits::speech::diarization::sortformer::SortformerConstruct).
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_sortformer_factory() -> BunsenResult<PretrainedFactory<SortformerConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_sortformer_providers())
+pub fn default_sortformer_factory() -> BunsenResult<BuildFactory<SortformerConstructConfig>> {
+    BuildFactory::new().with_providers(default_sortformer_providers())
 }
 
 #[cfg(test)]
@@ -80,7 +80,11 @@ mod tests {
             ("nvidia/diar_streaming_sortformer_4spk-v2", NEMO),
             ("nvidia/diar_streaming_sortformer_4spk-v2.1", NEMO),
         ] {
-            let map = crate::data::builds::builtin_build_bundle(name).unwrap();
+            let map = crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build(name)
+                .unwrap()
+                .resource_set();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{name}");
@@ -94,9 +98,9 @@ mod tests {
         assert_eq!(
             factory.ids(),
             [
-                "well-known:nvidia/sortformer/nemotron-3-diarization",
-                "well-known:nvidia/sortformer/diar_streaming_sortformer_4spk-v2",
-                "well-known:nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1",
+                "catalog:nvidia/sortformer/nemotron-3-diarization",
+                "catalog:nvidia/sortformer/diar_streaming_sortformer_4spk-v2",
+                "catalog:nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1",
             ]
         );
         assert_eq!(
@@ -105,7 +109,7 @@ mod tests {
                 .iter()
                 .map(|p| p.name())
                 .collect::<Vec<_>>(),
-            ["well-known", "hf"]
+            ["catalog", "hf"]
         );
         for (spec, name) in [
             (
@@ -117,7 +121,7 @@ mod tests {
                 "nvidia/sortformer/nemotron-3-diarization",
             ),
             (
-                "well-known:nvidia/nemotron-3-diarization",
+                "catalog:nvidia/nemotron-3-diarization",
                 "nvidia/sortformer/nemotron-3-diarization",
             ),
             (

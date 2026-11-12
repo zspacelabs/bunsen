@@ -70,7 +70,7 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
 
 /// `bundled:openai/base` (`bundled_table`) is the bundle's files, used in place
 /// from a cache that has nothing: both parts local dir, nothing written; and
-/// a bare `openai/base` still means the well-known row.
+/// a bare `openai/base` still means the catalog row.
 #[test]
 fn test_the_bundled_provider_serves_openai_base_in_place() {
     let dir = tempfile::tempdir().unwrap();
@@ -108,7 +108,7 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
 
     assert_eq!(
         factory.resolve("openai/base", &cache).unwrap().id(),
-        "well-known:openai/whisper/base"
+        "catalog:openai/whisper/base"
     );
 }
 
@@ -119,13 +119,13 @@ fn test_the_bundle_serves_openai_base() {
     let cache = offline_cache();
     let factory = default_whisper_factory().unwrap();
     let model = factory.resolve("openai/base", &cache).unwrap();
-    assert_eq!(model.id(), "well-known:openai/whisper/base");
+    assert_eq!(model.id(), "catalog:openai/whisper/base");
     let status = model.status(&cache);
     assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
     assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 
     let loaded = cache.load(&model.to_resource_set()).unwrap();
-    assert_eq!(loaded.map.name, "well-known:openai/whisper/base");
+    assert_eq!(loaded.map.name, "catalog:openai/whisper/base");
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");
         assert!(part.path.starts_with(bind_whisper_onnx::cache_dir()));

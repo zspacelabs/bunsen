@@ -4,8 +4,8 @@ use alloc::sync::Arc;
 use super::LayaConstructConfig;
 use crate::{
     data::builds::{
-        PretrainedFactory,
-        PretrainedProvider,
+        BuildFactory,
+        BuildProvider,
     },
     errors::BunsenResult,
 };
@@ -29,16 +29,16 @@ pub const AGENT_CONFIG: &str = "agent_config";
 pub const LAYA_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const LAYA_CATALOG_CONTRACT: &str = "laya-decision";
 
 /// The name [`default_laya_factory`] loads when a caller names none.
 pub const DEFAULT_LAYA_MODEL: &str = "laya/laya/laya";
 
-/// Laya's compiled-in providers: the well-known table.
-pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+/// Laya's compiled-in providers: the catalog provider.
+pub fn default_laya_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![Arc::new(
-        crate::data::builds::BuildCatalogProvider::expect_builtin(LAYA_CATALOG_CONTRACT, LAYA_KIT),
+        crate::data::catalog::BuiltinCatalog::expect_provider(LAYA_CATALOG_CONTRACT, LAYA_KIT),
     )]
 }
 
@@ -46,9 +46,9 @@ pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// [`LayaConstructConfig`].
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`].
-pub fn default_laya_factory() -> BunsenResult<PretrainedFactory<LayaConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_laya_providers())
+/// As [`BuildFactory::with_providers`].
+pub fn default_laya_factory() -> BunsenResult<BuildFactory<LayaConstructConfig>> {
+    BuildFactory::new().with_providers(default_laya_providers())
 }
 
 #[cfg(test)]
@@ -70,7 +70,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:laya/laya/{n}"))
+                .map(|n| format!("catalog:laya/laya/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {

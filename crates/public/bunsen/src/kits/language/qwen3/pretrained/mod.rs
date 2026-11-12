@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_qwen3_factory`] is the index a caller holds, over two providers.
-//! First the well-known rows, the built-in catalog's builds of
+//! First the catalog rows, the built-in catalog's builds of
 //! [`QWEN3_CATALOG_CONTRACT`], whose geometries are [`QWEN3_PREFABS`]'; each is
 //! a `transformers` checkpoint (bf16), its `config.json`, `tokenizer.json`,
 //! `tokenizer_config.json` and `generation_config.json`:
@@ -37,7 +37,7 @@
 //! ([`qwen3_config_from_transformers`](super::weights::qwen3_config_from_transformers)), and
 //! those of its tokenizer and generation files it has.
 //!
-//! Every file of a well-known row is pinned to its digest and fetched from a
+//! Every file of a catalog row is pinned to its digest and fetched from a
 //! fixed revision of its Hugging Face repo.
 //!
 //! # Presets
@@ -58,7 +58,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`Qwen3ConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint into its
 //! geometry through

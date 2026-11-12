@@ -99,7 +99,7 @@ impl TransformersLmKit for GemmaConstructConfig {
                 CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
                 CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
             ],
-            &crate::data::builds::builtin_template_presets(GEMMA_TEMPLATE_CLASS)?,
+            &crate::data::catalog::BuiltinCatalog::get()?.template_presets(GEMMA_TEMPLATE_CLASS)?,
         )
     }
 }
@@ -118,15 +118,27 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         GemmaConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("gemma/gemma-3-270m").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("gemma/gemma-3-270m")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         GemmaConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("gemma/gemma-2-9b-it").unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("gemma/gemma-2-9b-it")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
 
-        let mut gguf = crate::data::builds::builtin_build_bundle("gemma/gemma-3-270m").unwrap();
+        let mut gguf = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("gemma/gemma-3-270m")
+            .unwrap()
+            .resource_set();
         gguf.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
@@ -190,7 +202,9 @@ mod tests {
         };
         assert_eq!(template("gemma/gemma-3-1b-it"), file("chat_template"));
         assert_eq!(template("gemma/gemma-2-9b-it"), file("tokenizer_config"));
-        let family = crate::data::builds::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
+        let family = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .template_presets(GEMMA_TEMPLATE_CLASS)
             .unwrap()
             .common["generation"]["chat_template"]
             .as_str()

@@ -13,8 +13,8 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         formats::SafetensorsCheckpoint,
         resources::{
@@ -82,7 +82,7 @@ impl ConstructInit for LayaConstructConfig {
 
     fn try_init(
         &self,
-        _model: &PretrainedRef,
+        _model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
@@ -115,11 +115,19 @@ mod tests {
             "laya/laya-typed-decisions",
         ] {
             LayaConstructConfig::for_resource_set(
-                &crate::data::builds::builtin_build_bundle(name).unwrap(),
+                &crate::data::catalog::BuiltinCatalog::get()
+                    .unwrap()
+                    .build(name)
+                    .unwrap()
+                    .resource_set(),
             )
             .unwrap();
         }
-        let mut other = crate::data::builds::builtin_build_bundle("laya/laya").unwrap();
+        let mut other = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("laya/laya")
+            .unwrap()
+            .resource_set();
         other.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

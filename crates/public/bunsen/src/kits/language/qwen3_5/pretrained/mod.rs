@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_qwen3_5_factory`] is the index a caller holds, over two
-//! providers. First the well-known rows, the built-in catalog's builds of
+//! providers. First the catalog rows, the built-in catalog's builds of
 //! [`QWEN3_5_CATALOG_CONTRACT`], whose geometries are [`QWEN3_5_PREFABS`]';
 //! each is a `transformers` checkpoint in bf16 (a
 //! `Qwen3_5ForConditionalGeneration`'s, whose text model alone is loaded), its
@@ -25,7 +25,7 @@
 //! ([`qwen3_5_config_from_transformers`](super::weights::qwen3_5_config_from_transformers)),
 //! and those of its tokenizer, generation and template files it has.
 //!
-//! Every file of a well-known row is pinned to its digest and fetched from a
+//! Every file of a catalog row is pinned to its digest and fetched from a
 //! fixed revision.
 //!
 //! # Presets
@@ -41,7 +41,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`Qwen3_5ConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint into
 //! its geometry through

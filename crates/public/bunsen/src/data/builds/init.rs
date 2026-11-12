@@ -4,7 +4,7 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
-        builds::PretrainedRef,
+        builds::BuildRef,
         resources::{
             LoadedResourceSet,
             ResourceCache,
@@ -45,7 +45,7 @@ pub trait ConstructInit: Sized {
     const KIT: &'static str;
 
     /// Whether [`try_init`](Self::try_init) resolves the ref's preset
-    /// selection ([`PretrainedRef::selection`]). A factory refuses a lookup
+    /// selection ([`BuildRef::selection`]). A factory refuses a lookup
     /// that selects presets or patches the config of a kit whose hook does
     /// not, rather than let the request be ignored.
     const RESOLVES_PRESETS: bool = false;
@@ -73,7 +73,7 @@ pub trait ConstructInit: Sized {
     /// contradicts it.
     fn plan(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         _cache: &ResourceCache,
     ) -> BunsenResult<ResourceSet> {
         Ok(model.to_resource_set())
@@ -90,7 +90,7 @@ pub trait ConstructInit: Sized {
     /// key says.
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
@@ -100,7 +100,7 @@ pub trait ConstructInit: Sized {
 /// The handle a pretrained hands back: bound by what was built.
 ///
 /// The end of the pathway: what [`Deferred::load`](super::Deferred::load)
-/// and [`PretrainedFactory::load`](super::PretrainedFactory::load) return.
+/// and [`BuildFactory::load`](super::BuildFactory::load) return.
 /// Cloning shares the handle; the built thing is constructed once.
 #[derive(Debug)]
 pub struct Loaded<T> {
@@ -172,7 +172,7 @@ mod tests {
 
         fn plan(
             &self,
-            model: &PretrainedRef,
+            model: &BuildRef,
             _cache: &ResourceCache,
         ) -> BunsenResult<ResourceSet> {
             let map = model.to_resource_set();
@@ -187,7 +187,7 @@ mod tests {
 
         fn try_init(
             &self,
-            _model: &PretrainedRef,
+            _model: &BuildRef,
             loaded: &LoadedResourceSet,
             _device: &Device,
             _policy: crate::data::formats::LoadPolicy,
@@ -214,7 +214,7 @@ mod tests {
 
         fn try_init(
             &self,
-            _model: &PretrainedRef,
+            _model: &BuildRef,
             loaded: &LoadedResourceSet,
             _device: &Device,
             _policy: crate::data::formats::LoadPolicy,
@@ -253,7 +253,7 @@ mod tests {
         };
 
         let loaded = Deferred {
-            model: PretrainedRef::from(ResourceSet::given("mine", "checkpoint", &checkpoint)),
+            model: BuildRef::from(ResourceSet::given("mine", "checkpoint", &checkpoint)),
             config,
         }
         .load(
@@ -286,7 +286,7 @@ mod tests {
         fs::write(&checkpoint, b"x").unwrap();
         fs::write(&vocabulary, b"y").unwrap();
         let cache = cache_in(dir.path());
-        let model = PretrainedRef::from(
+        let model = BuildRef::from(
             ResourceSet::given("mine", "checkpoint", &checkpoint)
                 .fuse(
                     ResourceSet::given("flags", "vocabulary", &vocabulary),

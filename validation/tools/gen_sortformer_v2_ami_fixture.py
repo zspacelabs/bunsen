@@ -13,7 +13,7 @@ Run once; commit the output. Regenerating is not part of CI.
 `V2_NEMO` and `V2_1_NEMO` are `nvidia/diar_streaming_sortformer_4spk-v2`'s
 `.nemo` at revision 84edd514b8ef68004c10086918cd62f2148cbd59 (sha256
 b371afce...) and `-v2.1`'s at cd03eee90fbec18297ac31b8c21546e596b7f71c
-(sha256 8abd3283...): the files bunsen's well-known rows pin. `AMI_WAV` and
+(sha256 8abd3283...): the files bunsen's catalog rows pin. `AMI_WAV` and
 `AMI_RTTM` are `bunsen-test-audio`'s `ami` fixture (NeMo-Speech.cpp's
 `test_files/diar/ami_en2002d_2132.{wav,rttm}` at 2bdfb03b).
 

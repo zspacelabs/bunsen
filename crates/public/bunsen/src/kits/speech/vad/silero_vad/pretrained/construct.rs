@@ -7,8 +7,8 @@ use burn::tensor::Device;
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         resources::{
@@ -119,7 +119,7 @@ impl ConstructInit for SileroConstructConfig {
     /// ([`resolve_ref_presets`]).
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -162,7 +162,11 @@ mod tests {
 
         assert_eq!(
             SileroConstructConfig::for_resource_set(
-                &crate::data::builds::builtin_build_bundle("vad-16k").unwrap()
+                &crate::data::catalog::BuiltinCatalog::get()
+                    .unwrap()
+                    .build("vad-16k")
+                    .unwrap()
+                    .resource_set()
             )
             .unwrap()
             .reader,

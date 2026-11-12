@@ -8,10 +8,10 @@ use std::{
 use bunsen::{
     data::{
         builds::{
+            BuildFactory,
             ConstructInit,
             Deferred,
             Pretrained,
-            PretrainedFactory,
         },
         cache::verify_sha256,
         catalog::{
@@ -233,7 +233,7 @@ impl Kit {
     }
 
     /// Whether the kit's factory lists `name`, a row's name or alias, with
-    /// or without its provider (`well-known:openai/small`), case aside: a
+    /// or without its provider (`catalog:openai/small`), case aside: a
     /// row named in the build catalog's form answers its shorter spellings too
     /// (`openai/small` for `openai/whisper/small`), as its provider's lookup
     /// takes them.
@@ -261,7 +261,7 @@ impl Kit {
 
     /// What the kit's factory offers.
     pub fn listing(self) -> BunsenResult<Listing> {
-        fn split<H: ConstructInit>(factory: PretrainedFactory<H>) -> Listing {
+        fn split<H: ConstructInit>(factory: BuildFactory<H>) -> Listing {
             let rows = factory.list();
             let listed: Vec<&str> = rows.iter().map(|(p, _)| p.as_str()).collect();
             let unlisted = factory
@@ -321,7 +321,7 @@ impl Kit {
 /// path's vocabulary is the one its checkpoint's layout selects, and a
 /// name's checkpoint must scan as its prefab), then every resource of it.
 pub fn fetch_with<H: ConstructInit>(
-    factory: PretrainedFactory<H>,
+    factory: BuildFactory<H>,
     names: &[String],
     cache: &ResourceCache,
     verify: bool,

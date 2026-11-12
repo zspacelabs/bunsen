@@ -4,9 +4,9 @@ use alloc::sync::Arc;
 use super::ParakeetConstructConfig;
 use crate::{
     data::builds::{
+        BuildFactory,
+        BuildProvider,
         HfProvider,
-        PretrainedFactory,
-        PretrainedProvider,
     },
     errors::BunsenResult,
 };
@@ -37,19 +37,19 @@ pub const TOKENIZER_JSON: &str = "tokenizer.json";
 pub const PARAKEET_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const PARAKEET_CATALOG_CONTRACT: &str = "parakeet-asr";
 
 /// The name [`default_parakeet_factory`] loads when a caller names none.
 pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 
-/// Parakeet's compiled-in providers, in search order: the well-known table,
+/// Parakeet's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`' layout (its
 /// safetensors checkpoint, one file or shards, its `config.json`, and its
 /// `tokenizer.json` as the vocabulary).
-pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+pub fn default_parakeet_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
-        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             PARAKEET_CATALOG_CONTRACT,
             PARAKEET_KIT,
         )),
@@ -64,15 +64,15 @@ pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Parakeet's factory over [`default_parakeet_providers`], building through
 /// [`ParakeetConstructConfig`].
 ///
-/// [`load_construct`](PretrainedFactory::load_construct) with
+/// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`ParakeetConstruct`](crate::kits::speech::asr::parakeet::ParakeetConstruct).
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_parakeet_factory() -> BunsenResult<PretrainedFactory<ParakeetConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_parakeet_providers())
+pub fn default_parakeet_factory() -> BunsenResult<BuildFactory<ParakeetConstructConfig>> {
+    BuildFactory::new().with_providers(default_parakeet_providers())
 }
 
 #[cfg(test)]
@@ -95,8 +95,8 @@ mod tests {
         assert_eq!(
             factory.ids(),
             [
-                "well-known:fermion/phonon-2",
-                "well-known:nvidia/parakeet-tdt-0.6b-v3"
+                "catalog:fermion/phonon-2",
+                "catalog:nvidia/parakeet-tdt-0.6b-v3"
             ]
         );
         assert_eq!(
@@ -105,13 +105,13 @@ mod tests {
                 .iter()
                 .map(|p| p.name())
                 .collect::<Vec<_>>(),
-            ["well-known", "hf"]
+            ["catalog", "hf"]
         );
         for spec in [
             DEFAULT_PARAKEET_MODEL,
             "phonon-2",
             "phonon",
-            "well-known:fermion/phonon-2",
+            "catalog:fermion/phonon-2",
         ] {
             assert_eq!(
                 factory.lookup(spec).unwrap().1.name,

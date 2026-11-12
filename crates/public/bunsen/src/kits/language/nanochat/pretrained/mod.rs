@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_nanochat_factory`] is the index a caller holds, over the
-//! well-known rows, the built-in catalog's builds of
+//! catalog rows, the built-in catalog's builds of
 //! [`NANOCHAT_CATALOG_CONTRACT`], whose geometries are [`NANOCHAT_PREFABS`]'.
 //! There are no official nanochat releases; each row is a community upload of
 //! upstream's own checkpoint files, unconverted: a `model_<step>.pt` (about 2
@@ -31,7 +31,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`NanoChatConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint through
 //! [`load_pt_checkpoint`](super::weights::load_pt_checkpoint): the meta's

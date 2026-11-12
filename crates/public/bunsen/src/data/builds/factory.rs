@@ -22,13 +22,13 @@ use crate::data::resources::ResourceSet;
 use crate::{
     data::{
         builds::{
+            BuildProvider,
+            BuildRef,
             ConstructInit,
             Deferred,
             Loaded,
             LookupExpr,
             Pretrained,
-            PretrainedProvider,
-            PretrainedRef,
         },
         catalog::presets::PresetSelection,
         formats::LoadPolicy,
@@ -72,7 +72,7 @@ use crate::{
 /// presets ([`ConstructInit::RESOLVES_PRESETS`]) refuses them, and one that
 /// does checks the box against the row's presets
 /// ([`ResolvedPresetSet::check_selection`](crate::data::catalog::presets::ResolvedPresetSet::check_selection)).
-/// The selection rides on the ref ([`PretrainedRef::selection`]) to the
+/// The selection rides on the ref ([`BuildRef::selection`]) to the
 /// hook, which resolves its config through it.
 ///
 /// A table compares names ignoring ASCII case unless it is
@@ -86,8 +86,8 @@ use crate::{
 ///   provider and nowhere else.
 /// - Any other spec, with no `:` or with a prefix that names no provider, is
 ///   offered whole to each provider that [answers bare
-///   names](PretrainedProvider::answers_bare_names), in registration order, and
-///   the first row wins. A hub such as
+///   names](BuildProvider::answers_bare_names), in registration order, and the
+///   first row wins. A hub such as
 ///   [`HfProvider`](crate::data::builds::HfProvider) declines bare names, so it
 ///   is only reached qualified.
 /// - A provider's "not here" is `Ok(None)`, and the search moves on. Any error
@@ -97,9 +97,9 @@ use crate::{
 ///   with a [`LookupError`] naming what there is.
 ///
 /// [`resolve`](Self::resolve) asks each provider through
-/// [`PretrainedProvider::resolve`], with the cache to hand, so a hub can
+/// [`BuildProvider::resolve`], with the cache to hand, so a hub can
 /// ask what a repo holds once and answer from the cache after.
-/// [`lookup`](Self::lookup) asks [`PretrainedProvider::lookup`], the index
+/// [`lookup`](Self::lookup) asks [`BuildProvider::lookup`], the index
 /// alone, which a table answers and a hub refuses.
 ///
 /// # No registry
@@ -125,9 +125,9 @@ use crate::{
 /// let factory = default_whisper_factory()?;
 ///
 /// // A bare name is offered to the providers that answer bare names, in
-/// // order: the well-known table has it.
+/// // order: the catalog provider has it.
 /// let (provider, row) = factory.lookup("tiny")?;
-/// assert_eq!(provider, "well-known");
+/// assert_eq!(provider, "catalog");
 /// assert_eq!(row.name, "openai/whisper/tiny");
 ///
 /// // `hf:` goes to the Hugging Face provider alone, which answers only
@@ -141,12 +141,12 @@ use crate::{
 /// # Ok::<(), bunsen::errors::BunsenError>(())
 /// ```
 #[derive(Debug)]
-pub struct PretrainedFactory<H: ConstructInit> {
-    providers: Vec<Arc<dyn PretrainedProvider>>,
+pub struct BuildFactory<H: ConstructInit> {
+    providers: Vec<Arc<dyn BuildProvider>>,
     config: PhantomData<H>,
 }
 
-impl<H: ConstructInit> Clone for PretrainedFactory<H> {
+impl<H: ConstructInit> Clone for BuildFactory<H> {
     fn clone(&self) -> Self {
         Self {
             providers: self.providers.clone(),
@@ -155,13 +155,13 @@ impl<H: ConstructInit> Clone for PretrainedFactory<H> {
     }
 }
 
-impl<H: ConstructInit> Default for PretrainedFactory<H> {
+impl<H: ConstructInit> Default for BuildFactory<H> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<H: ConstructInit> PretrainedFactory<H> {
+impl<H: ConstructInit> BuildFactory<H> {
     /// A factory with no providers yet.
     pub fn new() -> Self {
         Self {
@@ -184,7 +184,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     /// names are what a spec's `provider:` selects, so two cannot share one.
     pub fn register(
         &mut self,
-        provider: Arc<dyn PretrainedProvider>,
+        provider: Arc<dyn BuildProvider>,
     ) -> BunsenResult<()> {
         if self.provider(provider.name()).is_some() {
             return Err(BunsenError::from_cause(
@@ -203,7 +203,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     /// As [`register`](Self::register).
     pub fn with_provider(
         mut self,
-        provider: Arc<dyn PretrainedProvider>,
+        provider: Arc<dyn BuildProvider>,
     ) -> BunsenResult<Self> {
         self.register(provider)?;
         Ok(self)
@@ -215,7 +215,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     /// As [`register`](Self::register).
     pub fn with_providers(
         mut self,
-        providers: impl IntoIterator<Item = Arc<dyn PretrainedProvider>>,
+        providers: impl IntoIterator<Item = Arc<dyn BuildProvider>>,
     ) -> BunsenResult<Self> {
         for provider in providers {
             self.register(provider)?;
@@ -227,13 +227,13 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     pub fn remove(
         &mut self,
         name: &str,
-    ) -> Option<Arc<dyn PretrainedProvider>> {
+    ) -> Option<Arc<dyn BuildProvider>> {
         let at = self.providers.iter().position(|p| p.name() == name)?;
         Some(self.providers.remove(at))
     }
 
     /// The providers, in search order.
-    pub fn providers(&self) -> &[Arc<dyn PretrainedProvider>] {
+    pub fn providers(&self) -> &[Arc<dyn BuildProvider>] {
         &self.providers
     }
 
@@ -241,7 +241,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     pub fn provider(
         &self,
         name: &str,
-    ) -> Option<&Arc<dyn PretrainedProvider>> {
+    ) -> Option<&Arc<dyn BuildProvider>> {
         self.providers.iter().find(|p| p.name() == name)
     }
 
@@ -371,7 +371,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     }
 
     /// The row `spec` names, dispatched as [`lookup`](Self::lookup) is but
-    /// through each provider's [`resolve`](PretrainedProvider::resolve)
+    /// through each provider's [`resolve`](BuildProvider::resolve)
     /// with `cache` to hand, as a [`Deferred`] model with the hook its resource
     /// set calls for: the index half of [`load`](Self::load), for a caller
     /// that overlays the row before loading it. A table answers from its
@@ -396,7 +396,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
                 None => return Err(self.not_found(&expr.name)),
             };
             Self::check_selection(&pretrained, &expr.selection)?;
-            Deferred::new(PretrainedRef::Named {
+            Deferred::new(BuildRef::Named {
                 provider,
                 pretrained: Box::new(pretrained),
                 selection: expr.selection,
@@ -449,7 +449,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     pub(crate) fn find(
         &self,
         spec: &str,
-        ask: impl Fn(&dyn PretrainedProvider, &str) -> BunsenResult<Option<Pretrained>>,
+        ask: impl Fn(&dyn BuildProvider, &str) -> BunsenResult<Option<Pretrained>>,
     ) -> BunsenResult<Option<(String, Pretrained)>> {
         if let Some((head, rest)) = spec.split_once(':')
             && let Some(provider) = self.provider(head)
@@ -529,7 +529,7 @@ pub(crate) mod testing {
         }
     }
 
-    impl PretrainedProvider for ListsNothing {
+    impl BuildProvider for ListsNothing {
         fn name(&self) -> &str {
             "hub"
         }
@@ -591,7 +591,7 @@ pub(crate) mod testing {
     #[derive(Debug, Default)]
     pub struct Failing;
 
-    impl PretrainedProvider for Failing {
+    impl BuildProvider for Failing {
         fn name(&self) -> &str {
             "failing"
         }
@@ -628,7 +628,7 @@ pub(crate) mod testing {
 
         fn try_init(
             &self,
-            _model: &PretrainedRef,
+            _model: &BuildRef,
             loaded: &LoadedResourceSet,
             _device: &Device,
             _policy: LoadPolicy,
@@ -653,7 +653,7 @@ pub(crate) mod testing {
 
         fn try_init(
             &self,
-            model: &PretrainedRef,
+            model: &BuildRef,
             loaded: &LoadedResourceSet,
             device: &Device,
             policy: LoadPolicy,
@@ -680,9 +680,9 @@ mod tests {
     use crate::{
         data::{
             builds::{
+                CATALOG,
                 PretrainedGroup,
                 PretrainedTable,
-                WELL_KNOWN,
             },
             resources::{
                 Resource,
@@ -763,7 +763,7 @@ mod tests {
     fn table(
         name: &str,
         groups: Vec<PretrainedGroup>,
-    ) -> Arc<dyn PretrainedProvider> {
+    ) -> Arc<dyn BuildProvider> {
         Arc::new(PretrainedTable {
             name: name.to_string(),
             description: format!("table {name}"),
@@ -772,11 +772,11 @@ mod tests {
         })
     }
 
-    /// `well-known` with groups `a` (small, large-v1, large-v2) and `b`
+    /// `catalog` with groups `a` (small, large-v1, large-v2) and `b`
     /// (small, tiny).
-    fn well_known() -> Arc<dyn PretrainedProvider> {
+    fn well_known() -> Arc<dyn BuildProvider> {
         table(
-            WELL_KNOWN,
+            CATALOG,
             vec![
                 group(
                     "a",
@@ -813,23 +813,23 @@ mod tests {
         .unwrap()
     }
 
-    fn factory() -> PretrainedFactory<CheckpointPath> {
-        PretrainedFactory::new()
+    fn factory() -> BuildFactory<CheckpointPath> {
+        BuildFactory::new()
             .with_providers([well_known(), Arc::new(ListsNothing::default()) as _])
             .unwrap()
     }
 
     #[test]
     fn test_register_refuses_a_duplicate_name_and_remove_frees_it() {
-        let mut factory = PretrainedFactory::<CheckpointPath>::new()
+        let mut factory = BuildFactory::<CheckpointPath>::new()
             .with_provider(well_known())
             .unwrap();
         assert_eq!(factory.kit(), "kit");
         assert_eq!(factory.providers().len(), 1);
-        assert!(factory.provider(WELL_KNOWN).is_some());
+        assert!(factory.provider(CATALOG).is_some());
 
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
-            .display(text::eq("kit: duplicate provider \"well-known\""))
+            .display(text::eq("kit: duplicate provider \"catalog\""))
             .cause(predicate("a duplicate provider", |c: &LookupError| {
                 c.problem == LookupProblem::Duplicate
             }))
@@ -837,21 +837,21 @@ mod tests {
         assert_eq!(factory.providers().len(), 1);
 
         assert!(factory.remove("nobody").is_none());
-        let removed = factory.remove(WELL_KNOWN).unwrap();
-        assert_eq!(removed.name(), WELL_KNOWN);
+        let removed = factory.remove(CATALOG).unwrap();
+        assert_eq!(removed.name(), CATALOG);
         assert!(factory.providers().is_empty());
         factory.register(well_known()).unwrap();
         assert!(format!("{factory:?}").contains("PretrainedTable"));
         assert_eq!(factory.clone().providers().len(), 1);
         assert!(
-            PretrainedFactory::<CheckpointPath>::default()
+            BuildFactory::<CheckpointPath>::default()
                 .providers()
                 .is_empty()
         );
 
         // The builder form surfaces the same error through `?`.
         assert!(
-            PretrainedFactory::<CheckpointPath>::new()
+            BuildFactory::<CheckpointPath>::new()
                 .with_providers([well_known(), well_known()])
                 .is_err()
         );
@@ -863,25 +863,25 @@ mod tests {
     fn test_a_qualified_spec_goes_to_one_provider() {
         let factory = factory();
 
-        let (provider, row) = factory.lookup("well-known:b/tiny").unwrap();
+        let (provider, row) = factory.lookup("catalog:b/tiny").unwrap();
         assert_eq!(
             (provider.as_str(), row.name.as_str()),
-            ("well-known", "b/tiny")
+            ("catalog", "b/tiny")
         );
-        let (provider, row) = factory.lookup("well-known:large").unwrap();
+        let (provider, row) = factory.lookup("catalog:large").unwrap();
         assert_eq!(
             (provider.as_str(), row.name.as_str()),
-            ("well-known", "a/large-v2")
+            ("catalog", "a/large-v2")
         );
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .display(text::starts_with("well-known: no pretrained \"a/tiny\""))
-            .message_contains("well-known:a/small")
-            .assert_err(&factory.lookup("well-known:a/tiny"));
+            .display(text::starts_with("catalog: no pretrained \"a/tiny\""))
+            .message_contains("catalog:a/small")
+            .assert_err(&factory.lookup("catalog:a/tiny"));
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .display(text::starts_with("kit: no provider \"nobody\""))
             .cause(predicate("the providers there are", |c: &LookupError| {
-                c.candidates == ["well-known", "hub"]
+                c.candidates == ["catalog", "hub"]
             }))
             .assert_err(&factory.lookup("nobody:a/small"));
     }
@@ -897,14 +897,14 @@ mod tests {
                 vec![row("small", &[], "small"), row("only-here", &[], "x")],
             )],
         );
-        let factory = PretrainedFactory::<CheckpointPath>::new()
+        let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([Arc::new(ListsNothing::default()) as _, well_known(), second])
             .unwrap();
 
         let (provider, row) = factory.lookup("small").unwrap();
         assert_eq!(
             (provider.as_str(), row.name.as_str()),
-            ("well-known", "a/small")
+            ("catalog", "a/small")
         );
         let (provider, row) = factory.lookup("only-here").unwrap();
         assert_eq!(
@@ -923,7 +923,7 @@ mod tests {
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .display(text::starts_with("kit: no pretrained \"gigantic\""))
-            .message_contains("well-known:a/small")
+            .message_contains("catalog:a/small")
             .message_contains("second:a/only-here")
             .assert_err(&factory.lookup("gigantic"));
         let hub = factory.provider("hub").unwrap();
@@ -935,13 +935,13 @@ mod tests {
     #[test]
     fn test_a_lookup_only_provider_answers_qualified_names_only() {
         let hub = Arc::new(ListsNothing::default());
-        let factory = PretrainedFactory::<CheckpointPath>::new()
+        let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([well_known(), hub.clone() as _])
             .unwrap();
 
         assert_eq!(factory.list().len(), 5, "the hub lists nothing");
         assert_eq!(factory.ids().len(), 5);
-        assert!(factory.ids().iter().all(|id| id.starts_with("well-known:")));
+        assert!(factory.ids().iter().all(|id| id.starts_with("catalog:")));
 
         let (provider, row) = factory.lookup("hub:openai/whisper-base").unwrap();
         assert_eq!(provider, "hub");
@@ -969,16 +969,13 @@ mod tests {
     /// is not "not here".
     #[test]
     fn test_a_providers_error_aborts_the_lookup() {
-        let factory = PretrainedFactory::<CheckpointPath>::new()
+        let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([Arc::new(Failing) as _, well_known()])
             .unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("failing:x"));
         // The failing provider answers bare names, and is asked first.
         ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("small"));
-        assert_eq!(
-            factory.lookup("well-known:small").unwrap().1.name,
-            "a/small"
-        );
+        assert_eq!(factory.lookup("catalog:small").unwrap().1.name, "a/small");
     }
 
     /// A spec resolves to the row it names, qualified, bare or by alias,
@@ -990,15 +987,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let cache = offline_cache(dir.path());
 
-        let model = factory.resolve("well-known:a/small", &cache).unwrap();
-        assert_eq!(model.id(), "well-known:a/small");
+        let model = factory.resolve("catalog:a/small", &cache).unwrap();
+        assert_eq!(model.id(), "catalog:a/small");
         let model = factory.resolve("s", &cache).unwrap();
-        assert_eq!(model.id(), "well-known:a/small");
+        assert_eq!(model.id(), "catalog:a/small");
         assert_eq!(
             model.model.named().map(|(p, row)| (p, row.name.as_str())),
-            Some(("well-known", "a/small"))
+            Some(("catalog", "a/small"))
         );
-        assert_eq!(model.to_resource_set().name, "well-known:a/small");
+        assert_eq!(model.to_resource_set().name, "catalog:a/small");
         assert!(format!("{:?}", model.config).contains("CheckpointPath"));
         let model = factory.resolve("hub:x/y", &cache).unwrap();
         assert_eq!(model.id(), "hub:x/y");
@@ -1006,10 +1003,10 @@ mod tests {
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_contains("well-known:a/small")
+            .message_contains("catalog:a/small")
             .assert_err(&factory.resolve(file.to_str().unwrap(), &cache));
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .assert_err(&factory.resolve("well-known:a/gigantic", &cache));
+            .assert_err(&factory.resolve("catalog:a/gigantic", &cache));
     }
 
     /// `load` runs the whole pathway through the hook the resource set
@@ -1026,7 +1023,7 @@ mod tests {
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let on_disk = table("disk", vec![group("l", vec![local_row("ckpt", &file)])]);
-        let factory = PretrainedFactory::<CheckpointPath>::new()
+        let factory = BuildFactory::<CheckpointPath>::new()
             .with_providers([well_known(), on_disk])
             .unwrap();
 
@@ -1062,10 +1059,10 @@ mod tests {
 
         // Offline, and nothing local.
         ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .frame_contains("loading kit \"well-known:a/small\"")
+            .frame_contains("loading kit \"catalog:a/small\"")
             .message_contains("the cache is offline")
             .assert_err(&factory.load(
-                "well-known:a/small",
+                "catalog:a/small",
                 &cache,
                 &cpu_device(),
                 crate::data::formats::LoadPolicy::as_stored(),
@@ -1084,11 +1081,11 @@ mod tests {
         assert_eq!(
             factory.ids(),
             [
-                "well-known:a/small",
-                "well-known:a/large-v1",
-                "well-known:a/large-v2",
-                "well-known:b/small",
-                "well-known:b/tiny",
+                "catalog:a/small",
+                "catalog:a/large-v1",
+                "catalog:a/large-v2",
+                "catalog:b/small",
+                "catalog:b/tiny",
             ]
         );
         let small: Vec<String> = factory
@@ -1096,7 +1093,7 @@ mod tests {
             .iter()
             .map(|(p, row)| format!("{p}:{}", row.name))
             .collect();
-        assert_eq!(small, ["well-known:a/small", "well-known:b/small"]);
+        assert_eq!(small, ["catalog:a/small", "catalog:b/small"]);
         assert!(factory.for_prefab("nothing").is_empty());
     }
 
@@ -1115,22 +1112,17 @@ mod tests {
         let (_, row) = factory.lookup("a/small").unwrap();
         assert_eq!(row.tags.text(KIT), Some("kit"));
         assert_eq!(
-            factory
-                .lookup("well-known:b/tiny")
-                .unwrap()
-                .1
-                .tags
-                .text(KIT),
+            factory.lookup("catalog:b/tiny").unwrap().1.tags.text(KIT),
             Some("kit")
         );
 
         let mut own = row;
         own.tags.insert(KIT, "other");
-        let kept = PretrainedFactory::<CheckpointPath>::with_kit(own);
+        let kept = BuildFactory::<CheckpointPath>::with_kit(own);
         assert_eq!(kept.tags.text(KIT), Some("other"));
     }
 
-    /// A well-known table compares names ignoring case, and hands the row
+    /// A table compares names ignoring case, and hands the row
     /// back named as it declares it.
     #[test]
     fn test_well_known_names_ignore_case() {
@@ -1138,12 +1130,9 @@ mod tests {
         let (provider, row) = factory.lookup("A/SMALL").unwrap();
         assert_eq!(
             (provider.as_str(), row.name.as_str()),
-            ("well-known", "a/small")
+            ("catalog", "a/small")
         );
-        assert_eq!(
-            factory.lookup("well-known:B/Tiny").unwrap().1.name,
-            "b/tiny"
-        );
+        assert_eq!(factory.lookup("catalog:B/Tiny").unwrap().1.name, "b/tiny");
         assert_eq!(factory.lookup("S").unwrap().1.name, "a/small");
     }
 
@@ -1183,14 +1172,14 @@ mod tests {
             }],
             ..Default::default()
         };
-        let factory = PretrainedFactory::<PresetPath>::new()
-            .with_providers([table(WELL_KNOWN, vec![group("a", vec![small])])])
+        let factory = BuildFactory::<PresetPath>::new()
+            .with_providers([table(CATALOG, vec![group("a", vec![small])])])
             .unwrap();
         let dir = tempfile::tempdir().unwrap();
         let cache = offline_cache(dir.path());
 
         let model = factory.resolve("a/small[FAST]{beam: 2}", &cache).unwrap();
-        assert_eq!(model.id(), "well-known:a/small");
+        assert_eq!(model.id(), "catalog:a/small");
         let selection = model.model.selection().unwrap();
         assert_eq!(selection.presets, ["FAST"]);
         assert_eq!(selection.patch, Some(serde_json::json!({"beam": 2})));
@@ -1199,9 +1188,9 @@ mod tests {
             .message_contains("no preset `slow`; there are: fast")
             .assert_err(&factory.resolve("a/small[slow]", &cache));
         // A row with no presets of its own leaves the box to the hook.
-        let bare = PretrainedFactory::<PresetPath>::new()
+        let bare = BuildFactory::<PresetPath>::new()
             .with_providers([table(
-                WELL_KNOWN,
+                CATALOG,
                 vec![group("a", vec![row("bare", &[], "small")])],
             )])
             .unwrap();

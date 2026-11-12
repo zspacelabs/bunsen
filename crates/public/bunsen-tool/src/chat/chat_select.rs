@@ -92,7 +92,7 @@ pub fn chat_selection(family: Option<ChatModelFamily>) -> SelectionContext {
 /// - no name is [`DEFAULT_SELECTION`];
 /// - one `provider:ref` name of a provider that lists nothing (`hf:org/repo`)
 ///   is that ref, of `family`, or across families Qwen3's, as no build
-///   describes it; it takes no stage flags. `well-known:` is dropped, its rows
+///   describes it; it takes no stage flags. `catalog:` is dropped, its rows
 ///   being the builds chosen among;
 /// - anything else is chosen among the builds: the presets `flags` select keep
 ///   only the builds that offer them, whatever their order on the command line.
@@ -111,7 +111,7 @@ pub fn choose_checkpoint(
     if let [only] = names.as_mut_slice()
         && let Some((provider, rest)) = only.split_once(':')
     {
-        if provider != "well-known" {
+        if provider != "catalog" {
             if !flags.stages.is_empty() {
                 return Err(BunsenError::policy(format!(
                     "`{only}` is a ref, not a choice: it takes no selection flags"
@@ -241,7 +241,7 @@ mod tests {
             }
         }
         assert_eq!(
-            choose(None, &["--model", "well-known:gemma/gemma/gemma-2-2b-it"]).0,
+            choose(None, &["--model", "catalog:gemma/gemma/gemma-2-2b-it"]).0,
             ChatModelFamily::Gemma
         );
     }

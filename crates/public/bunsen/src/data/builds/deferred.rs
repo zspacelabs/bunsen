@@ -7,9 +7,9 @@ use burn::tensor::Device;
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
             Loaded,
-            PretrainedRef,
         },
         resources::{
             CacheStatus,
@@ -26,10 +26,10 @@ use crate::{
 /// A model not yet loaded: its resource set, and the hook that will build
 /// it.
 ///
-/// What a name resolved to. [`PretrainedFactory::resolve`] hands one back
+/// What a name resolved to. [`BuildFactory::resolve`] hands one back
 /// from a spec; a resource set from elsewhere, a checkpoint on disk say,
 /// becomes one through [`from_resource_set`](Self::from_resource_set),
-/// and any [`PretrainedRef`] through [`new`](Self::new). Either way the hook is
+/// and any [`BuildRef`] through [`new`](Self::new). Either way the hook is
 /// [`ConstructInit::for_resource_set`]'s choice, made from what the resource
 /// set says about its resources (their `format`s): different providers' rows
 /// may be read by different mechanisms, and the hook attached is the one for
@@ -42,11 +42,11 @@ use crate::{
 /// [`ResourceCache`]'s load, and the hook's construct, and returns a
 /// [`Loaded`] handle.
 ///
-/// [`PretrainedFactory::resolve`]: super::PretrainedFactory::resolve
+/// [`BuildFactory::resolve`]: super::BuildFactory::resolve
 #[derive(Clone, Debug)]
 pub struct Deferred<H: ConstructInit> {
     /// What resolved: a row of a provider, or a given resource set.
-    pub model: PretrainedRef,
+    pub model: BuildRef,
 
     /// The kit's hook for it, chosen by the resource set. Public, so that a
     /// caller doing surgery of its own, a config the model is built from say,
@@ -60,7 +60,7 @@ impl<H: ConstructInit> Deferred<H> {
     /// # Errors
     /// As [`ConstructInit::for_resource_set`]: a resource of a kind the kit
     /// cannot read.
-    pub fn new(model: PretrainedRef) -> BunsenResult<Self> {
+    pub fn new(model: BuildRef) -> BunsenResult<Self> {
         let config = H::for_resource_set(&model.to_resource_set())?;
         Ok(Self { model, config })
     }
@@ -71,7 +71,7 @@ impl<H: ConstructInit> Deferred<H> {
     /// # Errors
     /// As [`new`](Self::new).
     pub fn from_resource_set(map: ResourceSet) -> BunsenResult<Self> {
-        Self::new(PretrainedRef::from(map))
+        Self::new(BuildRef::from(map))
     }
 
     /// The qualified id, or the given resource set's name.
@@ -88,7 +88,7 @@ impl<H: ConstructInit> Deferred<H> {
     /// row. The hook stays; it was chosen for the model's own resources.
     ///
     /// # Errors
-    /// As [`PretrainedRef::with_overlay`].
+    /// As [`BuildRef::with_overlay`].
     pub fn with_overlay(
         self,
         map: ResourceSet,
@@ -199,10 +199,10 @@ mod tests {
         .unwrap()
     }
 
-    /// `well-known:a/small`, a row whose one resource is only remote.
-    fn named() -> PretrainedRef {
-        PretrainedRef::Named {
-            provider: "well-known".to_string(),
+    /// `catalog:a/small`, a row whose one resource is only remote.
+    fn named() -> BuildRef {
+        BuildRef::Named {
+            provider: "catalog".to_string(),
             pretrained: Box::new(Pretrained {
                 name: "a/small".to_string(),
                 aliases: Vec::new(),
@@ -264,10 +264,10 @@ mod tests {
         assert!(format!("{given:?}").contains("CheckpointPath"));
 
         let named = Deferred::<CheckpointPath>::new(named()).unwrap();
-        assert_eq!(named.id(), "well-known:a/small");
+        assert_eq!(named.id(), "catalog:a/small");
         assert_eq!(named.status(&cache)["checkpoint"], CacheStatus::Remote);
         ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .frame_contains("loading kit \"well-known:a/small\"")
+            .frame_contains("loading kit \"catalog:a/small\"")
             .message_contains("the cache is offline")
             .assert_err(&named.load(
                 &cache,
@@ -288,7 +288,7 @@ mod tests {
             .unwrap()
             .with_overlay(ResourceSet::given("mine", "checkpoint", &other))
             .unwrap();
-        assert_eq!(model.id(), "well-known:a/small");
+        assert_eq!(model.id(), "catalog:a/small");
         assert_eq!(
             model.to_resource_set().get("checkpoint").unwrap().file,
             "other.pt"
@@ -301,6 +301,6 @@ mod tests {
             )
             .unwrap();
         assert_eq!(*loaded.handle, other);
-        assert_eq!(loaded.name, "well-known:a/small");
+        assert_eq!(loaded.name, "catalog:a/small");
     }
 }

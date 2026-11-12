@@ -5,7 +5,7 @@ use alloc::{
     vec,
 };
 
-use crate::data::builds::PretrainedProvider;
+use crate::data::builds::BuildProvider;
 
 /// The `ResNet` kit's name: its rows' `kit` tag.
 pub const RESNET_KIT: &str = "resnet";
@@ -23,16 +23,13 @@ pub const PYTORCH_FP32: &str = "pytorch fp32";
 pub const RESNET_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const RESNET_CATALOG_CONTRACT: &str = "resnet-classifier";
 
-/// `ResNet`'s compiled-in providers, in search order: the well-known table.
-pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+/// `ResNet`'s compiled-in providers, in search order: the catalog provider.
+pub fn default_resnet_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![Arc::new(
-        crate::data::builds::BuildCatalogProvider::expect_builtin(
-            RESNET_CATALOG_CONTRACT,
-            RESNET_KIT,
-        ),
+        crate::data::catalog::BuiltinCatalog::expect_provider(RESNET_CATALOG_CONTRACT, RESNET_KIT),
     )]
 }
 
@@ -103,8 +100,8 @@ mod tests {
         let factory = super::super::default_resnet_factory().unwrap();
         let ids = factory.ids();
         assert_eq!(ids.len(), 14);
-        assert_eq!(ids[0], "well-known:torchvision/resnet18");
-        assert_eq!(ids[5], "well-known:timm/resnet18_a1");
+        assert_eq!(ids[0], "catalog:torchvision/resnet18");
+        assert_eq!(ids[5], "catalog:timm/resnet18_a1");
 
         let file = |spec: &str| {
             factory

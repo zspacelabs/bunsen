@@ -8,9 +8,9 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
             GEOMETRY,
-            PretrainedRef,
         },
         resources::{
             LoadedResourceSet,
@@ -79,7 +79,7 @@ impl ResNetConstructConfig {
     /// is neither: a given checkpoint needs [`with_config`](Self::with_config).
     pub fn config_for(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
     ) -> BunsenResult<ResNetContractConfig> {
         if let Some(config) = &self.config {
             return Ok(config.clone());
@@ -119,7 +119,7 @@ impl ConstructInit for ResNetConstructConfig {
     /// Initialises the config's model and reads the checkpoint into it.
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -147,9 +147,9 @@ mod tests {
         use crate::{
             data::{
                 builds::{
+                    BuildRef,
                     ConstructInit,
                     Deferred,
-                    PretrainedRef,
                 },
                 cache::BunsenDiskCacheOptions,
                 resources::{
@@ -204,7 +204,7 @@ mod tests {
             factory.resolve(file.to_str().unwrap(), &cache).is_err(),
             "a path is not a name the factory knows"
         );
-        let given = PretrainedRef::from(ResourceSet::given("mine", CHECKPOINT, &file));
+        let given = BuildRef::from(ResourceSet::given("mine", CHECKPOINT, &file));
         let missing_config = |kinds: &[BunsenErrorKind]| {
             ErrorMatcher::new()
                 .with_kind_matching(value::one_of(kinds.to_vec()))

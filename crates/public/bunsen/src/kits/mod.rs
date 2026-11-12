@@ -51,9 +51,9 @@
 //!   configs (`resnet50`, `base.en`). A prefab has no weights.
 //! - **A pretrained table and providers.** The rows, named checkpoints, each
 //!   naming the prefab it instantiates where the kit keeps prefabs, compiled
-//!   into a table behind the `well-known:` provider.
-//!   `default_{kit}_providers()` lists the kit's providers in search order,
-//!   `bundled:` and `hf:` among them where the kit has them.
+//!   into a table behind the `catalog:` provider. `default_{kit}_providers()`
+//!   lists the kit's providers in search order, `bundled:` and `hf:` among them
+//!   where the kit has them.
 //! - **A catalog contract.** `contract.yml`, beside the providers
 //!   (`{KIT}_CONTRACT`): the signature its loader implements, the resource
 //!   slots and arguments a build catalog's builds bind
@@ -63,11 +63,11 @@
 //!   (`{KIT}_KIT`), and how the loaded files become its construct,
 //!   `{Kit}Construct`.
 //! - **`default_{kit}_factory()`.** A
-//!   [`PretrainedFactory`](crate::data::builds::PretrainedFactory) over the
-//!   default providers, behind the construct config. A name to a model is one
-//!   call: `default_{kit}_factory()?.load(name, &cache, &device)`. There is [no
-//!   registry](crate::data::builds::PretrainedFactory#no-registry): a caller
-//!   who wants another provider adds it to the factory.
+//!   [`BuildFactory`](crate::data::builds::BuildFactory) over the default
+//!   providers, behind the construct config. A name to a model is one call:
+//!   `default_{kit}_factory()?.load(name, &cache, &device)`. There is [no
+//!   registry](crate::data::builds::BuildFactory#no-registry): a caller who
+//!   wants another provider adds it to the factory.
 //! - **The built handle.** What `load` returns: a
 //!   [`Loaded`](crate::data::builds::Loaded) whose `handle` is an `Arc` of the
 //!   config's `Construct` type, the model or a construct around it.

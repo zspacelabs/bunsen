@@ -28,9 +28,9 @@ use crate::{
     },
     data::{
         builds::{
+            BuildRef,
             CONFIG,
             ConstructInit,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::{
@@ -141,7 +141,7 @@ impl<K: TransformersLmKit> ConstructInit for K {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         policy: LoadPolicy,

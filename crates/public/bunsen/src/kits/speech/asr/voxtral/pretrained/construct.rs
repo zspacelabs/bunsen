@@ -15,10 +15,10 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             CONFIG,
             ConstructInit,
             GEOMETRY,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
@@ -103,7 +103,7 @@ impl ConstructInit for VoxtralConstructConfig {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
@@ -159,8 +159,11 @@ mod tests {
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
         VoxtralConstructConfig::for_resource_set(
-            &crate::data::builds::builtin_build_bundle("mistralai/voxtral-mini-4b-realtime-2602")
-                .unwrap(),
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("mistralai/voxtral-mini-4b-realtime-2602")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
     }

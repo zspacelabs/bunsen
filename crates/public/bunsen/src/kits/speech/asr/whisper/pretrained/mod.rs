@@ -11,9 +11,9 @@
 //! [`default_whisper_factory`] is the index a caller holds, over
 //! [`default_whisper_providers`] in search order:
 //!
-//! - The well-known rows, the built-in catalog's builds of
+//! - The catalog rows, the built-in catalog's builds of
 //!   [`WHISPER_CATALOG_CONTRACT`]: the checkpoints bunsen knows by name, as
-//!   `well-known:openai/whisper/base`, `openai/base`, or `base`. They are
+//!   `catalog:openai/whisper/base`, `openai/base`, or `base`. They are
 //!   upstream's `_MODELS`, with upstream's aliases (`large`, `turbo`).
 //! - The data layer's [`HfProvider`](crate::data::builds::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
@@ -34,7 +34,7 @@
 //!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
-//! [`with_provider`](crate::data::builds::PretrainedFactory::with_provider);
+//! [`with_provider`](crate::data::builds::BuildFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
 //! # Rows, prefabs and resources
@@ -52,7 +52,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! is the whole pathway from a name to a
 //! [`WhisperConstruct`](crate::kits::speech::asr::whisper::driver::WhisperConstruct)
 //! behind an `Arc`. The factory resolves the name to a
