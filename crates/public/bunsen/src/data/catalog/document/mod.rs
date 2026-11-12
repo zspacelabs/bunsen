@@ -1006,9 +1006,36 @@ pub struct ResourceEntry {
     pub sources: Vec<ResourceSource>,
 
     /// The files a sharded resource's `$file` (its index) lists: one
-    /// artifact, bound to one slot.
+    /// artifact, bound to one slot. For a templated resource
+    /// ([`index_width`](Self::index_width)), the template's files, in index
+    /// order, as `cargo catalog` pins them.
     #[serde(rename = "$shards", default, skip_serializing_if = "Vec::is_empty")]
     pub shards: Vec<ResourceShard>,
+
+    /// For a templated resource, a numbered set of files with no index: the
+    /// zero-padded width of the index its `$file` template
+    /// (`shard_{index}.parquet`) writes in place of
+    /// [`INDEX_PLACEHOLDER`](crate::data::datasets::INDEX_PLACEHOLDER).
+    #[serde(
+        rename = "$index_width",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub index_width: Option<usize>,
+
+    /// For a templated resource, how many files there are: indices
+    /// `0..count`.
+    #[serde(rename = "$count", default, skip_serializing_if = "Option::is_none")]
+    pub count: Option<usize>,
+
+    /// For a templated resource, that its files are not pinned: `cargo
+    /// catalog` lists no `$shards` for it.
+    #[serde(
+        rename = "$unpinned",
+        default,
+        skip_serializing_if = "core::ops::Not::not"
+    )]
+    pub unpinned: bool,
 }
 
 /// One shard of a sharded resource.
@@ -1053,7 +1080,29 @@ impl ResourceEntry {
             dtype: None,
             sources,
             shards: Vec::new(),
+            index_width: None,
+            count: None,
+            unpinned: false,
         }
+    }
+
+    /// Whether this is a templated resource: a numbered set of files, its
+    /// `$file` their name's template.
+    pub fn is_templated(&self) -> bool {
+        self.index_width.is_some()
+    }
+
+    /// The file name of index `index` of a templated resource: its `$file`
+    /// with the zero-padded index in place of the placeholder.
+    pub fn templated_file(
+        &self,
+        index: usize,
+    ) -> String {
+        let width = self.index_width.unwrap_or(0);
+        self.file.replace(
+            crate::data::datasets::INDEX_PLACEHOLDER,
+            &alloc::format!("{index:0width$}"),
+        )
     }
 
     /// The sources `shard` is had from: its own, then the resource's place
@@ -1115,7 +1164,7 @@ pub struct AliasTarget {
 #[serde(deny_unknown_fields)]
 pub enum ResourceSource {
     /// A file in a Hugging Face Hub repo, at a revision: `{$hub: {$repo,
-    /// $revision}}`.
+    /// $revision}}`, a dataset repo's with `$dataset: true`.
     #[serde(rename = "$hub")]
     Hub {
         /// `org/name`.
@@ -1124,6 +1173,13 @@ pub enum ResourceSource {
         /// A commit.
         #[serde(rename = "$revision")]
         revision: String,
+        /// Whether the repo is a dataset's, not a model's.
+        #[serde(
+            rename = "$dataset",
+            default,
+            skip_serializing_if = "core::ops::Not::not"
+        )]
+        dataset: bool,
     },
     /// A URL: `{$url: ..}`. It names one file.
     #[serde(rename = "$url")]
@@ -1160,7 +1216,14 @@ impl fmt::Display for ResourceSource {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            Self::Hub { repo, revision } => write!(f, "hub:{repo}@{revision}"),
+            Self::Hub {
+                repo,
+                revision,
+                dataset,
+            } => {
+                let kind = if *dataset { "datasets/" } else { "" };
+                write!(f, "hub:{kind}{repo}@{revision}")
+            }
             Self::Url(url) => f.write_str(url),
             Self::BaseUrl(base) => write!(f, "{base}/*"),
             Self::LocalDir { name, .. } => write!(f, "local-dir:{name}"),
