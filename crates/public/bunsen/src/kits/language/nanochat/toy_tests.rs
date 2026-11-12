@@ -164,7 +164,7 @@ fn test_the_load_dtype_is_the_policy_s() {
     let device = cpu_device();
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/nanochat/toy_2025");
     let (meta, model) = (dir.join("meta_000001.json"), dir.join("model_000001.pt"));
-    let (stored, _) = load_pt_checkpoint(&meta, &model, &device, LoadPolicy::as_stored())
+    let (stored, _) = load_pt_checkpoint(&meta, &model, &device, LoadPolicy::load_as_stored())
         .expect("load the toy as stored");
     assert_eq!(stored.float_dtype(), DType::F32);
 

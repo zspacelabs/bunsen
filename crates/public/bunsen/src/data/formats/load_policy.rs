@@ -43,9 +43,9 @@ use crate::{
 /// - [`performance`](Self::performance): a half dtype only where the device
 ///   accelerates it (tensor cores); f32 elsewhere. The default a program should
 ///   reach for.
-/// - [`as_stored`](Self::as_stored): a half dtype wherever the device computes
-///   in it at all: a bf16 check on the CPU, or a model that must fit whatever
-///   the speed.
+/// - [`load_as_stored`](Self::load_as_stored): a half dtype wherever the device
+///   computes in it at all: a bf16 check on the CPU, or a model that must fit
+///   whatever the speed.
 /// - [`at_least`](Self::at_least): never narrower than a floor: the f32
 ///   validation suites, which hold a model to an f32 reference.
 ///
@@ -72,14 +72,15 @@ impl LoadPolicy {
     }
 
     /// The stored dtype wherever the device computes in it.
-    pub fn as_stored() -> Self {
+    pub fn load_as_stored() -> Self {
         Self {
             at_least: None,
             half_needs: DTypeUsage::Arithmetic,
         }
     }
 
-    /// Never narrower than `dtype`: [`as_stored`](Self::as_stored) above it.
+    /// Never narrower than `dtype`: [`as_stored`](Self::load_as_stored)
+    /// above it.
     pub fn at_least(dtype: FloatDType) -> Self {
         Self {
             at_least: Some(dtype),
@@ -185,7 +186,9 @@ mod tests {
             FloatDType::F32
         );
         assert_eq!(
-            LoadPolicy::as_stored().resolve(bf16, &device, any).unwrap(),
+            LoadPolicy::load_as_stored()
+                .resolve(bf16, &device, any)
+                .unwrap(),
             bf16
         );
         assert_eq!(
@@ -201,7 +204,7 @@ mod tests {
             FloatDType::F64
         );
         assert_eq!(
-            LoadPolicy::as_stored()
+            LoadPolicy::load_as_stored()
                 .resolve(FloatDType::F32, &device, any)
                 .unwrap(),
             FloatDType::F32
@@ -215,19 +218,19 @@ mod tests {
         let device = cpu_device();
         let no_bf16 = |d: FloatDType| d != FloatDType::BF16;
         assert_eq!(
-            LoadPolicy::as_stored()
+            LoadPolicy::load_as_stored()
                 .resolve(FloatDType::BF16, &device, no_bf16)
                 .unwrap(),
             FloatDType::F32
         );
         let only_f16 = |d: FloatDType| d == FloatDType::F16;
         assert!(
-            LoadPolicy::as_stored()
+            LoadPolicy::load_as_stored()
                 .resolve(FloatDType::BF16, &device, only_f16)
                 .is_err()
         );
         assert_eq!(
-            LoadPolicy::as_stored()
+            LoadPolicy::load_as_stored()
                 .resolve(FloatDType::F16, &device, only_f16)
                 .unwrap(),
             FloatDType::F16
@@ -242,7 +245,7 @@ mod tests {
         let half = LinearConfig::new(2, 2)
             .init(&device)
             .map(&mut DTypeMapper::new(FloatDType::BF16.into()));
-        let kept = LoadPolicy::as_stored()
+        let kept = LoadPolicy::load_as_stored()
             .place(half.clone(), &device, any)
             .unwrap();
         assert_eq!(module_float_dtype(&kept), Some(FloatDType::BF16));

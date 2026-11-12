@@ -792,7 +792,7 @@ mod tests {
             spec,
             &cache,
             &device,
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         )?;
         let _model: &ResNet = &loaded.handle;
         Ok(())

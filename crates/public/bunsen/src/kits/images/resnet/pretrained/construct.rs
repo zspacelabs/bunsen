@@ -237,7 +237,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         );
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.

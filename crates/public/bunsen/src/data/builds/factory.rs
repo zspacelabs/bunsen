@@ -1013,7 +1013,7 @@ l:
                 "disk:l/ckpt",
                 &cache,
                 &cpu_device(),
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, file);
@@ -1033,7 +1033,7 @@ l:
             .load(
                 &cache,
                 &cpu_device(),
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, other);
@@ -1046,7 +1046,7 @@ l:
                 "catalog:a/small",
                 &cache,
                 &cpu_device(),
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             ));
     }
 

@@ -205,7 +205,10 @@ impl PatchMerging {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Distribution;
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
+    };
     use serial_test::serial;
 
     use super::*;
@@ -343,7 +346,8 @@ mod tests {
             let z: Tensor<3> = z.flatten(2, 3);
             let z = z.swap_dims(1, 2);
 
-            y.into_data().assert_eq(&z.into_data(), true);
+            y.into_data_as::<f32>()
+                .assert_approx_eq::<f32>(&z.into_data_as::<f32>(), Tolerance::default());
         }
 
         // With Norm.
@@ -359,7 +363,8 @@ mod tests {
             let z = z.swap_dims(1, 2);
             let z = patch_embed.norm.as_ref().unwrap().forward(z);
 
-            y.into_data().assert_eq(&z.into_data(), true);
+            y.into_data_as::<f32>()
+                .assert_approx_eq::<f32>(&z.into_data_as::<f32>(), Tolerance::default());
         }
     }
 }

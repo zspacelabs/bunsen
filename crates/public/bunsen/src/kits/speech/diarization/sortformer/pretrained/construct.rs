@@ -314,7 +314,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             )
             .unwrap()
             .handle;

@@ -259,7 +259,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         )
         .unwrap();
 
@@ -305,7 +305,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         )
         .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
@@ -317,7 +317,7 @@ mod tests {
             .load(
                 &cache,
                 &cpu_device(),
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             )
             .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
@@ -347,7 +347,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         )
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -367,7 +367,7 @@ mod tests {
         .load(
             &cache,
             &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         )
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)

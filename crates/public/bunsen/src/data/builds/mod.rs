@@ -213,7 +213,7 @@
 //!     "hi",
 //!     &cache,
 //!     &Default::default(),
-//!     LoadPolicy::as_stored(),
+//!     LoadPolicy::load_as_stored(),
 //! )?;
 //! assert_eq!(loaded.name, "catalog:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
@@ -225,8 +225,11 @@
 //! let given = DeferredBuild::<Greeting>::from_resource_set(
 //!     ResourceSet::given("mine", "text", upstream.join("hello.txt")),
 //! )?;
-//! let loaded =
-//!     given.load(&cache, &Default::default(), LoadPolicy::as_stored())?;
+//! let loaded = given.load(
+//!     &cache,
+//!     &Default::default(),
+//!     LoadPolicy::load_as_stored(),
+//! )?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
 //!     ("mine", "hello")

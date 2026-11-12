@@ -328,14 +328,6 @@ impl Rekey {
                 None => dropped.push(tensor.name),
                 Some(Target {
                     path,
-                    transform: None,
-                    ..
-                }) => {
-                    tensor.name = path;
-                    placed.push(tensor);
-                }
-                Some(Target {
-                    path,
                     transform: Some(f),
                     ..
                 }) => {
@@ -344,6 +336,10 @@ impl Rekey {
                         BunsenError::invalid_resource(format!("cannot read {name}: {e:?}"))
                     })?;
                     placed.push(burn::store::bridge::from_data(f(data), path, param_id));
+                }
+                Some(Target { path, .. }) => {
+                    tensor.name = path;
+                    placed.push(tensor);
                 }
             }
         }

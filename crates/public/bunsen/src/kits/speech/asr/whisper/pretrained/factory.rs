@@ -306,7 +306,7 @@ mod hub_tests {
             .load(
                 &cache,
                 &device,
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             )
             .unwrap();
         assert!(matches!(
@@ -330,7 +330,7 @@ mod hub_tests {
                 "openai/tiny",
                 &cache,
                 &device,
-                crate::data::formats::LoadPolicy::as_stored(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
             )
             .unwrap();
         let close = |a: Tensor<2>, b: Tensor<2>| {
