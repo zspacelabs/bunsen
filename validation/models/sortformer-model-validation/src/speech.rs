@@ -107,7 +107,7 @@ fn check_diarization(
 }
 
 /// The streaming Sortformer `model` (`v2` or `v2_1`), loaded by its
-/// well-known name under its family's `latency` preset, diarizes the clip as
+/// catalog name under its family's `latency` preset, diarizes the clip as
 /// `NeMo` did at `preset`.
 fn check_v2(
     model: &str,

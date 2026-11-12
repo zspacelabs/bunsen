@@ -1,13 +1,13 @@
 //! # Pretrained Silero VAD models
 //!
 //! [`default_silero_factory`] is the index: one row,
-//! `well-known:silero/vad-16k` (with `store`), upstream's
+//! `catalog:silero/vad-16k` (with `store`), upstream's
 //! `silero_vad_16k.safetensors`: the 16 kHz model, fetched from a pinned
 //! revision of `snakers4/silero-vad` (1.2 MB, MIT).
 //!
 //! [`SileroConstructConfig`] reads it into a
 //! [`SileroVadCollection`](super::SileroVadCollection) of the 16 kHz branch.
-//! A resource bundle of a burnpack (both branches, keyed as `burn-onnx` names
+//! A resource set of a burnpack (both branches, keyed as `burn-onnx` names
 //! the ONNX graph's nodes) reads too. The loaders in [`load`] read files or
 //! bytes directly, with no cache.
 //!

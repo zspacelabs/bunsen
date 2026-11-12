@@ -38,7 +38,7 @@
 //! and [`turns`](super::SortformerConstruct::turns) are what the presets
 //! resolved to.
 //!
-//! Every well-known file is pinned to its digest and fetched from a fixed
+//! Every catalog file is pinned to its digest and fetched from a fixed
 //! revision of its Hugging Face repo.
 
 mod construct;

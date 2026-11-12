@@ -9,16 +9,15 @@ use bunsen::{
     data::{
         builds::{
             BUNDLED,
-            PretrainedFactory,
+            BuildFactory,
             PretrainedGroup,
             PretrainedTable,
-            builtin_resource_bundle,
         },
         cache::BunsenDiskCacheOptions,
         resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
-            ResourceBundle,
+            ResourceCache,
+            ResourceCacheOptions,
+            ResourceSet,
         },
     },
     kits::{
@@ -42,14 +41,14 @@ mod hf;
 mod vocabulary;
 
 /// A cache rooted at the bundle's directory, offline.
-pub fn offline_cache() -> PretrainedCache {
+pub fn offline_cache() -> ResourceCache {
     cache_in(bind_whisper_onnx::cache_dir().to_path_buf())
 }
 
 /// An offline cache rooted at `dir`.
-pub fn cache_in(dir: PathBuf) -> PretrainedCache {
-    PretrainedCache::new(
-        PretrainedCacheOptions::default()
+pub fn cache_in(dir: PathBuf) -> ResourceCache {
+    ResourceCache::new(
+        ResourceCacheOptions::default()
             .with_disk(
                 BunsenDiskCacheOptions::default()
                     .with_cache_dir(Some(dir))
@@ -62,7 +61,7 @@ pub fn cache_in(dir: PathBuf) -> PretrainedCache {
 
 /// The bundled rank file a layout selects.
 pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
-    let map = WhisperVocabulary::for_layout(ids).resource_bundle();
+    let map = WhisperVocabulary::for_layout(ids).resource_set();
     offline_cache()
         .resolve(map.try_get(VOCABULARY).unwrap())
         .unwrap()
@@ -76,13 +75,16 @@ pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
         .unwrap()
 }
 
-/// `openai/whisper/base`'s checkpoint alone, as a resource bundle: the
+/// `openai/whisper/base`'s checkpoint alone, as a resource set: the
 /// built-in catalog's resource `openai/whisper/base/checkpoint`.
-pub fn base_checkpoint() -> ResourceBundle {
-    builtin_resource_bundle("openai/whisper/base/checkpoint", CHECKPOINT).unwrap()
+pub fn base_checkpoint() -> ResourceSet {
+    bunsen::data::catalog::BuiltinCatalog::get()
+        .unwrap()
+        .resource("openai/whisper/base/checkpoint", CHECKPOINT)
+        .unwrap()
 }
 
-/// A [`BUNDLED`] table of one row, `bundled:openai/base`: the well-known
+/// A [`BUNDLED`] table of one row, `bundled:openai/base`: the catalog
 /// `openai/whisper/base` row with its two resources served in place from
 /// the bundle's files rather than fetched.
 ///
@@ -120,7 +122,7 @@ pub fn bundled_table() -> PretrainedTable {
 }
 
 /// The default Whisper factory with [`bundled_table`] registered.
-pub fn factory_with_bundle() -> PretrainedFactory<WhisperConstructConfig> {
+pub fn factory_with_bundle() -> BuildFactory<WhisperConstructConfig> {
     default_whisper_factory()
         .unwrap()
         .with_provider(Arc::new(bundled_table()))

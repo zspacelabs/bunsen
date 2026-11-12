@@ -99,14 +99,14 @@ pub fn upstream_reference() -> BTreeMap<String, RowRecord> {
 }
 
 /// The weights cache, offline under `BUNSEN_VALIDATE_OFFLINE`.
-pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
     use bunsen::data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     };
     let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
-    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
-        .expect("open the pretrained cache")
+    ResourceCache::new(ResourceCacheOptions::default().with_offline(offline))
+        .expect("open the resource cache")
 }
 
 /// A Laya pretrained by name, in f32 at least: what the checks hold to

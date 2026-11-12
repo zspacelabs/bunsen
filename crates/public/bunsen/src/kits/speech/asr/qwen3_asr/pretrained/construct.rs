@@ -16,16 +16,16 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             CONFIG,
             ConstructInit,
             GEOMETRY,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
             SAFETENSORS_INDEX,
         },
     },
@@ -84,7 +84,7 @@ impl Qwen3AsrReader {
     /// Reads the weights and the vocabulary.
     fn read(
         self,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ByteLevelVocabulary)> {
         match self {
             Self::PhononArchive => crate::kits::speech::asr::qwen3_asr::read_phonon1_archive(
@@ -126,19 +126,19 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 
     /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
     /// come with a `tokenizer.json` vocabulary.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
             None => map.try_get(CHECKPOINT)?,
         };
-        let reader = Qwen3AsrReader::for_kind(checkpoint.kind.as_deref())?;
+        let reader = Qwen3AsrReader::for_kind(checkpoint.format.as_deref())?;
         if reader == Qwen3AsrReader::Safetensors {
             let vocab = map.try_get(VOCABULARY)?;
-            if vocab.kind.as_deref() != Some(TOKENIZER_JSON) {
+            if vocab.format.as_deref() != Some(TOKENIZER_JSON) {
                 return Err(BunsenError::unsupported(format!(
                     "no Qwen3-ASR vocabulary reader for kind {:?}",
-                    vocab.kind
+                    vocab.format
                 )));
             }
         }
@@ -147,8 +147,8 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
@@ -198,14 +198,22 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let qwen = Qwen3AsrConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("qwen/qwen3-asr-0.6b").unwrap(),
+        let qwen = Qwen3AsrConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("qwen/qwen3-asr-0.6b")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
-        let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("fermion/phonon-1").unwrap(),
+        let phonon = Qwen3AsrConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("fermion/phonon-1")
+                .unwrap()
+                .resource_set(),
         );
         assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());

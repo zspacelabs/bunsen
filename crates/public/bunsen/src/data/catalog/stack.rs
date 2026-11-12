@@ -1,4 +1,4 @@
-//! [`PretrainedCatalogStack`]: catalogs imported one after another into one
+//! [`BunsenCatalogStack`]: catalogs imported one after another into one
 //! materialized state.
 //!
 //! Importing a catalog applies its occurrences, in order, to a copy of the
@@ -34,12 +34,12 @@ use std::path::{
 use crate::{
     data::catalog::{
         document::{
+            BunsenCatalog,
             CatalogEntry,
             EntryKind,
             GroupEntry,
             Membership,
             MergeMode,
-            PretrainedCatalog,
             ResourceEntry,
             TEMPLATE_CLASS_ROOT,
             TemplateClassEntry,
@@ -52,8 +52,8 @@ use crate::{
             catalog_errors,
         },
         layer::{
+            BunsenCatalogLayer,
             LayerEntry,
-            PretrainedCatalogLayer,
         },
         name::{
             CatalogName,
@@ -145,14 +145,14 @@ pub struct TemplateLink<'a> {
     pub class: &'a TemplateClassEntry,
 }
 
-/// The root names no catalog may declare: the pretrained cache keeps files
+/// The root names no catalog may declare: the resource cache keeps files
 /// off the catalog under them (`hf:` repos', and paths').
 pub const RESERVED_ROOTS: [&str; 2] = ["hf", "given"];
 
 /// Catalogs imported in order, and the state they materialize.
 #[derive(Clone, Debug, Default)]
-pub struct PretrainedCatalogStack {
-    layers: Vec<PretrainedCatalogLayer>,
+pub struct BunsenCatalogStack {
+    layers: Vec<BunsenCatalogLayer>,
     entries: Vec<MaterializedEntry>,
     index: BTreeMap<CatalogName, usize>,
     /// Every reference the imported catalogs' validation resolved, by the
@@ -162,7 +162,7 @@ pub struct PretrainedCatalogStack {
     recording: RefCell<Option<BTreeMap<(CatalogName, CatalogRef), CatalogName>>>,
 }
 
-impl PretrainedCatalogStack {
+impl BunsenCatalogStack {
     /// An empty stack.
     pub fn new() -> Self {
         Self::default()
@@ -176,9 +176,9 @@ impl PretrainedCatalogStack {
         &mut self,
         label: impl Into<String>,
         path: Option<PathBuf>,
-        document: PretrainedCatalog,
+        document: BunsenCatalog,
     ) -> CatalogResult<()> {
-        let layer = PretrainedCatalogLayer::new(label, path, document)?;
+        let layer = BunsenCatalogLayer::new(label, path, document)?;
         let label = layer.label().to_string();
         let declares_contracts = layer.document().contracts.is_some();
         let refusal = match (self.layers.is_empty(), declares_contracts) {
@@ -203,7 +203,7 @@ impl PretrainedCatalogStack {
             return Err(catalog_error(
                 CatalogRule::Name,
                 format!(
-                    "`{}` is reserved: the pretrained cache keeps the files no catalog names \
+                    "`{}` is reserved: the resource cache keeps the files no catalog names \
                      under `hf` and `given`, so no catalog root is called either",
                     reserved.name()
                 ),
@@ -252,7 +252,7 @@ impl PretrainedCatalogStack {
         yaml: &str,
     ) -> CatalogResult<()> {
         let label = label.into();
-        let document = PretrainedCatalog::from_yaml(yaml).map_err(|e| e.in_layer(&label))?;
+        let document = BunsenCatalog::from_yaml(yaml).map_err(|e| e.in_layer(&label))?;
         self.push(label, None, document)
     }
 
@@ -274,16 +274,16 @@ impl PretrainedCatalogStack {
             catalog_error(CatalogRule::Parse, format!("{}: {e}", path.display())).in_layer(&label)
         })?;
         let document = if path.extension().is_some_and(|x| x == "json") {
-            PretrainedCatalog::from_json(&text)
+            BunsenCatalog::from_json(&text)
         } else {
-            PretrainedCatalog::from_yaml(&text)
+            BunsenCatalog::from_yaml(&text)
         }
         .map_err(|e| e.in_layer(&label))?;
         self.push(label, Some(path.to_path_buf()), document)
     }
 
     /// The imported catalogs, in import order.
-    pub fn layers(&self) -> &[PretrainedCatalogLayer] {
+    pub fn layers(&self) -> &[BunsenCatalogLayer] {
         &self.layers
     }
 
@@ -694,7 +694,7 @@ impl PretrainedCatalogStack {
     /// lookup that ignores case finds one entry.
     fn check_case(
         &self,
-        layer: &PretrainedCatalogLayer,
+        layer: &BunsenCatalogLayer,
     ) -> Vec<BunsenError> {
         let mut seen: BTreeMap<String, CatalogName> = self
             .declarations()
@@ -2473,11 +2473,10 @@ openai:
             "{in_build}"
         );
         // It survives the round trip through the keyed form.
-        let doc = PretrainedCatalog::from_yaml(
-            "big: { $kind: alias, $ref: { $path: a/b, $kind: build } }\n",
-        )
-        .unwrap();
-        let again = PretrainedCatalog::from_yaml(&doc.to_yaml().unwrap()).unwrap();
+        let doc =
+            BunsenCatalog::from_yaml("big: { $kind: alias, $ref: { $path: a/b, $kind: build } }\n")
+                .unwrap();
+        let again = BunsenCatalog::from_yaml(&doc.to_yaml().unwrap()).unwrap();
         assert_eq!(again, doc);
     }
 
@@ -2608,7 +2607,7 @@ openai:
 
     #[test]
     fn test_template_class_rules() {
-        let mut empty = PretrainedCatalogStack::new();
+        let mut empty = BunsenCatalogStack::new();
         let errors = empty
             .push_yaml(
                 "only",

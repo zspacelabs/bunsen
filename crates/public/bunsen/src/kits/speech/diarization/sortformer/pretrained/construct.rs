@@ -13,15 +13,15 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             CONFIG,
             ConstructInit,
-            PretrainedRef,
         },
         formats::SafetensorsCheckpoint,
         resources::{
-            LoadedResources,
-            PretrainedCache,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceCache,
+            ResourceSet,
             SAFETENSORS_INDEX,
         },
     },
@@ -117,7 +117,7 @@ impl SortformerConstructConfig {
 
     /// A Nemotron construct from a `transformers` checkpoint.
     fn construct_safetensors(
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
@@ -141,8 +141,8 @@ impl SortformerConstructConfig {
     /// gzipped one, is checked once it is fetched, in
     /// [`try_init`](ConstructInit::try_init).
     fn check_nemo_config(
-        map: &ResourceBundle,
-        cache: &PretrainedCache,
+        map: &ResourceSet,
+        cache: &ResourceCache,
     ) -> BunsenResult<()> {
         use crate::kits::speech::{
             diarization::sortformer::NemoSortformerConfig,
@@ -162,7 +162,7 @@ impl SortformerConstructConfig {
 
     /// A Sortformer v2 construct from a `.nemo`.
     fn construct_nemo(
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
@@ -194,23 +194,23 @@ impl ConstructInit for SortformerConstructConfig {
 
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{CHECKPOINT}.index");
         let checkpoint = match map.get(&index) {
             Some(index) => index,
             None => map.try_get(CHECKPOINT)?,
         };
         Ok(Self {
-            reader: SortformerReader::for_kind(checkpoint.kind.as_deref())?,
+            reader: SortformerReader::for_kind(checkpoint.format.as_deref())?,
         })
     }
 
     fn plan(
         &self,
-        model: &PretrainedRef,
-        cache: &PretrainedCache,
-    ) -> BunsenResult<ResourceBundle> {
-        let map = model.to_resource_bundle();
+        model: &BuildRef,
+        cache: &ResourceCache,
+    ) -> BunsenResult<ResourceSet> {
+        let map = model.to_resource_set();
         match self.reader {
             SortformerReader::Safetensors => {
                 if let Some(config) = map.get(CONFIG) {
@@ -228,8 +228,8 @@ impl ConstructInit for SortformerConstructConfig {
     /// ([`SortformerFamily::template_class`]).
     fn try_init(
         &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
@@ -237,7 +237,8 @@ impl ConstructInit for SortformerConstructConfig {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
         };
-        let family = crate::data::builds::builtin_template_presets(bundle.family.template_class())?;
+        let family = crate::data::catalog::BuiltinCatalog::get()?
+            .template_presets(bundle.family.template_class())?;
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
         Ok(Arc::new(
             bundle.with_policy(policy.config.clone(), policy.applied()),
@@ -251,17 +252,24 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        let hook = SortformerConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap(),
+        let hook = SortformerConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("nvidia/nemotron-3-diarization")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
         assert_eq!(hook.reader, SortformerReader::Safetensors);
-        let mut map =
-            crate::data::builds::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap();
+        let mut map = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("nvidia/nemotron-3-diarization")
+            .unwrap()
+            .resource_set();
         for res in map.resources.values_mut() {
-            res.kind = Some("pytorch".into());
+            res.format = Some("pytorch".into());
         }
-        assert!(SortformerConstructConfig::for_resource_bundle(&map).is_err());
+        assert!(SortformerConstructConfig::for_resource_set(&map).is_err());
         assert!(SortformerReader::for_kind(None).is_err());
         assert_eq!(
             SortformerReader::for_kind(Some(NEMO)).ok(),
@@ -277,7 +285,7 @@ mod tests {
             data::{
                 builds::Deferred,
                 cache::BunsenDiskCacheOptions,
-                resources::PretrainedCacheOptions,
+                resources::ResourceCacheOptions,
             },
             kits::speech::{
                 diarization::sortformer::SortformerMeta,
@@ -287,12 +295,12 @@ mod tests {
         };
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/nemo/toy_sortformer_v2.nemo");
-        let mut map = ResourceBundle::given("toy", CHECKPOINT, &path);
-        map.resources.get_mut(CHECKPOINT).unwrap().kind = Some(NEMO.into());
+        let mut map = ResourceSet::given("toy", CHECKPOINT, &path);
+        map.resources.get_mut(CHECKPOINT).unwrap().format = Some(NEMO.into());
 
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.path().to_path_buf()))
@@ -301,7 +309,7 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let bundle = Deferred::<SortformerConstructConfig>::from_resource_bundle(map)
+        let bundle = Deferred::<SortformerConstructConfig>::from_resource_set(map)
             .unwrap()
             .load(
                 &cache,
@@ -343,7 +351,9 @@ mod tests {
         };
 
         let family_presets = |family: &str| {
-            crate::data::builds::builtin_template_presets(&format!("nvidia/sortformer/{family}"))
+            crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .template_presets(&format!("nvidia/sortformer/{family}"))
                 .unwrap()
         };
         let resolve = |family: &str, presets: &[&str]| {
@@ -407,7 +417,7 @@ mod tests {
             0.511
         );
 
-        let provider = crate::data::builds::BuildCatalogProvider::expect_builtin(
+        let provider = crate::data::catalog::BuiltinCatalog::expect_provider(
             super::super::SORTFORMER_CATALOG_CONTRACT,
             super::super::SORTFORMER_KIT,
         );
@@ -435,8 +445,8 @@ mod tests {
                 },
                 resources::{
                     CacheStatus,
-                    PretrainedCacheOptions,
                     Resource,
+                    ResourceCacheOptions,
                     Source,
                 },
             },
@@ -453,8 +463,8 @@ mod tests {
         let toy = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/nemo/toy_sortformer_v2.nemo");
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default().with_disk(
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default().with_disk(
                 BunsenDiskCacheOptions::default()
                     .with_cache_dir(Some(dir.path().join("cache")))
                     .without_transfer_observers(),
@@ -465,9 +475,9 @@ mod tests {
             reader: SortformerReader::Nemo,
         };
 
-        let mut given = ResourceBundle::given("toy", CHECKPOINT, &toy);
-        given.resources.get_mut(CHECKPOINT).unwrap().kind = Some(NEMO.into());
-        hook.plan(&PretrainedRef::from(given), &cache).unwrap();
+        let mut given = ResourceSet::given("toy", CHECKPOINT, &toy);
+        given.resources.get_mut(CHECKPOINT).unwrap().format = Some(NEMO.into());
+        hook.plan(&BuildRef::from(given), &cache).unwrap();
 
         // An archive of the toy's config, edited, and stand-in weights.
         let archive = |yaml: &str| -> &'static [u8] {
@@ -486,15 +496,15 @@ mod tests {
             Box::leak(tar.into_inner().unwrap().into_boxed_slice())
         };
         let remote = |body: &'static [u8]| {
-            let mut map = ResourceBundle::new("remote");
+            let mut map = ResourceSet::new("remote");
             map.insert(Resource {
                 size: None,
                 dtype: None,
-                key: CHECKPOINT.into(),
+                slot: CHECKPOINT.into(),
                 file: "remote.nemo".into(),
                 sha256: None,
-                kind: Some(NEMO.into()),
-                namespace: "test".into(),
+                format: Some(NEMO.into()),
+                name: "test".into(),
                 sources: vec![Source::Url(serve_ranges("remote.nemo", body, 1))],
             });
             map
@@ -502,8 +512,7 @@ mod tests {
         let yaml = NemoArchive::open(&toy).unwrap().config_yaml().to_string();
 
         let map = remote(archive(&yaml));
-        hook.plan(&PretrainedRef::from(map.clone()), &cache)
-            .unwrap();
+        hook.plan(&BuildRef::from(map.clone()), &cache).unwrap();
         let res = map.get(CHECKPOINT).unwrap();
         assert_eq!(cache.status(res), CacheStatus::Remote);
 
@@ -514,7 +523,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("sortformer_modules.fc_d_model")
             .frame_contains("remote.nemo")
-            .assert_err(&hook.plan(&PretrainedRef::from(map.clone()), &cache));
+            .assert_err(&hook.plan(&BuildRef::from(map.clone()), &cache));
         let res = map.get(CHECKPOINT).unwrap();
         assert_eq!(cache.status(res), CacheStatus::Remote);
     }

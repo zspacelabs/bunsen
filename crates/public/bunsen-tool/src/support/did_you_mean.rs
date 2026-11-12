@@ -19,11 +19,10 @@ const SHOWN: usize = 16;
 
 /// The candidates of `lookup` nearest its key, nearest first, at most
 /// `MOST` (3), case aside, in the form the key is written in:
-/// - a key without a provider (`well-known:`) is matched against, and offered,
-///   the names without theirs; and a key without a group either (`qwen3-1.7b`,
-///   not `qwen/qwen3-1.7b`) the names without their group, which a table
-///   answers as well, unless two groups share the name, when it is offered with
-///   its group;
+/// - a key without a provider (`catalog:`) is matched against, and offered, the
+///   names without theirs; and a key without a group either (`qwen3-1.7b`, not
+///   `qwen/qwen3-1.7b`) the names without their group, which a table answers as
+///   well, unless two groups share the name, when it is offered with its group;
 /// - a name the key extends by a word (`qwen3-1.7b` of `qwen3-1.7b-turbo`)
 ///   comes first, whatever the distance;
 /// - the others within a Damerau-Levenshtein distance of a third of the key's
@@ -116,9 +115,9 @@ mod tests {
     #[test]
     fn test_nearest() {
         let names = [
-            "well-known:openai/tiny.en",
-            "well-known:openai/tiny",
-            "well-known:openai/small",
+            "catalog:openai/tiny.en",
+            "catalog:openai/tiny",
+            "catalog:openai/small",
             "bundled:openai/tiny",
         ];
         assert_eq!(
@@ -146,20 +145,20 @@ mod tests {
     #[test]
     fn test_nearest_ungrouped() {
         let qwen3 = [
-            "well-known:qwen/qwen3-0.6b",
-            "well-known:qwen/qwen3-0.6b-base",
-            "well-known:qwen/qwen3-1.7b",
-            "well-known:qwen/qwen3-1.7b-base",
-            "well-known:qwen/qwen3-4b",
-            "well-known:qwen/qwen3-4b-base",
-            "well-known:qwen/qwen3-4b-instruct-2507",
-            "well-known:qwen/qwen3-4b-thinking-2507",
-            "well-known:qwen/qwen3-8b",
-            "well-known:qwen/qwen3-8b-base",
-            "well-known:qwen/qwen3-4b-saferl",
-            "well-known:qwen/qwen3guard-gen-0.6b",
-            "well-known:qwen/qwen3guard-gen-4b",
-            "well-known:qwen/qwen3guard-gen-8b",
+            "catalog:qwen/qwen3-0.6b",
+            "catalog:qwen/qwen3-0.6b-base",
+            "catalog:qwen/qwen3-1.7b",
+            "catalog:qwen/qwen3-1.7b-base",
+            "catalog:qwen/qwen3-4b",
+            "catalog:qwen/qwen3-4b-base",
+            "catalog:qwen/qwen3-4b-instruct-2507",
+            "catalog:qwen/qwen3-4b-thinking-2507",
+            "catalog:qwen/qwen3-8b",
+            "catalog:qwen/qwen3-8b-base",
+            "catalog:qwen/qwen3-4b-saferl",
+            "catalog:qwen/qwen3guard-gen-0.6b",
+            "catalog:qwen/qwen3guard-gen-4b",
+            "catalog:qwen/qwen3guard-gen-8b",
         ];
         assert_eq!(
             nearest(&missing("qwen3-1.7b-turbo", &qwen3)),
@@ -176,7 +175,7 @@ mod tests {
             ["qwen/qwen3-8b", "qwen/qwen3-4b", "qwen/qwen3-0.6b"]
         );
 
-        let shared = ["well-known:openai/tiny", "well-known:other/tiny"];
+        let shared = ["catalog:openai/tiny", "catalog:other/tiny"];
         assert_eq!(
             nearest(&missing("tinny", &shared)),
             ["openai/tiny", "other/tiny"]

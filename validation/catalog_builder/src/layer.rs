@@ -691,7 +691,7 @@ fn check_languages(
 
 #[cfg(test)]
 mod tests {
-    use bunsen::data::catalog::PretrainedCatalog;
+    use bunsen::data::catalog::BunsenCatalog;
 
     use super::*;
     use crate::remote::testing::FakeRemote;
@@ -734,7 +734,7 @@ mod tests {
     ) -> Result<OrderedNode, String> {
         let node = OrderedNode::from_yaml(yaml).unwrap();
         let built = LayerBuilder::new(remote, false).build(node, None)?;
-        PretrainedCatalog::from_node(built.clone()).map_err(|e| e.to_string())?;
+        BunsenCatalog::from_node(built.clone()).map_err(|e| e.to_string())?;
         Ok(built)
     }
 

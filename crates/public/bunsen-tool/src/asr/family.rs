@@ -8,10 +8,10 @@ use std::{
 use bunsen::{
     data::{
         builds::{
+            BuildFactory,
             ConstructInit,
             Deferred,
             Pretrained,
-            PretrainedFactory,
         },
         cache::verify_sha256,
         catalog::{
@@ -23,8 +23,8 @@ use bunsen::{
         },
         formats::LoadPolicy,
         resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
+            ResourceCache,
+            ResourceCacheOptions,
         },
     },
     errors::{
@@ -187,7 +187,7 @@ impl Family {
         self,
         spec: &str,
         flags: &F,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
     ) -> BunsenResult<Loaded> {
         Ok(match self {
@@ -233,7 +233,7 @@ impl Kit {
     }
 
     /// Whether the kit's factory lists `name`, a row's name or alias, with
-    /// or without its provider (`well-known:openai/small`), case aside: a
+    /// or without its provider (`catalog:openai/small`), case aside: a
     /// row named in the build catalog's form answers its shorter spellings too
     /// (`openai/small` for `openai/whisper/small`), as its provider's lookup
     /// takes them.
@@ -261,7 +261,7 @@ impl Kit {
 
     /// What the kit's factory offers.
     pub fn listing(self) -> BunsenResult<Listing> {
-        fn split<H: ConstructInit>(factory: PretrainedFactory<H>) -> Listing {
+        fn split<H: ConstructInit>(factory: BuildFactory<H>) -> Listing {
             let rows = factory.list();
             let listed: Vec<&str> = rows.iter().map(|(p, _)| p.as_str()).collect();
             let unlisted = factory
@@ -295,7 +295,7 @@ impl Kit {
     pub fn fetch(
         self,
         names: &[String],
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         verify: bool,
         out: &mut impl Write,
     ) -> BunsenResult<()> {
@@ -321,9 +321,9 @@ impl Kit {
 /// path's vocabulary is the one its checkpoint's layout selects, and a
 /// name's checkpoint must scan as its prefab), then every resource of it.
 pub fn fetch_with<H: ConstructInit>(
-    factory: PretrainedFactory<H>,
+    factory: BuildFactory<H>,
     names: &[String],
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     verify: bool,
     out: &mut impl Write,
 ) -> BunsenResult<()> {
@@ -361,7 +361,7 @@ pub fn fetch_with<H: ConstructInit>(
 /// from: the model's info card.
 pub fn load_logged<H: ConstructInit>(
     deferred: Deferred<H>,
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     device: &Device,
 ) -> BunsenResult<Arc<H::Construct>> {
     let t0 = Instant::now();
@@ -393,8 +393,8 @@ pub trait FamilyFlags: std::fmt::Debug {
     /// The cache options these flags call for, over `options`.
     fn cache_options(
         &self,
-        options: PretrainedCacheOptions,
-    ) -> PretrainedCacheOptions {
+        options: ResourceCacheOptions,
+    ) -> ResourceCacheOptions {
         match self.whisper() {
             Some(whisper) => whisper.cache_options(options),
             None => options,

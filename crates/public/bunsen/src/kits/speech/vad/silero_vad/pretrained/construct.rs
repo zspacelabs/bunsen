@@ -7,13 +7,13 @@ use burn::tensor::Device;
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
         },
     },
     errors::{
@@ -27,9 +27,9 @@ use crate::{
             SileroVadCollection,
             pretrained::{
                 BURNPACK,
-                BURNPACK_KIND,
+                BURNPACK_FORMAT,
                 CHECKPOINT,
-                SAFETENSORS_KIND,
+                SAFETENSORS_FORMAT,
                 SILERO_KIT,
             },
         },
@@ -37,16 +37,16 @@ use crate::{
     },
 };
 
-/// How a Silero checkpoint is read, by its resource bundle.
+/// How a Silero checkpoint is read, by its resource set.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SileroReader {
-    /// A burnpack under [`BURNPACK`] ([`BURNPACK_KIND`]): both sample-rate
+    /// A burnpack under [`BURNPACK`] ([`BURNPACK_FORMAT`]): both sample-rate
     /// branches, keyed as `burn-onnx` names the ONNX graph's nodes.
     #[default]
     Burnpack,
 
     /// Upstream's 16 kHz state dict under [`CHECKPOINT`]
-    /// ([`SAFETENSORS_KIND`]), read through
+    /// ([`SAFETENSORS_FORMAT`]), read through
     /// [`upstream_rekey`](super::load::upstream_rekey).
     /// Needs the `store` feature.
     Safetensors,
@@ -86,10 +86,10 @@ impl ConstructInit for SileroConstructConfig {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
     /// map with neither, or a checkpoint of another kind.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let reader = if let Some(r) = map.get(BURNPACK) {
-            match r.kind.as_deref() {
-                None | Some(BURNPACK_KIND) => SileroReader::Burnpack,
+            match r.format.as_deref() {
+                None | Some(BURNPACK_FORMAT) => SileroReader::Burnpack,
                 other => {
                     return Err(BunsenError::unsupported(format!(
                         "no Silero reader for a burnpack of kind {other:?}"
@@ -97,8 +97,8 @@ impl ConstructInit for SileroConstructConfig {
                 }
             }
         } else if let Some(r) = map.get(CHECKPOINT) {
-            match r.kind.as_deref() {
-                Some(SAFETENSORS_KIND) => SileroReader::Safetensors,
+            match r.format.as_deref() {
+                Some(SAFETENSORS_FORMAT) => SileroReader::Safetensors,
                 other => {
                     return Err(BunsenError::unsupported(format!(
                         "no Silero reader for a checkpoint of kind {other:?}"
@@ -107,7 +107,7 @@ impl ConstructInit for SileroConstructConfig {
             }
         } else {
             return Err(BunsenError::unsupported(format!(
-                "a Silero resource bundle needs a `{BURNPACK}` or a `{CHECKPOINT}`"
+                "a Silero resource set needs a `{BURNPACK}` or a `{CHECKPOINT}`"
             )));
         };
         Ok(Self { reader })
@@ -119,8 +119,8 @@ impl ConstructInit for SileroConstructConfig {
     /// ([`resolve_ref_presets`]).
     fn try_init(
         &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<SileroConstruct>> {
@@ -161,21 +161,25 @@ mod tests {
         assert_eq!(SileroConstructConfig::new().reader, SileroReader::Burnpack);
 
         assert_eq!(
-            SileroConstructConfig::for_resource_bundle(
-                &crate::data::builds::builtin_build_bundle("vad-16k").unwrap()
+            SileroConstructConfig::for_resource_set(
+                &crate::data::catalog::BuiltinCatalog::get()
+                    .unwrap()
+                    .build("vad-16k")
+                    .unwrap()
+                    .resource_set()
             )
             .unwrap()
             .reader,
             SileroReader::Safetensors
         );
         // A burnpack given by path: unlabeled, read as a burnpack.
-        let mut burnpack = crate::data::resources::ResourceBundle::new("a burnpack");
+        let mut burnpack = crate::data::resources::ResourceSet::new("a burnpack");
         burnpack.insert(crate::data::resources::Resource::given(
             BURNPACK,
             "/models/silero_vad.bpk",
         ));
         assert_eq!(
-            SileroConstructConfig::for_resource_bundle(&burnpack)
+            SileroConstructConfig::for_resource_set(&burnpack)
                 .unwrap()
                 .reader,
             SileroReader::Burnpack

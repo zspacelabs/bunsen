@@ -21,7 +21,7 @@ https://github.com/tracel-ai/models/blob/main/resnet-burn/examples/finetune/exam
   pretrained checkpoints by name.
 - `bunsen::burner::module` — `ModuleInit` for building/initializing the module
   and `DTypeMapper` for dtype remapping during load.
-- `bunsen::data::resources::PretrainedCache` — the digest-pinned cache the
+- `bunsen::data::resources::ResourceCache` — the digest-pinned cache the
   pretrained weights are fetched into.
 
 It demonstrates pretrained-weight loading plus post-hoc module rewriting
@@ -46,30 +46,30 @@ This will list all available pretrained models, by prefab, with each row's
 Available pretrained models:
 * "resnet18"
 ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "well-known:torchvision/resnet18": TorchVision ResNet-18
-  - "well-known:timm/resnet18_a1": RSB Paper ResNet-18 a1
-  - "well-known:timm/resnet18_a2": RSB Paper ResNet-18 a2
-  - "well-known:timm/resnet18_a3": RSB Paper ResNet-18 a3
+  - "catalog:torchvision/resnet18": TorchVision ResNet-18
+  - "catalog:timm/resnet18_a1": RSB Paper ResNet-18 a1
+  - "catalog:timm/resnet18_a2": RSB Paper ResNet-18 a2
+  - "catalog:timm/resnet18_a3": RSB Paper ResNet-18 a3
 * "resnet26"
 ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "well-known:timm/resnet26": ResNet-26 pretrained on ImageNet
+  - "catalog:timm/resnet26": ResNet-26 pretrained on ImageNet
 * "resnet34"
 ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "well-known:torchvision/resnet34": TorchVision ResNet-34
-  - "well-known:timm/resnet34_a1": RSB Paper ResNet-34 a1
-  - "well-known:timm/resnet34_a2": RSB Paper ResNet-34 a2
-  - "well-known:timm/resnet34_a3": RSB Paper ResNet-34 a3
-  - "well-known:timm/resnet34": ResNet-34 pretrained on ImageNet
+  - "catalog:torchvision/resnet34": TorchVision ResNet-34
+  - "catalog:timm/resnet34_a1": RSB Paper ResNet-34 a1
+  - "catalog:timm/resnet34_a2": RSB Paper ResNet-34 a2
+  - "catalog:timm/resnet34_a3": RSB Paper ResNet-34 a3
+  - "catalog:timm/resnet34": ResNet-34 pretrained on ImageNet
 * "resnet50"
 ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "well-known:torchvision/resnet50": TorchVision ResNet-50
+  - "catalog:torchvision/resnet50": TorchVision ResNet-50
 * "resnet101"
 ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "well-known:torchvision/resnet101": TorchVision ResNet-101
-  - "well-known:timm/resnet101_a1": ResNet-101 pretrained on ImageNet
+  - "catalog:torchvision/resnet101": TorchVision ResNet-101
+  - "catalog:timm/resnet101_a1": ResNet-101 pretrained on ImageNet
 * "resnet152"
 ResNetContractConfig { layers: [3, 8, 36, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "well-known:torchvision/resnet152": TorchVision ResNet-152
+  - "catalog:torchvision/resnet152": TorchVision ResNet-152
 ```
 
 ## Various Options to Rewrite Models

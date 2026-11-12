@@ -7,7 +7,7 @@
 //!
 //! # The index
 //!
-//! [`default_laya_factory`] is the index a caller holds, over the well-known
+//! [`default_laya_factory`] is the index a caller holds, over the catalog
 //! rows, the built-in catalog's builds of [`LAYA_CATALOG_CONTRACT`]: the three
 //! checkpoints of `convaiinnovations/laya`, each its `model.safetensors` (f16),
 //! its encoder's `config.json`, its head's `rl_agent_config.json` and its
@@ -19,7 +19,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`LayaConstructConfig`],
 //! brings every file local through the cache, builds the model from its two
 //! configs ([`laya_config`](super::weights::laya_config)), and reads the

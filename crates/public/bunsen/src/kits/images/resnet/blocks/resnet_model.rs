@@ -787,14 +787,14 @@ mod tests {
     fn test_load_pytorch(spec: &str) -> BunsenResult<()> {
         use crate::{
             data::resources::{
-                PretrainedCache,
-                PretrainedCacheOptions,
+                ResourceCache,
+                ResourceCacheOptions,
             },
             kits::images::resnet::pretrained::default_resnet_factory,
         };
 
         let device = performance_device();
-        let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+        let cache = ResourceCache::new(ResourceCacheOptions::default())?;
         let loaded = default_resnet_factory()?.load(
             spec,
             &cache,

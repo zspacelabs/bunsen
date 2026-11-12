@@ -11,27 +11,27 @@ use serde_json::Value;
 use crate::data::{
     catalog::presets::ResolvedPresetSet,
     pretrained::Tags,
-    resources::ResourceBundle,
+    resources::ResourceSet,
 };
 
-/// A pretrained row: a name in a provider, over a resource bundle.
+/// A pretrained row: a name in a provider, over a resource set.
 ///
 /// What a name in a provider is: listing fields, aliases, the prefab it
-/// instantiates when the kit keeps prefabs, and the resource bundles it is
+/// instantiates when the kit keeps prefabs, and the resource sets it is
 /// made of, fused strictly into one. A row is plain data. It knows no
 /// hook, since the function that loads a kit's models is the kit's and
 /// supplies one, and it does not know which of its resources is the model.
 ///
-/// A [`BuildCatalogProvider`](super::BuildCatalogProvider) makes rows of a
+/// A [`CatalogBuildProvider`](super::CatalogBuildProvider) makes rows of a
 /// build catalog's builds. A
-/// [`PretrainedProvider`](super::PretrainedProvider) hands rows out from
+/// [`BuildProvider`](super::BuildProvider) hands rows out from
 /// its `list`, `lookup` and `resolve`; a
 /// [`PretrainedTable`](super::PretrainedTable) keeps them in groups and
 /// names them `group/name`. A factory wraps the row it found in a
-/// [`PretrainedRef::Named`](super::PretrainedRef::Named), the next step
+/// [`BuildRef::Named`](super::BuildRef::Named), the next step
 /// toward a model. The [`prefab`](Self::prefab) field joins the row to the
 /// kit's [`StaticPreFabMap`](crate::data::pretrained::StaticPreFabMap), through
-/// [`PretrainedRef::prefab`](super::PretrainedRef::prefab).
+/// [`BuildRef::prefab`](super::BuildRef::prefab).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Pretrained {
     /// Its name, unique within its provider.
@@ -49,12 +49,12 @@ pub struct Pretrained {
     /// Where it is published.
     pub origin: Option<String>,
 
-    /// The prefab it instantiates, by name in the kit's prefab resource bundle,
+    /// The prefab it instantiates, by name in the kit's prefab resource set,
     /// when the kit keeps one.
     pub prefab: Option<String>,
 
     /// What it is made of, fused.
-    pub resources: ResourceBundle,
+    pub resources: ResourceSet,
 
     /// Its presets: named deltas over the config it is built from, the axes
     /// that group them, and its default selection, as the build catalog
@@ -115,7 +115,7 @@ mod tests {
             license: Some("MIT".to_string()),
             origin: Some("https://t.example".to_string()),
             prefab: Some("small".to_string()),
-            resources: ResourceBundle::new("small")
+            resources: ResourceSet::new("small")
                 .with_resource(Resource::given("checkpoint", "/t/small.pt")),
             presets: ResolvedPresetSet::default(),
             args: Default::default(),

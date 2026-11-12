@@ -39,7 +39,7 @@ Qwen3's `language` is `["*"]`; Whisper's is `[en, "*"]`. The Qwen3 builds have t
 ## The pipeline
 
 ```text
-catalog documents ──push──▶ PretrainedCatalogStack ──resolve_build──▶ ResolvedBuild
+catalog documents ──push──▶ BunsenCatalogStack ──resolve_build──▶ ResolvedBuild
                               (validated state)                         (tags, presets, deps)
                                      │
                      SelectEnv: the stack, derive steps, resolved builds
@@ -66,7 +66,7 @@ A catalog document is the namespace tree, in the keyed form [`catalog_format`](c
 every key the catalog language defines starts with `$`, and a bare key is a name (a child, a
 tag, or a preset).
 
-`PretrainedCatalogStack` imports catalogs one after another. A push applies the catalog's
+`BunsenCatalogStack` imports catalogs one after another. A push applies the catalog's
 entries, in order, to a copy of the state, validates the whole copy, and commits it only if
 nothing is wrong. A refused catalog leaves the stack as it was, and the error lists every
 problem found.
@@ -75,7 +75,7 @@ problem found.
 use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogRule,
-    PretrainedCatalogStack,
+    BunsenCatalogStack,
     fixtures,
 };
 
@@ -99,15 +99,15 @@ assert!(err.has(CatalogRule::Reference), "{err}");
 assert_eq!(stack.layers().len(), 4);
 
 // An empty stack, filled from files, or from documents built in code.
-let mut empty = PretrainedCatalogStack::new();
+let mut empty = BunsenCatalogStack::new();
 empty.push_yaml("prelude", fixtures::PRELUDE).unwrap();
 ```
 
 | call | does |
 |---|---|
-| `PretrainedCatalogStack::new()` | an empty stack |
+| `BunsenCatalogStack::new()` | an empty stack |
 | `builtin_stack()` | bunsen's built-in catalog |
-| `push(label, PretrainedCatalog)` | imports a document built in code |
+| `push(label, BunsenCatalog)` | imports a document built in code |
 | `push_yaml(label, text)` | parses YAML, then pushes |
 | `push_file(path)` | reads YAML (or JSON, by a `.json` extension), labelled by its file stem |
 | `layers()` | the imported catalogs, in order, with their labels, paths and documents |

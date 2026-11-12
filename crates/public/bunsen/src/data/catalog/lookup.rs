@@ -18,8 +18,8 @@ use crate::data::catalog::{
     },
     name::CatalogName,
     stack::{
+        BunsenCatalogStack,
         EntryRef,
-        PretrainedCatalogStack,
     },
 };
 
@@ -96,7 +96,7 @@ fn subsequence(
     init.iter().all(|q| rest.any(|s| s.eq_ignore_ascii_case(q)))
 }
 
-impl PretrainedCatalogStack {
+impl BunsenCatalogStack {
     /// The entries of `kinds` that `query` matches, each once. An
     /// alias that matches stands for its target when its target's kind is
     /// among `kinds`; it is matched itself only when `kinds` asks for

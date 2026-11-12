@@ -5,14 +5,14 @@ use std::sync::Arc;
 use bunsen::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         resources::{
             Fuse,
-            LoadedResources,
+            LoadedResourceSet,
             Provenance,
-            ResourceBundle,
+            ResourceSet,
             Source,
         },
     },
@@ -49,16 +49,16 @@ use super::{
     offline_cache,
 };
 
-fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
+fn resolve_model(spec: &str) -> BunsenResult<BuildRef> {
     Ok(default_whisper_factory()?
         .resolve(spec, &offline_cache())?
         .model)
 }
 
 /// A checkpoint on disk, as loaded resources: used in place.
-fn loaded(path: &std::path::Path) -> LoadedResources {
+fn loaded(path: &std::path::Path) -> LoadedResourceSet {
     offline_cache()
-        .load(&ResourceBundle::given("given", CHECKPOINT, path))
+        .load(&ResourceSet::given("given", CHECKPOINT, path))
         .unwrap()
 }
 
@@ -85,7 +85,7 @@ fn test_the_factory_builds_the_construct() {
         )
         .unwrap();
 
-    assert_eq!(loaded.name, "well-known:openai/whisper/base");
+    assert_eq!(loaded.name, "catalog:openai/whisper/base");
     assert_eq!(loaded.resources.keys(), [CHECKPOINT, VOCABULARY]);
     for (key, part) in loaded.resources.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");
@@ -104,7 +104,7 @@ fn test_the_factory_builds_the_construct() {
 #[test]
 fn test_plan_derives_a_paths_vocabulary() {
     let cache = offline_cache();
-    let given = PretrainedRef::from(ResourceBundle::given(
+    let given = BuildRef::from(ResourceSet::given(
         "base",
         CHECKPOINT,
         bind_whisper_onnx::base_pt(),
@@ -124,15 +124,15 @@ fn test_plan_derives_a_paths_vocabulary() {
 fn test_plan_checks_a_declared_vocabulary() {
     let cache = offline_cache();
     let wrong = base_checkpoint()
-        .fuse(WhisperVocabulary::Gpt2.resource_bundle(), Fuse::Strict)
+        .fuse(WhisperVocabulary::Gpt2.resource_set(), Fuse::Strict)
         .unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .message_contains("gpt2.tiktoken")
         .message_contains("multilingual.tiktoken")
-        .assert_err(&WhisperConstructConfig::new().plan(&PretrainedRef::from(wrong), &cache));
+        .assert_err(&WhisperConstructConfig::new().plan(&BuildRef::from(wrong), &cache));
 
-    let overridden = PretrainedRef::from(base_checkpoint())
-        .with_overlay(ResourceBundle::given(
+    let overridden = BuildRef::from(base_checkpoint())
+        .with_overlay(ResourceSet::given(
             "--vocab",
             VOCABULARY,
             bind_whisper_onnx::gpt2_tiktoken(),
@@ -175,7 +175,7 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
 fn test_plan_checks_the_prefab_a_name_promises() {
     let cache = offline_cache();
     let base_pt = bind_whisper_onnx::base_pt();
-    let given = PretrainedRef::from(base_checkpoint());
+    let given = BuildRef::from(base_checkpoint());
     let named = resolve_model("openai/base").unwrap();
     let hook = WhisperConstructConfig::new();
 
@@ -240,7 +240,7 @@ fn test_scan_honors_the_scanner() {
         .has_cause::<GeometryMismatch>()
         .assert_err(&hook.scan(&named, &loaded(base)));
 
-    let given = PretrainedRef::from(ResourceBundle::given("base", CHECKPOINT, base));
+    let given = BuildRef::from(ResourceSet::given("base", CHECKPOINT, base));
     let cfg = hook.scan(&given, &loaded(base)).unwrap();
     assert_eq!(cfg.geometry().d_head, 32);
     assert_eq!(cfg.geometry().n_heads(), 16);

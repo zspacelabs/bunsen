@@ -6,13 +6,13 @@ use bunsen::{
     burner::device::DeviceSession,
     data::{
         builds::{
+            BuildFactory,
+            CATALOG,
             ConstructInit,
             Pretrained,
-            PretrainedFactory,
-            WELL_KNOWN,
         },
         formats::LoadPolicy,
-        resources::PretrainedCache,
+        resources::ResourceCache,
     },
     errors::BunsenResult,
     kits::{
@@ -51,15 +51,15 @@ use crate::chat::{
     no_chat_template,
 };
 
-/// Refuses a well-known checkpoint none of whose presets names a chat
+/// Refuses a built-in checkpoint none of whose presets names a chat
 /// template, before anything of it is fetched. An `hf:` repo's template is
 /// found in its files, so it is checked when it loads.
 pub fn require_template<H: ConstructInit>(
-    factory: &PretrainedFactory<H>,
+    factory: &BuildFactory<H>,
     name: &str,
 ) -> BunsenResult<()> {
     let (provider, _) = factory.lookup(name)?;
-    if provider != WELL_KNOWN {
+    if provider != CATALOG {
         return Ok(());
     }
     let resolved = factory.resolve_presets(name, &LmPolicy::default())?;
@@ -122,7 +122,7 @@ impl ChatModelFamily {
         }
     }
 
-    /// The kit's segment of the pretrained cache.
+    /// The kit's segment of the resource cache.
     pub fn cache_kit(self) -> &'static str {
         match self {
             ChatModelFamily::Qwen3 => QWEN3_KIT,
@@ -135,7 +135,7 @@ impl ChatModelFamily {
     /// The family's checkpoints by name: each row, by its id.
     pub fn rows(self) -> BunsenResult<Vec<(String, Pretrained)>> {
         fn rows_of<H: ConstructInit>(
-            factory: &PretrainedFactory<H>
+            factory: &BuildFactory<H>
         ) -> BunsenResult<Vec<(String, Pretrained)>> {
             factory
                 .ids()
@@ -155,7 +155,7 @@ impl ChatModelFamily {
     pub fn load(
         self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &DeviceSession,
     ) -> BunsenResult<LoadedChat> {
         Ok(match self {
@@ -210,7 +210,7 @@ impl ChatModelFamily {
     pub fn fetch(
         self,
         name: &str,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
     ) -> BunsenResult<()> {
         let (id, loaded) = match self {
             ChatModelFamily::Qwen3 => {
@@ -307,7 +307,7 @@ impl ChatModelFamilyFlags for ChatPlainFlags {}
 mod tests {
     use super::*;
 
-    /// Every well-known chat checkpoint has a chat template, a pretrained
+    /// Every built-in chat checkpoint has a chat template, a pretrained
     /// Gemma its family's; a lookup's patch that takes it away is refused
     /// before anything is fetched.
     #[test]

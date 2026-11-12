@@ -26,7 +26,7 @@ checkpoints = ["bunsen/fetch"]
 ## Fetch upstream's ONNX graph (2.8 MB) and generate the reference model from
 ## it, at build time, and the bundle the conversion is cross-checked with
 ## (`bind-silero-onnx`'s `checkpoint`: the safetensors, laid out as a
-## pretrained cache); and compile the tests against them. Bundling is for
+## resource cache); and compile the tests against them. Bundling is for
 ## verification, so it comes in here alone. **Off by default**.
 reference = [
     "dep:bind-silero-onnx",

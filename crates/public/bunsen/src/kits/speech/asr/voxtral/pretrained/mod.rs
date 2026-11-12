@@ -8,7 +8,7 @@
 //! # The index
 //!
 //! [`default_voxtral_factory`] is the index a caller holds, over two
-//! providers. First the well-known row, the built-in catalog's build of
+//! providers. First the catalog row, the built-in catalog's build of
 //! [`VOXTRAL_CATALOG_CONTRACT`], stating its geometry, one of
 //! [`VOXTRAL_PREFABS`]:
 //!
@@ -27,7 +27,7 @@
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`VoxtralConstructConfig`],
 //! brings every file local through the cache, and reads them into the row's
 //! prefab through

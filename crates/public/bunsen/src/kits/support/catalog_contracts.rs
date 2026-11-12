@@ -165,8 +165,8 @@ pub(crate) mod testing {
 
     use super::*;
     use crate::data::catalog::{
-        PretrainedCatalog,
-        PretrainedCatalogStack,
+        BunsenCatalog,
+        BunsenCatalogStack,
         document::CatalogEntry,
     };
 
@@ -177,12 +177,12 @@ pub(crate) mod testing {
     /// contract; a variant's contract is its path (`qwen3-asr/stated`).
     pub(crate) fn contract_lines(yaml: &'static str) -> Vec<String> {
         let section = contracts_section(&[KitCatalogContract { kit: "test", yaml }]).unwrap();
-        let catalog = PretrainedCatalog::from_node(OrderedNode::Map(alloc::vec![(
+        let catalog = BunsenCatalog::from_node(OrderedNode::Map(alloc::vec![(
             "$contracts".to_string(),
             section,
         )]))
         .unwrap();
-        let mut stack = PretrainedCatalogStack::new();
+        let mut stack = BunsenCatalogStack::new();
         stack.push("contracts", None, catalog.clone()).unwrap();
 
         fn walk(

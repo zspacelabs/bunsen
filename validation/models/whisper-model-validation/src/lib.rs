@@ -13,7 +13,7 @@
 //! `bind-whisper-onnx`'s `onnx_gen`, fetched and generated at build time,
 //! with the bundle the conversion is cross-checked with: `base.pt`, the
 //! vocabularies and `transformers`' `model.safetensors`, laid out as a
-//! pretrained cache (feature **`reference`**, ~725 MB). Both are off by
+//! resource cache (feature **`reference`**, ~725 MB). Both are off by
 //! default, so a plain `cargo test` here reaches no network and runs the
 //! fixture-integrity checks alone.
 //!
@@ -86,14 +86,14 @@ pub const N_FRAMES: usize = 3000;
 /// offline when `BUNSEN_VALIDATE_OFFLINE` is set. Routing the assets through
 /// the library's own cache is also what this crate is validating. The
 /// bundle's own cache, the build-time layout, is the `bundled` checks'.
-pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
     use bunsen::data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     };
     let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
-    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
-        .expect("open the pretrained cache")
+    ResourceCache::new(ResourceCacheOptions::default().with_offline(offline))
+        .expect("open the resource cache")
 }
 
 /// bunsen's Whisper `openai/base`, at the precision it ships in (fp16), with

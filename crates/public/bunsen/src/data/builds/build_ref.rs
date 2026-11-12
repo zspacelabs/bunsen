@@ -18,55 +18,55 @@ use crate::{
         },
         resources::{
             Fuse,
-            ResourceBundle,
+            ResourceSet,
         },
     },
     errors::BunsenResult,
 };
 
 /// What a spec resolved to: a row copied out of a provider, or a resource
-/// bundle from somewhere else, such as a path.
+/// set from somewhere else, such as a path.
 ///
 /// The first step of the name-to-model pathway, shared by every kit. A
-/// [`PretrainedFactory`](crate::data::builds::PretrainedFactory)
+/// [`BuildFactory`](crate::data::builds::BuildFactory)
 /// makes a [`Named`](Self::Named) ref from a spec; a path or a manifest becomes
-/// a [`Given`](Self::Given) one through `From<ResourceBundle>`. A
+/// a [`Given`](Self::Given) one through `From<ResourceSet>`. A
 /// [`Deferred`](crate::data::builds::Deferred) model pairs the ref
 /// with the kit's hook and loads it, and the hook plans and builds from the
-/// ref: [`to_resource_bundle`](Self::to_resource_bundle) for its files,
+/// ref: [`to_resource_set`](Self::to_resource_set) for its files,
 /// [`prefab`](Self::prefab) for the geometry a row promises.
 ///
-/// A ref is plain data: the row and the resource bundle are values, and the
+/// A ref is plain data: the row and the resource set are values, and the
 /// provider is held by name, so a ref outlives the factory that made it.
 /// The caller's resources ride on it through
 /// [`with_overlay`](Self::with_overlay), so a hook sees one thing.
 #[derive(Debug, Clone, PartialEq)]
-pub enum PretrainedRef {
+pub enum BuildRef {
     /// A row in a provider, copied out of it.
     Named {
         /// The provider's name: the `provider` of `provider:ref`.
         provider: String,
         /// The row; its `name` is the ref. Boxed: a row is much larger than
-        /// a given resource bundle.
+        /// a given resource set.
         pretrained: Box<Pretrained>,
         /// What the lookup asked of the row's presets: the presets its box
         /// named, and its patch.
         selection: PresetSelection,
     },
 
-    /// A resource bundle from somewhere else: a path, a manifest. No prefab is
+    /// A resource set from somewhere else: a path, a manifest. No prefab is
     /// promised; what it is, the kit finds out by looking.
-    Given(ResourceBundle),
+    Given(ResourceSet),
 }
 
-impl From<ResourceBundle> for PretrainedRef {
-    fn from(map: ResourceBundle) -> Self {
+impl From<ResourceSet> for BuildRef {
+    fn from(map: ResourceSet) -> Self {
         Self::Given(map)
     }
 }
 
-impl PretrainedRef {
-    /// The qualified id, `provider:ref`, or the given resource bundle's name.
+impl BuildRef {
+    /// The qualified id, `provider:ref`, or the given resource set's name.
     pub fn id(&self) -> String {
         match self {
             Self::Named {
@@ -141,9 +141,9 @@ impl PretrainedRef {
             })
     }
 
-    /// The resource bundle: the row's, named by the qualified id, or the
-    /// given resource bundle.
-    pub fn to_resource_bundle(&self) -> ResourceBundle {
+    /// The resource set: the row's, named by the qualified id, or the
+    /// given resource set.
+    pub fn to_resource_set(&self) -> ResourceSet {
         match self {
             Self::Named { pretrained, .. } => {
                 let mut map = pretrained.resources.clone();
@@ -159,10 +159,10 @@ impl PretrainedRef {
     /// only the copy of the row is.
     ///
     /// # Errors
-    /// As [`ResourceBundle::fuse`], which does not fail under an overlay.
+    /// As [`ResourceSet::fuse`], which does not fail under an overlay.
     pub fn with_overlay(
         self,
-        map: ResourceBundle,
+        map: ResourceSet,
     ) -> BunsenResult<Self> {
         Ok(match self {
             Self::Named {
@@ -218,19 +218,19 @@ mod tests {
         Resource {
             size: None,
             dtype: None,
-            key: key.to_string(),
+            slot: key.to_string(),
             file: file.to_string(),
             sha256: None,
-            kind: Some("pytorch".to_string()),
-            namespace: "a".to_string(),
+            format: Some("pytorch".to_string()),
+            name: "a".to_string(),
             sources: vec![Source::Url(alloc::format!("https://a.example/{file}"))],
         }
     }
 
-    /// `well-known:a/small`, as a factory copies it out of a table.
-    fn named() -> PretrainedRef {
-        PretrainedRef::Named {
-            provider: "well-known".to_string(),
+    /// `catalog:a/small`, as a factory copies it out of a table.
+    fn named() -> BuildRef {
+        BuildRef::Named {
+            provider: "catalog".to_string(),
             pretrained: Box::new(Pretrained {
                 name: "a/small".to_string(),
                 aliases: vec!["s".to_string()],
@@ -238,7 +238,7 @@ mod tests {
                 license: None,
                 origin: None,
                 prefab: Some("small".to_string()),
-                resources: ResourceBundle::new("small")
+                resources: ResourceSet::new("small")
                     .with_resource(resource("checkpoint", "small.pt"))
                     .with_resource(resource("vocabulary", "vocab.txt")),
                 presets: Default::default(),
@@ -250,19 +250,19 @@ mod tests {
     }
 
     /// A named ref is its provider's row: the id is `provider:ref`, the
-    /// resource bundle is the row's under that id, and the prefab is the row's.
+    /// resource set is the row's under that id, and the prefab is the row's.
     #[test]
     fn test_a_named_ref_is_its_row() {
         let model = named();
-        assert_eq!(model.id(), "well-known:a/small");
+        assert_eq!(model.id(), "catalog:a/small");
         let (provider, row) = model.named().unwrap();
-        assert_eq!(provider, "well-known");
+        assert_eq!(provider, "catalog");
         assert_eq!(row.name, "a/small");
         assert_eq!(model.prefab(&PREFABS).map(|p| p.to_config().width), Some(4));
 
-        let map = model.to_resource_bundle();
+        let map = model.to_resource_set();
         assert_eq!(
-            map.name, "well-known:a/small",
+            map.name, "catalog:a/small",
             "a row's map is named by its id"
         );
         assert_eq!(map.keys(), ["checkpoint", "vocabulary"]);
@@ -270,18 +270,18 @@ mod tests {
         assert_eq!(model.clone(), model);
     }
 
-    /// A given ref is the resource bundle it was given: no provider, no prefab.
+    /// A given ref is the resource set it was given: no provider, no prefab.
     #[test]
     fn test_a_given_ref_is_its_map() {
-        let map = ResourceBundle::given("/models/ckpt.pt", "checkpoint", "/models/ckpt.pt");
-        let model = PretrainedRef::from(map.clone());
-        assert_eq!(model, PretrainedRef::Given(map.clone()));
+        let map = ResourceSet::given("/models/ckpt.pt", "checkpoint", "/models/ckpt.pt");
+        let model = BuildRef::from(map.clone());
+        assert_eq!(model, BuildRef::Given(map.clone()));
         assert_eq!(model.id(), "/models/ckpt.pt");
         assert!(model.named().is_none());
         assert!(model.prefab(&PREFABS).is_none());
-        assert_eq!(model.to_resource_bundle(), map);
+        assert_eq!(model.to_resource_set(), map);
         assert_eq!(
-            model.to_resource_bundle().get("checkpoint").unwrap().file,
+            model.to_resource_set().get("checkpoint").unwrap().file,
             "ckpt.pt"
         );
     }
@@ -290,16 +290,16 @@ mod tests {
     /// alone; the overlaid resource keeps its own namespace, `given`.
     #[test]
     fn test_with_overlay_replaces_by_key_on_both_variants() {
-        let vocab = ResourceBundle::given("--vocab", "vocabulary", "/mine/gpt2.tiktoken");
+        let vocab = ResourceSet::given("--vocab", "vocabulary", "/mine/gpt2.tiktoken");
 
         let model = named().with_overlay(vocab.clone()).unwrap();
-        assert_eq!(model.id(), "well-known:a/small");
-        let map = model.to_resource_bundle();
-        assert_eq!(map.name, "well-known:a/small");
+        assert_eq!(model.id(), "catalog:a/small");
+        let map = model.to_resource_set();
+        assert_eq!(map.name, "catalog:a/small");
         assert_eq!(map.keys(), ["checkpoint", "vocabulary"]);
         let overlaid = map.get("vocabulary").unwrap();
         assert_eq!(overlaid.file, "gpt2.tiktoken");
-        assert_eq!(overlaid.namespace, GIVEN_NAMESPACE);
+        assert_eq!(overlaid.name, GIVEN_NAMESPACE);
         assert_eq!(map.get("checkpoint").unwrap().file, "small.pt", "untouched");
         assert_eq!(
             model
@@ -314,13 +314,10 @@ mod tests {
             "the row copy is what changed"
         );
 
-        let given = PretrainedRef::from(ResourceBundle::given("mine", "checkpoint", "/m/ckpt.pt"))
+        let given = BuildRef::from(ResourceSet::given("mine", "checkpoint", "/m/ckpt.pt"))
             .with_overlay(vocab)
             .unwrap();
         assert_eq!(given.id(), "mine");
-        assert_eq!(
-            given.to_resource_bundle().keys(),
-            ["checkpoint", "vocabulary"]
-        );
+        assert_eq!(given.to_resource_set().keys(), ["checkpoint", "vocabulary"]);
     }
 }

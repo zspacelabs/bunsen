@@ -7,7 +7,7 @@ authors.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
-description = "bunsen's built-in pretrained catalog: the layers bunsen imports, as built from their sources"
+description = "bunsen's built-in catalog: the layers bunsen imports, as built from their sources"
 readme = "README.md"
 
 [lints]

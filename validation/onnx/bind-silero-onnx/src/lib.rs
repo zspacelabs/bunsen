@@ -7,12 +7,12 @@
 //!
 //! | Item | Feature | What it is |
 //! |---|---|---|
-//! | `cache_dir()`, `silero_vad_16k_safetensors()` | `checkpoint` | upstream's 16 kHz `silero_vad_16k.safetensors`, laid out as a pretrained cache |
+//! | `cache_dir()`, `silero_vad_16k_safetensors()` | `checkpoint` | upstream's 16 kHz `silero_vad_16k.safetensors`, laid out as a resource cache |
 //! | `onnx_gen::{Model, burnpack_path}` | `onnx_gen` | the reference model `burn-onnx` generates from upstream's `silero_vad_op18_ifless.onnx`, and its burnpack |
 //!
-//! The checkpoint is laid out as a **pretrained cache**,
+//! The checkpoint is laid out as a **resource cache**,
 //! `pretrained/silero/silero_vad/vad-16k/checkpoint/<sha256>/<file>`, which is
-//! how bunsen's `data::resources::PretrainedCache` roots a resource: a cache
+//! how bunsen's `data::resources::ResourceCache` roots a resource: a cache
 //! pointed at `cache_dir()`, offline, resolves `silero/vad-16k` without knowing
 //! it was bundled. `silero-model-validation`'s `weights` feature turns on
 //! `checkpoint`.
@@ -30,8 +30,8 @@
 
 extern crate alloc;
 
-/// `OUT_DIR` laid out as a pretrained cache: the root a
-/// `bunsen::data::resources::PretrainedCache` is pointed at to resolve
+/// `OUT_DIR` laid out as a resource cache: the root a
+/// `bunsen::data::resources::ResourceCache` is pointed at to resolve
 /// `silero/vad-16k` offline.
 #[cfg(feature = "checkpoint")]
 pub fn cache_dir() -> &'static std::path::Path {

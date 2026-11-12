@@ -11,18 +11,18 @@ use burn::tensor::Device;
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
             GEOMETRY,
-            PretrainedRef,
         },
         catalog::presets::ResolvedPresetSet,
         formats::SafetensorsCheckpoint,
         resources::{
             Fuse,
             GIVEN_NAMESPACE,
-            LoadedResources,
-            PretrainedCache,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceCache,
+            ResourceSet,
             SAFETENSORS,
         },
     },
@@ -80,18 +80,18 @@ use crate::{
 /// };
 ///
 /// let e = BunsenError::from(GeometryMismatch::new(
-///     "well-known:openai/tiny",
+///     "catalog:openai/tiny",
 ///     WhisperGeometry::openai(80, 51865, 384, 4, 4),
 ///     WhisperGeometry::openai(80, 51865, 512, 6, 6),
 /// ));
 /// assert_eq!(e.kind(), BunsenErrorKind::InvalidResource);
 /// let mismatch = e.find::<GeometryMismatch>().unwrap();
-/// assert_eq!(mismatch.model, "well-known:openai/tiny");
+/// assert_eq!(mismatch.model, "catalog:openai/tiny");
 /// ```
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GeometryMismatch {
-    /// The model's id, as [`PretrainedRef::id`] gives it.
+    /// The model's id, as [`BuildRef::id`] gives it.
     pub model: String,
     /// The geometry the model promises.
     pub expected: WhisperGeometry,
@@ -136,10 +136,10 @@ impl From<GeometryMismatch> for BunsenError {
     }
 }
 
-/// How a Whisper checkpoint is read: by the layout its resource's `kind`
+/// How a Whisper checkpoint is read: by the layout its resource's `format`
 /// names.
 ///
-/// Chosen by the checkpoint resource's `kind` when the hook is made for a
+/// Chosen by the checkpoint resource's `format` when the hook is made for a
 /// map: `OpenAI`'s `.pt` through the `PyTorch` scanner, `transformers`'
 /// `model.safetensors`, one file or shards, through the safetensors one.
 /// Both scan to the same [`WhisperApiConfig`] and load the same
@@ -195,7 +195,7 @@ impl WhisperReader {
     /// part).
     pub fn scan_cfg(
         &self,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
     ) -> BunsenResult<WhisperApiConfig> {
         match self {
             Self::Pytorch(scanner) => Ok(scanner.scan_cfg(loaded.expect(CHECKPOINT)?)?.1),
@@ -212,7 +212,7 @@ impl WhisperReader {
     /// As [`scan_cfg`](Self::scan_cfg); the scanner's.
     pub fn load(
         &self,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         device: &Device,
     ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         match self {
@@ -236,12 +236,12 @@ impl WhisperReader {
 /// the reader and the vocabulary through the rank parser, and checks that
 /// they agree. [`scan`](Self::scan) is the read-only half, for a listing
 /// that wants the geometry without the weights. The checkpoint is the
-/// map's [family](ResourceBundle::family) under [`CHECKPOINT`]: one resource,
+/// map's [family](ResourceSet::family) under [`CHECKPOINT`]: one resource,
 /// or an index and its shards.
 ///
-/// [`for_resource_bundle`](ConstructInit::for_resource_bundle) chooses the hook
-/// by the checkpoint resource's `kind`, through [`WhisperReader::for_kind`]: a
-/// `PyTorch` row gets the `.pt` scanner, a Hugging Face row the safetensors
+/// [`for_resource_set`](ConstructInit::for_resource_set) chooses the hook
+/// by the checkpoint resource's `format`, through [`WhisperReader::for_kind`]:
+/// a `PyTorch` row gets the `.pt` scanner, a Hugging Face row the safetensors
 /// one, and a row of a kind neither reads is refused by name rather than
 /// misread. A caller gets this with the deferred model the factory resolves and
 /// never builds it.
@@ -306,11 +306,11 @@ impl WhisperConstructConfig {
     /// else none. A given bundle promises nothing.
     ///
     /// # Errors
-    /// As [`PretrainedRef::stated`], when the row's geometry doesn't read as
+    /// As [`BuildRef::stated`], when the row's geometry doesn't read as
     /// a [`WhisperGeometry`].
     pub fn expected_for(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
     ) -> BunsenResult<Option<WhisperGeometry>> {
         if self.expected.is_some() {
             return Ok(self.expected);
@@ -333,8 +333,8 @@ impl WhisperConstructConfig {
     /// that name are not the model it claims to be.
     pub fn scan(
         &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
     ) -> BunsenResult<WhisperApiConfig> {
         let cfg = self.reader.scan_cfg(loaded)?;
         self.check(model, &cfg.geometry())?;
@@ -344,7 +344,7 @@ impl WhisperConstructConfig {
     /// Checks a scanned geometry against the one `model` promises.
     fn check(
         &self,
-        model: &PretrainedRef,
+        model: &BuildRef,
         found: &WhisperGeometry,
     ) -> BunsenResult<()> {
         match self.expected_for(model)? {
@@ -372,13 +372,13 @@ impl ConstructInit for WhisperConstructConfig {
     /// checkpoint is the map's family under [`CHECKPOINT`]: one resource,
     /// or an index and shards, whose first resource's kind speaks for
     /// them. A checkpoint of a kind with no reader is refused by name.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let family = map.family(CHECKPOINT);
         let Some(first) = family.resources.values().next() else {
             map.try_get(CHECKPOINT)?;
             unreachable!("an empty family is a missing key");
         };
-        let reader = WhisperReader::for_kind(first.kind.as_deref()).context(&first.key)?;
+        let reader = WhisperReader::for_kind(first.format.as_deref()).context(&first.slot)?;
         Ok(Self::new().with_reader(reader))
     }
 
@@ -396,10 +396,10 @@ impl ConstructInit for WhisperConstructConfig {
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource).
     fn plan(
         &self,
-        model: &PretrainedRef,
-        cache: &PretrainedCache,
-    ) -> BunsenResult<ResourceBundle> {
-        let map = model.to_resource_bundle();
+        model: &BuildRef,
+        cache: &ResourceCache,
+    ) -> BunsenResult<ResourceSet> {
+        let map = model.to_resource_set();
         let checkpoint = map.family(CHECKPOINT);
         if checkpoint.is_empty() {
             map.try_get(CHECKPOINT)?;
@@ -413,10 +413,10 @@ impl ConstructInit for WhisperConstructConfig {
             .as_policy()
             .with_context(|| model.id())?
             .ids();
-        let rule = WhisperVocabulary::for_layout(&ids).resource_bundle();
+        let rule = WhisperVocabulary::for_layout(&ids).resource_set();
         match map.get(VOCABULARY).cloned() {
             None => map.fuse(rule, Fuse::Strict),
-            Some(given) if given.namespace == GIVEN_NAMESPACE => Ok(map),
+            Some(given) if given.name == GIVEN_NAMESPACE => Ok(map),
             Some(declared) => {
                 // The same file, by name and digest: where a row's copy is
                 // served from (a bundle, a mirror) is its own business.
@@ -441,8 +441,8 @@ impl ConstructInit for WhisperConstructConfig {
     /// [`Policy`](BunsenErrorKind::Policy), under a frame naming the model.
     fn try_init(
         &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
@@ -459,7 +459,8 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            crate::data::builds::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
+            crate::data::catalog::BuiltinCatalog::get()?
+                .template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
         } else {
             ResolvedPresetSet::default()
         };
@@ -562,26 +563,26 @@ mod reader_tests {
     /// reads is refused by name.
     #[test]
     fn test_the_kind_chooses_the_reader() {
-        let mut map = ResourceBundle::given("mine", CHECKPOINT, "/no/such/model.safetensors");
-        let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
+        let mut map = ResourceSet::given("mine", CHECKPOINT, "/no/such/model.safetensors");
+        let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
         assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
 
-        map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("pytorch fp16".to_string());
-        let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
+        map.resources.get_mut(CHECKPOINT).unwrap().format = Some("pytorch fp16".to_string());
+        let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
         assert!(matches!(hook.reader, WhisperReader::Pytorch(_)));
 
-        map.resources.get_mut(CHECKPOINT).unwrap().kind = Some(SAFETENSORS.to_string());
+        map.resources.get_mut(CHECKPOINT).unwrap().format = Some(SAFETENSORS.to_string());
         {
-            let hook = WhisperConstructConfig::for_resource_bundle(&map).unwrap();
+            let hook = WhisperConstructConfig::for_resource_set(&map).unwrap();
             assert!(matches!(hook.reader, WhisperReader::Safetensors(_)));
-            assert!(Deferred::<WhisperConstructConfig>::from_resource_bundle(map.clone()).is_ok());
+            assert!(Deferred::<WhisperConstructConfig>::from_resource_set(map.clone()).is_ok());
         }
 
         // A sharded family under the key: its first resource speaks.
-        let mut sharded = ResourceBundle::new("sharded");
+        let mut sharded = ResourceSet::new("sharded");
         for key in ["checkpoint.00001", "checkpoint.00002", "checkpoint.index"] {
             let mut r = crate::data::resources::Resource::given(key, format!("/no/such/{key}"));
-            r.kind = Some(if key.ends_with("index") {
+            r.format = Some(if key.ends_with("index") {
                 crate::data::resources::SAFETENSORS_INDEX.to_string()
             } else {
                 SAFETENSORS.to_string()
@@ -589,25 +590,25 @@ mod reader_tests {
             sharded.insert(r);
         }
         assert!(matches!(
-            WhisperConstructConfig::for_resource_bundle(&sharded)
+            WhisperConstructConfig::for_resource_set(&sharded)
                 .unwrap()
                 .reader,
             WhisperReader::Safetensors(_)
         ));
 
-        map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("burnpack".to_string());
+        map.resources.get_mut(CHECKPOINT).unwrap().format = Some("burnpack".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .frame_contains("checkpoint")
             .display_contains("checkpoint: no reader for a \"burnpack\"")
-            .assert_err(&WhisperConstructConfig::for_resource_bundle(&map));
+            .assert_err(&WhisperConstructConfig::for_resource_set(&map));
         ErrorMatcher::kind(BunsenErrorKind::Unsupported).assert_err(&Deferred::<
             WhisperConstructConfig,
-        >::from_resource_bundle(
+        >::from_resource_set(
             map
         ));
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(
-            &WhisperConstructConfig::for_resource_bundle(&ResourceBundle::new("empty")),
+            &WhisperConstructConfig::for_resource_set(&ResourceSet::new("empty")),
         );
     }
 }

@@ -4,9 +4,9 @@ use alloc::sync::Arc;
 use super::Qwen3AsrConstructConfig;
 use crate::{
     data::builds::{
+        BuildFactory,
+        BuildProvider,
         HfProvider,
-        PretrainedFactory,
-        PretrainedProvider,
     },
     errors::BunsenResult,
 };
@@ -14,10 +14,10 @@ use crate::{
 /// The Qwen3-ASR kit's name: its rows' `kit` tag.
 pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
 
-/// The key of the checkpoint in a Qwen3-ASR resource bundle.
+/// The key of the checkpoint in a Qwen3-ASR resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the vocabulary in a Qwen3-ASR resource bundle, for a checkpoint
+/// The key of the vocabulary in a Qwen3-ASR resource set, for a checkpoint
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 
@@ -37,19 +37,19 @@ pub const TOKENIZER_JSON: &str = "tokenizer.json";
 pub const QWEN3_ASR_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
-/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+/// catalog's `$contracts`: the kit's `catalog:` rows are its builds.
 pub const QWEN3_ASR_CATALOG_CONTRACT: &str = "qwen3-asr";
 
 /// The name [`default_qwen3_asr_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_ASR_MODEL: &str = "fermion/phonon-1";
 
-/// Qwen3-ASR's compiled-in providers, in search order: the well-known table,
+/// Qwen3-ASR's compiled-in providers, in search order: the catalog provider,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`' layout (its
 /// safetensors checkpoint, one file or shards, its `config.json`, and its
 /// `tokenizer.json` as the vocabulary).
-pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
+pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
-        Arc::new(crate::data::builds::BuildCatalogProvider::expect_builtin(
+        Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             QWEN3_ASR_CATALOG_CONTRACT,
             QWEN3_ASR_KIT,
         )),
@@ -64,15 +64,15 @@ pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Qwen3-ASR's factory over [`default_qwen3_asr_providers`], building
 /// through [`Qwen3AsrConstructConfig`].
 ///
-/// [`load_construct`](PretrainedFactory::load_construct) with
+/// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`Qwen3AsrConstruct`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrConstruct).
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_qwen3_asr_factory() -> BunsenResult<PretrainedFactory<Qwen3AsrConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_qwen3_asr_providers())
+pub fn default_qwen3_asr_factory() -> BunsenResult<BuildFactory<Qwen3AsrConstructConfig>> {
+    BuildFactory::new().with_providers(default_qwen3_asr_providers())
 }
 
 #[cfg(test)]
@@ -96,11 +96,11 @@ mod tests {
         assert_eq!(
             factory.ids(),
             [
-                "well-known:fermion/phonon-1",
-                "well-known:fermion/phonon-1-micro",
-                "well-known:fermion/phonon-1-big",
-                "well-known:qwen/qwen3-asr-0.6b",
-                "well-known:qwen/qwen3-asr-1.7b",
+                "catalog:fermion/phonon-1",
+                "catalog:fermion/phonon-1-micro",
+                "catalog:fermion/phonon-1-big",
+                "catalog:qwen/qwen3-asr-0.6b",
+                "catalog:qwen/qwen3-asr-1.7b",
             ]
         );
         assert_eq!(
@@ -109,12 +109,12 @@ mod tests {
                 .iter()
                 .map(|p| p.name())
                 .collect::<Vec<_>>(),
-            ["well-known", "hf"]
+            ["catalog", "hf"]
         );
         for spec in [
             DEFAULT_QWEN3_ASR_MODEL,
             "phonon-1",
-            "well-known:fermion/phonon-1",
+            "catalog:fermion/phonon-1",
         ] {
             assert_eq!(
                 factory.lookup(spec).unwrap().1.name,

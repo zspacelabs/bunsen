@@ -12,12 +12,12 @@
 //!
 //! * A fetch only happens under the feature that needs the asset.
 //! * Assets land in `OUT_DIR`, the one directory a build script may write to,
-//!   laid out as a pretrained cache (see [`cache_path`]) so that a cache
-//!   pointed at `OUT_DIR` hits them without knowing they were bundled. `cargo
-//!   publish` verifies that the build left the package source untouched, and a
-//!   crate unpacked from crates.io must not write into the registry — so a
-//!   `cache/` beside the manifest is not an option, and `cargo clean` does cost
-//!   a re-download. The override variables below are the way around that.
+//!   laid out as a resource cache (see [`cache_path`]) so that a cache pointed
+//!   at `OUT_DIR` hits them without knowing they were bundled. `cargo publish`
+//!   verifies that the build left the package source untouched, and a crate
+//!   unpacked from crates.io must not write into the registry — so a `cache/`
+//!   beside the manifest is not an option, and `cargo clean` does cost a
+//!   re-download. The override variables below are the way around that.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cached
 //!   copy that fails is deleted and re-fetched once. `bunsen-fetch`'s `Asset`
 //!   does the fetching, pinning and overriding, as it does for every bundled
@@ -44,7 +44,7 @@ use std::path::PathBuf;
 use bunsen_fetch::{
     Asset,
     out_dir,
-    pretrained_cache_path,
+    resource_cache_path,
 };
 
 /// `OpenAI`'s multilingual `base.pt`.
@@ -275,8 +275,8 @@ fn cache_dir() -> PathBuf {
     out_dir()
 }
 
-/// Where a pretrained asset lands: `OUT_DIR` laid out as a pretrained cache,
-/// `pretrained/<resource>/<sha256>/<file>`, `resource` its full name in the
+/// Where a pretrained asset lands: `OUT_DIR` laid out as a resource cache,
+/// `resources/<resource>/<sha256>/<file>`, `resource` its full name in the
 /// built-in catalog. The digest in the path is the pin, as it is in bunsen's
 /// cache, so a cache rooted at `OUT_DIR` trusts what it finds there.
 fn cache_path(
@@ -284,7 +284,7 @@ fn cache_path(
     sha256: &str,
     file: &str,
 ) -> PathBuf {
-    pretrained_cache_path(&cache_dir(), resource, sha256, file)
+    resource_cache_path(&cache_dir(), resource, sha256, file)
 }
 
 /// A path to an asset: its override, or `dest`, fetched and verified if it

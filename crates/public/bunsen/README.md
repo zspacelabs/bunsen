@@ -58,7 +58,7 @@ kits:
   asr:
     parakeet:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -74,7 +74,7 @@ kits:
         dtype: float32
     qwen3-asr:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -101,7 +101,7 @@ kits:
         dtype: bfloat16
     voxtral:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -113,7 +113,7 @@ kits:
         dtype: bfloat16
     whisper:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -224,7 +224,7 @@ kits:
         dtype: float16
     sortformer:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -287,7 +287,7 @@ kits:
           - none
     silero-vad:
     - provider:
-        name: well-known
+        name: catalog
     - model:
         name: silero/vad-16k
         description: Silero VAD, the 16 kHz model, from upstream's safetensors
@@ -302,7 +302,7 @@ kits:
   chat:
     qwen3:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -407,7 +407,7 @@ kits:
         dtype: bfloat16
     qwen3.5:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -487,7 +487,7 @@ kits:
           - thinking
     gemma:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -562,7 +562,7 @@ kits:
         dtype: bfloat16
     nanochat:
     - provider:
-        name: well-known
+        name: catalog
     - model:
         name: nanochat-students/base-d20
         aliases:
@@ -592,7 +592,7 @@ kits:
   decide:
     laya:
     - provider:
-        name: well-known
+        name: catalog
     - model:
         name: laya/laya
         aliases:

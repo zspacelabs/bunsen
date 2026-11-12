@@ -2,7 +2,7 @@
 
 use bunsen::data::{
     builds::Pretrained,
-    resources::PretrainedCache,
+    resources::ResourceCache,
 };
 use bunsen_app::cache::human_bytes;
 
@@ -13,7 +13,7 @@ use crate::support::preset_lines;
 /// repo; under `urls`, its first source too.
 ///
 /// ```text
-/// well-known:nanochat-students/rl-d20 (default)
+/// catalog:nanochat-students/rl-d20 (default)
 ///   aliases: nanochat-d20-rl
 ///   nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat
 ///   origin: https://huggingface.co/nanochat-students/rl-d20
@@ -22,7 +22,7 @@ use crate::support::preset_lines;
 ///     url: https://huggingface.co/nanochat-students/rl-d20/resolve/22fbb6a8.../model_000650.pt
 /// ```
 pub fn print_model_row(
-    cache: &PretrainedCache,
+    cache: &ResourceCache,
     id: &str,
     row: &Pretrained,
     default: &str,

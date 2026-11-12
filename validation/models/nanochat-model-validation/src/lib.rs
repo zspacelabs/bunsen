@@ -230,7 +230,7 @@ pub fn row_file(
         .expect("the nanochat factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = bunsen::data::resources::ResourceBundle::new(found.resources.name.clone());
+    let mut map = bunsen::data::resources::ResourceSet::new(found.resources.name.clone());
     map.insert(found.resources.try_get(key).expect("the resource").clone());
     let loaded = weights_cache()
         .load(&map)
@@ -242,14 +242,14 @@ pub fn row_file(
 /// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
 /// pinned file the first time it is asked for; offline when
 /// `BUNSEN_VALIDATE_OFFLINE` is set.
-pub fn weights_cache() -> bunsen::data::resources::PretrainedCache {
+pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
     use bunsen::data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     };
     let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
-    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
-        .expect("open the pretrained cache")
+    ResourceCache::new(ResourceCacheOptions::default().with_offline(offline))
+        .expect("open the resource cache")
 }
 
 /// A nanochat pretrained by name, through bunsen's factory and

@@ -13,13 +13,13 @@ use crate::{
     burner::module::ModuleInit,
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         formats::SafetensorsCheckpoint,
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
             SAFETENSORS,
         },
     },
@@ -56,7 +56,7 @@ use crate::{
 pub struct LayaConstructConfig;
 
 fn read(
-    loaded: &LoadedResources,
+    loaded: &LoadedResourceSet,
     key: &str,
 ) -> BunsenResult<String> {
     let part = loaded.get(key).ok_or_else(|| {
@@ -71,8 +71,8 @@ impl ConstructInit for LayaConstructConfig {
     const KIT: &'static str = LAYA_KIT;
 
     /// The hook for a safetensors checkpoint.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
-        match map.try_get(CHECKPOINT)?.kind.as_deref() {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
+        match map.try_get(CHECKPOINT)?.format.as_deref() {
             Some(SAFETENSORS) => Ok(Self),
             other => Err(BunsenError::unsupported(format!(
                 "no Laya reader for a checkpoint of kind {other:?}"
@@ -82,8 +82,8 @@ impl ConstructInit for LayaConstructConfig {
 
     fn try_init(
         &self,
-        _model: &PretrainedRef,
-        loaded: &LoadedResources,
+        _model: &BuildRef,
+        loaded: &LoadedResourceSet,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<LayaConstruct>> {
@@ -114,15 +114,23 @@ mod tests {
             "laya/laya-multilingual",
             "laya/laya-typed-decisions",
         ] {
-            LayaConstructConfig::for_resource_bundle(
-                &crate::data::builds::builtin_build_bundle(name).unwrap(),
+            LayaConstructConfig::for_resource_set(
+                &crate::data::catalog::BuiltinCatalog::get()
+                    .unwrap()
+                    .build(name)
+                    .unwrap()
+                    .resource_set(),
             )
             .unwrap();
         }
-        let mut other = crate::data::builds::builtin_build_bundle("laya/laya").unwrap();
-        other.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
+        let mut other = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("laya/laya")
+            .unwrap()
+            .resource_set();
+        other.resources.get_mut(CHECKPOINT).unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
-            .assert_err(&LayaConstructConfig::for_resource_bundle(&other));
+            .assert_err(&LayaConstructConfig::for_resource_set(&other));
     }
 }

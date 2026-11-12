@@ -16,7 +16,7 @@ use crate::{
         catalog::presets::ResolvedPresetSet,
         formats::NamedTensorsApplied,
         pretrained::StaticPreFabMap,
-        resources::LoadedResources,
+        resources::LoadedResourceSet,
     },
     errors::BunsenResult,
     kits::{
@@ -89,7 +89,7 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
     /// has one; its `tokenizer_config.json`'s `eos_token` and
     /// [`END_OF_TEXT`] (the stop tokens, joined) and chat template; and its
     /// `chat_template.jinja`, when it has one; probed into the base.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
+    fn probed(loaded: &LoadedResourceSet) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[
@@ -118,19 +118,31 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        Qwen3_5ConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap(),
+        Qwen3_5ConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("qwen/qwen3.5-0.8b")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
-        Qwen3_5ConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("qwen/qwen3.5-9b").unwrap(),
+        Qwen3_5ConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("qwen/qwen3.5-9b")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
-        let mut gguf = crate::data::builds::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap();
-        gguf.resources.get_mut("checkpoint.index").unwrap().kind = Some("gguf".to_string());
+        let mut gguf = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("qwen/qwen3.5-0.8b")
+            .unwrap()
+            .resource_set();
+        gguf.resources.get_mut("checkpoint.index").unwrap().format = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")
-            .assert_err(&Qwen3_5ConstructConfig::for_resource_bundle(&gguf));
+            .assert_err(&Qwen3_5ConstructConfig::for_resource_set(&gguf));
     }
 
     /// Every row stops where its `tokenizer_config.json` says: a chat row at

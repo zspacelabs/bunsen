@@ -7,7 +7,7 @@
 use bunsen::{
     data::{
         builds::CONFIG,
-        resources::ResourceBundle,
+        resources::ResourceSet,
     },
     kits::language::qwen3_5::{
         pretrained::{
@@ -28,7 +28,7 @@ fn test_every_row_is_a_prefab() {
     assert_eq!(ids.len(), 9);
     for id in ids {
         let (_, row) = factory.lookup(&id).unwrap();
-        let mut map = ResourceBundle::new(row.resources.name.clone());
+        let mut map = ResourceSet::new(row.resources.name.clone());
         map.insert(row.resources.try_get(CONFIG).unwrap().clone());
         let loaded = cache.load(&map).unwrap_or_else(|e| panic!("{id}: {e}"));
         let json = std::fs::read_to_string(loaded.expect(CONFIG).unwrap()).unwrap();

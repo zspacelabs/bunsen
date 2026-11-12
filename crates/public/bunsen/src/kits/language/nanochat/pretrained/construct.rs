@@ -10,12 +10,12 @@ use super::{
 use crate::{
     data::{
         builds::{
+            BuildRef,
             ConstructInit,
-            PretrainedRef,
         },
         resources::{
-            LoadedResources,
-            ResourceBundle,
+            LoadedResourceSet,
+            ResourceSet,
         },
     },
     errors::{
@@ -56,9 +56,9 @@ impl ConstructInit for NanoChatConstructConfig {
     const RESOLVES_PRESETS: bool = true;
 
     /// The hook for a `PyTorch` state dict with its meta.
-    fn for_resource_bundle(map: &ResourceBundle) -> BunsenResult<Self> {
+    fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         map.try_get(META)?;
-        match map.try_get(CHECKPOINT)?.kind.as_deref() {
+        match map.try_get(CHECKPOINT)?.format.as_deref() {
             Some(PYTORCH) => Ok(Self),
             other => Err(BunsenError::unsupported(format!(
                 "no nanochat reader for a checkpoint of kind {other:?}"
@@ -68,8 +68,8 @@ impl ConstructInit for NanoChatConstructConfig {
 
     fn try_init(
         &self,
-        model: &PretrainedRef,
-        loaded: &LoadedResources,
+        model: &BuildRef,
+        loaded: &LoadedResourceSet,
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
@@ -98,20 +98,31 @@ mod tests {
 
     #[test]
     fn test_the_hook_follows_the_kind() {
-        NanoChatConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap(),
+        NanoChatConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("nanochat-students/base-d20")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
-        NanoChatConstructConfig::for_resource_bundle(
-            &crate::data::builds::builtin_build_bundle("nitishpandey04/nanochat-d18-sft").unwrap(),
+        NanoChatConstructConfig::for_resource_set(
+            &crate::data::catalog::BuiltinCatalog::get()
+                .unwrap()
+                .build("nitishpandey04/nanochat-d18-sft")
+                .unwrap()
+                .resource_set(),
         )
         .unwrap();
 
-        let mut safetensors =
-            crate::data::builds::builtin_build_bundle("nanochat-students/base-d20").unwrap();
-        safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
+        let mut safetensors = crate::data::catalog::BuiltinCatalog::get()
+            .unwrap()
+            .build("nanochat-students/base-d20")
+            .unwrap()
+            .resource_set();
+        safetensors.resources.get_mut(CHECKPOINT).unwrap().format = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")
-            .assert_err(&NanoChatConstructConfig::for_resource_bundle(&safetensors));
+            .assert_err(&NanoChatConstructConfig::for_resource_set(&safetensors));
     }
 }

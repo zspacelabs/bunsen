@@ -1,4 +1,4 @@
-//! Loaded resources: a resource bundle with every file local.
+//! Loaded resources: a resource set with every file local.
 
 use alloc::collections::BTreeMap;
 use std::{
@@ -15,7 +15,7 @@ use crate::{
         not_found,
         resources::{
             ResolvedResource,
-            ResourceBundle,
+            ResourceSet,
         },
     },
     errors::{
@@ -25,9 +25,9 @@ use crate::{
     },
 };
 
-/// A resource bundle with every resource local: key to path and provenance.
+/// A resource set with every resource local: key to path and provenance.
 ///
-/// What [`PretrainedCache::load`](super::PretrainedCache::load) returns,
+/// What [`ResourceCache::load`](super::ResourceCache::load) returns,
 /// and what a kit's
 /// [`ConstructInit::try_init`](crate::data::builds::ConstructInit::try_init)
 /// is handed: all it is handed, besides the ref. The hook reads its parts
@@ -43,15 +43,15 @@ use crate::{
 /// copied into one place under its resource's file name. That is an
 /// operation, not the storage truth, which stays per file under its digest.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct LoadedResources {
-    /// The resource bundle that was loaded.
-    pub map: ResourceBundle,
+pub struct LoadedResourceSet {
+    /// The resource set that was loaded.
+    pub map: ResourceSet,
 
     /// Where each resource is, and where it came from, by key.
     pub parts: BTreeMap<String, ResolvedResource>,
 }
 
-impl LoadedResources {
+impl LoadedResourceSet {
     /// The resource called `key`: its path and provenance.
     pub fn get(
         &self,
@@ -65,7 +65,7 @@ impl LoadedResources {
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
     /// [`LookupError`](crate::errors::LookupError) naming the keys there
-    /// are, under a frame naming the resource bundle.
+    /// are, under a frame naming the resource set.
     pub fn expect(
         &self,
         key: &str,
@@ -75,14 +75,14 @@ impl LoadedResources {
             .ok_or_else(|| not_found(Some(&self.map.name), "resource", key, &self.keys()))
     }
 
-    /// The label of the resource called `key`, for a listing or a hook's
-    /// dispatch; `None` for one that arrived without a row, or without a
-    /// label.
-    pub fn kind(
+    /// The format of the resource in slot `slot`, for a listing or a hook's
+    /// dispatch; `None` for one that arrived without a build, or without a
+    /// format.
+    pub fn format(
         &self,
-        key: &str,
+        slot: &str,
     ) -> Option<&str> {
-        self.map.get(key).and_then(|r| r.kind.as_deref())
+        self.map.get(slot).and_then(|r| r.format.as_deref())
     }
 
     /// The parts keyed `key` or `key.<part>`, in key order: a checkpoint
@@ -118,7 +118,7 @@ impl LoadedResources {
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if two parts
-    /// would land under one file name: the resource bundle is declared wrong.
+    /// would land under one file name: the resource set is declared wrong.
     /// An `io::Error` sorted by [`sys_at`], naming the path, if the directory
     /// cannot be made or a file in the way removed; as [`link_or_copy`] if a
     /// link or copy cannot be made.
@@ -171,10 +171,10 @@ mod tests {
         },
     };
 
-    fn loaded() -> LoadedResources {
+    fn loaded() -> LoadedResourceSet {
         let mut checkpoint = Resource::given("checkpoint", "/models/tiny.pt");
-        checkpoint.kind = Some("pytorch fp16".to_string());
-        let map = ResourceBundle::new("m")
+        checkpoint.format = Some("pytorch fp16".to_string());
+        let map = ResourceSet::new("m")
             .with_resource(checkpoint)
             .with_resource(Resource::given("vocabulary", "/models/gpt2.tiktoken"));
         let parts = [
@@ -192,7 +192,7 @@ mod tests {
             )
         })
         .collect();
-        LoadedResources { map, parts }
+        LoadedResourceSet { map, parts }
     }
 
     #[test]
@@ -207,9 +207,9 @@ mod tests {
             loaded.expect("vocabulary").unwrap(),
             Path::new("/models/gpt2.tiktoken")
         );
-        assert_eq!(loaded.kind("checkpoint"), Some("pytorch fp16"));
-        assert_eq!(loaded.kind("vocabulary"), None);
-        assert_eq!(loaded.kind("config"), None);
+        assert_eq!(loaded.format("checkpoint"), Some("pytorch fp16"));
+        assert_eq!(loaded.format("vocabulary"), None);
+        assert_eq!(loaded.format("config"), None);
         assert_eq!(
             loaded.iter().map(|(k, _)| k).collect::<Vec<_>>(),
             ["checkpoint", "vocabulary"]
@@ -230,8 +230,8 @@ mod tests {
             "m: no resource \"config\"; there are: checkpoint, vocabulary"
         );
 
-        let empty = LoadedResources {
-            map: ResourceBundle::new("empty"),
+        let empty = LoadedResourceSet {
+            map: ResourceSet::new("empty"),
             parts: BTreeMap::new(),
         };
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
@@ -251,7 +251,7 @@ mod tests {
         fs::create_dir_all(checkpoint.parent().unwrap()).unwrap();
         fs::write(&checkpoint, b"weights").unwrap();
         fs::write(&vocabulary, b"ranks").unwrap();
-        let map = ResourceBundle::new("m")
+        let map = ResourceSet::new("m")
             .with_resource(Resource::given("checkpoint", &checkpoint))
             .with_resource(Resource::given("vocabulary", &vocabulary));
         let parts = [("checkpoint", &checkpoint), ("vocabulary", &vocabulary)]
@@ -266,7 +266,7 @@ mod tests {
                 )
             })
             .collect();
-        let loaded = LoadedResources { map, parts };
+        let loaded = LoadedResourceSet { map, parts };
 
         let view = loaded.materialize(dir.path().join("view")).unwrap();
         assert_eq!(view, dir.path().join("view"));
@@ -276,8 +276,8 @@ mod tests {
         let again = loaded.materialize(&view).unwrap();
         assert_eq!(fs::read(again.join("tiny.pt")).unwrap(), b"weights");
 
-        let clash = LoadedResources {
-            map: ResourceBundle::new("clash")
+        let clash = LoadedResourceSet {
+            map: ResourceSet::new("clash")
                 .with_resource(Resource::given(
                     "a",
                     dir.path().join("one").join("same.bin"),

@@ -1,25 +1,25 @@
-//! The pretrained cache layout.
+//! The resource cache layout.
 use std::path::{
     Path,
     PathBuf,
 };
 
-/// The root segment of the pretrained cache layout.
-pub const PRETRAINED_DIR: &str = "pretrained";
+/// The root segment of the resource cache layout.
+pub const RESOURCES_DIR: &str = "resources";
 
-/// `pretrained/<namespace>/<pin>/<file>` under `root`: where bunsen's
-/// `PretrainedCache` keeps a resource, `pin` its SHA-256 when it is pinned,
+/// `resources/<name>/<pin>/<file>` under `root`: where bunsen's
+/// `ResourceCache` keeps a resource, `pin` its SHA-256 when it is pinned,
 /// so a cache rooted at `root` finds a file laid out here without knowing
-/// where it came from. A catalog resource's namespace is its full name
+/// where it came from. A catalog resource's name is its full name
 /// (`openai/whisper/base/checkpoint`), each `/` a directory.
-pub fn pretrained_cache_path(
+pub fn resource_cache_path(
     root: &Path,
-    namespace: &str,
+    name: &str,
     pin: &str,
     file: &str,
 ) -> PathBuf {
-    let mut path = root.join(PRETRAINED_DIR);
-    for segment in namespace.split('/') {
+    let mut path = root.join(RESOURCES_DIR);
+    for segment in name.split('/') {
         path.push(segment);
     }
     path.join(pin).join(file)
@@ -32,8 +32,8 @@ mod tests {
     #[test]
     fn test_layout() {
         assert_eq!(
-            pretrained_cache_path(Path::new("/r"), "pub/fam/build/checkpoint", "ff", "f.bin"),
-            Path::new("/r/pretrained/pub/fam/build/checkpoint/ff/f.bin")
+            resource_cache_path(Path::new("/r"), "pub/fam/build/checkpoint", "ff", "f.bin"),
+            Path::new("/r/resources/pub/fam/build/checkpoint/ff/f.bin")
         );
     }
 }

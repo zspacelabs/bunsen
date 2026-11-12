@@ -1,6 +1,6 @@
 [package]
 name = "catalog-builder"
-description = "Builds bunsen's built-in pretrained catalog from its probe-contract sources: the kits' contracts, the pins the Hub and the URLs give, and the presets the probes find."
+description = "Builds bunsen's built-in catalog from its probe-contract sources: the kits' contracts, the pins the Hub and the URLs give, and the presets the probes find."
 publish = false
 
 authors.workspace = true

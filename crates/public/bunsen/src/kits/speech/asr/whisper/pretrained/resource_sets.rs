@@ -1,14 +1,14 @@
-//! # Whisper resource bundles
+//! # Whisper resource sets
 
 use crate::{
-    data::resources::ResourceBundle,
+    data::resources::ResourceSet,
     kits::speech::asr::whisper::driver::WhisperSpecialIds,
 };
 
-/// The key of the checkpoint in a Whisper resource bundle.
+/// The key of the checkpoint in a Whisper resource set.
 pub const CHECKPOINT: &str = "checkpoint";
 
-/// The key of the `.tiktoken` vocabulary in a Whisper resource bundle.
+/// The key of the `.tiktoken` vocabulary in a Whisper resource set.
 pub const VOCABULARY: &str = "vocabulary";
 
 /// The label on every `openai` checkpoint.
@@ -23,8 +23,8 @@ pub const TIKTOKEN: &str = "tiktoken";
 ///
 /// [`for_layout`](Self::for_layout) is the rule a path model's vocabulary
 /// is derived by, and a named row's is checked against;
-/// [`resource_bundle`](Self::resource_bundle) is the file, as a resource
-/// bundle. The two files number their tokens differently, and a checkpoint
+/// [`resource_set`](Self::resource_set) is the file, as a resource
+/// set. The two files number their tokens differently, and a checkpoint
 /// decoded through the wrong one produces text that is wrong without being
 /// obviously so, so the rule takes the token layout, which comes from the
 /// checkpoint's vocabulary size, and the pairing stays out of the caller's
@@ -61,15 +61,16 @@ impl WhisperVocabulary {
         }
     }
 
-    /// The rank file, as a resource bundle, pinned to
+    /// The rank file, as a resource set, pinned to
     /// [`OPENAI_VOCAB_REVISION`](super::OPENAI_VOCAB_REVISION).
     /// `multilingual.tiktoken`'s last line is `= 50256`, base64 of nothing,
     /// and that empty token is real; bunsen's parser reads it as such.
     ///
     /// # Panics
     /// When the built-in catalog lacks it, a bug in the catalog.
-    pub fn resource_bundle(self) -> ResourceBundle {
-        crate::data::builds::builtin_resource_bundle(self.resource_name(), VOCABULARY)
+    pub fn resource_set(self) -> ResourceSet {
+        crate::data::catalog::BuiltinCatalog::get()
+            .and_then(|c| c.resource(self.resource_name(), VOCABULARY))
             .unwrap_or_else(|e| panic!("the Whisper vocabulary {}: {e}", self.resource_name()))
     }
 }
@@ -98,14 +99,14 @@ mod tests {
             .ids()
     }
 
-    /// Every well-known row's checkpoint is one pinned resource, labeled
+    /// Every catalog row's checkpoint is one pinned resource, labeled
     /// `checkpoint` under the `openai` namespace, found under upstream's root
     /// before upstream's URL, and that URL is addressed by the digest that
     /// pins it; upstream's root is `$XDG_CACHE_HOME/whisper`, else
     /// `~/.cache/whisper`.
     #[test]
     fn test_checkpoints_validate_and_pin_their_urls() {
-        let provider = crate::data::builds::BuildCatalogProvider::expect_builtin(
+        let provider = crate::data::catalog::BuiltinCatalog::expect_provider(
             WHISPER_CATALOG_CONTRACT,
             WHISPER_KIT,
         );
@@ -117,12 +118,8 @@ mod tests {
             let name = &row.name;
             row.resources.validate().unwrap();
             let r = row.resources.get(CHECKPOINT).unwrap();
-            assert!(
-                r.namespace.starts_with("openai/whisper/"),
-                "{name}: {}",
-                r.namespace
-            );
-            assert_eq!(r.kind.as_deref(), Some(PYTORCH_FP16), "{name}");
+            assert!(r.name.starts_with("openai/whisper/"), "{name}: {}", r.name);
+            assert_eq!(r.format.as_deref(), Some(PYTORCH_FP16), "{name}");
             let sha256 = r.sha256.as_deref().expect("every checkpoint is pinned");
             assert_eq!(
                 r.file,
@@ -153,17 +150,17 @@ mod tests {
         );
     }
 
-    /// The vocabulary resource bundles validate, are pinned to the commit,
+    /// The vocabulary resource sets validate, are pinned to the commit,
     /// and the layout picks between them.
     #[test]
     fn test_vocabulary_bundles_and_the_rule() {
         for vocabulary in WhisperVocabulary::ALL {
-            let owned = vocabulary.resource_bundle();
+            let owned = vocabulary.resource_set();
             owned.validate().unwrap();
             assert_eq!(owned.keys(), [VOCABULARY], "{}", owned.name);
             let r = owned.get(VOCABULARY).unwrap();
-            assert_eq!(r.namespace, vocabulary.resource_name());
-            assert_eq!(r.kind.as_deref(), Some(TIKTOKEN));
+            assert_eq!(r.name, vocabulary.resource_name());
+            assert_eq!(r.format.as_deref(), Some(TIKTOKEN));
             assert!(r.is_pinned());
             assert_eq!(owned.name, vocabulary.resource_name());
             assert_eq!(owned.name, format!("openai/whisper/{}", r.file));

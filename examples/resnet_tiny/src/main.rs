@@ -17,8 +17,8 @@ use bunsen::{
         ToStructureConfig,
     },
     data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     },
     errors::{
         BunsenError,
@@ -246,7 +246,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
             // The activation swap is this example's own surgery: the
             // deferred model's hook builds from this config rather than
             // the prefab's, and the checkpoint is read into that model.
-            let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+            let cache = ResourceCache::new(ResourceCacheOptions::default())?;
             let mut model = default_resnet_factory()?.resolve(pretrained, &cache)?;
             model.config = model.config.with_config(contract.clone());
             let loaded = model.load(

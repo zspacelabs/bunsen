@@ -8,8 +8,8 @@
 //!   Digests, links and `.partial` files are here too. With the `fetch`
 //!   feature, so are the downloads.
 //! - [`resources`]: pinned files. A *resource* is one pinned file with the
-//!   places it can be had from, a [`ResourceBundle`] a named set of them, and a
-//!   [`PretrainedCache`] brings a bundle's files local.
+//!   places it can be had from, a [`ResourceSet`] a named set of them, and a
+//!   [`ResourceCache`] brings a bundle's files local.
 //! - [`catalog`]: what there is to build, as data. A layered document of
 //!   contracts, builds, resources, tags and presets, the built-in one compiled
 //!   in, which resolves a build's name to its files and arguments and chooses
@@ -18,8 +18,8 @@
 //!   formats, named tensors applied to a module, and the
 //!   [`LoadPolicy`](formats::LoadPolicy) a load places its floats by.
 //! - [`builds`]: what a name means, and how it becomes a model. A *row* is a
-//!   name over a resource bundle; providers answer names with rows, a
-//!   [`PretrainedFactory`] dispatches a spec to them, and the kit's
+//!   name over a resource set; providers answer names with rows, a
+//!   [`BuildFactory`] dispatches a spec to them, and the kit's
 //!   [`ConstructInit`] hook builds from the files the cache brought local.
 //! - [`pretrained`]: the kits' prefabs (a geometry by name) and tags.
 //! - [`datasets`]: dataset shard sets, numbered files. A [`ShardSetDescriptor`]
@@ -28,29 +28,29 @@
 //!
 //! ## Lifecycle
 //!
-//! From a name to a model, as [`PretrainedFactory::load`] runs it:
+//! From a name to a model, as [`BuildFactory::load`] runs it:
 //!
 //! ```text
 //! spec: "provider:ref" or a bare name         a path, a manifest
 //!   │                                            │
-//!   │ PretrainedFactory::resolve(spec, &cache)   │ ResourceBundle::given,
+//!   │ BuildFactory::resolve(spec, &cache)   │ ResourceSet::given,
 //!   │   provider:ref -> that provider only       │ or deserialized
 //!   │   bare -> each provider that answers       │
 //!   │     bare names, in order; first row wins   │
-//!   │   PretrainedProvider::resolve:             │
+//!   │   BuildProvider::resolve:             │
 //!   │     a table answers from its rows;         │
 //!   │     HfProvider asks the hub once and       │
 //!   │     keeps the listing in the cache         │
 //!   ▼                                            │
 //! Pretrained row: name, aliases, prefab?,        │
-//!   one ResourceBundle (its resource bundles fused strictly)    │
-//!   │ PretrainedRef::Named                       │ PretrainedRef::Given
+//!   one ResourceSet (its resource sets fused strictly)    │
+//!   │ BuildRef::Named                       │ BuildRef::Given
 //!   ▼                                            ▼
-//! Deferred<H>: the ref, and the hook H::for_resource_bundle(resource bundle) picks for it
-//!   │ [with_overlay(resource bundle)]: the caller's resources win, by key
+//! Deferred<H>: the ref, and the hook H::for_resource_set(resource set) picks for it
+//!   │ [with_overlay(resource set)]: the caller's resources win, by key
 //!   │ load(&cache, &device):
-//!   │   H::plan(ref, cache)              -> the completed ResourceBundle
-//!   │   PretrainedCache::load(KIT, resource bundle)  -> LoadedResources
+//!   │   H::plan(ref, cache)              -> the completed ResourceSet
+//!   │   ResourceCache::load(KIT, resource set)  -> LoadedResourceSet
 //!   │     per resource: the cache path, else a local dir (used in
 //!   │     place) or bundled bytes (written in), else its URLs,
 //!   │     fetched together under the FetchPolicy [fetch]
@@ -59,27 +59,27 @@
 //! Loaded<H::Construct>: name, handle (an Arc), resources
 //! ```
 //!
-//! - **Spec to row.** [`PretrainedFactory::resolve`] offers a spec to its
-//!   [`PretrainedProvider`]s by the [dispatch rules]. A [`PretrainedTable`]
-//!   answers from compiled-in rows, and an [`HfProvider`] from the hub's file
-//!   listing. The answer is a [`Pretrained`] row over a [`ResourceBundle`] of
+//! - **Spec to row.** [`BuildFactory::resolve`] offers a spec to its
+//!   [`BuildProvider`]s by the [dispatch rules]. A [`PretrainedTable`] answers
+//!   from compiled-in rows, and an [`HfProvider`] from the hub's file listing.
+//!   The answer is a [`Pretrained`] row over a [`ResourceSet`] of
 //!   [`Resource`]s. A path or a manifest skips this step, since it is a
-//!   resource bundle already.
-//! - **Row to deferred model.** The row, or the given resource bundle, becomes
-//!   a [`PretrainedRef`]. [`Deferred::new`] or
-//!   [`Deferred::from_resource_bundle`] pairs it with the kit's hook, chosen by
-//!   [`ConstructInit::for_resource_bundle`] from the resources' `kind`s.
-//!   [`Deferred::with_overlay`] lays the caller's resources over the row's.
+//!   resource set already.
+//! - **Row to deferred model.** The row, or the given resource set, becomes a
+//!   [`BuildRef`]. [`Deferred::new`] or [`Deferred::from_resource_set`] pairs
+//!   it with the kit's hook, chosen by [`ConstructInit::for_resource_set`] from
+//!   the resources' `format`s. [`Deferred::with_overlay`] lays the caller's
+//!   resources over the row's.
 //! - **Deferred to loaded.** [`Deferred::load`] runs the hook's
 //!   [`plan`](crate::data::builds::ConstructInit::plan), then
-//!   [`PretrainedCache::load`] (in its [source order], into
-//!   [`LoadedResources`]), then the hook's
+//!   [`ResourceCache::load`] (in its [source order], into
+//!   [`LoadedResourceSet`]), then the hook's
 //!   [`try_init`](crate::data::builds::ConstructInit::try_init). The result is
 //!   a [`Loaded`] handle.
 //!
 //! Prefabs sit beside this pathway. A kit's [`StaticPreFabMap`] names its
 //! geometries, and a row names the prefab it instantiates;
-//! [`PretrainedRef::prefab`] and [`PretrainedFactory::for_prefab`] join the
+//! [`BuildRef::prefab`] and [`BuildFactory::for_prefab`] join the
 //! two.
 //!
 //! Shards take a shorter path: a [`StaticShardSetMap`] entry becomes a
@@ -92,19 +92,19 @@
 //! Each kit with pretrained models ships a `default_{kit}_factory()` over
 //! its compiled-in providers. There is no process-wide registry.
 //!
-//! - [`default_resnet_factory`] is the simple case: a well-known table of
+//! - [`default_resnet_factory`] is the simple case: a catalog provider of
 //!   `torchvision` and `timm` checkpoints, each row naming its prefab.
-//! - [`default_whisper_factory`] is the full one: the well-known table, then
+//! - [`default_whisper_factory`] is the full one: the catalog provider, then
 //!   `hf:org/repo`.
-//! - [`default_silero_factory`] has one well-known row, `silero/vad-16k`,
+//! - [`default_silero_factory`] has one catalog row, `silero/vad-16k`,
 //!   upstream's safetensors.
 //!
 //! ## Features
 //!
 //! | Feature | Default | What it adds here |
 //! |---------|---------|-------------------|
-//! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`ConstructInit`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
-//! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
+//! | `cache` | yes, through `store` | the [`cache`] module; [`ResourceCache`], [`BuildFactory`], [`Deferred`], [`ConstructInit`], [`Loaded`], [`LoadedResourceSet`]; [`ShardSet`]. All local. |
+//! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`ResourceCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
 //! | `store` | yes | the checkpoint readers: [`SafetensorsCheckpoint`] (the reader for `hf:` rows), the `PyTorch` reader kits read `.pt` checkpoints with, the burnpack, `.nemo` and Phonon ([`fermion`](formats::fermion)) readers. |
 //!
@@ -116,28 +116,28 @@
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
 //! [`ConstructInit`]: crate::data::builds::ConstructInit
-//! [`ConstructInit::for_resource_bundle`]: crate::data::builds::ConstructInit::for_resource_bundle
+//! [`ConstructInit::for_resource_set`]: crate::data::builds::ConstructInit::for_resource_set
 //! [`Deferred`]: crate::data::builds::Deferred
-//! [`Deferred::from_resource_bundle`]: crate::data::builds::Deferred::from_resource_bundle
+//! [`Deferred::from_resource_set`]: crate::data::builds::Deferred::from_resource_set
 //! [`Deferred::load`]: crate::data::builds::Deferred::load
 //! [`Deferred::new`]: crate::data::builds::Deferred::new
 //! [`Deferred::with_overlay`]: crate::data::builds::Deferred::with_overlay
 //! [`HfProvider`]: crate::data::builds::HfProvider
 //! [`Loaded`]: crate::data::builds::Loaded
-//! [`LoadedResources`]: resources::LoadedResources
+//! [`LoadedResourceSet`]: resources::LoadedResourceSet
 //! [`Pretrained`]: crate::data::builds::Pretrained
-//! [`PretrainedCache`]: resources::PretrainedCache
-//! [`PretrainedCache::load`]: resources::PretrainedCache::load
-//! [`PretrainedFactory`]: crate::data::builds::PretrainedFactory
-//! [`PretrainedFactory::for_prefab`]: crate::data::builds::PretrainedFactory::for_prefab
-//! [`PretrainedFactory::load`]: crate::data::builds::PretrainedFactory::load
-//! [`PretrainedFactory::resolve`]: crate::data::builds::PretrainedFactory::resolve
-//! [`PretrainedProvider`]: crate::data::builds::PretrainedProvider
-//! [`PretrainedRef`]: crate::data::builds::PretrainedRef
-//! [`PretrainedRef::prefab`]: crate::data::builds::PretrainedRef::prefab
+//! [`ResourceCache`]: resources::ResourceCache
+//! [`ResourceCache::load`]: resources::ResourceCache::load
+//! [`BuildFactory`]: crate::data::builds::BuildFactory
+//! [`BuildFactory::for_prefab`]: crate::data::builds::BuildFactory::for_prefab
+//! [`BuildFactory::load`]: crate::data::builds::BuildFactory::load
+//! [`BuildFactory::resolve`]: crate::data::builds::BuildFactory::resolve
+//! [`BuildProvider`]: crate::data::builds::BuildProvider
+//! [`BuildRef`]: crate::data::builds::BuildRef
+//! [`BuildRef::prefab`]: crate::data::builds::BuildRef::prefab
 //! [`PretrainedTable`]: crate::data::builds::PretrainedTable
 //! [`Resource`]: resources::Resource
-//! [`ResourceBundle`]: resources::ResourceBundle
+//! [`ResourceSet`]: resources::ResourceSet
 //! [`SafetensorsCheckpoint`]: crate::data::formats::SafetensorsCheckpoint
 //! [`ShardSet`]: datasets::ShardSet
 //! [`ShardSetDescriptor`]: datasets::ShardSetDescriptor
@@ -146,8 +146,8 @@
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
-//! [dispatch rules]: crate::data::builds::PretrainedFactory#dispatch
-//! [source order]: resources::PretrainedCache#source-order
+//! [dispatch rules]: crate::data::builds::BuildFactory#dispatch
+//! [source order]: resources::ResourceCache#source-order
 
 #[cfg(feature = "cache")]
 pub mod cache;

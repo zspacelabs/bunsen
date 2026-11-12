@@ -17,8 +17,8 @@ pub mod audio;
 ///
 /// * `vocabulary`: the rank files, detokenized and filtered, against ids and
 ///   lists read off upstream's `whisper.tokenizer`.
-/// * `cache`: the bundle's directory is a pretrained cache of the kit's own
-///   maps, and a table of local files serves `openai/base` in place.
+/// * `cache`: the bundle's directory is a resource cache of the kit's own maps,
+///   and a table of local files serves `openai/base` in place.
 /// * `construct`: the kit's hook plans, scans and builds a real checkpoint.
 /// * `hf`: `transformers`' `model.safetensors` of the same model, through the
 ///   kit's `transformers` loader, is `base.pt`, weight for weight.

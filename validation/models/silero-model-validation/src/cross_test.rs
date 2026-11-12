@@ -238,8 +238,8 @@ mod vad_16k {
             data::{
                 cache::BunsenDiskCacheOptions,
                 resources::{
-                    PretrainedCache,
-                    PretrainedCacheOptions,
+                    ResourceCache,
+                    ResourceCacheOptions,
                 },
             },
             kits::speech::vad::silero_vad::pretrained::default_silero_factory,
@@ -247,8 +247,8 @@ mod vad_16k {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
+        let cache = ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(bind_silero_onnx::cache_dir().to_path_buf())),

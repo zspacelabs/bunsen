@@ -11,9 +11,9 @@
 //! [`default_whisper_factory`] is the index a caller holds, over
 //! [`default_whisper_providers`] in search order:
 //!
-//! - The well-known rows, the built-in catalog's builds of
+//! - The catalog rows, the built-in catalog's builds of
 //!   [`WHISPER_CATALOG_CONTRACT`]: the checkpoints bunsen knows by name, as
-//!   `well-known:openai/whisper/base`, `openai/base`, or `base`. They are
+//!   `catalog:openai/whisper/base`, `openai/base`, or `base`. They are
 //!   upstream's `_MODELS`, with upstream's aliases (`large`, `turbo`).
 //! - The data layer's [`HfProvider`](crate::data::builds::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
@@ -34,7 +34,7 @@
 //!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
-//! [`with_provider`](crate::data::builds::PretrainedFactory::with_provider);
+//! [`with_provider`](crate::data::builds::BuildFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
 //! # Rows, prefabs and resources
@@ -46,13 +46,13 @@
 //! [`WHISPER_PREFABS`], so a name means a shape before any bytes are
 //! fetched, and a checkpoint of another shape under the name is refused. A
 //! prefab is a shape without weights; a resource is where the bytes come
-//! from and the digest that pins them. A path arrives as a one-resource bundle,
+//! from and the digest that pins them. A path arrives as a one-resource set,
 //! and gets its vocabulary from the same rule,
 //! [`WhisperVocabulary::for_layout`].
 //!
 //! # Loading
 //!
-//! [`load_construct`](crate::data::builds::PretrainedFactory::load_construct)
+//! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! is the whole pathway from a name to a
 //! [`WhisperConstruct`](crate::kits::speech::asr::whisper::driver::WhisperConstruct)
 //! behind an `Arc`. The factory resolves the name to a
@@ -65,7 +65,7 @@
 //! and the hook's construct reads the checkpoint into a model at the
 //! precision it ships in and the vocabulary into ranks. A checkpoint on
 //! disk is not the factory's, but becomes a deferred model the same way,
-//! through [`Deferred::from_resource_bundle`](crate::data::builds::Deferred::from_resource_bundle).
+//! through [`Deferred::from_resource_set`](crate::data::builds::Deferred::from_resource_set).
 //!
 //! # Example
 //!
@@ -95,7 +95,7 @@
 //!
 //! // The row's vocabulary is the one that geometry's token layout selects.
 //! let ids = WhisperSpecialIds::from_vocab_size(geometry.vocab_size)?;
-//! let rule = WhisperVocabulary::for_layout(&ids).resource_bundle();
+//! let rule = WhisperVocabulary::for_layout(&ids).resource_set();
 //! assert_eq!(
 //!     row.resources.try_get(VOCABULARY)?.file,
 //!     rule.try_get(VOCABULARY)?.file,
@@ -112,7 +112,7 @@ mod prefabs;
 #[cfg(feature = "store")]
 mod providers;
 #[cfg(feature = "store")]
-mod resource_bundles;
+mod resource_sets;
 #[cfg(feature = "store")]
 mod vocab;
 
@@ -124,7 +124,7 @@ pub use prefabs::*;
 #[cfg(feature = "store")]
 pub use providers::*;
 #[cfg(feature = "store")]
-pub use resource_bundles::*;
+pub use resource_sets::*;
 #[cfg(feature = "store")]
 pub use vocab::*;
 

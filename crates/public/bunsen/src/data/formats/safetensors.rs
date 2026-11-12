@@ -20,7 +20,7 @@ use burn::store::{
 use serde::Deserialize;
 
 use crate::{
-    data::resources::LoadedResources,
+    data::resources::LoadedResourceSet,
     errors::{
         BunsenError,
         BunsenErrorKind,
@@ -193,13 +193,14 @@ impl SafetensorsIndex {
 /// with `model.safetensors.index.json`, whose `weight_map`
 /// ([`SafetensorsIndex`]) names the shard each tensor is in. A
 /// `SafetensorsCheckpoint` is either: [`from_loaded`](Self::from_loaded)
-/// gathers it from a [family](crate::data::resources::LoadedResources::family)
-/// of resources under the kit's checkpoint key, the one file or the index and
-/// the shards it names. That is the layout an
-/// [`HfProvider`](crate::data::builds::HfProvider) row has.
+/// gathers it from a
+/// [family](crate::data::resources::LoadedResourceSet::family) of resources
+/// under the kit's checkpoint key, the one file or the index and the shards it
+/// names. That is the layout an [`HfProvider`](crate::data::builds::HfProvider)
+/// row has.
 ///
 /// A kit's [`ConstructInit`](crate::data::builds::ConstructInit)
-/// hook makes one from the [`LoadedResources`] the cache brought local.
+/// hook makes one from the [`LoadedResourceSet`] the cache brought local.
 /// [`headers`](Self::headers) reads every tensor's name, element type and shape
 /// without touching the data. [`load_into`](Self::load_into) loads every shard
 /// into a module through `burn-store`'s [`SafetensorsStore`], configured by the
@@ -238,13 +239,13 @@ impl SafetensorsCheckpoint {
     /// which must be exactly the files the index names.
     ///
     /// # Errors
-    /// As [`LoadedResources::expect`] when `loaded` has nothing under `key`,
+    /// As [`LoadedResourceSet::expect`] when `loaded` has nothing under `key`,
     /// naming what it has; as [`SafetensorsIndex::read`] for the index.
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
-    /// naming the resource bundle, for a family with no index, or shards that
+    /// naming the resource set, for a family with no index, or shards that
     /// are not the index's.
     pub fn from_loaded(
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
         key: &str,
     ) -> BunsenResult<Self> {
         if let Some(single) = loaded.get(key) {
@@ -500,7 +501,7 @@ mod tests {
         use crate::data::resources::{
             Provenance,
             ResolvedResource,
-            ResourceBundle,
+            ResourceSet,
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -537,8 +538,8 @@ mod tests {
             path: path.to_path_buf(),
             provenance: Provenance::LocalDir,
         };
-        let loaded = |parts: Vec<(&str, &Path)>| LoadedResources {
-            map: ResourceBundle::new("sharded"),
+        let loaded = |parts: Vec<(&str, &Path)>| LoadedResourceSet {
+            map: ResourceSet::new("sharded"),
             parts: parts
                 .into_iter()
                 .map(|(k, p)| (k.to_string(), part(p)))

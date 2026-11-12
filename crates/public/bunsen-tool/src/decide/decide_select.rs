@@ -67,7 +67,7 @@ pub fn choose_decide_model(
     if let [only] = names.as_mut_slice()
         && let Some((provider, rest)) = only.split_once(':')
     {
-        if provider != "well-known" {
+        if provider != "catalog" {
             if !flags.stages.is_empty() {
                 return Err(BunsenError::policy(format!(
                     "`{only}` is a ref, not a choice: it takes no selection flags"

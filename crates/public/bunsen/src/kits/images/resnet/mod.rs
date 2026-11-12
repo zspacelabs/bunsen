@@ -25,8 +25,8 @@
 //!
 //! use bunsen::{
 //!     data::resources::{
-//!         PretrainedCache,
-//!         PretrainedCacheOptions,
+//!         ResourceCache,
+//!         ResourceCacheOptions,
 //!     },
 //!     kits::images::resnet::{
 //!         ResNet,
@@ -36,7 +36,7 @@
 //! };
 //!
 //! let device = cpu_device();
-//! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+//! let cache = ResourceCache::new(ResourceCacheOptions::default())?;
 //!
 //! // `torchvision/resnet18` names its prefab, which the factory's hook
 //! // builds from.

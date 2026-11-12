@@ -12,7 +12,7 @@
 //! convention of the vocabulary. Nothing at run time refuses a tag.
 //!
 //! A build catalog writes a row's tags from its build's tag fields, and a
-//! [`BuildCatalogProvider`](crate::data::builds::BuildCatalogProvider) writes
+//! [`CatalogBuildProvider`](crate::data::builds::CatalogBuildProvider) writes
 //! the row's [`KIT`] tag. A factory writes the [`KIT`] tag on a row of any
 //! provider that lacks one, an `hf:` repo's among them.
 //!

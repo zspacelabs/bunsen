@@ -9,7 +9,7 @@ use std::{
 };
 
 use bunsen::{
-    data::resources::PretrainedCache,
+    data::resources::ResourceCache,
     errors::{
         BunsenResult,
         ResultContext,
@@ -155,7 +155,7 @@ impl AsrTranscribeIo {
             .init(Clock::Offset, self.speakers.diarize.is_some())?;
         let device = self.device.open()?;
         // The options come from the command line.
-        let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
+        let cache = ResourceCache::new(flags.cache_options(self.cache.options())).as_policy()?;
         let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
 

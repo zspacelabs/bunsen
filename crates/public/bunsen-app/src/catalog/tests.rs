@@ -16,7 +16,7 @@ struct Cli {
 /// Parses `argv` (with the program name) and runs it into a string.
 fn run_argv(
     argv: Vec<String>,
-    base: PretrainedCatalogStack,
+    base: BunsenCatalogStack,
 ) -> Result<String, String> {
     use clap::{
         CommandFactory,
@@ -47,7 +47,7 @@ fn cli(args: &str) -> Result<String, String> {
     run_argv(argv, examples())
 }
 
-fn examples() -> PretrainedCatalogStack {
+fn examples() -> BunsenCatalogStack {
     bunsen::data::catalog::fixtures::example_stack().unwrap()
 }
 
@@ -430,7 +430,7 @@ fn test_dump_nests_each_catalog_in_order() {
         panic!("a sequence")
     };
     let node = items[2].get("catalog").unwrap().clone();
-    let catalog = bunsen::data::catalog::PretrainedCatalog::from_node(node).unwrap();
+    let catalog = bunsen::data::catalog::BunsenCatalog::from_node(node).unwrap();
     let stack = bunsen::data::catalog::fixtures::supplemented_example_stack().unwrap();
     assert_eq!(&catalog, stack.layers()[2].document());
     let json: Value = serde_json::from_str(&cli("dump --format json").unwrap()).unwrap();

@@ -139,10 +139,10 @@ where
 /// `RESNET_PREFABS` are the in-tree maps. Which rows instantiate a
 /// prefab is the rows' side: a [`Pretrained`](crate::data::builds::Pretrained)
 /// row names its prefab,
-/// [`PretrainedRef::prefab`](crate::data::builds::PretrainedRef::prefab)
+/// [`BuildRef::prefab`](crate::data::builds::BuildRef::prefab)
 /// looks it up here for a resolved row (for the kit's hook to build from
 /// or check against), and a factory's
-/// [`for_prefab`](crate::data::builds::PretrainedFactory::for_prefab) lists the
+/// [`for_prefab`](crate::data::builds::BuildFactory::for_prefab) lists the
 /// rows of one prefab. [`find`](Self::find) is the reverse lookup, for a config
 /// that arrived without a name. [`to_prefab_map`](Self::to_prefab_map) gives
 /// the owned twin, a [`PreFabMap`].

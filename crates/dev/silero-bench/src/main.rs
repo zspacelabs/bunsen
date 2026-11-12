@@ -1,7 +1,7 @@
 use bunsen::{
     data::resources::{
-        PretrainedCache,
-        PretrainedCacheOptions,
+        ResourceCache,
+        ResourceCacheOptions,
     },
     errors::{
         BunsenError,
@@ -54,7 +54,7 @@ fn main() -> BunsenResult<()> {
     println!("* device: {:?}", device);
 
     println!("* SileroVad");
-    let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+    let cache = ResourceCache::new(ResourceCacheOptions::default())?;
     let vad: SileroVad = default_silero_factory()?
         .load(
             "silero/vad-16k",

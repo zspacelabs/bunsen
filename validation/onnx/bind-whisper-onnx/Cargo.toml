@@ -30,7 +30,7 @@ default = []
 
 ## Fetch `OpenAI`'s multilingual "base.pt", laid out under `cache_dir()`.
 ##
-## A bunsen pretrained cache rooted at that directory resolves `openai/base`
+## A bunsen resource cache rooted at that directory resolves `openai/base`
 ## from it, offline; `whisper-model-validation` checks the Whisper kit's
 ## pretrained pathway on it.
 checkpoint = []

@@ -7,12 +7,12 @@ use burn::tensor::Device;
 use crate::{
     data::{
         builds::{
+            BuildFactory,
             Deferred,
-            PretrainedFactory,
         },
         resources::{
-            LoadedResources,
-            PretrainedCache,
+            LoadedResourceSet,
+            ResourceCache,
         },
     },
     errors::BunsenResult,
@@ -32,19 +32,19 @@ use crate::{
 /// The index a caller holds: Whisper's providers, resolving names to
 /// [`Deferred`] models that carry the kit's [`WhisperConstructConfig`] hook,
 /// chosen by what each row's map says about its checkpoint.
-/// [`load_construct`](PretrainedFactory::load_construct) with
+/// [`load_construct`](BuildFactory::load_construct) with
 /// `"[provider:]name"` is the whole pathway from a name to a
 /// [`WhisperConstruct`]; the caller never builds or passes a hook. A
 /// checkpoint on disk is not the factory's: it is a given map through
-/// [`Deferred::from_resource_bundle`], which gets its hook the same way. A
+/// [`Deferred::from_resource_set`], which gets its hook the same way. A
 /// caller with a provider of its own, a mirror say, adds it with
-/// [`with_provider`](PretrainedFactory::with_provider).
+/// [`with_provider`](BuildFactory::with_provider).
 ///
 /// # Errors
-/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// As [`BuildFactory::with_providers`], if two of the defaults share a
 /// name, which the tests pin they do not.
-pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstructConfig>> {
-    PretrainedFactory::new().with_providers(default_whisper_providers())
+pub fn default_whisper_factory() -> BunsenResult<BuildFactory<WhisperConstructConfig>> {
+    BuildFactory::new().with_providers(default_whisper_providers())
 }
 
 impl Deferred<WhisperConstructConfig> {
@@ -56,7 +56,7 @@ impl Deferred<WhisperConstructConfig> {
     /// As [`WhisperConstructConfig::scan`].
     pub fn scan(
         &self,
-        loaded: &LoadedResources,
+        loaded: &LoadedResourceSet,
     ) -> BunsenResult<WhisperApiConfig> {
         self.config.scan(&self.model, loaded)
     }
@@ -67,7 +67,7 @@ impl Deferred<WhisperConstructConfig> {
     /// As [`load`](Self::load).
     pub fn load_construct(
         &self,
-        cache: &PretrainedCache,
+        cache: &ResourceCache,
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<WhisperConstruct>> {
@@ -81,14 +81,14 @@ mod tests {
     use crate::{
         data::{
             builds::{
-                PretrainedRef,
-                WELL_KNOWN,
+                BuildRef,
+                CATALOG,
                 testing::ListsNothing,
             },
             cache::BunsenDiskCacheOptions,
             resources::{
-                PretrainedCacheOptions,
-                ResourceBundle,
+                ResourceCacheOptions,
+                ResourceSet,
             },
         },
         errors::{
@@ -103,9 +103,9 @@ mod tests {
     };
 
     /// An offline cache under `dir`: nothing fetched, nothing reported.
-    fn offline_cache_in(dir: &std::path::Path) -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
+    fn offline_cache_in(dir: &std::path::Path) -> ResourceCache {
+        ResourceCache::new(
+            ResourceCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))
@@ -116,28 +116,28 @@ mod tests {
         .unwrap()
     }
 
-    /// The default factory is the well-known table, serving the kit, with
+    /// The default factory is the catalog provider, serving the kit, with
     /// every id qualified and upstream's aliases honoured, then Hugging
     /// Face, which lists nothing.
     #[test]
     fn test_the_defaults_register() {
         let factory = default_whisper_factory().unwrap();
         assert_eq!(factory.kit(), WHISPER_KIT);
-        assert_eq!(factory.providers()[0].name(), "well-known");
-        assert_eq!(factory.provider(WELL_KNOWN).unwrap().name(), "well-known");
-        assert_eq!(factory.provider(WELL_KNOWN).unwrap().ids().len(), 12);
+        assert_eq!(factory.providers()[0].name(), "catalog");
+        assert_eq!(factory.provider(CATALOG).unwrap().name(), "catalog");
+        assert_eq!(factory.provider(CATALOG).unwrap().ids().len(), 12);
         assert_eq!(factory.providers().last().unwrap().name(), "hf");
         assert!(factory.provider("hf").unwrap().ids().is_empty());
         assert_eq!(factory.providers().len(), 2);
         assert_eq!(factory.ids().len(), 12);
 
         let (provider, large) = factory.lookup("large").unwrap();
-        assert_eq!(provider, "well-known");
+        assert_eq!(provider, "catalog");
         assert_eq!(large.name, "openai/whisper/large/large-v3");
         let (_, turbo) = factory.lookup("openai/turbo").unwrap();
         assert_eq!(turbo.name, "openai/whisper/large/large-v3-turbo");
         assert_eq!(
-            factory.lookup("well-known:openai/tiny").unwrap().1.name,
+            factory.lookup("catalog:openai/tiny").unwrap().1.name,
             "openai/whisper/tiny"
         );
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("nobody:base"));
@@ -155,12 +155,12 @@ mod tests {
 
         let model = factory.resolve("openai/tiny.en", &cache).unwrap();
         match &model.model {
-            PretrainedRef::Named {
+            BuildRef::Named {
                 provider,
                 pretrained,
                 ..
             } => {
-                assert_eq!(provider, "well-known");
+                assert_eq!(provider, "catalog");
                 assert_eq!(pretrained.name, "openai/whisper/tiny.en");
                 assert_eq!(pretrained.resources.keys(), [CHECKPOINT, "vocabulary"]);
             }
@@ -169,23 +169,23 @@ mod tests {
         assert!(format!("{:?}", model.config).contains("WhisperConstructConfig"));
         assert_eq!(
             factory
-                .resolve("well-known:openai/tiny.en", &cache)
+                .resolve("catalog:openai/tiny.en", &cache)
                 .unwrap()
                 .id(),
-            "well-known:openai/whisper/tiny.en"
+            "catalog:openai/whisper/tiny.en"
         );
         assert_eq!(
             factory.resolve("turbo", &cache).unwrap().id(),
-            "well-known:openai/whisper/large/large-v3-turbo"
+            "catalog:openai/whisper/large/large-v3-turbo"
         );
 
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
-        let given = Deferred::<WhisperConstructConfig>::from_resource_bundle(
-            ResourceBundle::given(spec, CHECKPOINT, &file),
-        )
+        let given = Deferred::<WhisperConstructConfig>::from_resource_set(ResourceSet::given(
+            spec, CHECKPOINT, &file,
+        ))
         .unwrap();
         assert_eq!(given.id(), spec);
         assert!(given.model.named().is_none());
@@ -241,7 +241,7 @@ mod tests {
         let (provider, row) = factory.lookup("hub:openai/whisper-base").unwrap();
         assert_eq!(provider, "hub");
         assert_eq!(row.name, "openai/whisper-base");
-        assert_eq!(factory.lookup("base").unwrap().0, "well-known");
+        assert_eq!(factory.lookup("base").unwrap().0, "catalog");
         assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
 
         // The hub's rows are safetensors: resolving one chooses the
@@ -278,9 +278,9 @@ mod hub_tests {
 
     use crate::{
         data::resources::{
-            PretrainedCache,
-            PretrainedCacheOptions,
             Provenance,
+            ResourceCache,
+            ResourceCacheOptions,
         },
         kits::speech::asr::whisper::{
             WhisperMeta,
@@ -304,11 +304,11 @@ mod hub_tests {
     #[test]
     fn test_hf_whisper_tiny_is_openai_tiny() {
         let device = cpu_device();
-        let cache = PretrainedCache::new(PretrainedCacheOptions::default()).unwrap();
+        let cache = ResourceCache::new(ResourceCacheOptions::default()).unwrap();
         let factory = default_whisper_factory().unwrap();
 
         let model = factory.resolve("hf:openai/whisper-tiny", &cache).unwrap();
-        let checkpoint = model.to_resource_bundle();
+        let checkpoint = model.to_resource_set();
         let checkpoint = checkpoint.get(CHECKPOINT).unwrap();
         assert_eq!(checkpoint.file, "model.safetensors");
         assert!(checkpoint.is_pinned(), "pinned by the hub's listing");

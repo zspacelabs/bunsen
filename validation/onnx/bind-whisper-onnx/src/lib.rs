@@ -7,10 +7,10 @@
 //! vocabularies are small enough to commit, and are fetched anyway so that
 //! every Whisper asset arrives the same way.
 //!
-//! The pretrained assets are laid out in `OUT_DIR` as a **pretrained cache**,
-//! `pretrained/<resource>/<sha256>/<file>`, `<resource>` each asset's full name
+//! The pretrained assets are laid out in `OUT_DIR` as a **resource cache**,
+//! `resources/<resource>/<sha256>/<file>`, `<resource>` each asset's full name
 //! in the built-in catalog (`openai/whisper/base/checkpoint`), which is how
-//! bunsen's `data::resources::PretrainedCache` roots a resource. A cache
+//! bunsen's `data::resources::ResourceCache` roots a resource. A cache
 //! pointed at `cache_dir()`, offline, hits `openai/base` and both vocabularies
 //! without knowing they were bundled: bundling is a populated cache directory,
 //! not a kind of source. `whisper-model-validation` does exactly that, and also
@@ -23,7 +23,7 @@
 //!
 //! | Item | Feature | What it is |
 //! |---|---|---|
-//! | `cache_dir()` | `checkpoint` or `vocab` | `OUT_DIR`, laid out as a pretrained cache |
+//! | `cache_dir()` | `checkpoint` or `vocab` | `OUT_DIR`, laid out as a resource cache |
 //! | `base_pt()` | `checkpoint` | `OpenAI`'s multilingual `base.pt` |
 //! | `base_safetensors()` | `hf_checkpoint` | the same weights, `transformers`' `openai/whisper-base` `model.safetensors` |
 //! | `multilingual_tiktoken()` | `vocab` | the multilingual checkpoints' base vocabulary |
@@ -65,8 +65,8 @@
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
-/// `OUT_DIR` laid out as a pretrained cache: the root a
-/// `bunsen::data::resources::PretrainedCache` is pointed at to read the
+/// `OUT_DIR` laid out as a resource cache: the root a
+/// `bunsen::data::resources::ResourceCache` is pointed at to read the
 /// bundled assets. Nothing under it changes after the build; a cache that
 /// fetches other models into it will, so a test wants it offline.
 ///
@@ -214,14 +214,14 @@ pub mod onnx_gen {
 #[cfg(test)]
 mod tests {
     /// Every pretrained asset sits in the cache layout under the root the
-    /// crate exposes: `pretrained/<resource>/<sha256>/<file>`, under the
+    /// crate exposes: `resources/<resource>/<sha256>/<file>`, under the
     /// file name the Whisper kit's resource uses. (An override that is not
     /// the pinned file lands elsewhere; this test assumes none is set.)
     #[cfg(any(feature = "checkpoint", feature = "vocab"))]
     #[test]
     fn test_assets_are_laid_out_as_a_pretrained_cache() {
         let root = super::cache_dir()
-            .join("pretrained")
+            .join("resources")
             .join("openai")
             .join("whisper");
         assert!(root.is_dir(), "{} is missing", root.display());

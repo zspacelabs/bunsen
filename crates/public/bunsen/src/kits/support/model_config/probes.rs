@@ -277,7 +277,7 @@ pub fn accumulate_probed(
 /// - As a probe's [`probe`](Probe::probe), under a frame naming the entry.
 #[cfg(feature = "cache")]
 pub fn probe_loaded(
-    loaded: &crate::data::resources::LoadedResources,
+    loaded: &crate::data::resources::LoadedResourceSet,
     entries: &[CatalogProbe],
     family: &crate::data::catalog::presets::ResolvedPresetSet,
 ) -> BunsenResult<crate::data::catalog::presets::ResolvedPresetSet> {
@@ -484,18 +484,18 @@ mod tests {
                 presets::ResolvedPresetSet,
             },
             resources::{
-                LoadedResources,
+                LoadedResourceSet,
                 Provenance,
                 ResolvedResource,
-                ResourceBundle,
+                ResourceSet,
             },
         };
 
         let dir = tempfile::tempdir().unwrap();
         let path: PathBuf = dir.path().join("generation_config.json");
         std::fs::write(&path, QWEN3_GENERATION).unwrap();
-        let loaded = LoadedResources {
-            map: ResourceBundle::new("qwen3"),
+        let loaded = LoadedResourceSet {
+            map: ResourceSet::new("qwen3"),
             parts: [(
                 "generation_config".to_string(),
                 ResolvedResource {

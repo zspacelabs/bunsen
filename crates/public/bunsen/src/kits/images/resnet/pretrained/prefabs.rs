@@ -13,7 +13,7 @@ use crate::{
 /// The `ResNet` geometries by name: six [`ResNetContractConfig`]s,
 /// `resnet18` to `resnet152`, each with 1000 classes.
 ///
-/// A prefab has no weights. The well-known rows state the geometry of the
+/// A prefab has no weights. The catalog rows state the geometry of the
 /// prefab they instantiate, and
 /// [`ResNetConstructConfig`](super::ResNetConstructConfig) builds from it.
 pub static RESNET_PREFABS: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {

@@ -14,7 +14,7 @@ the `swin_tiny` example, sharing the same data-loading machinery.
   `default_resnet_factory` for an optional pretrained checkpoint.
 - `bunsen::burner::module` — `ToStructureConfig` / `ModuleInit` for module init
   and `DTypeMapper` for dtype mapping.
-- `bunsen::data::resources::PretrainedCache` — the digest-pinned cache a
+- `bunsen::data::resources::ResourceCache` — the digest-pinned cache a
   pretrained checkpoint is fetched into.
 - `bunsen-firehose` — the columnar batch data engine: `FirehoseTableSchema` /
   `ColumnSchema`, row readers/writers, path scanning, and the Burn

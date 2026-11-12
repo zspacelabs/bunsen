@@ -444,11 +444,7 @@ mod tests {
         // A name no family lists runs in the preset's family.
         let r = resolve(&["--model", "hf:org/repo"], Mode::Offline).unwrap();
         assert_eq!(r.family, Family::Parakeet);
-        let r = resolve(
-            &["--model", "well-known:openai/whisper/tiny"],
-            Mode::Offline,
-        )
-        .unwrap();
+        let r = resolve(&["--model", "catalog:openai/whisper/tiny"], Mode::Offline).unwrap();
         assert_eq!(r.family, Family::Whisper);
 
         // Live finds speech regions: the table's VAD, or `--vad`'s.

@@ -70,7 +70,7 @@ impl AsrKitListCommand {
                 println!(
                     "  {key}: {} ({}) [{}]",
                     r.file,
-                    r.kind.as_deref().unwrap_or("unlabeled"),
+                    r.format.as_deref().unwrap_or("unlabeled"),
                     cache.status(r)
                 );
             }

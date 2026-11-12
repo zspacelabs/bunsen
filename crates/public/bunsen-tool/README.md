@@ -27,7 +27,7 @@ kits:
   asr:
     parakeet:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -43,7 +43,7 @@ kits:
         dtype: float32
     qwen3-asr:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -70,7 +70,7 @@ kits:
         dtype: bfloat16
     voxtral:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -82,7 +82,7 @@ kits:
         dtype: bfloat16
     whisper:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -193,7 +193,7 @@ kits:
         dtype: float16
     sortformer:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -256,7 +256,7 @@ kits:
           - none
     silero-vad:
     - provider:
-        name: well-known
+        name: catalog
     - model:
         name: silero/vad-16k
         description: Silero VAD, the 16 kHz model, from upstream's safetensors
@@ -271,7 +271,7 @@ kits:
   chat:
     qwen3:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -376,7 +376,7 @@ kits:
         dtype: bfloat16
     qwen3.5:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -456,7 +456,7 @@ kits:
           - thinking
     gemma:
     - provider:
-        name: well-known
+        name: catalog
     - provider:
         name: hf
     - model:
@@ -531,7 +531,7 @@ kits:
         dtype: bfloat16
     nanochat:
     - provider:
-        name: well-known
+        name: catalog
     - model:
         name: nanochat-students/base-d20
         aliases:
@@ -561,7 +561,7 @@ kits:
   decide:
     laya:
     - provider:
-        name: well-known
+        name: catalog
     - model:
         name: laya/laya
         aliases:
@@ -713,7 +713,7 @@ also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `
 NAME...` brings every file of the named models into the cache and prints where each one is (`--verify` re-hashes each
 pinned file): a deployment that runs `--offline` fills its cache this way ahead of time.
 
-`transcribe` loads `--model` (the family's default unless named) through bunsen's pretrained cache, fetching it on
+`transcribe` loads `--model` (the family's default unless named) through bunsen's resource cache, fetching it on
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints
 each file's text. `--json` prints JSON lines instead ([where the transcript goes](#where-the-transcript-goes)): each
 file's statements, then its `transcript`: the text, the language when the model names one (Qwen3-ASR, Whisper), each
@@ -891,7 +891,7 @@ Whisper's index keeps three things apart, because they vary independently:
   `openai-whisper`'s `~/.cache/whisper` (`--upstream-cache-dir`), whose file is used in place, then upstream's
   digest-addressed URL, streamed to a `.partial`, hashed as it lands, and renamed into place only on a match.
 
-Fetched files live at `<cache>/pretrained/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
+Fetched files live at `<cache>/resources/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
 (`openai/whisper/base/checkpoint`): the digest in the path is the pin, so
 a file there is trusted without re-hashing, and a directory laid out this way is the cache (`fetch` fills one ahead
 of time for a deployment that runs `--offline`). `hf:openai/whisper-large-v3` is a Hugging Face repo's safetensors

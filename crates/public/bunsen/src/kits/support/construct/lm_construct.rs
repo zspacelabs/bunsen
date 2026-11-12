@@ -28,22 +28,22 @@ pub struct LmPolicy {
 }
 
 /// The key of the tokenizer, `tokenizer.json`, in an [`LmConstruct`]'s files
-/// and a language model's resource bundle.
+/// and a language model's resource set.
 pub const TOKENIZER: &str = "tokenizer";
 
 /// The key of the tokenizer's config, `tokenizer_config.json` (its added
 /// tokens, and the chat template where it holds one), in an
-/// [`LmConstruct`]'s files and a language model's resource bundle.
+/// [`LmConstruct`]'s files and a language model's resource set.
 pub const TOKENIZER_CONFIG: &str = "tokenizer_config";
 
 /// The key of the generation defaults, `generation_config.json` (the stop
 /// tokens and the sampling parameters), in an [`LmConstruct`]'s files and a
-/// language model's resource bundle.
+/// language model's resource set.
 pub const GENERATION_CONFIG: &str = "generation_config";
 
 /// The key of a chat template kept in a file of its own,
 /// `chat_template.jinja`, in an [`LmConstruct`]'s files and a language
-/// model's resource bundle.
+/// model's resource set.
 pub const CHAT_TEMPLATE: &str = "chat_template";
 
 /// A language model, the positions it was trained on, and its checkpoint's

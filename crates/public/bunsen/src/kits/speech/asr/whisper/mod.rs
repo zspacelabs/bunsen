@@ -10,7 +10,7 @@
 //!   the part a checkpoint fixes).
 //! - [`pretrained`]: names to loaded models.
 //!   [`default_whisper_factory`](pretrained::default_whisper_factory) is the
-//!   index: `openai/base`, `large`, `well-known:openai/tiny.en`, and
+//!   index: `openai/base`, `large`, `catalog:openai/tiny.en`, and
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo. It resolves a name
 //!   to a [`WhisperConstruct`](driver::WhisperConstruct): the model at the
 //!   precision it ships in, its token layout, and its vocabulary.
@@ -25,14 +25,14 @@
 //!
 //! # Lifecycle
 //!
-//! 1. A [`PretrainedCache`](crate::data::resources::PretrainedCache): where
+//! 1. A [`ResourceCache`](crate::data::resources::ResourceCache): where
 //!    checkpoints and vocabularies land, pinned by digest.
 //! 2. The factory,
 //!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
 //!    to a row of the index, and the kit's hook to build it.
 //! 3. A [`WhisperConstruct`](driver::WhisperConstruct) behind an `Arc`, from
 //!    the factory's
-//!    [`load_construct`](crate::data::builds::PretrainedFactory::load_construct):
+//!    [`load_construct`](crate::data::builds::BuildFactory::load_construct):
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
 //!    language, task, timestamps, search, and the
@@ -66,8 +66,8 @@
 //! # #[cfg(feature = "store")] {
 //! use bunsen::{
 //!     data::resources::{
-//!         PretrainedCache,
-//!         PretrainedCacheOptions,
+//!         ResourceCache,
+//!         ResourceCacheOptions,
 //!     },
 //!     errors::BunsenResult,
 //!     kits::speech::asr::{
@@ -95,7 +95,7 @@
 //!     name: &str,
 //!     device: &Device,
 //! ) -> BunsenResult<WhisperStreamDriver> {
-//!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+//!     let cache = ResourceCache::new(ResourceCacheOptions::default())?;
 //!
 //!     // A name to a construct: the checkpoint read through the reader its
 //!     // row names, checked against the geometry the name promises, and
@@ -180,8 +180,8 @@
 //!     data::{
 //!         builds::Deferred,
 //!         resources::{
-//!             PretrainedCache,
-//!             ResourceBundle,
+//!             ResourceCache,
+//!             ResourceSet,
 //!         },
 //!     },
 //!     errors::BunsenResult,
@@ -211,11 +211,11 @@
 //! /// calls for, with the vocabulary its layout selects.
 //! fn load_from_path(
 //!     path: &Path,
-//!     cache: &PretrainedCache,
+//!     cache: &ResourceCache,
 //!     device: &Device,
 //! ) -> BunsenResult<Arc<WhisperConstruct>> {
-//!     Deferred::<WhisperConstructConfig>::from_resource_bundle(
-//!         ResourceBundle::given("mine", CHECKPOINT, path),
+//!     Deferred::<WhisperConstructConfig>::from_resource_set(
+//!         ResourceSet::given("mine", CHECKPOINT, path),
 //!     )?
 //!     .load_construct(
 //!         cache,
@@ -226,7 +226,7 @@
 //!
 //! /// A Hugging Face repo: `transformers`' safetensors, one file or shards.
 //! fn load_from_hub(
-//!     cache: &PretrainedCache,
+//!     cache: &ResourceCache,
 //!     device: &Device,
 //! ) -> BunsenResult<Arc<WhisperConstruct>> {
 //!     default_whisper_factory()?.load_construct(
@@ -240,12 +240,12 @@
 //! /// A named model with a vocabulary file of one's own over its row's.
 //! fn load_with_vocabulary(
 //!     vocabulary: &Path,
-//!     cache: &PretrainedCache,
+//!     cache: &ResourceCache,
 //!     device: &Device,
 //! ) -> BunsenResult<Arc<WhisperConstruct>> {
 //!     default_whisper_factory()?
 //!         .resolve("openai/tiny.en", cache)?
-//!         .with_overlay(ResourceBundle::given(
+//!         .with_overlay(ResourceSet::given(
 //!             "--vocab", VOCABULARY, vocabulary,
 //!         ))?
 //!         .load_construct(
@@ -260,7 +260,7 @@
 //! /// gate.
 //! fn conservative_driver(
 //!     construct: Arc<WhisperConstruct>,
-//!     cache: &PretrainedCache,
+//!     cache: &ResourceCache,
 //!     device: &Device,
 //! ) -> BunsenResult<WhisperStreamDriver> {
 //!     // Upstream's own region policy, the row's `[silero]` preset.

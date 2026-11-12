@@ -40,7 +40,7 @@ use crate::data::catalog::{
         ResolvedTag,
         ResolvedTemplateClass,
     },
-    stack::PretrainedCatalogStack,
+    stack::BunsenCatalogStack,
 };
 
 /// An entry, by its full name and its kind.
@@ -241,7 +241,7 @@ pub const RESERVED_WORDS: [&str; 14] = [
 /// What a query's tests read entries through: the stack, the derive
 /// steps, and a cache of the builds resolved so far.
 pub struct SelectEnv<'a> {
-    stack: &'a PretrainedCatalogStack,
+    stack: &'a BunsenCatalogStack,
     derive: Vec<&'a dyn DeriveTags>,
     derived_keys: Vec<DerivedKey>,
     builds: RefCell<BTreeMap<CatalogName, Rc<SelectBuild>>>,
@@ -250,7 +250,7 @@ pub struct SelectEnv<'a> {
 
 impl<'a> SelectEnv<'a> {
     /// An environment over `stack`, with no derive steps.
-    pub fn new(stack: &'a PretrainedCatalogStack) -> Self {
+    pub fn new(stack: &'a BunsenCatalogStack) -> Self {
         Self {
             stack,
             derive: Vec::new(),
@@ -266,7 +266,7 @@ impl<'a> SelectEnv<'a> {
     /// [`CatalogRule::Selection`] when a derived key is one of the
     /// [`RESERVED_WORDS`], or two steps write the same key.
     pub fn with_derive(
-        stack: &'a PretrainedCatalogStack,
+        stack: &'a BunsenCatalogStack,
         derive: Vec<&'a dyn DeriveTags>,
     ) -> CatalogResult<Self> {
         let mut derived_keys: Vec<DerivedKey> = Vec::new();
@@ -299,7 +299,7 @@ impl<'a> SelectEnv<'a> {
     }
 
     /// The stack.
-    pub fn stack(&self) -> &'a PretrainedCatalogStack {
+    pub fn stack(&self) -> &'a BunsenCatalogStack {
         self.stack
     }
 
@@ -312,7 +312,7 @@ impl<'a> SelectEnv<'a> {
     ///
     /// # Errors
     /// [`CatalogRule::Selection`] when it doesn't resolve
-    /// ([`PretrainedCatalogStack::resolve_build`]).
+    /// ([`BunsenCatalogStack::resolve_build`]).
     pub fn build(
         &self,
         name: &CatalogName,
