@@ -13,7 +13,7 @@ NanoChat GPT, and its API follows that example's needs. Expect it to change betw
 
 - [API docs](https://docs.rs/bunsen-arrow-dataloaders/latest/bunsen_arrow_dataloaders/): the pipeline, stage by
   stage.
-- [Shard sets and training data](https://zspacelabs.ai/bunsen/book/systems/shards.html), in the bunsen book: where
+- [Datasets](https://zspacelabs.ai/bunsen/book/systems/data/datasets.html), in the bunsen book: where
   the shards come from, and how this crate fits.
 
 ## License

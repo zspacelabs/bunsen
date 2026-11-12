@@ -14,7 +14,7 @@ and manage the weights cache. It is built on the same
 
 | Example | What it shows |
 |---|---|
-| [`train-chat`](https://github.com/zspacelabs/bunsen/tree/main/examples/train-chat) | Trains a NanoChat GPT from scratch on streamed dataset [shards](../systems/shards.md), with nanochat's Muon + AdamW [parameter groups](../systems/param-groups.md). |
+| [`train-chat`](https://github.com/zspacelabs/bunsen/tree/main/examples/train-chat) | Trains a NanoChat GPT from scratch on streamed dataset [shards](../systems/data/datasets.md), with nanochat's Muon + AdamW [parameter groups](../systems/param-groups.md). |
 | [`resnet_finetune`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_finetune) | Fine-tunes a pretrained ResNet for multi-label classification, with model surgery: a new head, a swapped activation, DropBlock and stochastic depth. |
 | [`resnet_tiny`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_tiny) | Trains a ResNet from scratch on CINIC-10 through a [firehose](../systems/firehose.md) pipeline, loading a checkpoint into a modified prefab. |
 | [`swin_tiny`](https://github.com/zspacelabs/bunsen/tree/main/examples/swin_tiny) | Trains a Swin Transformer V2 on CINIC-10, sharing `resnet_tiny`'s data pipeline. |

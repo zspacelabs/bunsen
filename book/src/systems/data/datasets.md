@@ -1,4 +1,4 @@
-# Shard sets and training data
+# Datasets
 
 A language model trains on a corpus too large to fetch at once, published as
 many numbered files. This chapter covers how bunsen names, pins and fetches
@@ -57,7 +57,7 @@ fixed-shape blocks of token ids, with an optional shuffle
 A selection of shards can also become a
 [`ResourceSet`](bunsen::data::resources::ResourceSet), through
 [`to_resource_set`](bunsen::data::datasets::ShardSetDescriptor::to_resource_set),
-for a pretrained row that includes a shard set.
+for a build or a loader that takes the shards as resources.
 
 ## End to end: train-chat
 

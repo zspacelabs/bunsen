@@ -40,7 +40,7 @@ Each module's own docs carry its map; this table is the one-line version.
 | [`ops`](bunsen::ops) | Tensor operations, including the signal-processing front ends and attention ops. |
 | [`burner`](bunsen::burner) | Extensions to burn's module machinery: the config lifecycle ([`ModuleInit`](bunsen::burner::module::ModuleInit), [`ToStructureConfig`](bunsen::burner::module::ToStructureConfig)), reflection, grouped optimizers, tensor extension traits, PyTorch-load repairs. |
 | [`contracts`](bunsen::contracts) | Runtime tensor-shape contracts. See [Shape contracts](../systems/contracts.md). |
-| [`data`](bunsen::data) | The disk cache, pretrained-model loading, and dataset shard sets. See [Files, caches and pretrained models](../systems/pretrained.md). |
+| [`data`](bunsen::data) | The disk cache, resources, the catalog, model loading, formats and dataset shard sets. See [Data: from files to models](../systems/data.md). |
 | [`audit`](bunsen::audit) | Audit probes: record a stream of tensor checkpoints from one run and verify another against it. See [Audit probes and baselines](../development/audit.md). |
 | [`errors`](bunsen::errors) | `BunsenError` and its kinds, context frames and typed causes; `BunsenResult`; the `try_x` / `x` convention; and, with `testing`, the `ErrorMatcher` test matchers. |
 | [`rust_ext`](bunsen::rust_ext) | Rust-language extensions with no tensor or burn dependency: `CloneBox` / `CloneRef`, array and range helpers, and `LocationDesc`, a serializable source location. |
