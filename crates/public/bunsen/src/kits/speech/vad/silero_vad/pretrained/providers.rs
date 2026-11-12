@@ -27,9 +27,6 @@ pub const CHECKPOINT: &str = "checkpoint";
 /// `silero_vad_16k.safetensors`.
 pub const SAFETENSORS_KIND: &str = "safetensors";
 
-/// The namespace upstream's files are cached under.
-pub const SILERO_NAMESPACE: &str = "silero";
-
 /// What the `silero_vad` kit's loader implements, as a build catalog's
 /// contract: `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).

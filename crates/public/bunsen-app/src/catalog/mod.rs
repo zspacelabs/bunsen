@@ -102,7 +102,11 @@ macro_rules! emit {
 mod select;
 mod tree;
 
-pub use select::SelectArgs;
+pub use select::{
+    SelectArgs,
+    SelectionFlags,
+    SelectionStageArgs,
+};
 pub use tree::{
     AliasView,
     DumpFormat,
@@ -275,7 +279,7 @@ pub enum CatalogAction {
 
 /// The preset flags: the presets to apply, by name or by a bool axis's
 /// member.
-#[derive(clap::Args, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug, Default)]
 pub struct PresetArgs {
     /// A preset to select; repeatable.
     #[arg(long = "preset", value_name = "NAME")]

@@ -28,6 +28,7 @@ use bunsen_app::{
         LogPolicy,
     },
 };
+use clap::ArgMatches;
 
 use crate::{
     chat::{
@@ -43,9 +44,8 @@ use crate::{
         choose_checkpoint,
         search_config,
     },
-    select::SelectArgs,
     support::{
-        PresetArgs,
+        ChooseArgs,
         with_patch,
         with_presets,
     },
@@ -66,15 +66,12 @@ pub struct ChatGenerateFlags {
     #[clap(flatten)]
     device: BackendArgs,
 
-    /// The checkpoint: a name `list` shows (or a prefix, group or kit of
-    /// them), a selection object, or `hf:org/repo`, a Qwen3 outside
-    /// `family`. The family's default when omitted; outside `family`, the
-    /// chosen checkpoint's family, and Qwen3's default is the default.
+    /// The checkpoint, chosen among the family's builds (outside `family`,
+    /// every chat family's) by `--model` and the stage flags, the presets
+    /// keeping only the builds that offer them. The family's default when
+    /// nothing is named; an `hf:org/repo` outside `family` is a Qwen3.
     #[clap(flatten)]
-    select: SelectArgs,
-
-    #[clap(flatten)]
-    presets: PresetArgs,
+    choose: ChooseArgs,
 
     /// A system prompt.
     #[arg(long)]
@@ -142,14 +139,23 @@ impl ChatKvStorage {
 }
 
 impl ChatGenerateFlags {
-    /// The checkpoint these flags choose, and its family: within `family`
-    /// (its default when `--select` is not given), or outside `family`
-    /// across every family ([`choose_checkpoint`]).
+    /// The checkpoint these flags choose, with `presets` (the family flags'
+    /// own, such as `--think`'s) among the presets, its family, and every
+    /// preset to apply: within `family` (its default when nothing is named),
+    /// or outside `family` across every family ([`choose_checkpoint`]).
+    /// `matches` are the command's own, for the stage flags' order.
     pub(super) fn checkpoint(
         &self,
         family: Option<ChatModelFamily>,
-    ) -> BunsenResult<(ChatModelFamily, String)> {
-        choose_checkpoint(family, &self.select.select, &self.presets.presets)
+        presets: &[(&str, &str)],
+        matches: &ArgMatches,
+    ) -> BunsenResult<(ChatModelFamily, String, Vec<String>)> {
+        let mut flags = self.choose.flags(matches)?;
+        for (preset, flag) in presets {
+            flags = flags.with_preset(*preset, *flag);
+        }
+        let (family, name) = choose_checkpoint(family, &self.choose.model, &flags)?;
+        Ok((family, name, flags.presets.presets))
     }
 
     /// Opens the device, and loads the checkpoint on it: `family`'s, or
@@ -159,7 +165,8 @@ impl ChatGenerateFlags {
     pub(super) fn load(
         &self,
         family: Option<ChatModelFamily>,
-        presets: &[&str],
+        presets: &[(&str, &str)],
+        matches: &ArgMatches,
     ) -> BunsenResult<(DeviceSession, LoadedChat, String)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
@@ -168,14 +175,12 @@ impl ChatGenerateFlags {
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
-        let (family, name) = self.checkpoint(family)?;
-        let mut name = self.presets.apply(&name)?;
-        // nanochat has no thinking switch: the flags select only Qwen3's
-        // presets.
-        if family == ChatModelFamily::Qwen3 && !presets.is_empty() {
-            name = with_presets(&name, presets)?;
+        let (family, mut name, presets) = self.checkpoint(family, presets, matches)?;
+        if !presets.is_empty() {
+            let presets: Vec<&str> = presets.iter().map(String::as_str).collect();
+            name = with_presets(&name, &presets)?;
         }
-        if let Some(patch) = self.select.patch()? {
+        if let Some(patch) = self.choose.patch()? {
             name = with_patch(&name, &patch)?;
         }
         let chat = family.load(&name, &cache, &device)?;
@@ -369,7 +374,10 @@ mod tests {
         nanochat::pretrained::DEFAULT_NANOCHAT_MODEL,
         qwen3::pretrained::DEFAULT_QWEN3_MODEL,
     };
-    use clap::Parser;
+    use clap::{
+        CommandFactory,
+        FromArgMatches,
+    };
 
     use super::*;
 
@@ -401,17 +409,50 @@ mod tests {
     /// it, Qwen3's.
     #[test]
     fn test_checkpoint() {
-        let Args { flags } = Args::try_parse_from(["run"]).unwrap();
+        let matches = Args::command().try_get_matches_from(["run"]).unwrap();
+        let Args { flags } = Args::from_arg_matches(&matches).unwrap();
         assert_eq!(
-            flags.checkpoint(None).unwrap(),
-            (ChatModelFamily::Qwen3, DEFAULT_QWEN3_MODEL.to_string())
+            flags.checkpoint(None, &[], &matches).unwrap(),
+            (
+                ChatModelFamily::Qwen3,
+                DEFAULT_QWEN3_MODEL.to_string(),
+                Vec::new()
+            )
         );
         assert_eq!(
-            flags.checkpoint(Some(ChatModelFamily::NanoChat)).unwrap(),
+            flags
+                .checkpoint(Some(ChatModelFamily::NanoChat), &[], &matches)
+                .unwrap(),
             (
                 ChatModelFamily::NanoChat,
-                DEFAULT_NANOCHAT_MODEL.to_string()
+                DEFAULT_NANOCHAT_MODEL.to_string(),
+                Vec::new()
             )
+        );
+    }
+
+    /// A family flag's preset (`--think`'s) chooses among the builds that
+    /// offer it and reaches the load for every family that has it, Qwen3.5's
+    /// as well as Qwen3's (#673); a family without it chooses nothing.
+    #[test]
+    fn test_family_presets_choose_and_load() {
+        let matches = Args::command().try_get_matches_from(["run"]).unwrap();
+        let Args { flags } = Args::from_arg_matches(&matches).unwrap();
+        let think = [("thinking", "--think")];
+        let no_think = [("no-thinking", "--no-think")];
+
+        let (family, _, presets) = flags
+            .checkpoint(Some(ChatModelFamily::Qwen3_5), &think, &matches)
+            .unwrap();
+        assert_eq!(family, ChatModelFamily::Qwen3_5);
+        assert_eq!(presets, ["thinking"]);
+        let (family, _, presets) = flags.checkpoint(None, &no_think, &matches).unwrap();
+        assert_eq!(family, ChatModelFamily::Qwen3);
+        assert_eq!(presets, ["no-thinking"]);
+        assert!(
+            flags
+                .checkpoint(Some(ChatModelFamily::NanoChat), &think, &matches)
+                .is_err()
         );
     }
 }

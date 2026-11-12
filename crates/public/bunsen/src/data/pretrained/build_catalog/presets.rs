@@ -16,6 +16,7 @@
 //! fixed mode.
 
 use alloc::collections::BTreeSet;
+use core::fmt;
 
 use serde_json::Value;
 
@@ -129,7 +130,11 @@ pub struct ResolvedPresetSet {
 
 /// What [`ResolvedPresetSet::select`] asks for: preset names, and a final
 /// patch.
-#[derive(Clone, Debug, Default, PartialEq)]
+///
+/// `Display` writes it as a lookup expression's tail: the box, then the
+/// patch as a YAML flow mapping, each only when present
+/// (`[thinking,yarn-128k]{beam: 1}`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PresetSelection {
     /// The presets selected.
     pub presets: Vec<String>,
@@ -149,6 +154,101 @@ impl PresetSelection {
             patch: None,
         }
     }
+
+    /// Sets the final patch.
+    pub fn with_patch(
+        mut self,
+        patch: Value,
+    ) -> Self {
+        self.patch = Some(patch);
+        self
+    }
+
+    /// Whether it selects nothing and patches nothing.
+    pub fn is_empty(&self) -> bool {
+        self.presets.is_empty() && self.patch.is_none()
+    }
+}
+
+impl fmt::Display for PresetSelection {
+    /// The selection as a lookup expression's tail: the box, `[a,b]`, then
+    /// the patch as a YAML flow mapping, `{beam_size: 5, language: de}`,
+    /// which parses back to the same selection.
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        if !self.presets.is_empty() {
+            write!(f, "[{}]", self.presets.join(","))?;
+        }
+        if let Some(patch) = &self.patch {
+            write_flow(f, patch)?;
+        }
+        Ok(())
+    }
+}
+
+/// `value` in YAML's flow style: `{key: value, ...}` and `[item, ...]`,
+/// each string plain where YAML reads it back as that string
+/// ([`is_plain`]), and double-quoted, with JSON's escapes, where not.
+fn write_flow(
+    f: &mut fmt::Formatter<'_>,
+    value: &Value,
+) -> fmt::Result {
+    match value {
+        Value::Object(entries) => {
+            f.write_str("{")?;
+            for (i, (key, value)) in entries.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                write_flow_str(f, key)?;
+                f.write_str(": ")?;
+                write_flow(f, value)?;
+            }
+            f.write_str("}")
+        }
+        Value::Array(items) => {
+            f.write_str("[")?;
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    f.write_str(", ")?;
+                }
+                write_flow(f, item)?;
+            }
+            f.write_str("]")
+        }
+        Value::String(s) => write_flow_str(f, s),
+        // Null, booleans and numbers write the same in YAML as in JSON.
+        other => write!(f, "{other}"),
+    }
+}
+
+fn write_flow_str(
+    f: &mut fmt::Formatter<'_>,
+    s: &str,
+) -> fmt::Result {
+    if is_plain(s) {
+        f.write_str(s)
+    } else {
+        write!(f, "{}", Value::String(s.to_string()))
+    }
+}
+
+/// Whether YAML reads `s`, unquoted in a flow collection, back as the
+/// string `s`: it starts with a letter or `_`, holds only letters, digits,
+/// `_`, `-`, `.` and `/`, and is none of the words a YAML reader may take
+/// for a boolean, a null or a special float, in any case.
+fn is_plain(s: &str) -> bool {
+    const WORDS: [&str; 12] = [
+        "true", "false", "null", "yes", "no", "on", "off", "y", "n", "nan", "inf", "infinity",
+    ];
+    let mut chars = s.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/'))
+        && !WORDS.iter().any(|w| w.eq_ignore_ascii_case(s))
 }
 
 /// A resolved document, and what resolved it.
@@ -683,6 +783,19 @@ mod tests {
 
     use super::*;
     use crate::data::pretrained::build_catalog::document::AxisUse;
+
+    #[test]
+    fn test_selection_display() {
+        assert_eq!(PresetSelection::default().to_string(), "");
+        assert!(PresetSelection::default().is_empty());
+        let s = PresetSelection::of(["a", "b"]).with_patch(json!({"beam": 1}));
+        assert!(!s.is_empty());
+        assert_eq!(s.to_string(), "[a,b]{beam: 1}");
+        assert_eq!(
+            PresetSelection::default().with_patch(json!({})).to_string(),
+            "{}"
+        );
+    }
 
     fn thinking() -> AxisInfo {
         AxisInfo {

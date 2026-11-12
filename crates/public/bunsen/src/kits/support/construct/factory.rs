@@ -71,7 +71,7 @@ use crate::{
 /// found before anything is fetched: a kit whose hook does not resolve
 /// presets ([`ConstructInit::RESOLVES_PRESETS`]) refuses them, and one that
 /// does checks the box against the row's presets
-/// ([`PresetSet::check_selection`](crate::data::pretrained::PresetSet::check_selection)).
+/// ([`ResolvedPresetSet::check_selection`](crate::data::pretrained::ResolvedPresetSet::check_selection)).
 /// The selection rides on the ref ([`PretrainedRef::selection`]) to the
 /// hook, which resolves its config through it.
 ///
@@ -365,7 +365,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
             return Ok(());
         }
         row.presets
-            .check_selection(&selection.to_catalog_selection())
+            .check_selection(selection)
             .with_context(|| format!("the presets of {:?}", row.name))?;
         Ok(())
     }
@@ -1162,21 +1162,23 @@ mod tests {
     #[test]
     fn test_a_selection_is_checked_against_the_row() {
         use crate::data::pretrained::{
-            Preset,
-            PresetSet,
+            ResolvedPresetSet,
+            build_catalog::document::{
+                MergeMode,
+                PresetEntry,
+            },
         };
 
         let mut small = row("small", &[], "small");
-        small.presets = PresetSet {
-            presets: vec![Preset {
+        small.presets = ResolvedPresetSet {
+            presets: vec![PresetEntry {
                 name: "fast".to_string(),
+                merge: MergeMode::Update,
                 description: "a greedy search".to_string(),
                 patch: serde_json::json!({"beam": 1}),
             }],
             ..Default::default()
-        }
-        .to_resolved()
-        .unwrap();
+        };
         let factory = PretrainedFactory::<PresetPath>::new()
             .with_providers([table(WELL_KNOWN, vec![group("a", vec![small])])])
             .unwrap();

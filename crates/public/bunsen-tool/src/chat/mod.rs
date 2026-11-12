@@ -24,10 +24,10 @@
 //!   through its tokenizer, and upstream's conversation layout, as upstream
 //!   renders it.
 //!
-//! - [`choose_checkpoint`]: the checkpoint a command chooses, by its
-//!   `--select`s and `--preset`s, among every family's listed checkpoints (or
-//!   one family's), each a selection candidate tagged with its family
-//!   ([`chat_selection`]: the defaults, and each family's `default`).
+//! - [`choose_checkpoint`]: the checkpoint a command chooses, by its `--model`s
+//!   and its stage and preset flags, among every family's builds in the
+//!   built-in catalog (or one family's) ([`chat_selection`]: the defaults, and
+//!   each family's `default`).
 //!
 //! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `repl` take
 //! a checkpoint of any family by its name; `family qwen3`, `family gemma`

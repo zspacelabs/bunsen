@@ -4,6 +4,7 @@ mod chat_kit_command_group;
 
 use bunsen::errors::BunsenResult;
 pub use chat_kit_command_group::*;
+use clap::ArgMatches;
 
 use crate::chat::{
     ChatModelFamily,
@@ -45,12 +46,16 @@ pub enum ChatFamilySubCommand {
 }
 
 impl ChatFamilyCommandGroup {
-    pub fn run(&self) -> BunsenResult<()> {
+    /// Runs the family's command; `matches` are the leaf command's own.
+    pub fn run(
+        &self,
+        matches: &ArgMatches,
+    ) -> BunsenResult<()> {
         match &self.family {
-            ChatFamilySubCommand::Qwen3(cmd) => cmd.run(ChatModelFamily::Qwen3),
-            ChatFamilySubCommand::Qwen3_5(cmd) => cmd.run(ChatModelFamily::Qwen3_5),
-            ChatFamilySubCommand::Gemma(cmd) => cmd.run(ChatModelFamily::Gemma),
-            ChatFamilySubCommand::NanoChat(cmd) => cmd.run(ChatModelFamily::NanoChat),
+            ChatFamilySubCommand::Qwen3(cmd) => cmd.run(ChatModelFamily::Qwen3, matches),
+            ChatFamilySubCommand::Qwen3_5(cmd) => cmd.run(ChatModelFamily::Qwen3_5, matches),
+            ChatFamilySubCommand::Gemma(cmd) => cmd.run(ChatModelFamily::Gemma, matches),
+            ChatFamilySubCommand::NanoChat(cmd) => cmd.run(ChatModelFamily::NanoChat, matches),
         }
     }
 }

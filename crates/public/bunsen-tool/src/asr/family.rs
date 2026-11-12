@@ -32,7 +32,6 @@ use bunsen::{
                     ParakeetConstruct,
                     pretrained::{
                         DEFAULT_PARAKEET_MODEL,
-                        PARAKEET_KIT,
                         default_parakeet_factory,
                     },
                 },
@@ -40,7 +39,6 @@ use bunsen::{
                     Qwen3AsrConstruct,
                     pretrained::{
                         DEFAULT_QWEN3_ASR_MODEL,
-                        QWEN3_ASR_KIT,
                         default_qwen3_asr_factory,
                     },
                 },
@@ -48,21 +46,16 @@ use bunsen::{
                     VoxtralConstruct,
                     pretrained::{
                         DEFAULT_VOXTRAL_MODEL,
-                        VOXTRAL_KIT,
                         default_voxtral_factory,
                     },
                 },
                 whisper::{
                     driver::WhisperConstruct,
-                    pretrained::{
-                        WHISPER_KIT,
-                        default_whisper_factory,
-                    },
+                    pretrained::default_whisper_factory,
                 },
             },
             diarization::sortformer::pretrained::{
                 DEFAULT_SORTFORMER_MODEL,
-                SORTFORMER_KIT,
                 default_sortformer_factory,
             },
         },
@@ -189,16 +182,6 @@ impl Family {
         }
     }
 
-    /// The kit's segment of the pretrained cache.
-    pub fn cache_kit(self) -> &'static str {
-        match self {
-            Family::Parakeet => PARAKEET_KIT,
-            Family::Qwen3Asr => QWEN3_ASR_KIT,
-            Family::Voxtral => VOXTRAL_KIT,
-            Family::Whisper => WHISPER_KIT,
-        }
-    }
-
     /// Loads `spec` through `cache`, and logs its info card at `INFO`:
     /// a row of the family's factory, or for Whisper a checkpoint's path,
     /// with `flags`' `--vocab` over it.
@@ -248,14 +231,6 @@ impl Kit {
         match self {
             Kit::Asr(family) => family.default_model(),
             Kit::Diarizer => DEFAULT_SORTFORMER_MODEL,
-        }
-    }
-
-    /// The kit's segment of the pretrained cache.
-    pub fn cache_kit(self) -> &'static str {
-        match self {
-            Kit::Asr(family) => family.cache_kit(),
-            Kit::Diarizer => SORTFORMER_KIT,
         }
     }
 

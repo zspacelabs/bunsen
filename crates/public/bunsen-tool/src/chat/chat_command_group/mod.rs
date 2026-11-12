@@ -14,6 +14,7 @@ pub use chat_generate_flags::*;
 pub use chat_list::*;
 pub use chat_repl::*;
 pub use chat_run::*;
+use clap::ArgMatches;
 
 use crate::chat::{
     ChatModelFamily,
@@ -62,13 +63,18 @@ enum ChatSubCommand {
 }
 
 impl ChatCommandGroup {
-    pub fn run(&self) -> BunsenResult<()> {
+    /// Runs the command; `matches` are the leaf command's own, for the
+    /// stage flags' order.
+    pub fn run(
+        &self,
+        matches: &ArgMatches,
+    ) -> BunsenResult<()> {
         match &self.command {
             ChatSubCommand::List(cmd) => cmd.run(&ChatModelFamily::ALL),
             ChatSubCommand::Fetch(cmd) => cmd.run(None),
-            ChatSubCommand::Run(cmd) => cmd.run(None),
-            ChatSubCommand::Repl(cmd) => cmd.run(None),
-            ChatSubCommand::Family(cmd) => cmd.run(),
+            ChatSubCommand::Run(cmd) => cmd.run(None, matches),
+            ChatSubCommand::Repl(cmd) => cmd.run(None, matches),
+            ChatSubCommand::Family(cmd) => cmd.run(matches),
         }
     }
 }

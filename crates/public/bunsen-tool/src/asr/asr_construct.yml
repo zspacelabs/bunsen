@@ -2,19 +2,21 @@
 # by what the speech is for rather than which model does it. Embedded in the
 # binary and read once (`construct::catalog`).
 #
-# A model is chosen by selection (`bunsen_tool::select`) among every speech
-# family's rows, by their tags (`language`, `translate`, `parameters`,
-# `scores: {wer.en}`), each candidate also carrying the fields the construct
-# derives: `wer.en` (lifted from `scores`) and `multilingual` (a `language` of
-# more than one tag, or `"*"`).
+# A model is chosen by the built-in catalog's selection pipeline among every
+# speech family's builds, by their tags (`language`, `translate`, `parameters`,
+# `scores`), each build also carrying the keys the construct derives:
+# `$wer_en` (`scores`' `wer.en`) and `$multilingual` (a `language` of more
+# than one tag, or `"*"`).
 #
 # - `axes`: what a need is, each with what it decides.
 # - `presets`: names for the needs people ask for (`--preset`), each a need and
-#   the selection that chooses its model; `default` is an alias, so what it
-#   means can change.
-# - `selection`: the defaults every preset's selection merges over.
-# - `qualities` and `modes`: what `--quality` and the mode (`live`) add to the
-#   selection, merged over it: a cap on the model's size where speed matters.
+#   the stages that choose its model; `default` is an alias, so what it means
+#   can change.
+# - `selection`: the default stages every preset's follow.
+# - `order`: the last stage's order, after everything else.
+# - `qualities` and `modes`: what `--quality` and the mode (`live`) add: stages
+#   (`run`; a cap on the model's size where speed matters), or an `order` in
+#   place of the default's.
 # - `implications`: a need that is served as another.
 # - `engines`: what a family's engine takes from the command line; a family
 #   not named finds the language itself and only transcribes.
@@ -51,33 +53,35 @@ presets:
     aliases: [default]
     description: "English: NVIDIA's Parakeet TDT, as FermionResearch's Phonon-2; each word timed"
     need: { speech: en, task: transcribe, quality: balanced }
-    selection: { require: { language: en } }
+    selection: [{ keep: { language: en } }]
   - name: multi
     description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR (1.7B; 0.6B live)"
     need: { speech: multi, task: transcribe, quality: balanced }
-    selection: { require: { multilingual: true } }
+    selection: [{ keep: { $multilingual: true } }]
   - name: translate-en
     description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper
       (large-v3-turbo was not trained to translate)"
     need: { speech: multi, task: translate, quality: balanced }
-    selection: { require: { translate: true } }
+    selection: [{ keep: { translate: true } }]
 
 selection:
-  # The newest of each release sequence; the lowest published English error
-  # rate first, a model without one after those with.
-  latest: true
-  order: [-weight, wer.en]
+  # Each release sequence's newest, weighted first.
+  - { weigh: { by: [{ release: latest }] }, as: latest }
+
+# The heaviest first; then the lowest published English error rate, a model
+# without one after those with; then the smallest.
+order: [{ desc: $weight }, { asc: $wer_en }, { asc: parameters }]
 
 qualities:
   # Less compute: no model above 1B parameters.
-  fast: { require: { parameters: { max: 1.0e9 } } }
+  fast: { run: [{ keep: { parameters: { le: 1.0e9 } } }] }
   # More compute: the larger first among equals.
-  good: { order: [-weight, wer.en, -parameters] }
+  good: { order: [{ desc: $weight }, { asc: $wer_en }, { desc: parameters }] }
 
 modes:
   # Keeping up with the microphone: no model above 1B parameters (Qwen3-ASR-1.7B
   # takes about 2.5x the 0.6B's time, too slow to keep up live).
-  live: { require: { parameters: { max: 1.0e9 } } }
+  live: { run: [{ keep: { parameters: { le: 1.0e9 } } }] }
 
 implications:
   # Translating English to English is out of every model's training, and

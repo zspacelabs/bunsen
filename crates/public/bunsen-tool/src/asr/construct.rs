@@ -6,9 +6,26 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::{
-        selection::SelectionCandidate,
-        tags::LANGUAGE,
+    data::pretrained::build_catalog::{
+        CatalogErrorExt,
+        CatalogName,
+        resolve::ResolvedBuild,
+        select::{
+            choose::{
+                SelectRequest,
+                SelectionContext,
+            },
+            query::{
+                LabeledStage,
+                SortKeys,
+                Stage,
+            },
+            state::{
+                DeriveTags,
+                DerivedKey,
+                SelectEnv,
+            },
+        },
     },
     errors::{
         BunsenError,
@@ -34,8 +51,11 @@ use crate::{
         Streaming,
         VadArgs,
     },
-    select::SelectionContext,
-    support::with_patch,
+    support::{
+        builtin_catalog,
+        log_choice,
+        with_patch,
+    },
 };
 
 /// Which of a preset's recipes a command runs.
@@ -232,10 +252,23 @@ pub struct AsrPreset {
     pub description: String,
     pub need: Need,
 
-    /// The selection that chooses its model, a selection expression's object
-    /// (`{require: {language: en}}`), merged over the table's
-    /// [`selection`](AsrConstructConfig::selection).
-    pub selection: Value,
+    /// The stages that choose its model (`[{keep: {language: en}}]`), after
+    /// the table's [`selection`](AsrConstructConfig::selection).
+    pub selection: Vec<LabeledStage>,
+}
+
+/// What a quality or a mode adds to a preset's choice: stages, and an order
+/// that replaces the table's [`order`](AsrConstructConfig::order).
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SelectionPart {
+    /// Stages, after the preset's.
+    #[serde(default)]
+    pub run: Vec<LabeledStage>,
+
+    /// The last stage's order, in place of the table's.
+    #[serde(default)]
+    pub order: Option<SortKeys>,
 }
 
 impl AsrPreset {
@@ -473,17 +506,21 @@ pub struct AsrConstructConfig {
     pub axes: Vec<Axis>,
     pub presets: Vec<AsrPreset>,
 
-    /// The defaults every preset's selection merges over.
-    pub selection: Value,
+    /// The defaults every preset's stages follow.
+    pub selection: Vec<LabeledStage>,
 
-    /// What `--quality` adds to the selection, by quality; none for one not
+    /// The last stage's order, after everything a need and the mode add,
+    /// unless a quality or the mode replaces it.
+    pub order: SortKeys,
+
+    /// What `--quality` adds to the choice, by quality; none for one not
     /// named.
     #[serde(default)]
-    pub qualities: BTreeMap<Quality, Value>,
+    pub qualities: BTreeMap<Quality, SelectionPart>,
 
-    /// What the mode adds to the selection, by mode; none for one not named.
+    /// What the mode adds to the choice, by mode; none for one not named.
     #[serde(default)]
-    pub modes: BTreeMap<Mode, Value>,
+    pub modes: BTreeMap<Mode, SelectionPart>,
 
     pub implications: Vec<Implication>,
 
@@ -531,17 +568,19 @@ impl AsrConstructConfig {
     }
 
     /// The recipe that serves `need` (settled) with `preset`'s selection, in
-    /// `mode`: the model chosen among every speech family's rows
-    /// ([`asr_candidates`]) by the table's [`selection`](Self::selection),
-    /// then `preset`'s, then what `need`'s quality and `mode` add
-    /// ([`qualities`](Self::qualities), [`modes`](Self::modes)), a
-    /// translator required for a need that translates, and `language`
-    /// preferred where it is given; the chosen row run by its family's
-    /// recipe for `mode`, its patch over the model. The choice, and why, is
-    /// logged at `INFO`.
+    /// `mode`: the model chosen among every speech family's builds
+    /// ([`asr_builds`]) by a pipeline: the table's
+    /// [`selection`](Self::selection), then `preset`'s stages, then what
+    /// `need`'s quality and `mode` add ([`qualities`](Self::qualities),
+    /// [`modes`](Self::modes)), a translator kept for a need that translates,
+    /// `language` weighed where it is given, and the order last
+    /// ([`order`](Self::order), or a quality's or the mode's); the chosen build
+    /// run by its family's recipe for `mode`, its patch over the model. The
+    /// choice, and why, is logged at `INFO`.
     ///
     /// # Errors
-    /// As [`SelectionContext::choose_parsed`] and [`asr_candidates`];
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when no build is
+    /// left, naming the stages that removed them; as [`asr_builds`];
     /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
     /// for a chosen family the table has no recipe for.
     pub fn pick(
@@ -551,25 +590,55 @@ impl AsrConstructConfig {
         mode: Mode,
         language: Option<&str>,
     ) -> BunsenResult<AsrRecipe> {
-        let mut objects = vec![preset.selection.clone()];
-        objects.extend(self.qualities.get(&need.quality).cloned());
-        objects.extend(self.modes.get(&mode).cloned());
+        let quality = self.qualities.get(&need.quality);
+        let in_mode = self.modes.get(&mode);
+        let mut stages: Vec<LabeledStage> = preset.selection.clone();
+        for part in [quality, in_mode].into_iter().flatten() {
+            stages.extend(part.run.iter().cloned());
+        }
         if need.task == Task::Translate {
-            objects.push(json!({"require": {"translate": true}}));
+            stages.push(stage(json!({"keep": {"translate": true}})));
         }
         if let Some(language) = language {
-            objects.push(json!({"prefer": [{LANGUAGE.key: language, "otherwise": 0.8}]}));
+            stages.push(stage(
+                json!({"weigh": {"by": [{"match": {"language": language}, "else": 0.8}]}}),
+            ));
         }
+        let order = [in_mode, quality]
+            .into_iter()
+            .flatten()
+            .find_map(|part| part.order.clone())
+            .unwrap_or_else(|| self.order.clone());
+        stages.push(Stage::Order(order).into());
+
+        let builds = asr_builds()?;
+        let universe: Vec<CatalogName> = builds.iter().map(|(name, _)| name.clone()).collect();
+        let stack = builtin_catalog()?;
+        let steps: Vec<&dyn DeriveTags> = vec![&SpeechTags];
+        let env = SelectEnv::with_derive(&stack, steps)
+            .map_err(|e| BunsenError::policy(e.problem_message()))?;
         let context = SelectionContext {
             defaults: self.selection.clone(),
             named: Vec::new(),
         };
-        let choice = context.choose_parsed(asr_candidates()?, None, objects, &[])?;
-        let family = choice
-            .candidate
-            .text(ASR_FAMILY_TAG)
-            .and_then(Family::from_name)
-            .expect("every speech candidate is tagged with its family");
+        let mut request = SelectRequest::default();
+        for labeled in stages {
+            request.stages.push(
+                bunsen::data::pretrained::build_catalog::select::choose::OriginStage::labeled(
+                    labeled,
+                    bunsen::data::pretrained::build_catalog::select::state::StageOrigin::Query,
+                ),
+            );
+        }
+        let (chosen, run) = context
+            .choose(&env, Some(&universe), None, &request)
+            .map_err(|e| BunsenError::policy(e.problem_message()))?;
+        let name = chosen.build.name.clone();
+        let family = builds
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, f)| *f)
+            .expect("the choice is one of the universe's builds");
         let recipe = self.recipes.get(&family).ok_or_else(|| {
             BunsenError::invalid_resource(format!(
                 "the ASR table has no recipe for {}",
@@ -577,16 +646,12 @@ impl AsrConstructConfig {
             ))
         })?;
         let recipe = recipe.get(mode);
-        let mut model = choice.candidate.pretrained.name.clone();
+        let mut model = name.to_string();
         if let Some(patch) = &recipe.patch {
             model = with_patch(&model, patch)?;
         }
-        log::info!(
-            "preset {} ({need}, {}): {}",
-            preset.name,
-            mode.command(),
-            choice.why
-        );
+        log::info!("preset {} ({need}, {})", preset.name, mode.command());
+        log_choice(&model, &run);
         Ok(AsrRecipe {
             engine: EngineSlot { family, model },
             emission: recipe.emission,
@@ -595,39 +660,77 @@ impl AsrConstructConfig {
     }
 }
 
-/// The tag each speech candidate carries, set when it is built: the name of
-/// its family ([`Family::name`]).
-pub const ASR_FAMILY_TAG: &str = "asr.family";
+/// A stage, from its YAML form.
+fn stage(value: Value) -> LabeledStage {
+    serde_json::from_value(value).expect("the construct's own stages are stages")
+}
 
-/// Every speech family's listed rows, as selection candidates: each tagged
-/// with its family ([`ASR_FAMILY_TAG`]), and with the fields the construct
-/// derives from its tags: `wer.en` (lifted from its `scores`, so `order` can
-/// read it) and `multilingual` (a `language` of more than one tag, or `"*"`).
+/// The keys the construct derives for each speech build, beyond the
+/// catalog's tags: `$wer_en`, the published English error rate (lifted from
+/// its `scores`' `wer.en`, so an order can read it), and `$multilingual`, a
+/// `language` of more than one tag, or `"*"`.
+pub struct SpeechTags;
+
+impl SpeechTags {
+    /// The derived tags of `build`.
+    pub fn of(build: &ResolvedBuild) -> BTreeMap<String, Value> {
+        let mut tags = BTreeMap::new();
+        if let Some(wer) = build
+            .tag("scores")
+            .and_then(|s| s.get("wer.en"))
+            .and_then(Value::as_f64)
+        {
+            tags.insert("wer_en".to_string(), json!(wer));
+        }
+        let multilingual = build
+            .tag("language")
+            .and_then(Value::as_array)
+            .is_some_and(|tags| tags.len() > 1 || tags.iter().any(|t| t == "*"));
+        tags.insert("multilingual".to_string(), json!(multilingual));
+        tags
+    }
+}
+
+impl DeriveTags for SpeechTags {
+    fn keys(&self) -> Vec<DerivedKey> {
+        vec![
+            DerivedKey {
+                name: "wer_en".to_string(),
+                description: "the published English word error rate, from `scores`".to_string(),
+            },
+            DerivedKey {
+                name: "multilingual".to_string(),
+                description: "more than one language, or `*`".to_string(),
+            },
+        ]
+    }
+
+    fn tags(
+        &self,
+        build: &ResolvedBuild,
+    ) -> BTreeMap<String, Value> {
+        Self::of(build)
+    }
+}
+
+/// Every speech family's listed builds, by full name, each with its family:
+/// what the presets choose among.
 ///
 /// # Errors
-/// As [`Kit::listing`].
-pub fn asr_candidates() -> BunsenResult<Vec<SelectionCandidate>> {
-    let mut candidates = Vec::new();
+/// As [`Kit::listing`], and
+/// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) for a row whose name
+/// is not a catalog name.
+pub fn asr_builds() -> BunsenResult<Vec<(CatalogName, Family)>> {
+    let mut builds = Vec::new();
     for family in Family::ALL {
         for (_, row) in Kit::Asr(family).listing()?.rows {
-            let mut candidate =
-                SelectionCandidate::new(row).with_tag(ASR_FAMILY_TAG, family.name());
-            if let Some(wer) = candidate
-                .get("scores")
-                .and_then(|s| s.get("wer.en"))
-                .and_then(Value::as_f64)
-            {
-                candidate = candidate.with_tag("wer.en", wer);
-            }
-            let multilingual = candidate
-                .get(LANGUAGE)
-                .and_then(Value::as_array)
-                .is_some_and(|tags| tags.len() > 1 || tags.iter().any(|t| t == "*"));
-            candidate = candidate.with_tag("multilingual", multilingual);
-            candidates.push(candidate);
+            let name = CatalogName::parse(&row.name).map_err(|e| {
+                BunsenError::illegal(format!("`{}`: {}", row.name, e.problem_message()))
+            })?;
+            builds.push((name, family));
         }
     }
-    Ok(candidates)
+    Ok(builds)
 }
 
 /// The preset `--preset` names when it is not given: an alias, so what it
@@ -966,25 +1069,32 @@ mod tests {
         assert_ne!(recipe.engine.family, Family::Parakeet);
     }
 
-    /// Every speech candidate carries its family, and the fields the
-    /// construct derives.
+    /// Every speech build has its family, and the keys the construct
+    /// derives: the published English error rate, and whether it is
+    /// multilingual.
     #[test]
-    fn test_candidates() {
-        let candidates = asr_candidates().unwrap();
-        let find = |name: &str| {
-            candidates
+    fn test_builds_and_derived_keys() {
+        let builds = asr_builds().unwrap();
+        let family = |name: &str| {
+            builds
                 .iter()
-                .find(|c| c.pretrained.name == name)
+                .find(|(n, _)| n.to_string() == name)
+                .map(|(_, f)| *f)
                 .unwrap_or_else(|| panic!("{name}"))
         };
-        let phonon = find("fermion/phonon-2");
-        assert_eq!(phonon.text(ASR_FAMILY_TAG), Some("parakeet"));
-        assert_eq!(phonon.number("wer.en"), Some(5.21));
-        assert!(!phonon.is_true("multilingual"));
-        let qwen = find("qwen/qwen3-asr-1.7b");
-        assert!(qwen.is_true("multilingual"));
-        assert_eq!(find("openai/whisper/tiny").number("wer.en"), None);
-        assert!(candidates.iter().all(|c| c.text(ASR_FAMILY_TAG).is_some()));
+        assert_eq!(family("fermion/phonon-2"), Family::Parakeet);
+        assert_eq!(family("openai/whisper/tiny"), Family::Whisper);
+
+        let stack = builtin_catalog().unwrap();
+        let tags = |name: &str| {
+            let name = CatalogName::parse(name).unwrap();
+            SpeechTags::of(&stack.resolve_build(&name).unwrap())
+        };
+        let phonon = tags("fermion/phonon-2");
+        assert_eq!(phonon["wer_en"], 5.21);
+        assert_eq!(phonon["multilingual"], false);
+        assert_eq!(tags("qwen/qwen3-asr-1.7b")["multilingual"], true);
+        assert!(!tags("openai/whisper/tiny").contains_key("wer_en"));
     }
 
     /// The model's selection, parsed: its box and its patch.

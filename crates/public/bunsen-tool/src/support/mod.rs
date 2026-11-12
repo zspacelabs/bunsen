@@ -3,6 +3,7 @@
 //! ([`print_model_row`]), the `--preset` flags, the `--format` choice
 //! ([`Format`]), and "did you mean?" on a failed lookup ([`did_you_mean`]).
 
+mod choose_args;
 pub mod did_you_mean;
 mod model_row;
 mod output_format;
@@ -16,6 +17,7 @@ use bunsen::{
     kits::support::construct::LookupExpr,
     support::merge_patch,
 };
+pub use choose_args::*;
 pub use model_row::*;
 pub use output_format::*;
 
@@ -155,32 +157,45 @@ mod tests {
     /// nothing.
     #[test]
     fn test_preset_lines() {
-        use bunsen::data::pretrained::{
-            Preset,
-            PresetAxis,
-            PresetSet,
+        use bunsen::data::pretrained::build_catalog::{
+            CatalogName,
+            document::{
+                AxisKind,
+                MergeMode,
+                PresetEntry,
+            },
+            presets::{
+                AxisInfo,
+                ResolvedAxisUse,
+            },
         };
-        let preset = |name: &str, description: &str| Preset {
+        let preset = |name: &str, description: &str| PresetEntry {
             name: name.to_string(),
+            merge: MergeMode::Update,
             description: description.to_string(),
             patch: serde_json::json!({}),
         };
-        let set = PresetSet {
+        let task = vec!["transcribe".to_string(), "translate".to_string()];
+        let set = ResolvedPresetSet {
             presets: vec![
                 preset("transcribe", "the speech's own language"),
                 preset("translate", "English"),
                 preset("loud", ""),
             ],
-            axes: vec![PresetAxis {
-                name: "task".to_string(),
-                description: "what to emit".to_string(),
-                members: vec!["transcribe".to_string(), "translate".to_string()],
+            axes: vec![ResolvedAxisUse {
+                axis: AxisInfo {
+                    name: CatalogName::root("task").unwrap(),
+                    kind: AxisKind::Categorical,
+                    members: task.clone(),
+                    description: "what to emit".to_string(),
+                },
+                offers: task,
+                default: "transcribe".to_string(),
             }],
-            default: vec!["transcribe".to_string()],
-            ..PresetSet::default()
+            ..ResolvedPresetSet::default()
         };
         assert_eq!(
-            preset_lines(&set.to_resolved().unwrap()),
+            preset_lines(&set),
             [
                 "  presets (`--preset NAME`, or the model's box: `NAME[PRESET,...]`):",
                 "    task: what to emit",

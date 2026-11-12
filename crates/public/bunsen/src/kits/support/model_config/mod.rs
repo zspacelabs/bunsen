@@ -8,7 +8,7 @@
 //!   of it, read field by field, each error naming the field's dotted path. The
 //!   kits' `hf:` readers map it onto their configs.
 //! - [`resolve_presets`]: a config resolved through a pretrained's presets
-//!   ([`PresetSet`](crate::data::pretrained::PresetSet)) as a
+//!   ([`ResolvedPresetSet`](crate::data::pretrained::ResolvedPresetSet)) as a
 //!   [`PresetSelection`](crate::data::pretrained::PresetSelection) asks: the
 //!   family's config, the row's default presets, the selected presets, then a
 //!   final patch, each a [merge patch](crate::support::merge_patch) over the
@@ -17,10 +17,10 @@
 //!   token cap, the template's kwargs), the call-time half of a chat family's
 //!   config, carried for a driver to read.
 //! - [`Probe`]s: readers of a pretrained's files that find its presets' values
-//!   ([`GenerationConfigProbe`], [`TokenizerConfigProbe`]), and
-//!   [`apply_probes`], which lays a catalog row's own presets over what its
-//!   probes find. The catalog builder (`cargo catalog`) runs them when it
-//!   builds the built-in catalog.
+//!   ([`GenerationConfigProbe`], [`TokenizerConfigProbe`]). What they find
+//!   accumulates ([`accumulate_probed`]). The catalog builder (`cargo catalog`)
+//!   runs them when it builds the built-in catalog, and [`probe_loaded`] runs
+//!   them over a checkpoint no catalog build describes.
 
 mod generation;
 mod presets;

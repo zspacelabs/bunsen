@@ -609,15 +609,16 @@ cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech mu
 
 | ASR preset | for | selects | `transcribe` runs | `live` runs |
 |---|---|---|---|---|
-| `en` (`default`) | English | `require: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
-| `multi` | many languages, found from the speech | `require: {multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
-| `translate-en` | other speech, as English text | `require: {translate: true}` | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/tiny[translate]{beam_size: 1}`, `conservative` |
+| `en` (`default`) | English | `keep: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
+| `multi` | many languages, found from the speech | `keep: {$multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
+| `translate-en` | other speech, as English text | `keep: {translate: true}` | `whisper` `openai/whisper/large/large-v3[translate]{beam_size: 5}` | `whisper` `openai/whisper/tiny[translate]{beam_size: 1}`, `conservative` |
 
-An ASR preset's selection chooses its model among every speech family's checkpoints, by their tags ([Choosing a
-model](#choosing-a-model)), over the table's own: the newest of a release group, then the lowest published English
-word error rate (`scores: {wer.en}`), a model without one after those with. `multilingual` is a checkpoint whose
-`language` lists more than one language, or `"*"`. `--quality fast` and `live` add `require: {parameters: {max: 1e9}}`,
-a model small enough to keep up; `--quality good` takes the larger among equals. The ASR presets are this binary's, and
+An ASR preset's stages choose its model among every speech family's builds, by their tags ([Choosing a
+model](#choosing-a-model)), after the table's own default (each release group's newest weighted first), and then the
+table's order: the heaviest, then the lowest published English word error rate (`$wer_en`, from `scores: {wer.en}`), a
+model without one after those with, then the smallest. `$multilingual` is a build whose `language` lists more than one
+language, or `"*"`. `--quality fast` and `live` add `keep: {parameters: {le: 1e9}}`, a model small enough to keep up;
+`--quality good` orders the larger first among equals. The ASR presets are this binary's, and
 improve with it: when a better model arrives, its tags choose it, and the command lines that name the ASR preset do not
 change. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
 command it runs, `-v` logs it before a run, and `transcribe --json` records `preset`, `need` (the point served:
@@ -925,23 +926,23 @@ or the end of input leaves), on the KV cache: each turn prefills only what the c
 ```sh
 bunsen-tool chat list [--urls]                       # every family's checkpoints, and what of each is cached
 bunsen-tool chat fetch NAME...                       # bring checkpoints into the cache
-bunsen-tool chat run  [--select NAME|{..}]... [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
-bunsen-tool chat repl [--select NAME|{..}]... [FLAGS]            # a conversation
+bunsen-tool chat run  [--model NAME]... [STAGES] [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
+bunsen-tool chat repl [--model NAME]... [STAGES] [FLAGS]            # a conversation
 bunsen-tool chat family (qwen3|gemma|nanochat) (list|fetch|run|repl) [FLAGS]   # one family's, its own default by default
 ```
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat repl --select qwen3-4b-instruct-2507 --stats
-cargo run --release -p bunsen-tool --features wgpu -- chat run --select gemma-3-270m-it "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat run --select '{require: {thinking: always}}' "Why is the sky blue?"
+cargo run --release -p bunsen-tool --features wgpu -- chat repl --model qwen3-4b-instruct-2507 --stats
+cargo run --release -p bunsen-tool --features wgpu -- chat run --model gemma-3-270m-it "What is the capital of France?"
+cargo run --release -p bunsen-tool --features wgpu -- chat run --model qwen --eq thinking always "Why is the sky blue?"
 cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
 cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda
 ```
 
-`--select` (`--model` is an alias) chooses the checkpoint, among every family's (one family's under `family`), by
-the rows' tags ([Choosing a model](#choosing-a-model)); outside `family`, the chosen checkpoint's family runs it, and
-Qwen3's default (`qwen/qwen3-0.6b`) is the default. An `hf:org/repo` is a Qwen3, or under `family` the family's.
+`--model` and the stage flags choose the checkpoint, among every family's builds (one family's under `family`), by
+their tags ([Choosing a model](#choosing-a-model)); outside `family`, the chosen checkpoint's family runs it, and
+Qwen3's default (`qwen/qwen3/qwen3-0.6b`) is the default. An `hf:org/repo` is a Qwen3, or under `family` the family's.
 The families:
 
 | family | checkpoints | default |
@@ -950,7 +951,9 @@ The families:
 | `gemma` | Google's Gemma 1, 2 and 3 text models by name (`gemma-3-{270m,1b,4b}`, `gemma-2-{2b,9b}`, `gemma-{2b,7b}`, each with its `-it` build), fetched from their `unsloth/` mirrors; under `family gemma`, `hf:org/repo` in a `transformers` Gemma's layout | `gemma/gemma-3-1b-it` |
 | `nanochat` | community checkpoints of upstream nanochat's 2025 and 2026 models (`nanochat-students/{base,mid,rl}-d20`, `nitishpandey04/nanochat-d18-{base,sft}`) | `nanochat-students/rl-d20` |
 
-Each family takes only the flags that apply to it: thinking (`--think`, `--no-think`, `--show-thinking`) is Qwen3's.
+Each family takes only the flags that apply to it: thinking (`--think`, `--no-think`, `--show-thinking`) is Qwen3's
+and Qwen3.5's. `--think` and `--no-think` are `--on thinking` and `--off thinking`: they keep only the checkpoints
+that offer the preset, and apply it to the one chosen.
 Sampling follows the checkpoint's generation defaults; `--greedy`, `--temperature`, `--top-k`, `--top-p` and `--seed`
 override them. A checkpoint loads at the precision it ships in where the device accelerates it, else in f32: Qwen3's
 bf16 on cuda and metal, f32 on vulkan, wgpu and the CPU; `bunsen-tool devices` shows what a device accelerates.
@@ -966,11 +969,11 @@ decision head). It generates no text.
 ```sh
 bunsen-tool decide list [--urls]                         # the Laya checkpoints, and what of each is cached
 bunsen-tool decide fetch NAME...                         # bring checkpoints into the cache
-bunsen-tool decide run [--select NAME|{..}]... [--format yml|json] [REQUEST]   # the request from stdin when omitted
+bunsen-tool decide run [--model NAME]... [STAGES] [--format yml|json] [REQUEST]   # the request from stdin when omitted
 ```
 
-`--select` (`--model` is an alias) chooses the checkpoint among Laya's, as chat's does ([Choosing a
-model](#choosing-a-model)); `laya/laya` is the default.
+`--model` and the stage flags choose the checkpoint among Laya's, as chat's do ([Choosing a
+model](#choosing-a-model)); `laya/laya/laya` is the default.
 
 A request is a YAML (or JSON) document: a `context`, and its `choices`, each a `type`, a `question` and its
 `options`:
@@ -1009,29 +1012,33 @@ signal yet):
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- decide run request.yml
-cargo run --release -p bunsen-tool --features wgpu -- decide run --select laya-multilingual --format json < request.yml
+cargo run --release -p bunsen-tool --features wgpu -- decide run --model laya-multilingual --format json < request.yml
 ```
 
 ## Choosing a model
 
-`chat` and `decide` choose their checkpoint with `--select`, repeatable: at most one name, and any number of
-selection objects, YAML. A checkpoint's facts are its tags, which its build in the built-in catalog carries:
-`instruct`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
-others), `parameters`, `release` (its release group and date), `kit`, `contract`, `family`, `publisher`.
+`chat` and `decide` choose their checkpoint with a pipeline over the built-in catalog's builds
+([`catalog select`](#catalog-build-catalogs) runs the same pipeline, and its flags are theirs). A checkpoint's facts are
+its tags, which its build carries: `instruct`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language`
+(BCP 47 tags; `"*"` for unspecified others), `parameters`, `contract`, `family`, `publisher`; and its release group and
+date.
 
-- A name that is a checkpoint's (its full id, its bare name, or an alias) is that checkpoint, as named.
-- Any other name is a set of checkpoints: those whose names it begins (`--select qwen3`), else those of the group it
-  names, else the kit's (`--select nanochat`). The command's defaults choose within it: a tuned model
-  (`instruct: true`), each release group's newest, the heaviest first.
-- An object narrows and orders, merged over the defaults: `require` (a tag's value, one of a list, `{min, max}`, or a
-  language), `prefer` (each a tag with the score it keeps when it is not met: `{language: de, otherwise: 0.5}`),
-  `latest`, `absent` (`drop`, or `{default: value}`, for a checkpoint without the tag), `order` (`[-parameters]`),
-  `take` (the least weight taken). `null` removes a default: `{require: {instruct: null}}`.
-- `--preset` keeps only the checkpoints that have the preset; `--patch {..}` merges over the chosen one's config.
+- `--model NAME`, repeatable, names what to choose among: a build (its full name, its bare name or an alias) is that
+  build, as named; a group (`qwen`, `gemma/gemma`, `nanochat-students`) is its builds; `default` is the command's
+  default. Several names are one `from`.
+- The command's defaults choose within a group, unless one build is named alone: a tuned model (`keep: instruct`,
+  labeled `instruct`; not for `decide`), each release group's newest weighted first (`release: latest`, labeled
+  `latest`), the heaviest first.
+- The stage flags follow, each one stage, in command-line order: `--keep P`, `--drop P`, `--lt/--le/--gt/--ge/--eq/--ne
+  KEY V`, `--has TAG V`, `--weigh E`, `--cutoff W`, `--asc K`, `--desc K`, `--limit N`, `--pipeline [..]`, and `--unset
+  LABEL` to remove a default (`--unset instruct`).
+- `--preset P`, `--on AXIS` and `--off AXIS` (and chat's `--think`, `--no-think`) keep only the builds that offer the
+  presets, wherever they are written, and apply them to the one chosen; `--patch {..}` merges over its config.
+- `hf:org/repo` is a Hugging Face repo no build describes, loaded as it is; it takes no stage flags.
 
 ```sh
-bunsen-tool chat run --select qwen3 --select '{require: {instruct: null, thinking: never}, order: [parameters]}' "Hi"
-bunsen-tool chat run --select '{require: {parameters: {max: 2e9}}, prefer: [{language: zh, otherwise: 0}]}' "你好"
+bunsen-tool chat run --model qwen/qwen3 --unset instruct --eq thinking never --asc parameters "Hi"
+bunsen-tool chat run --model qwen --le parameters 2e9 --weigh '{match: {language: zh}, else: 0}' "你好"
 ```
 
 The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).

@@ -60,7 +60,7 @@ enum Command {
     ///
     /// One prompt (`chat run`), a conversation (`chat repl`), and the
     /// checkpoints (`chat list`, `chat fetch`); `chat family` for one family's.
-    Chat(ChatCommandGroup),
+    Chat(Box<ChatCommandGroup>),
 
     /// Typed questions about a context, answered by a Laya decision model.
     ///
@@ -120,8 +120,18 @@ fn main() -> ExitCode {
     }
 }
 
-/// Runs the command `args`, parsed from `matches`: `catalog select` reads
-/// its flags' order from them.
+/// The matches of the subcommand `matches` ends in: the leaf command's
+/// own, whose flags it reads in command-line order.
+fn leaf(matches: &ArgMatches) -> &ArgMatches {
+    let mut at = matches;
+    while let Some((_, sub)) = at.subcommand() {
+        at = sub;
+    }
+    at
+}
+
+/// Runs the command `args`, parsed from `matches`: `catalog select`, `chat`
+/// and `decide` read their selection flags' order from them.
 fn run(
     args: &Args,
     matches: &ArgMatches,
@@ -130,8 +140,8 @@ fn run(
     match &args.command {
         #[cfg(feature = "speech")]
         Command::Asr(cmd) => cmd.run(),
-        Command::Chat(cmd) => cmd.run(),
-        Command::Decide(cmd) => cmd.run(),
+        Command::Chat(cmd) => cmd.run(leaf(matches)),
+        Command::Decide(cmd) => cmd.run(leaf(matches)),
         Command::Cache(cmd) => cmd.run(),
         Command::Catalog(cmd) => cmd.run(
             matches
