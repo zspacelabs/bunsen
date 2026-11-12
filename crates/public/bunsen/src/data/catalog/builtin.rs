@@ -119,7 +119,7 @@ pub fn builtin_stack() -> CatalogResult<BunsenCatalogStack> {
 /// ```
 #[derive(Debug)]
 pub struct BuiltinCatalog {
-    builds: Vec<(ResolvedBuild, Vec<CatalogName>)>,
+    builds: Vec<ResolvedBuild>,
     /// The names a lookup tests, each with its build's index: the build's
     /// full name and each of its aliases'.
     names: Vec<(CatalogName, usize)>,
@@ -152,11 +152,10 @@ impl BuiltinCatalog {
         let mut builds = Vec::new();
         let mut names = Vec::new();
         for build in stack.of_kind(EntryKind::Build) {
-            let name = build.name().clone();
-            let aliases = stack.aliases_of(&name);
-            names.push((name.clone(), builds.len()));
-            names.extend(aliases.iter().map(|a| (a.clone(), builds.len())));
-            builds.push((stack.resolve_build(&name)?, aliases));
+            let build = stack.resolve_build(build.name())?;
+            names.push((build.name.clone(), builds.len()));
+            names.extend(build.aliases.iter().map(|a| (a.clone(), builds.len())));
+            builds.push(build);
         }
         let mut classes = BTreeMap::new();
         for class in stack.of_kind(EntryKind::TemplateClass) {
@@ -193,8 +192,8 @@ impl BuiltinCatalog {
         builtin_stack()
     }
 
-    /// Every build, resolved, with its aliases, in the catalog's order.
-    pub fn builds(&self) -> &[(ResolvedBuild, Vec<CatalogName>)] {
+    /// Every build, resolved, in the catalog's order.
+    pub fn builds(&self) -> &[ResolvedBuild] {
         &self.builds
     }
 
@@ -209,8 +208,8 @@ impl BuiltinCatalog {
         &self,
         name: &str,
     ) -> CatalogResult<&ResolvedBuild> {
-        let found = find_spelling(&self.names, name, |i| self.builds[i].0.name.to_string())?;
-        found.map(|i| &self.builds[i].0).ok_or_else(|| {
+        let found = find_spelling(&self.names, name, |i| self.builds[i].name.to_string())?;
+        found.map(|i| &self.builds[i]).ok_or_else(|| {
             catalog_error(
                 CatalogRule::Lookup,
                 format!("the built-in catalog has no build `{name}`"),

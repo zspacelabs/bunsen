@@ -106,6 +106,8 @@ pub struct ResolvedRelease {
 pub struct ResolvedBuild {
     /// The build's full name.
     pub name: CatalogName,
+    /// The aliases that name it, by their full names.
+    pub aliases: Vec<CatalogName>,
     /// What it is, for a person.
     pub description: String,
     /// The checkpoint's license.
@@ -134,6 +136,68 @@ pub struct ResolvedBuild {
 }
 
 impl ResolvedBuild {
+    /// A build no catalog declares, named `name`: what a provider that
+    /// makes its builds itself answers with (an `hf:` repo's), its
+    /// resources and the rest filled in after. It has no aliases, chain,
+    /// memberships, contract, release, tags, presets, resources or
+    /// arguments.
+    pub fn new(
+        name: CatalogName,
+        description: impl Into<String>,
+    ) -> Self {
+        Self {
+            name,
+            aliases: Vec::new(),
+            description: description.into(),
+            license: None,
+            origin: None,
+            template_chain: Vec::new(),
+            memberships: BTreeSet::new(),
+            facets: BTreeMap::new(),
+            contract: None,
+            release: None,
+            tags: BTreeMap::new(),
+            presets: ResolvedPresetSet::default(),
+            resources: BTreeMap::new(),
+            args: BTreeMap::new(),
+        }
+    }
+
+    /// The build with `entry`, the resource `resource`, bound to its slot
+    /// `slot`, set by the build itself: how a provider that makes its builds
+    /// itself gives one its files.
+    pub fn with_resource(
+        mut self,
+        slot: impl Into<String>,
+        resource: CatalogName,
+        entry: ResourceEntry,
+    ) -> Self {
+        let set_by = self.name.clone();
+        self.resources.insert(
+            slot.into(),
+            ResolvedResource {
+                resource,
+                entry,
+                set_by,
+            },
+        );
+        self
+    }
+
+    /// Whether `name` names the build: its full name or an alias's, or the
+    /// leaf of an alias, ignoring ASCII case.
+    pub fn answers_to(
+        &self,
+        name: &str,
+    ) -> bool {
+        let full = |n: &CatalogName| n.to_string().eq_ignore_ascii_case(name);
+        full(&self.name)
+            || self
+                .aliases
+                .iter()
+                .any(|a| full(a) || a.leaf().eq_ignore_ascii_case(name))
+    }
+
     /// The value of the tag `name`, if it has one.
     pub fn tag(
         &self,
@@ -581,6 +645,7 @@ impl BunsenCatalogStack {
         }
         Ok(ResolvedBuild {
             name: name.clone(),
+            aliases: self.aliases_of(name),
             description: build.description.clone(),
             license: build.license.clone(),
             origin: build.origin.clone(),

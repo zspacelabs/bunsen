@@ -2,7 +2,6 @@
 use bunsen::{
     data::catalog::{
         CatalogErrorExt,
-        CatalogName,
         select::{
             choose::{
                 NamedSelection,
@@ -80,15 +79,11 @@ pub fn choose_decide_model(
     if names.is_empty() {
         names.push("default".to_string());
     }
-    let universe = default_laya_factory()?
+    let universe: Vec<_> = default_laya_factory()?
         .list()
         .into_iter()
-        .map(|(_, row)| {
-            CatalogName::parse(&row.name).map_err(|e| {
-                BunsenError::illegal(format!("`{}`: {}", row.name, e.problem_message()))
-            })
-        })
-        .collect::<BunsenResult<Vec<_>>>()?;
+        .map(|(_, row)| row.name)
+        .collect();
     let stack = builtin_catalog()?;
     let env = SelectEnv::new(&stack);
     let request = SelectRequest {
@@ -142,7 +137,10 @@ mod tests {
     fn test_choose() {
         assert_eq!(choose(&[]), DEFAULT_LAYA_MODEL);
         for (_, row) in default_laya_factory().unwrap().list() {
-            assert_eq!(choose(&["--model", &row.name]), row.name);
+            assert_eq!(
+                choose(&["--model", &row.name.to_string()]),
+                row.name.to_string()
+            );
         }
         assert_eq!(
             choose(&["--model", "laya", "--asc", "parameters"]),

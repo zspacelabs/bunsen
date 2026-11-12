@@ -61,8 +61,8 @@ fn upstream_file() -> std::path::PathBuf {
         .unwrap()
         .lookup("silero/vad-16k")
         .unwrap();
-    let mut map = ResourceSet::new(row.resources.name.clone());
-    map.insert(row.resources.try_get(CHECKPOINT).unwrap().clone());
+    let mut map = ResourceSet::new(row.resource_set().name.clone());
+    map.insert(row.resource_set().try_get(CHECKPOINT).unwrap().clone());
     crate::weights_cache()
         .load(&map)
         .unwrap()

@@ -1,12 +1,8 @@
-//! A build catalog's builds of one contract, as a provider's rows.
+//! A build catalog's builds of one contract, as a provider's builds.
 
 use alloc::{
-    collections::BTreeMap,
     format,
-    string::{
-        String,
-        ToString,
-    },
+    string::String,
     vec::Vec,
 };
 
@@ -15,7 +11,6 @@ use crate::{
         builds::{
             BuildProvider,
             CATALOG,
-            Pretrained,
         },
         catalog::{
             BuiltinCatalog,
@@ -26,10 +21,6 @@ use crate::{
             ResolvedBuild,
             builtin::find_spelling,
             catalog_error,
-        },
-        pretrained::{
-            Tags,
-            tags::KIT,
         },
     },
     errors::BunsenResult,
@@ -42,43 +33,41 @@ use crate::{
 /// own (whisper's), the one they must have.
 pub const GEOMETRY: &str = "geometry";
 
-/// A provider over the builds of one contract in a build catalog: each a
-/// row, named in full (`qwen/qwen3/qwen3-0.6b`).
+/// A provider over the builds of one contract in a build catalog, each
+/// named in full (`qwen/qwen3/qwen3-0.6b`).
 ///
 /// A contract is what a kit's loader implements
 /// ([`catalog_contracts`](crate::kits::support::catalog_contracts)), so the
-/// builds of a kit's contract, its variants' among them, are the rows its
-/// loader can build. The rows are made once, when the provider is: a stack
-/// is not shared between threads, and a provider is.
+/// builds of a kit's contract, its variants' among them, are the ones its
+/// loader can build. The builds are resolved once, when the provider is
+/// made: a stack is not shared between threads, and a provider is.
 ///
 /// A lookup takes a name as the catalog's lookups do: a build's full name,
 /// or a shorter spelling whose segments are among its name's in order
 /// (`qwen/qwen3-0.6b`, `qwen3-0.6b`), or one of its aliases'; a spelling two
-/// rows match is ambiguous.
+/// builds match is ambiguous.
 #[derive(Clone, Debug)]
 pub struct CatalogBuildProvider {
     name: String,
     description: String,
-    rows: Vec<Pretrained>,
-    /// The names a lookup tests, each with its row: the build's full name
+    builds: Vec<ResolvedBuild>,
+    /// The names a lookup tests, each with its build: the build's full name
     /// and each of its aliases'.
     names: Vec<(CatalogName, usize)>,
 }
 
 impl CatalogBuildProvider {
     /// The builds of `contract` (`qwen3-lm`; `qwen3-asr` for both of its
-    /// variants) in `stack`, as rows of a provider called `name`, each
-    /// tagged with `kit` ([`KIT`]).
+    /// variants) in `stack`, as the builds of a provider called `name`.
     ///
     /// # Errors
     /// A contract `$contracts` doesn't have, or a build that doesn't
-    /// resolve or doesn't make a row ([`build_row`]).
+    /// resolve.
     pub fn new(
         name: impl Into<String>,
         description: impl Into<String>,
         stack: &BunsenCatalogStack,
         contract: &str,
-        kit: &str,
     ) -> BunsenResult<Self> {
         let contract_name = stack
             .expect_contract(&CatalogRef::parse(contract)?)?
@@ -86,49 +75,45 @@ impl CatalogBuildProvider {
             .clone();
         let mut builds = Vec::new();
         for build in stack.builds_of_contract(&contract_name) {
-            builds.push((stack.resolve_build(&build)?, stack.aliases_of(&build)));
+            builds.push(stack.resolve_build(&build)?);
         }
-        Self::of_builds(name, description, builds.iter(), kit)
+        Ok(Self::of_builds(name, description, builds))
     }
 
-    fn of_builds<'a>(
+    fn of_builds(
         name: impl Into<String>,
         description: impl Into<String>,
-        builds: impl Iterator<Item = &'a (ResolvedBuild, Vec<CatalogName>)>,
-        kit: &str,
-    ) -> BunsenResult<Self> {
-        let mut rows = Vec::new();
+        builds: Vec<ResolvedBuild>,
+    ) -> Self {
         let mut names = Vec::new();
-        for (build, aliases) in builds {
-            let index = rows.len();
+        for (index, build) in builds.iter().enumerate() {
             names.push((build.name.clone(), index));
-            names.extend(aliases.iter().map(|a| (a.clone(), index)));
-            rows.push(build_row(build, aliases, kit)?);
+            names.extend(build.aliases.iter().map(|a| (a.clone(), index)));
         }
-        Ok(Self {
+        Self {
             name: name.into(),
             description: description.into(),
-            rows,
+            builds,
             names,
-        })
+        }
     }
 
-    /// The rows, in the catalog's order.
-    pub fn rows(&self) -> &[Pretrained] {
-        &self.rows
+    /// The builds, in the catalog's order.
+    pub fn builds(&self) -> &[ResolvedBuild] {
+        &self.builds
     }
 
-    /// The row `name` names, if any.
+    /// The build `name` names, if any.
     ///
     /// # Errors
-    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when two rows
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when two builds
     /// match it and neither is named in full.
     pub fn find(
         &self,
         name: &str,
-    ) -> BunsenResult<Option<&Pretrained>> {
-        let found = find_spelling(&self.names, name, |i| self.rows[i].name.clone())?;
-        Ok(found.map(|i| &self.rows[i]))
+    ) -> BunsenResult<Option<&ResolvedBuild>> {
+        let found = find_spelling(&self.names, name, |i| self.builds[i].name.to_string())?;
+        Ok(found.map(|i| &self.builds[i]))
     }
 }
 
@@ -141,76 +126,29 @@ impl BuildProvider for CatalogBuildProvider {
         &self.description
     }
 
-    fn list(&self) -> Vec<Pretrained> {
-        self.rows.clone()
+    fn list(&self) -> Vec<ResolvedBuild> {
+        self.builds.clone()
     }
 
     fn lookup(
         &self,
         name: &str,
-    ) -> BunsenResult<Option<Pretrained>> {
+    ) -> BunsenResult<Option<ResolvedBuild>> {
         Ok(self.find(name)?.cloned())
     }
 }
 
-/// `build` as a row: its full name, the leaves of its `aliases`, its listing
-/// fields, its bound resources by slot (a sharded one as `{slot}.index` and
-/// `{slot}.{n:05}`, numbered from 1), its presets, its bound arguments, and
-/// its tags, each by its own name, with `kit`.
-///
-/// # Errors
-/// A resource source that has no URL form (none yet).
-pub fn build_row(
-    build: &ResolvedBuild,
-    aliases: &[CatalogName],
-    kit: &str,
-) -> BunsenResult<Pretrained> {
-    let name = build.name.to_string();
-    let resources = build.resource_set();
-    let mut tags = Tags::new();
-    for (tag, value) in &build.tags {
-        tags.insert(tag.leaf(), value.value.clone());
-    }
-    if let Some(release) = &build.release {
-        tags.insert(
-            "release",
-            serde_json::json!({
-                "group": release.group.to_string(),
-                "released": release.released.canonical(),
-            }),
-        );
-    }
-    tags.insert(KIT.key, kit);
-    Ok(Pretrained {
-        name,
-        aliases: aliases.iter().map(|a| a.leaf().to_string()).collect(),
-        description: build.description.clone(),
-        license: build.license.clone(),
-        origin: build.origin.clone(),
-        prefab: None,
-        resources,
-        presets: build.presets.clone(),
-        args: build
-            .args
-            .iter()
-            .map(|(slot, arg)| (slot.clone(), arg.value.clone()))
-            .collect::<BTreeMap<_, _>>(),
-        tags,
-    })
-}
-
 impl BuiltinCatalog {
     /// The built-in catalog's builds of `contract` (`qwen3-lm`; `qwen3-asr`
-    /// for both of its variants), as the [`CATALOG`] provider's rows,
-    /// described by the contract and each tagged with `kit` ([`KIT`]).
+    /// for both of its variants), as the [`CATALOG`] provider's, described by
+    /// the contract.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a contract
-    /// `$contracts` doesn't have, and as [`build_row`].
+    /// `$contracts` doesn't have.
     pub fn provider(
         &self,
         contract: &str,
-        kit: &str,
     ) -> BunsenResult<CatalogBuildProvider> {
         let contract_name = CatalogName::contracts_root().join(CatalogRef::parse(contract)?.path());
         let description = self.contract_description(&contract_name).ok_or_else(|| {
@@ -219,13 +157,22 @@ impl BuiltinCatalog {
                 format!("the built-in catalog has no contract `{contract}`"),
             )
         })?;
-        let builds = self.builds().iter().filter(|(build, _)| {
-            build
-                .contract
-                .as_ref()
-                .is_some_and(|c| c == &contract_name || c.is_within(&contract_name))
-        });
-        CatalogBuildProvider::of_builds(CATALOG, description, builds, kit)
+        let builds = self
+            .builds()
+            .iter()
+            .filter(|build| {
+                build
+                    .contract
+                    .as_ref()
+                    .is_some_and(|c| c == &contract_name || c.is_within(&contract_name))
+            })
+            .cloned()
+            .collect();
+        Ok(CatalogBuildProvider::of_builds(
+            CATALOG,
+            description,
+            builds,
+        ))
     }
 
     /// [`provider`](Self::provider) of the process's built-in catalog, for a
@@ -235,12 +182,9 @@ impl BuiltinCatalog {
     /// # Panics
     /// When [`get`](Self::get) or [`provider`](Self::provider) fails, a bug
     /// in the built-in catalog.
-    pub fn expect_provider(
-        contract: &str,
-        kit: &str,
-    ) -> CatalogBuildProvider {
+    pub fn expect_provider(contract: &str) -> CatalogBuildProvider {
         Self::get()
-            .and_then(|catalog| catalog.provider(contract, kit))
+            .and_then(|catalog| catalog.provider(contract))
             .unwrap_or_else(|e| panic!("the built-in catalog's `{contract}` builds: {e}"))
     }
 }
@@ -259,28 +203,27 @@ mod tests {
             "the example catalogs",
             &fixtures::example_stack().unwrap(),
             contract,
-            "toy",
         )
         .unwrap()
     }
 
-    /// A contract's builds are the rows, named in full, tagged with the
-    /// kit and the catalog's implied tags.
+    /// A contract's builds are the provider's, named in full, with the
+    /// catalog's implied tags.
     #[test]
     fn test_the_rows_are_the_contracts_builds() {
         let whisper = provider("whisper-asr");
-        let names: Vec<&str> = whisper.rows().iter().map(|r| r.name.as_str()).collect();
+        let names: Vec<String> = whisper
+            .builds()
+            .iter()
+            .map(|b| b.name.to_string())
+            .collect();
         assert!(
-            names.contains(&"openai/whisper/large/large-v3"),
+            names.iter().any(|n| n == "openai/whisper/large/large-v3"),
             "{names:?}"
         );
         assert!(names.iter().all(|n| n.starts_with("openai/whisper/")));
         let v3 = whisper.find("large-v3").unwrap().unwrap();
-        assert_eq!(v3.tags.get("kit"), Some(&serde_json::json!("toy")));
-        assert_eq!(
-            v3.tags.get("contract"),
-            Some(&serde_json::json!("whisper-asr"))
-        );
+        assert_eq!(v3.tag("contract"), Some(&serde_json::json!("whisper-asr")));
         assert!(v3.presets.axis_of("translate").is_some());
     }
 
@@ -290,7 +233,8 @@ mod tests {
     fn test_sources() {
         let whisper = provider("whisper-asr");
         let v1 = whisper.find("large-v1").unwrap().unwrap();
-        let checkpoint = v1.resources.get("checkpoint").unwrap();
+        let set = v1.resource_set();
+        let checkpoint = set.get("checkpoint").unwrap();
         // Cached under the resource's full name.
         assert_eq!(checkpoint.name, "openai/whisper/large/large-v1/checkpoint");
         assert_eq!(checkpoint.dtype.as_deref(), Some("float16"));
@@ -301,7 +245,7 @@ mod tests {
             panic!("{:?}", checkpoint.sources)
         };
         assert!(url.ends_with("/large-v1.pt"), "{url}");
-        assert!(v1.resources.get("vocabulary").is_some());
+        assert!(set.get("vocabulary").is_some());
     }
 
     /// Lookups take the shorter spellings the catalog's do; a name no row
@@ -317,7 +261,7 @@ mod tests {
             "LARGE-V3",
         ] {
             assert_eq!(
-                whisper.lookup(name).unwrap().unwrap().name,
+                whisper.lookup(name).unwrap().unwrap().name.to_string(),
                 "openai/whisper/large/large-v3",
                 "{name}"
             );
@@ -332,13 +276,18 @@ mod tests {
 
         let resnet = BuiltinCatalog::get()
             .unwrap()
-            .provider("resnet-classifier", "resnet")
+            .provider("resnet-classifier")
             .unwrap();
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
             .message_contains("`resnet34` is ambiguous: torchvision/resnet34, timm/resnet34")
             .assert_err(&resnet.lookup("resnet34"));
         assert_eq!(
-            resnet.lookup("timm/resnet34").unwrap().unwrap().name,
+            resnet
+                .lookup("timm/resnet34")
+                .unwrap()
+                .unwrap()
+                .name
+                .to_string(),
             "timm/resnet34"
         );
     }

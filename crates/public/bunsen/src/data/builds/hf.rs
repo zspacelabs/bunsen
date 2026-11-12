@@ -10,23 +10,31 @@ use alloc::{
     vec::Vec,
 };
 
-use serde::Deserialize;
-
 #[cfg(feature = "cache")]
 use crate::data::resources::ResourceCache;
 use crate::{
     data::{
-        builds::{
-            BuildProvider,
-            Pretrained,
+        builds::BuildProvider,
+        catalog::{
+            CatalogName,
+            ResolvedBuild,
+            document::{
+                ResourceEntry,
+                ResourceShard,
+                ResourceSource,
+            },
         },
         resources::{
             Resource,
-            ResourceSet,
             SAFETENSORS,
             SAFETENSORS_INDEX,
             Source,
-            is_sha256_hex,
+            hub::{
+                HUB_MAIN,
+                HUB_ORIGIN,
+                HubEntry,
+                HubRepo,
+            },
         },
     },
     errors::{
@@ -38,14 +46,8 @@ use crate::{
 };
 
 /// The provider's default name: the `hf` of `hf:openai/whisper-tiny`, and
-/// the namespace its files are cached under.
+/// the root its files are cached under.
 pub const HF: &str = "hf";
-
-/// Where the hub is.
-pub const HF_ORIGIN: &str = "https://huggingface.co";
-
-/// The revision a ref resolves at unless another is named.
-pub const HF_MAIN: &str = "main";
 
 /// The file a `transformers` repo keeps its weights in, when they fit one.
 pub const HF_SINGLE_FILE: &str = "model.safetensors";
@@ -62,48 +64,6 @@ pub const CONFIG: &str = "config";
 /// The key the checkpoint is under unless the kit names another.
 pub const DEFAULT_CHECKPOINT_KEY: &str = "checkpoint";
 
-/// One entry of the hub's file listing, as its tree API spells it.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct HfTreeEntry {
-    /// `file` or `directory`.
-    #[serde(rename = "type")]
-    pub kind: String,
-
-    /// The path within the repo.
-    pub path: String,
-
-    /// The size in bytes.
-    #[serde(default)]
-    pub size: u64,
-
-    /// The LFS pointer, for a file stored through LFS: its `oid` is the
-    /// file's SHA-256.
-    #[serde(default)]
-    pub lfs: Option<HfLfs>,
-}
-
-/// The LFS part of a listing entry.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
-pub struct HfLfs {
-    /// The file's SHA-256 in hex, as the listing spells it (the hub's is
-    /// lowercase); [`HfTreeEntry::sha256`] is the pin made from it.
-    pub oid: String,
-
-    /// The size in bytes.
-    #[serde(default)]
-    pub size: u64,
-}
-
-impl HfTreeEntry {
-    /// The digest that pins this file, when LFS holds it: its oid, in
-    /// lowercase hex, the one spelling of a digest the cache's pins, paths
-    /// and checks use. An oid that is not 64 hex digits pins nothing.
-    pub fn sha256(&self) -> Option<String> {
-        let oid = self.lfs.as_ref()?.oid.to_ascii_lowercase();
-        is_sha256_hex(&oid).then_some(oid)
-    }
-}
-
 /// The shard number and count of `model-00001-of-00002.safetensors`.
 fn shard_numbers(file: &str) -> Option<(usize, usize)> {
     let rest = file.strip_prefix("model-")?.strip_suffix(".safetensors")?;
@@ -116,7 +76,7 @@ fn shard_numbers(file: &str) -> Option<(usize, usize)> {
 /// lacks none.
 fn missing_shards(
     of: usize,
-    shards: &[(usize, usize, &HfTreeEntry)],
+    shards: &[(usize, usize, &HubEntry)],
 ) -> String {
     let present: BTreeSet<usize> = shards
         .iter()
@@ -163,7 +123,9 @@ fn missing_shards(
 /// so a ref resolved once resolves again offline. The listing names the files
 /// and pins each LFS file by its SHA-256, so the checkpoint is
 /// digest-addressed in the cache like a catalog row's:
-/// `<cache>/resources/hf/<sha256>/<file>`. Fetching the listing
+/// `<cache>/resources/hf/<org>/<repo>/<slot>/<sha256>/<file>`, under the
+/// repo and the slot its file fills ([`resource_name`](Self::resource_name)),
+/// the listing beside them. Fetching the listing
 /// needs the `fetch` feature, unless the cache has it already.
 ///
 /// Resolving a ref without a cache is an error, and
@@ -176,7 +138,7 @@ fn missing_shards(
 /// `transformers` saves a model as one `model.safetensors` until it passes
 /// a shard-size limit, then as `model-00001-of-0000N.safetensors` and so
 /// on, with `model.safetensors.index.json` naming the shard each tensor is
-/// in. The row ([`row_from_listing`](Self::row_from_listing)) is one
+/// in. The row ([`build_from_listing`](Self::build_from_listing)) is one
 /// resource, or the index and every shard, under the kit's checkpoint key:
 /// `checkpoint`, or `checkpoint.index` and `checkpoint.00001`, and so on.
 /// Each is labelled [`SAFETENSORS`] or [`SAFETENSORS_INDEX`] for the kit's
@@ -197,7 +159,7 @@ fn missing_shards(
 ///
 /// # Revisions
 ///
-/// The listing is at a revision: [`HF_MAIN`] unless another is named
+/// The listing is at a revision: [`HUB_MAIN`] unless another is named
 /// ([`with_revision`](Self::with_revision)). A repo whose `main` moves is
 /// seen again only when the cache is cleared or the revision is named.
 /// [`with_origin`](Self::with_origin) points the provider at a mirror, and
@@ -205,10 +167,10 @@ fn missing_shards(
 /// share a factory.
 #[derive(Clone, Debug)]
 pub struct HfProvider {
-    /// The provider's name, and the namespace its files are cached under.
+    /// The provider's name, and the root its files are cached under.
     pub name: String,
 
-    /// Where the hub is: [`HF_ORIGIN`], or a mirror.
+    /// Where the hub is: [`HUB_ORIGIN`], or a mirror.
     pub origin: String,
 
     /// The revision every ref resolves at: a branch, a tag, or a commit.
@@ -259,12 +221,12 @@ impl Default for HfProvider {
 }
 
 impl HfProvider {
-    /// `hf`, at [`HF_MAIN`], the checkpoint under `checkpoint`.
+    /// `hf`, at [`HUB_MAIN`], the checkpoint under `checkpoint`.
     pub fn new() -> Self {
         Self {
             name: HF.to_string(),
-            origin: HF_ORIGIN.to_string(),
-            revision: HF_MAIN.to_string(),
+            origin: HUB_ORIGIN.to_string(),
+            revision: HUB_MAIN.to_string(),
             checkpoint_key: DEFAULT_CHECKPOINT_KEY.to_string(),
             extra_files: Vec::new(),
             archive_checkpoints: Vec::new(),
@@ -346,10 +308,7 @@ impl HfProvider {
         repo: &str,
         file: &str,
     ) -> String {
-        format!(
-            "{}/{org}/{repo}/resolve/{}/{file}",
-            self.origin, self.revision
-        )
+        HubRepo::new(format!("{org}/{repo}"), &self.revision).file_url_at(&self.origin, file)
     }
 
     /// The URL of `org/repo`'s file listing at this provider's revision.
@@ -358,10 +317,7 @@ impl HfProvider {
         org: &str,
         repo: &str,
     ) -> String {
-        format!(
-            "{}/api/models/{org}/{repo}/tree/{}",
-            self.origin, self.revision
-        )
+        HubRepo::new(format!("{org}/{repo}"), &self.revision).tree_url_at(&self.origin)
     }
 
     /// The `org` and `repo` of a ref, which is exactly `org/repo`.
@@ -390,7 +346,7 @@ impl HfProvider {
     }
 
     /// The listing resource for `org/repo`: the tree API's JSON, unpinned,
-    /// under this provider's namespace.
+    /// named `{provider}/{org}/{repo}/listing`.
     pub fn listing_resource(
         &self,
         org: &str,
@@ -403,34 +359,62 @@ impl HfProvider {
             file: format!("{org}--{repo}--{}.json", self.revision.replace('/', "-")),
             sha256: None,
             format: Some("json".to_string()),
-            name: self.name.clone(),
+            name: self.resource_name(org, repo, "listing"),
             sources: vec![Source::Url(self.tree_url(org, repo))],
         }
     }
 
-    /// One resource of the row: `file` of `org/repo`, pinned when the
-    /// listing pins it.
-    fn resource(
+    /// The full name a resource of `org/repo` in `slot` is cached under:
+    /// `{provider}/{org}/{repo}/{slot}` (`hf/openai/whisper-tiny/checkpoint`),
+    /// a sharded checkpoint's index and shards under their one slot.
+    pub fn resource_name(
         &self,
         org: &str,
         repo: &str,
-        key: &str,
-        entry: &HfTreeEntry,
-        kind: &str,
-    ) -> Resource {
-        Resource {
-            size: Some(entry.size),
-            dtype: None,
-            slot: key.to_string(),
-            file: entry.path.clone(),
-            sha256: entry.sha256(),
-            format: Some(kind.to_string()),
-            name: self.name.clone(),
-            sources: vec![Source::Url(self.url(org, repo, &entry.path))],
-        }
+        slot: &str,
+    ) -> String {
+        format!("{}/{org}/{repo}/{slot}", self.name)
     }
 
-    /// The row for `name` from the repo's file listing: the safetensors
+    /// One file of `org/repo`, as the catalog declares a resource: had from
+    /// its URL at this provider's revision, pinned when the listing pins it.
+    fn entry(
+        &self,
+        org: &str,
+        repo: &str,
+        entry: &HubEntry,
+        format: &str,
+    ) -> ResourceEntry {
+        let mut declared = ResourceEntry::new(
+            entry.path.clone(),
+            format,
+            vec![ResourceSource::Url(self.url(org, repo, &entry.path))],
+        );
+        declared.sha256 = entry.sha256();
+        declared.size = Some(entry.size);
+        declared
+    }
+
+    /// The catalog name of `org/repo`'s build, or of its resource in
+    /// `slot` ([`resource_name`](Self::resource_name)).
+    ///
+    /// # Errors
+    /// [`CatalogRule::Name`](crate::data::catalog::CatalogRule::Name) for an
+    /// org or repo that is no name segment under this provider's root.
+    fn catalog_name(
+        &self,
+        org: &str,
+        repo: &str,
+        slot: Option<&str>,
+    ) -> BunsenResult<CatalogName> {
+        CatalogName::parse(&match slot {
+            Some(slot) => self.resource_name(org, repo, slot),
+            None => format!("{}/{org}/{repo}", self.name),
+        })
+    }
+
+    /// The build for `name` from the repo's file listing, named
+    /// `{provider}/{org}/{repo}` (`hf/openai/whisper-tiny`): the safetensors
     /// checkpoint, one file or the index and every shard, or else the first
     /// of the [`archive_checkpoints`](Self::archive_checkpoints) the repo
     /// holds, pinned by the hub's LFS digests; `config.json` when there is
@@ -444,25 +428,24 @@ impl HfProvider {
     /// checkpoint, naming what it has instead, and the shards a set of one
     /// `N` lacks: the repo is not the checkpoint a ref names. So too when it
     /// holds two files of an archive checkpoint's ending.
-    pub fn row_from_listing(
+    pub fn build_from_listing(
         &self,
         name: &str,
-        listing: &[HfTreeEntry],
-    ) -> BunsenResult<Pretrained> {
+        listing: &[HubEntry],
+    ) -> BunsenResult<ResolvedBuild> {
         let (org, repo) = self.split(name)?;
-        let files: Vec<&HfTreeEntry> = listing.iter().filter(|e| e.kind == "file").collect();
+        let files: Vec<&HubEntry> = listing.iter().filter(|e| e.is_file()).collect();
         let file = |path: &str| files.iter().copied().find(|e| e.path == path);
         let origin = format!("{}/{org}/{repo}", self.origin);
         let key = self.checkpoint_key.as_str();
 
-        let mut resources = ResourceSet::new(name);
-        resources.origin = Some(origin.clone());
+        let mut resources: Vec<(&str, ResourceEntry)> = Vec::new();
         let what;
         if let Some(single) = file(HF_SINGLE_FILE) {
-            resources.insert(self.resource(org, repo, key, single, SAFETENSORS));
+            resources.push((key, self.entry(org, repo, single, SAFETENSORS)));
             what = format!("{HF_SINGLE_FILE}, {}", megabytes(single.size));
         } else if let Some(index) = file(HF_INDEX_FILE) {
-            let mut shards: Vec<(usize, usize, &HfTreeEntry)> = files
+            let mut shards: Vec<(usize, usize, &HubEntry)> = files
                 .iter()
                 .filter_map(|e| shard_numbers(&e.path).map(|(n, of)| (n, of, *e)))
                 .collect();
@@ -490,27 +473,28 @@ impl HfProvider {
                     BunsenError::invalid_resource(message).context(format!("{}:{name}", self.name))
                 );
             }
-            resources.insert(self.resource(
-                org,
-                repo,
-                &format!("{key}.index"),
-                index,
-                SAFETENSORS_INDEX,
-            ));
+            let mut checkpoint = self.entry(org, repo, index, SAFETENSORS_INDEX);
             let mut total = 0;
-            for (n, _, entry) in &shards {
+            for (_, _, entry) in &shards {
                 total += entry.size;
-                resources.insert(self.resource(
-                    org,
-                    repo,
-                    &format!("{key}.{n:05}"),
-                    entry,
-                    SAFETENSORS,
-                ));
+                let sha256 = entry.sha256().ok_or_else(|| {
+                    BunsenError::invalid_resource(format!(
+                        "the shard {} is not in LFS, so nothing pins it",
+                        entry.path
+                    ))
+                    .context(format!("{}:{name}", self.name))
+                })?;
+                checkpoint.shards.push(ResourceShard {
+                    file: entry.path.clone(),
+                    sha256,
+                    size: entry.size,
+                    sources: vec![ResourceSource::Url(self.url(org, repo, &entry.path))],
+                });
             }
+            resources.push((key, checkpoint));
             what = format!("{} shards, {}", shards.len(), megabytes(total));
         } else if let Some((archive, kind)) = self.archive_checkpoint(name, &files)? {
-            resources.insert(self.resource(org, repo, key, archive, kind));
+            resources.push((key, self.entry(org, repo, archive, kind)));
             what = format!("{}, {}", archive.path, megabytes(archive.size));
         } else {
             let weights: Vec<&str> = files
@@ -544,12 +528,12 @@ impl HfProvider {
         }
         let mut with: Vec<&str> = Vec::new();
         if let Some(config) = file(HF_CONFIG_FILE) {
-            resources.insert(self.resource(org, repo, CONFIG, config, "json"));
+            resources.push((CONFIG, self.entry(org, repo, config, "json")));
             with.push(HF_CONFIG_FILE);
         }
         for extra in &self.extra_files {
             if let Some(entry) = file(&extra.path) {
-                resources.insert(self.resource(org, repo, &extra.key, entry, &extra.kind));
+                resources.push((&extra.key, self.entry(org, repo, entry, &extra.kind)));
                 with.push(&extra.path);
             }
         }
@@ -562,19 +546,12 @@ impl HfProvider {
             "{org}/{repo} on Hugging Face at {}: {what}{with}",
             self.revision
         );
-        resources.description.clone_from(&description);
-        Ok(Pretrained {
-            name: name.to_string(),
-            aliases: Vec::new(),
-            description,
-            license: None,
-            origin: Some(origin),
-            prefab: None,
-            resources,
-            presets: Default::default(),
-            args: Default::default(),
-            tags: Default::default(),
-        })
+        let mut build = ResolvedBuild::new(self.catalog_name(org, repo, None)?, description);
+        build.origin = Some(origin);
+        for (slot, entry) in resources {
+            build = build.with_resource(slot, self.catalog_name(org, repo, Some(slot))?, entry);
+        }
+        Ok(build)
     }
 
     /// The first of [`archive_checkpoints`](Self::archive_checkpoints) the
@@ -587,10 +564,10 @@ impl HfProvider {
     fn archive_checkpoint<'e>(
         &'e self,
         name: &str,
-        files: &[&'e HfTreeEntry],
-    ) -> BunsenResult<Option<(&'e HfTreeEntry, &'e str)>> {
+        files: &[&'e HubEntry],
+    ) -> BunsenResult<Option<(&'e HubEntry, &'e str)>> {
         for archive in &self.archive_checkpoints {
-            let found: Vec<&HfTreeEntry> = files
+            let found: Vec<&HubEntry> = files
                 .iter()
                 .copied()
                 .filter(|e| e.path.ends_with(&archive.extension))
@@ -620,7 +597,7 @@ impl HfProvider {
         &self,
         name: &str,
         cache: &ResourceCache,
-    ) -> BunsenResult<Vec<HfTreeEntry>> {
+    ) -> BunsenResult<Vec<HubEntry>> {
         use crate::errors::{
             LookupError,
             LookupProblem,
@@ -678,11 +655,11 @@ impl BuildProvider for HfProvider {
     }
 
     fn origin(&self) -> Option<&str> {
-        Some(HF_ORIGIN)
+        Some(HUB_ORIGIN)
     }
 
     /// Nothing: the hub is not enumerable.
-    fn list(&self) -> Vec<Pretrained> {
+    fn list(&self) -> Vec<ResolvedBuild> {
         Vec::new()
     }
 
@@ -695,7 +672,7 @@ impl BuildProvider for HfProvider {
     fn lookup(
         &self,
         name: &str,
-    ) -> BunsenResult<Option<Pretrained>> {
+    ) -> BunsenResult<Option<ResolvedBuild>> {
         self.split(name)?;
         Err(BunsenError::policy(
             "a Hugging Face ref is resolved through a cache, which asks the hub what the repo holds",
@@ -708,7 +685,7 @@ impl BuildProvider for HfProvider {
     ///
     /// # Errors
     /// As [`split`](Self::split) and
-    /// [`row_from_listing`](Self::row_from_listing). For a listing that
+    /// [`build_from_listing`](Self::build_from_listing). For a listing that
     /// cannot be had, the cache's error under a frame naming the ref: a repo
     /// that is not there, or a gated one, answers 401, a
     /// [`Lookup`](BunsenErrorKind::Lookup) whose
@@ -724,9 +701,9 @@ impl BuildProvider for HfProvider {
         &self,
         name: &str,
         cache: &ResourceCache,
-    ) -> BunsenResult<Option<Pretrained>> {
+    ) -> BunsenResult<Option<ResolvedBuild>> {
         let listing = self.listing(name, cache)?;
-        self.row_from_listing(name, &listing).map(Some)
+        self.build_from_listing(name, &listing).map(Some)
     }
 
     /// Never: a bare name means a row bunsen knows.
@@ -747,21 +724,24 @@ fn megabytes(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::testing::{
-        ErrorMatcher,
-        text,
+    use crate::{
+        data::resources::hub::HubLfs,
+        errors::testing::{
+            ErrorMatcher,
+            text,
+        },
     };
 
     fn entry(
         path: &str,
         size: u64,
         sha256: Option<&str>,
-    ) -> HfTreeEntry {
-        HfTreeEntry {
+    ) -> HubEntry {
+        HubEntry {
             kind: "file".to_string(),
             path: path.to_string(),
             size,
-            lfs: sha256.map(|oid| HfLfs {
+            lfs: sha256.map(|oid| HubLfs {
                 oid: oid.to_string(),
                 size,
             }),
@@ -785,9 +765,9 @@ mod tests {
             entry("tokenizer.json", 2_480_466, None),
         ];
         let row = hf
-            .row_from_listing("openai/whisper-tiny", &listing)
+            .build_from_listing("openai/whisper-tiny", &listing)
             .unwrap();
-        assert_eq!(row.name, "openai/whisper-tiny");
+        assert_eq!(row.name, "hf/openai/whisper-tiny");
         assert_eq!(hf.id(&row), "hf:openai/whisper-tiny");
         assert_eq!(
             row.origin.as_deref(),
@@ -797,15 +777,16 @@ mod tests {
             row.description,
             "openai/whisper-tiny on Hugging Face at main: model.safetensors, 151.1 MB, with config.json"
         );
-        assert_eq!(row.prefab, None);
-        row.resources.validate().unwrap();
-        assert_eq!(row.resources.keys(), ["checkpoint", "config"]);
+        row.resource_set().validate().unwrap();
+        assert_eq!(row.resource_set().keys(), ["checkpoint", "config"]);
 
-        let checkpoint = row.resources.get("checkpoint").unwrap();
+        let set_checkpoint = row.resource_set();
+
+        let checkpoint = set_checkpoint.get("checkpoint").unwrap();
         assert_eq!(checkpoint.file, "model.safetensors");
         assert_eq!(checkpoint.sha256.as_deref(), Some(TINY_SHA));
         assert_eq!(checkpoint.format.as_deref(), Some("safetensors"));
-        assert_eq!(checkpoint.name, "hf");
+        assert_eq!(checkpoint.name, "hf/openai/whisper-tiny/checkpoint");
         assert_eq!(
             checkpoint.sources,
             [Source::Url(
@@ -813,7 +794,8 @@ mod tests {
                     .to_string()
             )]
         );
-        let config = row.resources.get("config").unwrap();
+        let set_config = row.resource_set();
+        let config = set_config.get("config").unwrap();
         assert_eq!(config.file, "config.json");
         assert_eq!(config.sha256, None);
         assert_eq!(config.format.as_deref(), Some("json"));
@@ -831,9 +813,13 @@ mod tests {
             entry("model.safetensors", 151_061_672, Some(TINY_SHA)),
             entry("tokenizer.json", 2_480_466, Some(SHARD_1)),
         ];
-        let row = hf.row_from_listing("org/asr", &listing).unwrap();
-        assert_eq!(row.resources.keys(), ["checkpoint", "config", "vocabulary"]);
-        let vocab = row.resources.get("vocabulary").unwrap();
+        let row = hf.build_from_listing("org/asr", &listing).unwrap();
+        assert_eq!(
+            row.resource_set().keys(),
+            ["checkpoint", "config", "vocabulary"]
+        );
+        let set_vocab = row.resource_set();
+        let vocab = set_vocab.get("vocabulary").unwrap();
         assert_eq!(vocab.file, "tokenizer.json");
         assert_eq!(vocab.format.as_deref(), Some("tokenizer.json"));
         assert_eq!(vocab.sha256.as_deref(), Some(SHARD_1));
@@ -862,21 +848,23 @@ mod tests {
             entry("model.safetensors.index.json", 71_000, None),
         ];
         let row = hf
-            .row_from_listing("ivrit-ai/whisper-large-v3", &listing)
+            .build_from_listing("ivrit-ai/whisper-large-v3", &listing)
             .unwrap();
         assert_eq!(
-            row.resources.keys(),
+            row.resource_set().keys(),
             ["weights.00001", "weights.00002", "weights.index"]
         );
         assert_eq!(
             row.description,
             "ivrit-ai/whisper-large-v3 on Hugging Face at main: 2 shards, 6.17 GB"
         );
-        let index = row.resources.get("weights.index").unwrap();
+        let set_index = row.resource_set();
+        let index = set_index.get("weights.index").unwrap();
         assert_eq!(index.file, "model.safetensors.index.json");
         assert_eq!(index.format.as_deref(), Some("safetensors-index"));
         assert_eq!(index.sha256, None);
-        let first = row.resources.get("weights.00001").unwrap();
+        let set_first = row.resource_set();
+        let first = set_first.get("weights.00001").unwrap();
         assert_eq!(first.file, "model-00001-of-00002.safetensors");
         assert_eq!(first.sha256.as_deref(), Some(SHARD_1));
         assert_eq!(first.format.as_deref(), Some("safetensors"));
@@ -888,7 +876,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("incomplete set of shards")
             .frame_contains("hf:ivrit-ai/whisper-large-v3")
-            .assert_err(&hf.row_from_listing("ivrit-ai/whisper-large-v3", &incomplete));
+            .assert_err(&hf.build_from_listing("ivrit-ai/whisper-large-v3", &incomplete));
     }
 
     /// A set numbered from 1 with no gap is still incomplete when its last
@@ -905,7 +893,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("incomplete set of shards")
             .message_contains("missing model-00003-of-00003.safetensors")
-            .assert_err(&hf.row_from_listing("org/repo", &listing));
+            .assert_err(&hf.build_from_listing("org/repo", &listing));
 
         // A long tail is named eight shards at most, then counted.
         let listing = vec![
@@ -917,7 +905,7 @@ mod tests {
             .message(text::ends_with(
                 "model-00009-of-00012.safetensors, and 3 more",
             ))
-            .assert_err(&hf.row_from_listing("org/repo", &listing));
+            .assert_err(&hf.build_from_listing("org/repo", &listing));
     }
 
     /// A repo with weights in another format only is refused naming them;
@@ -934,7 +922,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("no model.safetensors")
             .message_contains("pytorch_model.bin, tf_model.h5")
-            .assert_err(&hf.row_from_listing("some/repo", &listing));
+            .assert_err(&hf.build_from_listing("some/repo", &listing));
 
         for bad in [
             "whisper-tiny",
@@ -946,7 +934,7 @@ mod tests {
             ErrorMatcher::kind(BunsenErrorKind::Illegal)
                 .message_contains("org/repo")
                 .has_cause::<ParseError>()
-                .assert_err(&hf.row_from_listing(bad, &[]));
+                .assert_err(&hf.build_from_listing(bad, &[]));
         }
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .message_contains("through a cache")
@@ -974,11 +962,12 @@ mod tests {
             ),
         ];
         let row = hf
-            .row_from_listing("nvidia/diar_streaming_sortformer_4spk-v2", &listing)
+            .build_from_listing("nvidia/diar_streaming_sortformer_4spk-v2", &listing)
             .unwrap();
-        row.resources.validate().unwrap();
-        assert_eq!(row.resources.keys(), ["checkpoint"]);
-        let checkpoint = row.resources.get("checkpoint").unwrap();
+        row.resource_set().validate().unwrap();
+        assert_eq!(row.resource_set().keys(), ["checkpoint"]);
+        let set_checkpoint = row.resource_set();
+        let checkpoint = set_checkpoint.get("checkpoint").unwrap();
         assert_eq!(checkpoint.file, "diar_streaming_sortformer_4spk-v2.nemo");
         assert_eq!(checkpoint.format.as_deref(), Some("nemo"));
         assert_eq!(checkpoint.sha256.as_deref(), Some(TINY_SHA));
@@ -992,9 +981,13 @@ mod tests {
         // A safetensors checkpoint is preferred.
         let mut both = listing.clone();
         both.push(entry("model.safetensors", 10, Some(SHARD_1)));
-        let row = hf.row_from_listing("org/repo", &both).unwrap();
+        let row = hf.build_from_listing("org/repo", &both).unwrap();
         assert_eq!(
-            row.resources.get("checkpoint").unwrap().format.as_deref(),
+            row.resource_set()
+                .get("checkpoint")
+                .unwrap()
+                .format
+                .as_deref(),
             Some("safetensors")
         );
 
@@ -1004,14 +997,14 @@ mod tests {
             .message_contains("2 .nemo files")
             .message_contains("other.nemo")
             .frame_contains("hf:org/repo")
-            .assert_err(&hf.row_from_listing("org/repo", &two));
+            .assert_err(&hf.build_from_listing("org/repo", &two));
 
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("the repo has: diar_streaming_sortformer_4spk-v2.nemo")
-            .assert_err(&HfProvider::new().row_from_listing("org/repo", &listing));
+            .assert_err(&HfProvider::new().build_from_listing("org/repo", &listing));
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("or one *.nemo at main; the repo has: no weights")
-            .assert_err(&hf.row_from_listing("org/repo", &listing[..2]));
+            .assert_err(&hf.build_from_listing("org/repo", &listing[..2]));
     }
 
     /// The URLs: a file at a revision, and the listing.
@@ -1031,12 +1024,12 @@ mod tests {
             listing.file,
             "openai--whisper-large-v3--06f233fe06e710322aca913c1bc4249a0d71fce1.json"
         );
-        assert_eq!(listing.name, "hf");
+        assert_eq!(listing.name, "hf/openai/whisper-large-v3/listing");
         listing.validate().unwrap();
 
         let named = HfProvider::new().with_name("hf-dev").with_revision("dev");
         assert_eq!(named.name(), "hf-dev");
-        assert_eq!(named.listing_resource("o", "r").name, "hf-dev");
+        assert_eq!(named.listing_resource("o", "r").name, "hf-dev/o/r/listing");
     }
 
     /// The listing as the hub serves it: LFS files carry a digest, the
@@ -1049,15 +1042,15 @@ mod tests {
            "lfs":{"oid":"7ebd0e69e78190ff5b1b2e6c7c0a6a9b1a4e2f0f0b3d2c1a9f8e7d6c5b4a3f2e","size":151061672,"pointerSize":135}},
           {"type":"directory","oid":"ghi","size":0,"path":"onnx"}
         ]"#;
-        let listing: Vec<HfTreeEntry> = serde_json::from_str(json).unwrap();
+        let listing: Vec<HubEntry> = serde_json::from_str(json).unwrap();
         assert_eq!(listing.len(), 3);
         assert_eq!(listing[0].sha256(), None);
         assert_eq!(listing[1].sha256().as_deref(), Some(TINY_SHA));
         assert_eq!(listing[2].kind, "directory");
         let row = HfProvider::new()
-            .row_from_listing("openai/whisper-tiny", &listing)
+            .build_from_listing("openai/whisper-tiny", &listing)
             .unwrap();
-        assert_eq!(row.resources.keys(), ["checkpoint", "config"]);
+        assert_eq!(row.resource_set().keys(), ["checkpoint", "config"]);
     }
 
     /// A digest's hex case carries nothing, and the cache's pins, paths and
@@ -1069,14 +1062,18 @@ mod tests {
             r#"[{{"type":"file","size":3,"path":"model.safetensors","lfs":{{"oid":"{}","size":3}}}}]"#,
             TINY_SHA.to_uppercase()
         );
-        let listing: Vec<HfTreeEntry> = serde_json::from_str(&json).unwrap();
+        let listing: Vec<HubEntry> = serde_json::from_str(&json).unwrap();
         assert_eq!(listing[0].sha256().as_deref(), Some(TINY_SHA));
         let row = HfProvider::new()
-            .row_from_listing("org/repo", &listing)
+            .build_from_listing("org/repo", &listing)
             .unwrap();
-        row.resources.validate().unwrap();
+        row.resource_set().validate().unwrap();
         assert_eq!(
-            row.resources.get("checkpoint").unwrap().sha256.as_deref(),
+            row.resource_set()
+                .get("checkpoint")
+                .unwrap()
+                .sha256
+                .as_deref(),
             Some(TINY_SHA)
         );
     }
@@ -1126,8 +1123,9 @@ mod tests {
 
         let online = cache_at(false);
         let row = hf.resolve("org/repo", &online).unwrap().unwrap();
-        assert_eq!(row.name, "org/repo");
-        let checkpoint = row.resources.get("checkpoint").unwrap();
+        assert_eq!(row.name, "hf/org/repo");
+        let set_checkpoint = row.resource_set();
+        let checkpoint = set_checkpoint.get("checkpoint").unwrap();
         assert_eq!(
             checkpoint.sha256.as_deref(),
             Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")

@@ -118,7 +118,7 @@ mod tests {
             "catalog:openai/tiny.en",
             "catalog:openai/tiny",
             "catalog:openai/small",
-            "bundled:openai/tiny",
+            "other:openai/tiny",
         ];
         assert_eq!(
             nearest(&missing("openai/tinny", &names)),
@@ -127,8 +127,8 @@ mod tests {
         assert_eq!(nearest(&missing("OpenAI/Small", &names)), ["openai/small"]);
         // A key with a provider is matched as written.
         assert_eq!(
-            nearest(&missing("bundled:openai/tini", &names)),
-            ["bundled:openai/tiny"]
+            nearest(&missing("other:openai/tini", &names)),
+            ["other:openai/tiny"]
         );
         assert!(nearest(&missing("qwen/qwen3-8b", &names)).is_empty());
         // A short key: one edit.

@@ -1,20 +1,16 @@
-//! Pretrained references: what a spec resolved to.
+//! Build references: what a spec resolved to.
 
 use alloc::{
     boxed::Box,
     string::String,
 };
-use core::fmt::Debug;
-
-use burn::config::Config;
 
 use crate::{
     data::{
-        builds::Pretrained,
-        catalog::presets::PresetSelection,
-        pretrained::{
-            PreFabConfig,
-            StaticPreFabMap,
+        builds::qualified_id,
+        catalog::{
+            ResolvedBuild,
+            presets::PresetSelection,
         },
         resources::{
             Fuse,
@@ -24,38 +20,42 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// What a spec resolved to: a row copied out of a provider, or a resource
+/// What a spec resolved to: a build a provider answered with, or a resource
 /// set from somewhere else, such as a path.
 ///
 /// The first step of the name-to-model pathway, shared by every kit. A
-/// [`BuildFactory`](crate::data::builds::BuildFactory)
-/// makes a [`Named`](Self::Named) ref from a spec; a path or a manifest becomes
-/// a [`Given`](Self::Given) one through `From<ResourceSet>`. A
-/// [`Deferred`](crate::data::builds::Deferred) model pairs the ref
-/// with the kit's hook and loads it, and the hook plans and builds from the
-/// ref: [`to_resource_set`](Self::to_resource_set) for its files,
-/// [`prefab`](Self::prefab) for the geometry a row promises.
+/// [`BuildFactory`](crate::data::builds::BuildFactory) makes a
+/// [`Named`](Self::Named) ref from a spec; a path or a manifest becomes a
+/// [`Given`](Self::Given) one through `From<ResourceSet>`. A
+/// [`Deferred`](crate::data::builds::Deferred) model pairs the ref with the
+/// kit's hook and loads it, and the hook plans and builds from the ref:
+/// [`to_resource_set`](Self::to_resource_set) for its files,
+/// [`stated`](Self::stated) for an argument the build binds, such as the
+/// geometry it promises.
 ///
-/// A ref is plain data: the row and the resource set are values, and the
+/// A ref is plain data: the build and the resource set are values, and the
 /// provider is held by name, so a ref outlives the factory that made it.
 /// The caller's resources ride on it through
 /// [`with_overlay`](Self::with_overlay), so a hook sees one thing.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BuildRef {
-    /// A row in a provider, copied out of it.
+    /// A build a provider answered with.
     Named {
         /// The provider's name: the `provider` of `provider:ref`.
         provider: String,
-        /// The row; its `name` is the ref. Boxed: a row is much larger than
-        /// a given resource set.
-        pretrained: Box<Pretrained>,
-        /// What the lookup asked of the row's presets: the presets its box
+        /// The build. Boxed: a build is much larger than a given resource
+        /// set.
+        build: Box<ResolvedBuild>,
+        /// What the lookup asked of the build's presets: the presets its box
         /// named, and its patch.
         selection: PresetSelection,
+        /// The caller's resources, laid over the build's by slot
+        /// ([`with_overlay`](Self::with_overlay)).
+        overlay: Option<ResourceSet>,
     },
 
-    /// A resource set from somewhere else: a path, a manifest. No prefab is
-    /// promised; what it is, the kit finds out by looking.
+    /// A resource set from somewhere else: a path, a manifest. No geometry
+    /// is promised; what it is, the kit finds out by looking.
     Given(ResourceSet),
 }
 
@@ -66,19 +66,34 @@ impl From<ResourceSet> for BuildRef {
 }
 
 impl BuildRef {
-    /// The qualified id, `provider:ref`, or the given resource set's name.
+    /// `build`, as `provider` answered it, with what the lookup asked of its
+    /// presets.
+    pub fn named(
+        provider: impl Into<String>,
+        build: ResolvedBuild,
+        selection: PresetSelection,
+    ) -> Self {
+        Self::Named {
+            provider: provider.into(),
+            build: Box::new(build),
+            selection,
+            overlay: None,
+        }
+    }
+
+    /// The qualified id, `provider:ref`
+    /// ([`qualified_id`](crate::data::builds::qualified_id)), or the given
+    /// resource set's name.
     pub fn id(&self) -> String {
         match self {
             Self::Named {
-                provider,
-                pretrained,
-                ..
-            } => alloc::format!("{provider}:{}", pretrained.name),
+                provider, build, ..
+            } => qualified_id(provider, build),
             Self::Given(map) => map.name.clone(),
         }
     }
 
-    /// What the lookup asked of the row's presets, if the spec was a name.
+    /// What the lookup asked of the build's presets, if the spec was a name.
     pub fn selection(&self) -> Option<&PresetSelection> {
         match self {
             Self::Named { selection, .. } => Some(selection),
@@ -86,39 +101,19 @@ impl BuildRef {
         }
     }
 
-    /// The provider's name and the row, if the spec was a name.
-    pub fn named(&self) -> Option<(&str, &Pretrained)> {
+    /// The provider's name and the build, if the spec was a name.
+    pub fn build(&self) -> Option<(&str, &ResolvedBuild)> {
         match self {
             Self::Named {
-                provider,
-                pretrained,
-                ..
-            } => Some((provider, pretrained)),
+                provider, build, ..
+            } => Some((provider, build)),
             Self::Given(_) => None,
         }
     }
 
-    /// The prefab the row promised, from `prefabs`, if the spec was a name
-    /// and the row names one.
-    ///
-    /// # Panics
-    /// If the row names a prefab `prefabs` does not have; a kit's tests
-    /// pin that every row's does.
-    pub fn prefab<C>(
-        &self,
-        prefabs: &StaticPreFabMap<C>,
-    ) -> Option<PreFabConfig<C>>
-    where
-        C: 'static + Config + Debug + Clone,
-    {
-        self.named()
-            .and_then(|(_, pretrained)| pretrained.prefab.as_deref())
-            .map(|prefab| prefabs.expect_lookup_prefab(prefab))
-    }
-
-    /// The value the row binds its contract's argument slot `slot` to, read as
-    /// `C`: a stated geometry, say. `None` for a given bundle, or a row that
-    /// binds no such slot.
+    /// The value the build binds its contract's argument slot `slot` to,
+    /// read as `C`: a stated geometry, say. `None` for a given set, or a
+    /// build that binds no such slot.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when the value
@@ -127,13 +122,13 @@ impl BuildRef {
         &self,
         slot: &str,
     ) -> crate::errors::BunsenResult<Option<C>> {
-        let Some(value) = self.named().and_then(|(_, row)| row.args.get(slot)) else {
+        let Some(arg) = self.build().and_then(|(_, build)| build.args.get(slot)) else {
             return Ok(None);
         };
-        serde_json::from_value(value.clone())
+        serde_json::from_value(arg.value.clone())
             .map(Some)
             .map_err(|e| {
-                crate::errors::BunsenError::illegal(format!(
+                crate::errors::BunsenError::illegal(alloc::format!(
                     "{}: the argument `{slot}` doesn't read as its config",
                     self.id()
                 ))
@@ -141,12 +136,18 @@ impl BuildRef {
             })
     }
 
-    /// The resource set: the row's, named by the qualified id, or the
-    /// given resource set.
+    /// The resource set: the build's files in the loader's form
+    /// ([`ResolvedBuild::resource_set`]), under the overlay and named by the
+    /// qualified id, or the given resource set.
     pub fn to_resource_set(&self) -> ResourceSet {
         match self {
-            Self::Named { pretrained, .. } => {
-                let mut map = pretrained.resources.clone();
+            Self::Named { build, overlay, .. } => {
+                let mut map = build.resource_set();
+                if let Some(overlay) = overlay {
+                    for resource in overlay.resources.values() {
+                        map.insert(resource.clone());
+                    }
+                }
                 map.name = self.id();
                 map
             }
@@ -154,9 +155,10 @@ impl BuildRef {
         }
     }
 
-    /// The caller's resources over the model's, by key
-    /// ([`Fuse::Overlay`]): a `--vocab` over a row. The id is unchanged;
-    /// only the copy of the row is.
+    /// The caller's resources over the model's, by slot
+    /// ([`Fuse::Overlay`]): a `--vocab` over a build. The id and the build
+    /// are unchanged; only what [`to_resource_set`](Self::to_resource_set)
+    /// gives is.
     ///
     /// # Errors
     /// As [`ResourceSet::fuse`], which does not fail under an overlay.
@@ -167,14 +169,19 @@ impl BuildRef {
         Ok(match self {
             Self::Named {
                 provider,
-                mut pretrained,
+                build,
                 selection,
+                overlay,
             } => {
-                pretrained.resources = pretrained.resources.fuse(map, Fuse::Overlay)?;
+                let overlay = match overlay {
+                    Some(mine) => mine.fuse(map, Fuse::Overlay)?,
+                    None => map,
+                };
                 Self::Named {
                     provider,
-                    pretrained,
+                    build,
                     selection,
+                    overlay: Some(overlay),
                 }
             }
             Self::Given(mine) => Self::Given(mine.fuse(map, Fuse::Overlay)?),
@@ -188,97 +195,88 @@ mod tests {
 
     use super::*;
     use crate::data::{
-        pretrained::StaticPreFabConfig,
-        resources::{
-            GIVEN_NAMESPACE,
-            Resource,
-            Source,
+        catalog::{
+            CatalogName,
+            document::{
+                ResourceEntry,
+                ResourceSource,
+            },
         },
+        resources::GIVEN_NAMESPACE,
     };
 
-    #[derive(Config, Debug)]
+    fn n(name: &str) -> CatalogName {
+        CatalogName::parse(name).unwrap()
+    }
+
+    fn entry(file: &str) -> ResourceEntry {
+        ResourceEntry::new(
+            file,
+            "pytorch",
+            vec![ResourceSource::Url(alloc::format!(
+                "https://a.example/{file}"
+            ))],
+        )
+    }
+
+    /// `catalog:a/small`, as a factory has it from a provider.
+    fn named() -> BuildRef {
+        let mut build = ResolvedBuild::new(n("a/small"), "small weights")
+            .with_resource("checkpoint", n("a/small/checkpoint"), entry("small.pt"))
+            .with_resource("vocabulary", n("a/vocabulary"), entry("vocab.txt"));
+        build.args.insert(
+            "geometry".into(),
+            crate::data::catalog::resolve::ResolvedArg {
+                value: serde_json::json!({ "width": 4 }),
+                set_by: n("a/small"),
+            },
+        );
+        BuildRef::named("catalog", build, Default::default())
+    }
+
+    #[derive(serde::Deserialize, Debug, PartialEq)]
     struct Shape {
         width: usize,
     }
 
-    static PREFABS: StaticPreFabMap<Shape> = StaticPreFabMap {
-        name: "shapes",
-        description: "test shapes",
-        items: &[&StaticPreFabConfig {
-            name: "small",
-            description: "a small shape",
-            builder: || Shape { width: 4 },
-        }],
-    };
-
-    fn resource(
-        key: &str,
-        file: &str,
-    ) -> Resource {
-        Resource {
-            size: None,
-            dtype: None,
-            slot: key.to_string(),
-            file: file.to_string(),
-            sha256: None,
-            format: Some("pytorch".to_string()),
-            name: "a".to_string(),
-            sources: vec![Source::Url(alloc::format!("https://a.example/{file}"))],
-        }
-    }
-
-    /// `catalog:a/small`, as a factory copies it out of a table.
-    fn named() -> BuildRef {
-        BuildRef::Named {
-            provider: "catalog".to_string(),
-            pretrained: Box::new(Pretrained {
-                name: "a/small".to_string(),
-                aliases: vec!["s".to_string()],
-                description: "small weights".to_string(),
-                license: None,
-                origin: None,
-                prefab: Some("small".to_string()),
-                resources: ResourceSet::new("small")
-                    .with_resource(resource("checkpoint", "small.pt"))
-                    .with_resource(resource("vocabulary", "vocab.txt")),
-                presets: Default::default(),
-                args: Default::default(),
-                tags: Default::default(),
-            }),
-            selection: Default::default(),
-        }
-    }
-
-    /// A named ref is its provider's row: the id is `provider:ref`, the
-    /// resource set is the row's under that id, and the prefab is the row's.
+    /// A named ref is its provider's build: the id is `provider:ref`, the
+    /// resource set is the build's under that id, and a stated argument is
+    /// the build's.
     #[test]
-    fn test_a_named_ref_is_its_row() {
+    fn test_a_named_ref_is_its_build() {
         let model = named();
         assert_eq!(model.id(), "catalog:a/small");
-        let (provider, row) = model.named().unwrap();
+        let (provider, build) = model.build().unwrap();
         assert_eq!(provider, "catalog");
-        assert_eq!(row.name, "a/small");
-        assert_eq!(model.prefab(&PREFABS).map(|p| p.to_config().width), Some(4));
+        assert_eq!(build.name, n("a/small"));
+        assert_eq!(
+            model.stated::<Shape>("geometry").unwrap(),
+            Some(Shape { width: 4 })
+        );
+        assert_eq!(model.stated::<Shape>("other").unwrap(), None);
+        assert!(model.stated::<String>("geometry").is_err());
 
         let map = model.to_resource_set();
         assert_eq!(
             map.name, "catalog:a/small",
-            "a row's map is named by its id"
+            "a build's map is named by its id"
         );
         assert_eq!(map.keys(), ["checkpoint", "vocabulary"]);
         assert_eq!(map.get("checkpoint").unwrap().file, "small.pt");
+        assert_eq!(map.get("checkpoint").unwrap().name, "a/small/checkpoint");
         assert_eq!(model.clone(), model);
     }
 
-    /// A given ref is the resource set it was given: no provider, no prefab.
+    /// A given ref is the resource set it was given: no provider, nothing
+    /// stated.
     #[test]
     fn test_a_given_ref_is_its_map() {
         let map = ResourceSet::given("/models/ckpt.pt", "checkpoint", "/models/ckpt.pt");
         let model = BuildRef::from(map.clone());
         assert_eq!(model, BuildRef::Given(map.clone()));
         assert_eq!(model.id(), "/models/ckpt.pt");
-        assert!(model.named().is_none());
-        assert!(model.prefab(&PREFABS).is_none());
+        assert!(model.build().is_none());
+        assert_eq!(model.stated::<Shape>("geometry").unwrap(), None);
         assert_eq!(model.to_resource_set(), map);
         assert_eq!(
             model.to_resource_set().get("checkpoint").unwrap().file,
@@ -286,10 +284,10 @@ mod tests {
         );
     }
 
-    /// An overlay replaces by key on either variant and leaves the id
-    /// alone; the overlaid resource keeps its own namespace, `given`.
+    /// An overlay replaces by slot on either variant and leaves the id and
+    /// the build alone; the overlaid resource keeps its own name, `given`.
     #[test]
-    fn test_with_overlay_replaces_by_key_on_both_variants() {
+    fn test_with_overlay_replaces_by_slot_on_both_variants() {
         let vocab = ResourceSet::given("--vocab", "vocabulary", "/mine/gpt2.tiktoken");
 
         let model = named().with_overlay(vocab.clone()).unwrap();
@@ -302,16 +300,9 @@ mod tests {
         assert_eq!(overlaid.name, GIVEN_NAMESPACE);
         assert_eq!(map.get("checkpoint").unwrap().file, "small.pt", "untouched");
         assert_eq!(
-            model
-                .named()
-                .unwrap()
-                .1
-                .resources
-                .get("vocabulary")
-                .unwrap()
-                .file,
-            "gpt2.tiktoken",
-            "the row copy is what changed"
+            model.build().unwrap().1.resources["vocabulary"].entry.file,
+            "vocab.txt",
+            "the build is unchanged"
         );
 
         let given = BuildRef::from(ResourceSet::given("mine", "checkpoint", "/m/ckpt.pt"))

@@ -133,8 +133,8 @@ where
 {
     let none = PresetSelection::default();
     let selection = model.selection().unwrap_or(&none);
-    let set = match model.named() {
-        Some((_, row)) if !row.presets.is_empty() => &row.presets,
+    let set = match model.build() {
+        Some((_, build)) if !build.presets.is_empty() => &build.presets,
         _ => family,
     };
     resolve_presets(base, set, selection)
@@ -392,25 +392,18 @@ mod tests {
     #[test]
     fn test_resolve_ref_presets_falls_back_to_the_family() {
         use crate::data::{
-            builds::Pretrained,
+            catalog::{
+                CatalogName,
+                ResolvedBuild,
+            },
             resources::ResourceSet,
         };
 
-        let named = |presets: ResolvedPresetSet, selection: PresetSelection| BuildRef::Named {
-            provider: "hf".to_string(),
-            pretrained: Box::new(Pretrained {
-                name: "org/repo".to_string(),
-                aliases: Vec::new(),
-                description: "a repo".to_string(),
-                license: None,
-                origin: None,
-                prefab: None,
-                resources: ResourceSet::new("org/repo"),
-                presets,
-                args: Default::default(),
-                tags: Default::default(),
-            }),
-            selection,
+        let named = |presets: ResolvedPresetSet, selection: PresetSelection| {
+            let mut build =
+                ResolvedBuild::new(CatalogName::parse("hf/org/repo").unwrap(), "a repo");
+            build.presets = presets;
+            BuildRef::named("hf", build, selection)
         };
         let family = set();
 

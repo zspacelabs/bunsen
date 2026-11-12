@@ -17,7 +17,8 @@
 //!
 //! The [`ResourceCache`] keeps a pinned file at
 //! `<cache>/resources/<name>/<sha256>/<file>`, `<name>` a catalog
-//! resource's full name (`hf` or `given` off the catalog). The digest in
+//! resource's full name (`hf/<org>/<repo>/<slot>` for a Hub repo's, `given`
+//! for a path's). The digest in
 //! the path is the pin: a file there was verified when it was written, and
 //! is trusted without re-hashing (the
 //! [trust model](ResourceCache#trust-model)). The cache looks there
@@ -34,9 +35,9 @@
 //! - Files fetched at build time are a populated cache directory.
 //!   `bind-whisper-onnx` lays its `OUT_DIR` out in this layout, so a
 //!   [`ResourceCache`] rooted there finds the files without knowing they were
-//!   bundled. (`whisper-model-validation` also registers a
-//!   `bundled:openai/base` row over the same files, served in place as
-//!   local-dir sources.)
+//!   bundled. (`whisper-model-validation` also imports a catalog layer that
+//!   adds the same files to `openai/whisper/base` as local-dir sources, served
+//!   in place.)
 //!
 //! The second form is the general one: bundling a fetched asset means
 //! populating a cache directory, not adding a kind of source. A deployment
@@ -48,6 +49,7 @@
 mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
+pub mod hub;
 #[cfg(feature = "cache")]
 mod loaded;
 mod resource;

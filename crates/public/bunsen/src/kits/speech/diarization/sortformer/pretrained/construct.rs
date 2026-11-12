@@ -419,10 +419,9 @@ mod tests {
 
         let provider = crate::data::catalog::BuiltinCatalog::expect_provider(
             super::super::SORTFORMER_CATALOG_CONTRACT,
-            super::super::SORTFORMER_KIT,
         );
-        for row in provider.rows() {
-            let family = if row.name.contains("nemotron") {
+        for row in provider.builds() {
+            let family = if row.name.to_string().contains("nemotron") {
                 "nemotron"
             } else {
                 "sortformer-v2"

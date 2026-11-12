@@ -371,11 +371,10 @@ pub fn differences(
 
 #[cfg(test)]
 mod tests {
+    use bunsen::data::resources::hub::HubRepo;
+
     use super::*;
-    use crate::remote::{
-        HubRepo,
-        testing::FakeRemote,
-    };
+    use crate::remote::testing::FakeRemote;
 
     const PRELUDE: &str = r#"
 $description: "The vocabulary."

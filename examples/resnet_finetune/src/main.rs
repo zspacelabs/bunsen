@@ -17,9 +17,12 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    data::resources::{
-        ResourceCache,
-        ResourceCacheOptions,
+    data::{
+        builds::GEOMETRY,
+        resources::{
+            ResourceCache,
+            ResourceCacheOptions,
+        },
     },
     errors::{
         BunsenError,
@@ -259,24 +262,32 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     // TODO: lift to clap parser.
     if args.pretrained == "list" {
         println!("Available pretrained models:");
+        let builds = factory.list();
         for prefab in RESNET_PREFABS.iter() {
             let cfg = (prefab.builder)();
             println!("* \"{}\"", prefab.name);
             println!("{cfg:?}");
 
-            for (provider, row) in factory.for_prefab(prefab.name) {
-                println!("  - \"{provider}:{}\": {}", row.name, row.description);
+            // The builds that state the prefab's geometry.
+            for (provider, build) in &builds {
+                let stated = build.args.get(GEOMETRY).map(|a| &a.value);
+                if stated.is_some_and(|g| same_geometry(g, &cfg)) {
+                    println!("  - \"{provider}:{}\": {}", build.name, build.description);
+                }
             }
         }
         return Ok(());
     }
     let cache = ResourceCache::new(ResourceCacheOptions::default())?;
     let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
-    let prefab = model_ref
-        .model
-        .prefab(&RESNET_PREFABS)
-        .ok_or_else(|| BunsenError::policy(format!("{}: names no prefab", model_ref.id())))?;
-    let resnet_prefab = prefab.name.clone();
+    let stated = model_ref.config.config_for(&model_ref.model)?;
+    let resnet_prefab = RESNET_PREFABS
+        .iter()
+        .find(|p| serde_json::to_value(&stated).is_ok_and(|g| same_geometry(&g, &p.to_config())))
+        .map(|p| p.name.to_string())
+        .ok_or_else(|| {
+            BunsenError::policy(format!("{}: its geometry is no prefab's", model_ref.id()))
+        })?;
     let resnet_pretrained = model_ref.id();
 
     // Remove existing artifacts before to get an accurate learner summary
@@ -285,7 +296,7 @@ pub fn train(args: &Args) -> BunsenResult<()> {
 
     device.seed(args.seed);
 
-    let mut resnet_config = prefab.to_config();
+    let mut resnet_config = stated;
 
     if let Some(option) = &args.replace_activation {
         match option {
@@ -502,4 +513,12 @@ impl InferenceStep for Host {
     ) -> Self::Output {
         self.forward_classification(batch.images, batch.targets)
     }
+}
+
+/// Whether `stated`, a build's stated geometry, is `config`'s.
+fn same_geometry(
+    stated: &serde_json::Value,
+    config: &bunsen::kits::images::resnet::ResNetContractConfig,
+) -> bool {
+    serde_json::to_value(config).is_ok_and(|c| &c == stated)
 }

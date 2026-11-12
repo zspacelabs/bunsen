@@ -46,7 +46,6 @@ pub fn default_voxtral_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             VOXTRAL_CATALOG_CONTRACT,
-            VOXTRAL_KIT,
         )),
         Arc::new(
             HfProvider::new()
@@ -114,7 +113,7 @@ mod tests {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, DEFAULT_VOXTRAL_MODEL, "{spec}");
             // Its geometry is stated, reads as a config, and is a prefab's.
-            let geometry = &row.args[crate::data::builds::GEOMETRY];
+            let geometry = &row.args[crate::data::builds::GEOMETRY].value;
             serde_json::from_value::<crate::kits::speech::asr::voxtral::VoxtralRealtimeConfig>(
                 geometry.clone(),
             )

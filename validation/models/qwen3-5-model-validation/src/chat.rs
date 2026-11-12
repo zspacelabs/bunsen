@@ -33,9 +33,9 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
         .expect("the qwen3.5 factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = ResourceSet::new(pretrained.resources.name.clone());
+    let mut map = ResourceSet::new(pretrained.resource_set().name.clone());
     for key in [TOKENIZER, TOKENIZER_CONFIG, CHAT_TEMPLATE] {
-        if let Some(r) = pretrained.resources.get(key) {
+        if let Some(r) = pretrained.resource_set().get(key) {
             map.insert(r.clone());
         }
     }

@@ -167,16 +167,19 @@ mod tests {
     use super::*;
     use crate::{
         data::{
-            builds::{
-                Pretrained,
-                testing::CheckpointPath,
-            },
+            builds::testing::CheckpointPath,
             cache::BunsenDiskCacheOptions,
+            catalog::{
+                CatalogName,
+                ResolvedBuild,
+                document::{
+                    ResourceEntry,
+                    ResourceSource,
+                },
+            },
             resources::{
                 Provenance,
-                Resource,
                 ResourceCacheOptions,
-                Source,
             },
         },
         errors::{
@@ -199,33 +202,21 @@ mod tests {
         .unwrap()
     }
 
-    /// `catalog:a/small`, a row whose one resource is only remote.
+    /// `catalog:a/small`, a build whose one resource is only remote.
     fn named() -> BuildRef {
-        BuildRef::Named {
-            provider: "catalog".to_string(),
-            pretrained: Box::new(Pretrained {
-                name: "a/small".to_string(),
-                aliases: Vec::new(),
-                description: "small weights".to_string(),
-                license: None,
-                origin: None,
-                prefab: Some("small".to_string()),
-                resources: ResourceSet::new("small").with_resource(Resource {
-                    size: None,
-                    dtype: None,
-                    slot: "checkpoint".to_string(),
-                    file: "small.pt".to_string(),
-                    sha256: None,
-                    format: Some("pytorch".to_string()),
-                    name: "a".to_string(),
-                    sources: vec![Source::Url("https://a.example/small.pt".to_string())],
-                }),
-                presets: Default::default(),
-                args: Default::default(),
-                tags: Default::default(),
-            }),
-            selection: Default::default(),
-        }
+        let n = |name: &str| CatalogName::parse(name).unwrap();
+        let build = ResolvedBuild::new(n("a/small"), "small weights").with_resource(
+            "checkpoint",
+            n("a/small/checkpoint"),
+            ResourceEntry::new(
+                "small.pt",
+                "pytorch",
+                vec![ResourceSource::Url(
+                    "https://a.example/small.pt".to_string(),
+                )],
+            ),
+        );
+        BuildRef::named("catalog", build, Default::default())
     }
 
     /// A given path is local already and loads in place through the hook

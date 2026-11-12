@@ -50,14 +50,7 @@ impl ChatModelFamily {
     /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) for a row whose
     /// name is not a catalog name, which the tests pin none is.
     pub fn builds(self) -> BunsenResult<Vec<CatalogName>> {
-        self.rows()?
-            .into_iter()
-            .map(|(_, row)| {
-                CatalogName::parse(&row.name).map_err(|e| {
-                    BunsenError::illegal(format!("`{}`: {}", row.name, e.problem_message()))
-                })
-            })
-            .collect()
+        Ok(self.rows()?.into_iter().map(|(_, row)| row.name).collect())
     }
 }
 
@@ -219,23 +212,21 @@ mod tests {
     fn test_every_row_is_its_own() {
         for family in ChatModelFamily::ALL {
             for (_, row) in family.rows().unwrap() {
-                let bare = row
-                    .name
-                    .rsplit_once('/')
-                    .map_or(row.name.as_str(), |(_, n)| n);
-                for name in [row.name.as_str(), bare] {
+                let full = row.name.to_string();
+                for name in [full.as_str(), row.name.leaf()] {
                     assert_eq!(
                         choose(None, &["--model", name]),
-                        (family, row.name.clone()),
+                        (family, full.clone()),
                         "{name}"
                     );
                     assert_eq!(
                         choose(Some(family), &["--model", name]),
-                        (family, row.name.clone()),
+                        (family, full.clone()),
                         "{name}"
                     );
                 }
                 for alias in &row.aliases {
+                    let alias = alias.leaf();
                     assert_eq!(choose(None, &["--model", alias]).0, family, "{alias}");
                 }
             }

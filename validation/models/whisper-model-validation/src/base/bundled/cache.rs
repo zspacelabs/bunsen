@@ -1,13 +1,11 @@
-//! The bundle's directory as a resource cache, and its files as a table.
+//! The bundle's directory as a resource cache, and its files as a layer.
 
 use bunsen::{
-    data::{
-        builds::BUNDLED,
-        resources::{
-            CacheStatus,
-            Fuse,
-            Provenance,
-        },
+    data::resources::{
+        CacheStatus,
+        Fuse,
+        Provenance,
+        Source,
     },
     kits::speech::asr::whisper::pretrained::{
         CHECKPOINT,
@@ -20,6 +18,7 @@ use bunsen::{
 };
 
 use super::{
+    BUNDLE,
     base_checkpoint,
     cache_in,
     factory_with_bundle,
@@ -68,20 +67,18 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     );
 }
 
-/// `bundled:openai/base` (`bundled_table`) is the bundle's files, used in place
-/// from a cache that has nothing: both parts local dir, nothing written; and
-/// a bare `openai/base` still means the catalog row.
+/// With the bundle layer ([`bundle_layer`](super::bundle_layer)),
+/// `openai/whisper/base` is the bundle's files, used in place from a cache
+/// that has nothing: both parts local dir, nothing written. Without it, the
+/// same name is the catalog's files, fetched.
 #[test]
-fn test_the_bundled_provider_serves_openai_base_in_place() {
+fn test_the_bundle_layer_serves_openai_base_in_place() {
     let dir = tempfile::tempdir().unwrap();
     let cache = cache_in(dir.path().join("cache"));
     let factory = factory_with_bundle();
-    let bundled = factory.provider(BUNDLED).unwrap();
-    assert_eq!(bundled.ids(), ["bundled:openai/base"]);
-    assert_eq!(bundled.license(), None);
 
-    let model = factory.resolve("bundled:openai/base", &cache).unwrap();
-    assert_eq!(model.id(), "bundled:openai/base");
+    let model = factory.resolve("openai/base", &cache).unwrap();
+    assert_eq!(model.id(), "catalog:openai/whisper/base");
     let status = model.status(&cache);
     assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
     assert_eq!(status[VOCABULARY], CacheStatus::LocalDir);
@@ -106,9 +103,17 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
     );
     assert!(!dir.path().join("cache").exists(), "nothing was written");
 
-    assert_eq!(
-        factory.resolve("openai/base", &cache).unwrap().id(),
-        "catalog:openai/whisper/base"
+    let without = default_whisper_factory()
+        .unwrap()
+        .resolve("openai/base", &cache)
+        .unwrap();
+    let without = without.to_resource_set();
+    let sources = &without.get(CHECKPOINT).unwrap().sources;
+    assert!(
+        !sources
+            .iter()
+            .any(|s| matches!(s, Source::LocalDir { name, .. } if name == BUNDLE)),
+        "{sources:?}"
     );
 }
 

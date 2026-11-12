@@ -624,7 +624,11 @@ pub struct BuildEntry {
     pub merge: MergeMode,
 
     /// What the build is, for a person.
-    #[serde(rename = "$description")]
+    #[serde(
+        rename = "$description",
+        default,
+        skip_serializing_if = "String::is_empty"
+    )]
     pub description: String,
 
     /// Further memberships, release memberships among them.
@@ -1030,6 +1034,28 @@ pub struct ResourceShard {
 }
 
 impl ResourceEntry {
+    /// One unsharded artifact, `file` in `format`, had from `sources`: what
+    /// a provider that makes its builds itself declares (an `hf:` repo's
+    /// files). Unpinned, of unknown size and dtype, until set.
+    pub fn new(
+        file: impl Into<String>,
+        format: impl Into<String>,
+        sources: Vec<ResourceSource>,
+    ) -> Self {
+        Self {
+            name: String::new(),
+            merge: MergeMode::Deny,
+            description: None,
+            file: file.into(),
+            format: format.into(),
+            sha256: None,
+            size: None,
+            dtype: None,
+            sources,
+            shards: Vec::new(),
+        }
+    }
+
     /// The sources `shard` is had from: its own, then the resource's place
     /// sources.
     pub fn shard_sources<'a>(

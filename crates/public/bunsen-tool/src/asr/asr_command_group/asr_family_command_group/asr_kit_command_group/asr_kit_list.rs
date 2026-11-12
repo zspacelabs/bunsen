@@ -52,21 +52,23 @@ impl AsrKitListCommand {
             println!();
             println!("{provider}:{}{default}", row.name);
             println!("  {}", row.description);
-            if let Some(size) = row.resources.size() {
+            let resources = row.resource_set();
+            if let Some(size) = resources.size() {
                 println!("  size: {}", human_bytes(size));
             }
-            let dtypes = row.resources.dtypes();
+            let dtypes = resources.dtypes();
             if !dtypes.is_empty() {
                 println!("  dtype: {}", dtypes.join(", "));
             }
             println!("  license: {}", row.license.as_deref().unwrap_or("unknown"));
             if !row.aliases.is_empty() {
-                println!("  aliases: {}", row.aliases.join(", "));
+                let aliases: Vec<&str> = row.aliases.iter().map(|a| a.leaf()).collect();
+                println!("  aliases: {}", aliases.join(", "));
             }
             for line in preset_lines(&row.presets) {
                 println!("{line}");
             }
-            for (key, r) in &row.resources.resources {
+            for (key, r) in &resources.resources {
                 println!(
                     "  {key}: {} ({}) [{}]",
                     r.file,

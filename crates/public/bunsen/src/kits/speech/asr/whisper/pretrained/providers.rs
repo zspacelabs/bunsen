@@ -39,7 +39,6 @@ pub fn default_whisper_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             WHISPER_CATALOG_CONTRACT,
-            WHISPER_KIT,
         )),
         Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
     ]
@@ -66,19 +65,20 @@ mod tests {
     }
 
     fn well_known() -> crate::data::builds::CatalogBuildProvider {
-        crate::data::catalog::BuiltinCatalog::expect_provider(WHISPER_CATALOG_CONTRACT, WHISPER_KIT)
+        crate::data::catalog::BuiltinCatalog::expect_provider(WHISPER_CATALOG_CONTRACT)
     }
 
-    fn leaf(name: &str) -> &str {
-        name.rsplit('/').next().unwrap()
+    fn leaf(name: &crate::data::catalog::CatalogName) -> &str {
+        name.leaf()
     }
 
     /// The prefab whose geometry the row states.
-    fn prefab_of(row: &crate::data::builds::Pretrained) -> &'static str {
+    fn prefab_of(row: &crate::data::catalog::ResolvedBuild) -> &'static str {
         let geometry: crate::kits::speech::asr::whisper::WhisperGeometry = serde_json::from_value(
             row.args
                 .get(crate::data::builds::GEOMETRY)
                 .unwrap_or_else(|| panic!("{}: no stated geometry", row.name))
+                .value
                 .clone(),
         )
         .unwrap();
@@ -94,13 +94,13 @@ mod tests {
     #[test]
     fn test_every_row_states_its_prefab_and_fuses() {
         let provider = well_known();
-        for row in provider.rows() {
+        for row in provider.builds() {
             let expected = match leaf(&row.name) {
                 "large-v1" | "large-v2" => "large",
                 name => name,
             };
             assert_eq!(prefab_of(row), expected, "{}", row.name);
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             assert_eq!(map.keys(), [CHECKPOINT, VOCABULARY], "{}", row.name);
             let checkpoint = map.get(CHECKPOINT).unwrap();
@@ -108,15 +108,16 @@ mod tests {
             assert!(checkpoint.is_pinned());
             assert!(map.get(VOCABULARY).unwrap().is_pinned());
         }
-        assert_eq!(provider.rows().len(), 12);
+        assert_eq!(provider.builds().len(), 12);
     }
 
     /// The vocabulary a row declares is the one the rule selects for its
     /// prefab's layout, so a name and a path agree on it.
     #[test]
     fn test_the_declared_vocabulary_is_the_rules() {
-        for row in well_known().rows() {
-            let declared = row.resources.get(VOCABULARY).unwrap();
+        for row in well_known().builds() {
+            let set = row.resource_set();
+            let declared = set.get(VOCABULARY).unwrap();
             let rule = WhisperVocabulary::for_layout(&layout_of(prefab_of(row))).resource_set();
             let rule = rule.get(VOCABULARY).unwrap();
             assert_eq!(declared, rule, "{}", row.name);
@@ -129,13 +130,17 @@ mod tests {
     fn test_the_well_known_provider_lists_the_openai_rows() {
         let provider = well_known();
         assert_eq!(provider.name(), "catalog");
-        let names: Vec<&str> = provider.rows().iter().map(|r| r.name.as_str()).collect();
+        let names: Vec<String> = provider
+            .builds()
+            .iter()
+            .map(|r| r.name.to_string())
+            .collect();
         assert_eq!(names.len(), 12);
         assert!(
             names.iter().all(|n| n.starts_with("openai/whisper/")),
             "{names:?}"
         );
-        let name = |spec: &str| provider.lookup(spec).unwrap().map(|p| p.name);
+        let name = |spec: &str| provider.lookup(spec).unwrap().map(|p| p.name.to_string());
         assert_eq!(
             name("openai/tiny.en").as_deref(),
             Some("openai/whisper/tiny.en")
@@ -165,11 +170,9 @@ mod tests {
     fn test_names_and_aliases_are_unique() {
         let provider = well_known();
         let mut names: Vec<&str> = provider
-            .rows()
+            .builds()
             .iter()
-            .flat_map(|p| {
-                core::iter::once(leaf(&p.name)).chain(p.aliases.iter().map(String::as_str))
-            })
+            .flat_map(|p| core::iter::once(leaf(&p.name)).chain(p.aliases.iter().map(leaf)))
             .collect();
         let n = names.len();
         names.sort_unstable();

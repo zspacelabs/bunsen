@@ -204,8 +204,9 @@ pub struct Resource {
     pub dtype: Option<String>,
 
     /// Its full name, which the cache keeps its file under: a catalog
-    /// resource's (`qwen/qwen3/qwen3-0.6b/checkpoint`), `hf` for an `hf:`
-    /// repo's file, `given` for a path's.
+    /// resource's (`qwen/qwen3/qwen3-0.6b/checkpoint`),
+    /// `hf/<org>/<repo>/<slot>` for an `hf:` repo's file, `given` for a
+    /// path's.
     pub name: String,
 
     /// Where the file can be had from, in preference order, its resource

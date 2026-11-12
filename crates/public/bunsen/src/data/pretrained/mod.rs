@@ -10,4 +10,3 @@ mod prefabs;
 pub mod tags;
 
 pub use prefabs::*;
-pub use tags::Tags;

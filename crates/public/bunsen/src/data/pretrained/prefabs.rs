@@ -136,14 +136,10 @@ where
 ///
 /// A prefab is a named builder of a config: what a name means as a shape
 /// before any bytes are fetched. Whisper's `WHISPER_PREFABS` and `ResNet`'s
-/// `RESNET_PREFABS` are the in-tree maps. Which rows instantiate a
-/// prefab is the rows' side: a [`Pretrained`](crate::data::builds::Pretrained)
-/// row names its prefab,
-/// [`BuildRef::prefab`](crate::data::builds::BuildRef::prefab)
-/// looks it up here for a resolved row (for the kit's hook to build from
-/// or check against), and a factory's
-/// [`for_prefab`](crate::data::builds::BuildFactory::for_prefab) lists the
-/// rows of one prefab. [`find`](Self::find) is the reverse lookup, for a config
+/// `RESNET_PREFABS` are the in-tree maps. A build states the geometry it is
+/// built in ([`BuildRef::stated`](crate::data::builds::BuildRef::stated)),
+/// which the kit's tests check is a prefab's. [`find`](Self::find) is the
+/// reverse lookup, for a config
 /// that arrived without a name. [`to_prefab_map`](Self::to_prefab_map) gives
 /// the owned twin, a [`PreFabMap`].
 #[derive(Debug)]

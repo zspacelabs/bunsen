@@ -157,16 +157,13 @@ impl<K: TransformersLmKit> ConstructInit for K {
                 let max_positions = text.usize("max_position_embeddings").ok();
                 (config, max_positions)
             }
-            None => match model.prefab(K::prefabs()) {
-                Some(prefab) => (prefab.to_config(), None),
-                None => {
-                    return Err(BunsenError::invalid_resource(format!(
-                        "a {} checkpoint with neither a config.json nor a prefab",
-                        K::NAME
-                    ))
-                    .context(&loaded.map.name));
-                }
-            },
+            None => {
+                return Err(BunsenError::invalid_resource(format!(
+                    "a {} checkpoint without a config.json",
+                    K::NAME
+                ))
+                .context(&loaded.map.name));
+            }
         };
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, K::CHECKPOINT)?.tensors()?;
         let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);

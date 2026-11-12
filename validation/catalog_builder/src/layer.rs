@@ -22,7 +22,13 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    data::catalog::document::OrderedNode,
+    data::{
+        catalog::document::OrderedNode,
+        resources::hub::{
+            HubEntry,
+            HubRepo,
+        },
+    },
     kits::support::model_config::{
         CatalogProbe,
         Probe,
@@ -42,8 +48,6 @@ use serde_json::{
 
 use crate::{
     remote::{
-        HubFile,
-        HubRepo,
         Remote,
         config_dtype,
         sha256_of,
@@ -62,7 +66,7 @@ const COMMON: &str = "$common";
 pub struct LayerBuilder<'a> {
     remote: &'a dyn Remote,
     verify_remote: bool,
-    listings: BTreeMap<HubRepo, BTreeMap<String, HubFile>>,
+    listings: BTreeMap<HubRepo, BTreeMap<String, HubEntry>>,
     /// The bytes of the files fetched, by the resource's path in the layer.
     fetched: BTreeMap<String, Vec<u8>>,
 }
@@ -138,7 +142,7 @@ impl<'a> LayerBuilder<'a> {
     fn listing(
         &mut self,
         repo: &HubRepo,
-    ) -> Result<&BTreeMap<String, HubFile>, String> {
+    ) -> Result<&BTreeMap<String, HubEntry>, String> {
         if !self.listings.contains_key(repo) {
             let listing = crate::remote::hub_listing(self.remote, repo)?;
             self.listings.insert(repo.clone(), listing);

@@ -14,8 +14,8 @@
 //! pointed at `cache_dir()`, offline, hits `openai/base` and both vocabularies
 //! without knowing they were bundled: bundling is a populated cache directory,
 //! not a kind of source. `whisper-model-validation` does exactly that, and also
-//! registers the same files as `bundled:openai/base`, a row served in place
-//! from here.
+//! imports a catalog layer that adds the same files to `openai/whisper/base` as
+//! local-dir sources, served in place from here.
 //!
 //! ## What it exposes
 //!

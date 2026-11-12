@@ -31,9 +31,9 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf) {
         .expect("the qwen3 factory")
         .lookup(row)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
-    let mut map = ResourceSet::new(pretrained.resources.name.clone());
+    let mut map = ResourceSet::new(pretrained.resource_set().name.clone());
     for key in [TOKENIZER, TOKENIZER_CONFIG] {
-        map.insert(pretrained.resources.try_get(key).unwrap().clone());
+        map.insert(pretrained.resource_set().try_get(key).unwrap().clone());
     }
     let loaded = weights_cache()
         .load(&map)

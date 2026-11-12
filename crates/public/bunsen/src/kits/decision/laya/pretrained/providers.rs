@@ -38,7 +38,7 @@ pub const DEFAULT_LAYA_MODEL: &str = "laya/laya/laya";
 /// Laya's compiled-in providers: the catalog provider.
 pub fn default_laya_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![Arc::new(
-        crate::data::catalog::BuiltinCatalog::expect_provider(LAYA_CATALOG_CONTRACT, LAYA_KIT),
+        crate::data::catalog::BuiltinCatalog::expect_provider(LAYA_CATALOG_CONTRACT),
     )]
 }
 
@@ -75,7 +75,7 @@ mod tests {
         );
         for name in names {
             let (_, row) = factory.lookup(name).unwrap();
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             for resource in map.resources.values() {
                 assert!(resource.is_pinned(), "{name}: {}", resource.slot);

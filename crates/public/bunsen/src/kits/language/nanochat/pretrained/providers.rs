@@ -39,10 +39,7 @@ pub const DEFAULT_NANOCHAT_MODEL: &str = "nanochat-students/rl-d20";
 /// nanochat's compiled-in providers: the catalog provider.
 pub fn default_nanochat_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![Arc::new(
-        crate::data::catalog::BuiltinCatalog::expect_provider(
-            NANOCHAT_CATALOG_CONTRACT,
-            NANOCHAT_KIT,
-        ),
+        crate::data::catalog::BuiltinCatalog::expect_provider(NANOCHAT_CATALOG_CONTRACT),
     )]
 }
 
@@ -101,7 +98,7 @@ mod tests {
             if let Some(alias) = alias {
                 assert_eq!(factory.lookup(alias).unwrap().1.name, row.name, "{alias}");
             }
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             for resource in map.resources.values() {
                 assert!(resource.is_pinned(), "{name}: {}", resource.slot);

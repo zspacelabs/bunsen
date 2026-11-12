@@ -97,7 +97,7 @@
 //! let ids = WhisperSpecialIds::from_vocab_size(geometry.vocab_size)?;
 //! let rule = WhisperVocabulary::for_layout(&ids).resource_set();
 //! assert_eq!(
-//!     row.resources.try_get(VOCABULARY)?.file,
+//!     row.resource_set().try_get(VOCABULARY)?.file,
 //!     rule.try_get(VOCABULARY)?.file,
 //! );
 //! # }

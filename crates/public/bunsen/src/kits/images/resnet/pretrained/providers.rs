@@ -29,7 +29,7 @@ pub const RESNET_CATALOG_CONTRACT: &str = "resnet-classifier";
 /// `ResNet`'s compiled-in providers, in search order: the catalog provider.
 pub fn default_resnet_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![Arc::new(
-        crate::data::catalog::BuiltinCatalog::expect_provider(RESNET_CATALOG_CONTRACT, RESNET_KIT),
+        crate::data::catalog::BuiltinCatalog::expect_provider(RESNET_CATALOG_CONTRACT),
     )]
 }
 
@@ -49,10 +49,11 @@ mod tests {
         let rows = factory.list();
         for (_, row) in &rows {
             let name = &row.name;
-            let geometry = row
+            let geometry = &row
                 .args
                 .get(GEOMETRY)
-                .expect("every resnet row states its geometry");
+                .expect("every resnet row states its geometry")
+                .value;
             let config: crate::kits::images::resnet::ResNetContractConfig =
                 serde_json::from_value(geometry.clone()).unwrap();
             assert!(
@@ -61,11 +62,11 @@ mod tests {
                     .any(|p| serde_json::to_value(p.to_config()).unwrap() == *geometry),
                 "{name}: geometry {config:?} is no prefab in RESNET_PREFABS",
             );
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             assert_eq!(map.keys(), [CHECKPOINT], "{name}");
             let checkpoint = map.get(CHECKPOINT).unwrap();
-            let namespace = name.split('/').next().unwrap();
+            let namespace = name.segments()[0].as_str();
             assert!(["torchvision", "timm"].contains(&namespace), "{name}");
             assert!(
                 checkpoint.name.starts_with(&format!("{namespace}/")),
@@ -107,7 +108,7 @@ mod tests {
             factory
                 .lookup(spec)
                 .ok()
-                .map(|(_, row)| row.resources.get(CHECKPOINT).unwrap().file.clone())
+                .map(|(_, row)| row.resource_set().get(CHECKPOINT).unwrap().file.clone())
         };
         assert_eq!(file("resnet50").as_deref(), Some("resnet50-0676ba61.pth"));
         assert!(

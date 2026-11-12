@@ -299,7 +299,8 @@ fn fetch_prefix(
 ///
 /// `<name>` is the resource's: a catalog resource's full name, each `/` a
 /// directory (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two builds
-/// share is cached once, under its own name; `hf` for an `hf:` repo's file,
+/// share is cached once, under its own name; `hf/<org>/<repo>/<slot>` for an
+/// `hf:` repo's file,
 /// and `given` for a path's. `<file>` is the file's path, kept whole. An
 /// unpinned resource sits under a cache key in place of `<sha256>`: one derived
 /// from its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its

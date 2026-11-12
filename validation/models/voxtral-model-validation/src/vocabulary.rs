@@ -25,9 +25,9 @@ fn tekken_json() -> String {
         .expect("the voxtral factory")
         .lookup(DEFAULT_VOXTRAL_MODEL)
         .expect("the published row");
-    let mut map = ResourceSet::new(row.resources.name.clone());
+    let mut map = ResourceSet::new(row.resource_set().name.clone());
     map.insert(
-        row.resources
+        row.resource_set()
             .try_get(VOCABULARY)
             .expect("its vocabulary")
             .clone(),

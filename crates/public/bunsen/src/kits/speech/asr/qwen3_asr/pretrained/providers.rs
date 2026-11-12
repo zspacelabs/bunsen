@@ -51,7 +51,6 @@ pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn BuildProvider>> {
     vec![
         Arc::new(crate::data::catalog::BuiltinCatalog::expect_provider(
             QWEN3_ASR_CATALOG_CONTRACT,
-            QWEN3_ASR_KIT,
         )),
         Arc::new(
             HfProvider::new()
@@ -86,7 +85,7 @@ mod tests {
     fn test_rows_are_pinned_and_named() {
         let factory = default_qwen3_asr_factory().unwrap();
         for (_, row) in factory.list() {
-            let map = &row.resources;
+            let map = &row.resource_set();
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);
@@ -131,7 +130,7 @@ mod tests {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, name);
             // Its geometry is stated, reads as a config, and is a prefab's.
-            let geometry = &row.args[crate::data::builds::GEOMETRY];
+            let geometry = &row.args[crate::data::builds::GEOMETRY].value;
             serde_json::from_value::<crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig>(
                 geometry.clone(),
             )

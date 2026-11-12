@@ -52,8 +52,8 @@
 //! - **A pretrained table and providers.** The rows, named checkpoints, each
 //!   naming the prefab it instantiates where the kit keeps prefabs, compiled
 //!   into a table behind the `catalog:` provider. `default_{kit}_providers()`
-//!   lists the kit's providers in search order, `bundled:` and `hf:` among them
-//!   where the kit has them.
+//!   lists the kit's providers in search order, `hf:` among them where the kit
+//!   has it.
 //! - **A catalog contract.** `contract.yml`, beside the providers
 //!   (`{KIT}_CONTRACT`): the signature its loader implements, the resource
 //!   slots and arguments a build catalog's builds bind
