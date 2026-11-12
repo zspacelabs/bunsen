@@ -14,11 +14,11 @@ use std::{
 };
 
 /// The directory under the cache dir that holds a pretrained's resources:
-/// `<cache>/pretrained/<namespace>/<sha256>/<file>`.
+/// `<cache>/resources/<name>/<sha256>/<file>`.
 ///
 /// `bunsen_fetch`'s, so the bundled-asset build scripts, which lay files out
-/// with `bunsen_fetch::pretrained_cache_path`, write where this cache reads.
-pub use bunsen_fetch::PRETRAINED_DIR;
+/// with `bunsen_fetch::resource_cache_path`, write where this cache reads.
+pub use bunsen_fetch::RESOURCES_DIR;
 use sha2::{
     Digest,
     Sha256,
@@ -294,10 +294,10 @@ fn fetch_prefix(
 /// # Cache layout
 ///
 /// ```text
-/// <cache>/pretrained/<namespace>/<sha256>/<file>
+/// <cache>/resources/<name>/<sha256>/<file>
 /// ```
 ///
-/// `<namespace>` is the resource's: a catalog resource's full name, each `/` a
+/// `<name>` is the resource's: a catalog resource's full name, each `/` a
 /// directory (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two builds
 /// share is cached once, under its own name; `hf` for an `hf:` repo's file,
 /// and `given` for a path's. `<file>` is the file's path, kept whole. An
@@ -421,8 +421,8 @@ impl ResourceCache {
     }
 
     /// Where a resource's file lives in the cache, present or not:
-    /// `pretrained/<namespace>/<sha256>/<file>` when it is pinned, and
-    /// `pretrained/<namespace>/<cache key>/<file>` when not. A catalog
+    /// `resources/<name>/<sha256>/<file>` when it is pinned, and
+    /// `resources/<name>/<cache key>/<file>` when not. A catalog
     /// resource's namespace is its full name
     /// (`qwen/qwen3/qwen3-0.6b/checkpoint`), each `/` a directory; an `hf:`
     /// repo's is `hf`, and a path's `given`.
@@ -435,7 +435,7 @@ impl ResourceCache {
             None => res.cache_key(),
         };
         self.disk.cache_path(
-            &core::iter::once(PRETRAINED_DIR)
+            &core::iter::once(RESOURCES_DIR)
                 .chain(res.name.split('/'))
                 .chain(core::iter::once(pin.as_str()))
                 .collect::<Vec<_>>(),
@@ -1075,7 +1075,7 @@ mod tests {
     fn test_resource_paths_by_pin() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path(), true);
-        let root = dir.path().join("cache").join("pretrained");
+        let root = dir.path().join("cache").join("resources");
 
         // A catalog resource's namespace is its full name, each `/` a
         // directory.
@@ -1097,7 +1097,7 @@ mod tests {
         // Where a bundled-asset build script lays the same file out.
         assert_eq!(
             cache.resource_path(&pinned),
-            bunsen_fetch::pretrained_cache_path(
+            bunsen_fetch::resource_cache_path(
                 cache.cache_dir(),
                 "pub/fam/build/checkpoint",
                 ABC_SHA256,
@@ -1227,7 +1227,7 @@ mod tests {
         let resolved = trusting.resolve(&r).unwrap();
         assert_eq!(resolved.provenance, Provenance::LocalDir);
         assert_eq!(resolved.path, upstream.join("abc.bin"));
-        assert!(!dir.path().join("cache").join("pretrained").exists());
+        assert!(!dir.path().join("cache").join("resources").exists());
 
         let verifying = ResourceCache::new(
             ResourceCacheOptions::default()
@@ -1247,7 +1247,7 @@ mod tests {
             verifying.resolve(&r).unwrap().provenance,
             Provenance::LocalDir
         );
-        assert!(!dir.path().join("cache").join("pretrained").exists());
+        assert!(!dir.path().join("cache").join("resources").exists());
 
         let elsewhere = dir.path().join("elsewhere");
         fs::create_dir_all(&elsewhere).unwrap();

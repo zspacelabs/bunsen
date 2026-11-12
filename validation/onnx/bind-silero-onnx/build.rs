@@ -40,7 +40,7 @@ fn fetch_checkpoint() {
         url: &url,
         sha256: SHA256,
     };
-    let dest = bunsen_fetch::pretrained_cache_path(
+    let dest = bunsen_fetch::resource_cache_path(
         &out,
         "silero/silero_vad/vad-16k/checkpoint",
         SHA256,

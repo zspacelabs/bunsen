@@ -391,7 +391,7 @@ target/<profile>/build/bind-whisper-onnx-<hash>/out/
 ```
 
 A crate that bundles *pretrained* files lays `OUT_DIR` out as a pretrained
-cache, `pretrained/<kit>/<namespace>/<sha256>/<file>`, and exposes the root
+cache, `resources/<name>/<sha256>/<file>`, and exposes the root
 (`cache_dir()`). A `ResourceCache` pointed at it hits the files without
 knowing they were bundled: bundling is a populated cache directory, not a
 kind of source, and a deployment does the same by populating the runtime

@@ -22,7 +22,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
 
 `CACHE_ROOT` is a bunsen weights cache holding the rows (`BUNSEN_CACHE_DIR`, or the user's
 cache directory, after the validation tests or `bunsen-tool chat fetch` fetched them): the
-rows' files under `pretrained/nanochat/<namespace>/<sha256>/<file>`.
+rows' files under `resources/<name>/<sha256>/<file>`.
 
 Pinned versions used to produce the committed fixtures:
     fp32: torch 2.15.0+cpu, numpy 2.5.4, tiktoken 0.14.0, rustbpe 0.1.0

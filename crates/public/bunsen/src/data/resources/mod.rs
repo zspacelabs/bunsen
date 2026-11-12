@@ -16,7 +16,7 @@
 //! ## The cache and bundles
 //!
 //! The [`ResourceCache`] keeps a pinned file at
-//! `<cache>/pretrained/<namespace>/<sha256>/<file>`, `<namespace>` a catalog
+//! `<cache>/resources/<name>/<sha256>/<file>`, `<name>` a catalog
 //! resource's full name (`hf` or `given` off the catalog). The digest in
 //! the path is the pin: a file there was verified when it was written, and
 //! is trusted without re-hashing (the

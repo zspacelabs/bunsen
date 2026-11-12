@@ -163,7 +163,7 @@ fn missing_shards(
 /// so a ref resolved once resolves again offline. The listing names the files
 /// and pins each LFS file by its SHA-256, so the checkpoint is
 /// digest-addressed in the cache like a well-known row's:
-/// `<cache>/pretrained/hf/<sha256>/<file>`. Fetching the listing
+/// `<cache>/resources/hf/<sha256>/<file>`. Fetching the listing
 /// needs the `fetch` feature, unless the cache has it already.
 ///
 /// Resolving a ref without a cache is an error, and

@@ -891,7 +891,7 @@ Whisper's index keeps three things apart, because they vary independently:
   `openai-whisper`'s `~/.cache/whisper` (`--upstream-cache-dir`), whose file is used in place, then upstream's
   digest-addressed URL, streamed to a `.partial`, hashed as it lands, and renamed into place only on a match.
 
-Fetched files live at `<cache>/pretrained/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
+Fetched files live at `<cache>/resources/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
 (`openai/whisper/base/checkpoint`): the digest in the path is the pin, so
 a file there is trusted without re-hashing, and a directory laid out this way is the cache (`fetch` fills one ahead
 of time for a deployment that runs `--offline`). `hf:openai/whisper-large-v3` is a Hugging Face repo's safetensors

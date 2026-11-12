@@ -8,7 +8,7 @@
 //! every Whisper asset arrives the same way.
 //!
 //! The pretrained assets are laid out in `OUT_DIR` as a **resource cache**,
-//! `pretrained/<resource>/<sha256>/<file>`, `<resource>` each asset's full name
+//! `resources/<resource>/<sha256>/<file>`, `<resource>` each asset's full name
 //! in the built-in catalog (`openai/whisper/base/checkpoint`), which is how
 //! bunsen's `data::resources::ResourceCache` roots a resource. A cache
 //! pointed at `cache_dir()`, offline, hits `openai/base` and both vocabularies
@@ -214,14 +214,14 @@ pub mod onnx_gen {
 #[cfg(test)]
 mod tests {
     /// Every pretrained asset sits in the cache layout under the root the
-    /// crate exposes: `pretrained/<resource>/<sha256>/<file>`, under the
+    /// crate exposes: `resources/<resource>/<sha256>/<file>`, under the
     /// file name the Whisper kit's resource uses. (An override that is not
     /// the pinned file lands elsewhere; this test assumes none is set.)
     #[cfg(any(feature = "checkpoint", feature = "vocab"))]
     #[test]
     fn test_assets_are_laid_out_as_a_pretrained_cache() {
         let root = super::cache_dir()
-            .join("pretrained")
+            .join("resources")
             .join("openai")
             .join("whisper");
         assert!(root.is_dir(), "{} is missing", root.display());

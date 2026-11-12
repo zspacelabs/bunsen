@@ -63,7 +63,7 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     assert_eq!(loaded.format(CHECKPOINT), Some(PYTORCH_FP16));
     assert_eq!(loaded.format(VOCABULARY), Some(TIKTOKEN));
     assert!(
-        !root.join("pretrained").join("given").exists(),
+        !root.join("resources").join("given").exists(),
         "nothing was written"
     );
 }

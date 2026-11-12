@@ -15,7 +15,7 @@ use crate::{
         builds::HF,
         resources::{
             GIVEN_NAMESPACE,
-            PRETRAINED_DIR,
+            RESOURCES_DIR,
             ResourceCache,
         },
     },
@@ -27,7 +27,7 @@ use crate::{
 };
 
 /// A file in a [`ResourceCache`]:
-/// `<cache>/pretrained/<namespace>/<pin>/<file>`.
+/// `<cache>/resources/<name>/<pin>/<file>`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedFile {
     /// The namespace it is cached under: a catalog resource's full name
@@ -159,8 +159,8 @@ fn files_under(dir: &Path) -> BunsenResult<Vec<(PathBuf, fs::Metadata)>> {
 
 impl ResourceCache {
     /// The directory holding every cached file: `<cache>/pretrained`.
-    pub fn pretrained_dir(&self) -> PathBuf {
-        self.cache_dir().join(PRETRAINED_DIR)
+    pub fn resources_dir(&self) -> PathBuf {
+        self.cache_dir().join(RESOURCES_DIR)
     }
 
     /// The files the cache holds under `selector`, in path order.
@@ -178,7 +178,7 @@ impl ResourceCache {
         &self,
         selector: &CacheSelector,
     ) -> BunsenResult<Vec<CachedFile>> {
-        let root = self.pretrained_dir();
+        let root = self.resources_dir();
         let mut out = Vec::new();
         for (path, meta) in files_under(&root)? {
             let Ok(relative) = path.strip_prefix(&root) else {
@@ -241,7 +241,7 @@ impl ResourceCache {
         &self,
         files: &[CachedFile],
     ) -> BunsenResult<u64> {
-        let root = self.pretrained_dir();
+        let root = self.resources_dir();
         if let Some(stray) = files.iter().find(|f| !f.path.starts_with(&root)) {
             return Err(BunsenError::illegal(format!(
                 "{} is not in the resource cache at {}",
@@ -293,7 +293,7 @@ mod tests {
         rel: &str,
         bytes: usize,
     ) {
-        let path = cache.pretrained_dir().join(rel);
+        let path = cache.resources_dir().join(rel);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, vec![0u8; bytes]).unwrap();
     }
@@ -382,14 +382,14 @@ mod tests {
             .unwrap();
         assert_eq!(whisper.len(), 2);
         assert_eq!(cache.remove_cached(&whisper).unwrap(), 8);
-        assert!(!cache.pretrained_dir().join("openai/whisper").exists());
+        assert!(!cache.resources_dir().join("openai/whisper").exists());
         // The stray file keeps `openai` itself.
-        assert!(cache.pretrained_dir().join("openai/stray.txt").exists());
-        assert!(cache.pretrained_dir().join("hf/ccc").exists());
+        assert!(cache.resources_dir().join("openai/stray.txt").exists());
+        assert!(cache.resources_dir().join("hf/ccc").exists());
 
         let hf = cache.cached_files(&"hf".parse().unwrap()).unwrap();
         assert_eq!(cache.remove_cached(&hf).unwrap(), 7);
-        assert!(!cache.pretrained_dir().join("hf").exists());
+        assert!(!cache.resources_dir().join("hf").exists());
         assert_eq!(
             cache.cached_files(&CacheSelector::default()).unwrap().len(),
             1

@@ -44,7 +44,7 @@ use std::path::PathBuf;
 use bunsen_fetch::{
     Asset,
     out_dir,
-    pretrained_cache_path,
+    resource_cache_path,
 };
 
 /// `OpenAI`'s multilingual `base.pt`.
@@ -276,7 +276,7 @@ fn cache_dir() -> PathBuf {
 }
 
 /// Where a pretrained asset lands: `OUT_DIR` laid out as a resource cache,
-/// `pretrained/<resource>/<sha256>/<file>`, `resource` its full name in the
+/// `resources/<resource>/<sha256>/<file>`, `resource` its full name in the
 /// built-in catalog. The digest in the path is the pin, as it is in bunsen's
 /// cache, so a cache rooted at `OUT_DIR` trusts what it finds there.
 fn cache_path(
@@ -284,7 +284,7 @@ fn cache_path(
     sha256: &str,
     file: &str,
 ) -> PathBuf {
-    pretrained_cache_path(&cache_dir(), resource, sha256, file)
+    resource_cache_path(&cache_dir(), resource, sha256, file)
 }
 
 /// A path to an asset: its override, or `dest`, fetched and verified if it

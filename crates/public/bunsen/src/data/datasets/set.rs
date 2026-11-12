@@ -533,7 +533,7 @@ mod tests {
             assert_eq!(fs::read(&part.path).unwrap(), b"abc", "{key}");
             assert!(
                 part.path
-                    .starts_with(dir.path().join("cache").join("pretrained"))
+                    .starts_with(dir.path().join("cache").join("resources"))
             );
         }
         let again = cache.load(&map).unwrap();

@@ -162,7 +162,7 @@ impl CacheAction {
                     out,
                     "{} in {}",
                     summary(&files),
-                    cache.pretrained_dir().display()
+                    cache.resources_dir().display()
                 )
                 .map_err(w)
             }
@@ -338,7 +338,7 @@ mod tests {
         rel: &str,
         bytes: usize,
     ) {
-        let path = cache.pretrained_dir().join(rel);
+        let path = cache.resources_dir().join(rel);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(path, vec![0u8; bytes]).unwrap();
     }
@@ -424,7 +424,7 @@ mod tests {
             2_000,
         );
         let old = cache
-            .pretrained_dir()
+            .resources_dir()
             .join(format!("openai/whisper/old/checkpoint/{a}/old.pt"));
         let then = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
         fs::File::options()
