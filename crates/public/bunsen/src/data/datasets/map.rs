@@ -6,14 +6,16 @@ use alloc::{
     vec::Vec,
 };
 
-use super::{
-    ShardSetDescriptor,
-    StaticShardSetDescriptor,
-};
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-    LookupError,
+use crate::{
+    data::datasets::{
+        ShardSetDescriptor,
+        StaticShardSetDescriptor,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        LookupError,
+    },
 };
 
 /// A compiled-in table of shard sets.
@@ -159,7 +161,7 @@ fn not_found(
 mod tests {
     use super::*;
     use crate::{
-        data::shards::StaticShardDigests,
+        data::datasets::StaticShardDigests,
         errors::{
             BunsenErrorKind,
             LookupProblem,

@@ -20,7 +20,7 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 - `bunsen::public::hashbrown` — re-exported `HashSet` / `HashMap`.
 - `bunsen-arrow-dataloaders` — the `ChatDataLoader` plus dense token-block batching options (`DenseTokenBlocksOptions`,
   `TokenBatchIteratorOptions`).
-- `bunsen::data::shards` with `kits::language::nanochat::datasets::NANOCHAT_SHARD_SETS` — the fineweb-edu shard set,
+- `bunsen::data::datasets` with `kits::language::nanochat::datasets::NANOCHAT_SHARD_SETS` — the fineweb-edu shard set,
   fetched into the cache's data directory or a `--dataset-dir` of existing shards, under a `--parallel`/`--retries`/
   `--keep-going` policy with a summary report.
 

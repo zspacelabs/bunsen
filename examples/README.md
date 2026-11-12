@@ -20,6 +20,6 @@ than an example.
   pipeline. Uses `kits::images::swin::v2`, `blocks::images::drop::drop_block`, `bunsen-firehose` and
   `bunsen-firehose-image`.
 - [`train-chat`](train-chat): trains a NanoChat GPT on fineweb-edu shards, with Muon and AdamW parameter groups
-  selected by module-tree reflection. Uses `kits::language::nanochat` and its `datasets`, `data::shards`,
+  selected by module-tree reflection. Uses `kits::language::nanochat` and its `datasets`, `data::datasets`,
   `data::cache::BunsenDiskCache`, `burner::module::reflection::XmlModuleTree`, `burner::optim` and
   `bunsen-arrow-dataloaders`.

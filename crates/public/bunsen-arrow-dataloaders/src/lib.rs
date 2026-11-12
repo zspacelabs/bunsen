@@ -57,8 +57,8 @@
 //!
 //! The crate takes a list of shard paths and does not depend on bunsen. In
 //! this workspace the paths come from bunsen's
-//! [`data::shards`](https://docs.rs/bunsen/latest/bunsen/data/shards/index.html):
-//! a [`ShardSet`](https://docs.rs/bunsen/latest/bunsen/data/shards/struct.ShardSet.html)
+//! [`data::datasets`](https://docs.rs/bunsen/latest/bunsen/data/datasets/index.html):
+//! a [`ShardSet`](https://docs.rs/bunsen/latest/bunsen/data/datasets/struct.ShardSet.html)
 //! binds a named, optionally pinned corpus to a directory, fetches the
 //! selected shards into it, and returns their local paths.
 //!

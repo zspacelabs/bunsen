@@ -109,7 +109,7 @@
 //! The other kits have a model, its configs, and an example, and no prefabs
 //! or weights. Swin is Stacked
 //! (`examples/swin_tiny`). `NanoChat` is Stacked too, and adds a table of
-//! the corpus it trains on, a [`data::shards`](crate::data::shards) shard
+//! the corpus it trains on, a [`data::datasets`](crate::data::datasets) shard
 //! set (`examples/train-chat`).
 //!
 //! Three seams are shared across kits:

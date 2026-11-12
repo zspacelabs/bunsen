@@ -23,7 +23,7 @@
 //! The layers above choose the paths. The
 //! [`PretrainedCache`](crate::data::resources::PretrainedCache) keeps
 //! digest-pinned files under `<cache>/pretrained/`, and a
-//! [`ShardSet`](crate::data::shards::ShardSet) keeps a set's shards under
+//! [`ShardSet`](crate::data::datasets::ShardSet) keeps a set's shards under
 //! `<data>/shards/<name>/`.
 //!
 //! ## Digests and files

@@ -1,8 +1,8 @@
 //! # `NanoChat` datasets
 //!
 //! The shard sets `NanoChat` trains on, as
-//! [`data::shards`](crate::data::shards) tables. The machinery is there; this
-//! is the data.
+//! [`data::datasets`](crate::data::datasets) tables. The machinery is there;
+//! this is the data.
 //!
 //! Each set is pinned to one revision of its Hugging Face repository: the
 //! base URL resolves that revision, and the digest table was read from its
@@ -13,7 +13,7 @@ mod fineweb_edu_100b_shuffle_digests;
 
 pub use fineweb_edu_100b_shuffle_digests::FINEWEB_EDU_100B_SHUFFLE_SHA256;
 
-use crate::data::shards::{
+use crate::data::datasets::{
     StaticShardDigests,
     StaticShardSetDescriptor,
     StaticShardSetMap,
@@ -51,7 +51,7 @@ pub static NANOCHAT_SHARD_SETS: StaticShardSetMap = StaticShardSetMap {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::shards::ShardId;
+    use crate::data::datasets::ShardId;
 
     /// The table spells the set as upstream names it, pinned to one revision,
     /// with a digest for every shard.

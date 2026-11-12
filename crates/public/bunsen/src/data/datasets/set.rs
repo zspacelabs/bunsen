@@ -9,19 +9,6 @@ use std::{
     },
 };
 
-use super::{
-    ShardId,
-    ShardSetDescriptor,
-};
-use crate::{
-    data::cache::BunsenDiskCache,
-    errors::{
-        BunsenError,
-        BunsenResult,
-        LookupError,
-        sys_at,
-    },
-};
 #[cfg(feature = "fetch")]
 use crate::{
     data::cache::{
@@ -30,6 +17,21 @@ use crate::{
         FetchReport,
     },
     errors::ResultContext,
+};
+use crate::{
+    data::{
+        cache::BunsenDiskCache,
+        datasets::{
+            ShardId,
+            ShardSetDescriptor,
+        },
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        LookupError,
+        sys_at,
+    },
 };
 
 /// The directory under the data dir that holds shard sets, one per name.
@@ -297,7 +299,7 @@ mod tests {
     use crate::{
         data::{
             cache::BunsenDiskCacheOptions,
-            shards::{
+            datasets::{
                 StaticShardDigests,
                 StaticShardSetDescriptor,
             },

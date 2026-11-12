@@ -84,7 +84,7 @@ pub enum OnFailure {
 /// the remote resources of a map under the one its options carry
 /// ([`PretrainedCacheOptions::with_fetch_policy`](crate::data::resources::PretrainedCacheOptions::with_fetch_policy)),
 /// and a caller hands one to [`BunsenDiskCache::fetch_many`] or
-/// [`ShardSet::fetch_many`](crate::data::shards::ShardSet::fetch_many).
+/// [`ShardSet::fetch_many`](crate::data::datasets::ShardSet::fetch_many).
 /// The batch itself never fails: each job ends as a [`FetchOutcome`] in
 /// the [`FetchReport`].
 ///

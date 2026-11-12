@@ -1,4 +1,4 @@
-//! # Shard sets
+//! # Datasets: shard sets
 //!
 //! A shard set is a family of numbered files under one name:
 //! `shard_00000.parquet` … `shard_01821.parquet` at one or more base URLs,

@@ -22,9 +22,9 @@
 //!   [`PretrainedFactory`] dispatches a spec to them, and the kit's
 //!   [`ConstructInit`] hook builds from the files the cache brought local.
 //! - [`pretrained`]: the kits' prefabs (a geometry by name) and tags.
-//! - [`shards`]: numbered dataset files. A [`ShardSetDescriptor`] names a
-//!   family of files (`shard_00000.parquet`, ...), and a [`ShardSet`] binds one
-//!   to a directory and brings shards in through the disk cache.
+//! - [`datasets`]: dataset shard sets, numbered files. A [`ShardSetDescriptor`]
+//!   names a family of files (`shard_00000.parquet`, ...), and a [`ShardSet`]
+//!   binds one to a directory and brings shards in through the disk cache.
 //!
 //! ## Lifecycle
 //!
@@ -85,7 +85,7 @@
 //! Shards take a shorter path: a [`StaticShardSetMap`] entry becomes a
 //! [`ShardSetDescriptor`], a [`ShardSet`] binds it to a directory, and its
 //! `locate` / `fetch` / `fetch_many` give paths to a data loader. See
-//! [`shards`].
+//! [`datasets`].
 //!
 //! ## The kits' factories
 //!
@@ -139,10 +139,10 @@
 //! [`Resource`]: resources::Resource
 //! [`ResourceBundle`]: resources::ResourceBundle
 //! [`SafetensorsCheckpoint`]: crate::data::formats::SafetensorsCheckpoint
-//! [`ShardSet`]: shards::ShardSet
-//! [`ShardSetDescriptor`]: shards::ShardSetDescriptor
+//! [`ShardSet`]: datasets::ShardSet
+//! [`ShardSetDescriptor`]: datasets::ShardSetDescriptor
 //! [`StaticPreFabMap`]: pretrained::StaticPreFabMap
-//! [`StaticShardSetMap`]: shards::StaticShardSetMap
+//! [`StaticShardSetMap`]: datasets::StaticShardSetMap
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
@@ -162,7 +162,7 @@ pub mod pretrained;
 
 pub mod resources;
 
-pub mod shards;
+pub mod datasets;
 
 /// A [`Lookup`](crate::errors::BunsenErrorKind::Lookup) error for a name a
 /// table does not have: a [`LookupError`](crate::errors::LookupError) for

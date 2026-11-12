@@ -78,11 +78,11 @@
 //! # Datasets
 //!
 //! [`datasets`] holds the corpus nanochat trains on as
-//! [`data::shards`](crate::data::shards) tables:
+//! [`data::datasets`](crate::data::datasets) tables:
 //! [`NANOCHAT_SHARD_SETS`](datasets::NANOCHAT_SHARD_SETS), whose one set is
 //! [`FINEWEB_EDU_100B_SHUFFLE`](datasets::FINEWEB_EDU_100B_SHUFFLE), 1823
 //! parquet shards pinned to one revision of their Hugging Face repository.
-//! `data::shards` fetches and verifies the shards; `examples/train-chat`
+//! `data::datasets` fetches and verifies the shards; `examples/train-chat`
 //! binds the set to its data loader.
 //!
 //! # Example
