@@ -166,7 +166,7 @@ the config each row's default selection resolves to.
 A [`ResourceCache`](bunsen::data::resources::ResourceCache) keeps each
 pinned file at `<cache>/resources/<name>/<sha256>/<file>`, the name a
 catalog resource's full name (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two
-builds share is cached once; files off the catalog sit under `hf` and `given`. **The
+builds share is cached once; an `hf:` repo's files sit under `hf/<org>/<repo>/<slot>`, and a given path's under `given`. **The
 digest in the path is the pin.** A file there was verified when it was
 written, so later runs trust it without re-hashing gigabytes, and a model
 whose pin changes can never collide with a stale copy. The cache trusts the

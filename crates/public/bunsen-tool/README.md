@@ -858,8 +858,8 @@ bunsen-tool cache clear [NAME] [--partial] [--age AGE] [--yes]
 ```
 
 A file is cached under its namespace: its resource's full name in the built-in catalog
-(`openai/whisper/base/checkpoint`), or `hf` and `given` for the files no catalog names. `NAME` selects the namespaces
-under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`.
+(`openai/whisper/base/checkpoint`), an `hf:` repo's under `hf/<org>/<repo>/<slot>`, and a given path's under `given`.
+`NAME` selects the namespaces under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`, `hf/openai`.
 `clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads, and `--age 30d` the
 files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
 and checking what is cached, do not.

@@ -31,8 +31,8 @@ use crate::{
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedFile {
     /// The namespace it is cached under: a catalog resource's full name
-    /// (`openai/whisper/base/checkpoint`), or `hf` or `given` for a file off
-    /// the catalog.
+    /// (`openai/whisper/base/checkpoint`), an `hf:` repo's
+    /// (`hf/openai/whisper-tiny/checkpoint`), or `given` for a path's.
     pub namespace: String,
 
     /// The directory pinning it: its SHA-256, or a cache key for a file

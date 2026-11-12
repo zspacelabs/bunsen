@@ -41,7 +41,7 @@ use crate::{
 };
 
 /// The provider's default name: the `hf` of `hf:openai/whisper-tiny`, and
-/// the namespace its files are cached under.
+/// the root its files are cached under.
 pub const HF: &str = "hf";
 
 /// The file a `transformers` repo keeps its weights in, when they fit one.
@@ -118,7 +118,9 @@ fn missing_shards(
 /// so a ref resolved once resolves again offline. The listing names the files
 /// and pins each LFS file by its SHA-256, so the checkpoint is
 /// digest-addressed in the cache like a catalog row's:
-/// `<cache>/resources/hf/<sha256>/<file>`. Fetching the listing
+/// `<cache>/resources/hf/<org>/<repo>/<slot>/<sha256>/<file>`, under the
+/// repo and the slot its file fills ([`resource_name`](Self::resource_name)),
+/// the listing beside them. Fetching the listing
 /// needs the `fetch` feature, unless the cache has it already.
 ///
 /// Resolving a ref without a cache is an error, and
@@ -160,7 +162,7 @@ fn missing_shards(
 /// share a factory.
 #[derive(Clone, Debug)]
 pub struct HfProvider {
-    /// The provider's name, and the namespace its files are cached under.
+    /// The provider's name, and the root its files are cached under.
     pub name: String,
 
     /// Where the hub is: [`HUB_ORIGIN`], or a mirror.
@@ -339,7 +341,7 @@ impl HfProvider {
     }
 
     /// The listing resource for `org/repo`: the tree API's JSON, unpinned,
-    /// under this provider's namespace.
+    /// named `{provider}/{org}/{repo}/listing`.
     pub fn listing_resource(
         &self,
         org: &str,
@@ -352,17 +354,30 @@ impl HfProvider {
             file: format!("{org}--{repo}--{}.json", self.revision.replace('/', "-")),
             sha256: None,
             format: Some("json".to_string()),
-            name: self.name.clone(),
+            name: self.resource_name(org, repo, "listing"),
             sources: vec![Source::Url(self.tree_url(org, repo))],
         }
     }
 
-    /// One resource of the row: `file` of `org/repo`, pinned when the
-    /// listing pins it.
+    /// The full name a resource of `org/repo` in `slot` is cached under:
+    /// `{provider}/{org}/{repo}/{slot}` (`hf/openai/whisper-tiny/checkpoint`),
+    /// a sharded checkpoint's index and shards under their one slot.
+    pub fn resource_name(
+        &self,
+        org: &str,
+        repo: &str,
+        slot: &str,
+    ) -> String {
+        format!("{}/{org}/{repo}/{slot}", self.name)
+    }
+
+    /// One resource of the row: `file` of `org/repo`, under `key` in the
+    /// row's set and named for `slot`, pinned when the listing pins it.
     fn resource(
         &self,
         org: &str,
         repo: &str,
+        slot: &str,
         key: &str,
         entry: &HubEntry,
         kind: &str,
@@ -374,7 +389,7 @@ impl HfProvider {
             file: entry.path.clone(),
             sha256: entry.sha256(),
             format: Some(kind.to_string()),
-            name: self.name.clone(),
+            name: self.resource_name(org, repo, slot),
             sources: vec![Source::Url(self.url(org, repo, &entry.path))],
         }
     }
@@ -408,7 +423,7 @@ impl HfProvider {
         resources.origin = Some(origin.clone());
         let what;
         if let Some(single) = file(HF_SINGLE_FILE) {
-            resources.insert(self.resource(org, repo, key, single, SAFETENSORS));
+            resources.insert(self.resource(org, repo, key, key, single, SAFETENSORS));
             what = format!("{HF_SINGLE_FILE}, {}", megabytes(single.size));
         } else if let Some(index) = file(HF_INDEX_FILE) {
             let mut shards: Vec<(usize, usize, &HubEntry)> = files
@@ -442,6 +457,7 @@ impl HfProvider {
             resources.insert(self.resource(
                 org,
                 repo,
+                key,
                 &format!("{key}.index"),
                 index,
                 SAFETENSORS_INDEX,
@@ -452,6 +468,7 @@ impl HfProvider {
                 resources.insert(self.resource(
                     org,
                     repo,
+                    key,
                     &format!("{key}.{n:05}"),
                     entry,
                     SAFETENSORS,
@@ -459,7 +476,7 @@ impl HfProvider {
             }
             what = format!("{} shards, {}", shards.len(), megabytes(total));
         } else if let Some((archive, kind)) = self.archive_checkpoint(name, &files)? {
-            resources.insert(self.resource(org, repo, key, archive, kind));
+            resources.insert(self.resource(org, repo, key, key, archive, kind));
             what = format!("{}, {}", archive.path, megabytes(archive.size));
         } else {
             let weights: Vec<&str> = files
@@ -493,12 +510,19 @@ impl HfProvider {
         }
         let mut with: Vec<&str> = Vec::new();
         if let Some(config) = file(HF_CONFIG_FILE) {
-            resources.insert(self.resource(org, repo, CONFIG, config, "json"));
+            resources.insert(self.resource(org, repo, CONFIG, CONFIG, config, "json"));
             with.push(HF_CONFIG_FILE);
         }
         for extra in &self.extra_files {
             if let Some(entry) = file(&extra.path) {
-                resources.insert(self.resource(org, repo, &extra.key, entry, &extra.kind));
+                resources.insert(self.resource(
+                    org,
+                    repo,
+                    &extra.key,
+                    &extra.key,
+                    entry,
+                    &extra.kind,
+                ));
                 with.push(&extra.path);
             }
         }
@@ -757,7 +781,7 @@ mod tests {
         assert_eq!(checkpoint.file, "model.safetensors");
         assert_eq!(checkpoint.sha256.as_deref(), Some(TINY_SHA));
         assert_eq!(checkpoint.format.as_deref(), Some("safetensors"));
-        assert_eq!(checkpoint.name, "hf");
+        assert_eq!(checkpoint.name, "hf/openai/whisper-tiny/checkpoint");
         assert_eq!(
             checkpoint.sources,
             [Source::Url(
@@ -983,12 +1007,12 @@ mod tests {
             listing.file,
             "openai--whisper-large-v3--06f233fe06e710322aca913c1bc4249a0d71fce1.json"
         );
-        assert_eq!(listing.name, "hf");
+        assert_eq!(listing.name, "hf/openai/whisper-large-v3/listing");
         listing.validate().unwrap();
 
         let named = HfProvider::new().with_name("hf-dev").with_revision("dev");
         assert_eq!(named.name(), "hf-dev");
-        assert_eq!(named.listing_resource("o", "r").name, "hf-dev");
+        assert_eq!(named.listing_resource("o", "r").name, "hf-dev/o/r/listing");
     }
 
     /// The listing as the hub serves it: LFS files carry a digest, the

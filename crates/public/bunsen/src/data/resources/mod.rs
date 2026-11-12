@@ -17,7 +17,8 @@
 //!
 //! The [`ResourceCache`] keeps a pinned file at
 //! `<cache>/resources/<name>/<sha256>/<file>`, `<name>` a catalog
-//! resource's full name (`hf` or `given` off the catalog). The digest in
+//! resource's full name (`hf/<org>/<repo>/<slot>` for a Hub repo's, `given`
+//! for a path's). The digest in
 //! the path is the pin: a file there was verified when it was written, and
 //! is trusted without re-hashing (the
 //! [trust model](ResourceCache#trust-model)). The cache looks there
