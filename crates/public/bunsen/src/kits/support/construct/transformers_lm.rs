@@ -32,8 +32,8 @@ use crate::{
         CONFIG,
         LoadedResources,
         NamedTensorsApplied,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS,
         SAFETENSORS_INDEX,
@@ -68,7 +68,7 @@ use crate::{
 /// policy and the device allow it, never f16 (whose range a bf16-trained
 /// model's activations exceed).
 pub trait TransformersLmKit: Default {
-    /// The cache segment ([`ConstructInit::KIT`]).
+    /// The kit's name ([`ConstructInit::KIT`]).
     const KIT: &'static str;
 
     /// The kit's name, in errors: `"Qwen3"`.
@@ -104,11 +104,11 @@ pub trait TransformersLmKit: Default {
     ) -> BunsenResult<NamedTensorsApplied>;
 
     /// The presets of a checkpoint no row describes (an `hf:` repo's), as the
-    /// catalog tool probes a row's.
+    /// catalog builder probes a row's.
     ///
     /// # Errors
     /// As [`probe_loaded`](crate::kits::support::model_config::probe_loaded).
-    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet>;
+    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet>;
 }
 
 impl<K: TransformersLmKit> ConstructInit for K {

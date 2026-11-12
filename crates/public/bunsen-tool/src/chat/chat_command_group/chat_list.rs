@@ -46,7 +46,7 @@ impl ChatListCommand {
             println!();
             println!("# {} checkpoints (the default: {default})", family.name());
             for (id, row) in family.rows()? {
-                print_model_row(&cache, family.cache_kit(), &id, &row, default, self.urls);
+                print_model_row(&cache, &id, &row, default, self.urls);
             }
             match family {
                 ChatModelFamily::Qwen3 => {

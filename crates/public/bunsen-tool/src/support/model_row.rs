@@ -23,7 +23,6 @@ use crate::support::preset_lines;
 /// ```
 pub fn print_model_row(
     cache: &PretrainedCache,
-    kit: &str,
     id: &str,
     row: &Pretrained,
     default: &str,
@@ -54,7 +53,7 @@ pub fn print_model_row(
         println!("{line}");
     }
     for (key, r) in &row.resources.resources {
-        println!("  {key}: [{}]", cache.status(kit, r));
+        println!("  {key}: [{}]", cache.status(r));
         println!("    path: {}", r.file);
         if urls && !r.sources.is_empty() {
             println!("    {}", r.sources[0]);

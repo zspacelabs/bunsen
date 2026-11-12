@@ -11,11 +11,12 @@ use burn::tensor::Device;
 use crate::{
     data::pretrained::{
         Fuse,
+        GEOMETRY,
         GIVEN_NAMESPACE,
         LoadedResources,
-        PresetSet,
         PretrainedCache,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS,
         SafetensorsCheckpoint,
@@ -40,7 +41,6 @@ use crate::{
                 PytorchWhisperScanner,
                 SafetensorsWhisperScanner,
                 VOCABULARY,
-                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperVocabulary,
@@ -288,7 +288,7 @@ impl WhisperConstructConfig {
     }
 
     /// Sets the geometry the checkpoint must scan to, which wins over the
-    /// one a row's prefab promises.
+    /// one a row promises.
     pub fn with_expected(
         mut self,
         expected: Option<WhisperGeometry>,
@@ -297,17 +297,26 @@ impl WhisperConstructConfig {
         self
     }
 
-    /// The geometry `model` must scan to: the explicit one, else its
-    /// prefab's when it was named and names one, else none.
+    /// The geometry `model` must scan to: the explicit one, else the one
+    /// its row states ([`GEOMETRY`]), else its prefab's when it names one,
+    /// else none. A given bundle promises nothing.
+    ///
+    /// # Errors
+    /// As [`PretrainedRef::stated`], when the row's geometry doesn't read as
+    /// a [`WhisperGeometry`].
     pub fn expected_for(
         &self,
         model: &PretrainedRef,
-    ) -> Option<WhisperGeometry> {
-        self.expected.or_else(|| {
-            model
-                .prefab(&WHISPER_PREFABS)
-                .map(|prefab| prefab.to_config().geometry())
-        })
+    ) -> BunsenResult<Option<WhisperGeometry>> {
+        if self.expected.is_some() {
+            return Ok(self.expected);
+        }
+        if let Some(stated) = model.stated(GEOMETRY)? {
+            return Ok(Some(stated));
+        }
+        Ok(model
+            .prefab(&WHISPER_PREFABS)
+            .map(|prefab| prefab.to_config().geometry()))
     }
 
     /// Scans the checkpoint in `loaded` for its config without loading its
@@ -334,7 +343,7 @@ impl WhisperConstructConfig {
         model: &PretrainedRef,
         found: &WhisperGeometry,
     ) -> BunsenResult<()> {
-        match self.expected_for(model) {
+        match self.expected_for(model)? {
             Some(expected) if expected != *found => {
                 Err(GeometryMismatch::new(model.id(), expected, *found).into())
             }
@@ -343,9 +352,10 @@ impl WhisperConstructConfig {
     }
 }
 
-/// The Whisper catalog's family of multilingual checkpoints: its presets are
-/// the `task` axis, `[transcribe]` and `[translate]`.
-pub const MULTILINGUAL_FAMILY: &str = "multilingual";
+/// The built-in catalog's template class of the multilingual Whisper
+/// checkpoints: its presets are the `task` axis, `[transcribe]` and
+/// `[translate]`.
+pub const MULTILINGUAL_TEMPLATE_CLASS: &str = "openai/whisper/multilingual";
 
 impl ConstructInit for WhisperConstructConfig {
     type Construct = WhisperConstruct;
@@ -390,7 +400,7 @@ impl ConstructInit for WhisperConstructConfig {
         if checkpoint.is_empty() {
             map.try_get(CHECKPOINT)?;
         }
-        let loaded = cache.load(WHISPER_KIT, &checkpoint)?;
+        let loaded = cache.load(&checkpoint)?;
         let cfg = self.scan(model, &loaded)?;
 
         let ids = *cfg
@@ -445,9 +455,9 @@ impl ConstructInit for WhisperConstructConfig {
         // A model no row describes takes its family's presets by its layout:
         // a multilingual one the `multilingual` family's task axis.
         let family = if layout.ids().is_multilingual() {
-            WHISPER_CATALOG.family_presets(MULTILINGUAL_FAMILY)
+            crate::data::pretrained::builtin_template_presets(MULTILINGUAL_TEMPLATE_CLASS)?
         } else {
-            PresetSet::default()
+            ResolvedPresetSet::default()
         };
         let policy = resolve_ref_presets(&WhisperPolicy::default(), model, &family)?;
         let mut bundle = WhisperConstruct::new(whisper, layout)
@@ -494,7 +504,7 @@ mod preset_tests {
         for row in ["openai/tiny.en", "openai/large-v3-turbo"] {
             assert!(policy(row).unwrap().presets.is_empty(), "{row}");
             crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Lookup)
-                .message_contains("no preset \"translate\"")
+                .message_contains("no preset `translate`")
                 .assert_err(&policy(&format!("{row}[translate]")));
         }
         assert_eq!(policy("large").unwrap().presets, ["transcribe"]);

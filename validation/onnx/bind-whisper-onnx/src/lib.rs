@@ -8,11 +8,12 @@
 //! every Whisper asset arrives the same way.
 //!
 //! The pretrained assets are laid out in `OUT_DIR` as a **pretrained cache**,
-//! `pretrained/whisper/openai/<sha256>/<file>`, which is how bunsen's
-//! `data::pretrained::PretrainedCache` roots a resource. A cache pointed at
-//! `cache_dir()`, offline, hits `openai/base` and both vocabularies without
-//! knowing they were bundled: bundling is a populated cache directory, not a
-//! kind of source. `whisper-model-validation` does exactly that, and also
+//! `pretrained/<resource>/<sha256>/<file>`, `<resource>` each asset's full name
+//! in the built-in catalog (`openai/whisper/base/checkpoint`), which is how
+//! bunsen's `data::pretrained::PretrainedCache` roots a resource. A cache
+//! pointed at `cache_dir()`, offline, hits `openai/base` and both vocabularies
+//! without knowing they were bundled: bundling is a populated cache directory,
+//! not a kind of source. `whisper-model-validation` does exactly that, and also
 //! registers the same files as `bundled:openai/base`, a row served in place
 //! from here.
 //!
@@ -213,7 +214,7 @@ pub mod onnx_gen {
 #[cfg(test)]
 mod tests {
     /// Every pretrained asset sits in the cache layout under the root the
-    /// crate exposes: `pretrained/whisper/openai/<sha256>/<file>`, under the
+    /// crate exposes: `pretrained/<resource>/<sha256>/<file>`, under the
     /// file name the Whisper kit's resource uses. (An override that is not
     /// the pinned file lands elsewhere; this test assumes none is set.)
     #[cfg(any(feature = "checkpoint", feature = "vocab"))]
@@ -221,8 +222,8 @@ mod tests {
     fn test_assets_are_laid_out_as_a_pretrained_cache() {
         let root = super::cache_dir()
             .join("pretrained")
-            .join("whisper")
-            .join("openai");
+            .join("openai")
+            .join("whisper");
         assert!(root.is_dir(), "{} is missing", root.display());
 
         let mut assets: Vec<&'static std::path::Path> = Vec::new();
@@ -235,8 +236,15 @@ mod tests {
             let rel = path
                 .strip_prefix(&root)
                 .unwrap_or_else(|_| panic!("{} is not under {}", path.display(), root.display()));
-            let mut parts = rel.components();
-            let digest = parts.next().unwrap().as_os_str().to_str().unwrap();
+            // `<build>/checkpoint/<sha256>/<file>`, or a vocabulary's
+            // `<name>/<sha256>/<file>`: the digest follows the resource's name.
+            let parts: Vec<&str> = rel
+                .components()
+                .map(|c| c.as_os_str().to_str().unwrap())
+                .collect();
+            let [.., digest, file] = parts.as_slice() else {
+                panic!("{}", path.display())
+            };
             assert_eq!(digest.len(), 64, "{}", path.display());
             assert!(
                 digest
@@ -245,13 +253,11 @@ mod tests {
                 "{}",
                 path.display()
             );
-            let file = parts.next().unwrap().as_os_str().to_str().unwrap();
             assert!(
-                ["base.pt", "multilingual.tiktoken", "gpt2.tiktoken"].contains(&file),
+                ["base.pt", "multilingual.tiktoken", "gpt2.tiktoken"].contains(file),
                 "{}",
                 path.display()
             );
-            assert!(parts.next().is_none(), "{}", path.display());
         }
     }
 

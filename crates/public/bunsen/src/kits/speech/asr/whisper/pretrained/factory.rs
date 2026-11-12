@@ -95,7 +95,6 @@ mod tests {
         kits::{
             speech::asr::whisper::pretrained::{
                 CHECKPOINT,
-                WHISPER_CATALOG,
                 WHISPER_KIT,
                 WhisperReader,
             },
@@ -134,12 +133,12 @@ mod tests {
 
         let (provider, large) = factory.lookup("large").unwrap();
         assert_eq!(provider, "well-known");
-        assert_eq!(large.name, "openai/large-v3");
+        assert_eq!(large.name, "openai/whisper/large/large-v3");
         let (_, turbo) = factory.lookup("openai/turbo").unwrap();
-        assert_eq!(turbo.name, "openai/large-v3-turbo");
+        assert_eq!(turbo.name, "openai/whisper/large/large-v3-turbo");
         assert_eq!(
             factory.lookup("well-known:openai/tiny").unwrap().1.name,
-            "openai/tiny"
+            "openai/whisper/tiny"
         );
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("nobody:base"));
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("gigantic"));
@@ -162,7 +161,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(provider, "well-known");
-                assert_eq!(pretrained.name, "openai/tiny.en");
+                assert_eq!(pretrained.name, "openai/whisper/tiny.en");
                 assert_eq!(pretrained.resources.keys(), [CHECKPOINT, "vocabulary"]);
             }
             other => panic!("{other:?}"),
@@ -173,11 +172,11 @@ mod tests {
                 .resolve("well-known:openai/tiny.en", &cache)
                 .unwrap()
                 .id(),
-            "well-known:openai/tiny.en"
+            "well-known:openai/whisper/tiny.en"
         );
         assert_eq!(
             factory.resolve("turbo", &cache).unwrap().id(),
-            "well-known:openai/large-v3-turbo"
+            "well-known:openai/whisper/large/large-v3-turbo"
         );
 
         let file = dir.path().join("ckpt.pt");
@@ -207,26 +206,15 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&factory.lookup("hf:whisper-tiny"));
     }
 
-    /// One prefab, many rows: derived from the listing, per group and
-    /// through the factory.
+    /// The factory's rows name no prefab: each states its geometry instead
+    /// ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)).
     #[test]
-    fn test_one_prefab_many_pretrained() {
-        let table = WHISPER_CATALOG.table();
-        let large: Vec<&str> = table.groups[0]
-            .for_prefab("large")
-            .iter()
-            .map(|p| p.name.as_str())
-            .collect();
-        assert_eq!(large, ["large-v1", "large-v2"]);
-        let derived: Vec<String> = default_whisper_factory()
-            .unwrap()
-            .for_prefab("large")
-            .iter()
-            .map(|(p, row)| format!("{p}:{}", row.name))
-            .collect();
-        assert_eq!(
-            derived,
-            ["well-known:openai/large-v1", "well-known:openai/large-v2"]
+    fn test_the_rows_name_no_prefab() {
+        assert!(
+            default_whisper_factory()
+                .unwrap()
+                .for_prefab("large")
+                .is_empty()
         );
     }
 

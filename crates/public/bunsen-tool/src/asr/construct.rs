@@ -926,7 +926,7 @@ mod tests {
                 "translate-en",
                 Balanced,
                 Offline,
-                "whisper openai/large-v3{beam_size: 5}",
+                "whisper openai/whisper/large/large-v3{beam_size: 5}",
             ),
             // No translator of at most 1B parameters has a published error
             // rate: the catalog's first, the smallest, is taken.
@@ -934,7 +934,7 @@ mod tests {
                 "translate-en",
                 Balanced,
                 Live,
-                "whisper openai/tiny{beam_size: 1}",
+                "whisper openai/whisper/tiny{beam_size: 1}",
             ),
         ];
         for (preset, quality, mode, want) in grid {
@@ -954,7 +954,10 @@ mod tests {
         let recipe = construct_config()
             .pick(multi, translating, Offline, None)
             .unwrap();
-        assert_eq!(recipe.engine.model, "openai/large-v3{beam_size: 5}");
+        assert_eq!(
+            recipe.engine.model,
+            "openai/whisper/large/large-v3{beam_size: 5}"
+        );
 
         // A language not English is not given to an English-only model.
         let recipe = construct_config()
@@ -980,7 +983,7 @@ mod tests {
         assert!(!phonon.is_true("multilingual"));
         let qwen = find("qwen/qwen3-asr-1.7b");
         assert!(qwen.is_true("multilingual"));
-        assert_eq!(find("openai/tiny").number("wer.en"), None);
+        assert_eq!(find("openai/whisper/tiny").number("wer.en"), None);
         assert!(candidates.iter().all(|c| c.text(ASR_FAMILY_TAG).is_some()));
     }
 
@@ -1021,9 +1024,9 @@ mod tests {
 
         // The patch's task wins over the box, and setting a task clears it.
         let mut r = resolve("translate-en", Mode::Live, None, None).unwrap();
-        r.model = "openai/small{task: Transcribe}".to_string();
+        r.model = "openai/whisper/small{task: Transcribe}".to_string();
         assert_eq!(r.task(), Task::Transcribe);
-        r.model = "openai/small{task: Translate}".to_string();
+        r.model = "openai/whisper/small{task: Translate}".to_string();
         assert_eq!(r.task(), Task::Translate);
         let tasks = construct_config()
             .engine(Family::Whisper)
@@ -1037,7 +1040,7 @@ mod tests {
         assert_eq!(
             selection(
                 &tasks
-                    .set("openai/small[transcribe]", Task::Translate)
+                    .set("openai/whisper/small[transcribe]", Task::Translate)
                     .unwrap()
             )
             .0,
@@ -1054,7 +1057,7 @@ mod tests {
         let r = resolve("translate-en", Mode::Live, None, None).unwrap();
         assert_eq!(
             shell_line(&r.command_line()),
-            "bunsen-tool asr family whisper live --model 'openai/tiny[translate]{beam_size: 1}' \
+            "bunsen-tool asr family whisper live --model 'openai/whisper/tiny[translate]{beam_size: 1}' \
              --emission conservative --chunk-ms 250 --vad 'silero/vad-16k[faster-whisper]'"
         );
         assert_eq!(
@@ -1064,7 +1067,7 @@ mod tests {
         let stamp = serde_json::to_value(r.stamp()).unwrap();
         assert_eq!(
             stamp["recipe"]["model"],
-            "openai/tiny[translate]{beam_size: 1}"
+            "openai/whisper/tiny[translate]{beam_size: 1}"
         );
         assert_eq!(stamp["preset"], "translate-en");
         assert_eq!(

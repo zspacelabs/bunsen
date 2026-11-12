@@ -614,7 +614,7 @@ cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech mu
 | `translate-en` | other speech, as English text | `require: {translate: true}` | `whisper` `openai/large-v3[translate]{beam_size: 5}` | `whisper` `openai/tiny[translate]{beam_size: 1}`, `conservative` |
 
 An ASR preset's selection chooses its model among every speech family's checkpoints, by their tags ([Choosing a
-model](#choosing-a-model)), over the table's own: the newest of a release sequence, then the lowest published English
+model](#choosing-a-model)), over the table's own: the newest of a release group, then the lowest published English
 word error rate (`scores: {wer.en}`), a model without one after those with. `multilingual` is a checkpoint whose
 `language` lists more than one language, or `"*"`. `--quality fast` and `live` add `require: {parameters: {max: 1e9}}`,
 a model small enough to keep up; `--quality good` takes the larger among equals. The ASR presets are this binary's, and
@@ -851,13 +851,14 @@ the geometries. Neither needs a backend.
 `bunsen-tool cache` manages the weights cache every family loads through (`bunsen_app::cache`):
 
 ```sh
-bunsen-tool cache path                         # the cache directory
-bunsen-tool cache list [KIT[/NAMESPACE]]       # each file's kit, namespace, size, fetched and last used (UTC), pin
-bunsen-tool cache clear [KIT[/NAMESPACE]] [--partial] [--age AGE] [--yes]
+bunsen-tool cache path                                 # the cache directory
+bunsen-tool cache list [NAME]                          # each file's namespace, size, fetched and last used (UTC), pin
+bunsen-tool cache clear [NAME] [--partial] [--age AGE] [--yes]
 ```
 
-The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer), `silero_vad` (the VAD the
-`conservative` preset loads), `qwen3`, `gemma` and `nanochat`.
+A file is cached under its namespace: its resource's full name in the built-in catalog
+(`openai/whisper/base/checkpoint`), or `hf` and `given` for the files no catalog names. `NAME` selects the namespaces
+under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`.
 `clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads, and `--age 30d` the
 files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
 and checking what is cached, do not.
@@ -889,7 +890,8 @@ Whisper's index keeps three things apart, because they vary independently:
   `openai-whisper`'s `~/.cache/whisper` (`--upstream-cache-dir`), whose file is used in place, then upstream's
   digest-addressed URL, streamed to a `.partial`, hashed as it lands, and renamed into place only on a match.
 
-Fetched files live at `<cache>/pretrained/whisper/<namespace>/<sha256>/<file>`: the digest in the path is the pin, so
+Fetched files live at `<cache>/pretrained/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
+(`openai/whisper/base/checkpoint`): the digest in the path is the pin, so
 a file there is trusted without re-hashing, and a directory laid out this way is the cache (`fetch` fills one ahead
 of time for a deployment that runs `--offline`). `hf:openai/whisper-large-v3` is a Hugging Face repo's safetensors
 checkpoint at `main`, sharded or not, each file pinned by the digest the hub's listing carries; its vocabulary is the
@@ -1013,41 +1015,42 @@ cargo run --release -p bunsen-tool --features wgpu -- decide run --select laya-m
 ## Choosing a model
 
 `chat` and `decide` choose their checkpoint with `--select`, repeatable: at most one name, and any number of
-selection objects, YAML. A checkpoint's facts are its tags, which its catalog row carries:
-`base`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
-others), `parameters`, `groups`, `version`, `kit`.
+selection objects, YAML. A checkpoint's facts are its tags, which its build in the built-in catalog carries:
+`instruct`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language` (BCP 47 tags; `"*"` for unspecified
+others), `parameters`, `release` (its release group and date), `kit`, `contract`, `family`, `publisher`.
 
 - A name that is a checkpoint's (its full id, its bare name, or an alias) is that checkpoint, as named.
 - Any other name is a set of checkpoints: those whose names it begins (`--select qwen3`), else those of the group it
   names, else the kit's (`--select nanochat`). The command's defaults choose within it: a tuned model
-  (`base: false`), each release sequence's newest, the heaviest first.
+  (`instruct: true`), each release group's newest, the heaviest first.
 - An object narrows and orders, merged over the defaults: `require` (a tag's value, one of a list, `{min, max}`, or a
   language), `prefer` (each a tag with the score it keeps when it is not met: `{language: de, otherwise: 0.5}`),
   `latest`, `absent` (`drop`, or `{default: value}`, for a checkpoint without the tag), `order` (`[-parameters]`),
-  `take` (the least weight taken). `null` removes a default: `{require: {base: null}}`.
+  `take` (the least weight taken). `null` removes a default: `{require: {instruct: null}}`.
 - `--preset` keeps only the checkpoints that have the preset; `--patch {..}` merges over the chosen one's config.
 
 ```sh
-bunsen-tool chat run --select qwen3 --select '{require: {base: null, thinking: never}, order: [parameters]}' "Hi"
+bunsen-tool chat run --select qwen3 --select '{require: {instruct: null, thinking: never}, order: [parameters]}' "Hi"
 bunsen-tool chat run --select '{require: {parameters: {max: 2e9}}, prefer: [{language: zh, otherwise: 0}]}' "你好"
 ```
 
 The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
 
-The checkpoints: `laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya-multilingual` (on
-`mmBERT-base`) and `laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
+The checkpoints: `laya/laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya/laya-multilingual` (on
+`mmBERT-base`) and `laya/laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
 device accelerates it, else in f32.
 
 ## catalog: build catalogs
 
-`bunsen-tool catalog` imports build catalogs, in order, and queries the state they make
+`bunsen-tool catalog` queries bunsen's built-in model catalog, the one the kits load from
 (`bunsen::data::pretrained::build_catalog`; its `catalog_format` page describes the document,
-and its `usage` page the select language). The catalogs come from `--catalog` files, YAML or
-JSON, or `--examples` for the module's example catalogs:
+and its `usage` page the select language). `--catalog` imports an extension over it, YAML or
+JSON, repeatable, in order: an extension may add builds, template classes and resources, but
+not contracts.
 
 ```sh
-bunsen-tool catalog --examples tree
-bunsen-tool catalog --catalog a.yml --catalog b.yml select qwen3 --off thinking --limit 1
+bunsen-tool catalog tree
+bunsen-tool catalog --catalog local.yml select qwen3 --off thinking --limit 1
 ```
 
 | command | does |

@@ -8,9 +8,9 @@
 //! # The index
 //!
 //! [`default_laya_factory`] is the index a caller holds, over the well-known
-//! table, [`LAYA_CATALOG`]: the three checkpoints of
-//! `convaiinnovations/laya`, each its `model.safetensors` (f16), its
-//! encoder's `config.json`, its head's `rl_agent_config.json` and its
+//! rows, the built-in catalog's builds of [`LAYA_CATALOG_CONTRACT`]: the three
+//! checkpoints of `convaiinnovations/laya`, each its `model.safetensors` (f16),
+//! its encoder's `config.json`, its head's `rl_agent_config.json` and its
 //! tokenizer, pinned to a fixed revision:
 //!
 //! - `laya/laya` (also `laya-en`), the default: English, on `ModernBERT-large`;

@@ -63,6 +63,16 @@ openai:
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
         $template_class: multilingual
         $contract: whisper-asr
+        $args:
+          geometry:
+            n_mels: 80
+            vocab_size: 51865
+            d_model: 1280
+            max_audio_ctx: 3000
+            n_encoder_layers: 32
+            max_text_ctx: 448
+            n_decoder_layers: 32
+            d_head: 64
         $join:
           - $group: release
             $released: 2022-09
@@ -91,6 +101,16 @@ openai:
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
         $template_class: multilingual
         $contract: whisper-asr
+        $args:
+          geometry:
+            n_mels: 80
+            vocab_size: 51865
+            d_model: 1280
+            max_audio_ctx: 3000
+            n_encoder_layers: 32
+            max_text_ctx: 448
+            n_decoder_layers: 32
+            d_head: 64
         $join:
           - $group: release
             $released: 2022-12
@@ -119,6 +139,16 @@ openai:
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
         $template_class: multilingual
         $contract: whisper-asr
+        $args:
+          geometry:
+            n_mels: 128
+            vocab_size: 51866
+            d_model: 1280
+            max_audio_ctx: 3000
+            n_encoder_layers: 32
+            max_text_ctx: 448
+            n_decoder_layers: 32
+            d_head: 64
         $join:
           - $group: release
             $released: "2023-11-06"
@@ -153,6 +183,16 @@ openai:
         $license: MIT
         $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
         $contract: whisper-asr
+        $args:
+          geometry:
+            n_mels: 128
+            vocab_size: 51866
+            d_model: 1280
+            max_audio_ctx: 3000
+            n_encoder_layers: 32
+            max_text_ctx: 448
+            n_decoder_layers: 4
+            d_head: 64
         parameters: 809000000
         language:
           - en
@@ -188,6 +228,16 @@ openai:
       $license: MIT
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51864
+          d_model: 384
+          max_audio_ctx: 3000
+          n_encoder_layers: 4
+          max_text_ctx: 448
+          n_decoder_layers: 4
+          d_head: 64
       parameters: 39000000
       language:
         - en
@@ -216,6 +266,16 @@ openai:
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $template_class: multilingual
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51865
+          d_model: 384
+          max_audio_ctx: 3000
+          n_encoder_layers: 4
+          max_text_ctx: 448
+          n_decoder_layers: 4
+          d_head: 64
       parameters: 39000000
       $resources:
         checkpoint: checkpoint
@@ -240,6 +300,16 @@ openai:
       $license: MIT
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51864
+          d_model: 512
+          max_audio_ctx: 3000
+          n_encoder_layers: 6
+          max_text_ctx: 448
+          n_decoder_layers: 6
+          d_head: 64
       parameters: 74000000
       language:
         - en
@@ -268,6 +338,16 @@ openai:
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $template_class: multilingual
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51865
+          d_model: 512
+          max_audio_ctx: 3000
+          n_encoder_layers: 6
+          max_text_ctx: 448
+          n_decoder_layers: 6
+          d_head: 64
       parameters: 74000000
       $resources:
         checkpoint: checkpoint
@@ -292,6 +372,16 @@ openai:
       $license: MIT
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51864
+          d_model: 768
+          max_audio_ctx: 3000
+          n_encoder_layers: 12
+          max_text_ctx: 448
+          n_decoder_layers: 12
+          d_head: 64
       parameters: 244000000
       language:
         - en
@@ -320,6 +410,16 @@ openai:
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $template_class: multilingual
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51865
+          d_model: 768
+          max_audio_ctx: 3000
+          n_encoder_layers: 12
+          max_text_ctx: 448
+          n_decoder_layers: 12
+          d_head: 64
       parameters: 244000000
       $resources:
         checkpoint: checkpoint
@@ -344,6 +444,16 @@ openai:
       $license: MIT
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51864
+          d_model: 1024
+          max_audio_ctx: 3000
+          n_encoder_layers: 24
+          max_text_ctx: 448
+          n_decoder_layers: 24
+          d_head: 64
       parameters: 769000000
       language:
         - en
@@ -372,6 +482,16 @@ openai:
       $origin: https://github.com/openai/whisper/blob/main/whisper/__init__.py
       $template_class: multilingual
       $contract: whisper-asr
+      $args:
+        geometry:
+          n_mels: 80
+          vocab_size: 51865
+          d_model: 1024
+          max_audio_ctx: 3000
+          n_encoder_layers: 24
+          max_text_ctx: 448
+          n_decoder_layers: 24
+          d_head: 64
       parameters: 769000000
       $resources:
         checkpoint: checkpoint

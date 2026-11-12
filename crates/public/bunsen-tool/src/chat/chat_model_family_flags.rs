@@ -216,22 +216,22 @@ impl ChatModelFamily {
             ChatModelFamily::Qwen3 => {
                 let model = default_qwen3_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(QWEN3_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
             ChatModelFamily::Qwen3_5 => {
                 let model = default_qwen3_5_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(QWEN3_5_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
             ChatModelFamily::Gemma => {
                 let model = default_gemma_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(GEMMA_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
             ChatModelFamily::NanoChat => {
                 let model = default_nanochat_factory()?.resolve(name, cache)?;
                 let map = model.plan(cache)?;
-                (model.id(), cache.load(NANOCHAT_KIT, &map)?)
+                (model.id(), cache.load(&map)?)
             }
         };
         println!("{id}:");
@@ -259,15 +259,17 @@ pub trait ChatModelFamilyFlags: clap::Args + std::fmt::Debug {
 /// Thinking: Qwen3's own flags.
 #[derive(clap::Args, Debug)]
 pub struct ChatThinkFlags {
-    /// Let the model think first: a Qwen3 or Qwen3.5 checkpoint's
-    /// `[thinking]` preset (Qwen3's hybrid models' default; Qwen3.5 answers at
-    /// once by default), under the card's thinking sampling. nanochat does
-    /// not think.
+    /// Let the model think first: its `[thinking]` preset.
+    ///
+    /// A Qwen3 or Qwen3.5 checkpoint's `[thinking]` preset (Qwen3's hybrid
+    /// models' default; Qwen3.5 answers at once by default), under the card's
+    /// thinking sampling. nanochat does not think.
     #[arg(long, conflicts_with = "no_think")]
     think: bool,
 
-    /// Ask the model not to think: its `[no-thinking]` preset, under the
-    /// card's non-thinking sampling.
+    /// Ask the model not to think: its `[no-thinking]` preset.
+    ///
+    /// Under the card's non-thinking sampling.
     #[arg(long)]
     no_think: bool,
 

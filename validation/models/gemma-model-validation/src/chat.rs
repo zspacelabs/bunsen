@@ -13,9 +13,7 @@ use bunsen::{
             TOKENIZER,
             TOKENIZER_CONFIG,
             pretrained::{
-                GEMMA_CATALOG,
-                GEMMA_FAMILY,
-                GEMMA_KIT,
+                GEMMA_TEMPLATE_CLASS,
                 default_gemma_factory,
             },
         },
@@ -47,7 +45,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
         }
     }
     let loaded = weights_cache()
-        .load(GEMMA_KIT, &map)
+        .load(&map)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
     (
         loaded.expect(TOKENIZER).unwrap().to_path_buf(),
@@ -58,10 +56,10 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
 
 /// Every text encodes to `transformers`' ids and decodes back to itself;
 /// every conversation renders to `transformers`' text, which encodes to its
-/// ids; the [`GEMMA_FAMILY`]'s own template, which a pretrained row renders
-/// with, renders every conversation as the row's own does; and the row's
-/// stop tokens, as its presets resolve them, include the end of a turn its
-/// tokenizer spells ([`END_OF_TURN`]).
+/// ids; the [`GEMMA_TEMPLATE_CLASS`]'s own template, which a pretrained row
+/// renders with, renders every conversation as the row's own does; and the
+/// row's stop tokens, as its presets resolve them, include the end of a turn
+/// its tokenizer spells ([`END_OF_TURN`]).
 fn check_row(row: &str) {
     let fixture = &chat_reference()[row];
     let (tokenizer, config, jinja) = tokenizer_files(row);
@@ -95,7 +93,9 @@ fn check_row(row: &str) {
         None => ChatTemplate::from_file(&config),
     }
     .unwrap();
-    let family = GEMMA_CATALOG.family_presets(GEMMA_FAMILY).base["generation"]["chat_template"]
+    let family = bunsen::data::pretrained::builtin_template_presets(GEMMA_TEMPLATE_CLASS)
+        .unwrap()
+        .common["generation"]["chat_template"]
         .as_str()
         .expect("the family's template")
         .to_string();

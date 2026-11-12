@@ -16,8 +16,8 @@ use crate::{
     data::pretrained::{
         CONFIG,
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -155,7 +155,11 @@ impl ConstructInit for ParakeetConstructConfig {
             }
             None => ParakeetTdtConfig::tdt_0_6b_v3(),
         };
-        let policy = resolve_ref_presets(&ParakeetPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &ParakeetPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         let mut model: ParakeetTdt = config.try_init(device)?;
         load_transformers_tensors(&mut model, tensors)?;
         // The files' precision (f32), or wider as the policy asks.
@@ -171,18 +175,17 @@ impl ConstructInit for ParakeetConstructConfig {
 mod tests {
 
     use super::*;
-    use crate::kits::speech::asr::parakeet::pretrained::PARAKEET_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let nvidia = ParakeetConstructConfig::for_resource_bundle(
-            &PARAKEET_CATALOG.resource_bundle("nvidia/parakeet-tdt-0.6b-v3"),
+            &crate::data::pretrained::builtin_build_bundle("nvidia/parakeet-tdt-0.6b-v3").unwrap(),
         )
         .unwrap();
         assert_eq!(nvidia.reader, ParakeetReader::Safetensors);
 
         let phonon = ParakeetConstructConfig::for_resource_bundle(
-            &PARAKEET_CATALOG.resource_bundle("fermion/phonon-2.bps.tar.zst"),
+            &crate::data::pretrained::builtin_build_bundle("fermion/phonon-2").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, ParakeetReader::PhononArchive);
         assert!(ParakeetReader::for_kind(Some("pytorch fp16")).is_err());

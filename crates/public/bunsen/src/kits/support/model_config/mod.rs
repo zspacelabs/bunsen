@@ -19,7 +19,8 @@
 //! - [`Probe`]s: readers of a pretrained's files that find its presets' values
 //!   ([`GenerationConfigProbe`], [`TokenizerConfigProbe`]), and
 //!   [`apply_probes`], which lays a catalog row's own presets over what its
-//!   probes find. The catalog tool runs them when it builds a catalog.
+//!   probes find. The catalog builder (`cargo catalog`) runs them when it
+//!   builds the built-in catalog.
 
 mod generation;
 mod presets;

@@ -1,5 +1,6 @@
 # What the whisper kit's loader reads: an openai-whisper checkpoint, which
-# carries its own dims, and the tiktoken vocabulary of its token layout.
+# carries its own dims, the tiktoken vocabulary of its token layout, and the
+# geometry a build promises, which the loader checks the checkpoint against.
 whisper-asr:
   $kind: contract
   $description: >-
@@ -11,3 +12,10 @@ whisper-asr:
     vocabulary:
       $format: [tiktoken]
       $description: "`multilingual.tiktoken` or `gpt2.tiktoken`, as the token layout needs."
+  $args:
+    geometry: { $type: geometry, $description: "The dims the checkpoint must have." }
+  geometry:
+    $kind: type
+    $description: >-
+      A `WhisperGeometry`, as it serializes: the loader checks the checkpoint's dims against it.
+    $type: $object

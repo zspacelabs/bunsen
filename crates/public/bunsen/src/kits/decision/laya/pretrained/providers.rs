@@ -3,16 +3,12 @@ use alloc::sync::Arc;
 
 use super::LayaConstructConfig;
 use crate::{
-    data::pretrained::{
-        EmbeddedCatalog,
-        PretrainedProvider,
-    },
+    data::pretrained::PretrainedProvider,
     errors::BunsenResult,
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Laya resource's path in the cache:
-/// `<cache>/pretrained/laya/<namespace>/<sha256>/<file>`.
+/// The Laya kit's name: its rows' `kit` tag.
 pub const LAYA_KIT: &str = "laya";
 
 /// The key of the checkpoint in a Laya resource bundle: its
@@ -25,37 +21,26 @@ pub const ENCODER_CONFIG: &str = "encoder_config";
 /// The key of the head's `rl_agent_config.json`.
 pub const AGENT_CONFIG: &str = "agent_config";
 
-/// The Laya checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider, in group
-/// `laya`: `convaiinnovations/laya`'s three (`well-known:laya/laya`,
-/// `laya/laya`, or `laya`).
-///
-/// Built from `validation/catalogs/laya.yml` by `cargo validate catalog`.
-pub static LAYA_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("laya", include_str!("catalog.json"));
-
 /// What the laya kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const LAYA_CONTRACT: &str = include_str!("contract.yml");
 
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, what `decide` chooses its model by.
-pub const LAYA_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const LAYA_CATALOG_CONTRACT: &str = "laya-decision";
 
 /// The name [`default_laya_factory`] loads when a caller names none.
-pub const DEFAULT_LAYA_MODEL: &str = "laya/laya";
+pub const DEFAULT_LAYA_MODEL: &str = "laya/laya/laya";
 
 /// Laya's compiled-in providers: the well-known table.
 pub fn default_laya_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(LAYA_CATALOG.table())]
+    vec![Arc::new(
+        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            LAYA_CATALOG_CONTRACT,
+            LAYA_KIT,
+        ),
+    )]
 }
 
 /// Laya's factory over [`default_laya_providers`], building through
@@ -79,7 +64,6 @@ mod tests {
     /// revision, each row with all five of its files.
     #[test]
     fn test_rows_are_pinned() {
-        LAYA_CATALOG.catalog().validate(&[]).unwrap();
         let factory = default_laya_factory().unwrap();
         assert_eq!(factory.kit(), LAYA_KIT);
         let names = ["laya", "laya-multilingual", "laya-typed-decisions"];
@@ -87,7 +71,7 @@ mod tests {
             factory.ids(),
             names
                 .iter()
-                .map(|n| format!("well-known:laya/{n}"))
+                .map(|n| format!("well-known:laya/laya/{n}"))
                 .collect::<Vec<_>>()
         );
         for name in names {
@@ -114,10 +98,10 @@ mod tests {
                 assert!(map.get(key).is_some(), "{name}: {key}");
             }
         }
-        assert_eq!(factory.lookup("laya-en").unwrap().1.name, "laya/laya");
+        assert_eq!(factory.lookup("laya-en").unwrap().1.name, "laya/laya/laya");
         assert_eq!(
             factory.lookup(DEFAULT_LAYA_MODEL).unwrap().1.name,
-            "laya/laya"
+            "laya/laya/laya"
         );
     }
 

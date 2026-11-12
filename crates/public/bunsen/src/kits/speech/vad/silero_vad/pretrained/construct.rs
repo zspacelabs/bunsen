@@ -7,8 +7,8 @@ use burn::tensor::Device;
 use crate::{
     data::pretrained::{
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
     },
     errors::{
@@ -122,7 +122,11 @@ impl ConstructInit for SileroConstructConfig {
         device: &Device,
         load: crate::kits::support::construct::LoadPolicy,
     ) -> BunsenResult<Arc<SileroConstruct>> {
-        let policy = resolve_ref_presets(&SileroPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &SileroPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         let vads = match self.reader {
             SileroReader::Burnpack => {
                 SileroVadCollection::load_from_burnpack_file(loaded.expect(BURNPACK)?, device)?
@@ -156,7 +160,7 @@ mod tests {
 
         assert_eq!(
             SileroConstructConfig::for_resource_bundle(
-                &super::super::SILERO_CATALOG.resource_bundle("silero/vad-16k")
+                &crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap()
             )
             .unwrap()
             .reader,

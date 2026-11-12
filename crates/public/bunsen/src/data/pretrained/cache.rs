@@ -14,7 +14,7 @@ use std::{
 };
 
 /// The directory under the cache dir that holds a pretrained's resources:
-/// `<cache>/pretrained/<kit>/<namespace>/<sha256>/<file>`.
+/// `<cache>/pretrained/<namespace>/<sha256>/<file>`.
 ///
 /// `bunsen_fetch`'s, so the bundled-asset build scripts, which lay files out
 /// with `bunsen_fetch::pretrained_cache_path`, write where this cache reads.
@@ -292,14 +292,15 @@ fn fetch_prefix(
 /// # Cache layout
 ///
 /// ```text
-/// <cache>/pretrained/<kit>/<namespace>/<sha256>/<file>
+/// <cache>/pretrained/<namespace>/<sha256>/<file>
 /// ```
 ///
-/// `<kit>` is the hook's
-/// [`KIT`](crate::kits::support::construct::ConstructInit::KIT), `<namespace>`
-/// the resource's (who published it), and `<file>` its file name. An unpinned
-/// resource sits under a cache key in place of `<sha256>`: one derived from
-/// its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its
+/// `<namespace>` is the resource's: a catalog resource's full name, each `/` a
+/// directory (`qwen/qwen3/qwen3-0.6b/checkpoint`), so a file two builds
+/// share is cached once, under its own name; `hf` for an `hf:` repo's file,
+/// and `given` for a path's. `<file>` is the file's path, kept whole. An
+/// unpinned resource sits under a cache key in place of `<sha256>`: one derived
+/// from its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its
 /// file name when it has no URL. [`resource_path`](Self::resource_path)
 /// names the path, present or not.
 ///
@@ -418,11 +419,13 @@ impl PretrainedCache {
     }
 
     /// Where a resource's file lives in the cache, present or not:
-    /// `pretrained/<kit>/<namespace>/<sha256>/<file>` when it is pinned,
-    /// and `pretrained/<kit>/<namespace>/<cache key>/<file>` when not.
+    /// `pretrained/<namespace>/<sha256>/<file>` when it is pinned, and
+    /// `pretrained/<namespace>/<cache key>/<file>` when not. A catalog
+    /// resource's namespace is its full name
+    /// (`qwen/qwen3/qwen3-0.6b/checkpoint`), each `/` a directory; an `hf:`
+    /// repo's is `hf`, and a path's `given`.
     pub fn resource_path(
         &self,
-        kit: &str,
         res: &Resource,
     ) -> PathBuf {
         let pin = match &res.sha256 {
@@ -430,7 +433,10 @@ impl PretrainedCache {
             None => res.cache_key(),
         };
         self.disk.cache_path(
-            &[PRETRAINED_DIR, kit, res.namespace.as_str(), pin.as_str()],
+            &core::iter::once(PRETRAINED_DIR)
+                .chain(res.namespace.split('/'))
+                .chain(core::iter::once(pin.as_str()))
+                .collect::<Vec<_>>(),
             &res.file,
         )
     }
@@ -438,10 +444,9 @@ impl PretrainedCache {
     /// Where a resource stands, without fetching or hashing anything.
     pub fn status(
         &self,
-        kit: &str,
         res: &Resource,
     ) -> CacheStatus {
-        if self.resource_path(kit, res).is_file() {
+        if self.resource_path(res).is_file() {
             return CacheStatus::Cached;
         }
         for source in &res.sources {
@@ -463,12 +468,11 @@ impl PretrainedCache {
     /// Where every resource of `map` stands, by key.
     pub fn map_status(
         &self,
-        kit: &str,
         map: &ResourceBundle,
     ) -> BTreeMap<String, CacheStatus> {
         map.resources
             .iter()
-            .map(|(key, res)| (key.clone(), self.status(kit, res)))
+            .map(|(key, res)| (key.clone(), self.status(res)))
             .collect()
     }
 
@@ -502,10 +506,9 @@ impl PretrainedCache {
     /// file-system failure by [`sys_at`].
     pub fn resolve(
         &self,
-        kit: &str,
         res: &Resource,
     ) -> BunsenResult<ResolvedResource> {
-        match self.resolve_local(kit, res)? {
+        match self.resolve_local(res)? {
             Local::Found(found) => {
                 mark_used(&found);
                 Ok(found)
@@ -536,11 +539,10 @@ impl PretrainedCache {
     /// none answers; a file-system failure through [`sys_at`].
     pub fn read_prefix(
         &self,
-        kit: &str,
         res: &Resource,
         len: u64,
     ) -> BunsenResult<Vec<u8>> {
-        match self.resolve_local(kit, res)? {
+        match self.resolve_local(res)? {
             Local::Found(found) => {
                 use std::io::Read;
                 let path = &found.path;
@@ -580,13 +582,12 @@ impl PretrainedCache {
     /// its key, whose kind comes from them.
     pub fn load(
         &self,
-        kit: &str,
         map: &ResourceBundle,
     ) -> BunsenResult<LoadedResources> {
         let mut parts = BTreeMap::new();
         let mut remote = Vec::new();
         for (key, res) in &map.resources {
-            match self.resolve_local(kit, res)? {
+            match self.resolve_local(res)? {
                 Local::Found(found) => {
                     mark_used(&found);
                     parts.insert(key.clone(), found);
@@ -619,10 +620,9 @@ impl PretrainedCache {
     /// probe: what it finds is not marked used.
     fn resolve_local(
         &self,
-        kit: &str,
         res: &Resource,
     ) -> BunsenResult<Local> {
-        let dest = self.resource_path(kit, res);
+        let dest = self.resource_path(res);
         if dest.is_file() {
             return Ok(Local::Found(ResolvedResource {
                 path: dest,
@@ -927,12 +927,11 @@ mod tests {
         fs::write(up.join("local.bin"), b"abcdef").unwrap();
         let local = res("local", None, vec![local_dir(&up)]);
         let cache = cache_in(dir.path(), true);
-        assert_eq!(cache.read_prefix("kit", &local, 4).unwrap(), b"abcd");
-        assert_eq!(cache.read_prefix("kit", &local, 64).unwrap(), b"abcdef");
+        assert_eq!(cache.read_prefix(&local, 4).unwrap(), b"abcd");
+        assert_eq!(cache.read_prefix(&local, 64).unwrap(), b"abcdef");
 
         let remote = res("remote", None, vec![url("http://h.invalid/remote.bin")]);
-        ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .assert_err(&cache.read_prefix("kit", &remote, 4));
+        ErrorMatcher::kind(BunsenErrorKind::Policy).assert_err(&cache.read_prefix(&remote, 4));
 
         #[cfg(feature = "fetch")]
         {
@@ -946,9 +945,9 @@ mod tests {
                     url(&serve_ranges("remote.bin", b"abc", 1)),
                 ],
             );
-            assert_eq!(cache.read_prefix("kit", &remote, 2).unwrap(), b"ab");
-            assert!(!cache.resource_path("kit", &remote).exists());
-            assert_eq!(cache.status("kit", &remote), CacheStatus::Remote);
+            assert_eq!(cache.read_prefix(&remote, 2).unwrap(), b"ab");
+            assert!(!cache.resource_path(&remote).exists());
+            assert_eq!(cache.status(&remote), CacheStatus::Remote);
         }
     }
 
@@ -966,14 +965,14 @@ mod tests {
             vec![Source::Bundled(BundledBytes(b"abc"))],
         );
         bundled.validate().unwrap();
-        assert_eq!(cache.status("kit", &bundled), CacheStatus::Bundled);
-        let resolved = cache.resolve("kit", &bundled).unwrap();
+        assert_eq!(cache.status(&bundled), CacheStatus::Bundled);
+        let resolved = cache.resolve(&bundled).unwrap();
         assert_eq!(resolved.provenance, Provenance::Bundled);
-        assert_eq!(resolved.path, cache.resource_path("kit", &bundled));
+        assert_eq!(resolved.path, cache.resource_path(&bundled));
         assert_eq!(std::fs::read(&resolved.path).unwrap(), b"abc");
-        assert_eq!(cache.status("kit", &bundled), CacheStatus::Cached);
+        assert_eq!(cache.status(&bundled), CacheStatus::Cached);
         assert_eq!(
-            cache.resolve("kit", &bundled).unwrap().provenance,
+            cache.resolve(&bundled).unwrap().provenance,
             Provenance::Cached
         );
 
@@ -987,8 +986,8 @@ mod tests {
             .cause(predicate("a bundled mismatch", |c: &DigestMismatch| {
                 c.origin == DigestOrigin::Bundled && c.subject == "abd" && c.expected == ABC_SHA256
             }))
-            .assert_err(&cache.resolve("kit", &wrong));
-        assert!(!cache.resource_path("kit", &wrong).exists());
+            .assert_err(&cache.resolve(&wrong));
+        assert!(!cache.resource_path(&wrong).exists());
 
         // The cache checks the rule `validate` does, with the same error.
         let unpinned = res("abe", None, vec![Source::Bundled(BundledBytes(b"abe"))]);
@@ -1001,7 +1000,7 @@ mod tests {
                 .assert(e);
         };
         unpinned_err(&unpinned.validate().unwrap_err());
-        unpinned_err(&cache.resolve("kit", &unpinned).unwrap_err());
+        unpinned_err(&cache.resolve(&unpinned).unwrap_err());
 
         // The local dir comes first when it has the file; the bundle is
         // next; a URL after a bundle is never needed.
@@ -1017,13 +1016,13 @@ mod tests {
                 url("https://a.example/abf.bin"),
             ],
         );
-        assert_eq!(cache.status("kit", &ordered), CacheStatus::LocalDir);
+        assert_eq!(cache.status(&ordered), CacheStatus::LocalDir);
         assert_eq!(
-            cache.resolve("kit", &ordered).unwrap().provenance,
+            cache.resolve(&ordered).unwrap().provenance,
             Provenance::LocalDir
         );
         let map = ResourceBundle::new("m").with_resource(bundled.clone());
-        let loaded = cache.load("kit", &map).unwrap();
+        let loaded = cache.load(&map).unwrap();
         assert_eq!(loaded.get("abc").unwrap().provenance, Provenance::Cached);
     }
 
@@ -1042,13 +1041,13 @@ mod tests {
             Some(ABC_SHA256),
             vec![Source::Bundled(BundledBytes(b"abc"))],
         );
-        let dest = cache.resource_path("kit", &bundled);
+        let dest = cache.resource_path(&bundled);
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
 
         // A truncated file at the path is the pin's: trusted, not re-hashed.
         fs::write(&dest, b"ab").unwrap();
         assert_eq!(
-            cache.resolve("kit", &bundled).unwrap().provenance,
+            cache.resolve(&bundled).unwrap().provenance,
             Provenance::Cached
         );
         fs::remove_file(&dest).unwrap();
@@ -1056,7 +1055,7 @@ mod tests {
         let outside = dir.path().join("outside.bin");
         std::os::unix::fs::symlink(&outside, &dest).unwrap();
         assert_eq!(
-            cache.resolve("kit", &bundled).unwrap().provenance,
+            cache.resolve(&bundled).unwrap().provenance,
             Provenance::Bundled
         );
         assert!(
@@ -1074,25 +1073,29 @@ mod tests {
         let cache = cache_in(dir.path(), true);
         let root = dir.path().join("cache").join("pretrained");
 
-        let pinned = res(
+        // A catalog resource's namespace is its full name, each `/` a
+        // directory.
+        let mut pinned = res(
             "abc",
             Some(ABC_SHA256),
             vec![url("https://a.example/abc.bin")],
         );
+        pinned.namespace = "pub/fam/build/checkpoint".to_string();
         assert_eq!(
-            cache.resource_path("kit", &pinned),
-            root.join("kit")
-                .join("prov")
+            cache.resource_path(&pinned),
+            root.join("pub")
+                .join("fam")
+                .join("build")
+                .join("checkpoint")
                 .join(ABC_SHA256)
                 .join("abc.bin")
         );
         // Where a bundled-asset build script lays the same file out.
         assert_eq!(
-            cache.resource_path("kit", &pinned),
+            cache.resource_path(&pinned),
             bunsen_fetch::pretrained_cache_path(
                 cache.cache_dir(),
-                "kit",
-                "prov",
+                "pub/fam/build/checkpoint",
                 ABC_SHA256,
                 "abc.bin"
             )
@@ -1100,11 +1103,8 @@ mod tests {
 
         let unpinned = res("abc", None, vec![url("https://a.example/abc.bin")]);
         assert_eq!(
-            cache.resource_path("kit", &unpinned),
-            root.join("kit")
-                .join("prov")
-                .join(unpinned.cache_key())
-                .join("abc.bin"),
+            cache.resource_path(&unpinned),
+            root.join("prov").join(unpinned.cache_key()).join("abc.bin"),
             "unpinned is keyed by its first URL"
         );
         assert_eq!(cache.cache_dir(), dir.path().join("cache"));
@@ -1124,14 +1124,14 @@ mod tests {
             vec![url("https://a.example/abc.bin")],
         );
 
-        assert_eq!(cache.status("kit", &r), CacheStatus::Remote);
-        let dest = cache.resource_path("kit", &r);
+        assert_eq!(cache.status(&r), CacheStatus::Remote);
+        let dest = cache.resource_path(&r);
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"not really abc").unwrap();
 
-        assert_eq!(cache.status("kit", &r), CacheStatus::Cached);
+        assert_eq!(cache.status(&r), CacheStatus::Cached);
         assert_eq!(
-            cache.resolve("kit", &r).unwrap(),
+            cache.resolve(&r).unwrap(),
             ResolvedResource {
                 path: dest,
                 provenance: Provenance::Cached,
@@ -1156,7 +1156,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/abc.bin")],
         );
-        let dest = cache.resource_path("kit", &r);
+        let dest = cache.resource_path(&r);
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"abc").unwrap();
         let old = SystemTime::UNIX_EPOCH + Duration::from_secs(1_000_000_000);
@@ -1172,17 +1172,17 @@ mod tests {
         let map = ResourceBundle::new("m").with_resource(r.clone());
 
         age();
-        assert_eq!(cache.status("kit", &r), CacheStatus::Cached);
-        cache.map_status("kit", &map);
-        cache.read_prefix("kit", &r, 2).unwrap();
+        assert_eq!(cache.status(&r), CacheStatus::Cached);
+        cache.map_status(&map);
+        cache.read_prefix(&r, 2).unwrap();
         let listed = cache.cached_files(&Default::default()).unwrap();
         assert_eq!(listed[0].last_used, Some(old));
         assert_eq!(modified(), old, "a probe marks nothing");
 
-        cache.resolve("kit", &r).unwrap();
+        cache.resolve(&r).unwrap();
         assert!(modified() > old, "resolve marks it used");
         age();
-        cache.load("kit", &map).unwrap();
+        cache.load(&map).unwrap();
         assert!(modified() > old, "load marks it used");
 
         #[cfg(unix)]
@@ -1191,12 +1191,7 @@ mod tests {
             age();
             fs::set_permissions(&dest, fs::Permissions::from_mode(0o444)).unwrap();
             assert_eq!(
-                cache
-                    .load("kit", &map)
-                    .unwrap()
-                    .get("abc")
-                    .unwrap()
-                    .provenance,
+                cache.load(&map).unwrap().get("abc").unwrap().provenance,
                 Provenance::Cached
             );
             // Root writes a read-only file regardless.
@@ -1224,8 +1219,8 @@ mod tests {
         fs::write(upstream.join("abc.bin"), b"a partial download").unwrap();
 
         let trusting = cache_in(dir.path(), true);
-        assert_eq!(trusting.status("kit", &r), CacheStatus::LocalDir);
-        let resolved = trusting.resolve("kit", &r).unwrap();
+        assert_eq!(trusting.status(&r), CacheStatus::LocalDir);
+        let resolved = trusting.resolve(&r).unwrap();
         assert_eq!(resolved.provenance, Provenance::LocalDir);
         assert_eq!(resolved.path, upstream.join("abc.bin"));
         assert!(!dir.path().join("cache").join("pretrained").exists());
@@ -1242,11 +1237,10 @@ mod tests {
         )
         .unwrap();
         assert!(verifying.verify_local_dirs());
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
-            .assert_err(&verifying.resolve("kit", &r));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&verifying.resolve(&r));
         fs::write(upstream.join("abc.bin"), b"abc").unwrap();
         assert_eq!(
-            verifying.resolve("kit", &r).unwrap().provenance,
+            verifying.resolve(&r).unwrap().provenance,
             Provenance::LocalDir
         );
         assert!(!dir.path().join("cache").join("pretrained").exists());
@@ -1268,7 +1262,7 @@ mod tests {
         assert_eq!(overridden.local_dir(&r.sources[0]), Some(elsewhere.clone()));
         assert_eq!(overridden.local_dir(&r.sources[1]), None);
         assert_eq!(
-            overridden.resolve("kit", &r).unwrap().path,
+            overridden.resolve(&r).unwrap().path,
             elsewhere.join("abc.bin")
         );
     }
@@ -1282,9 +1276,9 @@ mod tests {
         let cache = cache_in(dir.path(), true);
         let r = Resource::given("checkpoint", &file);
 
-        assert_eq!(cache.status("kit", &r), CacheStatus::LocalDir);
+        assert_eq!(cache.status(&r), CacheStatus::LocalDir);
         assert_eq!(
-            cache.resolve("kit", &r).unwrap(),
+            cache.resolve(&r).unwrap(),
             ResolvedResource {
                 path: file,
                 provenance: Provenance::LocalDir,
@@ -1307,12 +1301,12 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .message_contains("the cache is offline")
             .frame_contains("abc")
-            .assert_err(&offline.resolve("kit", &remote));
+            .assert_err(&offline.resolve(&remote));
 
         let no_url = res("abc", Some(ABC_SHA256), vec![]);
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .details_contains("no URL")
-            .assert_err(&cache_in(dir.path(), false).resolve("kit", &no_url));
+            .assert_err(&cache_in(dir.path(), false).resolve(&no_url));
 
         let absent = dir.path().join("absent.pt");
         let given = Resource::given("checkpoint", &absent);
@@ -1321,7 +1315,7 @@ mod tests {
             .cause(predicate("a missing path", move |c: &LookupError| {
                 c.problem == LookupProblem::Missing && c.key == absent.display().to_string()
             }))
-            .assert_err(&offline.resolve("kit", &given));
+            .assert_err(&offline.resolve(&given));
     }
 
     /// A URL is fetched, checked and written under `pretrained/`; the next
@@ -1335,19 +1329,16 @@ mod tests {
         let live = serve_once("abc.bin", b"abc");
         let r = res("abc", Some(ABC_SHA256), vec![url(&live)]);
 
-        let resolved = cache.resolve("kit", &r).unwrap();
+        let resolved = cache.resolve(&r).unwrap();
         assert_eq!(resolved.provenance, Provenance::Downloaded);
-        assert_eq!(resolved.path, cache.resource_path("kit", &r));
+        assert_eq!(resolved.path, cache.resource_path(&r));
         assert_eq!(fs::read(&resolved.path).unwrap(), b"abc");
-        assert_eq!(
-            cache.resolve("kit", &r).unwrap().provenance,
-            Provenance::Cached
-        );
+        assert_eq!(cache.resolve(&r).unwrap().provenance, Provenance::Cached);
 
         let wrong = serve_once("abd.bin", b"abd");
         let r = res("abd", Some(ABC_SHA256), vec![url(&wrong)]);
-        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&cache.resolve("kit", &r));
-        assert!(!cache.resource_path("kit", &r).exists());
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&cache.resolve(&r));
+        assert!(!cache.resource_path(&r).exists());
     }
 
     /// A resource bundle loads with one provenance per resource: the cached one
@@ -1367,7 +1358,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],
         );
-        let dest = cache.resource_path("kit", &cached);
+        let dest = cache.resource_path(&cached);
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"abc").unwrap();
         let local = res(
@@ -1381,12 +1372,12 @@ mod tests {
             .with_resource(local.clone())
             .with_resource(remote.clone());
 
-        let status = cache.map_status("kit", &map);
+        let status = cache.map_status(&map);
         assert_eq!(status["cached"], CacheStatus::Cached);
         assert_eq!(status["local"], CacheStatus::LocalDir);
         assert_eq!(status["remote"], CacheStatus::Remote);
 
-        let loaded = cache.load("kit", &map).unwrap();
+        let loaded = cache.load(&map).unwrap();
         assert_eq!(loaded.map, map);
         assert_eq!(loaded.keys(), ["cached", "local", "remote"]);
         assert_eq!(loaded.get("cached").unwrap().provenance, Provenance::Cached);
@@ -1404,10 +1395,10 @@ mod tests {
         );
         assert_eq!(
             loaded.expect("remote").unwrap(),
-            cache.resource_path("kit", &remote)
+            cache.resource_path(&remote)
         );
-        assert!(!cache.resource_path("kit", &local).exists());
-        assert_eq!(cache.map_status("kit", &map)["remote"], CacheStatus::Cached);
+        assert!(!cache.resource_path(&local).exists());
+        assert_eq!(cache.map_status(&map)["remote"], CacheStatus::Cached);
     }
 
     /// One remote that cannot be had fails the load and is named by key;
@@ -1440,7 +1431,7 @@ mod tests {
             .with_resource(live.clone())
             .with_resource(dead);
 
-        let err = cache.load("kit", &map).unwrap_err();
+        let err = cache.load(&map).unwrap_err();
         ErrorMatcher::new()
             .display(text::eq("m: 1 of 2 resources did not land"))
             .details_contains("dead: ")
@@ -1449,7 +1440,7 @@ mod tests {
                 c.members.len() == 1 && c.members[0].0 == "dead"
             }))
             .assert(&err);
-        assert!(cache.resource_path("kit", &live).is_file());
+        assert!(cache.resource_path(&live).is_file());
     }
 
     /// Offline, a resource bundle with a remote resource is not found, and the
@@ -1463,7 +1454,7 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],
         );
-        let dest = cache.resource_path("kit", &cached);
+        let dest = cache.resource_path(&cached);
         fs::create_dir_all(dest.parent().unwrap()).unwrap();
         fs::write(&dest, b"abc").unwrap();
         let remote = res(
@@ -1478,14 +1469,14 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .message(text::ends_with("offline: remote"))
             .frame_contains("m")
-            .assert_err(&cache.load("kit", &map));
+            .assert_err(&cache.load(&map));
 
         let local_only = ResourceBundle::new("m").with_resource(res(
             "cached",
             Some(ABC_SHA256),
             vec![url("https://a.example/cached.bin")],
         ));
-        let loaded = cache.load("kit", &local_only).unwrap();
+        let loaded = cache.load(&local_only).unwrap();
         assert_eq!(loaded.get("cached").unwrap().provenance, Provenance::Cached);
     }
 

@@ -102,7 +102,6 @@ impl ConstructInit for LayaConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::decision::laya::pretrained::LAYA_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
@@ -111,9 +110,12 @@ mod tests {
             "laya/laya-multilingual",
             "laya/laya-typed-decisions",
         ] {
-            LayaConstructConfig::for_resource_bundle(&LAYA_CATALOG.resource_bundle(name)).unwrap();
+            LayaConstructConfig::for_resource_bundle(
+                &crate::data::pretrained::builtin_build_bundle(name).unwrap(),
+            )
+            .unwrap();
         }
-        let mut other = LAYA_CATALOG.resource_bundle("laya/laya");
+        let mut other = crate::data::pretrained::builtin_build_bundle("laya/laya").unwrap();
         other.resources.get_mut(CHECKPOINT).unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

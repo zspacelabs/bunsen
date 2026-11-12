@@ -57,6 +57,19 @@ pub struct DisplayName {
     pub full: CatalogName,
 }
 
+/// Whether `query` (`/`-separated segments) names `name`: its last segment
+/// matches `name`'s leaf as `leaf` says, and its others are among `name`'s
+/// scope, in order, ignoring ASCII case. What a lookup by a shorter name
+/// tests.
+pub fn name_matches(
+    query: &str,
+    name: &CatalogName,
+    leaf: LeafMatch,
+) -> bool {
+    let parts: Vec<&str> = query.split('/').collect();
+    subsequence(&parts, name, leaf)
+}
+
 fn subsequence(
     query: &[&str],
     name: &CatalogName,

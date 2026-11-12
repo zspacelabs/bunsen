@@ -128,7 +128,7 @@ use crate::{
 /// // order: the well-known table has it.
 /// let (provider, row) = factory.lookup("tiny")?;
 /// assert_eq!(provider, "well-known");
-/// assert_eq!(row.name, "openai/tiny");
+/// assert_eq!(row.name, "openai/whisper/tiny");
 ///
 /// // `hf:` goes to the Hugging Face provider alone, which answers only
 /// // through a cache: its error aborts the lookup.
@@ -343,8 +343,9 @@ impl<H: ConstructInit> PretrainedFactory<H> {
 
     /// Checks what a lookup asks of `row`'s presets, before anything is
     /// fetched: that the kit resolves presets at all, and that the selection
-    /// is one `row`'s presets allow ([`PresetSet::check_selection`]). A row
-    /// with no presets of its own, an `hf:` repo's, is left to the hook,
+    /// is one `row`'s presets allow
+    /// ([`ResolvedPresetSet::check_selection`](crate::data::pretrained::ResolvedPresetSet::check_selection)).
+    /// A row with no presets of its own, an `hf:` repo's, is left to the hook,
     /// which knows the model's family only once it reads the files
     /// ([`resolve_ref_presets`](crate::kits::support::model_config::resolve_ref_presets)).
     fn check_selection(
@@ -364,7 +365,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
             return Ok(());
         }
         row.presets
-            .check_selection(selection)
+            .check_selection(&selection.to_catalog_selection())
             .with_context(|| format!("the presets of {:?}", row.name))?;
         Ok(())
     }
@@ -389,9 +390,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     ) -> BunsenResult<Deferred<H>> {
         let resolve = || -> BunsenResult<Deferred<H>> {
             let expr = LookupExpr::parse(spec)?;
-            let found = self.find(&expr.name, |provider, name| {
-                provider.resolve(name, H::KIT, cache)
-            })?;
+            let found = self.find(&expr.name, |provider, name| provider.resolve(name, cache))?;
             let (provider, pretrained) = match found {
                 Some(found) => found,
                 None => return Err(self.not_found(&expr.name)),
@@ -578,6 +577,7 @@ pub(crate) mod testing {
                 prefab: None,
                 resources,
                 presets: Default::default(),
+                args: Default::default(),
                 tags: Default::default(),
             }))
         }
@@ -719,6 +719,7 @@ mod tests {
                 sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
             }),
             presets: Default::default(),
+            args: Default::default(),
             tags: Default::default(),
         }
     }
@@ -737,6 +738,7 @@ mod tests {
             prefab: None,
             resources: ResourceBundle::given(name, "checkpoint", path),
             presets: Default::default(),
+            args: Default::default(),
             tags: Default::default(),
         }
     }
@@ -1172,7 +1174,9 @@ mod tests {
                 patch: serde_json::json!({"beam": 1}),
             }],
             ..Default::default()
-        };
+        }
+        .to_resolved()
+        .unwrap();
         let factory = PretrainedFactory::<PresetPath>::new()
             .with_providers([table(WELL_KNOWN, vec![group("a", vec![small])])])
             .unwrap();
@@ -1186,7 +1190,7 @@ mod tests {
         assert_eq!(selection.patch, Some(serde_json::json!({"beam": 2})));
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_contains("no preset \"slow\"; there are: fast")
+            .message_contains("no preset `slow`; there are: fast")
             .assert_err(&factory.resolve("a/small[slow]", &cache));
         // A row with no presets of its own leaves the box to the hook.
         let bare = PretrainedFactory::<PresetPath>::new()

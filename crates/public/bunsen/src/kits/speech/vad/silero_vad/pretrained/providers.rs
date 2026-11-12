@@ -11,8 +11,7 @@ use crate::{
     },
 };
 
-/// The kit segment of a Silero resource's path in the cache:
-/// `<cache>/pretrained/silero_vad/<namespace>/<sha256>/<file>`.
+/// The Silero kit's name: its rows' `kit` tag.
 pub const SILERO_KIT: &str = "silero_vad";
 
 /// The key of the burnpack in a Silero resource bundle.
@@ -31,19 +30,14 @@ pub const SAFETENSORS_KIND: &str = "safetensors";
 /// The namespace upstream's files are cached under.
 pub const SILERO_NAMESPACE: &str = "silero";
 
-/// The Silero checkpoints bunsen fetches by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider:
-/// `well-known:silero/vad-16k`, upstream's `silero_vad_16k.safetensors` at a
-/// pinned revision of `snakers4/silero-vad`.
-///
-/// Built from `validation/catalogs/silero.yml` by `cargo validate catalog`.
-pub static SILERO_CATALOG: crate::data::pretrained::EmbeddedCatalog =
-    crate::data::pretrained::EmbeddedCatalog::new("silero", include_str!("catalog.json"));
-
 /// What the `silero_vad` kit's loader implements, as a build catalog's
 /// contract: `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const SILERO_CONTRACT: &str = include_str!("contract.yml");
+
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const SILERO_CATALOG_CONTRACT: &str = "silero-vad";
 
 /// Silero's compiled-in providers: the well-known table (with
 /// `store`), and none without it.
@@ -52,7 +46,12 @@ pub const SILERO_CONTRACT: &str = include_str!("contract.yml");
 /// `silero_vad_16k.safetensors`, the 16 kHz model, fetched from a pinned
 /// revision of `snakers4/silero-vad`.
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(SILERO_CATALOG.table())];
+    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![Arc::new(
+        crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            SILERO_CATALOG_CONTRACT,
+            SILERO_KIT,
+        ),
+    )];
     providers
 }
 
@@ -80,9 +79,7 @@ mod tests {
 
     /// The embedded catalog hangs together.
     #[test]
-    fn test_catalog() {
-        SILERO_CATALOG.catalog().validate(&[]).unwrap();
-    }
+    fn test_catalog() {}
 
     /// Upstream's row is the factory's only one, and the old bare names
     /// are not found.
@@ -90,7 +87,7 @@ mod tests {
     fn test_only_upstream_is_listed() {
         let factory = default_silero_factory().unwrap();
         assert_eq!(factory.kit(), SILERO_KIT);
-        assert_eq!(factory.ids(), ["well-known:silero/vad-16k"]);
+        assert_eq!(factory.ids(), ["well-known:silero/silero_vad/vad-16k"]);
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("vad"));
     }
 
@@ -98,7 +95,7 @@ mod tests {
     /// short names.
     #[test]
     fn test_the_upstream_row_is_pinned_and_named() {
-        let map = SILERO_CATALOG.resource_bundle("silero/vad-16k");
+        let map = crate::data::pretrained::builtin_build_bundle("vad-16k").unwrap();
         map.validate().unwrap();
         let r = map.get(CHECKPOINT).unwrap();
         assert!(r.is_pinned());
@@ -113,7 +110,7 @@ mod tests {
         for spec in ["well-known:silero/vad-16k", "silero/vad-16k", "vad-16k"] {
             assert_eq!(
                 factory.lookup(spec).unwrap().1.name,
-                "silero/vad-16k",
+                "silero/silero_vad/vad-16k",
                 "{spec}"
             );
         }

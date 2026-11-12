@@ -56,14 +56,12 @@
 //! mistake, or as an overlay for an override, where the right-hand resource
 //! bundle wins.
 //!
-//! A kit's table is data: a [`PretrainedCatalog`], the `catalog.json` the
-//! catalog tool (`cargo validate catalog`) generates from a hand-written
-//! source, embedded in the kit as an [`EmbeddedCatalog`]. Its rows name their
-//! resource bundles, a bundle shared by many rows is listed once, its files
-//! carry their sizes and dtypes, and a directory base names where another
-//! tool keeps its files as path templates ([`resolve_dir_template`]).
-//! [`PretrainedCatalog::to_table`] loads it into the owned
-//! [`PretrainedTable`].
+//! A kit's rows are data: the builds of the kit's contract in the built-in
+//! build catalog ([`build_catalog`]), which a [`BuildCatalogProvider`] serves
+//! as rows named in full (`qwen/qwen3/qwen3-0.6b`), with the presets and
+//! arguments the catalog resolves. Its files carry their sizes and dtypes, and
+//! a local directory names where another tool keeps its files as path
+//! templates ([`resolve_dir_template`]).
 //!
 //! ## Providers
 //!
@@ -90,7 +88,8 @@
 //! ## The cache and bundles
 //!
 //! The [`PretrainedCache`] keeps a pinned file at
-//! `<cache>/pretrained/<kit>/<namespace>/<sha256>/<file>`. The digest in
+//! `<cache>/pretrained/<namespace>/<sha256>/<file>`, `<namespace>` a catalog
+//! resource's full name (`hf` or `given` off the catalog). The digest in
 //! the path is the pin: a file there was verified when it was written, and
 //! is trusted without re-hashing (the
 //! [trust model](PretrainedCache#trust-model)). The cache looks there
@@ -214,6 +213,7 @@
 //!         }],
 //!     }),
 //!     presets: Default::default(),
+//!     args: Default::default(),
 //!     tags: Default::default(),
 //! };
 //!
@@ -289,7 +289,7 @@ pub mod build_catalog;
 mod cache;
 #[cfg(feature = "cache")]
 mod cached_files;
-mod catalog;
+mod catalog_provider;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
@@ -312,11 +312,12 @@ pub mod tags;
 
 #[cfg(feature = "store")]
 pub use apply_named::*;
+pub use build_catalog::presets::ResolvedPresetSet;
 #[cfg(feature = "cache")]
 pub use cache::*;
 #[cfg(feature = "cache")]
 pub use cached_files::*;
-pub use catalog::*;
+pub use catalog_provider::*;
 pub use hf::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;

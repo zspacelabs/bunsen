@@ -13,7 +13,6 @@ use serde_json::{
 
 use crate::{
     data::pretrained::{
-        CatalogProbe,
         Preset,
         PresetSet,
     },
@@ -24,6 +23,26 @@ use crate::{
     },
     support::merge_patch,
 };
+
+/// One probe of a pretrained's files: a named reader of one of its files,
+/// and where what it finds goes.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CatalogProbe {
+    /// The probe, by name: `generation_config`, say.
+    pub probe: String,
+
+    /// The file it reads, by its resource key.
+    pub file: String,
+
+    /// Where its patch goes: `base`, the set's common patch, or presets by
+    /// name.
+    pub into: Vec<String>,
+
+    /// The token it reads, for a probe that reads one by name (the
+    /// `tokenizer_config` probe's added token: `<end_of_turn>`, say); `None`,
+    /// the probe's own.
+    pub token: Option<String>,
+}
 
 /// A reader of one of a pretrained's files that finds values for its
 /// presets: a merge patch over the family's config.
@@ -402,33 +421,70 @@ pub fn apply_probes_with(
     Ok(out)
 }
 
-/// The presets of a checkpoint no catalog row describes (an `hf:` repo's),
-/// as the catalog tool probes a row's: each of `entries` whose file `loaded`
-/// has, the rest skipped, into a set laid over `family`'s.
+/// The presets of a checkpoint no catalog build describes (an `hf:` repo's),
+/// as the catalog builder probes a build's: `family`'s, with what each of
+/// `entries` whose file `loaded` has finds laid over them, the rest skipped.
+/// What probes find accumulates ([`accumulate_probed`]); an entry's `base`
+/// is the common patch, and a preset it names must be one of `family`'s.
 ///
 /// # Errors
-/// [`Sys`](crate::errors::BunsenErrorKind::Sys) when a file cannot be read;
-/// as [`apply_probes`].
+/// - [`Sys`](crate::errors::BunsenErrorKind::Sys) when a file cannot be read.
+/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): an unknown probe, or a
+///   preset `family` lacks.
+/// - As a probe's [`probe`](Probe::probe), under a frame naming the entry.
 #[cfg(feature = "cache")]
 pub fn probe_loaded(
     loaded: &crate::data::pretrained::LoadedResources,
     entries: &[CatalogProbe],
-    family: &PresetSet,
-) -> BunsenResult<PresetSet> {
-    let mut files = ProbeFiles::new();
-    let mut kept = Vec::new();
+    family: &crate::data::pretrained::ResolvedPresetSet,
+) -> BunsenResult<crate::data::pretrained::ResolvedPresetSet> {
+    let probes = builtin_probes();
+    let mut common = Value::Object(Map::new());
+    let mut found: BTreeMap<String, Value> = BTreeMap::new();
     for entry in entries {
         let Some(part) = loaded.get(&entry.file) else {
             continue;
         };
-        if files.get(&entry.file).is_err() {
-            let bytes =
-                std::fs::read(&part.path).map_err(crate::errors::sys_at("read", &part.path))?;
-            files.insert(entry.file.clone(), bytes);
+        let bytes = std::fs::read(&part.path).map_err(crate::errors::sys_at("read", &part.path))?;
+        let probe = probes
+            .iter()
+            .find(|p| p.name() == entry.probe)
+            .ok_or_else(|| {
+                BunsenError::lookup(
+                    LookupError::missing("probe", entry.probe.clone())
+                        .with_candidates(probes.iter().map(|p| p.name())),
+                )
+            })?;
+        let patch = probe
+            .probe(&bytes, entry)
+            .map_err(|e| e.context(format!("the {} probe of {:?}", entry.probe, entry.file)))?;
+        for into in &entry.into {
+            if into == "base" {
+                accumulate_probed(&mut common, &patch);
+                continue;
+            }
+            if family.get(into).is_none() {
+                return Err(BunsenError::lookup(
+                    LookupError::missing("preset", into.clone()).with_candidates(family.names()),
+                )
+                .context(format!("the {} probe's `into`", entry.probe)));
+            }
+            accumulate_probed(
+                found
+                    .entry(into.clone())
+                    .or_insert_with(|| Value::Object(Map::new())),
+                &patch,
+            );
         }
-        kept.push(entry.clone());
     }
-    Ok(apply_probes(&PresetSet::default(), family, &kept, &files)?.over(family))
+    let mut out = family.clone();
+    merge_patch::apply(&mut out.common, &common);
+    for preset in &mut out.presets {
+        if let Some(probed) = found.remove(&preset.name) {
+            merge_patch::apply(&mut preset.patch, &probed);
+        }
+    }
+    Ok(out)
 }
 
 impl CatalogProbe {

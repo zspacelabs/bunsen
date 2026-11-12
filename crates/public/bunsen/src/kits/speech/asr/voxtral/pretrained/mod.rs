@@ -8,8 +8,9 @@
 //! # The index
 //!
 //! [`default_voxtral_factory`] is the index a caller holds, over two
-//! providers. First the well-known table, [`VOXTRAL_CATALOG`], whose row
-//! names its prefab in [`VOXTRAL_PREFABS`]:
+//! providers. First the well-known row, the built-in catalog's build of
+//! [`VOXTRAL_CATALOG_CONTRACT`], stating its geometry, one of
+//! [`VOXTRAL_PREFABS`]:
 //!
 //! - `mistralai/voxtral-mini-4b-realtime-2602` (`voxtral-mini-4b-realtime`):
 //!   Mistral's 4B realtime model, its 8.9 GB `bf16` `model.safetensors` and its

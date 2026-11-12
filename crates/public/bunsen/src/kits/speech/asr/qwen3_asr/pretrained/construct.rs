@@ -16,9 +16,10 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
+        GEOMETRY,
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -155,9 +156,12 @@ impl ConstructInit for Qwen3AsrConstructConfig {
                 qwen3_asr_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?
             }
-            None => model
-                .prefab(&QWEN3_ASR_PREFABS)
-                .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
+            None => match model.stated(GEOMETRY)? {
+                Some(config) => config,
+                None => model
+                    .prefab(&QWEN3_ASR_PREFABS)
+                    .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
+            },
         };
         let n_mels = config.audio.n_mels;
         // The stored dtype (bf16), where the policy and the device allow it;
@@ -167,7 +171,11 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         let dtype = load.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
         let mut asr: Qwen3Asr = config.try_init(device)?;
         load_transformers_tensors_as(&mut asr, tensors, dtype)?;
-        let policy = resolve_ref_presets(&Qwen3AsrPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &Qwen3AsrPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
             .with_policy(policy.config.clone(), policy.applied());
         if n_mels != bundle.front_end.config.n_mels {
@@ -183,18 +191,17 @@ impl ConstructInit for Qwen3AsrConstructConfig {
 mod tests {
 
     use super::*;
-    use crate::kits::speech::asr::qwen3_asr::pretrained::QWEN3_ASR_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let qwen = Qwen3AsrConstructConfig::for_resource_bundle(
-            &QWEN3_ASR_CATALOG.resource_bundle("qwen/qwen3-asr-0.6b"),
+            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3-asr-0.6b").unwrap(),
         )
         .unwrap();
         assert_eq!(qwen.reader, Qwen3AsrReader::Safetensors);
 
         let phonon = Qwen3AsrConstructConfig::for_resource_bundle(
-            &QWEN3_ASR_CATALOG.resource_bundle("fermion/phonon-audio6.bps.tar.zst"),
+            &crate::data::pretrained::builtin_build_bundle("fermion/phonon-1").unwrap(),
         );
         assert_eq!(phonon.unwrap().reader, Qwen3AsrReader::PhononArchive);
         assert!(Qwen3AsrReader::for_kind(Some("gguf")).is_err());

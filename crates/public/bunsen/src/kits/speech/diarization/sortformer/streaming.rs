@@ -138,7 +138,7 @@ impl SortformerStreamingConfig {
 }
 
 /// The Sortformer families: what a checkpoint is read as, and whose presets
-/// it runs under ([`catalog_family`](Self::catalog_family)).
+/// it runs under ([`template_class`](Self::template_class)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SortformerFamily {
     /// `Nemotron-3-Diarization`.
@@ -149,14 +149,13 @@ pub enum SortformerFamily {
 }
 
 impl SortformerFamily {
-    /// The family's name in the Sortformer catalog's `families`: whose
-    /// presets (its model card's streaming latencies, and the turn
-    /// post-processing) a model of the family takes when no row describes
-    /// it.
-    pub fn catalog_family(self) -> &'static str {
+    /// The family's template class in the built-in catalog: whose presets
+    /// (its model card's streaming latencies, and the turn post-processing)
+    /// a model of the family takes when no build describes it.
+    pub fn template_class(self) -> &'static str {
         match self {
-            Self::Nemotron => "nemotron",
-            Self::SortformerV2 => "sortformer-v2",
+            Self::Nemotron => "nvidia/sortformer/nemotron",
+            Self::SortformerV2 => "nvidia/sortformer/sortformer-v2",
         }
     }
 }
@@ -178,12 +177,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_catalog_family() {
-        assert_eq!(SortformerFamily::Nemotron.catalog_family(), "nemotron");
+    fn test_template_class() {
         assert_eq!(
-            SortformerFamily::SortformerV2.catalog_family(),
-            "sortformer-v2"
+            SortformerFamily::Nemotron.template_class(),
+            "nvidia/sortformer/nemotron"
         );
+        assert_eq!(
+            SortformerFamily::SortformerV2.template_class(),
+            "nvidia/sortformer/sortformer-v2"
+        );
+        for family in [SortformerFamily::Nemotron, SortformerFamily::SortformerV2] {
+            crate::data::pretrained::builtin_template_presets(family.template_class()).unwrap();
+        }
     }
 
     #[test]

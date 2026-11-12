@@ -126,11 +126,11 @@ const DECODER_SHA256: &str = "70d26763610c0d6bb407373b7f30d415252ee470e62a0f816c
 /// Local name for the fetched decoder graph.
 const DECODER_FILE: &str = "whisper_base_decoder.onnx";
 
-/// The Whisper kit's segment of the layout: `WHISPER_KIT` in bunsen.
-const WHISPER_KIT: &str = "whisper";
-
-/// The namespace every `openai` resource is cached under.
-const OPENAI_NAMESPACE: &str = "openai";
+/// The built-in catalog's resources the assets are, by full name: each the
+/// namespace its file is cached under.
+const BASE_RESOURCE: &str = "openai/whisper/base/checkpoint";
+const MULTILINGUAL_TIKTOKEN_RESOURCE: &str = "openai/whisper/multilingual.tiktoken";
+const GPT2_TIKTOKEN_RESOURCE: &str = "openai/whisper/gpt2.tiktoken";
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -175,7 +175,7 @@ fn fetch_checkpoint() {
         "WHISPER_BASE_PT",
         BASE_URL,
         BASE_SHA256,
-        &cache_path(BASE_SHA256, BASE_FILE),
+        &cache_path(BASE_RESOURCE, BASE_SHA256, BASE_FILE),
     );
     println!(
         "cargo:rustc-env=WHISPER_BASE_PT_PATH={}",
@@ -204,13 +204,14 @@ fn fetch_hf_checkpoint() {
 /// constants.
 #[cfg(feature = "vocab")]
 fn fetch_vocab() {
-    for (override_var, url, sha, file, path_var) in [
+    for (override_var, url, sha, file, path_var, resource) in [
         (
             "WHISPER_MULTILINGUAL_TIKTOKEN",
             MULTILINGUAL_TIKTOKEN_URL,
             MULTILINGUAL_TIKTOKEN_SHA256,
             MULTILINGUAL_TIKTOKEN_FILE,
             "WHISPER_MULTILINGUAL_TIKTOKEN_PATH",
+            MULTILINGUAL_TIKTOKEN_RESOURCE,
         ),
         (
             "WHISPER_GPT2_TIKTOKEN",
@@ -218,9 +219,10 @@ fn fetch_vocab() {
             GPT2_TIKTOKEN_SHA256,
             GPT2_TIKTOKEN_FILE,
             "WHISPER_GPT2_TIKTOKEN_PATH",
+            GPT2_TIKTOKEN_RESOURCE,
         ),
     ] {
-        let vocab = resolve_asset(override_var, url, sha, &cache_path(sha, file));
+        let vocab = resolve_asset(override_var, url, sha, &cache_path(resource, sha, file));
         println!("cargo:rustc-env={path_var}={}", vocab.display());
     }
 }
@@ -274,14 +276,15 @@ fn cache_dir() -> PathBuf {
 }
 
 /// Where a pretrained asset lands: `OUT_DIR` laid out as a pretrained cache,
-/// `pretrained/whisper/openai/<sha256>/<file>`. The digest in the path is
-/// the pin, as it is in bunsen's cache, so a cache rooted at `OUT_DIR`
-/// trusts what it finds there.
+/// `pretrained/<resource>/<sha256>/<file>`, `resource` its full name in the
+/// built-in catalog. The digest in the path is the pin, as it is in bunsen's
+/// cache, so a cache rooted at `OUT_DIR` trusts what it finds there.
 fn cache_path(
+    resource: &str,
     sha256: &str,
     file: &str,
 ) -> PathBuf {
-    pretrained_cache_path(&cache_dir(), WHISPER_KIT, OPENAI_NAMESPACE, sha256, file)
+    pretrained_cache_path(&cache_dir(), resource, sha256, file)
 }
 
 /// A path to an asset: its override, or `dest`, fetched and verified if it

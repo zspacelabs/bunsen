@@ -17,7 +17,8 @@ use super::{
 /// holds the geometry of every checkpoint `openai-whisper` ships, and
 /// [`WhisperConstructConfig`](crate::kits::speech::asr::whisper::pretrained::WhisperConstructConfig)
 /// checks each checkpoint it loads against its name's.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WhisperGeometry {
     /// Mel bands in.
     pub n_mels: usize,

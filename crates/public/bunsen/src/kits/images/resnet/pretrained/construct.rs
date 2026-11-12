@@ -7,6 +7,7 @@ use burn::tensor::Device;
 use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
+        GEOMETRY,
         LoadedResources,
         PretrainedRef,
         ResourceBundle,
@@ -80,6 +81,9 @@ impl ResNetConstructConfig {
     ) -> BunsenResult<ResNetContractConfig> {
         if let Some(config) = &self.config {
             return Ok(config.clone());
+        }
+        if let Some(config) = model.stated(GEOMETRY)? {
+            return Ok(config);
         }
         model
             .prefab(&RESNET_PREFABS)

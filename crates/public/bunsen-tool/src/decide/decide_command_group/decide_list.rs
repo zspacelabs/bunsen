@@ -4,7 +4,6 @@ use bunsen::{
     errors::BunsenResult,
     kits::decision::laya::pretrained::{
         DEFAULT_LAYA_MODEL,
-        LAYA_KIT,
         default_laya_factory,
     },
 };
@@ -45,7 +44,7 @@ impl DecideListCommand {
         let factory = default_laya_factory()?;
         for id in factory.ids() {
             let (_, row) = factory.lookup(&id)?;
-            print_model_row(&cache, LAYA_KIT, &id, &row, DEFAULT_LAYA_MODEL, self.urls);
+            print_model_row(&cache, &id, &row, DEFAULT_LAYA_MODEL, self.urls);
         }
         Ok(())
     }

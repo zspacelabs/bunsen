@@ -71,6 +71,16 @@ openai:
         $resources:
           checkpoint: checkpoint
           vocabulary: multilingual.tiktoken
+        $args:
+          geometry:
+            d_head: 64
+            d_model: 1280
+            max_audio_ctx: 3000
+            max_text_ctx: 448
+            n_decoder_layers: 32
+            n_encoder_layers: 32
+            n_mels: 80
+            vocab_size: 51865
         parameters: 1550000000
         checkpoint:
           $kind: resource
@@ -100,6 +110,16 @@ openai:
         $resources:
           checkpoint: checkpoint
           vocabulary: multilingual.tiktoken
+        $args:
+          geometry:
+            d_head: 64
+            d_model: 1280
+            max_audio_ctx: 3000
+            max_text_ctx: 448
+            n_decoder_layers: 32
+            n_encoder_layers: 32
+            n_mels: 80
+            vocab_size: 51865
         parameters: 1550000000
         checkpoint:
           $kind: resource
@@ -129,6 +149,16 @@ openai:
         $resources:
           checkpoint: checkpoint
           vocabulary: multilingual.tiktoken
+        $args:
+          geometry:
+            d_head: 64
+            d_model: 1280
+            max_audio_ctx: 3000
+            max_text_ctx: 448
+            n_decoder_layers: 32
+            n_encoder_layers: 32
+            n_mels: 128
+            vocab_size: 51866
         parameters: 1550000000
         scores:
           wer.en: 7.44
@@ -161,6 +191,16 @@ openai:
         $resources:
           checkpoint: checkpoint
           vocabulary: multilingual.tiktoken
+        $args:
+          geometry:
+            d_head: 64
+            d_model: 1280
+            max_audio_ctx: 3000
+            max_text_ctx: 448
+            n_decoder_layers: 4
+            n_encoder_layers: 32
+            n_mels: 128
+            vocab_size: 51866
         language:
           - en
           - "*"
@@ -197,6 +237,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 384
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 4
+          n_encoder_layers: 4
+          n_mels: 80
+          vocab_size: 51864
       language:
         - en
       parameters: 39000000
@@ -226,6 +276,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: multilingual.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 384
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 4
+          n_encoder_layers: 4
+          n_mels: 80
+          vocab_size: 51865
       parameters: 39000000
       checkpoint:
         $kind: resource
@@ -251,6 +311,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 512
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 6
+          n_encoder_layers: 6
+          n_mels: 80
+          vocab_size: 51864
       language:
         - en
       parameters: 74000000
@@ -280,6 +350,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: multilingual.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 512
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 6
+          n_encoder_layers: 6
+          n_mels: 80
+          vocab_size: 51865
       parameters: 74000000
       checkpoint:
         $kind: resource
@@ -305,6 +385,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 768
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 12
+          n_encoder_layers: 12
+          n_mels: 80
+          vocab_size: 51864
       language:
         - en
       parameters: 244000000
@@ -334,6 +424,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: multilingual.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 768
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 12
+          n_encoder_layers: 12
+          n_mels: 80
+          vocab_size: 51865
       parameters: 244000000
       checkpoint:
         $kind: resource
@@ -359,6 +459,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: gpt2.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 1024
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 24
+          n_encoder_layers: 24
+          n_mels: 80
+          vocab_size: 51864
       language:
         - en
       parameters: 769000000
@@ -388,6 +498,16 @@ openai:
       $resources:
         checkpoint: checkpoint
         vocabulary: multilingual.tiktoken
+      $args:
+        geometry:
+          d_head: 64
+          d_model: 1024
+          max_audio_ctx: 3000
+          max_text_ctx: 448
+          n_decoder_layers: 24
+          n_encoder_layers: 24
+          n_mels: 80
+          vocab_size: 51865
       parameters: 769000000
       checkpoint:
         $kind: resource

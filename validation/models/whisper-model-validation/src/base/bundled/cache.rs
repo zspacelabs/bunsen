@@ -12,14 +12,13 @@ use bunsen::{
         PYTORCH_FP16,
         TIKTOKEN,
         VOCABULARY,
-        WHISPER_CATALOG,
-        WHISPER_KIT,
         WhisperVocabulary,
         default_whisper_factory,
     },
 };
 
 use super::{
+    base_checkpoint,
     cache_in,
     factory_with_bundle,
     offline_cache,
@@ -34,13 +33,13 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     let cache = offline_cache();
 
     for owned in [
-        WHISPER_CATALOG.resource_bundle("openai/base.pt"),
+        base_checkpoint(),
         WhisperVocabulary::Multilingual.resource_bundle(),
         WhisperVocabulary::Gpt2.resource_bundle(),
     ] {
         for (key, r) in &owned.resources {
-            assert_eq!(cache.status(WHISPER_KIT, r), CacheStatus::Cached, "{key}");
-            let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
+            assert_eq!(cache.status(r), CacheStatus::Cached, "{key}");
+            let resolved = cache.resolve(r).unwrap();
             assert_eq!(resolved.provenance, Provenance::Cached, "{key}");
             assert!(
                 resolved.path.starts_with(root),
@@ -51,14 +50,13 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
         }
     }
 
-    let base = WHISPER_CATALOG
-        .resource_bundle("openai/base.pt")
+    let base = base_checkpoint()
         .fuse(
             WhisperVocabulary::Multilingual.resource_bundle(),
             Fuse::Strict,
         )
         .unwrap();
-    let loaded = cache.load(WHISPER_KIT, &base).unwrap();
+    let loaded = cache.load(&base).unwrap();
     assert_eq!(loaded.keys(), [CHECKPOINT, VOCABULARY]);
     for (_, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached);
@@ -66,11 +64,7 @@ fn test_the_bundle_is_a_cache_of_these_maps() {
     assert_eq!(loaded.kind(CHECKPOINT), Some(PYTORCH_FP16));
     assert_eq!(loaded.kind(VOCABULARY), Some(TIKTOKEN));
     assert!(
-        !root
-            .join("pretrained")
-            .join(WHISPER_KIT)
-            .join("given")
-            .exists(),
+        !root.join("pretrained").join("given").exists(),
         "nothing was written"
     );
 }
@@ -95,15 +89,11 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
     let map = model.to_resource_bundle();
     assert_eq!(
         map.get(CHECKPOINT).unwrap().sha256,
-        WHISPER_CATALOG
-            .resource_bundle("openai/base.pt")
-            .get(CHECKPOINT)
-            .unwrap()
-            .sha256,
+        base_checkpoint().get(CHECKPOINT).unwrap().sha256,
         "the same file, pinned the same"
     );
 
-    let loaded = cache.load(WHISPER_KIT, &map).unwrap();
+    let loaded = cache.load(&map).unwrap();
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::LocalDir, "{key}");
     }
@@ -119,7 +109,7 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
 
     assert_eq!(
         factory.resolve("openai/base", &cache).unwrap().id(),
-        "well-known:openai/base"
+        "well-known:openai/whisper/base"
     );
 }
 
@@ -130,15 +120,13 @@ fn test_the_bundle_serves_openai_base() {
     let cache = offline_cache();
     let factory = default_whisper_factory().unwrap();
     let model = factory.resolve("openai/base", &cache).unwrap();
-    assert_eq!(model.id(), "well-known:openai/base");
+    assert_eq!(model.id(), "well-known:openai/whisper/base");
     let status = model.status(&cache);
     assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
     assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 
-    let loaded = cache
-        .load(WHISPER_KIT, &model.to_resource_bundle())
-        .unwrap();
-    assert_eq!(loaded.map.name, "well-known:openai/base");
+    let loaded = cache.load(&model.to_resource_bundle()).unwrap();
+    assert_eq!(loaded.map.name, "well-known:openai/whisper/base");
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");
         assert!(part.path.starts_with(bind_whisper_onnx::cache_dir()));

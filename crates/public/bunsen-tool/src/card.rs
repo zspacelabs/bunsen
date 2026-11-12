@@ -31,8 +31,8 @@ use bunsen::kits::speech::{
 };
 use bunsen::{
     data::pretrained::{
-        PresetSet,
         PretrainedCache,
+        ResolvedPresetSet,
     },
     errors::{
         BunsenError,
@@ -92,8 +92,10 @@ pub struct CardCommand {
     #[arg(long, value_enum)]
     section: Option<Section>,
 
-    /// Each model's presets as data, their patches included, and the
-    /// policy its default selection resolves to (`policy`).
+    /// Each model's presets as data, and its default selection's policy.
+    ///
+    /// The presets with their patches included, and the policy the model's
+    /// default selection resolves to (`policy`).
     #[arg(long)]
     policies: bool,
 }
@@ -438,7 +440,7 @@ fn policy<H: ConstructInit, C: Default + Serialize + DeserializeOwned>(
 /// `description` and `members`) and `default`. Empty (and
 /// elided) for a row with none.
 fn presets(
-    set: &PresetSet,
+    set: &ResolvedPresetSet,
     full: bool,
 ) -> BunsenResult<Value> {
     if set.presets.is_empty() {
@@ -450,7 +452,7 @@ fn presets(
         // In the structs' field order, each preset's and axis's name first,
         // rather than a JSON map's sorted keys; the patches as data.
         return Ok(Value::map([
-            ("base", Value::Json(set.base.clone())),
+            ("base", Value::Json(set.common.clone())),
             (
                 "modes",
                 Value::List(
@@ -473,15 +475,15 @@ fn presets(
                         .iter()
                         .map(|a| {
                             Value::map([
-                                ("name", Value::str(a.name.as_str())),
-                                ("description", Value::str(a.description.as_str())),
-                                ("members", strs(&a.members)),
+                                ("name", Value::str(a.axis.name.to_string())),
+                                ("description", Value::str(a.axis.description.as_str())),
+                                ("members", strs(&a.offers)),
                             ])
                         })
                         .collect(),
                 ),
             ),
-            ("default", strs(&set.default)),
+            ("default", strs(&set.default_names())),
         ]));
     }
     let names = |names: &mut dyn Iterator<Item = &String>| {
@@ -490,16 +492,17 @@ fn presets(
     let mut entries: Vec<(String, Value)> = set
         .axes
         .iter()
-        .map(|a| (a.name.clone(), names(&mut a.members.iter())))
+        .map(|a| (a.axis.name.to_string(), names(&mut a.offers.iter())))
         .collect();
     let other: Vec<&String> = set
         .presets
         .iter()
         .map(|p| &p.name)
-        .filter(|n| !set.axes.iter().any(|a| a.members.contains(n)))
+        .filter(|n| set.axis_of(n).is_none())
         .collect();
     entries.push(("other".to_string(), names(&mut other.into_iter())));
-    entries.push(("default".to_string(), names(&mut set.default.iter())));
+    let defaults = set.default_names();
+    entries.push(("default".to_string(), names(&mut defaults.iter())));
     Ok(Value::Map(entries))
 }
 
@@ -598,7 +601,7 @@ mod tests {
         let small = whisper
             .iter()
             .filter_map(|e| e.get("model"))
-            .find(|m| m.get("name") == Some(&Value::str("openai/small")))
+            .find(|m| m.get("name") == Some(&Value::str("openai/whisper/small")))
             .unwrap();
         let presets = small.get("presets").unwrap();
         assert_eq!(
@@ -709,7 +712,7 @@ mod tests {
         let small = whisper
             .iter()
             .filter_map(|e| e.get("model"))
-            .find(|m| m.get("name") == Some(&Value::str("openai/small")))
+            .find(|m| m.get("name") == Some(&Value::str("openai/whisper/small")))
             .unwrap();
         assert_eq!(
             small.get("presets"),
@@ -801,7 +804,7 @@ mod tests {
                     Value::map([(
                         "model",
                         Value::List(vec![Value::map([
-                            ("name", Value::str("qwen/qwen3-0.6b")),
+                            ("name", Value::str("qwen/qwen3/qwen3-0.6b")),
                             ("description", Value::str("Qwen3-0.6B")),
                         ])]),
                     )]),
@@ -816,7 +819,7 @@ mod tests {
         let json = render(&card, Format::Json).unwrap();
         assert_eq!(
             json,
-            "{\"kits\":{\"chat\":{\"qwen3\":{\"model\":[{\"name\":\"qwen/qwen3-0.6b\",\"description\":\"Qwen3-0.6B\"}]}}}}\n"
+            "{\"kits\":{\"chat\":{\"qwen3\":{\"model\":[{\"name\":\"qwen/qwen3/qwen3-0.6b\",\"description\":\"Qwen3-0.6B\"}]}}}}\n"
         );
     }
 }

@@ -8,11 +8,12 @@
 //! # The index
 //!
 //! [`default_nanochat_factory`] is the index a caller holds, over the
-//! well-known table, [`NANOCHAT_CATALOG`], whose rows name their prefab in
-//! [`NANOCHAT_PREFABS`]. There are no official nanochat releases; each row is
-//! a community upload of upstream's own checkpoint files, unconverted: a
-//! `model_<step>.pt` (about 2 GB), its `meta_<step>.json`, and the tokenizer
-//! (`tokenizer.pkl`, `token_bytes.pt`).
+//! well-known rows, the built-in catalog's builds of
+//! [`NANOCHAT_CATALOG_CONTRACT`], whose geometries are [`NANOCHAT_PREFABS`]'.
+//! There are no official nanochat releases; each row is a community upload of
+//! upstream's own checkpoint files, unconverted: a `model_<step>.pt` (about 2
+//! GB), its `meta_<step>.json`, and the tokenizer (`tokenizer.pkl`,
+//! `token_bytes.pt`).
 //!
 //! - `nanochat-students/rl-d20` (`nanochat-d20-rl`): the default, a d20 (561M)
 //!   of upstream's 2025 model after its RL stage.

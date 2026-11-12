@@ -22,11 +22,9 @@
 use std::collections::BTreeMap;
 
 use bunsen::{
-    data::pretrained::{
-        CatalogProbe,
-        build_catalog::document::OrderedNode,
-    },
+    data::pretrained::build_catalog::document::OrderedNode,
     kits::support::model_config::{
+        CatalogProbe,
         Probe,
         accumulate_probed,
         builtin_probes,

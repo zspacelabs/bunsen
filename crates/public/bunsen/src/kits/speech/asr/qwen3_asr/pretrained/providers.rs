@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::Qwen3AsrConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -12,8 +11,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Qwen3-ASR resource's path in the cache:
-/// `<cache>/pretrained/qwen3-asr/<namespace>/<sha256>/<file>`.
+/// The Qwen3-ASR kit's name: its rows' `kit` tag.
 pub const QWEN3_ASR_KIT: &str = "qwen3-asr";
 
 /// The key of the checkpoint in a Qwen3-ASR resource bundle.
@@ -33,32 +31,14 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a `transformers` `tokenizer.json` vocabulary.
 pub const TOKENIZER_JSON: &str = "tokenizer.json";
 
-/// The Qwen3-ASR checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider: in group
-/// `fermion`, `FermionResearch`'s Phonon-1, -Micro and -Big archives, and in
-/// group `qwen`, Qwen's Qwen3-ASR 0.6B and 1.7B.
-///
-/// Built from `validation/catalogs/qwen3-asr.yml` by `cargo validate catalog`.
-pub static QWEN3_ASR_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("qwen3-asr", include_str!("catalog.json"));
-
 /// What the qwen3-asr kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const QWEN3_ASR_CONTRACT: &str = include_str!("contract.yml");
 
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a speech recognizer's: what speech to text
-/// chooses its model by.
-pub const QWEN3_ASR_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::TRANSLATE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const QWEN3_ASR_CATALOG_CONTRACT: &str = "qwen3-asr";
 
 /// The name [`default_qwen3_asr_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_ASR_MODEL: &str = "fermion/phonon-1";
@@ -69,7 +49,12 @@ pub const DEFAULT_QWEN3_ASR_MODEL: &str = "fermion/phonon-1";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(QWEN3_ASR_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                QWEN3_ASR_CATALOG_CONTRACT,
+                QWEN3_ASR_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -97,21 +82,18 @@ mod tests {
     use super::*;
     use crate::kits::speech::asr::qwen3_asr::pretrained::QWEN3_ASR_PREFABS;
 
-    /// Every row is pinned, names a prefab there is, and answers by its
-    /// qualified and short names.
+    /// Every row is pinned and answers by its qualified and short names; a
+    /// row that states its geometry states a prefab's.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        let prefabs: Vec<&str> = QWEN3_ASR_PREFABS.iter().map(|p| p.name).collect();
-        QWEN3_ASR_CATALOG.catalog().validate(&prefabs).unwrap();
-        for bundle in &QWEN3_ASR_CATALOG.catalog().bundles {
-            let map = bundle.to_resource_bundle();
+        let factory = default_qwen3_asr_factory().unwrap();
+        for (_, row) in factory.list() {
+            let map = &row.resources;
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);
             assert_eq!(checkpoint.urls().len(), 1, "{}", map.name);
         }
-
-        let factory = default_qwen3_asr_factory().unwrap();
         assert_eq!(factory.kit(), QWEN3_ASR_KIT);
         assert_eq!(
             factory.ids(),
@@ -150,8 +132,18 @@ mod tests {
         ] {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, name);
-            let prefab = row.prefab.as_deref().unwrap();
-            QWEN3_ASR_PREFABS.try_lookup_prefab(prefab).unwrap();
+            // Its geometry is stated, reads as a config, and is a prefab's.
+            let geometry = &row.args[crate::data::pretrained::GEOMETRY];
+            serde_json::from_value::<crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig>(
+                geometry.clone(),
+            )
+            .unwrap();
+            assert!(
+                QWEN3_ASR_PREFABS
+                    .iter()
+                    .any(|p| serde_json::to_value(p.to_config()).unwrap() == *geometry),
+                "{name}: its geometry is no prefab's"
+            );
         }
     }
 

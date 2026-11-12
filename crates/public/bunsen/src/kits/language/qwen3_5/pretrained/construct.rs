@@ -13,10 +13,9 @@ use super::{
 };
 use crate::{
     data::pretrained::{
-        CatalogProbe,
         LoadedResources,
         NamedTensorsApplied,
-        PresetSet,
+        ResolvedPresetSet,
         StaticPreFabMap,
     },
     errors::BunsenResult,
@@ -34,7 +33,10 @@ use crate::{
         },
         support::{
             construct::TransformersLmKit,
-            model_config::probe_loaded,
+            model_config::{
+                CatalogProbe,
+                probe_loaded,
+            },
         },
     },
 };
@@ -83,11 +85,11 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the
-    /// catalog tool probes a row's: its `generation_config.json`, when it
+    /// catalog builder probes a row's: its `generation_config.json`, when it
     /// has one; its `tokenizer_config.json`'s `eos_token` and
     /// [`END_OF_TEXT`] (the stop tokens, joined) and chat template; and its
     /// `chat_template.jinja`, when it has one; probed into the base.
-    fn probed(loaded: &LoadedResources) -> BunsenResult<PresetSet> {
+    fn probed(loaded: &LoadedResources) -> BunsenResult<ResolvedPresetSet> {
         probe_loaded(
             loaded,
             &[
@@ -98,7 +100,7 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
                 CatalogProbe::into_base("chat_template", TOKENIZER_CONFIG),
                 CatalogProbe::into_base("chat_template", CHAT_TEMPLATE),
             ],
-            &PresetSet::default(),
+            &ResolvedPresetSet::default(),
         )
     }
 }
@@ -109,10 +111,7 @@ mod tests {
     use crate::kits::{
         language::qwen3_5::{
             Qwen3_5Policy,
-            pretrained::{
-                QWEN3_5_CATALOG,
-                default_qwen3_5_factory,
-            },
+            pretrained::default_qwen3_5_factory,
         },
         support::construct::ConstructInit,
     };
@@ -120,14 +119,14 @@ mod tests {
     #[test]
     fn test_the_hook_follows_the_kind() {
         Qwen3_5ConstructConfig::for_resource_bundle(
-            &QWEN3_5_CATALOG.resource_bundle("qwen/qwen3.5-0.8b"),
+            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap(),
         )
         .unwrap();
         Qwen3_5ConstructConfig::for_resource_bundle(
-            &QWEN3_5_CATALOG.resource_bundle("qwen/qwen3.5-9b"),
+            &crate::data::pretrained::builtin_build_bundle("qwen/qwen3.5-9b").unwrap(),
         )
         .unwrap();
-        let mut gguf = QWEN3_5_CATALOG.resource_bundle("qwen/qwen3.5-0.8b");
+        let mut gguf = crate::data::pretrained::builtin_build_bundle("qwen/qwen3.5-0.8b").unwrap();
         gguf.resources.get_mut("checkpoint.index").unwrap().kind = Some("gguf".to_string());
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("gguf")

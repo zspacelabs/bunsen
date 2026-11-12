@@ -145,6 +145,10 @@ pub struct TemplateLink<'a> {
     pub class: &'a TemplateClassEntry,
 }
 
+/// The root names no catalog may declare: the pretrained cache keeps files
+/// off the catalog under them (`hf:` repos', and paths').
+pub const RESERVED_ROOTS: [&str; 2] = ["hf", "given"];
+
 /// Catalogs imported in order, and the state they materialize.
 #[derive(Clone, Debug, Default)]
 pub struct PretrainedCatalogStack {
@@ -190,6 +194,21 @@ impl PretrainedCatalogStack {
         };
         if let Some(why) = refusal {
             return Err(catalog_error(CatalogRule::Contract, why).in_layer(&label));
+        }
+        if let Some(reserved) = layer.document().entries.iter().find(|e| {
+            RESERVED_ROOTS
+                .iter()
+                .any(|r| e.name().eq_ignore_ascii_case(r))
+        }) {
+            return Err(catalog_error(
+                CatalogRule::Name,
+                format!(
+                    "`{}` is reserved: the pretrained cache keeps the files no catalog names \
+                     under `hf` and `given`, so no catalog root is called either",
+                    reserved.name()
+                ),
+            )
+            .in_layer(&label));
         }
         let case_errors = self.check_case(&layer);
         if !case_errors.is_empty() {
@@ -1399,6 +1418,7 @@ impl PretrainedCatalogStack {
             name: decl.name().clone(),
             kind: a.axis,
             members: a.member_names(),
+            description: a.description.clone(),
         })
     }
 
@@ -1710,6 +1730,22 @@ mod tests {
                 .all(|p| p.layer.as_deref() == Some("bad"))
         );
         errors
+    }
+
+    /// A catalog root called `hf` or `given`, in any case, is refused.
+    #[test]
+    fn test_reserved_roots_are_refused() {
+        for root in ["hf", "Given"] {
+            let mut stack = fixtures::example_stack().unwrap();
+            let err = stack
+                .push_yaml(
+                    "local",
+                    &format!("{root}: {{ $kind: namespace, $description: A. }}"),
+                )
+                .unwrap_err();
+            assert!(err.has(CatalogRule::Name), "{err}");
+            assert!(err.problem_message().contains("is reserved"), "{err}");
+        }
     }
 
     #[test]

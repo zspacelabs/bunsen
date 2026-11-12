@@ -1,8 +1,8 @@
 //! The shared tag vocabulary, as data.
+
 use alloc::string::String;
 
-/// The shape a tag's value takes: the convention the catalog tool holds a
-/// row's value to.
+/// The shape a tag's value takes: the convention a row's value follows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TagShape {
     /// `true` or `false`.
@@ -73,25 +73,6 @@ impl From<TagDef> for String {
     fn from(def: TagDef) -> Self {
         def.key.into()
     }
-}
-
-/// What a kit adds to the vocabulary: its own keys (each prefixed with the
-/// kit's name and a dot), and the keys every one of its rows must carry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KitTags {
-    /// The kit's own keys.
-    pub keys: &'static [TagDef],
-
-    /// The keys, shared or its own, every row of the kit carries.
-    pub required: &'static [&'static str],
-}
-
-impl KitTags {
-    /// No keys of its own, none required.
-    pub const NONE: KitTags = KitTags {
-        keys: &[],
-        required: &[],
-    };
 }
 
 /// The row's kit: `"qwen3"`.
@@ -199,46 +180,3 @@ pub const TRANSLATE: TagDef = TagDef {
     shape: TagShape::Bool,
     author: TagAuthor::Row,
 };
-
-/// The shared vocabulary, every key a bare name.
-pub const VOCABULARY: &[TagDef] = &[
-    KIT,
-    GROUPS,
-    VERSION,
-    LANGUAGE,
-    PARAMETERS,
-    ACTIVE_PARAMETERS,
-    DTYPE,
-    SCORES,
-    REASONING,
-    THINKING,
-    BASE,
-    TRANSLATE,
-];
-
-/// The shared key called `key`.
-pub fn shared_tag(key: &str) -> Option<&'static TagDef> {
-    VOCABULARY.iter().find(|def| def.key == key)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_vocabulary() {
-        for (i, def) in VOCABULARY.iter().enumerate() {
-            assert!(!def.key.contains('.'), "{}: a shared key is bare", def.key);
-            assert!(
-                VOCABULARY[..i].iter().all(|d| d.key != def.key),
-                "{} twice",
-                def.key
-            );
-        }
-        assert_eq!(shared_tag("dtype"), Some(&DTYPE));
-        assert_eq!(shared_tag("size"), None);
-        assert_eq!(KIT.as_ref(), "kit");
-        assert_eq!(String::from(KIT), "kit");
-        assert_eq!(KitTags::NONE.required, &[] as &[&str]);
-    }
-}

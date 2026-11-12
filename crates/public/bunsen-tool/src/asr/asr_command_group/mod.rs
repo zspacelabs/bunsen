@@ -31,8 +31,9 @@ pub struct AsrCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 enum AsrSubCommand {
-    /// Transcribe audio files with a preset: a model chosen by what it is
-    /// for (`en` by default).
+    /// Transcribe audio files with a preset: a model chosen by what it is for.
+    ///
+    /// The preset is `en` by default.
     Transcribe(Box<AsrTranscribeCommand>),
 
     /// Transcribe the microphone, as it speaks, with a preset.
@@ -42,8 +43,9 @@ enum AsrSubCommand {
     /// The presets: what each is for, and what it runs.
     Presets(AsrPresetsCommandGroup),
 
-    /// The model families, each with its own `list` and `transcribe`, and
-    /// only the flags that apply to it.
+    /// The model families, each with its own `list` and `transcribe`.
+    ///
+    /// Each takes only the flags that apply to it.
     Family(AsrFamilyCommandGroup),
 
     /// NVIDIA's Sortformer, who spoke when: `nvidia/nemotron-3-diarization`
@@ -92,7 +94,13 @@ mod tests {
         assert!(Args::try_parse_from(["asr", "silero", "list"]).is_err());
         // The diarizer: its presets and its outputs, one at a time.
         Args::try_parse_from(["asr", "diarize", "list"]).unwrap();
-        Args::try_parse_from(["asr", "diarize", "fetch", "nvidia/nemotron-3-diarization"]).unwrap();
+        Args::try_parse_from([
+            "asr",
+            "diarize",
+            "fetch",
+            "nvidia/sortformer/nemotron-3-diarization",
+        ])
+        .unwrap();
         Args::try_parse_from([
             "asr",
             "diarize",
@@ -122,14 +130,17 @@ mod tests {
                 Args::try_parse_from(["asr", "family", family, "transcribe", "--diarize", "a.wav"])
                     .unwrap();
             let debug = format!("{parsed:?}");
-            assert!(debug.contains("nvidia/nemotron-3-diarization"), "{debug}");
+            assert!(
+                debug.contains("nvidia/sortformer/nemotron-3-diarization"),
+                "{debug}"
+            );
             assert!(debug.contains("\"a.wav\""), "{debug}");
             Args::try_parse_from([
                 "asr",
                 "family",
                 family,
                 "transcribe",
-                "--diarize=nvidia/nemotron-3-diarization[very-low]",
+                "--diarize=nvidia/sortformer/nemotron-3-diarization[very-low]",
                 "--rttm",
                 "a.wav",
             ])
@@ -155,7 +166,7 @@ mod tests {
             );
         }
         // Whisper's own: its paths, a checkpoint path, inspect and prefabs;
-        // its policy is the model's (`--model 'openai/tiny{timestamps:
+        // its policy is the model's (`--model 'openai/whisper/tiny{timestamps:
         // true}'`).
         Args::try_parse_from([
             "asr",
@@ -171,7 +182,8 @@ mod tests {
             "a.wav",
         ])
         .unwrap();
-        Args::try_parse_from(["asr", "family", "whisper", "inspect", "openai/tiny"]).unwrap();
+        Args::try_parse_from(["asr", "family", "whisper", "inspect", "openai/whisper/tiny"])
+            .unwrap();
         Args::try_parse_from(["asr", "family", "whisper", "prefabs"]).unwrap();
         assert!(Args::try_parse_from(["asr", "family", "parakeet", "inspect", "x"]).is_err());
         // The policy flags are gone from every family.
@@ -319,7 +331,7 @@ mod tests {
             "--preset",
             "translate-en",
             "--model",
-            "openai/small[translate]{timestamps: true}",
+            "openai/whisper/small[translate]{timestamps: true}",
             "--seconds",
             "5",
         ])

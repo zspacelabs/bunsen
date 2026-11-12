@@ -28,9 +28,10 @@ use super::{
 /// Where the transcript goes, whichever command makes it.
 #[derive(clap::Args, Clone, Debug)]
 pub struct PublishArgs {
-    /// Where the transcript goes, in place of stdout's text: a config,
-    /// inline or a file's path, in JSON or YAML (`.json`, `.yaml`; inline,
-    /// either). The config is
+    /// Where the transcript goes, in place of stdout's text: a config.
+    ///
+    /// The config is inline or a file's path, in JSON or YAML (`.json`,
+    /// `.yaml`; inline, either). It is
     /// `{targets: [...]}`, with `times`, `speakers` and `events` set for
     /// every target, or the list of targets alone. A target is
     /// `{type: stdout|file|log|webhook|mqtt, ...}`, and each may set its own
@@ -50,8 +51,9 @@ pub struct PublishArgs {
     #[arg(long)]
     pub json: bool,
 
-    /// Print NIST RTTM, a `SPEAKER` line per statement: `--publish '{type:
-    /// stdout, format: rttm}'`. Needs `--diarize`.
+    /// Print NIST RTTM, a `SPEAKER` line per statement. Needs `--diarize`.
+    ///
+    /// Short for `--publish '{type: stdout, format: rttm}'`.
     #[arg(long, requires = "diarize", conflicts_with = "json")]
     pub rttm: bool,
 }

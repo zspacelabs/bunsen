@@ -15,7 +15,7 @@ use crate::select::{
 };
 
 /// `decide`'s selection context: the defaults, applied to every choice but
-/// a checkpoint named exactly (each release sequence's newest, the heaviest
+/// a checkpoint named exactly (each release group's newest, the heaviest
 /// first), and `default`, [`DEFAULT_LAYA_MODEL`], which a command without
 /// `--select` takes.
 pub fn decide_selection() -> SelectionContext {
@@ -80,7 +80,7 @@ mod tests {
         }
         assert_eq!(
             choose(&["{prefer: [{language: de, otherwise: 0.5}]}"]),
-            "laya/laya-multilingual",
+            "laya/laya/laya-multilingual",
             "only the multilingual model's `*` might hear German"
         );
         assert_eq!(choose(&["hf:org/repo"]), "hf:org/repo");

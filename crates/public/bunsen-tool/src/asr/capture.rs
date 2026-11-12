@@ -49,9 +49,10 @@ const POLL: Duration = Duration::from_millis(100);
 /// Which input device to capture, and when to stop.
 #[derive(clap::Args, Debug)]
 pub struct CaptureArgs {
-    /// The input device, by a case-insensitive substring of its id or its
-    /// name (see `--list-devices`); the host's default input device when
-    /// omitted.
+    /// The input device, by a substring of its id or name (`--list-devices`).
+    ///
+    /// The substring is matched case-insensitively; the host's default input
+    /// device when omitted.
     #[arg(long)]
     pub input_device: Option<String>,
 

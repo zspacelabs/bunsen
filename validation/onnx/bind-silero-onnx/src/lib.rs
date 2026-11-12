@@ -11,10 +11,10 @@
 //! | `onnx_gen::{Model, burnpack_path}` | `onnx_gen` | the reference model `burn-onnx` generates from upstream's `silero_vad_op18_ifless.onnx`, and its burnpack |
 //!
 //! The checkpoint is laid out as a **pretrained cache**,
-//! `pretrained/silero_vad/silero/<sha256>/<file>`, which is how bunsen's
-//! `data::pretrained::PretrainedCache` roots a resource: a cache pointed at
-//! `cache_dir()`, offline, resolves `silero/vad-16k` without knowing it was
-//! bundled. `silero-model-validation`'s `weights` feature turns on
+//! `pretrained/silero/silero_vad/vad-16k/checkpoint/<sha256>/<file>`, which is
+//! how bunsen's `data::pretrained::PretrainedCache` roots a resource: a cache
+//! pointed at `cache_dir()`, offline, resolves `silero/vad-16k` without knowing
+//! it was bundled. `silero-model-validation`'s `weights` feature turns on
 //! `checkpoint`.
 //!
 //! The reference is a direct transliteration of the graph, both sample-rate

@@ -28,8 +28,6 @@ use bunsen::{
                 GeometryMismatch,
                 PytorchWhisperScanner,
                 VOCABULARY,
-                WHISPER_CATALOG,
-                WHISPER_KIT,
                 WHISPER_PREFABS,
                 WhisperConstructConfig,
                 WhisperVocabulary,
@@ -43,6 +41,7 @@ use bunsen::{
 use serial_test::serial;
 
 use super::{
+    base_checkpoint,
     cache_in,
     factory_with_bundle,
     offline_cache,
@@ -57,10 +56,7 @@ fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
 /// A checkpoint on disk, as loaded resources: used in place.
 fn loaded(path: &std::path::Path) -> LoadedResources {
     offline_cache()
-        .load(
-            WHISPER_KIT,
-            &ResourceBundle::given("given", CHECKPOINT, path),
-        )
+        .load(&ResourceBundle::given("given", CHECKPOINT, path))
         .unwrap()
 }
 
@@ -87,7 +83,7 @@ fn test_the_factory_builds_the_construct() {
         )
         .unwrap();
 
-    assert_eq!(loaded.name, "well-known:openai/base");
+    assert_eq!(loaded.name, "well-known:openai/whisper/base");
     assert_eq!(loaded.resources.keys(), [CHECKPOINT, VOCABULARY]);
     for (key, part) in loaded.resources.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");
@@ -125,8 +121,7 @@ fn test_plan_derives_a_paths_vocabulary() {
 #[test]
 fn test_plan_checks_a_declared_vocabulary() {
     let cache = offline_cache();
-    let wrong = WHISPER_CATALOG
-        .resource_bundle("openai/base.pt")
+    let wrong = base_checkpoint()
         .fuse(WhisperVocabulary::Gpt2.resource_bundle(), Fuse::Strict)
         .unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
@@ -134,7 +129,7 @@ fn test_plan_checks_a_declared_vocabulary() {
         .message_contains("multilingual.tiktoken")
         .assert_err(&WhisperConstructConfig::new().plan(&PretrainedRef::from(wrong), &cache));
 
-    let overridden = PretrainedRef::from(WHISPER_CATALOG.resource_bundle("openai/base.pt"))
+    let overridden = PretrainedRef::from(base_checkpoint())
         .with_overlay(ResourceBundle::given(
             "--vocab",
             VOCABULARY,
@@ -171,19 +166,22 @@ fn test_plan_accepts_a_bundled_rows_vocabulary() {
 }
 
 /// The geometry a name promises is checked against the scan before
-/// anything is loaded: a named model plans against its prefab, a
+/// anything is loaded: a named model plans against its stated geometry, a
 /// given one promises nothing, and an explicit expectation wins over
 /// both.
 #[test]
 fn test_plan_checks_the_prefab_a_name_promises() {
     let cache = offline_cache();
     let base_pt = bind_whisper_onnx::base_pt();
-    let given = PretrainedRef::from(WHISPER_CATALOG.resource_bundle("openai/base.pt"));
+    let given = PretrainedRef::from(base_checkpoint());
     let named = resolve_model("openai/base").unwrap();
     let hook = WhisperConstructConfig::new();
 
-    assert_eq!(hook.expected_for(&given), None);
-    assert_eq!(hook.expected_for(&named), Some(geometry_of("base")));
+    assert_eq!(hook.expected_for(&given).unwrap(), None);
+    assert_eq!(
+        hook.expected_for(&named).unwrap(),
+        Some(geometry_of("base"))
+    );
     hook.plan(&named, &cache).unwrap();
     hook.plan(&given, &cache).unwrap();
 
@@ -205,7 +203,7 @@ fn test_plan_checks_the_prefab_a_name_promises() {
     assert!(hook.scan(&wrong_name, &base).is_err());
     let explicit = hook.clone().with_expected(Some(geometry_of("base")));
     assert_eq!(
-        explicit.expected_for(&wrong_name),
+        explicit.expected_for(&wrong_name).unwrap(),
         Some(geometry_of("base"))
     );
     explicit.scan(&wrong_name, &base).unwrap();
@@ -253,10 +251,10 @@ fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
     let model = resolve_model("openai/tiny").unwrap();
     ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
         .cause(predicate(
-            "a mismatch under openai/tiny",
-            |m: &GeometryMismatch| m.model.contains("openai/tiny"),
+            "a mismatch under openai/whisper/tiny",
+            |m: &GeometryMismatch| m.model.contains("openai/whisper/tiny"),
         ))
-        .display_contains("openai/tiny")
+        .display_contains("openai/whisper/tiny")
         .assert_err(
             &WhisperConstructConfig::new().scan(&model, &loaded(bind_whisper_onnx::base_pt())),
         );

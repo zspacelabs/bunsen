@@ -7,7 +7,6 @@ use super::{
     CHECKPOINT,
     NEMO,
     SAFETENSORS,
-    SORTFORMER_CATALOG,
     SORTFORMER_KIT,
 };
 use crate::{
@@ -148,7 +147,7 @@ impl SortformerConstructConfig {
             nemo::NemoArchive,
         };
         let checkpoint = map.try_get(CHECKPOINT)?;
-        let prefix = cache.read_prefix(SORTFORMER_KIT, checkpoint, NEMO_CONFIG_PREFIX)?;
+        let prefix = cache.read_prefix(checkpoint, NEMO_CONFIG_PREFIX)?;
         let Some(yaml) = NemoArchive::config_from_prefix(&prefix) else {
             return Ok(());
         };
@@ -213,7 +212,7 @@ impl ConstructInit for SortformerConstructConfig {
         match self.reader {
             SortformerReader::Safetensors => {
                 if let Some(config) = map.get(CONFIG) {
-                    let resolved = cache.resolve(SORTFORMER_KIT, config)?;
+                    let resolved = cache.resolve(config)?;
                     Self::read_config(&resolved.path)?;
                 }
             }
@@ -224,7 +223,7 @@ impl ConstructInit for SortformerConstructConfig {
 
     /// Builds the model, then resolves its [`SortformerPolicy`] through the
     /// row's presets, or, for a model no row describes, its family's
-    /// ([`SortformerFamily::catalog_family`]).
+    /// ([`SortformerFamily::template_class`]).
     fn try_init(
         &self,
         model: &PretrainedRef,
@@ -236,7 +235,8 @@ impl ConstructInit for SortformerConstructConfig {
             SortformerReader::Safetensors => Self::construct_safetensors(loaded, device, load)?,
             SortformerReader::Nemo => Self::construct_nemo(loaded, device, load)?,
         };
-        let family = SORTFORMER_CATALOG.family_presets(bundle.family.catalog_family());
+        let family =
+            crate::data::pretrained::builtin_template_presets(bundle.family.template_class())?;
         let policy = resolve_ref_presets(&SortformerPolicy::default(), model, &family)?;
         Ok(Arc::new(
             bundle.with_policy(policy.config.clone(), policy.applied()),
@@ -247,16 +247,17 @@ impl ConstructInit for SortformerConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG;
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         let hook = SortformerConstructConfig::for_resource_bundle(
-            &SORTFORMER_CATALOG.resource_bundle("nvidia/nemotron-3-diarization"),
+            &crate::data::pretrained::builtin_build_bundle("nvidia/nemotron-3-diarization")
+                .unwrap(),
         )
         .unwrap();
         assert_eq!(hook.reader, SortformerReader::Safetensors);
-        let mut map = SORTFORMER_CATALOG.resource_bundle("nvidia/nemotron-3-diarization");
+        let mut map =
+            crate::data::pretrained::builtin_build_bundle("nvidia/nemotron-3-diarization").unwrap();
         for res in map.resources.values_mut() {
             res.kind = Some("pytorch".into());
         }
@@ -343,10 +344,16 @@ mod tests {
             },
         };
 
+        let family_presets = |family: &str| {
+            crate::data::pretrained::builtin_template_presets(&format!(
+                "nvidia/sortformer/{family}"
+            ))
+            .unwrap()
+        };
         let resolve = |family: &str, presets: &[&str]| {
             resolve_presets(
                 &SortformerPolicy::default(),
-                &SORTFORMER_CATALOG.family_presets(family),
+                &family_presets(family),
                 &PresetSelection::new(presets.iter().copied()),
             )
             .unwrap()
@@ -404,19 +411,17 @@ mod tests {
             0.511
         );
 
-        let table = SORTFORMER_CATALOG.table();
-        for row in table.groups.iter().flat_map(|g| &g.items) {
+        let provider = crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+            super::super::SORTFORMER_CATALOG_CONTRACT,
+            super::super::SORTFORMER_KIT,
+        );
+        for row in provider.rows() {
             let family = if row.name.contains("nemotron") {
                 "nemotron"
             } else {
                 "sortformer-v2"
             };
-            assert_eq!(
-                row.presets,
-                SORTFORMER_CATALOG.family_presets(family),
-                "{}",
-                row.name
-            );
+            assert_eq!(row.presets, family_presets(family), "{}", row.name);
         }
     }
 
@@ -504,7 +509,7 @@ mod tests {
         hook.plan(&PretrainedRef::from(map.clone()), &cache)
             .unwrap();
         let res = map.get(CHECKPOINT).unwrap();
-        assert_eq!(cache.status(SORTFORMER_KIT, res), CacheStatus::Remote);
+        assert_eq!(cache.status(res), CacheStatus::Remote);
 
         let modules = "  fc_d_model: 16\n  tf_d_model: 8\n  chunk";
         assert_eq!(yaml.matches(modules).count(), 1);
@@ -515,6 +520,6 @@ mod tests {
             .frame_contains("remote.nemo")
             .assert_err(&hook.plan(&PretrainedRef::from(map.clone()), &cache));
         let res = map.get(CHECKPOINT).unwrap();
-        assert_eq!(cache.status(SORTFORMER_KIT, res), CacheStatus::Remote);
+        assert_eq!(cache.status(res), CacheStatus::Remote);
     }
 }

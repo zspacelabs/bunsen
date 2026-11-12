@@ -37,9 +37,17 @@ mod tests {
         let (provider, row) = factory.lookup("resnet18_a1").unwrap();
         assert_eq!(provider, "well-known");
         assert_eq!(row.name, "timm/resnet18_a1");
+        // The rows that state resnet34's geometry.
+        let resnet34 = serde_json::to_value(
+            super::super::RESNET_PREFABS
+                .expect_lookup_prefab("resnet34")
+                .to_config(),
+        )
+        .unwrap();
         let for_34: Vec<String> = factory
-            .for_prefab("resnet34")
+            .list()
             .iter()
+            .filter(|(_, row)| row.args.get(crate::data::pretrained::GEOMETRY) == Some(&resnet34))
             .map(|(p, row)| format!("{p}:{}", row.name))
             .collect();
         assert_eq!(

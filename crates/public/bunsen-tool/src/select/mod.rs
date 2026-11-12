@@ -19,8 +19,8 @@
 //!   choose within.
 //! - The steps an expression compiles to: [`Require`] and [`Prefer`] (with
 //!   [`Want`], what an entry asks of a tag, and [`Absent`], what a candidate
-//!   lacking the tag is); [`Latest`], each release sequence's newest first
-//!   ([`release_cmp`]); and, for `language`, the graded RFC 4647 match
+//!   lacking the tag is); [`Latest`], each release group's newest first, by its
+//!   [`Release`] time; and, for `language`, the graded RFC 4647 match
 //!   [`match_language`].
 
 mod args;
@@ -65,6 +65,7 @@ pub(crate) mod testing {
             prefab: None,
             resources: ResourceBundle::new(name),
             presets: Default::default(),
+            args: Default::default(),
             tags: serde_json::from_value(tags).unwrap(),
         })
     }

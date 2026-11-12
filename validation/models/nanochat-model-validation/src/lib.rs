@@ -225,10 +225,7 @@ pub fn row_file(
     row: &str,
     key: &str,
 ) -> std::path::PathBuf {
-    use bunsen::kits::language::nanochat::pretrained::{
-        NANOCHAT_KIT,
-        default_nanochat_factory,
-    };
+    use bunsen::kits::language::nanochat::pretrained::default_nanochat_factory;
     let (_, found) = default_nanochat_factory()
         .expect("the nanochat factory")
         .lookup(row)
@@ -236,7 +233,7 @@ pub fn row_file(
     let mut map = bunsen::data::pretrained::ResourceBundle::new(found.resources.name.clone());
     map.insert(found.resources.try_get(key).expect("the resource").clone());
     let loaded = weights_cache()
-        .load(NANOCHAT_KIT, &map)
+        .load(&map)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
     loaded.expect(key).expect("the fetched file").to_path_buf()
 }

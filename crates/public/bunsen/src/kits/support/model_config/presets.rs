@@ -9,8 +9,8 @@ use serde_json::Value;
 use crate::{
     data::pretrained::{
         PresetSelection,
-        PresetSet,
         PretrainedRef,
+        build_catalog::presets::ResolvedPresetSet,
     },
     errors::{
         BunsenError,
@@ -50,14 +50,15 @@ impl<C> ResolvedPresets<C> {
 /// before:
 ///
 /// 1. `base`: the family's config, serialized;
-/// 2. the set's [`base`](PresetSet::base) patch, which every selection keeps;
-/// 3. the default presets, except those whose axis `selection` selects a member
-///    of;
+/// 2. the set's [`common`](ResolvedPresetSet::common) patch, which every
+///    selection keeps;
+/// 3. each axis use's default, unless `selection` selects a member of its axis,
+///    and the presets on no axis the set applies by default;
 /// 4. the selected presets;
 /// 5. the selection's final patch.
 ///
 /// The selected presets are one layer, checked by
-/// [`PresetSet::check_selection`]: two that set the same path are an error,
+/// [`ResolvedPresetSet::check_selection`]: two that set the same path are an error,
 /// so their order never matters. A layer over the default may set what the
 /// default set. Every patch is checked against the config it is applied to
 /// ([`validate_paths_open`](merge_patch::validate_paths_open)), except under
@@ -66,7 +67,7 @@ impl<C> ResolvedPresets<C> {
 /// the result is deserialized as `C`.
 ///
 /// # Errors
-/// - As [`PresetSet::check_selection`].
+/// - As [`ResolvedPresetSet::check_selection`].
 /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup): a patch naming a field
 ///   the config lacks, under a frame naming the preset or the lookup's patch.
 /// - [`Policy`](crate::errors::BunsenErrorKind::Policy): a result that does not
@@ -75,19 +76,19 @@ impl<C> ResolvedPresets<C> {
 ///   serialize.
 pub fn resolve_presets<C>(
     base: &C,
-    set: &PresetSet,
+    set: &ResolvedPresetSet,
     selection: &PresetSelection,
 ) -> BunsenResult<ResolvedPresets<C>>
 where
     C: Serialize + DeserializeOwned,
 {
-    let selected = set.check_selection(selection)?;
+    let selected = set.check_selection(&selection.to_catalog_selection())?;
     let presets = set.applied(&selected);
 
     let mut value = serde_json::to_value(base)
         .map_err(|e| BunsenError::internal("a config that does not serialize").with_cause(e))?;
     let open = merge_patch::empty_objects(&value);
-    apply_layer::<C>(&mut value, &set.base, &open).map_err(|e| e.context("the base patch"))?;
+    apply_layer::<C>(&mut value, &set.common, &open).map_err(|e| e.context("the base patch"))?;
     for name in &presets {
         let preset = set.get(name).expect("checked: every applied preset exists");
         apply_layer::<C>(&mut value, &preset.patch, &open)
@@ -108,8 +109,8 @@ where
 }
 
 /// Resolves `base` through the presets of the row `model` names, as its
-/// lookup asked: [`resolve_presets`] over the row's [`PresetSet`] and the
-/// ref's [`selection`](PretrainedRef::selection).
+/// lookup asked: [`resolve_presets`] over the row's [`ResolvedPresetSet`] and
+/// the ref's [`selection`](PretrainedRef::selection).
 ///
 /// `family` stands in for a row with no presets of its own, such as an
 /// `hf:` repo's, and for a given resource bundle, which has no row: the
@@ -123,7 +124,7 @@ where
 pub fn resolve_ref_presets<C>(
     base: &C,
     model: &PretrainedRef,
-    family: &PresetSet,
+    family: &ResolvedPresetSet,
 ) -> BunsenResult<ResolvedPresets<C>>
 where
     C: Serialize + DeserializeOwned,
@@ -168,6 +169,7 @@ mod tests {
         data::pretrained::{
             Preset,
             PresetAxis,
+            PresetSet,
         },
         errors::{
             BunsenErrorKind,
@@ -213,7 +215,7 @@ mod tests {
         }
     }
 
-    fn set() -> PresetSet {
+    fn set() -> ResolvedPresetSet {
         let set = PresetSet {
             presets: vec![
                 preset(
@@ -237,7 +239,7 @@ mod tests {
             ..Default::default()
         };
         set.validate().unwrap();
-        set
+        set.to_resolved().unwrap()
     }
 
     fn resolved(selection: PresetSelection) -> BunsenResult<ResolvedPresets<Toy>> {
@@ -309,27 +311,24 @@ mod tests {
     #[test]
     fn test_an_unknown_preset_lists_the_candidates() {
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_eq(
-                "no preset \"thinkin\"; there are: thinking, no-thinking, yarn-128k, wide, narrow",
+            .message_contains(
+                "no preset `thinkin`; there are: thinking, no-thinking, yarn-128k, wide, narrow",
             )
-            .has_cause::<LookupError>()
             .assert_err(&resolved(PresetSelection::new(["thinkin"])));
     }
 
     #[test]
     fn test_a_preset_selected_twice() {
-        ErrorMatcher::kind(BunsenErrorKind::Lookup)
-            .message_contains("wide")
-            .has_cause::<LookupError>()
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("the preset `wide` is selected twice")
             .assert_err(&resolved(PresetSelection::new(["wide", "wide"])));
     }
 
     #[test]
     fn test_two_members_of_an_axis() {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .message_eq(
-                "`thinking` and `no-thinking` are both on the axis `thinking-mode` \
-                 (whether the model thinks before it answers): select one",
+            .message_contains(
+                "`thinking` and `no-thinking` are both on the axis `thinking-mode`: select one",
             )
             .assert_err(&resolved(PresetSelection::new(["thinking", "no-thinking"])));
     }
@@ -337,7 +336,7 @@ mod tests {
     #[test]
     fn test_selected_presets_that_set_one_path() {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
-            .message_eq("the presets `wide` and `narrow` each set `beam`: select one")
+            .message_contains("the presets `wide` and `narrow` each set `beam`: select one")
             .assert_err(&resolved(PresetSelection::new(["wide", "narrow"])));
     }
 
@@ -365,8 +364,12 @@ mod tests {
 
     #[test]
     fn test_an_empty_set_resolves_to_the_base() {
-        let r =
-            resolve_presets(&base(), &PresetSet::default(), &PresetSelection::default()).unwrap();
+        let r = resolve_presets(
+            &base(),
+            &ResolvedPresetSet::default(),
+            &PresetSelection::default(),
+        )
+        .unwrap();
         assert_eq!(r.config, base());
         assert!(r.presets.is_empty());
     }
@@ -390,7 +393,8 @@ mod tests {
                 origin: None,
                 prefab: None,
                 resources: ResourceBundle::new("org/repo"),
-                presets,
+                presets: presets.to_resolved().unwrap(),
+                args: Default::default(),
                 tags: Default::default(),
             }),
             selection,
@@ -421,17 +425,16 @@ mod tests {
         let given = PretrainedRef::Given(ResourceBundle::new("files"));
         let r = resolve_ref_presets(&base(), &given, &family).unwrap();
         assert_eq!(r.presets, ["thinking"]);
-        let r = resolve_ref_presets(&base(), &given, &PresetSet::default()).unwrap();
+        let r = resolve_ref_presets(&base(), &given, &ResolvedPresetSet::default()).unwrap();
         assert_eq!(r.config, base());
     }
 
-    /// The set's base applies under every selection, the default's and a
-    /// displacing one's alike; a preset may set what the base set.
+    /// The set's common patch applies under every selection, the default's and
+    /// a displacing one's alike; a preset may set what the common patch set.
     #[test]
-    fn test_the_base_is_under_every_selection() {
+    fn test_the_common_patch_is_under_every_selection() {
         let mut set = set();
-        set.base = json!({"beam": 3, "yarn": 2.0});
-        set.validate().unwrap();
+        set.common = json!({"beam": 3, "yarn": 2.0});
         let r = resolve_presets(&base(), &set, &PresetSelection::default()).unwrap();
         assert_eq!((r.config.beam, r.config.yarn), (3, Some(2.0)));
         let r = resolve_presets(
@@ -442,7 +445,7 @@ mod tests {
         .unwrap();
         assert_eq!((r.config.beam, r.config.yarn), (5, Some(2.0)));
 
-        set.base = json!({"bean": 3});
+        set.common = json!({"bean": 3});
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .message_contains("bean")
             .assert_err(&resolve_presets(&base(), &set, &PresetSelection::default()));

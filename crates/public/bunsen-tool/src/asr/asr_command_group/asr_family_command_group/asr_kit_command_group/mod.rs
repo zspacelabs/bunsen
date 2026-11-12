@@ -28,8 +28,9 @@ pub struct AsrKitCommandGroup<F: clap::Args> {
 /// Every family's commands: `asr family <family>`'s, and among Whisper's.
 #[derive(clap::Subcommand, Debug)]
 pub enum AsrKitSubCommand<F: clap::Args> {
-    /// List the models `--model` can name, their licences and files, and
-    /// whether each file is cached.
+    /// List the models `--model` can name, their licences and files.
+    ///
+    /// Each file is marked with whether it is cached.
     List(AsrKitListCommand),
 
     /// Bring every file of the named models into the weights cache.

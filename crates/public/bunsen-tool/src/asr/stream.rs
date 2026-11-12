@@ -77,9 +77,11 @@ pub struct Streaming {
 /// The VAD slot: `--vad`, the model that finds the speech regions.
 #[derive(clap::Args, Clone, Debug, Default)]
 pub struct VadArgs {
-    /// The VAD that finds the speech regions, as a lookup expression
-    /// (`silero/vad-16k[silero]`); `asr presets list`'s when omitted. Only
-    /// with an emission that finds them: an error with `--emission offline`.
+    /// The VAD that finds the speech regions, as a lookup expression.
+    ///
+    /// For example `silero/vad-16k[silero]`; `asr presets list`'s when
+    /// omitted. Only with an emission that finds them: an error with
+    /// `--emission offline`.
     #[arg(long, value_name = "EXPR")]
     pub vad: Option<String>,
 }

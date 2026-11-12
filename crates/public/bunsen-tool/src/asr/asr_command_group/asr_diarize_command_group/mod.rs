@@ -48,8 +48,9 @@ pub struct AsrDiarizeCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 enum AsrDiarizeSubCommand {
-    /// List the models `--model` can name, their licences and files, and
-    /// whether each file is cached.
+    /// List the models `--model` can name, their licences and files.
+    ///
+    /// Each file is marked with whether it is cached.
     List(AsrKitListCommand),
 
     /// Bring every file of the named models into the weights cache.
@@ -81,7 +82,8 @@ impl AsrDiarizeCommandGroup {
 /// each model's.
 #[derive(clap::Args, Debug)]
 pub struct AsrDiarizerArgs {
-    /// The model, as a lookup expression: `diarize list` shows them;
+    /// The model, as a lookup expression: `diarize list` shows them.
+    ///
     /// `nvidia/nemotron-3-diarization` when omitted.
     #[arg(long)]
     pub model: Option<String>,
@@ -130,7 +132,8 @@ pub fn load_diarizer(
 /// `transcribe` and `live`.
 #[derive(clap::Args, Debug)]
 pub struct AsrSpeakerArgs {
-    /// Label each word or segment with its speaker, through a diarizer:
+    /// Label each word or segment with its speaker, through a diarizer.
+    ///
     /// `--diarize` alone for `nvidia/nemotron-3-diarization`, `--diarize=EXPR`
     /// for another, or its presets
     /// (`--diarize='nvidia/nemotron-3-diarization[very-low]'`; `diarize list`
@@ -173,8 +176,9 @@ pub struct AsrDiarizeOutputArgs {
     #[arg(long)]
     pub rttm: bool,
 
-    /// Print JSON: for `run`, an object per file with its turns and each
-    /// speaker's total; for `live`, an object per turn.
+    /// Print JSON: for `run`, an object per file; for `live`, one per turn.
+    ///
+    /// A file's object has its turns and each speaker's total.
     #[arg(long)]
     pub json: bool,
 }
@@ -245,7 +249,7 @@ fn speaker_totals(turns: &[SpeakerTurn]) -> Vec<JsonSpeaker> {
 mod tests {
     use std::path::Path;
 
-    use bunsen::kits::speech::diarization::sortformer::pretrained::SORTFORMER_CATALOG;
+    use bunsen::kits::speech::diarization::sortformer::pretrained::default_sortformer_factory;
 
     use super::*;
     use crate::{
@@ -284,9 +288,8 @@ mod tests {
         assert_eq!(got, [("speaker_0", 1.0, 1), ("speaker_1", 2.5, 2)]);
     }
 
-    /// A diarizer's latency and post-processing are the catalog families'
-    /// axes: a model's box names them, and the families default to `low`
-    /// and `none`.
+    /// A diarizer's latency and post-processing are every row's axes: a
+    /// model's box names them, and they default to `low` and `none`.
     #[test]
     fn test_presets() {
         assert_eq!(
@@ -294,16 +297,17 @@ mod tests {
             "sortformer-v2[dihard3,high]"
         );
 
-        let catalog = SORTFORMER_CATALOG.catalog();
-        for family in &catalog.families {
-            let axes: Vec<&str> = family
+        let rows = default_sortformer_factory().unwrap().list();
+        assert!(!rows.is_empty());
+        for (_, row) in rows {
+            let axes: Vec<&str> = row
                 .presets
                 .axes
                 .iter()
-                .map(|a| a.name.as_str())
+                .map(|a| a.axis.name.leaf())
                 .collect();
-            assert_eq!(axes, ["latency", "postprocess"], "{}", family.name);
-            assert_eq!(family.presets.default, ["low", "none"], "{}", family.name);
+            assert_eq!(axes, ["latency", "postprocess"], "{}", row.name);
+            assert_eq!(row.presets.default_names(), ["low", "none"], "{}", row.name);
         }
     }
 }

@@ -8,13 +8,14 @@
 //! # The index
 //!
 //! [`default_gemma_factory`] is the index a caller holds, over two providers.
-//! First the well-known table, [`GEMMA_CATALOG`], whose rows name their
-//! prefab in [`GEMMA_PREFABS`]; each is a `transformers` checkpoint (bf16,
-//! but Gemma 2's base models, f32), its `config.json`, `tokenizer.json`,
-//! `tokenizer_config.json` and `generation_config.json`, and an
-//! instruction-tuned Gemma 3's `chat_template.jinja`, fetched from the
-//! `unsloth/` mirror of Google's repo (Google's are gated; the mirrors' files
-//! are the same weights, with unsloth's edits to their configs):
+//! First the well-known rows, the built-in catalog's builds of
+//! [`GEMMA_CATALOG_CONTRACT`], whose geometries are [`GEMMA_PREFABS`]'; each is
+//! a `transformers` checkpoint (bf16, but Gemma 2's base models, f32), its
+//! `config.json`, `tokenizer.json`, `tokenizer_config.json` and
+//! `generation_config.json`, and an instruction-tuned Gemma 3's
+//! `chat_template.jinja`, fetched from the `unsloth/` mirror of Google's repo
+//! (Google's are gated; the mirrors' files are the same weights, with unsloth's
+//! edits to their configs):
 //!
 //! - Gemma 3: `gemma/gemma-3-270m`, `gemma/gemma-3-1b-pt` and
 //!   `gemma/gemma-3-4b-pt`, and their `-it` builds; `gemma/gemma-3-1b-it` is

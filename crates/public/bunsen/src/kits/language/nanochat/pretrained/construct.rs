@@ -89,26 +89,25 @@ impl ConstructInit for NanoChatConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        errors::{
-            BunsenErrorKind,
-            testing::ErrorMatcher,
-        },
-        kits::language::nanochat::pretrained::NANOCHAT_CATALOG,
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
     };
 
     #[test]
     fn test_the_hook_follows_the_kind() {
         NanoChatConstructConfig::for_resource_bundle(
-            &NANOCHAT_CATALOG.resource_bundle("nanochat-students/base-d20"),
+            &crate::data::pretrained::builtin_build_bundle("nanochat-students/base-d20").unwrap(),
         )
         .unwrap();
         NanoChatConstructConfig::for_resource_bundle(
-            &NANOCHAT_CATALOG.resource_bundle("nitishpandey04/nanochat-d18-sft"),
+            &crate::data::pretrained::builtin_build_bundle("nitishpandey04/nanochat-d18-sft")
+                .unwrap(),
         )
         .unwrap();
 
-        let mut safetensors = NANOCHAT_CATALOG.resource_bundle("nanochat-students/base-d20");
+        let mut safetensors =
+            crate::data::pretrained::builtin_build_bundle("nanochat-students/base-d20").unwrap();
         safetensors.resources.get_mut(CHECKPOINT).unwrap().kind = Some("safetensors".to_string());
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("safetensors")

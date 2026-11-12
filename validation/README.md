@@ -10,7 +10,6 @@ comes through a `bind-*-onnx` crate, fetched at build time and digest-pinned.
 onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and the reference generated from it
 onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
 models.yml, profiles/               the validation schedule of models and the profiles that choose from it
-catalogs/{kit}.yml                  each kit's pretrained catalog source, which `cargo validate catalog` builds into the kit
 catalog_builder/                   `cargo catalog`: builds bunsen's built-in catalog from its probe contracts (probe_contracts/)
 models/{model}-model-validation/   each model's cross-checks
 tools/                             the fixture generators whose output lands in models/*/testdata
@@ -154,70 +153,24 @@ model does replays a committed recording of it (for example
 `RecordedVoiceActivity::silero_jfk_moon_4s`), and the model's validation
 crate checks the recording against the model.
 
-## Pretrained catalogs: `catalogs/{kit}.yml`
+## The built-in catalog: `cargo catalog`
 
-A kit's table of named checkpoints is data: `catalog.json` in the kit's
-`pretrained` module, which the kit embeds and loads
-(`bunsen::data::pretrained::PretrainedCatalog`). It is generated from a
-hand-written source here, by `cargo validate catalog`:
+bunsen's named checkpoints are data: the built-in catalog,
+`crates/public/bunsen-catalog/catalog/`, which the kits' `well-known:` rows are
+read from (`bunsen::data::pretrained::build_catalog::builtin_stack`). It is
+generated from the hand-written probe contracts in
+`catalog_builder/probe_contracts/`, one catalog layer per file:
 
 ```sh
-cargo validate catalog --build                  # into target/catalog/, once per source and tool version
-cargo validate catalog --check                  # fail if a checked-in catalog differs from its build
-cargo validate catalog --update --kit qwen3     # overwrite the kit's checked-in catalog
-cargo validate catalog --check --verify-remote  # also download every file and hash it against its pin
+cargo catalog build                  # into target/catalog-builder/catalog/
+cargo catalog check                  # fail if the checked-in catalog differs from its build
+cargo catalog update --kit qwen3     # build the qwen3 layer from its remotes again, and check it in
+cargo catalog check --verify-remote  # also download every file and hash it against its pin
 ```
 
-A source names the table, its groups and rows, and their resource bundles:
-for each, a Hub repo at a pinned revision (`hub: {repo, revision}`), or
-explicit `bases`, and its files (`key`, `file`, `kind`). The tool derives
-what it can: a Hub file's digest and size from the repo's listing (an LFS
-file) or from its bytes (a small file, which it fetches), and a checkpoint's
-dtype from its `config.json`. A digest the source gives is authoritative: it
-must agree with the derived one, and a file off the Hub must have one. Only
-`--verify-remote` downloads the weights.
-
-A row may carry `presets`: named merge patches over the config its model is
-built from, each with a required `description`; `axes` grouping presets that
-exclude one another, each with a required `description`; and the `default`
-selection, by name. The tool refuses a row whose presets are malformed
-(`bunsen::data::pretrained::PresetSet::validate`):
-
-```yaml
-rows:
-  - name: m
-    description: a model
-    bundles: [o/m]
-    presets:
-      presets:
-        - { name: fast, description: a greedy search, patch: { beam: 1 } }
-        - { name: good, description: a wide search, patch: { beam: 5 } }
-      axes:
-        - { name: quality, description: how hard the search tries, members: [fast, good] }
-      default: [good]
-```
-
-Presets every model of a family has go in the source's `families`, each
-with a `name`, a `description` and its `presets`; a row names its `family`,
-and its own presets are laid over the family's (a preset or axis of the
-row's replaces the family's of the same name, and a row's `default`
-replaces the family's). A kit gives a model of the family that no row
-describes, such as an `hf:` repo, the family's presets as they are.
-
-A set's `base` is a patch applied under every selection, before the
-default: what any preset keeps, such as a checkpoint's stop tokens. A row's
-`probe` entries read its files when the catalog is built, each a named
-probe (`generation_config`, `tokenizer_config`) over a file by its resource
-key, its patch going `into` the base or the presets it names; the row's own
-presets are then laid over what the probes found, so a hand-written patch
-extends or corrects a probed one. The built catalog records the values, not
-the probes:
-
-```yaml
-    presets:
-      presets:
-        - { name: thinking, description: think first, patch: { generation: { template_kwargs: { enable_thinking: true } } } }
-    probe:
-      - { probe: generation_config, file: generation_config, into: [base, thinking] }
-```
-
+A source writes what a person decides: the namespaces, builds, template
+classes, presets and resources. The builder adds what is read: each kit's
+contract, each file's digest and size (from the Hub's listing, or the file),
+a checkpoint's dtype (from its `config.json`), and the presets its probes
+find in the files they read. The catalog's format is
+`crates/public/bunsen/src/data/pretrained/build_catalog/catalog_format.md`.

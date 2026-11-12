@@ -10,10 +10,7 @@ use bunsen::{
             CHAT_TEMPLATE,
             TOKENIZER,
             TOKENIZER_CONFIG,
-            pretrained::{
-                QWEN3_5_KIT,
-                default_qwen3_5_factory,
-            },
+            pretrained::default_qwen3_5_factory,
         },
         support::tokens::{
             BunsenTokenizer,
@@ -43,7 +40,7 @@ fn tokenizer_files(row: &str) -> (PathBuf, PathBuf, Option<PathBuf>) {
         }
     }
     let loaded = weights_cache()
-        .load(QWEN3_5_KIT, &map)
+        .load(&map)
         .unwrap_or_else(|e| panic!("{row}: {e}"));
     (
         loaded.expect(TOKENIZER).unwrap().to_path_buf(),

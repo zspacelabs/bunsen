@@ -28,16 +28,19 @@ pub struct AsrPresetsCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 enum AsrPresetsSubCommand {
-    /// List the presets: what each is for, and the model each runs for
-    /// files and for the microphone.
+    /// List the presets: what each is for, and the model each runs.
+    ///
+    /// Each preset's model is listed for files and for the microphone.
     List,
 
     /// Show presets: each recipe, as the `bunsen-tool asr family` command it
     /// runs.
     Show(AsrPresetsShowCommand),
 
-    /// Bring every file the named presets run into the weights cache: both
-    /// recipes' models, and the VAD where a recipe finds speech regions.
+    /// Bring every file the named presets run into the weights cache.
+    ///
+    /// That is both recipes' models, and the VAD where a recipe finds speech
+    /// regions.
     Fetch(AsrPresetsFetchCommand),
 }
 
@@ -117,7 +120,9 @@ mod tests {
             "{text}"
         );
         assert!(
-            text.contains("  transcribe: whisper openai/large-v3[translate]{beam_size: 5}\n"),
+            text.contains(
+                "  transcribe: whisper openai/whisper/large/large-v3[translate]{beam_size: 5}\n"
+            ),
             "{text}"
         );
     }

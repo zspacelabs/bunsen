@@ -15,9 +15,10 @@ use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
         CONFIG,
+        GEOMETRY,
         LoadedResources,
-        PresetSet,
         PretrainedRef,
+        ResolvedPresetSet,
         ResourceBundle,
         SAFETENSORS_INDEX,
         SafetensorsCheckpoint,
@@ -119,11 +120,14 @@ impl ConstructInit for VoxtralConstructConfig {
                 voxtral_config_from_transformers(&json)
                     .map_err(|e| e.context(part.path.display()))?
             }
-            None => model
-                .prefab(&VOXTRAL_PREFABS)
-                .map_or_else(VoxtralRealtimeConfig::voxtral_mini_4b_realtime, |p| {
-                    p.to_config()
-                }),
+            None => match model.stated(GEOMETRY)? {
+                Some(config) => config,
+                None => model
+                    .prefab(&VOXTRAL_PREFABS)
+                    .map_or_else(VoxtralRealtimeConfig::voxtral_mini_4b_realtime, |p| {
+                        p.to_config()
+                    }),
+            },
         };
         let mut voxtral: VoxtralRealtime = config.try_init(device)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
@@ -132,7 +136,11 @@ impl ConstructInit for VoxtralConstructConfig {
             .unwrap_or(burn::tensor::FloatDType::F32);
         let dtype = load.resolve(stored, device, |_| true)?;
         load_transformers_tensors_as(&mut voxtral, tensors, dtype)?;
-        let policy = resolve_ref_presets(&VoxtralPolicy::default(), model, &PresetSet::default())?;
+        let policy = resolve_ref_presets(
+            &VoxtralPolicy::default(),
+            model,
+            &ResolvedPresetSet::default(),
+        )?;
         Ok(Arc::new(
             VoxtralConstruct::new(voxtral, vocab, layout)?
                 .with_policy(policy.config.clone(), policy.applied())?,
@@ -143,12 +151,14 @@ impl ConstructInit for VoxtralConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::voxtral::pretrained::VOXTRAL_CATALOG;
 
     #[test]
     fn test_the_hook_takes_safetensors_and_tekken() {
         VoxtralConstructConfig::for_resource_bundle(
-            &VOXTRAL_CATALOG.resource_bundle("mistralai/voxtral-mini-4b-realtime-2602"),
+            &crate::data::pretrained::builtin_build_bundle(
+                "mistralai/voxtral-mini-4b-realtime-2602",
+            )
+            .unwrap(),
         )
         .unwrap();
     }

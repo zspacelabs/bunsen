@@ -30,11 +30,11 @@ use crate::errors::BunsenResult;
 /// ref: [`to_resource_bundle`](Self::to_resource_bundle) for its files,
 /// [`prefab`](Self::prefab) for the geometry a row promises.
 ///
-/// A ref is plain data: the row and the resource bundle are serde types, and
-/// the provider is held by name, so a ref outlives the factory that made it.
+/// A ref is plain data: the row and the resource bundle are values, and the
+/// provider is held by name, so a ref outlives the factory that made it.
 /// The caller's resources ride on it through
 /// [`with_overlay`](Self::with_overlay), so a hook sees one thing.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PretrainedRef {
     /// A row in a provider, copied out of it.
     Named {
@@ -108,6 +108,31 @@ impl PretrainedRef {
         self.named()
             .and_then(|(_, pretrained)| pretrained.prefab.as_deref())
             .map(|prefab| prefabs.expect_lookup_prefab(prefab))
+    }
+
+    /// The value the row binds its contract's argument slot `slot` to, read as
+    /// `C`: a stated geometry, say. `None` for a given bundle, or a row that
+    /// binds no such slot.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when the value
+    /// doesn't read as `C`.
+    pub fn stated<C: serde::de::DeserializeOwned>(
+        &self,
+        slot: &str,
+    ) -> crate::errors::BunsenResult<Option<C>> {
+        let Some(value) = self.named().and_then(|(_, row)| row.args.get(slot)) else {
+            return Ok(None);
+        };
+        serde_json::from_value(value.clone())
+            .map(Some)
+            .map_err(|e| {
+                crate::errors::BunsenError::illegal(format!(
+                    "{}: the argument `{slot}` doesn't read as its config",
+                    self.id()
+                ))
+                .with_cause(e)
+            })
     }
 
     /// The resource bundle: the row's, named by the qualified id, or the
@@ -209,6 +234,7 @@ mod tests {
                     .with_resource(resource("checkpoint", "small.pt"))
                     .with_resource(resource("vocabulary", "vocab.txt")),
                 presets: Default::default(),
+                args: Default::default(),
                 tags: Default::default(),
             }),
             selection: Default::default(),

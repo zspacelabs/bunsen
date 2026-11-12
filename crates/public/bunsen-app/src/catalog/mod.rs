@@ -1,19 +1,20 @@
-//! The build catalogs' commands: import catalogs, then dump, browse, show,
-//! resolve and select over the state they make
+//! The build catalogs' commands: dump, browse, show, resolve and select over
+//! a base catalog and the extensions the command line adds
 //! ([`bunsen::data::pretrained::build_catalog`]).
 //!
 //! ```text
-//! catalog --examples tree
-//! catalog --examples dump --format json
-//! catalog --catalog a.yml --catalog b.yml show qwen3
-//! catalog --examples resolve large-v3 --preset translate
-//! catalog --examples select qwen3 --off thinking --limit 1
-//! catalog --examples select whisper --weigh '{release: latest}' --desc '$weight' --rank
-//! catalog --examples releases release
+//! catalog tree
+//! catalog dump --format json
+//! catalog --catalog local.yml show qwen3
+//! catalog resolve large-v3 --preset translate
+//! catalog select qwen3 --off thinking --limit 1
+//! catalog select whisper --weigh '{release: latest}' --desc '$weight' --rank
+//! catalog releases release
 //! ```
 //!
-//! Catalogs are imported in the order given, `--examples` (the example
-//! catalogs) first when it is given.
+//! The base is the embedding binary's, which it hands
+//! [`run`](CatalogCommand::run): bunsen-tool's is the built-in catalog. The
+//! extensions (`--catalog`) are imported over it, in the order given.
 //!
 //! `select` stands in for a tool that chooses builds: it turns its preset
 //! flags into the presets it applies and a prefix that keeps only the builds
@@ -37,7 +38,6 @@ use bunsen::{
             EntryKind,
             OrderedNode,
         },
-        fixtures,
         lookup::{
             LeafMatch,
             SEARCHABLE,
@@ -110,51 +110,60 @@ pub use tree::{
 #[cfg(test)]
 mod tests;
 
-/// The build catalogs' commands, over the catalogs given.
+/// The build catalogs' commands, over a base catalog the binary gives and
+/// the extensions the command line adds.
+///
+/// The base is the binary's: bunsen-tool's is the built-in catalog
+/// ([`builtin_stack`](bunsen::data::pretrained::build_catalog::builtin_stack)).
+/// An extension is imported over it, so it may add builds, template classes,
+/// groups and resources, and update what the base declares, but never
+/// declare contracts.
 #[derive(clap::Args, Debug)]
 pub struct CatalogCommand {
-    /// A catalog to import, in order; repeatable. YAML, or JSON by its
+    /// An extension catalog to import over the base; repeatable.
+    ///
+    /// Imported in order, each over the ones before. YAML, or JSON by its
     /// `.json` extension.
     #[arg(long = "catalog", value_name = "PATH")]
     catalogs: Vec<PathBuf>,
-
-    /// Import the example catalogs (prelude, commons, qwen3, whisper) first.
-    #[arg(long)]
-    examples: bool,
 
     #[command(subcommand)]
     action: CatalogAction,
 }
 
 impl CatalogCommand {
-    /// Runs the command, printing its output to stdout.
+    /// Runs the command over `base` and the extensions, printing its output to
+    /// stdout.
     ///
     /// `matches` are the matches clap parsed at the level of this command:
     /// the ones whose subcommand is the action.
     ///
     /// # Errors
-    /// A [`Policy`](bunsen::errors::BunsenErrorKind::Policy) error for a
-    /// catalog that doesn't import, or a request the catalogs refuse.
+    /// A [`Policy`](bunsen::errors::BunsenErrorKind::Policy) error for an
+    /// extension that doesn't import, or a request the catalogs refuse.
     pub fn run(
         &self,
         matches: &ArgMatches,
+        base: PretrainedCatalogStack,
     ) -> BunsenResult<()> {
         let mut out = String::new();
-        let result = self.run_into(matches, &mut out);
+        let result = self.run_into(matches, base, &mut out);
         print!("{out}");
         result.map_err(BunsenError::policy)
     }
 
-    /// Runs the command, writing its output to `out`.
+    /// Runs the command over `base` and the extensions, writing its output
+    /// to `out`.
     ///
     /// # Errors
     /// What went wrong, for a person.
     pub fn run_into(
         &self,
         matches: &ArgMatches,
+        base: PretrainedCatalogStack,
         out: &mut String,
     ) -> Result<(), String> {
-        let stack = load(self)?;
+        let stack = extend(base, &self.catalogs)?;
         match &self.action {
             CatalogAction::Layers => layers(out, &stack),
             CatalogAction::Show { name } => show(out, &stack, name)?,
@@ -206,39 +215,50 @@ pub enum CatalogAction {
         patch: Option<String>,
     },
 
-    /// Select builds, printed as YAML: the composed query, why, the
-    /// presets applied, and the result in order, each build resolved with
-    /// its weight. Each flag is one stage, in command-line order, but
-    /// `--on`, `--off` and `--preset`: they are the presets applied, and the
-    /// prefix that keeps only the builds that can take them.
+    /// Select builds through a pipeline of stages, printed as YAML.
+    ///
+    /// The output: the composed query, why, the presets applied, and the
+    /// result in order, each build resolved with its weight. Each flag is one
+    /// stage, in command-line order, but `--on`, `--off` and `--preset`: they
+    /// are the presets applied, and the prefix that keeps only the builds that
+    /// can take them.
     Select(Box<select::SelectArgs>),
 
-    /// The imported catalogs, in import order, as one sequence: each
-    /// item's `layer`, `path` and `catalog`, the document in its keyed form.
+    /// The imported catalogs, in import order, as one sequence.
+    ///
+    /// Each item's `layer`, `path` and `catalog`, the document in its keyed
+    /// form.
     Dump {
         /// The output format.
         #[arg(long, value_enum, default_value_t = DumpFormat::Yml)]
         format: DumpFormat,
     },
 
-    /// The namespace as a directory view, from the root's entries or from
-    /// one entry: `name: description` for a namespace, `name: aliases {axes}
+    /// The namespace as a directory view, from the root's entries or one entry.
+    ///
+    /// `name: description` for a namespace, `name: aliases {axes}
     /// description` for a build, `name -> target` for an alias. By default
     /// it shows namespaces, builds and the aliases that name them.
     Tree {
         /// The entry to start from, by any unambiguous name; the root when
         /// absent.
         root: Option<String>,
-        /// Show only entries of these kinds (repeatable), with the
-        /// containers on the way to them.
+        /// Show only entries of these kinds (repeatable).
+        ///
+        /// The containers on the way to them show too.
         #[arg(long = "kind", value_name = "KIND", conflicts_with = "all")]
         kinds: Vec<String>,
-        /// Show every kind: contracts, releases, template classes,
-        /// resources, tags, axes and facets too.
+        /// Show every kind of entry.
+        ///
+        /// Contracts, releases, template classes, resources, tags, axes and
+        /// facets too.
         #[arg(long)]
         all: bool,
-        /// Where aliases show: on their build's line (`inline`), as entries
-        /// where they sit (`entries`), both, or not at all.
+        /// Where aliases show: on their build's line, as entries, both, or not
+        /// at all.
+        ///
+        /// On their build's line (`inline`), as entries where they sit
+        /// (`entries`), both, or not at all.
         #[arg(long, value_enum, default_value_t = AliasView::Both)]
         aliases: AliasView,
         /// How many levels below the start to show.
@@ -277,17 +297,13 @@ fn errors(e: BunsenError) -> String {
     }
 }
 
-fn load(cli: &CatalogCommand) -> Result<PretrainedCatalogStack, String> {
-    let mut stack = if cli.examples {
-        fixtures::example_stack().map_err(errors)?
-    } else {
-        PretrainedCatalogStack::new()
-    };
-    for path in &cli.catalogs {
+/// `base` with each of `extensions` imported over it, in order.
+fn extend(
+    mut stack: PretrainedCatalogStack,
+    extensions: &[PathBuf],
+) -> Result<PretrainedCatalogStack, String> {
+    for path in extensions {
         stack.push_file(path).map_err(errors)?;
-    }
-    if stack.layers().is_empty() {
-        return Err("no catalogs: give `--catalog PATH` (repeatable) or `--examples`".into());
     }
     Ok(stack)
 }

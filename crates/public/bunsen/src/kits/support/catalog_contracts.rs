@@ -28,7 +28,7 @@ use crate::data::pretrained::build_catalog::{
 /// One kit's contract fragment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KitCatalogContract {
-    /// The kit, as its cache segment names it (`{KIT}_KIT`).
+    /// The kit, by its name (`{KIT}_KIT`).
     pub kit: &'static str,
 
     /// The fragment: `$contracts` entries, as YAML.

@@ -14,6 +14,21 @@ use serde::{
 use serde_json::Value;
 
 use crate::{
+    data::pretrained::build_catalog::{
+        CatalogErrorExt,
+        CatalogName,
+        document::{
+            AxisKind,
+            MergeMode,
+            PresetEntry,
+        },
+        presets::{
+            AxisInfo,
+            ResolvedAxisUse,
+            ResolvedPresetSet,
+            quoted,
+        },
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -304,6 +319,66 @@ impl PresetSet {
         applied
     }
 
+    /// The set in the build catalog's resolved form, which a row carries
+    /// ([`Pretrained::presets`](super::Pretrained::presets)): the base as the
+    /// common patch, each axis a use offering all its members, with the
+    /// default's member as its default, and the rest of the default as the
+    /// presets on no axis. An axis keeps its name, as a categorical axis.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for an axis the
+    /// default names no member of: the resolved form gives every axis a
+    /// default.
+    pub fn to_resolved(&self) -> BunsenResult<ResolvedPresetSet> {
+        let mut axes = Vec::new();
+        for axis in &self.axes {
+            let default = self
+                .default
+                .iter()
+                .find(|d| axis.members.contains(d))
+                .cloned()
+                .ok_or_else(|| {
+                    BunsenError::illegal(format!(
+                        "the axis `{}` has no default: the default names none of its members",
+                        axis.name
+                    ))
+                })?;
+            let name = CatalogName::root(&axis.name).map_err(|e| {
+                BunsenError::illegal(format!("the axis `{}`: {}", axis.name, e.problem_message()))
+            })?;
+            axes.push(ResolvedAxisUse {
+                axis: AxisInfo {
+                    name,
+                    kind: AxisKind::Categorical,
+                    members: axis.members.clone(),
+                    description: axis.description.clone(),
+                },
+                offers: axis.members.clone(),
+                default,
+            });
+        }
+        Ok(ResolvedPresetSet {
+            common: self.base.clone(),
+            presets: self
+                .presets
+                .iter()
+                .map(|p| PresetEntry {
+                    name: p.name.clone(),
+                    merge: MergeMode::Update,
+                    description: p.description.clone(),
+                    patch: p.patch.clone(),
+                })
+                .collect(),
+            axes,
+            default: self
+                .default
+                .iter()
+                .filter(|d| self.axis_of(d).is_none())
+                .cloned()
+                .collect(),
+        })
+    }
+
     /// Checks the set is well formed.
     ///
     /// The base is an object; names are unique, non-empty, and in the preset
@@ -422,6 +497,16 @@ pub struct PresetSelection {
 }
 
 impl PresetSelection {
+    /// The selection as the build catalog's presets take it.
+    pub fn to_catalog_selection(
+        &self
+    ) -> crate::data::pretrained::build_catalog::presets::PresetSelection {
+        crate::data::pretrained::build_catalog::presets::PresetSelection {
+            presets: self.presets.clone(),
+            patch: self.patch.clone(),
+        }
+    }
+
     /// Selects `presets`.
     pub fn new<I, S>(presets: I) -> Self
     where
@@ -563,16 +648,6 @@ fn check_description(
         )))
     } else {
         Ok(())
-    }
-}
-
-/// `a`, `b` and `c`, each in backticks.
-pub(crate) fn quoted(names: &[&str]) -> String {
-    let names: Vec<String> = names.iter().map(|n| format!("`{n}`")).collect();
-    match names.as_slice() {
-        [] => String::new(),
-        [one] => one.clone(),
-        [init @ .., last] => format!("{} and {last}", init.join(", ")),
     }
 }
 
@@ -751,14 +826,6 @@ mod tests {
             &set,
             "the default's presets `thinking` and `think-hard` each set `thinking`",
         );
-    }
-
-    #[test]
-    fn test_quoted() {
-        assert_eq!(quoted(&[]), "");
-        assert_eq!(quoted(&["a"]), "`a`");
-        assert_eq!(quoted(&["a", "b"]), "`a` and `b`");
-        assert_eq!(quoted(&["a", "b", "c"]), "`a`, `b` and `c`");
     }
 
     #[test]

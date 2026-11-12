@@ -6,12 +6,14 @@ catalog document, and its `usage` page the API and the select language.
 
 ## The CLI
 
-The commands are `bunsen_app::catalog`, which `bunsen-tool catalog` runs. The `pretrained-catalog`
-bin here runs the same commands without the model kits bunsen-tool builds, so it builds quickly:
+The commands are `bunsen_app::catalog`, which `bunsen-tool catalog` runs over the built-in
+catalog. The `pretrained-catalog` bin here runs the same commands over the example catalogs,
+without the model kits bunsen-tool builds, so it builds quickly; `--catalog` imports an extension
+over them:
 
 ```sh
-cargo run -p pretrained-catalog -- --catalog a.yml --catalog b.yml <command>   # in order
-cargo run -p pretrained-catalog -- --examples <command>                         # the examples
+cargo run -p pretrained-catalog -- <command>                         # the examples
+cargo run -p pretrained-catalog -- --catalog local.yml <command>     # with an extension
 ```
 
 | command | does |
@@ -28,13 +30,13 @@ cargo run -p pretrained-catalog -- --examples <command>                         
 
 ```sh
 cargo test -p pretrained-catalog
-cargo run -p pretrained-catalog -- --examples select qwen3 --off thinking
+cargo run -p pretrained-catalog -- select qwen3 --off thinking
 cargo run -p pretrained-catalog --example catalog_tour   # layers, facets, names, releases
 cargo run -p pretrained-catalog --example think_flags    # --think / --no-think as presets
 cargo run -p pretrained-catalog --example supplemental   # extensions, fall-through, refusals
 ```
 
-`--examples` imports the module's example catalogs (`build_catalog::fixtures`: `prelude`,
+The bin runs over the module's example catalogs (`build_catalog::fixtures`: `prelude`,
 `commons`, `qwen3`, `whisper`), which the tests and examples use too. Their SHA-256s and
 revisions are placeholders. `tests/select_examples.rs` works through the select language over
 them, each query with the builds it selects, and why.

@@ -4,7 +4,6 @@ use alloc::sync::Arc;
 use super::ParakeetConstructConfig;
 use crate::{
     data::pretrained::{
-        EmbeddedCatalog,
         HfProvider,
         PretrainedProvider,
     },
@@ -12,8 +11,7 @@ use crate::{
     kits::support::construct::PretrainedFactory,
 };
 
-/// The kit segment of a Parakeet resource's path in the cache:
-/// `<cache>/pretrained/parakeet/<namespace>/<sha256>/<file>`.
+/// The Parakeet kit's name: its rows' `kit` tag.
 pub const PARAKEET_KIT: &str = "parakeet";
 
 /// The key of the checkpoint in a Parakeet resource bundle.
@@ -33,32 +31,14 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a `transformers` `tokenizer.json` vocabulary.
 pub const TOKENIZER_JSON: &str = "tokenizer.json";
 
-/// The Parakeet checkpoints bunsen knows by name, behind the
-/// [`WELL_KNOWN`](crate::data::pretrained::WELL_KNOWN) provider: in group
-/// `fermion`, `FermionResearch`'s Phonon-2 archive, and in group `nvidia`,
-/// NVIDIA's Parakeet TDT 0.6B v3.
-///
-/// Built from `validation/catalogs/parakeet.yml` by `cargo validate catalog`.
-pub static PARAKEET_CATALOG: EmbeddedCatalog =
-    EmbeddedCatalog::new("parakeet", include_str!("catalog.json"));
-
 /// What the parakeet kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
 /// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
 pub const PARAKEET_CONTRACT: &str = include_str!("contract.yml");
 
-/// The tag rules of the kit's rows, which the catalog tool holds its catalog
-/// to: the keys every row carries, a speech recognizer's: what speech to text
-/// chooses its model by.
-pub const PARAKEET_TAGS: crate::data::pretrained::tags::KitTags =
-    crate::data::pretrained::tags::KitTags {
-        keys: &[],
-        required: &[
-            crate::data::pretrained::tags::LANGUAGE.key,
-            crate::data::pretrained::tags::TRANSLATE.key,
-            crate::data::pretrained::tags::PARAMETERS.key,
-        ],
-    };
+/// The contract the kit's loader implements, by its name in the built-in
+/// catalog's `$contracts`: the kit's `well-known:` rows are its builds.
+pub const PARAKEET_CATALOG_CONTRACT: &str = "parakeet-asr";
 
 /// The name [`default_parakeet_factory`] loads when a caller names none.
 pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
@@ -69,7 +49,12 @@ pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 /// `tokenizer.json` as the vocabulary).
 pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
-        Arc::new(PARAKEET_CATALOG.table()),
+        Arc::new(
+            crate::data::pretrained::BuildCatalogProvider::expect_builtin(
+                PARAKEET_CATALOG_CONTRACT,
+                PARAKEET_KIT,
+            ),
+        ),
         Arc::new(
             HfProvider::new()
                 .with_checkpoint_key(CHECKPOINT)
@@ -100,16 +85,14 @@ mod tests {
     /// names.
     #[test]
     fn test_rows_are_pinned_and_named() {
-        PARAKEET_CATALOG.catalog().validate(&[]).unwrap();
-        for bundle in &PARAKEET_CATALOG.catalog().bundles {
-            let map = bundle.to_resource_bundle();
+        let factory = default_parakeet_factory().unwrap();
+        for (_, row) in factory.list() {
+            let map = &row.resources;
             map.validate().unwrap();
             let checkpoint = map.get(CHECKPOINT).unwrap();
             assert!(checkpoint.is_pinned(), "{}", map.name);
             assert_eq!(checkpoint.urls().len(), 1, "{}", map.name);
         }
-
-        let factory = default_parakeet_factory().unwrap();
         assert_eq!(factory.kit(), PARAKEET_KIT);
         assert_eq!(
             factory.ids(),

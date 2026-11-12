@@ -1,19 +1,17 @@
 //! Pretrained rows: what a name in a provider is.
 
 use alloc::{
+    collections::BTreeMap,
     string::String,
     vec::Vec,
 };
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde_json::Value;
 
 use super::{
-    PresetSet,
     ResourceBundle,
     Tags,
+    build_catalog::presets::ResolvedPresetSet,
 };
 
 /// A pretrained row: a name in a provider, over a resource bundle.
@@ -24,8 +22,8 @@ use super::{
 /// hook, since the function that loads a kit's models is the kit's and
 /// supplies one, and it does not know which of its resources is the model.
 ///
-/// A kit's [`PretrainedCatalog`](super::PretrainedCatalog) spells its rows
-/// as data, or one comes from a manifest through serde. A
+/// A [`BuildCatalogProvider`](super::BuildCatalogProvider) makes rows of a
+/// build catalog's builds. A
 /// [`PretrainedProvider`](super::PretrainedProvider) hands rows out from
 /// its `list`, `lookup` and `resolve`; a
 /// [`PretrainedTable`](super::PretrainedTable) keeps them in groups and
@@ -34,7 +32,7 @@ use super::{
 /// toward a model. The [`prefab`](Self::prefab) field joins the row to the
 /// kit's [`StaticPreFabMap`](super::StaticPreFabMap), through
 /// [`PretrainedRef::prefab`](super::PretrainedRef::prefab).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Pretrained {
     /// Its name, unique within its provider.
     pub name: String,
@@ -58,15 +56,19 @@ pub struct Pretrained {
     /// What it is made of, fused.
     pub resources: ResourceBundle,
 
-    /// Its presets: named deltas over the config it is built from, and its
-    /// default selection.
-    #[serde(default, skip_serializing_if = "PresetSet::is_empty")]
-    pub presets: PresetSet,
+    /// Its presets: named deltas over the config it is built from, the axes
+    /// that group them, and its default selection, as the build catalog
+    /// resolves them.
+    pub presets: ResolvedPresetSet,
+
+    /// The values its contract's argument slots are bound to, by slot: what
+    /// the loader is told rather than reads, such as a stated geometry. Empty
+    /// for a row that comes from no build catalog.
+    pub args: BTreeMap<String, Value>,
 
     /// Its tags: facts about the model, for listings and selection
     /// ([`tags`](super::tags)). A catalog lays a row's over its group's and
     /// family's, and writes its [`KIT`](super::tags::KIT) tag.
-    #[serde(default, skip_serializing_if = "Tags::is_empty")]
     pub tags: Tags,
 }
 
@@ -102,8 +104,7 @@ mod tests {
     use super::*;
     use crate::data::pretrained::Resource;
 
-    /// A row answers to its name and aliases, and survives a round trip
-    /// through JSON.
+    /// A row answers to its name and aliases.
     #[test]
     fn test_matches_and_round_trip() {
         let row = Pretrained {
@@ -115,7 +116,8 @@ mod tests {
             prefab: Some("small".to_string()),
             resources: ResourceBundle::new("small")
                 .with_resource(Resource::given("checkpoint", "/t/small.pt")),
-            presets: PresetSet::default(),
+            presets: ResolvedPresetSet::default(),
+            args: Default::default(),
             tags: Default::default(),
         };
         assert!(row.matches("small"));
@@ -125,7 +127,5 @@ mod tests {
         assert!(row.matches_with("SMALL", false));
         assert!(row.matches_with("S", false));
         assert!(!row.matches_with("S", true));
-        let json = serde_json::to_string(&row).unwrap();
-        assert_eq!(serde_json::from_str::<Pretrained>(&json).unwrap(), row);
     }
 }

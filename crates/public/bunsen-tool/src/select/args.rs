@@ -12,15 +12,17 @@ use crate::select::merge;
 /// [`PresetArgs`](crate::support::PresetArgs).
 #[derive(clap::Args, Debug, Clone, Default)]
 pub struct SelectArgs {
-    /// The model: a name (a named selection, a row, or a prefix, group or kit
-    /// of rows) or a selection object (`{require: {base: false}}`, YAML);
-    /// repeatable, at most one name, objects merged in order over the
-    /// command's defaults.
+    /// The model: a name or a selection object (`{require: {instruct: true}}`).
+    ///
+    /// A name is a named selection, a row, or a prefix, group or kit of rows;
+    /// an object is YAML. Repeatable, at most one name, objects merged in
+    /// order over the command's defaults.
     #[arg(long = "select", visible_alias = "model", value_name = "NAME|{..}")]
     pub select: Vec<String>,
 
-    /// A merge patch over the chosen model's config, a YAML mapping
-    /// (`{beam_size: 1}`); repeatable, merged in order.
+    /// A merge patch over the chosen model's config (`{beam_size: 1}`).
+    ///
+    /// A YAML mapping; repeatable, merged in order.
     #[arg(long = "patch", value_name = "{..}")]
     pub patch: Vec<String>,
 }

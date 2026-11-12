@@ -11,10 +11,10 @@
 //! [`default_whisper_factory`] is the index a caller holds, over
 //! [`default_whisper_providers`] in search order:
 //!
-//! - [`WHISPER_CATALOG`]: the checkpoints bunsen knows by name, as
-//!   `well-known:openai/base`, `openai/base`, or `base`. Its one group,
-//!   `openai`, is upstream's `_MODELS`, with upstream's aliases (`large`,
-//!   `turbo`).
+//! - The well-known rows, the built-in catalog's builds of
+//!   [`WHISPER_CATALOG_CONTRACT`]: the checkpoints bunsen knows by name, as
+//!   `well-known:openai/whisper/base`, `openai/base`, or `base`. They are
+//!   upstream's `_MODELS`, with upstream's aliases (`large`, `turbo`).
 //! - The data layer's [`HfProvider`](crate::data::pretrained::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
 //!   checkpoint under [`CHECKPOINT`]. It lists nothing.
@@ -25,27 +25,30 @@
 //! its presets resolved to, which a driver takes with
 //! [`with_policy`](super::driver::WhisperStreamDriverConfig::with_policy).
 //! The multilingual checkpoints that translate (every one but the `.en`
-//! checkpoints and `large-v3-turbo`) are the catalog's `multilingual` family,
-//! with a `task` axis: `[transcribe]`, the default, and `[translate]`. Every
-//! other field is the lookup's patch: `'openai/small[translate]{beam_size:
-//! 1}'`. A multilingual checkpoint no row describes, a file or an `hf:` repo,
-//! takes the family's presets ([`MULTILINGUAL_FAMILY`]).
+//! checkpoints and `large-v3-turbo`) are the catalog's `multilingual` template
+//! class, with a `task` axis: `[transcribe]`, the default, and `[translate]`.
+//! Every other field is the lookup's patch:
+//! `'openai/small[translate]{beam_size: 1}'`. A multilingual checkpoint no row
+//! describes, a file or an `hf:` repo, takes the class's presets
+//! ([`MULTILINGUAL_TEMPLATE_CLASS`]).
 //!
 //! A caller with a provider of its own, a mirror say, adds it to the
 //! default factory with
 //! [`with_provider`](crate::kits::support::construct::PretrainedFactory::with_provider);
 //! the hook stays the kit's, chosen by the row, never the caller's.
 //!
-//! # Rows, prefabs and bundles
+//! # Rows, prefabs and resources
 //!
-//! A row names its prefab in [`WHISPER_PREFABS`], the geometry its
-//! checkpoint must have, and fuses a checkpoint bundle of
-//! [`WHISPER_CATALOG`] with the vocabulary bundle its token layout
-//! selects ([`WhisperVocabulary`]). A prefab is a shape without weights,
-//! so a name means a shape before any bytes are fetched; a bundle is where
-//! the bytes come from and the digest that pins them. A path arrives as a
-//! one-resource bundle with no prefab, and gets its vocabulary from the same
-//! rule, [`WhisperVocabulary::for_layout`].
+//! A row is a build's two resources: its checkpoint, and the vocabulary its
+//! token layout selects ([`WhisperVocabulary`]), which the plan checks
+//! against the checkpoint. It states the geometry its checkpoint must have
+//! ([`GEOMETRY`](crate::data::pretrained::GEOMETRY)), a prefab's of
+//! [`WHISPER_PREFABS`], so a name means a shape before any bytes are
+//! fetched, and a checkpoint of another shape under the name is refused. A
+//! prefab is a shape without weights; a resource is where the bytes come
+//! from and the digest that pins them. A path arrives as a one-resource bundle,
+//! and gets its vocabulary from the same rule,
+//! [`WhisperVocabulary::for_layout`].
 //!
 //! # Loading
 //!
@@ -82,12 +85,11 @@
 //!
 //! let factory = default_whisper_factory()?;
 //!
-//! // `large` is upstream's alias for `large-v3`, and the row names its
-//! // prefab: the geometry the checkpoint must scan to.
+//! // `large` is upstream's alias for `large-v3`; its prefab documents the
+//! // geometry its checkpoint carries.
 //! let (_, row) = factory.lookup("large")?;
-//! assert_eq!(row.name, "openai/large-v3");
-//! let prefab =
-//!     WHISPER_PREFABS.try_lookup_prefab(row.prefab.as_deref().unwrap())?;
+//! assert_eq!(row.name, "openai/whisper/large/large-v3");
+//! let prefab = WHISPER_PREFABS.try_lookup_prefab("large-v3")?;
 //! let geometry = prefab.to_config().geometry();
 //! assert_eq!((geometry.n_mels, geometry.vocab_size), (128, 51866));
 //!
