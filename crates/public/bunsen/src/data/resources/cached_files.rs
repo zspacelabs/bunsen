@@ -11,13 +11,10 @@ use std::{
 };
 
 use crate::{
-    data::{
-        builds::HF,
-        resources::{
-            GIVEN_NAMESPACE,
-            RESOURCES_DIR,
-            ResourceCache,
-        },
+    data::resources::{
+        RESOURCES_DIR,
+        ResourceCache,
+        cache::FETCHING_DIR,
     },
     errors::{
         BunsenError,
@@ -35,8 +32,8 @@ pub struct CachedFile {
     /// (`hf/openai/whisper-tiny/checkpoint`), or `given` for a path's.
     pub name: String,
 
-    /// The directory pinning it: its SHA-256, or a cache key for a file
-    /// fetched unpinned.
+    /// The directory pinning it: its SHA-256, or `.fetching` for an
+    /// unpinned download not yet hashed.
     pub pin: String,
 
     /// Its path under the pin, without the `.partial` of an unfinished
@@ -124,30 +121,16 @@ impl fmt::Display for CacheSelector {
 }
 
 /// Whether `segment` is a SHA-256 pin: 64 lowercase hex digits.
-fn is_sha256(segment: &str) -> bool {
+pub(super) fn is_sha256(segment: &str) -> bool {
     segment.len() == 64
         && segment
             .bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-/// Whether `segment` is an unpinned file's cache key: `{crc}-{base}`, the
-/// crc its URL's CRC-16 in decimal
-/// ([`url_to_cache_key`](super::url_to_cache_key)).
-fn is_cache_key(segment: &str) -> bool {
-    let Some((crc, base)) = segment.split_once('-') else {
-        return false;
-    };
-    !base.is_empty()
-        && (1..=5).contains(&crc.len())
-        && crc.bytes().all(|b| b.is_ascii_digit())
-        && (crc == "0" || !crc.starts_with('0'))
-        && crc.parse::<u32>().is_ok_and(|n| n <= 0xFFFF)
-}
-
 /// The files under `dir`, at any depth, in path order; none when `dir` does
 /// not exist.
-fn files_under(dir: &Path) -> BunsenResult<Vec<(PathBuf, fs::Metadata)>> {
+pub(super) fn files_under(dir: &Path) -> BunsenResult<Vec<(PathBuf, fs::Metadata)>> {
     let mut out = Vec::new();
     if !dir.is_dir() {
         return Ok(out);
@@ -179,12 +162,11 @@ impl ResourceCache {
 
     /// The files the cache holds under `selector`, in path order.
     ///
-    /// A file's pin is the first segment of its path that is a SHA-256, or,
-    /// for a file fetched unpinned, its URL's cache key (`18200-config.json`;
-    /// under `hf`, after the repo and slot); the name is what precedes it,
-    /// and the file what follows. Under `given`, the pin is the segment after
-    /// it. Anything else under the resources directory is not the cache's,
-    /// and is not listed.
+    /// A file's pin is the first segment of its path that is a SHA-256, or
+    /// `.fetching` for an unpinned download not yet filed under its digest;
+    /// the name is what precedes it, and the file what follows. Anything
+    /// else under the resources directory is not the cache's, and is not
+    /// listed.
     ///
     /// # Errors
     /// A [`Sys`](crate::errors::BunsenErrorKind::Sys) error if a directory or
@@ -206,19 +188,11 @@ impl ResourceCache {
             else {
                 continue;
             };
-            // An `hf:` repo's names are `hf/<org>/<repo>/<slot>`, whose
-            // segments may look like a cache key (`01-ai`).
-            let first_key = if segments[0] == HF { 4 } else { 1 };
-            let pinned = segments.iter().position(|s| is_sha256(s));
-            let keyed = segments
+            let at = match segments
                 .iter()
-                .enumerate()
-                .position(|(i, s)| i >= first_key && is_cache_key(s));
-            let at = match (pinned, keyed) {
-                (Some(p), Some(k)) if p > 0 => p.min(k),
-                (Some(p), _) if p > 0 => p,
-                (_, Some(k)) => k,
-                _ if segments.len() > 2 && segments[0] == GIVEN_NAMESPACE => 1,
+                .position(|s| is_sha256(s) || s == FETCHING_DIR)
+            {
+                Some(at) if at > 0 => at,
                 _ => continue,
             };
             if at + 1 >= segments.len() {
@@ -339,9 +313,8 @@ mod tests {
     }
 
     /// Files are listed in path order, each by its name and pin (a SHA-256,
-    /// or an unpinned file's URL cache key, a Hub org that looks like one
-    /// being part of the name), selected by a name
-    /// prefix, with an unfinished download marked and a relative path kept
+    /// or `.fetching` for an unpinned download not yet filed), selected by a
+    /// name prefix, with an unfinished download marked and a relative path kept
     /// whole; removing them frees their bytes and the directories they
     /// leave empty.
     #[test]
@@ -357,6 +330,7 @@ mod tests {
 
         let a = "a".repeat(64);
         let b = "b".repeat(64);
+        let c = "c".repeat(64);
         let d = "d".repeat(64);
         put(
             &cache,
@@ -368,7 +342,7 @@ mod tests {
             &format!("openai/whisper/base/checkpoint/{b}/base.pt.partial"),
             5,
         );
-        put(&cache, "hf/o/r/config/18200-config.json/config.json", 7);
+        put(&cache, &format!("hf/o/r/config/{c}/config.json"), 7);
         put(
             &cache,
             &format!("laya/laya/laya/encoder_config/{d}/encoder/config.json"),
@@ -376,10 +350,10 @@ mod tests {
         );
         // No pin in its path: not the cache's.
         put(&cache, "openai/stray.txt", 1);
-        // A Hub org that looks like a cache key is part of the name.
+        // An unpinned download, not yet hashed.
         put(
             &cache,
-            "hf/01-ai/yi/listing/12345-main/01-ai--yi--main.json",
+            "hf/01-ai/yi/listing/.fetching/01-ai--yi--main.json.partial",
             13,
         );
 
@@ -391,7 +365,7 @@ mod tests {
         assert_eq!(
             names,
             [
-                ("hf/01-ai/yi/listing", "01-ai--yi--main.json", false),
+                ("hf/01-ai/yi/listing", "01-ai--yi--main.json", true),
                 ("hf/o/r/config", "config.json", false),
                 (
                     "laya/laya/laya/encoder_config",
@@ -402,8 +376,8 @@ mod tests {
                 ("openai/whisper/tiny/checkpoint", "tiny.pt", false),
             ]
         );
-        assert_eq!(all[0].pin, "12345-main");
-        assert_eq!(all[1].pin, "18200-config.json");
+        assert_eq!(all[0].pin, FETCHING_DIR);
+        assert_eq!(all[1].pin, c);
         assert_eq!(all[3].bytes, 5);
         assert_eq!(all[4].pin, a);
 

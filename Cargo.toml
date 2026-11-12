@@ -57,7 +57,6 @@ burn = { version = "0.22.1", default-features = false }
 burn-store = { version = "0.22.1", default-features = false }
 
 # Burn coupled-dependencies
-crc = "3.4.0"
 globwalk = "0.9.1"
 glob = "0.3.3"
 hashbrown = "0.17.0"
