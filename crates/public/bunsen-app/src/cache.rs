@@ -3,8 +3,9 @@
 //!
 //! A binary flattens [`WeightsCacheArgs`] into every command that loads
 //! weights, and mounts [`CacheCommand`] as a `cache` subcommand:
-//! `cache path`, `cache list [KIT[/NAMESPACE]]`, and
-//! `cache clear [KIT[/NAMESPACE]] [--partial] [--age AGE] [--yes]`.
+//! `cache path`, `cache list [NAME]`, and
+//! `cache clear [NAME] [--partial] [--age AGE] [--yes]`, `NAME` selecting the
+//! files cached under a name (`qwen`, `openai/whisper/base`, `hf/openai`).
 use std::{
     io::Write,
     path::PathBuf,
@@ -91,23 +92,24 @@ pub enum CacheAction {
 
     /// List the cached weights, file by file, then the total.
     ///
-    /// Each file's namespace (its resource's full name, or `hf` or `given` off
-    /// the catalog), size, when it was fetched and last loaded (UTC), and its
-    /// pin. Listing loads nothing, so it changes no file's last use.
+    /// Each file's name (its resource's full name: an `hf:` repo's under
+    /// `hf/<org>/<repo>/<slot>`, a path's `given`), size, when it was fetched
+    /// and last loaded (UTC), and its pin. Listing loads nothing, so it changes
+    /// no file's last use.
     List {
-        /// The namespaces under this name; every file when omitted.
+        /// The files cached under this name; every file when omitted.
         ///
-        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given`
-        /// for the files no catalog names.
+        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf`
+        /// (`hf/openai`) or `given` for the files no catalog names.
         selector: Option<CacheSelector>,
     },
 
     /// Remove cached weights; without `--yes`, only list what would go.
     Clear {
-        /// The namespaces under this name; every file when omitted.
+        /// The files cached under this name; every file when omitted.
         ///
-        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf` or `given`
-        /// for the files no catalog names.
+        /// A catalog name (`qwen`, `openai/whisper/base`), or `hf`
+        /// (`hf/openai`) or `given` for the files no catalog names.
         selector: Option<CacheSelector>,
 
         /// Only unfinished downloads.
@@ -251,7 +253,7 @@ fn utc_minute(time: Option<SystemTime>) -> String {
         .unwrap_or_else(|| "-".to_string())
 }
 
-/// One row per file: namespace, file (marked when partial), size, when it was
+/// One row per file: name, file (marked when partial), size, when it was
 /// fetched and last loaded, and the pin's first 12 characters.
 fn write_table(
     files: &[CachedFile],
@@ -268,20 +270,20 @@ fn write_table(
         }
     };
     let widths = files.iter().fold([9, 4], |[n, f], file| {
-        [n.max(file.namespace.len()), f.max(name(file).len())]
+        [n.max(file.name.len()), f.max(name(file).len())]
     });
     let [n, f] = widths;
     writeln!(
         out,
         "{:n$}  {:f$}  {:>9}  {:16}  {:16}  PIN",
-        "NAMESPACE", "FILE", "SIZE", "FETCHED (UTC)", "LAST USED (UTC)"
+        "NAME", "FILE", "SIZE", "FETCHED (UTC)", "LAST USED (UTC)"
     )?;
     for file in files {
         let pin: String = file.pin.chars().take(12).collect();
         writeln!(
             out,
             "{:n$}  {:f$}  {:>9}  {:16}  {:16}  {pin}",
-            file.namespace,
+            file.name,
             name(file),
             human_bytes(file.bytes),
             utc_minute(file.created),
@@ -487,7 +489,7 @@ mod tests {
         let list = run(&CacheAction::List { selector: None }, &cache);
         let lines: Vec<&str> = list.lines().collect();
         assert_eq!(lines.len(), 5, "{list}");
-        assert!(lines[0].starts_with("NAMESPACE"));
+        assert!(lines[0].starts_with("NAME "));
         assert!(lines[1].starts_with("nvidia/parakeet") && lines[1].contains("3.0 MB"));
         assert!(lines[2].contains("base.pt (partial)"));
         assert!(lines[3].ends_with("65147644a518"));

@@ -30,10 +30,10 @@ use crate::{
 /// `<cache>/resources/<name>/<pin>/<file>`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedFile {
-    /// The namespace it is cached under: a catalog resource's full name
+    /// The name it is cached under: a catalog resource's full name
     /// (`openai/whisper/base/checkpoint`), an `hf:` repo's
     /// (`hf/openai/whisper-tiny/checkpoint`), or `given` for a path's.
-    pub namespace: String,
+    pub name: String,
 
     /// The directory pinning it: its SHA-256, or a cache key for a file
     /// fetched unpinned.
@@ -62,28 +62,28 @@ pub struct CachedFile {
     pub last_used: Option<SystemTime>,
 }
 
-/// Which of a [`ResourceCache`]'s files: every one, or those whose
-/// namespace is under a name.
+/// Which of a [`ResourceCache`]'s files: every one, or those whose name is
+/// under a name.
 ///
 /// Parsed from `""` (every file) or a `/`-separated name: `qwen` selects
 /// every Qwen resource, `openai/whisper/base` one build's, `hf` every file
 /// fetched from the Hub off the catalog.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CacheSelector {
-    /// The name the namespaces are under, or every namespace.
+    /// The name the files' names are under, or every file.
     pub prefix: Option<String>,
 }
 
 impl CacheSelector {
-    /// Whether a file cached under `namespace` is selected: the namespace is
-    /// the prefix, or under it.
+    /// Whether a file cached under `name` is selected: the name is the
+    /// prefix, or under it.
     pub fn matches(
         &self,
-        namespace: &str,
+        name: &str,
     ) -> bool {
         self.prefix.as_deref().is_none_or(|p| {
-            namespace == p
-                || namespace
+            name == p
+                || name
                     .strip_prefix(p)
                     .is_some_and(|rest| rest.starts_with('/'))
         })
@@ -131,6 +131,20 @@ fn is_sha256(segment: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// Whether `segment` is an unpinned file's cache key: `{crc}-{base}`, the
+/// crc its URL's CRC-16 in decimal
+/// ([`url_to_cache_key`](super::url_to_cache_key)).
+fn is_cache_key(segment: &str) -> bool {
+    let Some((crc, base)) = segment.split_once('-') else {
+        return false;
+    };
+    !base.is_empty()
+        && (1..=5).contains(&crc.len())
+        && crc.bytes().all(|b| b.is_ascii_digit())
+        && (crc == "0" || !crc.starts_with('0'))
+        && crc.parse::<u32>().is_ok_and(|n| n <= 0xFFFF)
+}
+
 /// The files under `dir`, at any depth, in path order; none when `dir` does
 /// not exist.
 fn files_under(dir: &Path) -> BunsenResult<Vec<(PathBuf, fs::Metadata)>> {
@@ -158,18 +172,19 @@ fn files_under(dir: &Path) -> BunsenResult<Vec<(PathBuf, fs::Metadata)>> {
 }
 
 impl ResourceCache {
-    /// The directory holding every cached file: `<cache>/pretrained`.
+    /// The directory holding every cached file: `<cache>/resources`.
     pub fn resources_dir(&self) -> PathBuf {
         self.cache_dir().join(RESOURCES_DIR)
     }
 
     /// The files the cache holds under `selector`, in path order.
     ///
-    /// A file's pin is the first segment of its path that is a SHA-256; the
-    /// namespace is what precedes it, and the file what follows. Off the
-    /// catalog, under `hf` or `given`, an unpinned file's pin is the segment
-    /// after the namespace. Anything else under the pretrained directory is
-    /// not the cache's, and is not listed.
+    /// A file's pin is the first segment of its path that is a SHA-256, or,
+    /// for a file fetched unpinned, its URL's cache key (`18200-config.json`;
+    /// under `hf`, after the repo and slot); the name is what precedes it,
+    /// and the file what follows. Under `given`, the pin is the segment after
+    /// it. Anything else under the resources directory is not the cache's,
+    /// and is not listed.
     ///
     /// # Errors
     /// A [`Sys`](crate::errors::BunsenErrorKind::Sys) error if a directory or
@@ -191,20 +206,26 @@ impl ResourceCache {
             else {
                 continue;
             };
-            let at = match segments.iter().position(|s| is_sha256(s)) {
-                Some(at) if at > 0 => at,
-                _ if segments.len() > 2
-                    && [HF, GIVEN_NAMESPACE].contains(&segments[0].as_str()) =>
-                {
-                    1
-                }
+            // An `hf:` repo's names are `hf/<org>/<repo>/<slot>`, whose
+            // segments may look like a cache key (`01-ai`).
+            let first_key = if segments[0] == HF { 4 } else { 1 };
+            let pinned = segments.iter().position(|s| is_sha256(s));
+            let keyed = segments
+                .iter()
+                .enumerate()
+                .position(|(i, s)| i >= first_key && is_cache_key(s));
+            let at = match (pinned, keyed) {
+                (Some(p), Some(k)) if p > 0 => p.min(k),
+                (Some(p), _) if p > 0 => p,
+                (_, Some(k)) => k,
+                _ if segments.len() > 2 && segments[0] == GIVEN_NAMESPACE => 1,
                 _ => continue,
             };
             if at + 1 >= segments.len() {
                 continue;
             }
-            let namespace = segments[..at].join("/");
-            if !selector.matches(&namespace) {
+            let entry = segments[..at].join("/");
+            if !selector.matches(&entry) {
                 continue;
             }
             let name = segments[at + 1..].join("/");
@@ -213,7 +234,7 @@ impl ResourceCache {
                 None => (name, false),
             };
             out.push(CachedFile {
-                namespace,
+                name: entry,
                 pin: segments[at].clone(),
                 file,
                 path,
@@ -227,14 +248,14 @@ impl ResourceCache {
     }
 
     /// Removes `files` from the cache, and the directories they leave empty
-    /// under its pretrained directory.
+    /// under its resources directory.
     ///
     /// # Returns
     /// The bytes freed.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), removing
-    /// nothing, if a file is not under the cache's pretrained directory; a
+    /// nothing, if a file is not under the cache's resources directory; a
     /// [`Sys`](crate::errors::BunsenErrorKind::Sys) error if one cannot be
     /// removed, after those before it were.
     pub fn remove_cached(
@@ -253,7 +274,7 @@ impl ResourceCache {
         for file in files {
             fs::remove_file(&file.path).map_err(sys_at("remove", &file.path))?;
             freed += file.bytes;
-            // The directories above it, up to the pretrained directory, while
+            // The directories above it, up to the resources directory, while
             // each is empty.
             let mut dir = file.path.parent();
             while let Some(d) = dir.filter(|d| *d != root && d.starts_with(&root)) {
@@ -317,8 +338,9 @@ mod tests {
         }
     }
 
-    /// Files are listed in path order, each by its namespace and pin (a
-    /// SHA-256, or the segment after `hf` or `given`), selected by a name
+    /// Files are listed in path order, each by its name and pin (a SHA-256,
+    /// or an unpinned file's URL cache key, a Hub org that looks like one
+    /// being part of the name), selected by a name
     /// prefix, with an unfinished download marked and a relative path kept
     /// whole; removing them frees their bytes and the directories they
     /// leave empty.
@@ -346,7 +368,7 @@ mod tests {
             &format!("openai/whisper/base/checkpoint/{b}/base.pt.partial"),
             5,
         );
-        put(&cache, "hf/ccc/model.safetensors", 7);
+        put(&cache, "hf/o/r/config/18200-config.json/config.json", 7);
         put(
             &cache,
             &format!("laya/laya/laya/encoder_config/{d}/encoder/config.json"),
@@ -354,16 +376,23 @@ mod tests {
         );
         // No pin in its path: not the cache's.
         put(&cache, "openai/stray.txt", 1);
+        // A Hub org that looks like a cache key is part of the name.
+        put(
+            &cache,
+            "hf/01-ai/yi/listing/12345-main/01-ai--yi--main.json",
+            13,
+        );
 
         let all = cache.cached_files(&CacheSelector::default()).unwrap();
         let names: Vec<(&str, &str, bool)> = all
             .iter()
-            .map(|f| (f.namespace.as_str(), f.file.as_str(), f.partial))
+            .map(|f| (f.name.as_str(), f.file.as_str(), f.partial))
             .collect();
         assert_eq!(
             names,
             [
-                ("hf", "model.safetensors", false),
+                ("hf/01-ai/yi/listing", "01-ai--yi--main.json", false),
+                ("hf/o/r/config", "config.json", false),
                 (
                     "laya/laya/laya/encoder_config",
                     "encoder/config.json",
@@ -373,9 +402,10 @@ mod tests {
                 ("openai/whisper/tiny/checkpoint", "tiny.pt", false),
             ]
         );
-        assert_eq!(all[0].pin, "ccc");
-        assert_eq!(all[2].bytes, 5);
-        assert_eq!(all[3].pin, a);
+        assert_eq!(all[0].pin, "12345-main");
+        assert_eq!(all[1].pin, "18200-config.json");
+        assert_eq!(all[3].bytes, 5);
+        assert_eq!(all[4].pin, a);
 
         let whisper = cache
             .cached_files(&"openai/whisper".parse().unwrap())
@@ -385,17 +415,17 @@ mod tests {
         assert!(!cache.resources_dir().join("openai/whisper").exists());
         // The stray file keeps `openai` itself.
         assert!(cache.resources_dir().join("openai/stray.txt").exists());
-        assert!(cache.resources_dir().join("hf/ccc").exists());
+        assert!(cache.resources_dir().join("hf/o/r/config").exists());
 
         let hf = cache.cached_files(&"hf".parse().unwrap()).unwrap();
-        assert_eq!(cache.remove_cached(&hf).unwrap(), 7);
+        assert_eq!(cache.remove_cached(&hf).unwrap(), 20);
         assert!(!cache.resources_dir().join("hf").exists());
         assert_eq!(
             cache.cached_files(&CacheSelector::default()).unwrap().len(),
             1
         );
 
-        let mut outside = all[0].clone();
+        let mut outside = all[1].clone();
         outside.path = dir.path().join("elsewhere");
         assert!(cache.remove_cached(&[outside]).is_err());
     }

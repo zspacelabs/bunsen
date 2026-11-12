@@ -6,7 +6,7 @@
 - `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint ([below](#chat-qwen3-gemma-and-nanochat)).
 - `bunsen-tool decide`: typed questions about a context, answered with calibrated probabilities by a Laya decision
   model ([below](#decide-typed-questions-answered-by-laya)).
-- `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by kit.
+- `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by name.
 
 `bunsen-tool` replaces `bunsen-asr`, whose last release is 0.41.0: its commands are `bunsen-tool asr`'s, and its
 `cache` is `bunsen-tool cache`. The chat driver under `bunsen-tool chat` is also this crate's library,
@@ -1037,13 +1037,13 @@ the geometries. Neither needs a backend.
 
 ```sh
 bunsen-tool cache path                                 # the cache directory
-bunsen-tool cache list [NAME]                          # each file's namespace, size, fetched and last used (UTC), pin
+bunsen-tool cache list [NAME]                          # each file's name, size, fetched and last used (UTC), pin
 bunsen-tool cache clear [NAME] [--partial] [--age AGE] [--yes]
 ```
 
-A file is cached under its namespace: its resource's full name in the built-in catalog
+A file is cached under its name: its resource's full name in the built-in catalog
 (`openai/whisper/base/checkpoint`), an `hf:` repo's under `hf/<org>/<repo>/<slot>`, and a given path's under `given`.
-`NAME` selects the namespaces under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`, `hf/openai`.
+`NAME` selects the files cached under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`, `hf/openai`.
 `clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads, and `--age 30d` the
 files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
 and checking what is cached, do not.

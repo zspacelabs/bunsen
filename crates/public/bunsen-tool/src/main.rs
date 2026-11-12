@@ -71,9 +71,10 @@ enum Command {
 
     /// The weights cache every command loads through.
     ///
-    /// Where it is, what it holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`,
-    /// `whisper`, `sortformer`, `silero_vad`, `qwen3`, `nanochat`, `laya`), and
-    /// clearing it.
+    /// Where it is, what it holds (each file under its resource's full name:
+    /// `qwen/qwen3/qwen3-0.6b/checkpoint`, an `hf:` repo's
+    /// `hf/<org>/<repo>/<slot>`), and clearing it by name (`qwen`,
+    /// `hf/openai`).
     Cache(CacheCommand),
 
     /// The built-in model catalog: browse it, resolve builds, select them.
