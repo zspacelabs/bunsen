@@ -9,14 +9,12 @@ use burn::{
 use super::{
     CHECKPOINT,
     GEMMA_KIT,
-    GEMMA_PREFABS,
     GEMMA_TEMPLATE_CLASS,
 };
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
         formats::NamedTensorsApplied,
-        pretrained::StaticPreFabMap,
         resources::LoadedResourceSet,
     },
     errors::BunsenResult,
@@ -65,10 +63,6 @@ impl TransformersLmKit for GemmaConstructConfig {
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = GEMMA_KIT;
     const NAME: &'static str = "Gemma";
-
-    fn prefabs() -> &'static StaticPreFabMap<GemmaConfig> {
-        &GEMMA_PREFABS
-    }
 
     fn config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
         gemma_config_from_transformers(json)

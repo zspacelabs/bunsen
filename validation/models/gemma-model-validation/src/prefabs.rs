@@ -8,13 +8,12 @@
 use bunsen::{
     data::{
         builds::CONFIG,
+        pretrained::Prefabs,
         resources::ResourceSet,
     },
     kits::language::gemma::{
-        pretrained::{
-            GEMMA_PREFABS,
-            default_gemma_factory,
-        },
+        GemmaConfig,
+        pretrained::default_gemma_factory,
         weights::gemma_config_from_transformers,
     },
 };
@@ -36,9 +35,9 @@ fn test_every_row_is_a_prefab() {
         let config = gemma_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
         let config = format!("{config:?}");
         assert!(
-            GEMMA_PREFABS
+            GemmaConfig::PREFABS
                 .iter()
-                .any(|p| format!("{:?}", p.to_config()) == config),
+                .any(|(_, prefab)| format!("{:?}", prefab()) == config),
             "{id}: no prefab is its geometry"
         );
     }

@@ -11,7 +11,7 @@ than an example.
 - [`lbm2d_vis`](lbm2d_vis): a D2Q9 lattice-Boltzmann fluid simulation, rendered live.
   Uses `sims::lbm::d2q9` and `support::geometry::GridShape2D`.
 - [`resnet_finetune`](resnet_finetune): fine-tunes a pretrained ResNet for multi-label classification, with model
-  surgery. Uses `kits::images::resnet::pretrained` (`default_resnet_factory`, `RESNET_PREFABS`),
+  surgery. Uses `kits::images::resnet::pretrained` (`default_resnet_factory`, and `ResNetContractConfig`'s prefabs),
   `data::resources::ResourceCache` and `burner::module` (`ModuleInit`, `DTypeMapper`).
 - [`resnet_tiny`](resnet_tiny): trains a ResNet on CINIC-10 through a firehose image pipeline, optionally from a
   pretrained checkpoint. Uses `kits::images::resnet`, `data::resources::ResourceCache`, `burner::module`

@@ -9,8 +9,9 @@
 //!
 //! [`default_gemma_factory`] is the index a caller holds, over two providers.
 //! First the catalog rows, the built-in catalog's builds of
-//! [`GEMMA_CATALOG_CONTRACT`], whose geometries are [`GEMMA_PREFABS`]'; each is
-//! a `transformers` checkpoint (bf16, but Gemma 2's base models, f32), its
+//! [`GEMMA_CATALOG_CONTRACT`], whose geometries are
+//! [`GemmaConfig`](crate::kits::language::gemma::GemmaConfig)'s prefabs'; each
+//! is a `transformers` checkpoint (bf16, but Gemma 2's base models, f32), its
 //! `config.json`, `tokenizer.json`, `tokenizer_config.json` and
 //! `generation_config.json`, and an instruction-tuned Gemma 3's
 //! `chat_template.jinja`, fetched from the `unsloth/` mirror of Google's repo
@@ -57,5 +58,4 @@ mod prefabs;
 mod providers;
 
 pub use construct::*;
-pub use prefabs::*;
 pub use providers::*;

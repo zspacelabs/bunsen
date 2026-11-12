@@ -10,7 +10,8 @@
 //! [`default_voxtral_factory`] is the index a caller holds, over two
 //! providers. First the catalog row, the built-in catalog's build of
 //! [`VOXTRAL_CATALOG_CONTRACT`], stating its geometry, one of
-//! [`VOXTRAL_PREFABS`]:
+//! [`VoxtralRealtimeConfig`](crate::kits::speech::asr::voxtral::VoxtralRealtimeConfig)'s
+//! prefabs:
 //!
 //! - `mistralai/voxtral-mini-4b-realtime-2602` (`voxtral-mini-4b-realtime`):
 //!   Mistral's 4B realtime model, its 8.9 GB `bf16` `model.safetensors` and its
@@ -38,5 +39,4 @@ mod prefabs;
 mod providers;
 
 pub use construct::*;
-pub use prefabs::*;
 pub use providers::*;

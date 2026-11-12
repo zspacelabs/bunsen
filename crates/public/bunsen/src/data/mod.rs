@@ -77,8 +77,8 @@
 //!   [`try_init`](crate::data::builds::ConstructInit::try_init). The result is
 //!   a [`Loaded`] handle.
 //!
-//! Prefabs sit beside this pathway. A kit's [`StaticPreFabMap`] names its
-//! geometries, and a build states the geometry it is built in
+//! Prefabs sit beside this pathway. A kit's config names its geometries
+//! ([`Prefabs`]), and a build states the geometry it is built in
 //! ([`BuildRef::stated`]), which a kit's tests check against its prefabs.
 //!
 //! Shards take a shorter path: a [`StaticShardSetMap`] entry becomes a
@@ -139,7 +139,7 @@
 //! [`SafetensorsCheckpoint`]: crate::data::formats::SafetensorsCheckpoint
 //! [`ShardSet`]: datasets::ShardSet
 //! [`ShardSetDescriptor`]: datasets::ShardSetDescriptor
-//! [`StaticPreFabMap`]: pretrained::StaticPreFabMap
+//! [`Prefabs`]: pretrained::Prefabs
 //! [`StaticShardSetMap`]: datasets::StaticShardSetMap
 //! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory

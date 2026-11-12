@@ -46,7 +46,7 @@ Three things are kept apart, because they vary independently:
 
 - A **prefab** is a geometry by name, with no weights, so a name means a
   shape before anything is fetched. A kit keeps its prefabs in a
-  [`StaticPreFabMap`](bunsen::data::pretrained::StaticPreFabMap).
+  constructors on its config, listed by [`Prefabs`](bunsen::data::pretrained::Prefabs).
 - A **build**, a [`ResolvedBuild`](bunsen::data::catalog::ResolvedBuild), is
   what the catalog says one model is: its name and aliases, its tags and
   presets, the geometry it states, and the resources its contract's slots are

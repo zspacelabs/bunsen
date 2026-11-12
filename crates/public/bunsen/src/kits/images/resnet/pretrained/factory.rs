@@ -22,7 +22,13 @@ pub fn default_resnet_factory() -> BunsenResult<BuildFactory<ResNetConstructConf
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::images::resnet::pretrained::RESNET_KIT;
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::images::resnet::{
+            ResNetContractConfig,
+            pretrained::RESNET_KIT,
+        },
+    };
 
     /// The default factory is the catalog provider alone, serving the
     /// kit; one prefab has many rows across both groups.
@@ -36,12 +42,8 @@ mod tests {
         assert_eq!(provider, "catalog");
         assert_eq!(row.name, "timm/resnet18_a1");
         // The rows that state resnet34's geometry.
-        let resnet34 = serde_json::to_value(
-            super::super::RESNET_PREFABS
-                .expect_lookup_prefab("resnet34")
-                .to_config(),
-        )
-        .unwrap();
+        let resnet34 =
+            serde_json::to_value(ResNetContractConfig::expect_prefab("resnet34")).unwrap();
         let for_34: Vec<String> = factory
             .list()
             .iter()

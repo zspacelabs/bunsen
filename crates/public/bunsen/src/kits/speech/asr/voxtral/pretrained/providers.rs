@@ -72,7 +72,10 @@ pub fn default_voxtral_factory() -> BunsenResult<BuildFactory<VoxtralConstructCo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::asr::voxtral::pretrained::VOXTRAL_PREFABS;
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::speech::asr::voxtral::VoxtralRealtimeConfig,
+    };
 
     /// The row is pinned, states a prefab's geometry, and answers by its
     /// qualified, short and aliased names.
@@ -119,9 +122,9 @@ mod tests {
             )
             .unwrap();
             assert!(
-                VOXTRAL_PREFABS
+                VoxtralRealtimeConfig::PREFABS
                     .iter()
-                    .any(|p| serde_json::to_value(p.to_config()).unwrap() == *geometry),
+                    .any(|(_, prefab)| serde_json::to_value(prefab()).unwrap() == *geometry),
                 "{spec}: its geometry is no prefab's"
             );
         }

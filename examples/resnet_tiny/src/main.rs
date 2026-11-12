@@ -16,9 +16,12 @@ use bunsen::{
         ModuleInit,
         ToStructureConfig,
     },
-    data::resources::{
-        ResourceCache,
-        ResourceCacheOptions,
+    data::{
+        pretrained::Prefabs,
+        resources::{
+            ResourceCache,
+            ResourceCacheOptions,
+        },
     },
     errors::{
         BunsenError,
@@ -27,10 +30,8 @@ use bunsen::{
     },
     kits::images::resnet::{
         ResNet,
-        pretrained::{
-            RESNET_PREFABS,
-            default_resnet_factory,
-        },
+        ResNetContractConfig,
+        pretrained::default_resnet_factory,
     },
 };
 use bunsen_app::device::{
@@ -232,10 +233,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
 
     device.seed(args.seed);
 
-    let prefab = RESNET_PREFABS.expect_lookup_prefab(&args.resnet_prefab);
-
-    let contract = prefab
-        .to_config()
+    let contract = ResNetContractConfig::try_prefab(&args.resnet_prefab)?
         .with_activation(BunsenActivationConfig::Gelu);
     let resnet: ResNet = contract.to_structure().try_init(&device)?;
 

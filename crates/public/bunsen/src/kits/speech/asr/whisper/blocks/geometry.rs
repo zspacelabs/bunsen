@@ -13,8 +13,9 @@ use super::{
 /// A [`WhisperApiConfig`] carries more (the front end, the token layout)
 /// and is not `PartialEq`; this is the comparable core of one, which is
 /// what lets a checkpoint be checked against the shape its name promised.
-/// [`WHISPER_PREFABS`](crate::kits::speech::asr::whisper::pretrained::WHISPER_PREFABS)
-/// holds the geometry of every checkpoint `openai-whisper` ships, and
+/// [`WhisperApiConfig`](crate::kits::speech::asr::whisper::WhisperApiConfig)'s
+/// prefabs holds the geometry of every checkpoint
+/// `openai-whisper` ships, and
 /// [`WhisperConstructConfig`](crate::kits::speech::asr::whisper::pretrained::WhisperConstructConfig)
 /// checks each checkpoint it loads against its name's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

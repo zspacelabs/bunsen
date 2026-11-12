@@ -92,9 +92,7 @@ impl AsrWhisperInspectCommand {
         let promised: Option<WhisperGeometry> = model.model.stated(GEOMETRY)?;
         if let Some(geometry) = &promised {
             match geometry.prefab() {
-                Some(prefab) => {
-                    println!("geometry: prefab {} ({})", prefab.name, prefab.description)
-                }
+                Some(prefab) => println!("geometry: prefab {prefab}"),
                 None => println!("geometry: stated"),
             }
             println!("  {geometry:?}");
@@ -130,7 +128,7 @@ impl AsrWhisperInspectCommand {
 
         match (&promised, geometry.prefab()) {
             (Some(_), _) => println!("  matches the stated geometry"),
-            (None, Some(prefab)) => println!("  geometry is prefab {}", prefab.name),
+            (None, Some(prefab)) => println!("  geometry is prefab {}", prefab),
             (None, None) => println!("  geometry matches no built-in prefab"),
         }
 

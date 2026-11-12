@@ -49,17 +49,14 @@ use crate::{
         ResultContext,
         WithOkOrPanic,
     },
-    kits::images::resnet::{
-        RESNET18_BLOCKS,
-        blocks::{
-            BottleneckPolicyConfig,
-            LayerBlock,
-            LayerBlockContractConfig,
-            LayerBlockMeta,
-            LayerBlockStructureConfig,
-            ResidualBlock,
-            ResidualBlockStructureConfig,
-        },
+    kits::images::resnet::blocks::{
+        BottleneckPolicyConfig,
+        LayerBlock,
+        LayerBlockContractConfig,
+        LayerBlockMeta,
+        LayerBlockStructureConfig,
+        ResidualBlock,
+        ResidualBlockStructureConfig,
     },
     ops::{
         conv::CONV_INTO_RELU_INITIALIZER,
@@ -175,11 +172,6 @@ impl ResNetContractConfig {
         }
 
         layers
-    }
-
-    /// Creates a ResNet-18 model.
-    pub fn resnet18(num_classes: usize) -> Self {
-        Self::new(RESNET18_BLOCKS.to_vec(), num_classes) // .with_bottleneck(true)
     }
 }
 

@@ -36,7 +36,10 @@ pub fn default_resnet_providers() -> Vec<Arc<dyn BuildProvider>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::images::resnet::pretrained::RESNET_PREFABS;
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::images::resnet::ResNetContractConfig,
+    };
 
     /// Every row states the geometry of a prefab the map has and is one
     /// pinned checkpoint under its namespace, fetched from that namespace's
@@ -57,10 +60,10 @@ mod tests {
             let config: crate::kits::images::resnet::ResNetContractConfig =
                 serde_json::from_value(geometry.clone()).unwrap();
             assert!(
-                RESNET_PREFABS
+                ResNetContractConfig::PREFABS
                     .iter()
-                    .any(|p| serde_json::to_value(p.to_config()).unwrap() == *geometry),
-                "{name}: geometry {config:?} is no prefab in RESNET_PREFABS",
+                    .any(|(_, prefab)| serde_json::to_value(prefab()).unwrap() == *geometry),
+                "{name}: geometry {config:?} is no prefab of ResNetContractConfig",
             );
             let map = &row.resource_set();
             map.validate().unwrap();
@@ -91,7 +94,7 @@ mod tests {
             );
         }
         assert_eq!(rows.len(), 14);
-        assert_eq!(RESNET_PREFABS.iter().count(), 6);
+        assert_eq!(ResNetContractConfig::PREFABS.len(), 6);
     }
 
     /// The factory answers full names and shorter spellings, torchvision's

@@ -1,8 +1,8 @@
 //! # nanochat prefabs
 use crate::{
     data::pretrained::{
-        StaticPreFabConfig,
-        StaticPreFabMap,
+        PrefabTable,
+        Prefabs,
     },
     kits::language::nanochat::NanoChatGptContractConfig,
 };
@@ -25,15 +25,18 @@ fn upstream_geometry(
         .with_n_embed(n_embed)
 }
 
-/// Upstream's 2025 d20: 20 layers, 1280 wide, 10 heads, 65536 tokens.
-fn nanochat_d20() -> NanoChatGptContractConfig {
-    upstream_geometry(20, 65536)
-}
+impl NanoChatGptContractConfig {
+    /// The `nanochat-d20` prefab: upstream's 2025 model at depth 20, 1280
+    /// wide, 10 heads, 65536 tokens.
+    pub fn nanochat_d20() -> Self {
+        upstream_geometry(20, 65536)
+    }
 
-/// Upstream's 2026 d18: 18 layers, 1152 wide, 9 heads, 32768 tokens, every
-/// layer's window long.
-fn nanochat_d18_2026() -> NanoChatGptContractConfig {
-    upstream_geometry(18, 32768).with_upstream_2026("L")
+    /// The `nanochat-d18-2026` prefab: upstream's 2026 model at depth 18,
+    /// 1152 wide, 9 heads, 32768 tokens, every layer's window long.
+    pub fn nanochat_d18_2026() -> Self {
+        upstream_geometry(18, 32768).with_upstream_2026("L")
+    }
 }
 
 /// The nanochat prefabs: the geometries bunsen's rows instantiate, by name,
@@ -42,22 +45,13 @@ fn nanochat_d18_2026() -> NanoChatGptContractConfig {
 /// A pretrained row names its prefab, so a name means a shape before any
 /// bytes are fetched; a checkpoint's own meta still gives the geometry it
 /// loads into.
-pub static NANOCHAT_PREFABS: StaticPreFabMap<NanoChatGptContractConfig> = StaticPreFabMap {
-    name: "nanochat",
-    description: "nanochat geometries of upstream's 2025 and 2026 models",
-    items: &[
-        &StaticPreFabConfig {
-            name: "nanochat-d20",
-            description: "upstream's 2025 model at depth 20: 1280 wide, 10 heads, 65536 tokens",
-            builder: nanochat_d20,
-        },
-        &StaticPreFabConfig {
-            name: "nanochat-d18-2026",
-            description: "upstream's 2026 model at depth 18: 1152 wide, 9 heads, 32768 tokens, long windows",
-            builder: nanochat_d18_2026,
-        },
-    ],
-};
+impl Prefabs for NanoChatGptContractConfig {
+    const PREFABS: PrefabTable<Self> = &[
+        ("nanochat-d20", Self::nanochat_d20),
+        ("nanochat-d18-2026", Self::nanochat_d18_2026),
+    ];
+    const PREFAB_TABLE: &'static str = "nanochat";
+}
 
 #[cfg(test)]
 mod tests {
@@ -66,23 +60,19 @@ mod tests {
 
     #[test]
     fn test_prefabs() {
-        let config = NANOCHAT_PREFABS
-            .expect_lookup_prefab("nanochat-d20")
-            .to_config();
+        let config = NanoChatGptContractConfig::expect_prefab("nanochat-d20");
         assert_eq!(
             (config.n_embed(), config.n_layer(), config.n_head()),
             (1280, 20, 10)
         );
         assert!(!config.residual_lambdas);
 
-        let config = NANOCHAT_PREFABS
-            .expect_lookup_prefab("nanochat-d18-2026")
-            .to_config();
+        let config = NanoChatGptContractConfig::expect_prefab("nanochat-d18-2026");
         assert_eq!(
             (config.n_embed(), config.n_layer(), config.n_head()),
             (1152, 18, 9)
         );
         assert_eq!(config.window_pattern.as_deref(), Some("L"));
-        assert!(NANOCHAT_PREFABS.try_lookup_prefab("nanochat-d32").is_err());
+        assert!(NanoChatGptContractConfig::try_prefab("nanochat-d32").is_err());
     }
 }

@@ -8,6 +8,7 @@ use bunsen::{
             BuildRef,
             ConstructInit,
         },
+        pretrained::Prefabs,
         resources::{
             Fuse,
             LoadedResourceSet,
@@ -25,6 +26,7 @@ use bunsen::{
         },
     },
     kits::speech::asr::whisper::{
+        WhisperApiConfig,
         WhisperGeometry,
         WhisperMeta,
         pretrained::{
@@ -32,7 +34,6 @@ use bunsen::{
             GeometryMismatch,
             PytorchWhisperScanner,
             VOCABULARY,
-            WHISPER_PREFABS,
             WhisperConstructConfig,
             WhisperVocabulary,
             default_whisper_factory,
@@ -64,10 +65,7 @@ fn loaded(path: &std::path::Path) -> LoadedResourceSet {
 }
 
 fn geometry_of(prefab: &str) -> WhisperGeometry {
-    WHISPER_PREFABS
-        .expect_lookup_prefab(prefab)
-        .to_config()
-        .geometry()
+    WhisperApiConfig::expect_prefab(prefab).geometry()
 }
 
 /// `openai/base` loads whole from the bundle's directory: the model, a
@@ -223,7 +221,7 @@ fn test_the_bundled_base_scans_as_the_base_prefab() {
         .unwrap();
 
     let geometry = cfg.geometry();
-    assert_eq!(geometry.prefab().map(|p| p.name), Some("base"));
+    assert_eq!(geometry.prefab(), Some("base"));
     assert_eq!(geometry.n_heads(), 8);
 }
 

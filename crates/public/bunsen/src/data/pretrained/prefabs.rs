@@ -1,290 +1,110 @@
 //! Config prefabs: the geometries a kit knows by name.
 
-use alloc::{
-    collections::BTreeMap,
-    format,
-    string::{
-        String,
-        ToString,
-    },
-    sync::Arc,
-    vec::Vec,
-};
-use core::fmt::Debug;
-
-use burn::config::Config;
+use alloc::vec::Vec;
 
 use crate::{
     data::not_found,
     errors::BunsenResult,
 };
 
-/// One prefab, as a compiled-in table spells it: a name, a line for a
-/// listing, and a builder of the config.
+/// A prefab table: each prefab's name, and the constructor that builds it.
+pub type PrefabTable<C> = &'static [(&'static str, fn() -> C)];
+
+/// A config with prefabs: the geometries a kit knows by name, each a
+/// constructor of the config documented where it is defined
+/// (`WhisperApiConfig::tiny_en`).
 ///
-/// An item of a [`StaticPreFabMap`]. [`to_config`](Self::to_config) builds
-/// the config; [`to_prefab`](Self::to_prefab) gives the owned twin, a
-/// [`PreFabConfig`].
-pub struct StaticPreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Name of the model config pre-fab.
-    pub name: &'static str,
-
-    /// Description of the model config pre-fab.
-    pub description: &'static str,
-
-    /// Builder function for the config.
-    pub builder: fn() -> C,
-}
-
-impl<C> StaticPreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Converts to a [`PreFabConfig<C>`].
-    pub fn to_prefab(&self) -> PreFabConfig<C> {
-        let builder = self.builder;
-        PreFabConfig {
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            builder: Arc::new(builder),
-        }
-    }
-
-    /// Builds a new config.
-    pub fn to_config(&self) -> C {
-        (self.builder)()
-    }
-}
-
-impl<C> From<&StaticPreFabConfig<C>> for PreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    fn from(config: &StaticPreFabConfig<C>) -> Self {
-        config.to_prefab()
-    }
-}
-
-impl<C> Debug for StaticPreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    fn fmt(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        self.to_prefab().fmt(f)
-    }
-}
-
-/// A [`Config`] Well-Known Pre-Fab.
-#[derive(Clone)]
-pub struct PreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Name of the model config pre-fab.
-    pub name: String,
-
-    /// Description of the model config pre-fab.
-    pub description: String,
-
-    /// Builder function for the config.
-    pub builder: Arc<dyn Fn() -> C + Send + Sync>,
-}
-
-impl<C> Debug for PreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    fn fmt(
-        &self,
-        f: &mut core::fmt::Formatter<'_>,
-    ) -> core::fmt::Result {
-        let pretty = f.alternate();
-
-        let type_name = core::any::type_name::<C>();
-        let mut handle = f.debug_struct(&format!("PreFabConfig<{}>", type_name));
-
-        handle
-            .field("name", &self.name)
-            .field("description", &self.description);
-
-        if pretty {
-            handle.field("config", &self.to_config());
-        }
-
-        handle.finish()
-    }
-}
-
-impl<C> PreFabConfig<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Builds a new config.
-    pub fn to_config(&self) -> C {
-        (self.builder)()
-    }
-}
-
-/// A kit's prefabs, as a compiled-in table spells it: the geometries it
-/// knows by name.
+/// A prefab is what a name means as a shape before any bytes are fetched. A
+/// build states the geometry it is built in
+/// ([`BuildRef::stated`](crate::data::builds::BuildRef::stated)), which the
+/// kit's tests check is a prefab's; [`find_prefab`](Self::find_prefab) is the
+/// reverse lookup, for a config that arrived without a name.
 ///
-/// A prefab is a named builder of a config: what a name means as a shape
-/// before any bytes are fetched. Whisper's `WHISPER_PREFABS` and `ResNet`'s
-/// `RESNET_PREFABS` are the in-tree maps. A build states the geometry it is
-/// built in ([`BuildRef::stated`](crate::data::builds::BuildRef::stated)),
-/// which the kit's tests check is a prefab's. [`find`](Self::find) is the
-/// reverse lookup, for a config
-/// that arrived without a name. [`to_prefab_map`](Self::to_prefab_map) gives
-/// the owned twin, a [`PreFabMap`].
-#[derive(Debug)]
-pub struct StaticPreFabMap<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Name of the prefab map.
-    pub name: &'static str,
+/// ```
+/// use bunsen::data::pretrained::{
+///     PrefabTable,
+///     Prefabs,
+/// };
+///
+/// #[derive(Debug, PartialEq)]
+/// struct Toy {
+///     width: usize,
+/// }
+///
+/// impl Toy {
+///     /// Width 1.
+///     fn narrow() -> Self {
+///         Self { width: 1 }
+///     }
+///
+///     /// Width 2.
+///     fn wide() -> Self {
+///         Self { width: 2 }
+///     }
+/// }
+///
+/// impl Prefabs for Toy {
+///     const PREFABS: PrefabTable<Self> =
+///         &[("narrow", Self::narrow), ("wide", Self::wide)];
+///     const PREFAB_TABLE: &'static str = "toys";
+/// }
+///
+/// assert_eq!(Toy::prefab_names(), ["narrow", "wide"]);
+/// assert_eq!(Toy::prefab("wide"), Some(Toy { width: 2 }));
+/// assert_eq!(Toy::find_prefab(|t| t.width == 1), Some("narrow"));
+/// ```
+pub trait Prefabs: Sized + 'static {
+    /// What the prefabs are called together, in errors: `whisper`.
+    const PREFAB_TABLE: &'static str;
 
-    /// Description of the prefab map.
-    pub description: &'static str,
-
-    /// List of prefabs.
-    pub items: &'static [&'static StaticPreFabConfig<C>],
-}
-
-impl<C> StaticPreFabMap<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Converts to a [`PreFabMap`].
-    pub fn to_prefab_map(&self) -> PreFabMap<C> {
-        PreFabMap {
-            name: self.name.to_string(),
-            description: self.description.to_string(),
-            items: self
-                .items
-                .iter()
-                .map(|c| (c.name.to_string(), c.to_prefab()))
-                .collect(),
-        }
-    }
-
-    /// The prefabs, in listing order.
-    pub fn iter(&self) -> impl Iterator<Item = &'static StaticPreFabConfig<C>> + '_ {
-        self.items.iter().copied()
-    }
-
-    /// The first prefab whose built config satisfies `pred`: the reverse
-    /// lookup, for a config that arrived without a name.
-    pub fn find(
-        &self,
-        mut pred: impl FnMut(&C) -> bool,
-    ) -> Option<&'static StaticPreFabConfig<C>> {
-        self.iter().find(|p| pred(&p.to_config()))
-    }
+    /// The prefabs, by name, in listing order: `("tiny.en", Self::tiny_en)`.
+    const PREFABS: PrefabTable<Self>;
 
     /// Every prefab name, in listing order.
-    pub fn names(&self) -> Vec<&'static str> {
-        self.iter().map(|p| p.name).collect()
+    fn prefab_names() -> Vec<&'static str> {
+        Self::PREFABS.iter().map(|(name, _)| *name).collect()
     }
 
-    /// Looks up a prefab.
-    pub fn lookup_prefab(
-        &self,
-        name: &str,
-    ) -> Option<PreFabConfig<C>> {
-        self.iter().find(|c| c.name == name).map(|c| c.to_prefab())
+    /// The prefab `name`, built.
+    fn prefab(name: &str) -> Option<Self> {
+        Self::PREFABS
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, build)| build())
     }
 
-    /// Looks up a prefab.
+    /// The prefab `name`, built.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
     /// [`LookupError`](crate::errors::LookupError) naming the prefabs there
-    /// are, under a frame naming the map.
-    pub fn try_lookup_prefab(
-        &self,
-        name: &str,
-    ) -> BunsenResult<PreFabConfig<C>> {
-        self.lookup_prefab(name)
-            .ok_or_else(|| not_found(Some(self.name), "prefab", name, &self.names()))
+    /// are, under a frame naming the table.
+    fn try_prefab(name: &str) -> BunsenResult<Self> {
+        Self::prefab(name).ok_or_else(|| {
+            not_found(
+                Some(Self::PREFAB_TABLE),
+                "prefab",
+                name,
+                &Self::prefab_names(),
+            )
+        })
     }
 
-    /// Looks up a prefab.
+    /// The prefab `name`, built, for a name the kit compiles in.
     ///
     /// # Panics
     /// If there is no such prefab.
-    pub fn expect_lookup_prefab(
-        &self,
-        name: &str,
-    ) -> PreFabConfig<C> {
-        self.try_lookup_prefab(name)
-            .unwrap_or_else(|e| panic!("{e}"))
-    }
-}
-
-/// A map of [`PreFabConfig`]s.
-#[derive(Debug, Clone)]
-pub struct PreFabMap<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Name of the prefab map.
-    pub name: String,
-
-    /// Description of the prefab map.
-    pub description: String,
-
-    /// Map of prefabs.
-    pub items: BTreeMap<String, PreFabConfig<C>>,
-}
-
-impl<C> PreFabMap<C>
-where
-    C: 'static + Config + Debug + Clone,
-{
-    /// Every prefab name, in name order.
-    pub fn names(&self) -> Vec<&str> {
-        self.items.keys().map(String::as_str).collect()
+    fn expect_prefab(name: &str) -> Self {
+        Self::try_prefab(name).unwrap_or_else(|e| panic!("{e}"))
     }
 
-    /// Looks up a prefab.
-    pub fn lookup_prefab(
-        &self,
-        name: &str,
-    ) -> Option<PreFabConfig<C>> {
-        self.items.get(name).cloned()
-    }
-
-    /// Looks up a prefab.
-    ///
-    /// # Errors
-    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
-    /// [`LookupError`](crate::errors::LookupError) naming the prefabs there
-    /// are, under a frame naming the map.
-    pub fn try_lookup_prefab(
-        &self,
-        name: &str,
-    ) -> BunsenResult<PreFabConfig<C>> {
-        self.lookup_prefab(name)
-            .ok_or_else(|| not_found(Some(&self.name), "prefab", name, &self.names()))
-    }
-
-    /// Looks up a prefab.
-    ///
-    /// # Panics
-    /// If there is no such prefab.
-    pub fn expect_lookup_prefab(
-        &self,
-        name: &str,
-    ) -> PreFabConfig<C> {
-        self.try_lookup_prefab(name)
-            .unwrap_or_else(|e| panic!("{e}"))
+    /// The name of the first prefab whose config satisfies `pred`: the
+    /// reverse lookup, for a config that arrived without a name.
+    fn find_prefab(mut pred: impl FnMut(&Self) -> bool) -> Option<&'static str> {
+        Self::PREFABS
+            .iter()
+            .find(|(_, build)| pred(&build()))
+            .map(|(name, _)| *name)
     }
 }
 
@@ -301,54 +121,39 @@ mod tests {
         },
     };
 
-    #[derive(Config, Debug)]
+    #[derive(Debug, PartialEq)]
     struct Toy {
         width: usize,
     }
 
-    static NARROW: StaticPreFabConfig<Toy> = StaticPreFabConfig {
-        name: "narrow",
-        description: "width 1",
-        builder: || Toy::new(1),
-    };
-    static WIDE: StaticPreFabConfig<Toy> = StaticPreFabConfig {
-        name: "wide",
-        description: "width 2",
-        builder: || Toy::new(2),
-    };
-    static TOYS: StaticPreFabMap<Toy> = StaticPreFabMap {
-        name: "toys",
-        description: "two toys",
-        items: &[&NARROW, &WIDE],
-    };
-
-    #[test]
-    fn test_iter_find_and_names() {
-        assert_eq!(TOYS.names(), ["narrow", "wide"]);
-        assert_eq!(TOYS.iter().count(), 2);
-        assert_eq!(TOYS.find(|c| c.width == 2).map(|p| p.name), Some("wide"));
-        assert!(TOYS.find(|c| c.width == 3).is_none());
-        assert_eq!(TOYS.lookup_prefab("wide").unwrap().to_config().width, 2);
-
-        let owned = TOYS.to_prefab_map();
-        assert_eq!(owned.names(), ["narrow", "wide"]);
-        assert_eq!(owned.lookup_prefab("narrow").unwrap().to_config().width, 1);
+    impl Prefabs for Toy {
+        const PREFABS: PrefabTable<Self> = &[
+            ("narrow", || Toy { width: 1 }),
+            ("wide", || Toy { width: 2 }),
+        ];
+        const PREFAB_TABLE: &'static str = "toys";
     }
 
-    /// A miss names the table and what it holds, in the static and the
-    /// owned map alike.
+    #[test]
+    fn test_names_lookups_and_find() {
+        assert_eq!(Toy::prefab_names(), ["narrow", "wide"]);
+        assert_eq!(Toy::prefab("wide"), Some(Toy { width: 2 }));
+        assert_eq!(Toy::prefab("huge"), None);
+        assert_eq!(Toy::expect_prefab("narrow"), Toy { width: 1 });
+        assert_eq!(Toy::find_prefab(|c| c.width == 2), Some("wide"));
+        assert!(Toy::find_prefab(|c| c.width == 3).is_none());
+    }
+
+    /// A miss names the table and what it holds.
     #[test]
     fn test_a_miss_names_what_there_is() {
-        let miss = || {
-            ErrorMatcher::kind(BunsenErrorKind::Lookup)
-                .display(text::eq(
-                    "toys: no prefab \"huge\"; there are: narrow, wide",
-                ))
-                .cause(predicate("candidates narrow, wide", |c: &LookupError| {
-                    c.key == "huge" && c.candidates == ["narrow", "wide"]
-                }))
-        };
-        miss().assert_err(&TOYS.try_lookup_prefab("huge"));
-        miss().assert_err(&TOYS.to_prefab_map().try_lookup_prefab("huge"));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq(
+                "toys: no prefab \"huge\"; there are: narrow, wide",
+            ))
+            .cause(predicate("candidates narrow, wide", |c: &LookupError| {
+                c.key == "huge" && c.candidates == ["narrow", "wide"]
+            }))
+            .assert_err(&Toy::try_prefab("huge"));
     }
 }

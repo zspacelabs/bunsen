@@ -129,7 +129,13 @@ impl ConstructInit for ResNetConstructConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::images::resnet::pretrained::default_resnet_factory;
+    use crate::{
+        data::pretrained::Prefabs,
+        kits::images::resnet::{
+            ResNetContractConfig,
+            pretrained::default_resnet_factory,
+        },
+    };
 
     /// The hook builds from the prefab a row names, or from an explicit
     /// config, which wins; a given checkpoint with neither is refused
@@ -178,17 +184,13 @@ mod tests {
         let named = factory.resolve("resnet50", &cache).unwrap();
         let hook = named.config.clone();
         let named = named.model;
-        let resnet50 = super::super::RESNET_PREFABS
-            .expect_lookup_prefab("resnet50")
-            .to_config();
+        let resnet50 = ResNetContractConfig::expect_prefab("resnet50");
         assert_eq!(
             format!("{:?}", hook.config_for(&named).unwrap()),
             format!("{resnet50:?}")
         );
 
-        let resnet18 = super::super::RESNET_PREFABS
-            .expect_lookup_prefab("resnet18")
-            .to_config();
+        let resnet18 = ResNetContractConfig::expect_prefab("resnet18");
         let explicit = hook.clone().with_config(resnet18.clone());
         assert_eq!(
             format!("{:?}", explicit.config_for(&named).unwrap()),

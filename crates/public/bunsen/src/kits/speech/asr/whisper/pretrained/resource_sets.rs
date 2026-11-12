@@ -79,19 +79,24 @@ impl WhisperVocabulary {
 mod tests {
     use super::*;
     use crate::{
-        data::resources::{
-            Source,
-            resolve_dir_template,
+        data::{
+            pretrained::Prefabs,
+            resources::{
+                Source,
+                resolve_dir_template,
+            },
         },
-        kits::speech::asr::whisper::pretrained::{
-            OPENAI_LOCAL_DIR,
-            WHISPER_CATALOG_CONTRACT,
-            WHISPER_PREFABS,
+        kits::speech::asr::whisper::{
+            WhisperApiConfig,
+            pretrained::{
+                OPENAI_LOCAL_DIR,
+                WHISPER_CATALOG_CONTRACT,
+            },
         },
     };
 
     fn ids_of(prefab: &str) -> WhisperSpecialIds {
-        let cfg = WHISPER_PREFABS.expect_lookup_prefab(prefab).to_config();
+        let cfg = WhisperApiConfig::expect_prefab(prefab);
         *cfg.token_layout
             .policy_for_vocab(cfg.vocab_size)
             .unwrap()

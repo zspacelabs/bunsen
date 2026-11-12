@@ -263,16 +263,19 @@ mod hub_tests {
     };
 
     use crate::{
-        data::resources::{
-            Provenance,
-            ResourceCache,
-            ResourceCacheOptions,
+        data::{
+            pretrained::Prefabs,
+            resources::{
+                Provenance,
+                ResourceCache,
+                ResourceCacheOptions,
+            },
         },
         kits::speech::asr::whisper::{
+            WhisperApiConfig,
             WhisperMeta,
             pretrained::{
                 CHECKPOINT,
-                WHISPER_PREFABS,
                 default_whisper_factory,
             },
         },
@@ -311,10 +314,7 @@ mod hub_tests {
             Provenance::Cached | Provenance::Downloaded
         ));
         let hf = loaded.handle;
-        let tiny = WHISPER_PREFABS
-            .expect_lookup_prefab("tiny")
-            .to_config()
-            .geometry();
+        let tiny = WhisperApiConfig::expect_prefab("tiny").geometry();
         assert_eq!(hf.model.n_mels(), tiny.n_mels);
         assert_eq!(hf.model.vocab_size(), tiny.vocab_size);
         assert_eq!(hf.model.d_model(), tiny.d_model);

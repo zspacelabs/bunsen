@@ -7,13 +7,12 @@
 use bunsen::{
     data::{
         builds::CONFIG,
+        pretrained::Prefabs,
         resources::ResourceSet,
     },
     kits::language::qwen3_5::{
-        pretrained::{
-            QWEN3_5_PREFABS,
-            default_qwen3_5_factory,
-        },
+        Qwen3_5Config,
+        pretrained::default_qwen3_5_factory,
         weights::qwen3_5_config_from_transformers,
     },
 };
@@ -36,9 +35,9 @@ fn test_every_row_is_a_prefab() {
             qwen3_5_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
         let config = format!("{config:?}");
         assert!(
-            QWEN3_5_PREFABS
+            Qwen3_5Config::PREFABS
                 .iter()
-                .any(|p| format!("{:?}", p.to_config()) == config),
+                .any(|(_, prefab)| format!("{:?}", prefab()) == config),
             "{id}: no prefab is its geometry"
         );
     }

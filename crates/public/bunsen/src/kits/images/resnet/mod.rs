@@ -8,8 +8,9 @@
 //! name the variant, `resnet18` to `resnet152`.
 //!
 //! [`pretrained`] turns names into loaded models.
-//! [`RESNET_PREFABS`](pretrained::RESNET_PREFABS) names the six
-//! geometries, `resnet18` to `resnet152`, and
+//! [`ResNetContractConfig`]'
+//! s prefabs names the six geometries, `resnet18`
+//! to `resnet152`, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
 //! index of 14 torchvision and `timm` checkpoints: `torchvision/resnet50`,
 //! `timm/resnet18_a1`, or a bare `resnet50`.

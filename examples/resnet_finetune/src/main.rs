@@ -19,6 +19,7 @@ use bunsen::{
     },
     data::{
         builds::GEOMETRY,
+        pretrained::Prefabs,
         resources::{
             ResourceCache,
             ResourceCacheOptions,
@@ -32,10 +33,8 @@ use bunsen::{
     },
     kits::images::resnet::{
         ResNet,
-        pretrained::{
-            RESNET_PREFABS,
-            default_resnet_factory,
-        },
+        ResNetContractConfig,
+        pretrained::default_resnet_factory,
     },
 };
 use bunsen_app::device::{
@@ -263,9 +262,9 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     if args.pretrained == "list" {
         println!("Available pretrained models:");
         let builds = factory.list();
-        for prefab in RESNET_PREFABS.iter() {
-            let cfg = (prefab.builder)();
-            println!("* \"{}\"", prefab.name);
+        for (name, prefab) in ResNetContractConfig::PREFABS {
+            let cfg = prefab();
+            println!("* \"{name}\"");
             println!("{cfg:?}");
 
             // The builds that state the prefab's geometry.
@@ -281,13 +280,13 @@ pub fn train(args: &Args) -> BunsenResult<()> {
     let cache = ResourceCache::new(ResourceCacheOptions::default())?;
     let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
     let stated = model_ref.config.config_for(&model_ref.model)?;
-    let resnet_prefab = RESNET_PREFABS
-        .iter()
-        .find(|p| serde_json::to_value(&stated).is_ok_and(|g| same_geometry(&g, &p.to_config())))
-        .map(|p| p.name.to_string())
-        .ok_or_else(|| {
-            BunsenError::policy(format!("{}: its geometry is no prefab's", model_ref.id()))
-        })?;
+    let resnet_prefab = ResNetContractConfig::find_prefab(|p| {
+        serde_json::to_value(&stated).is_ok_and(|g| same_geometry(&g, p))
+    })
+    .map(str::to_string)
+    .ok_or_else(|| {
+        BunsenError::policy(format!("{}: its geometry is no prefab's", model_ref.id()))
+    })?;
     let resnet_pretrained = model_ref.id();
 
     // Remove existing artifacts before to get an accurate learner summary

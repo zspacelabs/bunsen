@@ -9,13 +9,11 @@ use burn::{
 use super::{
     CHECKPOINT,
     QWEN3_5_KIT,
-    QWEN3_5_PREFABS,
 };
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
         formats::NamedTensorsApplied,
-        pretrained::StaticPreFabMap,
         resources::LoadedResourceSet,
     },
     errors::BunsenResult,
@@ -67,10 +65,6 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
     const CHECKPOINT: &'static str = CHECKPOINT;
     const KIT: &'static str = QWEN3_5_KIT;
     const NAME: &'static str = "Qwen3.5";
-
-    fn prefabs() -> &'static StaticPreFabMap<Qwen3_5Config> {
-        &QWEN3_5_PREFABS
-    }
 
     fn config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Config> {
         qwen3_5_config_from_transformers(json)
