@@ -2,11 +2,11 @@
 
 use bunsen::errors::BunsenResult;
 
-use super::asr_construct_args::with_flags;
 use crate::asr::{
     AsrConstructArgs,
     AsrTranscribeIo,
     Mode,
+    with_flags,
 };
 
 /// Transcribes audio files with a preset's model for files.
@@ -29,7 +29,7 @@ impl AsrTranscribeCommand {
         self.io.init_logging()?;
         let resolved = self.preset.resolve(Mode::Offline)?;
         let stamp = resolved.stamp();
-        with_flags!(resolved, flags => self.io.run(
+        with_flags!(resolved.family, flags => self.io.run(
             resolved.family,
             &resolved.model,
             &flags,

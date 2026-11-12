@@ -22,10 +22,7 @@ use burn::tensor::FloatDType;
 use clap::ValueEnum;
 
 use crate::{
-    card::{
-        Value,
-        render,
-    },
+    card::Value,
     support::Format,
 };
 
@@ -42,7 +39,7 @@ pub struct DevicesCommand {
 
 impl DevicesCommand {
     pub fn run(&self) -> BunsenResult<()> {
-        let text = render(&devices()?, self.format)?;
+        let text = self.format.render(&devices()?, "the devices")?;
         std::io::stdout()
             .write_all(text.as_bytes())
             .map_err(sys_at("write to", "stdout"))
@@ -140,11 +137,12 @@ mod tests {
             floats[1].1,
             Value::List(vec![Value::str("storage"), Value::str("arithmetic")])
         );
-        let text = render(
-            &Value::map([("devices", Value::List(entries.clone()))]),
-            Format::Json,
-        )
-        .unwrap();
+        let text = Format::Json
+            .render(
+                &Value::map([("devices", Value::List(entries.clone()))]),
+                "the devices",
+            )
+            .unwrap();
         assert!(
             text.contains("\"flex32\":[]"),
             "an empty usage is kept: {text}"

@@ -104,7 +104,7 @@ impl DecideRunCommand {
             LoadPolicy::performance(),
         )?;
         let answers = decide(&construct, &request, &device)?;
-        print!("{}", render(&answers, self.format)?);
+        print!("{}", self.format.render(&answers, "the results")?);
         Ok(())
     }
 }
@@ -174,24 +174,6 @@ fn decide(
     )
 }
 
-/// The answers, in `format`.
-///
-/// # Errors
-/// [`Internal`](bunsen::errors::BunsenErrorKind::Internal) if they do not
-/// serialize.
-fn render(
-    answers: &[LayaAnswer],
-    format: Format,
-) -> BunsenResult<String> {
-    match format {
-        Format::Yml => serde_saphyr::to_string(&answers)
-            .map_err(|e| BunsenError::internal(format!("render the results as YAML: {e}"))),
-        Format::Json => serde_json::to_string(&answers)
-            .map(|json| json + "\n")
-            .map_err(|e| BunsenError::internal(format!("render the results as JSON: {e}"))),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,12 +219,12 @@ choices:
             vec![0.25, 0.5, 0.25],
             0.1,
         )];
-        let yaml = render(&answers, Format::Yml).unwrap();
+        let yaml = Format::Yml.render(&answers, "the results").unwrap();
         assert!(yaml.contains("answer: escalate"), "{yaml}");
         let retry = yaml.find("retry").unwrap();
         let close = yaml.find("close").unwrap();
         assert!(retry < close, "in order: {yaml}");
-        let json = render(&answers, Format::Json).unwrap();
+        let json = Format::Json.render(&answers, "the results").unwrap();
         assert!(
             json.contains(r#""probabilities":{"retry":0.25,"escalate":0.5,"close":0.25}"#),
             "{json}"

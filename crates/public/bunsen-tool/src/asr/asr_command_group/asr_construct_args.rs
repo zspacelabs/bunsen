@@ -325,32 +325,6 @@ fn value_name(value: impl clap::ValueEnum) -> String {
         .to_string()
 }
 
-/// `$body` with `$flags` the resolved family's own flags: their defaults, as
-/// a preset sets no paths.
-macro_rules! with_flags {
-    ($resolved:expr, $flags:ident => $body:expr) => {
-        match $resolved.family {
-            $crate::asr::Family::Parakeet => {
-                let $flags = $crate::asr::parakeet::ParakeetFlags::default();
-                $body
-            }
-            $crate::asr::Family::Qwen3Asr => {
-                let $flags = $crate::asr::qwen3_asr::Qwen3AsrFlags::default();
-                $body
-            }
-            $crate::asr::Family::Voxtral => {
-                let $flags = $crate::asr::voxtral::VoxtralFlags::default();
-                $body
-            }
-            $crate::asr::Family::Whisper => {
-                let $flags = $crate::asr::whisper::WhisperFlags::default();
-                $body
-            }
-        }
-    };
-}
-pub(super) use with_flags;
-
 #[cfg(test)]
 mod tests {
     use clap::Parser;
@@ -378,7 +352,7 @@ mod tests {
         mode: Mode,
     ) -> BunsenResult<(String, String, String, Task)> {
         let r = resolve(line, mode)?;
-        with_flags!(r, _flags => ());
+        crate::asr::with_flags!(r.family, _flags => ());
         assert_eq!(r.need.task, r.task(), "{line:?}");
         Ok((
             r.preset.clone(),

@@ -163,6 +163,25 @@ impl ChatModelFamily {
         }
     }
 
+    /// What an `hf:org/repo` checkpoint of the family can be, for a
+    /// listing; `None` when the family takes none.
+    pub fn hf_note(self) -> Option<&'static str> {
+        match self {
+            ChatModelFamily::Qwen3 => {
+                Some("hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout")
+            }
+            ChatModelFamily::Qwen3_5 => Some(
+                "hf:org/repo (under `family qwen3.5`): any Hugging Face repo in a \
+                 transformers Qwen3.5's layout",
+            ),
+            ChatModelFamily::Gemma => Some(
+                "hf:org/repo (under `family gemma`): any Hugging Face repo in a \
+                 transformers Gemma's layout",
+            ),
+            ChatModelFamily::NanoChat => None,
+        }
+    }
+
     /// The family's providers, in search order.
     pub fn providers(self) -> BunsenResult<Vec<Arc<dyn BuildProvider>>> {
         fn of<H: ConstructInit>(factory: BuildFactory<H>) -> Vec<Arc<dyn BuildProvider>> {

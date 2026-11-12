@@ -863,7 +863,7 @@ impl AsrConstruct {
             "--model",
             &self.model,
             "--emission",
-            emission_name(self.emission),
+            self.emission.name(),
             "--chunk-ms",
         ]
         .map(String::from)
@@ -893,20 +893,11 @@ impl AsrConstruct {
             recipe: AsrRecipeStamp {
                 family: self.family.name().to_string(),
                 model: self.model.clone(),
-                emission: emission_name(self.emission).to_string(),
+                emission: self.emission.name().to_string(),
                 chunk_ms: self.chunk_ms,
                 vad: self.vad.clone(),
             },
         }
-    }
-}
-
-/// The name `--emission` takes for `emission`.
-pub fn emission_name(emission: Emission) -> &'static str {
-    match emission {
-        Emission::Offline => "offline",
-        Emission::Conservative => "conservative",
-        Emission::Drafting => "drafting",
     }
 }
 

@@ -49,6 +49,17 @@ pub enum Emission {
     Drafting,
 }
 
+impl Emission {
+    /// The name `--emission` takes for it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Emission::Offline => "offline",
+            Emission::Conservative => "conservative",
+            Emission::Drafting => "drafting",
+        }
+    }
+}
+
 impl From<Emission> for EmissionPolicy {
     fn from(emission: Emission) -> Self {
         match emission {

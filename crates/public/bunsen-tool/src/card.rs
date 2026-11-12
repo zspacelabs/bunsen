@@ -242,7 +242,7 @@ impl CardCommand {
                     .expect("every section is in the card"),
             )]),
         };
-        let text = render(&card.elide_empty(), self.format)?;
+        let text = self.format.render(&card.elide_empty(), "the card")?;
         use std::io::Write;
         std::io::stdout()
             .write_all(text.as_bytes())
@@ -270,20 +270,6 @@ fn elide_empty_json(json: serde_json::Value) -> serde_json::Value {
                 .collect(),
         ),
         other => other,
-    }
-}
-
-/// `value` as `format`: YAML, or JSON on one line, each ending in a newline.
-pub fn render(
-    value: &Value,
-    format: Format,
-) -> BunsenResult<String> {
-    match format {
-        Format::Yml => serde_saphyr::to_string(value)
-            .map_err(|e| BunsenError::internal(format!("render the card as YAML: {e}"))),
-        Format::Json => serde_json::to_string(value)
-            .map(|json| json + "\n")
-            .map_err(|e| BunsenError::internal(format!("render the card as JSON: {e}"))),
     }
 }
 
@@ -820,12 +806,12 @@ mod tests {
                 )]),
             )]),
         )]);
-        let yml = render(&card, Format::Yml).unwrap();
+        let yml = Format::Yml.render(&card, "the card").unwrap();
         assert!(
             yml.find("name:").unwrap() < yml.find("description:").unwrap(),
             "{yml}"
         );
-        let json = render(&card, Format::Json).unwrap();
+        let json = Format::Json.render(&card, "the card").unwrap();
         assert_eq!(
             json,
             "{\"kits\":{\"chat\":{\"qwen3\":{\"model\":[{\"name\":\"qwen/qwen3/qwen3-0.6b\",\"description\":\"Qwen3-0.6B\"}]}}}}\n"

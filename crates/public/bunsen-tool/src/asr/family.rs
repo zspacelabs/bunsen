@@ -417,6 +417,33 @@ impl FamilyFlags for Qwen3AsrFlags {}
 
 impl FamilyFlags for VoxtralFlags {}
 
+/// `$body` with `$flags` the family `$family`'s own flags: their defaults, as
+/// a preset sets no paths. A macro, as each family's flags are their own
+/// type.
+macro_rules! with_flags {
+    ($family:expr, $flags:ident => $body:expr) => {
+        match $family {
+            $crate::asr::Family::Parakeet => {
+                let $flags = $crate::asr::parakeet::ParakeetFlags::default();
+                $body
+            }
+            $crate::asr::Family::Qwen3Asr => {
+                let $flags = $crate::asr::qwen3_asr::Qwen3AsrFlags::default();
+                $body
+            }
+            $crate::asr::Family::Voxtral => {
+                let $flags = $crate::asr::voxtral::VoxtralFlags::default();
+                $body
+            }
+            $crate::asr::Family::Whisper => {
+                let $flags = $crate::asr::whisper::WhisperFlags::default();
+                $body
+            }
+        }
+    };
+}
+pub(crate) use with_flags;
+
 #[cfg(test)]
 mod tests {
     use bunsen_app::cache::WeightsCacheArgs;
