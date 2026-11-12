@@ -1,4 +1,4 @@
-//! Loads bunsen's example catalogs (`build_catalog/fixtures/`) from their
+//! Loads bunsen's example catalogs (`data/catalog/fixtures/`) from their
 //! files as a stack, and walks the queries: layers, facets ("all families"
 //! against "things in families"), builds by their shortest names, and a
 //! release sequence.
@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogName,
     PretrainedCatalogStack,
     document::EntryKind,
@@ -16,7 +16,7 @@ use bunsen::data::pretrained::build_catalog::{
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../public/bunsen/src/data/pretrained/build_catalog/fixtures");
+        .join("../../public/bunsen/src/data/catalog/fixtures");
     let mut stack = PretrainedCatalogStack::new();
     for file in ["prelude.yml", "commons.yml", "qwen3.yml", "whisper.yml"] {
         stack.push_file(dir.join(file))?;

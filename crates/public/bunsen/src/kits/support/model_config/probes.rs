@@ -279,8 +279,8 @@ pub fn accumulate_probed(
 pub fn probe_loaded(
     loaded: &crate::data::resources::LoadedResources,
     entries: &[CatalogProbe],
-    family: &crate::data::pretrained::ResolvedPresetSet,
-) -> BunsenResult<crate::data::pretrained::ResolvedPresetSet> {
+    family: &crate::data::catalog::presets::ResolvedPresetSet,
+) -> BunsenResult<crate::data::catalog::presets::ResolvedPresetSet> {
     use alloc::collections::BTreeMap;
 
     use crate::{
@@ -476,12 +476,12 @@ mod tests {
         use std::path::PathBuf;
 
         use crate::data::{
-            pretrained::{
-                ResolvedPresetSet,
-                build_catalog::document::{
+            catalog::{
+                document::{
                     MergeMode,
                     PresetEntry,
                 },
+                presets::ResolvedPresetSet,
             },
             resources::{
                 LoadedResources,

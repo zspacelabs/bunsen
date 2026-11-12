@@ -9,7 +9,7 @@ use alloc::collections::{
 
 use serde_json::Value;
 
-use crate::data::pretrained::build_catalog::{
+use crate::data::catalog::{
     document::{
         AxisKind,
         CatalogEntry,

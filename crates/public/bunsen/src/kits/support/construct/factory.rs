@@ -28,9 +28,9 @@ use super::{
 use crate::data::resources::ResourceBundle;
 use crate::{
     data::{
+        catalog::presets::PresetSelection,
         not_found,
         pretrained::{
-            PresetSelection,
             Pretrained,
             PretrainedProvider,
             PretrainedRef,
@@ -73,7 +73,7 @@ use crate::{
 /// found before anything is fetched: a kit whose hook does not resolve
 /// presets ([`ConstructInit::RESOLVES_PRESETS`]) refuses them, and one that
 /// does checks the box against the row's presets
-/// ([`ResolvedPresetSet::check_selection`](crate::data::pretrained::ResolvedPresetSet::check_selection)).
+/// ([`ResolvedPresetSet::check_selection`](crate::data::catalog::presets::ResolvedPresetSet::check_selection)).
 /// The selection rides on the ref ([`PretrainedRef::selection`]) to the
 /// hook, which resolves its config through it.
 ///
@@ -346,7 +346,7 @@ impl<H: ConstructInit> PretrainedFactory<H> {
     /// Checks what a lookup asks of `row`'s presets, before anything is
     /// fetched: that the kit resolves presets at all, and that the selection
     /// is one `row`'s presets allow
-    /// ([`ResolvedPresetSet::check_selection`](crate::data::pretrained::ResolvedPresetSet::check_selection)).
+    /// ([`ResolvedPresetSet::check_selection`](crate::data::catalog::presets::ResolvedPresetSet::check_selection)).
     /// A row with no presets of its own, an `hf:` repo's, is left to the hook,
     /// which knows the model's family only once it reads the files
     /// ([`resolve_ref_presets`](crate::kits::support::model_config::resolve_ref_presets)).
@@ -1167,12 +1167,12 @@ mod tests {
     /// row's presets before anything is fetched, and rides on the ref.
     #[test]
     fn test_a_selection_is_checked_against_the_row() {
-        use crate::data::pretrained::{
-            ResolvedPresetSet,
-            build_catalog::document::{
+        use crate::data::catalog::{
+            document::{
                 MergeMode,
                 PresetEntry,
             },
+            presets::ResolvedPresetSet,
         };
 
         let mut small = row("small", &[], "small");

@@ -8,16 +8,14 @@ use std::{
 use bunsen::{
     data::{
         cache::verify_sha256,
-        pretrained::{
-            Pretrained,
-            build_catalog::{
-                CatalogName,
-                lookup::{
-                    LeafMatch,
-                    name_matches,
-                },
+        catalog::{
+            CatalogName,
+            lookup::{
+                LeafMatch,
+                name_matches,
             },
         },
+        pretrained::Pretrained,
         resources::{
             PretrainedCache,
             PretrainedCacheOptions,

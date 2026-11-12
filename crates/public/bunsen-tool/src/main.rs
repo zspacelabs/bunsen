@@ -147,7 +147,7 @@ fn run(
             matches
                 .subcommand_matches("catalog")
                 .expect("the catalog subcommand"),
-            bunsen::data::pretrained::build_catalog::builtin_stack()?,
+            bunsen::data::catalog::builtin_stack()?,
         ),
         Command::Card(cmd) => cmd.run(),
         Command::Devices(cmd) => cmd.run(),
@@ -267,7 +267,7 @@ mod tests {
         let mut out = String::new();
         cmd.run_into(
             matches.subcommand_matches("catalog").unwrap(),
-            bunsen::data::pretrained::build_catalog::builtin_stack().unwrap(),
+            bunsen::data::catalog::builtin_stack().unwrap(),
             &mut out,
         )
         .unwrap();

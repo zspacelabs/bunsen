@@ -6,7 +6,7 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         CatalogErrorExt,
         CatalogName,
         resolve::ResolvedBuild,
@@ -623,12 +623,12 @@ impl AsrConstructConfig {
         };
         let mut request = SelectRequest::default();
         for labeled in stages {
-            request.stages.push(
-                bunsen::data::pretrained::build_catalog::select::choose::OriginStage::labeled(
+            request
+                .stages
+                .push(bunsen::data::catalog::select::choose::OriginStage::labeled(
                     labeled,
-                    bunsen::data::pretrained::build_catalog::select::state::StageOrigin::Query,
-                ),
-            );
+                    bunsen::data::catalog::select::state::StageOrigin::Query,
+                ));
         }
         let (chosen, run) = context
             .choose(&env, Some(&universe), None, &request)

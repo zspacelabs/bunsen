@@ -7,10 +7,12 @@ use serde::{
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::{
-        PresetSelection,
-        PretrainedRef,
-        build_catalog::presets::ResolvedPresetSet,
+    data::{
+        catalog::presets::{
+            PresetSelection,
+            ResolvedPresetSet,
+        },
+        pretrained::PretrainedRef,
     },
     errors::{
         BunsenError,
@@ -166,7 +168,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        data::pretrained::build_catalog::{
+        data::catalog::{
             CatalogName,
             document::{
                 AxisKind,

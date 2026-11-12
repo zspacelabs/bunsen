@@ -32,7 +32,7 @@ use std::path::{
 };
 
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         document::{
             CatalogEntry,
             EntryKind,
@@ -995,8 +995,8 @@ impl PretrainedCatalogStack {
                 push(&mut errors, reserved_tag_name(entry.name()));
                 if matches!(
                     t.tag_type,
-                    crate::data::pretrained::build_catalog::document::TypeExpr::Primitive(
-                        crate::data::pretrained::build_catalog::document::Primitive::Bool
+                    crate::data::catalog::document::TypeExpr::Primitive(
+                        crate::data::catalog::document::Primitive::Bool
                     )
                 ) {
                     push(&mut errors, positive_bool_name("tag", entry.name()));
@@ -1006,16 +1006,14 @@ impl PretrainedCatalogStack {
             CatalogEntry::Axis(a) => {
                 push(&mut errors, described(&a.description));
                 push(&mut errors, reserved_tag_name(entry.name()));
-                if a.axis == crate::data::pretrained::build_catalog::document::AxisKind::Bool {
+                if a.axis == crate::data::catalog::document::AxisKind::Bool {
                     push(&mut errors, positive_bool_name("axis", entry.name()));
                 }
                 let problem = match a.axis {
-                    crate::data::pretrained::build_catalog::document::AxisKind::Bool
-                        if !a.members.is_empty() =>
-                    {
+                    crate::data::catalog::document::AxisKind::Bool if !a.members.is_empty() => {
                         Some("a bool axis's members are generated, never written")
                     }
-                    crate::data::pretrained::build_catalog::document::AxisKind::Categorical
+                    crate::data::catalog::document::AxisKind::Categorical
                         if a.members.len() < 2 =>
                     {
                         Some("a categorical axis has two or more members")
@@ -1156,22 +1154,17 @@ impl PretrainedCatalogStack {
                     push(&mut errors, check_segment(slot));
                 }
                 if let Ok(chain) = chain {
-                    let links: Vec<
-                        crate::data::pretrained::build_catalog::presets::PresetLink<'_>,
-                    > = chain
+                    let links: Vec<crate::data::catalog::presets::PresetLink<'_>> = chain
                         .iter()
-                        .map(
-                            |l| crate::data::pretrained::build_catalog::presets::PresetLink {
-                                owner: l.name,
-                                set: &l.class.presets,
-                            },
-                        )
+                        .map(|l| crate::data::catalog::presets::PresetLink {
+                            owner: l.name,
+                            set: &l.class.presets,
+                        })
                         .collect();
                     if let Err(found) =
-                        crate::data::pretrained::build_catalog::presets::ResolvedPresetSet::fold(
-                            &links,
-                            &|l, a| self.axis_info(l.owner, a),
-                        )
+                        crate::data::catalog::presets::ResolvedPresetSet::fold(&links, &|l, a| {
+                            self.axis_info(l.owner, a)
+                        })
                     {
                         errors.extend(found);
                     }
@@ -1282,10 +1275,7 @@ impl PretrainedCatalogStack {
     pub fn contract_lineage(
         &self,
         name: &CatalogName,
-    ) -> Vec<(
-        CatalogName,
-        &crate::data::pretrained::build_catalog::document::ContractEntry,
-    )> {
+    ) -> Vec<(CatalogName, &crate::data::catalog::document::ContractEntry)> {
         let mut lineage = Vec::new();
         let mut at = Some(name.clone());
         while let Some(current) = at {
@@ -1336,7 +1326,7 @@ impl PretrainedCatalogStack {
     fn check_contract(
         &self,
         entry: EntryRef<'_>,
-        contract: &crate::data::pretrained::build_catalog::document::ContractEntry,
+        contract: &crate::data::catalog::document::ContractEntry,
     ) -> Vec<BunsenError> {
         let mut errors = Vec::new();
         let name = entry.name();
@@ -1409,12 +1399,12 @@ impl PretrainedCatalogStack {
         &self,
         from: &CatalogName,
         axis: &CatalogRef,
-    ) -> CatalogResult<crate::data::pretrained::build_catalog::presets::AxisInfo> {
+    ) -> CatalogResult<crate::data::catalog::presets::AxisInfo> {
         let decl = self.expect_ref(from, axis, "axis", &[EntryKind::Axis])?;
         let CatalogEntry::Axis(a) = decl.body() else {
             unreachable!("expected an axis")
         };
-        Ok(crate::data::pretrained::build_catalog::presets::AxisInfo {
+        Ok(crate::data::catalog::presets::AxisInfo {
             name: decl.name().clone(),
             kind: a.axis,
             members: a.member_names(),
@@ -1551,10 +1541,8 @@ fn check_file_path(path: &str) -> Result<(), String> {
 }
 
 /// A source's own fields.
-fn check_source(
-    source: &crate::data::pretrained::build_catalog::document::ResourceSource
-) -> Result<(), String> {
-    use crate::data::pretrained::build_catalog::document::ResourceSource;
+fn check_source(source: &crate::data::catalog::document::ResourceSource) -> Result<(), String> {
+    use crate::data::catalog::document::ResourceSource;
     match source {
         ResourceSource::Url(url) | ResourceSource::BaseUrl(url) if url.trim().is_empty() => {
             Err("a URL source is empty".into())
@@ -1652,7 +1640,7 @@ fn update(
 /// Tags, axes and facets name tags; the contract's implied tag takes one
 /// name from them.
 fn reserved_tag_name(name: &CatalogName) -> CatalogResult<()> {
-    if name.to_string() == crate::data::pretrained::build_catalog::resolve::CONTRACT_TAG {
+    if name.to_string() == crate::data::catalog::resolve::CONTRACT_TAG {
         Err(catalog_error(
             CatalogRule::Conflict,
             format!(
@@ -1703,7 +1691,7 @@ pub(crate) fn with_article(word: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::build_catalog::{
+    use crate::data::catalog::{
         fixtures,
         lookup::LeafMatch,
     };
@@ -2117,7 +2105,7 @@ openai:
         assert_eq!(sources.len(), 2);
         assert_eq!(
             sources[0],
-            crate::data::pretrained::build_catalog::document::ResourceSource::Url(
+            crate::data::catalog::document::ResourceSource::Url(
                 "https://mirror.example/multilingual.tiktoken".into()
             )
         );

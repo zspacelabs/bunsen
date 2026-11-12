@@ -15,11 +15,11 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::{
+        catalog::presets::ResolvedPresetSet,
         pretrained::{
             CONFIG,
             GEOMETRY,
             PretrainedRef,
-            ResolvedPresetSet,
             SafetensorsCheckpoint,
         },
         resources::{

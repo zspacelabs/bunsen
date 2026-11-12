@@ -1,6 +1,6 @@
 //! How the chat commands choose a checkpoint, on the catalog pipeline.
 use bunsen::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         CatalogErrorExt,
         CatalogName,
         select::{

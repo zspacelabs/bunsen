@@ -6,7 +6,7 @@ use alloc::{
 };
 
 use crate::{
-    data::pretrained::PresetSelection,
+    data::catalog::presets::PresetSelection,
     errors::{
         BunsenResult,
         ConstraintError,

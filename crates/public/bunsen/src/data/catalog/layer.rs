@@ -11,7 +11,7 @@ use std::path::{
 };
 
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         document::{
             CatalogEntry,
             EntryKind,
@@ -52,7 +52,7 @@ impl LayerEntry {
     }
 
     /// How the occurrence meets an existing declaration of its name.
-    pub fn merge(&self) -> crate::data::pretrained::build_catalog::document::MergeMode {
+    pub fn merge(&self) -> crate::data::catalog::document::MergeMode {
         self.entry.merge()
     }
 }
@@ -189,13 +189,13 @@ fn name_of(
         let container = if scope.segments() == [CONTRACTS] {
             "`$contracts`".to_string()
         } else {
-            crate::data::pretrained::build_catalog::stack::with_article(container_kind.as_str())
+            crate::data::catalog::stack::with_article(container_kind.as_str())
         };
         return Err(catalog_error(
             CatalogRule::Structure,
             format!(
                 "{container} can't hold {}{}",
-                crate::data::pretrained::build_catalog::stack::with_article(kind.as_str()),
+                crate::data::catalog::stack::with_article(kind.as_str()),
                 if kind == EntryKind::Contract {
                     "; contracts are declared in the base catalog's `$contracts`"
                 } else {

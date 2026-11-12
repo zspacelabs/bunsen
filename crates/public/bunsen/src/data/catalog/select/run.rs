@@ -58,7 +58,7 @@ use core::cmp::Ordering;
 
 use serde_json::Value;
 
-use crate::data::pretrained::build_catalog::{
+use crate::data::catalog::{
     document::{
         AxisKind,
         CatalogEntry,
@@ -389,7 +389,7 @@ impl CompiledQuery {
     /// Runs the query on `table`.
     ///
     /// # Errors
-    /// [`CatalogRule::Selection`](crate::data::pretrained::build_catalog::CatalogRule::Selection)
+    /// [`CatalogRule::Selection`](crate::data::catalog::CatalogRule::Selection)
     /// when `table` holds another kind, and as
     /// [`SelectEnv::build`].
     pub fn run(

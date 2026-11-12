@@ -48,7 +48,7 @@ use serde_json::{
 };
 
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         document::EntryKind,
         error::{
             CatalogErrorExt,

@@ -8,11 +8,11 @@ use alloc::{
 
 use serde_json::Value;
 
-use super::{
-    Tags,
-    build_catalog::presets::ResolvedPresetSet,
+use super::Tags;
+use crate::data::{
+    catalog::presets::ResolvedPresetSet,
+    resources::ResourceBundle,
 };
-use crate::data::resources::ResourceBundle;
 
 /// A pretrained row: a name in a provider, over a resource bundle.
 ///

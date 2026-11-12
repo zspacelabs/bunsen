@@ -14,7 +14,7 @@ use serde_json::{
     Value,
 };
 
-use crate::data::pretrained::build_catalog::{
+use crate::data::catalog::{
     error::CatalogErrorExt,
     name::CatalogRef,
 };

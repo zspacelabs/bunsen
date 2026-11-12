@@ -14,7 +14,7 @@ use serde::{
 };
 
 use crate::{
-    data::pretrained::build_catalog::error::{
+    data::catalog::error::{
         CatalogErrorExt,
         CatalogResult,
         CatalogRule,

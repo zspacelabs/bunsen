@@ -12,7 +12,7 @@ use core::fmt;
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::PresetSelection,
+    data::catalog::presets::PresetSelection,
     errors::{
         BunsenError,
         BunsenErrorKind,

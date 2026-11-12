@@ -15,34 +15,36 @@ use super::{
     PretrainedProvider,
     Tags,
     WELL_KNOWN,
-    build_catalog::{
-        CatalogName,
-        CatalogRef,
-        CatalogRule,
-        PretrainedCatalogStack,
-        ResolvedBuild,
-        builtin_stack,
-        catalog_error,
-        document::{
-            CatalogEntry,
-            EntryKind,
-            ResourceEntry,
-            ResourceSource,
-        },
-        lookup::{
-            LeafMatch,
-            name_matches,
-        },
-        presets::ResolvedPresetSet,
-    },
     tags::KIT,
 };
 use crate::{
-    data::resources::{
-        Resource,
-        ResourceBundle,
-        Source,
-        resolve_dir_template,
+    data::{
+        catalog::{
+            CatalogName,
+            CatalogRef,
+            CatalogRule,
+            PretrainedCatalogStack,
+            ResolvedBuild,
+            builtin_stack,
+            catalog_error,
+            document::{
+                CatalogEntry,
+                EntryKind,
+                ResourceEntry,
+                ResourceSource,
+            },
+            lookup::{
+                LeafMatch,
+                name_matches,
+            },
+            presets::ResolvedPresetSet,
+        },
+        resources::{
+            Resource,
+            ResourceBundle,
+            Source,
+            resolve_dir_template,
+        },
     },
     errors::BunsenResult,
 };
@@ -487,7 +489,7 @@ fn to_source(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::build_catalog::fixtures;
+    use crate::data::catalog::fixtures;
 
     fn provider(contract: &str) -> BuildCatalogProvider {
         BuildCatalogProvider::new(

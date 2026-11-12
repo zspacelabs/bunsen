@@ -14,9 +14,9 @@ use super::{
 };
 use crate::{
     data::{
+        catalog::presets::ResolvedPresetSet,
         pretrained::{
             NamedTensorsApplied,
-            ResolvedPresetSet,
             StaticPreFabMap,
         },
         resources::LoadedResources,

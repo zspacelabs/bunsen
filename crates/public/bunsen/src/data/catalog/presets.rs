@@ -21,7 +21,7 @@ use core::fmt;
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         document::{
             AxisKind,
             MergeMode,
@@ -782,7 +782,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::data::pretrained::build_catalog::document::AxisUse;
+    use crate::data::catalog::document::AxisUse;
 
     #[test]
     fn test_selection_display() {

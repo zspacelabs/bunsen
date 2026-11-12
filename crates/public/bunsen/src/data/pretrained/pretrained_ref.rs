@@ -10,14 +10,16 @@ use burn::config::Config;
 
 use super::{
     PreFabConfig,
-    PresetSelection,
     Pretrained,
     StaticPreFabMap,
 };
 use crate::{
-    data::resources::{
-        Fuse,
-        ResourceBundle,
+    data::{
+        catalog::presets::PresetSelection,
+        resources::{
+            Fuse,
+            ResourceBundle,
+        },
     },
     errors::BunsenResult,
 };

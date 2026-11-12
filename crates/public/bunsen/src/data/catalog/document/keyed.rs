@@ -27,29 +27,29 @@ use serde::{
 };
 use serde_json::Value;
 
-use super::{
-    AliasEntry,
-    AxisEntry,
-    AxisUse,
-    BuildEntry,
-    CatalogEntry,
-    ContractEntry,
-    EntryKind,
-    FacetEntry,
-    GroupEntry,
-    PresetEntry,
-    PresetSetEntry,
-    PretrainedCatalog,
-    ReleaseEntry,
-    ResourceEntry,
-    TagEntry,
-    TemplateClassEntry,
-    TypeEntry,
-    empty_object,
-    is_empty_object,
-};
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
+        document::{
+            AliasEntry,
+            AxisEntry,
+            AxisUse,
+            BuildEntry,
+            CatalogEntry,
+            ContractEntry,
+            EntryKind,
+            FacetEntry,
+            GroupEntry,
+            PresetEntry,
+            PresetSetEntry,
+            PretrainedCatalog,
+            ReleaseEntry,
+            ResourceEntry,
+            TagEntry,
+            TemplateClassEntry,
+            TypeEntry,
+            empty_object,
+            is_empty_object,
+        },
         error::{
             CatalogErrorExt,
             CatalogResult,
@@ -430,9 +430,7 @@ fn read_entry(
                         path,
                         format!(
                             "{} has no bare keys: `{key}` is neither a `$` word nor allowed",
-                            crate::data::pretrained::build_catalog::stack::with_article(
-                                kind.as_str()
-                            )
+                            crate::data::catalog::stack::with_article(kind.as_str())
                         ),
                     ));
                 }

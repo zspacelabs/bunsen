@@ -7,7 +7,7 @@
 //! [`builtin_stack`] imports them in order, skipping a layer whose feature
 //! this build of bunsen doesn't have.
 
-use super::{
+use crate::data::catalog::{
     PretrainedCatalog,
     PretrainedCatalogStack,
     error::{
@@ -98,7 +98,7 @@ mod tests {
     #[test]
     fn test_the_builtin_contracts_are_the_kits() {
         use crate::{
-            data::pretrained::build_catalog::document::OrderedNode,
+            data::catalog::document::OrderedNode,
             kits::support::catalog_contracts::{
                 contracts_section,
                 kit_catalog_contracts,

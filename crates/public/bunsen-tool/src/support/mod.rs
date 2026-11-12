@@ -9,7 +9,7 @@ mod model_row;
 mod output_format;
 
 use bunsen::{
-    data::pretrained::ResolvedPresetSet,
+    data::catalog::presets::ResolvedPresetSet,
     errors::{
         BunsenError,
         BunsenResult,
@@ -157,7 +157,7 @@ mod tests {
     /// nothing.
     #[test]
     fn test_preset_lines() {
-        use bunsen::data::pretrained::build_catalog::{
+        use bunsen::data::catalog::{
             CatalogName,
             document::{
                 AxisKind,

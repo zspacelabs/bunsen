@@ -1,7 +1,7 @@
 //! # Files, caches and pretrained models
 //!
 //! Where files land, what a name means, and how a name becomes a model.
-//! Four submodules, each built on the one before:
+//! Five submodules, each built on the one before:
 //!
 //! - [`cache`]: where files land. A [`BunsenDiskCache`] picks a cache directory
 //!   and a data directory, and reports every transfer to its observers.
@@ -10,6 +10,10 @@
 //! - [`resources`]: pinned files. A *resource* is one pinned file with the
 //!   places it can be had from, a [`ResourceBundle`] a named set of them, and a
 //!   [`PretrainedCache`] brings a bundle's files local.
+//! - [`catalog`]: what there is to build, as data. A layered document of
+//!   contracts, builds, resources, tags and presets, the built-in one compiled
+//!   in, which resolves a build's name to its files and arguments and chooses
+//!   among builds by their tags.
 //! - [`pretrained`]: what a name means, and how it becomes a model. A *prefab*
 //!   is a geometry by name, and a *row* is a name over a resource bundle.
 //!   Providers answer names with rows, a [`PretrainedFactory`] dispatches a
@@ -144,6 +148,8 @@
 
 #[cfg(feature = "cache")]
 pub mod cache;
+
+pub mod catalog;
 
 pub mod pretrained;
 

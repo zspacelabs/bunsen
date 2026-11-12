@@ -1,7 +1,7 @@
 # pretrained-catalog
 
 Examples and integration tests over bunsen's build catalogs
-(`bunsen::data::pretrained::build_catalog`). The module's `catalog_format` page describes the
+(`bunsen::data::catalog`). The module's `catalog_format` page describes the
 catalog document, and its `usage` page the API and the select language.
 
 ## The CLI
@@ -36,7 +36,7 @@ cargo run -p pretrained-catalog --example think_flags    # --think / --no-think 
 cargo run -p pretrained-catalog --example supplemental   # extensions, fall-through, refusals
 ```
 
-The bin runs over the module's example catalogs (`build_catalog::fixtures`: `prelude`,
+The bin runs over the module's example catalogs (`catalog::fixtures`: `prelude`,
 `commons`, `qwen3`, `whisper`), which the tests and examples use too. Their SHA-256s and
 revisions are placeholders. `tests/select_examples.rs` works through the select language over
 them, each query with the builds it selects, and why.

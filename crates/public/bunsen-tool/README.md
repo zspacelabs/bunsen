@@ -1050,7 +1050,7 @@ device accelerates it, else in f32.
 ## catalog: build catalogs
 
 `bunsen-tool catalog` queries bunsen's built-in model catalog, the one the kits load from
-(`bunsen::data::pretrained::build_catalog`; its `catalog_format` page describes the document,
+(`bunsen::data::catalog`; its `catalog_format` page describes the document,
 and its `usage` page the select language). `--catalog` imports an extension over it, YAML or
 JSON, repeatable, in order: an extension may add builds, template classes and resources, but
 not contracts.

@@ -35,12 +35,13 @@
 //!   [`StaticPreFabMap`].
 //! - A **row**, a [`Pretrained`], is a name in a provider: its aliases and
 //!   listing fields, its [`tags`] (facts about the model, for listings and for
-//!   choosing among models, [`build_catalog::select`]), the prefab it
-//!   instantiates when the kit keeps one, and the resource bundles it is made
-//!   of, fused strictly into one [`ResourceBundle`]. A file many rows share is
-//!   a resource bundle of its own that each row references (Whisper's two
-//!   vocabularies serve its twelve checkpoints); a one-file model is a row of
-//!   one resource bundle. One prefab may have many rows, in many providers.
+//!   choosing among models, [`catalog::select`](crate::data::catalog::select)),
+//!   the prefab it instantiates when the kit keeps one, and the resource
+//!   bundles it is made of, fused strictly into one [`ResourceBundle`]. A file
+//!   many rows share is a resource bundle of its own that each row references
+//!   (Whisper's two vocabularies serve its twelve checkpoints); a one-file
+//!   model is a row of one resource bundle. One prefab may have many rows, in
+//!   many providers.
 //! - A **resource**, a [`Resource`], is one file: its key in the resource
 //!   bundle (`checkpoint`, `vocabulary`: the kit's constants), the file name it
 //!   lands as, the SHA-256 that pins it, a `kind` label, and the [`Source`]s it
@@ -57,10 +58,11 @@
 //! right-hand resource bundle wins.
 //!
 //! A kit's rows are data: the builds of the kit's contract in the built-in
-//! build catalog ([`build_catalog`]), which a [`BuildCatalogProvider`] serves
-//! as rows named in full (`qwen/qwen3/qwen3-0.6b`), with the presets and
-//! arguments the catalog resolves. Its files carry their sizes and dtypes, and
-//! a local directory names where another tool keeps its files as path
+//! build catalog ([`catalog`](crate::data::catalog)), which a
+//! [`BuildCatalogProvider`] serves as rows named in full
+//! (`qwen/qwen3/qwen3-0.6b`), with the presets and arguments the catalog
+//! resolves. Its files carry their sizes and dtypes, and a local directory
+//! names where another tool keeps its files as path
 //! templates ([`resolve_dir_template`]).
 //!
 //! ## Providers
@@ -265,7 +267,6 @@
 
 #[cfg(feature = "store")]
 mod apply_named;
-pub mod build_catalog;
 mod catalog_provider;
 #[cfg(feature = "store")]
 pub mod fermion;
@@ -283,10 +284,6 @@ pub mod tags;
 
 #[cfg(feature = "store")]
 pub use apply_named::*;
-pub use build_catalog::presets::{
-    PresetSelection,
-    ResolvedPresetSet,
-};
 pub use catalog_provider::*;
 pub use hf::*;
 pub use prefabs::*;

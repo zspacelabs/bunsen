@@ -1,7 +1,7 @@
 //! Reading and editing catalog trees ([`OrderedNode`]s) in place: a map's
 //! keys keep their order, and a key set again stays where it was.
 
-use bunsen::data::pretrained::build_catalog::document::OrderedNode;
+use bunsen::data::catalog::document::OrderedNode;
 use serde_json::Value;
 
 /// The entry's `$kind`, when `node` is an entry.

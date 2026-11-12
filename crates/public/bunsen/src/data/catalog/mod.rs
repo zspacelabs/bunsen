@@ -35,7 +35,7 @@
 //! # Example
 //!
 //! ```
-//! use bunsen::data::pretrained::build_catalog::{
+//! use bunsen::data::catalog::{
 //!     PretrainedCatalogStack,
 //!     presets::PresetSelection,
 //! };

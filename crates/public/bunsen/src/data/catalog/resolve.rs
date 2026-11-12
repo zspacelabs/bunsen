@@ -10,7 +10,7 @@ use alloc::collections::{
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         document::{
             ArgSlot,
             CatalogEntry,
@@ -709,7 +709,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::data::pretrained::build_catalog::{
+    use crate::data::catalog::{
         fixtures,
         presets::PresetSelection,
     };

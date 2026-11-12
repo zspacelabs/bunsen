@@ -20,7 +20,7 @@
 
 use std::collections::BTreeMap;
 
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogName,
     PretrainedCatalogStack,

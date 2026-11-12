@@ -6,10 +6,8 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
-        pretrained::{
-            PretrainedRef,
-            ResolvedPresetSet,
-        },
+        catalog::presets::ResolvedPresetSet,
+        pretrained::PretrainedRef,
         resources::{
             LoadedResources,
             ResourceBundle,

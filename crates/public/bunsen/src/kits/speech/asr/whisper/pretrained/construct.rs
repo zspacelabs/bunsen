@@ -10,10 +10,10 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
+        catalog::presets::ResolvedPresetSet,
         pretrained::{
             GEOMETRY,
             PretrainedRef,
-            ResolvedPresetSet,
             SafetensorsCheckpoint,
         },
         resources::{

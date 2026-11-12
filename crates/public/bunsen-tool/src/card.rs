@@ -31,7 +31,7 @@ use bunsen::kits::speech::{
 };
 use bunsen::{
     data::{
-        pretrained::ResolvedPresetSet,
+        catalog::presets::ResolvedPresetSet,
         resources::PretrainedCache,
     },
     errors::{

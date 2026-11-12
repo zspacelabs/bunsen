@@ -29,11 +29,11 @@ use crate::{
         Rekey,
     },
     data::{
+        catalog::presets::ResolvedPresetSet,
         pretrained::{
             CONFIG,
             NamedTensorsApplied,
             PretrainedRef,
-            ResolvedPresetSet,
             SafetensorsCheckpoint,
             StaticPreFabMap,
             load_rekeyed,

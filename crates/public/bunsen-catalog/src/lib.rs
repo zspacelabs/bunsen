@@ -5,7 +5,7 @@
 //! their probe-contract sources: `catalog/MANIFEST.txt`, listing the layers
 //! in import order, each with the bunsen feature it needs, and the layer
 //! files, compiled in. [`files`] hands them out in that order;
-//! `bunsen::data::pretrained::build_catalog::builtin_stack` imports them.
+//! `bunsen::data::catalog::builtin_stack` imports them.
 //!
 //! The crate knows nothing of the catalog format: it carries the text.
 

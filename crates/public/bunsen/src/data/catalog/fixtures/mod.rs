@@ -1,7 +1,7 @@
 //! Example catalogs, compiled in, and the stacks they make: what the tests,
 //! the examples and the [`usage`](super::usage) guide run against.
 
-use crate::data::pretrained::build_catalog::{
+use crate::data::catalog::{
     error::CatalogResult,
     stack::PretrainedCatalogStack,
 };

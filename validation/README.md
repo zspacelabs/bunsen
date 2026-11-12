@@ -157,7 +157,7 @@ crate checks the recording against the model.
 
 bunsen's named checkpoints are data: the built-in catalog,
 `crates/public/bunsen-catalog/catalog/`, which the kits' `well-known:` rows are
-read from (`bunsen::data::pretrained::build_catalog::builtin_stack`). It is
+read from (`bunsen::data::catalog::builtin_stack`). It is
 generated from the hand-written probe contracts in
 `catalog_builder/probe_contracts/`, one catalog layer per file:
 
@@ -173,4 +173,4 @@ classes, presets and resources. The builder adds what is read: each kit's
 contract, each file's digest and size (from the Hub's listing, or the file),
 a checkpoint's dtype (from its `config.json`), and the presets its probes
 find in the files they read. The catalog's format is
-`crates/public/bunsen/src/data/pretrained/build_catalog/catalog_format.md`.
+`crates/public/bunsen/src/data/catalog/catalog_format.md`.

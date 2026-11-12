@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn test_family_presets() {
         use crate::{
-            data::pretrained::PresetSelection,
+            data::catalog::presets::PresetSelection,
             kits::{
                 speech::diarization::{
                     TurnFilterConfig,

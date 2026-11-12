@@ -72,7 +72,7 @@ nothing is wrong. A refused catalog leaves the stack as it was, and the error li
 problem found.
 
 ```rust
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogErrorExt,
     CatalogRule,
     PretrainedCatalogStack,
@@ -132,7 +132,7 @@ spelling that identifies one entry: the leaf, or a longer path, in any ASCII cas
 name for an entry: a lookup for its target's kind finds the target through it.
 
 ```rust
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogName,
     document::EntryKind,
     fixtures,
@@ -215,7 +215,7 @@ assert_eq!(stack.latest(&release).unwrap(), Some(v3.clone()));
 `resolve_build` gathers everything the state says about a build into a `ResolvedBuild`.
 
 ```rust
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogName,
     fixtures,
 };
@@ -270,7 +270,7 @@ A preset with the name of an inherited one meets it by its `$merge`:
 With nothing inherited, the preset is declared, whatever its mode.
 
 ```rust
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     CatalogName,
     fixtures,
     presets::PresetSelection,
@@ -315,13 +315,21 @@ apply, and a `SelectRequest` (names, then stages). `preset_prefix` turns the pre
 first stage, which keeps only the builds that can take them.
 
 ```rust
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     fixtures,
     presets::PresetSelection,
     select::{
-        choose::{SelectRequest, SelectionContext, bool_axis_member, preset_prefix},
+        choose::{
+            SelectRequest,
+            SelectionContext,
+            bool_axis_member,
+            preset_prefix,
+        },
         query::Stage,
-        state::{SelectEnv, StageOrigin},
+        state::{
+            SelectEnv,
+            StageOrigin,
+        },
     },
 };
 use serde_json::json;
@@ -392,13 +400,19 @@ is a `$` word the language defines.
 ```rust
 use std::collections::BTreeMap;
 
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     document::EntryKind,
     fixtures,
     resolve::ResolvedBuild,
     select::{
         query::SelectQuery,
-        state::{DeriveEach, DeriveTags, DerivedKey, SelectEnv, SelectTable},
+        state::{
+            DeriveEach,
+            DeriveTags,
+            DerivedKey,
+            SelectEnv,
+            SelectTable,
+        },
     },
 };
 use serde_json::{Value, json};
@@ -669,12 +683,15 @@ stack) and runs on a `SelectTable`, traced or not. Nothing composes it: no defau
 no tail.
 
 ```rust
-use bunsen::data::pretrained::build_catalog::{
+use bunsen::data::catalog::{
     document::EntryKind,
     fixtures,
     select::{
         query::SelectQuery,
-        state::{SelectEnv, SelectTable},
+        state::{
+            SelectEnv,
+            SelectTable,
+        },
     },
 };
 

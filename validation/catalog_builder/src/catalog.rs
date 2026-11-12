@@ -17,7 +17,7 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         CatalogErrorExt,
         PretrainedCatalog,
         PretrainedCatalogStack,

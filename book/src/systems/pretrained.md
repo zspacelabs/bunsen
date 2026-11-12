@@ -103,12 +103,12 @@ A row's presets are named, described
 [merge patches](bunsen::support::merge_patch) over the config its kit
 builds the model under: a Whisper policy, a Sortformer streaming setup, a
 Qwen3 generation policy
-([`PresetEntry`](bunsen::data::pretrained::build_catalog::document::PresetEntry)).
+([`PresetEntry`](bunsen::data::catalog::document::PresetEntry)).
 Which fields a preset may set is the config's business. A field the
 construction reads changes what is built, and one a driver reads changes how
 it runs.
 
-A row's [`ResolvedPresetSet`](bunsen::data::pretrained::ResolvedPresetSet)
+A row's [`ResolvedPresetSet`](bunsen::data::catalog::presets::ResolvedPresetSet)
 groups them. An axis holds presets that exclude one another, such as
 Whisper's `task` (`transcribe`, `translate`) or Sortformer's `latency`; a
 selection names at most one member of each. The default selection is

@@ -6,7 +6,7 @@
 //! match `openai/whisper/large-v3`. A query resolves when exactly one entry
 //! matches, or when it is some entry's full name.
 
-use crate::data::pretrained::build_catalog::{
+use crate::data::catalog::{
     document::{
         CatalogEntry,
         EntryKind,
@@ -291,7 +291,7 @@ fn choose(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::build_catalog::{
+    use crate::data::catalog::{
         error::CatalogErrorExt,
         fixtures,
     };

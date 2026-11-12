@@ -29,7 +29,7 @@ use alloc::rc::Rc;
 use serde_json::Value;
 
 use crate::{
-    data::pretrained::build_catalog::{
+    data::catalog::{
         document::{
             AxisKind,
             CatalogEntry,
@@ -206,8 +206,8 @@ pub fn preset_prefix(
 /// it needs no build.
 ///
 /// # Errors
-/// [`CatalogRule::Selection`](crate::data::pretrained::build_catalog::CatalogRule::Selection) when
-/// `axis` names no axis, or one that isn't bool.
+/// [`CatalogRule::Selection`](crate::data::catalog::CatalogRule::Selection)
+/// when `axis` names no axis, or one that isn't bool.
 pub fn bool_axis_member(
     stack: &PretrainedCatalogStack,
     axis: &str,
@@ -269,7 +269,7 @@ impl SelectionContext {
     /// `limit: 1`.
     ///
     /// # Errors
-    /// [`CatalogRule::Selection`](crate::data::pretrained::build_catalog::CatalogRule::Selection)
+    /// [`CatalogRule::Selection`](crate::data::catalog::CatalogRule::Selection)
     /// for a `use` of a name no named selection has, or one nested too deep.
     pub fn compose(
         &self,
@@ -485,7 +485,7 @@ impl SelectionContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::build_catalog::fixtures;
+    use crate::data::catalog::fixtures;
 
     fn leaves(run: &SelectRun) -> Vec<String> {
         run.table

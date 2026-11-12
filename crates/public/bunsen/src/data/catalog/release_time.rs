@@ -15,7 +15,7 @@ use time::{
     Time,
 };
 
-use crate::data::pretrained::build_catalog::error::{
+use crate::data::catalog::error::{
     CatalogResult,
     CatalogRule,
     catalog_error,
@@ -247,7 +247,7 @@ impl fmt::Display for ReleaseTime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::pretrained::build_catalog::error::CatalogErrorExt;
+    use crate::data::catalog::error::CatalogErrorExt;
 
     fn t(s: &str) -> ReleaseTime {
         ReleaseTime::parse(s).unwrap()
