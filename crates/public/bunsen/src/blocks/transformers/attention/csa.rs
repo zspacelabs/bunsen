@@ -3,7 +3,10 @@
 use burn::{
     Tensor,
     config::Config,
-    module::Module,
+    module::{
+        Module,
+        Param,
+    },
     nn::{
         Initializer,
         Linear,
@@ -192,6 +195,15 @@ pub struct CausalSelfAttentionConfig {
     /// the output is `c_proj(y · σ(gate))`. `false` gates nothing.
     #[config(default = "false")]
     pub output_gate: bool,
+
+    /// A learned gain per query head, `[H]`, on the queries after the
+    /// QK-norm, applied as its absolute value: `q_h · |g_h|` (ZONOS3's
+    /// `temp`). It scales head `h`'s scores by `|g_h|`, so a norm that pins
+    /// the queries' scale still leaves each head its own temperature; it
+    /// commutes with the rotary embedding. Initialized to ones. `false`
+    /// builds none.
+    #[config(default = "false")]
+    pub query_gain: bool,
 }
 
 /// Config of a [`CausalSelfAttention`]'s value residual, `ResFormer`'s in
@@ -370,6 +382,9 @@ impl CausalSelfAttentionConfig {
                     .init(device)
             }),
             value_gate_scale: self.value_residual.as_ref().map(|vr| vr.gate_scale),
+            query_gain: self
+                .query_gain
+                .then(|| Param::from_tensor(Tensor::ones([self.n_head], device))),
         })
     }
 
@@ -460,6 +475,10 @@ pub struct CausalSelfAttention {
     /// The value residual's gate range, `(0, value_gate_scale)`.
     #[module(skip)]
     pub value_gate_scale: Option<f64>,
+
+    /// The per-head query gain `[H]`, applied as `|g|` after the QK-norm
+    /// ([`CausalSelfAttentionConfig::query_gain`]); `None` without one.
+    pub query_gain: Option<Param<Tensor<1>>>,
 }
 
 impl CausalSelfAttentionMeta for CausalSelfAttention {
@@ -523,10 +542,12 @@ impl CausalSelfAttention {
         } else {
             (q.reshape([b, t, h, d]), None)
         };
-        let q = self
-            .qk_norm
-            .apply(q, self.q_norm.as_ref(), r_emb)
-            .swap_dims(1, 2);
+        let q = self.qk_norm.apply(q, self.q_norm.as_ref(), r_emb);
+        let q = match &self.query_gain {
+            Some(gain) => q * gain.val().abs().reshape([1, 1, h, 1]),
+            None => q,
+        }
+        .swap_dims(1, 2);
         let k = self
             .c_k
             .forward(input)
@@ -851,12 +872,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        module::Param,
-        tensor::{
-            Distribution,
-            Tolerance,
-        },
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
     };
     use serial_test::serial;
 
@@ -1326,6 +1344,52 @@ mod tests {
             &plain.attention_weights(input, &r_emb),
             Tolerance::default(),
         );
+    }
+
+    /// A query gain scales each head's scores by `|g_h|`: head `h`'s weights
+    /// are those of the ungained attention with its scores scaled by
+    /// `|g_h| / sqrt(d)`, a negative gain as its absolute value; the output
+    /// is the per-head mixture of those.
+    #[test]
+    fn test_query_gain() {
+        let device = cpu_device();
+        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 5, 16, 4, 2);
+        let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed)
+            .with_qk_norm(QkNormPlacement::BeforeRope);
+        let unit: CausalSelfAttention = cfg.clone().with_query_gain(true).init(0, &device);
+        assert_eq!(
+            unit.query_gain.as_ref().unwrap().val().into_data(),
+            Tensor::<1>::ones([n_head], &device).into_data(),
+            "initialized to ones"
+        );
+        assert!(cfg.init(0, &device).query_gain.is_none());
+
+        let gains = [-2.0f32, 0.5, 1.5, 3.0];
+        let mut gained = unit;
+        gained.query_gain = Some(Param::from_tensor(Tensor::from_data(gains, &device)));
+        let d = gained.head_dim();
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, d).init(&device);
+        let input =
+            seeded_tensor::<3>(9, [batch, seq_len, n_embed], Distribution::Default, &device);
+        let weights = gained.attention_weights(input.clone(), &r_emb);
+        for (h, g) in gains.iter().enumerate() {
+            let mut plain: CausalSelfAttention = cfg
+                .clone()
+                .with_score_scale(Some(f64::from(g.abs()) / (d as f64).sqrt()))
+                .init(0, &device);
+            plain.c_q = gained.c_q.clone();
+            plain.c_k = gained.c_k.clone();
+            plain.c_v = gained.c_v.clone();
+            plain.q_norm = gained.q_norm.clone();
+            plain.k_norm = gained.k_norm.clone();
+            assert_tensors_close(
+                &weights.clone().slice(s![.., h..h + 1]),
+                &plain
+                    .attention_weights(input.clone(), &r_emb)
+                    .slice(s![.., h..h + 1]),
+                Tolerance::default(),
+            );
+        }
     }
 
     fn windowed(window: usize) -> (CausalSelfAttention, RotaryEmbedding, Tensor<3>) {
