@@ -3,7 +3,6 @@ use crate::{
         document::{
             CatalogEntry,
             OrderedNode,
-            keyed,
         },
         error::{
             CatalogRule,
@@ -60,13 +59,13 @@ impl BunsenCatalog {
     /// [`CatalogRule::Parse`] when it isn't a catalog, with the path of
     /// the entry at fault.
     pub fn from_node(node: OrderedNode) -> BunsenResult<Self> {
-        keyed::read_catalog(node)
+        BunsenCatalog::read_keyed(node)
     }
 
     /// The catalog as a tree: its entries, children, presets and axis uses
     /// in their order, and each entry's `$` fields in their declared order.
     pub fn to_node(&self) -> OrderedNode {
-        keyed::write_catalog(self)
+        self.write_keyed()
     }
 
     /// Writes the catalog as pretty JSON.

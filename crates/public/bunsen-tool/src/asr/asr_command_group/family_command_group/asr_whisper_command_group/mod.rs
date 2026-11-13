@@ -8,8 +8,8 @@ pub use asr_whisper_prefabs::*;
 use bunsen::errors::BunsenResult;
 
 use crate::asr::{
+    AsrFamily,
     AsrKitSubCommand,
-    Family,
     whisper::WhisperFlags,
 };
 
@@ -35,7 +35,7 @@ enum AsrWhisperSubCommand {
 impl AsrWhisperCommandGroup {
     pub fn run(&self) -> BunsenResult<()> {
         match &self.action {
-            AsrWhisperSubCommand::Kit(action) => action.run(Family::Whisper),
+            AsrWhisperSubCommand::Kit(action) => action.run(AsrFamily::Whisper),
             AsrWhisperSubCommand::Inspect(inspect) => inspect.run(),
             AsrWhisperSubCommand::Prefabs(prefabs) => prefabs.run(),
         }

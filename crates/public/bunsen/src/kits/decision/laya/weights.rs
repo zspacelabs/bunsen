@@ -15,7 +15,6 @@ use crate::{
     },
     data::formats::{
         NamedTensorsApplied,
-        load_rekeyed,
         split_rows,
     },
     errors::BunsenResult,
@@ -49,7 +48,7 @@ pub fn laya_config(
 /// `rl_agent_config.json` instead.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`load_rekeyed`] resolves to `gamma` / `beta`.
+/// [`Rekey::load`] resolves to `gamma` / `beta`.
 pub fn laya_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount("encoder.", "encoder.", modernbert_rekey())
@@ -67,12 +66,12 @@ pub fn laya_rekey() -> Rekey {
 }
 
 /// Loads a Laya `model.safetensors`' tensors into `model`: the encoder's
-/// and the head's fused projections split by rows, then [`load_rekeyed`]
+/// and the head's fused projections split by rows, then [`Rekey::load`]
 /// under [`laya_rekey`]; in `dtype` (a load policy's resolution), or, when
 /// `None`, in the dtype `model` was built in.
 ///
 /// # Errors
-/// As [`split_rows`] and [`load_rekeyed`].
+/// As [`split_rows`] and [`Rekey::load`].
 pub fn load_laya_tensors(
     model: &mut LayaModel,
     tensors: impl IntoIterator<Item = PackTensor>,
@@ -84,7 +83,7 @@ pub fn load_laya_tensors(
         .collect();
     let tensors = split_rows(tensors, &splits)?;
     let rekey = laya_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, dtype)
+    rekey.load(model, tensors, dtype)
 }
 
 #[cfg(test)]

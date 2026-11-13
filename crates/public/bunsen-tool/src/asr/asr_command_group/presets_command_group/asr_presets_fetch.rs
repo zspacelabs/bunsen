@@ -14,9 +14,9 @@ use bunsen_app::{
 };
 
 use crate::asr::{
+    AsrFamily,
+    AsrKit,
     Emission,
-    Family,
-    Kit,
     Mode,
     construct_config,
     fetch_with,
@@ -48,7 +48,7 @@ impl AsrPresetsFetchCommand {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
-        let mut models: Vec<(Family, String)> = Vec::new();
+        let mut models: Vec<(AsrFamily, String)> = Vec::new();
         let mut vad = false;
         for name in &self.names {
             let preset = lookup(name)?;
@@ -63,7 +63,7 @@ impl AsrPresetsFetchCommand {
         }
         let mut out = std::io::stdout().lock();
         for (family, model) in models {
-            Kit::Asr(family).fetch(&[model], &cache, self.verify, &mut out)?;
+            AsrKit::Asr(family).fetch(&[model], &cache, self.verify, &mut out)?;
         }
         if vad {
             fetch_with(

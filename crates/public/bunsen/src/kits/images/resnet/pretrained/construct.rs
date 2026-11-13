@@ -149,7 +149,7 @@ mod tests {
                 builds::{
                     BuildRef,
                     ConstructInit,
-                    Deferred,
+                    DeferredBuild,
                 },
                 cache::BunsenDiskCacheOptions,
                 resources::{
@@ -230,14 +230,14 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let err = Deferred::<ResNetConstructConfig>::from_resource_set(ResourceSet::given(
+        let err = DeferredBuild::<ResNetConstructConfig>::from_resource_set(ResourceSet::given(
             "mine", CHECKPOINT, &file,
         ))
         .unwrap()
         .load(
             &cache,
             &cpu_device(),
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         );
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.

@@ -39,12 +39,8 @@ impl ResolvedBuild {
         set.license = self.license.clone();
         set.origin = self.origin.clone();
         for (slot, bound) in &self.resources {
-            for resource in slot_resources(
-                slot,
-                &bound.entry,
-                &bound.resource.to_string(),
-                &self.hub_origins,
-            ) {
+            let name = bound.resource.to_string();
+            for resource in bound.entry.to_resources(slot, &name, &self.hub_origins) {
                 set = set.with_resource(resource);
             }
         }
@@ -52,100 +48,108 @@ impl ResolvedBuild {
     }
 }
 
-/// The resource `entry`, named `name`, as a set named `name` that holds it in
-/// `slot`, its Hub sources at each of `origins`.
-pub(crate) fn entry_resource_set(
-    name: &str,
-    entry: &ResourceEntry,
-    slot: &str,
-    origins: &[String],
-) -> ResourceSet {
-    let mut set = ResourceSet::new(name);
-    if let Some(description) = &entry.description {
-        set.description = description.clone();
+impl ResourceEntry {
+    /// This resource, named `name`, as a set named `name` that holds it in
+    /// `slot`, its Hub sources at each of `origins`.
+    pub(crate) fn to_slot_set(
+        &self,
+        name: &str,
+        slot: &str,
+        origins: &[String],
+    ) -> ResourceSet {
+        let mut set = ResourceSet::new(name);
+        if let Some(description) = &self.description {
+            set.description = description.clone();
+        }
+        for r in self.to_resources(slot, name, origins) {
+            set = set.with_resource(r);
+        }
+        set
     }
-    for r in slot_resources(slot, entry, name, origins) {
-        set = set.with_resource(r);
-    }
-    set
 }
 
-/// The resources a slot bound to `entry` is: one, or a sharded resource's
-/// index and shards.
-fn slot_resources(
-    slot: &str,
-    entry: &ResourceEntry,
-    name: &str,
-    origins: &[String],
-) -> Vec<Resource> {
-    let resource =
-        |slot: String, file: &str, sha256: Option<&String>, size, format: &str, sources| Resource {
-            slot,
-            file: file.to_string(),
-            sha256: sha256.cloned(),
-            format: Some(format.to_string()),
-            size,
-            dtype: entry.dtype.clone(),
-            name: name.to_string(),
-            sources,
-        };
-    let sources_of = |sources: &mut dyn Iterator<Item = &ResourceSource>, file: &str| {
-        sources
-            .flat_map(|s| to_sources(s, file, origins))
-            .collect::<Vec<_>>()
-    };
-    if let (Some(width), Some(count)) = (entry.index_width, entry.count) {
-        // A templated resource: its files, each in a slot numbered by its
-        // index, pinned by `$shards` when the catalog lists them.
-        return (0..count)
-            .map(|index| {
-                let pinned = entry.shards.get(index);
-                let file = entry.templated_file(index);
-                let sources = match pinned {
-                    Some(shard) => sources_of(&mut entry.shard_sources(shard), &file),
-                    None => sources_of(&mut entry.sources.iter().filter(|s| s.is_place()), &file),
-                };
-                resource(
-                    format!("{slot}.{index:0width$}"),
-                    &file,
-                    pinned.map(|s| &s.sha256),
-                    pinned.map(|s| s.size),
-                    &entry.format,
+impl ResourceEntry {
+    /// The resources a slot bound to this entry is: one, or a sharded
+    /// resource's index and shards.
+    fn to_resources(
+        &self,
+        slot: &str,
+        name: &str,
+        origins: &[String],
+    ) -> Vec<Resource> {
+        let resource =
+            |slot: String, file: &str, sha256: Option<&String>, size, format: &str, sources| {
+                Resource {
+                    slot,
+                    file: file.to_string(),
+                    sha256: sha256.cloned(),
+                    format: Some(format.to_string()),
+                    size,
+                    dtype: self.dtype.clone(),
+                    name: name.to_string(),
                     sources,
-                )
-            })
-            .collect();
-    }
-    if entry.shards.is_empty() {
-        return alloc::vec![resource(
-            slot.to_string(),
-            &entry.file,
-            entry.sha256.as_ref(),
-            entry.size,
-            &entry.format,
-            sources_of(&mut entry.sources.iter(), &entry.file),
+                }
+            };
+        let sources_of = |sources: &mut dyn Iterator<Item = &ResourceSource>, file: &str| {
+            sources
+                .flat_map(|s| to_sources(s, file, origins))
+                .collect::<Vec<_>>()
+        };
+        if let (Some(width), Some(count)) = (self.index_width, self.count) {
+            // A templated resource: its files, each in a slot numbered by its
+            // index, pinned by `$shards` when the catalog lists them.
+            return (0..count)
+                .map(|index| {
+                    let pinned = self.shards.get(index);
+                    let file = self.templated_file(index);
+                    let sources = match pinned {
+                        Some(shard) => sources_of(&mut self.shard_sources(shard), &file),
+                        None => {
+                            sources_of(&mut self.sources.iter().filter(|s| s.is_place()), &file)
+                        }
+                    };
+                    resource(
+                        format!("{slot}.{index:0width$}"),
+                        &file,
+                        pinned.map(|s| &s.sha256),
+                        pinned.map(|s| s.size),
+                        &self.format,
+                        sources,
+                    )
+                })
+                .collect();
+        }
+        if self.shards.is_empty() {
+            return alloc::vec![resource(
+                slot.to_string(),
+                &self.file,
+                self.sha256.as_ref(),
+                self.size,
+                &self.format,
+                sources_of(&mut self.sources.iter(), &self.file),
+            )];
+        }
+        let shard_format = self.format.strip_suffix("-index").unwrap_or(&self.format);
+        let mut out = alloc::vec![resource(
+            format!("{slot}.index"),
+            &self.file,
+            self.sha256.as_ref(),
+            self.size,
+            &self.format,
+            sources_of(&mut self.sources.iter(), &self.file),
         )];
+        for (n, shard) in self.shards.iter().enumerate() {
+            out.push(resource(
+                format!("{slot}.{:05}", n + 1),
+                &shard.file,
+                Some(&shard.sha256),
+                Some(shard.size),
+                shard_format,
+                sources_of(&mut self.shard_sources(shard), &shard.file),
+            ));
+        }
+        out
     }
-    let shard_format = entry.format.strip_suffix("-index").unwrap_or(&entry.format);
-    let mut out = alloc::vec![resource(
-        format!("{slot}.index"),
-        &entry.file,
-        entry.sha256.as_ref(),
-        entry.size,
-        &entry.format,
-        sources_of(&mut entry.sources.iter(), &entry.file),
-    )];
-    for (n, shard) in entry.shards.iter().enumerate() {
-        out.push(resource(
-            format!("{slot}.{:05}", n + 1),
-            &shard.file,
-            Some(&shard.sha256),
-            Some(shard.size),
-            shard_format,
-            sources_of(&mut entry.shard_sources(shard), &shard.file),
-        ));
-    }
-    out
 }
 
 /// A catalog source as the sources of `file`: a URL as it is; a base URL

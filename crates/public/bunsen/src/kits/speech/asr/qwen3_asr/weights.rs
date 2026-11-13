@@ -19,10 +19,7 @@ use crate::{
         CanonicalKeys,
         Rekey,
     },
-    data::formats::{
-        NamedTensorsApplied,
-        load_rekeyed,
-    },
+    data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::{
         language::qwen3::weights::{
@@ -46,7 +43,7 @@ use crate::{
 /// Anything outside `model.` (the tied `lm_head.weight`) is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`load_rekeyed`] resolves to `gamma` / `beta`.
+/// [`Rekey::load`] resolves to `gamma` / `beta`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest().mount(
         "model.",
@@ -76,32 +73,32 @@ pub fn transformers_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
-/// state dict into `model`: [`load_rekeyed`] under [`transformers_rekey`], in
+/// state dict into `model`: [`Rekey::load`] under [`transformers_rekey`], in
 /// the dtype `model` was built in. The checkpoints ship `bf16`, which not every
 /// backend computes in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`Rekey::load`].
 pub fn load_transformers_tensors(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, None)
+    rekey.load(model, tensors, None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
 /// load policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`Rekey::load`].
 pub fn load_transformers_tensors_as(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
     let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, Some(dtype))
+    rekey.load(model, tensors, Some(dtype))
 }
 
 /// The [`Qwen3AsrConfig`] of a `transformers`

@@ -311,7 +311,7 @@ assert!(err.message().contains("fixed at `thinking`"), "{err}");
 ## Choosing builds
 
 A tool chooses with a `SelectionContext` (its defaults and named selections), the presets it will
-apply, and a `SelectRequest` (names, then stages). `preset_prefix` turns the presets into the
+apply, and a `SelectRequest` (names, then stages). `PresetSelection::prefix_stage` turns the presets into the
 first stage, which keeps only the builds that can take them.
 
 ```rust
@@ -322,8 +322,6 @@ use bunsen::data::catalog::{
         choose::{
             SelectRequest,
             SelectionContext,
-            bool_axis_member,
-            preset_prefix,
         },
         query::Stage,
         state::{
@@ -342,9 +340,9 @@ let context = SelectionContext {
 };
 
 // `--off thinking`: the member `no-thinking`, read from the axis's declaration.
-let off = bool_axis_member(&stack, "thinking", false).unwrap();
+let off = stack.bool_axis_member("thinking", false).unwrap();
 let presets = PresetSelection::of([off.as_str()]);
-let prefix = || preset_prefix(&presets, vec!["--off thinking".into()]);
+let prefix = || presets.prefix_stage(vec!["--off thinking".into()]);
 
 // Every Qwen3 build that can answer without thinking, largest first.
 let request = SelectRequest::default().name("qwen3").stage(
@@ -373,7 +371,7 @@ assert!(err.message().contains("was named, but can't be chosen"), "{err}");
 | `compose(env, prefix, request, choosing)` | the `ComposedQuery`: the stages, each one's `StageOrigin`, and the build named alone, if any |
 | `run_composed(env, universe, composed)` | runs it, traced, over every build (or `universe`) |
 | `rank(env, universe, prefix, request)` | `compose` without the limit, then `run_composed`: every row of the result |
-| `choose(env, universe, prefix, request)` | `compose` with `limit: 1`: the first build, resolved, and the run; `empty_error` when none is left |
+| `choose(env, universe, prefix, request)` | `compose` with `limit: 1`: the first build, resolved, and the run; `SelectRun::empty_error` when none is left |
 
 The composed pipeline is a concatenation; nothing is merged:
 

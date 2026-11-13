@@ -143,7 +143,7 @@ impl PhononArchive {
                     let split = stored
                         .remove(&format!("{}{SPLIT_SUFFIX}", file.path))
                         .ok_or_else(|| bad(format!("no `{}{SPLIT_SUFFIX}`", file.path)))?;
-                    join_planes(&split, plan)
+                    plan.join(&split)
                         .map_err(|why| bad(format!("`{}`: {why}", file.path)))?
                 }
                 None => stored
@@ -212,59 +212,65 @@ impl PhononArchive {
     }
 }
 
-/// Inverts the byte-plane split of one member.
-fn join_planes(
-    split: &[u8],
-    plan: &SplitPlan,
-) -> Result<Vec<u8>, String> {
-    let base = plan.base;
-    if split.len() < base || plan.original_bytes < base {
-        return Err("shorter than its header".into());
-    }
-    let mut out = vec![0u8; plan.original_bytes];
-    out[..base].copy_from_slice(&split[..base]);
-    let (mut src, mut cursor) = (base, 0usize);
-    let copy = |out: &mut Vec<u8>, at: usize, src: &mut usize, n: usize| -> Result<(), String> {
-        let from = split
-            .get(*src..*src + n)
-            .ok_or("a plan past the stored bytes")?;
-        out.get_mut(base + at..base + at + n)
-            .ok_or("a plan past the original bytes")?
-            .copy_from_slice(from);
-        *src += n;
-        Ok(())
-    };
-    for &[start, end, itemsize] in &plan.plan {
-        if start < cursor || end < start || itemsize == 0 || !(end - start).is_multiple_of(itemsize)
-        {
-            return Err(format!(
-                "a malformed plan entry [{start}, {end}, {itemsize}]"
-            ));
+impl SplitPlan {
+    /// Inverts the byte-plane split of one member.
+    fn join(
+        &self,
+        split: &[u8],
+    ) -> Result<Vec<u8>, String> {
+        let base = self.base;
+        if split.len() < base || self.original_bytes < base {
+            return Err("shorter than its header".into());
         }
-        if start > cursor {
-            copy(&mut out, cursor, &mut src, start - cursor)?;
-        }
-        let n = end - start;
-        let per = n / itemsize;
-        let planes = split
-            .get(src..src + n)
-            .ok_or("a plan past the stored bytes")?;
-        let dest = out
-            .get_mut(base + start..base + end)
-            .ok_or("a plan past the original bytes")?;
-        for (i, plane) in planes.chunks_exact(per.max(1)).take(itemsize).enumerate() {
-            for (j, &byte) in plane.iter().enumerate() {
-                dest[j * itemsize + i] = byte;
+        let mut out = vec![0u8; self.original_bytes];
+        out[..base].copy_from_slice(&split[..base]);
+        let (mut src, mut cursor) = (base, 0usize);
+        let copy =
+            |out: &mut Vec<u8>, at: usize, src: &mut usize, n: usize| -> Result<(), String> {
+                let from = split
+                    .get(*src..*src + n)
+                    .ok_or("a plan past the stored bytes")?;
+                out.get_mut(base + at..base + at + n)
+                    .ok_or("a plan past the original bytes")?
+                    .copy_from_slice(from);
+                *src += n;
+                Ok(())
+            };
+        for &[start, end, itemsize] in &self.plan {
+            if start < cursor
+                || end < start
+                || itemsize == 0
+                || !(end - start).is_multiple_of(itemsize)
+            {
+                return Err(format!(
+                    "a malformed plan entry [{start}, {end}, {itemsize}]"
+                ));
             }
+            if start > cursor {
+                copy(&mut out, cursor, &mut src, start - cursor)?;
+            }
+            let n = end - start;
+            let per = n / itemsize;
+            let planes = split
+                .get(src..src + n)
+                .ok_or("a plan past the stored bytes")?;
+            let dest = out
+                .get_mut(base + start..base + end)
+                .ok_or("a plan past the original bytes")?;
+            for (i, plane) in planes.chunks_exact(per.max(1)).take(itemsize).enumerate() {
+                for (j, &byte) in plane.iter().enumerate() {
+                    dest[j * itemsize + i] = byte;
+                }
+            }
+            src += n;
+            cursor = end;
         }
-        src += n;
-        cursor = end;
+        if self.payload_bytes < cursor {
+            return Err("a plan past the payload".into());
+        }
+        copy(&mut out, cursor, &mut src, self.payload_bytes - cursor)?;
+        Ok(out)
     }
-    if plan.payload_bytes < cursor {
-        return Err("a plan past the payload".into());
-    }
-    copy(&mut out, cursor, &mut src, plan.payload_bytes - cursor)?;
-    Ok(out)
 }
 
 #[cfg(test)]
@@ -318,7 +324,7 @@ mod tests {
             original_bytes: 7,
         };
         assert_eq!(
-            join_planes(&split, &plan).unwrap(),
+            plan.join(&split).unwrap(),
             [9, 9, 0x01, 0x02, 0x03, 0x04, 7]
         );
     }

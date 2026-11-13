@@ -19,7 +19,6 @@ use crate::{
     },
     data::formats::{
         NamedTensorsApplied,
-        load_rekeyed,
         split_rows,
     },
     errors::{
@@ -67,7 +66,7 @@ pub fn transformers_layer_keys() -> DecoderLayerKeys {
 /// head).
 ///
 /// Normalization parameters keep their `weight` spellings, which
-/// [`load_rekeyed`] resolves to `gamma`.
+/// [`Rekey::load`] resolves to `gamma`.
 pub fn transformers_rekey() -> Rekey {
     let layer = CausalDecoderBlock::layer_rekey(&transformers_layer_keys())
         .rename("mlp.Wi_gate.", "mlp.gate_proj.")
@@ -93,12 +92,12 @@ pub fn transformers_prefix(tensors: &[PackTensor]) -> &'static str {
 
 /// Loads tensors named as a `transformers` `ModernBERT` state dict (a bare
 /// model's, or under [`transformers_prefix`]) into `model`: the fused
-/// projections split ([`transformers_row_splits`]), then [`load_rekeyed`]
+/// projections split ([`transformers_row_splits`]), then [`Rekey::load`]
 /// under [`transformers_rekey`]; in `dtype` (a load policy's resolution),
 /// or, when `None`, in the dtype `model` was built in.
 ///
 /// # Errors
-/// As [`split_rows`] and [`load_rekeyed`].
+/// As [`split_rows`] and [`Rekey::load`].
 pub fn load_transformers_tensors(
     model: &mut ModernBertModel,
     tensors: impl IntoIterator<Item = PackTensor>,
@@ -109,7 +108,7 @@ pub fn load_transformers_tensors(
     let tensors = split_rows(tensors, &transformers_row_splits())?;
     let rekey = Rekey::drop_rest().mount(prefix, "", transformers_rekey());
     let rekey = rekey.then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, dtype)
+    rekey.load(model, tensors, dtype)
 }
 
 /// The [`ModernBertConfig`] of a `transformers` `ModernBERT` `config.json`

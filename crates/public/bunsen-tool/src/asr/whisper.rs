@@ -9,7 +9,7 @@ use std::{
 
 use bunsen::{
     data::{
-        builds::Deferred,
+        builds::DeferredBuild,
         resources::{
             ResourceCache,
             ResourceCacheOptions,
@@ -93,10 +93,10 @@ pub fn resolve(
     spec: &str,
     flags: Option<&WhisperFlags>,
     cache: &ResourceCache,
-) -> BunsenResult<Deferred<WhisperConstructConfig>> {
+) -> BunsenResult<DeferredBuild<WhisperConstructConfig>> {
     let path = Path::new(spec);
     let mut model = if path.is_file() {
-        Deferred::from_resource_set(ResourceSet::given(spec, CHECKPOINT, path)).as_policy()?
+        DeferredBuild::from_resource_set(ResourceSet::given(spec, CHECKPOINT, path)).as_policy()?
     } else {
         default_whisper_factory()?
             .resolve(spec, cache)

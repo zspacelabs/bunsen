@@ -290,7 +290,7 @@ fn fetch_prefix(
 /// *what is trusted there*. A caller opens one from
 /// [`ResourceCacheOptions`] (offline or not, local-dir overrides and
 /// verification, and with `fetch` the batch policy) and passes it to every
-/// load. [`Deferred::load`](crate::data::builds::Deferred::load)
+/// load. [`DeferredBuild::load`](crate::data::builds::DeferredBuild::load)
 /// calls [`load`](Self::load) between the kit hook's
 /// [`plan`](crate::data::builds::ConstructInit::plan) and
 /// [`try_init`](crate::data::builds::ConstructInit::try_init), and
@@ -660,7 +660,7 @@ impl ResourceCache {
     ) -> BunsenResult<ResolvedResource> {
         match self.resolve_local(res)? {
             Local::Found(found) => {
-                mark_used(&found);
+                found.mark_used();
                 Ok(found)
             }
             Local::Remote { dest, urls } => {
@@ -739,7 +739,7 @@ impl ResourceCache {
         for (key, res) in &map.resources {
             match self.resolve_local(res)? {
                 Local::Found(found) => {
-                    mark_used(&found);
+                    found.mark_used();
                     parts.insert(key.clone(), found);
                 }
                 Local::Remote { dest, urls } => remote.push(RemotePart {
@@ -996,16 +996,18 @@ impl ResourceCache {
     }
 }
 
-/// Marks a file the cache already held as used: its access and modification
-/// times set to now. A file the process cannot write (a read-only cache, a
-/// file another user owns) keeps its times; the load goes on.
-fn mark_used(found: &ResolvedResource) {
-    if found.provenance != Provenance::Cached {
-        return;
-    }
-    let now = std::time::SystemTime::now();
-    if let Ok(file) = fs::OpenOptions::new().write(true).open(&found.path) {
-        let _ = file.set_times(fs::FileTimes::new().set_accessed(now).set_modified(now));
+impl ResolvedResource {
+    /// Marks a file the cache already held as used: its access and modification
+    /// times set to now. A file the process cannot write (a read-only cache, a
+    /// file another user owns) keeps its times; the load goes on.
+    fn mark_used(&self) {
+        if self.provenance != Provenance::Cached {
+            return;
+        }
+        let now = std::time::SystemTime::now();
+        if let Ok(file) = fs::OpenOptions::new().write(true).open(&self.path) {
+            let _ = file.set_times(fs::FileTimes::new().set_accessed(now).set_modified(now));
+        }
     }
 }
 

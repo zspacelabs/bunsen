@@ -15,15 +15,15 @@
 //!   resource set.
 //! - [`ConstructInit`]: the kit's hook, which completes a resolved ref's
 //!   resource set before it is loaded and builds from the loaded parts.
-//! - [`Deferred`]: a model not yet loaded, its ref paired with the hook that
-//!   will build it.
+//! - [`DeferredBuild`]: a model not yet loaded, its ref paired with the hook
+//!   that will build it.
 //! - [`BuildFactory`]: a kit's providers in search order, resolving lookup
-//!   expressions to [`Deferred`] models.
+//!   expressions to [`DeferredBuild`] models.
 //! - [`LookupExpr`]: a lookup expression, `[provider:]name[preset, …]{patch}`,
 //!   split into the name and what it asks of the build's presets.
 //! - [`Loaded`]: the handle the pathway hands back.
 //!
-//! The factory, [`Deferred`], [`ConstructInit`], [`Loaded`] and
+//! The factory, [`DeferredBuild`], [`ConstructInit`], [`Loaded`] and
 //! [`LookupExpr`] need the `cache` feature (default, through `store`), and
 //! the factory the `kits` feature too, for the kits' preset resolution. The
 //! refs and providers are plain data and are always here.
@@ -98,7 +98,7 @@
 //!             CATALOG,
 //!             CatalogBuildProvider,
 //!             ConstructInit,
-//!             Deferred,
+//!             DeferredBuild,
 //!         },
 //!         cache::BunsenDiskCacheOptions,
 //!         catalog::BunsenCatalogStack,
@@ -213,7 +213,7 @@
 //!     "hi",
 //!     &cache,
 //!     &Default::default(),
-//!     LoadPolicy::as_stored(),
+//!     LoadPolicy::load_as_stored(),
 //! )?;
 //! assert_eq!(loaded.name, "catalog:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
@@ -222,13 +222,14 @@
 //! assert!(!tmp.path().join("cache").exists(), "nothing was copied in");
 //!
 //! // A path is not the factory's business: it is a given resource set.
-//! let given = Deferred::<Greeting>::from_resource_set(ResourceSet::given(
-//!     "mine",
-//!     "text",
-//!     upstream.join("hello.txt"),
-//! ))?;
-//! let loaded =
-//!     given.load(&cache, &Default::default(), LoadPolicy::as_stored())?;
+//! let given = DeferredBuild::<Greeting>::from_resource_set(
+//!     ResourceSet::given("mine", "text", upstream.join("hello.txt")),
+//! )?;
+//! let loaded = given.load(
+//!     &cache,
+//!     &Default::default(),
+//!     LoadPolicy::load_as_stored(),
+//! )?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
 //!     ("mine", "hello")

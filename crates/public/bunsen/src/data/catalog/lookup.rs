@@ -59,43 +59,50 @@ pub struct DisplayName {
     pub full: CatalogName,
 }
 
-/// Whether `query` (`/`-separated segments) names `name`: its last segment
-/// matches `name`'s leaf as `leaf` says, and its others are among `name`'s
-/// scope, in order, ignoring ASCII case. What a lookup by a shorter name
-/// tests.
-pub fn name_matches(
-    query: &str,
-    name: &CatalogName,
-    leaf: LeafMatch,
-) -> bool {
-    let parts: Vec<&str> = query.split('/').collect();
-    subsequence(&parts, name, leaf)
+impl CatalogName {
+    /// Whether `query` (`/`-separated segments) names this name: its last
+    /// segment matches the leaf as `leaf` says, and its others are among the
+    /// scope, in order, ignoring ASCII case. What a lookup by a shorter name
+    /// tests.
+    pub fn matches_query(
+        &self,
+        query: &str,
+        leaf: LeafMatch,
+    ) -> bool {
+        let parts: Vec<&str> = query.split('/').collect();
+        self.matches_query_segments(&parts, leaf)
+    }
 }
 
-fn subsequence(
-    query: &[&str],
-    name: &CatalogName,
-    leaf: LeafMatch,
-) -> bool {
-    let segments = name.segments();
-    let (Some((last, init)), Some((name_last, name_init))) =
-        (query.split_last(), segments.split_last())
-    else {
-        return false;
-    };
-    // Lookups ignore ASCII case; a stack never holds two names that differ
-    // only in case.
-    let leaf_ok = match leaf {
-        LeafMatch::Exact => name_last.eq_ignore_ascii_case(last),
-        LeafMatch::Prefix => name_last
-            .get(..last.len())
-            .is_some_and(|head| head.eq_ignore_ascii_case(last)),
-    };
-    if !leaf_ok {
-        return false;
+impl CatalogName {
+    /// [`matches_query`](Self::matches_query) on a query already split into
+    /// its segments: the last segment matches the leaf as `leaf` says, and the
+    /// others are a subsequence of the scope, ignoring ASCII case.
+    fn matches_query_segments(
+        &self,
+        query: &[&str],
+        leaf: LeafMatch,
+    ) -> bool {
+        let segments = self.segments();
+        let (Some((last, init)), Some((name_last, name_init))) =
+            (query.split_last(), segments.split_last())
+        else {
+            return false;
+        };
+        // Lookups ignore ASCII case; a stack never holds two names that differ
+        // only in case.
+        let leaf_ok = match leaf {
+            LeafMatch::Exact => name_last.eq_ignore_ascii_case(last),
+            LeafMatch::Prefix => name_last
+                .get(..last.len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(last)),
+        };
+        if !leaf_ok {
+            return false;
+        }
+        let mut rest = name_init.iter();
+        init.iter().all(|q| rest.any(|s| s.eq_ignore_ascii_case(q)))
     }
-    let mut rest = name_init.iter();
-    init.iter().all(|q| rest.any(|s| s.eq_ignore_ascii_case(q)))
 }
 
 impl BunsenCatalogStack {
@@ -113,7 +120,7 @@ impl BunsenCatalogStack {
         let mut found: Vec<CatalogName> = Vec::new();
         for name in self
             .declarations()
-            .filter(|e| subsequence(&parts, e.name(), leaf))
+            .filter(|e| e.name().matches_query_segments(&parts, leaf))
             .filter_map(|e| self.as_found(e, kinds))
         {
             if !found.contains(&name) {
@@ -303,7 +310,7 @@ mod tests {
         let name = CatalogName::parse("openai/whisper/large/large-v3").unwrap();
         let m = |q: &str| {
             let parts: Vec<&str> = q.split('/').collect();
-            subsequence(&parts, &name, LeafMatch::Exact)
+            name.matches_query_segments(&parts, LeafMatch::Exact)
         };
         assert!(m("large-v3"));
         assert!(m("whisper/large-v3"));
@@ -312,7 +319,7 @@ mod tests {
         assert!(!m("whisper/openai/large-v3"));
         assert!(!m("large"));
         let parts = ["large"];
-        assert!(subsequence(&parts, &name, LeafMatch::Prefix));
+        assert!(name.matches_query_segments(&parts, LeafMatch::Prefix));
     }
 
     #[test]

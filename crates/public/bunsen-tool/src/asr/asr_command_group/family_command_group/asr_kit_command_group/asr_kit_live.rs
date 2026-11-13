@@ -23,11 +23,11 @@ use bunsen_app::{
 
 use crate::{
     asr::{
+        AsrFamily,
         AsrSpeakerArgs,
         CaptureArgs,
         Driver,
         Emission,
-        Family,
         FamilyFlags,
         Stream,
         Streaming,
@@ -121,7 +121,7 @@ pub struct AsrLiveIo {
 impl<F: clap::Args + FamilyFlags> AsrKitLiveCommand<F> {
     pub fn run(
         &self,
-        family: Family,
+        family: AsrFamily,
     ) -> BunsenResult<()> {
         self.io.init_logging()?;
         let model = self
@@ -148,7 +148,7 @@ impl AsrLiveIo {
     /// streamed as `streaming` says.
     pub fn run<F: FamilyFlags>(
         &self,
-        family: Family,
+        family: AsrFamily,
         model: &str,
         flags: &F,
         streaming: &Streaming,

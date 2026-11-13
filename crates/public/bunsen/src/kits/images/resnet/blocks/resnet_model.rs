@@ -600,7 +600,7 @@ impl ResNet {
     /// `PyTorch` checkpoint an
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource);
     /// otherwise as
-    /// [`apply_rekeyed_tensors`](crate::data::formats::apply_rekeyed_tensors),
+    /// [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to),
     /// if the checkpoint does not load into the model.
     #[cfg(feature = "store")]
     pub fn load_pytorch_weights(
@@ -611,7 +611,8 @@ impl ResNet {
         // The names are mapped by `torchvision_rekey`, whose indices are the
         // checkpoint's own: the reader does not renumber them.
         let tensors = crate::data::formats::read_pytorch_tensors(&path)?;
-        crate::data::formats::apply_rekeyed_tensors(&mut self, tensors, &Self::torchvision_rekey())
+        Self::torchvision_rekey()
+            .apply_to(&mut self, tensors)
             .with_context(|| format!("loading {}", path.display()))?;
 
         Ok(self)
@@ -791,7 +792,7 @@ mod tests {
             spec,
             &cache,
             &device,
-            crate::data::formats::LoadPolicy::as_stored(),
+            crate::data::formats::LoadPolicy::load_as_stored(),
         )?;
         let _model: &ResNet = &loaded.handle;
         Ok(())

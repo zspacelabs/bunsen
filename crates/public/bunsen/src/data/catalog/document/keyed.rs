@@ -296,13 +296,14 @@ impl Serialize for BunsenCatalog {
         &self,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        write_catalog(self).serialize(serializer)
+        self.write_keyed().serialize(serializer)
     }
 }
 
 impl<'de> Deserialize<'de> for BunsenCatalog {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        read_catalog(OrderedNode::deserialize(deserializer)?).map_err(de::Error::custom)
+        BunsenCatalog::read_keyed(OrderedNode::deserialize(deserializer)?)
+            .map_err(de::Error::custom)
     }
 }
 
@@ -358,39 +359,41 @@ fn typed<T: DeserializeOwned>(
         .map_err(|e| parse_error(path, format!("{what}: {e}")))
 }
 
-/// Reads a catalog document from its tree.
-pub(super) fn read_catalog(node: OrderedNode) -> BunsenResult<BunsenCatalog> {
-    let mut catalog = BunsenCatalog::default();
-    for (key, value) in expect_map(node, "", "the catalog")? {
-        match key.as_str() {
-            "$description" => match value {
-                OrderedNode::Scalar(Value::String(text)) => catalog.description = Some(text),
-                _ => return Err(parse_error("", "`$description` is not a string")),
-            },
-            "$contracts" => {
-                let mut contracts = Vec::new();
-                for (name, node) in expect_map(value, "$contracts", "`$contracts`")? {
-                    let path = child_path("$contracts", &name);
-                    contracts.push(read_entry(name, node, &path)?);
+impl BunsenCatalog {
+    /// Reads a catalog document from its tree.
+    pub(super) fn read_keyed(node: OrderedNode) -> BunsenResult<Self> {
+        let mut catalog = Self::default();
+        for (key, value) in expect_map(node, "", "the catalog")? {
+            match key.as_str() {
+                "$description" => match value {
+                    OrderedNode::Scalar(Value::String(text)) => catalog.description = Some(text),
+                    _ => return Err(parse_error("", "`$description` is not a string")),
+                },
+                "$contracts" => {
+                    let mut contracts = Vec::new();
+                    for (name, node) in expect_map(value, "$contracts", "`$contracts`")? {
+                        let path = child_path("$contracts", &name);
+                        contracts.push(read_entry(name, node, &path)?);
+                    }
+                    catalog.contracts = Some(contracts);
                 }
-                catalog.contracts = Some(contracts);
-            }
-            _ if key.starts_with('$') => {
-                return Err(parse_error(
-                    "",
-                    format!(
-                        "the catalog has no `{key}`: its `$` words are `$description` and \
+                _ if key.starts_with('$') => {
+                    return Err(parse_error(
+                        "",
+                        format!(
+                            "the catalog has no `{key}`: its `$` words are `$description` and \
                          `$contracts`"
-                    ),
-                ));
-            }
-            _ => {
-                let path = key.clone();
-                catalog.entries.push(read_entry(key, value, &path)?);
+                        ),
+                    ));
+                }
+                _ => {
+                    let path = key.clone();
+                    catalog.entries.push(read_entry(key, value, &path)?);
+                }
             }
         }
+        Ok(catalog)
     }
-    Ok(catalog)
 }
 
 fn entry_kind(
@@ -421,7 +424,7 @@ fn read_entry(
             continue;
         }
         if key == "$presets" && has_presets {
-            presets = read_presets(value, path)?;
+            presets = PresetSetEntry::read_keyed(value, path)?;
         } else if key.starts_with('$') {
             fields.insert(key, value.into_value());
         } else {
@@ -516,30 +519,66 @@ struct AxisUseFields {
     default: String,
 }
 
-fn read_presets(
-    node: OrderedNode,
-    path: &str,
-) -> BunsenResult<PresetSetEntry> {
-    let mut set = PresetSetEntry::default();
-    for (key, value) in expect_map(node, path, "`$presets`")? {
-        match key.as_str() {
-            "$common" => {
-                set.common = value.into_value();
-                if set.common.is_null() {
-                    set.common = empty_object();
+impl PresetSetEntry {
+    /// Reads a `$presets` set from its tree: its `$common`, `$axes` and
+    /// `$default`, and each other key as a preset. `path` is the document path
+    /// of the set, used in errors.
+    fn read_keyed(
+        node: OrderedNode,
+        path: &str,
+    ) -> BunsenResult<Self> {
+        let mut set = Self::default();
+        for (key, value) in expect_map(node, path, "`$presets`")? {
+            match key.as_str() {
+                "$common" => {
+                    set.common = value.into_value();
+                    if set.common.is_null() {
+                        set.common = empty_object();
+                    }
                 }
-            }
-            "$default" => {
-                set.default = serde_json::from_value(value.into_value())
-                    .map_err(|e| parse_error(path, format!("`$presets.$default`: {e}")))?;
-            }
-            "$axes" => {
-                for (axis, value) in expect_map(value, path, "`$presets.$axes`")? {
-                    let what = format!("the use of `{axis}`");
+                "$default" => {
+                    set.default = serde_json::from_value(value.into_value())
+                        .map_err(|e| parse_error(path, format!("`$presets.$default`: {e}")))?;
+                }
+                "$axes" => {
+                    for (axis, value) in expect_map(value, path, "`$presets.$axes`")? {
+                        let what = format!("the use of `{axis}`");
+                        let OrderedNode::Map(entries) = value else {
+                            return Err(parse_error(path, format!("{what} is not a map")));
+                        };
+                        let fields: AxisUseFields = typed(
+                            entries
+                                .into_iter()
+                                .map(|(k, v)| (k, v.into_value()))
+                                .collect(),
+                            path,
+                            &what,
+                        )?;
+                        let axis = CatalogRef::parse(&axis).map_err(|e| {
+                            parse_error(path, format!("{what}: {}", e.problem_message()))
+                        })?;
+                        set.axes.push(AxisUse {
+                            axis,
+                            offers: fields.offers,
+                            default: fields.default,
+                        });
+                    }
+                }
+                _ if key.starts_with('$') => {
+                    return Err(parse_error(
+                        path,
+                        format!(
+                            "`$presets` has no `{key}`: its `$` words are `$common`, `$axes` and \
+                         `$default`, and its other keys are presets"
+                        ),
+                    ));
+                }
+                _ => {
+                    let what = format!("the preset `{key}`");
                     let OrderedNode::Map(entries) = value else {
                         return Err(parse_error(path, format!("{what} is not a map")));
                     };
-                    let fields: AxisUseFields = typed(
+                    let preset: PresetEntry = typed(
                         entries
                             .into_iter()
                             .map(|(k, v)| (k, v.into_value()))
@@ -547,68 +586,39 @@ fn read_presets(
                         path,
                         &what,
                     )?;
-                    let axis = CatalogRef::parse(&axis).map_err(|e| {
-                        parse_error(path, format!("{what}: {}", e.problem_message()))
-                    })?;
-                    set.axes.push(AxisUse {
-                        axis,
-                        offers: fields.offers,
-                        default: fields.default,
+                    set.presets.push(PresetEntry {
+                        name: key,
+                        ..preset
                     });
                 }
             }
-            _ if key.starts_with('$') => {
-                return Err(parse_error(
-                    path,
-                    format!(
-                        "`$presets` has no `{key}`: its `$` words are `$common`, `$axes` and \
-                         `$default`, and its other keys are presets"
-                    ),
-                ));
-            }
-            _ => {
-                let what = format!("the preset `{key}`");
-                let OrderedNode::Map(entries) = value else {
-                    return Err(parse_error(path, format!("{what} is not a map")));
-                };
-                let preset: PresetEntry = typed(
-                    entries
-                        .into_iter()
-                        .map(|(k, v)| (k, v.into_value()))
-                        .collect(),
-                    path,
-                    &what,
-                )?;
-                set.presets.push(PresetEntry {
-                    name: key,
-                    ..preset
-                });
-            }
         }
+        Ok(set)
     }
-    Ok(set)
 }
 
-/// Writes a catalog document as its tree.
-pub(super) fn write_catalog(catalog: &BunsenCatalog) -> OrderedNode {
-    let mut entries = Vec::new();
-    if let Some(description) = &catalog.description {
-        entries.push((
-            "$description".to_string(),
-            OrderedNode::Scalar(Value::String(description.clone())),
-        ));
+impl BunsenCatalog {
+    /// Writes a catalog document as its tree.
+    pub(super) fn write_keyed(&self) -> OrderedNode {
+        let mut entries = Vec::new();
+        if let Some(description) = &self.description {
+            entries.push((
+                "$description".to_string(),
+                OrderedNode::Scalar(Value::String(description.clone())),
+            ));
+        }
+        if let Some(contracts) = &self.contracts {
+            let written = contracts
+                .iter()
+                .map(|c| (c.name().to_string(), write_entry(c)))
+                .collect();
+            entries.push(("$contracts".to_string(), OrderedNode::Map(written)));
+        }
+        for entry in &self.entries {
+            entries.push((entry.name().to_string(), write_entry(entry)));
+        }
+        OrderedNode::Map(entries)
     }
-    if let Some(contracts) = &catalog.contracts {
-        let written = contracts
-            .iter()
-            .map(|c| (c.name().to_string(), write_entry(c)))
-            .collect();
-        entries.push(("$contracts".to_string(), OrderedNode::Map(written)));
-    }
-    for entry in &catalog.entries {
-        entries.push((entry.name().to_string(), write_entry(entry)));
-    }
-    OrderedNode::Map(entries)
 }
 
 /// An entry's keyed form, without its name: `$kind`, its fields in their
@@ -647,7 +657,7 @@ pub(super) fn write_entry(entry: &CatalogEntry) -> OrderedNode {
     if let Some(presets) = presets
         && !presets.is_empty()
     {
-        out.push(("$presets".to_string(), write_presets(presets)));
+        out.push(("$presets".to_string(), presets.write_keyed()));
     }
     for child in children {
         out.push((child.name().to_string(), write_entry(child)));
@@ -655,30 +665,34 @@ pub(super) fn write_entry(entry: &CatalogEntry) -> OrderedNode {
     OrderedNode::Map(out)
 }
 
-fn write_presets(set: &PresetSetEntry) -> OrderedNode {
-    let mut out = Vec::new();
-    if !is_empty_object(&set.common) {
-        out.push(("$common".to_string(), OrderedNode::of(&set.common)));
+impl PresetSetEntry {
+    /// Writes this `$presets` set as its tree: its `$common`, `$axes` and
+    /// `$default` when set, then each preset under its name, in order.
+    fn write_keyed(&self) -> OrderedNode {
+        let mut out = Vec::new();
+        if !is_empty_object(&self.common) {
+            out.push(("$common".to_string(), OrderedNode::of(&self.common)));
+        }
+        if !self.axes.is_empty() {
+            let axes = self
+                .axes
+                .iter()
+                .map(|using| {
+                    let fields = AxisUseFields {
+                        offers: using.offers.clone(),
+                        default: using.default.clone(),
+                    };
+                    (using.axis.to_string(), OrderedNode::of(&fields))
+                })
+                .collect();
+            out.push(("$axes".to_string(), OrderedNode::Map(axes)));
+        }
+        if !self.default.is_empty() {
+            out.push(("$default".to_string(), OrderedNode::of(&self.default)));
+        }
+        for preset in &self.presets {
+            out.push((preset.name.clone(), OrderedNode::of(preset)));
+        }
+        OrderedNode::Map(out)
     }
-    if !set.axes.is_empty() {
-        let axes = set
-            .axes
-            .iter()
-            .map(|using| {
-                let fields = AxisUseFields {
-                    offers: using.offers.clone(),
-                    default: using.default.clone(),
-                };
-                (using.axis.to_string(), OrderedNode::of(&fields))
-            })
-            .collect();
-        out.push(("$axes".to_string(), OrderedNode::Map(axes)));
-    }
-    if !set.default.is_empty() {
-        out.push(("$default".to_string(), OrderedNode::of(&set.default)));
-    }
-    for preset in &set.presets {
-        out.push((preset.name.clone(), OrderedNode::of(preset)));
-    }
-    OrderedNode::Map(out)
 }

@@ -17,8 +17,6 @@ use bunsen::data::catalog::{
         choose::{
             SelectRequest,
             SelectionContext,
-            bool_axis_member,
-            preset_prefix,
         },
         state::{
             SelectEnv,
@@ -67,9 +65,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         StageOrigin::Query,
     );
     for (flag, on) in [("--think", true), ("--no-think", false)] {
-        let member = bool_axis_member(&stack, "thinking", on)?;
+        let member = stack.bool_axis_member("thinking", on)?;
         let presets = PresetSelection::of([member.as_str()]);
-        let prefix = preset_prefix(&presets, vec![flag.to_string()]);
+        let prefix = presets.prefix_stage(vec![flag.to_string()]);
         let (build, run) = context.choose(&env, None, prefix, &request)?;
         let applied = build.build.presets.select(json!({}), &presets)?;
         println!(

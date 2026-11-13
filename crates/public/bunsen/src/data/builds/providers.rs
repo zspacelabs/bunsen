@@ -114,7 +114,7 @@ pub trait BuildProvider: Send + Sync + fmt::Debug {
         &self,
         build: &ResolvedBuild,
     ) -> String {
-        qualified_id(self.name(), build)
+        build.qualified_id(self.name())
     }
 
     /// Every qualified id, in listing order.
@@ -123,18 +123,20 @@ pub trait BuildProvider: Send + Sync + fmt::Debug {
     }
 }
 
-/// `provider:ref` for `build` in `provider`: the ref the build's full name,
-/// or the rest of it under a root named for the provider.
-pub fn qualified_id(
-    provider: &str,
-    build: &ResolvedBuild,
-) -> String {
-    let name = build.name.to_string();
-    let reference = name
-        .strip_prefix(provider)
-        .and_then(|rest| rest.strip_prefix('/'))
-        .unwrap_or(&name);
-    format!("{provider}:{reference}")
+impl ResolvedBuild {
+    /// `provider:ref` for this build in `provider`: the ref the build's full
+    /// name, or the rest of it under a root named for the provider.
+    pub fn qualified_id(
+        &self,
+        provider: &str,
+    ) -> String {
+        let name = self.name.to_string();
+        let reference = name
+            .strip_prefix(provider)
+            .and_then(|rest| rest.strip_prefix('/'))
+            .unwrap_or(&name);
+        format!("{provider}:{reference}")
+    }
 }
 
 #[cfg(test)]
@@ -193,13 +195,13 @@ mod tests {
     #[test]
     fn test_the_qualified_id() {
         assert_eq!(
-            qualified_id("hf", &build("hf/openai/whisper-tiny", &[])),
+            build("hf/openai/whisper-tiny", &[]).qualified_id("hf"),
             "hf:openai/whisper-tiny"
         );
         assert_eq!(
-            qualified_id("catalog", &build("openai/whisper/tiny", &[])),
+            build("openai/whisper/tiny", &[]).qualified_id("catalog"),
             "catalog:openai/whisper/tiny"
         );
-        assert_eq!(qualified_id("hf", &build("hfx/a", &[])), "hf:hfx/a");
+        assert_eq!(build("hfx/a", &[]).qualified_id("hf"), "hf:hfx/a");
     }
 }

@@ -11,15 +11,12 @@ use bunsen::{
             BuildFactory,
             BuildProvider,
             ConstructInit,
-            Deferred,
+            DeferredBuild,
         },
         cache::verify_sha256,
         catalog::{
             ResolvedBuild,
-            lookup::{
-                LeafMatch,
-                name_matches,
-            },
+            lookup::LeafMatch,
         },
         formats::LoadPolicy,
         resources::{
@@ -76,7 +73,7 @@ use crate::asr::{
 
 /// A model family: one kit, its factory, and its default model.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Family {
+pub enum AsrFamily {
     /// NVIDIA's Parakeet TDT.
     Parakeet,
 
@@ -93,24 +90,24 @@ pub enum Family {
 /// What `list` and `fetch` serve: a speech recognizer's family, or the
 /// diarizer.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kit {
+pub enum AsrKit {
     /// A speech recognizer's family.
-    Asr(Family),
+    Asr(AsrFamily),
 
     /// The speaker diarizer: Sortformer.
     Diarizer,
 }
 
-impl From<Family> for Kit {
-    fn from(family: Family) -> Self {
-        Kit::Asr(family)
+impl From<AsrFamily> for AsrKit {
+    fn from(family: AsrFamily) -> Self {
+        AsrKit::Asr(family)
     }
 }
 
 /// What a family's factory offers: its listed rows, with their providers,
 /// and the providers that list nothing but resolve a ref (`hf`).
 #[derive(Clone, Debug)]
-pub struct Listing {
+pub struct AsrFamilyListing {
     /// The listed rows, by provider.
     pub rows: Vec<(String, ResolvedBuild)>,
 
@@ -123,7 +120,7 @@ pub struct Listing {
 
 /// A loaded model of one family.
 #[derive(Clone, Debug)]
-pub enum Loaded {
+pub enum AsrConstructWrapper {
     /// A Parakeet TDT construct.
     Parakeet(Arc<ParakeetConstruct>),
 
@@ -137,49 +134,49 @@ pub enum Loaded {
     Whisper(Arc<WhisperConstruct>),
 }
 
-impl<'de> serde::Deserialize<'de> for Family {
-    /// By [`name`](Family::name): `parakeet`, `qwen3-asr`, `voxtral`,
+impl<'de> serde::Deserialize<'de> for AsrFamily {
+    /// By [`name`](AsrFamily::name): `parakeet`, `qwen3-asr`, `voxtral`,
     /// `whisper`.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let name = String::deserialize(deserializer)?;
-        Family::from_name(&name).ok_or_else(|| {
-            let names: Vec<&str> = Family::ALL.iter().map(|f| f.name()).collect();
+        AsrFamily::from_name(&name).ok_or_else(|| {
+            let names: Vec<&str> = AsrFamily::ALL.iter().map(|f| f.name()).collect();
             serde::de::Error::custom(format!("`{name}` is not a family: {}", names.join(", ")))
         })
     }
 }
 
-impl Family {
+impl AsrFamily {
     /// Every family.
-    pub const ALL: [Family; 4] = [
-        Family::Parakeet,
-        Family::Qwen3Asr,
-        Family::Voxtral,
-        Family::Whisper,
+    pub const ALL: [AsrFamily; 4] = [
+        AsrFamily::Parakeet,
+        AsrFamily::Qwen3Asr,
+        AsrFamily::Voxtral,
+        AsrFamily::Whisper,
     ];
 
     /// The family whose command name is `name`.
-    pub fn from_name(name: &str) -> Option<Family> {
-        Family::ALL.into_iter().find(|f| f.name() == name)
+    pub fn from_name(name: &str) -> Option<AsrFamily> {
+        AsrFamily::ALL.into_iter().find(|f| f.name() == name)
     }
 
     /// The family's command name.
     pub fn name(self) -> &'static str {
         match self {
-            Family::Parakeet => "parakeet",
-            Family::Qwen3Asr => "qwen3-asr",
-            Family::Voxtral => "voxtral",
-            Family::Whisper => "whisper",
+            AsrFamily::Parakeet => "parakeet",
+            AsrFamily::Qwen3Asr => "qwen3-asr",
+            AsrFamily::Voxtral => "voxtral",
+            AsrFamily::Whisper => "whisper",
         }
     }
 
     /// The model `--model` names when it is not given.
     pub fn default_model(self) -> &'static str {
         match self {
-            Family::Parakeet => DEFAULT_PARAKEET_MODEL,
-            Family::Qwen3Asr => DEFAULT_QWEN3_ASR_MODEL,
-            Family::Voxtral => DEFAULT_VOXTRAL_MODEL,
-            Family::Whisper => "openai/base",
+            AsrFamily::Parakeet => DEFAULT_PARAKEET_MODEL,
+            AsrFamily::Qwen3Asr => DEFAULT_QWEN3_ASR_MODEL,
+            AsrFamily::Voxtral => DEFAULT_VOXTRAL_MODEL,
+            AsrFamily::Whisper => "openai/base",
         }
     }
 
@@ -192,24 +189,24 @@ impl Family {
         flags: &F,
         cache: &ResourceCache,
         device: &Device,
-    ) -> BunsenResult<Loaded> {
+    ) -> BunsenResult<AsrConstructWrapper> {
         Ok(match self {
-            Family::Parakeet => Loaded::Parakeet(load_logged(
+            AsrFamily::Parakeet => AsrConstructWrapper::Parakeet(load_logged(
                 default_parakeet_factory()?.resolve(spec, cache)?,
                 cache,
                 device,
             )?),
-            Family::Qwen3Asr => Loaded::Qwen3Asr(load_logged(
+            AsrFamily::Qwen3Asr => AsrConstructWrapper::Qwen3Asr(load_logged(
                 default_qwen3_asr_factory()?.resolve(spec, cache)?,
                 cache,
                 device,
             )?),
-            Family::Voxtral => Loaded::Voxtral(load_logged(
+            AsrFamily::Voxtral => AsrConstructWrapper::Voxtral(load_logged(
                 default_voxtral_factory()?.resolve(spec, cache)?,
                 cache,
                 device,
             )?),
-            Family::Whisper => Loaded::Whisper(load_logged(
+            AsrFamily::Whisper => AsrConstructWrapper::Whisper(load_logged(
                 whisper::resolve(spec, flags.whisper(), cache)?,
                 cache,
                 device,
@@ -218,20 +215,20 @@ impl Family {
     }
 }
 
-impl Kit {
+impl AsrKit {
     /// The kit's command name.
     pub fn name(self) -> &'static str {
         match self {
-            Kit::Asr(family) => family.name(),
-            Kit::Diarizer => "diarize",
+            AsrKit::Asr(family) => family.name(),
+            AsrKit::Diarizer => "diarize",
         }
     }
 
     /// The model `--model` names when it is not given.
     pub fn default_model(self) -> &'static str {
         match self {
-            Kit::Asr(family) => family.default_model(),
-            Kit::Diarizer => DEFAULT_SORTFORMER_MODEL,
+            AsrKit::Asr(family) => family.default_model(),
+            AsrKit::Diarizer => DEFAULT_SORTFORMER_MODEL,
         }
     }
 
@@ -254,13 +251,13 @@ impl Kit {
                 Some(_) => return false,
                 None => name,
             };
-            name_matches(bare, &row.name, LeafMatch::Exact) || row.answers_to(bare)
+            row.name.matches_query(bare, LeafMatch::Exact) || row.answers_to(bare)
         }))
     }
 
     /// What the kit's factory offers.
-    pub fn listing(self) -> BunsenResult<Listing> {
-        fn split<H: ConstructInit>(factory: BuildFactory<H>) -> Listing {
+    pub fn listing(self) -> BunsenResult<AsrFamilyListing> {
+        fn split<H: ConstructInit>(factory: BuildFactory<H>) -> AsrFamilyListing {
             let rows = factory.list();
             let listed: Vec<&str> = rows.iter().map(|(p, _)| p.as_str()).collect();
             let unlisted = factory
@@ -269,18 +266,18 @@ impl Kit {
                 .map(|p| p.name().to_string())
                 .filter(|p| !listed.contains(&p.as_str()))
                 .collect();
-            Listing {
+            AsrFamilyListing {
                 rows,
                 providers: factory.providers().to_vec(),
                 unlisted,
             }
         }
         Ok(match self {
-            Kit::Asr(Family::Parakeet) => split(default_parakeet_factory()?),
-            Kit::Asr(Family::Qwen3Asr) => split(default_qwen3_asr_factory()?),
-            Kit::Asr(Family::Voxtral) => split(default_voxtral_factory()?),
-            Kit::Asr(Family::Whisper) => split(default_whisper_factory()?),
-            Kit::Diarizer => split(default_sortformer_factory()?),
+            AsrKit::Asr(AsrFamily::Parakeet) => split(default_parakeet_factory()?),
+            AsrKit::Asr(AsrFamily::Qwen3Asr) => split(default_qwen3_asr_factory()?),
+            AsrKit::Asr(AsrFamily::Voxtral) => split(default_voxtral_factory()?),
+            AsrKit::Asr(AsrFamily::Whisper) => split(default_whisper_factory()?),
+            AsrKit::Diarizer => split(default_sortformer_factory()?),
         })
     }
 
@@ -303,24 +300,26 @@ impl Kit {
         out: &mut impl Write,
     ) -> BunsenResult<()> {
         match self {
-            Kit::Asr(Family::Parakeet) => {
+            AsrKit::Asr(AsrFamily::Parakeet) => {
                 fetch_with(default_parakeet_factory()?, names, cache, verify, out)
             }
-            Kit::Asr(Family::Qwen3Asr) => {
+            AsrKit::Asr(AsrFamily::Qwen3Asr) => {
                 fetch_with(default_qwen3_asr_factory()?, names, cache, verify, out)
             }
-            Kit::Asr(Family::Voxtral) => {
+            AsrKit::Asr(AsrFamily::Voxtral) => {
                 fetch_with(default_voxtral_factory()?, names, cache, verify, out)
             }
-            Kit::Asr(Family::Whisper) => {
+            AsrKit::Asr(AsrFamily::Whisper) => {
                 fetch_with(default_whisper_factory()?, names, cache, verify, out)
             }
-            Kit::Diarizer => fetch_with(default_sortformer_factory()?, names, cache, verify, out),
+            AsrKit::Diarizer => {
+                fetch_with(default_sortformer_factory()?, names, cache, verify, out)
+            }
         }
     }
 }
 
-/// [`Kit::fetch`] through one kit's factory: each name's plan (a
+/// [`AsrKit::fetch`] through one kit's factory: each name's plan (a
 /// path's vocabulary is the one its checkpoint's layout selects, and a
 /// name's checkpoint must scan as its prefab), then every resource of it.
 pub fn fetch_with<H: ConstructInit>(
@@ -363,7 +362,7 @@ pub fn fetch_with<H: ConstructInit>(
 /// Resolves and loads `spec`, logging what it is and where its files came
 /// from: the model's info card.
 pub fn load_logged<H: ConstructInit>(
-    deferred: Deferred<H>,
+    deferred: DeferredBuild<H>,
     cache: &ResourceCache,
     device: &Device,
 ) -> BunsenResult<Arc<H::Construct>> {
@@ -423,19 +422,19 @@ impl FamilyFlags for VoxtralFlags {}
 macro_rules! with_flags {
     ($family:expr, $flags:ident => $body:expr) => {
         match $family {
-            $crate::asr::Family::Parakeet => {
+            $crate::asr::AsrFamily::Parakeet => {
                 let $flags = $crate::asr::parakeet::ParakeetFlags::default();
                 $body
             }
-            $crate::asr::Family::Qwen3Asr => {
+            $crate::asr::AsrFamily::Qwen3Asr => {
                 let $flags = $crate::asr::qwen3_asr::Qwen3AsrFlags::default();
                 $body
             }
-            $crate::asr::Family::Voxtral => {
+            $crate::asr::AsrFamily::Voxtral => {
                 let $flags = $crate::asr::voxtral::VoxtralFlags::default();
                 $body
             }
-            $crate::asr::Family::Whisper => {
+            $crate::asr::AsrFamily::Whisper => {
                 let $flags = $crate::asr::whisper::WhisperFlags::default();
                 $body
             }
@@ -463,11 +462,11 @@ mod tests {
         .unwrap();
         let mut out = Vec::new();
         for kit in [
-            Kit::Asr(Family::Parakeet),
-            Kit::Asr(Family::Qwen3Asr),
-            Kit::Asr(Family::Voxtral),
-            Kit::Asr(Family::Whisper),
-            Kit::Diarizer,
+            AsrKit::Asr(AsrFamily::Parakeet),
+            AsrKit::Asr(AsrFamily::Qwen3Asr),
+            AsrKit::Asr(AsrFamily::Voxtral),
+            AsrKit::Asr(AsrFamily::Whisper),
+            AsrKit::Diarizer,
         ] {
             let unknown = kit.fetch(&["no/such-model".into()], &cache, false, &mut out);
             assert!(unknown.is_err(), "{}", kit.name());

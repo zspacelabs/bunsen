@@ -18,10 +18,7 @@ use crate::{
         CanonicalKeys,
         ModuleInit,
     },
-    data::formats::{
-        apply_rekeyed_tensors,
-        pytorch_store_error,
-    },
+    data::formats::pytorch_store_error,
     errors::{
         BunsenError,
         BunsenResult,
@@ -182,8 +179,8 @@ impl PytorchWhisperScanner {
     ///
     /// # Errors
     /// As [`scan_cfg`](Self::scan_cfg), and for loading the weights
-    /// ([`apply_rekeyed_tensors`]); as [`ModuleInit::try_init`] for the
-    /// scanned config.
+    /// ([`Rekey::apply_to`](crate::burner::module::Rekey::apply_to)); as
+    /// [`ModuleInit::try_init`] for the scanned config.
     pub fn load<P: AsRef<Path>>(
         &self,
         path: P,
@@ -205,7 +202,7 @@ impl PytorchWhisperScanner {
             })
             .collect();
         let rekey = module.canonical_rekey();
-        apply_rekeyed_tensors(&mut module, tensors, &rekey)?;
+        rekey.apply_to(&mut module, tensors)?;
 
         Ok((module, cfg))
     }

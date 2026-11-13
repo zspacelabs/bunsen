@@ -4,8 +4,8 @@
 //!   what it is for (the task, the speech, the latency) rather than by which
 //!   model does it, resolved from a table (`asr_construct.yml`) to a family's
 //!   checkpoint.
-//! - [`Family`] and [`Kit`]: the model families and the kits, and loading a
-//!   model with its info card. Each family's module ([`parakeet`],
+//! - [`AsrFamily`] and [`AsrKit`]: the model families and the kits, and loading
+//!   a model with its info card. Each family's module ([`parakeet`],
 //!   [`qwen3_asr`], [`voxtral`], [`whisper`]) builds its [`Driver`] and
 //!   transcribes through it; [`stream()`] streams a recording through a driver,
 //!   with voice activity and speakers when asked (and with `live`, a `Stream`

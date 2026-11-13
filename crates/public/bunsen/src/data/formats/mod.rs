@@ -5,10 +5,10 @@
 //! `PyTorch` reader ([`read_pytorch_tensors`]), MLX's affine-quantized
 //! tensors ([`mlx`]), `FermionResearch`'s Phonon formats ([`fermion`]), and
 //! [`apply_named_tensors`], which loads any of them into a module under a
-//! kit's names, or [`apply_rekeyed_tensors`], under a
-//! [`Rekey`](crate::burner::module::Rekey) whose targets may also change a
-//! tensor's data on the way. A [`LoadPolicy`] is the load call's choice of the
-//! float dtype the parameters are placed in.
+//! kit's names, or [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to),
+//! under a [`Rekey`](crate::burner::module::Rekey) whose targets may also
+//! change a tensor's data on the way. A [`LoadPolicy`] is the load call's
+//! choice of the float dtype the parameters are placed in.
 //!
 //! The readers need the `store` feature, and [`LoadPolicy`] the `cache`
 //! feature; [`mlx`] is plain tensor code, always here.

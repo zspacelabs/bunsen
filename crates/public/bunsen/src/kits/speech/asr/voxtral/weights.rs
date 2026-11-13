@@ -19,10 +19,7 @@ use crate::{
         CanonicalKeys,
         Rekey,
     },
-    data::formats::{
-        NamedTensorsApplied,
-        load_rekeyed,
-    },
+    data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::{
         language::qwen3::weights::text_layer_rekey,
@@ -66,7 +63,7 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 /// tied, so nothing else is read.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`load_rekeyed`] resolves to `gamma`.
+/// [`Rekey::load`] resolves to `gamma`.
 pub fn transformers_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -93,32 +90,32 @@ pub fn transformers_rekey() -> Rekey {
 }
 
 /// Loads tensors named as `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
-/// `model.safetensors` names them into `model`: [`load_rekeyed`] under
+/// `model.safetensors` names them into `model`: [`Rekey::load`] under
 /// [`transformers_rekey`], in the dtype `model` was built in. The checkpoint
 /// ships `bf16`, which not every backend computes in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`Rekey::load`].
 pub fn load_transformers_tensors(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, None)
+    rekey.load(model, tensors, None)
 }
 
 /// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
 /// load policy's resolution) rather than the dtype the model was built in.
 ///
 /// # Errors
-/// As [`load_rekeyed`].
+/// As [`Rekey::load`].
 pub fn load_transformers_tensors_as(
     model: &mut VoxtralRealtime,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: burn::tensor::FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
     let rekey = transformers_rekey().then(model.canonical_rekey());
-    load_rekeyed(model, tensors, &rekey, Some(dtype))
+    rekey.load(model, tensors, Some(dtype))
 }
 
 /// The [`VoxtralRealtimeConfig`] of a `transformers` `VoxtralRealtime`

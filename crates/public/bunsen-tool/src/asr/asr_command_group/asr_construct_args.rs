@@ -10,11 +10,11 @@ use bunsen::{
 
 use crate::asr::{
     AsrConstruct,
+    AsrFamily,
+    AsrKit,
     AsrPreset,
     DEFAULT_PRESET,
     Emission,
-    Family,
-    Kit,
     Mode,
     Need,
     Quality,
@@ -160,18 +160,18 @@ impl AsrConstructArgs {
     /// when more than one other family lists it.
     fn family(
         &self,
-        picked: Family,
-    ) -> BunsenResult<Family> {
+        picked: AsrFamily,
+    ) -> BunsenResult<AsrFamily> {
         let Some(model) = &self.model else {
             return Ok(picked);
         };
         let name = LookupExpr::parse(model)?.name;
-        if Kit::Asr(picked).lists(&name)? {
+        if AsrKit::Asr(picked).lists(&name)? {
             return Ok(picked);
         }
         let mut others = Vec::new();
-        for family in Family::ALL {
-            if family != picked && Kit::Asr(family).lists(&name)? {
+        for family in AsrFamily::ALL {
+            if family != picked && AsrKit::Asr(family).lists(&name)? {
                 others.push(family);
             }
         }
@@ -306,7 +306,7 @@ impl AsrConstructArgs {
         if let Some(chunk_ms) = self.chunk_ms {
             resolved.chunk_ms = chunk_ms;
         }
-        log::info!(
+        log::debug!(
             "preset {} ({}): {}",
             resolved.preset,
             resolved.need,
@@ -374,7 +374,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             (r.family, r.model.as_str()),
-            (Family::Qwen3Asr, "fermion/phonon-1")
+            (AsrFamily::Qwen3Asr, "fermion/phonon-1")
         );
         assert_eq!(r.vad, None);
 
@@ -382,7 +382,7 @@ mod tests {
         // `en`, which runs Parakeet; its expression's box and patch aside,
         // case aside.
         let r = resolve(&["--model", "OpenAI/Small{beam_size: 2}"], Mode::Offline).unwrap();
-        assert_eq!(r.family, Family::Whisper);
+        assert_eq!(r.family, AsrFamily::Whisper);
         assert_eq!(r.model, "OpenAI/Small{beam_size: 2}");
         assert_eq!(r.task(), Task::Transcribe);
         // A task the preset's family cannot do, on a model that can.
@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(
             (r.family, r.model.as_str(), r.need.task),
             (
-                Family::Whisper,
+                AsrFamily::Whisper,
                 "openai/whisper/small[translate]",
                 Task::Translate
             )
@@ -411,15 +411,15 @@ mod tests {
         assert_eq!(
             (r.family, r.model.as_str()),
             (
-                Family::Whisper,
+                AsrFamily::Whisper,
                 "openai/whisper/tiny[translate]{beam_size: 1}"
             )
         );
         // A name no family lists runs in the preset's family.
         let r = resolve(&["--model", "hf:org/repo"], Mode::Offline).unwrap();
-        assert_eq!(r.family, Family::Parakeet);
+        assert_eq!(r.family, AsrFamily::Parakeet);
         let r = resolve(&["--model", "catalog:openai/whisper/tiny"], Mode::Offline).unwrap();
-        assert_eq!(r.family, Family::Whisper);
+        assert_eq!(r.family, AsrFamily::Whisper);
 
         // Live finds speech regions: the table's VAD, or `--vad`'s.
         let table = construct_config().vad.as_str();
@@ -790,7 +790,7 @@ mod tests {
                             assert_eq!(r.need.task, want, "{line:?} {mode:?}");
                             if language == Some("de") {
                                 assert_eq!(r.need.speech, Speech::Multi, "{line:?}");
-                                assert_ne!(r.family, Family::Parakeet, "{line:?}");
+                                assert_ne!(r.family, AsrFamily::Parakeet, "{line:?}");
                             }
                         }
                     }

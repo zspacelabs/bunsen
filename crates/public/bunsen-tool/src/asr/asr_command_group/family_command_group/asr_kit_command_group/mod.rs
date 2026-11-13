@@ -14,7 +14,7 @@ pub use asr_kit_transcribe::*;
 use bunsen::errors::BunsenResult;
 
 use crate::asr::{
-    Family,
+    AsrFamily,
     FamilyFlags,
 };
 
@@ -48,7 +48,7 @@ impl<F: clap::Args + FamilyFlags> AsrKitCommandGroup<F> {
     /// Runs the command on `family`'s models.
     pub fn run(
         &self,
-        family: Family,
+        family: AsrFamily,
     ) -> BunsenResult<()> {
         self.action.run(family)
     }
@@ -58,7 +58,7 @@ impl<F: clap::Args + FamilyFlags> AsrKitSubCommand<F> {
     /// Runs the command on `family`'s models.
     pub fn run(
         &self,
-        family: Family,
+        family: AsrFamily,
     ) -> BunsenResult<()> {
         match self {
             AsrKitSubCommand::List(list) => list.run(family.into()),

@@ -34,11 +34,7 @@ use crate::{
                 CatalogRule,
                 catalog_error,
             },
-            loader_form::entry_resource_set,
-            lookup::{
-                LeafMatch,
-                name_matches,
-            },
+            lookup::LeafMatch,
             presets::ResolvedPresetSet,
         },
         resources::ResourceSet,
@@ -242,12 +238,7 @@ impl BuiltinCatalog {
                 format!("the built-in catalog has no resource `{name}`"),
             )
         })?;
-        Ok(entry_resource_set(
-            &full.to_string(),
-            entry,
-            slot,
-            &self.hub_origins,
-        ))
+        Ok(entry.to_slot_set(&full.to_string(), slot, &self.hub_origins))
     }
 
     /// The presets of the template class `class`, by its full name
@@ -306,7 +297,7 @@ pub(crate) fn find_spelling(
     }
     let mut found: Vec<usize> = Vec::new();
     for (n, i) in names {
-        if name_matches(spelling, n, LeafMatch::Exact) && !found.contains(i) {
+        if n.matches_query(spelling, LeafMatch::Exact) && !found.contains(i) {
             found.push(*i);
         }
     }

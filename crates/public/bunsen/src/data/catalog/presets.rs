@@ -609,7 +609,7 @@ impl ResolvedPresetSet {
         if using.offers.contains(&member) {
             Ok(member)
         } else {
-            Err(not_offered(using, &member))
+            Err(using.not_offered(&member))
         }
     }
 
@@ -637,7 +637,7 @@ impl ResolvedPresetSet {
                     .iter()
                     .find(|a| a.axis.members.iter().any(|m| m == name))
                 {
-                    return Err(not_offered(using, name));
+                    return Err(using.not_offered(name));
                 }
                 let known: Vec<&str> = self.presets.iter().map(|p| p.name.as_str()).collect();
                 let known = if known.is_empty() {
@@ -754,22 +754,27 @@ pub(crate) fn quoted(names: &[&str]) -> String {
     }
 }
 
-fn not_offered(
-    using: &ResolvedAxisUse,
-    member: &str,
-) -> BunsenError {
-    let how = if using.is_fixed() {
-        format!("fixed at `{}`", using.offers[0])
-    } else {
-        format!("offers only {:?}", using.offers)
-    };
-    catalog_error(
-        CatalogRule::Selection,
-        format!(
-            "`{member}` is not offered: on this build the axis `{}` is {how}",
-            using.axis.name
-        ),
-    )
+impl ResolvedAxisUse {
+    /// The [`CatalogRule::Selection`] error for naming `member` of this axis
+    /// use when it isn't offered: the axis is fixed at its one member, or
+    /// offers only the members it lists.
+    fn not_offered(
+        &self,
+        member: &str,
+    ) -> BunsenError {
+        let how = if self.is_fixed() {
+            format!("fixed at `{}`", self.offers[0])
+        } else {
+            format!("offers only {:?}", self.offers)
+        };
+        catalog_error(
+            CatalogRule::Selection,
+            format!(
+                "`{member}` is not offered: on this build the axis `{}` is {how}",
+                self.axis.name
+            ),
+        )
+    }
 }
 
 fn preset_error(

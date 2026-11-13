@@ -15,10 +15,7 @@ use crate::{
         CanonicalKeys,
         Rekey,
     },
-    data::formats::{
-        NamedTensorsApplied,
-        apply_rekeyed_tensors,
-    },
+    data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
@@ -82,7 +79,7 @@ pub fn encoder_rekey() -> Rekey {
 /// stack order fixes its map.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+/// [`Rekey::apply_to`] resolves to `gamma` / `beta`.
 pub fn nemotron_transformers_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
     Rekey::drop_rest()
         .exact("silence_embeds", "silence")
@@ -104,11 +101,11 @@ pub fn nemotron_transformers_rekey(stacking: &impl FeatureStackingMeta) -> Rekey
 
 /// Loads tensors named as `transformers`'
 /// `Nemotron3DiarizationForAudioFrameClassification` state dict into
-/// `model`: [`apply_rekeyed_tensors`] under [`nemotron_transformers_rekey`], at
+/// `model`: [`Rekey::apply_to`] under [`nemotron_transformers_rekey`], at
 /// `model`'s front end.
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors`];
+/// As [`Rekey::apply_to`];
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
 /// `model`'s encoder does not subsample by feature stacking.
 pub fn load_nemotron_transformers_tensors(
@@ -120,7 +117,7 @@ pub fn load_nemotron_transformers_tensors(
     })?;
     let rekey = nemotron_transformers_rekey(stacking);
     let rekey = rekey.then(model.canonical_rekey());
-    apply_rekeyed_tensors(model, tensors, &rekey)
+    rekey.apply_to(model, tensors)
 }
 
 /// `NeMo` `SortformerEncLabelModel` state-dict names, in Sortformer v2's
@@ -146,11 +143,11 @@ pub fn sortformer_v2_nemo_rekey(striding: &impl DwStridingSubsamplingMeta) -> Re
 }
 
 /// Loads tensors named as a `NeMo` Sortformer v2 state dict (a `.nemo`'s
-/// `model_weights.ckpt`) into `model`: [`apply_rekeyed_tensors`] under
+/// `model_weights.ckpt`) into `model`: [`Rekey::apply_to`] under
 /// [`sortformer_v2_nemo_rekey`], at `model`'s subsampling.
 ///
 /// # Errors
-/// As [`apply_rekeyed_tensors`];
+/// As [`Rekey::apply_to`];
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
 /// `model`'s encoder does not subsample by depthwise striding.
 pub fn load_sortformer_v2_nemo_tensors(
@@ -162,7 +159,7 @@ pub fn load_sortformer_v2_nemo_tensors(
     })?;
     let rekey = sortformer_v2_nemo_rekey(striding);
     let rekey = rekey.then(model.canonical_rekey());
-    apply_rekeyed_tensors(model, tensors, &rekey)
+    rekey.apply_to(model, tensors)
 }
 
 /// The [`NemotronDiarizationConfig`] of a `transformers`

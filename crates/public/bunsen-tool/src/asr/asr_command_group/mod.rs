@@ -1,21 +1,21 @@
 //! `bunsen-tool asr`: the command group.
 
 mod asr_construct_args;
-mod asr_diarize_command_group;
-mod asr_family_command_group;
 #[cfg(feature = "live")]
 mod asr_live;
-mod asr_presets_command_group;
 mod asr_transcribe;
+mod diarize_command_group;
+mod family_command_group;
+mod presets_command_group;
 
 pub use asr_construct_args::*;
-pub use asr_diarize_command_group::*;
-pub use asr_family_command_group::*;
 #[cfg(feature = "live")]
 pub use asr_live::*;
-pub use asr_presets_command_group::*;
 pub use asr_transcribe::*;
 use bunsen::errors::BunsenResult;
+pub use diarize_command_group::*;
+pub use family_command_group::*;
+pub use presets_command_group::*;
 
 /// `bunsen-tool asr`'s commands: `asr <transcribe|live> [--preset NAME]
 /// [FLAGS]` runs a preset, a model chosen by what it is for, and `asr presets
