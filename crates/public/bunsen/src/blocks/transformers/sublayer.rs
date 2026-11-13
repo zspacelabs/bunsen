@@ -8,7 +8,8 @@
 //! `mlp.branch`, `mlp.post`).
 //!
 //! In the field's terms, the *residual* is the branch's contribution,
-//! `post(f(pre(x)))`, and the *residual update* is the stream after it,
+//! `γ ⊙ post(f(pre(x)))` (`γ` a per-channel layer scale, when the sublayer
+//! has one), and the *residual update* is the stream after it,
 //! `out(x + residual)`, with `x` the stream after the `input` norm.
 //!
 //! A branch may return more than its residual (an attention's weights): its
@@ -24,7 +25,10 @@
 use burn::{
     Tensor,
     config::Config,
-    module::Module,
+    module::{
+        Module,
+        Param,
+    },
     nn::attention::{
         MhaOutput,
         MultiHeadAttention,
@@ -66,6 +70,11 @@ pub struct ResidualSublayerConfig {
     /// After the add (a post-norm block's).
     #[config(default = "None")]
     pub out: Option<BunsenNormalizationConfig>,
+
+    /// Whether the residual is scaled per channel by a learned `γ` (`CaiT`'s
+    /// `LayerScale`), after `post`; initialized to ones. `false`, no scale.
+    #[config(default = false)]
+    pub layer_scale: bool,
 }
 
 impl ResidualSublayerConfig {
@@ -96,6 +105,9 @@ impl ResidualSublayerConfig {
             branch,
             post: norm(&self.post),
             out: norm(&self.out),
+            scale: self
+                .layer_scale
+                .then(|| Param::from_tensor(Tensor::ones([width], device))),
         }
     }
 }
@@ -110,7 +122,8 @@ impl ResidualSublayerConfig {
 ///    post-norms);
 /// 4. `out`, after the add (a post-norm block's).
 ///
-/// An empty slot is the identity, and holds no parameters.
+/// An empty slot is the identity, and holds no parameters. A layer scale,
+/// when the sublayer has one, scales the residual per channel after `post`.
 ///
 /// Built by [`ResidualSublayerConfig::init`] around its branch.
 #[derive(Module, Debug)]
@@ -129,6 +142,9 @@ pub struct ResidualSublayer<M: Module> {
 
     /// After the add.
     pub out: Option<BunsenNormalization>,
+
+    /// The residual's per-channel layer scale `γ`, `[width]`, if any.
+    pub scale: Option<Param<Tensor<1>>>,
 }
 
 impl<M: Module> ResidualSublayer<M> {
@@ -151,17 +167,34 @@ impl<M: Module> ResidualSublayer<M> {
         Self::apply(&self.pre, x)
     }
 
-    /// The residual: `post(f(branch, pre(x)))`, `x` the stream after
+    /// `r` through `post`, then the layer scale, if any.
+    fn finish<const D: usize>(
+        &self,
+        r: Tensor<D>,
+    ) -> Tensor<D> {
+        let r = Self::apply(&self.post, r);
+        match &self.scale {
+            Some(scale) => {
+                let width = scale.dims()[0];
+                let mut shape = [1; D];
+                shape[D - 1] = width;
+                r * scale.val().reshape(shape)
+            }
+            None => r,
+        }
+    }
+
+    /// The residual: `γ ⊙ post(f(branch, pre(x)))`, `x` the stream after
     /// `input`; `f` runs the branch with whatever else it takes.
     pub fn residual<const D: usize>(
         &self,
         x: Tensor<D>,
         f: impl FnOnce(&M, Tensor<D>) -> Tensor<D>,
     ) -> Tensor<D> {
-        Self::apply(&self.post, f(&self.branch, self.branch_input(x)))
+        self.finish(f(&self.branch, self.branch_input(x)))
     }
 
-    /// The residual update: `out(x + post(r))`, with `x` first through
+    /// The residual update: `out(x + γ ⊙ post(r))`, with `x` first through
     /// `input`, and `r` the residual in `f(branch, pre(x))`'s output; the
     /// output's [`Updated`](BranchOutput::Updated) form, the new stream in the
     /// residual's place.
@@ -172,7 +205,7 @@ impl<M: Module> ResidualSublayer<M> {
     ) -> O::Updated {
         let x = Self::apply(&self.input, x);
         f(&self.branch, self.branch_input(x.clone()))
-            .into_updated(|residual| Self::apply(&self.out, x + Self::apply(&self.post, residual)))
+            .into_updated(|residual| Self::apply(&self.out, x + self.finish(residual)))
     }
 
     /// The residual update by the branch's mode for `ctx`
@@ -578,6 +611,51 @@ mod tests {
             ),
             tol,
         );
+    }
+
+    /// A layer scale multiplies the residual per channel, after `post`, in
+    /// the residual and in the update; it starts at ones, and is recorded as
+    /// `scale`.
+    #[test]
+    fn test_layer_scale() {
+        let tol = Tolerance::default();
+        let x = x();
+        let f = |l: &Linear, z: Tensor<2>| l.forward(z);
+        let mut s = sublayer(
+            ResidualSublayerConfig::new()
+                .with_post(rms())
+                .with_layer_scale(true),
+        );
+        let width = x.dims()[1];
+        let scale = s.scale.as_ref().expect("a layer scale");
+        assert_eq!(
+            scale.val().into_data(),
+            Tensor::<1>::ones([width], &x.device()).into_data()
+        );
+        let gamma: Tensor<1> = crate::support::testing::seeded_tensor(
+            4,
+            [width],
+            burn::tensor::Distribution::Default,
+            &x.device(),
+        );
+        s.scale = Some(Param::from_tensor(gamma.clone()));
+        let residual = n(&s.post, s.branch.forward(x.clone())) * gamma.unsqueeze::<2>();
+        assert_tensors_close(&s.residual(x.clone(), f), &residual, tol);
+        assert_tensors_close(
+            &s.residual_update_with(x.clone(), f),
+            &(x.clone() + residual),
+            tol,
+        );
+        #[cfg(feature = "store")]
+        {
+            use burn::store::ModuleSnapshot;
+            assert!(
+                s.collect(None, None, false)
+                    .into_iter()
+                    .any(|t| t.name == "scale")
+            );
+        }
+        assert!(sublayer(ResidualSublayerConfig::new()).scale.is_none());
     }
 
     /// A branch output with a side output: the stream, and what rides along.
