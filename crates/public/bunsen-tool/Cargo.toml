@@ -77,7 +77,7 @@ serde_json = { workspace = true }
 semver = { workspace = true }
 # "did you mean?" on a failed lookup.
 strsim = { workspace = true }
-# `card`'s YAML.
+# YAML, for `--format yml`.
 serde-saphyr = { workspace = true, features = ["serialize"] }
 time = { workspace = true }
 ureq = { workspace = true, optional = true }

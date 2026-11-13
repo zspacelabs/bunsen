@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Rebuild the models card in the READMEs: `bunsen-tool card --section kits`, as YAML.
+"""Rebuild the models card in the READMEs: `bunsen-tool summary`, as text.
 
     python3 tools/update_cards.py           # rewrite every README's card
     python3 tools/update_cards.py --check   # exit 1, naming each stale README, rewriting none
 
 Each README holds the card between two markers:
 
-    <!-- card: bunsen-tool card --section kits -->
+    <!-- card: bunsen-tool summary -->
     ...
     <!-- /card -->
 
-and this replaces what lies between them with the card in a `yaml` code block. The card is
-the models bunsen knows by name (`kits`: by kind and family, a name and a description
-each), from the factories' rows, so it changes when a row does. `cargo make cards` runs
+and this replaces what lies between them with the card in a `text` code block. The card is
+the builds bunsen-tool runs (by command, contract and publisher, each its details and its
+description), from the factories' rows, so it changes when a row does. `cargo make cards` runs
 this; `cargo make cards-check` runs `--check`. Stdlib only; run from the repository root.
 """
 
@@ -25,17 +25,17 @@ READMES = [
     "crates/public/bunsen/README.md",
     "crates/public/bunsen-tool/README.md",
 ]
-BEGIN = "<!-- card: bunsen-tool card --section kits -->"
+BEGIN = "<!-- card: bunsen-tool summary -->"
 END = "<!-- /card -->"
 
 
 def card() -> str:
-    """The kits card, as YAML: from a build of `bunsen-tool` with every kit (`speech`), and
-    none of its device or I/O features."""
+    """The summary: from a build of `bunsen-tool` with every kit (`speech`), and none of its
+    device or I/O features."""
     out = subprocess.run(
         ["cargo", "run", "-q", "-p", "bunsen-tool", "--no-default-features",
          "--features", "speech", "--",
-         "card", "--section", "kits", "--format", "yml"],
+         "summary"],
         check=True, capture_output=True, text=True)
     return out.stdout
 
@@ -52,7 +52,7 @@ def main() -> None:
     check = sys.argv[1:] == ["--check"]
     if sys.argv[1:] not in ([], ["--check"]):
         sys.exit(__doc__)
-    block = "\n```yaml\n" + card() + "```\n\n"
+    block = "\n```text\n" + card() + "```\n\n"
     stale = []
     for path in READMES:
         p = pathlib.Path(path)

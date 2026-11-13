@@ -191,11 +191,11 @@ dependencies = [
 # ── cards ─────────────────────────────────────────────────────────────────────
 #
 # The models card in README.md, crates/public/bunsen/README.md and
-# crates/public/bunsen-tool/README.md: `bunsen-tool card --section kits`, the
-# models the factories list by name. A new or changed row changes it.
+# crates/public/bunsen-tool/README.md: `bunsen-tool summary`, the builds the
+# factories list, by command, contract and publisher. A new or changed row changes it.
 
 [tasks.cards]
-description = "Rebuild the models card in the READMEs (bunsen-tool card --section kits)"
+description = "Rebuild the models card in the READMEs (bunsen-tool summary)"
 workspace = false
 script = "python3 tools/update_cards.py"
 

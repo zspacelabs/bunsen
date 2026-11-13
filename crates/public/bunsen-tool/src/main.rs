@@ -3,8 +3,8 @@
 //! `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or nanochat
 //! checkpoint; `bunsen-tool decide` answers typed questions about a context
 //! with a Laya decision model; `bunsen-tool cache <path|list|clear>` manages
-//! the weights cache every command loads through; `bunsen-tool card` describes
-//! the build, its cache and the models it knows; `bunsen-tool catalog` imports
+//! the weights cache every command loads through; `bunsen-tool summary` lists
+//! the builds it runs, in brief; `bunsen-tool catalog` imports
 //! build catalogs, and dumps, browses, resolves and selects over them.
 
 use std::process::ExitCode;
@@ -17,7 +17,6 @@ use bunsen_app::{
 #[cfg(feature = "speech")]
 use bunsen_tool::asr;
 use bunsen_tool::{
-    card::CardCommand,
     chat::ChatCommandGroup,
     decide::DecideCommandGroup,
     devices::DevicesCommand,
@@ -37,8 +36,8 @@ use clap::{
 /// spoke when; `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
 /// nanochat checkpoint; `bunsen-tool decide` answers typed questions about a
 /// context with a Laya decision model; `bunsen-tool cache` manages the weights
-/// cache every command loads through; `bunsen-tool card` describes the build,
-/// its cache and the models it knows; `bunsen-tool devices` lists the backends
+/// cache every command loads through; `bunsen-tool summary` lists the builds
+/// it runs, in brief; `bunsen-tool devices` lists the backends
 /// and their devices; `bunsen-tool catalog` browses, resolves and selects over
 /// the model catalog.
 #[derive(Parser, Debug)]
@@ -86,20 +85,13 @@ enum Command {
     /// selection pipelines, each stage explained (`select`).
     Catalog(CatalogCommand),
 
-    /// What this build is, its weights cache and the models it knows, as YAML
-    /// or JSON.
+    /// The builds this binary runs, in brief: by command, contract and
+    /// publisher.
     ///
-    /// What this build is (`build`: its version and features), its weights
-    /// cache (`config`), and the models it knows by name (`kits`: by kind and
-    /// family, a name and a description each).
-    Card(CardCommand),
-
-    /// The builds this binary runs, in brief: by kind, family and namespace.
-    ///
-    /// An ASCII bulleted list: each kind (`asr`, `chat`, `decide`), its
-    /// families, their builds nested by catalog namespace, each with its
-    /// size, dtypes, preset axes (the default starred) and aliases, and its
-    /// description wrapped below it.
+    /// One section per command that runs builds (`asr`, `chat`, `decide`); in
+    /// each, the builds by contract, then by publisher, each by its full name
+    /// with its size, dtypes, preset axes (the default starred) and aliases,
+    /// and its description wrapped below it.
     Summary(SummaryCommand),
 
     /// The backends this build can run on and their default devices, as YAML or
@@ -159,7 +151,6 @@ fn run(
                 .expect("the catalog subcommand"),
             bunsen::data::catalog::builtin_stack()?,
         ),
-        Command::Card(cmd) => cmd.run(),
         Command::Summary(cmd) => cmd.run(),
         Command::Devices(cmd) => cmd.run(),
     }

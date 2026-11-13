@@ -1,23 +1,24 @@
-//! `bunsen-tool summary`: the builds this binary can run, in brief, by kind,
-//! family and catalog namespace.
+//! `bunsen-tool summary`: the builds this binary can run, in brief: by
+//! command, contract and publisher.
 //!
-//! An ASCII bulleted list, one entry per line, its description wrapped
-//! below it:
+//! One section per command that runs builds (`asr`, `chat`, `decide`); in
+//! each, the builds grouped by their contract, then by their publisher (the
+//! first segment of their name), each a line of details and its description
+//! wrapped below it:
 //!
 //! ```text
-//! - asr: speech to text, who spoke when, and voice activity
-//!   - sortformer: [catalog, hf; 3 builds]
-//!       A Sortformer speaker diarizer: a `.nemo` archive, which carries its
-//!       config, or transformers' safetensors.
-//!     - nvidia/sortformer/: [3 builds]
-//!       - diar_streaming_sortformer_4spk-v2: [471.4 MB f32; latency: ultra-low|*low|high|offline; ...]
-//!           Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames.
+//! # bunsen-tool asr ...
+//! # Automated Speech Recognition
+//!
+//! # contract: parakeet-asr - A Parakeet TDT speech recognizer: ...
+//! # publisher: fermion - FermionResearch, Phonon's authors.
+//!
+//! * fermion/phonon-2: [163.5 MB; aka phonon]
+//!   Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English.
 //! ```
 //!
-//! A namespace that holds one entry folds into it (`fermion/phonon-2`); one
-//! that holds more is its own entry, with its description. A build's details
-//! are its size, its dtypes, each preset axis with its default starred, any
-//! preset on no axis, and its aliases.
+//! A build's details are its size, its dtypes, each preset axis with its
+//! default starred, any preset on no axis, and its aliases.
 
 #[cfg(feature = "speech")]
 use bunsen::kits::speech::{
@@ -44,7 +45,6 @@ use bunsen::{
             document::CatalogEntry,
             presets::ResolvedPresetSet,
         },
-        resources::ResourceCache,
     },
     errors::{
         BunsenResult,
@@ -60,35 +60,34 @@ use bunsen::{
         },
     },
 };
-use bunsen_app::cache::{
-    WeightsCacheArgs,
-    human_bytes,
-};
+use bunsen_app::cache::human_bytes;
+
+/// The commands that run builds, as `--kind` takes them.
+#[cfg(feature = "speech")]
+const KIND_NAMES: &[&str] = &["asr", "chat", "decide"];
+#[cfg(not(feature = "speech"))]
+const KIND_NAMES: &[&str] = &["chat", "decide"];
 
 /// `bunsen-tool summary`'s flags.
 #[derive(clap::Args, Debug)]
 pub struct SummaryCommand {
-    #[clap(flatten)]
-    cache: WeightsCacheArgs,
-
     /// The column descriptions wrap at; 0 does not wrap.
-    #[arg(long, default_value_t = 100)]
+    #[arg(long, default_value_t = 75)]
     width: usize,
 
-    /// One kind alone: `asr`, `chat` or `decide`.
-    #[arg(long)]
+    /// One command's builds alone: `asr`, `chat` or `decide`.
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(KIND_NAMES))]
     kind: Option<String>,
 }
 
 impl SummaryCommand {
     /// Writes the summary to stdout.
     pub fn run(&self) -> BunsenResult<()> {
-        let cache = self.cache.init()?;
         let mut kinds = kinds()?;
         if let Some(only) = &self.kind {
             kinds.retain(|k| k.name == only);
         }
-        let text = summary(&cache, &kinds, &builtin_stack()?, self.width);
+        let text = summary(&kinds, &builtin_stack()?, self.width);
         use std::io::Write;
         std::io::stdout()
             .write_all(text.as_bytes())
@@ -96,25 +95,25 @@ impl SummaryCommand {
     }
 }
 
-/// A kind of model, `asr`, `chat` or `decide`, and its families.
+/// A command that runs builds, `asr`, `chat` or `decide`, and its families.
 pub struct Kind {
-    /// Its command's name.
+    /// The command's name.
     pub name: &'static str,
 
-    /// What it does, for a person.
-    pub description: &'static str,
+    /// What it does, as a title.
+    pub title: &'static str,
 
     /// Its families, in order.
     pub families: Vec<Family>,
 }
 
-/// A family's providers and builds, as its default factory lists them.
+/// A family's builds, as its default factory lists them.
 pub struct Family {
     /// The family's name.
     pub name: &'static str,
 
-    /// The providers its factory searches, in order: name and description.
-    pub providers: Vec<(String, String)>,
+    /// Its first provider's description: what the family loads.
+    pub description: String,
 
     /// The builds its factory lists, in order.
     pub builds: Vec<ResolvedBuild>,
@@ -127,17 +126,17 @@ impl Family {
     ) -> Self {
         Self {
             name,
-            providers: factory
+            description: factory
                 .providers()
-                .iter()
-                .map(|p| (p.name().to_string(), p.description().to_string()))
-                .collect(),
+                .first()
+                .map(|p| p.description().to_string())
+                .unwrap_or_default(),
             builds: factory.list().into_iter().map(|(_, b)| b).collect(),
         }
     }
 }
 
-/// The kinds this build knows, as `card`'s `kits` lists them.
+/// The commands that run builds, and the families each one loads.
 ///
 /// # Errors
 /// As a family's default factory, if two of its providers share a name.
@@ -146,7 +145,7 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
     #[cfg(feature = "speech")]
     kinds.push(Kind {
         name: "asr",
-        description: "speech to text, who spoke when, and voice activity",
+        title: "Automated Speech Recognition",
         families: vec![
             Family::of("parakeet", default_parakeet_factory()?),
             Family::of("qwen3-asr", default_qwen3_asr_factory()?),
@@ -159,7 +158,7 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
     kinds.extend([
         Kind {
             name: "chat",
-            description: "chat and text generation",
+            title: "Chat and Text Generation",
             families: vec![
                 Family::of("qwen3", default_qwen3_factory()?),
                 Family::of("qwen3.5", default_qwen3_5_factory()?),
@@ -169,214 +168,148 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
         },
         Kind {
             name: "decide",
-            description: "typed questions about a context, answered with probabilities",
+            title: "Typed Decisions",
             families: vec![Family::of("laya", default_laya_factory()?)],
         },
     ]);
     Ok(kinds)
 }
 
-/// The summary's text: a header line for the build and its cache, then each
-/// kind, family, namespace and build as a bulleted entry.
+/// A build and the family that lists it.
+type Listed<'a> = (&'a Family, &'a ResolvedBuild);
+
+/// Builds under one header: its name and description, and the builds, in
+/// the order they were listed.
+struct Group<'a> {
+    name: String,
+    description: String,
+    builds: Vec<Listed<'a>>,
+}
+
+/// `builds` grouped under `header`'s name and description, in the order
+/// each name first appears.
+fn group_by<'a>(
+    builds: impl IntoIterator<Item = Listed<'a>>,
+    header: impl Fn(Listed<'a>) -> (String, String),
+) -> Vec<Group<'a>> {
+    let mut groups: Vec<Group<'a>> = Vec::new();
+    for listed in builds {
+        let (name, description) = header(listed);
+        match groups.iter_mut().find(|g| g.name == name) {
+            Some(group) => group.builds.push(listed),
+            None => groups.push(Group {
+                name,
+                description,
+                builds: vec![listed],
+            }),
+        }
+    }
+    groups
+}
+
+/// The description of the entry `name` in `stack`, when it is a namespace
+/// or a contract and has one.
+fn entry_description(
+    stack: &BunsenCatalogStack,
+    name: &CatalogName,
+) -> Option<String> {
+    match stack.declaration(name)?.body() {
+        CatalogEntry::Namespace(ns) => ns.description.clone(),
+        CatalogEntry::Contract(c) => Some(c.description.clone()),
+        _ => None,
+    }
+}
+
+/// A build's contract header: the top contract it is under (`qwen3-asr` for
+/// `$contracts/qwen3-asr/probed`) and its description; for a build with
+/// none, its family's name and description.
+fn contract_header(
+    stack: &BunsenCatalogStack,
+    (family, build): Listed<'_>,
+) -> (String, String) {
+    let top = build
+        .contract
+        .as_ref()
+        .and_then(|c| c.segments().get(..2))
+        .and_then(|s| CatalogName::parse(&s.join("/")).ok());
+    match top {
+        Some(top) => (
+            top.leaf().to_string(),
+            entry_description(stack, &top).unwrap_or_default(),
+        ),
+        None => (family.name.to_string(), family.description.clone()),
+    }
+}
+
+/// A build's publisher header: the first segment of its name, and that
+/// namespace's description.
+fn publisher_header(
+    stack: &BunsenCatalogStack,
+    (_, build): Listed<'_>,
+) -> (String, String) {
+    let publisher = build.name.segments()[0].clone();
+    let description = CatalogName::parse(&publisher)
+        .ok()
+        .and_then(|name| entry_description(stack, &name))
+        .unwrap_or_default();
+    (publisher, description)
+}
+
+/// The summary's text: for each kind, its command and title, then its
+/// builds by contract and publisher, descriptions wrapped at `width`.
 pub fn summary(
-    cache: &ResourceCache,
     kinds: &[Kind],
     stack: &BunsenCatalogStack,
     width: usize,
 ) -> String {
-    let mut out = Out {
-        text: String::new(),
-        width,
-    };
-    let features: Vec<&str> = [
-        ("speech", cfg!(feature = "speech")),
-        ("live", cfg!(feature = "live")),
-        ("webhook", cfg!(feature = "webhook")),
-        ("mqtt", cfg!(feature = "mqtt")),
-        ("cuda", cfg!(feature = "cuda")),
-        ("metal", cfg!(feature = "metal")),
-        ("vulkan", cfg!(feature = "vulkan")),
-        ("wgpu", cfg!(feature = "wgpu")),
-    ]
-    .into_iter()
-    .filter_map(|(name, on)| on.then_some(name))
-    .collect();
-    out.text.push_str(&format!(
-        "{} {}: [{}]\n  cache: {}{}\n",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        features.join(", "),
-        cache.cache_dir().display(),
-        if cache.offline() { " (offline)" } else { "" },
-    ));
-    for kind in kinds {
-        out.text.push('\n');
-        out.entry(0, kind.name, None, Some(kind.description));
-        for family in &kind.families {
-            let providers: Vec<&str> = family.providers.iter().map(|(n, _)| n.as_str()).collect();
-            let details = format!("{}; {}", providers.join(", "), count(family.builds.len()));
-            // The first provider, the catalog's, says what the family loads.
-            let description = family.providers.first().map(|(_, d)| d.as_str());
-            out.entry(1, family.name, Some(&details), description);
-            let mut root = Node::default();
-            for (i, build) in family.builds.iter().enumerate() {
-                root.insert(build.name.segments(), i);
-            }
-            for (segment, child) in &root.children {
-                out.node(2, &[], segment, child, &family.builds, stack);
-            }
+    let mut out = String::new();
+    for (i, kind) in kinds.iter().enumerate() {
+        if i > 0 {
+            out.push('\n');
         }
-    }
-    out.text
-}
-
-/// `n builds`.
-fn count(n: usize) -> String {
-    match n {
-        1 => "1 build".to_string(),
-        n => format!("{n} builds"),
-    }
-}
-
-/// A namespace's entries, by segment, in the order their first build was
-/// listed.
-#[derive(Default)]
-struct Node {
-    children: Vec<(String, Child)>,
-}
-
-enum Child {
-    Namespace(Node),
-    /// A build, by its index in its family's list.
-    Build(usize),
-}
-
-impl Node {
-    fn insert(
-        &mut self,
-        segments: &[String],
-        build: usize,
-    ) {
-        let [head, rest @ ..] = segments else {
-            return;
-        };
-        if rest.is_empty() {
-            self.children.push((head.clone(), Child::Build(build)));
-            return;
-        }
-        let at = match self
-            .children
+        out.push_str(&format!(
+            "# bunsen-tool {} ...\n# {}\n",
+            kind.name, kind.title
+        ));
+        let listed = kind
+            .families
             .iter()
-            .position(|(s, c)| s == head && matches!(c, Child::Namespace(_)))
-        {
-            Some(at) => at,
-            None => {
-                self.children
-                    .push((head.clone(), Child::Namespace(Node::default())));
-                self.children.len() - 1
-            }
-        };
-        if let Child::Namespace(node) = &mut self.children[at].1 {
-            node.insert(rest, build);
-        }
-    }
-
-    /// The builds under it, at any depth.
-    fn builds(&self) -> usize {
-        self.children
-            .iter()
-            .map(|(_, c)| match c {
-                Child::Namespace(n) => n.builds(),
-                Child::Build(_) => 1,
-            })
-            .sum()
-    }
-}
-
-/// The text being written, and the column descriptions wrap at.
-struct Out {
-    text: String,
-    width: usize,
-}
-
-impl Out {
-    /// `{indent}- {name}: [{details}]`, then the description wrapped below
-    /// it, two levels deeper than the bullet.
-    fn entry(
-        &mut self,
-        depth: usize,
-        name: &str,
-        details: Option<&str>,
-        description: Option<&str>,
-    ) {
-        let indent = "  ".repeat(depth);
-        self.text.push_str(&format!("{indent}- {name}"));
-        match details {
-            Some(details) if !details.is_empty() => {
-                self.text.push_str(&format!(": [{details}]"));
-            }
-            _ => {}
-        }
-        self.text.push('\n');
-        if let Some(description) = description.map(str::trim).filter(|d| !d.is_empty()) {
-            let indent = format!("{indent}    ");
-            for line in wrap(description, self.width.saturating_sub(indent.len())) {
-                self.text.push_str(&format!("{indent}{line}\n"));
-            }
-        }
-    }
-
-    /// The entry `child`, `segment` under the namespace `scope`: a chain of
-    /// namespaces that each hold one entry folds into one label.
-    fn node(
-        &mut self,
-        depth: usize,
-        scope: &[String],
-        segment: &str,
-        child: &Child,
-        builds: &[ResolvedBuild],
-        stack: &BunsenCatalogStack,
-    ) {
-        let mut path: Vec<String> = scope.to_vec();
-        path.push(segment.to_string());
-        let mut label = segment.to_string();
-        let mut at = child;
-        while let Child::Namespace(node) = at
-            && let [(next, only)] = node.children.as_slice()
-        {
-            label = format!("{label}/{next}");
-            path.push(next.clone());
-            at = only;
-        }
-        match at {
-            Child::Build(i) => {
-                let build = &builds[*i];
-                self.entry(
-                    depth,
-                    &label,
-                    Some(&build_details(build)),
-                    Some(&build.description),
-                );
-            }
-            Child::Namespace(node) => {
-                let description = CatalogName::parse(&path.join("/"))
-                    .ok()
-                    .and_then(|name| stack.declaration(&name))
-                    .and_then(|entry| match entry.body() {
-                        CatalogEntry::Namespace(ns) => ns.description.clone(),
-                        _ => None,
-                    });
-                self.entry(
-                    depth,
-                    &format!("{label}/"),
-                    Some(&count(node.builds())),
-                    description.as_deref(),
-                );
-                for (segment, child) in &node.children {
-                    self.node(depth + 1, &path, segment, child, builds, stack);
+            .flat_map(|f| f.builds.iter().map(move |b| (f, b)));
+        for contract in group_by(listed, |l| contract_header(stack, l)) {
+            out.push('\n');
+            out.push_str(&header("contract", &contract.name, &contract.description));
+            let publishers = group_by(contract.builds, |l| publisher_header(stack, l));
+            for (j, publisher) in publishers.iter().enumerate() {
+                if j > 0 {
+                    out.push('\n');
+                }
+                out.push_str(&header(
+                    "publisher",
+                    &publisher.name,
+                    &publisher.description,
+                ));
+                for (_, build) in &publisher.builds {
+                    out.push_str(&format!("\n* {}: [{}]\n", build.name, build_details(build)));
+                    for line in wrap(build.description.trim(), width.saturating_sub(2)) {
+                        out.push_str(&format!("  {line}\n"));
+                    }
                 }
             }
         }
+    }
+    out
+}
+
+/// `# {what}: {name} - {description}`, without ` - ` when there is no
+/// description.
+fn header(
+    what: &str,
+    name: &str,
+    description: &str,
+) -> String {
+    match description.trim() {
+        "" => format!("# {what}: {name}\n"),
+        description => format!("# {what}: {name} - {description}\n"),
     }
 }
 
@@ -491,82 +424,48 @@ mod tests {
         assert_eq!(wrap("toolongword x", 4), ["toolongword", "x"]);
     }
 
-    /// The summary lists every kind, every family under it, and every build
-    /// once; one-entry namespaces fold, and axes star their default.
+    /// Every kind heads its section; every build is listed once, by its
+    /// full name, under its contract and publisher; descriptions fit the
+    /// width; axes star their default.
     #[cfg(feature = "speech")]
     #[test]
     fn test_summary() {
-        let cache = WeightsCacheArgs {
-            cache_dir: Some(std::env::temp_dir().join("bunsen-tool-summary-test")),
-            offline: true,
-        }
-        .init()
-        .unwrap();
         let kinds = kinds().unwrap();
-        let text = summary(&cache, &kinds, &builtin_stack().unwrap(), 100);
+        let text = summary(&kinds, &builtin_stack().unwrap(), 75);
         for kind in &kinds {
-            assert!(text.contains(&format!("\n- {}\n", kind.name)), "{text}");
+            assert!(
+                text.contains(&format!(
+                    "# bunsen-tool {} ...\n# {}\n",
+                    kind.name, kind.title
+                )),
+                "{text}"
+            );
             for family in &kind.families {
-                assert!(
-                    text.contains(&format!("\n  - {}: [", family.name)),
-                    "{text}"
-                );
                 for build in &family.builds {
-                    assert!(
-                        text.contains(&format!("{}: [", build.name.leaf())),
+                    assert_eq!(
+                        text.matches(&format!("\n* {}: [", build.name)).count(),
+                        1,
                         "{}",
                         build.name
                     );
                 }
             }
         }
-        // fermion holds one parakeet build: it folds.
-        assert!(text.contains("    - fermion/phonon-2: ["), "{text}");
-        // whisper's builds sit under openai/whisper/, a namespace of many.
-        assert!(text.contains("    - openai/whisper/: ["), "{text}");
+        assert!(
+            text.contains(
+                "# contract: parakeet-asr - A Parakeet TDT speech recognizer: a Phonon-2 \
+                 archive, or transformers' safetensors and its tokenizer.\n\
+                 # publisher: fermion - FermionResearch, Phonon's authors.\n\n\
+                 * fermion/phonon-2: [163.5 MB; aka phonon]\n  Phonon-2: "
+            ),
+            "{text}"
+        );
+        // qwen3-asr's sub-contracts fold into one.
+        assert_eq!(text.matches("# contract: qwen3-asr ").count(), 1, "{text}");
         assert!(text.contains("task: *transcribe|translate"), "{text}");
         assert!(text.contains("aka sortformer-v2"), "{text}");
-        assert!(text.contains("(offline)"), "{text}");
-        // No line, but a long build line, runs past the width.
-        for line in text.lines().filter(|l| !l.trim_start().starts_with("- ")) {
-            assert!(line.chars().count() <= 100 || !line.contains(' '), "{line}");
+        for line in text.lines().filter(|l| l.starts_with("  ")) {
+            assert!(line.chars().count() <= 75, "{line}");
         }
-    }
-
-    /// The summary's families are the card's.
-    #[cfg(feature = "speech")]
-    #[test]
-    fn test_summary_families_are_the_cards() {
-        let card = crate::card::card(
-            &WeightsCacheArgs {
-                cache_dir: Some(std::env::temp_dir().join("bunsen-tool-summary-test")),
-                offline: true,
-            }
-            .init()
-            .unwrap(),
-            false,
-        )
-        .unwrap();
-        let Some(crate::card::Value::Map(card_kinds)) = card.get("kits") else {
-            panic!("kits");
-        };
-        let ours: Vec<(&str, Vec<&str>)> = kinds()
-            .unwrap()
-            .iter()
-            .map(|k| (k.name, k.families.iter().map(|f| f.name).collect()))
-            .collect();
-        let theirs: Vec<(&str, Vec<&str>)> = card_kinds
-            .iter()
-            .map(|(k, v)| {
-                let crate::card::Value::Map(families) = v else {
-                    panic!("{k}");
-                };
-                (
-                    k.as_str(),
-                    families.iter().map(|(f, _)| f.as_str()).collect(),
-                )
-            })
-            .collect();
-        assert_eq!(ours, theirs);
     }
 }

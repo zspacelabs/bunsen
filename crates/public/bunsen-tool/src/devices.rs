@@ -21,9 +21,9 @@ use bunsen_app::device::{
 use burn::tensor::FloatDType;
 use clap::ValueEnum;
 
-use crate::{
-    card::Value,
-    support::Format,
+use crate::support::{
+    Format,
+    Value,
 };
 
 /// Lists each backend this build compiled in, its default device, and what

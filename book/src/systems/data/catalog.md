@@ -109,8 +109,8 @@ hand-written layers are merge patches, which replace. The build's own
 presets lay over what its probes found, and the family's lie under the
 build's. Then a lookup lays its selected presets (`--preset` too) over the
 build's, and last its own patch, `name{generation: {stop_ids: [1]}}`.
-`bunsen-tool card --policies` prints the preset sets as data, and the config
-each build's default selection resolves to.
+`bunsen-tool catalog resolve <build>` prints a build's preset set, and
+`bunsen-tool summary` each build's axes, their defaults starred.
 
 ## Choosing a build
 
