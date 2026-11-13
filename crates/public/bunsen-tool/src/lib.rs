@@ -4,8 +4,9 @@
 //! (speech to text, and who spoke when), `bunsen-tool chat` (chat with a
 //! Qwen3, Qwen3.5, Gemma or nanochat checkpoint), `bunsen-tool decide`
 //! (typed questions about a context, answered by a Laya decision model),
-//! `bunsen-tool cache` (the weights cache), `bunsen-tool card` and
-//! `bunsen-tool devices`. Its README is the binary's guide.
+//! `bunsen-tool cache` (the weights cache), `bunsen-tool card`,
+//! `bunsen-tool summary` and `bunsen-tool devices`. Its README is the binary's
+//! guide.
 //!
 //! The library is all of it, one module per command, each with what the
 //! command runs and its command tree, nested as the commands are: a
@@ -20,6 +21,8 @@
 //!   [`decide::DecideCommandGroup`].
 //! - [`card`] and [`devices`]: the build, its cache and the models it knows;
 //!   the backends and their devices.
+//! - [`summary`]: the builds this binary runs, in brief, by kind, family and
+//!   namespace.
 //! - [`support`]: what the command trees share.
 
 #[cfg(feature = "speech")]
@@ -28,4 +31,5 @@ pub mod card;
 pub mod chat;
 pub mod decide;
 pub mod devices;
+pub mod summary;
 pub mod support;

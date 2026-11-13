@@ -21,6 +21,7 @@ use bunsen_tool::{
     chat::ChatCommandGroup,
     decide::DecideCommandGroup,
     devices::DevicesCommand,
+    summary::SummaryCommand,
     support::did_you_mean,
 };
 use clap::{
@@ -93,6 +94,14 @@ enum Command {
     /// family, a name and a description each).
     Card(CardCommand),
 
+    /// The builds this binary runs, in brief: by kind, family and namespace.
+    ///
+    /// An ASCII bulleted list: each kind (`asr`, `chat`, `decide`), its
+    /// families, their builds nested by catalog namespace, each with its
+    /// size, dtypes, preset axes (the default starred) and aliases, and its
+    /// description wrapped below it.
+    Summary(SummaryCommand),
+
     /// The backends this build can run on and their default devices, as YAML or
     /// JSON.
     ///
@@ -151,6 +160,7 @@ fn run(
             bunsen::data::catalog::builtin_stack()?,
         ),
         Command::Card(cmd) => cmd.run(),
+        Command::Summary(cmd) => cmd.run(),
         Command::Devices(cmd) => cmd.run(),
     }
 }
