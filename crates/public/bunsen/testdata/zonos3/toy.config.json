@@ -1,0 +1,98 @@
+{
+  "codec": {
+    "codebook_dim": 4,
+    "codebook_size": 16,
+    "fir_kernel": 7,
+    "head_depth": 2,
+    "head_hidden": 48,
+    "head_hop": 6,
+    "hop": 9,
+    "latent_dim": 24,
+    "n_ffts": [
+      24,
+      72
+    ],
+    "resample_new": 3,
+    "resample_orig": 4,
+    "resample_width": 2,
+    "residual_codebooks": 2,
+    "semantic_depth": 2,
+    "semantic_hidden": 32,
+    "semantic_width": 20,
+    "stages": [
+      {
+        "context_frames": 5,
+        "d_model": 32,
+        "dim_feedforward": 64,
+        "input_dimension": 24,
+        "num_heads": 4,
+        "num_layers": 2,
+        "output_dimension": 32
+      },
+      {
+        "context_frames": 7,
+        "d_model": 32,
+        "dim_feedforward": 64,
+        "input_dimension": 16,
+        "num_heads": 4,
+        "num_layers": 2,
+        "output_dimension": null
+      }
+    ]
+  },
+  "lm": {
+    "audio_pad_id": 17,
+    "codebook_size": 16,
+    "condition_bucket_counts": [
+      4,
+      4,
+      4
+    ],
+    "condition_edges": {
+      "fmax": [
+        4000.0,
+        8000.0,
+        12000.0
+      ],
+      "loudness": [
+        -30.0,
+        -20.0,
+        -10.0
+      ],
+      "speaking_rate": [
+        10.0,
+        15.0,
+        20.0
+      ]
+    },
+    "condition_names": [
+      "loudness",
+      "fmax",
+      "speaking_rate"
+    ],
+    "dim": 64,
+    "eoa_id": 16,
+    "ffn_hidden": 128,
+    "gdn_head_dim": 16,
+    "gdn_heads": 2,
+    "gdn_kernel": 4,
+    "gdn_period": 2,
+    "head_dim": 16,
+    "loss_softcap": 15.0,
+    "max_seqlen": 256,
+    "moe_hidden": 64,
+    "moe_routed_dim": 32,
+    "moe_topk": 2,
+    "n_codebooks": 10,
+    "n_experts": 4,
+    "n_heads": 4,
+    "n_kv_heads": 2,
+    "n_layers": 2,
+    "norm_eps": 1e-05,
+    "reference_max_frames": 450,
+    "rope_theta": 10000.0,
+    "speaker_embedding_dim": 8,
+    "text_rows": 21,
+    "text_vocab": 20
+  }
+}
