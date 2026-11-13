@@ -190,11 +190,9 @@ pub struct CausalSelfAttentionConfig {
     pub value_residual: Option<ValueResidualConfig>,
 
     /// A sigmoid gate on the attention's output, before the output
-    /// projection (Qwen3.5's `attn_output_gate`): the query projection is
-    /// `[D, 2 H d]`, each head's `d` queries followed by its `d` gates, and
-    /// the output is `c_proj(y · σ(gate))`. `false` gates nothing.
-    #[config(default = "false")]
-    pub output_gate: bool,
+    /// projection ([`AttentionOutputGate`]); `None` gates nothing.
+    #[config(default = "None")]
+    pub output_gate: Option<AttentionOutputGate>,
 
     /// A learned gain per query head, `[H]`, on the queries after the
     /// QK-norm, applied as its absolute value: `q_h · |g_h|` (ZONOS3's
@@ -225,6 +223,22 @@ pub struct ValueResidualConfig {
     /// The gate's range: `(0, gate_scale)`.
     #[config(default = "3.0")]
     pub gate_scale: f64,
+}
+
+/// A sigmoid gate on a [`CausalSelfAttention`]'s output, read from the
+/// attention's input and applied before the output projection:
+/// `c_proj(y · σ(gate))`.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum AttentionOutputGate {
+    /// One gate per output channel, `[B, T, H d]`, projected by the query
+    /// projection (Qwen3.5's `attn_output_gate`): `c_q` is `[D, 2 H d]`,
+    /// each head's `d` queries followed by its `d` gates.
+    Elementwise,
+
+    /// One gate per head, `[B, T, H]`, from a projection of its own, `c_gate`
+    /// `[D, H]` without a bias, scaling each head's whole output (ZONOS3's
+    /// `gater`, `qwen_gating_style: headwise`).
+    Headwise,
 }
 
 /// Where [`CausalSelfAttention`] normalizes its queries and keys, relative to
@@ -361,9 +375,16 @@ impl CausalSelfAttentionConfig {
             output_gate: self.output_gate,
             c_q: linear(
                 self.n_embed,
-                self.n_head * head_dim * if self.output_gate { 2 } else { 1 },
+                self.n_head
+                    * head_dim
+                    * match self.output_gate {
+                        Some(AttentionOutputGate::Elementwise) => 2,
+                        _ => 1,
+                    },
                 self.qkv_bias,
             ),
+            c_gate: (self.output_gate == Some(AttentionOutputGate::Headwise))
+                .then(|| linear(self.n_embed, self.n_head, false)),
             q_norm: norm(),
             c_k: linear(self.n_embed, self.n_kv_head * head_dim, self.key_bias()),
             k_norm: norm(),
@@ -436,14 +457,19 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub softmax_dtype: Option<FloatDType>,
 
-    /// Whether `c_q` also projects a sigmoid gate on the output
+    /// The sigmoid gate on the output, if any
     /// ([`CausalSelfAttentionConfig::output_gate`]).
     #[module(skip)]
-    pub output_gate: bool,
+    pub output_gate: Option<AttentionOutputGate>,
 
-    /// Query Linear: `[D, H d]`, or `[D, 2 H d]` under an output gate (each
-    /// head's queries, then its gates).
+    /// Query Linear: `[D, H d]`, or `[D, 2 H d]` under an
+    /// [`Elementwise`](AttentionOutputGate::Elementwise) gate (each head's
+    /// queries, then its gates).
     pub c_q: Linear,
+
+    /// A [`Headwise`](AttentionOutputGate::Headwise) gate's projection,
+    /// `[D, H]`; `None` without one.
+    pub c_gate: Option<Linear>,
 
     /// Query Normalization; `None` without QK-norm.
     pub q_norm: Option<BunsenNormalization>,
@@ -526,7 +552,10 @@ impl CausalSelfAttention {
     ///
     /// # Returns
     /// - `[B, H_q, T, head_dim]` queries, `[B, H_kv, T, head_dim]` keys, and
-    ///   `[B, T, H_q * head_dim]` gate logits (`None` without the gate).
+    ///   the gate logits: `[B, T, H_q * head_dim]` under an
+    ///   [`Elementwise`](AttentionOutputGate::Elementwise) gate, `[B, T, H_q]`
+    ///   under a [`Headwise`](AttentionOutputGate::Headwise) one, `None`
+    ///   without a gate.
     fn queries_keys(
         &self,
         input: Tensor<3>,
@@ -535,12 +564,17 @@ impl CausalSelfAttention {
         let [b, t] = unpack_shape_contract!(["B", "T", "D"], &input.dims(), &["B", "T"]);
         let (h, d) = (self.n_head(), self.head_dim());
         let q = self.c_q.forward(input.clone());
-        let (q, gate) = if self.output_gate {
-            let q = q.reshape([b, t, h, 2 * d]);
-            let gate = q.clone().slice(s![.., .., .., d..]).reshape([b, t, h * d]);
-            (q.slice(s![.., .., .., ..d]), Some(gate))
-        } else {
-            (q.reshape([b, t, h, d]), None)
+        let (q, gate) = match self.output_gate {
+            Some(AttentionOutputGate::Elementwise) => {
+                let q = q.reshape([b, t, h, 2 * d]);
+                let gate = q.clone().slice(s![.., .., .., d..]).reshape([b, t, h * d]);
+                (q.slice(s![.., .., .., ..d]), Some(gate))
+            }
+            Some(AttentionOutputGate::Headwise) => {
+                let c_gate = self.c_gate.as_ref().expect("a headwise gate has c_gate");
+                (q.reshape([b, t, h, d]), Some(c_gate.forward(input.clone())))
+            }
+            None => (q.reshape([b, t, h, d]), None),
         };
         let q = self.qk_norm.apply(q, self.q_norm.as_ref(), r_emb);
         let q = match &self.query_gain {
@@ -791,9 +825,17 @@ impl CausalSelfAttention {
                 t_q as i32,
                 (self.n_head() * self.head_dim()) as i32,
             ]);
-        let y = match gate {
-            Some(gate) => y * burn::tensor::activation::sigmoid(gate),
-            None => y,
+        let y = match (self.output_gate, gate) {
+            (Some(AttentionOutputGate::Elementwise), Some(gate)) => {
+                y * burn::tensor::activation::sigmoid(gate)
+            }
+            (Some(AttentionOutputGate::Headwise), Some(gate)) => {
+                let (h, d) = (self.n_head(), self.head_dim());
+                (y.reshape([b, t_q, h, d])
+                    * burn::tensor::activation::sigmoid(gate).unsqueeze_dim::<4>(3))
+                .reshape([b, t_q, h * d])
+            }
+            _ => y,
         };
 
         let y = self.c_proj.forward(y);
@@ -1199,7 +1241,11 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 6, 16];
         let prefix = 3;
 
-        for output_gate in [false, true] {
+        for output_gate in [
+            None,
+            Some(AttentionOutputGate::Elementwise),
+            Some(AttentionOutputGate::Headwise),
+        ] {
             let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(4, 2, n_embed)
                 .with_output_gate(output_gate)
                 .init(0, &device);
@@ -1307,7 +1353,11 @@ mod tests {
         let device = cpu_device();
         let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 5, 16, 4, 2);
         let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed);
-        let mut gated: CausalSelfAttention = cfg.clone().with_output_gate(true).init(0, &device);
+        let mut gated: CausalSelfAttention = cfg
+            .clone()
+            .with_output_gate(Some(AttentionOutputGate::Elementwise))
+            .init(0, &device);
+        assert!(gated.c_gate.is_none());
         let d = gated.head_dim();
         assert_eq!(gated.c_q.weight.dims(), [n_embed, 2 * n_head * d]);
         assert_eq!(gated.n_head(), n_head);
@@ -1339,6 +1389,56 @@ mod tests {
         assert_tensors_close(&actual, &expected, Tolerance::default());
 
         // The weights the gate follows are the ungated attention's.
+        assert_tensors_close(
+            &gated.attention_weights(input.clone(), &r_emb),
+            &plain.attention_weights(input, &r_emb),
+            Tolerance::default(),
+        );
+    }
+
+    /// A headwise gate scales each head's whole output by one sigmoid, read
+    /// from the attention's input through `c_gate`, and leaves the queries
+    /// and the weights the ungated attention's.
+    #[test]
+    fn test_headwise_output_gate() {
+        let device = cpu_device();
+        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 5, 16, 4, 2);
+        let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed);
+        let mut gated: CausalSelfAttention = cfg
+            .clone()
+            .with_output_gate(Some(AttentionOutputGate::Headwise))
+            .init(0, &device);
+        let d = gated.head_dim();
+        assert_eq!(gated.c_q.weight.dims(), [n_embed, n_head * d]);
+        let c_gate = gated.c_gate.clone().expect("a headwise gate's projection");
+        assert_eq!(c_gate.weight.dims(), [n_embed, n_head]);
+        assert!(c_gate.bias.is_none());
+
+        let identity = Param::from_tensor(Tensor::<2>::eye(n_embed, &device));
+        gated.c_proj.weight = identity.clone();
+        let mut plain: CausalSelfAttention = cfg.init(0, &device);
+        plain.c_q = gated.c_q.clone();
+        plain.c_k = gated.c_k.clone();
+        plain.c_v = gated.c_v.clone();
+        plain.q_norm = gated.q_norm.clone();
+        plain.k_norm = gated.k_norm.clone();
+        plain.c_proj.weight = identity;
+
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, d).init(&device);
+        let input =
+            seeded_tensor::<3>(5, [batch, seq_len, n_embed], Distribution::Default, &device);
+        // [B, T, H, 1]: one gate per head.
+        let gate = burn::tensor::activation::sigmoid(
+            input.clone().matmul(c_gate.weight.val().unsqueeze()),
+        )
+        .unsqueeze_dim::<4>(3);
+        let expected = (plain
+            .forward(input.clone(), &r_emb, &mut None)
+            .reshape([batch, seq_len, n_head, d])
+            * gate)
+            .reshape([batch, seq_len, n_head * d]);
+        let actual = gated.forward(input.clone(), &r_emb, &mut None);
+        assert_tensors_close(&actual, &expected, Tolerance::default());
         assert_tensors_close(
             &gated.attention_weights(input.clone(), &r_emb),
             &plain.attention_weights(input, &r_emb),

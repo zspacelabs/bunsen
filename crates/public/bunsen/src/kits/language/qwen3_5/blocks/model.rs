@@ -14,6 +14,7 @@ use crate::{
         },
         transformers::{
             attention::csa::{
+                AttentionOutputGate,
                 CausalSelfAttentionConfig,
                 QkNormPlacement,
             },
@@ -301,7 +302,10 @@ impl Qwen3_5Config {
                     .with_head_dim(Some(self.head_dim))
                     .with_norm(Some(norm(self.head_dim)))
                     .with_qk_norm(QkNormPlacement::BeforeRope)
-                    .with_output_gate(self.attn_output_gate)
+                    .with_output_gate(
+                        self.attn_output_gate
+                            .then_some(AttentionOutputGate::Elementwise),
+                    )
                     .with_softmax_dtype(self.softmax_dtype)
                     .into()
             }
@@ -471,7 +475,10 @@ mod tests {
         );
         match &model.lm.stack.layers[1].attn.branch {
             TokenMixer::Attention(attn) => {
-                assert!(attn.output_gate && attn.q_norm.is_some());
+                assert!(
+                    attn.output_gate == Some(AttentionOutputGate::Elementwise)
+                        && attn.q_norm.is_some()
+                );
                 assert_eq!(attn.n_head(), 4);
             }
             other => panic!("a full layer attends: {other:?}"),
