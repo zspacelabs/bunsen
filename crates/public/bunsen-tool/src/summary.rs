@@ -15,12 +15,14 @@
 //! # safetensors and its tokenizer.
 //! # publisher: fermion - FermionResearch, Phonon's authors.
 //!
-//! * fermion/phonon-2: [163.5 MB; aka phonon]
+//! * fermion/phonon-2: [163.5 MB]
+//!   - phonon
 //!   Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English.
 //! ```
 //!
 //! A build's details are its size, its dtypes, each preset axis with its
-//! default starred, any preset on no axis, and its aliases.
+//! default starred, and any preset on no axis; its aliases, when it has
+//! any, are a line of their own below it.
 
 #[cfg(feature = "speech")]
 use bunsen::kits::speech::{
@@ -295,6 +297,10 @@ pub fn summary(
                 ));
                 for (_, build) in &publisher.builds {
                     out.push_str(&format!("\n* {}: [{}]\n", build.name, build_details(build)));
+                    if !build.aliases.is_empty() {
+                        let aliases: Vec<&str> = build.aliases.iter().map(|a| a.leaf()).collect();
+                        out.push_str(&format!("  - {}\n", aliases.join(", ")));
+                    }
                     for line in wrap(build.description.trim(), width.saturating_sub(2)) {
                         out.push_str(&format!("  {line}\n"));
                     }
@@ -318,8 +324,8 @@ fn header(
     }
 }
 
-/// A build's details: its size and dtypes, its presets ([`presets_details`]),
-/// and its aliases.
+/// A build's details: its size and dtypes, and its presets
+/// ([`presets_details`]).
 fn build_details(build: &ResolvedBuild) -> String {
     let resources = build.resource_set();
     let mut parts = Vec::new();
@@ -334,10 +340,6 @@ fn build_details(build: &ResolvedBuild) -> String {
         parts.push(files.join(" "));
     }
     parts.extend(presets_details(&build.presets));
-    if !build.aliases.is_empty() {
-        let aliases: Vec<&str> = build.aliases.iter().map(|a| a.leaf()).collect();
-        parts.push(format!("aka {}", aliases.join(", ")));
-    }
     parts.join("; ")
 }
 
@@ -462,14 +464,15 @@ mod tests {
                  # A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers'\n\
                  # safetensors and its tokenizer.\n\
                  # publisher: fermion - FermionResearch, Phonon's authors.\n\n\
-                 * fermion/phonon-2: [163.5 MB; aka phonon]\n  Phonon-2: "
+                 * fermion/phonon-2: [163.5 MB]\n  - phonon\n  Phonon-2: "
             ),
             "{text}"
         );
         // qwen3-asr's sub-contracts fold into one.
         assert_eq!(text.matches("# contract: qwen3-asr\n").count(), 1, "{text}");
         assert!(text.contains("task: *transcribe|translate"), "{text}");
-        assert!(text.contains("aka sortformer-v2"), "{text}");
+        assert!(text.contains("]\n  - sortformer-v2\n"), "{text}");
+        assert!(!text.contains("- \n"), "{text}");
         // Descriptions fit the width: builds' and contracts'.
         for line in text.lines().filter(|l| {
             l.starts_with("  ") || l.starts_with("# ") && !l.starts_with("# publisher:")

@@ -30,7 +30,8 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 # safetensors and its tokenizer.
 # publisher: fermion - FermionResearch, Phonon's authors.
 
-* fermion/phonon-2: [163.5 MB; aka phonon]
+* fermion/phonon-2: [163.5 MB]
+  - phonon
   Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English.
 
 # publisher: nvidia - NVIDIA.
@@ -65,7 +66,8 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 # vocabulary.
 # publisher: mistralai - Mistral AI.
 
-* mistralai/voxtral/voxtral-mini-4b-realtime-2602: [8.87 GB bf16; aka voxtral-mini-4b-realtime]
+* mistralai/voxtral/voxtral-mini-4b-realtime-2602: [8.87 GB bf16]
+  - voxtral-mini-4b-realtime
   Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming.
 
 # contract: whisper-asr
@@ -79,10 +81,12 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 * openai/whisper/large/large-v2: [3.09 GB f16; task: *transcribe|translate]
   1550 M parameters, multilingual.
 
-* openai/whisper/large/large-v3: [3.09 GB f16; task: *transcribe|translate; aka large]
+* openai/whisper/large/large-v3: [3.09 GB f16; task: *transcribe|translate]
+  - large
   1550 M parameters, multilingual, 128 mels.
 
-* openai/whisper/large/large-v3-turbo: [1.62 GB f16; aka turbo]
+* openai/whisper/large/large-v3-turbo: [1.62 GB f16]
+  - turbo
   809 M parameters, multilingual, 128 mels, four-layer decoder.
 
 * openai/whisper/tiny.en: [76.4 MB f16]
@@ -118,11 +122,13 @@ default starred) and aliases, and its description below it; `--kind` prints one 
   Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames,
   streaming.
 
-* nvidia/sortformer/diar_streaming_sortformer_4spk-v2: [471.4 MB f32; latency: ultra-low|*low|high|offline; postprocess: *none|dihard3|callhome; aka sortformer-v2]
+* nvidia/sortformer/diar_streaming_sortformer_4spk-v2: [471.4 MB f32; latency: ultra-low|*low|high|offline; postprocess: *none|dihard3|callhome]
+  - sortformer-v2
   Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms
   frames.
 
-* nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1: [471.4 MB f32; latency: ultra-low|*low|high|offline; postprocess: *none|dihard3|callhome; aka sortformer-v2.1]
+* nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1: [471.4 MB f32; latency: ultra-low|*low|high|offline; postprocess: *none|dihard3|callhome]
+  - sortformer-v2.1
   Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms
   frames.
 
@@ -272,15 +278,18 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 # the run's `meta_*.json`.
 # publisher: nanochat-students - nanochat-students, who publish nanochat training runs.
 
-* nanochat-students/base-d20: [2.08 GB bf16; thinking: no-thinking; aka nanochat-d20-base]
+* nanochat-students/base-d20: [2.08 GB bf16; thinking: no-thinking]
+  - nanochat-d20-base
   nanochat-students' d20 after pretraining (step 21400): upstream's 2025
   model, 561M, base.
 
-* nanochat-students/mid-d20: [2.08 GB bf16; thinking: no-thinking; aka nanochat-d20-mid]
+* nanochat-students/mid-d20: [2.08 GB bf16; thinking: no-thinking]
+  - nanochat-d20-mid
   nanochat-students' d20 after midtraining (step 765): upstream's 2025
   model, 561M, chat format.
 
-* nanochat-students/rl-d20: [2.08 GB bf16; thinking: no-thinking; aka nanochat-d20-rl]
+* nanochat-students/rl-d20: [2.08 GB bf16; thinking: no-thinking]
+  - nanochat-d20-rl
   nanochat-students' d20 after its RL stage (step 650): upstream's 2025
   model, 561M, chat.
 
@@ -302,7 +311,8 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 # safetensors file.
 # publisher: laya - convaiinnovations, Laya's authors.
 
-* laya/laya/laya: [846.2 MB f16; aka laya-en]
+* laya/laya/laya: [846.2 MB f16]
+  - laya-en
   Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters,
   prompts of 512 tokens.
 
