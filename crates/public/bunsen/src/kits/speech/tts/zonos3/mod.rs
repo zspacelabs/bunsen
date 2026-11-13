@@ -19,3 +19,7 @@
 
 pub mod codec;
 pub mod lm;
+pub mod prompt;
+
+#[cfg(feature = "store")]
+pub mod voices;
