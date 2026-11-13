@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
+            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-52d38e2f.js"></script>
+        <script src="../toc-8ef3ccc5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -195,9 +195,9 @@ benchmarks print their own.</p>
 <tr><th>Bench</th><th>Measures</th><th>Runs on</th></tr>
 </thead>
 <tbody>
-<tr><td><code>contracts</code></td><td>shape-contract unpacks, asserts and periodic asserts (<a href="https://docs.rs/bunsen/0.41.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost</a>)</td><td>the host</td></tr>
+<tr><td><code>contracts</code></td><td>shape-contract unpacks, asserts and periodic asserts (<a href="https://docs.rs/bunsen/0.42.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost</a>)</td><td>the host</td></tr>
 <tr><td><code>drop_block</code></td><td>2D DropBlock over a small image batch</td><td>the CPU backend, always</td></tr>
-<tr><td><code>math</code></td><td><a href="https://docs.rs/bunsen/0.41.0/bunsen/support/math/iroot/fn.maybe_iroot.html" title="fn bunsen::support::math::iroot::maybe_iroot"><code>maybe_iroot</code></a> against a floating-point reference</td><td>the host</td></tr>
+<tr><td><code>math</code></td><td><a href="https://docs.rs/bunsen/0.42.0/bunsen/support/math/iroot/fn.maybe_iroot.html" title="fn bunsen::support::math::iroot::maybe_iroot"><code>maybe_iroot</code></a> against a floating-point reference</td><td>the host</td></tr>
 <tr><td><code>lbm</code></td><td>the D2Q9 lattice-Boltzmann collision, streaming and update steps, in <code>f32</code> and <code>f64</code></td><td><code>performance_device()</code></td></tr>
 <tr><td><code>whisper_decode</code></td><td>the Whisper encoder and decode loop at <code>base.en</code>’s shapes, with random weights, cold and warm</td><td><code>performance_device()</code></td></tr>
 </tbody>
@@ -213,7 +213,7 @@ optionally checks them against an expected JSON file.</li>
 <code>benchmark</code> subcommand reports the sustained steps per second of the 2D or
 3D Game of Life on the device <code>--device</code> selects. It measures the tensor
 kernels behind the simulation kits.</li>
-<li><a href="https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-asr/README.md#benchmarks"><code>bunsen-asr</code></a>’s
+<li><a href="https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md#benchmarks"><code>bunsen-tool</code></a>’s
 <code>transcribe</code> logs, at <code>-v</code>, each file’s audio length, transcription time
 and realtime factor, and the totals over the set. Its README runs it over
 a speech dataset.</li>
@@ -230,7 +230,7 @@ to optimize, and know which one a number is.</p>
 <code>cold</code>.</li>
 <li><code>conway benchmark</code> leaves a warmup fraction of its steps out of the
 timing.</li>
-<li><code>bunsen-asr</code> sizes every push to the stream driver’s grain, so the front
+<li><code>bunsen-tool</code> sizes every push to the stream driver’s grain, so the front
 end and the autotuned kernels behind it see one shape, not a drift of
 remainders.</li>
 <li>A benchmark whose shapes change every iteration measures the tuner, not
@@ -238,14 +238,14 @@ the kernel.</li>
 </ul>
 <h2 id="always-pass-a-backend"><a class="header" href="#always-pass-a-backend">Always pass a backend</a></h2>
 <p>A benchmark on
-<a href="https://docs.rs/bunsen/0.41.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
+<a href="https://docs.rs/bunsen/0.42.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
 measures whatever bunsen’s backend feature selected, and without one that is
 the CPU. It doesn’t fail; it reports CPU numbers
 (<a href="./testing.html#the-silent-cpu-fallback">Testing and backends</a>). Pass the
 backend explicitly: <code>--features wgpu</code>, or another backend, for bunsen’s own
 benches, and <code>--features bunsen/wgpu</code> for a binary that reaches
 <code>performance_device()</code> through bunsen, such as silero-bench. The examples and
-<code>bunsen-asr</code>, <code>conway</code> among them, pick their device at run time with
+<code>bunsen-tool</code>, <code>conway</code> among them, pick their device at run time with
 <code>--device</code>; a backend is selectable only when the binary was built with its
 feature, and without one <code>auto</code> is the CPU. The examples’ READMEs and the
 <code>whisper_decode</code> bench’s docs give exact commands.</p>

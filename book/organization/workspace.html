@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
+            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-52d38e2f.js"></script>
+        <script src="../toc-8ef3ccc5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -182,42 +182,41 @@
                     <main>
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="the-workspace"><a class="header" href="#the-workspace">The workspace</a></h1>
-<p>bunsen is one Cargo workspace with four kinds of member. Only the crates
-under <code>crates/public</code> are published; everything else exists to build,
-check, validate or demonstrate them.</p>
+<p>bunsen is two Cargo workspaces. The main one, at the repository root, has
+three kinds of member; only the crates under <code>crates/public</code> are published,
+and everything else exists to build, check or demonstrate them. The
+validation workspace, under <code>validation/</code>, holds bunsen’s models to
+reference implementations; nothing the main workspace runs builds it.</p>
 <pre><code class="language-text">crates/public/      the published crates (released together, one version)
 crates/dev/         development tooling: upstream bug repros, benches, test audio
-crates/validation/  cross-checks of bunsen models against reference implementations
 examples/           runnable programs, one per kit or system
 tools/              one-shot fixture generators and repo checks (Python, stdlib-first)
+
+validation/         a workspace of its own (validation/Cargo.toml, validation/Cargo.lock)
+  onnx/             the ONNX references and checkpoints, fetched at build time
+  models.yml        the validation schedule: the models the validation crates check, which a profile chooses from
+  models/           cross-checks of bunsen models against those references
+  tools/            the fixture generators whose output lands in models/
 </code></pre>
 <h2 id="published-crates"><a class="header" href="#published-crates">Published crates</a></h2>
 <p>All published crates share the workspace version and are released together
-by release-plz (<a href="../development/release.html">Releasing</a>), except
-<code>bunsen-bundled-parakeet</code>, <code>bunsen-bundled-qwen3-asr</code> and
-<code>bunsen-bundled-sortformer</code>, which fetch the checkpoints the validation crates
-check against and are not published.</p>
+by release-plz (<a href="../development/release.html">Releasing</a>).</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Crate</th><th>What it is</th></tr>
 </thead>
 <tbody>
-<tr><td><a href="https://docs.rs/bunsen/0.41.0/bunsen/index.html" title="mod bunsen"><code>bunsen</code></a></td><td>The library: contracts, ops, blocks, kits, the pretrained-model machinery, audits. Most users depend on this alone. See <a href="./crate.html">the bunsen crate</a>.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-contracts-macros"><code>bunsen-contracts-macros</code></a></td><td>The proc macro behind <a href="https://docs.rs/bunsen/0.41.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>shape_contract!</code></a>. Never a direct dependency; <code>bunsen</code> re-exports it.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-bundled-silero/0.41.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen-bundled-silero</code></a></td><td>Silero VAD’s 16 kHz checkpoint and, for validation, its ONNX graph and the reference model generated from it, fetched and digest-pinned at build time, for <code>silero-model-validation</code>. Hosts no files itself.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-bundled-whisper/0.41.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen-bundled-whisper</code></a></td><td>Whisper’s <code>base</code> checkpoint and tokenizer vocabularies, fetched and digest-pinned at build time and laid out as a pretrained cache, for <code>whisper-model-validation</code>. Hosts no files itself.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-firehose/0.41.0/bunsen_firehose/index.html" title="mod bunsen_firehose"><code>bunsen-firehose</code></a></td><td>A column-oriented data-processing pipeline that feeds burn’s <code>Batcher</code>. Independent of <code>bunsen</code>. See <a href="../systems/firehose.html">Firehose</a>.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-firehose-image/0.41.0/bunsen_firehose_image/index.html" title="mod bunsen_firehose_image"><code>bunsen-firehose-image</code></a></td><td>Image operators for firehose: loading, augmentation, conversion to tensor data.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-arrow-dataloaders/0.41.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen-arrow-dataloaders</code></a></td><td><em>Preview.</em> Parquet shards to tokenized training batches, for language-model training. See <a href="../systems/shards.html">Shard sets</a>.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app"><code>bunsen-app</code></a></td><td>Shared command-line plumbing for bunsen’s binaries: device and precision flags, logging, shard selection, and the weights cache’s flags and <code>cache</code> commands. The examples and <code>bunsen-asr</code> are built on it.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr"><code>bunsen-asr</code></a></td><td>A binary, <code>cargo install bunsen-asr</code>: speech to text by profile (<code>en</code>, <code>multi</code>, <code>translate-en</code>) or with Parakeet, Qwen3-ASR or Whisper directly, each through its <a href="../systems/streaming.html">stream driver</a>; speaker diarization with Sortformer; and <code>bunsen-asr cache</code> over the weights cache.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.42.0/bunsen/index.html" title="mod bunsen"><code>bunsen</code></a></td><td>The library: contracts, ops, blocks, kits, the pretrained-model machinery, audits. Most users depend on this alone. See <a href="./crate.html">the bunsen crate</a>.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-contracts-macros"><code>bunsen-contracts-macros</code></a></td><td>The proc macro behind <a href="https://docs.rs/bunsen/0.42.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>shape_contract!</code></a>. Never a direct dependency; <code>bunsen</code> re-exports it.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-firehose/0.42.0/bunsen_firehose/index.html" title="mod bunsen_firehose"><code>bunsen-firehose</code></a></td><td>A column-oriented data-processing pipeline that feeds burn’s <code>Batcher</code>. Independent of <code>bunsen</code>. See <a href="../systems/firehose.html">Firehose</a>.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-firehose-image/0.42.0/bunsen_firehose_image/index.html" title="mod bunsen_firehose_image"><code>bunsen-firehose-image</code></a></td><td>Image operators for firehose: loading, augmentation, conversion to tensor data.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-arrow-dataloaders/0.42.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen-arrow-dataloaders</code></a></td><td><em>Preview.</em> Parquet shards to tokenized training batches, for language-model training. See <a href="../systems/data/datasets.html">Datasets</a>.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app"><code>bunsen-app</code></a></td><td>Shared command-line plumbing for bunsen’s binaries: device and precision flags, logging, shard selection, and the weights cache’s flags and <code>cache</code> commands. The examples and <code>bunsen-tool</code> are built on it.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-tool"><code>bunsen-tool</code></a></td><td>A binary, <code>cargo install bunsen-tool</code>: <code>bunsen-tool asr</code>, speech to text by profile (<code>en</code>, <code>multi</code>, <code>translate-en</code>) or with Parakeet, Qwen3-ASR, Voxtral Realtime or Whisper directly, each through its <a href="../systems/streaming.html">stream driver</a>; speaker diarization with Sortformer; <code>bunsen-tool chat</code>, chat with Qwen3 or nanochat, whose driver is also a library (<code>bunsen_tool::chat</code>); and <code>bunsen-tool cache</code> over the weights cache.</td></tr>
 </tbody>
 </table>
 </div>
-<p>The two <code>bundled</code> crates are how bunsen ships model assets without making
-every build download them; <a href="../development/assets.html">Assets, bundling and the network</a>
-explains the scheme.</p>
 <h2 id="development-crates"><a class="header" href="#development-crates">Development crates</a></h2>
 <div class="table-wrapper">
 <table>
@@ -231,27 +230,55 @@ explains the scheme.</p>
 </tbody>
 </table>
 </div>
-<h2 id="validation-crates"><a class="header" href="#validation-crates">Validation crates</a></h2>
+<h2 id="the-validation-workspace"><a class="header" href="#the-validation-workspace">The validation workspace</a></h2>
+<p><code>validation/</code> depends on the main workspace’s crates by path, and has a
+lockfile of its own; every package bunsen’s crates reach in it is the
+version <code>Cargo.lock</code> has (<code>tools/check_validation_lock.py</code>, run in CI).
+Building it with its default features fetches nothing; <code>checkpoints</code> (at
+run time) and <code>reference</code> (at build time) fetch, and only the validation
+runs turn them on
+(<a href="../development/validation.html">Validation</a>). No CI job builds it;
+<code>cargo make check-validation</code> does, by hand.</p>
+<h3 id="onnx-binding-crates"><a class="header" href="#onnx-binding-crates">ONNX binding crates</a></h3>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Crate</th><th>Role</th></tr>
+</thead>
+<tbody>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx"><code>rewrite-genai-onnx</code></a></td><td>Rewrites an onnxruntime-genai ONNX export’s <code>com.microsoft</code> ops to standard ONNX, so <code>burn-onnx</code> imports it; the <code>bind-{model}-onnx</code> build scripts call it.</td></tr>
+<tr><td><code>bind-{model}-onnx</code> (<a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx"><code>whisper</code></a>, <a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx"><code>silero</code></a>, <a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-parakeet-onnx"><code>parakeet</code></a>, <a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-onnx"><code>qwen3</code></a>, <a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-asr-onnx"><code>qwen3-asr</code></a>, <a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-sortformer-onnx"><code>sortformer</code></a>, <a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-voxtral-onnx"><code>voxtral</code></a>)</td><td>Each validation crate’s assets: the checkpoints it compares, fetched and digest-pinned at build time and laid out as a resource cache, and the reference model <code>burn-onnx</code> generates from an upstream ONNX export. Host no files. See <a href="../development/assets.html#the-bundled-crates">Assets, bundling and the network</a>.</td></tr>
+</tbody>
+</table>
+</div>
+<h3 id="validation-crates"><a class="header" href="#validation-crates">Validation crates</a></h3>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Crate</th><th>Validates</th></tr>
 </thead>
 <tbody>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/validation/sortformer-model-validation"><code>sortformer-model-validation</code></a></td><td>Sortformer diarization against ONNX exports of the same checkpoints (<code>Nemotron-3-Diarization</code>, Sortformer v2.1), each held itself to onnxruntime’s run of the published graph, and against <code>NeMo</code>’s own diarization of an AMI excerpt by each model.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/validation/silero-model-validation"><code>silero-model-validation</code></a></td><td>Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/validation/whisper-model-validation"><code>whisper-model-validation</code></a></td><td>Whisper against an ONNX export, stage by stage, and against <code>openai-whisper</code>’s own decode of real speech.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/gemma-model-validation"><code>gemma-model-validation</code></a></td><td>Gemma 2 and 3 against <code>transformers</code>’ own greedy decodes, past each row’s sliding window, at the end of a long conversation and in chat sessions, in float32 and, on CUDA, in bf16.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/nanochat-model-validation"><code>nanochat-model-validation</code></a></td><td>nanochat against upstream’s own code at the pinned commit of each model, on the community d20 and d18 checkpoints: prefill logits and greedy decodes, in float32 and, on CUDA, in bf16.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/parakeet-model-validation"><code>parakeet-model-validation</code></a></td><td>Parakeet TDT against an independent implementation generated from <code>NeMo</code>’s own ONNX export, stage by stage.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/qwen3-asr-model-validation"><code>qwen3-asr-model-validation</code></a></td><td>Qwen3-ASR against an implementation generated from an ONNX export, and against <code>transformers</code>’ own decode of real speech.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/qwen3-model-validation"><code>qwen3-model-validation</code></a></td><td>Qwen3 against an implementation generated from the published ONNX export, and against <code>transformers</code>’ own greedy decodes, long conversation and chat sessions, in float32 and, on CUDA, in bf16.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/silero-model-validation"><code>silero-model-validation</code></a></td><td>Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/sortformer-model-validation"><code>sortformer-model-validation</code></a></td><td>Sortformer diarization against ONNX exports of the same checkpoints (<code>Nemotron-3-Diarization</code>, Sortformer v2.1), each held itself to onnxruntime’s run of the published graph, and against <code>NeMo</code>’s own diarization of an AMI excerpt by each model.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/voxtral-model-validation"><code>voxtral-model-validation</code></a></td><td>Voxtral Realtime against an implementation generated from the published ONNX export, and against <code>transformers</code>’ own greedy decodes of real speech.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/models/whisper-model-validation"><code>whisper-model-validation</code></a></td><td>Whisper against an ONNX export, stage by stage, and against <code>openai-whisper</code>’s own decode of real speech.</td></tr>
 </tbody>
 </table>
 </div>
-<p>These are not part of a normal build’s test run; they are how a kit earns
-trust. See <a href="../development/validation.html">Validation against reference implementations</a>.</p>
+<p>Their reference checks are not part of a normal build’s test run; they are
+how a kit earns trust. See <a href="../development/validation.html">Validation against reference implementations</a>.</p>
 <h2 id="examples-and-tools"><a class="header" href="#examples-and-tools">Examples and tools</a></h2>
 <p>The <a href="./examples.html">examples</a> are runnable programs, one or more per kit or
-system. <code>tools/</code> holds the Python scripts that generate committed test
-fixtures from reference implementations, run once by hand, never by CI
-(<a href="../development/validation.html">Validation</a>), and the repository checks CI
-runs.</p>
+system. <code>tools/</code> holds the Python scripts that generate bunsen’s committed
+test fixtures from reference implementations, and the repository checks CI
+runs; <code>validation/tools/</code> holds those that generate the validation crates’
+fixtures. Each fixture script is run once by hand, never by CI
+(<a href="../development/validation.html">Validation</a>).</p>
 
                     </main>
 

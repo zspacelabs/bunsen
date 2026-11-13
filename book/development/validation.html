@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
+            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-52d38e2f.js"></script>
+        <script src="../toc-8ef3ccc5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -186,9 +186,9 @@
 original computes. This page describes how bunsen tests that claim. The two
 validation crates are the worked examples, and their own docs carry the
 details and the commands:
-<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md"><code>whisper-model-validation</code></a>
+<a href="https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md"><code>whisper-model-validation</code></a>
 and
-<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/silero-model-validation/src/lib.rs"><code>silero-model-validation</code></a>.</p>
+<a href="https://github.com/zspacelabs/bunsen/blob/main/validation/models/silero-model-validation/src/lib.rs"><code>silero-model-validation</code></a>.</p>
 <h2 id="why-unit-tests-are-not-enough"><a class="header" href="#why-unit-tests-are-not-enough">Why unit tests are not enough</a></h2>
 <p>bunsen’s Whisper and Silero kits are transliterations, written by reading
 the reference. Their unit tests check the code against itself, so a
@@ -231,7 +231,7 @@ reduced-precision matmul drifts an order of magnitude further than wgpu. So
 a tolerance is measured on each backend and set with headroom over the
 worst. It is still far tighter than the error a real defect causes: a
 scrambled weight or a wrong activation is off by 100% or more
-(<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#tolerance">Tolerance</a>).</p>
+(<a href="https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#tolerance">Tolerance</a>).</p>
 <h2 id="fixtures-generated-once"><a class="header" href="#fixtures-generated-once">Fixtures generated once</a></h2>
 <p>Some references are not Rust and won’t be: <code>librosa</code>’s mel filterbanks,
 <code>openai-whisper</code>’s decodes. bunsen’s tests never call them. A script under
@@ -248,35 +248,49 @@ tests read is collected in one dev crate, <code>bunsen-test-audio</code>, whose
 records where each clip came from and under what licence; a fixture that is a
 model’s output on a clip stays in the <code>testdata/</code> of that model’s validation
 crate.</p>
-<p>The same pattern pins data. <code>tools/gen_shard_digests.py</code> reads a dataset’s
-listing at a pinned revision and writes the digest table that a
-<a href="../systems/shards.html">shard set</a> verifies against.</p>
+<p>Data is pinned the way models are: <code>cargo catalog</code> reads a dataset’s listing
+at a pinned revision and lists the digests a <a href="../systems/data/datasets.html">shard set</a>
+verifies against.</p>
 <h2 id="running-validation"><a class="header" href="#running-validation">Running validation</a></h2>
-<p>The Whisper suite takes three features, and none implies another:
-<code>download</code> fetches the assets it compares against, <code>gpu-tests</code> compiles the
-tests that load a model, and a backend feature says what they run on.
-Without <code>gpu-tests</code> only its fixture-integrity checks run, and that is all of
-it that pull-request CI runs: it turns on none of <code>weights</code>, <code>download</code> and
-<code>gpu-tests</code> for any validation crate.</p>
-<p><code>weights</code> is the cheap half of <code>download</code>, the checkpoints without the
-reference graphs, and compiles the checks that need only them: the Whisper
-kit’s pretrained pathway on <code>base.pt</code>, and Silero’s recorded probabilities
-held to upstream’s model. They run on the CPU, as <code>cargo make validate-cpu</code>.</p>
-<p><code>validation.yml</code> runs Silero’s and Whisper’s whole suites, ONNX cross-checks
-included, on the CPU (<code>cargo make validate-ci</code>), over about 730 MB of assets it
-caches by digest (<a href="./assets.html#how-ci-caches-them">Assets</a>). It runs only when
-asked: from the Actions tab, or for a pull request with the <code>validate</code> label,
-then on every push while the label stays.</p>
+<p>The validation crates are a Cargo workspace of their own, under
+<code>validation/</code>, so no command in the main workspace builds them: run them from
+<code>validation/</code>, or with <code>--manifest-path validation/Cargo.toml</code>, as the
+<code>cargo make</code> tasks below do.</p>
+<p>Every suite takes the same features, and none implies another:
+<code>checkpoints</code> compiles the tests against the checkpoints, which fetch them at
+run time through bunsen’s pinned rows into the weights cache; <code>reference</code>
+fetches the ONNX reference at build time, with the bundle the conversion is
+cross-checked with, and compiles the checks against them; <code>gpu-tests</code>
+compiles the tests that run a model on a backend, and a backend feature says
+which. Without them only the fixture-integrity checks run. A profile chooses
+which models’ tests run (<code>cargo make validate</code>; the validation README’s
+“Choosing what to validate”).
+<code>cargo make check-validation</code> runs those, with clippy and the formatting
+check, over the whole workspace with its default features. Pull-request CI
+builds none of it: of the validation workspace it checks only that its
+lockfile agrees with the root’s.</p>
+<p><code>checkpoints</code> alone compiles the checks that need no reference graph and no
+backend: Silero’s recorded probabilities held to upstream’s model, and
+Whisper’s fixtures against its vocabulary. They run on the CPU, as
+<code>cargo make validate-cpu</code>. The checks of the bundles (the Whisper kit’s
+pretrained pathway on the bundled <code>base.pt</code>, Silero’s bundled cache) run
+under <code>reference</code>, where the bundle is: bundling is for verification.</p>
+<p><code>validation.yml</code> runs the stream drivers on the smallest models, on the CPU
+(the <code>ci</code> profile, <code>cargo make validate-ci</code>): each driver held to its model’s
+own one-shot decode, over about 0.6 GB of checkpoints it caches. How a model
+behaves against its reference is the validate targets’, run by hand. It runs
+only when asked: from the Actions tab, or for a pull request with the
+<code>validate</code> label, then on every push while the label stays.</p>
 <p><code>cargo make validate-&lt;model&gt;</code> (<code>silero</code>, <code>whisper</code>, <code>parakeet</code>, <code>qwen3-asr</code>,
-<code>sortformer</code>, or <code>all</code>) runs a model’s whole suite, in release mode, on
+<code>qwen3</code>, <code>sortformer</code>, <code>voxtral</code>, <code>nanochat</code>, or <code>all</code>) runs a model’s whole suite, optimized, with debug assertions (the <code>validate</code> cargo profile), on
 <code>VALIDATION_BACKEND</code> (default <code>wgpu</code>). The
-<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it">README</a>
+<a href="https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#running-it">README</a>
 has the command. Without a backend feature the suite still passes, having
 measured the CPU (<a href="./testing.html#the-silent-cpu-fallback">Testing and backends</a>).</p>
 <h2 id="validating-a-new-kit"><a class="header" href="#validating-a-new-kit">Validating a new kit</a></h2>
 <p>A kit that claims parity with an upstream implementation gets a crate under
-<code>crates/validation/</code>. Its reference and the checkpoint it is compared on
-come through a bundled-asset crate, digest-pinned
+<code>validation/models/</code>. Its reference and the checkpoint it is compared on
+come through a <code>bind-{model}-onnx</code> crate under <code>validation/onnx/</code>, digest-pinned
 (<a href="./assets.html">Assets, bundling and the network</a>), and the crate tests in
 both layers: staged on synthetic input, composed on real input with a
 measured tolerance. <a href="../organization/workspace.html#validation-crates">The workspace</a>

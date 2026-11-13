@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
+            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-52d38e2f.js"></script>
+        <script src="../toc-8ef3ccc5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -183,11 +183,11 @@
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="kits"><a class="header" href="#kits">Kits</a></h1>
 <p>A kit is a whole thing you can pick up and use: a model family with its
-configs, the weights it can load and a program that runs it, or a simulation
-you can step. Where <a href="../systems/ops-and-blocks.html">blocks and ops</a> are parts,
+configs, the weights it can load and a program that runs it. The
+simulations, <a href="https://docs.rs/bunsen/0.42.0/bunsen/sims/index.html" title="mod bunsen::sims"><code>bunsen::sims</code></a>, are built the same way. Where <a href="../systems/ops-and-blocks.html">blocks and ops</a> are parts,
 a kit is what the parts are for.</p>
-<p>The <a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> docs list the kits, and describe
-the <a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#anatomy-of-a-kit" title="mod bunsen::kits">anatomy of a kit</a> piece by piece, with a
+<p>The <a href="https://docs.rs/bunsen/0.42.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> docs list the kits, and describe
+the <a href="https://docs.rs/bunsen/0.42.0/bunsen/kits/index.html#anatomy-of-a-kit" title="mod bunsen::kits">anatomy of a kit</a> piece by piece, with a
 table of how the ResNet, Whisper and Silero kits fill each piece in. This
 page explains why kits are shaped that way, and what building one involves.</p>
 <h2 id="why-a-shared-shape"><a class="header" href="#why-a-shared-shape">Why a shared shape</a></h2>
@@ -199,9 +199,9 @@ appears:</p>
 <code>openai/base.en</code> and get a model. A prefab map names geometries; a
 pretrained table names checkpoints; a factory turns either name into a
 loaded module. The machinery is shared and lives in
-<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>bunsen::data::pretrained</code></a>. A kit contributes
-tables and a <code>Construct</code> hook, not a loader of its own. See
-<a href="../systems/pretrained.html">Files, caches and pretrained models</a>.</li>
+<a href="https://docs.rs/bunsen/0.42.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>bunsen::data::pretrained</code></a>. A kit contributes
+tables and a <code>ConstructInit</code> hook, not a loader of its own. See
+<a href="../systems/data.html">Data: from files to models</a>.</li>
 <li><strong>Configuring it.</strong> A kit’s configs follow the Simple or Stacked shape from
 <a href="../systems/conventions.html">Module design conventions</a>. A user-facing
 policy config is small and stable; the structure config spells out the
@@ -222,18 +222,18 @@ validation crate that steps them against the reference implementation. See
 blocks and ops where they fit, with shape contracts at its boundaries and
 a narrow <code>Meta</code> trait.</li>
 <li><strong>An example</strong> under <code>examples/</code> that runs it end to end.</li>
-<li><strong>Names</strong>: a prefab map, then pretrained rows and a <code>Construct</code> hook, and
+<li><strong>Names</strong>: a prefab map, then pretrained rows and a <code>ConstructInit</code> hook, and
 a <code>default_{kit}_factory()</code>, once there are weights to load.</li>
-<li><strong>A validation crate</strong> under <code>crates/validation/</code>, once the kit claims
+<li><strong>A validation crate</strong> under <code>validation/models/</code>, once the kit claims
 parity with an upstream implementation.</li>
 <li><strong>Promotion</strong>: a layer that a second kit needs moves out to <code>blocks</code> or
 <code>ops</code>.</li>
 </ol>
 <p>The kit’s module docs carry its lifecycle and an example; the
-<a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> table gains a row. This book doesn’t
+<a href="https://docs.rs/bunsen/0.42.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> table gains a row. This book doesn’t
 need to change unless the kit brings a new cross-cutting system.</p>
 <p>Kits evolve faster than the rest of the crate while their domains are being
-filled in; see <a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#stability" title="mod bunsen::kits"><code>bunsen::kits</code></a> on stability.</p>
+filled in; see <a href="https://docs.rs/bunsen/0.42.0/bunsen/kits/index.html#stability" title="mod bunsen::kits"><code>bunsen::kits</code></a> on stability.</p>
 
                     </main>
 

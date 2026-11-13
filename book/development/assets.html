@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
+            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-52d38e2f.js"></script>
+        <script src="../toc-8ef3ccc5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -190,23 +190,27 @@ rules are what they are. The rules themselves are in STYLE.md’s
 and
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#fetched-assets-live-in-out_dir">Fetched assets live in <code>OUT_DIR</code></a>;
 the features that carry them are listed in
-<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.42.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
 <h2 id="build-time-and-run-time"><a class="header" href="#build-time-and-run-time">Build time and run time</a></h2>
 <p>There are two switches, and neither implies the other:</p>
 <ul>
-<li><strong><code>download</code></strong>: the <em>build</em> may reach the network. A build script fetches
-an asset, and the crate compiles against it. It is off by default, so a
-plain <code>cargo build --workspace</code> never fetches. <code>download</code> is a
-conventional name rather than a bunsen feature: a crate that offers it
-turns on the per-asset features of the crates that own the assets.</li>
+<li><strong><code>reference</code></strong>: the <em>build</em> may reach the network. A build script fetches
+an asset (an ONNX export, and the bundle of checkpoints its conversion is
+cross-checked with), and the crate compiles against it. It is off by
+default, so a plain <code>cargo build --workspace</code> never fetches; and the crates
+that offer it are in the validation workspace (<code>validation/</code>), which no
+command in the main workspace builds. <code>reference</code> is a conventional name
+rather than a bunsen feature: a crate that offers it turns on the
+per-asset features of the crates that own the assets.</li>
 <li><strong><code>fetch</code></strong>: the <em>program</em> may reach the network at run time, to bring a
 pretrained model or a dataset shard into the disk cache
-(<a href="../systems/pretrained.html">pretrained models</a>,
-<a href="../systems/shards.html">shard sets</a>).</li>
+(<a href="../systems/data.html">pretrained models</a>,
+<a href="../systems/data/datasets.html">shard sets</a>).</li>
 </ul>
-<p>A test that needs a checkpoint usually wants <code>download</code>: the bytes are in
-place before it runs, and the run itself is offline. A program that loads
-models by name wants <code>fetch</code>.</p>
+<p>A validation test that needs a checkpoint fetches it, through <code>fetch</code>: the
+validation crates’ <code>checkpoints</code> loads it by its pinned row, into the
+weights cache, so a model is fetched once and shared. A program that loads
+models by name wants <code>fetch</code> too.</p>
 <h2 id="digest-pins"><a class="header" href="#digest-pins">Digest pins</a></h2>
 <p>Every fetched asset is pinned to a SHA-256, written beside its URL in the
 build script and re-verified on every build. A file that changes upstream is
@@ -214,11 +218,11 @@ a build error, not a silently different model.</p>
 <p>The build scripts fetch through the <code>bunsen-fetch</code> crate’s <code>Asset</code>, and
 bunsen’s disk cache fetches through the same crate at run time: one
 implementation of the streamed, hashed, renamed-into-place transfer, and one
-statement of the pretrained cache layout, so what a build lays out is what the
+statement of the resource cache layout, so what a build lays out is what the
 cache reads.</p>
 <p>An environment variable can point the build at a local file instead:
 <code>WHISPER_BASE_PT</code> and its siblings, listed in the Whisper validation
-<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it">README</a>.
+<a href="https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#running-it">README</a>.
 An override skips the pin, so use it for a copy you already trust.</p>
 <h2 id="why-out_dir"><a class="header" href="#why-out_dir">Why <code>OUT_DIR</code></a></h2>
 <p><code>OUT_DIR</code> is the one directory a build script may write to. <code>cargo publish</code>
@@ -230,26 +234,40 @@ with everything else.</p>
 <h2 id="the-bundled-crates"><a class="header" href="#the-bundled-crates">The bundled crates</a></h2>
 <p>Shipping a model with a build doesn’t need a special kind of source. It
 needs a cache directory that is already full
-(<a href="../systems/pretrained.html#bundling-is-a-populated-cache-directory">bundling</a>).
+(<a href="../systems/data/resources.html#bundling-is-a-populated-cache-directory">bundling</a>).
 Every bundled crate hosts nothing: its build script fetches the files, pins
-each one, and lays them out in <code>OUT_DIR</code> as a pretrained cache. A cache rooted
+each one, and lays them out in <code>OUT_DIR</code> as a resource cache. A cache rooted
 there finds them offline without knowing they were bundled.</p>
+<p>Each is a crate of the validation workspace, <code>validation/onnx/bind-{model}-onnx</code>,
+and none is published:</p>
 <ul>
-<li><a href="https://docs.rs/bunsen-bundled-whisper/0.41.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s <code>base</code> checkpoint, the
-vocabularies and the ONNX reference, for <code>whisper-model-validation</code>.</li>
-<li><a href="https://docs.rs/bunsen-bundled-silero/0.41.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> fetches upstream’s 16 kHz Silero VAD
-checkpoint and its ONNX graph, from which the reference model is
-generated, for <code>silero-model-validation</code>.</li>
-<li><code>bunsen-bundled-parakeet</code> and <code>bunsen-bundled-qwen3-asr</code> fetch the Phonon
-checkpoints, the base models and the ONNX references for their validation
-crates only, and are not published.</li>
-<li><code>bunsen-bundled-sortformer</code> fetches NVIDIA’s <code>Nemotron-3-Diarization</code> and
-streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron
-(which its build script rewrites where <code>burn-onnx</code> cannot import it) and of
-v2.1, for its validation crate only, and is not published.</li>
+<li><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx"><code>bind-whisper-onnx</code></a>
+fetches Whisper’s <code>base</code> checkpoint, the vocabularies and the ONNX
+reference, for <code>whisper-model-validation</code>.</li>
+<li><a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx"><code>bind-silero-onnx</code></a>
+fetches upstream’s 16 kHz Silero VAD checkpoint and its ONNX graph, from
+which the reference model is generated, for <code>silero-model-validation</code>.</li>
+<li><code>bind-parakeet-onnx</code> and <code>bind-qwen3-asr-onnx</code> fetch the ONNX exports of
+the base models, for their validation crates.</li>
+<li><code>bind-sortformer-onnx</code> fetches ONNX exports of NVIDIA’s
+<code>Nemotron-3-Diarization</code> (which its build script rewrites where <code>burn-onnx</code>
+cannot import it) and of streaming Sortformer v2.1, for its validation
+crate.</li>
+<li><code>bind-qwen3-onnx</code> fetches an onnxruntime-genai export of <code>Qwen3-0.6B</code>, for
+its validation crate. Such an export’s attention, rotary
+and RMS-norm ops are onnxruntime’s own, and
+<a href="https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx"><code>rewrite-genai-onnx</code></a>
+rewrites them to standard ONNX before <code>burn-onnx</code> imports the graph.</li>
+<li><code>bind-voxtral-onnx</code> fetches the onnxruntime-genai export of Mistral’s
+<code>Voxtral-Mini-4B-Realtime-2602</code> (its audio encoder, decoder and token
+embedding, 19 GB), rewritten the same way, for its validation crate.</li>
 </ul>
-<p>Only the validation crates depend on them, through their <code>weights</code> and
-<code>download</code> features, so no other build reaches the network. bunsen’s own tests
+<p>The validation crates converted to <code>validation/models.yml</code> (Qwen3, nanochat,
+Qwen3-ASR, Parakeet, Sortformer, Voxtral) fetch no checkpoint at build time: their
+tests load each through bunsen’s own pinned rows, at run time, into the
+weights cache, and a bind crate fetches only its ONNX reference.</p>
+<p>Only the validation crates depend on them, through their <code>reference</code>
+features, so no other build reaches the network. bunsen’s own tests
 read no fetched asset: where a test needs what a real model does, it replays
 a committed recording of it, and the validation crate checks the recording
 against the model.</p>
@@ -265,9 +283,10 @@ directory every build script keeps what it fetches in, as <code>&lt;sha256&gt;</
 takes a pinned file from before fetching it, verified as any asset is. Its
 paths never move. The pull-request jobs fetch nothing at all; <code>validation.yml</code>,
 which runs only when asked (from the Actions tab, or for a pull request with
-the <code>validate</code> label), runs Silero’s and Whisper’s whole suites on the CPU over
-about 730 MB of assets, and caches that directory under a key that hashes the
-pins. The other families’ assets run to GBs; their suites run by hand.</p>
+the <code>validate</code> label), builds no ONNX reference: it runs the stream drivers on
+the smallest models, whose checkpoints the tests fetch into the weights cache
+(about 0.6 GB), which it caches under a key that hashes the rows’ pins. The
+model checks run by hand.</p>
 <p>Locally, set <code>BUNSEN_ASSET_CACHE</code> to keep assets across <code>cargo clean</code> and
 toolchain updates, or point the override variables at copies you already
 have.</p>
