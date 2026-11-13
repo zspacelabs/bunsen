@@ -10,7 +10,9 @@
 //! # bunsen-tool asr ...
 //! # Automated Speech Recognition
 //!
-//! # contract: parakeet-asr - A Parakeet TDT speech recognizer: ...
+//! # contract: parakeet-asr
+//! # A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers'
+//! # safetensors and its tokenizer.
 //! # publisher: fermion - FermionResearch, Phonon's authors.
 //!
 //! * fermion/phonon-2: [163.5 MB; aka phonon]
@@ -277,7 +279,10 @@ pub fn summary(
             .flat_map(|f| f.builds.iter().map(move |b| (f, b)));
         for contract in group_by(listed, |l| contract_header(stack, l)) {
             out.push('\n');
-            out.push_str(&header("contract", &contract.name, &contract.description));
+            out.push_str(&format!("# contract: {}\n", contract.name));
+            for line in wrap(contract.description.trim(), width.saturating_sub(2)) {
+                out.push_str(&format!("# {line}\n"));
+            }
             let publishers = group_by(contract.builds, |l| publisher_header(stack, l));
             for (j, publisher) in publishers.iter().enumerate() {
                 if j > 0 {
@@ -453,18 +458,22 @@ mod tests {
         }
         assert!(
             text.contains(
-                "# contract: parakeet-asr - A Parakeet TDT speech recognizer: a Phonon-2 \
-                 archive, or transformers' safetensors and its tokenizer.\n\
+                "# contract: parakeet-asr\n\
+                 # A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers'\n\
+                 # safetensors and its tokenizer.\n\
                  # publisher: fermion - FermionResearch, Phonon's authors.\n\n\
                  * fermion/phonon-2: [163.5 MB; aka phonon]\n  Phonon-2: "
             ),
             "{text}"
         );
         // qwen3-asr's sub-contracts fold into one.
-        assert_eq!(text.matches("# contract: qwen3-asr ").count(), 1, "{text}");
+        assert_eq!(text.matches("# contract: qwen3-asr\n").count(), 1, "{text}");
         assert!(text.contains("task: *transcribe|translate"), "{text}");
         assert!(text.contains("aka sortformer-v2"), "{text}");
-        for line in text.lines().filter(|l| l.starts_with("  ")) {
+        // Descriptions fit the width: builds' and contracts'.
+        for line in text.lines().filter(|l| {
+            l.starts_with("  ") || l.starts_with("# ") && !l.starts_with("# publisher:")
+        }) {
             assert!(line.chars().count() <= 75, "{line}");
         }
     }

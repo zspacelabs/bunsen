@@ -56,7 +56,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 # bunsen-tool asr ...
 # Automated Speech Recognition
 
-# contract: parakeet-asr - A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers' safetensors and its tokenizer.
+# contract: parakeet-asr
+# A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers'
+# safetensors and its tokenizer.
 # publisher: fermion - FermionResearch, Phonon's authors.
 
 * fermion/phonon-2: [163.5 MB; aka phonon]
@@ -67,7 +69,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 * nvidia/parakeet-tdt-0.6b-v3: [2.51 GB f32]
   parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages.
 
-# contract: qwen3-asr - A Qwen3-ASR speech recognizer: a Phonon-1 archive or transformers' safetensors, and its tokenizer.
+# contract: qwen3-asr
+# A Qwen3-ASR speech recognizer: a Phonon-1 archive or transformers'
+# safetensors, and its tokenizer.
 # publisher: fermion - FermionResearch, Phonon's authors.
 
 * fermion/phonon-1: [415.1 MB]
@@ -87,13 +91,17 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 * qwen/qwen3-asr-1.7b: [4.09 GB bf16]
   Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages.
 
-# contract: voxtral-asr - A Voxtral Realtime speech recognizer: its safetensors and its tekken vocabulary.
+# contract: voxtral-asr
+# A Voxtral Realtime speech recognizer: its safetensors and its tekken
+# vocabulary.
 # publisher: mistralai - Mistral AI.
 
 * mistralai/voxtral/voxtral-mini-4b-realtime-2602: [8.87 GB bf16; aka voxtral-mini-4b-realtime]
   Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming.
 
-# contract: whisper-asr - An OpenAI Whisper checkpoint, as openai-whisper saves it, and its tiktoken vocabulary.
+# contract: whisper-asr
+# An OpenAI Whisper checkpoint, as openai-whisper saves it, and its
+# tiktoken vocabulary.
 # publisher: openai - OpenAI.
 
 * openai/whisper/large/large-v1: [3.09 GB f16; task: *transcribe|translate]
@@ -132,7 +140,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 * openai/whisper/medium: [1.53 GB f16; task: *transcribe|translate]
   769 M parameters, multilingual.
 
-# contract: sortformer-diarizer - A Sortformer speaker diarizer: a `.nemo` archive, which carries its config, or transformers' safetensors.
+# contract: sortformer-diarizer
+# A Sortformer speaker diarizer: a `.nemo` archive, which carries its
+# config, or transformers' safetensors.
 # publisher: nvidia - NVIDIA.
 
 * nvidia/sortformer/nemotron-3-diarization: [397.0 MB f32; latency: ultra-low|very-low|*low|offline; postprocess: *none|dihard3|callhome]
@@ -147,7 +157,8 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
   Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms
   frames.
 
-# contract: silero-vad - The Silero voice-activity detector at 16 kHz: upstream's state dict.
+# contract: silero-vad
+# The Silero voice-activity detector at 16 kHz: upstream's state dict.
 # publisher: silero - Silero, snakers4/silero-vad's authors.
 
 * silero/silero_vad/vad-16k: [1.2 MB f32; vad-policy: *silero|faster-whisper]
@@ -156,7 +167,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 # bunsen-tool chat ...
 # Chat and Text Generation
 
-# contract: qwen3-lm - A dense Qwen3 causal LM, as transformers lays it out: its geometry from `config.json`.
+# contract: qwen3-lm
+# A dense Qwen3 causal LM, as transformers lays it out: its geometry from
+# `config.json`.
 # publisher: qwen - Qwen, Alibaba Cloud's model team.
 
 * qwen/qwen3/qwen3-0.6b: [1.51 GB bf16; thinking: *thinking|no-thinking]
@@ -205,7 +218,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
   Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe,
   Unsafe or Controversial, with its categories.
 
-# contract: qwen3.5-lm - A dense Qwen3.5 checkpoint's text model, as transformers lays it out: its geometry from `config.json`.
+# contract: qwen3.5-lm
+# A dense Qwen3.5 checkpoint's text model, as transformers lays it out: its
+# geometry from `config.json`.
 # publisher: qwen - Qwen, Alibaba Cloud's model team.
 
 * qwen/qwen3.5/qwen3.5-0.8b: [1.76 GB bf16; thinking: thinking|*no-thinking]
@@ -236,7 +251,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
   Qwen3.5-27B: thinking and non-thinking chat (its text model); 54 GB in
   bf16, more than a card holds.
 
-# contract: gemma-lm - A Gemma 1, 2 or 3 text model, as transformers lays it out: its geometry from `config.json`.
+# contract: gemma-lm
+# A Gemma 1, 2 or 3 text model, as transformers lays it out: its geometry
+# from `config.json`.
 # publisher: gemma - Google's Gemma models, from their unsloth/ mirrors.
 
 * gemma/gemma/gemma-3-270m: [570.8 MB bf16; thinking: no-thinking]
@@ -281,7 +298,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 * gemma/gemma/gemma-7b-it: [17.09 GB bf16; thinking: no-thinking]
   Gemma 7B (Gemma 1), instruction-tuned.
 
-# contract: nanochat-lm - A nanochat GPT, as upstream's training run writes it: its geometry from the run's `meta_*.json`.
+# contract: nanochat-lm
+# A nanochat GPT, as upstream's training run writes it: its geometry from
+# the run's `meta_*.json`.
 # publisher: nanochat-students - nanochat-students, who publish nanochat training runs.
 
 * nanochat-students/base-d20: [2.08 GB bf16; thinking: no-thinking; aka nanochat-d20-base]
@@ -309,7 +328,9 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 # bunsen-tool decide ...
 # Typed Decisions
 
-# contract: laya-decision - A Laya decision model: a ModernBERT encoder and a decision head, in one safetensors file.
+# contract: laya-decision
+# A Laya decision model: a ModernBERT encoder and a decision head, in one
+# safetensors file.
 # publisher: laya - convaiinnovations, Laya's authors.
 
 * laya/laya/laya: [846.2 MB f16; aka laya-en]
