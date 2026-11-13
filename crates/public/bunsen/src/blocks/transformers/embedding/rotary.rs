@@ -74,6 +74,10 @@ pub struct RotaryEmbeddingConfig {
     #[config(default = "RotaryDirection::Reverse")]
     pub direction: RotaryDirection,
 
+    /// Which head dimensions pair up to turn together.
+    #[config(default = "RotaryPairLayout::Halves")]
+    pub pair_layout: RotaryPairLayout,
+
     /// The dtype the `cos` / `sin` tables are kept in. They are computed in
     /// f32 whatever the device's default float, then rounded to this: for a
     /// model trained with tables in a narrower dtype, as nanochat's 2025
@@ -154,6 +158,67 @@ impl RotaryDirection {
                 x1.clone() * cos.clone() - x2.clone() * sin.clone(),
                 x2 * cos + x1 * sin,
             ),
+        }
+    }
+}
+
+/// Which head dimensions of the rotated span `[..R]` a rotary embedding
+/// pairs: the two coordinates that turn together by one frequency.
+///
+/// Both pair the `i`-th frequency with the `i`-th pair; they differ only in
+/// where the pair sits in the head. A checkpoint is trained under one layout,
+/// and its query and key projections' rows are laid out for it.
+#[derive(Config, Copy, Debug, PartialEq, Eq)]
+pub enum RotaryPairLayout {
+    /// Pair `i` is `(i, i + R/2)`: the head's first half against its second,
+    /// `transformers`' `rotate_half` (Llama, Qwen, nanochat).
+    Halves,
+
+    /// Pair `i` is `(2i, 2i + 1)`: adjacent dimensions, the head read as
+    /// `R/2` complex numbers, as `RoFormer`'s original, Meta's Llama
+    /// reference, `DeepSeek`'s `rope_interleave` and ZONOS3 lay it out.
+    Interleaved,
+}
+
+impl RotaryPairLayout {
+    /// The rotated span `[B, T, H, R]` split into its pairs' coordinates,
+    /// `(x1, x2)`, each `[B, T, H, R/2]`.
+    pub fn split(
+        self,
+        span: Tensor<4>,
+    ) -> (Tensor<4>, Tensor<4>) {
+        let [b, t, h, r] = span.dims();
+        match self {
+            Self::Halves => {
+                let x1 = span.clone().slice_dim(3, s![..r / 2]);
+                let x2 = span.slice_dim(3, s![r / 2..]);
+                (x1, x2)
+            }
+            Self::Interleaved => {
+                let pairs = span.reshape([b, t, h, r / 2, 2]);
+                let x1 = pairs
+                    .clone()
+                    .slice_dim(4, s![0..1])
+                    .reshape([b, t, h, r / 2]);
+                let x2 = pairs.slice_dim(4, s![1..2]).reshape([b, t, h, r / 2]);
+                (x1, x2)
+            }
+        }
+    }
+
+    /// The pairs' coordinates `(y1, y2)`, each `[B, T, H, R/2]`, joined back
+    /// into a span `[B, T, H, R]`: the inverse of [`split`](Self::split).
+    pub fn join(
+        self,
+        y1: Tensor<4>,
+        y2: Tensor<4>,
+    ) -> Tensor<4> {
+        match self {
+            Self::Halves => Tensor::cat(vec![y1, y2], 3),
+            Self::Interleaved => {
+                let [b, t, h, half] = y1.dims();
+                Tensor::stack::<5>(vec![y1, y2], 4).reshape([b, t, h, 2 * half])
+            }
         }
     }
 }
@@ -246,6 +311,7 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
         Ok(RotaryEmbedding {
             head_dim: self.head_dim,
             direction: self.direction,
+            pair_layout: self.pair_layout,
             cos,
             sin,
         })
@@ -273,6 +339,10 @@ pub struct RotaryEmbedding {
     /// The rotation's sign convention.
     #[module(skip)]
     pub direction: RotaryDirection,
+
+    /// Which head dimensions pair up to turn together.
+    #[module(skip)]
+    pub pair_layout: RotaryPairLayout,
 
     /// a `[1, T, 1, R/2]` tensor, `R` the rotated dimensions.
     pub cos: Tensor<4>,
@@ -348,6 +418,7 @@ impl RotaryEmbedding {
         Self {
             head_dim: self.head_dim,
             direction: self.direction,
+            pair_layout: self.pair_layout,
             cos: self.cos.clone().slice_dim(1, range.clone()),
             sin: self.sin.clone().slice_dim(1, range),
         }
@@ -356,7 +427,8 @@ impl RotaryEmbedding {
     /// Applies the rotary embedding to the input, in the input's dtype: the
     /// tables are cast to it (a no-op when they are in it already). The
     /// leading [`rotary_dim`](RotaryEmbeddingMeta::rotary_dim) head
-    /// dimensions are rotated, the rest passed through.
+    /// dimensions are rotated, paired as the
+    /// [`pair_layout`](Self::pair_layout) says; the rest are passed through.
     ///
     /// # Arguments
     /// - `input`: a `[B, T, H, D]` tensor, in any float dtype.
@@ -378,11 +450,9 @@ impl RotaryEmbedding {
         let rotary_dim = self.rotary_dim();
         let pass =
             (rotary_dim < self.head_dim()).then(|| input.clone().slice_dim(3, s![rotary_dim..]));
-        let pivot = rotary_dim / 2;
-        let x1 = input.clone().slice_dim(3, s![..pivot]);
-        let x2 = input.clone().slice_dim(3, s![pivot..rotary_dim]);
-
         let dtype = input.dtype();
+        let (x1, x2) = self.pair_layout.split(input.slice_dim(3, s![..rotary_dim]));
+
         let (y1, y2) = self.direction.rotate(
             x1,
             x2,
@@ -390,7 +460,11 @@ impl RotaryEmbedding {
             self.sin.clone().cast(dtype),
         );
 
-        let output = Tensor::cat([vec![y1, y2], pass.into_iter().collect()].concat(), 3);
+        let rotated = self.pair_layout.join(y1, y2);
+        let output = match pass {
+            Some(pass) => Tensor::cat(vec![rotated, pass], 3),
+            None => rotated,
+        };
 
         #[cfg(debug_assertions)]
         crate::contracts::assert_shape_contract_periodically!(
@@ -622,6 +696,92 @@ mod tests {
                     .try_init(&device)
                     .is_err(),
                 "rotary_dim {bad}"
+            );
+        }
+    }
+
+    /// At position 1 the first pair turns one radian. Under `Halves` its
+    /// coordinates are dimensions 0 and 2 of a 4-wide head, under
+    /// `Interleaved` dimensions 0 and 1; `Forward` turns `(1, 0)` to
+    /// `(cos 1, sin 1)`.
+    #[test]
+    fn test_pair_layouts() {
+        let device = crate::support::testing::cpu_device();
+        assert_eq!(
+            RotaryEmbeddingConfig::new(1, 2).pair_layout,
+            RotaryPairLayout::Halves,
+            "halves by default"
+        );
+        let x = Tensor::<4>::from_data(
+            [[[[0.0f32, 0.0, 0.0, 0.0]]], [[[1.0, 0.0, 0.0, 0.0]]]],
+            &device,
+        )
+        .reshape([1, 2, 1, 4]);
+        let (c, s) = (1f32.cos(), 1f32.sin());
+        for (layout, expected) in [
+            (RotaryPairLayout::Halves, [c, 0.0, s, 0.0]),
+            (RotaryPairLayout::Interleaved, [c, s, 0.0, 0.0]),
+        ] {
+            let re: RotaryEmbedding = RotaryEmbeddingConfig::new(2, 4)
+                .with_direction(RotaryDirection::Forward)
+                .with_pair_layout(layout)
+                .init(&device);
+            let y: Vec<f32> = re
+                .apply(x.clone())
+                .slice_dim(1, 1..2)
+                .into_data()
+                .try_into_vec_as::<f32>()
+                .unwrap();
+            for (y, e) in y.iter().zip(expected) {
+                assert!((y - e).abs() < 1e-6, "{layout:?}: {y:?} vs {expected:?}");
+            }
+        }
+    }
+
+    /// `Interleaved` is `Halves` on a head whose rotated span is permuted
+    /// from adjacent pairs to halves (`[0, 2, 4, …, 1, 3, 5, …]`), and back:
+    /// in both directions, and with a partial rotary, whose unrotated tail
+    /// passes through.
+    #[test]
+    fn test_interleaved_is_permuted_halves() {
+        let device = crate::support::testing::cpu_device();
+        let (seq_len, head_dim, rotary_dim) = (5, 12, 8);
+        let to_halves: Vec<i64> = (0..rotary_dim as i64)
+            .step_by(2)
+            .chain((1..rotary_dim as i64).step_by(2))
+            .chain(rotary_dim as i64..head_dim as i64)
+            .collect();
+        let mut from_halves = vec![0i64; head_dim];
+        for (j, &i) in to_halves.iter().enumerate() {
+            from_halves[i as usize] = j as i64;
+        }
+        let index = |v: &[i64]| Tensor::<1, burn::tensor::Int>::from_data(v, &device);
+
+        let x = crate::support::testing::seeded_tensor::<4>(
+            3,
+            [2, seq_len, 3, head_dim],
+            Distribution::Default,
+            &device,
+        );
+        for direction in [RotaryDirection::Forward, RotaryDirection::Reverse] {
+            let config = RotaryEmbeddingConfig::new(seq_len, head_dim)
+                .with_rotary_dim(Some(rotary_dim))
+                .with_direction(direction);
+            let halves: RotaryEmbedding = config.clone().init(&device);
+            let interleaved: RotaryEmbedding = config
+                .with_pair_layout(RotaryPairLayout::Interleaved)
+                .init(&device);
+
+            let expected = halves
+                .apply(x.clone().select(3, index(&to_halves)))
+                .select(3, index(&from_halves));
+            interleaved
+                .apply(x.clone())
+                .into_data()
+                .assert_approx_eq::<f32>(&expected.into_data(), Tolerance::default());
+            assert_eq!(
+                interleaved.clip_range(1..3).pair_layout,
+                RotaryPairLayout::Interleaved
             );
         }
     }
