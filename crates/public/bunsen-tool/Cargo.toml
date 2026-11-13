@@ -54,14 +54,14 @@ burn = { workspace = true }
 # cache every command loads through, `indicatif`'s progress bar on every
 # weights transfer, and the tokenizers every chat family, `decide` and Whisper
 # read text through (`tokenizer`). `speech` adds the speech kits.
-bunsen = { version = "0.41.0", path = "../bunsen", default-features = false, features = [
+bunsen = { version = "0.42.0", path = "../bunsen", default-features = false, features = [
     "kits",
     "store",
     "cache",
     "indicatif",
     "tokenizer",
 ] }
-bunsen-app = { version = "0.41.0", path = "../bunsen-app" }
+bunsen-app = { version = "0.42.0", path = "../bunsen-app" }
 clap = { workspace = true, features = ["derive"] }
 cpal = { workspace = true, optional = true }
 ctrlc = { workspace = true, optional = true }

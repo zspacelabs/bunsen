@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-v0.41.0...bunsen-firehose-v0.42.0) - 2026-11-13
+
+### Other
+
+- *(bunsen)* [**breaking**] the error core without `std`; maps on `hashbrown` ([#651](https://github.com/zspacelabs/bunsen/pull/651))
+
 ## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-v0.39.0...bunsen-firehose-v0.40.0) - 2026-10-23
 
 ### Other

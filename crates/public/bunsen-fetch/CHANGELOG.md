@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-fetch-v0.41.0...bunsen-fetch-v0.42.0) - 2026-11-13
+
+### Added
+
+- *(pretrained)* [**breaking**] the kits load from the built-in catalog ([#678](https://github.com/zspacelabs/bunsen/pull/678))
+
+### Other
+
+- *(data)* [**breaking**] the catalog, resource and build names ([#681](https://github.com/zspacelabs/bunsen/pull/681))
+- test support chains through the repository's libraries, as dev-dependencies ([#639](https://github.com/zspacelabs/bunsen/pull/639))
+- docs.rs builds bunsen's `nemo` and `fermion`, and `bunsen-fetch`'s `fetch` and `testing`; `bunsen-app` lists its features ([#638](https://github.com/zspacelabs/bunsen/pull/638))
+- [**breaking**] the bundled-asset crates are ONNX binding crates, `crates/onnx/bind-{model}-onnx`, none published ([#416](https://github.com/zspacelabs/bunsen/pull/416))
+
 ## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-fetch-v0.39.0...bunsen-fetch-v0.40.0) - 2026-10-23
 
 ### Added

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-arrow-dataloaders-v0.41.0...bunsen-arrow-dataloaders-v0.42.0) - 2026-11-13
+
+### Added
+
+- *(datasets)* [**breaking**] datasets are catalog builds ([#684](https://github.com/zspacelabs/bunsen/pull/684))
+
+### Other
+
+- *(data)* narrower visibility, and the book's data section ([#685](https://github.com/zspacelabs/bunsen/pull/685))
+- *(data)* [**breaking**] the `data` tree: resources, catalog, formats, builds, datasets ([#680](https://github.com/zspacelabs/bunsen/pull/680))
+
 ## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-arrow-dataloaders-v0.37.0...bunsen-arrow-dataloaders-v0.38.0) - 2026-10-07
 
 ### Added
