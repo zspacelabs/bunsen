@@ -14,755 +14,315 @@
 
 ## Models
 
-`bunsen-tool card` describes the build (`build`: its version and features), its weights cache (`config`), and the
-models it knows by name (`kits`: each one's presets in brief, its axes' members and its default), as YAML or, with
-`--format json`, JSON on one line; `--section` prints one. `--policies` adds each model's presets as data, their
-patches included, and the policy its default selection resolves to. The
-models, as `bunsen-tool card --section kits` prints them (`cargo make cards` rebuilds this card):
+`bunsen-tool summary` lists the builds this binary runs: a section per command (`asr`, `chat`, `decide`), the
+builds in it grouped by contract and then by publisher, each by its full name with its size, dtypes, preset axes (the
+default starred) and aliases, and its description below it; `--kind` prints one section. The builds, as
+`bunsen-tool summary` prints them (`cargo make cards` rebuilds this card):
 
-<!-- card: bunsen-tool card --section kits -->
+<!-- card: bunsen-tool summary -->
 
-```yaml
-kits:
-  asr:
-    parakeet:
-    - provider:
-        name: catalog
-        description: "A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers' safetensors and its tokenizer."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: fermion/phonon-2
-        aliases:
-        - phonon
-        description: "Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English."
-        size: 163.5 MB
-    - model:
-        name: nvidia/parakeet-tdt-0.6b-v3
-        description: "parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages."
-        size: 2.51 GB
-        dtype: float32
-    qwen3-asr:
-    - provider:
-        name: catalog
-        description: "A Qwen3-ASR speech recognizer: a Phonon-1 archive or transformers' safetensors, and its tokenizer."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: fermion/phonon-1
-        description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
-        size: 415.1 MB
-    - model:
-        name: fermion/phonon-1-micro
-        description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
-        size: 285.1 MB
-    - model:
-        name: fermion/phonon-1-big
-        description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed."
-        size: 580.9 MB
-    - model:
-        name: qwen/qwen3-asr-0.6b
-        description: "Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages."
-        size: 1.58 GB
-        dtype: bfloat16
-    - model:
-        name: qwen/qwen3-asr-1.7b
-        description: "Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages."
-        size: 4.09 GB
-        dtype: bfloat16
-    voxtral:
-    - provider:
-        name: catalog
-        description: "A Voxtral Realtime speech recognizer: its safetensors and its tekken vocabulary."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: mistralai/voxtral/voxtral-mini-4b-realtime-2602
-        aliases:
-        - voxtral-mini-4b-realtime
-        description: "Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming."
-        size: 8.87 GB
-        dtype: bfloat16
-    whisper:
-    - provider:
-        name: catalog
-        description: >-
-          An OpenAI Whisper checkpoint, as openai-whisper saves it, and its tiktoken
-          vocabulary.
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: openai/whisper/large/large-v1
-        description: 1550 M parameters, multilingual.
-        size: 3.09 GB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    - model:
-        name: openai/whisper/large/large-v2
-        description: 1550 M parameters, multilingual.
-        size: 3.09 GB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    - model:
-        name: openai/whisper/large/large-v3
-        aliases:
-        - large
-        description: 1550 M parameters, multilingual, 128 mels.
-        size: 3.09 GB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    - model:
-        name: openai/whisper/large/large-v3-turbo
-        aliases:
-        - turbo
-        description: 809 M parameters, multilingual, 128 mels, four-layer decoder.
-        size: 1.62 GB
-        dtype: float16
-    - model:
-        name: openai/whisper/tiny.en
-        description: 39 M parameters, English-only.
-        size: 76.4 MB
-        dtype: float16
-    - model:
-        name: openai/whisper/tiny
-        description: 39 M parameters, multilingual.
-        size: 76.4 MB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    - model:
-        name: openai/whisper/base.en
-        description: 74 M parameters, English-only.
-        size: 146.1 MB
-        dtype: float16
-    - model:
-        name: openai/whisper/base
-        description: 74 M parameters, multilingual.
-        size: 146.1 MB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    - model:
-        name: openai/whisper/small.en
-        description: 244 M parameters, English-only.
-        size: 484.5 MB
-        dtype: float16
-    - model:
-        name: openai/whisper/small
-        description: 244 M parameters, multilingual.
-        size: 484.4 MB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    - model:
-        name: openai/whisper/medium.en
-        description: 769 M parameters, English-only.
-        size: 1.53 GB
-        dtype: float16
-    - model:
-        name: openai/whisper/medium
-        description: 769 M parameters, multilingual.
-        size: 1.53 GB
-        dtype: float16
-        presets:
-          task:
-          - transcribe
-          - translate
-          default:
-          - transcribe
-    sortformer:
-    - provider:
-        name: catalog
-        description: "A Sortformer speaker diarizer: a `.nemo` archive, which carries its config, or transformers' safetensors."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: nvidia/sortformer/nemotron-3-diarization
-        description: "Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames, streaming."
-        size: 397.0 MB
-        dtype: float32
-        presets:
-          latency:
-          - ultra-low
-          - very-low
-          - low
-          - offline
-          postprocess:
-          - none
-          - dihard3
-          - callhome
-          default:
-          - low
-          - none
-    - model:
-        name: nvidia/sortformer/diar_streaming_sortformer_4spk-v2
-        aliases:
-        - sortformer-v2
-        description: "Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms frames."
-        size: 471.4 MB
-        dtype: float32
-        presets:
-          latency:
-          - ultra-low
-          - low
-          - high
-          - offline
-          postprocess:
-          - none
-          - dihard3
-          - callhome
-          default:
-          - low
-          - none
-    - model:
-        name: nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1
-        aliases:
-        - sortformer-v2.1
-        description: "Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms frames."
-        size: 471.4 MB
-        dtype: float32
-        presets:
-          latency:
-          - ultra-low
-          - low
-          - high
-          - offline
-          postprocess:
-          - none
-          - dihard3
-          - callhome
-          default:
-          - low
-          - none
-    silero-vad:
-    - provider:
-        name: catalog
-        description: "The Silero voice-activity detector at 16 kHz: upstream's state dict."
-    - model:
-        name: silero/silero_vad/vad-16k
-        description: Silero VAD, the 16 kHz model, from upstream's safetensors.
-        size: 1.2 MB
-        dtype: float32
-        presets:
-          vad-policy:
-          - silero
-          - faster-whisper
-          default:
-          - silero
-  chat:
-    qwen3:
-    - provider:
-        name: catalog
-        description: "A dense Qwen3 causal LM, as transformers lays it out: its geometry from `config.json`."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: qwen/qwen3/qwen3-0.6b
-        description: "Qwen3-0.6B: thinking and non-thinking chat."
-        size: 1.51 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3/qwen3-0.6b-base
-        description: "Qwen3-0.6B-Base: the pretrained model, no chat tuning."
-        size: 1.20 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3-1.7b
-        description: "Qwen3-1.7B: thinking and non-thinking chat."
-        size: 4.07 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3/qwen3-1.7b-base
-        description: "Qwen3-1.7B-Base: the pretrained model, no chat tuning."
-        size: 3.45 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3-4b
-        description: "Qwen3-4B: thinking and non-thinking chat."
-        size: 8.06 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3/qwen3-4b-base
-        description: "Qwen3-4B-Base: the pretrained model, no chat tuning."
-        size: 8.05 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3-4b-instruct-2507
-        description: "Qwen3-4B-Instruct-2507: non-thinking chat, 256K context."
-        size: 8.06 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3-4b-thinking-2507
-        description: "Qwen3-4B-Thinking-2507: thinking chat, 256K context."
-        size: 8.06 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3/qwen3-8b
-        description: "Qwen3-8B: thinking and non-thinking chat."
-        size: 16.39 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3/qwen3-8b-base
-        description: "Qwen3-8B-Base: the pretrained model, no chat tuning."
-        size: 16.39 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3-4b-saferl
-        description: "Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning, thinking and non-thinking chat."
-        size: 8.06 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3/qwen3guard-gen-0.6b
-        description: "Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories."
-        size: 1.51 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3guard-gen-4b
-        description: "Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories."
-        size: 8.83 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3/qwen3guard-gen-8b
-        description: "Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe, Unsafe or Controversial, with its categories."
-        size: 16.39 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    qwen3.5:
-    - provider:
-        name: catalog
-        description: "A dense Qwen3.5 checkpoint's text model, as transformers lays it out: its geometry from `config.json`."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: qwen/qwen3.5/qwen3.5-0.8b
-        description: "Qwen3.5-0.8B: thinking and non-thinking chat (its text model)."
-        size: 1.76 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-0.8b-base
-        description: "Qwen3.5-0.8B-Base: the pretrained model, no chat tuning (its text model)."
-        size: 1.76 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-2b
-        description: "Qwen3.5-2B: thinking and non-thinking chat (its text model)."
-        size: 4.56 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-2b-base
-        description: "Qwen3.5-2B-Base: the pretrained model, no chat tuning (its text model)."
-        size: 4.56 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-4b
-        description: "Qwen3.5-4B: thinking and non-thinking chat (its text model)."
-        size: 9.33 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-4b-base
-        description: "Qwen3.5-4B-Base: the pretrained model, no chat tuning (its text model)."
-        size: 9.33 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-9b
-        description: "Qwen3.5-9B: thinking and non-thinking chat (its text model)."
-        size: 19.32 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-9b-base
-        description: "Qwen3.5-9B-Base: the pretrained model, no chat tuning (its text model)."
-        size: 19.32 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: qwen/qwen3.5/qwen3.5-27b
-        description: "Qwen3.5-27B: thinking and non-thinking chat (its text model); 54 GB in bf16, more than a card holds."
-        size: 55.58 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - thinking
-          - no-thinking
-          default:
-          - thinking
-    gemma:
-    - provider:
-        name: catalog
-        description: "A Gemma 1, 2 or 3 text model, as transformers lays it out: its geometry from `config.json`."
-    - provider:
-        name: hf
-        description: "Hugging Face repos by ref: `hf:org/repo` is its safetensors checkpoint at a revision, pinned by the hub's listing; lists nothing"
-    - model:
-        name: gemma/gemma/gemma-3-270m
-        description: "Gemma 3 270M: the pretrained model."
-        size: 570.8 MB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-3-270m-it
-        description: Gemma 3 270M, instruction-tuned.
-        size: 570.8 MB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-3-1b-pt
-        description: "Gemma 3 1B: the pretrained model."
-        size: 2.03 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-3-1b-it
-        description: Gemma 3 1B, instruction-tuned.
-        size: 2.03 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-3-4b-pt
-        description: "Gemma 3 4B: the pretrained model's text model."
-        size: 8.63 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-3-4b-it
-        description: "Gemma 3 4B, instruction-tuned: its text model."
-        size: 8.63 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-2-2b
-        description: "Gemma 2 2B: the pretrained model, stored in f32."
-        size: 5.25 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-2-2b-it
-        description: Gemma 2 2B, instruction-tuned.
-        size: 5.25 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-2-9b
-        description: "Gemma 2 9B: the pretrained model."
-        size: 18.52 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-2-9b-it
-        description: Gemma 2 9B, instruction-tuned.
-        size: 18.50 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-2b
-        description: "Gemma 2B (Gemma 1): the pretrained model."
-        size: 5.03 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-2b-it
-        description: Gemma 2B (Gemma 1), instruction-tuned.
-        size: 5.03 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-7b
-        description: "Gemma 7B (Gemma 1): the pretrained model."
-        size: 17.11 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: gemma/gemma/gemma-7b-it
-        description: Gemma 7B (Gemma 1), instruction-tuned.
-        size: 17.09 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    nanochat:
-    - provider:
-        name: catalog
-        description: "A nanochat GPT, as upstream's training run writes it: its geometry from the run's `meta_*.json`."
-    - model:
-        name: nanochat-students/base-d20
-        aliases:
-        - nanochat-d20-base
-        description: "nanochat-students' d20 after pretraining (step 21400): upstream's 2025 model, 561M, base."
-        size: 2.08 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: nanochat-students/mid-d20
-        aliases:
-        - nanochat-d20-mid
-        description: "nanochat-students' d20 after midtraining (step 765): upstream's 2025 model, 561M, chat format."
-        size: 2.08 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: nanochat-students/rl-d20
-        aliases:
-        - nanochat-d20-rl
-        description: "nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat."
-        size: 2.08 GB
-        dtype: bfloat16
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: nitishpandey04/nanochat-d18-base
-        description: "nitishpandey04's d18 after pretraining (step 3712): upstream's 2026 model, 702M, base."
-        size: 2.05 GB
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-    - model:
-        name: nitishpandey04/nanochat-d18-sft
-        description: "nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M, chat."
-        size: 2.05 GB
-        presets:
-          thinking:
-          - no-thinking
-          default:
-          - no-thinking
-  decide:
-    laya:
-    - provider:
-        name: catalog
-        description: "A Laya decision model: a ModernBERT encoder and a decision head, in one safetensors file."
-    - model:
-        name: laya/laya/laya
-        aliases:
-        - laya-en
-        description: "Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters, prompts of 512 tokens."
-        size: 846.2 MB
-        dtype: float16
-    - model:
-        name: laya/laya/laya-multilingual
-        description: "Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary), 322M parameters, prompts of 1024 tokens."
-        size: 678.2 MB
-        dtype: float16
-    - model:
-        name: laya/laya/laya-typed-decisions
-        description: "Laya, typed decisions: the English model trained on typed questions, prompts of 1024 tokens."
-        size: 846.2 MB
-        dtype: float16
+```text
+# bunsen-tool asr ...
+# Automated Speech Recognition
+
+# contract: parakeet-asr
+# A Parakeet TDT speech recognizer: a Phonon-2 archive, or transformers'
+# safetensors and its tokenizer.
+# publisher: fermion - FermionResearch, Phonon's authors.
+
+* fermion/phonon-2: [163.5 MB]
+  - phonon
+  Phonon-2: parakeet-tdt-0.6b-v3 with a five-value encoder, English.
+
+# publisher: nvidia - NVIDIA.
+
+* nvidia/parakeet-tdt-0.6b-v3: [2.51 GB f32]
+  parakeet-tdt-0.6b-v3: 600 M parameters, 25 European languages.
+
+# contract: qwen3-asr
+# A Qwen3-ASR speech recognizer: a Phonon-1 archive or transformers'
+# safetensors, and its tokenizer.
+# publisher: fermion - FermionResearch, Phonon's authors.
+
+* fermion/phonon-1: [415.1 MB]
+  Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed.
+
+* fermion/phonon-1-micro: [285.1 MB]
+  Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed.
+
+* fermion/phonon-1-big: [580.9 MB]
+  Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed.
+
+# publisher: qwen - Qwen, Alibaba Cloud's model team.
+
+* qwen/qwen3-asr-0.6b: [1.58 GB bf16]
+  Qwen3-ASR-0.6B: 0.8 B parameters, 30 languages.
+
+* qwen/qwen3-asr-1.7b: [4.09 GB bf16]
+  Qwen3-ASR-1.7B: 2.0 B parameters, 30 languages.
+
+# contract: voxtral-asr
+# A Voxtral Realtime speech recognizer: its safetensors and its tekken
+# vocabulary.
+# publisher: mistralai - Mistral AI.
+
+* mistralai/voxtral/voxtral-mini-4b-realtime-2602: [8.87 GB bf16]
+  - voxtral-mini-4b-realtime
+  Voxtral-Mini-4B-Realtime-2602: 4.4 B parameters, 13 languages, streaming.
+
+# contract: whisper-asr
+# An OpenAI Whisper checkpoint, as openai-whisper saves it, and its
+# tiktoken vocabulary.
+# publisher: openai - OpenAI.
+
+* openai/whisper/large/large-v1: [3.09 GB f16; task: *transcribe|translate]
+  1550 M parameters, multilingual.
+
+* openai/whisper/large/large-v2: [3.09 GB f16; task: *transcribe|translate]
+  1550 M parameters, multilingual.
+
+* openai/whisper/large/large-v3: [3.09 GB f16; task: *transcribe|translate]
+  - large
+  1550 M parameters, multilingual, 128 mels.
+
+* openai/whisper/large/large-v3-turbo: [1.62 GB f16]
+  - turbo
+  809 M parameters, multilingual, 128 mels, four-layer decoder.
+
+* openai/whisper/tiny.en: [76.4 MB f16]
+  39 M parameters, English-only.
+
+* openai/whisper/tiny: [76.4 MB f16; task: *transcribe|translate]
+  39 M parameters, multilingual.
+
+* openai/whisper/base.en: [146.1 MB f16]
+  74 M parameters, English-only.
+
+* openai/whisper/base: [146.1 MB f16; task: *transcribe|translate]
+  74 M parameters, multilingual.
+
+* openai/whisper/small.en: [484.5 MB f16]
+  244 M parameters, English-only.
+
+* openai/whisper/small: [484.4 MB f16; task: *transcribe|translate]
+  244 M parameters, multilingual.
+
+* openai/whisper/medium.en: [1.53 GB f16]
+  769 M parameters, English-only.
+
+* openai/whisper/medium: [1.53 GB f16; task: *transcribe|translate]
+  769 M parameters, multilingual.
+
+# contract: sortformer-diarizer
+# A Sortformer speaker diarizer: a `.nemo` archive, which carries its
+# config, or transformers' safetensors.
+# publisher: nvidia - NVIDIA.
+
+* nvidia/sortformer/nemotron-3-diarization: [397.0 MB f32; latency: ultra-low|very-low|*low|offline; postprocess: *none|dihard3|callhome]
+  Nemotron-3-Diarization: 100 M parameters, up to 8 speakers, 10 ms frames,
+  streaming.
+
+* nvidia/sortformer/diar_streaming_sortformer_4spk-v2: [471.4 MB f32; latency: ultra-low|*low|high|offline; postprocess: *none|dihard3|callhome]
+  - sortformer-v2
+  Streaming Sortformer v2: 117 M parameters, up to 4 speakers, 80 ms
+  frames.
+
+* nvidia/sortformer/diar_streaming_sortformer_4spk-v2.1: [471.4 MB f32; latency: ultra-low|*low|high|offline; postprocess: *none|dihard3|callhome]
+  - sortformer-v2.1
+  Streaming Sortformer v2.1: 117 M parameters, up to 4 speakers, 80 ms
+  frames.
+
+# contract: silero-vad
+# The Silero voice-activity detector at 16 kHz: upstream's state dict.
+# publisher: silero - Silero, snakers4/silero-vad's authors.
+
+* silero/silero_vad/vad-16k: [1.2 MB f32; vad-policy: *silero|faster-whisper]
+  Silero VAD, the 16 kHz model, from upstream's safetensors.
+
+# bunsen-tool chat ...
+# Chat and Text Generation
+
+# contract: qwen3-lm
+# A dense Qwen3 causal LM, as transformers lays it out: its geometry from
+# `config.json`.
+# publisher: qwen - Qwen, Alibaba Cloud's model team.
+
+* qwen/qwen3/qwen3-0.6b: [1.51 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3-0.6B: thinking and non-thinking chat.
+
+* qwen/qwen3/qwen3-0.6b-base: [1.20 GB bf16; thinking: no-thinking]
+  Qwen3-0.6B-Base: the pretrained model, no chat tuning.
+
+* qwen/qwen3/qwen3-1.7b: [4.07 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3-1.7B: thinking and non-thinking chat.
+
+* qwen/qwen3/qwen3-1.7b-base: [3.45 GB bf16; thinking: no-thinking]
+  Qwen3-1.7B-Base: the pretrained model, no chat tuning.
+
+* qwen/qwen3/qwen3-4b: [8.06 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3-4B: thinking and non-thinking chat.
+
+* qwen/qwen3/qwen3-4b-base: [8.05 GB bf16; thinking: no-thinking]
+  Qwen3-4B-Base: the pretrained model, no chat tuning.
+
+* qwen/qwen3/qwen3-4b-instruct-2507: [8.06 GB bf16; thinking: no-thinking]
+  Qwen3-4B-Instruct-2507: non-thinking chat, 256K context.
+
+* qwen/qwen3/qwen3-4b-thinking-2507: [8.06 GB bf16; thinking: thinking]
+  Qwen3-4B-Thinking-2507: thinking chat, 256K context.
+
+* qwen/qwen3/qwen3-8b: [16.39 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3-8B: thinking and non-thinking chat.
+
+* qwen/qwen3/qwen3-8b-base: [16.39 GB bf16; thinking: no-thinking]
+  Qwen3-8B-Base: the pretrained model, no chat tuning.
+
+* qwen/qwen3/qwen3-4b-saferl: [8.06 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3-4B-SafeRL: Qwen3-4B tuned for safety by reinforcement learning,
+  thinking and non-thinking chat.
+
+* qwen/qwen3/qwen3guard-gen-0.6b: [1.51 GB bf16; thinking: no-thinking]
+  Qwen3Guard-Gen-0.6B: safety moderation, rating a prompt or a reply Safe,
+  Unsafe or Controversial, with its categories.
+
+* qwen/qwen3/qwen3guard-gen-4b: [8.83 GB bf16; thinking: no-thinking]
+  Qwen3Guard-Gen-4B: safety moderation, rating a prompt or a reply Safe,
+  Unsafe or Controversial, with its categories.
+
+* qwen/qwen3/qwen3guard-gen-8b: [16.39 GB bf16; thinking: no-thinking]
+  Qwen3Guard-Gen-8B: safety moderation, rating a prompt or a reply Safe,
+  Unsafe or Controversial, with its categories.
+
+# contract: qwen3.5-lm
+# A dense Qwen3.5 checkpoint's text model, as transformers lays it out: its
+# geometry from `config.json`.
+# publisher: qwen - Qwen, Alibaba Cloud's model team.
+
+* qwen/qwen3.5/qwen3.5-0.8b: [1.76 GB bf16; thinking: thinking|*no-thinking]
+  Qwen3.5-0.8B: thinking and non-thinking chat (its text model).
+
+* qwen/qwen3.5/qwen3.5-0.8b-base: [1.76 GB bf16; thinking: no-thinking]
+  Qwen3.5-0.8B-Base: the pretrained model, no chat tuning (its text model).
+
+* qwen/qwen3.5/qwen3.5-2b: [4.56 GB bf16; thinking: thinking|*no-thinking]
+  Qwen3.5-2B: thinking and non-thinking chat (its text model).
+
+* qwen/qwen3.5/qwen3.5-2b-base: [4.56 GB bf16; thinking: no-thinking]
+  Qwen3.5-2B-Base: the pretrained model, no chat tuning (its text model).
+
+* qwen/qwen3.5/qwen3.5-4b: [9.33 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3.5-4B: thinking and non-thinking chat (its text model).
+
+* qwen/qwen3.5/qwen3.5-4b-base: [9.33 GB bf16; thinking: no-thinking]
+  Qwen3.5-4B-Base: the pretrained model, no chat tuning (its text model).
+
+* qwen/qwen3.5/qwen3.5-9b: [19.32 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3.5-9B: thinking and non-thinking chat (its text model).
+
+* qwen/qwen3.5/qwen3.5-9b-base: [19.32 GB bf16; thinking: no-thinking]
+  Qwen3.5-9B-Base: the pretrained model, no chat tuning (its text model).
+
+* qwen/qwen3.5/qwen3.5-27b: [55.58 GB bf16; thinking: *thinking|no-thinking]
+  Qwen3.5-27B: thinking and non-thinking chat (its text model); 54 GB in
+  bf16, more than a card holds.
+
+# contract: gemma-lm
+# A Gemma 1, 2 or 3 text model, as transformers lays it out: its geometry
+# from `config.json`.
+# publisher: gemma - Google's Gemma models, from their unsloth/ mirrors.
+
+* gemma/gemma/gemma-3-270m: [570.8 MB bf16; thinking: no-thinking]
+  Gemma 3 270M: the pretrained model.
+
+* gemma/gemma/gemma-3-270m-it: [570.8 MB bf16; thinking: no-thinking]
+  Gemma 3 270M, instruction-tuned.
+
+* gemma/gemma/gemma-3-1b-pt: [2.03 GB bf16; thinking: no-thinking]
+  Gemma 3 1B: the pretrained model.
+
+* gemma/gemma/gemma-3-1b-it: [2.03 GB bf16; thinking: no-thinking]
+  Gemma 3 1B, instruction-tuned.
+
+* gemma/gemma/gemma-3-4b-pt: [8.63 GB bf16; thinking: no-thinking]
+  Gemma 3 4B: the pretrained model's text model.
+
+* gemma/gemma/gemma-3-4b-it: [8.63 GB bf16; thinking: no-thinking]
+  Gemma 3 4B, instruction-tuned: its text model.
+
+* gemma/gemma/gemma-2-2b: [5.25 GB bf16; thinking: no-thinking]
+  Gemma 2 2B: the pretrained model, stored in f32.
+
+* gemma/gemma/gemma-2-2b-it: [5.25 GB bf16; thinking: no-thinking]
+  Gemma 2 2B, instruction-tuned.
+
+* gemma/gemma/gemma-2-9b: [18.52 GB bf16; thinking: no-thinking]
+  Gemma 2 9B: the pretrained model.
+
+* gemma/gemma/gemma-2-9b-it: [18.50 GB bf16; thinking: no-thinking]
+  Gemma 2 9B, instruction-tuned.
+
+* gemma/gemma/gemma-2b: [5.03 GB bf16; thinking: no-thinking]
+  Gemma 2B (Gemma 1): the pretrained model.
+
+* gemma/gemma/gemma-2b-it: [5.03 GB bf16; thinking: no-thinking]
+  Gemma 2B (Gemma 1), instruction-tuned.
+
+* gemma/gemma/gemma-7b: [17.11 GB bf16; thinking: no-thinking]
+  Gemma 7B (Gemma 1): the pretrained model.
+
+* gemma/gemma/gemma-7b-it: [17.09 GB bf16; thinking: no-thinking]
+  Gemma 7B (Gemma 1), instruction-tuned.
+
+# contract: nanochat-lm
+# A nanochat GPT, as upstream's training run writes it: its geometry from
+# the run's `meta_*.json`.
+# publisher: nanochat-students - nanochat-students, who publish nanochat training runs.
+
+* nanochat-students/base-d20: [2.08 GB bf16; thinking: no-thinking]
+  - nanochat-d20-base
+  nanochat-students' d20 after pretraining (step 21400): upstream's 2025
+  model, 561M, base.
+
+* nanochat-students/mid-d20: [2.08 GB bf16; thinking: no-thinking]
+  - nanochat-d20-mid
+  nanochat-students' d20 after midtraining (step 765): upstream's 2025
+  model, 561M, chat format.
+
+* nanochat-students/rl-d20: [2.08 GB bf16; thinking: no-thinking]
+  - nanochat-d20-rl
+  nanochat-students' d20 after its RL stage (step 650): upstream's 2025
+  model, 561M, chat.
+
+# publisher: nitishpandey04 - nitishpandey04, who publishes nanochat training runs.
+
+* nitishpandey04/nanochat-d18-base: [2.05 GB; thinking: no-thinking]
+  nitishpandey04's d18 after pretraining (step 3712): upstream's 2026
+  model, 702M, base.
+
+* nitishpandey04/nanochat-d18-sft: [2.05 GB; thinking: no-thinking]
+  nitishpandey04's d18 after SFT (step 478): upstream's 2026 model, 702M,
+  chat.
+
+# bunsen-tool decide ...
+# Typed Decisions
+
+# contract: laya-decision
+# A Laya decision model: a ModernBERT encoder and a decision head, in one
+# safetensors file.
+# publisher: laya - convaiinnovations, Laya's authors.
+
+* laya/laya/laya: [846.2 MB f16]
+  - laya-en
+  Laya, English: ModernBERT-large (28 layers, 1024 wide), 421M parameters,
+  prompts of 512 tokens.
+
+* laya/laya/laya-multilingual: [678.2 MB f16]
+  Laya, multilingual: mmBERT-base (22 layers, 768 wide, a 256k vocabulary),
+  322M parameters, prompts of 1024 tokens.
+
+* laya/laya/laya-typed-decisions: [846.2 MB f16]
+  Laya, typed decisions: the English model trained on typed questions,
+  prompts of 1024 tokens.
 ```
 
 <!-- /card -->
