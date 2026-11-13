@@ -30,6 +30,8 @@
 //! - **STFT.** [`SlidingStftConfig`] -> [`SlidingStft`] ->
 //!   [`SlidingStftContext`], with [`SlidingStftMeta`] on all three. Spectra are
 //!   `numpy.fft.rfft`-compatible; see [`SlidingStft`]'s *Spectrum convention*.
+//! - **Inverse STFT.** [`InverseStftConfig`] -> [`InverseStft`]: spectra back
+//!   to a waveform, as `torch.istft` computes it, at any FFT size.
 //! - **Windows.** [`SamplingWindowBuilder`] materializes a window as a
 //!   `Vec<f64>` or a tensor. [`CosineWindowConfig`] (Hann, Hamming) and
 //!   [`DualCosineWindow`] (Blackman) are the families, and [`StftWindowConfig`]
@@ -55,12 +57,14 @@ pub mod perceptive_audio;
 pub mod testing;
 
 mod cosine_window;
+mod inverse_stft;
 mod quiet_cuts;
 mod sliding_stft;
 mod stft_window;
 mod window_builder;
 
 pub use cosine_window::*;
+pub use inverse_stft::*;
 pub use quiet_cuts::*;
 pub use sliding_stft::*;
 pub use stft_window::*;
