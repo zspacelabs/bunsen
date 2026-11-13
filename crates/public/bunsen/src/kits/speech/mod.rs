@@ -1,6 +1,6 @@
 //! # Speech models
 //!
-//! Six kits that work on audio, grouped by the task each does. Each task
+//! Seven kits that work on audio, grouped by the task each does. Each task
 //! module holds its kits and the parts of the task that do not depend on the
 //! model:
 //!
@@ -26,6 +26,11 @@
 //!   - [`silero_vad`](vad::silero_vad): the Silero voice-activity detector. A
 //!     small recurrent model that gives, per chunk of audio, the probability
 //!     that it holds speech.
+//!
+//! - [`tts`]: text to speech; the kit:
+//!   - [`zonos3`](tts::zonos3): Zyphra's ZONOS3-Mini: a language model over
+//!     rows of audio codec codes and text, without a residual stream, and the
+//!     codec that decodes its codes.
 //!
 //! Beside the tasks, [`nemo`] holds the parts NVIDIA's `NeMo` models share
 //! across them (the mel front end, `.nemo` checkpoints): Parakeet's and
@@ -87,6 +92,7 @@
 pub mod asr;
 pub mod diarization;
 pub mod nemo;
+pub mod tts;
 pub mod vad;
 
 #[cfg(feature = "testing")]

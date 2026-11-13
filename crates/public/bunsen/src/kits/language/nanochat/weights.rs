@@ -10,16 +10,10 @@
 use std::path::Path;
 
 use burn::{
-    store::{
-        ModuleSnapshot,
-        PathFilter,
-        bridge,
-        burn_pack::Tensor as PackTensor,
-    },
+    store::burn_pack::Tensor as PackTensor,
     tensor::{
         Device,
         FloatDType,
-        TensorData,
     },
 };
 use serde::Deserialize;
@@ -37,6 +31,7 @@ use crate::{
         NamedTensorsApplied,
         read_pytorch_tensors,
         stored_float_dtype,
+        unit_scale_tensors,
     },
     errors::{
         BunsenError,
@@ -254,22 +249,7 @@ pub fn load_pt_tensors(
     dtype: FloatDType,
 ) -> BunsenResult<NamedTensorsApplied> {
     let mut tensors: Vec<PackTensor> = tensors.into_iter().collect();
-    let scales: Vec<PackTensor> = model
-        .collect(
-            Some(PathFilter::new().with_predicate(is_norm_scale)),
-            None,
-            true,
-        )
-        .into_iter()
-        .map(|t| {
-            let n: usize = t.shape.iter().product();
-            bridge::from_data(
-                TensorData::new(vec![1.0f32; n], t.shape.clone()),
-                t.name.clone(),
-                None,
-            )
-        })
-        .collect();
+    let scales = unit_scale_tensors(model, is_norm_scale);
     let last = scales
         .iter()
         .fold(Rekey::keep_rest(), |rekey, t| {
