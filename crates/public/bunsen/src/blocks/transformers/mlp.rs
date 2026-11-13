@@ -18,7 +18,13 @@ use crate::{
             BunsenActivation,
             BunsenActivationConfig,
         },
-        transformers::sublayer::SublayerBranch,
+        transformers::{
+            moe::sparse::{
+                SparseMoe,
+                SparseMoeConfig,
+            },
+            sublayer::SublayerBranch,
+        },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -295,6 +301,9 @@ pub enum TransformerFeedForwardConfig {
 
     /// [`TransformerGatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
     Gated(TransformerGatedMlpConfig),
+
+    /// [`SparseMoe`]: a sparse mixture of experts.
+    Moe(SparseMoeConfig),
 }
 
 impl From<TransformerMlpConfig> for TransformerFeedForwardConfig {
@@ -309,11 +318,18 @@ impl From<TransformerGatedMlpConfig> for TransformerFeedForwardConfig {
     }
 }
 
+impl From<SparseMoeConfig> for TransformerFeedForwardConfig {
+    fn from(config: SparseMoeConfig) -> Self {
+        Self::Moe(config)
+    }
+}
+
 impl TransformerFeedForwardMeta for TransformerFeedForwardConfig {
     fn n_embed(&self) -> usize {
         match self {
             Self::Mlp(c) => TransformerMlpMeta::n_embed(c),
             Self::Gated(c) => TransformerGatedMlpMeta::n_embed(c),
+            Self::Moe(c) => c.n_embed(),
         }
     }
 }
@@ -326,6 +342,7 @@ impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
         Ok(match self {
             Self::Mlp(c) => TransformerFeedForward::Mlp(c.try_init(device)?),
             Self::Gated(c) => TransformerFeedForward::Gated(c.try_init(device)?),
+            Self::Moe(c) => TransformerFeedForward::Moe(c.try_init(device)?),
         })
     }
 }
@@ -339,12 +356,17 @@ impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
 /// Built by [`TransformerFeedForwardConfig`].
 /// Implements [`TransformerFeedForwardMeta`].
 #[derive(Module, Debug)]
+// One per layer: the variants' size gap costs nothing worth a box.
+#[allow(clippy::large_enum_variant)]
 pub enum TransformerFeedForward {
     /// [`TransformerMlp`].
     Mlp(TransformerMlp),
 
     /// [`TransformerGatedMlp`].
     Gated(TransformerGatedMlp),
+
+    /// [`SparseMoe`].
+    Moe(SparseMoe),
 }
 
 impl TransformerFeedForwardMeta for TransformerFeedForward {
@@ -352,6 +374,7 @@ impl TransformerFeedForwardMeta for TransformerFeedForward {
         match self {
             Self::Mlp(m) => TransformerMlpMeta::n_embed(m),
             Self::Gated(m) => TransformerGatedMlpMeta::n_embed(m),
+            Self::Moe(m) => m.n_embed(),
         }
     }
 }
@@ -371,6 +394,7 @@ impl TransformerFeedForward {
         match self {
             Self::Mlp(m) => m.forward(x),
             Self::Gated(m) => m.forward(x),
+            Self::Moe(m) => m.forward(x),
         }
     }
 }
@@ -427,6 +451,39 @@ mod tests {
             performance_device,
         },
     };
+
+    /// A mixture of experts is a feed-forward like the others: built from
+    /// its variant, as wide as its router, and its forward the layer's own.
+    #[test]
+    fn test_moe_variant() {
+        use crate::blocks::transformers::moe::{
+            experts::ExpertStackConfig,
+            router::TopKRouterConfig,
+        };
+        let device = crate::support::testing::cpu_device();
+        let config: TransformerFeedForwardConfig = SparseMoeConfig::new(
+            TopKRouterConfig::new(8, 4, 2),
+            ExpertStackConfig::new(4, 4, 6),
+        )
+        .with_latent(Some(4))
+        .into();
+        assert_eq!(config.n_embed(), 8);
+        let ff: TransformerFeedForward = config.init(&device);
+        assert_eq!(ff.n_embed(), 8);
+        let TransformerFeedForward::Moe(moe) = &ff else {
+            panic!("a mixture of experts");
+        };
+        let x = crate::support::testing::seeded_tensor::<3>(
+            4,
+            [2, 3, 8],
+            Distribution::Default,
+            &device,
+        );
+        assert_eq!(
+            ff.forward(x.clone()).into_data(),
+            moe.forward(x).into_data()
+        );
+    }
 
     #[test]
     fn test_mlp_config() {
