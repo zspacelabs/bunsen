@@ -296,6 +296,29 @@ $contracts:
         $description: The 16 kHz branch's weights.
         $format:
           - safetensors
+  zonos3-tts:
+    $kind: contract
+    $description: "A ZONOS3 text-to-speech model as Zyphra's transformers packaging lays it out: the
+      language model and the codec decoder in one safetensors file, their geometry from
+      `config.json`."
+    $resources:
+      checkpoint:
+        $description: "The weights: the language model under `lm.`, the codec decoder under
+          `codec.`."
+        $format:
+          - safetensors
+      config:
+        $description: "`config.json`: the `lm`, `codec` and `generation` sections."
+        $format:
+          - json
+      tokenizer:
+        $description: The text tokenizer, its ids already offset past the four special ids.
+        $format:
+          - tokenizer.json
+      voices:
+        $description: "The stock voices: each one's reference codes and speaker embedding."
+        $format:
+          - safetensors
 publisher:
   $kind: facet
   $description: Who publishes the checkpoints.

@@ -48,3 +48,7 @@ silero:
   $kind: namespace
   $facet: publisher
   $description: Silero, snakers4/silero-vad's authors.
+zyphra:
+  $kind: namespace
+  $facet: publisher
+  $description: Zyphra.

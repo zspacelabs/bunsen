@@ -1,0 +1,60 @@
+# The zonos3 kit's builds: a probe-contract source of the built-in catalog.
+$description: The ZONOS3 text-to-speech checkpoints bunsen knows by name.
+zyphra:
+  $kind: namespace
+  $merge: update
+  zonos3:
+    $kind: namespace
+    $facet: family
+    $description: >-
+      Zyphra's ZONOS3 text-to-speech models: a language model over audio codec codes and
+      the codec decoder, as Zyphra's transformers packaging ships them.
+    $requires:
+      - language
+      - parameters
+    zonos3-mini:
+      $kind: build
+      $description: >-
+        ZONOS3-Mini: 800 M parameters (100 M active), 44.1 kHz speech in 9 languages,
+        27 stock voices.
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Zyphra/ZONOS3-Mini-hf
+      $contract: zonos3-tts
+      parameters: 800000000
+      active_parameters: 100000000
+      language:
+        - en
+        - fr
+        - de
+        - es
+        - it
+        - pt
+        - ja
+        - zh
+        - ko
+      $hub:
+        $repo: Zyphra/ZONOS3-Mini-hf
+        $revision: 73500c5a1fc3e0c4da69908e3cffd9346cdd97c2
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        tokenizer: tokenizer
+        voices: voices
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      tokenizer:
+        $kind: resource
+        $file: tokenizer.json
+        $format: tokenizer.json
+      voices:
+        $kind: resource
+        $file: voices.safetensors
+        $format: safetensors
+        # f32 embeddings and i32 codes: not the config's bfloat16.
+        $dtype: float32
