@@ -14,6 +14,8 @@
 //!
 //! The weights are `Zyphra/ZONOS3-Mini-hf`'s `model.safetensors`, whose
 //! `lm.*` tensors are upstream's release language model as it is
-//! ([`lm::weights`]).
+//! ([`lm::weights`]), and its `codec.*` tensors the decoder, weight norm
+//! fused ([`codec::weights`]).
 
+pub mod codec;
 pub mod lm;
