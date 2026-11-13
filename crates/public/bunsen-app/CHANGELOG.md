@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.41.0...bunsen-app-v0.42.0) - 2026-11-13
+
+### Added
+
+- *(resources)* provider descriptions, Hub mirrors, digest-filed downloads, and the cards rebuilt ([#686](https://github.com/zspacelabs/bunsen/pull/686))
+- *(datasets)* [**breaking**] datasets are catalog builds ([#684](https://github.com/zspacelabs/bunsen/pull/684))
+- *(bunsen-tool)* [**breaking**] chat, decide and ASR choose on the catalog pipeline ([#679](https://github.com/zspacelabs/bunsen/pull/679))
+- *(pretrained)* [**breaking**] the kits load from the built-in catalog ([#678](https://github.com/zspacelabs/bunsen/pull/678))
+- *(catalog)* the build catalog and its document format ([#676](https://github.com/zspacelabs/bunsen/pull/676))
+- *(bunsen-tool)* [**breaking**] `asr` is the `speech` feature, on by default; bunsen-tool and bunsen-app no longer take bunsen's defaults ([#646](https://github.com/zspacelabs/bunsen/pull/646))
+- *(validation)* [**breaking**] Qwen3-ASR by profile; the cache records when a file was last used, and `cache clear --age` ([#453](https://github.com/zspacelabs/bunsen/pull/453))
+- *(bunsen-tool)* [**breaking**] `bunsen-tool`, bunsen's models on the command line; `bunsen-asr` is `bunsen-tool asr`, and its cache `bunsen-tool cache` ([#446](https://github.com/zspacelabs/bunsen/pull/446))
+
+### Other
+
+- rework names and containment ([#692](https://github.com/zspacelabs/bunsen/pull/692))
+- mod.rs is namespace only; per-variant dispatch lives on the enum ([#691](https://github.com/zspacelabs/bunsen/pull/691))
+- *(data)* [**breaking**] the catalog, resource and build names ([#681](https://github.com/zspacelabs/bunsen/pull/681))
+- *(data)* [**breaking**] the `data` tree: resources, catalog, formats, builds, datasets ([#680](https://github.com/zspacelabs/bunsen/pull/680))
+- test support chains through the repository's libraries, as dev-dependencies ([#639](https://github.com/zspacelabs/bunsen/pull/639))
+- docs.rs builds bunsen's `nemo` and `fermion`, and `bunsen-fetch`'s `fetch` and `testing`; `bunsen-app` lists its features ([#638](https://github.com/zspacelabs/bunsen/pull/638))
+- *(bunsen-app)* [**breaking**] the device arguments report `BunsenError`s; `bunsen-asr`'s own `DeviceArgs` goes, and `bunsen-chat` takes the precision flags ([#413](https://github.com/zspacelabs/bunsen/pull/413))
+
 ## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.39.0...bunsen-app-v0.40.0) - 2026-10-23
 
 ### Fixed
