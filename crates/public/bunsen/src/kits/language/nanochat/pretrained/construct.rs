@@ -55,6 +55,12 @@ impl ConstructInit for NanoChatConstructConfig {
     const KIT: &'static str = NANOCHAT_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The hook for a `PyTorch` state dict with its meta.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         map.try_get(META)?;

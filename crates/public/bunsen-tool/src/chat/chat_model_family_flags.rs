@@ -8,6 +8,7 @@ use bunsen::{
         builds::{
             BuildFactory,
             BuildProvider,
+            BuildSummary,
             CATALOG,
             ConstructInit,
         },
@@ -214,56 +215,41 @@ impl ChatModelFamily {
         }
     }
 
-    /// Loads `name` on `device`, through `cache`.
+    /// Loads `name` on `device`, through `cache`; with the build that
+    /// answered it, and the presets its hook applied.
     pub fn load(
         self,
         name: &str,
         cache: &ResourceCache,
         device: &DeviceSession,
-    ) -> BunsenResult<LoadedChat> {
+    ) -> BunsenResult<(LoadedChat, BuildSummary)> {
+        let policy = LoadPolicy::performance();
         Ok(match self {
             ChatModelFamily::Qwen3 => {
-                require_template(&default_qwen3_factory()?, name)?;
-                let bundle = default_qwen3_factory()?.load_construct(
-                    name,
-                    cache,
-                    device,
-                    LoadPolicy::performance(),
-                )?;
-                LoadedChat::Qwen3(Arc::new(ChatModel::from_construct(bundle)?))
+                let factory = default_qwen3_factory()?;
+                require_template(&factory, name)?;
+                let loaded = factory.load(name, cache, device, policy)?;
+                let chat = ChatModel::from_construct(loaded.handle)?;
+                (LoadedChat::Qwen3(Arc::new(chat)), loaded.summary)
             }
             ChatModelFamily::Qwen3_5 => {
-                require_template(&default_qwen3_5_factory()?, name)?;
-                let bundle = default_qwen3_5_factory()?.load_construct(
-                    name,
-                    cache,
-                    device,
-                    LoadPolicy::performance(),
-                )?;
-                LoadedChat::Qwen3_5(Arc::new(ChatModel::new(Qwen3_5Chat::from_construct(
-                    bundle,
-                )?)))
+                let factory = default_qwen3_5_factory()?;
+                require_template(&factory, name)?;
+                let loaded = factory.load(name, cache, device, policy)?;
+                let chat = ChatModel::new(Qwen3_5Chat::from_construct(loaded.handle)?);
+                (LoadedChat::Qwen3_5(Arc::new(chat)), loaded.summary)
             }
             ChatModelFamily::Gemma => {
-                require_template(&default_gemma_factory()?, name)?;
-                let bundle = default_gemma_factory()?.load_construct(
-                    name,
-                    cache,
-                    device,
-                    LoadPolicy::performance(),
-                )?;
-                LoadedChat::Gemma(Arc::new(ChatModel::new(GemmaChat::from_construct(bundle)?)))
+                let factory = default_gemma_factory()?;
+                require_template(&factory, name)?;
+                let loaded = factory.load(name, cache, device, policy)?;
+                let chat = ChatModel::new(GemmaChat::from_construct(loaded.handle)?);
+                (LoadedChat::Gemma(Arc::new(chat)), loaded.summary)
             }
             ChatModelFamily::NanoChat => {
-                let bundle = default_nanochat_factory()?.load_construct(
-                    name,
-                    cache,
-                    device,
-                    LoadPolicy::performance(),
-                )?;
-                LoadedChat::NanoChat(Arc::new(ChatModel::new(NanoChatChat::from_construct(
-                    bundle,
-                )?)))
+                let loaded = default_nanochat_factory()?.load(name, cache, device, policy)?;
+                let chat = ChatModel::new(NanoChatChat::from_construct(loaded.handle)?);
+                (LoadedChat::NanoChat(Arc::new(chat)), loaded.summary)
             }
         })
     }

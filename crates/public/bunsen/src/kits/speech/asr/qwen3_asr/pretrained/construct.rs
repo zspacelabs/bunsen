@@ -123,6 +123,12 @@ impl ConstructInit for Qwen3AsrConstructConfig {
     const KIT: &'static str = QWEN3_ASR_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
     /// come with a `tokenizer.json` vocabulary.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {

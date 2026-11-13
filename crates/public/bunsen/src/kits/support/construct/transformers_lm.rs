@@ -118,6 +118,12 @@ impl<K: TransformersLmKit> ConstructInit for K {
     const KIT: &'static str = K::KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The hook for a safetensors checkpoint.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         let index = format!("{}.index", K::CHECKPOINT);

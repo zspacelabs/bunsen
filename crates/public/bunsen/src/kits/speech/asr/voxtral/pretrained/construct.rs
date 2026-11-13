@@ -73,6 +73,12 @@ impl ConstructInit for VoxtralConstructConfig {
     const KIT: &'static str = VOXTRAL_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The hook, for a safetensors checkpoint (one file or shards) with a
     /// `tekken.json` vocabulary.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {

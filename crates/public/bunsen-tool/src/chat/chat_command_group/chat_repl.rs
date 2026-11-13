@@ -3,10 +3,13 @@
 use bunsen::errors::BunsenResult;
 use clap::ArgMatches;
 
-use crate::chat::{
-    ChatGenerateFlags,
-    ChatModelFamily,
-    ChatModelFamilyFlags,
+use crate::{
+    chat::{
+        ChatGenerateFlags,
+        ChatModelFamily,
+        ChatModelFamilyFlags,
+    },
+    support::log_build,
 };
 
 /// Holds a conversation on stdin; `F` is the family's own generation flags.
@@ -29,7 +32,11 @@ impl<F: ChatModelFamilyFlags> ChatReplCommand<F> {
         family: Option<ChatModelFamily>,
         matches: &ArgMatches,
     ) -> BunsenResult<()> {
-        let (device, chat, model) = self.flags.load(family, &self.family.presets(), matches)?;
+        let (device, chat, model, build) =
+            self.flags.load(family, &self.family.presets(), matches)?;
+        log_build(&model, &build);
+        eprintln!("# {build}");
+        eprintln!("# /quit to exit");
         self.flags.converse(&chat, &self.family, &device, &model)?;
         drop(chat);
         device.close()

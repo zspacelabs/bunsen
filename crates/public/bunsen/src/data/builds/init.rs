@@ -4,7 +4,11 @@ use burn::tensor::Device;
 
 use crate::{
     data::{
-        builds::BuildRef,
+        builds::{
+            BuildRef,
+            BuildSummary,
+        },
+        catalog::presets::PresetSelection,
         resources::{
             LoadedResourceSet,
             ResourceCache,
@@ -94,6 +98,15 @@ pub trait ConstructInit: Sized {
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Self::Construct>>;
+
+    /// The presets [`try_init`](Self::try_init) applied to `construct`:
+    /// the default presets no selection displaced, then the selected, and
+    /// the patch. What [`Loaded::summary`] reports. `None`, the default,
+    /// for a kit that resolves no presets
+    /// ([`RESOLVES_PRESETS`](Self::RESOLVES_PRESETS)).
+    fn applied_presets(_construct: &Self::Construct) -> Option<PresetSelection> {
+        None
+    }
 }
 
 /// The handle a pretrained hands back: bound by what was built.
@@ -113,6 +126,9 @@ pub struct Loaded<T> {
 
     /// Where every part came from.
     pub resources: LoadedResourceSet,
+
+    /// Which build was loaded, and through which presets.
+    pub summary: BuildSummary,
 }
 
 impl<T> Clone for Loaded<T> {
@@ -121,6 +137,7 @@ impl<T> Clone for Loaded<T> {
             name: self.name.clone(),
             handle: Arc::clone(&self.handle),
             resources: self.resources.clone(),
+            summary: self.summary.clone(),
         }
     }
 }

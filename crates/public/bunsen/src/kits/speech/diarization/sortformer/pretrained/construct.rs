@@ -192,6 +192,12 @@ impl ConstructInit for SortformerConstructConfig {
     const KIT: &'static str = SORTFORMER_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {

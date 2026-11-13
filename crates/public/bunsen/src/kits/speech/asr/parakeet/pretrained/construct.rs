@@ -118,6 +118,12 @@ impl ConstructInit for ParakeetConstructConfig {
     const KIT: &'static str = PARAKEET_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The hook for the checkpoint's `kind`, one file or a sharded one's
     /// index; a Safetensors checkpoint must come with a `tokenizer.json`
     /// vocabulary.

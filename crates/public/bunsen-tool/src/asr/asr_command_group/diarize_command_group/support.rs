@@ -33,7 +33,8 @@ pub fn load_diarizer(
         default_sortformer_factory()?.resolve(model, cache)?,
         cache,
         device,
-    )?;
+    )?
+    .handle;
     log::info!("  {bundle}");
     Ok(bundle)
 }

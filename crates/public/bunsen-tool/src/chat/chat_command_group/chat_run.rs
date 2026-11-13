@@ -8,10 +8,13 @@ use bunsen::errors::{
 };
 use clap::ArgMatches;
 
-use crate::chat::{
-    ChatGenerateFlags,
-    ChatModelFamily,
-    ChatModelFamilyFlags,
+use crate::{
+    chat::{
+        ChatGenerateFlags,
+        ChatModelFamily,
+        ChatModelFamilyFlags,
+    },
+    support::log_build,
 };
 
 /// Answers one prompt; `F` is the family's own generation flags.
@@ -48,7 +51,9 @@ impl<F: ChatModelFamilyFlags> ChatRunCommand<F> {
             }
         };
         let prompt = prompt.trim_end();
-        let (device, chat, model) = self.flags.load(family, &self.family.presets(), matches)?;
+        let (device, chat, model, build) =
+            self.flags.load(family, &self.family.presets(), matches)?;
+        log_build(&model, &build);
         self.flags
             .run_once(&chat, &self.family, &device, &model, prompt)?;
         drop(chat);

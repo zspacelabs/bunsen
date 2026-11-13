@@ -253,6 +253,7 @@
 //! [`resolve_dir_template`]: crate::data::resources::resolve_dir_template
 
 mod build_ref;
+mod build_summary;
 mod catalog_provider;
 #[cfg(feature = "cache")]
 mod deferred;
@@ -266,6 +267,7 @@ mod lookup;
 mod providers;
 
 pub use build_ref::*;
+pub use build_summary::*;
 pub use catalog_provider::*;
 #[cfg(feature = "cache")]
 pub use deferred::*;
