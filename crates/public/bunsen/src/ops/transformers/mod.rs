@@ -19,3 +19,4 @@
 pub mod attention;
 pub mod attn_res;
 pub mod linear_attention;
+pub mod moe;

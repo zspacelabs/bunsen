@@ -46,6 +46,10 @@ name = "whisper_decode"
 harness = false
 required-features = ["speech"]
 
+[[bench]]
+name = "moe_dispatch"
+harness = false
+
 
 [features]
 # The defaults are what most consumers want; test support (`testing`) and
