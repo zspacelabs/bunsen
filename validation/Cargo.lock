@@ -817,7 +817,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bunsen"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen-catalog",
  "bunsen-contracts-macros",
@@ -861,7 +861,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-app"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "burn",
@@ -877,14 +877,14 @@ dependencies = [
 
 [[package]]
 name = "bunsen-catalog"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "include_dir",
 ]
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -893,7 +893,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-fetch"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "document-features",
  "sha2 0.11.1",
@@ -902,14 +902,14 @@ dependencies = [
 
 [[package]]
 name = "bunsen-test-audio"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen-fetch",
 ]
 
 [[package]]
 name = "bunsen-tool"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "bunsen-app",
@@ -10294,9 +10294,11 @@ name = "zonos3-model-validation"
 version = "0.41.0"
 dependencies = [
  "bunsen",
+ "bunsen-test-audio",
  "burn",
  "serde",
  "serde_json",
+ "serial_test",
 ]
 
 [[package]]
