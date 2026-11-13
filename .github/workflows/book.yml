@@ -61,7 +61,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
-      - run: rustup toolchain install stable --profile minimal
+      # `rustc` names the toolchain's version in the kache key, as ci.yml's
+      # `test` job explains; it must match ci.yml's `book` job's key.
+      - id: toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          echo "rustc=$(rustc +stable --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
       # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
       # the book links into (`book/book.toml`). The caches as in ci.yml's
       # `book` job, whose kache store this restores without saving: the job
@@ -73,7 +78,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache3-book
+          cache-key-prefix: kache4-book-rustc${{ steps.toolchain.outputs.rustc }}
           cache-executables: false
           save-cache: false
           pr-comment: false

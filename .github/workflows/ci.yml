@@ -72,7 +72,12 @@ jobs:
       # It reads the two lockfiles; nothing in `validation/` is built.
       - name: Lockfiles agree
         run: python3 tools/check_validation_lock.py
-      - run: rustup toolchain install stable --profile minimal --component clippy
+      # `rustc` names the toolchain's version in the kache key, as the `test`
+      # job explains.
+      - id: toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy
+          echo "rustc=$(rustc +stable --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
       # `bunsen-tool asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -88,7 +93,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache3-clippy
+          cache-key-prefix: kache4-clippy-rustc${{ steps.toolchain.outputs.rustc }}
           cache-executables: false
           pr-comment: false
           save-cache: ${{ github.ref == 'refs/heads/main' }}
@@ -102,7 +107,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: rustup toolchain install stable --profile minimal
+      # `rustc` names the toolchain's version in the kache key, as the `test`
+      # job explains.
+      - id: toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          echo "rustc=$(rustc +stable --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
       # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
       # the book links into (`book/book.toml`). The caches as in the `test`
       # job, which explains them, under a kache key prefix of its own;
@@ -115,7 +125,7 @@ jobs:
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache3-book
+          cache-key-prefix: kache4-book-rustc${{ steps.toolchain.outputs.rustc }}
           cache-executables: false
           pr-comment: false
           save-cache: ${{ github.ref == 'refs/heads/main' }}
@@ -167,8 +177,12 @@ jobs:
             /opt/hostedtoolcache/CodeQL
           df -h /
 
+      # `rustc` is the toolchain's version, for the kache key below.
       - name: Install Toolchain
-        run: rustup toolchain install stable --profile minimal
+        id: toolchain
+        run: |
+          rustup toolchain install stable --profile minimal
+          echo "rustc=$(rustc +stable --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
 
       # `bunsen-tool asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
@@ -188,12 +202,17 @@ jobs:
       #   test executables (`cache-executables: false`): they are the
       #   workspace's own, which miss on most changes, and each is large.
       #
-      # kache's store key holds its version and the Cargo.lock hash. An
-      # Actions cache entry is immutable, so the store is written once per
-      # lockfile: right for dependencies, which change only with it; the
-      # workspace crates in it are those of the first run on that lockfile.
-      # On a new lockfile it starts from the newest older store. The action
-      # skips itself, and the build runs uncached, if it cannot fetch kache.
+      # kache's store key holds its version and the Cargo.lock hash, and its
+      # `cache-key-prefix` holds rustc's version. An Actions cache entry is
+      # immutable, so the store is written once per lockfile and toolchain:
+      # right for dependencies, which change only with them; the workspace
+      # crates in it are those of the first run on that lockfile. rustc's
+      # version is in every unit's key, so a store from another toolchain
+      # misses nearly everything; without it in the store's key, a new stable
+      # release would restore the old toolchain's store, and never save its
+      # own, until the lockfile changed. On a new lockfile it starts from the
+      # newest older store of the same toolchain. The action skips itself, and
+      # the build runs uncached, if it cannot fetch kache.
       #
       # Only pushes to main save either cache; pull requests restore them.
       # A pull request's run can restore only caches saved from its own
@@ -212,7 +231,7 @@ jobs:
         uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed  # v1
         with:
           version: 1.2.1
-          cache-key-prefix: kache3-test
+          cache-key-prefix: kache4-test-rustc${{ steps.toolchain.outputs.rustc }}
           cache-executables: false
           pr-comment: true
           save-cache: ${{ github.ref == 'refs/heads/main' }}
