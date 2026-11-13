@@ -70,7 +70,8 @@ impl ModuleInit<Zonos3Lm> for Zonos3LmConfig {
 #[derive(Clone, Debug, Default)]
 pub struct Zonos3RowConditioning {
     /// A speaker row: its absolute position, and the `[B, S]` speaker
-    /// embedding projected in its place.
+    /// embedding projected in its place, in any float dtype (cast to the
+    /// model's before the projection).
     pub speaker: Option<(usize, Tensor<2>)>,
 
     /// The condition rows: the first one's absolute position, and `[B, C]`
@@ -188,7 +189,9 @@ impl Zonos3Lm {
         if let Some((row, speaker)) = &rows.speaker
             && let Some(at) = in_span(*row)
         {
-            let projected = self.speaker_projection.forward(speaker.clone());
+            let projected = self
+                .speaker_projection
+                .forward(speaker.clone().cast(sum.dtype()));
             x = x.slice_assign(s![.., at..at + 1, ..], projected.unsqueeze_dim(1));
         }
         if let Some((first, buckets)) = &rows.conditions {
