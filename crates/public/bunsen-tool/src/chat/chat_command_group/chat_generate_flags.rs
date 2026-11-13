@@ -9,6 +9,7 @@ use std::{
 };
 
 use bunsen::{
+    data::builds::BuildSummary,
     errors::{
         BunsenResult,
         sys_at,
@@ -161,14 +162,15 @@ impl ChatGenerateFlags {
 
     /// Opens the device, and loads the checkpoint on it: `family`'s, or
     /// outside `family` whichever `--model` names. Also returns the lookup
-    /// expression it loaded: the checkpoint's name, with the presets
-    /// `--preset` and `family`'s flags add.
+    /// expression it loaded (the checkpoint's name, with the presets
+    /// `--preset` and `family`'s flags add), and the build that answered
+    /// it, for a command to report ([`log_build`](crate::support::log_build)).
     pub(super) fn load(
         &self,
         family: Option<ChatModelFamily>,
         presets: &[(&str, &str)],
         matches: &ArgMatches,
-    ) -> BunsenResult<(DeviceSession, LoadedChat, String)> {
+    ) -> BunsenResult<(DeviceSession, LoadedChat, String, BuildSummary)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
@@ -184,8 +186,8 @@ impl ChatGenerateFlags {
         if let Some(patch) = self.choose.patch()? {
             name = with_patch(&name, &patch)?;
         }
-        let chat = family.load(&name, &cache, &device)?;
-        Ok((device, chat, name))
+        let (chat, build) = family.load(&name, &cache, &device)?;
+        Ok((device, chat, name, build))
     }
 
     /// The session config these flags and `family`'s give, over `chat`'s

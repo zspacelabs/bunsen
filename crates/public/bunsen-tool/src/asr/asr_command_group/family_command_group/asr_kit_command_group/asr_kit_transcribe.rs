@@ -43,7 +43,10 @@ use crate::{
             statements,
         },
     },
-    support::PresetArgs,
+    support::{
+        PresetArgs,
+        log_build,
+    },
 };
 
 /// Transcribes audio files.
@@ -156,7 +159,8 @@ impl AsrTranscribeIo {
         let device = self.device.open()?;
         // The options come from the command line.
         let cache = ResourceCache::new(flags.cache_options(self.cache.options())).as_policy()?;
-        let loaded = family.load(model, flags, &cache, &device)?;
+        let (loaded, build) = family.load(model, flags, &cache, &device)?;
+        log_build(model, &build);
         let speakers = self.speakers.diarizer(&cache, &device)?;
 
         let driver = Driver::build(

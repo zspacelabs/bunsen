@@ -148,10 +148,15 @@ impl<H: ConstructInit> DeferredBuild<H> {
             let handle = self
                 .config
                 .try_init(&self.model, &resources, device, policy)?;
+            let summary = self
+                .model
+                .summary()
+                .with_applied(H::applied_presets(&handle));
             Ok(Loaded {
                 name: resources.map.name.clone(),
                 handle,
                 resources,
+                summary,
             })
         };
         load()

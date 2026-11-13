@@ -375,8 +375,9 @@ impl<H: ConstructInit> BuildFactory<H> {
 
         let defered = resolve().as_policy()?;
 
-        if log::log_enabled!(Level::Info) {
-            log::info!("Resolved pretrained model: {}\n{:#?}", spec, defered.model);
+        log::debug!("resolved {spec} to {}", defered.model.summary());
+        if log::log_enabled!(Level::Trace) {
+            log::trace!("resolved {spec}:\n{:#?}", defered.model);
         }
 
         Ok(defered)
@@ -683,6 +684,11 @@ template_class_root: { $kind: template_class, $description: "The root." }
             policy: LoadPolicy,
         ) -> BunsenResult<Arc<PathBuf>> {
             CheckpointPath.try_init(model, loaded, device, policy)
+        }
+
+        /// A fixed selection, `[applied]`: what a hook reports it applied.
+        fn applied_presets(_construct: &PathBuf) -> Option<PresetSelection> {
+            Some(PresetSelection::of(["applied"]))
         }
     }
 }
@@ -1005,7 +1011,7 @@ l:
             ),
         );
         let factory = BuildFactory::<CheckpointPath>::new()
-            .with_providers([well_known(), on_disk])
+            .with_providers([well_known(), on_disk.clone()])
             .unwrap();
 
         let loaded = factory
@@ -1021,6 +1027,30 @@ l:
         assert_eq!(
             loaded.resources.get("checkpoint").unwrap().provenance,
             Provenance::LocalDir
+        );
+        // A kit that resolves no presets reports none applied.
+        assert_eq!(loaded.summary.id, "disk:l/ckpt");
+        assert_eq!(loaded.summary.requested, Some(PresetSelection::default()));
+        assert_eq!(loaded.summary.applied, None);
+
+        // The summary carries what the hook reports it applied.
+        let loaded = BuildFactory::<PresetPath>::new()
+            .with_providers([on_disk])
+            .unwrap()
+            .load(
+                "disk:l/ckpt",
+                &cache,
+                &cpu_device(),
+                crate::data::formats::LoadPolicy::load_as_stored(),
+            )
+            .unwrap();
+        assert_eq!(
+            loaded.summary.applied,
+            Some(PresetSelection::of(["applied"]))
+        );
+        assert_eq!(
+            loaded.summary.to_string().split(' ').nth(1),
+            Some("[applied]")
         );
 
         let other = dir.path().join("other.pt");
@@ -1129,6 +1159,15 @@ l:
         let selection = model.model.selection().unwrap();
         assert_eq!(selection.presets, ["FAST"]);
         assert_eq!(selection.patch, Some(serde_json::json!({"beam": 2})));
+        // Before a load, the summary shows what was asked.
+        let summary = model.model.summary();
+        assert_eq!(summary.requested.as_ref(), Some(selection));
+        assert!(
+            summary
+                .to_string()
+                .starts_with("catalog:a/small [FAST]{beam: 2}"),
+            "{summary}"
+        );
 
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .message_contains("no preset `slow`; there are: fast")

@@ -80,6 +80,12 @@ impl ConstructInit for SileroConstructConfig {
     const KIT: &'static str = SILERO_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The reader for the map's checkpoint: a burnpack under [`BURNPACK`],
     /// or upstream's safetensors under [`CHECKPOINT`].
     ///

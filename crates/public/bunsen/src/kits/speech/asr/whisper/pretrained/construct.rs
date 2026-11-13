@@ -361,6 +361,12 @@ impl ConstructInit for WhisperConstructConfig {
     const KIT: &'static str = WHISPER_KIT;
     const RESOLVES_PRESETS: bool = true;
 
+    fn applied_presets(
+        construct: &Self::Construct
+    ) -> Option<crate::data::catalog::presets::PresetSelection> {
+        Some(construct.presets.clone())
+    }
+
     /// The reader the checkpoint's `kind` names, through
     /// [`WhisperReader::for_kind`], expecting what the model promises. The
     /// checkpoint is the map's family under [`CHECKPOINT`]: one resource,

@@ -10,8 +10,10 @@ use bunsen::{
         builds::{
             BuildFactory,
             BuildProvider,
+            BuildSummary,
             ConstructInit,
             DeferredBuild,
+            Loaded,
         },
         cache::verify_sha256,
         catalog::{
@@ -182,35 +184,55 @@ impl AsrFamily {
 
     /// Loads `spec` through `cache`, and logs its info card at `INFO`:
     /// a row of the family's factory, or for Whisper a checkpoint's path,
-    /// with `flags`' `--vocab` over it.
+    /// with `flags`' `--vocab` over it. Also returns the build that answered
+    /// `spec`, for the command to report
+    /// ([`log_build`](crate::support::log_build)).
     pub fn load<F: FamilyFlags>(
         self,
         spec: &str,
         flags: &F,
         cache: &ResourceCache,
         device: &Device,
-    ) -> BunsenResult<AsrConstructWrapper> {
+    ) -> BunsenResult<(AsrConstructWrapper, BuildSummary)> {
+        fn split<T>(
+            loaded: Loaded<T>,
+            wrap: impl FnOnce(Arc<T>) -> AsrConstructWrapper,
+        ) -> (AsrConstructWrapper, BuildSummary) {
+            (wrap(loaded.handle), loaded.summary)
+        }
         Ok(match self {
-            AsrFamily::Parakeet => AsrConstructWrapper::Parakeet(load_logged(
-                default_parakeet_factory()?.resolve(spec, cache)?,
-                cache,
-                device,
-            )?),
-            AsrFamily::Qwen3Asr => AsrConstructWrapper::Qwen3Asr(load_logged(
-                default_qwen3_asr_factory()?.resolve(spec, cache)?,
-                cache,
-                device,
-            )?),
-            AsrFamily::Voxtral => AsrConstructWrapper::Voxtral(load_logged(
-                default_voxtral_factory()?.resolve(spec, cache)?,
-                cache,
-                device,
-            )?),
-            AsrFamily::Whisper => AsrConstructWrapper::Whisper(load_logged(
-                whisper::resolve(spec, flags.whisper(), cache)?,
-                cache,
-                device,
-            )?),
+            AsrFamily::Parakeet => split(
+                load_logged(
+                    default_parakeet_factory()?.resolve(spec, cache)?,
+                    cache,
+                    device,
+                )?,
+                AsrConstructWrapper::Parakeet,
+            ),
+            AsrFamily::Qwen3Asr => split(
+                load_logged(
+                    default_qwen3_asr_factory()?.resolve(spec, cache)?,
+                    cache,
+                    device,
+                )?,
+                AsrConstructWrapper::Qwen3Asr,
+            ),
+            AsrFamily::Voxtral => split(
+                load_logged(
+                    default_voxtral_factory()?.resolve(spec, cache)?,
+                    cache,
+                    device,
+                )?,
+                AsrConstructWrapper::Voxtral,
+            ),
+            AsrFamily::Whisper => split(
+                load_logged(
+                    whisper::resolve(spec, flags.whisper(), cache)?,
+                    cache,
+                    device,
+                )?,
+                AsrConstructWrapper::Whisper,
+            ),
         })
     }
 }
@@ -359,16 +381,17 @@ pub fn fetch_with<H: ConstructInit>(
     Ok(())
 }
 
-/// Resolves and loads `spec`, logging what it is and where its files came
-/// from: the model's info card.
+/// Loads `deferred`, logging what it is and where its files came from: the
+/// model's info card. The [`Loaded`] keeps the build's
+/// [`summary`](Loaded::summary), for the command to report.
 pub fn load_logged<H: ConstructInit>(
     deferred: DeferredBuild<H>,
     cache: &ResourceCache,
     device: &Device,
-) -> BunsenResult<Arc<H::Construct>> {
+) -> BunsenResult<Loaded<H::Construct>> {
     let t0 = Instant::now();
     let loaded = deferred.load(cache, device, LoadPolicy::performance())?;
-    log::info!("model: {}", deferred.id());
+    log::info!("model: {}", loaded.summary);
     if let Some((_, row)) = deferred.model.build() {
         log::info!("  {}", row.description);
         if let Some(license) = &row.license {
@@ -382,7 +405,7 @@ pub fn load_logged<H: ConstructInit>(
         log::info!("  {key}: {} ({})", part.path.display(), part.provenance);
     }
     log::info!("  device: {device:?}; loaded in {:.1?}", t0.elapsed());
-    Ok(loaded.handle)
+    Ok(loaded)
 }
 
 /// A family's own transcription flags: paths, not policy.

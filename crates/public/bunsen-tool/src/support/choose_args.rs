@@ -2,11 +2,14 @@
 use std::rc::Rc;
 
 use bunsen::{
-    data::catalog::{
-        BunsenCatalogStack,
-        CatalogErrorExt,
-        builtin_stack,
-        select::state::SelectRun,
+    data::{
+        builds::BuildSummary,
+        catalog::{
+            BunsenCatalogStack,
+            CatalogErrorExt,
+            builtin_stack,
+            select::state::SelectRun,
+        },
     },
     errors::{
         BunsenError,
@@ -56,6 +59,17 @@ pub fn log_choice(
     } else {
         log::info!("chose {chosen}: {}", why.join("; "));
     }
+}
+
+/// Logs, at `INFO`, what a command asked for, `intent` (the lookup
+/// expression its flags made), and the build that answered it: the build's
+/// id, its groups, and the presets its hook applied. Not its resolved
+/// config.
+pub fn log_build(
+    intent: &str,
+    build: &BuildSummary,
+) {
+    log::info!("model {intent}: {build}");
 }
 
 /// How a command chooses its model and patches its config, for

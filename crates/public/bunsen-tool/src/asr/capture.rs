@@ -168,7 +168,7 @@ impl Capture {
             BunsenError::sys(format!("could not start capture on {}", self.name)).with_cause(e)
         })?;
         eprintln!(
-            "listening on {}; {}",
+            "# listening on {}; {}",
             self.name,
             match self.seconds {
                 Some(s) => format!("stopping after {s} s"),
