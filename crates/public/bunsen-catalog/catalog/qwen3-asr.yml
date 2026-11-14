@@ -44,7 +44,7 @@ fermion:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     language:
       - en
@@ -95,7 +95,7 @@ fermion:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     language:
       - en
@@ -144,7 +144,7 @@ fermion:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     language:
       - en
@@ -197,7 +197,7 @@ qwen:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     language:
       - en
@@ -262,7 +262,7 @@ qwen:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     language:
       - en

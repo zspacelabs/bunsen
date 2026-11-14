@@ -40,7 +40,10 @@ use crate::{
             },
         },
     },
-    burner::module::ToStructureConfig,
+    burner::{
+        module::ToStructureConfig,
+        tensor::Widening,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -137,9 +140,11 @@ pub struct Qwen3_5Config {
     #[config(default = "false")]
     pub tied_head: bool,
 
-    /// The dtype attention's softmax runs in: f32, as `transformers` runs it.
-    #[config(default = "Some(FloatDType::F32)")]
-    pub softmax_dtype: Option<FloatDType>,
+    /// The widening attention's softmax runs in. `transformers` runs it in
+    /// f32 for a half model (`softmax(..., dtype=torch.float32)`), which
+    /// [`Widening::F32`] keeps; in an f32 model it changes nothing.
+    #[config(default = "Widening::F32")]
+    pub softmax_widening: Widening,
 
     /// The dtype the logits leave the model in: f32, as `transformers`
     /// generates from.
@@ -306,7 +311,7 @@ impl Qwen3_5Config {
                         self.attn_output_gate
                             .then_some(AttentionOutputGate::Elementwise),
                     )
-                    .with_softmax_dtype(self.softmax_dtype)
+                    .with_softmax_widening(self.softmax_widening)
                     .into()
             }
             Qwen3_5LayerKind::Linear => GatedDeltaNetConfig::new(

@@ -37,7 +37,10 @@ use crate::{
             },
         },
     },
-    burner::module::ToStructureConfig,
+    burner::{
+        module::ToStructureConfig,
+        tensor::Widening,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -151,9 +154,11 @@ pub struct GemmaConfig {
     #[config(default = "None")]
     pub final_softcap: Option<f64>,
 
-    /// The dtype attention's softmax runs in: f32, as `transformers` runs it.
-    #[config(default = "Some(FloatDType::F32)")]
-    pub softmax_dtype: Option<FloatDType>,
+    /// The widening attention's softmax runs in. `transformers` runs it in
+    /// f32 for a half model (`softmax(..., dtype=torch.float32)`), which
+    /// [`Widening::F32`] keeps; in an f32 model it changes nothing.
+    #[config(default = "Widening::F32")]
+    pub softmax_widening: Widening,
 
     /// The dtype the logits leave the model in: f32, as `transformers`
     /// generates from.
@@ -335,7 +340,7 @@ impl GemmaConfig {
                 .with_sliding_window(window)
                 .with_score_scale(self.query_pre_attn_scalar.map(|s| s.powf(-0.5)))
                 .with_attn_softcap(self.attn_softcap)
-                .with_softmax_dtype(self.softmax_dtype)
+                .with_softmax_widening(self.softmax_widening)
                 .into(),
             TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_activation(BunsenActivationConfig::GeluApproximate)
