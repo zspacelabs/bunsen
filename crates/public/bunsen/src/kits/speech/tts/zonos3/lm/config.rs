@@ -54,6 +54,7 @@ use crate::{
             },
         },
     },
+    burner::tensor::Widening,
     errors::{
         BunsenError,
         BunsenResult,
@@ -338,13 +339,15 @@ impl Zonos3LmConfig {
 
     /// The stack: the layers without a residual stream (Full Attention
     /// Residuals), a weightless input norm (the embedding's), the final
-    /// norm, and the interleaved rotary table the attention layers share.
+    /// norm, and the interleaved rotary table the attention layers share,
+    /// which rotates half inputs in f32, as the reference does.
     pub fn stack(&self) -> AttnResStackConfig {
         let layers = (0..self.n_layers).map(|l| self.layer(l)).collect();
         let rotary = RotaryEmbeddingConfig::new(0, self.head_dim)
             .with_base(self.rope_base)
             .with_direction(RotaryDirection::Forward)
-            .with_pair_layout(RotaryPairLayout::Interleaved);
+            .with_pair_layout(RotaryPairLayout::Interleaved)
+            .with_widening(Widening::F32);
         AttnResStackConfig::new(
             DecoderStackStructureConfig::new(layers, self.rms(), rotary)
                 .with_input_norm(Some(self.rms()))
