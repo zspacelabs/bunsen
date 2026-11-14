@@ -18,7 +18,10 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        tensor::Widening,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -89,6 +92,13 @@ pub struct RotaryEmbeddingConfig {
     /// `transformers` casts `cos` and `sin` to `x.dtype`.
     #[config(default = "None")]
     pub table_dtype: Option<FloatDType>,
+
+    /// The dtype the rotation runs in, from the input's: the input and the
+    /// tables widened, the rotated dimensions narrowed back to the input's
+    /// dtype. [`Widening::NONE`] rotates in the input's dtype, as
+    /// `transformers` does; ZONOS3 rotates half inputs in f32.
+    #[config(default = "Widening::NONE")]
+    pub widening: Widening,
 
     /// How the frequencies are scaled for a longer context.
     #[config(default = "RopeScaling::None")]
@@ -312,6 +322,7 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
             head_dim: self.head_dim,
             direction: self.direction,
             pair_layout: self.pair_layout,
+            widening: self.widening,
             cos,
             sin,
         })
@@ -343,6 +354,10 @@ pub struct RotaryEmbedding {
     /// Which head dimensions pair up to turn together.
     #[module(skip)]
     pub pair_layout: RotaryPairLayout,
+
+    /// The dtype the rotation runs in ([`RotaryEmbeddingConfig::widening`]).
+    #[module(skip)]
+    pub widening: Widening,
 
     /// a `[1, T, 1, R/2]` tensor, `R` the rotated dimensions.
     pub cos: Tensor<4>,
@@ -419,13 +434,16 @@ impl RotaryEmbedding {
             head_dim: self.head_dim,
             direction: self.direction,
             pair_layout: self.pair_layout,
+            widening: self.widening,
             cos: self.cos.clone().slice_dim(1, range.clone()),
             sin: self.sin.clone().slice_dim(1, range),
         }
     }
 
-    /// Applies the rotary embedding to the input, in the input's dtype: the
-    /// tables are cast to it (a no-op when they are in it already). The
+    /// Applies the rotary embedding to the input, in the dtype its
+    /// [`widening`](Self::widening) gives the input's: the input and the
+    /// tables are cast to it (a no-op when they are in it already), and the
+    /// result narrowed back to the input's dtype. The
     /// leading [`rotary_dim`](RotaryEmbeddingMeta::rotary_dim) head
     /// dimensions are rotated, paired as the
     /// [`pair_layout`](Self::pair_layout) says; the rest are passed through.
@@ -450,17 +468,18 @@ impl RotaryEmbedding {
         let rotary_dim = self.rotary_dim();
         let pass =
             (rotary_dim < self.head_dim()).then(|| input.clone().slice_dim(3, s![rotary_dim..]));
-        let dtype = input.dtype();
-        let (x1, x2) = self.pair_layout.split(input.slice_dim(3, s![..rotary_dim]));
-
-        let (y1, y2) = self.direction.rotate(
-            x1,
-            x2,
-            self.cos.clone().cast(dtype),
-            self.sin.clone().cast(dtype),
-        );
-
-        let rotated = self.pair_layout.join(y1, y2);
+        let rotated = self.widening.around(input.dtype(), |w| {
+            let (x1, x2) = self
+                .pair_layout
+                .split(w.widen(input.slice_dim(3, s![..rotary_dim])));
+            let (y1, y2) = self.direction.rotate(
+                x1,
+                x2,
+                self.cos.clone().cast(w.compute()),
+                self.sin.clone().cast(w.compute()),
+            );
+            self.pair_layout.join(y1, y2)
+        });
         let output = match pass {
             Some(pass) => Tensor::cat(vec![rotated, pass], 3),
             None => rotated,
@@ -572,6 +591,52 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A widened rotation of a bf16 input is the f32 rotation of it, rounded
+    /// once; the passed-through dimensions are the input's, the clipped
+    /// embedding widens as the whole one does, and an unwidened rotation runs
+    /// in bf16.
+    #[test]
+    fn test_widening() {
+        let device = crate::support::testing::cpu_device();
+        let (seq_len, head_dim, rotary_dim) = (32, 12, 8);
+        let config = RotaryEmbeddingConfig::new(seq_len, head_dim)
+            .with_rotary_dim(Some(rotary_dim))
+            .with_pair_layout(RotaryPairLayout::Interleaved);
+        assert_eq!(config.widening, Widening::NONE, "unwidened by default");
+        let plain: RotaryEmbedding = config.init(&device);
+        let wide: RotaryEmbedding = config.with_widening(Widening::F32).init(&device);
+        assert_eq!(wide.clip_range(1..3).widening, Widening::F32);
+
+        let x = crate::support::testing::seeded_tensor::<4>(
+            4,
+            [2, seq_len, 3, head_dim],
+            Distribution::Default,
+            &device,
+        )
+        .cast(DType::BF16);
+        let got = wide.apply(x.clone());
+        assert_eq!(got.dtype(), DType::BF16);
+        let expected = plain.apply(x.clone().cast(DType::F32)).cast(DType::BF16);
+        got.clone()
+            .into_data()
+            .assert_eq(&expected.into_data(), true);
+        got.clone()
+            .slice_dim(3, rotary_dim..)
+            .into_data()
+            .assert_eq(&x.clone().slice_dim(3, rotary_dim..).into_data(), true);
+
+        let unwidened = plain.apply(x);
+        assert_eq!(unwidened.dtype(), DType::BF16);
+        assert!(
+            unwidened
+                .cast(DType::F32)
+                .not_equal(got.cast(DType::F32))
+                .any()
+                .into_scalar::<bool>(),
+            "the bf16 rotation rounds where the f32 one does not"
+        );
     }
 
     #[test]
