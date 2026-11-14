@@ -73,6 +73,7 @@ runs turn them on
 | [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/sortformer-model-validation) | Sortformer diarization against ONNX exports of the same checkpoints (`Nemotron-3-Diarization`, Sortformer v2.1), each held itself to onnxruntime's run of the published graph, and against `NeMo`'s own diarization of an AMI excerpt by each model. |
 | [`voxtral-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/voxtral-model-validation) | Voxtral Realtime against an implementation generated from the published ONNX export, and against `transformers`' own greedy decodes of real speech. |
 | [`whisper-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/whisper-model-validation) | Whisper against an ONNX export, stage by stage, and against `openai-whisper`'s own decode of real speech. |
+| [`zonos3-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/zonos3-model-validation) | ZONOS3-Mini against Zyphra's own reference code at a pinned commit, and its codec against the `-hf` release's: the tokenizer and every request's prompt exactly, the language model's prefill and teacher-forced decode logits in float32 and, on CUDA, in bf16, and the codec's audio from fixed codes. |
 
 Their reference checks are not part of a normal build's test run; they are
 how a kit earns trust. See [Validation against reference implementations](../development/validation.md).

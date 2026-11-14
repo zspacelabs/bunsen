@@ -26,7 +26,6 @@
 //!   - [`silero_vad`](vad::silero_vad): the Silero voice-activity detector. A
 //!     small recurrent model that gives, per chunk of audio, the probability
 //!     that it holds speech.
-//!
 //! - [`tts`]: text to speech; the kit:
 //!   - [`zonos3`](tts::zonos3): Zyphra's ZONOS3-Mini: a language model over
 //!     rows of audio codec codes and text, without a residual stream, and the
