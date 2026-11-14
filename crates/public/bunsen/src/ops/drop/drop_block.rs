@@ -9,7 +9,6 @@ use burn::{
     },
     prelude::Float,
     tensor::{
-        DType,
         Device,
         Distribution,
         module::max_pool2d,
@@ -22,6 +21,7 @@ use serde::{
 };
 
 use crate::{
+    burner::tensor::Widening,
     contracts::unpack_shape_contract,
     ops::{
         conv::conv2d_kernel_midpoint_filter,
@@ -395,15 +395,17 @@ pub fn drop_block_2d(
 
         tensor * keep_filter.expand(t_shape.clone()) + noise.expand(t_shape)
     } else {
-        // Rescale to normalize to 1.0. The scaled mask is built in f32 and
-        // cast once: when every block drops, the scale (`count / 1e-7`)
-        // overflows `f16`, and `0 * inf` would be NaN.
-        let keep_filter = keep_filter.cast(DType::F32);
-        let count = keep_filter.shape().num_elements() as f32;
-        let norm_scale = count / keep_filter.clone().sum().add_scalar(1e-7);
-        let scaled_keep = keep_filter * norm_scale.unsqueeze::<4>();
+        // Rescale to normalize to 1.0. The scaled mask is built widened to
+        // f32 and narrowed once: when every block drops, the scale
+        // (`count / 1e-7`) overflows `f16`, and `0 * inf` would be NaN.
+        let scaled_keep = Widening::F32.around(dtype, |scope| {
+            let keep_filter = scope.widen(keep_filter);
+            let count = keep_filter.shape().num_elements() as f32;
+            let norm_scale = count / keep_filter.clone().sum().add_scalar(1e-7);
+            keep_filter * norm_scale.unsqueeze::<4>()
+        });
 
-        tensor * scaled_keep.cast(dtype).expand(t_shape)
+        tensor * scaled_keep.expand(t_shape)
     }
 }
 
@@ -412,12 +414,14 @@ mod tests {
     use burn::{
         module::DisplaySettings,
         prelude::TensorData,
+        tensor::DType,
     };
     use serial_test::serial;
 
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
+        cpu_device,
         performance_device,
     };
 
@@ -656,5 +660,26 @@ mod tests {
         let drop_ratio = drop_count as f64 / numel as f64;
 
         assert!((drop_ratio - drop_prob).abs() < 0.15);
+    }
+
+    /// An f64 tensor's normalized mask is built in f64: with nothing dropped
+    /// from 16 values, the scale `16 / (16 + 1e-7)` is below one, where in
+    /// f32 the sum rounds back to 16 and the scale to exactly one.
+    #[test]
+    fn test_drop_block_2d_norm_keeps_f64() {
+        let device = cpu_device();
+        assert!(device.supports_dtype(DType::F64));
+        let tensor = Tensor::<4>::ones([1, 1, 4, 4], (&device, DType::F64));
+        // One candidate block, dropped with probability about 1e-12.
+        let options = DropBlockOptions::default()
+            .with_drop_prob(1e-12)
+            .with_kernel([4, 4]);
+
+        let drop = drop_block_2d(tensor.clone(), &options);
+        assert_eq!(drop.dtype(), DType::F64);
+        let scale = 16.0 / (16.0 + 1e-7);
+        assert!(scale < 1.0);
+        drop.into_data()
+            .assert_eq(&tensor.mul_scalar(scale).into_data(), true);
     }
 }
