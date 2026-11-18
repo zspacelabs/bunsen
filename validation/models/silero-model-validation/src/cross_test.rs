@@ -260,7 +260,7 @@ mod vad_16k {
                 "silero/vad-16k",
                 &cache,
                 &device,
-                bunsen::data::formats::LoadPolicy::as_stored(),
+                bunsen::data::formats::LoadPolicy::load_as_stored(),
             )?
             .handle;
         assert_eq!(upstream.vads.branches.len(), 1);
