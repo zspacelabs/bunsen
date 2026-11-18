@@ -623,7 +623,8 @@ files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file
 and checking what is cached, do not.
 
 `transcribe` and `live` take `--emission` and `--chunk-ms` (`diarize live` takes `--chunk-ms`); every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
-`metal`, `cuda`; the CPU is always there) and `-v`/`-q`.
+`metal`, `cuda`; the CPU is always there) and `-v`/`-q`; the commands that load a model take `--min-precision f32` (or
+`f64`), a floor under the dtypes its weights are placed in (they never narrow).
 
 | model | | licence |
 |---|---|---|
@@ -708,7 +709,7 @@ speaker mode.
 Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them, and `--max-frames`
 caps the take (15 frames a second). A take is sampled, so each run differs; `--seed` repeats one on the same device,
 and the seed is printed with every take. The language model loads at the precision it ships in (bf16) where the device
-accelerates it, else in f32; the codec runs in f32.
+accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere); the codec runs in f32.
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- tts run -o hello.wav "Hello, this is ZONOS3."
@@ -754,7 +755,8 @@ and Qwen3.5's. `--think` and `--no-think` are `--on thinking` and `--off thinkin
 that offer the preset, and apply it to the one chosen.
 Sampling follows the checkpoint's generation defaults; `--greedy`, `--temperature`, `--top-k`, `--top-p` and `--seed`
 override them. A checkpoint loads at the precision it ships in where the device accelerates it, else in f32: Qwen3's
-bf16 on cuda and metal, f32 on vulkan, wgpu and the CPU; `bunsen-tool devices` shows what a device accelerates.
+bf16 on cuda and metal, f32 on vulkan, wgpu and the CPU (`--min-precision f32` holds it to f32 everywhere);
+`bunsen-tool devices` shows what a device accelerates.
 `--context` sizes the KV cache (the checkpoint's trained length by default),
 `--kv-storage` picks how it stores its history, and `--stats` prints, after each reply, the model's lookup expression (its name with the presets the flags add), then the reply's token counts and speeds.
 
@@ -843,7 +845,7 @@ The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
 
 The checkpoints: `laya/laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya/laya-multilingual` (on
 `mmBERT-base`) and `laya/laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
-device accelerates it, else in f32.
+device accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere).
 
 ## catalog: build catalogs
 

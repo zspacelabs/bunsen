@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::resources::ResourceCache,
+    data::{
+        formats::LoadPolicy,
+        resources::ResourceCache,
+    },
     errors::BunsenResult,
     kits::speech::diarization::{
         SpeakerActivityModel,
@@ -42,11 +45,12 @@ impl AsrDiarizerArgs {
         &self,
         cache: &ResourceCache,
         device: &Device,
+        policy: LoadPolicy,
     ) -> BunsenResult<Arc<SortformerConstruct>> {
         let model = self
             .presets
             .apply(self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL))?;
-        load_diarizer(&model, cache, device)
+        load_diarizer(&model, cache, device, policy)
     }
 }
 
@@ -80,11 +84,12 @@ impl AsrSpeakerArgs {
         &self,
         cache: &ResourceCache,
         device: &Device,
+        policy: LoadPolicy,
     ) -> BunsenResult<Option<Arc<dyn SpeakerActivityModel>>> {
         let Some(model) = &self.diarize else {
             return Ok(None);
         };
-        let bundle = load_diarizer(model, cache, device)?;
+        let bundle = load_diarizer(model, cache, device, policy)?;
         Ok(Some(Arc::new(bundle.diarizer(bundle.streaming()?)?)))
     }
 }

@@ -193,6 +193,7 @@ impl AsrFamily {
         flags: &F,
         cache: &ResourceCache,
         device: &Device,
+        policy: LoadPolicy,
     ) -> BunsenResult<(AsrConstructWrapper, BuildSummary)> {
         fn split<T>(
             loaded: Loaded<T>,
@@ -206,6 +207,7 @@ impl AsrFamily {
                     default_parakeet_factory()?.resolve(spec, cache)?,
                     cache,
                     device,
+                    policy,
                 )?,
                 AsrConstructWrapper::Parakeet,
             ),
@@ -214,6 +216,7 @@ impl AsrFamily {
                     default_qwen3_asr_factory()?.resolve(spec, cache)?,
                     cache,
                     device,
+                    policy,
                 )?,
                 AsrConstructWrapper::Qwen3Asr,
             ),
@@ -222,6 +225,7 @@ impl AsrFamily {
                     default_voxtral_factory()?.resolve(spec, cache)?,
                     cache,
                     device,
+                    policy,
                 )?,
                 AsrConstructWrapper::Voxtral,
             ),
@@ -230,6 +234,7 @@ impl AsrFamily {
                     whisper::resolve(spec, flags.whisper(), cache)?,
                     cache,
                     device,
+                    policy,
                 )?,
                 AsrConstructWrapper::Whisper,
             ),
@@ -381,16 +386,17 @@ pub fn fetch_with<H: ConstructInit>(
     Ok(())
 }
 
-/// Loads `deferred`, logging what it is and where its files came from: the
-/// model's info card. The [`Loaded`] keeps the build's
+/// Loads `deferred` under `policy`, logging what it is and where its files
+/// came from: the model's info card. The [`Loaded`] keeps the build's
 /// [`summary`](Loaded::summary), for the command to report.
 pub fn load_logged<H: ConstructInit>(
     deferred: DeferredBuild<H>,
     cache: &ResourceCache,
     device: &Device,
+    policy: LoadPolicy,
 ) -> BunsenResult<Loaded<H::Construct>> {
     let t0 = Instant::now();
-    let loaded = deferred.load(cache, device, LoadPolicy::performance())?;
+    let loaded = deferred.load(cache, device, policy)?;
     log::info!("model: {}", loaded.summary);
     if let Some((_, row)) = deferred.model.build() {
         log::info!("  {}", row.description);

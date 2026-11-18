@@ -17,6 +17,7 @@ use bunsen_app::{
         LogArgs,
         LogPolicy,
     },
+    precision::MinPrecisionArgs,
 };
 
 use super::{
@@ -47,6 +48,10 @@ pub struct AsrDiarizeLiveCommand {
     #[clap(flatten)]
     pub device: BackendArgs,
 
+    /// The narrowest float the models' weights are placed in.
+    #[clap(flatten)]
+    pub precision: MinPrecisionArgs,
+
     #[clap(flatten)]
     pub output: AsrDiarizeOutputArgs,
 
@@ -67,7 +72,9 @@ impl AsrDiarizeLiveCommand {
         };
         let device = self.device.open()?;
         let cache = self.cache.init()?;
-        let bundle = self.diarizer.load(&cache, &device)?;
+        let bundle = self
+            .diarizer
+            .load(&cache, &device, self.precision.load_policy())?;
         let diarizer = bundle.diarizer(bundle.streaming()?)?;
         let rate = bundle.sample_rate();
         let frame_seconds = SpeakerActivityModel::frame_samples(&diarizer) as f64 / rate as f64;

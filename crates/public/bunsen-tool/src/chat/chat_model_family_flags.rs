@@ -215,15 +215,15 @@ impl ChatModelFamily {
         }
     }
 
-    /// Loads `name` on `device`, through `cache`; with the build that
-    /// answered it, and the presets its hook applied.
+    /// Loads `name` on `device` under `policy`, through `cache`; with the
+    /// build that answered it, and the presets its hook applied.
     pub fn load(
         self,
         name: &str,
         cache: &ResourceCache,
         device: &DeviceSession,
+        policy: LoadPolicy,
     ) -> BunsenResult<(LoadedChat, BuildSummary)> {
-        let policy = LoadPolicy::performance();
         Ok(match self {
             ChatModelFamily::Qwen3 => {
                 let factory = default_qwen3_factory()?;
