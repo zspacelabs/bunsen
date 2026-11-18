@@ -46,14 +46,15 @@ use crate::{
 /// - [`load_as_stored`](Self::load_as_stored): a half dtype wherever the device
 ///   computes in it at all: a bf16 check on the CPU, or a model that must fit
 ///   whatever the speed.
-/// - [`at_least`](Self::at_least): never narrower than a floor: the f32
-///   validation suites, which hold a model to an f32 reference.
+/// - [`min_precision`](Self::min_precision): never narrower than a floor: the
+///   f32 validation suites, which hold a model to an f32 reference, and a
+///   command's `--min-precision`.
 ///
 /// It has no `Default` and no serde form: a call site says what it wants.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LoadPolicy {
     /// The narrowest dtype a tensor may be placed in, if any.
-    at_least: Option<FloatDType>,
+    min_precision: Option<FloatDType>,
 
     /// What the device must do with a half dtype for it to be used:
     /// [`Accelerated`](DTypeUsage::Accelerated) or
@@ -66,7 +67,7 @@ impl LoadPolicy {
     /// A half dtype only where the device accelerates it; f32 elsewhere.
     pub fn performance() -> Self {
         Self {
-            at_least: None,
+            min_precision: None,
             half_needs: DTypeUsage::Accelerated,
         }
     }
@@ -74,23 +75,18 @@ impl LoadPolicy {
     /// The stored dtype wherever the device computes in it.
     pub fn load_as_stored() -> Self {
         Self {
-            at_least: None,
+            min_precision: None,
             half_needs: DTypeUsage::Arithmetic,
         }
     }
 
-    /// Never narrower than `dtype`: [`as_stored`](Self::load_as_stored)
+    /// Never narrower than `dtype`: [`load_as_stored`](Self::load_as_stored)
     /// above it.
-    pub fn at_least(dtype: FloatDType) -> Self {
+    pub fn min_precision(dtype: FloatDType) -> Self {
         Self {
-            at_least: Some(dtype),
+            min_precision: Some(dtype),
             half_needs: DTypeUsage::Arithmetic,
         }
-    }
-
-    /// The floor, if any.
-    pub fn floor(&self) -> Option<FloatDType> {
-        self.at_least
     }
 
     /// The dtype a tensor stored in `stored` is placed in on `device`: the
@@ -107,7 +103,7 @@ impl LoadPolicy {
         accepts: impl Fn(FloatDType) -> bool,
     ) -> BunsenResult<FloatDType> {
         let candidates = [stored, FloatDType::F32, FloatDType::F64];
-        let floor = self.at_least.map_or(0, float_width);
+        let floor = self.min_precision.map_or(0, float_width);
         let mut tried = Vec::new();
         for dtype in candidates {
             if float_width(dtype) < floor || tried.contains(&dtype) {
@@ -192,13 +188,13 @@ mod tests {
             bf16
         );
         assert_eq!(
-            LoadPolicy::at_least(FloatDType::F32)
+            LoadPolicy::min_precision(FloatDType::F32)
                 .resolve(bf16, &device, any)
                 .unwrap(),
             FloatDType::F32
         );
         assert_eq!(
-            LoadPolicy::at_least(FloatDType::F64)
+            LoadPolicy::min_precision(FloatDType::F64)
                 .resolve(bf16, &device, any)
                 .unwrap(),
             FloatDType::F64

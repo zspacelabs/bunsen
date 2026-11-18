@@ -261,7 +261,7 @@ pub fn load_construct(
     name: &str,
     device: &Device,
 ) -> std::sync::Arc<Qwen3_5Construct> {
-    load_construct_with(name, device, LoadPolicy::at_least(FloatDType::F32))
+    load_construct_with(name, device, LoadPolicy::min_precision(FloatDType::F32))
 }
 
 /// A Qwen3.5 pretrained by name under `policy`.

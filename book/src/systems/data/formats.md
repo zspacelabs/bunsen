@@ -14,8 +14,8 @@ A [`LoadPolicy`](bunsen::data::formats::LoadPolicy) is the load call's
 choice of the float dtype a model's parameters are placed in. A load only
 ever widens: a tensor goes in the dtype it was stored in, or f32, the first
 the policy, the device and the hook allow. `performance()` keeps a half
-dtype only where the device accelerates it, `as_stored()` wherever the
-device computes in it, and `at_least(f32)` holds a model to an f32
+dtype only where the device accelerates it, `load_as_stored()` wherever the
+device computes in it, and `min_precision(f32)` holds a model to an f32
 reference.
 
 ## PyTorch checkpoints

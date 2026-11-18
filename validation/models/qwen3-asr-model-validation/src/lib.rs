@@ -244,7 +244,7 @@ pub fn load_construct(
             name,
             &weights_cache(),
             device,
-            bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+            bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
         )
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }

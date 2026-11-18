@@ -59,7 +59,7 @@ impl Toy {
             &dir.join("meta_000001.json"),
             &dir.join("model_000001.pt"),
             device,
-            crate::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+            crate::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
         )
         .expect("load the toy checkpoint");
         Self {

@@ -121,7 +121,7 @@ pub fn load_construct(
             name,
             &weights_cache(),
             device,
-            LoadPolicy::at_least(FloatDType::F32),
+            LoadPolicy::min_precision(FloatDType::F32),
         )
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }

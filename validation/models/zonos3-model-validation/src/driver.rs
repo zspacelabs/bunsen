@@ -121,7 +121,7 @@ mod zonos3_mini {
                 "openai/base",
                 &weights_cache(),
                 &device,
-                LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+                LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
             )
             .unwrap();
         let asr = WhisperStreamDriverConfig::new()

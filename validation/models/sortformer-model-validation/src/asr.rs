@@ -155,7 +155,7 @@ mod sortformer_speakers {
                 "fermion/phonon-2",
                 &weights_cache(),
                 &device,
-                bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+                bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
             )
             .unwrap();
         let driver = ParakeetStreamDriver::new(
@@ -184,7 +184,7 @@ mod sortformer_speakers {
                 "fermion/phonon-1",
                 &weights_cache(),
                 &device,
-                bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+                bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
             )
             .unwrap();
         let driver = Qwen3AsrStreamDriver::new(
@@ -213,7 +213,7 @@ mod sortformer_speakers {
                 "openai/base",
                 &weights_cache(),
                 &device,
-                bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+                bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
             )
             .unwrap();
         let driver = WhisperStreamDriverConfig::new()
