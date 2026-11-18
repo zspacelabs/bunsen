@@ -38,7 +38,9 @@
 //! - [`Derived`] &mdash; a parameter forward reads through a fixed transform
 //!   ([`ParamFn`]: `abs`, `-exp`, a widening cast), as `effective()`: computed
 //!   on every read in its stored form, folded once by `Module::materialize` for
-//!   inference ([`ParamForm`]). Its checkpoint keys are a bare param's.
+//!   inference ([`ParamForm`]). Its checkpoint keys are a bare param's. With
+//!   `std`: `Materialized`, a module so baked; `derived_params`, a module's;
+//!   `ensure_derived_stored`, the loaders' check.
 //!
 //! `ModuleInit` and `ToStructureConfig` are also in [`crate::prelude`].
 //!
@@ -69,6 +71,8 @@ mod dtype_traits;
 mod forward_module;
 mod gate;
 mod has_dtype;
+#[cfg(feature = "std")]
+mod materialized;
 mod module_init;
 mod rekey;
 mod tensor_load_transforms;
@@ -81,6 +85,8 @@ pub use dtype_traits::*;
 pub use forward_module::*;
 pub use gate::*;
 pub use has_dtype::*;
+#[cfg(feature = "std")]
+pub use materialized::*;
 pub use module_init::*;
 pub use rekey::*;
 pub use tensor_load_transforms::*;

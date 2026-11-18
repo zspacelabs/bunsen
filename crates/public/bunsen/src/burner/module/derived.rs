@@ -227,6 +227,8 @@ impl<const D: usize> Module for Derived<D> {
         &self,
         visitor: &mut Visitor,
     ) {
+        #[cfg(feature = "std")]
+        super::note_derived(self.param.id, self.transform.name, self.form);
         Module::visit(&self.param, visitor);
     }
 

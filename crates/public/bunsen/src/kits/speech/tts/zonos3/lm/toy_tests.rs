@@ -217,3 +217,22 @@ fn test_toy_materialized() {
     let logits = baked.forward(toy.ids(), &toy.rows(), None);
     assert_eq!(logits.into_data(), live.into_data());
 }
+
+/// A checkpoint loads into stored forms: the loader refuses a materialized
+/// model, whose derived params would take raw values marked effective.
+#[test]
+fn test_toy_refuses_a_materialized_model() {
+    use crate::{
+        burner::module::Materialized,
+        errors::BunsenErrorKind,
+    };
+
+    let toy = Toy::load();
+    let mut baked = Materialized::new(&toy.model).module().clone();
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &toy.device);
+    let error =
+        load_zonos3_lm_tensors(&mut baked, &toy.config, fixture.take_weights(), None).unwrap_err();
+    assert_eq!(error.kind(), BunsenErrorKind::Illegal);
+    assert!(error.to_string().contains("stack.queries"), "{error}");
+}

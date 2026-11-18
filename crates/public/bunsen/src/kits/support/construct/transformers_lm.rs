@@ -189,7 +189,10 @@ impl<K: TransformersLmKit> ConstructInit for K {
 /// floating tensor in `dtype`, or, when `None`, the dtype it was built in.
 ///
 /// # Errors
-/// As [`Rekey::load`].
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a model whose
+/// derived params are materialized
+/// ([`ensure_derived_stored`](crate::burner::module::ensure_derived_stored));
+/// as [`Rekey::load`].
 pub fn load_lm_rekeyed<W: LmDecoderHolder>(
     model: &mut W,
     tensors: impl IntoIterator<Item = PackTensor>,
@@ -197,6 +200,7 @@ pub fn load_lm_rekeyed<W: LmDecoderHolder>(
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let lm = model.lm_mut();
+    crate::burner::module::ensure_derived_stored(&*lm)?;
     let rekey = rekey.then(lm.canonical_rekey());
     rekey.load(lm, tensors, dtype)
 }

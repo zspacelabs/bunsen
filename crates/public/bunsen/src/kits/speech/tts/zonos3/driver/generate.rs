@@ -32,6 +32,7 @@ use super::{
     zonos3_output_stage,
 };
 use crate::{
+    burner::module::Materialized,
     errors::{
         BunsenError,
         BunsenResult,
@@ -41,7 +42,10 @@ use crate::{
         speech::tts::zonos3::{
             Zonos3Construct,
             Zonos3GenerationJson,
-            lm::Zonos3RowConditioning,
+            lm::{
+                Zonos3Lm,
+                Zonos3RowConditioning,
+            },
             prompt::{
                 Zonos3PromptRequest,
                 Zonos3Speaker,
@@ -199,9 +203,14 @@ pub struct Zonos3Speech {
 /// cache, each row's codes sampled by [`Zonos3Sampler`] and fed back with the
 /// text pad, until [`Zonos3TakeRows`]'s stop rule; then the frames it covers,
 /// decoded by the codec, through the output stage ([`zonos3_output_stage`]).
+///
+/// It runs its own copy of the language model, materialized for inference
+/// ([`Materialized`]): the derived params (the decays, the time-step biases,
+/// the query gains, the route queries) folded once rather than on every step.
 #[derive(Debug)]
 pub struct Zonos3Driver<T: Tokenizer> {
     construct: Arc<Zonos3Construct>,
+    lm: Materialized<Zonos3Lm>,
     normalizer: Zonos3Normalizer,
     sampler: Zonos3Sampler,
     tokenizer: T,
@@ -229,12 +238,16 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         }
         let normalizer =
             Zonos3Normalizer::new(&config.normalization, &construct.generation.languages)?;
-        let lm = &construct.lm_config;
-        let sampler = config
-            .sampler
-            .init(lm.codebook_size, lm.eoa_id(), lm.audio_vocab());
+        let lm_config = &construct.lm_config;
+        let sampler = config.sampler.init(
+            lm_config.codebook_size,
+            lm_config.eoa_id(),
+            lm_config.audio_vocab(),
+        );
+        let lm = Materialized::new(&construct.lm);
         Ok(Self {
             construct,
+            lm,
             normalizer,
             sampler,
             tokenizer,
@@ -284,7 +297,7 @@ impl<T: Tokenizer> Zonos3Driver<T> {
     }
 
     fn device(&self) -> Device {
-        self.construct.lm.head.weight.device()
+        self.lm.module().head.weight.device()
     }
 
     /// The last row's logits of `[1, T, K, V]`, `[K, V]`.
@@ -305,7 +318,7 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         &self,
         request: &Zonos3Request,
     ) -> BunsenResult<Zonos3Codes> {
-        let lm = &self.construct.lm;
+        let lm = self.lm.module();
         let layout = &self.construct.prompt;
         let max_rows = self.construct.lm_config.max_rows;
         let prompt = layout.build(&Zonos3PromptRequest {

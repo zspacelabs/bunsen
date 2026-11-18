@@ -195,6 +195,9 @@ fn is_weightless_scale(
 /// router reads them in f32, whatever dtype they load in.)
 ///
 /// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a model whose
+/// derived params are materialized
+/// ([`ensure_derived_stored`](crate::burner::module::ensure_derived_stored));
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) as
 /// [`split_rows`] and [`Rekey::load`]: a tensor that does not split, does
 /// not fit, or a parameter the file lacks;
@@ -206,6 +209,7 @@ pub fn load_zonos3_lm_tensors(
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
+    crate::burner::module::ensure_derived_stored(&*model)?;
     let tensors: Vec<PackTensor> = tensors
         .into_iter()
         .filter(|t| t.name.starts_with(ZONOS3_LM_PREFIX))
