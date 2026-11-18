@@ -197,3 +197,23 @@ fn test_toy_cached() {
         toy.expected("lm.decode_logits"),
     );
 }
+
+/// Materialized for inference, the model holds its derived params in their
+/// effective forms (the decays, the time-step biases, the route queries) and
+/// gives the live model's logits, bit for bit.
+#[test]
+fn test_toy_materialized() {
+    use crate::burner::module::ParamForm;
+
+    let toy = Toy::load();
+    let live = toy.model.forward(toy.ids(), &toy.rows(), None);
+    let baked = toy.model.valid().materialize();
+    assert_eq!(baked.stack.queries.form(), ParamForm::Effective);
+    assert_eq!(
+        toy.model.stack.queries.form(),
+        ParamForm::Stored,
+        "the live model as it was"
+    );
+    let logits = baked.forward(toy.ids(), &toy.rows(), None);
+    assert_eq!(logits.into_data(), live.into_data());
+}

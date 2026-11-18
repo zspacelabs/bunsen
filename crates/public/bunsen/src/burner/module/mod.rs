@@ -60,6 +60,7 @@
 pub mod reflection;
 
 mod canonical_keys;
+mod derived;
 mod dtype_traits;
 mod forward_module;
 mod gate;
@@ -71,6 +72,7 @@ mod to_structure_config;
 mod type_mapper;
 
 pub use canonical_keys::*;
+pub use derived::*;
 pub use dtype_traits::*;
 pub use forward_module::*;
 pub use gate::*;
