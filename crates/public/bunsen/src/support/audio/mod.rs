@@ -1,8 +1,9 @@
 //! # Audio Support
 //!
 //! [`load_audio_mono_sr`]: a mono file at the rate a model needs, decoded,
-//! never resampled. [`Resampler`] (and [`resample`], for a whole signal):
-//! the rate conversion a caller decides on.
+//! never resampled; [`save_wav_mono`], mono samples to a WAV file.
+//! [`Resampler`] (and [`resample`], for a whole signal): the rate conversion
+//! a caller decides on.
 
 mod resample;
 use std::path::Path;
@@ -10,6 +11,8 @@ use std::path::Path;
 use hound::{
     SampleFormat,
     WavReader,
+    WavSpec,
+    WavWriter,
 };
 pub use resample::*;
 use symphonia::core::{
@@ -69,6 +72,35 @@ pub fn load_audio_mono_sr(
         "wav" | "wave" => load_wav_mono_sr(filename, sample_rate),
         _ => load_compressed_mono_sr(filename, &ext, sample_rate),
     }
+}
+
+/// Writes mono `samples`, in `[-1, 1]` (clipped there), to a 16-bit PCM WAV
+/// file at `sample_rate`.
+///
+/// # Errors
+/// Naming the file: as [`sys_at`] sorts an io failure;
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for
+/// any other failure to write the WAV.
+pub fn save_wav_mono(
+    filename: impl AsRef<Path>,
+    samples: &[f32],
+    sample_rate: u32,
+) -> BunsenResult<()> {
+    let filename = filename.as_ref();
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate,
+        bits_per_sample: 16,
+        sample_format: SampleFormat::Int,
+    };
+    let mut writer = WavWriter::create(filename, spec).map_err(hound_error("create", filename))?;
+    for &sample in samples {
+        let pcm = (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)).round() as i16;
+        writer
+            .write_sample(pcm)
+            .map_err(hound_error("write", filename))?;
+    }
+    writer.finalize().map_err(hound_error("write", filename))
 }
 
 /// Rejects anything that is not single-channel audio at `expected`.
@@ -301,6 +333,21 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("tone.wav: the sample rate is 16000; it must be 8000")
             .assert_err(&load_audio_mono_sr(wav(), 8000));
+    }
+
+    /// Saved samples load back within the 16-bit step, clipped to `[-1, 1]`.
+    #[test]
+    fn test_save_wav_mono() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("saved.wav");
+        let samples = [0.0, 0.5, -0.25, 1.5, -2.0];
+        save_wav_mono(&path, &samples, 8000).unwrap();
+        let loaded = load_audio_mono_sr(&path, 8000).unwrap();
+        let expected = [0.0, 0.5, -0.25, 1.0, -1.0];
+        assert_eq!(loaded.len(), expected.len());
+        for (got, want) in loaded.iter().zip(expected) {
+            assert!((got - want).abs() < 1e-4, "{got} vs {want}");
+        }
     }
 
     /// mp3 goes through a different decoder than WAV, so it gets its own case.
