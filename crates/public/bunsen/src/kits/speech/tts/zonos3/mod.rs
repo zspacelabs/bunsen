@@ -24,6 +24,9 @@
 //!   [`unshear`](prompt::unshear)) the audio rows follow. Its text is
 //!   normalized by the caller; [`zonos3_text_ids`](prompt::zonos3_text_ids)
 //!   tokenizes it.
+//! - [`sampler`]: each step's codes from its logits,
+//!   [`Zonos3Sampler`](sampler::Zonos3Sampler), as the release samples them
+//!   (its settings, [`Zonos3SamplerConfig`](sampler::Zonos3SamplerConfig)).
 //! - [`voices`] (feature `store`): the stock voices, each reference codes and a
 //!   speaker embedding.
 //! - [`Zonos3Json`]: the release's `config.json`, from which
@@ -36,9 +39,8 @@
 //!   `zyphra/zonos3/zonos3-mini`, and the factory that loads it into a
 //!   construct.
 //!
-//! The kit has no sampler or driver: a caller samples each step's logits
-//! (`config.json`'s `generation` section holds the release's settings), and
-//! decodes the unsheared codes with the codec.
+//! The kit has no driver: a caller samples each step's logits with the
+//! sampler, and decodes the unsheared codes with the codec.
 //!
 //! The weights are `Zyphra/ZONOS3-Mini-hf`'s `model.safetensors`, whose
 //! `lm.*` tensors are upstream's release language model as it is
@@ -48,6 +50,7 @@
 pub mod codec;
 pub mod lm;
 pub mod prompt;
+pub mod sampler;
 
 mod config;
 pub use config::*;
