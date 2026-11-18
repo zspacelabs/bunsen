@@ -10,7 +10,6 @@ use burn::{
     tensor::{
         DType,
         Device,
-        FloatDType,
         activation::softmax,
     },
 };
@@ -20,6 +19,7 @@ use burn::{
 use num_traits::Float;
 
 use crate::{
+    burner::tensor::Widening,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -59,12 +59,13 @@ pub struct ScaledDotProductAttentionConfig {
     #[config(default = "true")]
     pub enable_dropout_during_inference: bool,
 
-    /// The dtype the softmax runs in: the scores are cast to it, their bias
-    /// built in it, and the weights cast back to the query's dtype after.
-    /// `None` runs it in the query's dtype. `transformers` runs it in f32
+    /// The widening the softmax runs in, from the query's dtype: the scores
+    /// are widened, their bias built in the compute dtype, and the weights
+    /// narrowed back to the query's dtype after. [`Widening::NONE`] runs it
+    /// in the query's dtype; [`Widening::F32`] is `transformers`' f32 softmax
     /// for a half model (`softmax(..., dtype=torch.float32)`).
-    #[config(default = "None")]
-    pub softmax_dtype: Option<FloatDType>,
+    #[config(default = "Widening::NONE")]
+    pub softmax_widening: Widening,
 
     /// A soft-cap on the scaled scores, `c · tanh(s / c)`, before the bias
     /// and mask (Gemma 2's 50); `None`, none.
@@ -128,8 +129,8 @@ pub fn scaled_dot_product_attention(
 /// the config's soft-cap if it has one (`c · tanh(s / c)`), then
 /// dropout on those probabilities when the config sets a rate, as in
 /// `PyTorch`'s reference. The scores are the query's dtype; the softmax runs
-/// in the config's `softmax_dtype` when it sets one, and the weight is the
-/// query's dtype either way.
+/// widened by the config's `softmax_widening`, and the weight is the query's
+/// dtype either way.
 ///
 /// # Arguments
 /// - `q`: the query tensor, as `[B, H_q, T_q, D]`.
@@ -175,15 +176,15 @@ pub fn sdpa_attn_weight(
         None => scores,
     };
 
-    let softmax_dtype = config.softmax_dtype.map_or(dtype, DType::from);
-    let scores = scores.cast(softmax_dtype);
+    let scope = config.softmax_widening.scope(dtype);
+    let scores = scope.widen(scores);
     let attn_bias = sdpa_bias(
         t_q,
         t_k,
         config.is_causal,
         bias,
         mask,
-        softmax_dtype,
+        scope.compute(),
         &device,
     );
     let mut scores = scores + attn_bias.unsqueeze();
@@ -211,7 +212,7 @@ pub fn sdpa_attn_weight(
     if let Some(blind) = blind {
         attn_weight = attn_weight.mask_fill(blind, 0.0);
     }
-    let mut attn_weight = attn_weight.cast(dtype);
+    let mut attn_weight = scope.narrow(attn_weight);
 
     if let Some(prob) = config.dropout
         && (config.enable_dropout_during_inference || attn_weight.device().is_autodiff())
@@ -554,11 +555,12 @@ mod tests {
         );
     }
 
-    /// With `softmax_dtype` f32, bf16 attention keeps the query's dtype and
-    /// lands nearer the f32 attention than an all-bf16 softmax: the scores'
-    /// exponentials are where bf16 loses most.
+    /// With the softmax widened to f32, bf16 attention keeps the query's
+    /// dtype and lands nearer the f32 attention than an all-bf16 softmax: the
+    /// scores' exponentials are where bf16 loses most. An f64 attention's
+    /// softmax stays in f64.
     #[test]
-    fn test_softmax_dtype() {
+    fn test_softmax_widening() {
         let device = cpu_device();
         let q = seeded_tensor::<4>(1, [1, 2, 6, 8], Distribution::Normal(0.0, 3.0), &device);
         let k = seeded_tensor::<4>(2, [1, 2, 6, 8], Distribution::Normal(0.0, 3.0), &device);
@@ -584,7 +586,7 @@ mod tests {
                 .into_scalar::<f32>()
         };
         let in_bf16 = run(causal);
-        let in_f32 = run(causal.with_softmax_dtype(Some(FloatDType::F32)));
+        let in_f32 = run(causal.with_softmax_widening(Widening::F32));
         assert!(
             in_f32 <= in_bf16,
             "f32 softmax {in_f32}, bf16 softmax {in_bf16}"
@@ -599,8 +601,16 @@ mod tests {
             Some(bias),
             None,
             None,
-            causal.with_softmax_dtype(Some(FloatDType::F32)),
+            causal.with_softmax_widening(Widening::F32),
         );
         assert_eq!(out.dtype(), DType::BF16);
+
+        assert!(device.supports_dtype(DType::F64));
+        let wide = |t: &Tensor<4>| t.clone().cast(DType::F64);
+        let run64 = |config| {
+            scaled_dot_product_attention(wide(&q), wide(&k), wide(&v), None, None, None, config)
+                .into_data()
+        };
+        run64(causal.with_softmax_widening(Widening::F32)).assert_eq(&run64(causal), true);
     }
 }

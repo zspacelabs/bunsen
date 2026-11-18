@@ -35,7 +35,10 @@ use crate::{
             },
         },
     },
-    burner::module::ToStructureConfig,
+    burner::{
+        module::ToStructureConfig,
+        tensor::Widening,
+    },
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCacheConfig,
@@ -104,11 +107,11 @@ pub struct Qwen3Config {
     #[config(default = "true")]
     pub tied_head: bool,
 
-    /// The dtype attention's softmax runs in. `transformers` runs it in f32
-    /// for a half model (`softmax(..., dtype=torch.float32)`), which this
-    /// keeps; in an f32 model it changes nothing.
-    #[config(default = "Some(FloatDType::F32)")]
-    pub softmax_dtype: Option<FloatDType>,
+    /// The widening attention's softmax runs in. `transformers` runs it in
+    /// f32 for a half model (`softmax(..., dtype=torch.float32)`), which
+    /// [`Widening::F32`] keeps; in an f32 model it changes nothing.
+    #[config(default = "Widening::F32")]
+    pub softmax_widening: Widening,
 
     /// The dtype the logits leave the model in: f32, as `transformers`
     /// generates from (`logits.float()`), whatever the model computes in.
@@ -179,7 +182,7 @@ impl Qwen3Config {
                     .with_head_dim(Some(self.head_dim))
                     .with_norm(Some(norm(self.head_dim)))
                     .with_qk_norm(QkNormPlacement::BeforeRope)
-                    .with_softmax_dtype(self.softmax_dtype)
+                    .with_softmax_widening(self.softmax_widening)
                     .into(),
                 TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )

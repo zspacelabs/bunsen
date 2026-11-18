@@ -38,6 +38,7 @@ use crate::{
             },
         },
     },
+    burner::tensor::Widening,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -165,11 +166,11 @@ pub struct CausalSelfAttentionConfig {
     #[config(default = "AttentionMask::Causal")]
     pub mask: AttentionMask,
 
-    /// The dtype the attention's softmax runs in
-    /// ([`ScaledDotProductAttentionConfig::softmax_dtype`]); `None` runs it
-    /// in the queries' dtype.
-    #[config(default = "None")]
-    pub softmax_dtype: Option<FloatDType>,
+    /// The widening the attention's softmax runs in
+    /// ([`ScaledDotProductAttentionConfig::softmax_widening`]);
+    /// [`Widening::NONE`] runs it in the queries' dtype.
+    #[config(default = "Widening::NONE")]
+    pub softmax_widening: Widening,
 
     /// The scores' scale; `None`, `1 / sqrt(head_dim)`. Gemma's is
     /// `query_pre_attn_scalar^-0.5`, which need not be the head width's;
@@ -371,7 +372,7 @@ impl CausalSelfAttentionConfig {
             qk_norm: self.qk_norm,
             sliding_window: self.sliding_window,
             mask: self.mask,
-            softmax_dtype: self.softmax_dtype,
+            softmax_widening: self.softmax_widening,
             output_gate: self.output_gate,
             c_q: linear(
                 self.n_embed,
@@ -453,9 +454,9 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub mask: AttentionMask,
 
-    /// The dtype the softmax runs in; `None`, the queries'.
+    /// The widening the softmax runs in.
     #[module(skip)]
-    pub softmax_dtype: Option<FloatDType>,
+    pub softmax_widening: Widening,
 
     /// The sigmoid gate on the output, if any
     /// ([`CausalSelfAttentionConfig::output_gate`]).
@@ -594,11 +595,11 @@ impl CausalSelfAttention {
     }
 
     /// The attention's own sdpa options: the head grouping, the softmax's
-    /// dtype, the scores' scale and soft-cap.
+    /// widening, the scores' scale and soft-cap.
     fn sdpa_config(&self) -> ScaledDotProductAttentionConfig {
         ScaledDotProductAttentionConfig::new()
             .with_enable_gqa(self.gqa_enabled())
-            .with_softmax_dtype(self.softmax_dtype)
+            .with_softmax_widening(self.softmax_widening)
             .with_scale(self.score_scale)
             .with_softcap(self.attn_softcap)
     }

@@ -48,7 +48,7 @@ fermion:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     $hub:
       $repo: FermionResearch/Phonon-1
@@ -94,7 +94,7 @@ fermion:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     $hub:
       $repo: FermionResearch/Phonon-1-Micro
@@ -140,7 +140,7 @@ fermion:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     $hub:
       $repo: FermionResearch/Phonon-1-Big
@@ -193,7 +193,7 @@ qwen:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     $hub:
       $repo: Qwen/Qwen3-ASR-0.6B-hf
@@ -249,7 +249,7 @@ qwen:
           n_vocab: 151936
           rms_eps: 1.0e-6
           rope_theta: 1000000
-          softmax_dtype: F32
+          softmax_widening: F32
           tied_head: true
     $hub:
       $repo: Qwen/Qwen3-ASR-1.7B-hf
