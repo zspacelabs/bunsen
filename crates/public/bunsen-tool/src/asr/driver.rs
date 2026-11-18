@@ -10,7 +10,10 @@ use bunsen::kits::speech::{
     asr::whisper::driver::WhisperStreamContext,
 };
 use bunsen::{
-    data::resources::ResourceCache,
+    data::{
+        formats::LoadPolicy,
+        resources::ResourceCache,
+    },
     errors::BunsenResult,
     kits::speech::{
         asr::{
@@ -56,18 +59,37 @@ impl Driver {
         speakers: Option<Arc<dyn SpeakerActivityModel>>,
         cache: &ResourceCache,
         device: &Device,
+        policy: LoadPolicy,
     ) -> BunsenResult<Self> {
         Ok(match loaded {
             AsrConstructWrapper::Parakeet(bundle) => Driver::Parakeet(stream::with_speakers(
-                stream::with_vad(parakeet::driver(bundle, emission)?, vad, cache, device)?,
+                stream::with_vad(
+                    parakeet::driver(bundle, emission)?,
+                    vad,
+                    cache,
+                    device,
+                    policy,
+                )?,
                 speakers,
             )?),
             AsrConstructWrapper::Qwen3Asr(bundle) => Driver::Qwen3Asr(stream::with_speakers(
-                stream::with_vad(qwen3_asr::driver(bundle, emission)?, vad, cache, device)?,
+                stream::with_vad(
+                    qwen3_asr::driver(bundle, emission)?,
+                    vad,
+                    cache,
+                    device,
+                    policy,
+                )?,
                 speakers,
             )?),
             AsrConstructWrapper::Voxtral(bundle) => Driver::Voxtral(stream::with_speakers(
-                stream::with_vad(voxtral::driver(bundle, emission)?, vad, cache, device)?,
+                stream::with_vad(
+                    voxtral::driver(bundle, emission)?,
+                    vad,
+                    cache,
+                    device,
+                    policy,
+                )?,
                 speakers,
             )?),
             AsrConstructWrapper::Whisper(bundle) => {
@@ -77,6 +99,7 @@ impl Driver {
                         vad,
                         cache,
                         device,
+                        policy,
                     )?,
                     speakers,
                 )?))

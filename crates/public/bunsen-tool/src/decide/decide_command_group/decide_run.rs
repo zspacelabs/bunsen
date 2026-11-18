@@ -9,7 +9,6 @@ use std::{
 };
 
 use bunsen::{
-    data::formats::LoadPolicy,
     errors::{
         BunsenError,
         BunsenResult,
@@ -33,6 +32,7 @@ use bunsen_app::{
         LogArgs,
         LogPolicy,
     },
+    precision::MinPrecisionArgs,
 };
 use burn::tensor::Device;
 use clap::ArgMatches;
@@ -59,9 +59,13 @@ pub struct DecideRunCommand {
 
     /// The device. The checkpoint loads at the precision it ships in (f16)
     /// where the device accelerates it, else in f32
-    /// (`LoadPolicy::performance`).
+    /// (`LoadPolicy::performance`); `--min-precision` puts a floor under that.
     #[clap(flatten)]
     device: BackendArgs,
+
+    /// The narrowest float the checkpoint's weights are placed in.
+    #[clap(flatten)]
+    precision: MinPrecisionArgs,
 
     /// The checkpoint, chosen among Laya's builds by `--model` and the stage
     /// flags; the default checkpoint when nothing is named.
@@ -101,7 +105,7 @@ impl DecideRunCommand {
             &model,
             &cache,
             &device,
-            LoadPolicy::performance(),
+            self.precision.load_policy(),
         )?;
         let answers = decide(&construct, &request, &device)?;
         print!("{}", self.format.render(&answers, "the results")?);

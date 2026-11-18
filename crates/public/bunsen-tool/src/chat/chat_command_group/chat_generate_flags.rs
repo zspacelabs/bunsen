@@ -28,6 +28,7 @@ use bunsen_app::{
         LogArgs,
         LogPolicy,
     },
+    precision::MinPrecisionArgs,
 };
 use clap::ArgMatches;
 
@@ -64,9 +65,14 @@ pub struct ChatGenerateFlags {
 
     /// The device. The checkpoint loads at the precision it ships in where
     /// the device accelerates it, else in f32: Qwen3's bf16 on cuda and
-    /// metal, f32 on vulkan, wgpu and the CPU (`LoadPolicy::performance`).
+    /// metal, f32 on vulkan, wgpu and the CPU (`LoadPolicy::performance`);
+    /// `--min-precision` puts a floor under that.
     #[clap(flatten)]
     device: BackendArgs,
+
+    /// The narrowest float the checkpoint's weights are placed in.
+    #[clap(flatten)]
+    precision: MinPrecisionArgs,
 
     /// The checkpoint, chosen among the family's builds (outside `family`,
     /// every chat family's) by `--model` and the stage flags, the presets
@@ -186,7 +192,7 @@ impl ChatGenerateFlags {
         if let Some(patch) = self.choose.patch()? {
             name = with_patch(&name, &patch)?;
         }
-        let (chat, build) = family.load(&name, &cache, &device)?;
+        let (chat, build) = family.load(&name, &cache, &device, self.precision.load_policy())?;
         Ok((device, chat, name, build))
     }
 

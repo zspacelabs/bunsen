@@ -18,6 +18,7 @@ use bunsen_app::{
         LogArgs,
         LogPolicy,
     },
+    precision::MinPrecisionArgs,
 };
 
 use super::{
@@ -51,6 +52,10 @@ pub struct AsrDiarizeRunCommand {
     #[clap(flatten)]
     pub device: BackendArgs,
 
+    /// The narrowest float the models' weights are placed in.
+    #[clap(flatten)]
+    pub precision: MinPrecisionArgs,
+
     #[clap(flatten)]
     pub output: AsrDiarizeOutputArgs,
 
@@ -65,7 +70,9 @@ impl AsrDiarizeRunCommand {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let device = self.device.open()?;
         let cache = self.cache.init()?;
-        let bundle = self.diarizer.load(&cache, &device)?;
+        let bundle = self
+            .diarizer
+            .load(&cache, &device, self.precision.load_policy())?;
         let streaming = bundle.streaming()?;
         let filter = bundle.turns().clone();
         let rate = bundle.sample_rate();

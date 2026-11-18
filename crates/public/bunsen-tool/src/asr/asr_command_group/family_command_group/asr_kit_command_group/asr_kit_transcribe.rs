@@ -24,6 +24,7 @@ use bunsen_app::{
         LogArgs,
         LogPolicy,
     },
+    precision::MinPrecisionArgs,
 };
 
 use crate::{
@@ -103,6 +104,10 @@ pub struct AsrTranscribeIo {
     #[clap(flatten)]
     pub device: BackendArgs,
 
+    /// The narrowest float the models' weights are placed in.
+    #[clap(flatten)]
+    pub precision: MinPrecisionArgs,
+
     #[clap(flatten)]
     pub publish: PublishArgs,
 
@@ -159,9 +164,10 @@ impl AsrTranscribeIo {
         let device = self.device.open()?;
         // The options come from the command line.
         let cache = ResourceCache::new(flags.cache_options(self.cache.options())).as_policy()?;
-        let (loaded, build) = family.load(model, flags, &cache, &device)?;
+        let policy = self.precision.load_policy();
+        let (loaded, build) = family.load(model, flags, &cache, &device, policy)?;
         log_build(model, &build);
-        let speakers = self.speakers.diarizer(&cache, &device)?;
+        let speakers = self.speakers.diarizer(&cache, &device, policy)?;
 
         let driver = Driver::build(
             loaded,
@@ -170,6 +176,7 @@ impl AsrTranscribeIo {
             speakers,
             &cache,
             &device,
+            policy,
         )?;
         let rate = driver.sample_rate();
         let chunk = driver.push_samples(streaming.chunk_ms);

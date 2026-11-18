@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use bunsen::{
-    data::resources::ResourceCache,
+    data::{
+        formats::LoadPolicy,
+        resources::ResourceCache,
+    },
     errors::BunsenResult,
     kits::speech::diarization::{
         SpeakerTurn,
@@ -20,7 +23,8 @@ use crate::asr::{
     speaker_name,
 };
 
-/// Loads diarizer `model` through `cache`, logging its info card.
+/// Loads diarizer `model` through `cache` under `policy`, logging its info
+/// card.
 ///
 /// # Errors
 /// As the factory resolving the name, and the load.
@@ -28,11 +32,13 @@ pub fn load_diarizer(
     model: &str,
     cache: &ResourceCache,
     device: &Device,
+    policy: LoadPolicy,
 ) -> BunsenResult<Arc<SortformerConstruct>> {
     let bundle = load_logged(
         default_sortformer_factory()?.resolve(model, cache)?,
         cache,
         device,
+        policy,
     )?
     .handle;
     log::info!("  {bundle}");

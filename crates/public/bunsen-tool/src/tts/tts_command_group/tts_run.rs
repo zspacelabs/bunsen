@@ -11,7 +11,6 @@ use std::{
 };
 
 use bunsen::{
-    data::formats::LoadPolicy,
     errors::{
         BunsenError,
         BunsenResult,
@@ -40,6 +39,7 @@ use bunsen_app::{
         LogArgs,
         LogPolicy,
     },
+    precision::MinPrecisionArgs,
 };
 use clap::ArgMatches;
 use log::LevelFilter;
@@ -77,9 +77,13 @@ pub struct TtsRunCommand {
 
     /// The device. The language model loads at the precision it ships in
     /// (bf16) where the device accelerates it, else in f32
-    /// (`LoadPolicy::performance`).
+    /// (`LoadPolicy::performance`); `--min-precision` puts a floor under that.
     #[clap(flatten)]
     device: BackendArgs,
+
+    /// The narrowest float the checkpoint's weights are placed in.
+    #[clap(flatten)]
+    precision: MinPrecisionArgs,
 
     /// The checkpoint, chosen among ZONOS3's builds by `--model` and the
     /// stage flags; the default checkpoint when nothing is named.
@@ -183,7 +187,7 @@ impl TtsRunCommand {
             &model,
             &cache,
             &device,
-            LoadPolicy::performance(),
+            self.precision.load_policy(),
         )?;
         let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer)?;
         let config = self.config(Zonos3DriverConfig::from_generation(&construct.generation));

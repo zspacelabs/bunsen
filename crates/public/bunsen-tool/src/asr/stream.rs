@@ -126,12 +126,13 @@ pub fn with_vad<E: AsrEngine>(
     vad: Option<&str>,
     cache: &ResourceCache,
     device: &Device,
+    policy: LoadPolicy,
 ) -> BunsenResult<AsrStreamDriver<E>> {
     let Some(vad) = vad else {
         return Ok(driver);
     };
     let vad = default_silero_factory()?
-        .load(vad, cache, device, LoadPolicy::performance())?
+        .load(vad, cache, device, policy)?
         .handle;
     let rate = driver.sample_rate();
     driver.with_vad(
