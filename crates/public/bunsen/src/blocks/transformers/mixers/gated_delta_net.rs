@@ -5,10 +5,7 @@ use alloc::string::ToString;
 use burn::{
     Tensor,
     config::Config,
-    module::{
-        Module,
-        Param,
-    },
+    module::Module,
     nn::{
         Initializer,
         Linear,
@@ -41,8 +38,10 @@ use crate::{
     },
     burner::{
         module::{
+            Derived,
             InputDTypes,
             ModuleInit,
+            ParamFn,
             ResultDType,
         },
         tensor::Widening,
@@ -223,12 +222,15 @@ impl GatedDeltaNetConfig {
                 .init(device),
             // As upstream's init: a decay rate `A` in [1, 16], a time-step
             // bias of one.
-            a_log: Initializer::Uniform {
-                min: 0.0,
-                max: 16f64.ln(),
-            }
-            .init([heads], device),
-            dt_bias: Initializer::Ones.init([heads], device),
+            a_log: Derived::new(
+                Initializer::Uniform {
+                    min: 0.0,
+                    max: 16f64.ln(),
+                }
+                .init([heads], device),
+                NEG_EXP_F32,
+            ),
+            dt_bias: Derived::new(Initializer::Ones.init([heads], device), ParamFn::WIDEN_F32),
             norm: self
                 .norm
                 .clone()
@@ -249,6 +251,18 @@ impl GatedDeltaNetConfig {
         self.try_init(layer_index, device).ok_or_panic()
     }
 }
+
+/// A decay rate's effective form: `-exp(a_log)`, in at least f32.
+pub const NEG_EXP_F32: ParamFn<1> = ParamFn {
+    name: "neg_exp_f32",
+    apply: |a_log| {
+        crate::burner::tensor::Widening::F32
+            .scope(a_log.dtype())
+            .widen(a_log)
+            .exp()
+            .neg()
+    },
+};
 
 /// The gated `DeltaNet` (Yang et al., *Gated Delta Networks*), the
 /// linear-attention token mixer of Qwen3.5's hybrid layers
@@ -307,11 +321,13 @@ pub struct GatedDeltaNet {
     /// and values: its weight, `[C, 1, K]`, alone is used.
     pub conv1d: Conv1d,
 
-    /// The log of each value head's decay rate, `[H_v]` (`A_log`).
-    pub a_log: Param<Tensor<1>>,
+    /// The log of each value head's decay rate, `[H_v]` (`A_log`), read as
+    /// `-exp(a_log)` in at least f32 ([`NEG_EXP_F32`]).
+    pub a_log: Derived<1>,
 
-    /// The time-step bias, `[H_v]`.
-    pub dt_bias: Param<Tensor<1>>,
+    /// The time-step bias, `[H_v]`, read in at least f32
+    /// ([`ParamFn::WIDEN_F32`]).
+    pub dt_bias: Derived<1>,
 
     /// The gated output norm, over each value head.
     pub norm: GatedNorm,
@@ -422,8 +438,11 @@ impl GatedDeltaNet {
         let beta = sigmoid(self.in_proj_b.forward(x.clone()));
         let a = self.in_proj_a.forward(x.clone());
         let w = Widening::F32.scope(a.dtype());
-        let g = w.widen(self.a_log.val()).exp().neg().unsqueeze::<3>()
-            * softplus(w.widen(a) + w.widen(self.dt_bias.val()).unsqueeze(), 1.0);
+        let g = w.widen(self.a_log.effective()).unsqueeze::<3>()
+            * softplus(
+                w.widen(a) + w.widen(self.dt_bias.effective()).unsqueeze(),
+                1.0,
+            );
 
         let initial = state.as_deref().map(|s| s.recurrent.clone());
         let (core, recurrent) = if t == 1 {
@@ -520,5 +539,21 @@ mod tests {
         assert_tensors_close(&Tensor::cat(parts, 1), &whole, Tolerance::default());
         assert_tensors_close(&state.conv, &one_pass.conv, Tolerance::default());
         assert_tensors_close(&state.recurrent, &one_pass.recurrent, Tolerance::default());
+    }
+
+    /// Materialized for inference, the decay and the time-step bias hold
+    /// their effective forms, and the forward is the live one, bit for bit.
+    #[test]
+    fn test_materialized() {
+        use crate::burner::module::ParamForm;
+
+        let device = cpu_device();
+        let net = config().init(0, &device);
+        let x = seeded_tensor::<3>(5, [2, 9, 16], Distribution::Default, &device);
+        let live = net.forward(x.clone(), None);
+        let baked = net.valid().materialize();
+        assert_eq!(baked.a_log.form(), ParamForm::Effective);
+        assert_eq!(baked.dt_bias.form(), ParamForm::Effective);
+        assert_eq!(baked.forward(x, None).into_data(), live.into_data());
     }
 }
