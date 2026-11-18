@@ -774,15 +774,29 @@ impl DecoderStack {
     /// The rotary tables for positions `0..seq_len`: [`rotary`](Self::rotary)'s
     /// first, then each of [`rotary_alts`](Self::rotary_alts), and which one
     /// each layer applies.
+    ///
+    /// Each table is in the dtype its rotation computes in for the stack's
+    /// parameters (its
+    /// [`widening`](crate::blocks::transformers::embedding::RotaryEmbedding::widening)
+    /// of their dtype), so applying it casts nothing: a bf16 stack's tables are
+    /// bf16, one widened to f32 keeps them f32.
     pub fn rotary(
         &self,
         seq_len: usize,
         device: &Device,
     ) -> RotarySet {
+        let dtype = crate::burner::module::module_float_dtype(self).map(burn::tensor::DType::from);
         let table = |config: &RotaryEmbeddingConfig| {
             let mut config = config.clone();
             config.seq_len = seq_len;
-            config.init(device)
+            let table = config.init(device);
+            match dtype {
+                Some(dtype) => {
+                    let compute = table.widening.compute(dtype);
+                    table.cast(compute)
+                }
+                None => table,
+            }
         };
         RotarySet {
             tables: core::iter::once(&self.rotary)
@@ -1147,6 +1161,50 @@ mod tests {
                 })
                 .try_to_structure(),
             );
+    }
+
+    /// A half stack's tables are built in its dtype, so a rotation casts
+    /// nothing; they rotate as the f32 tables cast at each apply did.
+    #[test]
+    fn test_rotary_tables_in_the_stacks_dtype() {
+        use burn::tensor::{
+            DType,
+            Distribution,
+        };
+
+        use crate::burner::module::DTypeMapper;
+
+        let device = crate::support::testing::cpu_device();
+        let Some(half) = [DType::F16, DType::BF16]
+            .into_iter()
+            .find(|d| device.supports_dtype(*d))
+        else {
+            return;
+        };
+        let policy = PatternedStackConfig::new(
+            vec![layer(None)],
+            vec![0],
+            BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
+            RotaryEmbeddingConfig::new(0, 8),
+        );
+        let stack: DecoderStack = policy.to_structure().init(&device);
+        let f32_table = stack.rotary(4, &device).tables[0].clone();
+        assert_eq!(f32_table.cos.dtype(), DType::F32);
+
+        let stack = stack.map(&mut DTypeMapper::new(half));
+        let table = stack.rotary(4, &device).tables[0].clone();
+        assert_eq!(table.cos.dtype(), half);
+        let x = crate::support::testing::seeded_tensor::<4>(
+            3,
+            [1, 4, 2, 8],
+            Distribution::Default,
+            &device,
+        )
+        .cast(half);
+        assert_eq!(
+            table.apply(x.clone()).into_data(),
+            f32_table.apply(x).into_data()
+        );
     }
 
     /// A kind's rotary embedding is its layers': the set holds the default
