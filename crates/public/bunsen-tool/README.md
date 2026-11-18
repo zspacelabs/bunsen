@@ -684,6 +684,7 @@ stock voices, to a mono 16-bit WAV file at 44.1 kHz, to a speaker, or both. A ta
 ```sh
 bunsen-tool tts list [--urls]                            # the ZONOS3 checkpoints, and what of each is cached
 bunsen-tool tts fetch NAME...                            # bring checkpoints into the cache
+bunsen-tool tts voices [--yes]                           # the stock voices; reads only the voices file
 bunsen-tool tts run -o OUT.wav [--voice NAME] [--seed N] [TEXT]...   # the text from stdin when omitted
 bunsen-tool tts run --play [--output-device NAME] [TEXT]...          # played once it is synthesized
 bunsen-tool tts run --list-output-devices                # the output devices; loads nothing
@@ -697,9 +698,10 @@ The text is normalized first, as the release normalizes it: numbers, money, date
 (`$12.50` as "twelve dollars fifty cents"), by Zyphra's normalizer in the `--language` given (`en_us` by default; a
 release code such as `fr_fr`, or a grammar such as `fr`). `--normalize none` speaks the text as typed.
 
-`--voice` picks the stock voice (`Savannah` by default): Ananya, Arjun, Chaitanya, Cillian, Gaspard, Ginevra, Haoran,
-Imogen, Jett, Leonor, Liesel, Lorenzo, Meilin, Minjun, Morgana, Rodrigo, Rupert, Sakura, Savannah, Seoyeon, Sravya,
-Thaddeus, Thiago, Willow, Wolfgang, Wyatt and Ximena. Its reference codes lead the prompt, the release's default
+`--voice` picks the stock voice (`Savannah` by default); `bunsen-tool tts voices` lists them, with each one's
+reference length in frames. It reads only the checkpoint's voices file (about 240 KB), and asks before fetching it
+when the cache does not hold it (`--yes` fetches without asking; without a terminal to ask on, it says to pass
+`--yes`). Its reference codes lead the prompt, the release's default
 speaker mode.
 
 Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them, and `--max-frames`
