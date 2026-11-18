@@ -35,6 +35,10 @@
 //!   modules](#forward-modules)).
 //! - [`Gate`] &mdash; a view of two modules as a gate, `a(x) ⊙ b(gate)`, its
 //!   product taken in a [`Widening`](crate::burner::tensor::Widening).
+//! - [`Derived`] &mdash; a parameter forward reads through a fixed transform
+//!   ([`ParamFn`]: `abs`, `-exp`, a widening cast), as `effective()`: computed
+//!   on every read in its stored form, folded once by `Module::materialize` for
+//!   inference ([`ParamForm`]). Its checkpoint keys are a bare param's.
 //!
 //! `ModuleInit` and `ToStructureConfig` are also in [`crate::prelude`].
 //!
@@ -60,6 +64,7 @@
 pub mod reflection;
 
 mod canonical_keys;
+mod derived;
 mod dtype_traits;
 mod forward_module;
 mod gate;
@@ -71,6 +76,7 @@ mod to_structure_config;
 mod type_mapper;
 
 pub use canonical_keys::*;
+pub use derived::*;
 pub use dtype_traits::*;
 pub use forward_module::*;
 pub use gate::*;
