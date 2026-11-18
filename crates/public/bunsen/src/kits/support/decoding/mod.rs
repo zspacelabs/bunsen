@@ -5,9 +5,9 @@
 //! which owns its tensors and its cache) calls these every step:
 //!
 //! - [`LogitFilter`]: rewrites the last position's logits before the search
-//!   sees them; [`SuppressTokens`] is the generic one, [`TopK`], [`TopP`] and
-//!   [`MinP`] the sampling truncations, and a kit adds its own (Whisper's
-//!   timestamp grammar,
+//!   sees them; [`SuppressTokens`] and [`RepetitionPenalty`] are the generic
+//!   ones, [`TopK`], [`TopP`] and [`MinP`] the sampling truncations, and a kit
+//!   adds its own (Whisper's timestamp grammar,
 //!   [`ApplyTimestampRules`](crate::kits::speech::asr::whisper::logit_filters::ApplyTimestampRules)).
 //! - [`TokenSearch`]: the search seam. It owns the sequences' bookkeeping, and
 //!   tells the loop how to permute its cache's rows when beams branch.
