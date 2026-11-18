@@ -10,6 +10,10 @@
 //!   [`map_forward`](ConvBlock2d::map_forward) runs a caller's function between
 //!   the norm and the activation; `ResNet` uses it to place a `DropBlock2d`
 //!   there.
+//! - [`CausalConvNext1d`]: a causal 1-d `ConvNeXt` block, channels last: a
+//!   depthwise convolution over each channel's past, a norm, a pointwise
+//!   expansion and projection, residual; it carries its convolution's state
+//!   across chunks. ZONOS3's codec's.
 //! - [`ConvSeq1d`] / [`ConvSeq2d`]: blocks run in sequence. Building one
 //!   [validates](ConvSeq2dMeta::validate) that the sequence is non-empty and
 //!   that each block's output channels match the next block's input channels.
@@ -40,11 +44,13 @@
 //! [`BunsenActivation`]: crate::blocks::activation::BunsenActivation
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
+mod causal_convnext;
 mod conv_block_1d;
 mod conv_block_2d;
 mod conv_seq_1d;
 mod conv_seq_2d;
 
+pub use causal_convnext::*;
 pub use conv_block_1d::*;
 pub use conv_block_2d::*;
 pub use conv_seq_1d::*;
