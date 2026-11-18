@@ -38,7 +38,13 @@ use crate::{
             },
         },
     },
-    burner::tensor::Widening,
+    burner::{
+        module::{
+            Derived,
+            ParamFn,
+        },
+        tensor::Widening,
+    },
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -404,9 +410,12 @@ impl CausalSelfAttentionConfig {
                     .init(device)
             }),
             value_gate_scale: self.value_residual.as_ref().map(|vr| vr.gate_scale),
-            query_gain: self
-                .query_gain
-                .then(|| Param::from_tensor(Tensor::ones([self.n_head], device))),
+            query_gain: self.query_gain.then(|| {
+                Derived::new(
+                    Param::from_tensor(Tensor::ones([self.n_head], device)),
+                    ParamFn::ABS,
+                )
+            }),
         })
     }
 
@@ -503,9 +512,10 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub value_gate_scale: Option<f64>,
 
-    /// The per-head query gain `[H]`, applied as `|g|` after the QK-norm
-    /// ([`CausalSelfAttentionConfig::query_gain`]); `None` without one.
-    pub query_gain: Option<Param<Tensor<1>>>,
+    /// The per-head query gain `[H]`, read as `|g|` ([`ParamFn::ABS`]) and
+    /// applied after the QK-norm ([`CausalSelfAttentionConfig::query_gain`]);
+    /// `None` without one.
+    pub query_gain: Option<Derived<1>>,
 }
 
 impl CausalSelfAttentionMeta for CausalSelfAttention {
@@ -579,7 +589,7 @@ impl CausalSelfAttention {
         };
         let q = self.qk_norm.apply(q, self.q_norm.as_ref(), r_emb);
         let q = match &self.query_gain {
-            Some(gain) => q * gain.val().abs().reshape([1, 1, h, 1]),
+            Some(gain) => q * gain.effective().reshape([1, 1, h, 1]),
             None => q,
         }
         .swap_dims(1, 2);
@@ -1447,6 +1457,38 @@ mod tests {
         );
     }
 
+    /// Materialized for inference, the query gain holds `|g|` and the
+    /// attention is the live one, bit for bit; a negative gain included.
+    #[test]
+    fn test_query_gain_materialized() {
+        use crate::burner::module::ParamForm;
+
+        let device = cpu_device();
+        let (seq_len, n_embed, n_head) = (5, 16, 4);
+        let mut unit: CausalSelfAttention = CausalSelfAttentionConfig::new(n_head, 2, n_embed)
+            .with_qk_norm(QkNormPlacement::BeforeRope)
+            .with_query_gain(true)
+            .init(0, &device);
+        unit.query_gain = Some(Derived::new(
+            Param::from_tensor(Tensor::from_data([-2.0f32, 0.5, 1.5, 3.0], &device)),
+            ParamFn::ABS,
+        ));
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, unit.head_dim()).init(&device);
+        let input = seeded_tensor::<3>(9, [2, seq_len, n_embed], Distribution::Default, &device);
+        let live = unit.attention_weights(input.clone(), &r_emb);
+        let baked = unit.valid().materialize();
+        let gain = baked.query_gain.as_ref().unwrap();
+        assert_eq!(gain.form(), ParamForm::Effective);
+        assert_eq!(
+            gain.held().into_data(),
+            Tensor::<1>::from_data([2.0f32, 0.5, 1.5, 3.0], &device).into_data()
+        );
+        assert_eq!(
+            baked.attention_weights(input, &r_emb).into_data(),
+            live.into_data()
+        );
+    }
+
     /// A query gain scales each head's scores by `|g_h|`: head `h`'s weights
     /// are those of the ungained attention with its scores scaled by
     /// `|g_h| / sqrt(d)`, a negative gain as its absolute value; the output
@@ -1459,7 +1501,7 @@ mod tests {
             .with_qk_norm(QkNormPlacement::BeforeRope);
         let unit: CausalSelfAttention = cfg.clone().with_query_gain(true).init(0, &device);
         assert_eq!(
-            unit.query_gain.as_ref().unwrap().val().into_data(),
+            unit.query_gain.as_ref().unwrap().held().into_data(),
             Tensor::<1>::ones([n_head], &device).into_data(),
             "initialized to ones"
         );
@@ -1467,7 +1509,10 @@ mod tests {
 
         let gains = [-2.0f32, 0.5, 1.5, 3.0];
         let mut gained = unit;
-        gained.query_gain = Some(Param::from_tensor(Tensor::from_data(gains, &device)));
+        gained.query_gain = Some(Derived::new(
+            Param::from_tensor(Tensor::from_data(gains, &device)),
+            ParamFn::ABS,
+        ));
         let d = gained.head_dim();
         let r_emb = RotaryEmbeddingConfig::new(seq_len, d).init(&device);
         let input =

@@ -43,6 +43,11 @@ pub struct ParamFn<const D: usize> {
 }
 
 impl<const D: usize> ParamFn<D> {
+    /// The absolute value: a magnitude kept as an unconstrained parameter.
+    pub const ABS: Self = Self {
+        name: "abs",
+        apply: abs::<D>,
+    };
     /// The tensor widened to at least f32 ([`Widening::F32`]): a width-only
     /// transform, its effective form the parameter held wide.
     ///
@@ -51,6 +56,11 @@ impl<const D: usize> ParamFn<D> {
         name: "widen_f32",
         apply: widen_f32::<D>,
     };
+}
+
+/// `|t|`.
+fn abs<const D: usize>(t: Tensor<D>) -> Tensor<D> {
+    t.abs()
 }
 
 /// `t` widened to at least f32.
