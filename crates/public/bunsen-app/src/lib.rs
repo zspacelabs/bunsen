@@ -7,6 +7,8 @@
 //! - [`device`]: `--device` and precision flags, resolved into a configured
 //!   burn `Device`.
 //! - [`logging`]: log-level flags.
+//! - [`precision`]: `--min-precision`, a floor under a loaded model's dtypes,
+//!   and `--init-dtype`, the dtype a program creates its own tensors in.
 //! - [`shards`]: dataset shard selection and fetch policy.
 //!
 //! An example's backend features forward here (`wgpu = ["bunsen-app/wgpu"]`),
@@ -19,4 +21,5 @@ pub mod cache;
 pub mod catalog;
 pub mod device;
 pub mod logging;
+pub mod precision;
 pub mod shards;
