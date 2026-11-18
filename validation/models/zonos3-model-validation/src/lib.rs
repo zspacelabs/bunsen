@@ -11,6 +11,8 @@
 //!   prefill, then [`fixtures::STEPS`] decode steps teacher-forced through its
 //!   cache (`logits`);
 //! - its codec's audio from fixed codes, in float32 (`codec`);
+//! - its driver, a take of a stock voice end to end (`driver`): it ends on the
+//!   end of audio, at a plausible length;
 //! - the logits again in bf16 on CUDA, against the reference's own bf16
 //!   (`tests/cuda_bf16.rs`).
 //!
@@ -358,3 +360,6 @@ mod logits;
 
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod codec;
+
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod driver;

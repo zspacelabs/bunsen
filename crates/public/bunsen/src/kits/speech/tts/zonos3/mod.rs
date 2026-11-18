@@ -39,8 +39,9 @@
 //!   `zyphra/zonos3/zonos3-mini`, and the factory that loads it into a
 //!   construct.
 //!
-//! The kit has no driver: a caller samples each step's logits with the
-//! sampler, and decodes the unsheared codes with the codec.
+//! - [`driver`] (feature `store`): text and a speaker to speech,
+//!   [`Zonos3Driver`](driver::Zonos3Driver), one take decoded whole, as the
+//!   release generates it.
 //!
 //! The weights are `Zyphra/ZONOS3-Mini-hf`'s `model.safetensors`, whose
 //! `lm.*` tensors are upstream's release language model as it is
@@ -57,6 +58,9 @@ pub use config::*;
 
 #[cfg(feature = "store")]
 pub mod voices;
+
+#[cfg(feature = "store")]
+pub mod driver;
 
 #[cfg(feature = "store")]
 mod construct;
