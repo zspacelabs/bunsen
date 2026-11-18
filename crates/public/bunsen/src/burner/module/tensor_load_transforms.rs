@@ -124,6 +124,25 @@ impl TensorLoadTransform {
         })
     }
 
+    /// The same values in `shape`: a tensor stored with unit axes a module
+    /// does without (`[1, H, 1]` for `[H]`), or one part of a stacked tensor
+    /// (`[1, R, C]` for `[R, C]`).
+    ///
+    /// # Panics
+    /// When loading a tensor whose element count is not `shape`'s.
+    pub fn reshape(shape: impl Into<Vec<usize>>) -> Self {
+        let shape = shape.into();
+        Self::new(format!("reshape({shape:?})"), move |data| {
+            assert_eq!(
+                data.shape().num_elements(),
+                shape.iter().product::<usize>(),
+                "{:?} does not reshape to {shape:?}",
+                data.shape().as_slice()
+            );
+            reshape_data(data, shape.clone())
+        })
+    }
+
     /// A matrix's transpose: `[a, b]` to `[b, a]`.
     pub fn transpose() -> Self {
         Self::new("transpose", |data| permute_data(data, &[1, 0]))
@@ -354,6 +373,26 @@ mod tests {
         let folded = a.apply(TensorData::new(vec![w], [1]));
         assert_eq!(folded.dtype(), burn::tensor::DType::F32);
         assert_eq!(values(folded), [1.0 + 2f32.powi(-9)]);
+    }
+
+    /// The values keep their order; only the shape changes.
+    #[test]
+    fn test_reshape() {
+        let a = TensorLoadTransform::reshape([3]);
+        assert_eq!(a.name(), "reshape([3])");
+        let out = a.apply(data(&[1.0, -2.0, 3.0], &[1, 3, 1]));
+        assert_eq!(out.shape().as_slice(), [3]);
+        assert_eq!(values(out), [1.0, -2.0, 3.0]);
+        let out =
+            TensorLoadTransform::reshape([2, 2]).apply(data(&[1.0, 2.0, 3.0, 4.0], &[1, 2, 2]));
+        assert_eq!(out.shape().as_slice(), [2, 2]);
+        assert_eq!(values(out), [1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    #[should_panic(expected = "does not reshape")]
+    fn test_reshape_refuses_another_count() {
+        let _ = TensorLoadTransform::reshape([4]).apply(data(&[1.0, 2.0, 3.0], &[3]));
     }
 
     #[test]

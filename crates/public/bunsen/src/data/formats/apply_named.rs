@@ -6,12 +6,14 @@ use burn::{
         FloatCastAdapter,
         ModuleAdapter,
         ModuleSnapshot,
+        PathFilter,
         PyTorchToBurnAdapter,
         burn_pack::Tensor as PackTensor,
     },
     tensor::{
         DType,
         FloatDType,
+        TensorData,
     },
 };
 
@@ -242,6 +244,35 @@ pub fn stored_float_dtype(tensors: &[PackTensor]) -> Option<FloatDType> {
         .into_iter()
         .max_by_key(|(_, n)| *n)
         .map(|(dtype, _)| FloatDType::from(dtype))
+}
+
+/// A tensor of ones for each parameter of `module` that `select` picks,
+/// named by its record path: the scales of norms a checkpoint stores none
+/// for, because upstream's norm has no learned scale (a weightless RMS norm,
+/// `F.rms_norm` without a weight). A unit scale is that norm exactly, in any
+/// dtype.
+///
+/// `select` sees each parameter's record path and the types of the modules
+/// it sits in (`Struct:Model.Enum:BunsenNormalization.…`). The tensors are
+/// named by record path, so the load's map must pass those names through as
+/// they are (an [`exact`](Rekey::exact) rule for each, ahead of the model's
+/// canonical map).
+pub fn unit_scale_tensors<M: ModuleSnapshot>(
+    module: &M,
+    select: fn(&str, &str) -> bool,
+) -> Vec<PackTensor> {
+    module
+        .collect(Some(PathFilter::new().with_predicate(select)), None, true)
+        .into_iter()
+        .map(|t| {
+            let n: usize = t.shape.iter().product();
+            burn::store::bridge::from_data(
+                TensorData::new(vec![1.0f32; n], t.shape.clone()),
+                t.name.clone(),
+                None,
+            )
+        })
+        .collect()
 }
 
 /// `tensors` with each one a [`TensorLoadRowSplit`] takes split into its parts,

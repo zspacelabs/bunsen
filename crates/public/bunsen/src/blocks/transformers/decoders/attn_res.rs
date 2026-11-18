@@ -38,7 +38,9 @@ use crate::{
         embedding::RotarySet,
     },
     burner::module::{
+        CanonicalKeys,
         ModuleInit,
+        Rekey,
         ToStructureConfig,
     },
     errors::BunsenResult,
@@ -233,6 +235,14 @@ impl AttnResStack {
         let _ = batch;
 
         (y, bank)
+    }
+}
+
+/// The decoder stack's canonical names, under `stack.`; the queries as they
+/// are.
+impl CanonicalKeys for AttnResStack {
+    fn canonical_rekey(&self) -> Rekey {
+        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }
 }
 
