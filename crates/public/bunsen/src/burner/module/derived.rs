@@ -206,7 +206,7 @@ impl<const D: usize> Module for Derived<D> {
         self.clone().with_param(Module::valid(&self.param))
     }
 
-    /// The parameter's own reparameterizations folded first (a LoRA adapter),
+    /// The parameter's own reparameterizations folded first (a `LoRA` adapter),
     /// then this transform ([`bake`](Self::bake)).
     fn materialize(self) -> Self {
         let param = Module::materialize(self.param.clone());
