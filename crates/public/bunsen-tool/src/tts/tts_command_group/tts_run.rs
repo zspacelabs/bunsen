@@ -1,0 +1,301 @@
+//! `tts run`.
+
+use std::{
+    io::Read,
+    path::PathBuf,
+    time::{
+        Instant,
+        SystemTime,
+        UNIX_EPOCH,
+    },
+};
+
+use bunsen::{
+    data::formats::LoadPolicy,
+    errors::{
+        BunsenError,
+        BunsenResult,
+        sys_at,
+    },
+    kits::{
+        speech::tts::zonos3::{
+            driver::{
+                Zonos3Driver,
+                Zonos3DriverConfig,
+                Zonos3Request,
+                Zonos3Stop,
+                Zonos3TextNormalization,
+                Zonos3ZyphraNormalization,
+            },
+            pretrained::default_zonos3_factory,
+        },
+        support::tokens::BunsenTokenizer,
+    },
+    support::audio::save_wav_mono,
+};
+use bunsen_app::{
+    cache::WeightsCacheArgs,
+    device::BackendArgs,
+    logging::{
+        LogArgs,
+        LogPolicy,
+    },
+};
+use clap::ArgMatches;
+use log::LevelFilter;
+
+use crate::{
+    support::{
+        ChooseArgs,
+        with_patch,
+        with_presets,
+    },
+    tts::choose_tts_model,
+};
+
+/// The stock voice `tts run` speaks in when none is named.
+pub const DEFAULT_TTS_VOICE: &str = "Savannah";
+
+/// How `tts run` normalizes its text, as `--normalize` takes it.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TtsNormalize {
+    /// Zyphra's normalizer, the release's: numbers, money and dates spoken.
+    Zyphra,
+
+    /// The text as typed, line breaks collapsed.
+    None,
+}
+
+/// Speaks a text, to a WAV file.
+#[derive(clap::Args, Debug)]
+pub struct TtsRunCommand {
+    #[clap(flatten)]
+    logging: LogArgs,
+
+    #[clap(flatten)]
+    cache: WeightsCacheArgs,
+
+    /// The device. The language model loads at the precision it ships in
+    /// (bf16) where the device accelerates it, else in f32
+    /// (`LoadPolicy::performance`).
+    #[clap(flatten)]
+    device: BackendArgs,
+
+    /// The checkpoint, chosen among ZONOS3's builds by `--model` and the
+    /// stage flags; the default checkpoint when nothing is named.
+    #[clap(flatten)]
+    choose: ChooseArgs,
+
+    /// The stock voice the speech is in.
+    ///
+    /// Its reference codes lead the prompt, the release's default speaker
+    /// mode.
+    #[arg(long, default_value = DEFAULT_TTS_VOICE)]
+    voice: String,
+
+    /// Where the speech is written: a mono 16-bit WAV file at 44.1 kHz.
+    #[arg(long, short)]
+    out: PathBuf,
+
+    /// Seeds the take, to repeat it; a seed from the clock when omitted.
+    ///
+    /// The seed is printed with the take either way.
+    #[arg(long)]
+    seed: Option<u64>,
+
+    /// How the text is normalized before it is spoken.
+    #[arg(long, value_enum, default_value_t = TtsNormalize::Zyphra)]
+    normalize: TtsNormalize,
+
+    /// The text's language, for `--normalize zyphra`.
+    ///
+    /// A request code of the release (`en_us`, `fr_fr`) or one of the
+    /// normalizer's grammars (`en`, `fr`).
+    #[arg(long, default_value = "en_us")]
+    language: String,
+
+    /// The sampling temperature (the release's 0.75 when omitted).
+    #[arg(long)]
+    temperature: Option<f64>,
+
+    /// Codes kept per codebook, the most probable (the release's 80).
+    #[arg(long)]
+    top_k: Option<usize>,
+
+    /// The probability mass kept per codebook (the release's 0.69).
+    #[arg(long)]
+    top_p: Option<f64>,
+
+    /// The most frames the take generates, at 15 a second.
+    ///
+    /// As many as the model's context leaves when omitted.
+    #[arg(long)]
+    max_frames: Option<usize>,
+
+    /// The text; stdin when omitted (words joined by spaces).
+    text: Vec<String>,
+}
+
+impl TtsRunCommand {
+    /// Speaks the text; `matches` are the command's own, for the stage
+    /// flags' order.
+    pub fn run(
+        &self,
+        matches: &ArgMatches,
+    ) -> BunsenResult<()> {
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
+        let text = self.read_text()?;
+        let cache = self.cache.init()?;
+        let device = self.device.open()?;
+        let flags = self.choose.flags(matches)?;
+        let mut model = choose_tts_model(&self.choose.model, &flags)?;
+        if !flags.presets.presets.is_empty() {
+            let presets: Vec<&str> = flags.presets.presets.iter().map(String::as_str).collect();
+            model = with_presets(&model, &presets)?;
+        }
+        if let Some(patch) = self.choose.patch()? {
+            model = with_patch(&model, &patch)?;
+        }
+        let construct = default_zonos3_factory()?.load_construct(
+            &model,
+            &cache,
+            &device,
+            LoadPolicy::performance(),
+        )?;
+        let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer)?;
+        let config = self.config(Zonos3DriverConfig::from_generation(&construct.generation));
+        let driver = Zonos3Driver::new(construct, tokenizer, config)?;
+
+        let seed = self.seed.unwrap_or_else(clock_seed);
+        let request =
+            Zonos3Request::new(text, driver.voice_reference(&self.voice)?).with_seed(seed);
+        let started = Instant::now();
+        let speech = driver.synthesize(&request)?;
+        let spoken = started.elapsed().as_secs_f64();
+        if speech.codes.stop == Zonos3Stop::Budget {
+            log::warn!("the take ran out of frames before it ended: raise --max-frames");
+        }
+        save_wav_mono(&self.out, &speech.samples, speech.sample_rate)?;
+        let seconds = speech.samples.len() as f64 / f64::from(speech.sample_rate);
+        eprintln!(
+            "{}: {seconds:.2} s in {}'s voice, seed {seed}; synthesized in {spoken:.2} s \
+             ({} rows, {:.1} a second)",
+            self.out.display(),
+            self.voice,
+            speech.codes.rows,
+            speech.codes.rows as f64 / spoken,
+        );
+        Ok(())
+    }
+
+    /// The text: the arguments, or stdin without any.
+    ///
+    /// # Errors
+    /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) for no text; a
+    /// read's failure.
+    fn read_text(&self) -> BunsenResult<String> {
+        let text = if self.text.is_empty() {
+            let mut text = String::new();
+            std::io::stdin()
+                .read_to_string(&mut text)
+                .map_err(sys_at("read", "stdin"))?;
+            text
+        } else {
+            self.text.join(" ")
+        };
+        if text.trim().is_empty() {
+            return Err(BunsenError::illegal("no text to speak"));
+        }
+        Ok(text)
+    }
+
+    /// `config` with the flags' settings over it.
+    fn config(
+        &self,
+        mut config: Zonos3DriverConfig,
+    ) -> Zonos3DriverConfig {
+        config.normalization = match self.normalize {
+            TtsNormalize::Zyphra => Zonos3TextNormalization::Zyphra(
+                Zonos3ZyphraNormalization::new().with_language(self.language.clone()),
+            ),
+            TtsNormalize::None => Zonos3TextNormalization::None,
+        };
+        if let Some(temperature) = self.temperature {
+            config.sampler.temperature = temperature;
+        }
+        if let Some(top_k) = self.top_k {
+            config.sampler.top_k = top_k;
+        }
+        if let Some(top_p) = self.top_p {
+            config.sampler.top_p = top_p;
+        }
+        config.max_new_frames = self.max_frames;
+        config
+    }
+}
+
+/// A seed from the clock: its nanoseconds, below 2^31 (as the release's
+/// random seeds are).
+fn clock_seed() -> u64 {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.subsec_nanos());
+    u64::from(nanos) % (1 << 31)
+}
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::*;
+
+    #[derive(Parser, Debug)]
+    struct Cli {
+        #[command(flatten)]
+        run: TtsRunCommand,
+    }
+
+    /// The flags lay over the release's settings; the text joins its words.
+    #[test]
+    fn test_config() {
+        let cli = Cli::try_parse_from([
+            "tts",
+            "-o",
+            "out.wav",
+            "--normalize",
+            "none",
+            "--temperature",
+            "0.5",
+            "--top-k",
+            "40",
+            "--max-frames",
+            "90",
+            "Hello",
+            "there.",
+        ])
+        .unwrap();
+        let config = cli.run.config(Zonos3DriverConfig::new());
+        assert_eq!(config.normalization, Zonos3TextNormalization::None);
+        assert_eq!(config.sampler.temperature, 0.5);
+        assert_eq!(config.sampler.top_k, 40);
+        assert_eq!(config.sampler.top_p, 0.69, "the release's");
+        assert_eq!(config.max_new_frames, Some(90));
+        assert_eq!(cli.run.read_text().unwrap(), "Hello there.");
+        assert_eq!(cli.run.voice, DEFAULT_TTS_VOICE);
+
+        let cli =
+            Cli::try_parse_from(["tts", "-o", "o.wav", "--language", "fr_fr", "Bonjour"]).unwrap();
+        assert_eq!(
+            cli.run.config(Zonos3DriverConfig::new()).normalization,
+            Zonos3TextNormalization::Zyphra(
+                Zonos3ZyphraNormalization::new().with_language("fr_fr".to_string())
+            )
+        );
+    }
+
+    #[test]
+    fn test_clock_seed() {
+        assert!(clock_seed() < 1 << 31);
+    }
+}

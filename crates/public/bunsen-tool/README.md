@@ -3,6 +3,7 @@
 `bunsen-tool`: [bunsen](https://crates.io/crates/bunsen)'s models on the command line, a branch for each kind of model:
 
 - `bunsen-tool asr`: speech to text, by ASR preset or by model family, and who spoke when ([below](#asr-speech-to-text)).
+- `bunsen-tool tts`: text to speech with ZONOS3-Mini, in a stock voice ([below](#tts-text-to-speech-with-zonos3-mini)).
 - `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint ([below](#chat-qwen3-gemma-and-nanochat)).
 - `bunsen-tool decide`: typed questions about a context, answered with calibrated probabilities by a Laya decision
   model ([below](#decide-typed-questions-answered-by-laya)).
@@ -14,7 +15,7 @@
 
 ## Models
 
-`bunsen-tool summary` lists the builds this binary runs: a section per command (`asr`, `chat`, `decide`), the
+`bunsen-tool summary` lists the builds this binary runs: a section per command (`asr`, `tts`, `chat`, `decide`), the
 builds in it grouped by contract and then by publisher, each by its full name with its size, dtypes, preset axes (the
 default starred) and aliases, and its description below it; `--kind` prints one section. The builds, as
 `bunsen-tool summary` prints them (`cargo make cards` rebuilds this card):
@@ -138,6 +139,19 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 
 * silero/silero_vad/vad-16k: [1.2 MB f32; vad-policy: *silero|faster-whisper]
   Silero VAD, the 16 kHz model, from upstream's safetensors.
+
+# bunsen-tool tts ...
+# Text to Speech
+
+# contract: zonos3-tts
+# A ZONOS3 text-to-speech model as Zyphra's transformers packaging lays it
+# out: the language model and the codec decoder in one safetensors file,
+# their geometry from `config.json`.
+# publisher: zyphra - Zyphra.
+
+* zyphra/zonos3/zonos3-mini: [2.39 GB bf16 f32]
+  ZONOS3-Mini: 800 M parameters (100 M active), 44.1 kHz speech in 9
+  languages, 27 stock voices.
 
 # bunsen-tool chat ...
 # Chat and Text Generation
@@ -662,6 +676,36 @@ cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcr
 `$DATA_DIR/SLR45/text.txt` holds the transcripts. The pushes are sized to the stream driver's grain, so the
 autotuned kernels see one shape; the first file of a run pays for the tuning.
 
+## tts: text to speech with ZONOS3-Mini
+
+`bunsen-tool tts` speaks a text with Zyphra's ZONOS3-Mini (`Zyphra/ZONOS3-Mini-hf`, Apache-2.0), in one of its 27
+stock voices, to a mono 16-bit WAV file at 44.1 kHz. A take is generated whole, then decoded.
+
+```sh
+bunsen-tool tts list [--urls]                            # the ZONOS3 checkpoints, and what of each is cached
+bunsen-tool tts fetch NAME...                            # bring checkpoints into the cache
+bunsen-tool tts run -o OUT.wav [--voice NAME] [--seed N] [TEXT]...   # the text from stdin when omitted
+```
+
+The text is normalized first, as the release normalizes it: numbers, money, dates and the like are spoken
+(`$12.50` as "twelve dollars fifty cents"), by Zyphra's normalizer in the `--language` given (`en_us` by default; a
+release code such as `fr_fr`, or a grammar such as `fr`). `--normalize none` speaks the text as typed.
+
+`--voice` picks the stock voice (`Savannah` by default): Ananya, Arjun, Chaitanya, Cillian, Gaspard, Ginevra, Haoran,
+Imogen, Jett, Leonor, Liesel, Lorenzo, Meilin, Minjun, Morgana, Rodrigo, Rupert, Sakura, Savannah, Seoyeon, Sravya,
+Thaddeus, Thiago, Willow, Wolfgang, Wyatt and Ximena. Its reference codes lead the prompt, the release's default
+speaker mode.
+
+Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them, and `--max-frames`
+caps the take (15 frames a second). A take is sampled, so each run differs; `--seed` repeats one on the same device,
+and the seed is printed with every take. The language model loads at the precision it ships in (bf16) where the device
+accelerates it, else in f32; the codec runs in f32.
+
+```sh
+cargo run --release -p bunsen-tool --features wgpu -- tts run -o hello.wav "Hello, this is ZONOS3."
+echo "It costs \$12.50." | cargo run --release -p bunsen-tool --features cuda -- tts run --device cuda --voice Cillian -o cost.wav
+```
+
 ## chat: Qwen3, Gemma and nanochat
 
 `bunsen-tool chat` answers one prompt (`run`) or holds a conversation on stdin (`repl`: `/reset` starts over, `/quit`
@@ -761,7 +805,7 @@ cargo run --release -p bunsen-tool --features wgpu -- decide run --model laya-mu
 
 ## Choosing a model
 
-`chat` and `decide` choose their checkpoint with a pipeline over the built-in catalog's builds
+`chat`, `decide` and `tts` choose their checkpoint with a pipeline over the built-in catalog's builds
 ([`catalog select`](#catalog-build-catalogs) runs the same pipeline, and its flags are theirs). A checkpoint's facts are
 its tags, which its build carries: `instruct`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language`
 (BCP 47 tags; `"*"` for unspecified others), `parameters`, `contract`, `family`, `publisher`; and its release group and

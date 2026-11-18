@@ -1,5 +1,6 @@
 //! `bunsen-tool`: bunsen's models on the command line. `bunsen-tool asr`
 //! is speech to text, by preset or by model family, and who spoke when;
+//! `bunsen-tool tts` is text to speech with ZONOS3-Mini;
 //! `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or nanochat
 //! checkpoint; `bunsen-tool decide` answers typed questions about a context
 //! with a Laya decision model; `bunsen-tool cache <path|list|clear>` manages
@@ -15,7 +16,10 @@ use bunsen_app::{
     catalog::CatalogCommand,
 };
 #[cfg(feature = "speech")]
-use bunsen_tool::asr;
+use bunsen_tool::{
+    asr,
+    tts,
+};
 use bunsen_tool::{
     chat::ChatCommandGroup,
     decide::DecideCommandGroup,
@@ -33,7 +37,8 @@ use clap::{
 /// bunsen's models on the command line.
 ///
 /// `bunsen-tool asr` is speech to text, by preset or by model family, and who
-/// spoke when; `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
+/// spoke when; `bunsen-tool tts` is text to speech with ZONOS3-Mini;
+/// `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
 /// nanochat checkpoint; `bunsen-tool decide` answers typed questions about a
 /// context with a Laya decision model; `bunsen-tool cache` manages the weights
 /// cache every command loads through; `bunsen-tool summary` lists the builds
@@ -55,6 +60,13 @@ enum Command {
     /// family`), and who spoke when (`asr diarize`).
     #[cfg(feature = "speech")]
     Asr(asr::AsrCommandGroup),
+
+    /// Text to speech with ZONOS3-Mini, in a stock voice.
+    ///
+    /// A text spoken to a WAV file (`tts run`), and the checkpoints (`tts
+    /// list`, `tts fetch`).
+    #[cfg(feature = "speech")]
+    Tts(tts::TtsCommandGroup),
 
     /// Chat with a Qwen3, Qwen3.5, Gemma or nanochat checkpoint.
     ///
@@ -142,6 +154,8 @@ fn run(
     match &args.command {
         #[cfg(feature = "speech")]
         Command::Asr(cmd) => cmd.run(),
+        #[cfg(feature = "speech")]
+        Command::Tts(cmd) => cmd.run(leaf(matches)),
         Command::Chat(cmd) => cmd.run(leaf(matches)),
         Command::Decide(cmd) => cmd.run(leaf(matches)),
         Command::Cache(cmd) => cmd.run(),
@@ -183,6 +197,32 @@ mod tests {
             &["bunsen-tool", "decide", "run"],
             &["bunsen-tool", "decide", "list", "--urls"],
             &["bunsen-tool", "decide", "fetch", "laya"],
+        ] {
+            Args::try_parse_from(argv).unwrap_or_else(|e| panic!("{argv:?}: {e}"));
+        }
+    }
+
+    /// `tts`'s commands parse.
+    #[cfg(feature = "speech")]
+    #[test]
+    fn test_tts_parses() {
+        for argv in [
+            &[
+                "bunsen-tool",
+                "tts",
+                "run",
+                "--voice",
+                "Cillian",
+                "--seed",
+                "7",
+                "-o",
+                "out.wav",
+                "Hello",
+                "there.",
+            ][..],
+            &["bunsen-tool", "tts", "run", "--out", "out.wav"],
+            &["bunsen-tool", "tts", "list", "--urls"],
+            &["bunsen-tool", "tts", "fetch", "zonos3-mini"],
         ] {
             Args::try_parse_from(argv).unwrap_or_else(|e| panic!("{argv:?}: {e}"));
         }
