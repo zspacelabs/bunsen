@@ -10290,6 +10290,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
 
 [[package]]
+name = "zonos3-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "burn",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "zstd"
 version = "0.11.2+zstd.1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
