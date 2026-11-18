@@ -679,13 +679,19 @@ autotuned kernels see one shape; the first file of a run pays for the tuning.
 ## tts: text to speech with ZONOS3-Mini
 
 `bunsen-tool tts` speaks a text with Zyphra's ZONOS3-Mini (`Zyphra/ZONOS3-Mini-hf`, Apache-2.0), in one of its 27
-stock voices, to a mono 16-bit WAV file at 44.1 kHz. A take is generated whole, then decoded.
+stock voices, to a mono 16-bit WAV file at 44.1 kHz, to a speaker, or both. A take is generated whole, then decoded.
 
 ```sh
 bunsen-tool tts list [--urls]                            # the ZONOS3 checkpoints, and what of each is cached
 bunsen-tool tts fetch NAME...                            # bring checkpoints into the cache
 bunsen-tool tts run -o OUT.wav [--voice NAME] [--seed N] [TEXT]...   # the text from stdin when omitted
+bunsen-tool tts run --play [--output-device NAME] [TEXT]...          # played once it is synthesized
+bunsen-tool tts run --list-output-devices                # the output devices; loads nothing
 ```
+
+`--play` (feature `live`, on by default) plays the take on the host's default output device, or the one
+`--output-device` names by a substring of its id or name; at 44.1 kHz where the device opens at it, else resampled to
+its rate, every channel the same. Playback starts once the take is synthesized; Ctrl-C stops it.
 
 The text is normalized first, as the release normalizes it: numbers, money, dates and the like are spoken
 (`$12.50` as "twelve dollars fifty cents"), by Zyphra's normalizer in the `--language` given (`en_us` by default; a
@@ -704,6 +710,7 @@ accelerates it, else in f32; the codec runs in f32.
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- tts run -o hello.wav "Hello, this is ZONOS3."
 echo "It costs \$12.50." | cargo run --release -p bunsen-tool --features cuda -- tts run --device cuda --voice Cillian -o cost.wav
+cargo run --release -p bunsen-tool --features wgpu -- tts run --play "Spoken, not saved."
 ```
 
 ## chat: Qwen3, Gemma and nanochat

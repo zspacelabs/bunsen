@@ -5,8 +5,12 @@
 //! - [`choose_tts_model`]: the checkpoint `--model` and the stage flags choose
 //!   among ZONOS3's builds ([`tts_selection`]).
 
+#[cfg(feature = "live")]
+mod playback;
 mod tts_command_group;
 mod tts_select;
 
+#[cfg(feature = "live")]
+pub use playback::*;
 pub use tts_command_group::*;
 pub use tts_select::*;
