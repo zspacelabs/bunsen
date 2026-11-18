@@ -178,16 +178,22 @@ pub fn sdpa_attn_weight(
 
     let scope = config.softmax_widening.scope(dtype);
     let scores = scope.widen(scores);
-    let attn_bias = sdpa_bias(
-        t_q,
-        t_k,
-        config.is_causal,
-        bias,
-        mask,
-        scope.compute(),
-        &device,
-    );
-    let mut scores = scores + attn_bias.unsqueeze();
+    // A decode step (one query, no window) has nothing to mask: no bias is
+    // built, nor added.
+    let mut scores = if config.is_causal || bias.is_some() || mask.is_some() {
+        let attn_bias = sdpa_bias(
+            t_q,
+            t_k,
+            config.is_causal,
+            bias,
+            mask,
+            scope.compute(),
+            &device,
+        );
+        scores + attn_bias.unsqueeze()
+    } else {
+        scores
+    };
     let mut blind = None;
     if let Some(valid) = key_valid {
         crate::contracts::assert_shape_contract_periodically!(
