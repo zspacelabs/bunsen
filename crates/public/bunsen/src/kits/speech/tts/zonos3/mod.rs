@@ -21,5 +21,16 @@ pub mod codec;
 pub mod lm;
 pub mod prompt;
 
+mod config;
+pub use config::*;
+
 #[cfg(feature = "store")]
 pub mod voices;
+
+#[cfg(feature = "store")]
+mod construct;
+#[cfg(feature = "store")]
+pub use construct::*;
+
+#[cfg(all(feature = "store", feature = "cache"))]
+pub mod pretrained;

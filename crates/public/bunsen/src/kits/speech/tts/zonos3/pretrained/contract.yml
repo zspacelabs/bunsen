@@ -1,0 +1,20 @@
+# What the zonos3 kit's loader reads: Zyphra's transformers packaging of a
+# ZONOS3 model, its geometry from config.json.
+zonos3-tts:
+  $kind: contract
+  $description: >-
+    A ZONOS3 text-to-speech model as Zyphra's transformers packaging lays it out: the language
+    model and the codec decoder in one safetensors file, their geometry from `config.json`.
+  $resources:
+    checkpoint:
+      $format: [safetensors]
+      $description: "The weights: the language model under `lm.`, the codec decoder under `codec.`."
+    config:
+      $format: [json]
+      $description: "`config.json`: the `lm`, `codec` and `generation` sections."
+    tokenizer:
+      $format: [tokenizer.json]
+      $description: "The text tokenizer, its ids already offset past the four special ids."
+    voices:
+      $format: [safetensors]
+      $description: "The stock voices: each one's reference codes and speaker embedding."
