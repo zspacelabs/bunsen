@@ -63,8 +63,8 @@ enum Command {
 
     /// Text to speech with ZONOS3-Mini, in a stock voice.
     ///
-    /// A text spoken to a WAV file (`tts run`), and the checkpoints (`tts
-    /// list`, `tts fetch`).
+    /// A text spoken to a WAV file or a speaker (`tts run`), the stock voices
+    /// (`tts voices`), and the checkpoints (`tts list`, `tts fetch`).
     #[cfg(feature = "speech")]
     Tts(tts::TtsCommandGroup),
 
@@ -222,6 +222,8 @@ mod tests {
             ][..],
             &["bunsen-tool", "tts", "run", "--out", "out.wav"],
             &["bunsen-tool", "tts", "list", "--urls"],
+            &["bunsen-tool", "tts", "voices", "--yes"],
+            &["bunsen-tool", "tts", "run", "--play", "hi"],
             &["bunsen-tool", "tts", "fetch", "zonos3-mini"],
         ] {
             Args::try_parse_from(argv).unwrap_or_else(|e| panic!("{argv:?}: {e}"));

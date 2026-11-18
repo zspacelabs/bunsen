@@ -86,7 +86,7 @@ pub struct TtsRunCommand {
     #[clap(flatten)]
     choose: ChooseArgs,
 
-    /// The stock voice the speech is in.
+    /// The stock voice the speech is in (`tts voices` lists them).
     ///
     /// Its reference codes lead the prompt, the release's default speaker
     /// mode.

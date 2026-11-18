@@ -3,16 +3,18 @@
 mod tts_fetch;
 mod tts_list;
 mod tts_run;
+mod tts_voices;
 
 use bunsen::errors::BunsenResult;
 use clap::ArgMatches;
 pub use tts_fetch::*;
 pub use tts_list::*;
 pub use tts_run::*;
+pub use tts_voices::*;
 
 /// `bunsen-tool tts`'s commands: text to speech with ZONOS3-Mini. `tts run`
-/// speaks a text in a stock voice to a WAV file; `tts list` and `tts fetch`
-/// are its checkpoints'.
+/// speaks a text in a stock voice to a WAV file or a speaker; `tts voices`
+/// lists the stock voices; `tts list` and `tts fetch` are its checkpoints'.
 #[derive(clap::Args, Debug)]
 pub struct TtsCommandGroup {
     #[clap(subcommand)]
@@ -21,12 +23,18 @@ pub struct TtsCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum TtsSubCommand {
-    /// Speaks a text in a stock voice, to a WAV file.
+    /// Speaks a text in a stock voice, to a WAV file or a speaker.
     ///
     /// The text, from the arguments or stdin, normalized (numbers, money and
-    /// dates spoken), then one take, decoded whole, written as mono 16-bit
-    /// audio at 44.1 kHz.
+    /// dates spoken), then one take, decoded whole: written as mono 16-bit
+    /// audio at 44.1 kHz, played, or both.
     Run(Box<TtsRunCommand>),
+
+    /// The checkpoint's stock voices, by name.
+    ///
+    /// Reads only the voices file (asking first when it must be fetched, unless
+    /// `--yes`), not the model.
+    Voices(Box<TtsVoicesCommand>),
 
     /// The checkpoints bunsen knows by name.
     ///
@@ -46,6 +54,7 @@ impl TtsCommandGroup {
     ) -> BunsenResult<()> {
         match &self.command {
             TtsSubCommand::Run(cmd) => cmd.run(matches),
+            TtsSubCommand::Voices(cmd) => cmd.run(matches),
             TtsSubCommand::List(cmd) => cmd.run(),
             TtsSubCommand::Fetch(cmd) => cmd.run(),
         }
