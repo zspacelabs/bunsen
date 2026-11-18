@@ -328,7 +328,7 @@ pub fn load_construct(
     name: &str,
     device: &Device,
 ) -> std::sync::Arc<GemmaConstruct> {
-    load_construct_with(name, device, LoadPolicy::at_least(FloatDType::F32))
+    load_construct_with(name, device, LoadPolicy::min_precision(FloatDType::F32))
 }
 
 /// A Gemma pretrained by name under `policy`.

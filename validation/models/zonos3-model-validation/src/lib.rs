@@ -86,7 +86,7 @@ pub fn weights_cache() -> bunsen::data::resources::ResourceCache {
 /// f32.
 #[cfg(feature = "checkpoints")]
 pub fn load_construct(device: &Device) -> Arc<Zonos3Construct> {
-    load_construct_with(device, LoadPolicy::at_least(FloatDType::F32))
+    load_construct_with(device, LoadPolicy::min_precision(FloatDType::F32))
 }
 
 /// ZONOS3-Mini under `policy`.

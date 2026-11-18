@@ -42,7 +42,7 @@ fn tiny_model(device: &Device) -> Whisper {
             "openai/tiny",
             &crate::weights_cache(),
             device,
-            bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+            bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
         )
         .expect("load openai/tiny");
     assert_eq!(

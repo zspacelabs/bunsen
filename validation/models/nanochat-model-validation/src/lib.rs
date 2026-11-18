@@ -268,7 +268,7 @@ pub fn load_construct(
     load_construct_with(
         name,
         device,
-        bunsen::data::formats::LoadPolicy::at_least(burn::tensor::FloatDType::F32),
+        bunsen::data::formats::LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
     )
 }
 
