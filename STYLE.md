@@ -310,9 +310,11 @@ still compiles and still passes, having quietly measured the CPU.
 prohibition above.
 
 An example binary does not use `performance_device()`: it picks its device
-and precision at run time, with `bunsen_app::device::DeviceArgs` (`--device`,
-`--precision`, `--float-dtype`), from the preferences it states in a
-`DevicePrefs`. `bunsen-app` always has the CPU, and offers an accelerator only
+at run time, with `bunsen_app::device::DeviceArgs` (`--device`,
+`--device-index`), from the preferences it states in a `DevicePrefs` (its int
+dtype, autodiff). The device's default float stays f32; an example that wants
+another dtype names it where it makes tensors (`--init-dtype`) or loads them
+(`--min-precision`), through `bunsen_app::precision`. `bunsen-app` always has the CPU, and offers an accelerator only
 when it was built with that backend, so an example's backend features (and the
 training examples' `tui`) forward to it and to nothing else:
 
