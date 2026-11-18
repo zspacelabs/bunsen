@@ -191,8 +191,9 @@ fn is_weightless_scale(
 /// ([`zonos3_lm_row_splits`]), the names mapped ([`zonos3_lm_rekey`]), the
 /// weightless norms' scales set to ones, every floating tensor in `dtype`
 /// (a load policy's resolution), or, when `None`, in the dtype `model` was
-/// built in. (The file keeps the routers' choice biases in f32; the
-/// router reads them in f32, whatever dtype they load in.)
+/// built in. (The file keeps the routers' choice biases in f32, and they
+/// load in f32 whatever the dtype: a derived param loads no narrower than
+/// it is stored.)
 ///
 /// # Errors
 /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a model whose

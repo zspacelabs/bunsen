@@ -25,7 +25,11 @@ use crate::{
         BunsenNormalizationConfig,
     },
     burner::{
-        module::ModuleInit,
+        module::{
+            Derived,
+            ModuleInit,
+            ParamFn,
+        },
         tensor::Widening,
     },
     contracts::unpack_shape_contract,
@@ -209,9 +213,12 @@ impl ModuleInit<TopKRouter> for TopKRouterConfig {
                 .input_norm
                 .as_ref()
                 .map(|n| n.clone().with_num_features(self.width).init(device)),
-            choice_bias: self
-                .choice_bias
-                .map(|_| Param::from_tensor(Tensor::zeros([self.n_experts], (device, DType::F32)))),
+            choice_bias: self.choice_bias.map(|_| {
+                Derived::new(
+                    Param::from_tensor(Tensor::zeros([self.n_experts], (device, DType::F32))),
+                    ParamFn::WIDEN_F32,
+                )
+            }),
             bias: self.choice_bias,
             top_k: self.top_k,
             norm_top_k: self.norm_top_k,
@@ -245,8 +252,11 @@ pub struct TopKRouter {
     /// The input's normalization, if the router has one.
     pub input_norm: Option<BunsenNormalization>,
 
-    /// The choice bias `[E]`, in f32, if the router has one.
-    pub choice_bias: Option<Param<Tensor<1>>>,
+    /// The choice bias `[E]`, if the router has one: read in at least f32
+    /// ([`ParamFn::WIDEN_F32`]), and, as a [`Derived`] param, loaded no
+    /// narrower than it is stored (a checkpoint's f32 bias stays f32 under a
+    /// half load policy).
+    pub choice_bias: Option<Derived<1>>,
 
     /// Where and how [`choice_bias`](Self::choice_bias) applies.
     #[module(skip)]
@@ -309,7 +319,7 @@ impl TopKRouter {
         let logits = w.widen(self.gate.forward(x));
         let key = match (&self.choice_bias, self.bias) {
             (Some(bias), Some(choice)) => {
-                let bias = w.widen(bias.val()).unsqueeze::<2>();
+                let bias = w.widen(bias.effective()).unsqueeze::<2>();
                 match choice.mode {
                     ChoiceBiasMode::Add => logits.clone() + bias,
                     ChoiceBiasMode::Subtract => logits.clone() - bias,
@@ -388,7 +398,10 @@ mod tests {
     fn test_choice_bias() {
         let device = cpu_device();
         let x = Tensor::<2>::from_data([[3.0f32, 2.0, 1.0, 0.0]], &device);
-        let bias = Param::from_tensor(Tensor::<1>::from_data([2.5f32, 0.0, 0.0, 0.0], &device));
+        let bias = Derived::new(
+            Param::from_tensor(Tensor::<1>::from_data([2.5f32, 0.0, 0.0, 0.0], &device)),
+            ParamFn::WIDEN_F32,
+        );
 
         let plain = identity_router(TopKRouterConfig::new(4, 4, 2));
         assert!(plain.choice_bias.is_none());
@@ -407,10 +420,10 @@ mod tests {
         let mut add = identity_router(TopKRouterConfig::new(4, 4, 2).with_choice_bias(Some(
             ChoiceBias::new(ChoiceBiasSite::Logits, ChoiceBiasMode::Add),
         )));
-        add.choice_bias = Some(Param::from_tensor(Tensor::<1>::from_data(
-            [0.0f32, 0.0, 0.0, 2.5],
-            &device,
-        )));
+        add.choice_bias = Some(Derived::new(
+            Param::from_tensor(Tensor::<1>::from_data([0.0f32, 0.0, 0.0, 2.5], &device)),
+            ParamFn::WIDEN_F32,
+        ));
         // 0 + 2.5 rises above 2.
         let choice = add.forward(x);
         assert_eq!(ids(&choice), [0, 3]);

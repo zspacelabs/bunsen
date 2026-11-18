@@ -87,6 +87,36 @@ pub fn apply_named_tensors_as<M: ModuleSnapshot>(
     apply_in_batches(module, tensors, rename, float_dtype, UPLOAD_BATCH_BYTES)
 }
 
+/// [`FloatCastAdapter`] to `target`, but a tensor at a `keep` path stored
+/// wider than `target` keeps its stored dtype.
+#[derive(Debug, Clone)]
+struct FloatCastKeepingWidth {
+    cast: FloatCastAdapter,
+    target: DType,
+    keep: BTreeSet<String>,
+}
+
+impl ModuleAdapter for FloatCastKeepingWidth {
+    fn adapt(
+        &self,
+        tensor: PackTensor,
+        ctx: burn::store::ModuleContext<'_>,
+    ) -> PackTensor {
+        let wider = tensor.dtype.is_float()
+            && self.target.is_float()
+            && crate::burner::tensor::float_width(tensor.dtype.into())
+                > crate::burner::tensor::float_width(self.target.into());
+        if wider && self.keep.contains(&tensor.name) {
+            return tensor;
+        }
+        self.cast.adapt(tensor, ctx)
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
+    }
+}
+
 /// [`apply_named_tensors_as`], in batches of at most `batch_bytes`.
 fn apply_in_batches<M: ModuleSnapshot>(
     module: &mut M,
@@ -107,9 +137,19 @@ fn apply_in_batches<M: ModuleSnapshot>(
         }
     }
 
+    // A derived param is read through its transform, often widened: it
+    // loads no narrower than it is stored.
+    let keep: BTreeSet<String> = crate::burner::module::derived_params(module)
+        .into_iter()
+        .map(|p| p.path)
+        .collect();
     let adapter = || -> Box<dyn ModuleAdapter> {
         match float_dtype {
-            Some(dtype) => Box::new(PyTorchToBurnAdapter.chain(FloatCastAdapter::to(dtype))),
+            Some(dtype) => Box::new(PyTorchToBurnAdapter.chain(FloatCastKeepingWidth {
+                cast: FloatCastAdapter::to(dtype),
+                target: dtype,
+                keep: keep.clone(),
+            })),
             None => Box::new(PyTorchToBurnAdapter),
         }
     };
@@ -451,6 +491,46 @@ mod tests {
         assert_eq!(sizes(upload_batches(tensors(), 32)), [2, 1, 1]);
         assert_eq!(sizes(upload_batches(tensors(), 1)), [1, 1, 1, 1]);
         assert_eq!(sizes(upload_batches(tensors(), 1 << 20)), [4]);
+    }
+
+    /// A derived param loads no narrower than it is stored; a plain one
+    /// takes the load's dtype.
+    #[test]
+    fn test_derived_params_keep_their_width() {
+        use crate::burner::module::{
+            Derived,
+            ParamFn,
+        };
+
+        #[derive(Module, Debug)]
+        struct Held {
+            plain: burn::module::Param<Tensor<1>>,
+            bias: Derived<1>,
+        }
+
+        let device = cpu_device();
+        let half = [DType::F16, DType::BF16]
+            .into_iter()
+            .find(|d| device.supports_dtype(*d));
+        let Some(half) = half else {
+            return;
+        };
+        let mut held = Held {
+            plain: burn::module::Param::from_tensor(Tensor::zeros([3], &device)),
+            bias: Derived::new(
+                burn::module::Param::from_tensor(Tensor::zeros([3], &device)),
+                ParamFn::WIDEN_F32,
+            ),
+        };
+        apply_named_tensors_as(
+            &mut held,
+            [bias("plain", 3, 0.5), bias("bias", 3, 0.25)],
+            |name| Some(name.to_string()),
+            Some(half),
+        )
+        .unwrap();
+        assert_eq!(held.plain.val().dtype(), half);
+        assert_eq!(held.bias.held().dtype(), DType::F32, "stored f32, kept");
     }
 
     /// Applied in one-tensor batches, a load is the one-batch load: every

@@ -60,10 +60,11 @@ pub(super) fn note_derived(
     });
 }
 
-/// Every float param's path, by id.
+/// Every float param's path, by id, as a store keys it: an enum's variant
+/// is no part of a path.
 #[derive(Default)]
 struct Paths {
-    at: Vec<String>,
+    at: Vec<Option<String>>,
     by_id: HashMap<ParamId, String>,
 }
 
@@ -71,9 +72,10 @@ impl ModuleVisitor for Paths {
     fn enter_module(
         &mut self,
         name: &str,
-        _container_type: &str,
+        container_type: &str,
     ) {
-        self.at.push(name.into());
+        self.at
+            .push((!container_type.starts_with("Enum:")).then(|| name.into()));
     }
 
     fn exit_module(
@@ -88,7 +90,8 @@ impl ModuleVisitor for Paths {
         &mut self,
         param: &Param<Tensor<D>>,
     ) {
-        self.by_id.insert(param.id, self.at.join("."));
+        let path: Vec<&str> = self.at.iter().flatten().map(String::as_str).collect();
+        self.by_id.insert(param.id, path.join("."));
     }
 }
 
