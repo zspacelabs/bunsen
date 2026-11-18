@@ -28,7 +28,6 @@ use cpal::{
     Data,
     Device,
     FromSample,
-    Host,
     InputCallbackInfo,
     Sample,
     SampleFormat,
@@ -38,9 +37,16 @@ use cpal::{
     SupportedStreamConfig,
     traits::{
         DeviceTrait,
-        HostTrait,
         StreamTrait,
     },
+};
+
+use crate::support::{
+    AudioDirection,
+    audio_device_name,
+    find_audio_device,
+    list_audio_devices,
+    sample_format_rank,
 };
 
 /// How long the capture loop waits for a callback before checking whether
@@ -76,41 +82,15 @@ impl CaptureArgs {
     pub fn open(&self) -> BunsenResult<Option<Capture>> {
         let host = cpal::default_host();
         if self.list_devices {
-            list_devices(&host)?;
+            list_audio_devices(&host, AudioDirection::Input)?;
             return Ok(None);
         }
-        let input = self.pick_device(&host)?;
+        let input = find_audio_device(&host, AudioDirection::Input, self.input_device.as_deref())?;
         Ok(Some(Capture {
-            name: device_name(&input),
+            name: audio_device_name(&input),
             input,
             seconds: self.seconds,
         }))
-    }
-
-    /// `--input-device`, or the host's default input device.
-    fn pick_device(
-        &self,
-        host: &Host,
-    ) -> BunsenResult<Device> {
-        match &self.input_device {
-            None => host.default_input_device().ok_or_else(|| {
-                BunsenError::policy("no default input device; name one with --input-device")
-            }),
-            Some(want) => {
-                let needle = want.to_lowercase();
-                host.input_devices()
-                    .map_err(list_error)?
-                    .find(|device| {
-                        device_id(device).to_lowercase().contains(&needle)
-                            || device_name(device).to_lowercase().contains(&needle)
-                    })
-                    .ok_or_else(|| {
-                        BunsenError::policy(format!(
-                            "no input device matches {want:?}; see --list-devices"
-                        ))
-                    })
-            }
-        }
     }
 }
 
@@ -259,52 +239,6 @@ fn take(
     block
 }
 
-/// Sorts a failure to enumerate the host's input devices.
-fn list_error(e: cpal::Error) -> BunsenError {
-    BunsenError::sys("could not list the input devices").with_cause(e)
-}
-
-/// The device's human-readable name; `?` when the host cannot say.
-fn device_name(device: &Device) -> String {
-    device
-        .description()
-        .map(|description| description.name().to_string())
-        .unwrap_or_else(|_| "?".to_string())
-}
-
-/// The device's id within its host (ALSA's PCM name, for one); `?` when
-/// the host cannot say.
-fn device_id(device: &Device) -> String {
-    device
-        .id()
-        .map(|id| id.id().to_string())
-        .unwrap_or_else(|_| "?".to_string())
-}
-
-/// Prints the host's default input device, then each input device that
-/// opens, as `id  name: default configuration`. One that does not open
-/// (ALSA lists plugins with no device behind them) is logged at debug.
-fn list_devices(host: &Host) -> BunsenResult<()> {
-    match host.default_input_device() {
-        Some(device) => println!("default: {}  {}", device_id(&device), device_name(&device)),
-        None => println!("default: none"),
-    }
-    for device in host.input_devices().map_err(list_error)? {
-        let id = device_id(&device);
-        let name = device_name(&device);
-        match device.default_input_config() {
-            Ok(config) => println!(
-                "  {id}  {name}: {} ch, {} Hz, {}",
-                config.channels(),
-                config.sample_rate(),
-                config.sample_format(),
-            ),
-            Err(err) => log::debug!("{id} ({name}): {err}"),
-        }
-    }
-    Ok(())
-}
-
 /// The capture configuration: the fewest channels the device offers at
 /// `rate` in a format this can read, else its default configuration, to be
 /// resampled.
@@ -318,46 +252,24 @@ fn pick_config(
             BunsenError::sys("could not list the device's input configurations").with_cause(e)
         })?
         .filter(|range| {
-            format_rank(range.sample_format()).is_some()
+            sample_format_rank(range.sample_format()).is_some()
                 && range.min_sample_rate() <= rate
                 && rate <= range.max_sample_rate()
         })
-        .min_by_key(|range| (range.channels(), format_rank(range.sample_format())))
+        .min_by_key(|range| (range.channels(), sample_format_rank(range.sample_format())))
         .and_then(|range| range.try_with_sample_rate(rate));
     if let Some(config) = native {
         return Ok(config);
     }
 
-    let config = device.default_input_config().map_err(|e| {
-        BunsenError::sys("could not read the device's default input configuration").with_cause(e)
-    })?;
-    if format_rank(config.sample_format()).is_none() {
+    let config = AudioDirection::Input.default_config(device)?;
+    if sample_format_rank(config.sample_format()).is_none() {
         return Err(BunsenError::unsupported(format!(
             "the device captures {}, which this cannot read",
             config.sample_format()
         )));
     }
     Ok(config)
-}
-
-/// Preference among the formats [`downmix`] reads; `None` for one it does
-/// not.
-fn format_rank(format: SampleFormat) -> Option<u8> {
-    Some(match format {
-        SampleFormat::F32 => 0,
-        SampleFormat::I16 => 1,
-        SampleFormat::I32 => 2,
-        SampleFormat::I24 => 3,
-        SampleFormat::F64 => 4,
-        SampleFormat::U16 => 5,
-        SampleFormat::U32 => 6,
-        SampleFormat::U24 => 7,
-        SampleFormat::I8 => 8,
-        SampleFormat::U8 => 9,
-        SampleFormat::I64 => 10,
-        SampleFormat::U64 => 11,
-        _ => return None,
-    })
 }
 
 /// Opens the input stream: each callback downmixes its buffer and sends it

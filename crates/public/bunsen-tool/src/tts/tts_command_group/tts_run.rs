@@ -94,8 +94,15 @@ pub struct TtsRunCommand {
     voice: String,
 
     /// Where the speech is written: a mono 16-bit WAV file at 44.1 kHz.
+    ///
+    /// Needed unless the speech is played (`--play`, with `live`).
     #[arg(long, short)]
-    out: PathBuf,
+    out: Option<PathBuf>,
+
+    /// Whether, and where, the speech is played.
+    #[cfg(feature = "live")]
+    #[clap(flatten)]
+    playback: crate::tts::PlaybackArgs,
 
     /// Seeds the take, to repeat it; a seed from the clock when omitted.
     ///
@@ -145,6 +152,21 @@ impl TtsRunCommand {
     ) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
+        #[cfg(feature = "live")]
+        if self.playback.list()? {
+            return Ok(());
+        }
+        #[cfg(feature = "live")]
+        let playback = self.playback.open()?;
+        #[cfg(feature = "live")]
+        let playing = playback.is_some();
+        #[cfg(not(feature = "live"))]
+        let playing = false;
+        if self.out.is_none() && !playing {
+            return Err(BunsenError::illegal(
+                "nowhere for the speech to go: name a file with --out, or --play it",
+            ));
+        }
         let text = self.read_text()?;
         let cache = self.cache.init()?;
         let device = self.device.open()?;
@@ -176,16 +198,26 @@ impl TtsRunCommand {
         if speech.codes.stop == Zonos3Stop::Budget {
             log::warn!("the take ran out of frames before it ended: raise --max-frames");
         }
-        save_wav_mono(&self.out, &speech.samples, speech.sample_rate)?;
+        if let Some(out) = &self.out {
+            save_wav_mono(out, &speech.samples, speech.sample_rate)?;
+        }
         let seconds = speech.samples.len() as f64 / f64::from(speech.sample_rate);
+        let place = self
+            .out
+            .as_ref()
+            .map_or_else(|| "the speech".to_string(), |out| out.display().to_string());
         eprintln!(
-            "{}: {seconds:.2} s in {}'s voice, seed {seed}; synthesized in {spoken:.2} s \
+            "{place}: {seconds:.2} s in {}'s voice, seed {seed}; synthesized in {spoken:.2} s \
              ({} rows, {:.1} a second)",
-            self.out.display(),
             self.voice,
             speech.codes.rows,
             speech.codes.rows as f64 / spoken,
         );
+        #[cfg(feature = "live")]
+        if let Some(playback) = &playback {
+            eprintln!("# playing on {}; Ctrl-C to stop", playback.name());
+            playback.play(&speech.samples, speech.sample_rate)?;
+        }
         Ok(())
     }
 
@@ -254,6 +286,16 @@ mod tests {
     struct Cli {
         #[command(flatten)]
         run: TtsRunCommand,
+    }
+
+    /// Without `--out` or `--play`, the speech has nowhere to go.
+    #[test]
+    fn test_needs_a_destination() {
+        let cli = Cli::try_parse_from(["tts", "hi"]).unwrap();
+        let matches = clap::ArgMatches::default();
+        let error = cli.run.run(&matches).unwrap_err();
+        assert_eq!(error.kind(), bunsen::errors::BunsenErrorKind::Illegal);
+        assert!(error.to_string().contains("--out"), "{error}");
     }
 
     /// The flags lay over the release's settings; the text joins its words.

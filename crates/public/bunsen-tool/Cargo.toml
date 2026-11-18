@@ -30,8 +30,9 @@ speech = [
     "bunsen/speech",
     "bunsen/zyphra-textnorm",
 ]
-## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
-## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
+## The host's audio devices through its audio API (`cpal`; on Linux it links ALSA,
+## `libasound2-dev`), and Ctrl-C as a clean stop: the microphone for `asr live` and
+## `asr family <family> live`, a speaker for `tts run --play`.
 live = ["speech", "dep:cpal", "dep:ctrlc"]
 ## `--publish` to a `webhook` target: each record POSTed as JSON (`ureq`).
 webhook = ["speech", "dep:ureq"]
