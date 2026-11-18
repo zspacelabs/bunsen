@@ -54,7 +54,7 @@ fn tiny_model(device: &Device) -> Whisper {
     assert_eq!(
         bundle.model.preferred_dtype(),
         burn::tensor::FloatDType::F32,
-        "at_least(F32) loads tiny in f32"
+        "min_precision(F32) loads tiny in f32"
     );
     bundle.model.clone()
 }
