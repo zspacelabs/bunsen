@@ -24,8 +24,11 @@ use burn::{
 };
 
 use super::{
+    Zonos3Normalizer,
     Zonos3Stop,
     Zonos3TakeRows,
+    Zonos3TextNormalization,
+    Zonos3ZyphraNormalization,
     zonos3_output_stage,
 };
 use crate::{
@@ -59,6 +62,11 @@ use crate::{
 /// (`config.json`'s `generation`, [`from_generation`](Self::from_generation)).
 #[derive(Config, Debug)]
 pub struct Zonos3DriverConfig {
+    /// How a request's text is normalized; Zyphra's normalizer in English
+    /// by default, the release's (feature `zyphra-textnorm`).
+    #[config(default = "Zonos3TextNormalization::Zyphra(Zonos3ZyphraNormalization::new())")]
+    pub normalization: Zonos3TextNormalization,
+
     /// How each step's codes are sampled.
     #[config(default = "Zonos3SamplerConfig::new()")]
     pub sampler: Zonos3SamplerConfig,
@@ -96,7 +104,8 @@ pub struct Zonos3DriverConfig {
 }
 
 impl Zonos3DriverConfig {
-    /// The settings of a release's `generation` section.
+    /// The settings of a release's `generation` section (its markup tags
+    /// aside: the normalizer keeps none, as the release's reference).
     pub fn from_generation(generation: &Zonos3GenerationJson) -> Self {
         Self::new()
             .with_sampler(Zonos3SamplerConfig::from_generation(generation))
@@ -111,7 +120,8 @@ impl Zonos3DriverConfig {
 /// What [`Zonos3Driver`] speaks.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Zonos3Request {
-    /// The text, normalized.
+    /// The text, as typed: the driver normalizes it
+    /// ([`normalization`](Zonos3DriverConfig::normalization)).
     pub text: String,
 
     /// The speaker.
@@ -180,10 +190,10 @@ pub struct Zonos3Speech {
     pub codes: Zonos3Codes,
 }
 
-/// ZONOS3-Mini's driver: normalized text and a speaker to speech, one take
-/// decoded whole, as the release generates it.
+/// ZONOS3-Mini's driver: text and a speaker to speech, one take decoded
+/// whole, as the release generates it.
 ///
-/// A take is the prompt
+/// A take is the text, normalized ([`Zonos3Normalizer`]); its prompt
 /// ([`Zonos3PromptConfig::build`](crate::kits::speech::tts::zonos3::prompt::Zonos3PromptConfig::build))
 /// run through the language model, then one row a step through its decode
 /// cache, each row's codes sampled by [`Zonos3Sampler`] and fed back with the
@@ -192,6 +202,7 @@ pub struct Zonos3Speech {
 #[derive(Debug)]
 pub struct Zonos3Driver<T: Tokenizer> {
     construct: Arc<Zonos3Construct>,
+    normalizer: Zonos3Normalizer,
     sampler: Zonos3Sampler,
     tokenizer: T,
     config: Zonos3DriverConfig,
@@ -203,7 +214,8 @@ impl<T: Tokenizer> Zonos3Driver<T> {
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a silence
-    /// prefill past its limit.
+    /// prefill past its limit; the normalizer's
+    /// ([`Zonos3Normalizer::new`]).
     pub fn new(
         construct: Arc<Zonos3Construct>,
         tokenizer: T,
@@ -215,12 +227,15 @@ impl<T: Tokenizer> Zonos3Driver<T> {
                 config.silence_prefill_frames, config.silence_prefill_max_frames
             )));
         }
+        let normalizer =
+            Zonos3Normalizer::new(&config.normalization, &construct.generation.languages)?;
         let lm = &construct.lm_config;
         let sampler = config
             .sampler
             .init(lm.codebook_size, lm.eoa_id(), lm.audio_vocab());
         Ok(Self {
             construct,
+            normalizer,
             sampler,
             tokenizer,
             config,
@@ -278,8 +293,8 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         logits.slice(s![0..1, t - 1..t, .., ..]).reshape([k, v])
     }
 
-    /// The take's codes: the prompt, the generated rows, and the frames
-    /// they cover.
+    /// The take's codes: the text normalized, the prompt, the generated
+    /// rows, and the frames they cover.
     ///
     /// # Errors
     /// The tokenizer's, the prompt's
@@ -294,7 +309,7 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         let layout = &self.construct.prompt;
         let max_rows = self.construct.lm_config.max_rows;
         let prompt = layout.build(&Zonos3PromptRequest {
-            text_ids: zonos3_text_ids(&self.tokenizer, &request.text)?,
+            text_ids: zonos3_text_ids(&self.tokenizer, &self.normalizer.normalize(&request.text))?,
             speaker: request.speaker.clone(),
             condition_buckets: request.condition_buckets.clone(),
             silence_prefill_frames: self.config.silence_prefill_frames,

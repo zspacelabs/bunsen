@@ -169,8 +169,14 @@ fn construct() -> Zonos3Construct {
     }
 }
 
+/// The driver, its text as typed (the toy's tokenizer is no release's).
 fn driver(config: Zonos3DriverConfig) -> Zonos3Driver<Bytes> {
-    Zonos3Driver::new(Arc::new(construct()), Bytes, config).expect("the toy driver")
+    Zonos3Driver::new(
+        Arc::new(construct()),
+        Bytes,
+        config.with_normalization(Zonos3TextNormalization::None),
+    )
+    .expect("the toy driver")
 }
 
 #[test]
@@ -215,7 +221,9 @@ fn test_refusals() {
     let error = Zonos3Driver::new(
         Arc::new(construct()),
         Bytes,
-        Zonos3DriverConfig::new().with_silence_prefill_frames(31),
+        Zonos3DriverConfig::new()
+            .with_normalization(Zonos3TextNormalization::None)
+            .with_silence_prefill_frames(31),
     )
     .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Illegal);

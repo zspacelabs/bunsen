@@ -7,12 +7,17 @@
 //!   audio, or the budget) and the frames a whole decode covers.
 //! - [`zonos3_output_stage`]: the release's gain and soft limiter on the
 //!   decoder's audio.
+//! - [`Zonos3TextNormalization`]: how a request's text is normalized, as typed
+//!   or by Zyphra's normalizer (feature `zyphra-textnorm`);
+//!   [`Zonos3Normalizer`] applies it.
 
 mod generate;
+mod normalize;
 mod output;
 mod take;
 
 pub use generate::*;
+pub use normalize::*;
 pub use output::*;
 pub use take::*;
 
