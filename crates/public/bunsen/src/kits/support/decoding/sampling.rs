@@ -1,8 +1,12 @@
-//! Sampling truncations: top-k, top-p and min-p.
+//! Sampling: the truncations top-k, top-p and min-p, and the draw.
 use burn::{
     Tensor,
     prelude::Int,
-    tensor::activation::softmax,
+    tensor::{
+        DType,
+        Distribution,
+        activation::softmax,
+    },
 };
 
 use super::LogitFilter;
@@ -83,6 +87,39 @@ impl LogitFilter for MinP {
         let below = logits.clone().lower(floor.expand([rows, vocab]));
         logits.mask_fill(below, f32::NEG_INFINITY)
     }
+}
+
+/// One id per row, `[rows, 1]`, drawn from `softmax(logits / temperature)`;
+/// at temperature zero, the argmax.
+///
+/// The draw is the Gumbel-max trick, `argmax(logits / t + g)` with `g =
+/// -log(-log u)`, on the backend's own random numbers, so `device.seed(..)`
+/// makes it repeatable. A suppressed (`-inf`) id is never drawn.
+///
+/// The noise is drawn and added in f32, whatever the logits' dtype, and `u`
+/// stays below 1: a `u` of 1 is noise of +inf, which outranks every logit.
+/// In bf16, a draw within 2^-9 of 1 rounds to 1, so one id in 512 would be
+/// picked whatever its logit.
+///
+/// # Panics
+/// If `temperature` is negative.
+pub fn sample_softmax(
+    logits: Tensor<2>,
+    temperature: f64,
+) -> Tensor<2, Int> {
+    assert!(temperature >= 0.0, "a temperature is not negative");
+    if temperature == 0.0 {
+        return logits.argmax(1);
+    }
+    let logits = logits.cast(DType::F32);
+    let uniform: Tensor<2> = Tensor::random(
+        logits.dims(),
+        Distribution::Uniform(0.0, 1.0),
+        (&logits.device(), DType::F32),
+    )
+    .clamp(1e-20, 1.0 - f64::from(f32::EPSILON) / 2.0);
+    let gumbel = uniform.log().neg().log().neg();
+    (logits / temperature + gumbel).argmax(1)
 }
 
 #[cfg(test)]
@@ -173,5 +210,36 @@ mod tests {
             ),
             [0]
         );
+    }
+
+    #[test]
+    fn test_sample_softmax() {
+        let device = cpu_device();
+        let logits = Tensor::<2>::from_data(
+            TensorData::new(
+                vec![0.0, 3.0, 1.0, f32::NEG_INFINITY, 2.0, 0.0, 1.0, 0.5],
+                [2, 4],
+            ),
+            &device,
+        );
+        let ids = |t: Tensor<2, Int>| t.into_data().try_into_vec_as::<i64>().unwrap();
+        assert_eq!(
+            ids(sample_softmax(logits.clone(), 0.0)),
+            [1, 0],
+            "the argmax"
+        );
+
+        device.seed(5);
+        let first = ids(sample_softmax(logits.clone(), 1.0));
+        device.seed(5);
+        assert_eq!(ids(sample_softmax(logits.clone(), 1.0)), first, "seeded");
+
+        for _ in 0..64 {
+            assert_ne!(
+                ids(sample_softmax(logits.clone(), 4.0))[0],
+                3,
+                "never a -inf id"
+            );
+        }
     }
 }

@@ -11,8 +11,9 @@
 //!   [`ApplyTimestampRules`](crate::kits::speech::asr::whisper::logit_filters::ApplyTimestampRules)).
 //! - [`TokenSearch`]: the search seam. It owns the sequences' bookkeeping, and
 //!   tells the loop how to permute its cache's rows when beams branch.
-//!   [`GreedySearch`] is the argmax, or sampling above temperature zero;
-//!   [`BeamSearch`] is a beam search with patience.
+//!   [`GreedySearch`] is the argmax, or sampling above temperature zero
+//!   ([`sample_softmax`], the draw); [`BeamSearch`] is a beam search with
+//!   patience.
 //! - [`SequenceRanker`]: which finished candidate of a group the decode
 //!   returns; [`MaximumLikelihoodRanker`] normalizes by length.
 //! - [`SearchConfig`]: the value object a model's decode config embeds, which

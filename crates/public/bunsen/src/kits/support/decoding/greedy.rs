@@ -2,26 +2,21 @@
 
 use burn::{
     Tensor,
-    prelude::Int,
-    tensor::{
-        DType,
-        Distribution,
-        activation::log_softmax,
-    },
+    tensor::activation::log_softmax,
 };
 
 use super::{
     Candidate,
     TokenSearch,
+    sample_softmax,
 };
 
 /// The argmax, one row per group; or sampling, `group` rows per group.
 ///
 /// Greedy search through the [`TokenSearch`] seam: one row per group, the
 /// argmax every step; or, above temperature zero, a sample from the softmax
-/// of the logits over the temperature, drawn by the Gumbel-max trick on the
-/// backend's own random numbers (so `device.seed(..)` makes it repeatable),
-/// with `group` independent trajectories per group for the ranker to choose
+/// of the logits over the temperature ([`sample_softmax`]), with `group`
+/// independent trajectories per group for the ranker to choose
 /// among: `openai-whisper`'s `best_of`.
 ///
 /// Rows finish independently: a row that emits one of the stop tokens stops
@@ -107,27 +102,7 @@ impl TokenSearch for GreedySearch {
             self.stopped = vec![None; rows];
         }
 
-        let picked: Tensor<2, Int> = if self.temperature > 0.0 {
-            // Gumbel-max: argmax(logits / t + g), g = -log(-log u), is a
-            // sample from softmax(logits / t). Suppressed ids stay -inf.
-            //
-            // The noise is drawn and added in f32, whatever the logits'
-            // dtype, and `u` stays below 1: a `u` of 1 is noise of +inf,
-            // which outranks every logit. In bf16, a draw within 2^-9 of 1
-            // rounds to 1, so one id in 512 would be picked whatever its
-            // logit.
-            let logits = logits.clone().cast(DType::F32);
-            let uniform: Tensor<2> = Tensor::random(
-                logits.dims(),
-                Distribution::Uniform(0.0, 1.0),
-                (&logits.device(), DType::F32),
-            )
-            .clamp(1e-20, 1.0 - f64::from(f32::EPSILON) / 2.0);
-            let gumbel = uniform.log().neg().log().neg();
-            (logits / self.temperature + gumbel).argmax(1)
-        } else {
-            logits.clone().argmax(1)
-        };
+        let picked = sample_softmax(logits.clone(), self.temperature);
         let chosen: Vec<i64> = picked.clone().into_data().try_into_vec_as::<i64>().unwrap();
         let logprobs: Vec<f32> = log_softmax(logits, 1)
             .gather(1, picked)
