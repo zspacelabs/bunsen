@@ -22,6 +22,7 @@ zyphra:
         checkpoint: checkpoint
         config: config
         tokenizer: tokenizer
+        voice_info: voice_info
         voices: voices
       active_parameters: 100000000
       language:
@@ -73,6 +74,16 @@ zyphra:
         $sha256: da2377fb4c530dda80ae7aba71be99f032fa33377b447cbac706e376ce972c0b
         $size: 239960
         $dtype: float32
+        $sources:
+          - $hub:
+              $repo: Zyphra/ZONOS3-Mini-hf
+              $revision: 73500c5a1fc3e0c4da69908e3cffd9346cdd97c2
+      voice_info:
+        $kind: resource
+        $file: voices.json
+        $format: json
+        $sha256: e38c9517b995a3ac952adaef462a18271cacd359448ed57d9a9a6ee22b1e8174
+        $size: 3064
         $sources:
           - $hub:
               $repo: Zyphra/ZONOS3-Mini-hf

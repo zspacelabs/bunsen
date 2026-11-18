@@ -12,6 +12,7 @@ use super::{
     CONFIG,
     SAFETENSORS_FORMAT,
     TOKENIZER,
+    VOICE_INFO,
     VOICES,
     ZONOS3_KIT,
 };
@@ -57,7 +58,11 @@ use crate::{
             },
         },
         prompt::Zonos3PromptConfig,
-        voices::zonos3_voices,
+        voices::{
+            with_zonos3_voice_info,
+            zonos3_voice_info,
+            zonos3_voices,
+        },
     },
 };
 
@@ -65,8 +70,9 @@ use crate::{
 /// sections give the geometries; the checkpoint's `lm.*` and `codec.*`
 /// tensors load into them, each in the dtype the load policy resolves its
 /// stored dtype to (the language model is bf16 in the file, the codec
-/// f32); the stock voices are read; the tokenizer is handed back as a
-/// path. Together, a [`Zonos3Construct`].
+/// f32); the stock voices are read, with their descriptions where the row
+/// has them; the tokenizer is handed back as a path. Together, a
+/// [`Zonos3Construct`].
 ///
 /// The ZONOS3 kit's construct config: its [`ConstructInit`] hook.
 /// [`default_zonos3_factory`](super::default_zonos3_factory) attaches it; a
@@ -82,7 +88,7 @@ impl ConstructInit for Zonos3ConstructConfig {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
     /// resource set without a safetensors checkpoint, a config, a tokenizer
-    /// and safetensors voices.
+    /// and safetensors voices, or with voice descriptions not in JSON.
     fn for_resource_set(map: &ResourceSet) -> BunsenResult<Self> {
         for (key, format) in [
             (CHECKPOINT, Some(SAFETENSORS_FORMAT)),
@@ -102,6 +108,13 @@ impl ConstructInit for Zonos3ConstructConfig {
                     "no ZONOS3 reader for a `{key}` of kind {got:?}"
                 )));
             }
+        }
+        if let Some(got) = map.get(VOICE_INFO).and_then(|r| r.format.as_deref())
+            && got != "json"
+        {
+            return Err(BunsenError::unsupported(format!(
+                "no ZONOS3 reader for a `{VOICE_INFO}` of kind {got:?}"
+            )));
         }
         Ok(Self)
     }
@@ -138,8 +151,13 @@ impl ConstructInit for Zonos3ConstructConfig {
         let mut codec: Zonos3Codec = codec_config.try_init(device)?;
         load_zonos3_codec_tensors(&mut codec, &codec_config, tensors, Some(codec_dtype))?;
 
-        let voices =
+        let mut voices =
             zonos3_voices(SafetensorsCheckpoint::single(loaded.expect(VOICES)?).tensors()?)?;
+        if let Some(info) = loaded.get(VOICE_INFO) {
+            let path = &info.path;
+            let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
+            with_zonos3_voice_info(&mut voices, zonos3_voice_info(&json)?)?;
+        }
         let prompt = Zonos3PromptConfig::new(
             &lm_config,
             json.lm.text_vocab as u32,

@@ -154,6 +154,7 @@ fn construct() -> Zonos3Construct {
         Zonos3Voice {
             codes: (0..4).map(|f| vec![f as u32 % 16; 10]).collect(),
             embedding: vec![0.1; 8],
+            info: None,
         },
     )]);
     Zonos3Construct {
