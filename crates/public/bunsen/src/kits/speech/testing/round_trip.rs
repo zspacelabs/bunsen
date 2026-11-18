@@ -1,11 +1,4 @@
-//! Speech synthesis judged by speech recognition: each text spoken, the
-//! speech transcribed, the transcript scored against the text
-//! ([`tts_asr_round_trip`]).
-//!
-//! A sampled take can match no reference sample for sample, so this judges
-//! what a take is for: whether what it says can be understood. Any
-//! synthesizer and any recognizer: each is a closure, and the speech is
-//! resampled from the synthesizer's rate to the recognizer's.
+//! Speech synthesis judged by speech recognition: [`tts_asr_round_trip`].
 
 use alloc::{
     string::String,
@@ -80,6 +73,11 @@ impl RoundTripReport {
 /// Speaks each of `texts`, transcribes the speech, and scores each
 /// transcript against its text, words normalized as
 /// [`normalize_transcript`] does.
+///
+/// A sampled take can match no reference sample for sample, so this judges
+/// what a take is for: whether what it says can be understood. Any
+/// synthesizer and any recognizer: each is a closure, and the speech is
+/// resampled from the synthesizer's rate to the recognizer's.
 ///
 /// # Arguments
 /// - `texts`: what to speak.
