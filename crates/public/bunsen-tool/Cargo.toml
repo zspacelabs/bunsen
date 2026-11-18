@@ -23,10 +23,12 @@ workspace = true
 
 [features]
 default = ["speech", "live", "webhook", "mqtt"]
-## `asr`: speech to text and diarization (`bunsen_tool::asr`), on bunsen's speech
-## kits.
+## `asr`: speech to text and diarization (`bunsen_tool::asr`); `tts`: text to
+## speech (`bunsen_tool::tts`), its text normalized by Zyphra's normalizer. On
+## bunsen's speech kits.
 speech = [
     "bunsen/speech",
+    "bunsen/zyphra-textnorm",
 ]
 ## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.

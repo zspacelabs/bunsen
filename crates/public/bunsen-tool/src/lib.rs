@@ -16,6 +16,8 @@
 //!
 //! - `asr` (feature `speech`): presets and model families for speech to text,
 //!   the stream drivers, the publishers; `asr::AsrCommandGroup`.
+//! - `tts` (feature `speech`): text to speech with ZONOS3-Mini;
+//!   `tts::TtsCommandGroup`.
 //! - [`chat`]: the chat driver; [`chat::ChatCommandGroup`].
 //! - [`decide`]: Laya decisions on typed questions;
 //!   [`decide::DecideCommandGroup`].
@@ -30,3 +32,5 @@ pub mod decide;
 pub mod devices;
 pub mod summary;
 pub mod support;
+#[cfg(feature = "speech")]
+pub mod tts;

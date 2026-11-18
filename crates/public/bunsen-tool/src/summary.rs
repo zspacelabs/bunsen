@@ -1,8 +1,8 @@
 //! `bunsen-tool summary`: the builds this binary can run, in brief: by
 //! command, contract and publisher.
 //!
-//! One section per command that runs builds (`asr`, `chat`, `decide`); in
-//! each, the builds grouped by their contract, then by their publisher (the
+//! One section per command that runs builds (`asr`, `tts`, `chat`, `decide`);
+//! in each, the builds grouped by their contract, then by their publisher (the
 //! first segment of their name), each a line of details and its description
 //! wrapped below it:
 //!
@@ -33,6 +33,7 @@ use bunsen::kits::speech::{
         whisper::pretrained::default_whisper_factory,
     },
     diarization::sortformer::pretrained::default_sortformer_factory,
+    tts::zonos3::pretrained::default_zonos3_factory,
     vad::silero_vad::pretrained::default_silero_factory,
 };
 use bunsen::{
@@ -68,7 +69,7 @@ use bunsen_app::cache::human_bytes;
 
 /// The commands that run builds, as `--kind` takes them.
 #[cfg(feature = "speech")]
-const KIND_NAMES: &[&str] = &["asr", "chat", "decide"];
+const KIND_NAMES: &[&str] = &["asr", "tts", "chat", "decide"];
 #[cfg(not(feature = "speech"))]
 const KIND_NAMES: &[&str] = &["chat", "decide"];
 
@@ -79,7 +80,7 @@ pub struct SummaryCommand {
     #[arg(long, default_value_t = 75)]
     width: usize,
 
-    /// One command's builds alone: `asr`, `chat` or `decide`.
+    /// One command's builds alone: `asr`, `tts`, `chat` or `decide`.
     #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(KIND_NAMES))]
     kind: Option<String>,
 }
@@ -99,7 +100,8 @@ impl SummaryCommand {
     }
 }
 
-/// A command that runs builds, `asr`, `chat` or `decide`, and its families.
+/// A command that runs builds, `asr`, `tts`, `chat` or `decide`, and its
+/// families.
 pub struct Kind {
     /// The command's name.
     pub name: &'static str,
@@ -158,6 +160,12 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
             Family::of("sortformer", default_sortformer_factory()?),
             Family::of("silero-vad", default_silero_factory()?),
         ],
+    });
+    #[cfg(feature = "speech")]
+    kinds.push(Kind {
+        name: "tts",
+        title: "Text to Speech",
+        families: vec![Family::of("zonos3", default_zonos3_factory()?)],
     });
     kinds.extend([
         Kind {

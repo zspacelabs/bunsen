@@ -171,6 +171,19 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 * silero/silero_vad/vad-16k: [1.2 MB f32; vad-policy: *silero|faster-whisper]
   Silero VAD, the 16 kHz model, from upstream's safetensors.
 
+# bunsen-tool tts ...
+# Text to Speech
+
+# contract: zonos3-tts
+# A ZONOS3 text-to-speech model as Zyphra's transformers packaging lays it
+# out: the language model and the codec decoder in one safetensors file,
+# their geometry from `config.json`.
+# publisher: zyphra - Zyphra.
+
+* zyphra/zonos3/zonos3-mini: [2.39 GB bf16 f32]
+  ZONOS3-Mini: 800 M parameters (100 M active), 44.1 kHz speech in 9
+  languages, 27 stock voices.
+
 # bunsen-tool chat ...
 # Chat and Text Generation
 
