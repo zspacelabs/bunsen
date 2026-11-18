@@ -18,3 +18,7 @@ zonos3-tts:
     voices:
       $format: [safetensors]
       $description: "The stock voices: each one's reference codes and speaker embedding."
+    voice_info:
+      $format: [json]
+      $optional: true
+      $description: "`voices.json`: each stock voice's language, style and gender."

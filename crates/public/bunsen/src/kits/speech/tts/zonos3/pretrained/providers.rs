@@ -26,6 +26,10 @@ pub const TOKENIZER: &str = "tokenizer";
 /// The key of the stock voices.
 pub const VOICES: &str = "voices";
 
+/// The key of the stock voices' descriptions, `voices.json`; a row may
+/// leave it out.
+pub const VOICE_INFO: &str = "voice_info";
+
 /// The format of a safetensors file.
 pub const SAFETENSORS_FORMAT: &str = "safetensors";
 
@@ -112,6 +116,7 @@ mod tests {
                 format!("zonos3-tts: {CHECKPOINT} [{SAFETENSORS_FORMAT}]"),
                 format!("zonos3-tts: {CONFIG} [json]"),
                 format!("zonos3-tts: {TOKENIZER} [tokenizer.json]"),
+                format!("zonos3-tts: {VOICE_INFO}? [json]"),
                 format!("zonos3-tts: {VOICES} [{SAFETENSORS_FORMAT}]"),
             ]
         );

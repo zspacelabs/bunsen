@@ -315,6 +315,11 @@ $contracts:
         $description: The text tokenizer, its ids already offset past the four special ids.
         $format:
           - tokenizer.json
+      voice_info:
+        $description: "`voices.json`: each stock voice's language, style and gender."
+        $format:
+          - json
+        $optional: true
       voices:
         $description: "The stock voices: each one's reference codes and speaker embedding."
         $format:

@@ -30,10 +30,10 @@ pub enum TtsSubCommand {
     /// audio at 44.1 kHz, played, or both.
     Run(Box<TtsRunCommand>),
 
-    /// The checkpoint's stock voices, by name.
+    /// The checkpoint's stock voices: language, style, gender.
     ///
-    /// Reads only the voices file (asking first when it must be fetched, unless
-    /// `--yes`), not the model.
+    /// Reads only the voices' files (asking first when they must be fetched,
+    /// unless `--yes`), not the model.
     Voices(Box<TtsVoicesCommand>),
 
     /// The checkpoints bunsen knows by name.

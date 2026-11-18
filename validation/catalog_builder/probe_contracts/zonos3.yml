@@ -40,6 +40,7 @@ zyphra:
         config: config
         tokenizer: tokenizer
         voices: voices
+        voice_info: voice_info
       checkpoint:
         $kind: resource
         $file: model.safetensors
@@ -58,3 +59,7 @@ zyphra:
         $format: safetensors
         # f32 embeddings and i32 codes: not the config's bfloat16.
         $dtype: float32
+      voice_info:
+        $kind: resource
+        $file: voices.json
+        $format: json
