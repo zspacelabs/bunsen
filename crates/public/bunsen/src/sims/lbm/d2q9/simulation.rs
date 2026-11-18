@@ -216,13 +216,15 @@ impl LBMD2Q9State {
         self.dist.dtype()
     }
 
-    /// Recasts the datatype of the state.
+    /// Recasts the datatype of the state: every float field, the
+    /// distributions, the relaxation field and the lattice tables.
     pub fn to_dtype(
         self,
         dtype: DType,
     ) -> Self {
         Self {
             dist: self.dist.cast(dtype),
+            omega: self.omega.cast(dtype),
             lbm_tables: self.lbm_tables.to_dtype(dtype),
             ..self
         }
@@ -346,6 +348,56 @@ mod tests {
         })
         .with_relaxation(RelaxationParam::Tau(0.9))
         .init(device, RHO)
+    }
+
+    /// Every float field takes the new dtype, the relaxation field among
+    /// them: a step would otherwise mix dtypes, which burn does not check.
+    #[test]
+    #[serial]
+    fn test_to_dtype_casts_every_float_field() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let dtype = [DType::F16, DType::F64]
+            .into_iter()
+            .find(|d| device.supports_dtype(*d))
+            .expect("a dtype other than f32");
+
+        let world = small_world(&device).to_dtype(dtype);
+        assert_eq!(world.dtype(), dtype);
+        assert_eq!(world.omega.dtype(), dtype);
+        assert_eq!(world.lbm_tables.e_vec().dtype(), dtype);
+        assert_eq!(world.lbm_tables.w().dtype(), dtype);
+    }
+
+    /// A world cast to half precision steps as the f32 one does, within
+    /// half's resolution: nothing a step makes is in another dtype.
+    #[test]
+    #[serial]
+    fn test_a_half_world_steps_as_the_f32_one() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let Some(half) = [DType::F16, DType::BF16]
+            .into_iter()
+            .find(|d| device.supports_dtype(*d))
+        else {
+            return;
+        };
+
+        let mut full = small_world(&device);
+        full.dist = full.dist.slice_fill(s![8, 12, 1, 1], 5.0 * RHO);
+        full.save_correct_total_mass();
+        let mut low = full.clone().to_dtype(half);
+        for _ in 0..10 {
+            full.advance_step();
+            low.advance_step();
+        }
+        assert_eq!(low.dtype(), half);
+        let diff: f64 = (low.dist.cast(DType::F32) - full.dist.clone())
+            .abs()
+            .max()
+            .into_scalar();
+        let scale: f64 = full.dist.abs().max().into_scalar();
+        assert!(diff <= 1e-2 * scale, "{diff} against {scale}");
     }
 
     #[test]
