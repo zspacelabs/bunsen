@@ -166,6 +166,12 @@ pub struct CausalDecoderBlockConfig {
     #[config(default = false)]
     pub post_norms: bool,
 
+    /// Whether each sublayer's residual is scaled per channel by a learned
+    /// layer scale before it is added (`CaiT`'s `LayerScale`; ZONOS3's codec
+    /// trunk's `attention_scale` and `ffn_scale`).
+    #[config(default = false)]
+    pub layer_scale: bool,
+
     /// A scale on the feed-forward's normalized input, learned from a
     /// conditioning vector the forward pass is handed
     /// ([`forward_conditioned`](CausalDecoderBlock::forward_conditioned)):
@@ -232,9 +238,11 @@ impl CausalDecoderBlockConfig {
         Ok(CausalDecoderBlock {
             attn: ResidualSublayerConfig::pre_norm(self.attn_norm.then(|| self.norm.clone()))
                 .with_post(self.post_norms.then(|| self.norm.clone()))
+                .with_layer_scale(self.layer_scale)
                 .init(self.attn.try_init(layer_index, device)?, n_embed, device),
             mlp: ResidualSublayerConfig::pre_norm(Some(self.norm.clone()))
                 .with_post(self.post_norms.then(|| self.norm.clone()))
+                .with_layer_scale(self.layer_scale)
                 .init(self.mlp.try_init(device)?, n_embed, device),
             mlp_scale: self
                 .mlp_scale
@@ -267,6 +275,10 @@ impl CausalDecoderBlockConfig {
 /// output is normalized before it is added:
 /// `x = x + attn_post_norm(attn(attn_norm(x)))`, and the same for the
 /// feed-forward: Gemma 2's and 3's sandwich.
+///
+/// With a [`layer_scale`](CausalDecoderBlockConfig::layer_scale), each
+/// sublayer's residual is scaled per channel by a learned `γ`:
+/// `x = x + γ_attn ⊙ attn(attn_norm(x))`, and the same for the feed-forward.
 ///
 /// Its token mixer is attention, or a gated `DeltaNet` ([`TokenMixer`]): a
 /// hybrid stack's linear layers, which carry a
@@ -580,8 +592,10 @@ impl CausalDecoderBlock {
 impl CanonicalKeys for CausalDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
         // Each sublayer is a `ResidualSublayer`: its norms are its `pre` and
-        // `post`, its module its `branch`.
+        // `post`, its module its `branch`, its layer scale its `scale`.
         Rekey::keep_rest()
+            .exact("attn_layer_scale", "attn.scale")
+            .exact("mlp_layer_scale", "mlp.scale")
             .rename("attn_norm.", "attn.pre.")
             .rename("attn_post_norm.", "attn.post.")
             .rename("attn.", "attn.branch.")
@@ -842,6 +856,34 @@ mod tests {
             );
         let output = block.forward(input, &r_emb, &mut None);
         assert_tensors_close(&output, &expected, Tolerance::default());
+    }
+
+    /// A layer scale on each sublayer: both get one, starting at ones, at
+    /// the canonical names `attn_layer_scale` and `mlp_layer_scale`; none
+    /// without it.
+    #[test]
+    fn test_layer_scales() {
+        let device = crate::support::testing::cpu_device();
+        let config = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(4, 2, 16).into(),
+            crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(16, 24).into(),
+        );
+        let plain = config.init(0, &device);
+        assert!(plain.attn.scale.is_none() && plain.mlp.scale.is_none());
+        let block: CausalDecoderBlock = config.with_layer_scale(true).init(0, &device);
+        for scale in [&block.attn.scale, &block.mlp.scale] {
+            assert_eq!(scale.as_ref().expect("a layer scale").dims(), [16]);
+        }
+        let rekey = block.canonical_rekey();
+        assert_eq!(
+            rekey.apply("attn_layer_scale").as_deref(),
+            Some("attn.scale")
+        );
+        assert_eq!(rekey.apply("mlp_layer_scale").as_deref(), Some("mlp.scale"));
+        assert_eq!(
+            rekey.apply("attn.c_q.weight").as_deref(),
+            Some("attn.branch.c_q.weight")
+        );
     }
 
     #[test]
