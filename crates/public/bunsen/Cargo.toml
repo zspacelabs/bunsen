@@ -204,6 +204,14 @@ tokenizer = [
     "dep:serde-pickle",
 ]
 
+## Zyphra's text normalizer, `zyphra-textnorm`, for ZONOS3's driver
+## (`kits::speech::tts::zonos3::driver`): its `Zyphra` text normalization,
+## the release's. Without it, that mode is an init error.
+zyphra-textnorm = [
+    "std",
+    "dep:zyphra-textnorm",
+]
+
 ## Enable the cuda backend in the bunsen build.
 ## This will impact the bunsen::support::testing::performance_device() choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
@@ -335,6 +343,8 @@ wordchipper = { workspace = true, default-features = false, optional = true }
 tokenizers = { version = "0.22.2", default-features = false, features = ["onig"], optional = true }
 # nanochat's `tokenizer.pkl`, a pickled `tiktoken` `Encoding`, read as data.
 serde-pickle = { workspace = true, optional = true }
+# Zyphra's text normalizer, the one ZONOS3's release normalizes with.
+zyphra-textnorm = { workspace = true, optional = true }
 
 
 [dev-dependencies]
