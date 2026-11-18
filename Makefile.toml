@@ -174,8 +174,13 @@ description = "nanochat's whole validation suite, every model, on VALIDATION_BAC
 workspace = false
 script = "cd validation && cargo validate run --crate nanochat --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
 
+[tasks.validate-zonos3]
+description = "ZONOS3-Mini's whole validation suite, on VALIDATION_BACKEND in f32 and, on cuda, in bf16 too (fetches ~2.4 GB into the weights cache)"
+workspace = false
+script = "cd validation && cargo validate run --crate zonos3 --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
+
 [tasks.validate-all]
-description = "Every model's whole validation suite (fetches ~70 GB on a cold cache)"
+description = "Every model's whole validation suite (fetches ~72 GB on a cold cache)"
 workspace = false
 dependencies = [
     "validate-silero",
@@ -186,6 +191,7 @@ dependencies = [
     "validate-sortformer",
     "validate-voxtral",
     "validate-nanochat",
+    "validate-zonos3",
 ]
 
 # ── cards ─────────────────────────────────────────────────────────────────────
