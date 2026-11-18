@@ -16,10 +16,10 @@ use crate::kits::support::decoding::{
     LogitFilter,
     MinP,
     RepetitionPenalty,
+    SuppressTokens,
     TopK,
     TopP,
     sample_softmax,
-    suppress,
 };
 
 /// The lowest temperature [`Zonos3Sampler`] samples at: a lower one, zero
@@ -92,9 +92,9 @@ impl Zonos3SamplerConfig {
         let temperature = self.temperature.max(ZONOS3_MIN_TEMPERATURE);
         let eoa = eoa_id as i64;
         Zonos3Sampler {
-            masked: (codebook_size as i64..audio_vocab as i64)
-                .filter(|&id| id != eoa)
-                .collect(),
+            masked: SuppressTokens::new(
+                (codebook_size as i64..audio_vocab as i64).filter(|&id| id != eoa),
+            ),
             penalty: RepetitionPenalty::new(self.repetition_penalty)
                 .with_window(self.repetition_window)
                 .with_exempt(codebook_size as i64..audio_vocab as i64),
@@ -132,7 +132,7 @@ impl Zonos3SamplerConfig {
 /// distribution, never code for code.
 #[derive(Clone, Debug)]
 pub struct Zonos3Sampler {
-    masked: Vec<i64>,
+    masked: SuppressTokens,
     penalty: RepetitionPenalty,
     repetition_codebooks: usize,
     top_k: TopK,
@@ -159,7 +159,7 @@ impl Zonos3Sampler {
         history: &[Vec<i64>],
     ) -> Vec<i64> {
         let [k, _] = logits.dims();
-        let logits = suppress(logits.cast(DType::F32), &self.masked);
+        let logits = self.masked.apply(logits.cast(DType::F32), &[], 0);
         let covered = self.repetition_codebooks.min(k);
         let logits = if covered > 0 {
             let penalized = self.penalty.apply(

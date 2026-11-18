@@ -1,5 +1,7 @@
 //! Logit filters: rewriting the logits a search chooses from.
+use alloc::sync::Arc;
 use core::fmt::Debug;
+use std::sync::Mutex;
 
 use burn::{
     Tensor,
@@ -7,6 +9,7 @@ use burn::{
         Bool,
         TensorData,
     },
+    tensor::Device,
 };
 
 /// Rewrites the logits the search chooses from.
@@ -33,7 +36,17 @@ pub fn suppress(
     logits: Tensor<2>,
     ids: &[i64],
 ) -> Tensor<2> {
-    let [rows, vocab] = logits.dims();
+    let [_, vocab] = logits.dims();
+    let mask = suppress_mask(ids, vocab, &logits.device());
+    fill_masked(logits, mask)
+}
+
+/// `[vocab]`: true at each of `ids` within the vocabulary.
+fn suppress_mask(
+    ids: &[i64],
+    vocab: usize,
+    device: &Device,
+) -> Tensor<1, Bool> {
     let mut mask = vec![false; vocab];
     for &id in ids {
         if let Ok(i) = usize::try_from(id)
@@ -42,17 +55,33 @@ pub fn suppress(
             mask[i] = true;
         }
     }
-    let mask: Tensor<1, Bool> = Tensor::from_data(TensorData::new(mask, [vocab]), &logits.device());
+    Tensor::from_data(TensorData::new(mask, [vocab]), device)
+}
+
+/// `logits` with every row's `mask`ed ids at `-inf`.
+fn fill_masked(
+    logits: Tensor<2>,
+    mask: Tensor<1, Bool>,
+) -> Tensor<2> {
+    let [rows, vocab] = logits.dims();
     logits.mask_fill(
         mask.unsqueeze::<2>().expand([rows, vocab]),
         f32::NEG_INFINITY,
     )
 }
 
+/// A mask, with the vocabulary width and the device it was built for.
+type CachedMask = (usize, Device, Tensor<1, Bool>);
+
 /// Never picks these ids.
+///
+/// Its mask is built once per vocabulary width and device, on the first
+/// step, and reused: a decode does not rebuild and upload it every step.
+/// Clones share it.
 #[derive(Debug, Clone)]
 pub struct SuppressTokens {
     ids: Vec<i64>,
+    mask: Arc<Mutex<Option<CachedMask>>>,
 }
 
 impl SuppressTokens {
@@ -61,7 +90,29 @@ impl SuppressTokens {
         let mut ids: Vec<i64> = ids.into_iter().collect();
         ids.sort_unstable();
         ids.dedup();
-        Self { ids }
+        Self {
+            ids,
+            mask: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    /// The mask for a vocabulary `vocab` wide on `device`: the one built
+    /// before, or built now and kept.
+    fn mask(
+        &self,
+        vocab: usize,
+        device: &Device,
+    ) -> Tensor<1, Bool> {
+        let mut cached = self.mask.lock().expect("the suppress mask's lock");
+        if let Some((width, at, mask)) = cached.as_ref()
+            && *width == vocab
+            && at == device
+        {
+            return mask.clone();
+        }
+        let mask = suppress_mask(&self.ids, vocab, device);
+        *cached = Some((vocab, device.clone(), mask.clone()));
+        mask
     }
 
     /// The suppressed ids, sorted.
@@ -77,7 +128,9 @@ impl LogitFilter for SuppressTokens {
         _tokens: &[Vec<i64>],
         _prompt_len: usize,
     ) -> Tensor<2> {
-        suppress(logits, &self.ids)
+        let [_, vocab] = logits.dims();
+        let mask = self.mask(vocab, &logits.device());
+        fill_masked(logits, mask)
     }
 }
 
@@ -245,5 +298,34 @@ mod tests {
 
         // No sequences, or nothing generated: the logits as they are.
         assert_eq!(filtered(&penalty, &rows, &[], 0)[1], rows[1]);
+    }
+
+    /// The mask is built once and reused, and built again for another
+    /// vocabulary width.
+    #[test]
+    fn test_suppress_tokens_reuses_its_mask() {
+        let filter = SuppressTokens::new([1, 4]);
+        let device = cpu_device();
+        let row =
+            |n: usize| Tensor::<2>::from_data(TensorData::new(vec![1.0f32; n], [1, n]), &device);
+        let kept = |out: Tensor<2>| -> Vec<bool> {
+            out.into_data()
+                .try_into_vec_as::<f32>()
+                .unwrap()
+                .iter()
+                .map(|x| x.is_finite())
+                .collect()
+        };
+        for _ in 0..2 {
+            assert_eq!(
+                kept(filter.apply(row(4), &[], 0)),
+                [true, false, true, true]
+            );
+        }
+        assert_eq!(
+            kept(filter.clone().apply(row(6), &[], 0)),
+            [true, false, true, true, false, true],
+            "a wider vocabulary, its own mask"
+        );
     }
 }
