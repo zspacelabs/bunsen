@@ -23,10 +23,12 @@ use bunsen::{
     },
     support::geometry::GridShape2D,
 };
-use bunsen_app::device::{
-    DeviceArgs,
-    DevicePrefs,
-    Precision,
+use bunsen_app::{
+    device::{
+        DeviceArgs,
+        DevicePrefs,
+    },
+    precision::InitDTypeArgs,
 };
 use burn::{
     Tensor,
@@ -35,7 +37,10 @@ use burn::{
         TensorData,
         s,
     },
-    tensor::Device,
+    tensor::{
+        Device,
+        FloatDType,
+    },
 };
 use clap::Parser;
 use glutin_window::GlutinWindow as Window;
@@ -92,24 +97,36 @@ pub struct Args {
     /// The device to simulate on.
     #[command(flatten)]
     pub device: DeviceArgs,
+
+    /// The dtype the flow is simulated in: f16 by default, where the device
+    /// has it (the flow fits f16).
+    #[command(flatten)]
+    pub init: InitDTypeArgs,
 }
 
 fn main() {
     let args = Args::parse();
     println!("{:#?}", args);
 
-    // The flow fits f16: half precision wherever the backend runs it well.
-    let prefs = DevicePrefs::new()
-        .with_precision(Precision::AnyHalf)
-        .with_half(Precision::AnyHalf);
-    let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
-    println!("{}", bunsen_app::device::describe(&device));
-    run(&args, device);
+    let device = args
+        .device
+        .init(&DevicePrefs::new())
+        .unwrap_or_else(|e| panic!("{e}"));
+    let dtype = args
+        .init
+        .resolve(FloatDType::F16, &device)
+        .unwrap_or_else(|e| panic!("{e}"));
+    println!(
+        "{}; simulating in {dtype:?}",
+        bunsen_app::device::describe(&device)
+    );
+    run(&args, device, dtype);
 }
 
 fn run(
     args: &Args,
     device: Device,
+    dtype: FloatDType,
 ) {
     // Change this to OpenGL::V2_1 if not working.
     let opengl = OpenGL::V3_2;
@@ -121,7 +138,8 @@ fn run(
 
     let mut world_state: LBMD2Q9State = LBMD2Q9Config::new(args.grid_shape)
         .with_relaxation(RelaxationParam::Tau(args.tau))
-        .init(&device, background_density);
+        .init(&device, background_density)
+        .to_dtype(dtype.into());
     world_state.dist = world_state
         .dist
         .slice_fill(s![50, 20, 1, 1], 5.0 * background_density)

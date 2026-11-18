@@ -10,7 +10,6 @@ use bunsen::{
 use bunsen_app::device::{
     DeviceArgs,
     DevicePrefs,
-    Precision,
 };
 use burn::tensor::{
     Device,
@@ -60,12 +59,8 @@ fn main() -> BunsenResult<()> {
     bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
     let args = Args::parse();
 
-    // The boards are 0/1 cells: any half-precision float, and the narrowest
-    // int the backend has.
-    let prefs = DevicePrefs::new()
-        .with_precision(Precision::AnyHalf)
-        .with_half(Precision::AnyHalf)
-        .with_ints([IntDType::I8, IntDType::I32]);
+    // The boards are 0/1 cells, counted in the narrowest int the backend has.
+    let prefs = DevicePrefs::new().with_ints([IntDType::I8, IntDType::I32]);
     let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
     eprintln!("{}", bunsen_app::device::describe(&device));
 

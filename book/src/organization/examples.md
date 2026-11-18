@@ -30,12 +30,10 @@ built with its cargo feature (`cuda`, `metal`, `vulkan`, `wgpu`); `flex`, the
 CPU, always is, and `auto`, the default, takes the first accelerator built
 in. Each README has the exact command.
 
-`--precision` picks the default float dtype: `auto` is the example's own
-choice, `full` is `f32`, and `half` is the example's half precision, which
-resolves per backend: `bf16` where a training example wants `f32`'s range and
-the backend runs it well, `f16` where any 16-bit float will do, and `f32` on
-the CPU or where the backend lacks the half. `--float-dtype` and `--int-dtype`
-name an exact dtype instead. The training examples also draw burn's terminal
+The device's default float dtype is `f32`. An example that simulates in
+another dtype takes `--init-dtype` (`lbm2d_vis` simulates its flow in `f16`
+by default, where the backend has it); the training examples train in `f32`.
+The training examples also draw burn's terminal
 dashboard (their default `tui` feature) when run in a terminal.
 [Features, backends and the network](./features.md) explains bunsen's own
 backend features and why some examples also need `fetch`.

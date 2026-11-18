@@ -37,7 +37,6 @@ use bunsen::{
 use bunsen_app::device::{
     DeviceArgs,
     DevicePrefs,
-    Precision,
 };
 use bunsen_firehose::{
     burn_support::{
@@ -218,12 +217,8 @@ fn create_artifact_dir(artifact_dir: &str) {
 
 /// Train the model with the given configuration and devices.
 pub fn backend_main(args: &Args) -> BunsenResult<()> {
-    // bf16 wherever the backend trains in it well; autodiff before the model
-    // and inputs.
-    let prefs = DevicePrefs::training()
-        .with_precision(Precision::BF16Half)
-        .with_half(Precision::BF16Half);
-    let device: Device = args.device.init(&prefs)?;
+    // f32; autodiff before the model and inputs.
+    let device: Device = args.device.init(&DevicePrefs::training())?;
 
     let image_shape = ImageShape {
         height: 32,

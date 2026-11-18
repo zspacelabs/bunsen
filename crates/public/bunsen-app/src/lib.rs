@@ -4,8 +4,8 @@
 //!   commands.
 //! - [`catalog`]: the build catalogs' commands: import catalogs, then dump,
 //!   browse, show, resolve and select over them.
-//! - [`device`]: `--device` and precision flags, resolved into a configured
-//!   burn `Device`.
+//! - [`device`]: `--device` and `--device-index`, resolved into a configured
+//!   burn `Device` (its default float f32).
 //! - [`logging`]: log-level flags.
 //! - [`precision`]: `--min-precision`, a floor under a loaded model's dtypes,
 //!   and `--init-dtype`, the dtype a program creates its own tensors in.

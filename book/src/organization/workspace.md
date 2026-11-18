@@ -31,7 +31,7 @@ by release-plz ([Releasing](../development/release.md)).
 | [`bunsen-firehose`](bunsen_firehose) | A column-oriented data-processing pipeline that feeds burn's `Batcher`. Independent of `bunsen`. See [Firehose](../systems/firehose.md). |
 | [`bunsen-firehose-image`](bunsen_firehose_image) | Image operators for firehose: loading, augmentation, conversion to tensor data. |
 | [`bunsen-arrow-dataloaders`](bunsen_arrow_dataloaders) | *Preview.* Parquet shards to tokenized training batches, for language-model training. See [Datasets](../systems/data/datasets.md). |
-| [`bunsen-app`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app) | Shared command-line plumbing for bunsen's binaries: device and precision flags, logging, shard selection, and the weights cache's flags and `cache` commands. The examples and `bunsen-tool` are built on it. |
+| [`bunsen-app`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app) | Shared command-line plumbing for bunsen's binaries: device flags, the precision flags (`--min-precision`, `--init-dtype`), logging, shard selection, and the weights cache's flags and `cache` commands. The examples and `bunsen-tool` are built on it. |
 | [`bunsen-tool`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-tool) | A binary, `cargo install bunsen-tool`: `bunsen-tool asr`, speech to text by profile (`en`, `multi`, `translate-en`) or with Parakeet, Qwen3-ASR, Voxtral Realtime or Whisper directly, each through its [stream driver](../systems/streaming.md); speaker diarization with Sortformer; `bunsen-tool chat`, chat with Qwen3 or nanochat, whose driver is also a library (`bunsen_tool::chat`); and `bunsen-tool cache` over the weights cache. |
 
 ## Development crates

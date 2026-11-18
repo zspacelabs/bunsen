@@ -100,30 +100,34 @@ impl From<InitDType> for FloatDType {
 pub struct InitDTypeArgs {
     /// The float dtype the program creates its own tensors and new modules in.
     ///
-    /// The program's own default when omitted. Never the dtype a loaded model
-    /// is placed in (`--min-precision` is that floor).
+    /// The program's own default when omitted (f32 where the device lacks
+    /// it). Never the dtype a loaded model is placed in (`--min-precision` is
+    /// that floor).
     #[arg(long, value_enum)]
     pub init_dtype: Option<InitDType>,
 }
 
 impl InitDTypeArgs {
-    /// The creation dtype: the flag's, else the program's `default`.
+    /// The creation dtype: the flag's, else the program's `default` where
+    /// `device` supports it, else f32.
     ///
     /// # Errors
     /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) for a
-    /// dtype `device` does not support.
+    /// flag naming a dtype `device` does not support.
     pub fn resolve(
         &self,
         default: FloatDType,
         device: &Device,
     ) -> BunsenResult<FloatDType> {
-        let dtype = self.init_dtype.map_or(default, FloatDType::from);
-        if !device.supports_dtype(burn::tensor::DType::from(dtype)) {
-            return Err(BunsenError::unsupported(format!(
+        let supports = |dtype: FloatDType| device.supports_dtype(burn::tensor::DType::from(dtype));
+        match self.init_dtype.map(FloatDType::from) {
+            Some(dtype) if !supports(dtype) => Err(BunsenError::unsupported(format!(
                 "the device does not support {dtype:?} (`--init-dtype`)"
-            )));
+            ))),
+            Some(dtype) => Ok(dtype),
+            None if supports(default) => Ok(default),
+            None => Ok(FloatDType::F32),
         }
-        Ok(dtype)
     }
 
     /// [`resolve`](Self::resolve), for a program that also loads under `min`:
