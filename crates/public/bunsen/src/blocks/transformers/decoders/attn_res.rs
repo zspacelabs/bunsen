@@ -39,7 +39,9 @@ use crate::{
     },
     burner::module::{
         CanonicalKeys,
+        Derived,
         ModuleInit,
+        ParamFn,
         Rekey,
         ToStructureConfig,
     },
@@ -79,7 +81,10 @@ impl ModuleInit<AttnResStack> for AttnResStackConfig {
         let stack: DecoderStack = self.stack.try_to_structure()?.try_init(device)?;
         let routes = 2 * stack.n_layers() + 1;
         Ok(AttnResStack {
-            queries: Param::from_tensor(Tensor::zeros([routes, stack.d_model()], device)),
+            queries: Derived::new(
+                Param::from_tensor(Tensor::zeros([routes, stack.d_model()], device)),
+                ParamFn::WIDEN_F32,
+            ),
             stack,
             key_eps: self.key_eps,
         })
@@ -111,8 +116,9 @@ pub struct AttnResStack {
     pub stack: DecoderStack,
 
     /// The routes' queries, `[2 L + 1, D]`: layer `l`'s attention route at
-    /// `2 l`, its feed-forward route at `2 l + 1`, the final route last.
-    pub queries: Param<Tensor<2>>,
+    /// `2 l`, its feed-forward route at `2 l + 1`, the final route last; read
+    /// in at least f32 ([`ParamFn::WIDEN_F32`]), as the routes score.
+    pub queries: Derived<2>,
 
     /// The epsilon of the routes' key norm.
     #[module(skip)]
@@ -198,7 +204,7 @@ impl AttnResStack {
         let start = kv_cache.as_ref().map(|c| c.pos()).unwrap_or(0);
         let r_emb = r_emb.clip_range(start..start + seq);
         let eps = self.key_eps as f32;
-        let queries = self.queries.val();
+        let queries = self.queries.effective();
         let query = |i: usize| queries.clone().slice(s![i..i + 1]).reshape([d_model]);
 
         let x = match &self.stack.input_norm {
@@ -307,13 +313,16 @@ mod tests {
     /// A stack with random route queries, so no route is an even mixture.
     fn stack(device: &Device) -> AttnResStack {
         let mut stack: AttnResStack = config().init(device);
-        assert_eq!(stack.queries.val().dims(), [7, 16]);
-        stack.queries = Param::from_tensor(seeded_tensor(
-            3,
-            [7, 16],
-            Distribution::Normal(0.0, 1.0),
-            device,
-        ));
+        assert_eq!(stack.queries.held().dims(), [7, 16]);
+        stack.queries = Derived::new(
+            Param::from_tensor(seeded_tensor(
+                3,
+                [7, 16],
+                Distribution::Normal(0.0, 1.0),
+                device,
+            )),
+            ParamFn::WIDEN_F32,
+        );
         stack
     }
 
@@ -331,7 +340,7 @@ mod tests {
         assert_eq!(bank.len(), 7);
         assert_tensors_close(&bank[0], &x, Tolerance::default());
 
-        let q = |i: usize| stack.queries.val().slice(s![i..i + 1]).reshape([16]);
+        let q = |i: usize| stack.queries.held().slice(s![i..i + 1]).reshape([16]);
         for (l, layer) in stack.stack.layers.iter().enumerate() {
             let a = layer.attn_residual(
                 attn_res_route(&bank[..=2 * l], q(2 * l), 1e-5),
