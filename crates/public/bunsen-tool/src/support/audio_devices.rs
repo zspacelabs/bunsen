@@ -1,6 +1,4 @@
-//! The host's audio devices, for capture and playback: finding one by a
-//! substring of its id or name, listing them, and the sample formats both
-//! convert.
+//! The host's audio devices, for capture and playback.
 
 use bunsen::errors::{
     BunsenError,
