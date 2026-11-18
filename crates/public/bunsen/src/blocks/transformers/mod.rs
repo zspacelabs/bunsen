@@ -49,6 +49,9 @@
 //!   feed-forward block (expand, activate, project back), and
 //!   [`TransformerGatedMlp`](mlp::TransformerGatedMlp), the gated feed-forward
 //!   (`SwiGLU`, `GeGLU`).
+//! - [`moe`]: the parts of a sparse mixture of experts:
+//!   [`ExpertStack`](moe::experts::ExpertStack), a packed stack of `SwiGLU`
+//!   experts run through the dispatch seam.
 //! - [`models`]: whole models generic over their users, the decoder-only
 //!   language model among them
 //!   ([`LmDecoderModel`](models::language_decoder::LmDecoderModel): a token
@@ -69,4 +72,5 @@ pub mod head;
 pub mod mixers;
 pub mod mlp;
 pub mod models;
+pub mod moe;
 pub mod sublayer;
