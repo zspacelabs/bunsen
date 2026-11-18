@@ -80,3 +80,170 @@ impl LogitFilter for SuppressTokens {
         suppress(logits, &self.ids)
     }
 }
+
+/// Penalizes the ids a row has recently generated: CTRL's repetition penalty
+/// (Keskar et al. 2019), a positive logit divided by `penalty` and a
+/// negative one multiplied by it, so a penalty above one makes a repeat less
+/// likely whatever its logit's sign.
+///
+/// It counts presence, not repeats: an id generated once is penalized as
+/// much as one generated ten times. Only generated tokens count, the row's
+/// tokens from `prompt_len` on (`transformers`'
+/// `RepetitionPenaltyLogitsProcessor` counts the prompt too), at most the
+/// last [`window`](Self::with_window) of them; the
+/// [`exempt`](Self::with_exempt) ids are never penalized. A row without a
+/// sequence is left as it is.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RepetitionPenalty {
+    penalty: f64,
+    window: Option<usize>,
+    exempt: Vec<i64>,
+}
+
+impl RepetitionPenalty {
+    /// Every generated token counts, and no id is exempt.
+    ///
+    /// # Panics
+    /// If `penalty` is not positive.
+    pub fn new(penalty: f64) -> Self {
+        assert!(penalty > 0.0, "a repetition penalty is positive");
+        Self {
+            penalty,
+            window: None,
+            exempt: Vec::new(),
+        }
+    }
+
+    /// Counts only the last `window` generated tokens.
+    pub fn with_window(
+        mut self,
+        window: usize,
+    ) -> Self {
+        self.window = Some(window);
+        self
+    }
+
+    /// Never penalizes `ids`, in any order, duplicates allowed.
+    pub fn with_exempt(
+        mut self,
+        ids: impl IntoIterator<Item = i64>,
+    ) -> Self {
+        self.exempt = ids.into_iter().collect();
+        self.exempt.sort_unstable();
+        self.exempt.dedup();
+        self
+    }
+
+    /// The penalty.
+    pub fn penalty(&self) -> f64 {
+        self.penalty
+    }
+
+    /// The generated tokens counted, the last ones; `None`, all of them.
+    pub fn window(&self) -> Option<usize> {
+        self.window
+    }
+
+    /// The ids never penalized, sorted.
+    pub fn exempt(&self) -> &[i64] {
+        &self.exempt
+    }
+}
+
+impl LogitFilter for RepetitionPenalty {
+    fn apply(
+        &self,
+        logits: Tensor<2>,
+        tokens: &[Vec<i64>],
+        prompt_len: usize,
+    ) -> Tensor<2> {
+        let [rows, vocab] = logits.dims();
+        let mut mask = vec![false; rows * vocab];
+        let mut any = false;
+        for (row, sequence) in tokens.iter().enumerate().take(rows) {
+            let generated = sequence.get(prompt_len..).unwrap_or_default();
+            let start = self
+                .window
+                .map_or(0, |window| generated.len().saturating_sub(window));
+            for &id in &generated[start..] {
+                if let Ok(i) = usize::try_from(id)
+                    && i < vocab
+                    && self.exempt.binary_search(&id).is_err()
+                {
+                    mask[row * vocab + i] = true;
+                    any = true;
+                }
+            }
+        }
+        if !any {
+            return logits;
+        }
+        let mask: Tensor<2, Bool> =
+            Tensor::from_data(TensorData::new(mask, [rows, vocab]), &logits.device());
+        // l / p where l > 0, l * p elsewhere (-inf stays -inf).
+        let penalized = logits.clone().clamp_min(0.0) / self.penalty
+            + logits.clone().clamp_max(0.0) * self.penalty;
+        logits.mask_where(mask, penalized)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::testing::cpu_device;
+
+    /// `filter` over `rows`, read back.
+    fn filtered(
+        filter: &dyn LogitFilter,
+        rows: &[[f32; 4]],
+        tokens: &[Vec<i64>],
+        prompt_len: usize,
+    ) -> Vec<Vec<f32>> {
+        let flat: Vec<f32> = rows.iter().flatten().copied().collect();
+        let logits = Tensor::<2>::from_data(TensorData::new(flat, [rows.len(), 4]), &cpu_device());
+        let out: Vec<f32> = filter
+            .apply(logits, tokens, prompt_len)
+            .into_data()
+            .try_into_vec_as::<f32>()
+            .unwrap();
+        out.chunks(4).map(<[f32]>::to_vec).collect()
+    }
+
+    #[test]
+    fn test_repetition_penalty() {
+        let rows = [[2.0, -2.0, 1.0, f32::NEG_INFINITY], [2.0, -2.0, 1.0, 0.5]];
+        let penalty = RepetitionPenalty::new(2.0);
+
+        // Presence, not repeats: id 0 twice is penalized once; the sign
+        // decides divide or multiply; -inf stays -inf.
+        assert_eq!(
+            filtered(&penalty, &rows, &[vec![0, 0, 1, 3], vec![2]], 0),
+            [
+                vec![1.0, -4.0, 1.0, f32::NEG_INFINITY],
+                vec![2.0, -2.0, 0.5, 0.5],
+            ]
+        );
+
+        // The prompt never counts.
+        assert_eq!(
+            filtered(&penalty, &rows, &[vec![0, 1, 2], vec![0, 1, 2]], 2)[0],
+            [2.0, -2.0, 0.5, f32::NEG_INFINITY]
+        );
+
+        // Only the window's last tokens; an exempt id never.
+        let windowed = RepetitionPenalty::new(2.0)
+            .with_window(2)
+            .with_exempt([2, 2]);
+        assert_eq!(windowed.exempt(), [2]);
+        assert_eq!(
+            filtered(&windowed, &rows, &[vec![0, 1, 2], vec![]], 0),
+            [
+                vec![2.0, -4.0, 1.0, f32::NEG_INFINITY],
+                vec![2.0, -2.0, 1.0, 0.5],
+            ]
+        );
+
+        // No sequences, or nothing generated: the logits as they are.
+        assert_eq!(filtered(&penalty, &rows, &[], 0)[1], rows[1]);
+    }
+}
