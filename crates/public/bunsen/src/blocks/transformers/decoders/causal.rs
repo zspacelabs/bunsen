@@ -463,39 +463,117 @@ impl CausalDecoderBlock {
             value_embed,
             key_valid,
         } = sides;
-        let x = self
-            .attn
-            .residual_update_with(input, |mixer, z| match mixer {
-                TokenMixer::Attention(attn) => attn.forward_with(
-                    z,
-                    r_emb,
-                    kv_cache,
-                    AttentionSides {
-                        value_embed,
-                        key_valid,
-                    },
-                ),
-                TokenMixer::GatedDeltaNet(net) => {
-                    assert!(
-                        value_embed.is_none() && key_valid.is_none(),
-                        "a linear-attention block takes no value embedding or key padding"
-                    );
-                    assert!(
-                        kv_cache.is_none() || linear.is_some(),
-                        "a linear-attention block decodes through a DeltaNetCache"
-                    );
-                    net.forward(z, linear.map(|cache| cache.layer_mut(net.layer_index)))
-                }
-            });
-        self.mlp.residual_update_with(x, |mlp, h| {
-            let h = match (&self.mlp_scale, cond) {
-                (None, None) => h,
-                (Some(scale), Some(cond)) => scale.forward(h, cond),
-                (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
-                (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
-            };
-            mlp.forward(h)
+        let x = self.attn.residual_update_with(input, |mixer, z| {
+            Self::run_mixer(
+                mixer,
+                z,
+                r_emb,
+                kv_cache,
+                linear,
+                AttentionSides {
+                    value_embed,
+                    key_valid,
+                },
+            )
+        });
+        self.mlp
+            .residual_update_with(x, |mlp, h| self.run_mlp(mlp, h, cond))
+    }
+
+    /// The token mixer's update, without the add: `post(mixer(pre(x)))`, `x`
+    /// the stream after the attention sublayer's `input` norm. What a stack
+    /// that routes its sublayers' inputs itself (attention residuals) reads
+    /// from the block; [`forward_with_caches`](Self::forward_with_caches)
+    /// adds it to the stream.
+    ///
+    /// # Arguments
+    /// - `x`: a `[B, T, D]` input.
+    /// - `r_emb`: the rotary embedding for its positions.
+    /// - `kv_cache`, `linear`: the decode's caches, as
+    ///   [`forward_with_caches`](Self::forward_with_caches) takes them.
+    /// - `sides`: an attention mixer's value embedding and key padding.
+    ///
+    /// # Returns
+    /// - the `[B, T, D]` update.
+    ///
+    /// # Panics
+    /// As [`forward_with_caches`](Self::forward_with_caches).
+    pub fn attn_residual(
+        &self,
+        x: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        kv_cache: &mut Option<&mut KVCache>,
+        linear: Option<&mut DeltaNetCache>,
+        sides: AttentionSides,
+    ) -> Tensor<3> {
+        self.attn.residual(x, |mixer, z| {
+            Self::run_mixer(mixer, z, r_emb, kv_cache, linear, sides)
         })
+    }
+
+    /// The feed-forward's update, without the add: `post(mlp(pre(x)))`,
+    /// with a conditioned block's scale on the feed-forward's input.
+    ///
+    /// # Arguments
+    /// - `x`: a `[B, T, D]` input.
+    /// - `cond`: the condition of a block with an
+    ///   [`mlp_scale`](Self::mlp_scale), else `None`.
+    ///
+    /// # Returns
+    /// - the `[B, T, D]` update.
+    ///
+    /// # Panics
+    /// If `cond` is given to a block without a scale, or withheld from one
+    /// with a scale.
+    pub fn mlp_residual(
+        &self,
+        x: Tensor<3>,
+        cond: Option<Tensor<3>>,
+    ) -> Tensor<3> {
+        self.mlp.residual(x, |mlp, h| self.run_mlp(mlp, h, cond))
+    }
+
+    /// The token mixer on its normalized input `z`, through the cache of its
+    /// kind.
+    fn run_mixer(
+        mixer: &TokenMixer,
+        z: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        kv_cache: &mut Option<&mut KVCache>,
+        linear: Option<&mut DeltaNetCache>,
+        sides: AttentionSides,
+    ) -> Tensor<3> {
+        match mixer {
+            TokenMixer::Attention(attn) => attn.forward_with(z, r_emb, kv_cache, sides),
+            TokenMixer::GatedDeltaNet(net) => {
+                assert!(
+                    sides.value_embed.is_none() && sides.key_valid.is_none(),
+                    "a linear-attention block takes no value embedding or key padding"
+                );
+                assert!(
+                    kv_cache.is_none() || linear.is_some(),
+                    "a linear-attention block decodes through a DeltaNetCache"
+                );
+                net.forward(z, linear.map(|cache| cache.layer_mut(net.layer_index)))
+            }
+        }
+    }
+
+    /// The feed-forward on its normalized input `h`, scaled first under an
+    /// [`mlp_scale`](Self::mlp_scale).
+    fn run_mlp(
+        &self,
+        mlp: &TransformerFeedForward,
+        h: Tensor<3>,
+        cond: Option<Tensor<3>>,
+    ) -> Tensor<3> {
+        let h = match (&self.mlp_scale, cond) {
+            (None, None) => h,
+            (Some(scale), Some(cond)) => scale.forward(h, cond),
+            (None, Some(_)) => panic!("a condition for a block without an mlp_scale"),
+            (Some(_), None) => panic!("a block with an mlp_scale needs its condition"),
+        };
+        mlp.forward(h)
     }
 }
 
