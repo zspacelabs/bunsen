@@ -359,3 +359,16 @@ crates:
         core: false
         dtypes: [f32]
         varies: the English model's architecture, trained on typed questions
+  zonos3:
+    package: zonos3-model-validation
+    features: [checkpoints, gpu-tests]
+    models:
+      zonos3-mini:
+        size: medium
+        gb: 2.4
+        core: true
+        dtypes: [f32, bf16]
+        varies: the only model - attention-residual routing over a hybrid of gated DeltaNet and
+          gated attention layers, sparse MoE with a latent bottleneck, speaker / condition rows,
+          the delayed codebook prompt; its codec's decoder (ConvNeXt, inverse STFT, resampler);
+          the SuperBPE tokenizer

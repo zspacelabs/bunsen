@@ -46,6 +46,10 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
+bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache", "tokenizer"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+[dev-dependencies]
+bunsen-test-audio = { path = "../../../crates/dev/bunsen-test-audio" }
+serial_test = { workspace = true }
