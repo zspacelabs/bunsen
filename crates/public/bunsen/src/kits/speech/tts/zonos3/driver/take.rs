@@ -1,5 +1,4 @@
-//! A take's generated rows: when generation stops, and the frames a whole
-//! decode covers.
+//! A take's generated rows: the stop rule, and the frames they cover.
 
 use alloc::vec::Vec;
 
