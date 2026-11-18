@@ -8,13 +8,11 @@
 
 use burn::{
     Tensor,
-    tensor::{
-        DType,
-        activation::softmax,
-    },
+    tensor::activation::softmax,
 };
 
 use crate::{
+    burner::tensor::Widening,
     contracts::unpack_shape_contract,
     ops::norm::RmsNormOptions,
 };
@@ -23,8 +21,8 @@ use crate::{
 ///
 /// ```text
 /// keys   = rms_norm(bank, eps)            (weightless, over the width)
-/// scores = Σ_d keys[s, .., d] · query[d]  (in f32)
-/// w      = softmax_s(scores)              (in f32, then the bank's dtype)
+/// scores = Σ_d keys[s, .., d] · query[d]  (widened to f32)
+/// w      = softmax_s(scores)              (widened, then the bank's dtype)
 /// out    = Σ_s w[s, ..] · bank[s, ..]
 /// ```
 ///
@@ -53,14 +51,14 @@ pub fn attn_res_route(
         [d],
         "a route's query is as wide as its sources"
     );
-    let dtype = sources[0].dtype();
+    let w = Widening::F32.scope(sources[0].dtype());
 
     // [S, B, T, D]
     let bank = Tensor::stack::<4>(sources.to_vec(), 0);
     let keys = RmsNormOptions::default().with_eps(eps).norm(bank.clone());
     // [S, B, T, 1]
-    let scores = (keys.cast(DType::F32) * query.cast(DType::F32).reshape([1, 1, 1, d])).sum_dim(3);
-    let weights = softmax(scores, 0).cast(dtype);
+    let scores = (w.widen(keys) * w.widen(query).reshape([1, 1, 1, d])).sum_dim(3);
+    let weights = w.narrow(softmax(scores, 0));
     let out = (bank * weights).sum_dim(0).reshape([b, t, d]);
 
     #[cfg(any(debug_assertions, test))]
@@ -75,6 +73,7 @@ pub fn attn_res_route(
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
+        DType,
         Distribution,
         Tolerance,
     };
@@ -143,5 +142,47 @@ mod tests {
             &mean,
             Tolerance::default(),
         );
+    }
+
+    /// A half bank is scored and softmaxed in f32, its weights rounded once
+    /// to its dtype; an f64 bank is routed in f64 throughout.
+    #[test]
+    fn test_route_widens() {
+        let device = cpu_device();
+        let eps = 1e-5;
+        let sources: Vec<Tensor<3>> = (0..3)
+            .map(|i| seeded_tensor(i, [2, 4, 6], Distribution::Default, &device))
+            .collect();
+        let query: Tensor<1> = seeded_tensor(9, [6], Distribution::Default, &device);
+        let route_by_hand = |dtype: DType, scores_in: DType| {
+            let bank =
+                Tensor::stack::<4>(sources.iter().map(|s| s.clone().cast(dtype)).collect(), 0);
+            let keys = RmsNormOptions::default().with_eps(eps).norm(bank.clone());
+            let scores = (keys.cast(scores_in)
+                * query
+                    .clone()
+                    .cast(dtype)
+                    .cast(scores_in)
+                    .reshape([1, 1, 1, 6]))
+            .sum_dim(3);
+            (bank * softmax(scores, 0).cast(dtype))
+                .sum_dim(0)
+                .reshape([2, 4, 6])
+        };
+        let route = |dtype: DType| {
+            let bank: Vec<Tensor<3>> = sources.iter().map(|s| s.clone().cast(dtype)).collect();
+            attn_res_route(&bank, query.clone().cast(dtype), eps)
+        };
+
+        let half = route(DType::BF16);
+        assert_eq!(half.dtype(), DType::BF16);
+        half.into_data()
+            .assert_eq(&route_by_hand(DType::BF16, DType::F32).into_data(), true);
+
+        assert!(device.supports_dtype(DType::F64));
+        let wide = route(DType::F64);
+        assert_eq!(wide.dtype(), DType::F64);
+        wide.into_data()
+            .assert_eq(&route_by_hand(DType::F64, DType::F64).into_data(), true);
     }
 }

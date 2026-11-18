@@ -35,13 +35,18 @@ use burn::{
         s,
     },
     tensor::{
-        DType,
         IndexingUpdateOp,
         activation::silu,
     },
 };
 
-use crate::contracts::unpack_shape_contract;
+use crate::{
+    burner::tensor::{
+        Widening,
+        WideningScope,
+    },
+    contracts::unpack_shape_contract,
+};
 
 /// A packed stack of `SwiGLU` experts, as [`expert_dispatch`] reads them.
 #[derive(Clone, Debug)]
@@ -138,7 +143,8 @@ impl ExpertDispatchStrategy {
 /// The weighted sum of each row's chosen experts' outputs:
 /// `y[n] = Σ_j weights[n, j] · expert_{ids[n, j]}(x[n])`.
 ///
-/// The sum is taken in f32 and returned in `x`'s dtype.
+/// The sum is taken widened to f32 ([`Widening::F32`]) and returned in `x`'s
+/// dtype.
 ///
 /// # Arguments
 /// - `x`: `[N, W]`, the rows.
@@ -172,15 +178,13 @@ pub fn expert_dispatch(
         &weights.dims(),
         &[("N", n), ("k", k)]
     );
-    let dtype = x.dtype();
-    let y = match strategy.resolve(n) {
-        ExpertDispatchStrategy::DenseMasked => dense_masked(x, ids, weights, experts),
-        ExpertDispatchStrategy::Bucketed => bucketed(x, ids, weights, experts),
+    let y = Widening::F32.around(x.dtype(), |scope| match strategy.resolve(n) {
+        ExpertDispatchStrategy::DenseMasked => dense_masked(x, ids, weights, experts, scope),
+        ExpertDispatchStrategy::Bucketed => bucketed(x, ids, weights, experts, scope),
         ExpertDispatchStrategy::Gathered | ExpertDispatchStrategy::Auto => {
-            gathered(x, ids, weights, experts)
+            gathered(x, ids, weights, experts, scope)
         }
-    };
-    let y = y.cast(dtype);
+    });
     crate::contracts::assert_shape_contract_periodically!(
         ["N", "W"],
         &y.dims(),
@@ -190,12 +194,13 @@ pub fn expert_dispatch(
 }
 
 /// Every expert on every row, `[E, N, W]`, weighted by the dense routing
-/// matrix and summed.
+/// matrix and summed in `scope`'s compute dtype.
 fn dense_masked(
     x: Tensor<2>,
     ids: Tensor<2, Int>,
     weights: Tensor<2>,
     experts: &PackedExperts,
+    scope: &WideningScope,
 ) -> Tensor<2> {
     let [n, w] = x.dims();
     let (e, h) = (experts.n_experts(), experts.hidden());
@@ -204,14 +209,13 @@ fn dense_masked(
         .unsqueeze::<3>()
         .expand([e, n, w])
         .matmul(experts.gate_up.clone().swap_dims(1, 2));
-    let outputs = PackedExperts::activate(projected, h)
-        .matmul(experts.down.clone().swap_dims(1, 2))
-        .cast(DType::F32);
+    let outputs = scope
+        .widen(PackedExperts::activate(projected, h).matmul(experts.down.clone().swap_dims(1, 2)));
     // [N, E]: each row's weights at its chosen experts, zero elsewhere.
-    let dense = Tensor::<2>::zeros([n, e], (&weights.device(), DType::F32)).scatter(
+    let dense = Tensor::<2>::zeros([n, e], (&weights.device(), scope.compute())).scatter(
         1,
         ids,
-        weights.cast(DType::F32),
+        scope.widen(weights),
         IndexingUpdateOp::Add,
     );
     (outputs * dense.swap_dims(0, 1).unsqueeze_dim::<3>(2))
@@ -220,12 +224,14 @@ fn dense_masked(
 }
 
 /// Each row's `k` experts gathered: `[N k, 2H, W]` and `[N k, W, H]`, one
-/// batched matmul each, weighted and summed over `k`.
+/// batched matmul each, weighted and summed over `k` in `scope`'s compute
+/// dtype.
 fn gathered(
     x: Tensor<2>,
     ids: Tensor<2, Int>,
     weights: Tensor<2>,
     experts: &PackedExperts,
+    scope: &WideningScope,
 ) -> Tensor<2> {
     let [n, w] = x.dims();
     let k = ids.dims()[1];
@@ -239,11 +245,12 @@ fn gathered(
         .expand([n, k, w])
         .reshape([n * k, 1, w]);
     let projected = rows.matmul(gate_up.swap_dims(1, 2));
-    let outputs = PackedExperts::activate(projected, h)
-        .matmul(down.swap_dims(1, 2))
-        .reshape([n, k, w])
-        .cast(DType::F32);
-    (outputs * weights.cast(DType::F32).unsqueeze_dim::<3>(2))
+    let outputs = scope.widen(
+        PackedExperts::activate(projected, h)
+            .matmul(down.swap_dims(1, 2))
+            .reshape([n, k, w]),
+    );
+    (outputs * scope.widen(weights).unsqueeze_dim::<3>(2))
         .sum_dim(1)
         .reshape([n, w])
 }
@@ -251,12 +258,14 @@ fn gathered(
 /// The rows grouped by expert, all the hit experts run as one batched
 /// matmul: `[E', M, W]`, `M` the largest bucket and `E'` the hit experts'
 /// count, each rounded up to a power of two. The padding reads row 0 and a
-/// zero weight, and is scattered into an `[N + 1, W]` sum's last row.
+/// zero weight, and is scattered into an `[N + 1, W]` sum's last row, in
+/// `scope`'s compute dtype.
 fn bucketed(
     x: Tensor<2>,
     ids: Tensor<2, Int>,
     weights: Tensor<2>,
     experts: &PackedExperts,
+    scope: &WideningScope,
 ) -> Tensor<2> {
     let [n, w] = x.dims();
     let k = ids.dims()[1];
@@ -333,18 +342,18 @@ fn bucketed(
     let batch = x.select(0, index(reads)).reshape([slots, depth, w]);
     let out = PackedExperts::activate(batch.matmul(gate_up.swap_dims(1, 2)), h)
         .matmul(down.swap_dims(1, 2))
-        .reshape([cells, w])
-        .cast(DType::F32);
+        .reshape([cells, w]);
+    let out = scope.widen(out);
 
     let flat_weights = Tensor::cat(
         vec![
-            weights.cast(DType::F32).reshape([n * k]),
-            Tensor::zeros([1], (&device, DType::F32)),
+            scope.widen(weights).reshape([n * k]),
+            Tensor::zeros([1], (&device, scope.compute())),
         ],
         0,
     );
     let scaled = out * flat_weights.select(0, index(picks)).unsqueeze_dim(1);
-    Tensor::<2>::zeros([n + 1, w], (&device, DType::F32))
+    Tensor::<2>::zeros([n + 1, w], (&device, scope.compute()))
         .select_assign(0, index(writes), scaled, IndexingUpdateOp::Add)
         .slice(s![..n])
 }
@@ -543,5 +552,59 @@ mod tests {
             ExpertDispatchStrategy::DenseMasked.resolve(1),
             ExpertDispatchStrategy::DenseMasked
         );
+    }
+
+    /// Every strategy sums an f64 batch in f64: the output is the f64
+    /// definition's, row by row, to f64's precision, far inside an f32
+    /// sum's error.
+    #[test]
+    fn test_dispatch_keeps_f64() {
+        use burn::tensor::DType;
+
+        let device = cpu_device();
+        assert!(device.supports_dtype(DType::F64));
+        let (e, h, w) = (4, 6, 5);
+        let packed = experts(e, h, w, &device);
+        let experts = PackedExperts {
+            gate_up: packed.gate_up.cast(DType::F64),
+            down: packed.down.cast(DType::F64),
+        };
+        let x = seeded_tensor::<2>(3, [3, w], Distribution::Default, &device).cast(DType::F64);
+        let chosen = [[0, 2], [3, 0], [2, 1]];
+        let ws = [[0.7f64, 0.3], [0.5, 0.5], [0.1, 0.9]];
+        let ids = Tensor::<2, Int>::from_data([[0, 2], [3, 0], [2, 1]], &device);
+        let weights = Tensor::<2>::from_data(ws, (&device, DType::F64));
+
+        let expert = |e: usize, row: Tensor<2>| {
+            let gate_up = experts
+                .gate_up
+                .clone()
+                .slice(s![e..e + 1])
+                .reshape([2 * h, w]);
+            let down = experts.down.clone().slice(s![e..e + 1]).reshape([w, h]);
+            let p = row.matmul(gate_up.transpose());
+            let act = silu(p.clone().slice(s![.., ..h])) * p.slice(s![.., h..]);
+            act.matmul(down.transpose())
+        };
+        let expected = Tensor::cat(
+            (0..3)
+                .map(|r| {
+                    let row = x.clone().slice(s![r..r + 1]);
+                    expert(chosen[r][0], row.clone()).mul_scalar(ws[r][0])
+                        + expert(chosen[r][1], row).mul_scalar(ws[r][1])
+                })
+                .collect(),
+            0,
+        );
+        for strategy in [
+            ExpertDispatchStrategy::DenseMasked,
+            ExpertDispatchStrategy::Gathered,
+            ExpertDispatchStrategy::Bucketed,
+        ] {
+            let y = expert_dispatch(x.clone(), ids.clone(), weights.clone(), &experts, strategy);
+            assert_eq!(y.dtype(), DType::F64, "{strategy:?}");
+            y.into_data()
+                .assert_approx_eq::<f64>(&expected.clone().into_data(), Tolerance::absolute(1e-12));
+        }
     }
 }

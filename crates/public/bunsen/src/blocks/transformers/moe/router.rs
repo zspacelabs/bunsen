@@ -24,7 +24,10 @@ use crate::{
         BunsenNormalization,
         BunsenNormalizationConfig,
     },
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        tensor::Widening,
+    },
     contracts::unpack_shape_contract,
     errors::{
         BunsenError,
@@ -223,10 +226,10 @@ pub struct RouterChoice {
     /// `[N, k]`: each row's experts, best first.
     pub ids: Tensor<2, Int>,
 
-    /// `[N, k]`: their weights, in f32.
+    /// `[N, k]`: their weights, in f32 (or the rows' dtype, when wider).
     pub weights: Tensor<2>,
 
-    /// `[N, E]`: the logits, in f32.
+    /// `[N, E]`: the logits, in f32 (or the rows' dtype, when wider).
     pub logits: Tensor<2>,
 }
 
@@ -281,7 +284,7 @@ impl TopKRouter {
     /// weights by the unbiased ones.
     ///
     /// ```text
-    /// logits  = gate(input_norm(x))               (in f32)
+    /// logits  = gate(input_norm(x))               (widened to f32)
     /// ids     = topk(logits ± bias)
     /// weights = softmax(logits[ids])              (norm_top_k)
     ///         | softmax(logits)[ids]              (otherwise)
@@ -302,10 +305,11 @@ impl TopKRouter {
             Some(norm) => norm.forward(x),
             None => x,
         };
-        let logits = self.gate.forward(x).cast(DType::F32);
+        let w = Widening::F32.scope(x.dtype());
+        let logits = w.widen(self.gate.forward(x));
         let key = match (&self.choice_bias, self.bias) {
             (Some(bias), Some(choice)) => {
-                let bias = bias.val().cast(DType::F32).unsqueeze::<2>();
+                let bias = w.widen(bias.val()).unsqueeze::<2>();
                 match choice.mode {
                     ChoiceBiasMode::Add => logits.clone() + bias,
                     ChoiceBiasMode::Subtract => logits.clone() - bias,
@@ -470,6 +474,32 @@ mod tests {
         for top_k in [0, 5] {
             ErrorMatcher::kind(BunsenErrorKind::Illegal)
                 .assert_err(&TopKRouterConfig::new(4, 4, top_k).try_init(&device));
+        }
+    }
+
+    /// A half router's logits and weights are widened to f32; an f64
+    /// router's stay f64.
+    #[test]
+    fn test_router_widens() {
+        use crate::burner::module::DTypeMapper;
+
+        let device = cpu_device();
+        let config = TopKRouterConfig::new(6, 4, 2).with_choice_bias(Some(ChoiceBias::new(
+            ChoiceBiasSite::Logits,
+            ChoiceBiasMode::Subtract,
+        )));
+        let router: TopKRouter = config.init(&device);
+        let x: Tensor<2> = seeded_tensor(1, [3, 6], Distribution::Default, &device);
+        assert!(device.supports_dtype(DType::F64));
+        for (dtype, compute) in [
+            (DType::BF16, DType::F32),
+            (DType::F32, DType::F32),
+            (DType::F64, DType::F64),
+        ] {
+            let router = router.clone().map(&mut DTypeMapper::new(dtype));
+            let choice = router.forward(x.clone().cast(dtype));
+            assert_eq!(choice.logits.dtype(), compute, "{dtype:?}");
+            assert_eq!(choice.weights.dtype(), compute, "{dtype:?}");
         }
     }
 }
