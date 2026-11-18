@@ -15,7 +15,8 @@
 //! - [`publish`]: where a transcript goes (stdout, a file, a webhook, an MQTT
 //!   broker), and in which form (text, JSON lines, RTTM).
 //! - With `live`: the microphone, captured at a model's rate (`Capture`), and
-//!   resampled when the device's rate differs (`Resampler`).
+//!   resampled when the device's rate differs (bunsen's
+//!   `support::audio::Resampler`).
 //! - [`AsrCommandGroup`]: the `asr` command tree.
 
 mod asr_command_group;
@@ -27,8 +28,6 @@ mod family;
 pub mod parakeet;
 pub mod publish;
 pub mod qwen3_asr;
-#[cfg(feature = "live")]
-mod resample;
 mod stream;
 mod transcript;
 pub mod voxtral;
@@ -40,7 +39,5 @@ pub use capture::*;
 pub use construct::*;
 pub use driver::*;
 pub use family::*;
-#[cfg(feature = "live")]
-pub use resample::*;
 pub use stream::*;
 pub use transcript::*;

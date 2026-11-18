@@ -1,11 +1,17 @@
 //! # Audio Support
+//!
+//! [`load_audio_mono_sr`]: a mono file at the rate a model needs, decoded,
+//! never resampled. [`Resampler`] (and [`resample`], for a whole signal):
+//! the rate conversion a caller decides on.
 
+mod resample;
 use std::path::Path;
 
 use hound::{
     SampleFormat,
     WavReader,
 };
+pub use resample::*;
 use symphonia::core::{
     codecs::audio::AudioDecoderOptions,
     formats::{

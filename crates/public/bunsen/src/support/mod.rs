@@ -18,7 +18,7 @@
 //! | Module | What it holds | For |
 //! |--------|---------------|-----|
 //! | `testing` | Test devices, seeded inputs, device-memory hygiene, float assertions. Needs the `testing` feature. | users' tests |
-//! | `audio` | `load_audio_mono_sr`: decode a mono WAV or mp3 at a required sample rate, without resampling. Needs the `audio` feature. | users (speech kits) |
+//! | `audio` | `load_audio_mono_sr`: decode a mono WAV or mp3 at a required sample rate, without resampling; `Resampler` / `resample`, a windowed-sinc rate conversion the caller decides on. Needs the `audio` feature. | users (speech kits) |
 //! | [`validators`] | [`try_probability`](validators::try_probability) / [`expect_probability`](validators::expect_probability), a `try_x` / `x` pair of the [errors convention]. | users |
 //! | [`geometry`] | [`GridShape2D`](geometry::GridShape2D), a `W,H` grid size that parses from a string; the sims kits' configs use it. | users, through the sims kits |
 //! | [`math`] | [`maybe_iroot`](math::maybe_iroot), the exact integer root that shape contracts solve with; [`nan_to_num`](math::nan_to_num); [`FRAC_1_SQRT_3`](math::FRAC_1_SQRT_3). | plumbing |

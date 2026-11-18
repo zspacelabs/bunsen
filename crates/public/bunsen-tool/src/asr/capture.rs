@@ -17,9 +17,12 @@ use std::{
     },
 };
 
-use bunsen::errors::{
-    BunsenError,
-    BunsenResult,
+use bunsen::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    support::audio::Resampler,
 };
 use cpal::{
     Data,
@@ -39,8 +42,6 @@ use cpal::{
         StreamTrait,
     },
 };
-
-use crate::asr::Resampler;
 
 /// How long the capture loop waits for a callback before checking whether
 /// it has been asked to stop.

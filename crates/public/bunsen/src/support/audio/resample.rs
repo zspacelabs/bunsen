@@ -1,18 +1,19 @@
-//! A windowed-sinc resampler, for capture at a rate other than the model's.
+//! A windowed-sinc resampler: audio at one rate to another.
 
-use std::f64::consts::PI;
+use core::f64::consts::PI;
 
 /// Kernel half-width in output-rate samples; widened by the ratio when
 /// downsampling, so the stop band stays where the aliases are.
 const HALF_TAPS: usize = 16;
 
-/// A streaming rate converter: feed input in any pieces, collect output.
+/// A streaming rate converter: feed input in any pieces, collect output;
+/// [`resample`] converts a whole signal.
 ///
-/// The capture path's rate to the model's. bunsen decodes files at the
-/// model's rate and declines to resample them, because a resample is a
-/// signal-processing decision the caller makes deliberately; a microphone
-/// runs at whatever rate its host offers, so `live` makes that decision
-/// here, once, and only when the device would not open at the model's rate.
+/// bunsen decodes files at a model's rate and declines to resample them
+/// ([`load_audio_mono_sr`](super::load_audio_mono_sr)), because a resample
+/// is a signal-processing decision the caller makes deliberately: a
+/// microphone opened at another rate, or one model's output read by
+/// another.
 ///
 /// Each output sample is the input convolved with a Blackman-windowed sinc
 /// centred on its position, cut off at the lower of the two Nyquist rates,
@@ -104,6 +105,24 @@ impl Resampler {
         self.released += lo;
     }
 
+    /// Ends the stream, appending the outputs left to `out`, the input past
+    /// its end taken as silence (as before its start): every output whose
+    /// position is within the input, `in_len * out / in` in all.
+    pub fn finish(
+        mut self,
+        out: &mut Vec<f32>,
+    ) {
+        if self.is_identity() {
+            return;
+        }
+        let received = self.released + self.buffer.len() - self.half;
+        let total = (received as u64 * self.out_rate as u64 / self.in_rate as u64) as usize;
+        let before = self.emitted;
+        let mut tail = Vec::new();
+        self.process(&vec![0.0; self.half + 1], &mut tail);
+        out.extend(tail.into_iter().take(total.saturating_sub(before)));
+    }
+
     /// The input position of output `n`, in samples from `buffer[0]`.
     ///
     /// Computed from the counts rather than accumulated, so the same
@@ -153,6 +172,23 @@ impl Resampler {
         }
         (acc / norm) as f32
     }
+}
+
+/// `input`, a whole signal at `in_rate`, at `out_rate`: `in_len * out / in`
+/// samples ([`Resampler`], then [`finish`](Resampler::finish)).
+///
+/// # Panics
+/// If either rate is zero.
+pub fn resample(
+    input: &[f32],
+    in_rate: usize,
+    out_rate: usize,
+) -> Vec<f32> {
+    let mut resampler = Resampler::new(in_rate, out_rate);
+    let mut out = Vec::with_capacity(input.len() * out_rate / in_rate + 1);
+    resampler.process(input, &mut out);
+    resampler.finish(&mut out);
+    out
 }
 
 #[cfg(test)]
@@ -270,5 +306,19 @@ mod tests {
         }
 
         assert_eq!(pieces, whole);
+    }
+
+    /// A whole signal comes out at its full length, its tail included.
+    #[test]
+    fn test_resample_whole() {
+        let input = tone(44100, 1000.0, 1.0);
+        let out = resample(&input, 44100, 16000);
+        assert_eq!(out.len(), 16000);
+        // The tail, whose kernel reaches past the end, still holds the tone.
+        let tail = &out[16000 - 200..16000 - 20];
+        assert!(rms(tail) > 0.6, "the tail's rms {:.3}", rms(tail));
+
+        assert_eq!(resample(&input, 44100, 44100), input);
+        assert_eq!(resample(&input[..441], 44100, 8000).len(), 80);
     }
 }
