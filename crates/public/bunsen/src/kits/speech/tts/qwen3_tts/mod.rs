@@ -13,8 +13,15 @@
 //!   DAC vocoder of `SnakeBeta` activations; decoded in chunks as upstream
 //!   decodes a take.
 //!
+//! - [`talker`]: the talker, [`Qwen3TtsTalker`](talker::Qwen3TtsTalker): a
+//!   Qwen3 decoder over summed embeddings (the codec table's rows, and the text
+//!   table's through a projection), its head the next frame's first codebook;
+//!   decoded through a KV cache, a row a step.
+//!
 //! The codec's weights are `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s
 //! `model.safetensors`, whose `decoder.*` tensors the decoder reads as they
-//! are ([`codec::weights`]).
+//! are ([`codec::weights`]). A model's `model.safetensors` holds the talker
+//! under `talker.` ([`talker::weights`]).
 
 pub mod codec;
+pub mod talker;
