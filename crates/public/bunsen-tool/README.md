@@ -7,6 +7,8 @@
 - `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint ([below](#chat-qwen3-gemma-and-nanochat)).
 - `bunsen-tool decide`: typed questions about a context, answered with calibrated probabilities by a Laya decision
   model ([below](#decide-typed-questions-answered-by-laya)).
+- `bunsen-tool text`: text normalization on its own: numbers spoken, Unicode folded, punctuation dropped
+  ([below](#text-normalization-on-its-own)).
 - `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by name.
 
 `bunsen-tool` replaces `bunsen-asr`, whose last release is 0.41.0: its commands are `bunsen-tool asr`'s, and its
@@ -697,7 +699,8 @@ its rate, every channel the same. Playback starts once the take is synthesized; 
 
 The text is normalized first, as the release normalizes it: numbers, money, dates and the like are spoken
 (`$12.50` as "twelve dollars fifty cents"), by Zyphra's normalizer in the `--language` given (`en_us` by default; a
-release code such as `fr_fr`, or a grammar such as `fr`). `--normalize none` speaks the text as typed.
+release code such as `fr_fr`, or a language tag such as `fr`). `--normalize none` speaks the text as typed, its line
+breaks collapsed. `bunsen-tool text normalize` runs the same normalizers on their own.
 
 `--voice` picks the stock voice (`Savannah` by default); `bunsen-tool tts voices` lists them, as the release
 describes each one (its language, its style where it names one, such as `Irish` or `announcer`, and its gender), with
@@ -715,6 +718,31 @@ accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere); 
 cargo run --release -p bunsen-tool --features wgpu -- tts run -o hello.wav "Hello, this is ZONOS3."
 echo "It costs \$12.50." | cargo run --release -p bunsen-tool --features cuda -- tts run --device cuda --voice Cillian -o cost.wav
 cargo run --release -p bunsen-tool --features wgpu -- tts run --play "Spoken, not saved."
+```
+
+## text: normalization on its own
+
+`bunsen-tool text normalize` runs a text through normalizers, in the order the `--normalize` flags give them, and
+prints the result: the normalizers a TTS model speaks through and a word error rate compares through.
+
+```sh
+bunsen-tool text normalizers                                       # each normalizer's spec, and whether this build has it
+bunsen-tool text normalize --normalize SPEC... [--language TAG] [--explain] [--file PATH | TEXT...]   # stdin when omitted
+```
+
+A spec is a normalizer by name: `none`; `collapse-line-breaks` (line breaks and tabs to one space); `transcript`
+(lowercase, punctuation dropped: what word error rates compare); `zyphra` (Zyphra's normalizer: numbers, money and
+dates spoken, by the language's grammar, in 43 languages; it needs `--language`); `tokenizers:NFKC` (a `tokenizers`
+normalizer by type, or `tokenizers:{...}` in `tokenizer.json`'s syntax); `tokenizer-json:PATH` (a `tokenizer.json`'s
+own normalizer); or `FILE.json` (a normalization config). `--language` is a language tag (`en`, `fr-FR`; `en_US` reads
+as `en-US`). `--explain` prints each normalizer's output in turn.
+
+```sh
+$ printf 'It costs $5.32\non 3/4/2025.\n' | bunsen-tool text normalize --normalize zyphra --normalize transcript --language en --explain
+== zyphra
+It costs five dollars thirty two cents on march fourth twenty twenty five.
+== transcript
+it costs five dollars thirty two cents on march fourth twenty twenty five
 ```
 
 ## chat: Qwen3, Gemma and nanochat

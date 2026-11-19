@@ -4,9 +4,9 @@
 //! (speech to text, and who spoke when), `bunsen-tool chat` (chat with a
 //! Qwen3, Qwen3.5, Gemma or nanochat checkpoint), `bunsen-tool decide`
 //! (typed questions about a context, answered by a Laya decision model),
-//! `bunsen-tool cache` (the weights cache), `bunsen-tool summary` and
-//! `bunsen-tool devices`. Its README is the binary's
-//! guide.
+//! `bunsen-tool text` (text normalization on its own), `bunsen-tool cache`
+//! (the weights cache), `bunsen-tool summary` and `bunsen-tool devices`. Its
+//! README is the binary's guide.
 //!
 //! The library is all of it, one module per command, each with what the
 //! command runs and its command tree, nested as the commands are: a
@@ -21,6 +21,7 @@
 //! - [`chat`]: the chat driver; [`chat::ChatCommandGroup`].
 //! - [`decide`]: Laya decisions on typed questions;
 //!   [`decide::DecideCommandGroup`].
+//! - [`text`]: text normalization on its own; [`text::TextCommandGroup`].
 //! - [`summary`] and [`devices`]: the builds this binary runs, in brief, by
 //!   command, contract and publisher; the backends and their devices.
 //! - [`support`]: what the command trees share.
@@ -32,5 +33,6 @@ pub mod decide;
 pub mod devices;
 pub mod summary;
 pub mod support;
+pub mod text;
 #[cfg(feature = "speech")]
 pub mod tts;
