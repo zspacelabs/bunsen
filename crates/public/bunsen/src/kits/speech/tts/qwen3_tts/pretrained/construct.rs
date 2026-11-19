@@ -55,7 +55,7 @@ use crate::{
             Qwen3TtsTokenizerFiles,
             codec::{
                 Qwen3TtsCodecDecoder,
-                Qwen3TtsCodecDecoderConfig,
+                Qwen3TtsCodecDecoderContractConfig,
                 Qwen3TtsCodecDecoderJson,
                 weights::load_qwen3_tts_codec_tensors,
             },
@@ -156,7 +156,8 @@ impl ConstructInit for Qwen3TtsConstructConfig {
         })?;
         let prompt = Qwen3TtsPromptConfig::from_json(&prompt_json)?;
         let codec_json: CodecJson = read_json(loaded.expect(CODEC_CONFIG)?)?;
-        let codec_config = Qwen3TtsCodecDecoderConfig::from_json(&codec_json.decoder_config)?;
+        let codec_config =
+            Qwen3TtsCodecDecoderContractConfig::from_json(&codec_json.decoder_config)?;
         let generation: Qwen3TtsGenerationJson = read_json(loaded.expect(GENERATION_CONFIG)?)?;
 
         let dtype = |tensors: &[burn::store::burn_pack::Tensor]| {

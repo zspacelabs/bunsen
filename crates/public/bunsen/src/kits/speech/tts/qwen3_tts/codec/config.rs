@@ -13,9 +13,18 @@ use burn::{
 };
 use serde::Deserialize;
 
+use super::{
+    Qwen3TtsCodecDecoderMeta,
+    Qwen3TtsCodecDecoderStructureConfig,
+    Qwen3TtsCodecTransformerConfig,
+    Qwen3TtsCodecUpsampleConfig,
+    Qwen3TtsVocoderConfig,
+};
 use crate::{
     blocks::{
+        conv::CausalConv1dConfig,
         norm::BunsenNormalizationConfig,
+        quantization::SplitResidualVectorQuantizerConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             decoders::{
@@ -29,7 +38,10 @@ use crate::{
             mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::tensor::Widening,
+    burner::{
+        module::ToStructureConfig,
+        tensor::Widening,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -81,10 +93,15 @@ pub struct Qwen3TtsCodecDecoderJson {
     pub decoder_dim: usize,
 }
 
-/// Config for [`Qwen3TtsCodecDecoder`](super::Qwen3TtsCodecDecoder): the
-/// 12 Hz codec's decoder, codes in, audio out.
+/// The policy of [`Qwen3TtsCodecDecoder`](super::Qwen3TtsCodecDecoder), the
+/// 12 Hz codec's decoder (codes in, audio out): its geometry, as a
+/// `decoder_config` gives it ([`from_json`](Self::from_json)).
+///
+/// Lowers to the [`Qwen3TtsCodecDecoderStructureConfig`] that builds the
+/// decoder ([`ToStructureConfig`]): the vocoder's widths halving block by
+/// block, the transformer's layers from the geometry.
 #[derive(Config, Debug)]
-pub struct Qwen3TtsCodecDecoderConfig {
+pub struct Qwen3TtsCodecDecoderContractConfig {
     /// The codebooks, `K`; the first apart from the rest.
     pub codebooks: usize,
 
@@ -140,7 +157,7 @@ pub struct Qwen3TtsCodecDecoderConfig {
     pub vocoder_width: usize,
 }
 
-impl Qwen3TtsCodecDecoderConfig {
+impl Qwen3TtsCodecDecoderContractConfig {
     /// The config of a `decoder_config` section.
     ///
     /// # Errors
@@ -208,27 +225,6 @@ impl Qwen3TtsCodecDecoderConfig {
         .with_attention_bias(json.attention_bias))
     }
 
-    /// Audio samples per frame of codes: every upsampler's and vocoder
-    /// block's factor, multiplied.
-    pub fn samples_per_frame(&self) -> usize {
-        self.upsampling_ratios
-            .iter()
-            .chain(&self.upsample_rates)
-            .product()
-    }
-
-    /// Each vocoder block's input and output widths.
-    pub fn vocoder_widths(&self) -> Vec<[usize; 2]> {
-        (0..self.upsample_rates.len())
-            .map(|i| [self.vocoder_width >> i, self.vocoder_width >> (i + 1)])
-            .collect()
-    }
-
-    /// The vocoder's last width, its output convolution's input.
-    pub fn vocoder_out_width(&self) -> usize {
-        self.vocoder_width >> self.upsample_rates.len()
-    }
-
     /// The transformer's layers: pre-RMS-norm, attention over a causal sliding
     /// window with half-split rotary and no QK-norm (its softmax in f32, as
     /// `transformers`' eager attention), a `SwiGLU` feed-forward without
@@ -259,6 +255,46 @@ impl Qwen3TtsCodecDecoderConfig {
     }
 }
 
+impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoderContractConfig {
+    fn codebooks(&self) -> usize {
+        self.codebooks
+    }
+
+    fn codebook_size(&self) -> usize {
+        self.codebook_size
+    }
+
+    fn samples_per_frame(&self) -> usize {
+        self.upsampling_ratios
+            .iter()
+            .chain(&self.upsample_rates)
+            .product()
+    }
+}
+
+impl ToStructureConfig for Qwen3TtsCodecDecoderContractConfig {
+    type Structure = Qwen3TtsCodecDecoderStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<Qwen3TtsCodecDecoderStructureConfig> {
+        let latent = self.latent_width;
+        Ok(Qwen3TtsCodecDecoderStructureConfig::new(
+            SplitResidualVectorQuantizerConfig::new(
+                self.codebooks,
+                self.codebook_size,
+                self.codebook_dim / 2,
+                self.codebook_dim,
+            ),
+            CausalConv1dConfig::new([self.codebook_dim, latent], 3),
+            Qwen3TtsCodecTransformerConfig::new(latent, self.stack()),
+            self.upsampling_ratios
+                .iter()
+                .map(|&r| Qwen3TtsCodecUpsampleConfig::new(latent, r))
+                .collect(),
+            Qwen3TtsVocoderConfig::new(latent, self.vocoder_width, self.upsample_rates.clone()),
+        ))
+    }
+}
+
 /// `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s `decoder_config`, as its `config.json`
 /// writes it: the release's.
 pub fn qwen3_tts_codec_12hz_decoder_json() -> Qwen3TtsCodecDecoderJson {
@@ -286,20 +322,133 @@ pub fn qwen3_tts_codec_12hz_decoder_json() -> Qwen3TtsCodecDecoderJson {
 
 #[cfg(test)]
 mod tests {
+    use burn::module::Module;
+
     use super::*;
+    use crate::{
+        burner::module::ModuleInit,
+        kits::speech::tts::qwen3_tts::codec::{
+            QWEN3_TTS_VOCODER_DILATIONS,
+            Qwen3TtsCodecDecoder,
+            Qwen3TtsCodecTransformerMeta,
+            Qwen3TtsCodecUpsampleMeta,
+            Qwen3TtsVocoderBlockConfig,
+            Qwen3TtsVocoderBlockMeta,
+            Qwen3TtsVocoderMeta,
+            Qwen3TtsVocoderResidualUnitConfig,
+            Qwen3TtsVocoderResidualUnitMeta,
+        },
+        support::testing::cpu_device,
+    };
+
+    /// A small decoder, every width distinct.
+    fn small() -> Qwen3TtsCodecDecoderContractConfig {
+        Qwen3TtsCodecDecoderContractConfig::from_json(&Qwen3TtsCodecDecoderJson {
+            codebook_size: 9,
+            codebook_dim: 4,
+            hidden_size: 8,
+            latent_dim: 6,
+            rope_theta: 10000.0,
+            num_attention_heads: 2,
+            num_key_value_heads: 1,
+            head_dim: Some(4),
+            attention_bias: false,
+            sliding_window: 4,
+            intermediate_size: 16,
+            hidden_act: "silu".into(),
+            rms_norm_eps: 1e-5,
+            num_hidden_layers: 1,
+            num_quantizers: 3,
+            upsample_rates: vec![2, 3],
+            upsampling_ratios: vec![2],
+            decoder_dim: 12,
+        })
+        .expect("a small config")
+    }
+
+    /// The policy, its lowering and the decoders built from either answer
+    /// the meta alike, and the decoders have the same parameters.
+    #[test]
+    fn test_lowering_agrees() {
+        let device = cpu_device();
+        let policy = small();
+        let structure = policy.to_structure();
+        let direct: Qwen3TtsCodecDecoder = policy.init(&device);
+        let lowered: Qwen3TtsCodecDecoder = structure.init(&device);
+        for meta in [
+            &policy as &dyn Qwen3TtsCodecDecoderMeta,
+            &structure,
+            &direct,
+            &lowered,
+        ] {
+            assert_eq!(
+                [
+                    meta.codebooks(),
+                    meta.codebook_size(),
+                    meta.samples_per_frame()
+                ],
+                [3, 9, 12]
+            );
+        }
+        assert_eq!(direct.num_params(), lowered.num_params());
+    }
+
+    /// Each part's config and the part built from it answer its meta alike.
+    #[test]
+    fn test_part_meta() {
+        let device = cpu_device();
+        let structure = small().to_structure();
+        let decoder: Qwen3TtsCodecDecoder = structure.init(&device);
+
+        let t = &structure.pre_transformer;
+        for meta in [
+            t as &dyn Qwen3TtsCodecTransformerMeta,
+            &decoder.pre_transformer,
+        ] {
+            assert_eq!([meta.latent_width(), meta.width()], [6, 8]);
+        }
+        let u = &structure.upsample[0];
+        for meta in [u as &dyn Qwen3TtsCodecUpsampleMeta, &decoder.upsample[0]] {
+            assert_eq!([meta.width(), meta.factor()], [6, 2]);
+        }
+        let v = &structure.decoder;
+        for meta in [v as &dyn Qwen3TtsVocoderMeta, &decoder.decoder] {
+            assert_eq!(
+                (meta.latent_width(), meta.width(), meta.factors()),
+                (6, 12, vec![2, 3])
+            );
+            assert_eq!([meta.out_width(), meta.factor()], [3, 6]);
+        }
+        let b = Qwen3TtsVocoderBlockConfig::new([12, 6], 2);
+        for meta in [
+            &b as &dyn Qwen3TtsVocoderBlockMeta,
+            &decoder.decoder.blocks[0],
+        ] {
+            assert_eq!((meta.channels(), meta.factor()), ([12, 6], 2));
+        }
+        let r = Qwen3TtsVocoderResidualUnitConfig::new(3, QWEN3_TTS_VOCODER_DILATIONS[2]);
+        for meta in [
+            &r as &dyn Qwen3TtsVocoderResidualUnitMeta,
+            &decoder.decoder.blocks[1].residuals[2],
+        ] {
+            assert_eq!([meta.channels(), meta.dilation()], [3, 9]);
+        }
+    }
 
     /// The release's decoder: 1920 samples a frame (24 kHz at 12.5 Hz), the
     /// vocoder 1536 wide down to 96.
     #[test]
     fn test_release_config() {
-        let config = Qwen3TtsCodecDecoderConfig::from_json(&qwen3_tts_codec_12hz_decoder_json())
-            .expect("the release's config");
+        let config =
+            Qwen3TtsCodecDecoderContractConfig::from_json(&qwen3_tts_codec_12hz_decoder_json())
+                .expect("the release's config");
         assert_eq!(config.samples_per_frame(), 1920);
+        let structure = config.to_structure();
+        assert_eq!(structure.samples_per_frame(), 1920);
         assert_eq!(
-            config.vocoder_widths(),
-            vec![[1536, 768], [768, 384], [384, 192], [192, 96]]
+            [structure.decoder.width(), structure.decoder.out_width()],
+            [1536, 96]
         );
-        assert_eq!(config.vocoder_out_width(), 96);
         assert_eq!(
             (config.head_dim, config.window, config.rope_theta),
             (64, 72, 10000)
@@ -335,7 +484,7 @@ mod tests {
                 ..release
             },
         ] {
-            let error = Qwen3TtsCodecDecoderConfig::from_json(&json).unwrap_err();
+            let error = Qwen3TtsCodecDecoderContractConfig::from_json(&json).unwrap_err();
             assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Unsupported);
         }
     }
