@@ -42,9 +42,11 @@
 //!
 //! - [`activation`]: the activation seam, `BunsenActivationConfig` and
 //!   `BunsenActivation`: burn's activations, and bunsen's (`Silu`, `Pow`,
-//!   `Chain`), behind one seam bunsen owns.
+//!   `Snake`, `Chain`), behind one seam bunsen owns.
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
-//!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
+//!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`); causal
+//!   1-d convolutions and upsamplers (`CausalConv1d`, `CausalConvTranspose1d`)
+//!   and a causal `ConvNeXt` block (`CausalConvNext1d`).
 //! - [`signals`]: learned layers over a signal's time axis, the counterpart of
 //!   [`ops::signal`](crate::ops::signal)'s fixed front ends: the frame-rate
 //!   changes `FeatureStacking` (frames stacked and projected),
@@ -62,6 +64,9 @@
 //!   boundary, so a caller's activation layout and the block's need not agree.
 //! - [`math`]: math operations as modules: `PowOpModule`, `x^p`, the activation
 //!   seam's `Pow` kind.
+//! - [`quantization`]: a residual vector quantizer's decode, codes to their
+//!   latent: `EuclideanCodebook`, `ResidualVectorQuantizer` and
+//!   `SplitResidualVectorQuantizer` (Mimi's and Qwen3-TTS's codecs').
 //! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
 //!   gates, and its state type.
 //! - [`transformers`]: transformer blocks: the parts, and the layers and stacks
@@ -91,6 +96,7 @@ pub mod images;
 pub mod layout;
 pub mod math;
 pub mod norm;
+pub mod quantization;
 pub mod rnn;
 pub mod signals;
 pub mod transformers;
