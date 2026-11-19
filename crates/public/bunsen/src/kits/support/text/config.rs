@@ -12,6 +12,7 @@ use super::{
     TextNormalizer,
     TextNormalizerChain,
     TranscriptTextNormalizer,
+    ZyphraNormalizationConfig,
 };
 use crate::errors::BunsenResult;
 
@@ -31,6 +32,11 @@ pub enum TextNormalizationConfig {
     /// [`TranscriptTextNormalizer`].
     Transcript,
 
+    /// Zyphra's normalizer
+    /// ([`ZyphraTextNormalizer`](super::ZyphraTextNormalizer)); in a build
+    /// without the feature `zyphra-textnorm`, an init error.
+    Zyphra(ZyphraNormalizationConfig),
+
     /// Each in order ([`TextNormalizerChain`]).
     Chain(Vec<TextNormalizationConfig>),
 }
@@ -46,6 +52,7 @@ impl TextNormalizationConfig {
             Self::None => Arc::new(TextNormalizerChain::default()),
             Self::CollapseLineBreaks => Arc::new(CollapseLineBreaks),
             Self::Transcript => Arc::new(TranscriptTextNormalizer),
+            Self::Zyphra(config) => Arc::new(config.init()?),
             Self::Chain(stages) => Arc::new(TextNormalizerChain::new(
                 stages
                     .iter()

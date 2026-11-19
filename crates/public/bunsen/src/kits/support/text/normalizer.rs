@@ -25,6 +25,20 @@ pub trait TextNormalizer: Debug + Send + Sync {
     /// `zyphra(prepass)`.
     fn name(&self) -> String;
 
+    /// Whether it can normalize text in `language`, said before any text is
+    /// given: so a driver refuses a language when it is built, not at its
+    /// first take. Any language, by default.
+    ///
+    /// # Errors
+    /// What [`normalize`](Self::normalize) would refuse `language` with.
+    fn check_language(
+        &self,
+        language: Option<&BunsenLanguageTag>,
+    ) -> BunsenResult<()> {
+        let _ = language;
+        Ok(())
+    }
+
     /// `text`, normalized; borrowed when it is `text`, or a part of it.
     ///
     /// `language` is the text's, when known; a normalizer that reads by
@@ -93,6 +107,16 @@ impl TextNormalizer for TextNormalizerChain {
             .join(" > ")
     }
 
+    /// Each stage's.
+    fn check_language(
+        &self,
+        language: Option<&BunsenLanguageTag>,
+    ) -> BunsenResult<()> {
+        self.stages
+            .iter()
+            .try_for_each(|stage| stage.check_language(language))
+    }
+
     fn normalize<'a>(
         &self,
         text: &'a str,
@@ -152,6 +176,13 @@ mod tests {
             "refuse".to_string()
         }
 
+        fn check_language(
+            &self,
+            _language: Option<&BunsenLanguageTag>,
+        ) -> BunsenResult<()> {
+            Err(BunsenError::unsupported("no"))
+        }
+
         fn normalize<'a>(
             &self,
             _text: &'a str,
@@ -199,5 +230,11 @@ mod tests {
         ]);
         assert!(chain.normalize("x", None).is_err());
         assert!(chain.explain("x", None).is_err());
+        assert!(chain.check_language(None).is_err());
+        assert!(
+            TextNormalizerChain::new(vec![Arc::new(Mark("a")) as Arc<dyn TextNormalizer>])
+                .check_language(None)
+                .is_ok()
+        );
     }
 }

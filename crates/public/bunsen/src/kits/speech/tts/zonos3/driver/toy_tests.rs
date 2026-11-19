@@ -38,9 +38,12 @@ use crate::{
             },
             voices::Zonos3Voice,
         },
-        support::tokens::{
-            Detokenizer,
-            Tokenizer,
+        support::{
+            text::TextNormalizationConfig,
+            tokens::{
+                Detokenizer,
+                Tokenizer,
+            },
         },
     },
     support::testing::{
@@ -175,7 +178,7 @@ fn driver(config: Zonos3DriverConfig) -> Zonos3Driver<Bytes> {
     Zonos3Driver::new(
         Arc::new(construct()),
         Bytes,
-        config.with_normalization(Zonos3TextNormalization::None),
+        config.with_normalization(TextNormalizationConfig::None),
     )
     .expect("the toy driver")
 }
@@ -223,7 +226,7 @@ fn test_refusals() {
         Arc::new(construct()),
         Bytes,
         Zonos3DriverConfig::new()
-            .with_normalization(Zonos3TextNormalization::None)
+            .with_normalization(TextNormalizationConfig::None)
             .with_silence_prefill_frames(31),
     )
     .unwrap_err();
@@ -265,4 +268,46 @@ fn test_render() {
             BunsenErrorKind::Illegal
         );
     }
+}
+
+#[test]
+fn test_language_tags() {
+    let mut generation = generation();
+    generation.languages = BTreeMap::from([("en_us".to_string(), "en".to_string())]);
+    assert_eq!(generation.language_tag("en_us").unwrap().to_string(), "en");
+    assert_eq!(
+        generation.language_tag("fr-FR").unwrap().to_string(),
+        "fr-FR"
+    );
+    let error = generation.language_tag("klingonese").unwrap_err();
+    assert_eq!(error.kind(), BunsenErrorKind::Illegal);
+}
+
+/// The release's normalization refuses a language it has no grammar for
+/// when the driver is built (and, without `zyphra-textnorm`, any).
+#[test]
+fn test_release_normalization_checks_the_language() {
+    let error = Zonos3Driver::new(
+        Arc::new(construct()),
+        Bytes,
+        Zonos3DriverConfig::new().with_language("tlh".to_string()),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
+}
+
+#[cfg(feature = "zyphra-textnorm")]
+#[test]
+fn test_release_normalization() {
+    let driver = Zonos3Driver::new(Arc::new(construct()), Bytes, Zonos3DriverConfig::new())
+        .expect("the toy driver, normalized");
+    assert_eq!(driver.normalizer().name(), "collapse-line-breaks > zyphra");
+    assert_eq!(driver.language().to_string(), "en-US");
+    assert_eq!(
+        driver
+            .normalizer()
+            .normalize("It costs\n$5.", Some(driver.language()))
+            .unwrap(),
+        "It costs five dollars."
+    );
 }

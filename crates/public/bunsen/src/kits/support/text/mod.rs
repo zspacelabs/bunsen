@@ -6,9 +6,11 @@
 //!
 //! - [`TextNormalizer`]: the seam, plugged in as an `Arc<dyn TextNormalizer>`;
 //!   [`TextNormalizerChain`] runs several in order.
-//! - The normalizers bunsen ships: [`CollapseLineBreaks`] and
-//!   [`TranscriptTextNormalizer`]; [`TextNormalizationConfig`] names them as
-//!   config and builds them.
+//! - The normalizers bunsen ships: [`CollapseLineBreaks`],
+//!   [`TranscriptTextNormalizer`], and Zyphra's [`ZyphraTextNormalizer`]
+//!   (numbers, money and dates spoken, in 43 languages; feature
+//!   `zyphra-textnorm`); [`TextNormalizationConfig`] names them as config and
+//!   builds them.
 //! - [`BunsenLanguageTag`]: a well-known language code (BCP 47), the language a
 //!   normalizer is told a text is in.
 
@@ -16,8 +18,10 @@ mod basic;
 mod config;
 mod language;
 mod normalizer;
+mod zyphra;
 
 pub use basic::*;
 pub use config::*;
 pub use language::*;
 pub use normalizer::*;
+pub use zyphra::*;

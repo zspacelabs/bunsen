@@ -23,12 +23,13 @@ use bunsen::{
                 Zonos3DriverConfig,
                 Zonos3Request,
                 Zonos3Stop,
-                Zonos3TextNormalization,
-                Zonos3ZyphraNormalization,
             },
             pretrained::default_zonos3_factory,
         },
-        support::tokens::BunsenTokenizer,
+        support::{
+            text::TextNormalizationConfig,
+            tokens::BunsenTokenizer,
+        },
     },
     support::audio::save_wav_mono,
 };
@@ -118,10 +119,10 @@ pub struct TtsRunCommand {
     #[arg(long, value_enum, default_value_t = TtsNormalize::Zyphra)]
     normalize: TtsNormalize,
 
-    /// The text's language, for `--normalize zyphra`.
+    /// The text's language, which `--normalize zyphra` reads by.
     ///
-    /// A request code of the release (`en_us`, `fr_fr`) or one of the
-    /// normalizer's grammars (`en`, `fr`).
+    /// A request code of the release (`en_us`, `fr_fr`) or a language tag
+    /// (`en`, `fr-FR`); one the normalizer has no grammar for is an error.
     #[arg(long, default_value = "en_us")]
     language: String,
 
@@ -252,11 +253,10 @@ impl TtsRunCommand {
         mut config: Zonos3DriverConfig,
     ) -> Zonos3DriverConfig {
         config.normalization = match self.normalize {
-            TtsNormalize::Zyphra => Zonos3TextNormalization::Zyphra(
-                Zonos3ZyphraNormalization::new().with_language(self.language.clone()),
-            ),
-            TtsNormalize::None => Zonos3TextNormalization::None,
+            TtsNormalize::Zyphra => Zonos3DriverConfig::release_normalization(),
+            TtsNormalize::None => TextNormalizationConfig::CollapseLineBreaks,
         };
+        config.language = self.language.clone();
         if let Some(temperature) = self.temperature {
             config.sampler.temperature = temperature;
         }
@@ -322,7 +322,10 @@ mod tests {
         ])
         .unwrap();
         let config = cli.run.config(Zonos3DriverConfig::new());
-        assert_eq!(config.normalization, Zonos3TextNormalization::None);
+        assert_eq!(
+            config.normalization,
+            TextNormalizationConfig::CollapseLineBreaks
+        );
         assert_eq!(config.sampler.temperature, 0.5);
         assert_eq!(config.sampler.top_k, 40);
         assert_eq!(config.sampler.top_p, 0.69, "the release's");
@@ -332,12 +335,12 @@ mod tests {
 
         let cli =
             Cli::try_parse_from(["tts", "-o", "o.wav", "--language", "fr_fr", "Bonjour"]).unwrap();
+        let config = cli.run.config(Zonos3DriverConfig::new());
         assert_eq!(
-            cli.run.config(Zonos3DriverConfig::new()).normalization,
-            Zonos3TextNormalization::Zyphra(
-                Zonos3ZyphraNormalization::new().with_language("fr_fr".to_string())
-            )
+            config.normalization,
+            Zonos3DriverConfig::release_normalization()
         );
+        assert_eq!(config.language, "fr_fr");
     }
 
     #[test]
