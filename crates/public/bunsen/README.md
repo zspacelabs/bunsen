@@ -184,6 +184,24 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
   ZONOS3-Mini: 800 M parameters (100 M active), 44.1 kHz speech in 9
   languages, 27 stock voices.
 
+# contract: qwen3-tts
+# A Qwen3-TTS model as Qwen's repositories lay it out: the talker and its
+# code predictor in one safetensors file, the 12 Hz codec in another, their
+# geometry from their `config.json`s; the tokenizer as its slow files.
+# publisher: qwen - Qwen, Alibaba Cloud's model team.
+
+* qwen/qwen3-tts/qwen3-tts-12hz-0.6b-customvoice: [2.50 GB f32]
+  Qwen3-TTS-12Hz-0.6B-CustomVoice: 9 stock voices in 10 languages and two
+  Chinese dialects, 24 kHz speech; no style instruction.
+
+* qwen/qwen3-tts/qwen3-tts-12hz-1.7b-customvoice: [4.52 GB f32]
+  Qwen3-TTS-12Hz-1.7B-CustomVoice: 9 stock voices in 10 languages and two
+  Chinese dialects, 24 kHz speech, steered by a style instruction.
+
+* qwen/qwen3-tts/qwen3-tts-12hz-1.7b-voicedesign: [4.52 GB f32]
+  Qwen3-TTS-12Hz-1.7B-VoiceDesign: a voice from a description, in 10
+  languages, 24 kHz speech; no stock voices.
+
 # bunsen-tool chat ...
 # Chat and Text Generation
 

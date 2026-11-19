@@ -33,7 +33,10 @@ use bunsen::kits::speech::{
         whisper::pretrained::default_whisper_factory,
     },
     diarization::sortformer::pretrained::default_sortformer_factory,
-    tts::zonos3::pretrained::default_zonos3_factory,
+    tts::{
+        qwen3_tts::pretrained::default_qwen3_tts_factory,
+        zonos3::pretrained::default_zonos3_factory,
+    },
     vad::silero_vad::pretrained::default_silero_factory,
 };
 use bunsen::{
@@ -165,7 +168,10 @@ pub fn kinds() -> BunsenResult<Vec<Kind>> {
     kinds.push(Kind {
         name: "tts",
         title: "Text to Speech",
-        families: vec![Family::of("zonos3", default_zonos3_factory()?)],
+        families: vec![
+            Family::of("zonos3", default_zonos3_factory()?),
+            Family::of("qwen3-tts", default_qwen3_tts_factory()?),
+        ],
     });
     kinds.extend([
         Kind {

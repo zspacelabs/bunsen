@@ -277,16 +277,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Qwen3TtsEngine<T> {
     }
 
     fn voices(&self) -> Vec<TtsVoiceInfo> {
-        let prompt = &self.construct.prompt;
-        prompt
-            .speakers
-            .keys()
-            .map(|name| {
-                let mut info = TtsVoiceInfo::stock(name.clone());
-                info.default_language = prompt.speaker_languages.get(name).cloned();
-                info
-            })
-            .collect()
+        self.construct.prompt.voices()
     }
 
     fn resolve_voice(

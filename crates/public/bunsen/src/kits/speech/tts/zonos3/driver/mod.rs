@@ -19,6 +19,7 @@ mod generate;
 mod output;
 mod take;
 
+pub use engine::*;
 pub use generate::*;
 pub use output::*;
 pub use take::*;

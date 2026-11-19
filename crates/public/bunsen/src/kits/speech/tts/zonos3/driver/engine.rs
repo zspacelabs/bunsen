@@ -1,6 +1,7 @@
 //! [`Zonos3Engine`] as a [`TtsEngine`].
 
 use alloc::{
+    collections::BTreeMap,
     format,
     string::ToString,
     vec::Vec,
@@ -29,7 +30,10 @@ use crate::{
                 TtsVoiceChoice,
                 TtsVoiceInfo,
             },
-            zonos3::prompt::Zonos3Speaker,
+            zonos3::{
+                prompt::Zonos3Speaker,
+                voices::Zonos3Voice,
+            },
         },
         support::{
             text::BunsenLanguageTag,
@@ -37,6 +41,24 @@ use crate::{
         },
     },
 };
+
+/// What the driver says of ZONOS3's stock voices: each one's gender and
+/// style, and its language as the release names it (`English`), as its
+/// description.
+pub fn zonos3_voice_list(voices: &BTreeMap<String, Zonos3Voice>) -> Vec<TtsVoiceInfo> {
+    voices
+        .iter()
+        .map(|(name, voice)| {
+            let mut info = TtsVoiceInfo::stock(name.clone());
+            if let Some(said) = &voice.info {
+                info.gender = Some(said.gender.clone());
+                info.style.clone_from(&said.style);
+                info.description = Some(said.language.clone());
+            }
+            info
+        })
+        .collect()
+}
 
 /// ZONOS3 through the TTS driver.
 ///
@@ -62,18 +84,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Zonos3Engine<T> {
     }
 
     fn voices(&self) -> Vec<TtsVoiceInfo> {
-        self.voices()
-            .iter()
-            .map(|(name, voice)| {
-                let mut info = TtsVoiceInfo::stock(name.clone());
-                if let Some(said) = &voice.info {
-                    info.gender = Some(said.gender.clone());
-                    info.style.clone_from(&said.style);
-                    info.description = Some(said.language.clone());
-                }
-                info
-            })
-            .collect()
+        zonos3_voice_list(self.voices())
     }
 
     fn resolve_voice(

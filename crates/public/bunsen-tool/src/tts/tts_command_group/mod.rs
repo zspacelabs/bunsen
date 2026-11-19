@@ -12,9 +12,10 @@ pub use tts_list::*;
 pub use tts_run::*;
 pub use tts_voices::*;
 
-/// `bunsen-tool tts`'s commands: text to speech with ZONOS3-Mini. `tts run`
-/// speaks a text in a stock voice to a WAV file or a speaker; `tts voices`
-/// lists the stock voices; `tts list` and `tts fetch` are its checkpoints'.
+/// `bunsen-tool tts`'s commands: text to speech with every TTS family's
+/// checkpoints (ZONOS3-Mini, Qwen3-TTS). `tts run` speaks a text in a voice
+/// to a WAV file or a speaker; `tts voices` lists a checkpoint's stock
+/// voices; `tts list` and `tts fetch` are the checkpoints'.
 #[derive(clap::Args, Debug)]
 pub struct TtsCommandGroup {
     #[clap(subcommand)]
@@ -23,20 +24,21 @@ pub struct TtsCommandGroup {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum TtsSubCommand {
-    /// Speaks a text in a stock voice, to a WAV file or a speaker.
+    /// Speaks a text in a voice, to a WAV file or a speaker.
     ///
-    /// The text, from the arguments or stdin, normalized (numbers, money and
-    /// dates spoken), then one take, decoded whole: written as mono 16-bit
-    /// audio at 44.1 kHz, played, or both.
+    /// The text, from the arguments or stdin, normalized as the model's
+    /// release normalizes it, split into takes at its sentences, each decoded
+    /// whole: written as mono 16-bit audio at the model's rate, played, or
+    /// both.
     Run(Box<TtsRunCommand>),
 
     /// The checkpoint's stock voices: language, style, gender.
     ///
-    /// Reads only the voices' files (asking first when they must be fetched,
-    /// unless `--yes`), not the model.
+    /// Reads only the voices' files or the config (asking first when they
+    /// must be fetched, unless `--yes`), not the model.
     Voices(Box<TtsVoicesCommand>),
 
-    /// The checkpoints bunsen knows by name.
+    /// The checkpoints bunsen knows by name, by family.
     ///
     /// Each one's origin, and each of its files' path in its repo and whether
     /// it is cached.
