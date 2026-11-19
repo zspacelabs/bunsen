@@ -1,6 +1,9 @@
 //! [`ResidualVectorQuantizer`] and [`SplitResidualVectorQuantizer`], to decode.
 
-use alloc::vec::Vec;
+use alloc::{
+    format,
+    vec::Vec,
+};
 
 use burn::{
     nn::{
@@ -18,9 +21,16 @@ use super::{
     EuclideanCodebookConfig,
     EuclideanCodebookMeta,
 };
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
+use crate::{
+    burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// Common meta for [`ResidualVectorQuantizer`] and
@@ -79,30 +89,31 @@ impl ResidualVectorQuantizerMeta for ResidualVectorQuantizerConfig {
     }
 }
 
-impl ResidualVectorQuantizerConfig {
-    /// The quantizer, on `device`; its codebooks as
-    /// [`EuclideanCodebookConfig::init`]'s.
-    ///
-    /// # Panics
-    /// For no codebooks.
-    pub fn init(
+/// The quantizer; its codebooks as [`EuclideanCodebookConfig`] builds them.
+impl ModuleInit<ResidualVectorQuantizer> for ResidualVectorQuantizerConfig {
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for no codebooks.
+    fn try_init(
         &self,
         device: &Device,
-    ) -> ResidualVectorQuantizer {
-        assert!(
-            self.codebooks >= 1,
-            "a residual quantizer of at least one codebook"
-        );
+    ) -> BunsenResult<ResidualVectorQuantizer> {
+        if self.codebooks == 0 {
+            return Err(BunsenError::illegal(
+                "a residual quantizer of no codebooks; at least one",
+            ));
+        }
         let codebook = EuclideanCodebookConfig::new(self.size, self.dim).with_epsilon(self.epsilon);
-        ResidualVectorQuantizer {
-            codebooks: (0..self.codebooks).map(|_| codebook.init(device)).collect(),
+        Ok(ResidualVectorQuantizer {
+            codebooks: (0..self.codebooks)
+                .map(|_| codebook.try_init(device))
+                .collect::<BunsenResult<_>>()?,
             output_proj: self.output_dim.map(|out| {
                 Conv1dConfig::new(self.dim, out, 1)
                     .with_bias(false)
                     .with_padding(PaddingConfig1d::Valid)
                     .init(device)
             }),
-        }
+        })
     }
 }
 
@@ -240,31 +251,30 @@ impl SplitResidualVectorQuantizerMeta for SplitResidualVectorQuantizerConfig {
     }
 }
 
-impl SplitResidualVectorQuantizerConfig {
-    /// The quantizer, on `device`.
-    ///
-    /// # Panics
-    /// Unless `1 ≤ first_codebooks < codebooks`.
-    pub fn init(
+impl ModuleInit<SplitResidualVectorQuantizer> for SplitResidualVectorQuantizerConfig {
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) unless
+    /// `1 ≤ first_codebooks < codebooks`.
+    fn try_init(
         &self,
         device: &Device,
-    ) -> SplitResidualVectorQuantizer {
-        assert!(
-            self.first_codebooks >= 1 && self.first_codebooks < self.codebooks,
-            "a split of {} codebooks after 1..{}",
-            self.codebooks,
-            self.codebooks
-        );
+    ) -> BunsenResult<SplitResidualVectorQuantizer> {
+        if self.first_codebooks == 0 || self.first_codebooks >= self.codebooks {
+            return Err(BunsenError::illegal(format!(
+                "a split of {} codebooks after {}; the split is in 1..{}",
+                self.codebooks, self.first_codebooks, self.codebooks
+            )));
+        }
         let half = |codebooks| {
             ResidualVectorQuantizerConfig::new(codebooks, self.size, self.dim)
                 .with_output_dim(Some(self.output_dim))
                 .with_epsilon(self.epsilon)
-                .init(device)
+                .try_init(device)
         };
-        SplitResidualVectorQuantizer {
-            rvq_first: half(self.first_codebooks),
-            rvq_rest: half(self.codebooks - self.first_codebooks),
-        }
+        Ok(SplitResidualVectorQuantizer {
+            rvq_first: half(self.first_codebooks)?,
+            rvq_rest: half(self.codebooks - self.first_codebooks)?,
+        })
     }
 }
 
@@ -341,10 +351,16 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        assert_tensors_close,
-        cpu_device,
-        seeded_tensor,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        support::testing::{
+            assert_tensors_close,
+            cpu_device,
+            seeded_tensor,
+        },
     };
 
     fn random_codebooks(
@@ -501,5 +517,32 @@ mod tests {
             split.decode(codes),
             fixture.io("io.codec.quantized"),
         );
+    }
+
+    /// No codebooks, or a split that leaves either side empty, is refused.
+    #[test]
+    fn test_illegal_codebooks() {
+        let device = cpu_device();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("no codebooks")
+            .assert_err(
+                &ModuleInit::<ResidualVectorQuantizer>::try_init(
+                    &ResidualVectorQuantizerConfig::new(0, 4, 2),
+                    &device,
+                )
+                .map(|_| ()),
+            );
+        for first in [0, 3] {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains("the split is in 1..3")
+                .assert_err(
+                    &ModuleInit::<SplitResidualVectorQuantizer>::try_init(
+                        &SplitResidualVectorQuantizerConfig::new(3, 4, 2, 3)
+                            .with_first_codebooks(first),
+                        &device,
+                    )
+                    .map(|_| ()),
+                );
+        }
     }
 }

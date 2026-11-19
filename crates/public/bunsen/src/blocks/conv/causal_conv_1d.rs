@@ -1,6 +1,9 @@
 //! [`CausalConv1d`] and [`CausalConvTranspose1d`]: convolutions over the past.
 
-use alloc::vec::Vec;
+use alloc::{
+    format,
+    vec::Vec,
+};
 
 use burn::{
     nn::{
@@ -15,9 +18,16 @@ use burn::{
     prelude::*,
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
+use crate::{
+    burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// What a [`CausalConv1d`] pads its input with.
@@ -135,24 +145,24 @@ impl CausalConv1dMeta for CausalConv1dConfig {
     }
 }
 
-impl CausalConv1dConfig {
-    /// The convolution, on `device`, its weights burn's default
-    /// initialization.
-    ///
-    /// # Panics
-    /// When the stride is 0 or over the receptive field.
-    pub fn init(
+/// The convolution, its weights burn's default initialization.
+impl ModuleInit<CausalConv1d> for CausalConv1dConfig {
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a stride of 0
+    /// or over the receptive field.
+    fn try_init(
         &self,
         device: &Device,
-    ) -> CausalConv1d {
-        assert!(
-            self.stride >= 1 && self.stride <= self.receptive_field(),
-            "a causal convolution's stride is in 1..={}; got {}",
-            self.receptive_field(),
-            self.stride
-        );
+    ) -> BunsenResult<CausalConv1d> {
+        if self.stride == 0 || self.stride > self.receptive_field() {
+            return Err(BunsenError::illegal(format!(
+                "a causal convolution's stride is in 1..={}; got {}",
+                self.receptive_field(),
+                self.stride
+            )));
+        }
         let [c_in, c_out] = self.channels;
-        CausalConv1d {
+        Ok(CausalConv1d {
             conv: Conv1dConfig::new(c_in, c_out, self.kernel_size)
                 .with_stride(self.stride)
                 .with_dilation(self.dilation)
@@ -161,7 +171,7 @@ impl CausalConv1dConfig {
                 .with_padding(PaddingConfig1d::Valid)
                 .init(device),
             padding: self.padding,
-        }
+        })
     }
 }
 
@@ -326,28 +336,27 @@ impl CausalConvTranspose1dMeta for CausalConvTranspose1dConfig {
     }
 }
 
-impl CausalConvTranspose1dConfig {
-    /// The convolution, on `device`, its weights burn's default
-    /// initialization.
-    ///
-    /// # Panics
-    /// When the stride is 0 or over the kernel.
-    pub fn init(
+/// The convolution, its weights burn's default initialization.
+impl ModuleInit<CausalConvTranspose1d> for CausalConvTranspose1dConfig {
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a stride of 0
+    /// or over the kernel.
+    fn try_init(
         &self,
         device: &Device,
-    ) -> CausalConvTranspose1d {
-        assert!(
-            self.stride >= 1 && self.stride <= self.kernel_size,
-            "a causal transposed convolution's stride is in 1..={}; got {}",
-            self.kernel_size,
-            self.stride
-        );
-        CausalConvTranspose1d {
+    ) -> BunsenResult<CausalConvTranspose1d> {
+        if self.stride == 0 || self.stride > self.kernel_size {
+            return Err(BunsenError::illegal(format!(
+                "a causal transposed convolution's stride is in 1..={}; got {}",
+                self.kernel_size, self.stride
+            )));
+        }
+        Ok(CausalConvTranspose1d {
             conv: ConvTranspose1dConfig::new(self.channels, self.kernel_size)
                 .with_stride(self.stride)
                 .with_bias(self.bias)
                 .init(device),
-        }
+        })
     }
 }
 
@@ -430,7 +439,13 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        support::testing::cpu_device,
+    };
 
     /// The oracle's input, `[1, 2, 7]`: `x[i] = ((5 i mod 13) - 6) / 4`.
     fn x(
@@ -664,6 +679,36 @@ mod tests {
                 fixture.io::<1>(&format!("{name}.conv.bias")),
             ));
             assert_io_close(name, conv.forward(fixture.io(input)), fixture.io(output));
+        }
+    }
+
+    /// A stride of 0, or past what the kernel covers, is refused.
+    #[test]
+    fn test_illegal_strides() {
+        let device = cpu_device();
+        for stride in [0, 6] {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains("stride is in 1..=5")
+                .assert_err(
+                    &ModuleInit::<CausalConv1d>::try_init(
+                        &CausalConv1dConfig::new([2, 2], 3)
+                            .with_dilation(2)
+                            .with_stride(stride),
+                        &device,
+                    )
+                    .map(|_| ()),
+                );
+        }
+        for stride in [0, 5] {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains("stride is in 1..=4")
+                .assert_err(
+                    &ModuleInit::<CausalConvTranspose1d>::try_init(
+                        &CausalConvTranspose1dConfig::new([2, 2], 4).with_stride(stride),
+                        &device,
+                    )
+                    .map(|_| ()),
+                );
         }
     }
 }

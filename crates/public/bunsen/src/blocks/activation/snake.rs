@@ -5,6 +5,11 @@ use burn::{
     prelude::*,
 };
 
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
+};
+
 /// Common meta for [`SnakeActivation`] and [`SnakeActivationConfig`].
 pub trait SnakeActivationMeta {
     /// The channels: one frequency (and magnitude) each, on axis 1.
@@ -69,23 +74,24 @@ impl SnakeActivationConfig {
             .with_separate_magnitude(true)
             .with_log_scale(true)
     }
+}
 
-    /// The activation, on `device`: every parameter at its identity scale (1,
-    /// or a log of 0).
-    pub fn init(
+/// The activation: every parameter at its identity scale (1, or a log of 0).
+impl ModuleInit<SnakeActivation> for SnakeActivationConfig {
+    fn try_init(
         &self,
         device: &Device,
-    ) -> SnakeActivation {
+    ) -> BunsenResult<SnakeActivation> {
         let start = || {
             let value = if self.log_scale { 0.0 } else { 1.0 };
             Param::from_tensor(Tensor::full([self.channels], value, device))
         };
-        SnakeActivation {
+        Ok(SnakeActivation {
             alpha: start(),
             beta: self.separate_magnitude.then(start),
             log_scale: self.log_scale,
             epsilon: self.epsilon,
-        }
+        })
     }
 }
 
