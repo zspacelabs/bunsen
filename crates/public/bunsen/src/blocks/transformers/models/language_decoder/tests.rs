@@ -306,3 +306,45 @@ fn test_lowering_frame() {
         .frame_contains("LmDecoderVariantConfig's stack")
         .assert_err(&variant.try_to_structure());
 }
+
+/// Parts that disagree are refused, naming the fields: an embedding or a
+/// head whose width is not the stack's, a tied head whose rows are not the
+/// embedding's.
+#[test]
+fn test_parts_agree() {
+    let device = cpu_device();
+    let structure = uniform(1).to_structure();
+    let cases = [
+        (
+            LmDecoderStructureConfig {
+                embedding: TokenEmbeddingConfig::new(40, 10),
+                ..structure.clone()
+            },
+            "embedding.d_model",
+        ),
+        (
+            LmDecoderStructureConfig {
+                head: LmHeadConfig::new(10, 40).with_tied(false),
+                ..structure.clone()
+            },
+            "head.d_model",
+        ),
+        (
+            LmDecoderStructureConfig {
+                head: LmHeadConfig::new(12, 48),
+                ..structure.clone()
+            },
+            "head.n_rows",
+        ),
+    ];
+    for (config, field) in cases {
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains(field)
+            .assert_err(&ModuleInit::<LmDecoderModel>::try_init(&config, &device));
+    }
+    let untied = LmDecoderStructureConfig {
+        head: LmHeadConfig::new(12, 48).with_tied(false),
+        ..structure
+    };
+    let _: LmDecoderModel = untied.init(&device);
+}
