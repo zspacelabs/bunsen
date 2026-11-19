@@ -10,6 +10,11 @@
 //!   [`map_forward`](ConvBlock2d::map_forward) runs a caller's function between
 //!   the norm and the activation; `ResNet` uses it to place a `DropBlock2d`
 //!   there.
+//! - [`CausalConv1d`] / [`CausalConvTranspose1d`]: 1-d convolutions over each
+//!   frame's past, channels first: padded before (zeros or the edge
+//!   [replicated](CausalPadding)) and convolved unpadded; and an upsampler
+//!   whose kernel's overlap past the last frame is trimmed. Encodec's, DAC's,
+//!   Mimi's and Qwen3-TTS's codec's.
 //! - [`CausalConvNext1d`]: a causal 1-d `ConvNeXt` block, channels last: a
 //!   depthwise convolution over each channel's past, a norm, a pointwise
 //!   expansion and projection, residual; it carries its convolution's state
@@ -44,12 +49,14 @@
 //! [`BunsenActivation`]: crate::blocks::activation::BunsenActivation
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
+mod causal_conv_1d;
 mod causal_convnext;
 mod conv_block_1d;
 mod conv_block_2d;
 mod conv_seq_1d;
 mod conv_seq_2d;
 
+pub use causal_conv_1d::*;
 pub use causal_convnext::*;
 pub use conv_block_1d::*;
 pub use conv_block_2d::*;
