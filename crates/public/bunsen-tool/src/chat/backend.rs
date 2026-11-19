@@ -9,6 +9,7 @@ use bunsen::{
         LmDecoderMeta,
         LmDecoderOps,
     },
+    burner::module::Materialized,
     errors::{
         BunsenError,
         BunsenResult,
@@ -42,6 +43,7 @@ use bunsen::{
 };
 use burn::{
     Tensor,
+    module::Module,
     prelude::{
         Int,
         TensorData,
@@ -241,10 +243,11 @@ pub struct ChatParts {
     pub generation: GenerationPolicy,
 }
 
-/// A language model a chat drives: a [`CachedLm`], with its meta and its
-/// forward-free API, and the [`ChatParts`] its checkpoint's files give.
+/// A language model a chat drives: a [`CachedLm`] and a [`Module`], with its
+/// meta and its forward-free API, and the [`ChatParts`] its checkpoint's files
+/// give.
 pub trait ChatLm:
-    CachedLm + LmDecoderMeta + LmDecoderOps + Debug + Send + Sync + Sized + 'static
+    CachedLm + LmDecoderMeta + LmDecoderOps + Module + Debug + Send + Sync + Sized + 'static
 {
     /// The tokenizer, renderer and generation policy a chat over `bundle`
     /// reads through.
@@ -305,9 +308,14 @@ impl ChatLm for Qwen3_5Model {
 /// A model's head may be wider than its tokenizer (Qwen3's 151936 rows over
 /// 151669 tokens; Gemma 3 4B's 262208 over 262144); a reply never chooses an
 /// id the tokenizer cannot spell.
+///
+/// It runs its own copy of the model, materialized for inference
+/// ([`Materialized`]): the derived params (Qwen3.5's decays and time-step
+/// biases) folded once rather than on every step.
 #[derive(Debug)]
-pub struct LmChat<M> {
+pub struct LmChat<M: Module> {
     bundle: Arc<LmConstruct<M>>,
+    lm: Materialized<M>,
     tokenizer: Arc<dyn Tokenizer>,
     renderer: Arc<dyn ChatRenderer>,
     generation: GenerationPolicy,
@@ -386,6 +394,7 @@ impl<M: ChatLm> LmChat<M> {
         }
         Ok(Self {
             unspelled: unspelled(bundle.model.n_logits(), tokenizer.as_ref()),
+            lm: Materialized::new(&bundle.model),
             bundle,
             tokenizer,
             renderer,
@@ -427,7 +436,7 @@ where
     type State = M::State;
 
     fn model(&self) -> &M {
-        &self.bundle.model
+        self.lm.module()
     }
 
     fn render(
@@ -448,7 +457,7 @@ where
         messages: &[ChatMessage],
         enable_thinking: Option<bool>,
     ) -> BunsenResult<Option<usize>> {
-        if self.bundle.model.rewinds_anywhere() {
+        if self.lm.module().rewinds_anywhere() {
             return Ok(None);
         }
         self.renderer
@@ -459,7 +468,7 @@ where
         &self,
         state: &mut M::State,
     ) {
-        CachedLm::snapshot(&self.bundle.model, state);
+        CachedLm::snapshot(self.lm.module(), state);
     }
 
     fn detokenizer(&self) -> Arc<dyn Detokenizer> {
@@ -479,7 +488,7 @@ where
     }
 
     fn float_dtype(&self) -> DType {
-        LmDecoderOps::float_dtype(&self.bundle.model)
+        LmDecoderOps::float_dtype(self.lm.module())
     }
 
     fn decode_state(
@@ -488,7 +497,7 @@ where
         storage: KVCacheStorage,
         device: &Device,
     ) -> M::State {
-        CachedLm::decode_state(&self.bundle.model, 1, positions, storage, device)
+        CachedLm::decode_state(self.lm.module(), 1, positions, storage, device)
     }
 
     fn rewind<'a>(
@@ -498,7 +507,7 @@ where
         next: &'a [i64],
         device: &Device,
     ) -> &'a [i64] {
-        CachedLm::rewind(&self.bundle.model, history, state, next, device)
+        CachedLm::rewind(self.lm.module(), history, state, next, device)
     }
 
     fn prefill(
@@ -507,6 +516,88 @@ where
         state: &mut M::State,
         device: &Device,
     ) -> Tensor<2> {
-        self.bundle.model.prefill_ids(row(ids, device), state)
+        self.lm.module().prefill_ids(row(ids, device), state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bunsen::{
+        burner::module::{
+            ModuleInit,
+            ParamForm,
+            derived_params,
+        },
+        kits::{
+            language::qwen3_5::{
+                Qwen3_5Config,
+                Qwen3_5Construct,
+                Qwen3_5Policy,
+            },
+            support::{
+                construct::{
+                    TOKENIZER,
+                    TOKENIZER_CONFIG,
+                },
+                model_config::ChatTemplateSource,
+                tokens::testing::toy_byte_level_json,
+            },
+        },
+        support::testing::cpu_device,
+    };
+
+    use super::*;
+
+    /// A chat runs a materialized copy of its model: every derived param of
+    /// the model it drives holds its effective form, while the construct's
+    /// keeps its stored one.
+    #[test]
+    fn test_a_chat_runs_its_model_materialized() {
+        let dir = std::env::temp_dir().join(format!("bunsen-tool-chat-lm-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let template = "{%- for m in messages %}{{- m.content }}{%- endfor %}";
+        let files = [
+            (TOKENIZER, "tokenizer.json", toy_byte_level_json()),
+            (
+                TOKENIZER_CONFIG,
+                "tokenizer_config.json",
+                serde_json::json!({ "chat_template": template }).to_string(),
+            ),
+        ];
+        let device = cpu_device();
+        let model: Qwen3_5Model =
+            Qwen3_5Config::new(310, 16, 2, 2, 1, 8, 20, 2, 2, 4, 4).init(&device);
+        let policy = Qwen3_5Policy {
+            generation: GenerationPolicy {
+                stop_ids: vec![301],
+                chat_template: Some(ChatTemplateSource::File {
+                    file: TOKENIZER_CONFIG.to_string(),
+                }),
+                ..Default::default()
+            },
+        };
+        let mut bundle = Qwen3_5Construct::new(model).with_policy(policy, Default::default());
+        for (key, name, body) in files {
+            let path = dir.join(name);
+            std::fs::write(&path, body).unwrap();
+            bundle = bundle.with_file(key, path);
+        }
+        let chat = LmChat::from_construct(Arc::new(bundle)).unwrap();
+
+        let driven = derived_params(chat.model());
+        assert!(
+            !driven.is_empty(),
+            "the toy's linear layers have derived params"
+        );
+        assert!(
+            driven.iter().all(|p| p.form == ParamForm::Effective),
+            "{driven:?}"
+        );
+        assert!(
+            derived_params(&chat.bundle().model)
+                .iter()
+                .all(|p| p.form == ParamForm::Stored)
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
