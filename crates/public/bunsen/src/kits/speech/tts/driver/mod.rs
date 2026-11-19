@@ -19,7 +19,9 @@
 //!   holds whatever the model; its output is [`TtsSpeech`].
 //!
 //! The engines: ZONOS3's
-//! ([`Zonos3Engine`](crate::kits::speech::tts::zonos3::driver::Zonos3Engine)).
+//! ([`Zonos3Engine`](crate::kits::speech::tts::zonos3::driver::Zonos3Engine))
+//! and Qwen3-TTS's
+//! ([`Qwen3TtsEngine`](crate::kits::speech::tts::qwen3_tts::driver::Qwen3TtsEngine)).
 //!
 //! A request's instruction is refused by an engine that takes none unless the
 //! driver is told to strip it

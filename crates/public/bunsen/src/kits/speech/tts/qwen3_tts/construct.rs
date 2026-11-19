@@ -1,5 +1,6 @@
 //! A loaded Qwen3-TTS model.
 
+use alloc::collections::BTreeMap;
 use std::path::PathBuf;
 
 use super::{
@@ -13,6 +14,35 @@ use super::{
     prompt::Qwen3TtsPromptConfig,
     sampler::Qwen3TtsGenerationJson,
 };
+use crate::kits::support::text::BunsenLanguageTag;
+
+/// Which of the release's model kinds a checkpoint is (`config.json`'s
+/// `tts_model_type`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Qwen3TtsModelKind {
+    /// `custom_voice`: stock speakers, and on the larger sizes a style
+    /// instruction.
+    CustomVoice,
+
+    /// `voice_design`: a voice described in words, no stock speakers.
+    VoiceDesign,
+
+    /// `base`: a voice cloned from a reference (no stock speakers).
+    Base,
+}
+
+impl Qwen3TtsModelKind {
+    /// The kind `config.json`'s `tts_model_type` names; `None`, one this
+    /// kit does not know.
+    pub fn from_model_type(model_type: &str) -> Option<Self> {
+        match model_type {
+            "custom_voice" => Some(Self::CustomVoice),
+            "voice_design" => Some(Self::VoiceDesign),
+            "base" => Some(Self::Base),
+            _ => None,
+        }
+    }
+}
 
 /// A Qwen3-TTS tokenizer's slow files, unread: `transformers` builds the
 /// fast tokenizer from them, and so does `load` (feature `tokenizer`).
@@ -78,4 +108,16 @@ pub struct Qwen3TtsConstruct {
 
     /// The tokenizer's files.
     pub tokenizer: Qwen3TtsTokenizerFiles,
+
+    /// The model's kind.
+    pub kind: Qwen3TtsModelKind,
+
+    /// Whether it takes a style instruction: its catalog row's
+    /// `instruction`, else upstream's rule (a `CustomVoice` model larger than
+    /// 0.6B).
+    pub instruction: bool,
+
+    /// Each language key's tag: its catalog row's `language_keys`; empty
+    /// without a row.
+    pub language_tags: BTreeMap<String, BunsenLanguageTag>,
 }
