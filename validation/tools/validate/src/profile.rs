@@ -302,6 +302,27 @@ mod tests {
                 }
             }
         }
+        // `incremental` is medium-core less its costly rows, and every kit
+        // keeps a row.
+        for krate in schedule().crates.keys() {
+            let medium = chosen("medium-core", krate);
+            let incremental = chosen("incremental", krate);
+            for model in &incremental {
+                assert!(
+                    medium.contains(model),
+                    "incremental ⊄ medium-core: {krate} {model}"
+                );
+            }
+            assert_eq!(
+                incremental.is_empty(),
+                medium.is_empty(),
+                "incremental drops every row of {krate}"
+            );
+        }
+        assert_eq!(
+            chosen("incremental", "gemma"),
+            ["gemma-3-270m", "gemma-3-1b-it"]
+        );
         let ci = load("ci", &profiles()).unwrap();
         assert_eq!(ci.checks(), [Check::Driver]);
         assert_eq!(ci.backend, Some(Backend::Flex));

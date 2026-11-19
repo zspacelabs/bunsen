@@ -1,0 +1,19 @@
+# Each stack's top, before its PRs are marked ready: medium-core's
+# representatives less the five whose cost is a variation they alone carry.
+# Every kit keeps a row, and every bf16 check but Gemma 2's stays (run it on
+# cuda with `VALIDATION_DTYPES=bf16`). medium-core runs before a release, and
+# on a stack top that touches a variation denied here:
+extends: medium-core
+deny:
+  # The ×8 linear global rotary table and grouped-query heads; f32 on the CPU
+  # (its table binds no wgpu buffer).
+  - { crate: gemma, model: gemma-3-4b-pt }
+  # Gemma 2: soft-capping, its chat template, the 256k table; f32 on the CPU.
+  - { crate: gemma, model: gemma-2-2b-it }
+  # Linear value heads twice the key heads, two shards; f32 on the CPU.
+  - { crate: qwen3-5, model: qwen3.5-4b }
+  # NVIDIA's base weights against the ONNX reference, stage by stage.
+  - { crate: parakeet, model: nvidia/parakeet-tdt-0.6b-v3 }
+  # Qwen's base weights against the ONNX reference, stage by stage; the
+  # alignment heads.
+  - { crate: qwen3-asr, model: qwen/qwen3-asr-0.6b }
