@@ -21,7 +21,7 @@
 //!   [`DepthDecoder`](crate::blocks::transformers::decoders::depth::DepthDecoder)
 //!   over a frame's fifteen codebooks after the first, from the talker's hidden
 //!   state and the first codebook's embedding
-//!   ([`qwen3_tts_code_predictor_config`](code_predictor::qwen3_tts_code_predictor_config)).
+//!   ([`Qwen3TtsCodePredictorConfig`](code_predictor::Qwen3TtsCodePredictorConfig)).
 //! - [`prompt`]: the rows the talker reads before it generates
 //!   ([`Qwen3TtsPromptRows::build`](prompt::Qwen3TtsPromptRows::build)): an
 //!   instruction, the role, the codec prefix (think tags around a language, a

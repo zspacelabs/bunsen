@@ -11,7 +11,7 @@ use burn::{
 };
 
 use super::{
-    code_predictor::qwen3_tts_code_predictor_config,
+    code_predictor::Qwen3TtsCodePredictorConfig,
     prompt::{
         Qwen3TtsPrompt,
         Qwen3TtsPromptConfig,
@@ -29,7 +29,6 @@ use crate::{
     blocks::transformers::{
         decoders::depth::{
             DepthDecoder,
-            DepthDecoderConfig,
             DepthDecoderMeta,
         },
         models::language_decoder::LmDecoderMeta,
@@ -51,7 +50,7 @@ pub struct Qwen3TtsModelConfig {
     pub talker: Qwen3TtsTalkerConfig,
 
     /// The code predictor.
-    pub code_predictor: DepthDecoderConfig,
+    pub code_predictor: Qwen3TtsCodePredictorConfig,
 }
 
 impl Qwen3TtsModelConfig {
@@ -60,11 +59,11 @@ impl Qwen3TtsModelConfig {
     ///
     /// # Errors
     /// As [`Qwen3TtsTalkerConfig::from_transformers_section`] and
-    /// [`qwen3_tts_code_predictor_config`].
+    /// [`Qwen3TtsCodePredictorConfig::from_transformers_section`].
     pub fn from_transformers(json: &TransformersConfigJson) -> BunsenResult<Self> {
         let section = json.section("talker_config")?;
         let talker = Qwen3TtsTalkerConfig::from_transformers_section(&section)?;
-        let code_predictor = qwen3_tts_code_predictor_config(
+        let code_predictor = Qwen3TtsCodePredictorConfig::from_transformers_section(
             &section.section("code_predictor_config")?,
             talker.lm.d_model,
         )?;

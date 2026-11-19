@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use burn::prelude::*;
 
 use super::{
-    qwen3_tts_code_predictor_config,
+    Qwen3TtsCodePredictorConfig,
     weights::load_qwen3_tts_code_predictor_tensors,
 };
 use crate::{
@@ -56,7 +56,7 @@ fn load() -> (Qwen3TtsTalker, DepthDecoder, ToyFixture) {
         .expect("the toy's talker_config");
     let talker_config =
         Qwen3TtsTalkerConfig::from_transformers_section(&section).expect("the toy's talker");
-    let predictor_config = qwen3_tts_code_predictor_config(
+    let predictor_config = Qwen3TtsCodePredictorConfig::from_transformers_section(
         &section
             .section("code_predictor_config")
             .expect("the toy's code_predictor_config"),

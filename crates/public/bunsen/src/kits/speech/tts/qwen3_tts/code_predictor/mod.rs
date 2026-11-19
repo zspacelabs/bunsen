@@ -2,7 +2,7 @@
 //! [`DepthDecoder`](crate::blocks::transformers::decoders::depth::DepthDecoder)
 //! over a frame's codebooks after the first, its config from a model
 //! `config.json`'s `talker_config.code_predictor_config`
-//! ([`qwen3_tts_code_predictor_config`]), and the loader of the model file's
+//! ([`Qwen3TtsCodePredictorConfig`]), and the loader of the model file's
 //! `talker.code_predictor.*` tensors ([`weights`]).
 
 mod config;
