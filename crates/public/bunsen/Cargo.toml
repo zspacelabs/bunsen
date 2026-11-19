@@ -66,10 +66,12 @@ default = [
 
 ## The model kits, `kits`: each family's config, modules, pretrained rows and
 ## loaders, and the machinery they share (`kits::support`: construction and
-## load policies, decoding, model configs, tokens). The loaders still need
+## load policies, decoding, model configs, text normalization and language
+## tags, tokens). The loaders still need
 ## the `store` and `cache` features they read with.
 kits = [
     "std",
+    "dep:icu_locale_core",
 ]
 
 ## The speech kits, `kits::speech`: speech recognition (Whisper, Parakeet,
@@ -345,6 +347,8 @@ tokenizers = { version = "0.22.2", default-features = false, features = ["onig"]
 serde-pickle = { workspace = true, optional = true }
 # Zyphra's text normalizer, the one ZONOS3's release normalizes with.
 zyphra-textnorm = { workspace = true, optional = true }
+# `BunsenLanguageTag`'s parser (`kits::support::text`).
+icu_locale_core = { workspace = true, optional = true }
 
 
 [dev-dependencies]

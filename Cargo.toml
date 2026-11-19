@@ -55,6 +55,9 @@ wordchipper = { version = "0.9.2", default-features = false }
 # Every grammar and the pre-pass: the crate's defaults.
 zyphra-textnorm = "0.3.1"
 
+# Language tags (BCP 47 with Unicode extensions); no locale data.
+icu_locale_core = { version = "2.4.0", default-features = false, features = ["alloc"] }
+
 rand = "0.10.3"
 burn = { version = "0.22.1", default-features = false }
 burn-store = { version = "0.22.1", default-features = false }
