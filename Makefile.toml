@@ -179,8 +179,13 @@ description = "ZONOS3-Mini's whole validation suite, on VALIDATION_BACKEND in f3
 workspace = false
 script = "cd validation && cargo validate run --crate zonos3 --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
 
+[tasks.validate-qwen3-tts]
+description = "Qwen3-TTS-12Hz-0.6B-CustomVoice's whole validation suite, on VALIDATION_BACKEND in f32 and, on cuda, in bf16 too (fetches ~2.5 GB into the weights cache)"
+workspace = false
+script = "cd validation && cargo validate run --crate qwen3-tts --profile large-all --backend ${VALIDATION_BACKEND:-wgpu} --dtypes f32,bf16"
+
 [tasks.validate-all]
-description = "Every model's whole validation suite (fetches ~72 GB on a cold cache)"
+description = "Every model's whole validation suite (fetches ~75 GB on a cold cache)"
 workspace = false
 dependencies = [
     "validate-silero",
@@ -192,6 +197,7 @@ dependencies = [
     "validate-voxtral",
     "validate-nanochat",
     "validate-zonos3",
+    "validate-qwen3-tts",
 ]
 
 # ── cards ─────────────────────────────────────────────────────────────────────
