@@ -13,6 +13,10 @@
 //!   [`AttnResStack`](attn_res::AttnResStack): each sublayer reads a learned
 //!   mixture of the stack's input and every earlier sublayer's output (Full
 //!   Attention Residuals); ZONOS3's.
+//! - [`depth`]: a depth decoder, [`DepthDecoder`](depth::DepthDecoder): a small
+//!   causal decoder over one frame's codebooks after the first, from the
+//!   backbone's rows, each codebook its own table and head; Qwen3-TTS's code
+//!   predictor (CSM's, Kyutai DSM's and Dia2's have its shape).
 //! - [`cross`]: the encoder-decoder layer,
 //!   [`CrossDecoderBlock`](cross::CrossDecoderBlock): pre-normalized causal
 //!   self-attention, cross-attention over the encoder output, and an MLP, each
@@ -21,4 +25,5 @@
 pub mod attn_res;
 pub mod causal;
 pub mod cross;
+pub mod depth;
 pub mod stack;
