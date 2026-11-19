@@ -28,14 +28,31 @@
 //!   speaker), the text upfront or interleaved, and the text each generated
 //!   frame adds; the languages and speakers by the model's keys
 //!   ([`Qwen3TtsPromptConfig`](prompt::Qwen3TtsPromptConfig)).
+//! - [`Qwen3TtsModel`]: the talker and its code predictor, and a take
+//!   ([`generate_codes`](Qwen3TtsModel::generate_codes)): per frame, codebook 0
+//!   from the talker, the rest from the code predictor, the frame's embeddings
+//!   and its trailing text the talker's next row, until EOS; each choice by a
+//!   [`Qwen3TtsSampler`](sampler::Qwen3TtsSampler) as upstream's `generate`
+//!   makes it ([`Qwen3TtsTakeConfig`], from `generation_config.json`).
 //!
 //! The codec's weights are `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s
 //! `model.safetensors`, whose `decoder.*` tensors the decoder reads as they
 //! are ([`codec::weights`]). A model's `model.safetensors` holds the talker
 //! under `talker.` ([`talker::weights`]), its code predictor under
-//! `talker.code_predictor.` ([`code_predictor::weights`]).
+//! `talker.code_predictor.` ([`code_predictor::weights`]);
+//! [`weights::load_qwen3_tts_model_tensors`] loads both.
 
 pub mod code_predictor;
 pub mod codec;
 pub mod prompt;
+pub mod sampler;
 pub mod talker;
+
+mod model;
+pub use model::*;
+
+#[cfg(feature = "store")]
+pub mod weights;
+
+#[cfg(all(test, feature = "store"))]
+mod toy_tests;
