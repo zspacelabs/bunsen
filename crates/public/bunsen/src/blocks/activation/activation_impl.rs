@@ -39,6 +39,10 @@ use burn::{
     prelude::*,
 };
 
+use super::{
+    SnakeActivation,
+    SnakeActivationConfig,
+};
 use crate::blocks::math::{
     PowOpModule,
     PowOpModuleConfig,
@@ -115,6 +119,9 @@ pub enum BunsenActivationConfig {
     /// `x^p`, for the exponent `p`.
     Pow(f64),
 
+    /// Snake or `SnakeBeta`, per channel on axis 1: [`SnakeActivation`].
+    Snake(SnakeActivationConfig),
+
     /// Each kind in turn, the first applied first; empty, the identity.
     Chain(Vec<BunsenActivationConfig>),
 }
@@ -147,6 +154,7 @@ impl BunsenActivationConfig {
             Self::Shrink(config) => BunsenActivation::Shrink(config.init()),
             Self::Silu => BunsenActivation::Silu(SiLU::new()),
             Self::Pow(exponent) => BunsenActivation::Pow(PowOpModuleConfig::new(*exponent).init()),
+            Self::Snake(config) => BunsenActivation::Snake(config.init(device)),
             Self::Chain(kinds) => {
                 BunsenActivation::Chain(kinds.iter().map(|kind| kind.init(device)).collect())
             }
@@ -218,6 +226,9 @@ pub enum BunsenActivation {
     /// `x^p`: [`PowOpModule`].
     Pow(PowOpModule),
 
+    /// Snake or `SnakeBeta`: [`SnakeActivation`].
+    Snake(SnakeActivation),
+
     /// Each in turn, the first applied first.
     Chain(Vec<BunsenActivation>),
 }
@@ -249,6 +260,7 @@ impl BunsenActivation {
             Self::Shrink(layer) => layer.forward(input),
             Self::Silu(layer) => layer.forward(input),
             Self::Pow(op) => op.forward(input),
+            Self::Snake(layer) => layer.forward(input),
             Self::Chain(layers) => layers.iter().fold(input, |x, layer| layer.forward(x)),
         }
     }
@@ -329,6 +341,20 @@ mod tests {
             apply(config.clone(), X)
                 .assert_approx_eq::<f32>(&TensorData::from(expected), tolerance);
         }
+    }
+
+    /// The `Snake` kind is [`SnakeActivation`], per channel on axis 1.
+    #[test]
+    fn test_snake_kind() {
+        let device = cpu_device();
+        let config = SnakeActivationConfig::snake_beta_log_scale(2);
+        let x = Tensor::<3>::from_floats([[[-1.0, 0.5], [2.0, -3.0]]], &device);
+        let expected = config.init(&device).forward(x.clone());
+        BunsenActivationConfig::Snake(config)
+            .init(&device)
+            .forward(x)
+            .into_data()
+            .assert_eq(&expected.into_data(), true);
     }
 
     /// A config's serde form names burn's kinds as burn does, and bunsen's

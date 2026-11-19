@@ -114,7 +114,8 @@ in one of three ways:
    state. And burn's activation kinds have no SiLU and no way to compose
    two:
    [`BunsenActivationConfig`](bunsen::blocks::activation::BunsenActivationConfig) keeps
-   burn's kinds under burn's names, and adds `Silu`, `Pow` and `Chain`
+   burn's kinds under burn's names, and adds `Silu`, `Pow`, `Snake` (Snake
+   and `SnakeBeta`, a vocoder's periodic activation per channel) and `Chain`
    (NanoChat's `relu(x)²` is `Chain([Relu, Pow(2)])`).
 
 New blocks arrive when a kit or a downstream user needs them, and each one
