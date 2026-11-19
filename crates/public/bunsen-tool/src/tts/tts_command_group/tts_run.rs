@@ -146,7 +146,14 @@ pub struct TtsRunCommand {
     #[arg(long)]
     top_p: Option<f64>,
 
-    /// The most frames the take generates, at 15 a second.
+    /// Speak the text as one take, however long.
+    ///
+    /// A long text is otherwise spoken as several takes, split at its
+    /// sentences (about 20 seconds each), joined by a short pause.
+    #[arg(long)]
+    no_split: bool,
+
+    /// The most frames each take generates, at 15 a second.
     ///
     /// As many as the model's context leaves when omitted.
     #[arg(long)]
@@ -271,12 +278,14 @@ impl TtsRunCommand {
             .with_seed(seed)
     }
 
-    /// The driver's config: the flags' normalization.
+    /// The driver's config: the flags' normalization and splitting.
     fn driver_config(&self) -> TtsDriverConfig {
-        TtsDriverConfig::new().with_normalization(match self.normalize {
-            TtsNormalize::Zyphra => zonos3_release_normalization(),
-            TtsNormalize::None => TextNormalizationConfig::CollapseLineBreaks,
-        })
+        TtsDriverConfig::new()
+            .with_normalization(match self.normalize {
+                TtsNormalize::Zyphra => zonos3_release_normalization(),
+                TtsNormalize::None => TextNormalizationConfig::CollapseLineBreaks,
+            })
+            .with_split(!self.no_split)
     }
 
     /// The engine's `config` with the flags' settings over it.
@@ -352,6 +361,7 @@ mod tests {
             cli.run.driver_config().normalization,
             TextNormalizationConfig::CollapseLineBreaks
         );
+        assert!(cli.run.driver_config().split, "split by default");
         let config = cli.run.engine_config(Zonos3EngineConfig::new());
         assert_eq!(config.sampler.temperature, 0.5);
         assert_eq!(config.sampler.top_k, 40);
@@ -373,6 +383,9 @@ mod tests {
             TtsVoiceChoice::Stock(DEFAULT_TTS_VOICE.into())
         );
         assert_eq!(request.seed, Some(3));
+
+        let cli = Cli::try_parse_from(["tts", "-o", "o.wav", "--no-split", "Hi"]).unwrap();
+        assert!(!cli.run.driver_config().split);
     }
 
     #[test]

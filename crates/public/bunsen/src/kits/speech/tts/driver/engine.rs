@@ -137,6 +137,14 @@ pub trait TtsEngine: Debug + Send + Sync {
     /// Its stock voices.
     fn voices(&self) -> Vec<TtsVoiceInfo>;
 
+    /// The most characters one take can speak, when the model bounds it
+    /// below the driver's
+    /// [`max_take_chars`](super::TtsDriverConfig::max_take_chars); `None`,
+    /// no bound of its own.
+    fn max_take_chars(&self) -> Option<usize> {
+        None
+    }
+
     /// `choice` as this model's voice.
     ///
     /// # Errors

@@ -1,6 +1,8 @@
 //! [`TtsDriver`]: a request through its stages and an engine, to speech.
 
 use alloc::{
+    format,
+    string::String,
     sync::Arc,
     vec,
     vec::Vec,
@@ -20,6 +22,7 @@ use super::{
     TtsTakeRequest,
     TtsTextStage,
     TtsVoiceInfo,
+    tts_split_text,
 };
 use crate::{
     errors::{
@@ -48,6 +51,23 @@ pub struct TtsDriverConfig {
     /// still given none.
     #[config(default = false)]
     pub strip_instruction: bool,
+
+    /// Whether a long text is spoken as several takes
+    /// ([`tts_split_text`]), each at most
+    /// [`max_take_chars`](Self::max_take_chars) (or the engine's
+    /// [limit](TtsEngine::max_take_chars), if lower); else one take, however
+    /// long.
+    #[config(default = true)]
+    pub split: bool,
+
+    /// The most characters a take speaks, after normalization: about 20
+    /// seconds of speech.
+    #[config(default = 300)]
+    pub max_take_chars: usize,
+
+    /// The silence between takes, in seconds.
+    #[config(default = 0.1)]
+    pub take_gap_seconds: f64,
 }
 
 /// What a [`TtsDriver`] spoke.
@@ -113,11 +133,22 @@ impl<E: TtsEngine> TtsDriver<E> {
     /// then [`StripInstruction`] when it is asked for.
     ///
     /// # Errors
-    /// The normalizer's, building it.
+    /// The normalizer's, building it;
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for takes of no
+    /// characters, or a gap that is negative or not finite.
     pub fn new(
         engine: E,
         config: TtsDriverConfig,
     ) -> BunsenResult<Self> {
+        if config.max_take_chars == 0 {
+            return Err(BunsenError::illegal("a take of no characters"));
+        }
+        if !(config.take_gap_seconds.is_finite() && config.take_gap_seconds >= 0.0) {
+            return Err(BunsenError::illegal(format!(
+                "a gap between takes of {} s",
+                config.take_gap_seconds
+            )));
+        }
         let normalizer = config.normalization.init()?;
         let mut stages: Vec<Arc<dyn TtsRequestStage>> =
             vec![Arc::new(TtsTextStage::new(normalizer))];
@@ -165,14 +196,42 @@ impl<E: TtsEngine> TtsDriver<E> {
         &self.stages
     }
 
+    /// The text's takes: the text whole, or split
+    /// ([`split`](TtsDriverConfig::split)) at the lower of the config's and
+    /// the engine's limits.
+    pub fn takes(
+        &self,
+        text: &str,
+    ) -> Vec<String> {
+        if !self.config.split {
+            let text = text.trim();
+            return if text.is_empty() {
+                Vec::new()
+            } else {
+                vec![text.into()]
+            };
+        }
+        let limit = self
+            .engine
+            .max_take_chars()
+            .map_or(self.config.max_take_chars, |engine| {
+                engine.min(self.config.max_take_chars)
+            });
+        tts_split_text(text, limit.max(1))
+    }
+
     /// `request`, spoken: its voice resolved, its stages run in its
-    /// language, then the engine's take, rendered.
+    /// language, its text split into takes ([`takes`](Self::takes)), then
+    /// each take the engine's, rendered, the takes joined by the config's
+    /// gap. Take `i`'s seed is the request's plus `i`, so a seeded request
+    /// repeats; [`max_seconds`](TtsRequest::max_seconds) bounds each take.
     ///
     /// # Errors
     /// The engine's, resolving the voice or the language, generating or
     /// rendering; a stage's; and
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for an
-    /// instruction to an engine that takes none, naming the opt-in.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for no text to
+    /// speak, or an instruction to an engine that takes none, naming the
+    /// opt-in.
     pub fn synthesize(
         &self,
         request: &TtsRequest,
@@ -195,20 +254,34 @@ impl<E: TtsEngine> TtsDriver<E> {
                  (`strip_instruction`)",
             ));
         }
-        let take = self.engine.generate(&TtsTakeRequest {
-            text: &request.text,
-            voice: &voice,
-            language: request.language.as_deref(),
-            instruction: request.instruction.as_deref(),
-            seed: request.seed,
-            max_seconds: request.max_seconds,
-            sampling: &request.sampling,
-        })?;
-        let info = self.engine.take_info(&take);
+        let texts = self.takes(&request.text);
+        if texts.is_empty() {
+            return Err(BunsenError::illegal("no text to speak"));
+        }
+        let sample_rate = self.engine.sample_rate();
+        let gap = (self.config.take_gap_seconds * f64::from(sample_rate)).round() as usize;
+        let mut samples = Vec::new();
+        let mut takes = Vec::with_capacity(texts.len());
+        for (i, text) in texts.iter().enumerate() {
+            let take = self.engine.generate(&TtsTakeRequest {
+                text,
+                voice: &voice,
+                language: request.language.as_deref(),
+                instruction: request.instruction.as_deref(),
+                seed: request.seed.map(|seed| seed.wrapping_add(i as u64)),
+                max_seconds: request.max_seconds,
+                sampling: &request.sampling,
+            })?;
+            takes.push(self.engine.take_info(&take));
+            if i > 0 {
+                samples.resize(samples.len() + gap, 0.0);
+            }
+            samples.extend(self.engine.render(&take)?);
+        }
         Ok(TtsSpeech {
-            samples: self.engine.render(&take)?,
-            sample_rate: self.engine.sample_rate(),
-            takes: vec![info],
+            samples,
+            sample_rate,
+            takes,
             notes,
         })
     }

@@ -9,6 +9,9 @@
 //!   text through a normalizer ([`TtsTextStage`]), an instruction dropped on
 //!   request ([`StripInstruction`]), or a caller's own. A stage that drops
 //!   input says so ([`TtsStageNote`]).
+//! - Long text: split into takes at sentence, clause and word boundaries
+//!   ([`tts_split_text`]), each take seeded in turn, the takes joined by a
+//!   short gap ([`TtsDriverConfig`]).
 //! - [`TtsEngine`]: a model's capabilities ([`TtsCapabilities`]), voices
 //!   ([`TtsVoiceInfo`]), its voice and language resolution, its take and its
 //!   render ([`TtsTakeInfo`]).
@@ -25,11 +28,13 @@
 
 mod engine;
 mod request;
+mod split;
 mod stages;
 mod tts_driver;
 
 pub use engine::*;
 pub use request::*;
+pub use split::*;
 pub use stages::*;
 pub use tts_driver::*;
 
