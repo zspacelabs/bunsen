@@ -186,13 +186,20 @@ fn is_weightless_scale(
         || path.ends_with("attn.branch.k_norm.gamma")
 }
 
+/// Whether the parameter at `path` is a router's choice bias: read in f32,
+/// and stored in f32 by the `-hf` file, so it keeps that width under a half
+/// load.
+fn is_choice_bias(path: &str) -> bool {
+    path.ends_with(".router.choice_bias")
+}
+
 /// Loads the `-hf` file's tensors (`lm.*`; any others are dropped) into
 /// `model`, built from `config`: the packed projections split
 /// ([`zonos3_lm_row_splits`]), the names mapped ([`zonos3_lm_rekey`]), the
 /// weightless norms' scales set to ones, every floating tensor in `dtype`
 /// (a load policy's resolution), or, when `None`, in the dtype `model` was
-/// built in. (The file keeps the routers' choice biases in f32; the
-/// router reads them in f32, whatever dtype they load in.)
+/// built in; the routers' choice biases, which the file keeps in f32, stay
+/// f32 whatever the dtype.
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) as
@@ -227,7 +234,9 @@ pub fn load_zonos3_lm_tensors(
             rekey.exact(n.clone(), n.clone())
         })
         .mount_canonical("", model);
-    let applied = first.then(last).load(model, tensors, dtype)?;
+    let applied = first
+        .then(last)
+        .load_keeping(model, tensors, dtype, is_choice_bias)?;
     if !applied.unused.is_empty() {
         return Err(BunsenError::invalid_resource(format!(
             "ZONOS3 language model tensors the model has no parameter for: {}",
