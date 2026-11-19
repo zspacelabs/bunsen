@@ -847,6 +847,7 @@ dependencies = [
  "flate2",
  "hashbrown 0.17.1",
  "hound",
+ "icu_locale_core",
  "indicatif",
  "log",
  "num-traits",

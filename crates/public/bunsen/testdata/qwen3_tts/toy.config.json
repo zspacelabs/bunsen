@@ -1,0 +1,217 @@
+{
+  "codec": {
+    "decoder_config": {
+      "attention_bias": false,
+      "attention_dropout": 0.0,
+      "codebook_dim": 16,
+      "codebook_size": 32,
+      "decoder_dim": 16,
+      "head_dim": 12,
+      "hidden_act": "silu",
+      "hidden_size": 16,
+      "intermediate_size": 32,
+      "latent_dim": 24,
+      "layer_scale_initial_scale": 0.01,
+      "max_position_embeddings": 256,
+      "num_attention_heads": 2,
+      "num_hidden_layers": 2,
+      "num_key_value_heads": 2,
+      "num_quantizers": 4,
+      "num_semantic_quantizers": 1,
+      "rms_norm_eps": 1e-05,
+      "rope_theta": 10000,
+      "sliding_window": 4,
+      "upsample_rates": [
+        3,
+        2
+      ],
+      "upsampling_ratios": [
+        2,
+        2
+      ]
+    }
+  },
+  "model": {
+    "architectures": [
+      "Qwen3TTSForConditionalGeneration"
+    ],
+    "im_end_token_id": 41,
+    "im_start_token_id": 40,
+    "model_type": "qwen3_tts",
+    "speaker_encoder_config": {
+      "enc_attention_channels": 128,
+      "enc_channels": [
+        512,
+        512,
+        512,
+        512,
+        1536
+      ],
+      "enc_dilations": [
+        1,
+        2,
+        3,
+        4,
+        1
+      ],
+      "enc_dim": 1024,
+      "enc_kernel_sizes": [
+        5,
+        3,
+        3,
+        3,
+        1
+      ],
+      "enc_res2net_scale": 8,
+      "enc_se_channels": 128,
+      "mel_dim": 128,
+      "model_type": "",
+      "sample_rate": 24000
+    },
+    "talker_config": {
+      "attention_bias": false,
+      "attention_dropout": 0,
+      "code_predictor_config": {
+        "_name_or_path": "",
+        "add_cross_attention": false,
+        "architectures": null,
+        "attention_bias": false,
+        "attention_dropout": 0,
+        "bad_words_ids": null,
+        "begin_suppress_tokens": null,
+        "bos_token_id": null,
+        "chunk_size_feed_forward": 0,
+        "cross_attention_hidden_size": null,
+        "decoder_start_token_id": null,
+        "diversity_penalty": 0.0,
+        "do_sample": false,
+        "dtype": null,
+        "early_stopping": false,
+        "encoder_no_repeat_ngram_size": 0,
+        "eos_token_id": null,
+        "exponential_decay_length_penalty": null,
+        "finetuning_task": null,
+        "forced_bos_token_id": null,
+        "forced_eos_token_id": null,
+        "head_dim": 8,
+        "hidden_act": "silu",
+        "hidden_size": 24,
+        "id2label": {
+          "0": "LABEL_0",
+          "1": "LABEL_1"
+        },
+        "initializer_range": 0.02,
+        "intermediate_size": 48,
+        "is_decoder": false,
+        "is_encoder_decoder": false,
+        "label2id": {
+          "LABEL_0": 0,
+          "LABEL_1": 1
+        },
+        "layer_types": [
+          "full_attention",
+          "full_attention"
+        ],
+        "length_penalty": 1.0,
+        "max_length": 20,
+        "max_position_embeddings": 64,
+        "max_window_layers": 28,
+        "min_length": 0,
+        "model_type": "qwen3_tts_talker_code_predictor",
+        "no_repeat_ngram_size": 0,
+        "num_attention_heads": 4,
+        "num_beam_groups": 1,
+        "num_beams": 1,
+        "num_code_groups": 4,
+        "num_hidden_layers": 2,
+        "num_key_value_heads": 2,
+        "num_return_sequences": 1,
+        "output_attentions": false,
+        "output_hidden_states": false,
+        "output_scores": false,
+        "pad_token_id": null,
+        "prefix": null,
+        "problem_type": null,
+        "pruned_heads": {},
+        "remove_invalid_values": false,
+        "repetition_penalty": 1.0,
+        "return_dict": true,
+        "return_dict_in_generate": false,
+        "rms_norm_eps": 1e-06,
+        "rope_scaling": null,
+        "rope_theta": 1000000,
+        "sep_token_id": null,
+        "sliding_window": null,
+        "suppress_tokens": null,
+        "task_specific_params": null,
+        "temperature": 1.0,
+        "tf_legacy_loss": false,
+        "tie_encoder_decoder": false,
+        "tie_word_embeddings": false,
+        "tokenizer_class": null,
+        "top_k": 50,
+        "top_p": 1.0,
+        "torchscript": false,
+        "typical_p": 1.0,
+        "use_bfloat16": false,
+        "use_cache": true,
+        "use_sliding_window": false,
+        "vocab_size": 32
+      },
+      "codec_bos_id": 133,
+      "codec_eos_token_id": 134,
+      "codec_language_id": {
+        "chinese": 39,
+        "english": 34,
+        "sichuan_dialect": 46
+      },
+      "codec_nothink_id": 139,
+      "codec_pad_id": 132,
+      "codec_think_bos_id": 140,
+      "codec_think_eos_id": 141,
+      "codec_think_id": 138,
+      "head_dim": 16,
+      "hidden_act": "silu",
+      "hidden_size": 32,
+      "initializer_range": 0.02,
+      "intermediate_size": 64,
+      "max_position_embeddings": 256,
+      "model_type": "qwen3_tts_talker",
+      "num_attention_heads": 4,
+      "num_code_groups": 4,
+      "num_hidden_layers": 2,
+      "num_key_value_heads": 2,
+      "rms_norm_eps": 1e-06,
+      "rope_scaling": {
+        "interleaved": true,
+        "mrope_section": [
+          4,
+          2,
+          2
+        ],
+        "rope_type": "default"
+      },
+      "rope_theta": 1000000,
+      "sliding_window": null,
+      "spk_id": {
+        "eric": 859,
+        "ryan": 1045
+      },
+      "spk_is_dialect": {
+        "eric": "sichuan_dialect",
+        "ryan": false
+      },
+      "text_hidden_size": 40,
+      "text_vocab_size": 48,
+      "use_cache": true,
+      "use_sliding_window": false,
+      "vocab_size": 1056
+    },
+    "tokenizer_type": "qwen3_tts_tokenizer_12hz",
+    "tts_bos_token_id": 46,
+    "tts_eos_token_id": 47,
+    "tts_model_size": "toy",
+    "tts_model_type": "custom_voice",
+    "tts_pad_token_id": 45
+  }
+}
