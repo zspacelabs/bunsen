@@ -359,6 +359,20 @@ crates:
         core: false
         dtypes: [f32]
         varies: the English model's architecture, trained on typed questions
+  qwen3-tts:
+    package: qwen3-tts-model-validation
+    features: [checkpoints, gpu-tests]
+    models:
+      qwen3-tts-12hz-0.6b-customvoice:
+        size: medium
+        gb: 2.5
+        core: true
+        dtypes: [f32, bf16]
+        varies: the 0.6B CustomVoice model - a Qwen3 talker over summed text and codec
+          embeddings, the code predictor (a depth decoder over 15 codebooks), the dual-track prompt
+          (stock speakers, languages and a dialect under `auto`, text upfront and interleaved); the
+          12 Hz codec's decoder (split RVQ, windowed attention, ConvNeXt upsamplers, a SnakeBeta
+          vocoder, chunked decode); the tokenizer from slow files
   zonos3:
     package: zonos3-model-validation
     features: [checkpoints, gpu-tests]
