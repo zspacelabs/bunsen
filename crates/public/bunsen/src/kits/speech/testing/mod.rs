@@ -8,7 +8,8 @@
 //!   (cpWER).
 //! - [`der`]: diarization error rates.
 //! - [`tts_asr_round_trip`]: speech synthesis judged by speech recognition, any
-//!   synthesizer and any recognizer, scored by word error rate.
+//!   synthesizer and any recognizer, scored by word error rate;
+//!   [`tts_synthesizer_round_trip`] through a TTS driver.
 
 pub mod der;
 pub mod wer;
