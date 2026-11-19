@@ -9,8 +9,10 @@
 //! - The normalizers bunsen ships: [`CollapseLineBreaks`],
 //!   [`TranscriptTextNormalizer`], and Zyphra's [`ZyphraTextNormalizer`]
 //!   (numbers, money and dates spoken, in 43 languages; feature
-//!   `zyphra-textnorm`); [`TextNormalizationConfig`] names them as config and
-//!   builds them.
+//!   `zyphra-textnorm`), and a `tokenizers` normalizer run on its own
+//!   (`TokenizersTextNormalizer`, feature `tokenizer`: Unicode forms,
+//!   lowercasing, a model's own normalizer); [`TextNormalizationConfig`] names
+//!   them as config and builds them.
 //! - [`BunsenLanguageTag`]: a well-known language code (BCP 47), the language a
 //!   normalizer is told a text is in.
 
@@ -18,10 +20,14 @@ mod basic;
 mod config;
 mod language;
 mod normalizer;
+#[cfg(feature = "tokenizer")]
+mod tokenizers_normalizer;
 mod zyphra;
 
 pub use basic::*;
 pub use config::*;
 pub use language::*;
 pub use normalizer::*;
+#[cfg(feature = "tokenizer")]
+pub use tokenizers_normalizer::*;
 pub use zyphra::*;
