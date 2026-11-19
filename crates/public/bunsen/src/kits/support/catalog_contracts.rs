@@ -112,9 +112,15 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
                 SORTFORMER_CONTRACT,
                 SORTFORMER_KIT,
             },
-            tts::zonos3::pretrained::{
-                ZONOS3_CONTRACT,
-                ZONOS3_KIT,
+            tts::{
+                qwen3_tts::pretrained::{
+                    QWEN3_TTS_CONTRACT,
+                    QWEN3_TTS_KIT,
+                },
+                zonos3::pretrained::{
+                    ZONOS3_CONTRACT,
+                    ZONOS3_KIT,
+                },
             },
             vad::silero_vad::pretrained::{
                 SILERO_CONTRACT,
@@ -128,6 +134,7 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
             contract(WHISPER_KIT, WHISPER_CONTRACT),
             contract(SORTFORMER_KIT, SORTFORMER_CONTRACT),
             contract(SILERO_KIT, SILERO_CONTRACT),
+            contract(QWEN3_TTS_KIT, QWEN3_TTS_CONTRACT),
             contract(ZONOS3_KIT, ZONOS3_CONTRACT),
         ]);
     }

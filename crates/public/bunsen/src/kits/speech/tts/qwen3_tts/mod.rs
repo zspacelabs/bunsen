@@ -35,6 +35,13 @@
 //!   [`Qwen3TtsSampler`](sampler::Qwen3TtsSampler) as upstream's `generate`
 //!   makes it ([`Qwen3TtsTakeConfig`], from `generation_config.json`).
 //!
+//! - [`Qwen3TtsConstruct`] (feature `store`): a loaded model, its talker and
+//!   code predictor and codec with their configs, the prompt's ids, the
+//!   release's take settings and the tokenizer's files.
+//! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
+//!   `qwen/qwen3-tts/qwen3-tts-12hz-{0.6b,1.7b}-customvoice` and
+//!   `…-1.7b-voicedesign`, and the factory that loads them into a construct.
+//!
 //! The codec's weights are `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s
 //! `model.safetensors`, whose `decoder.*` tensors the decoder reads as they
 //! are ([`codec::weights`]). A model's `model.safetensors` holds the talker
@@ -53,6 +60,14 @@ pub use model::*;
 
 #[cfg(feature = "store")]
 pub mod weights;
+
+#[cfg(feature = "store")]
+mod construct;
+#[cfg(feature = "store")]
+pub use construct::*;
+
+#[cfg(all(feature = "store", feature = "cache"))]
+pub mod pretrained;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;

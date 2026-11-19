@@ -16,4 +16,5 @@ voxtral.yml speech
 whisper.yml speech
 sortformer.yml speech
 silero.yml speech
+qwen3-tts.yml speech
 zonos3.yml speech

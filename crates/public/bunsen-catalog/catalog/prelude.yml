@@ -296,6 +296,46 @@ $contracts:
         $description: The 16 kHz branch's weights.
         $format:
           - safetensors
+  qwen3-tts:
+    $kind: contract
+    $description: "A Qwen3-TTS model as Qwen's repositories lay it out: the talker and its code
+      predictor in one safetensors file, the 12 Hz codec in another, their geometry from their
+      `config.json`s; the tokenizer as its slow files."
+    $resources:
+      checkpoint:
+        $description: "The model: the talker under `talker.`, its code predictor under
+          `talker.code_predictor.`."
+        $format:
+          - safetensors
+      codec:
+        $description: "The 12 Hz codec: its decoder under `decoder.`, its encoder under `encoder.`."
+        $format:
+          - safetensors
+      codec_config:
+        $description: "The codec's `config.json`: its `decoder_config` and its output sample rate."
+        $format:
+          - json
+      config:
+        $description: "`config.json`: the prompt's ids, `talker_config` and its
+          `code_predictor_config`."
+        $format:
+          - json
+      generation_config:
+        $description: The release's sampling settings, the talker's and the code predictor's.
+        $format:
+          - generation_config.json
+      merges:
+        $description: The tokenizer's merges.
+        $format:
+          - merges.txt
+      tokenizer_config:
+        $description: The tokenizer's added tokens.
+        $format:
+          - tokenizer_config.json
+      vocab:
+        $description: The tokenizer's byte-level vocabulary.
+        $format:
+          - vocab.json
   zonos3-tts:
     $kind: contract
     $description: "A ZONOS3 text-to-speech model as Zyphra's transformers packaging lays it out: the
@@ -397,6 +437,17 @@ translate:
   $kind: tag
   $description: it can translate.
   $type: $bool
+instruction:
+  $kind: tag
+  $description: it takes a style instruction with the text it speaks.
+  $type: $bool
+language_keys:
+  $kind: tag
+  $description: >-
+    the languages a request names, by the model's own keys, each to the BCP 47 tag
+    it speaks.
+  $type:
+    $map: $text
 template_class_root:
   $kind: template_class
   $description: The root of every template-class chain.
