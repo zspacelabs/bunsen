@@ -1,5 +1,8 @@
 //! The configs of an [`LmDecoderModel`].
-use alloc::format;
+use alloc::{
+    format,
+    string::ToString,
+};
 use core::marker::PhantomData;
 
 use burn::{
@@ -30,6 +33,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
         ResultContext,
+        Rule,
     },
 };
 
@@ -129,12 +133,15 @@ impl LmDecoderMeta for LmDecoderStructureConfig {
 impl<K: LmDecodeKind> ModuleInit<LmDecoderModel<K>> for LmDecoderStructureConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause, for a stack that is not of kind `K`; and
-    /// as the embedding's, head's and stack's builds.
+    /// [`ConstraintError`] cause, for a stack that is not of kind `K`, for an
+    /// embedding or head whose width is not the stack's, or for a tied head
+    /// whose rows are not the embedding's; and as the embedding's, head's and
+    /// stack's builds.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<LmDecoderModel<K>> {
+        self.check_agreement()?;
         if let Some(why) = K::refusal(&self.stack.layer_attends()) {
             return Err(ConstraintError::custom(
                 "LmDecoderStructureConfig",
@@ -150,6 +157,47 @@ impl<K: LmDecodeKind> ModuleInit<LmDecoderModel<K>> for LmDecoderStructureConfig
             kv_cache_pre_size: self.kv_cache_pre_size,
             kind: PhantomData,
         })
+    }
+}
+
+impl LmDecoderStructureConfig {
+    /// The parts agree: the embedding's and the head's widths are the
+    /// stack's, and a tied head reads as many rows as the embedding holds.
+    /// A stack of no layers has no width; its own build refuses it.
+    fn check_agreement(&self) -> BunsenResult<()> {
+        let mismatch = |field: &'static str, lhs: (&str, usize), rhs: (&str, usize)| {
+            Err(ConstraintError::new(
+                "LmDecoderStructureConfig",
+                field,
+                Rule::Relation {
+                    lhs: (lhs.0.into(), lhs.1.to_string()),
+                    op: "==",
+                    rhs: (rhs.0.into(), rhs.1.to_string()),
+                },
+            )
+            .into())
+        };
+        if !self.stack.layers.is_empty() {
+            let width = ("stack.d_model", self.stack.d_model());
+            if self.embedding.d_model != width.1 {
+                return mismatch(
+                    "embedding",
+                    ("embedding.d_model", self.embedding.d_model),
+                    width,
+                );
+            }
+            if self.head.d_model != width.1 {
+                return mismatch("head", ("head.d_model", self.head.d_model), width);
+            }
+        }
+        if self.head.tied && self.head.n_rows != self.embedding.n_vocab {
+            return mismatch(
+                "head",
+                ("head.n_rows", self.head.n_rows),
+                ("embedding.n_vocab", self.embedding.n_vocab),
+            );
+        }
+        Ok(())
     }
 }
 
