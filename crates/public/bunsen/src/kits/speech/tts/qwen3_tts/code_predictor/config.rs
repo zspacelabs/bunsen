@@ -53,7 +53,6 @@ pub fn qwen3_tts_code_predictor_config(
     .stack();
     Ok(DepthDecoderConfig::new(
         talker_width,
-        d.hidden_size,
         t.usize("num_code_groups")? - 1,
         vocab,
         stack,
