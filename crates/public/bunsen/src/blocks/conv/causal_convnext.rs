@@ -3,7 +3,10 @@
 use burn::{
     Tensor,
     config::Config,
-    module::Module,
+    module::{
+        Module,
+        Param,
+    },
     nn::{
         Linear,
         LinearConfig,
@@ -43,6 +46,10 @@ pub trait CausalConvNext1dMeta {
 
     /// The depthwise kernel's taps.
     fn kernel(&self) -> usize;
+
+    /// Whether the branch is scaled per channel, by `γ`, before the residual
+    /// add (`ConvNeXt`'s layer scale).
+    fn layer_scale(&self) -> bool;
 }
 
 /// Config for [`CausalConvNext1d`].
@@ -64,6 +71,11 @@ pub struct CausalConvNext1dConfig {
         default = "BunsenNormalizationConfig::Layer(burn::nn::LayerNormConfig::new(0).with_epsilon(1e-6))"
     )]
     pub norm: BunsenNormalizationConfig,
+
+    /// Whether the branch is scaled per channel, by `γ`, before the residual
+    /// add (`ConvNeXt`'s layer scale). Off by default.
+    #[config(default = false)]
+    pub layer_scale: bool,
 }
 
 impl CausalConvNext1dMeta for CausalConvNext1dConfig {
@@ -77,6 +89,10 @@ impl CausalConvNext1dMeta for CausalConvNext1dConfig {
 
     fn kernel(&self) -> usize {
         self.kernel
+    }
+
+    fn layer_scale(&self) -> bool {
+        self.layer_scale
     }
 }
 
@@ -103,6 +119,9 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
             norm: self.norm.clone().with_num_features(c).init(device),
             pwconv1: LinearConfig::new(c, self.hidden).init(device),
             pwconv2: LinearConfig::new(self.hidden, c).init(device),
+            gamma: self
+                .layer_scale
+                .then(|| Param::from_tensor(Tensor::ones([c], device))),
         })
     }
 }
@@ -111,10 +130,12 @@ impl ModuleInit<CausalConvNext1d> for CausalConvNext1dConfig {
 ///
 /// ```text
 /// h = dwconv(x)           (depthwise, each channel over its own past: k - 1 left padding)
-/// y = x + pwconv2(gelu(pwconv1(norm(h))))
+/// y = x + γ ⊙ pwconv2(gelu(pwconv1(norm(h))))
 /// ```
 ///
-/// with no per-channel scale on the branch. Channels last, `[B, T, C]`. The
+/// with `γ` a per-channel layer scale when
+/// [`layer_scale`](CausalConvNext1dMeta::layer_scale) is set (Qwen3-TTS's
+/// codec's), and 1 otherwise (ZONOS3's). Channels last, `[B, T, C]`. The
 /// depthwise convolution continues from a carried state
 /// ([`forward_with_state`](Self::forward_with_state)), so a stream run in
 /// chunks is the same as one run whole.
@@ -133,6 +154,9 @@ pub struct CausalConvNext1d {
 
     /// The projection back, `[H, C]`.
     pub pwconv2: Linear,
+
+    /// The layer scale `γ`, `[C]`, when the block has one.
+    pub gamma: Option<Param<Tensor<1>>>,
 }
 
 impl CausalConvNext1dMeta for CausalConvNext1d {
@@ -146,6 +170,10 @@ impl CausalConvNext1dMeta for CausalConvNext1d {
 
     fn kernel(&self) -> usize {
         self.dwconv.weight.dims()[2]
+    }
+
+    fn layer_scale(&self) -> bool {
+        self.gamma.is_some()
     }
 }
 
@@ -188,6 +216,10 @@ impl CausalConvNext1d {
         let h = self
             .pwconv2
             .forward(gelu(self.pwconv1.forward(self.norm.forward(h))));
+        let h = match &self.gamma {
+            Some(gamma) => h * gamma.val().reshape([1, 1, c]),
+            None => h,
+        };
         let y = x + h;
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "C"],
@@ -222,6 +254,7 @@ mod tests {
         let device = cpu_device();
         let block: CausalConvNext1d = CausalConvNext1dConfig::new(6, 10).init(&device);
         assert_eq!((block.width(), block.hidden(), block.kernel()), (6, 10, 7));
+        assert!(!block.layer_scale());
         let x: Tensor<3> = seeded_tensor(1, [2, 9, 6], Distribution::Default, &device);
 
         let padded = Conv1dConfig::new(6, 6, 7)
@@ -256,6 +289,92 @@ mod tests {
             state = Some(next);
         }
         assert_tensors_close(&Tensor::cat(parts, 1), &whole, Tolerance::default());
+    }
+
+    /// With a layer scale, the branch is scaled per channel: a new block's
+    /// `γ` of ones is the block without one.
+    #[test]
+    fn test_layer_scale() {
+        let device = cpu_device();
+        let plain: CausalConvNext1d = CausalConvNext1dConfig::new(4, 8).init(&device);
+        let mut scaled: CausalConvNext1d = CausalConvNext1dConfig::new(4, 8)
+            .with_layer_scale(true)
+            .init(&device);
+        assert!(scaled.layer_scale());
+        scaled.dwconv = plain.dwconv.clone();
+        scaled.norm = plain.norm.clone();
+        scaled.pwconv1 = plain.pwconv1.clone();
+        scaled.pwconv2 = plain.pwconv2.clone();
+        let x: Tensor<3> = seeded_tensor(3, [2, 5, 4], Distribution::Default, &device);
+        let y = plain.forward(x.clone());
+        assert_tensors_close(&scaled.forward(x.clone()), &y, Tolerance::default());
+
+        let gamma = Tensor::<1>::from_floats([0.5, -1.0, 2.0, 0.0], &device);
+        scaled.gamma = Some(Param::from_tensor(gamma.clone()));
+        let expected = x.clone() + (y - x.clone()) * gamma.reshape([1, 1, 4]);
+        assert_tensors_close(&scaled.forward(x), &expected, Tolerance::default());
+    }
+
+    /// The Qwen3-TTS toy codec's two upsample stages
+    /// (`tools/gen_qwen3_tts_toy_fixtures.py`): each a causal transposed
+    /// convolution, then a `ConvNeXt` block with a layer scale, channels
+    /// first upstream and here swapped to channels last.
+    #[cfg(feature = "store")]
+    #[test]
+    fn test_qwen3_tts_toy_upsample() {
+        use crate::{
+            blocks::{
+                conv::CausalConvTranspose1dConfig,
+                norm::BunsenNormalization,
+            },
+            support::testing::{
+                ToyFixture,
+                assert_io_close,
+            },
+        };
+
+        let device = cpu_device();
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("testdata/qwen3_tts/toy.safetensors");
+        let fixture = ToyFixture::load_io(path, &device);
+        let param1 = |name: &str| Param::from_tensor(fixture.io::<1>(name));
+        // torch's `Linear` is `[out, in]`; burn's is `[in, out]`
+        let linear_t = |name: &str| Param::from_tensor(fixture.io::<2>(name).transpose());
+
+        let mut x = fixture.io::<3>("io.codec.transformer").swap_dims(1, 2);
+        for stage in 0..2 {
+            let at = |part: &str| format!("decoder.upsample.{stage}.{part}");
+            let weight = fixture.io::<3>(&at("0.conv.weight"));
+            let [c, _, k] = weight.dims();
+            let mut up = CausalConvTranspose1dConfig::new([c, c], k)
+                .with_stride(k)
+                .init(&device);
+            up.conv.weight = Param::from_tensor(weight);
+            up.conv.bias = Some(param1(&at("0.conv.bias")));
+
+            let mut block: CausalConvNext1d = CausalConvNext1dConfig::new(c, 4 * c)
+                .with_layer_scale(true)
+                .init(&device);
+            block.dwconv.weight = Param::from_tensor(fixture.io::<3>(&at("1.dwconv.conv.weight")));
+            block.dwconv.bias = Some(param1(&at("1.dwconv.conv.bias")));
+            let BunsenNormalization::Layer(norm) = &mut block.norm else {
+                panic!("a layer norm");
+            };
+            norm.gamma = param1(&at("1.norm.weight"));
+            norm.beta = Some(param1(&at("1.norm.bias")));
+            block.pwconv1.weight = linear_t(&at("1.pwconv1.weight"));
+            block.pwconv1.bias = Some(param1(&at("1.pwconv1.bias")));
+            block.pwconv2.weight = linear_t(&at("1.pwconv2.weight"));
+            block.pwconv2.bias = Some(param1(&at("1.pwconv2.bias")));
+            block.gamma = Some(param1(&at("1.gamma")));
+
+            x = block.forward(up.forward(x).swap_dims(1, 2)).swap_dims(1, 2);
+            assert_io_close(
+                &at(""),
+                x.clone(),
+                fixture.io(&format!("io.codec.upsample_{stage}")),
+            );
+        }
     }
 
     #[test]

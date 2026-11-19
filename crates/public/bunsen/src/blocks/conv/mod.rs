@@ -17,8 +17,9 @@
 //!   Mimi's and Qwen3-TTS's codec's.
 //! - [`CausalConvNext1d`]: a causal 1-d `ConvNeXt` block, channels last: a
 //!   depthwise convolution over each channel's past, a norm, a pointwise
-//!   expansion and projection, residual; it carries its convolution's state
-//!   across chunks. ZONOS3's codec's.
+//!   expansion and projection, an optional per-channel layer scale, residual;
+//!   it carries its convolution's state across chunks. ZONOS3's codec's, and
+//!   (with the layer scale) Qwen3-TTS's.
 //! - [`ConvSeq1d`] / [`ConvSeq2d`]: blocks run in sequence. Building one
 //!   [validates](ConvSeq2dMeta::validate) that the sequence is non-empty and
 //!   that each block's output channels match the next block's input channels.
