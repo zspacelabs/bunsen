@@ -59,7 +59,15 @@ struct Toy {
 
 impl Toy {
     fn load() -> Self {
-        let device = performance_device();
+        Self::load_as(&performance_device(), None)
+    }
+
+    /// The toy on `device`, its tensors loaded in `dtype` (`None`: as built).
+    fn load_as(
+        device: &Device,
+        dtype: Option<burn::tensor::FloatDType>,
+    ) -> Self {
+        let device = device.clone();
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
         let json: serde_json::Value = serde_json::from_str(
             &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
@@ -70,7 +78,7 @@ impl Toy {
         let config = Zonos3LmConfig::from_json(&lm).expect("the toy's config");
         let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
         let mut model: Zonos3Lm = config.init(&device);
-        load_zonos3_lm_tensors(&mut model, &config, fixture.take_weights(), None)
+        load_zonos3_lm_tensors(&mut model, &config, fixture.take_weights(), dtype)
             .expect("load the toy weights");
         Self {
             config,
@@ -108,6 +116,35 @@ impl Toy {
 }
 
 /// The geometry the toy's `lm` section gives.
+/// Under a half load, the routers' choice biases, stored in f32, stay f32;
+/// the rest of the model takes the half dtype.
+#[test]
+fn test_toy_half_load_keeps_choice_biases_f32() {
+    use burn::tensor::FloatDType;
+
+    let device = performance_device();
+    let Some(half) = [FloatDType::BF16, FloatDType::F16]
+        .into_iter()
+        .find(|d| device.supports_dtype(burn::tensor::DType::from(*d)))
+    else {
+        return;
+    };
+    let toy = Toy::load_as(&device, Some(half));
+    let params = burn::store::ModuleSnapshot::collect(&toy.model, None, None, true);
+    let biases: Vec<_> = params
+        .iter()
+        .filter(|p| p.name.ends_with(".router.choice_bias"))
+        .collect();
+    assert!(!biases.is_empty(), "the toy has routed layers");
+    for bias in biases {
+        assert_eq!(bias.dtype, burn::tensor::DType::F32, "{}", bias.name);
+    }
+    assert_eq!(
+        crate::burner::module::module_float_dtype(&toy.model),
+        Some(half)
+    );
+}
+
 #[test]
 fn test_toy_config() {
     let toy = Toy::load();

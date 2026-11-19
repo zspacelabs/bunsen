@@ -245,7 +245,10 @@ pub struct TopKRouter {
     /// The input's normalization, if the router has one.
     pub input_norm: Option<BunsenNormalization>,
 
-    /// The choice bias `[E]`, in f32, if the router has one.
+    /// The choice bias `[E]`, if the router has one: built in f32, and read
+    /// in at least f32. A checkpoint that stores it in f32 keeps it f32 only
+    /// through a load that keeps its width
+    /// ([`Rekey::load_keeping`](crate::burner::module::Rekey::load_keeping)).
     pub choice_bias: Option<Param<Tensor<1>>>,
 
     /// Where and how [`choice_bias`](Self::choice_bias) applies.

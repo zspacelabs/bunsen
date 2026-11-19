@@ -84,15 +84,76 @@ pub fn apply_named_tensors_as<M: ModuleSnapshot>(
     rename: impl Fn(&str) -> Option<String>,
     float_dtype: Option<DType>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    apply_in_batches(module, tensors, rename, float_dtype, UPLOAD_BATCH_BYTES)
+    apply_named_tensors_keeping(module, tensors, rename, float_dtype, keep_no_width)
 }
 
-/// [`apply_named_tensors_as`], in batches of at most `batch_bytes`.
+/// [`apply_named_tensors_as`], but a floating tensor whose record path
+/// `keep_width` selects, stored wider than `float_dtype`, keeps its stored
+/// dtype: a parameter a block reads in f32 (a router's choice bias) that a
+/// checkpoint stores in f32 is not rounded to a half load's dtype.
+///
+/// # Errors
+/// As [`apply_named_tensors`].
+pub fn apply_named_tensors_keeping<M: ModuleSnapshot>(
+    module: &mut M,
+    tensors: impl IntoIterator<Item = PackTensor>,
+    rename: impl Fn(&str) -> Option<String>,
+    float_dtype: Option<DType>,
+    keep_width: fn(&str) -> bool,
+) -> BunsenResult<NamedTensorsApplied> {
+    apply_in_batches(
+        module,
+        tensors,
+        rename,
+        float_dtype,
+        keep_width,
+        UPLOAD_BATCH_BYTES,
+    )
+}
+
+/// The `keep_width` of a load that keeps no tensor's width: every floating
+/// tensor takes the load's dtype.
+fn keep_no_width(_path: &str) -> bool {
+    false
+}
+
+/// [`FloatCastAdapter`] to `target`, but a tensor at a path `keep_width`
+/// selects, stored wider than `target`, keeps its stored dtype.
+#[derive(Debug, Clone)]
+struct FloatCastKeepingWidth {
+    cast: FloatCastAdapter,
+    target: DType,
+    keep_width: fn(&str) -> bool,
+}
+
+impl ModuleAdapter for FloatCastKeepingWidth {
+    fn adapt(
+        &self,
+        tensor: PackTensor,
+        ctx: burn::store::ModuleContext<'_>,
+    ) -> PackTensor {
+        let wider = tensor.dtype.is_float()
+            && self.target.is_float()
+            && crate::burner::tensor::float_width(tensor.dtype.into())
+                > crate::burner::tensor::float_width(self.target.into());
+        if wider && (self.keep_width)(&tensor.name) {
+            return tensor;
+        }
+        self.cast.adapt(tensor, ctx)
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
+    }
+}
+
+/// [`apply_named_tensors_keeping`], in batches of at most `batch_bytes`.
 fn apply_in_batches<M: ModuleSnapshot>(
     module: &mut M,
     tensors: impl IntoIterator<Item = PackTensor>,
     rename: impl Fn(&str) -> Option<String>,
     float_dtype: Option<DType>,
+    keep_width: fn(&str) -> bool,
     batch_bytes: usize,
 ) -> BunsenResult<NamedTensorsApplied> {
     let mut renamed = Vec::new();
@@ -109,7 +170,11 @@ fn apply_in_batches<M: ModuleSnapshot>(
 
     let adapter = || -> Box<dyn ModuleAdapter> {
         match float_dtype {
-            Some(dtype) => Box::new(PyTorchToBurnAdapter.chain(FloatCastAdapter::to(dtype))),
+            Some(dtype) => Box::new(PyTorchToBurnAdapter.chain(FloatCastKeepingWidth {
+                cast: FloatCastAdapter::to(dtype),
+                target: dtype,
+                keep_width,
+            })),
             None => Box::new(PyTorchToBurnAdapter),
         }
     };
@@ -327,8 +392,24 @@ impl Rekey {
         tensors: impl IntoIterator<Item = PackTensor>,
         dtype: Option<FloatDType>,
     ) -> BunsenResult<NamedTensorsApplied> {
+        self.load_keeping(module, tensors, dtype, keep_no_width)
+    }
+
+    /// [`Rekey::load`], but a floating tensor whose record path
+    /// `keep_width` selects, stored wider than the load's dtype, keeps its
+    /// stored dtype ([`apply_named_tensors_keeping`]).
+    ///
+    /// # Errors
+    /// As [`Rekey::apply_to`].
+    pub fn load_keeping<M: ModuleSnapshot>(
+        &self,
+        module: &mut M,
+        tensors: impl IntoIterator<Item = PackTensor>,
+        dtype: Option<FloatDType>,
+        keep_width: fn(&str) -> bool,
+    ) -> BunsenResult<NamedTensorsApplied> {
         let dtype = dtype.or_else(|| crate::burner::module::module_float_dtype(module));
-        self.apply_as(module, tensors, dtype.map(DType::from))
+        self.apply_keeping(module, tensors, dtype.map(DType::from), keep_width)
     }
 }
 
@@ -343,6 +424,18 @@ impl Rekey {
         module: &mut M,
         tensors: impl IntoIterator<Item = PackTensor>,
         float_dtype: Option<DType>,
+    ) -> BunsenResult<NamedTensorsApplied> {
+        self.apply_keeping(module, tensors, float_dtype, keep_no_width)
+    }
+
+    /// [`Rekey::apply_as`], keeping the width of the tensors `keep_width`
+    /// selects ([`apply_named_tensors_keeping`]).
+    fn apply_keeping<M: ModuleSnapshot>(
+        &self,
+        module: &mut M,
+        tensors: impl IntoIterator<Item = PackTensor>,
+        float_dtype: Option<DType>,
+        keep_width: fn(&str) -> bool,
     ) -> BunsenResult<NamedTensorsApplied> {
         let tensors: Vec<PackTensor> = tensors.into_iter().collect();
         let module_paths = module
@@ -374,8 +467,13 @@ impl Rekey {
                 }
             }
         }
-        let mut applied =
-            apply_named_tensors_as(module, placed, |name| Some(name.to_string()), float_dtype)?;
+        let mut applied = apply_named_tensors_keeping(
+            module,
+            placed,
+            |name| Some(name.to_string()),
+            float_dtype,
+            keep_width,
+        )?;
         applied.unused.extend(dropped);
         Ok(applied)
     }
@@ -473,12 +571,20 @@ mod tests {
             tensors(),
             |n| Some(n.to_string()),
             None,
+            keep_no_width,
             1 << 20,
         )
         .unwrap();
         let mut batched = two(&device);
-        let many =
-            apply_in_batches(&mut batched, tensors(), |n| Some(n.to_string()), None, 1).unwrap();
+        let many = apply_in_batches(
+            &mut batched,
+            tensors(),
+            |n| Some(n.to_string()),
+            None,
+            keep_no_width,
+            1,
+        )
+        .unwrap();
         assert_eq!(one.unused, ["extra"]);
         assert_eq!(many.unused, ["extra"]);
         let sorted = |mut v: Vec<String>| {
@@ -502,8 +608,55 @@ mod tests {
                 partial,
                 |n| Some(n.to_string()),
                 None,
+                keep_no_width,
                 1,
             ));
+    }
+
+    /// Under a half load, a tensor `keep_width` selects and stored wider
+    /// keeps its stored dtype; the rest take the load's.
+    #[test]
+    fn test_keep_width() {
+        #[derive(Module, Debug)]
+        struct Held {
+            plain: burn::module::Param<Tensor<1>>,
+            bias: burn::module::Param<Tensor<1>>,
+        }
+
+        let device = cpu_device();
+        let half = [DType::F16, DType::BF16]
+            .into_iter()
+            .find(|d| device.supports_dtype(*d));
+        let Some(half) = half else {
+            return;
+        };
+        let held = || Held {
+            plain: burn::module::Param::from_tensor(Tensor::zeros([3], &device)),
+            bias: burn::module::Param::from_tensor(Tensor::zeros([3], &device)),
+        };
+        let tensors = || [bias("plain", 3, 0.5), bias("bias", 3, 0.25)];
+
+        let mut kept = held();
+        apply_named_tensors_keeping(
+            &mut kept,
+            tensors(),
+            |name| Some(name.to_string()),
+            Some(half),
+            |path| path == "bias",
+        )
+        .unwrap();
+        assert_eq!(kept.plain.val().dtype(), half);
+        assert_eq!(kept.bias.val().dtype(), DType::F32, "stored f32, kept");
+
+        let mut cast = held();
+        apply_named_tensors_as(
+            &mut cast,
+            tensors(),
+            |name| Some(name.to_string()),
+            Some(half),
+        )
+        .unwrap();
+        assert_eq!(cast.bias.val().dtype(), half);
     }
 
     #[derive(Module, Debug)]
