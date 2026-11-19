@@ -9,14 +9,17 @@ use core::fmt;
 
 use burn::config::Config;
 
-use crate::errors::BunsenResult;
+use crate::{
+    errors::BunsenResult,
+    kits::support::text::collapse_line_breaks,
+};
 
 /// How [`Zonos3Driver`](super::Zonos3Driver) normalizes a request's text
 /// before its prompt.
 #[derive(Config, Debug, PartialEq)]
 pub enum Zonos3TextNormalization {
     /// The text as typed, line breaks collapsed
-    /// ([`zonos3_collapse_line_breaks`]): the release's with its
+    /// ([`collapse_line_breaks`]): the release's with its
     /// normalization off.
     None,
 
@@ -47,36 +50,6 @@ pub struct Zonos3ZyphraNormalization {
     /// release's reference normalizes.
     #[config(default = false)]
     pub prepass: bool,
-}
-
-/// `text` with every whitespace run that holds a line break, a tab or any
-/// whitespace but a plain space collapsed to one space; runs of plain
-/// spaces are kept. What the release does to every text, normalized or not.
-pub fn zonos3_collapse_line_breaks(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut run = String::new();
-    let mut breaks = false;
-    for c in text.chars() {
-        if c.is_whitespace() {
-            run.push(c);
-            breaks |= c != ' ';
-        } else {
-            if breaks {
-                out.push(' ');
-            } else {
-                out.push_str(&run);
-            }
-            run.clear();
-            breaks = false;
-            out.push(c);
-        }
-    }
-    if breaks {
-        out.push(' ');
-    } else {
-        out.push_str(&run);
-    }
-    out
 }
 
 /// A [`Zonos3TextNormalization`], ready to normalize.
@@ -167,7 +140,7 @@ impl Zonos3Normalizer {
         text: &str,
     ) -> String {
         match &self.inner {
-            Inner::None => zonos3_collapse_line_breaks(text),
+            Inner::None => collapse_line_breaks(text).into_owned(),
             #[cfg(feature = "zyphra-textnorm")]
             Inner::Zyphra {
                 normalizer,
@@ -184,12 +157,6 @@ mod tests {
 
     fn languages() -> BTreeMap<String, String> {
         BTreeMap::from([("en_us".to_string(), "en".to_string())])
-    }
-
-    #[test]
-    fn test_collapse_line_breaks() {
-        assert_eq!(zonos3_collapse_line_breaks("a  b\n\nc \t d\n"), "a  b c d ");
-        assert_eq!(zonos3_collapse_line_breaks("plain  text"), "plain  text");
     }
 
     #[test]

@@ -22,10 +22,14 @@
 //! - [`model_config`]: the config side, apart from building: reading the
 //!   configs a checkpoint ships with, such as a `transformers` `config.json`
 //!   ([`TransformersConfigJson`](model_config::TransformersConfigJson)).
+//! - [`text`]: text normalization ([`TextNormalizer`](text::TextNormalizer),
+//!   the chain, the normalizers bunsen ships) and language tags
+//!   ([`BunsenLanguageTag`](text::BunsenLanguageTag)).
 
 #[cfg(feature = "store")]
 pub mod catalog_contracts;
 pub mod construct;
 pub mod decoding;
 pub mod model_config;
+pub mod text;
 pub mod tokens;

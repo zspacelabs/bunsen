@@ -7,23 +7,50 @@
 //! [`Detokenizer`](crate::kits::support::tokens::Detokenizer)'s job, and then a
 //! comparison that forgives formatting, which is this module's.
 
-/// Normalizes a transcript for comparison: lowercase, punctuation stripped,
-/// whitespace collapsed.
+use alloc::{
+    string::String,
+    vec::Vec,
+};
+
+use crate::{
+    errors::BunsenResult,
+    kits::support::text::{
+        TextNormalizer,
+        TranscriptTextNormalizer,
+    },
+};
+
+/// A transcript's words, for comparison: lowercase, punctuation stripped,
+/// whitespace collapsed ([`TranscriptTextNormalizer`]), split into words.
 ///
 /// This is deliberately much smaller than Whisper's own `EnglishTextNormalizer`
 /// — it does **not** reconcile spelled-out numbers with digits, or expand
 /// contractions. A threshold set against this normalizer is therefore counting
 /// some formatting differences as errors; see the callers' notes.
 pub fn normalize_transcript(text: &str) -> Vec<String> {
-    text.split_whitespace()
-        .map(|word| {
-            word.chars()
-                .filter(|c| c.is_alphanumeric() || *c == '\'')
-                .flat_map(char::to_lowercase)
-                .collect::<String>()
-        })
-        .filter(|word| !word.is_empty())
+    TranscriptTextNormalizer
+        .transcript(text)
+        .split_whitespace()
+        .map(String::from)
         .collect()
+}
+
+/// `text`, normalized by `normalizer`, split into words: what a word error
+/// rate compares when [`normalize_transcript`]'s rules are not the ones
+/// wanted (a normalizer that speaks numbers, chained before
+/// [`TranscriptTextNormalizer`], reconciles `35` with `thirty five`).
+///
+/// # Errors
+/// The normalizer's.
+pub fn transcript_words(
+    normalizer: &dyn TextNormalizer,
+    text: &str,
+) -> BunsenResult<Vec<String>> {
+    Ok(normalizer
+        .normalize(text, None)?
+        .split_whitespace()
+        .map(String::from)
+        .collect())
 }
 
 /// The word edit distance: the fewest substitutions, insertions and
@@ -152,7 +179,50 @@ pub fn cp_word_error_rate(
 
 #[cfg(test)]
 mod tests {
+    use alloc::{
+        borrow::Cow,
+        sync::Arc,
+        vec,
+    };
+
     use super::*;
+    use crate::kits::support::text::{
+        BunsenLanguageTag,
+        TextNormalizerChain,
+    };
+
+    /// Speaks one number, as a normalizer that verbalizes would.
+    #[derive(Debug)]
+    struct SpeakThirtyFive;
+
+    impl TextNormalizer for SpeakThirtyFive {
+        fn name(&self) -> String {
+            "speak-35".into()
+        }
+
+        fn normalize<'a>(
+            &self,
+            text: &'a str,
+            _language: Option<&BunsenLanguageTag>,
+        ) -> BunsenResult<Cow<'a, str>> {
+            Ok(Cow::Owned(text.replace("35", "thirty five")))
+        }
+    }
+
+    #[test]
+    fn test_transcript_words_through_a_chain() {
+        let reference = "It took 35 years.";
+        let heard =
+            transcript_words(&TranscriptTextNormalizer, "it took thirty five years").unwrap();
+        assert_eq!(word_errors(&heard, &normalize_transcript(reference)), 2);
+        let chain = TextNormalizerChain::new(vec![
+            Arc::new(SpeakThirtyFive) as Arc<dyn TextNormalizer>,
+            Arc::new(TranscriptTextNormalizer),
+        ]);
+        let spoken = transcript_words(&chain, reference).unwrap();
+        assert_eq!(spoken, ["it", "took", "thirty", "five", "years"]);
+        assert_eq!(word_errors(&heard, &spoken), 0);
+    }
 
     fn words(s: &str) -> Vec<String> {
         normalize_transcript(s)

@@ -1,0 +1,23 @@
+//! # Text normalization, and language tags
+//!
+//! Text as written, to the form a model or a comparison reads. Not speech
+//! alone: a TTS driver normalizes what it speaks, and a word error rate
+//! normalizes both transcripts it compares.
+//!
+//! - [`TextNormalizer`]: the seam, plugged in as an `Arc<dyn TextNormalizer>`;
+//!   [`TextNormalizerChain`] runs several in order.
+//! - The normalizers bunsen ships: [`CollapseLineBreaks`] and
+//!   [`TranscriptTextNormalizer`]; [`TextNormalizationConfig`] names them as
+//!   config and builds them.
+//! - [`BunsenLanguageTag`]: a well-known language code (BCP 47), the language a
+//!   normalizer is told a text is in.
+
+mod basic;
+mod config;
+mod language;
+mod normalizer;
+
+pub use basic::*;
+pub use config::*;
+pub use language::*;
+pub use normalizer::*;
