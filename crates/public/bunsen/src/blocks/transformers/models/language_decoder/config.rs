@@ -1,5 +1,8 @@
 //! The configs of an [`LmDecoderModel`].
-use alloc::format;
+use alloc::{
+    format,
+    string::ToString,
+};
 use core::marker::PhantomData;
 
 use burn::{
