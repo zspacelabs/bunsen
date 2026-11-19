@@ -206,9 +206,9 @@ tokenizer = [
     "dep:serde-pickle",
 ]
 
-## Zyphra's text normalizer, `zyphra-textnorm`, for ZONOS3's driver
-## (`kits::speech::tts::zonos3::driver`): its `Zyphra` text normalization,
-## the release's. Without it, that mode is an init error.
+## Zyphra's text normalizer, `zyphra-textnorm`: `kits::support::text`'s
+## `ZyphraTextNormalizer`, which ZONOS3's driver normalizes with by default
+## (the release's). Without it, a `Zyphra` normalization is an init error.
 zyphra-textnorm = [
     "std",
     "dep:zyphra-textnorm",

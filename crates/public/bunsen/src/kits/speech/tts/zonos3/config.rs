@@ -2,6 +2,7 @@
 
 use alloc::{
     collections::BTreeMap,
+    format,
     string::String,
     vec::Vec,
 };
@@ -11,6 +12,10 @@ use serde::Deserialize;
 use super::{
     codec::Zonos3CodecJson,
     lm::Zonos3LmJson,
+};
+use crate::{
+    errors::BunsenResult,
+    kits::support::text::BunsenLanguageTag,
 };
 
 /// The `generation` section of `config.json`, under upstream's names: how
@@ -49,6 +54,28 @@ pub struct Zonos3GenerationJson {
     pub top_p: f64,
     /// The sampler's top-k.
     pub topk: usize,
+}
+
+impl Zonos3GenerationJson {
+    /// The language tag of `language`: a request code of the release's
+    /// [`languages`](Self::languages) table (`en_us`), as the tag of its
+    /// grammar (`en`); or else a language tag itself (`fr`, `de-DE`).
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a language
+    /// that is neither, naming the table's codes.
+    pub fn language_tag(
+        &self,
+        language: &str,
+    ) -> BunsenResult<BunsenLanguageTag> {
+        match self.languages.get(language) {
+            Some(grammar) => BunsenLanguageTag::parse(grammar),
+            None => BunsenLanguageTag::parse(language).map_err(|error| {
+                let codes: Vec<&str> = self.languages.keys().map(String::as_str).collect();
+                error.with_details(format!("the release's request codes: {}", codes.join(", ")))
+            }),
+        }
+    }
 }
 
 /// `Zyphra/ZONOS3-Mini-hf`'s `config.json`: its language model's, codec
