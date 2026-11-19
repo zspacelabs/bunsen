@@ -8,7 +8,7 @@ use super::{
     Qwen3TtsTakeConfig,
     codec::{
         Qwen3TtsCodecDecoder,
-        Qwen3TtsCodecDecoderConfig,
+        Qwen3TtsCodecDecoderContractConfig,
     },
     prompt::Qwen3TtsPromptConfig,
     sampler::Qwen3TtsGenerationJson,
@@ -62,7 +62,7 @@ pub struct Qwen3TtsConstruct {
     pub codec: Qwen3TtsCodecDecoder,
 
     /// Its config.
-    pub codec_config: Qwen3TtsCodecDecoderConfig,
+    pub codec_config: Qwen3TtsCodecDecoderContractConfig,
 
     /// The prompt's ids, languages and speakers.
     pub prompt: Qwen3TtsPromptConfig,

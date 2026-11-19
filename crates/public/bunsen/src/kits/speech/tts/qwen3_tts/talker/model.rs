@@ -1,6 +1,7 @@
 //! The talker's modules.
 
 use burn::{
+    config::Config,
     nn::{
         Embedding,
         EmbeddingConfig,
@@ -31,15 +32,82 @@ use crate::{
     },
 };
 
+/// Common meta for [`Qwen3TtsResizeMlp`] and [`Qwen3TtsResizeMlpConfig`].
+pub trait Qwen3TtsResizeMlpMeta {
+    /// The input width.
+    fn d_input(&self) -> usize;
+
+    /// The hidden width.
+    fn d_hidden(&self) -> usize;
+
+    /// The output width.
+    fn d_output(&self) -> usize;
+}
+
+/// Config for [`Qwen3TtsResizeMlp`].
+#[derive(Config, Debug)]
+pub struct Qwen3TtsResizeMlpConfig {
+    /// The input width.
+    pub d_input: usize,
+
+    /// The hidden width.
+    pub d_hidden: usize,
+
+    /// The output width.
+    pub d_output: usize,
+}
+
+impl Qwen3TtsResizeMlpMeta for Qwen3TtsResizeMlpConfig {
+    fn d_input(&self) -> usize {
+        self.d_input
+    }
+
+    fn d_hidden(&self) -> usize {
+        self.d_hidden
+    }
+
+    fn d_output(&self) -> usize {
+        self.d_output
+    }
+}
+
+impl ModuleInit<Qwen3TtsResizeMlp> for Qwen3TtsResizeMlpConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<Qwen3TtsResizeMlp> {
+        Ok(Qwen3TtsResizeMlp {
+            linear_fc1: LinearConfig::new(self.d_input, self.d_hidden).init(device),
+            linear_fc2: LinearConfig::new(self.d_hidden, self.d_output).init(device),
+        })
+    }
+}
+
 /// The text projection: `linear_fc2(silu(linear_fc1(x)))`, both with biases,
 /// from the text table's width to the talker's.
+///
+/// Built by [`Qwen3TtsResizeMlpConfig`].
 #[derive(Module, Debug)]
 pub struct Qwen3TtsResizeMlp {
-    /// `[T_w, T_w]`.
+    /// `[D_in, D_h]`.
     pub linear_fc1: Linear,
 
-    /// `[T_w, W]`.
+    /// `[D_h, D_out]`.
     pub linear_fc2: Linear,
+}
+
+impl Qwen3TtsResizeMlpMeta for Qwen3TtsResizeMlp {
+    fn d_input(&self) -> usize {
+        self.linear_fc1.weight.dims()[0]
+    }
+
+    fn d_hidden(&self) -> usize {
+        self.linear_fc1.weight.dims()[1]
+    }
+
+    fn d_output(&self) -> usize {
+        self.linear_fc2.weight.dims()[1]
+    }
 }
 
 impl Qwen3TtsResizeMlp {
@@ -84,14 +152,15 @@ impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
         device: &Device,
     ) -> BunsenResult<Qwen3TtsTalker> {
         let Qwen3Model { lm } = self.lm.try_init(device)?;
-        let linear = |i, o| LinearConfig::new(i, o).init(device);
         Ok(Qwen3TtsTalker {
             lm,
             text_embedding: EmbeddingConfig::new(self.text_vocab, self.text_width).init(device),
-            text_projection: Qwen3TtsResizeMlp {
-                linear_fc1: linear(self.text_width, self.text_width),
-                linear_fc2: linear(self.text_width, self.lm.d_model),
-            },
+            text_projection: Qwen3TtsResizeMlpConfig::new(
+                self.text_width,
+                self.text_width,
+                self.lm.d_model,
+            )
+            .try_init(device)?,
         })
     }
 }
@@ -160,5 +229,24 @@ impl Qwen3TtsTalker {
 impl KVCacheModel for Qwen3TtsTalker {
     fn kv_cache_config(&self) -> KVCacheConfig {
         self.lm.kv_cache_config()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::support::testing::cpu_device;
+
+    /// The config and the projection built from it answer the meta alike.
+    #[test]
+    fn test_resize_mlp_meta() {
+        let config = Qwen3TtsResizeMlpConfig::new(3, 5, 7);
+        let mlp: Qwen3TtsResizeMlp = config.init(&cpu_device());
+        for meta in [&config as &dyn Qwen3TtsResizeMlpMeta, &mlp] {
+            assert_eq!(
+                [meta.d_input(), meta.d_hidden(), meta.d_output()],
+                [3, 5, 7]
+            );
+        }
     }
 }

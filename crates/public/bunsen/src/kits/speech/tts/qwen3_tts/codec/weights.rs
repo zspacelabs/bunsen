@@ -22,7 +22,7 @@ use burn::{
 
 use super::{
     Qwen3TtsCodecDecoder,
-    Qwen3TtsCodecDecoderConfig,
+    Qwen3TtsCodecDecoderContractConfig,
 };
 use crate::{
     blocks::transformers::decoders::causal::{
@@ -55,7 +55,7 @@ pub fn qwen3_tts_codec_layer_rekey() -> Rekey {
 
 /// The decoder's names, without [`QWEN3_TTS_CODEC_DECODER_PREFIX`], onto a
 /// [`Qwen3TtsCodecDecoder`]'s canonical ones.
-pub fn qwen3_tts_codec_rekey(config: &Qwen3TtsCodecDecoderConfig) -> Rekey {
+pub fn qwen3_tts_codec_rekey(config: &Qwen3TtsCodecDecoderContractConfig) -> Rekey {
     let codebooks = Rekey::keep_rest().mount_indexed(
         "vq.layers.",
         "codebooks.",
@@ -124,7 +124,7 @@ fn is_encode_side(name: &str) -> bool {
 /// parameter for.
 pub fn load_qwen3_tts_codec_tensors(
     model: &mut Qwen3TtsCodecDecoder,
-    config: &Qwen3TtsCodecDecoderConfig,
+    config: &Qwen3TtsCodecDecoderContractConfig,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {

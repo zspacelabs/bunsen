@@ -18,8 +18,9 @@ use burn::{
 
 use super::{
     Qwen3TtsCodecDecoder,
-    Qwen3TtsCodecDecoderConfig,
+    Qwen3TtsCodecDecoderContractConfig,
     Qwen3TtsCodecDecoderJson,
+    Qwen3TtsCodecDecoderMeta,
     weights::load_qwen3_tts_codec_tensors,
 };
 use crate::{
@@ -47,7 +48,11 @@ fn vocoder_tolerance(step: usize) -> Tolerance<f32> {
     }
 }
 
-fn load() -> (Qwen3TtsCodecDecoderConfig, Qwen3TtsCodecDecoder, ToyFixture) {
+fn load() -> (
+    Qwen3TtsCodecDecoderContractConfig,
+    Qwen3TtsCodecDecoder,
+    ToyFixture,
+) {
     let device = performance_device();
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
     let json: serde_json::Value = serde_json::from_str(
@@ -57,7 +62,7 @@ fn load() -> (Qwen3TtsCodecDecoderConfig, Qwen3TtsCodecDecoder, ToyFixture) {
     let section: Qwen3TtsCodecDecoderJson =
         serde_json::from_value(json["codec"]["decoder_config"].clone())
             .expect("the toy's decoder_config");
-    let config = Qwen3TtsCodecDecoderConfig::from_json(&section).expect("the toy's config");
+    let config = Qwen3TtsCodecDecoderContractConfig::from_json(&section).expect("the toy's config");
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     let mut model: Qwen3TtsCodecDecoder = config.init(&device);
     load_qwen3_tts_codec_tensors(&mut model, &config, fixture.take_weights(), None)
