@@ -1,0 +1,35 @@
+# What the qwen3_tts kit's loader reads: a Qwen3-TTS model repository as Qwen
+# ships it, the codec under `speech_tokenizer/`.
+qwen3-tts:
+  $kind: contract
+  $description: >-
+    A Qwen3-TTS model as Qwen's repositories lay it out: the talker and its code predictor in
+    one safetensors file, the 12 Hz codec in another, their geometry from their `config.json`s;
+    the tokenizer as its slow files.
+  $resources:
+    checkpoint:
+      $format: [safetensors]
+      $description: >-
+        The model: the talker under `talker.`, its code predictor under `talker.code_predictor.`.
+    config:
+      $format: [json]
+      $description: >-
+        `config.json`: the prompt's ids, `talker_config` and its `code_predictor_config`.
+    generation_config:
+      $format: [generation_config.json]
+      $description: "The release's sampling settings, the talker's and the code predictor's."
+    vocab:
+      $format: [vocab.json]
+      $description: "The tokenizer's byte-level vocabulary."
+    merges:
+      $format: [merges.txt]
+      $description: "The tokenizer's merges."
+    tokenizer_config:
+      $format: [tokenizer_config.json]
+      $description: "The tokenizer's added tokens."
+    codec:
+      $format: [safetensors]
+      $description: "The 12 Hz codec: its decoder under `decoder.`, its encoder under `encoder.`."
+    codec_config:
+      $format: [json]
+      $description: "The codec's `config.json`: its `decoder_config` and its output sample rate."

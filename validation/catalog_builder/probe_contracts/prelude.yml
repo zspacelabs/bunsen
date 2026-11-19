@@ -76,6 +76,17 @@ translate:
   $kind: tag
   $type: $bool
   $description: it can translate.
+instruction:
+  $kind: tag
+  $type: $bool
+  $description: it takes a style instruction with the text it speaks.
+language_keys:
+  $kind: tag
+  $type:
+    $map: $text
+  $description: >-
+    the languages a request names, by the model's own keys, each to the BCP 47 tag it
+    speaks.
 template_class_root:
   $kind: template_class
   $description: The root of every template-class chain.

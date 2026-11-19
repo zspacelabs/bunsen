@@ -1,0 +1,255 @@
+# The qwen3_tts kit's builds: a probe-contract source of the built-in catalog.
+$description: The Qwen3-TTS text-to-speech checkpoints bunsen knows by name.
+qwen:
+  $kind: namespace
+  $merge: update
+  qwen3-tts:
+    $kind: namespace
+    $facet: family
+    $description: >-
+      Qwen's Qwen3-TTS text-to-speech models (the 12 Hz line): a talker over the first of
+      sixteen audio codebooks, a code predictor for the rest, and the 12 Hz codec's decoder,
+      as Qwen's repositories ship them.
+    $requires:
+      - language
+      - language_keys
+      - parameters
+      - instruction
+    qwen3-tts-12hz-0.6b-customvoice:
+      $kind: build
+      $description: >-
+        Qwen3-TTS-12Hz-0.6B-CustomVoice: 9 stock voices in 10 languages and two Chinese
+        dialects, 24 kHz speech; no style instruction.
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+      $contract: qwen3-tts
+      parameters: 600000000
+      instruction: false
+      language:
+        - zh
+        - en
+        - de
+        - it
+        - pt
+        - es
+        - ja
+        - ko
+        - fr
+        - ru
+      language_keys:
+        chinese: zh
+        english: en
+        german: de
+        italian: it
+        portuguese: pt
+        spanish: es
+        japanese: ja
+        korean: ko
+        french: fr
+        russian: ru
+        beijing_dialect: zh
+        sichuan_dialect: zh
+      $hub:
+        $repo: Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice
+        $revision: 85e237c12c027371202489a0ec509ded67b5e4b5
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        generation_config: generation_config
+        vocab: vocab
+        merges: merges
+        tokenizer_config: tokenizer_config
+        codec: codec
+        codec_config: codec_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+      vocab:
+        $kind: resource
+        $file: vocab.json
+        $format: vocab.json
+      merges:
+        $kind: resource
+        $file: merges.txt
+        $format: merges.txt
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      codec:
+        $kind: resource
+        $file: speech_tokenizer/model.safetensors
+        $format: safetensors
+        # The codec is f32: not the model's bfloat16.
+        $dtype: float32
+      codec_config:
+        $kind: resource
+        $file: speech_tokenizer/config.json
+        $format: json
+    qwen3-tts-12hz-1.7b-customvoice:
+      $kind: build
+      $description: >-
+        Qwen3-TTS-12Hz-1.7B-CustomVoice: 9 stock voices in 10 languages and two Chinese
+        dialects, 24 kHz speech, steered by a style instruction.
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+      $contract: qwen3-tts
+      parameters: 1700000000
+      instruction: true
+      language:
+        - zh
+        - en
+        - de
+        - it
+        - pt
+        - es
+        - ja
+        - ko
+        - fr
+        - ru
+      language_keys:
+        chinese: zh
+        english: en
+        german: de
+        italian: it
+        portuguese: pt
+        spanish: es
+        japanese: ja
+        korean: ko
+        french: fr
+        russian: ru
+        beijing_dialect: zh
+        sichuan_dialect: zh
+      $hub:
+        $repo: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice
+        $revision: 0c0e3051f131929182e2c023b9537f8b1c68adfe
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        generation_config: generation_config
+        vocab: vocab
+        merges: merges
+        tokenizer_config: tokenizer_config
+        codec: codec
+        codec_config: codec_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+      vocab:
+        $kind: resource
+        $file: vocab.json
+        $format: vocab.json
+      merges:
+        $kind: resource
+        $file: merges.txt
+        $format: merges.txt
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      codec:
+        $kind: resource
+        $file: speech_tokenizer/model.safetensors
+        $format: safetensors
+        # The codec is f32: not the model's bfloat16.
+        $dtype: float32
+      codec_config:
+        $kind: resource
+        $file: speech_tokenizer/config.json
+        $format: json
+    qwen3-tts-12hz-1.7b-voicedesign:
+      $kind: build
+      $description: >-
+        Qwen3-TTS-12Hz-1.7B-VoiceDesign: a voice from a description, in 10 languages, 24 kHz
+        speech; no stock voices.
+      $license: Apache-2.0
+      $origin: https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+      $contract: qwen3-tts
+      parameters: 1700000000
+      instruction: true
+      language:
+        - zh
+        - en
+        - de
+        - it
+        - pt
+        - es
+        - ja
+        - ko
+        - fr
+        - ru
+      language_keys:
+        chinese: zh
+        english: en
+        german: de
+        italian: it
+        portuguese: pt
+        spanish: es
+        japanese: ja
+        korean: ko
+        french: fr
+        russian: ru
+      $hub:
+        $repo: Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign
+        $revision: 5ecdb67327fd37bb2e042aab12ff7391903235d3
+      $resources:
+        checkpoint: checkpoint
+        config: config
+        generation_config: generation_config
+        vocab: vocab
+        merges: merges
+        tokenizer_config: tokenizer_config
+        codec: codec
+        codec_config: codec_config
+      checkpoint:
+        $kind: resource
+        $file: model.safetensors
+        $format: safetensors
+      config:
+        $kind: resource
+        $file: config.json
+        $format: json
+      generation_config:
+        $kind: resource
+        $file: generation_config.json
+        $format: generation_config.json
+      vocab:
+        $kind: resource
+        $file: vocab.json
+        $format: vocab.json
+      merges:
+        $kind: resource
+        $file: merges.txt
+        $format: merges.txt
+      tokenizer_config:
+        $kind: resource
+        $file: tokenizer_config.json
+        $format: tokenizer_config.json
+      codec:
+        $kind: resource
+        $file: speech_tokenizer/model.safetensors
+        $format: safetensors
+        # The codec is f32: not the model's bfloat16.
+        $dtype: float32
+      codec_config:
+        $kind: resource
+        $file: speech_tokenizer/config.json
+        $format: json
