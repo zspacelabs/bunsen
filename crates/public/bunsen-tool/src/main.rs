@@ -3,7 +3,8 @@
 //! `bunsen-tool tts` is text to speech with ZONOS3-Mini;
 //! `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or nanochat
 //! checkpoint; `bunsen-tool decide` answers typed questions about a context
-//! with a Laya decision model; `bunsen-tool cache <path|list|clear>` manages
+//! with a Laya decision model; `bunsen-tool text` normalizes text on its own;
+//! `bunsen-tool cache <path|list|clear>` manages
 //! the weights cache every command loads through; `bunsen-tool summary` lists
 //! the builds it runs, in brief; `bunsen-tool catalog` imports
 //! build catalogs, and dumps, browses, resolves and selects over them.
@@ -26,6 +27,7 @@ use bunsen_tool::{
     devices::DevicesCommand,
     summary::SummaryCommand,
     support::did_you_mean,
+    text::TextCommandGroup,
 };
 use clap::{
     ArgMatches,
@@ -40,7 +42,8 @@ use clap::{
 /// spoke when; `bunsen-tool tts` is text to speech with ZONOS3-Mini;
 /// `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
 /// nanochat checkpoint; `bunsen-tool decide` answers typed questions about a
-/// context with a Laya decision model; `bunsen-tool cache` manages the weights
+/// context with a Laya decision model; `bunsen-tool text` normalizes text on
+/// its own; `bunsen-tool cache` manages the weights
 /// cache every command loads through; `bunsen-tool summary` lists the builds
 /// it runs, in brief; `bunsen-tool devices` lists the backends
 /// and their devices; `bunsen-tool catalog` browses, resolves and selects over
@@ -80,6 +83,12 @@ enum Command {
     /// (`decide run`), one result per question out; and the checkpoints
     /// (`decide list`, `decide fetch`).
     Decide(DecideCommandGroup),
+
+    /// Text normalization on its own: what TTS speaks and WER compares.
+    ///
+    /// A text through normalizers in order, to stdout (`text normalize`), and
+    /// the normalizers this build has (`text normalizers`).
+    Text(TextCommandGroup),
 
     /// The weights cache every command loads through.
     ///
@@ -158,6 +167,7 @@ fn run(
         Command::Tts(cmd) => cmd.run(leaf(matches)),
         Command::Chat(cmd) => cmd.run(leaf(matches)),
         Command::Decide(cmd) => cmd.run(leaf(matches)),
+        Command::Text(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
         Command::Catalog(cmd) => cmd.run(
             matches

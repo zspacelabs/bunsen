@@ -1,7 +1,9 @@
 //! [`TextNormalizationConfig`]: the built-in normalizers, as config.
 
 use alloc::{
+    format,
     sync::Arc,
+    vec,
     vec::Vec,
 };
 
@@ -14,7 +16,12 @@ use super::{
     TranscriptTextNormalizer,
     ZyphraNormalizationConfig,
 };
-use crate::errors::BunsenResult;
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+    LookupError,
+    sys_at,
+};
 
 /// A text normalizer bunsen ships, as config: what a catalog row, a preset or
 /// a file names, and [`init`](Self::init) builds.
@@ -85,7 +92,142 @@ impl TokenizersSpec {
     }
 }
 
+/// A normalizer [`TextNormalizationConfig::parse_spec`] names, and whether
+/// this build has it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TextNormalizerInfo {
+    /// Its spec: `zyphra`, `tokenizers:<TYPE|JSON>`.
+    pub spec: &'static str,
+
+    /// What it does.
+    pub description: &'static str,
+
+    /// The bunsen feature it needs, if any.
+    pub feature: Option<&'static str>,
+
+    /// Whether this build has it.
+    pub available: bool,
+}
+
 impl TextNormalizationConfig {
+    /// The normalizers a spec names ([`parse_spec`](Self::parse_spec)), and
+    /// which of them this build has.
+    pub fn builtins() -> Vec<TextNormalizerInfo> {
+        vec![
+            TextNormalizerInfo {
+                spec: "none",
+                description: "the text as written",
+                feature: None,
+                available: true,
+            },
+            TextNormalizerInfo {
+                spec: "collapse-line-breaks",
+                description: "line breaks, tabs and other whitespace runs to one space",
+                feature: None,
+                available: true,
+            },
+            TextNormalizerInfo {
+                spec: "transcript",
+                description: "lowercase, punctuation dropped, one space between words: what word \
+                              error rates compare",
+                feature: None,
+                available: true,
+            },
+            TextNormalizerInfo {
+                spec: "zyphra",
+                description: "Zyphra's normalizer: numbers, money and dates spoken, by the \
+                              language's grammar, in 43 languages (needs a language)",
+                feature: Some("zyphra-textnorm"),
+                available: cfg!(feature = "zyphra-textnorm"),
+            },
+            TextNormalizerInfo {
+                spec: "tokenizers:<TYPE|JSON>",
+                description: "a `tokenizers` normalizer, in `tokenizer.json`'s syntax: \
+                              `tokenizers:NFKC`, or a spec's JSON",
+                feature: Some("tokenizer"),
+                available: cfg!(feature = "tokenizer"),
+            },
+            TextNormalizerInfo {
+                spec: "tokenizer-json:<PATH>",
+                description: "the `normalizer` of a `tokenizer.json`: a model's own",
+                feature: Some("tokenizer"),
+                available: cfg!(feature = "tokenizer"),
+            },
+            TextNormalizerInfo {
+                spec: "<FILE>.json",
+                description: "a `TextNormalizationConfig`, as JSON",
+                feature: None,
+                available: true,
+            },
+        ]
+    }
+
+    /// The config a short spec names, as a command line takes one:
+    ///
+    /// - `none`, `collapse-line-breaks`, `transcript`, `zyphra`: those
+    ///   normalizers, with their defaults;
+    /// - `tokenizers:NFKC`: a `tokenizers` normalizer of that type, or
+    ///   `tokenizers:{...}`, one in `tokenizer.json`'s syntax;
+    /// - `tokenizer-json:PATH`: a `tokenizer.json`'s `normalizer`;
+    /// - `FILE.json`: a config, as JSON.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for an unknown
+    /// name, naming the known;
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a spec's JSON
+    /// that does not parse; a file's read or parse.
+    pub fn parse_spec(spec: &str) -> BunsenResult<Self> {
+        if let Some(kind) = spec.strip_prefix("tokenizers:") {
+            let value = if kind.trim_start().starts_with('{') {
+                serde_json::from_str(kind).map_err(|error| {
+                    BunsenError::illegal(format!("{spec:?}: not a JSON normalizer spec: {error}"))
+                })?
+            } else {
+                serde_json::json!({ "type": kind })
+            };
+            return Ok(Self::Tokenizers(TokenizersSpec::Spec(value)));
+        }
+        if let Some(path) = spec.strip_prefix("tokenizer-json:") {
+            return Ok(Self::Tokenizers(TokenizersSpec::TokenizerJson(path.into())));
+        }
+        if spec.ends_with(".json") {
+            let text = std::fs::read_to_string(spec).map_err(sys_at("read", spec))?;
+            return serde_json::from_str(&text).map_err(|error| {
+                BunsenError::invalid_resource(format!(
+                    "{spec} is not a text normalization config: {error}"
+                ))
+            });
+        }
+        match spec {
+            "none" => Ok(Self::None),
+            "collapse-line-breaks" => Ok(Self::CollapseLineBreaks),
+            "transcript" => Ok(Self::Transcript),
+            "zyphra" => Ok(Self::Zyphra(ZyphraNormalizationConfig::new())),
+            _ => Err(BunsenError::lookup(
+                LookupError::missing("text normalizer", spec)
+                    .with_candidates(Self::builtins().iter().map(|info| info.spec)),
+            )),
+        }
+    }
+
+    /// The config `specs` name, in order ([`parse_spec`](Self::parse_spec)):
+    /// one spec's own, several as a [`Chain`](Self::Chain), none as
+    /// [`None`](Self::None).
+    ///
+    /// # Errors
+    /// The first spec's.
+    pub fn parse_specs<S: AsRef<str>>(specs: impl IntoIterator<Item = S>) -> BunsenResult<Self> {
+        let mut configs = specs
+            .into_iter()
+            .map(|spec| Self::parse_spec(spec.as_ref()))
+            .collect::<BunsenResult<Vec<_>>>()?;
+        Ok(match configs.len() {
+            0 => Self::None,
+            1 => configs.remove(0),
+            _ => Self::Chain(configs),
+        })
+    }
+
     /// The normalizer.
     ///
     /// # Errors
@@ -152,6 +294,92 @@ mod tests {
         ));
         let error = config.init().unwrap_err();
         assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn test_parse_spec() {
+        assert_eq!(
+            TextNormalizationConfig::parse_spec("zyphra").unwrap(),
+            TextNormalizationConfig::Zyphra(ZyphraNormalizationConfig::new())
+        );
+        assert_eq!(
+            TextNormalizationConfig::parse_spec("tokenizers:NFKC").unwrap(),
+            TextNormalizationConfig::Tokenizers(TokenizersSpec::Spec(
+                serde_json::json!({"type": "NFKC"})
+            ))
+        );
+        assert_eq!(
+            TextNormalizationConfig::parse_spec(
+                r#"tokenizers:{"type": "Strip", "strip_left": true, "strip_right": true}"#
+            )
+            .unwrap(),
+            TextNormalizationConfig::Tokenizers(TokenizersSpec::Spec(
+                serde_json::json!({"type": "Strip", "strip_left": true, "strip_right": true})
+            ))
+        );
+        assert_eq!(
+            TextNormalizationConfig::parse_spec("tokenizer-json:/m/tokenizer.json").unwrap(),
+            TextNormalizationConfig::Tokenizers(TokenizersSpec::TokenizerJson(
+                "/m/tokenizer.json".into()
+            ))
+        );
+        let error = TextNormalizationConfig::parse_spec("zyfra").unwrap_err();
+        assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Lookup);
+        assert!(error.to_string().contains("zyfra"), "{error}");
+        let error = TextNormalizationConfig::parse_spec("tokenizers:{nope").unwrap_err();
+        assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Illegal);
+    }
+
+    #[test]
+    fn test_parse_spec_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("norm.json");
+        let config = TextNormalizationConfig::Chain(vec![
+            TextNormalizationConfig::CollapseLineBreaks,
+            TextNormalizationConfig::Transcript,
+        ]);
+        std::fs::write(&path, serde_json::to_string(&config).unwrap()).unwrap();
+        assert_eq!(
+            TextNormalizationConfig::parse_spec(path.to_str().unwrap()).unwrap(),
+            config
+        );
+        let error =
+            TextNormalizationConfig::parse_spec(dir.path().join("missing.json").to_str().unwrap())
+                .unwrap_err();
+        assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Lookup);
+    }
+
+    #[test]
+    fn test_parse_specs() {
+        assert_eq!(
+            TextNormalizationConfig::parse_specs::<&str>([]).unwrap(),
+            TextNormalizationConfig::None
+        );
+        assert_eq!(
+            TextNormalizationConfig::parse_specs(["transcript"]).unwrap(),
+            TextNormalizationConfig::Transcript
+        );
+        assert_eq!(
+            TextNormalizationConfig::parse_specs(["collapse-line-breaks", "transcript"]).unwrap(),
+            TextNormalizationConfig::Chain(vec![
+                TextNormalizationConfig::CollapseLineBreaks,
+                TextNormalizationConfig::Transcript,
+            ])
+        );
+    }
+
+    #[test]
+    fn test_builtins() {
+        let builtins = TextNormalizationConfig::builtins();
+        let zyphra = builtins.iter().find(|info| info.spec == "zyphra").unwrap();
+        assert_eq!(zyphra.available, cfg!(feature = "zyphra-textnorm"));
+        // Every plain name parses.
+        for info in builtins
+            .iter()
+            .filter(|info| !info.spec.contains(['<', ':']))
+        {
+            TextNormalizationConfig::parse_spec(info.spec).unwrap();
+        }
     }
 
     #[test]
