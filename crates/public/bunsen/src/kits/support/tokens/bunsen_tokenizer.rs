@@ -123,6 +123,69 @@ impl BunsenTokenizer {
         Ok(Self::new(tokenizer))
     }
 
+    /// Builds a `transformers` `Qwen2Tokenizer` checkpoint's tokenizer from
+    /// its slow files, as `transformers`' `Qwen2Converter` builds the fast
+    /// one, for a repository that ships no `tokenizer.json` (Qwen3-TTS's):
+    /// the byte-level BPE of `vocab.json` and `merges.txt` (no unknown token,
+    /// no byte fallback), an NFC normalizer, Qwen's `Split`
+    /// ([`QWEN2_SPLIT_PATTERN`], isolated) then a `ByteLevel` pre-tokenizer
+    /// without its own regex or a prefix space, a `ByteLevel` decoder; then
+    /// `tokenizer_config.json`'s added tokens, each at its id.
+    ///
+    /// The files are read by the `tokenizers` crate's own BPE reader.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// when a file cannot be read or does not parse; as
+    /// [`from_json_with_config`](Self::from_json_with_config) for the added
+    /// tokens.
+    pub fn from_qwen2_files(
+        vocab_json: &Path,
+        merges_txt: &Path,
+        tokenizer_config_json: &Path,
+    ) -> BunsenResult<Self> {
+        use tokenizers::{
+            decoders::byte_level::ByteLevel as ByteLevelDecoder,
+            models::bpe::BPE,
+            normalizers::unicode::NFC,
+            pre_tokenizers::{
+                byte_level::ByteLevel,
+                sequence::Sequence,
+                split::{
+                    Split,
+                    SplitPattern,
+                },
+            },
+        };
+
+        let path = |p: &Path| {
+            p.to_str().map(str::to_owned).ok_or_else(|| {
+                BunsenError::invalid_resource(format!("a path that is not UTF-8: {}", p.display()))
+            })
+        };
+        let bpe = BPE::from_file(&path(vocab_json)?, &path(merges_txt)?)
+            .build()
+            .map_err(|e| tokenizers_error("a vocab.json and merges.txt", e))
+            .map_err(|e| e.context(vocab_json.display()))?;
+        let split = Split::new(
+            SplitPattern::Regex(QWEN2_SPLIT_PATTERN.into()),
+            tokenizers::SplitDelimiterBehavior::Isolated,
+            false,
+        )
+        .map_err(|e| tokenizers_error("Qwen's split pattern", e))?;
+        let byte_level = ByteLevel::new(false, false, false);
+        let mut tokenizer = tokenizers::Tokenizer::new(bpe);
+        tokenizer
+            .with_normalizer(Some(NFC))
+            .with_pre_tokenizer(Some(Sequence::new(vec![split.into(), byte_level.into()])))
+            .with_decoder(Some(ByteLevelDecoder::new(false, false, false)));
+        let config = std::fs::read_to_string(tokenizer_config_json)
+            .map_err(sys_at("read", tokenizer_config_json))?;
+        add_config_tokens(&mut tokenizer, &config)
+            .map_err(|e| e.context(tokenizer_config_json.display()))?;
+        Ok(Self::new(tokenizer))
+    }
+
     fn new(tokenizer: tokenizers::Tokenizer) -> Self {
         let mut plain = tokenizer.clone();
         plain.set_encode_special_tokens(true);
@@ -142,6 +205,11 @@ impl BunsenTokenizer {
         Ok(encoding.get_ids().iter().map(|&id| i64::from(id)).collect())
     }
 }
+
+/// Qwen's pre-tokenizer split, `transformers`' `Qwen2Tokenizer`'s
+/// `PRETOKENIZE_REGEX`: contractions, letter runs (one leading
+/// non-letter), single digits, punctuation runs, line breaks, other space.
+pub const QWEN2_SPLIT_PATTERN: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
 
 /// Refuses a `tokenizer.json` whose added tokens did not load at their ids:
 /// the `tokenizers` crate gives them ids in order after the model's
@@ -306,6 +374,59 @@ mod tests {
             toy_sentencepiece_json,
         },
     };
+
+    /// A `Qwen2Tokenizer` checkpoint's slow files (the toy byte-level
+    /// tokenizer's vocabulary and merges, and its added tokens in a
+    /// `tokenizer_config.json`) build the tokenizer its `tokenizer.json`
+    /// is: the same ids for text, specials and line breaks, and the same
+    /// text back.
+    #[test]
+    fn test_qwen2_files_are_the_tokenizer_json() {
+        let json: Value = serde_json::from_str(&toy_byte_level_json()).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, contents: String| {
+            let path = dir.path().join(name);
+            std::fs::write(&path, contents).unwrap();
+            path
+        };
+        let vocab = write("vocab.json", json["model"]["vocab"].to_string());
+        let merges = write(
+            "merges.txt",
+            json["model"]["merges"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| format!("{}\n", m.as_str().unwrap()))
+                .collect(),
+        );
+        let added: serde_json::Map<String, Value> = json["added_tokens"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|t| (t["id"].to_string(), t.clone()))
+            .collect();
+        let config = write(
+            "tokenizer_config.json",
+            serde_json::json!({ "added_tokens_decoder": added }).to_string(),
+        );
+
+        let built = BunsenTokenizer::from_qwen2_files(&vocab, &merges, &config).unwrap();
+        let expected = BunsenTokenizer::from_json(&toy_byte_level_json()).unwrap();
+        assert_eq!(built.len(), expected.len());
+        for text in [
+            "<|im_start|>assistant\nhello world<|im_end|>\n",
+            "\n\nhello  w",
+            "héllo, wörld! 123",
+        ] {
+            let ids = built.encode(text).unwrap();
+            assert_eq!(ids, expected.encode(text).unwrap(), "{text:?}");
+            assert_eq!(built.detokenize(&ids).unwrap(), text);
+        }
+        assert_eq!(built.token_id("<|im_end|>"), Some(301));
+
+        let missing = dir.path().join("nothing.json");
+        assert!(BunsenTokenizer::from_qwen2_files(&missing, &merges, &config).is_err());
+    }
 
     /// Special tokens' spellings are tokens in a rendered prompt and text
     /// under `encode_plain`; a character the vocabulary lacks falls back to
