@@ -49,6 +49,9 @@ pub struct Zonos3Construct {
     /// The stock voices, by name.
     pub voices: BTreeMap<String, Zonos3Voice>,
 
+    /// The conditions a prompt carries, in table order.
+    pub conditions: Vec<super::prompt::Zonos3Condition>,
+
     /// The `tokenizer.json`: ids already offset past the four special ids
     /// ([`zonos3_text_ids`](super::prompt::zonos3_text_ids)).
     pub tokenizer: PathBuf,

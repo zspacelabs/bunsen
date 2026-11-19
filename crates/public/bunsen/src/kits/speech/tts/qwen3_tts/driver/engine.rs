@@ -40,6 +40,7 @@ use crate::{
                 Qwen3TtsConstruct,
                 Qwen3TtsModelKind,
                 Qwen3TtsStop,
+                Qwen3TtsTakeConfig,
                 codec::{
                     QWEN3_TTS_DECODE_CHUNK,
                     QWEN3_TTS_DECODE_CONTEXT,
@@ -91,6 +92,12 @@ pub struct Qwen3TtsEngineConfig {
     /// `non_streaming_mode`, its default) or interleaved with the frames.
     #[config(default = "Qwen3TtsTextPlacement::Upfront")]
     pub placement: Qwen3TtsTextPlacement,
+
+    /// The take's settings (its samplers, its frame bounds); `None`, the
+    /// release's ([`Qwen3TtsConstruct::take`]). A request's sampling
+    /// overrides lay over the talker's either way.
+    #[config(default = "None")]
+    pub take: Option<Qwen3TtsTakeConfig>,
 
     /// The frames the codec decodes at once.
     #[config(default = "QWEN3_TTS_DECODE_CHUNK")]
@@ -341,7 +348,11 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Qwen3TtsEngine<T> {
         if sampling.min_p.is_some() {
             return Err(BunsenError::unsupported("Qwen3-TTS's sampler has no min-p"));
         }
-        let mut config = self.construct.take.clone();
+        let mut config = self
+            .config
+            .take
+            .clone()
+            .unwrap_or_else(|| self.construct.take.clone());
         let talker = &mut config.talker;
         if let Some(t) = sampling.temperature {
             talker.temperature = t;

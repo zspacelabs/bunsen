@@ -176,6 +176,10 @@ fn construct() -> Zonos3Construct {
         generation,
         sample_rate: 44_100,
         voices,
+        conditions: vec![crate::kits::speech::tts::zonos3::prompt::Zonos3Condition {
+            name: "rate".into(),
+            edges: vec![1.0, 2.0],
+        }],
         tokenizer: PathBuf::new(),
     }
 }
@@ -257,6 +261,29 @@ fn test_refusals() {
         .generate_codes(&Zonos3Request::new(long, Zonos3Speaker::None))
         .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Illegal);
+}
+
+/// A condition's value is bucketed by its edges, in table order; one not
+/// given is the unknown bucket; one the release does not have is refused.
+#[test]
+fn test_conditions() {
+    let engine = engine(Zonos3EngineConfig::new());
+    assert_eq!(engine.condition_buckets, [None]);
+    for (value, bucket) in [(0.5, 0), (1.0, 1), (1.5, 1), (2.5, 2)] {
+        let engine = self::engine(
+            Zonos3EngineConfig::new().with_conditions(BTreeMap::from([("rate".into(), value)])),
+        );
+        assert_eq!(engine.condition_buckets, [Some(bucket)], "{value}");
+    }
+    let error = Zonos3Engine::new(
+        Arc::new(construct()),
+        Bytes,
+        Zonos3EngineConfig::new()
+            .with_default_voice("Toy".to_string())
+            .with_conditions(BTreeMap::from([("pitch".into(), 1.0)])),
+    )
+    .unwrap_err();
+    assert_eq!(error.kind(), BunsenErrorKind::Lookup);
 }
 
 #[test]

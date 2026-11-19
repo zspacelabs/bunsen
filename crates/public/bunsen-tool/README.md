@@ -725,10 +725,10 @@ ZONOS3-Mini is the default. `--family` limits the choice to one family, and name
 resampled to its rate, every channel the same. Playback starts once the speech is synthesized; Ctrl-C stops it.
 
 The text is normalized first, as the model's release normalizes it (`--normalize release`, the default): ZONOS3's
-release speaks numbers, money, dates and the like (`$12.50` as "twelve dollars fifty cents") through Zyphra's
-normalizer, in the language's grammar; Qwen3-TTS's speaks the text as typed. `--normalize zyphra` runs Zyphra's
-normalizer for either, and `--normalize none` speaks the text as typed (ZONOS3's line breaks collapsed).
-`bunsen-tool text normalize` runs the same normalizers on their own. A long text is spoken as several takes, split at
+release collapses line breaks, then speaks numbers, money, dates and the like (`$12.50` as "twelve dollars fifty
+cents") through Zyphra's normalizer, in the language's grammar; Qwen3-TTS's speaks the text as typed. Otherwise
+`--normalize` takes normalizers by spec, as `bunsen-tool text normalize` does (`none`, `collapse-line-breaks`, `zyphra`,
+`tokenizers:NFKC`, `FILE.json`, ...); repeated, they run in order. A long text is spoken as several takes, split at
 its sentences (about 20 seconds each) and joined by a short pause; `--no-split` speaks it as one.
 
 `--voice` picks the stock voice: ZONOS3's `Savannah` by default; Qwen3-TTS has no default speaker, and its names match
@@ -744,7 +744,10 @@ It reads only the voices' files (ZONOS3's `voices.safetensors` and `voices.json`
 asking; without a terminal to ask on, it says to pass `--yes`).
 
 Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them (Qwen3-TTS's for its
-talker), and `--max-seconds` caps each take. A take is sampled, so each run differs; `--seed` repeats one on the same
+talker), and `--max-seconds` caps each take. Each family also reads flags of its own, and refuses another's:
+ZONOS3's `--condition NAME=VALUE` (`loudness`, `fmax` or `speaking_rate`, bucketed by the release's edges; repeated)
+and `--silence-prefill-frames`; Qwen3-TTS's `--placement upfront|interleaved` (where the text goes in the prompt) and
+`--predictor-temperature`, `--predictor-top-k` and `--predictor-top-p` (its code predictor's sampling). A take is sampled, so each run differs; `--seed` repeats one on the same
 device, and the seed is printed with the speech. A model loads at the precision it ships in where the device
 accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere).
 

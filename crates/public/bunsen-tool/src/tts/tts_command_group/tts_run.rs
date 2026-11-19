@@ -48,24 +48,10 @@ use crate::{
     },
     tts::{
         TtsFamily,
+        TtsFamilyArgs,
         choose_tts_model,
     },
 };
-
-/// How `tts run` normalizes its text, as `--normalize` takes it.
-#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TtsNormalize {
-    /// The model's release's: ZONOS3's Zyphra normalizer (numbers, money
-    /// and dates spoken), Qwen3-TTS's text as typed.
-    Release,
-
-    /// Zyphra's normalizer, line breaks collapsed first.
-    Zyphra,
-
-    /// The text as typed (for ZONOS3, line breaks collapsed: its prompt has
-    /// no place for them).
-    None,
-}
 
 /// Speaks a text, to a WAV file.
 #[derive(clap::Args, Debug)]
@@ -140,9 +126,20 @@ pub struct TtsRunCommand {
     #[arg(long)]
     seed: Option<u64>,
 
-    /// How the text is normalized before it is spoken.
-    #[arg(long, value_enum, default_value_t = TtsNormalize::Release)]
-    normalize: TtsNormalize,
+    /// How the text is normalized: `release` (the default), or specs, in order.
+    ///
+    /// `release` is the model's release's; a spec names a normalizer, as
+    /// `text normalize` takes them, and repeated they run in order. The
+    /// release's is ZONOS3's Zyphra normalizer (line breaks collapsed,
+    /// then numbers, money and dates spoken), Qwen3-TTS's the text as typed.
+    /// A spec: `none`, `collapse-line-breaks`, `zyphra`, `tokenizers:NFKC`,
+    /// `FILE.json`, ... (`text normalizers` lists them).
+    #[arg(long = "normalize", value_name = "SPEC")]
+    normalizers: Vec<String>,
+
+    /// The flags of one family's engine.
+    #[clap(flatten)]
+    family_flags: TtsFamilyArgs,
 
     /// The text's language, as one of the model's keys.
     ///
@@ -223,7 +220,8 @@ impl TtsRunCommand {
             &cache,
             &device,
             self.precision.load_policy(),
-            self.driver_config(family),
+            self.driver_config(family)?,
+            &self.family_flags,
         )?;
 
         let seed = self.seed.unwrap_or_else(clock_seed);
@@ -316,22 +314,22 @@ impl TtsRunCommand {
 
     /// The driver's config for `family`: the flags' normalization,
     /// splitting and instruction stripping.
+    ///
+    /// # Errors
+    /// A spec's, as [`TextNormalizationConfig::parse_specs`] reads it.
     fn driver_config(
         &self,
         family: TtsFamily,
-    ) -> TtsDriverConfig {
-        let normalization = match self.normalize {
-            TtsNormalize::Release => family.release_normalization(),
-            TtsNormalize::Zyphra => TtsFamily::Zonos3.release_normalization(),
-            TtsNormalize::None => match family {
-                TtsFamily::Zonos3 => TextNormalizationConfig::CollapseLineBreaks,
-                TtsFamily::Qwen3Tts => TextNormalizationConfig::None,
-            },
+    ) -> BunsenResult<TtsDriverConfig> {
+        let normalization = match self.normalizers.as_slice() {
+            [] => family.release_normalization(),
+            [only] if only == "release" => family.release_normalization(),
+            specs => TextNormalizationConfig::parse_specs(specs)?,
         };
-        TtsDriverConfig::new()
+        Ok(TtsDriverConfig::new()
             .with_normalization(normalization)
             .with_split(!self.no_split)
-            .with_strip_instruction(self.strip_instruction)
+            .with_strip_instruction(self.strip_instruction))
     }
 }
 
@@ -414,20 +412,30 @@ mod tests {
         assert!(Cli::try_parse_from(["tts", "--voice", "a", "--describe", "b", "x"]).is_err());
     }
 
-    /// The driver's config: each family's release normalization by default,
-    /// Zyphra's or none on request; splitting unless `--no-split`; stripping
-    /// on request.
+    /// The driver's config: each family's release normalization by default
+    /// (or `release`), specs in order otherwise; splitting unless
+    /// `--no-split`; stripping on request.
     #[test]
     fn test_driver_config() {
         let run = cli(&["-o", "o.wav", "Hi"]);
-        let zonos3 = run.driver_config(TtsFamily::Zonos3);
+        let zonos3 = run.driver_config(TtsFamily::Zonos3).unwrap();
         assert_eq!(
             zonos3.normalization,
             TtsFamily::Zonos3.release_normalization()
         );
         assert!(zonos3.split && !zonos3.strip_instruction);
         assert_eq!(
-            run.driver_config(TtsFamily::Qwen3Tts).normalization,
+            run.driver_config(TtsFamily::Qwen3Tts)
+                .unwrap()
+                .normalization,
+            TextNormalizationConfig::None
+        );
+        let release = cli(&["-o", "o.wav", "--normalize", "release", "Hi"]);
+        assert_eq!(
+            release
+                .driver_config(TtsFamily::Qwen3Tts)
+                .unwrap()
+                .normalization,
             TextNormalizationConfig::None
         );
 
@@ -435,22 +443,21 @@ mod tests {
             "-o",
             "o.wav",
             "--normalize",
-            "none",
+            "collapse-line-breaks",
+            "--normalize",
+            "transcript",
             "--no-split",
             "--strip-instruction",
             "Hi",
         ]);
-        let config = run.driver_config(TtsFamily::Zonos3);
+        let config = run.driver_config(TtsFamily::Qwen3Tts).unwrap();
         assert_eq!(
             config.normalization,
-            TextNormalizationConfig::CollapseLineBreaks
+            TextNormalizationConfig::parse_specs(["collapse-line-breaks", "transcript"]).unwrap()
         );
         assert!(!config.split && config.strip_instruction);
-        let qwen = cli(&["-o", "o.wav", "--normalize", "zyphra", "Hi"]);
-        assert_eq!(
-            qwen.driver_config(TtsFamily::Qwen3Tts).normalization,
-            TtsFamily::Zonos3.release_normalization()
-        );
+        let bad = cli(&["-o", "o.wav", "--normalize", "no-such", "Hi"]);
+        assert!(bad.driver_config(TtsFamily::Zonos3).is_err());
     }
 
     #[test]

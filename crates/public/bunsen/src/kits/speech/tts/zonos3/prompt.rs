@@ -80,6 +80,17 @@ pub fn unshear(
         .collect()
 }
 
+/// One condition a prompt row carries (`loudness`, `fmax`,
+/// `speaking_rate`): its name, and the edges its values are bucketed by.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Zonos3Condition {
+    /// Its name, as the release names it.
+    pub name: String,
+
+    /// Its bucket edges, ascending ([`condition_bucket`]).
+    pub edges: Vec<f64>,
+}
+
 /// The bucket of a condition's value: how many of its ascending `edges`
 /// are at or below it (`bisect_right`).
 pub fn condition_bucket(
