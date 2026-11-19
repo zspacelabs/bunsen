@@ -23,10 +23,13 @@ use burn::{
     tensor::FloatDType,
 };
 
-use super::stack::{
-    DecoderStack,
-    DecoderStackMeta,
-    UniformStackConfig,
+use super::{
+    causal::CausalDecoderBlockMeta,
+    stack::{
+        DecoderStack,
+        DecoderStackMeta,
+        UniformStackConfig,
+    },
 };
 use crate::{
     blocks::transformers::embedding::RotarySet,
@@ -65,16 +68,14 @@ pub struct DepthDecoderConfig {
     /// The width of the rows it is given and of its tables: the backbone's.
     pub input_width: usize,
 
-    /// Its stack's width.
-    pub width: usize,
-
     /// The codebooks it predicts, `K`.
     pub codebooks: usize,
 
     /// Codes per codebook.
     pub vocab: usize,
 
-    /// The stack.
+    /// The stack; its layers' width is the decoder's
+    /// [`width`](DepthDecoderMeta::width).
     pub stack: UniformStackConfig,
 
     /// The dtype the logits leave in; `None`, the model's.
@@ -88,7 +89,7 @@ impl DepthDecoderMeta for DepthDecoderConfig {
     }
 
     fn width(&self) -> usize {
-        self.width
+        self.stack.layer.n_embed()
     }
 
     fn codebooks(&self) -> usize {
@@ -105,16 +106,17 @@ impl ModuleInit<DepthDecoder> for DepthDecoderConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<DepthDecoder> {
+        let width = self.width();
         Ok(DepthDecoder {
-            input_proj: (self.input_width != self.width)
-                .then(|| LinearConfig::new(self.input_width, self.width).init(device)),
+            input_proj: (self.input_width != width)
+                .then(|| LinearConfig::new(self.input_width, width).init(device)),
             stack: self.stack.try_init(device)?,
             tables: (0..self.codebooks)
                 .map(|_| EmbeddingConfig::new(self.vocab, self.input_width).init(device))
                 .collect(),
             heads: (0..self.codebooks)
                 .map(|_| {
-                    LinearConfig::new(self.width, self.vocab)
+                    LinearConfig::new(width, self.vocab)
                         .with_bias(false)
                         .init(device)
                 })
@@ -356,7 +358,6 @@ mod tests {
         .with_norm(norm.clone());
         DepthDecoderConfig::new(
             input_width,
-            width,
             3,
             7,
             UniformStackConfig::new(2, layer, norm, RotaryEmbeddingConfig::new(0, 4)),

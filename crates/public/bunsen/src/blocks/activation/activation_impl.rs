@@ -43,9 +43,12 @@ use super::{
     SnakeActivation,
     SnakeActivationConfig,
 };
-use crate::blocks::math::{
-    PowOpModule,
-    PowOpModuleConfig,
+use crate::{
+    blocks::math::{
+        PowOpModule,
+        PowOpModuleConfig,
+    },
+    burner::module::ModuleInit,
 };
 
 /// An [`BunsenActivation`]'s config: its kind, and that kind's config.

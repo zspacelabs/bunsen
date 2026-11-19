@@ -5,7 +5,11 @@ use burn::{
     prelude::*,
 };
 
-use crate::contracts::unpack_shape_contract;
+use crate::{
+    burner::module::ModuleInit,
+    contracts::unpack_shape_contract,
+    errors::BunsenResult,
+};
 
 /// Common meta for [`EuclideanCodebook`] and [`EuclideanCodebookConfig`].
 pub trait EuclideanCodebookMeta {
@@ -47,18 +51,18 @@ impl EuclideanCodebookMeta for EuclideanCodebookConfig {
     }
 }
 
-impl EuclideanCodebookConfig {
-    /// The codebook, on `device`: sums of zeros and usages of one (every
-    /// code the zero vector), as a codebook before training.
-    pub fn init(
+/// The codebook: sums of zeros and usages of one (every code the zero
+/// vector), as a codebook before training.
+impl ModuleInit<EuclideanCodebook> for EuclideanCodebookConfig {
+    fn try_init(
         &self,
         device: &Device,
-    ) -> EuclideanCodebook {
-        EuclideanCodebook {
+    ) -> BunsenResult<EuclideanCodebook> {
+        Ok(EuclideanCodebook {
             cluster_usage: Param::from_tensor(Tensor::ones([self.size], device)),
             embedding_sum: Param::from_tensor(Tensor::zeros([self.size, self.dim], device)),
             epsilon: self.epsilon,
-        }
+        })
     }
 }
 
