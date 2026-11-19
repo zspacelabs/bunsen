@@ -17,11 +17,18 @@
 //!   Qwen3 decoder over summed embeddings (the codec table's rows, and the text
 //!   table's through a projection), its head the next frame's first codebook;
 //!   decoded through a KV cache, a row a step.
+//! - [`code_predictor`]: the code predictor, a
+//!   [`DepthDecoder`](crate::blocks::transformers::decoders::depth::DepthDecoder)
+//!   over a frame's fifteen codebooks after the first, from the talker's hidden
+//!   state and the first codebook's embedding
+//!   ([`qwen3_tts_code_predictor_config`](code_predictor::qwen3_tts_code_predictor_config)).
 //!
 //! The codec's weights are `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s
 //! `model.safetensors`, whose `decoder.*` tensors the decoder reads as they
 //! are ([`codec::weights`]). A model's `model.safetensors` holds the talker
-//! under `talker.` ([`talker::weights`]).
+//! under `talker.` ([`talker::weights`]), its code predictor under
+//! `talker.code_predictor.` ([`code_predictor::weights`]).
 
+pub mod code_predictor;
 pub mod codec;
 pub mod talker;
