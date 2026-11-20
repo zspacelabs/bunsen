@@ -11,6 +11,8 @@
 //!   decoder fields
 //!   ([`TransformersDecoderSection`](transformers::TransformersDecoderSection)),
 //!   and the helpers a kit's `_from_str` / `_from_path` entry points wrap.
+//! - [`torch`]: `PyTorch`'s own modules' names (`nn.TransformerEncoderLayer`,
+//!   `nn.LSTM`) onto bunsen's blocks.
 //! - [`json_mirror_from_path`]: a JSON file a kit reads whole, as its typed
 //!   mirror.
 //! - [`nemo`] (feature `speech`): `NeMo`'s YAML config sections, the bunsen
@@ -36,6 +38,7 @@
 
 #[cfg(feature = "speech")]
 pub mod nemo;
+pub mod torch;
 pub mod transformers;
 
 use std::path::Path;

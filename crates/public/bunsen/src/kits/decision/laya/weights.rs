@@ -8,7 +8,6 @@ use super::{
     LayaModel,
 };
 use crate::{
-    blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock,
     burner::module::{
         CanonicalKeys,
         Rekey,
@@ -42,7 +41,7 @@ pub fn laya_config(
 /// ([`load_laya_tensors`]), onto a [`LayaModel`]'s module paths: the
 /// `ModernBERT` encoder under `encoder.`; the head's `PyTorch` encoder
 /// layers, `head.layers.N.`
-/// ([`ResidualEncoderAttentionBlock::torch_rekey`]); the type embedding;
+/// ([`transformer_encoder_layer_rekey`](crate::kits::support::interop::torch::transformer_encoder_layer_rekey)); the type embedding;
 /// the scorer's and the act head's `nn.Sequential` slots by name. Anything
 /// else is dropped: the `temperature` buffer, which calibration reads from
 /// `rl_agent_config.json` instead.
@@ -55,7 +54,7 @@ pub fn laya_rekey() -> Rekey {
         .mount_indexed(
             "head.layers.",
             "head.",
-            ResidualEncoderAttentionBlock::torch_rekey(),
+            crate::kits::support::interop::torch::transformer_encoder_layer_rekey(),
         )
         .rename("type_emb.", "type_emb.")
         .rename("scorer.0.", "scorer.norm.")
@@ -79,7 +78,7 @@ pub fn load_laya_tensors(
 ) -> BunsenResult<NamedTensorsApplied> {
     let splits: Vec<_> = modernbert_row_splits()
         .into_iter()
-        .chain(ResidualEncoderAttentionBlock::torch_row_splits())
+        .chain(crate::kits::support::interop::torch::transformer_encoder_layer_row_splits())
         .collect();
     let tensors = split_rows(tensors, &splits)?;
     let rekey = laya_rekey().then(model.canonical_rekey());

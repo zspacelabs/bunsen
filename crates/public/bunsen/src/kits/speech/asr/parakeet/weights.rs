@@ -7,7 +7,6 @@ use super::blocks::{
 };
 use crate::{
     blocks::{
-        rnn::lstm::FusedLstm,
         signals::{
             DwStridingFlattenOrder,
             DwStridingSubsamplingConfig,
@@ -82,8 +81,9 @@ pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 /// `transformers`' `ParakeetForTDT` state-dict names onto a
 /// [`ParakeetTdt`]'s module paths: the encoder by [`encoder_rekey`], the
 /// prediction network's
-/// `nn.LSTM` by [`FusedLstm::torch_stack_rekey`], the batch-norm counters
-/// dropped, and everything else as it is.
+/// `nn.LSTM` by
+/// [`lstm_stack_rekey`](crate::kits::support::interop::torch::lstm_stack_rekey),
+/// the batch-norm counters dropped, and everything else as it is.
 ///
 /// `striding` is the encoder's subsampling, a config or a built module: its
 /// stage count and flatten order fix its map.
@@ -97,7 +97,7 @@ pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
         .mount(
             "decoder.lstm.",
             "decoder.lstm.",
-            FusedLstm::torch_stack_rekey(),
+            crate::kits::support::interop::torch::lstm_stack_rekey(),
         )
         .rename("decoder.decoder_projector.", "decoder.projector.")
 }
