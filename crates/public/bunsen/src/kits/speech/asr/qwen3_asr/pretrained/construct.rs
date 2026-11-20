@@ -21,7 +21,6 @@ use crate::{
             GEOMETRY,
         },
         catalog::presets::ResolvedPresetSet,
-        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -31,24 +30,19 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::{
         speech::asr::qwen3_asr::{
-            Qwen3Asr,
             Qwen3AsrConfig,
             Qwen3AsrConstruct,
             Qwen3AsrFrontEndConfig,
             Qwen3AsrPolicy,
-            weights::{
-                load_transformers_tensors_as,
-                qwen3_asr_config_from_transformers,
+            interop::{
+                phonon,
+                transformers,
             },
         },
-        support::{
-            model_config::resolve_ref_presets,
-            tokens::ByteLevelVocabulary,
-        },
+        support::model_config::resolve_ref_presets,
     },
 };
 
@@ -79,31 +73,11 @@ impl Qwen3AsrReader {
             ))),
         }
     }
-
-    /// Reads the weights and the vocabulary.
-    fn read(
-        self,
-        loaded: &LoadedResourceSet,
-    ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ByteLevelVocabulary)> {
-        match self {
-            Self::PhononArchive => crate::kits::speech::asr::qwen3_asr::read_phonon1_archive(
-                loaded.expect(CHECKPOINT)?,
-            ),
-            Self::Safetensors => {
-                let tokenizer = loaded.expect(VOCABULARY)?;
-                let json = std::fs::read_to_string(tokenizer).map_err(sys_at("read", tokenizer))?;
-                let vocab = ByteLevelVocabulary::from_tokenizer_json(&json)
-                    .map_err(|e| e.context(tokenizer.display()))?;
-                let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-                Ok((tensors, vocab))
-            }
-        }
-    }
 }
 
 /// How a Qwen3-ASR pretrained is built: its checkpoint read by the
 /// [`Qwen3AsrReader`] its `kind` names, into the geometry its `config.json`
-/// gives ([`qwen3_asr_config_from_transformers`]), or else the prefab its row
+/// gives ([`qwen3_asr_config_from_path`](transformers::qwen3_asr_config_from_path)), or else the prefab its row
 /// names (`qwen3-asr-0.6b` when it names none), in the device's float dtype,
 /// with its vocabulary, behind a front end of the model's mel count and the
 /// default prompt and decoder.
@@ -157,26 +131,19 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
-        let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
-            Some(part) => {
-                let json =
-                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                qwen3_asr_config_from_transformers(&json)
-                    .map_err(|e| e.context(part.path.display()))?
-            }
+            Some(part) => transformers::qwen3_asr_config_from_path(&part.path)?,
             None => model
                 .stated(GEOMETRY)?
                 .unwrap_or_else(Qwen3AsrConfig::qwen3_asr_0_6b),
         };
         let n_mels = config.audio.n_mels;
-        // The stored dtype (bf16), where the policy and the device allow it;
-        // never f16, which overflows its Qwen3 text model.
-        let stored = crate::data::formats::stored_float_dtype(&tensors)
-            .unwrap_or(burn::tensor::FloatDType::F32);
-        let dtype = load.resolve(stored, device, |d| d != burn::tensor::FloatDType::F16)?;
-        let mut asr: Qwen3Asr = config.try_init(device)?;
-        load_transformers_tensors_as(&mut asr, tensors, dtype)?;
+        let (asr, vocab) = match self.reader {
+            Qwen3AsrReader::Safetensors => {
+                transformers::load_qwen3_asr(loaded, &config, device, load)?
+            }
+            Qwen3AsrReader::PhononArchive => phonon::load_qwen3_asr(loaded, &config, device, load)?,
+        };
         let policy = resolve_ref_presets(
             &Qwen3AsrPolicy::default(),
             model,

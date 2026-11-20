@@ -1,4 +1,4 @@
-//! Reading `FermionResearch`'s Phonon-1 archives.
+//! Reading a `FermionResearch` Phonon-1 archive.
 use alloc::collections::BTreeMap;
 use std::path::Path;
 
@@ -33,14 +33,14 @@ pub const PHONON_1_MANIFEST: &str = "packed_manifest.json";
 
 /// A decoder linear's shape, from the manifest's `modules`.
 #[derive(Debug, Deserialize)]
-struct ModuleShape {
+struct ModuleShapeMirror {
     name: String,
     in_features: usize,
 }
 
 /// An MLX affine-quantized tensor's packing.
 #[derive(Debug, Deserialize)]
-struct AffinePacking {
+struct AffinePackingMirror {
     name: String,
     bits: u32,
     group_size: usize,
@@ -54,28 +54,28 @@ struct AffinePacking {
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct HybridQuantization {
+struct HybridQuantizationMirror {
     #[serde(default)]
-    audio_linears: Vec<AffinePacking>,
+    audio_linears: Vec<AffinePackingMirror>,
     #[serde(default)]
-    embedding: Option<AffinePacking>,
+    embedding: Option<AffinePackingMirror>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Shard {
+struct ShardMirror {
     name: String,
 }
 
 /// `packed_manifest.json`: how a Phonon-1 checkpoint is packed.
 #[derive(Debug, Deserialize)]
-struct Phonon1Manifest {
-    modules: Vec<ModuleShape>,
+struct Phonon1ManifestMirror {
+    modules: Vec<ModuleShapeMirror>,
     #[serde(default)]
-    hybrid_quantization: Option<HybridQuantization>,
-    shards: Vec<Shard>,
+    hybrid_quantization: Option<HybridQuantizationMirror>,
+    shards: Vec<ShardMirror>,
 }
 
-impl Phonon1Manifest {
+impl Phonon1ManifestMirror {
     fn parse(json: &[u8]) -> BunsenResult<Self> {
         serde_json::from_slice(json).map_err(|e| {
             BunsenError::invalid_resource(format!("a Phonon-1 `{PHONON_1_MANIFEST}`")).with_cause(e)
@@ -83,7 +83,7 @@ impl Phonon1Manifest {
     }
 
     /// The affine packing of every MLX-quantized tensor, by module name.
-    fn affine(&self) -> BTreeMap<&str, &AffinePacking> {
+    fn affine(&self) -> BTreeMap<&str, &AffinePackingMirror> {
         let Some(hq) = &self.hybrid_quantization else {
             return BTreeMap::new();
         };
@@ -129,7 +129,7 @@ impl Phonon1Manifest {
 pub fn read_phonon1_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, ByteLevelVocabulary)> {
     let read = || -> BunsenResult<(Vec<PackTensor>, ByteLevelVocabulary)> {
         let mut archive = PhononArchive::read(path)?;
-        let manifest = Phonon1Manifest::parse(archive.expect(PHONON_1_MANIFEST)?)?;
+        let manifest = Phonon1ManifestMirror::parse(archive.expect(PHONON_1_MANIFEST)?)?;
         let text = |archive: &PhononArchive, name: &str| -> BunsenResult<String> {
             String::from_utf8(archive.expect(name)?.to_vec()).map_err(|e| {
                 BunsenError::invalid_resource(format!("`{name}` is not UTF-8")).with_cause(e)
@@ -168,7 +168,7 @@ pub fn read_phonon1_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, ByteL
 /// The dense, `transformers`-named tensors of a Phonon-1 checkpoint's stored
 /// tensors.
 fn expand_phonon1(
-    manifest: &Phonon1Manifest,
+    manifest: &Phonon1ManifestMirror,
     stored: Vec<PackTensor>,
 ) -> BunsenResult<Vec<PackTensor>> {
     let affine = manifest.affine();
@@ -351,8 +351,8 @@ mod tests {
         )
     }
 
-    fn manifest() -> Phonon1Manifest {
-        Phonon1Manifest::parse(
+    fn manifest() -> Phonon1ManifestMirror {
+        Phonon1ManifestMirror::parse(
             br#"{
                 "modules": [{"name": "model.layers.0.mlp.up_proj", "in_features": 3,
                              "out_features": 2}],
@@ -459,4 +459,29 @@ mod tests {
             "{err}"
         );
     }
+}
+
+/// The model of `loaded`'s Phonon-1 archive (its `checkpoint`), built from
+/// `config` (the catalog row's geometry: the archive has no `config.json`),
+/// and the vocabulary the archive carries; the weights in the stored dtype
+/// where `policy` and the device allow it, never f16.
+///
+/// # Errors
+/// As [`read_phonon1_archive`], and as the `transformers` loader.
+#[cfg(feature = "cache")]
+pub fn load_qwen3_asr(
+    loaded: &crate::data::resources::LoadedResourceSet,
+    config: &crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig,
+    device: &burn::tensor::Device,
+    policy: crate::data::formats::LoadPolicy,
+) -> BunsenResult<(
+    crate::kits::speech::asr::qwen3_asr::Qwen3Asr,
+    ByteLevelVocabulary,
+)> {
+    use crate::kits::speech::asr::qwen3_asr::{
+        interop::transformers::build_qwen3_asr,
+        pretrained::CHECKPOINT,
+    };
+    let (tensors, vocab) = read_phonon1_archive(loaded.expect(CHECKPOINT)?)?;
+    Ok((build_qwen3_asr(tensors, config, device, policy)?, vocab))
 }
