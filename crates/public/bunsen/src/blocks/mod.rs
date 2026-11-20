@@ -120,6 +120,8 @@
 //!     embedding.
 //!   - [`images::pool`]: `AvgPool2dSame`, average pooling with TensorFlow-style
 //!     "SAME" padding.
+//! - [`mlp`]: position-wise MLPs over any rank: `BunsenMlp`, the general form
+//!   of burn's `PositionWiseFeedForward`.
 //! - [`layout`]: `BoundaryPermutes`, the axis permutes a block applies at its
 //!   boundary, so a caller's activation layout and the block's need not agree.
 //! - [`math`]: math operations as modules: `PowOpModule`, `x^p`, the activation
@@ -155,6 +157,7 @@ pub mod conv;
 pub mod images;
 pub mod layout;
 pub mod math;
+pub mod mlp;
 pub mod norm;
 pub mod quantization;
 pub mod rnn;
