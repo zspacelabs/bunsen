@@ -1,12 +1,18 @@
-//! Loading `transformers`-named tensors into a [`Qwen3_5Model`], and reading
-//! its `config.json`.
-use burn::store::burn_pack::Tensor as PackTensor;
+//! # Qwen3.5 in `transformers`' names
+//!
+//! A dense `transformers` Qwen3.5 checkpoint (a
+//! `Qwen3_5ForConditionalGeneration`'s text model, its vision tower and
+//! multi-token-prediction head dropped, or a bare `Qwen3_5ForCausalLM`) as
+//! bunsen's [`Qwen3_5Model`](crate::kits::language::qwen3_5::Qwen3_5Model):
+//!
+//! - **Config:** [`qwen3_5_config`] of a parsed `config.json`, and
+//!   [`qwen3_5_config_from_str`] / [`qwen3_5_config_from_path`].
+//! - **Names:** [`qwen3_5_rekey`], its layers by [`text_layer_rekey`].
+//! - **Loading** (feature `store`): `load_qwen3_5_tensors`; with `cache`,
+//!   `load_qwen3_5`, a resource set's checkpoint.
 
-use super::{
-    Qwen3_5Config,
-    Qwen3_5LayerKind,
-    Qwen3_5Model,
-};
+use std::path::Path;
+
 use crate::{
     blocks::transformers::decoders::causal::CausalDecoderBlock,
     burner::module::{
@@ -14,20 +20,29 @@ use crate::{
         Select,
         TensorLoadTransform,
     },
-    data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::interop::{
-        load_lm_rekeyed,
-        transformers::{
+    kits::{
+        language::qwen3_5::{
+            Qwen3_5Config,
+            Qwen3_5LayerKind,
+        },
+        support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
+            config_from_path,
+            config_from_str,
             llama_layer_keys,
         },
     },
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// The prefixes a Qwen3.5's text model sits under: a
 /// `Qwen3_5ForConditionalGeneration`'s (every published checkpoint), and a
@@ -62,7 +77,7 @@ pub fn text_layer_rekey() -> Rekey {
 }
 
 /// `transformers`' Qwen3.5 state-dict names onto the module paths of a
-/// [`Qwen3_5Model`]'s
+/// [`Qwen3_5Model`](crate::kits::language::qwen3_5::Qwen3_5Model)'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under either of [`QWEN3_5_TEXT_PREFIXES`], the layers by
 /// [`text_layer_rekey`], the embedding (`embed_tokens`, the model's
@@ -73,7 +88,7 @@ pub fn text_layer_rekey() -> Rekey {
 ///
 /// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
 /// is then unused, as `transformers` ties over it.
-pub fn transformers_rekey() -> Rekey {
+pub fn qwen3_5_rekey() -> Rekey {
     let layer = ZERO_CENTERED_LAYER_NORMS
         .iter()
         .fold(text_layer_rekey(), |rekey, norm| {
@@ -97,33 +112,6 @@ pub fn transformers_rekey() -> Rekey {
             rekey.mount(*prefix, "", text.clone())
         })
         .exact("lm_head.weight", "head.proj.weight")
-}
-
-/// Loads tensors named as a `transformers` Qwen3.5 state dict into `model`'s
-/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
-/// [`Rekey::load`](crate::burner::module::Rekey::load) under
-/// [`transformers_rekey`], in the dtype `model` was built in.
-///
-/// # Errors
-/// As [`load_lm_rekeyed`].
-pub fn load_transformers_tensors(
-    model: &mut Qwen3_5Model,
-    tensors: impl IntoIterator<Item = PackTensor>,
-) -> BunsenResult<NamedTensorsApplied> {
-    load_lm_rekeyed(model, tensors, transformers_rekey(), None)
-}
-
-/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
-/// load policy's resolution) rather than the dtype the model was built in.
-///
-/// # Errors
-/// As [`load_lm_rekeyed`].
-pub fn load_transformers_tensors_as(
-    model: &mut Qwen3_5Model,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: burn::tensor::FloatDType,
-) -> BunsenResult<NamedTensorsApplied> {
-    load_lm_rekeyed(model, tensors, transformers_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3_5Config`] of a `transformers` dense Qwen3.5 `config.json`: a
@@ -239,9 +227,18 @@ pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config>
 /// [`qwen3_5_config`] of a `config.json`'s text.
 ///
 /// # Errors
-/// As [`TransformersConfigJson::parse`] and [`qwen3_5_config`].
-pub fn qwen3_5_config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Config> {
-    qwen3_5_config(&TransformersConfigJson::parse(json)?)
+/// As [`config_from_str`] and [`qwen3_5_config`].
+pub fn qwen3_5_config_from_str(json: &str) -> BunsenResult<Qwen3_5Config> {
+    config_from_str(json, qwen3_5_config)
+}
+
+/// [`qwen3_5_config`] of the `config.json` at `path`; every error names the
+/// file.
+///
+/// # Errors
+/// As [`config_from_path`] and [`qwen3_5_config`].
+pub fn qwen3_5_config_from_path(path: &Path) -> BunsenResult<Qwen3_5Config> {
+    config_from_path(path, qwen3_5_config)
 }
 
 #[cfg(test)]
@@ -255,8 +252,8 @@ mod tests {
     /// The checkpoints' names land on the model's canonical names, the
     /// vision tower and the prediction head dropped.
     #[test]
-    fn test_transformers_rekey() {
-        let rekey = transformers_rekey();
+    fn test_qwen3_5_rekey() {
+        let rekey = qwen3_5_rekey();
         for (hf, bunsen) in [
             (
                 "model.language_model.embed_tokens.weight",
@@ -311,7 +308,7 @@ mod tests {
     /// and everything else, as stored.
     #[test]
     fn test_zero_centered_norms() {
-        let rekey = transformers_rekey();
+        let rekey = qwen3_5_rekey();
         let transformed = |name: &str| {
             rekey
                 .target(name)
@@ -368,7 +365,7 @@ mod tests {
     /// `Qwen3.5-0.8B`'s `config.json`, as the Hub serves it.
     #[test]
     fn test_reads_the_0_8b() {
-        let config = qwen3_5_config_from_transformers(QWEN3_5_0_8B).unwrap();
+        let config = qwen3_5_config_from_str(QWEN3_5_0_8B).unwrap();
         assert_eq!(
             (
                 config.n_vocab,
@@ -411,7 +408,7 @@ mod tests {
             .replace(r#", "partial_rotary_factor": 0.25"#, "");
         let json = json[..json.find(r#""layer_types""#).unwrap()].to_string()
             + &json[json.find(r#""rope_parameters""#).unwrap()..];
-        let config = qwen3_5_config_from_transformers(&json).unwrap();
+        let config = qwen3_5_config_from_str(&json).unwrap();
         assert!(!config.tied_head);
         assert_eq!(config.rotary_dim(), 64);
         assert_eq!(config.layer_kinds, Qwen3_5Config::every_nth_full(24, 3));
@@ -451,7 +448,7 @@ mod tests {
             assert_ne!(json, QWEN3_5_0_8B, "{from}");
             ErrorMatcher::kind(BunsenErrorKind::Unsupported)
                 .message_contains(field)
-                .assert_err(&qwen3_5_config_from_transformers(&json));
+                .assert_err(&qwen3_5_config_from_str(&json));
         }
     }
 }

@@ -9,8 +9,8 @@
 //! (linear and full alternating, twice the value heads, one key/value head, a
 //! head of its own), over 72 tokens, past the delta rule's chunk of 64. Each
 //! geometry comes from its `config.json` through
-//! [`qwen3_5_config_from_transformers`], and the weights load through
-//! [`load_transformers_tensors`], so the reader and the loader are under test
+//! [`qwen3_5_config_from_path`], and the weights load through
+//! [`load_qwen3_5_tensors`], so the reader and the loader are under test
 //! too.
 
 use std::path::PathBuf;
@@ -19,9 +19,9 @@ use burn::prelude::*;
 
 use super::{
     Qwen3_5Model,
-    weights::{
-        load_transformers_tensors,
-        qwen3_5_config_from_transformers,
+    interop::transformers::{
+        load_qwen3_5_tensors,
+        qwen3_5_config_from_path,
     },
 };
 use crate::{
@@ -89,12 +89,11 @@ impl Toy {
         device: &Device,
     ) -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_5");
-        let json = std::fs::read_to_string(dir.join(format!("{name}.config.json")))
+        let config = qwen3_5_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
-        let config = qwen3_5_config_from_transformers(&json).expect("parse the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
         let mut model: Qwen3_5Model = config.init(device);
-        let applied = load_transformers_tensors(&mut model, fixture.take_weights())
+        let applied = load_qwen3_5_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         // Unused: the dropped vision tower and prediction head, and a tied
         // toy's decoy head, which a tied model has nowhere to load.

@@ -19,16 +19,13 @@ use crate::{
             Qwen3_5Config,
             Qwen3_5Model,
             TOKENIZER_CONFIG,
-            weights::{
-                load_transformers_tensors_as,
+            interop::transformers::{
+                load_qwen3_5,
                 qwen3_5_config,
             },
         },
         support::{
-            interop::transformers::{
-                TransformersConfigJson,
-                load_transformers_lm,
-            },
+            interop::transformers::TransformersConfigJson,
             model_config::{
                 ProbeSpec,
                 probe_loaded,
@@ -75,14 +72,7 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Qwen3_5Model> {
-        load_transformers_lm(
-            loaded,
-            CHECKPOINT,
-            config,
-            device,
-            policy,
-            load_transformers_tensors_as,
-        )
+        load_qwen3_5(loaded, config, device, policy)
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the

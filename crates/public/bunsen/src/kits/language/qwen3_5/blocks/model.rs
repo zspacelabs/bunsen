@@ -393,7 +393,7 @@ impl ToStructureConfig for Qwen3_5Config {
 /// ([`Qwen3_5Config::stack`]), its head tied to the embedding or a linear
 /// map of its own.
 ///
-/// [`transformers_rekey`](crate::kits::language::qwen3_5::weights::transformers_rekey)
+/// [`qwen3_5_rekey`](crate::kits::language::qwen3_5::interop::transformers::qwen3_5_rekey)
 /// maps `transformers`' `Qwen3_5ForCausalLM` names onto the
 /// [`LmDecoderModel`]'s, and loads each `1 + w` norm's `w` as `1 + w`; the
 /// load is into [`lm`](Self::lm).

@@ -25,9 +25,10 @@
 //!   checkpoint's tokenizer and template files, unread.
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
 //!   `qwen/qwen3.5-0.8b` the default, and the factory that loads one.
-//! - [`weights`] (feature `store`): loading tensors named as a `transformers`
-//!   Qwen3.5 state dict (a multimodal checkpoint's text model, its vision tower
-//!   and multi-token-prediction head dropped), and reading its `config.json`.
+//! - [`interop`]: its checkpoints' ecosystem, [`interop::transformers`]: a
+//!   `transformers` Qwen3.5's `config.json` and state-dict names (a multimodal
+//!   checkpoint's text model, its vision tower and multi-token-prediction head
+//!   dropped).
 //!
 //! A tokenizer and a chat template are not part of the kit; the searches are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
@@ -37,8 +38,7 @@ pub mod blocks;
 mod construct;
 pub use construct::*;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 #[cfg(feature = "store")]
 pub mod pretrained;
