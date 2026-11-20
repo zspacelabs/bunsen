@@ -5,10 +5,17 @@ use burn::{
         AvgPool2d,
         AvgPool2dConfig,
     },
-    prelude::Tensor,
+    prelude::{
+        Device,
+        Tensor,
+    },
 };
 
-use crate::ops::conv::pad_same;
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
+    ops::conv::pad_same,
+};
 
 // `AvgPool2dSame`
 //
@@ -92,21 +99,24 @@ pub struct AvgPool2dSameConfig {
     pool: AvgPool2dConfig,
 }
 
-impl AvgPool2dSameConfig {
-    /// Initializes [`AvgPool2dSame`].
-    pub fn init(self) -> AvgPool2dSame {
-        AvgPool2dSame {
+/// The module; it has no parameters, so `device` is unused.
+impl ModuleInit<AvgPool2dSame> for AvgPool2dSameConfig {
+    fn try_init(
+        &self,
+        _device: &Device,
+    ) -> BunsenResult<AvgPool2dSame> {
+        Ok(AvgPool2dSame {
             pool: self.pool.init(),
-        }
+        })
     }
 }
 
 /// 2D average pooling with TensorFlow-style "SAME" padding.
 ///
-/// Constructs via [`AvgPool2dSameConfig`] and `.init()`. The [`Self::forward`]
-/// pass dynamically pads the input with [`pad_same`] so the output spatial size
-/// matches TensorFlow's "SAME" convention, then applies the wrapped
-/// [`AvgPool2d`].
+/// Constructs via [`AvgPool2dSameConfig`] and `.init(&device)`. The
+/// [`Self::forward`] pass dynamically pads the input with [`pad_same`] so the
+/// output spatial size matches TensorFlow's "SAME" convention, then applies the
+/// wrapped [`AvgPool2d`].
 ///
 /// Built by [`AvgPool2dSameConfig`].
 #[derive(Module, Debug)]
@@ -142,7 +152,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         // Kernel 3, stride 3 (burn's default stride is the kernel size).
-        let pool = AvgPool2dSameConfig::new(AvgPool2dConfig::new([3, 3])).init();
+        let pool = AvgPool2dSameConfig::new(AvgPool2dConfig::new([3, 3])).init(&device);
 
         // `[ceil(10 / 3), ceil(8 / 3)] == [4, 3]`.
         let input = Tensor::<4>::ones([1, 1, 10, 8], &device);

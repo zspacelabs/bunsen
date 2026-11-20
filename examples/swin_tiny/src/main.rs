@@ -416,7 +416,7 @@ impl ModuleInit<Model> for ModelConfig {
         device: &Device,
     ) -> BunsenResult<Model> {
         Ok(Model {
-            drop_block: self.drop_block.init(),
+            drop_block: self.drop_block.init(device),
             swin: self.swin.try_init(device)?,
         })
     }

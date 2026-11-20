@@ -305,7 +305,7 @@ mod tests {
     fn test_other_parts() {
         let device = cpu_device();
         let cfg = GatedNormConfig::new(BunsenNormalizationConfig::Layer(
-            burn::nn::LayerNormConfig::new(0),
+            crate::blocks::norm::BunsenLayerNormConfig::new(0),
         ))
         .with_activation(BunsenActivationConfig::Sigmoid)
         .with_widening(Widening::NONE)

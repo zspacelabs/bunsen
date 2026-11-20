@@ -31,10 +31,10 @@
 //! - usually a `{Name}Meta` trait implemented by both, so the block's geometry
 //!   reads the same before and after init.
 //!
-//! Most configs build their module through [`ModuleInit`]
-//! (`init(&device)` / `try_init(&device)`). A few keep an inherent `init`
-//! instead: the parameter-free `DropPathConfig`, `DropBlock2dConfig` and
-//! `AvgPool2dSameConfig` take no device, and `CausalSelfAttentionConfig` also
+//! Configs build their module through [`ModuleInit`]
+//! (`init(&device)` / `try_init(&device)`); a parameter-free one, such as
+//! `DropPathConfig`, ignores the device. Only a constructor that needs more
+//! than a device keeps an inherent `init`: `CausalSelfAttentionConfig` also
 //! takes the layer's index in its stack (see `ModuleInit`'s
 //! [hand-written `init`](crate::burner::module::ModuleInit#hand-written-init)).
 //!

@@ -13,7 +13,10 @@ use burn::{
     tensor::FloatDType,
 };
 
-use super::LayerNorm;
+use super::{
+    BunsenLayerNormConfig,
+    LayerNorm,
+};
 use crate::{
     burner::module::{
         Forward1Module,
@@ -34,9 +37,9 @@ pub enum BunsenNormalizationConfig {
     /// burn's [`BatchNorm`].
     Batch(BatchNormConfig),
 
-    /// A layer norm, by burn's [`LayerNormConfig`]
-    /// ([`BunsenNormalization::Layer`]).
-    Layer(LayerNormConfig),
+    /// bunsen's layer norm ([`BunsenNormalization::Layer`]); its serde form
+    /// is burn's [`LayerNormConfig`]'s.
+    Layer(BunsenLayerNormConfig),
 
     /// burn's [`RmsNorm`], its forward bunsen's ([`BunsenNormalization::Rms`]).
     Rms(RmsNormConfig),
@@ -48,9 +51,15 @@ impl From<BatchNormConfig> for BunsenNormalizationConfig {
     }
 }
 
+impl From<BunsenLayerNormConfig> for BunsenNormalizationConfig {
+    fn from(config: BunsenLayerNormConfig) -> Self {
+        Self::Layer(config)
+    }
+}
+
 impl From<LayerNormConfig> for BunsenNormalizationConfig {
     fn from(config: LayerNormConfig) -> Self {
-        Self::Layer(config)
+        Self::Layer(config.into())
     }
 }
 
@@ -69,7 +78,7 @@ impl ModuleInit<BunsenNormalization> for BunsenNormalizationConfig {
         Ok(match self {
             Self::Identity => BunsenNormalization::Identity(Identity::new()),
             Self::Batch(config) => BunsenNormalization::Batch(config.init(device)),
-            Self::Layer(config) => BunsenNormalization::Layer(LayerNorm::init(config, device)),
+            Self::Layer(config) => BunsenNormalization::Layer(config.try_init(device)?),
             Self::Rms(config) => BunsenNormalization::Rms(config.init(device)),
         })
     }
@@ -89,7 +98,7 @@ impl BunsenNormalizationConfig {
                 ..config
             }
             .into(),
-            Self::Layer(config) => LayerNormConfig {
+            Self::Layer(config) => BunsenLayerNormConfig {
                 d_model: num_features,
                 ..config
             }

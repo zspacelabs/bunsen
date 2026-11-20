@@ -24,6 +24,7 @@ use burn::{
 
 use crate::{
     blocks::norm::{
+        BunsenLayerNormConfig,
         BunsenNormalization,
         BunsenNormalizationConfig,
     },
@@ -68,7 +69,7 @@ pub struct CausalConvNext1dConfig {
     /// The normalization after the depthwise convolution; its feature count
     /// is set to [`width`](Self::width).
     #[config(
-        default = "BunsenNormalizationConfig::Layer(burn::nn::LayerNormConfig::new(0).with_epsilon(1e-6))"
+        default = "BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0).with_epsilon(1e-6))"
     )]
     pub norm: BunsenNormalizationConfig,
 

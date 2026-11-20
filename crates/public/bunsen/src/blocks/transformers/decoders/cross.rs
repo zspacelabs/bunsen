@@ -5,12 +5,9 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        LayerNormConfig,
-        attention::{
-            MultiHeadAttention,
-            MultiHeadAttentionConfig,
-        },
+    nn::attention::{
+        MultiHeadAttention,
+        MultiHeadAttentionConfig,
     },
     prelude::Bool,
     tensor::Device,
@@ -19,7 +16,10 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             encoders::residual::ResidualEncoderAttentionBlock,
             mlp::{
@@ -78,7 +78,7 @@ pub struct CrossDecoderBlockConfig {
 
     /// The normalization before each sublayer, sized to `d_model` whatever
     /// feature count it names: a `LayerNorm` by default, Whisper's.
-    #[config(default = "BunsenNormalizationConfig::Layer(LayerNormConfig::new(0))")]
+    #[config(default = "BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0))")]
     pub norm: BunsenNormalizationConfig,
 }
 

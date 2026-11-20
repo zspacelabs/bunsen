@@ -10,12 +10,19 @@
 use burn::{
     config::Config,
     module::Module,
-    prelude::Tensor,
+    prelude::{
+        Device,
+        Tensor,
+    },
 };
 
 #[doc(inline)]
 pub use crate::ops::drop::DropBlockOptions;
-use crate::ops::drop::drop_block_2d;
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
+    ops::drop::drop_block_2d,
+};
 
 /// Config for [`DropBlock2d`].
 #[derive(Config, Debug)]
@@ -31,12 +38,15 @@ impl From<DropBlockOptions> for DropBlock2dConfig {
     }
 }
 
-impl DropBlock2dConfig {
-    /// Initializes a [`DropBlock2d`] module.
-    pub fn init(&self) -> DropBlock2d {
-        DropBlock2d {
+/// The module; it has no parameters, so `device` is unused.
+impl ModuleInit<DropBlock2d> for DropBlock2dConfig {
+    fn try_init(
+        &self,
+        _device: &Device,
+    ) -> BunsenResult<DropBlock2d> {
+        Ok(DropBlock2d {
             options: self.options.clone(),
-        }
+        })
     }
 }
 
@@ -90,7 +100,7 @@ mod tests {
 
         let config = DropBlock2dConfig::new();
 
-        let module = config.init();
+        let module = config.init(&device);
 
         let batch_size = 2;
         let channels = 3;
@@ -119,7 +129,7 @@ mod tests {
                 .with_kernel([2, 3]),
         );
 
-        let module = config.init();
+        let module = config.init(&device);
 
         let batch_size = 2;
         let channels = 3;

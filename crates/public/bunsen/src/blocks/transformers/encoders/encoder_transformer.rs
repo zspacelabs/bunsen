@@ -221,11 +221,12 @@ pub(crate) fn test_rope_stack(
     heads: usize,
     n_layers: usize,
 ) -> DecoderStackStructureConfig {
-    use burn::nn::LayerNormConfig;
-
     use crate::blocks::{
         activation::BunsenActivationConfig,
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             attention::csa::{
                 AttentionMask,
@@ -242,7 +243,7 @@ pub(crate) fn test_rope_stack(
             mlp::TransformerMlpConfig,
         },
     };
-    let norm = BunsenNormalizationConfig::Layer(LayerNormConfig::new(0));
+    let norm = BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0));
     crate::burner::module::ToStructureConfig::to_structure(
         &UniformStackConfig::new(
             n_layers,

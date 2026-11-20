@@ -13,7 +13,6 @@ use burn::{
     },
     nn::{
         Initializer,
-        LayerNormConfig,
         Linear,
         LinearConfig,
         PaddingConfig1d,
@@ -43,6 +42,7 @@ use crate::{
             CausalConvNext1dConfig,
         },
         norm::{
+            BunsenLayerNormConfig,
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
@@ -165,7 +165,7 @@ impl ModuleInit<Zonos3Codec> for Zonos3CodecConfig {
                 .map(|_| convnext(head, self.head_hidden))
                 .collect::<BunsenResult<_>>()?,
             head_norm: BunsenNormalizationConfig::Layer(
-                LayerNormConfig::new(head).with_epsilon(1e-6),
+                BunsenLayerNormConfig::new(head).with_epsilon(1e-6),
             )
             .init(device),
             head_outs: self

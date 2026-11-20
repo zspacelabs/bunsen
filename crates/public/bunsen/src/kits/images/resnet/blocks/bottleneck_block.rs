@@ -336,12 +336,12 @@ impl ModuleInit<BottleneckBlock> for BottleneckBlockConfig {
             drop_block: self
                 .drop_block
                 .as_ref()
-                .map(|options| DropBlock2dConfig::from(options.clone()).init()),
+                .map(|options| DropBlock2dConfig::from(options.clone()).init(device)),
 
             drop_path: if drop_path_prob != 0.0 {
                 DropPathConfig::new()
                     .with_drop_prob(drop_path_prob)
-                    .init()
+                    .init(device)
                     .into()
             } else {
                 None
@@ -556,13 +556,14 @@ impl BottleneckBlock {
         drop_path_prob: f64,
     ) -> Self {
         let drop_path_prob = expect_probability(drop_path_prob);
+        let device = self.devices()[0].clone();
         Self {
             drop_path: if drop_path_prob == 0.0 {
                 None
             } else {
                 DropPathConfig::new()
                     .with_drop_prob(drop_path_prob)
-                    .init()
+                    .init(&device)
                     .into()
             },
             ..self
@@ -574,8 +575,9 @@ impl BottleneckBlock {
         self,
         drop_block: Option<DropBlockOptions>,
     ) -> Self {
+        let device = self.devices()[0].clone();
         Self {
-            drop_block: drop_block.map(|options| DropBlock2dConfig::from(options).init()),
+            drop_block: drop_block.map(|options| DropBlock2dConfig::from(options).init(&device)),
             ..self
         }
     }

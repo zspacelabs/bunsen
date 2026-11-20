@@ -13,10 +13,18 @@
 use burn::{
     config::Config,
     module::Module,
-    prelude::Tensor,
+    prelude::{
+        Device,
+        Tensor,
+    },
 };
 
 use crate::{
+    burner::module::ModuleInit,
+    errors::{
+        BunsenResult,
+        ResultContext,
+    },
     ops::drop::drop_path,
     support::validators,
 };
@@ -57,15 +65,20 @@ impl DropPathMeta for DropPathConfig {
     }
 }
 
-impl DropPathConfig {
-    /// Initializes a new `DropPath` module.
-    #[inline(always)]
-    #[must_use]
-    pub fn init(&self) -> DropPath {
-        DropPath {
-            drop_prob: validators::expect_probability(self.drop_prob),
+/// The module; it has no parameters, so `device` is unused.
+///
+/// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a `drop_prob`
+/// outside `[0, 1]`.
+impl ModuleInit<DropPath> for DropPathConfig {
+    fn try_init(
+        &self,
+        _device: &Device,
+    ) -> BunsenResult<DropPath> {
+        Ok(DropPath {
+            drop_prob: validators::try_probability(self.drop_prob).context("drop_prob")?,
             scale_by_keep: self.scale_by_keep,
-        }
+        })
     }
 }
 
@@ -141,7 +154,27 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                text,
+            },
+        },
+        support::testing::cpu_device,
+    };
+
+    /// A `drop_prob` outside `[0, 1]` is refused, naming the field.
+    #[test]
+    fn test_init_refuses_a_bad_probability() {
+        let err = DropPathConfig::new()
+            .with_drop_prob(1.5)
+            .try_init(&cpu_device());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::contains("drop_prob"))
+            .assert_err(&err);
+    }
 
     #[test]
     fn test_drop_path() {
@@ -154,7 +187,7 @@ mod tests {
             scale_by_keep,
         };
 
-        let module = config.init();
+        let module = config.init(&device);
 
         let input = Tensor::<4>::random([2, 3, 4, 5], Distribution::Uniform(0.0, 1.0), &device);
         let output = module.forward(input.clone());
@@ -171,7 +204,7 @@ mod tests {
         assert_eq!(config.keep_prob(), 1.0 - drop_prob);
         assert!(config.scale_by_keep());
 
-        let module = config.init();
+        let module = config.init(&cpu_device());
         assert_eq!(module.drop_prob(), 0.2);
         assert_eq!(module.keep_prob(), 1.0 - drop_prob);
         assert!(module.scale_by_keep());

@@ -157,7 +157,9 @@ impl ModuleInit<BunsenActivation> for BunsenActivationConfig {
             Self::SoftShrink(config) => BunsenActivation::SoftShrink(config.init()),
             Self::Shrink(config) => BunsenActivation::Shrink(config.init()),
             Self::Silu => BunsenActivation::Silu(SiLU::new()),
-            Self::Pow(exponent) => BunsenActivation::Pow(PowOpModuleConfig::new(*exponent).init()),
+            Self::Pow(exponent) => {
+                BunsenActivation::Pow(PowOpModuleConfig::new(*exponent).try_init(device)?)
+            }
             Self::Snake(config) => BunsenActivation::Snake(config.try_init(device)?),
             Self::Chain(kinds) => BunsenActivation::Chain(
                 kinds

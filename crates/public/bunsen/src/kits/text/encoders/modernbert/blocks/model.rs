@@ -3,7 +3,6 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::LayerNormConfig,
     prelude::Int,
     tensor::Device,
 };
@@ -11,7 +10,10 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             attention::csa::{
                 AttentionMask,
@@ -163,7 +165,7 @@ impl ModernBertConfig {
     /// A `LayerNorm` without a bias, its width set where it is used.
     fn norm(&self) -> BunsenNormalizationConfig {
         BunsenNormalizationConfig::Layer(
-            LayerNormConfig::new(0)
+            BunsenLayerNormConfig::new(0)
                 .with_epsilon(self.norm_eps)
                 .with_bias(false),
         )

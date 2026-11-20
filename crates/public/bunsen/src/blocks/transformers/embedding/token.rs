@@ -241,11 +241,11 @@ mod tests {
     /// norms.
     #[test]
     fn test_norm_with_parameters() {
-        use burn::nn::LayerNormConfig;
+        use crate::blocks::norm::BunsenLayerNormConfig;
 
         let device = cpu_device();
         let config = TokenEmbeddingConfig::new(3, 2).with_norm(Some(
-            BunsenNormalizationConfig::Layer(LayerNormConfig::new(0).with_bias(false)),
+            BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0).with_bias(false)),
         ));
         let mut embedding: TokenEmbedding = config.init(&device);
         embedding.weight = table(&device).weight;
