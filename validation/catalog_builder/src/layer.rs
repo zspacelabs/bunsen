@@ -29,7 +29,7 @@ use bunsen::{
             HubRepo,
         },
     },
-    kits::support::model_config::{
+    kits::support::pretrained::{
         Probe,
         ProbeSpec,
         accumulate_probed,

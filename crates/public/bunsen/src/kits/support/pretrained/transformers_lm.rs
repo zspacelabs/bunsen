@@ -100,7 +100,7 @@ pub trait TransformersLmKit: Default {
     /// catalog builder probes a row's.
     ///
     /// # Errors
-    /// As [`probe_loaded`](crate::kits::support::model_config::probe_loaded).
+    /// As [`probe_loaded`](crate::kits::support::pretrained::probe_loaded).
     fn probed(loaded: &LoadedResourceSet) -> BunsenResult<ResolvedPresetSet>;
 }
 
