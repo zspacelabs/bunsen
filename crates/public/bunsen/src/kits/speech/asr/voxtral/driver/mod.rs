@@ -73,7 +73,7 @@ mod tests {
                 },
                 testing::ToneConfig,
             },
-            support::tokens::TekkenVocabulary,
+            support::interop::mistral_common::TekkenMirror,
         },
         support::testing::performance_device,
     };
@@ -130,7 +130,9 @@ mod tests {
             .init();
         VoxtralConstruct::new(
             model,
-            TekkenVocabulary::from_tekken_json(&json).unwrap(),
+            TekkenMirror::from_json(&json)
+                .and_then(|m| m.tekken_vocabulary())
+                .unwrap(),
             layout,
         )
         .unwrap()

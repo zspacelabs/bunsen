@@ -7,7 +7,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    kits::support::tokens::TekkenVocabulary,
+    kits::support::interop::mistral_common::TekkenMirror,
 };
 
 /// The longest delay a Voxtral Realtime model takes but 2400 ms, in ms.
@@ -67,33 +67,26 @@ impl VoxtralTokenLayoutConfig {
     /// # Errors
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
     /// when the file does not parse (as
-    /// [`TekkenVocabulary::from_tekken_json`]), lacks a special token or the
+    /// [`TekkenMirror::from_json`]), lacks a special token or the
     /// `audio` section, or its frame rate is not a whole number of ms per
     /// position.
     pub fn from_tekken_json(json: &str) -> BunsenResult<Self> {
-        let vocab = TekkenVocabulary::from_tekken_json(json)?;
+        let tekken = TekkenMirror::from_json(json)?;
+        let vocab = tekken.tekken_vocabulary()?;
         let special = |spelling: &str| {
             vocab.special_id(spelling).ok_or_else(|| {
                 BunsenError::invalid_resource(format!("tekken.json has no {spelling} token"))
             })
         };
-        let value: serde_json::Value = serde_json::from_str(json)
-            .map_err(|e| BunsenError::invalid_resource("a tekken.json").with_cause(e))?;
-        let audio = value
-            .get("audio")
+        let audio = tekken
+            .audio
+            .as_ref()
             .ok_or_else(|| BunsenError::invalid_resource("tekken.json has no `audio` section"))?;
-        let number = |name: &str| {
-            audio.get(name).and_then(|v| v.as_f64()).ok_or_else(|| {
-                BunsenError::invalid_resource(format!(
-                    "tekken.json: `audio.{name}` is missing or not a number"
-                ))
-            })
-        };
-        let frame_rate = number("frame_rate")?;
-        let position_ms = 1000.0 / frame_rate;
+        let position_ms = 1000.0 / audio.frame_rate;
         if position_ms.fract() != 0.0 {
             return Err(BunsenError::invalid_resource(format!(
-                "tekken.json: a frame rate of {frame_rate} Hz is not whole ms per position"
+                "tekken.json: a frame rate of {} Hz is not whole ms per position",
+                audio.frame_rate
             )));
         }
         Ok(Self::new()
@@ -102,8 +95,8 @@ impl VoxtralTokenLayoutConfig {
             .with_streaming_pad(special("[STREAMING_PAD]")?)
             .with_streaming_word(special("[STREAMING_WORD]")?)
             .with_position_ms(position_ms as usize)
-            .with_delay_ms(number("transcription_delay_ms")? as usize)
-            .with_left_pad_positions(number("streaming_n_left_pad_tokens")? as usize))
+            .with_delay_ms(audio.transcription_delay_ms)
+            .with_left_pad_positions(audio.streaming_n_left_pad_tokens))
     }
 
     /// Checks the delay is one the model takes.

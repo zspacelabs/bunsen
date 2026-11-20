@@ -33,7 +33,9 @@
 //! [`ByteLevelVocabulary`] reads the other common spelling of a byte-level
 //! vocabulary, `transformers`' `vocab.json` / `tokenizer.json` (GPT-2's, and
 //! Qwen's), into the same `{ id -> bytes }` table, and
-//! [`TekkenVocabulary`] reads Mistral's, `tekken.json`.
+//! [`TekkenVocabulary`] is Mistral's, which
+//! [`TekkenMirror`](super::interop::mistral_common::TekkenMirror) reads from
+//! `tekken.json`.
 //!
 //! # Whisper-specific helpers
 //!
@@ -68,7 +70,7 @@ pub mod testing;
 
 mod byte_level;
 mod tekken;
-mod tiktoken_util;
+pub(crate) mod tiktoken_util;
 pub use byte_level::*;
 pub use tekken::*;
 pub use tiktoken_util::*;

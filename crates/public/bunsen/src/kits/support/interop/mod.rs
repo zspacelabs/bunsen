@@ -17,6 +17,8 @@
 //!   mirror.
 //! - [`nemo`] (feature `speech`): `NeMo`'s YAML config sections, the bunsen
 //!   configs they give, and its state-dict names.
+//! - [`mistral_common`]: Mistral's `tekken.json`, its vocabulary and an audio
+//!   model's stream geometry.
 //!
 //! ## The ladder
 //!
@@ -36,6 +38,7 @@
 //! function, named the same way. It is never a method on the bunsen config,
 //! nor a `From` / `TryFrom` impl.
 
+pub mod mistral_common;
 #[cfg(feature = "speech")]
 pub mod nemo;
 pub mod torch;

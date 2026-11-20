@@ -45,8 +45,8 @@ use crate::{
             },
         },
         support::{
+            interop::mistral_common::TekkenMirror,
             model_config::resolve_ref_presets,
-            tokens::TekkenVocabulary,
         },
     },
 };
@@ -56,10 +56,10 @@ use crate::{
 /// ([`voxtral_config_from_transformers`]), or else the prefab its row names
 /// (`voxtral-mini-4b-realtime-2602` when it names none), in the device's
 /// float dtype; its `tekken.json` read as the vocabulary
-/// ([`TekkenVocabulary`]) and as the stream's layout
-/// ([`VoxtralTokenLayoutConfig::from_tekken_json`]: the delay it names, 480
-/// ms for the published model); behind a front end of the model's mel count
-/// and the default decoder.
+/// ([`TekkenVocabulary`](crate::kits::support::tokens::TekkenVocabulary)) and
+/// as the stream's layout ([`VoxtralTokenLayoutConfig::from_tekken_json`]: the
+/// delay it names, 480 ms for the published model); behind a front end of the
+/// model's mel count and the default decoder.
 ///
 /// The Voxtral kit's construct config: its [`ConstructInit`] hook.
 /// [`default_voxtral_factory`](super::default_voxtral_factory) attaches it; a
@@ -115,8 +115,9 @@ impl ConstructInit for VoxtralConstructConfig {
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
         let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;
-        let vocab =
-            TekkenVocabulary::from_tekken_json(&json).map_err(|e| e.context(tekken.display()))?;
+        let vocab = TekkenMirror::from_json(&json)
+            .and_then(|m| m.tekken_vocabulary())
+            .map_err(|e| e.context(tekken.display()))?;
         let layout = VoxtralTokenLayoutConfig::from_tekken_json(&json)
             .and_then(|c| c.try_init())
             .map_err(|e| e.context(tekken.display()))?;
