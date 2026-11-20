@@ -83,6 +83,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::{
+            mlp::BunsenGatedMlpConfig,
             norm::{
                 BunsenNormalizationConfig,
                 GatedNormConfig,
@@ -99,7 +100,6 @@ mod tests {
                 },
                 head::LmHeadConfig,
                 mixers::GatedDeltaNetConfig,
-                mlp::TransformerGatedMlpConfig,
                 models::language_decoder::{
                     LmDecoderModel,
                     LmDecoderVariantConfig,
@@ -124,7 +124,7 @@ mod tests {
     fn test_lm_decoder_model_steps_as_uncached() {
         let device = cpu_device();
         let norm = || BunsenNormalizationConfig::Rms(RmsNormConfig::new(0));
-        let mlp = || TransformerGatedMlpConfig::new(12, 20).into();
+        let mlp = || BunsenGatedMlpConfig::new(12, 20).into();
         let attention = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(3, 1, 12)
                 .with_head_dim(Some(6))

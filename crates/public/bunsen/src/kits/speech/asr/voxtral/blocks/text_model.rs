@@ -9,6 +9,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        mlp::BunsenGatedMlpConfig,
         norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
@@ -27,7 +28,6 @@ use crate::{
                 TokenEmbeddingConfig,
             },
             head::LmHeadConfig,
-            mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
                 LmDecoderHolder,
@@ -143,7 +143,7 @@ impl VoxtralTextConfig {
                     // As `transformers`' eager attention: the softmax in f32.
                     .with_softmax_widening(crate::burner::tensor::Widening::F32)
                     .into(),
-                TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
+                BunsenGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
             .with_norm(norm.clone())
             .with_mlp_scale(Some(AdaptiveScaleConfig::new(

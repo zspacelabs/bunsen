@@ -1029,9 +1029,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::{
-            attention::csa::CausalSelfAttentionConfig,
-            mlp::TransformerGatedMlpConfig,
+        blocks::{
+            mlp::BunsenGatedMlpConfig,
+            transformers::attention::csa::CausalSelfAttentionConfig,
         },
         errors::{
             BunsenErrorKind,
@@ -1051,7 +1051,7 @@ mod tests {
                 .with_head_dim(Some(8))
                 .with_sliding_window(window)
                 .into(),
-            TransformerGatedMlpConfig::new(16, 32).into(),
+            BunsenGatedMlpConfig::new(16, 32).into(),
         )
     }
 
@@ -1298,7 +1298,7 @@ mod tests {
             CausalSelfAttentionConfig::new(4, 2, 24)
                 .with_head_dim(Some(8))
                 .into(),
-            TransformerGatedMlpConfig::new(24, 32).into(),
+            BunsenGatedMlpConfig::new(24, 32).into(),
         );
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("layers[1].n_embed")
@@ -1349,7 +1349,7 @@ mod tests {
     fn linear_layer() -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
             crate::blocks::transformers::mixers::GatedDeltaNetConfig::new(16, 2, 4, 4, 3).into(),
-            TransformerGatedMlpConfig::new(16, 32).into(),
+            BunsenGatedMlpConfig::new(16, 32).into(),
         )
     }
 

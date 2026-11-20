@@ -792,7 +792,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
-            crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(n_embed, 24).into(),
         );
         assert!(config.init(0, &device).attn.post.is_none());
         assert!(config.init(0, &device).mlp.post.is_none());
@@ -851,7 +851,7 @@ mod tests {
         let device = crate::support::testing::cpu_device();
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, 16).into(),
-            crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(16, 24).into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(16, 24).into(),
         );
         let plain = config.init(0, &device);
         assert!(plain.attn.scale.is_none() && plain.mlp.scale.is_none());
@@ -901,7 +901,7 @@ mod tests {
             CausalSelfAttentionConfig::new(4, 2, n_embed)
                 .with_norm(None)
                 .into(),
-            crate::blocks::transformers::mlp::TransformerGatedMlpConfig::new(n_embed, 24).into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(n_embed, 24).into(),
         )
         .with_mlp_scale(Some(AdaptiveScaleConfig::new(n_embed, 4)))
     }

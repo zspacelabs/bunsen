@@ -9,6 +9,7 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        mlp::BunsenGatedMlpConfig,
         norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
@@ -26,7 +27,6 @@ use crate::{
                 TokenEmbeddingConfig,
             },
             head::LmHeadConfig,
-            mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
                 LmDecoderHolder,
@@ -342,7 +342,7 @@ impl GemmaConfig {
                 .with_attn_softcap(self.attn_softcap)
                 .with_softmax_widening(self.softmax_widening)
                 .into(),
-            TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
+            BunsenGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_activation(BunsenActivationConfig::GeluApproximate)
                 .into(),
         )

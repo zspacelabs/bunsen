@@ -31,6 +31,7 @@ use crate::{
             CausalConvTranspose1dConfig,
             CausalConvTranspose1dMeta,
         },
+        mlp::BunsenGatedMlpConfig,
         norm::BunsenNormalizationConfig,
         quantization::{
             EuclideanCodebookMeta,
@@ -54,7 +55,6 @@ use crate::{
                 RotaryDirection,
                 RotaryEmbeddingConfig,
             },
-            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::{
@@ -918,7 +918,7 @@ impl Qwen3TtsCodecDecoderContractConfig {
                 .with_sliding_window(Some(self.window))
                 .with_softmax_widening(Widening::F32)
                 .into(),
-            TransformerGatedMlpConfig::new(self.width, self.d_ff).into(),
+            BunsenGatedMlpConfig::new(self.width, self.d_ff).into(),
         )
         .with_norm(norm.clone())
         .with_layer_scale(true);

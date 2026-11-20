@@ -47,8 +47,10 @@
 //!   token table or its own, with an optional slice, soft-cap and logits dtype.
 //! - [`mlp`]: [`TransformerMlp`](mlp::TransformerMlp), the position-wise
 //!   feed-forward block (expand, activate, project back), and
-//!   [`TransformerGatedMlp`](mlp::TransformerGatedMlp), the gated feed-forward
-//!   (`SwiGLU`, `GeGLU`).
+//!   [`TransformerFeedForward`](mlp::TransformerFeedForward), the sublayer that
+//!   holds it, the gated form
+//!   ([`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp): `SwiGLU`,
+//!   `GeGLU`), or a mixture of experts.
 //! - [`moe`]: the parts of a sparse mixture of experts:
 //!   [`ExpertStack`](moe::experts::ExpertStack), a packed stack of `SwiGLU`
 //!   experts run through the dispatch seam.

@@ -260,6 +260,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::{
+            mlp::BunsenGatedMlpConfig,
             norm::BunsenNormalizationConfig,
             transformers::{
                 attention::csa::CausalSelfAttentionConfig,
@@ -269,7 +270,6 @@ mod tests {
                 },
                 embedding::RotaryEmbeddingConfig,
                 mixers::GatedDeltaNetConfig,
-                mlp::TransformerGatedMlpConfig,
             },
         },
         support::testing::{
@@ -287,11 +287,11 @@ mod tests {
             CausalSelfAttentionConfig::new(4, 2, 16)
                 .with_head_dim(Some(8))
                 .into(),
-            TransformerGatedMlpConfig::new(16, 32).into(),
+            BunsenGatedMlpConfig::new(16, 32).into(),
         );
         let linear = CausalDecoderBlockConfig::new(
             GatedDeltaNetConfig::new(16, 2, 4, 4, 3).into(),
-            TransformerGatedMlpConfig::new(16, 32).into(),
+            BunsenGatedMlpConfig::new(16, 32).into(),
         );
         AttnResStackConfig::new(
             PatternedStackConfig::new(

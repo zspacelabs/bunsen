@@ -9,6 +9,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        mlp::BunsenGatedMlpConfig,
         norm::{
             BunsenNormalizationConfig,
             GatedNormConfig,
@@ -33,10 +34,7 @@ use crate::{
                 GatedDeltaNetConfig,
                 TokenMixerConfig,
             },
-            mlp::{
-                TransformerFeedForwardConfig,
-                TransformerGatedMlpConfig,
-            },
+            mlp::TransformerFeedForwardConfig,
             moe::{
                 experts::ExpertStackConfig,
                 router::{
@@ -186,7 +184,7 @@ impl Zonos3LmConfig {
             .into()
         };
         let ffn: TransformerFeedForwardConfig = if l == 0 {
-            TransformerGatedMlpConfig::new(d, self.ffn_hidden).into()
+            BunsenGatedMlpConfig::new(d, self.ffn_hidden).into()
         } else {
             SparseMoeConfig::new(
                 TopKRouterConfig::new(d, self.n_experts, self.top_k)
