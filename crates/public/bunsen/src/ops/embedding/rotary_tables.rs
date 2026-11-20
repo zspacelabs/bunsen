@@ -134,6 +134,15 @@ pub fn frequency_table(
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::Tolerance;
+    use serial_test::serial;
+
+    use super::*;
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        performance_device,
+    };
+
     /// A narrower dtype is kept where the device has it, else its rounded
     /// values in f32; f64 only where the device has it.
     #[test]
@@ -163,15 +172,6 @@ mod tests {
             (None, FloatDType::F32)
         );
     }
-
-    use burn::tensor::Tolerance;
-    use serial_test::serial;
-
-    use super::*;
-    use crate::support::testing::{
-        DeviceMemoryGuard,
-        performance_device,
-    };
 
     #[test]
     #[serial]
