@@ -378,7 +378,10 @@ fn first_id(ids: Tensor<1, Int>) -> i64 {
 mod tests {
     use super::*;
     use crate::{
-        kits::language::qwen3::Qwen3Config,
+        kits::{
+            language::qwen3::Qwen3Config,
+            speech::tts::qwen3_tts::talker::release_text_projection,
+        },
         support::testing::cpu_device,
     };
 
@@ -388,7 +391,13 @@ mod tests {
     #[test]
     fn test_model_meta() {
         let config = Qwen3TtsModelConfig::new(
-            Qwen3TtsTalkerConfig::new(Qwen3Config::new(11, 8, 1, 2, 1, 4, 12), 13, 6, 4),
+            Qwen3TtsTalkerConfig::new(
+                Qwen3Config::new(11, 8, 1, 2, 1, 4, 12),
+                13,
+                6,
+                release_text_projection(6, 8),
+                4,
+            ),
             Qwen3TtsCodePredictorConfig::new(Qwen3Config::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
         );
         let model: Qwen3TtsModel = config.init(&cpu_device());

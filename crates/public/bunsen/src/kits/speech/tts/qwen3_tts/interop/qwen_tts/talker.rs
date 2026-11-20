@@ -13,7 +13,10 @@ use crate::{
             Qwen3Config,
             interop::transformers::text_layer_rekey,
         },
-        speech::tts::qwen3_tts::talker::Qwen3TtsTalkerConfig,
+        speech::tts::qwen3_tts::talker::{
+            Qwen3TtsTalkerConfig,
+            release_text_projection,
+        },
         support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
@@ -76,10 +79,12 @@ pub fn talker_config(t: &TransformersConfigJson) -> BunsenResult<Qwen3TtsTalkerC
     .with_rms_eps(d.rms_norm_eps)
     .with_rope_theta(d.rope_theta)
     .with_tied_head(false);
+    let text_width = t.usize("text_hidden_size")?;
     Ok(Qwen3TtsTalkerConfig::new(
         lm,
         t.usize("text_vocab_size")?,
-        t.usize("text_hidden_size")?,
+        text_width,
+        release_text_projection(text_width, d.hidden_size),
         t.usize("num_code_groups")?,
     ))
 }
