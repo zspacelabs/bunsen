@@ -129,7 +129,7 @@ impl ConstructInit for Qwen3TtsConstructConfig {
             ))
         })?;
         let codec: Qwen3TtsCodecMirror = json_mirror_from_path(loaded.expect(CODEC_CONFIG)?)?;
-        let codec_config = codec.decoder_config.codec_decoder_config()?;
+        let codec_config = codec.codec_decoder_config()?;
         let generation: Qwen3TtsGenerationMirror =
             json_mirror_from_path(loaded.expect(GENERATION_CONFIG)?)?;
 

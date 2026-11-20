@@ -20,6 +20,7 @@ use crate::{
         speech::tts::qwen3_tts::codec::{
             QWEN3_TTS_VOCODER_DILATIONS,
             Qwen3TtsCodecDecoderContractConfig,
+            Qwen3TtsCodecDecoderMeta,
         },
         support::interop::transformers::llama_layer_keys,
     },
@@ -30,8 +31,37 @@ use crate::{
 pub struct Qwen3TtsCodecMirror {
     /// The output's sample rate, in Hz.
     pub output_sample_rate: u32,
+    /// Audio samples per frame of codes, as the file states it; the decoder's
+    /// rates determine it, and the two are checked to agree.
+    #[serde(default)]
+    pub decode_upsample_rate: Option<usize>,
     /// The decoder's section.
     pub decoder_config: Qwen3TtsCodecDecoderMirror,
+}
+
+impl Qwen3TtsCodecMirror {
+    /// The [`Qwen3TtsCodecDecoderContractConfig`] the `decoder_config` section
+    /// describes ([`Qwen3TtsCodecDecoderMirror::codec_decoder_config`]),
+    /// checked against the stated `decode_upsample_rate`.
+    ///
+    /// # Errors
+    /// As [`Qwen3TtsCodecDecoderMirror::codec_decoder_config`];
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// when `decode_upsample_rate` is not the product of the decoder's
+    /// `upsampling_ratios` and `upsample_rates`.
+    pub fn codec_decoder_config(&self) -> BunsenResult<Qwen3TtsCodecDecoderContractConfig> {
+        let config = self.decoder_config.codec_decoder_config()?;
+        if let Some(rate) = self.decode_upsample_rate
+            && rate != config.samples_per_frame()
+        {
+            return Err(BunsenError::invalid_resource(format!(
+                "a codec config whose decode_upsample_rate, {rate}, is not its decoder's \
+                 rates' product, {}",
+                config.samples_per_frame()
+            )));
+        }
+        Ok(config)
+    }
 }
 
 /// The `decoder_config` section of `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s
@@ -71,6 +101,11 @@ pub struct Qwen3TtsCodecDecoderMirror {
     pub num_hidden_layers: usize,
     /// The codebooks.
     pub num_quantizers: usize,
+    /// The semantic codebooks, the split quantizer's first part. Upstream's
+    /// decoder ignores it and splits after one (`n_q_semantic=1`), so any
+    /// other value is refused.
+    #[serde(default = "one_semantic_quantizer")]
+    pub num_semantic_quantizers: usize,
     /// The vocoder's upsampling factors, its blocks'.
     pub upsample_rates: Vec<usize>,
     /// The upsamplers' factors, before the vocoder.
@@ -79,15 +114,21 @@ pub struct Qwen3TtsCodecDecoderMirror {
     pub decoder_dim: usize,
 }
 
+/// `num_semantic_quantizers`' default: upstream's `n_q_semantic`.
+fn one_semantic_quantizer() -> usize {
+    1
+}
+
 impl Qwen3TtsCodecDecoderMirror {
     /// The [`Qwen3TtsCodecDecoderContractConfig`] this `decoder_config` section
     /// describes.
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
-    /// feed-forward gate other than `silu`, an odd `codebook_dim`, fewer than
-    /// two codebooks, heads that do not group the key/value heads, or a vocoder
-    /// width that its blocks do not halve evenly.
+    /// feed-forward gate other than `silu`, an odd `codebook_dim`, other than
+    /// one semantic codebook, fewer than two codebooks, heads that do not group
+    /// the key/value heads, or a vocoder width that its blocks do not halve
+    /// evenly.
     pub fn codec_decoder_config(&self) -> BunsenResult<Qwen3TtsCodecDecoderContractConfig> {
         let unsupported = |what: String| Err(BunsenError::unsupported(what));
         if self.hidden_act != "silu" {
@@ -98,6 +139,13 @@ impl Qwen3TtsCodecDecoderMirror {
         }
         if !self.codebook_dim.is_multiple_of(2) {
             return unsupported(format!("an odd codebook_dim, {}", self.codebook_dim));
+        }
+        if self.num_semantic_quantizers != 1 {
+            return unsupported(format!(
+                "num_semantic_quantizers = {}; upstream's decoder splits after one \
+                 (`n_q_semantic`)",
+                self.num_semantic_quantizers
+            ));
         }
         if self.num_quantizers < 2 {
             return unsupported(format!(
@@ -141,6 +189,7 @@ impl Qwen3TtsCodecDecoderMirror {
             self.upsample_rates.clone(),
             self.decoder_dim,
         )
+        .with_semantic_codebooks(self.num_semantic_quantizers)
         .with_attention_bias(self.attention_bias))
     }
 }
@@ -164,6 +213,7 @@ pub fn qwen3_tts_codec_12hz_decoder_mirror() -> Qwen3TtsCodecDecoderMirror {
         rms_norm_eps: 1e-5,
         num_hidden_layers: 8,
         num_quantizers: 16,
+        num_semantic_quantizers: 1,
         upsample_rates: vec![8, 5, 4, 3],
         upsampling_ratios: vec![2, 2],
         decoder_dim: 1536,
@@ -290,6 +340,10 @@ mod tests {
                 ..release.clone()
             },
             Qwen3TtsCodecDecoderMirror {
+                num_semantic_quantizers: 2,
+                ..release.clone()
+            },
+            Qwen3TtsCodecDecoderMirror {
                 num_key_value_heads: 3,
                 ..release.clone()
             },
@@ -301,5 +355,27 @@ mod tests {
             let error = Qwen3TtsCodecDecoderMirror::codec_decoder_config(&json).unwrap_err();
             assert_eq!(error.kind(), crate::errors::BunsenErrorKind::Unsupported);
         }
+    }
+
+    /// A stated `decode_upsample_rate` must be the decoder's rates' product;
+    /// an absent one is not checked.
+    #[test]
+    fn test_decode_upsample_rate_checked() {
+        let codec = |rate| Qwen3TtsCodecMirror {
+            output_sample_rate: 24_000,
+            decode_upsample_rate: rate,
+            decoder_config: qwen3_tts_codec_12hz_decoder_mirror(),
+        };
+        for rate in [Some(1920), None] {
+            let config = codec(rate)
+                .codec_decoder_config()
+                .expect("a consistent config");
+            assert_eq!(config.samples_per_frame(), 1920);
+        }
+        let error = codec(Some(1921)).codec_decoder_config().unwrap_err();
+        assert_eq!(
+            error.kind(),
+            crate::errors::BunsenErrorKind::InvalidResource
+        );
     }
 }

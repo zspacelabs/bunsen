@@ -566,6 +566,10 @@ pub trait Qwen3TtsCodecDecoderMeta {
     /// The codebooks, `K`.
     fn codebooks(&self) -> usize;
 
+    /// The quantizer's first codebooks, apart from the rest (the semantic
+    /// ones).
+    fn semantic_codebooks(&self) -> usize;
+
     /// Codes per codebook.
     fn codebook_size(&self) -> usize;
 
@@ -600,6 +604,10 @@ pub struct Qwen3TtsCodecDecoderStructureConfig {
 impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoderStructureConfig {
     fn codebooks(&self) -> usize {
         self.quantizer.codebooks
+    }
+
+    fn semantic_codebooks(&self) -> usize {
+        self.quantizer.first_codebooks
     }
 
     fn codebook_size(&self) -> usize {
@@ -674,7 +682,7 @@ pub struct Qwen3TtsCodecTrace {
 /// lowers to.
 #[derive(Module, Debug)]
 pub struct Qwen3TtsCodecDecoder {
-    /// The split quantizer: the first codebook apart from the rest.
+    /// The split quantizer: the first codebooks apart from the rest.
     pub quantizer: SplitResidualVectorQuantizer,
 
     /// `[Q, L]`, 3 taps.
@@ -697,6 +705,10 @@ pub struct Qwen3TtsCodecDecoder {
 impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoder {
     fn codebooks(&self) -> usize {
         self.quantizer.codebooks()
+    }
+
+    fn semantic_codebooks(&self) -> usize {
+        self.quantizer.first_codebooks()
     }
 
     fn codebook_size(&self) -> usize {
@@ -847,8 +859,14 @@ impl CanonicalKeys for Qwen3TtsCodecDecoder {
 /// block, the transformer's layers from the geometry.
 #[derive(Config, Debug)]
 pub struct Qwen3TtsCodecDecoderContractConfig {
-    /// The codebooks, `K`; the first apart from the rest.
+    /// The codebooks, `K`; the first
+    /// [`semantic_codebooks`](Self::semantic_codebooks) apart from the rest.
     pub codebooks: usize,
+
+    /// The quantizer's first codebooks, apart from the rest (upstream's
+    /// `n_q_semantic`).
+    #[config(default = 1)]
+    pub semantic_codebooks: usize,
 
     /// Codes per codebook.
     pub codebook_size: usize,
@@ -938,6 +956,10 @@ impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoderContractConfig {
         self.codebooks
     }
 
+    fn semantic_codebooks(&self) -> usize {
+        self.semantic_codebooks
+    }
+
     fn codebook_size(&self) -> usize {
         self.codebook_size
     }
@@ -961,7 +983,8 @@ impl ToStructureConfig for Qwen3TtsCodecDecoderContractConfig {
                 self.codebook_size,
                 self.codebook_dim / 2,
                 self.codebook_dim,
-            ),
+            )
+            .with_first_codebooks(self.semantic_codebooks),
             CausalConv1dConfig::new([self.codebook_dim, latent], 3),
             Qwen3TtsCodecTransformerConfig::new(latent, self.stack()),
             self.upsampling_ratios
@@ -1015,6 +1038,7 @@ mod tests {
             rms_norm_eps: 1e-5,
             num_hidden_layers: 1,
             num_quantizers: 3,
+            num_semantic_quantizers: 1,
             upsample_rates: vec![2, 3],
             upsampling_ratios: vec![2],
             decoder_dim: 12,
@@ -1023,11 +1047,12 @@ mod tests {
     }
 
     /// The policy, its lowering and the decoders built from either answer
-    /// the meta alike, and the decoders have the same parameters.
+    /// the meta alike, and the decoders have the same parameters; every
+    /// field with a default is set to another value.
     #[test]
     fn test_lowering_agrees() {
         let device = cpu_device();
-        let policy = small();
+        let policy = small().with_semantic_codebooks(2);
         let structure = policy.to_structure();
         let direct: Qwen3TtsCodecDecoder = policy.init(&device);
         let lowered: Qwen3TtsCodecDecoder = structure.init(&device);
@@ -1040,10 +1065,11 @@ mod tests {
             assert_eq!(
                 [
                     meta.codebooks(),
+                    meta.semantic_codebooks(),
                     meta.codebook_size(),
                     meta.samples_per_frame()
                 ],
-                [3, 9, 12]
+                [3, 2, 9, 12]
             );
         }
         assert_eq!(direct.num_params(), lowered.num_params());
