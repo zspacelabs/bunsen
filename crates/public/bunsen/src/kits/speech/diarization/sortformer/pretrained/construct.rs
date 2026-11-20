@@ -144,9 +144,9 @@ impl SortformerConstructConfig {
         map: &ResourceSet,
         cache: &ResourceCache,
     ) -> BunsenResult<()> {
-        use crate::kits::speech::{
-            diarization::sortformer::NemoSortformerConfig,
-            nemo::NemoArchive,
+        use crate::{
+            data::formats::nemo::NemoArchive,
+            kits::speech::diarization::sortformer::NemoSortformerConfig,
         };
         let checkpoint = map.try_get(CHECKPOINT)?;
         let prefix = cache.read_prefix(checkpoint, NEMO_CONFIG_PREFIX)?;
@@ -166,12 +166,12 @@ impl SortformerConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
-        use crate::kits::speech::{
-            diarization::sortformer::{
+        use crate::{
+            data::formats::nemo::NemoArchive,
+            kits::speech::diarization::sortformer::{
                 NemoSortformerConfig,
                 weights::load_sortformer_v2_nemo_tensors,
             },
-            nemo::NemoArchive,
         };
         let path = loaded.expect(CHECKPOINT)?;
         let in_path = |e: BunsenError| e.context(path.display());
@@ -448,6 +448,11 @@ mod tests {
                     BunsenDiskCacheOptions,
                     testing::serve_ranges,
                 },
+                formats::nemo::{
+                    NEMO_CONFIG_MEMBER,
+                    NEMO_WEIGHTS_MEMBER,
+                    NemoArchive,
+                },
                 resources::{
                     CacheStatus,
                     Resource,
@@ -458,11 +463,6 @@ mod tests {
             errors::{
                 BunsenErrorKind,
                 testing::ErrorMatcher,
-            },
-            kits::speech::nemo::{
-                NEMO_CONFIG_MEMBER,
-                NEMO_WEIGHTS_MEMBER,
-                NemoArchive,
             },
         };
         let toy = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

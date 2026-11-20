@@ -1,10 +1,6 @@
-//! Typed sections of a `NeMo` YAML config.
+//! Typed sections of a `NeMo` YAML config, and the bunsen configs they give.
 use serde::Deserialize;
 
-use super::{
-    FeatureNormalization,
-    NemoMelFrontEndConfig,
-};
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
@@ -23,6 +19,10 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+    },
+    kits::speech::nemo::{
+        FeatureNormalization,
+        NemoMelFrontEndConfig,
     },
 };
 
@@ -73,7 +73,7 @@ fn expect_target(
 /// arguments, named as `NeMo` names them and each defaulting as its
 /// constructor defaults it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct NemoPreprocessorConfig {
+pub struct NemoPreprocessorMirror {
     /// The class `NeMo` instantiates.
     #[serde(rename = "_target_")]
     pub target: String,
@@ -144,7 +144,7 @@ pub struct NemoPreprocessorConfig {
     pub exact_pad: bool,
 }
 
-impl NemoPreprocessorConfig {
+impl NemoPreprocessorMirror {
     /// The [`NemoMelFrontEndConfig`] this section describes, its tables in
     /// f32: a checkpoint that stores them in bf16 sets
     /// [`bf16_tables`](NemoMelFrontEndConfig::bf16_tables) itself.
@@ -156,7 +156,7 @@ impl NemoPreprocessorConfig {
     /// window's rounded up to a power of two, a power other than 2, no log or
     /// a clamping guard, frame splicing, a band other than `[0, nyquist]`,
     /// exact padding, or a normalization other than `per_feature` and `NA`.
-    pub fn front_end(&self) -> BunsenResult<NemoMelFrontEndConfig> {
+    pub fn mel_front_end_config(&self) -> BunsenResult<NemoMelFrontEndConfig> {
         const S: &str = "preprocessor";
         expect_target(S, &self.target, &["AudioToMelSpectrogramPreprocessor"])?;
         let rate = self.sample_rate as f64;
@@ -225,7 +225,7 @@ impl NemoPreprocessorConfig {
 /// arguments, named as `NeMo` names them and each defaulting as its
 /// constructor defaults it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct NemoConformerEncoderConfig {
+pub struct NemoConformerEncoderMirror {
     /// The class `NeMo` instantiates.
     #[serde(rename = "_target_")]
     pub target: String,
@@ -300,7 +300,7 @@ pub struct NemoConformerEncoderConfig {
     pub conv_context_size: Option<Vec<i64>>,
 }
 
-impl NemoConformerEncoderConfig {
+impl NemoConformerEncoderMirror {
     /// The [`ConformerEncoderConfig`] this section describes.
     ///
     /// # Errors
@@ -310,7 +310,7 @@ impl NemoConformerEncoderConfig {
     /// 2 by a power of two, causal subsampling, attention other than full
     /// relative-position with untied biases, a convolution norm other than
     /// batch norm, or an asymmetric convolution context.
-    pub fn conformer(&self) -> BunsenResult<ConformerEncoderConfig> {
+    pub fn conformer_encoder_config(&self) -> BunsenResult<ConformerEncoderConfig> {
         const S: &str = "encoder";
         expect_target(S, &self.target, &["ConformerEncoder"])?;
         if self.subsampling != "dw_striding" {
@@ -419,7 +419,7 @@ impl NemoConformerEncoderConfig {
 /// named as `NeMo` names them and each defaulting as its constructor defaults
 /// it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct NemoTransformerEncoderConfig {
+pub struct NemoTransformerEncoderMirror {
     /// The class `NeMo` instantiates.
     #[serde(rename = "_target_")]
     pub target: String,
@@ -456,7 +456,7 @@ pub struct NemoTransformerEncoderConfig {
     pub mask_future: bool,
 }
 
-impl NemoTransformerEncoderConfig {
+impl NemoTransformerEncoderMirror {
     /// The layer this section stacks, as a
     /// [`ResidualEncoderAttentionBlockConfig`]: every projection with a
     /// bias, as `NeMo`'s `MultiHeadAttention` and `PositionWiseFF` have.
@@ -466,7 +466,9 @@ impl NemoTransformerEncoderConfig {
     /// the field and its value, for causal attention, an activation other
     /// than `relu` and `gelu`, or a width the heads or the feed-forward do
     /// not divide.
-    pub fn block(&self) -> BunsenResult<ResidualEncoderAttentionBlockConfig> {
+    pub fn transformer_encoder_block_config(
+        &self
+    ) -> BunsenResult<ResidualEncoderAttentionBlockConfig> {
         const S: &str = "transformer_encoder";
         expect_target(
             S,
@@ -516,7 +518,7 @@ impl NemoTransformerEncoderConfig {
     /// Whether the stack ends with a norm: `NeMo` adds it only to a pre-norm
     /// stack ([`pre_ln`](Self::pre_ln) and
     /// [`pre_ln_final_layer_norm`](Self::pre_ln_final_layer_norm)).
-    pub fn final_norm(&self) -> bool {
+    pub fn transformer_encoder_final_norm(&self) -> bool {
         self.pre_ln && self.pre_ln_final_layer_norm
     }
 }

@@ -11,14 +11,16 @@ use crate::{
         transformers::encoders::residual::ResidualEncoderTransformerConfig,
     },
     burner::module::ToStructureConfig,
+    data::formats::nemo::parse_nemo_yaml,
     errors::BunsenResult,
-    kits::speech::nemo::{
-        NemoConformerEncoderConfig,
-        NemoMelFrontEndConfig,
-        NemoPreprocessorConfig,
-        NemoTransformerEncoderConfig,
-        parse_nemo_yaml,
-        unsupported_field,
+    kits::{
+        speech::nemo::NemoMelFrontEndConfig,
+        support::interop::nemo::{
+            NemoConformerEncoderMirror,
+            NemoPreprocessorMirror,
+            NemoTransformerEncoderMirror,
+            unsupported_field,
+        },
     },
 };
 
@@ -37,13 +39,13 @@ pub struct NemoSortformerConfig {
     pub target: String,
 
     /// The mel front end.
-    pub preprocessor: NemoPreprocessorConfig,
+    pub preprocessor: NemoPreprocessorMirror,
 
     /// The `FastConformer`.
-    pub encoder: NemoConformerEncoderConfig,
+    pub encoder: NemoConformerEncoderMirror,
 
     /// The transformer over the projected frames.
-    pub transformer_encoder: NemoTransformerEncoderConfig,
+    pub transformer_encoder: NemoTransformerEncoderMirror,
 
     /// The projection, the head, and the streaming defaults.
     pub sortformer_modules: NemoSortformerModulesConfig,
@@ -127,8 +129,8 @@ impl NemoSortformerConfig {
     ///
     /// # Errors
     /// As the sections' conversions
-    /// ([`NemoConformerEncoderConfig::conformer`],
-    /// [`NemoTransformerEncoderConfig::block`]);
+    /// ([`NemoConformerEncoderMirror::conformer_encoder_config`],
+    /// [`NemoTransformerEncoderMirror::transformer_encoder_block_config`]);
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming
     /// the field and its value, for another model class, sections that
     /// disagree on a width or on the subsampling, a transformer that ends
@@ -179,7 +181,7 @@ impl NemoSortformerConfig {
                 ),
             ));
         }
-        if transformer.final_norm() {
+        if transformer.transformer_encoder_final_norm() {
             return Err(unsupported_field(
                 "transformer_encoder.pre_ln_final_layer_norm",
                 true,
@@ -209,13 +211,13 @@ impl NemoSortformerConfig {
         }
         Ok(SortformerStructureConfig::new(
             encoder
-                .conformer()?
+                .conformer_encoder_config()?
                 .try_to_structure()?
                 .with_layout(BoundaryPermutes::SWAP_IN),
             SortformerHeadConfig::new(modules.tf_d_model, modules.num_spks),
         )
         .with_transformer(Some(ResidualEncoderTransformerConfig::new(
-            transformer.block()?,
+            transformer.transformer_encoder_block_config()?,
             transformer.num_layers,
         ))))
     }
@@ -224,9 +226,9 @@ impl NemoSortformerConfig {
     /// section's.
     ///
     /// # Errors
-    /// As [`NemoPreprocessorConfig::front_end`].
+    /// As [`NemoPreprocessorMirror::mel_front_end_config`].
     pub fn front_end(&self) -> BunsenResult<NemoMelFrontEndConfig> {
-        self.preprocessor.front_end()
+        self.preprocessor.mel_front_end_config()
     }
 }
 
@@ -256,13 +258,11 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ToStructureConfig,
+        data::formats::nemo::NemoArchive,
         errors::BunsenErrorKind,
         kits::speech::{
             diarization::sortformer::SortformerV2Config,
-            nemo::{
-                FeatureNormalization,
-                NemoArchive,
-            },
+            nemo::FeatureNormalization,
         },
     };
 

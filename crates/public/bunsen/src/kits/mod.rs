@@ -152,7 +152,7 @@
 //!   the upstream schema does**, renaming only what Rust cannot spell
 //!   (`_target_`); bunsen's vocabulary starts in the config the mirror converts
 //!   to. Each field then greps straight to the upstream source
-//!   ([`NemoTransformerEncoderConfig`](speech::nemo::NemoTransformerEncoderConfig)'
+//!   ([`NemoTransformerEncoderMirror`](support::interop::nemo::NemoTransformerEncoderMirror)'
 //!   s `pre_ln`).
 //! - **A kit's tests read no fetched asset.** They run toy fixtures and
 //!   committed recordings, and a validation crate holds the kit's checkpoints

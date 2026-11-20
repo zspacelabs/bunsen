@@ -9,36 +9,12 @@
 //!   ([`parakeet_tdt`](NemoMelFrontEndConfig::parakeet_tdt),
 //!   [`nemotron_diarization`](NemoMelFrontEndConfig::nemotron_diarization));
 //!   [`NemoMelFeatures`] streams it.
-//! - `NemoArchive` (feature `store`): a `.nemo` checkpoint, `NeMo`'s tar of a
-//!   YAML config and a `PyTorch` state dict; `read_nemo_weights` reads the
-//!   state dict, and `parse_nemo_yaml` the config, into typed sections
-//!   (`NemoPreprocessorConfig`, `NemoConformerEncoderConfig`,
-//!   `NemoTransformerEncoderConfig`) that give the bunsen configs they
-//!   describe. A section's fields are its YAML keys, spelled as `NeMo` spells
-//!   them, so a field greps to `NeMo`'s source and to a `.nemo`'s config;
-//!   bunsen's own names start in the configs a section gives.
-//! - `NeMo`'s state-dict names as bunsen's module paths:
-//!   [`conformer_encoder_rekey`] (a `FastConformer`, with its
-//!   [`conv_subsampling_rekey`] and [`conformer_layer_rekey`]) and
-//!   [`transformer_encoder_rekey`] (with its
-//!   [`transformer_encoder_layer_rekey`]), `Rekey`s for the loaders.
 //!
-//! The `.nemo` fixture in `testdata/nemo/` is a toy Sortformer v2 that `NeMo`
-//! saved itself, written by `tools/gen_nemo_fixtures.py`.
+//! What their files mean (the YAML config sections, the bunsen configs they
+//! give, the state-dict names) is
+//! [`support::interop::nemo`](crate::kits::support::interop::nemo); the
+//! `.nemo` container is [`data::formats::nemo`](crate::data::formats::nemo).
 
-#[cfg(feature = "store")]
-mod archive;
-#[cfg(feature = "store")]
-mod config;
 mod front_end;
-mod rekey;
 
-#[cfg(all(test, feature = "store"))]
-mod archive_tests;
-
-#[cfg(feature = "store")]
-pub use archive::*;
-#[cfg(feature = "store")]
-pub use config::*;
 pub use front_end::*;
-pub use rekey::*;
