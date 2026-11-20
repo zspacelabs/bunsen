@@ -28,8 +28,8 @@
 //!
 //! - a `Config` struct (`#[derive(Config)]`);
 //! - a `Module` struct (`#[derive(Module)]`), built by the config;
-//! - usually a `{Name}Meta` trait implemented by both, so the block's geometry
-//!   reads the same before and after init.
+//! - a `{Name}Meta` trait implemented by both, so the block's geometry reads
+//!   the same before and after init.
 //!
 //! Configs build their module through [`ModuleInit`]
 //! (`init(&device)` / `try_init(&device)`); a parameter-free one, such as

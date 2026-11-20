@@ -23,6 +23,7 @@ use crate::{
         speech::tts::qwen3_tts::talker::{
             Qwen3TtsTalker,
             Qwen3TtsTalkerConfig,
+            Qwen3TtsTalkerMeta,
             weights::load_qwen3_tts_talker_tensors,
         },
         support::model_config::TransformersConfigJson,

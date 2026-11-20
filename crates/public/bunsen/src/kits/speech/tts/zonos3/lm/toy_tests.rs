@@ -17,6 +17,7 @@ use super::{
     Zonos3Lm,
     Zonos3LmConfig,
     Zonos3LmJson,
+    Zonos3LmMeta,
     Zonos3RowConditioning,
     weights::load_zonos3_lm_tensors,
 };
@@ -155,6 +156,27 @@ fn test_toy_config() {
     assert_eq!((c.n_experts, c.top_k, c.moe_latent), (4, 2, 32));
     assert!(!c.layer_attends(0) && c.layer_attends(1));
     assert_eq!(toy.model.stack.n_sources(), 5);
+}
+
+/// The toy's config and model answer the meta alike.
+#[test]
+fn test_toy_meta() {
+    let toy = Toy::load();
+    let answers = |m: &dyn Zonos3LmMeta| {
+        [
+            m.d_model(),
+            m.n_layers(),
+            m.n_codebooks(),
+            m.codebook_size(),
+            m.text_rows(),
+            m.speaker_dim(),
+            m.audio_vocab(),
+            m.eoa_id(),
+            m.audio_pad_id(),
+        ]
+    };
+    assert_eq!(answers(&toy.config), answers(&toy.model));
+    assert_eq!(answers(&toy.config)[..5], [64, 2, 10, 16, 21]);
 }
 
 /// Every stage of a full pass: the summed and the conditioned embeddings,

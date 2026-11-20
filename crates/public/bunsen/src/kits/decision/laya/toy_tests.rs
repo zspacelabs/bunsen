@@ -15,6 +15,7 @@ use burn::prelude::*;
 use super::{
     LayaAgentConfig,
     LayaConfig,
+    LayaMeta,
     LayaModel,
     LayaQuestion,
     LayaSpecials,
@@ -33,6 +34,7 @@ use crate::{
     support::testing::{
         ToyFixture,
         assert_io_close,
+        cpu_device,
         performance_device,
     },
 };
@@ -219,4 +221,22 @@ fn test_decide_batches_alike() {
         }
         assert!((answer.act_probability - alone[0].act_probability).abs() < 1e-4);
     }
+}
+
+/// A config non-default in every head field and the model built from it
+/// answer the meta alike.
+#[test]
+fn test_meta() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
+    let json = std::fs::read_to_string(dir.join("laya_toy.encoder.config.json"))
+        .expect("read the toy encoder config");
+    let encoder = modernbert_config_from_transformers(&json).expect("parse the toy config");
+    let config = LayaConfig::new(encoder)
+        .with_head_layers(1)
+        .with_n_act(3)
+        .with_act_hidden(5);
+    let model: LayaModel = config.init(&cpu_device());
+    let answers = |m: &dyn LayaMeta| [m.d_model(), m.head_layers(), m.n_act(), m.act_hidden()];
+    assert_eq!(answers(&config), answers(&model));
+    assert_eq!(answers(&config)[1..], [1, 3, 5]);
 }

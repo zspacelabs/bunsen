@@ -120,6 +120,40 @@ impl Qwen3TtsResizeMlp {
     }
 }
 
+/// A [`Qwen3TtsTalker`]'s geometry, which its config and the talker answer
+/// alike.
+pub trait Qwen3TtsTalkerMeta {
+    /// The talker's width, `W`.
+    fn d_model(&self) -> usize;
+
+    /// The codec table's rows, `V`: the codes and the control rows.
+    fn codec_vocab(&self) -> usize;
+
+    /// The text table's rows, `V_t`.
+    fn text_vocab(&self) -> usize;
+
+    /// The text table's width, `T_w`.
+    fn text_width(&self) -> usize;
+}
+
+impl Qwen3TtsTalkerMeta for Qwen3TtsTalkerConfig {
+    fn d_model(&self) -> usize {
+        self.lm.d_model
+    }
+
+    fn codec_vocab(&self) -> usize {
+        self.lm.n_vocab
+    }
+
+    fn text_vocab(&self) -> usize {
+        self.text_vocab
+    }
+
+    fn text_width(&self) -> usize {
+        self.text_width
+    }
+}
+
 /// Qwen3-TTS's talker (`Qwen3TTSTalkerForConditionalGeneration` without its
 /// code predictor): a Qwen3 decoder whose inputs are sums of embeddings and
 /// whose head reads the first codebook of the next frame.
@@ -165,12 +199,25 @@ impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
     }
 }
 
-impl Qwen3TtsTalker {
-    /// The talker's width.
-    pub fn d_model(&self) -> usize {
+impl Qwen3TtsTalkerMeta for Qwen3TtsTalker {
+    fn d_model(&self) -> usize {
         self.lm.d_model()
     }
 
+    fn codec_vocab(&self) -> usize {
+        self.lm.n_vocab()
+    }
+
+    fn text_vocab(&self) -> usize {
+        self.text_embedding.weight.dims()[0]
+    }
+
+    fn text_width(&self) -> usize {
+        self.text_embedding.weight.dims()[1]
+    }
+}
+
+impl Qwen3TtsTalker {
     /// Codec rows: `[B, T]` ids of the codec table to `[B, T, W]`.
     pub fn codec_embed(
         &self,
@@ -235,7 +282,28 @@ impl KVCacheModel for Qwen3TtsTalker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        kits::language::qwen3::Qwen3Config,
+        support::testing::cpu_device,
+    };
+
+    /// The config and the talker built from it answer the meta alike.
+    #[test]
+    fn test_talker_meta() {
+        let config = Qwen3TtsTalkerConfig::new(Qwen3Config::new(11, 8, 1, 2, 1, 4, 12), 13, 6, 4);
+        let talker: Qwen3TtsTalker = config.init(&cpu_device());
+        for meta in [&config as &dyn Qwen3TtsTalkerMeta, &talker] {
+            assert_eq!(
+                [
+                    meta.d_model(),
+                    meta.codec_vocab(),
+                    meta.text_vocab(),
+                    meta.text_width()
+                ],
+                [8, 11, 13, 6]
+            );
+        }
+    }
 
     /// The config and the projection built from it answer the meta alike.
     #[test]

@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use burn::config::Config;
 use serde::Deserialize;
 
+use super::Zonos3CodecStageMeta;
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
@@ -119,11 +120,6 @@ pub struct Zonos3CodecStageConfig {
 }
 
 impl Zonos3CodecStageConfig {
-    /// The width it writes.
-    pub fn out_width(&self) -> usize {
-        self.output_width.unwrap_or(self.width)
-    }
-
     /// Its layers, as a decoder stack without a final norm: pre-LayerNorm,
     /// multi-head attention over a causal sliding window with interleaved
     /// rotary and no QK-norm, a GELU feed-forward, no biases on the

@@ -46,7 +46,10 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::decoders::stack::DecoderStack,
+        transformers::decoders::stack::{
+            DecoderStack,
+            DecoderStackMeta,
+        },
     },
     burner::module::{
         CanonicalKeys,
@@ -85,6 +88,60 @@ impl Zonos3CodebookDecoder {
             .select(0, codes.reshape([b * t]))
             .reshape([b, t, d]);
         self.out_proj.forward(vectors)
+    }
+}
+
+/// A [`Zonos3CodecStage`]'s geometry, which its config and the stage answer
+/// alike.
+pub trait Zonos3CodecStageMeta {
+    /// The width it reads, `C_in`.
+    fn input_width(&self) -> usize;
+
+    /// Its width, `W`.
+    fn width(&self) -> usize;
+
+    /// Its layers.
+    fn n_layers(&self) -> usize;
+
+    /// The width it writes, `C_out`.
+    fn out_width(&self) -> usize;
+}
+
+impl Zonos3CodecStageMeta for Zonos3CodecStageConfig {
+    fn input_width(&self) -> usize {
+        self.input_width
+    }
+
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn n_layers(&self) -> usize {
+        self.n_layers
+    }
+
+    fn out_width(&self) -> usize {
+        self.output_width.unwrap_or(self.width)
+    }
+}
+
+impl Zonos3CodecStageMeta for Zonos3CodecStage {
+    fn input_width(&self) -> usize {
+        self.input_proj.weight.dims()[0]
+    }
+
+    fn width(&self) -> usize {
+        self.input_proj.weight.dims()[1]
+    }
+
+    fn n_layers(&self) -> usize {
+        self.stack.n_layers()
+    }
+
+    fn out_width(&self) -> usize {
+        self.output_proj
+            .as_ref()
+            .map_or_else(|| self.width(), |proj| proj.weight.dims()[1])
     }
 }
 
@@ -130,6 +187,80 @@ impl ModuleInit<Zonos3CodecStage> for Zonos3CodecStageConfig {
             stack: self.stack().try_init(device)?,
             output_proj: self.output_width.map(|o| linear(self.width, o)),
         })
+    }
+}
+
+/// A [`Zonos3Codec`]'s geometry, which its config and the codec answer
+/// alike.
+pub trait Zonos3CodecMeta {
+    /// The codebooks, `Q`: the first and the residual ones.
+    fn codebooks(&self) -> usize;
+
+    /// Codes per codebook.
+    fn codebook_size(&self) -> usize;
+
+    /// Each codebook vector's width.
+    fn codebook_dim(&self) -> usize;
+
+    /// The latent's width, the trunk's input.
+    fn latent_width(&self) -> usize;
+
+    /// The trunk's stages.
+    fn n_stages(&self) -> usize;
+
+    /// Output samples per frame of codes.
+    fn hop(&self) -> usize;
+}
+
+impl Zonos3CodecMeta for Zonos3CodecConfig {
+    fn codebooks(&self) -> usize {
+        self.residual_codebooks + 1
+    }
+
+    fn codebook_size(&self) -> usize {
+        self.codebook_size
+    }
+
+    fn codebook_dim(&self) -> usize {
+        self.codebook_dim
+    }
+
+    fn latent_width(&self) -> usize {
+        self.latent_width
+    }
+
+    fn n_stages(&self) -> usize {
+        self.stages.len()
+    }
+
+    fn hop(&self) -> usize {
+        self.hop
+    }
+}
+
+impl Zonos3CodecMeta for Zonos3Codec {
+    fn codebooks(&self) -> usize {
+        self.quantizers.len()
+    }
+
+    fn codebook_size(&self) -> usize {
+        self.quantizers[0].codebook.dims()[0]
+    }
+
+    fn codebook_dim(&self) -> usize {
+        self.quantizers[0].codebook.dims()[1]
+    }
+
+    fn latent_width(&self) -> usize {
+        self.semantic_proj.weight.dims()[1]
+    }
+
+    fn n_stages(&self) -> usize {
+        self.stages.len()
+    }
+
+    fn hop(&self) -> usize {
+        self.hop
     }
 }
 

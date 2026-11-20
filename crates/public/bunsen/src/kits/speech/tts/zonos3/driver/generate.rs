@@ -46,7 +46,10 @@ use crate::{
             zonos3::{
                 Zonos3Construct,
                 Zonos3GenerationJson,
-                lm::Zonos3RowConditioning,
+                lm::{
+                    Zonos3LmMeta,
+                    Zonos3RowConditioning,
+                },
                 prompt::{
                     Zonos3PromptRequest,
                     Zonos3Speaker,

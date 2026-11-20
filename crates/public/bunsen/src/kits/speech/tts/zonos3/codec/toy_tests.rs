@@ -16,6 +16,8 @@ use super::{
     Zonos3Codec,
     Zonos3CodecConfig,
     Zonos3CodecJson,
+    Zonos3CodecMeta,
+    Zonos3CodecStageMeta,
     weights::load_zonos3_codec_tensors,
 };
 use crate::{
@@ -57,6 +59,29 @@ fn load() -> (Zonos3CodecConfig, Zonos3Codec, ToyFixture) {
     load_zonos3_codec_tensors(&mut model, &config, fixture.take_weights(), None)
         .expect("load the toy weights");
     (config, model, fixture)
+}
+
+/// The toy's config and codec answer the meta alike, and so does each
+/// stage.
+#[test]
+fn test_toy_meta() {
+    let (config, model, _) = load();
+    let codec = |m: &dyn Zonos3CodecMeta| {
+        [
+            m.codebooks(),
+            m.codebook_size(),
+            m.codebook_dim(),
+            m.latent_width(),
+            m.n_stages(),
+            m.hop(),
+        ]
+    };
+    assert_eq!(codec(&config), codec(&model));
+    let stage =
+        |m: &dyn Zonos3CodecStageMeta| [m.input_width(), m.width(), m.n_layers(), m.out_width()];
+    for (c, m) in config.stages.iter().zip(&model.stages) {
+        assert_eq!(stage(c), stage(m));
+    }
 }
 
 /// Every stage, from the codes to the audio. The fixture's trunk tensors
