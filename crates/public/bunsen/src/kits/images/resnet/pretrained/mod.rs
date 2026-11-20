@@ -23,7 +23,7 @@
 //! [`default_resnet_factory`] is the index, and [`ResNetConstructConfig`] its
 //! hook: it builds the model from the row's prefab and reads the
 //! checkpoint into it with
-//! [`ResNet::load_pytorch_weights`](super::ResNet::load_pytorch_weights). A
+//! [`load_resnet`](super::interop::torchvision::load_resnet). A
 //! checkpoint does not describe its own geometry, so a model built from
 //! any other config, or a checkpoint given as a path, needs
 //! [`ResNetConstructConfig::with_config`]: resolve the name, set the config on

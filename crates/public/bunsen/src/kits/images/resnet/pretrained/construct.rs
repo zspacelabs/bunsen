@@ -5,7 +5,6 @@ use alloc::sync::Arc;
 use burn::tensor::Device;
 
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
@@ -26,10 +25,7 @@ use crate::{
     kits::images::resnet::{
         ResNet,
         ResNetContractConfig,
-        pretrained::{
-            CHECKPOINT,
-            RESNET_KIT,
-        },
+        pretrained::RESNET_KIT,
     },
 };
 
@@ -39,7 +35,7 @@ use crate::{
 /// `ResNet`'s [`ConstructInit`] hook, behind
 /// [`default_resnet_factory`](super::default_resnet_factory). It
 /// builds a [`ResNet`] from the config, then reads the checkpoint into
-/// it with [`ResNet::load_pytorch_weights`].
+/// it with [`load_resnet`](crate::kits::images::resnet::interop::torchvision::load_resnet).
 ///
 /// A checkpoint does not describe its own geometry, so the config comes
 /// from the prefab the row names, or from
@@ -119,10 +115,11 @@ impl ConstructInit for ResNetConstructConfig {
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ResNet>> {
         let config = self.config_for(model)?;
-        let resnet: ResNet = config.try_init(device)?;
-        let resnet = resnet.load_pytorch_weights(loaded.expect(CHECKPOINT)?)?;
-        // The files' precision (f32), or wider as the policy asks.
-        Ok(Arc::new(load.place(resnet, device, |_| true)?))
+        Ok(Arc::new(
+            crate::kits::images::resnet::interop::torchvision::load_resnet(
+                loaded, &config, device, load,
+            )?,
+        ))
     }
 }
 
@@ -133,7 +130,10 @@ mod tests {
         data::pretrained::Prefabs,
         kits::images::resnet::{
             ResNetContractConfig,
-            pretrained::default_resnet_factory,
+            pretrained::{
+                CHECKPOINT,
+                default_resnet_factory,
+            },
         },
     };
 

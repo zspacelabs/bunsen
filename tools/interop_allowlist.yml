@@ -2,12 +2,4 @@
 # migration (scratch/kit-interop/NOTES.md) hasn't reached yet. Each kit's
 # layer removes its own; the check fails on a stale entry. Regenerate
 # with `--bless`.
-- rule: rekey
-  path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
-  item: 'ResNet::load_pytorch_weights'
-- rule: rekey
-  path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
-  item: 'ResNet::torchvision_rekey'
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
-  item: 'ResNet::load_pytorch_weights'
+[]
