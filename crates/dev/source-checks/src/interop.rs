@@ -19,7 +19,7 @@
 //! item under `#[cfg(test)]` (or a `cfg` that names `test`), and a `#[test]`.
 //!
 //! A fourth rule, **`mirror-rename`**, tracks the upstream mirrors whose
-//! names don't say so yet (`NanoChatMeta`, `TekkenJson`): the
+//! names don't say so yet (`NanoChatMeta`, `LayaAgentConfig`): the
 //! check can't find a mirror by its name until it is renamed, so these
 //! entries are listed by hand, and one holds while its type still exists in
 //! its file. A renamed (or moved) type makes its entry stale.

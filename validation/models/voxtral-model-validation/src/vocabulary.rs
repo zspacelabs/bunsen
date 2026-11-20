@@ -6,7 +6,7 @@ use bunsen::kits::{
         VoxtralTokenLayoutConfig,
         VoxtralTranscript,
     },
-    support::tokens::TekkenVocabulary,
+    support::interop::mistral_common::TekkenMirror,
 };
 
 use super::*;
@@ -45,7 +45,9 @@ mod voxtral_mini_4b_realtime_2602 {
     #[test]
     fn transcripts_read_as_transformers_text() {
         let json = tekken_json();
-        let vocab = TekkenVocabulary::from_tekken_json(&json).unwrap();
+        let vocab = TekkenMirror::from_json(&json)
+            .and_then(|m| m.tekken_vocabulary())
+            .unwrap();
         assert_eq!(vocab.vocab_size(), 131_072);
         assert_eq!(vocab.special_id("[STREAMING_PAD]"), Some(32));
         let layout = VoxtralTokenLayoutConfig::from_tekken_json(&json)

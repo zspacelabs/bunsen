@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn test_parse() {
-        let vocab = TekkenVocabulary::from_tekken_json(
+        let vocab = crate::kits::support::interop::mistral_common::TekkenMirror::from_json(
             r#"{
                 "config": {"default_vocab_size": 37, "default_num_special_tokens": 34},
                 "vocab": [
@@ -113,6 +113,7 @@ mod tests {
                 ]
             }"#,
         )
+        .and_then(|m| m.tekken_vocabulary())
         .unwrap();
         let layout = VoxtralTokenLayoutConfig::new()
             .with_left_pad_positions(1)

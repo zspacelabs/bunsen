@@ -95,15 +95,3 @@
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/language/nanochat/weights.rs
   item: NanoChatModelConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/support/tokens/tekken.rs
-  item: TekkenConfigJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/support/tokens/tekken.rs
-  item: TekkenJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/support/tokens/tekken.rs
-  item: TekkenSpecialJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/support/tokens/tekken.rs
-  item: TekkenTokenJson
