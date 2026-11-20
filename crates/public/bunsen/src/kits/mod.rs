@@ -118,6 +118,52 @@
 //! [`support::tokens::Detokenizer`] for turning ids into text, and
 //! [`support::decoding::TokenSearch`] for choosing them.
 //!
+//! # Design Rules
+//!
+//! Also binding here: the config lifecycle
+//! ([`burner::module`'s Design Rules](crate::burner::module#design-rules)) and
+//! the crate root's [names and layers](crate#design-rules).
+//! [Anatomy of a kit](#anatomy-of-a-kit) is the reference for each piece
+//! named below.
+//!
+//! - **A kit that loads weights has the named pieces:** its configs, in one of
+//!   the two shapes; `{KIT}_KIT`; a `contract.yml` beside its providers
+//!   (`{KIT}_CATALOG_CONTRACT`); `default_{kit}_providers()`; a
+//!   `{Kit}ConstructConfig` hook that builds a `{Kit}Construct`; and
+//!   `default_{kit}_factory()`. There is no registry. A name to a model is one
+//!   call, and the catalog builder and tools find every kit the same way
+//!   ([`images::resnet::pretrained`], [`language::qwen3::pretrained`]).
+//! - **Kits group by domain, then by task where a domain's kits serve different
+//!   tasks**: `speech::{asr, diarization, tts, vad}`. A task's
+//!   model-independent parts sit beside its models ([`speech::asr::driver`]); a
+//!   family layer that crosses tasks ([`speech::nemo`]) and the domain's
+//!   `testing` sit beside the tasks. [`support`] holds what kits of more than
+//!   one domain share, and simulations are [`crate::sims`], not kits. A kit's
+//!   module is named for its model, as close to the model's own name as a Rust
+//!   identifier allows, even when that repeats its group
+//!   ([`speech::asr::qwen3_asr`]). An op that only one kit uses lives in that
+//!   kit's `ops` ([`images::swin::ops`]). A kit is found by what it is, and
+//!   kit-only code stays out of the shared layers.
+//! - **A loaded model is immutable.** Decode and stream state is a context or a
+//!   cache that the caller creates and passes back in
+//!   ([`WhisperStreamContext`](speech::asr::whisper::driver::WhisperStreamContext)),
+//!   so one loaded model serves several streams at once.
+//! - **A type that deserializes an upstream config names every field exactly as
+//!   the upstream schema does**, renaming only what Rust cannot spell
+//!   (`_target_`); bunsen's vocabulary starts in the config the mirror converts
+//!   to. Each field then greps straight to the upstream source
+//!   ([`NemoTransformerEncoderConfig`](speech::nemo::NemoTransformerEncoderConfig)'
+//!   s `pre_ln`).
+//! - **A kit's tests read no fetched asset.** They run toy fixtures and
+//!   committed recordings, and a validation crate holds the kit's checkpoints
+//!   to their upstream reference, on an accelerator in a half dtype as well as
+//!   in f32. A plain build never reaches the network, and mixed-dtype faults
+//!   show only in half precision.
+//! - **A driver drops or rewrites user input only when told to.** By default,
+//!   input the model cannot use is an error that names the opt-in, and when
+//!   input is dropped, the result says so. A silent strip hides the failure
+//!   from the user.
+//!
 //! # Stability
 //!
 //! Kits are added incrementally and their surfaces may evolve faster

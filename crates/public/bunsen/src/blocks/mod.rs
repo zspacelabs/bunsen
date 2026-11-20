@@ -38,6 +38,57 @@
 //! takes the layer's index in its stack (see `ModuleInit`'s
 //! [hand-written `init`](crate::burner::module::ModuleInit#hand-written-init)).
 //!
+//! ## Design Rules
+//!
+//! Also binding here: the config lifecycle
+//! ([`burner::module`'s Design Rules](crate::burner::module#design-rules)) and
+//! the crate root's [names and layers](crate#design-rules).
+//!
+//! - **A block is a `Module` meant to be a root or a part of a module tree:**
+//!   its parameters, plus `ops` calls in order. A tensor operation or table
+//!   that blocks share lives in [`crate::ops`], and a block that only one kit
+//!   uses lives in that kit. Blocks stay composable and ops reusable.
+//! - **A block that decodes or streams takes its state as an argument and never
+//!   holds it**, as [Ops and blocks](crate::ops#ops-and-blocks) defines:
+//!   [`CausalSelfAttention::forward`] takes a [`KVCache`]. One model then
+//!   serves several caches or streams at once.
+//! - **A forward that works on tensors checks its shapes with
+//!   [`crate::contracts`]:** an always-run unpack where the body reads dims,
+//!   and cfg-gated asserts, written by full path, on outputs and intermediates.
+//!   An output contract binds the dims it shares with the input's unpack; where
+//!   only the gated check reads a binding, a `#[cfg(not(any(debug_assertions,
+//!   test)))] let _ = d;` keeps it. The rustdoc writes each tensor argument and
+//!   result in the notation the contract checks. A forward that only delegates
+//!   inherits its callee's checks. The contracts are both the runtime check and
+//!   the shape language of the API docs.
+//! - **A seam is an enum config plus an enum module, and each kind is a module
+//!   type of its own**, never a bare value: weight loading walks each variant's
+//!   module. Math operations as modules live in [`math`]. A module whose name
+//!   would collide with a function or an `ops` value object spells out
+//!   `Module`: [`PowOpModule`](math::PowOpModule), with `PowOpModuleConfig` and
+//!   `PowOpModuleMeta`.
+//! - **Fold a model into a shared block when what it needs is an option**, a
+//!   field or a branch. A forward path, a state or an invariant that only one
+//!   model takes is a new block family instead. Unification stops before
+//!   options make the shared block unreadable:
+//!   [`CausalSelfAttentionConfig`](transformers::attention::csa::CausalSelfAttentionConfig)
+//!   carries the encoders' two-sided window as an option.
+//! - **A wrapper module never implements `Deref` or `DerefMut` to its inner
+//!   module**; callers reach through the field
+//!   ([`ResidualSublayer`](transformers::sublayer::ResidualSublayer)'s
+//!   `branch`). The wrapper and the inner module share `Module`'s methods, so
+//!   an elided field silently changes meaning.
+//! - **A block publishes its own weight names through
+//!   [`CanonicalKeys`](crate::burner::module::CanonicalKeys).** Key-mapping
+//!   machinery has neutral names, an upstream's spelling is data, and nothing
+//!   outside the Hub code is named `hf_`: the Hub is one source of checkpoints,
+//!   not the namespace for key mapping.
+//! - **A change that moves a block onto other combinators is a correct
+//!   rewrite**, held to every kit built on the block: each kit is checked
+//!   against its reference on a small real row, or, where none exists, the old
+//!   form against the new on a toy model before the old form goes. Toy tests
+//!   pass on rewrites that change a model's behavior.
+//!
 //! ## Map of the module
 //!
 //! - [`activation`]: the activation seam, `BunsenActivationConfig` and

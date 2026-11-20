@@ -101,6 +101,61 @@
 //! [workspace](https://zspacelabs.ai/bunsen/book/organization/workspace.html)
 //! page maps them.
 //!
+//! ## Design Rules
+//!
+//! The crate-wide rules for names and layers. The config lifecycle's rules
+//! are [`burner::module`'s](burner::module#design-rules); [`blocks`],
+//! [`ops`] and `kits` each state their own.
+//!
+//! - **A module builds on the layers below it, never on those above**
+//!   ([Organization](#organization)). Blocks import ops, and ops never import
+//!   blocks; the foundation imports none of them. Code behind the `testing`
+//!   feature is library code and keeps the layering; a `#[cfg(test)]` module
+//!   may reach up for a fixture. One-way dependencies keep each layer usable
+//!   alone.
+//! - **Every module re-exports its children with `pub use m::*;`, so a public
+//!   name must be safe beside burn's under a glob import.**
+//!   - A bunsen version of a burn type, in the same role, is
+//!     `Bunsen{BurnName}`:
+//!     [`BunsenActivation`](blocks::activation::BunsenActivation),
+//!     [`BunsenNormalization`](blocks::norm::BunsenNormalization),
+//!     [`BunsenLayerNormConfig`](blocks::norm::BunsenLayerNormConfig). The
+//!     exception is a type that burn-store recognizes by its name, which keeps
+//!     burn's: [`LayerNorm`](blocks::norm::LayerNorm), whose checkpoint
+//!     `weight` and `bias` burn-store's adapters map onto `gamma` and `beta` by
+//!     matching `Struct:LayerNorm`, and leave out of the half-precision cast.
+//!   - A public name carries its family or its owner, never a bare general
+//!     word, and the qualifier must not narrow the meaning:
+//!     [`DecoderStackCache`](blocks::transformers::decoders::stack::DecoderStackCache),
+//!     not `DecoderCache`; `TransformerMlp`, not `Mlp`;
+//!     `DwStridingFlattenOrder`, not `FlattenOrder`.
+//!   - A name says what the value is, in the field's standard terms. The
+//!     residual is the branch, `F(x)`; `x + F(x)` is an update to the residual
+//!     stream, so a function returning it is `*_residual_update`. "Connection"
+//!     names a link, not a value.
+//!
+//!   The name spreads into every namespace above it, and an ambiguity
+//!   surfaces in the user's code.
+//! - **Behaviour lives on its type.** A function that works on one type's
+//!   internals is a method or an associated function of that type. A value or
+//!   transform that differs per enum variant is a method on the enum, not a
+//!   `match` at the use site ([`LogBase::apply`](ops::math::LogBase::apply)). A
+//!   transform over tensors is generic over rank. The pipeline then reads as
+//!   named steps, and a new variant changes one place.
+//! - **A function lives at its natural home.** A tensor operation or a table
+//!   lives in [`ops`]; dtype, tensor and module machinery in [`burner`]; a
+//!   method-style extension to `Tensor` in [`burner::tensor`]; an operation
+//!   that one kit uses in that kit's own `ops` submodule.
+//! - **Two names for one concept become one** when the concept is unambiguously
+//!   the same. When the parts do not line up, they stay apart, each named for
+//!   its owner.
+//! - **Before defining a type or a reader that burn or an established crate
+//!   has, use theirs**: burn's `FloatDType`, burn-store's `PytorchStore`,
+//!   `serde_pickle`. A duplicate competes with the upstream vocabulary, and
+//!   blocks moving code upstream.
+//! - **A module with submodules is laid out as `m/mod.rs` plus `m/sub.rs`**,
+//!   never as `m.rs` plus `m/`, so a module's files are always where you look.
+//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 

@@ -63,10 +63,10 @@ use crate::errors::{
 /// the module it builds. Code that holds either form asks the same question,
 /// and a test can check that a module agrees with the config that built it.
 ///
-/// What the author of a family must do is set by [STYLE.md, "Module
-/// design"][style-module-design]: how the configs are named, when to promote
-/// a Simple family to Stacked, which types implement `FooMeta`, and the tests
-/// each shape requires.
+/// What the author of a family must do is set by
+/// [`burner::module`'s Design Rules](crate::burner::module#design-rules): how
+/// the configs are named, when to promote a Simple family to Stacked, which
+/// types implement `FooMeta`, and the tests each shape requires.
 ///
 /// ## Simple Config
 ///
@@ -343,7 +343,6 @@ use crate::errors::{
 /// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig
 /// [`to_stft`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig::to_stft
 /// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
-/// [style-module-design]: https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design
 pub trait ModuleInit<M: Module> {
     /// Builds the module on `device`, or reports why the config cannot build
     /// it.
