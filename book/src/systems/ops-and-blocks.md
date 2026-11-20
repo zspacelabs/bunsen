@@ -72,11 +72,11 @@ configuration. A config embeds it as a field rather than copying its fields,
 and passes it straight to the op. The in-tree chain nests four deep:
 
 ```text
-ClampOp ⊂ NoiseConfig ⊂ DropBlockOptions ⊂ DropBlock2dConfig
+ClampOptions ⊂ NoiseOptions ⊂ DropBlockOptions ⊂ DropBlock2dConfig
 ```
 
-[`ClampOp`](bunsen::ops::clamp::ClampOp) is an optional min and max.
-[`NoiseConfig`](bunsen::ops::noise::NoiseConfig) is a distribution plus an
+[`ClampOptions`](bunsen::ops::clamp::ClampOptions) is an optional min and max.
+[`NoiseOptions`](bunsen::ops::noise::NoiseOptions) is a distribution plus an
 optional clamp.
 [`DropBlockOptions`](bunsen::ops::drop::DropBlockOptions) holds the
 `DropBlock` settings plus an optional noise fill. And

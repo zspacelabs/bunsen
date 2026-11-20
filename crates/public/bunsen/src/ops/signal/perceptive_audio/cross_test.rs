@@ -33,8 +33,8 @@ use crate::{
             MelScale,
             PaddingMode,
             PerceptiveAudioConverter,
+            PerceptiveAudioConverterConfig,
             PerceptiveAudioConverterMeta,
-            PerceptiveAudioConverterOptions,
             RangeClamp,
         },
     },
@@ -107,13 +107,13 @@ fn logmel_tolerance() -> Tolerance<F> {
 /// Options matching the fixture generator: raw `log10` with no clamp and no
 /// affine tail, so the comparison is against the spectrogram itself rather
 /// than Whisper's packaging of it.
-fn parity_options() -> PerceptiveAudioConverterOptions {
-    PerceptiveAudioConverterOptions::default()
+fn parity_options() -> PerceptiveAudioConverterConfig {
+    PerceptiveAudioConverterConfig::default()
 }
 
 #[test]
 fn test_hann_window_matches_librosa() {
-    let opts = PerceptiveAudioConverterOptions::default();
+    let opts = PerceptiveAudioConverterConfig::default();
     assert_close_to_vec(
         &opts.window.to_vec_window(opts.n_fft),
         &fixture("hann_400_periodic.f32"),
@@ -123,14 +123,14 @@ fn test_hann_window_matches_librosa() {
 
 #[test]
 fn test_filterbank_matches_librosa() {
-    let opts = PerceptiveAudioConverterOptions::default();
+    let opts = PerceptiveAudioConverterConfig::default();
     assert_close_to_vec(
         &opts.try_to_filterbank_vec().unwrap(),
         &fixture("mel_fb_slaney_16k_400_80.f32"),
         1e-8,
     );
 
-    let htk = PerceptiveAudioConverterOptions::default()
+    let htk = PerceptiveAudioConverterConfig::default()
         .with_mel_scale(MelScale::Htk)
         .with_filter_norm(FilterNorm::None);
 

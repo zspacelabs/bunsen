@@ -8,7 +8,7 @@
 //!
 //! Each is named `{Name}OpModule`, with `{Name}OpModuleConfig` and
 //! `{Name}OpModuleMeta`, spelled out because `ops` names its value objects
-//! `{Name}Op` ([`ClampOp`](crate::ops::clamp::ClampOp)).
+//! `{Name}Op` ([`ClampOptions`](crate::ops::clamp::ClampOptions)).
 
 mod pow;
 

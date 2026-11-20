@@ -1,6 +1,6 @@
 //! # `ModernBERT` blocks.
 //!
-//! The model, [`ModernBertModel`] with its [`ModernBertConfig`] and
+//! The model, [`ModernBertModel`] with its [`ModernBertContractConfig`] and
 //! [`ModernBertMeta`]. Its layers are the generic
 //! [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock),
 //! with bidirectional attention, in a

@@ -25,8 +25,8 @@ use crate::{
     contracts::unpack_shape_contract,
     ops::{
         conv::conv2d_kernel_midpoint_filter,
-        drop::SizeConfig,
-        noise::NoiseConfig,
+        drop::SizeSpec,
+        noise::NoiseOptions,
     },
     support::validators::expect_probability,
 };
@@ -38,7 +38,7 @@ pub struct DropBlockOptions {
     pub drop_prob: f64,
 
     /// The block size.
-    pub kernel: [SizeConfig; 2],
+    pub kernel: [SizeSpec; 2],
 
     /// The gamma scale.
     pub gamma_scale: f64,
@@ -56,7 +56,7 @@ pub struct DropBlockOptions {
     pub partial_edge_blocks: bool,
 
     /// The noise configuration.
-    pub noise: Option<NoiseConfig>,
+    pub noise: Option<NoiseOptions>,
 }
 
 impl ModuleDisplay for DropBlockOptions {}
@@ -125,7 +125,7 @@ impl DropBlockOptions {
         block_size: S,
     ) -> Self
     where
-        S: Into<SizeConfig>,
+        S: Into<SizeSpec>,
     {
         Self {
             kernel: [block_size.into(); 2],
@@ -143,7 +143,7 @@ impl DropBlockOptions {
         kernel: [S; 2],
     ) -> Self
     where
-        S: Into<SizeConfig>,
+        S: Into<SizeSpec>,
     {
         let [x, y] = kernel;
         let kernel = [x.into(), y.into()];
@@ -167,7 +167,7 @@ impl DropBlockOptions {
         noise_cfg: N,
     ) -> Self
     where
-        N: Into<Option<NoiseConfig>>,
+        N: Into<Option<NoiseOptions>>,
     {
         Self {
             noise: noise_cfg.into(),
@@ -429,7 +429,7 @@ mod tests {
     fn test_drop_block_options() {
         let options = DropBlockOptions::default();
         assert_eq!(options.drop_prob, 0.1);
-        assert_eq!(options.kernel, [SizeConfig::Fixed(7); 2]);
+        assert_eq!(options.kernel, [SizeSpec::Fixed(7); 2]);
         assert_eq!(options.gamma_scale, 1.0);
         assert_eq!(options.couple_channels, false);
         assert!(options.noise.is_none());
@@ -442,7 +442,7 @@ mod tests {
         assert_eq!(options.drop_prob, 0.2);
 
         let options = options.with_block_size(0.25);
-        assert_eq!(options.kernel, [SizeConfig::Ratio(0.25); 2]);
+        assert_eq!(options.kernel, [SizeSpec::Ratio(0.25); 2]);
 
         let options = options.with_gamma_scale(0.5);
         assert_eq!(options.gamma_scale, 0.5);
@@ -453,7 +453,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_options_display() {
-        let options = DropBlockOptions::default().with_noise(NoiseConfig::default());
+        let options = DropBlockOptions::default().with_noise(NoiseOptions::default());
         let settings = DisplaySettings::default();
 
         assert_eq!(
@@ -466,7 +466,7 @@ mod tests {
                   batchwise: true
                   couple_channels: false
                   partial_edge_blocks: false
-                  noise_cfg: NoiseConfig {
+                  noise_cfg: NoiseOptions {
                       distribution: Distribution::Default
                       clamp: None
                     }
@@ -642,7 +642,7 @@ mod tests {
         let drop = drop_block_2d(
             tensor,
             &DropBlockOptions::default()
-                .with_noise(NoiseConfig::default())
+                .with_noise(NoiseOptions::default())
                 .with_partial_edge_blocks(false)
                 .with_drop_prob(drop_prob)
                 .with_kernel([2, 3]),

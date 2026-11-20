@@ -19,7 +19,7 @@ use crate::{
     },
     errors::BunsenResult,
     kits::text::encoders::modernbert::{
-        ModernBertConfig,
+        ModernBertContractConfig,
         weights::{
             transformers_rekey as modernbert_rekey,
             transformers_row_splits as modernbert_row_splits,
@@ -30,7 +30,7 @@ use crate::{
 /// The [`LayaConfig`] of a checkpoint: its encoder's (from
 /// `encoder/config.json`), and its head's (from `rl_agent_config.json`).
 pub fn laya_config(
-    encoder: ModernBertConfig,
+    encoder: ModernBertContractConfig,
     agent: &LayaAgentConfig,
 ) -> LayaConfig {
     LayaConfig::new(encoder)

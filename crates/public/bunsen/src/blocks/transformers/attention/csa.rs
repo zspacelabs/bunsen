@@ -52,7 +52,7 @@ use crate::{
     },
     ops::transformers::attention::{
         KVCache,
-        ScaledDotProductAttentionConfig,
+        ScaledDotProductAttentionOptions,
         causal_window_visible,
         scaled_dot_product_attention,
         sdpa_attn_weight,
@@ -170,7 +170,7 @@ pub struct CausalSelfAttentionConfig {
     pub mask: AttentionMask,
 
     /// The widening the attention's softmax runs in
-    /// ([`ScaledDotProductAttentionConfig::softmax_widening`]);
+    /// ([`ScaledDotProductAttentionOptions::softmax_widening`]);
     /// [`Widening::NONE`] runs it in the queries' dtype.
     #[config(default = "Widening::NONE")]
     pub softmax_widening: Widening,
@@ -599,8 +599,8 @@ impl CausalSelfAttention {
 
     /// The attention's own sdpa options: the head grouping, the softmax's
     /// widening, the scores' scale and soft-cap.
-    fn sdpa_config(&self) -> ScaledDotProductAttentionConfig {
-        ScaledDotProductAttentionConfig::new()
+    fn sdpa_config(&self) -> ScaledDotProductAttentionOptions {
+        ScaledDotProductAttentionOptions::new()
             .with_enable_gqa(self.gqa_enabled())
             .with_softmax_widening(self.softmax_widening)
             .with_scale(self.score_scale)

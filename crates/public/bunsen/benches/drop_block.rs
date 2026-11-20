@@ -6,7 +6,7 @@ use bunsen::{
             DropBlockOptions,
             drop_block_2d,
         },
-        noise::NoiseConfig,
+        noise::NoiseOptions,
     },
     support::testing::cpu_device,
 };
@@ -28,7 +28,7 @@ fn bench_drop_block_10x32x32x3_7_normalise(c: &mut Criterion) {
     let shape = [batch_size, height, width, channels];
     let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
-    for noise in [None, Some(NoiseConfig::default())] {
+    for noise in [None, Some(NoiseOptions::default())] {
         for batchwise in [false, true] {
             for couple_channels in [false, true] {
                 for partial_edge_blocks in [false, true] {

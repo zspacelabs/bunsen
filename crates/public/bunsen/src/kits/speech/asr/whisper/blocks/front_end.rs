@@ -23,7 +23,7 @@ use crate::{
     ops::signal::perceptive_audio::{
         AffineCompress,
         PerceptiveAudioConverter,
-        PerceptiveAudioConverterOptions,
+        PerceptiveAudioConverterConfig,
     },
 };
 
@@ -117,8 +117,8 @@ impl WhisperFrontEndConfig {
     /// * `device` - the device to initialize the mel converter on.
     ///
     /// # Errors
-    /// See [`validate`](PerceptiveAudioConverterOptions::validate) and
-    /// [`try_to_filterbank_vec`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
+    /// See [`validate`](PerceptiveAudioConverterConfig::validate) and
+    /// [`try_to_filterbank_vec`](PerceptiveAudioConverterConfig::try_to_filterbank_vec).
     pub fn try_init_audio_converter(
         &self,
         n_mels: usize,
@@ -127,12 +127,12 @@ impl WhisperFrontEndConfig {
         self.mel_converter_options(n_mels)?.try_init(device)
     }
 
-    /// Build the [`PerceptiveAudioConverterOptions`] for this frontend.
+    /// Build the [`PerceptiveAudioConverterConfig`] for this frontend.
     ///
     /// The grid is fixed in time &mdash; a `window_ms` periodic Hann window
     /// every `hop_ms` &mdash; and the rate puts it on samples. The mel
     /// scale, its normalisation and the log compression are
-    /// [`PerceptiveAudioConverterOptions`]' defaults, so at the default front
+    /// [`PerceptiveAudioConverterConfig`]' defaults, so at the default front
     /// end the result is that struct's default entirely.
     ///
     /// # Arguments
@@ -144,9 +144,9 @@ impl WhisperFrontEndConfig {
     pub fn mel_converter_options(
         &self,
         n_mels: usize,
-    ) -> BunsenResult<PerceptiveAudioConverterOptions> {
+    ) -> BunsenResult<PerceptiveAudioConverterConfig> {
         self.validate()?;
-        Ok(PerceptiveAudioConverterOptions::default()
+        Ok(PerceptiveAudioConverterConfig::default()
             .with_sample_rate(self.sample_rate)
             .with_n_fft(self.n_fft())
             .with_hop(self.hop())
@@ -306,7 +306,7 @@ mod tests {
     /// grid scales and nothing else moves.
     #[test]
     fn test_mel_options_derives_the_grid_from_the_rate() {
-        let base = PerceptiveAudioConverterOptions::default();
+        let base = PerceptiveAudioConverterConfig::default();
 
         let opts = front_end().mel_converter_options(80).unwrap();
         assert_eq!(opts.sample_rate, base.sample_rate);

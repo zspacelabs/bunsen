@@ -44,45 +44,47 @@
 //! config. As a `#[module(skip)]` field it can also be held by a
 //! `#[derive(Module)]` struct, and prints with the model through its `Debug`.
 //! Either way the same value is passed straight to the op. The in-tree chain
-//! nests four deep, `ClampOp` ⊂ `NoiseConfig` ⊂ `DropBlockOptions` ⊂
+//! nests four deep, `ClampOptions` ⊂ `NoiseOptions` ⊂ `DropBlockOptions` ⊂
 //! `DropBlock2dConfig`:
 //!
-//! - [`ClampOp`](clamp::ClampOp): an optional min and max;
-//! - [`NoiseConfig`](noise::NoiseConfig): a `Distribution` plus an optional
-//!   `ClampOp`;
+//! - [`ClampOptions`](clamp::ClampOptions): an optional min and max;
+//! - [`NoiseOptions`](noise::NoiseOptions): a `Distribution` plus an optional
+//!   `ClampOptions`;
 //! - [`DropBlockOptions`](drop::DropBlockOptions): the `DropBlock` settings,
-//!   plus an optional `NoiseConfig` to refill dropped regions;
+//!   plus an optional `NoiseOptions` to refill dropped regions;
 //! - [`DropBlock2dConfig`]: the block's `Config`, whose one field is a
 //!   `DropBlockOptions` (`#[config(default = "DropBlockOptions::default()")]`),
 //!   and which [`DropBlock2d`] keeps as a skipped module field.
 //!
-//! Two styles coexist. `ClampOp`, `NoiseConfig` and `DropBlockOptions` derive
-//! `serde` and implement `ModuleDisplay` by hand
+//! Two styles coexist. `ClampOptions`, `NoiseOptions` and `DropBlockOptions`
+//! derive `serde` and implement `ModuleDisplay` by hand
 //! ([`RmsNormOptions`](norm::RmsNormOptions) derives `serde` only); others
 //! are `#[derive(Config)]` types, such as [`LogBase`](math::LogBase),
 //! [`StftWindowConfig`](signal::StftWindowConfig) and
-//! [`ScaledDotProductAttentionConfig`](transformers::attention::ScaledDotProductAttentionConfig).
-//! The names are mixed too (`*Op`, `*Config`, `*Options`).
+//! [`ScaledDotProductAttentionOptions`](transformers::attention::ScaledDotProductAttentionOptions).
+//! A bundle of settings handed to an op is `*Options`; `*Config` builds
+//! something (a module, a state, a table); a single value is named for what
+//! it is ([`LogBase`](math::LogBase), [`SizeSpec`](drop::SizeSpec)).
 //!
 //! ## Map of the module
 //!
 //! ### Tensor generation
 //! - [`arange`]: float ranges and `linspace`, on the host (`Vec<f64>`) and on
 //!   the device. burn's `Tensor::arange` is integer-only.
-//! - [`noise`]: [`NoiseConfig`](noise::NoiseConfig), a distribution plus an
+//! - [`noise`]: [`NoiseOptions`](noise::NoiseOptions), a distribution plus an
 //!   optional clamp, sampled with `noise()` / `noise_like()`.
 //!
 //! ### Element-wise
-//! - [`clamp`]: [`ClampOp`](clamp::ClampOp), clamping as a setting rather than
-//!   a one-shot call.
+//! - [`clamp`]: [`ClampOptions`](clamp::ClampOptions), clamping as a setting
+//!   rather than a one-shot call.
 //! - [`math`]: [`LogBase`](math::LogBase), a logarithm in a configurable base.
 //!
 //! ### Regularization
 //! - [`mod@drop`]: [`dropout`](drop::dropout), [`drop_path`](drop::drop_path)
 //!   (stochastic depth), and [`drop_block_2d`](drop::drop_block_2d) with its
 //!   [`DropBlockOptions`](drop::DropBlockOptions) and
-//!   [`SizeConfig`](drop::SizeConfig). The layers that apply them while
-//!   training are in [`crate::blocks::images::drop`].
+//!   [`SizeSpec`](drop::SizeSpec). The layers that apply them while training
+//!   are in [`crate::blocks::images::drop`].
 //!
 //! ### Normalization
 //! - [`norm`]: [`RmsNormOptions::norm`](norm::RmsNormOptions::norm), RMS

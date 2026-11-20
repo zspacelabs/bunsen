@@ -66,7 +66,8 @@
 //! - [`distribution`] &mdash;
 //!   [`DistributionDisplayAdapter`](distribution::DistributionDisplayAdapter),
 //!   which lets a `burn::tensor::Distribution` field appear in a module or
-//!   config display (used by [`NoiseConfig`](crate::ops::noise::NoiseConfig)).
+//!   config display (used by
+//!   [`NoiseOptions`](crate::ops::noise::NoiseOptions)).
 //!
 //! ## Tensor Extensions
 //!

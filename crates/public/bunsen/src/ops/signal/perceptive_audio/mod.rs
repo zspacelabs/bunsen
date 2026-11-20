@@ -5,7 +5,7 @@
 //!
 //! ## Lifecycle
 //!
-//! - [`PerceptiveAudioConverterOptions`] configures the pipeline: framing,
+//! - [`PerceptiveAudioConverterConfig`] configures the pipeline: framing,
 //!   window, spectrum, mel bank, log. [`ModuleInit`] validates it and builds
 //!   the converter.
 //! - [`PerceptiveAudioConverter`] holds the precomputed constants (window, DFT

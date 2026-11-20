@@ -35,7 +35,7 @@ namespace above it, and sits beside burn's wherever a kit glob-imports both.
 * An enum seam's kinds are modules of their own, never bare values: weight loading relies on
   each variant holding a module.
 * Math operations as modules live in `blocks::math`.
-* A module whose natural name would collide with a function or an `ops` value object (`ClampOp`,
+* A module whose natural name would collide with a function or an `ops` value object (`ClampOptions`,
   a parameter set that embeds in configs) spells out `Module`: `PowOpModule`, with
   `PowOpModuleConfig` and `PowOpModuleMeta`.
 

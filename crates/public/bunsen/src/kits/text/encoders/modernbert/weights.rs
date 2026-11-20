@@ -3,7 +3,7 @@
 use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::{
-    ModernBertConfig,
+    ModernBertContractConfig,
     ModernBertLayerKind,
     ModernBertModel,
 };
@@ -111,8 +111,8 @@ pub fn load_transformers_tensors(
     rekey.load(model, tensors, dtype)
 }
 
-/// The [`ModernBertConfig`] of a `transformers` `ModernBERT` `config.json`
-/// (`model_type` `modernbert`).
+/// The [`ModernBertContractConfig`] of a `transformers` `ModernBERT`
+/// `config.json` (`model_type` `modernbert`).
 ///
 /// The layer kinds are read as `layer_types` or, without them, as
 /// `global_attn_every_n_layers` (3 by default: every third layer global,
@@ -127,7 +127,7 @@ pub fn load_transformers_tensors(
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's `ModernBERT` is not.
-pub fn modernbert_config_from_transformers(json: &str) -> BunsenResult<ModernBertConfig> {
+pub fn modernbert_config_from_transformers(json: &str) -> BunsenResult<ModernBertContractConfig> {
     let t = TransformersConfigJson::parse(json)?;
     t.expect_str("model_type", "modernbert")?;
     t.expect_eq(
@@ -185,7 +185,7 @@ pub fn modernbert_config_from_transformers(json: &str) -> BunsenResult<ModernBer
         ),
     };
 
-    Ok(ModernBertConfig::new(
+    Ok(ModernBertContractConfig::new(
         t.usize("vocab_size")?,
         t.usize("hidden_size")?,
         n_layers,

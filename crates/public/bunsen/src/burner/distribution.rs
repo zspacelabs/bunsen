@@ -18,22 +18,22 @@ use burn::{
 ///
 /// This exists to allow [`Distribution`] to be included in formatted
 /// [`ModuleDisplay`] implementations. In the crate,
-/// [`NoiseConfig`](crate::ops::noise::NoiseConfig)'s display uses it for its
+/// [`NoiseOptions`](crate::ops::noise::NoiseOptions)'s display uses it for its
 /// `distribution` field.
 ///
 /// # Example
 /// ```rust,ignore
 /// #[derive(Debug, Clone)]
-/// pub struct NoiseConfig {
+/// pub struct NoiseOptions {
 ///     /// The noise distribution.
 ///     pub distribution: Distribution,
 ///
 ///     /// The noise clip range.
-///     pub clamp: Option<ClampOp>,
+///     pub clamp: Option<ClampOptions>,
 /// }
 ///
-/// impl ModuleDisplay for crate::ops::noise::NoiseConfig {}
-/// impl ModuleDisplayDefault for crate::ops::noise::NoiseConfig {
+/// impl ModuleDisplay for crate::ops::noise::NoiseOptions {}
+/// impl ModuleDisplayDefault for crate::ops::noise::NoiseOptions {
 ///     fn content(
 ///         &self,
 ///         content: Content,
