@@ -16,8 +16,8 @@ namespace above it, and sits beside burn's wherever a kit glob-imports both.
     `blocks::norm::LayerNorm` is one: burn-store's adapters map a checkpoint's `weight` and
     `bias` onto a `LayerNorm`'s `gamma` and `beta` by matching `Struct:LayerNorm`, and leave it
     out of the half-precision cast.
-* A public name carries its family or its owner: `DecoderStackCache`, not `DecoderStackCache`;
-  `TransformerMlp`, not `TransformerMlp`; `DwStridingFlattenOrder`, not `DwStridingFlattenOrder`.
+* A public name carries its family or its owner: `DecoderStackCache`, not `DecoderCache`;
+  `TransformerMlp`, not `Mlp`; `DwStridingFlattenOrder`, not `FlattenOrder`.
 * A name says what the value is, in the field's standard terms. The residual is the branch,
   `F(x)`; `x + F(x)` is an update to the residual stream, so a function returning it is
   `*_residual_update`. "Connection" names a link, not a value.

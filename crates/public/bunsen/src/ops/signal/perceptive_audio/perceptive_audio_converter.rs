@@ -1400,8 +1400,8 @@ mod tests {
     /// `PerCall` reduces per batch row: row 1's floor is set by row 1's own
     /// maximum, and a reduction across rows would clip it differently.
     ///
-    /// Applied directly. The converter no longer carries this stage — a
-    /// per-call reduction is not chunk-invariant, so it cannot live inside a
+    /// Applied directly: the converter does not carry this stage, because a
+    /// per-call reduction is not chunk-invariant and cannot live inside a
     /// streaming pipeline.
     #[test]
     #[serial_test::serial]

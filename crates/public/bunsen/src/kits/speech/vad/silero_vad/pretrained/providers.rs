@@ -75,8 +75,8 @@ mod tests {
     #[test]
     fn test_catalog() {}
 
-    /// Upstream's row is the factory's only one, and the old bare names
-    /// are not found.
+    /// Upstream's row is the factory's only one, and `vad`, a prefix of its
+    /// name, finds nothing.
     #[test]
     fn test_only_upstream_is_listed() {
         let factory = default_silero_factory().unwrap();

@@ -96,6 +96,14 @@ pub fn param_float_dtype<const D: usize>(param: &Param<Tensor<D>>) -> DType {
 
 #[cfg(test)]
 mod tests {
+    use burn::{
+        nn::LinearConfig,
+        tensor::DType,
+    };
+
+    use super::*;
+    use crate::support::testing::cpu_device;
+
     /// A narrower float widens to the target; one as wide or wider, and any
     /// non-float, stays.
     #[test]
@@ -140,14 +148,6 @@ mod tests {
             burn::tensor::f16::from_f64(s).to_f64()
         );
     }
-
-    use burn::{
-        nn::LinearConfig,
-        tensor::DType,
-    };
-
-    use super::*;
-    use crate::support::testing::cpu_device;
 
     /// The helper agrees with what an undtyped tensor actually gets: that
     /// equality is the whole point of it.
