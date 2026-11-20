@@ -14,8 +14,6 @@ license.workspace = true
 clap = { workspace = true, features = ["derive"] }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde-saphyr = { workspace = true }
 syn = { workspace = true, features = ["full", "visit", "printing"] }
 
 [lints]

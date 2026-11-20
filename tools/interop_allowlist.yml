@@ -1,5 +1,0 @@
-# Findings of `cargo run -p source-checks -- interop` that the interop
-# migration (scratch/kit-interop/NOTES.md) hasn't reached yet. Each kit's
-# layer removes its own; the check fails on a stale entry. Regenerate
-# with `--bless`.
-[]

@@ -10294,8 +10294,6 @@ dependencies = [
  "clap",
  "proc-macro2",
  "quote",
- "serde",
- "serde-saphyr",
  "syn 3.0.9",
 ]
 

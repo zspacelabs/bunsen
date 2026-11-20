@@ -18,16 +18,7 @@
 //! is exempt: a file named `*tests.rs`, a `testing` or `tests` module, an
 //! item under `#[cfg(test)]` (or a `cfg` that names `test`), and a `#[test]`.
 //!
-//! A fourth rule, **`mirror-rename`**, tracks the upstream mirrors whose
-//! names don't say so yet (`LayaAgentConfig`): the
-//! check can't find a mirror by its name until it is renamed, so these
-//! entries are listed by hand, and one holds while its type still exists in
-//! its file. A renamed (or moved) type makes its entry stale.
-//!
-//! Findings the migration hasn't reached are listed in the allowlist
-//! (`tools/interop_allowlist.yml`), each by rule, file and item. The check
-//! fails on a finding the allowlist doesn't hold, and on an entry that no
-//! longer matches one; `--bless` rewrites the allowlist from the findings.
+//! The check fails on any finding, naming its rule, file and item.
 
 use std::{
     collections::BTreeSet,
@@ -40,7 +31,6 @@ use std::{
 };
 
 use quote::ToTokens;
-use serde::Deserialize;
 use syn::{
     Attribute,
     ImplItem,
@@ -55,19 +45,10 @@ pub struct InteropArgs {
     /// The tree to scan.
     #[arg(long, default_value = "crates/public/bunsen/src/kits")]
     pub root: PathBuf,
-
-    /// The allowlist: findings the migration hasn't reached.
-    #[arg(long, default_value = "tools/interop_allowlist.yml")]
-    pub allowlist: PathBuf,
-
-    /// Rewrite the allowlist from the findings instead of checking them.
-    #[arg(long)]
-    pub bless: bool,
 }
 
 /// What a finding breaks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Rule {
     /// A `*Mirror` type outside an `interop` module.
     Mirror,
@@ -77,20 +58,15 @@ pub enum Rule {
 
     /// A `feature = "store"` cfg outside an `interop` or `pretrained` module.
     StoreGate,
-
-    /// An upstream mirror not yet named `*Mirror`: listed by hand, held
-    /// while the type exists in its file.
-    MirrorRename,
 }
 
 impl Rule {
-    /// The rule's name, as the allowlist spells it.
+    /// The rule's name.
     pub fn name(self) -> &'static str {
         match self {
             Self::Mirror => "mirror",
             Self::Rekey => "rekey",
             Self::StoreGate => "store-gate",
-            Self::MirrorRename => "mirror-rename",
         }
     }
 
@@ -100,13 +76,12 @@ impl Rule {
             Self::Mirror => "a `*Mirror` type outside an `interop` module",
             Self::Rekey => "a rekey or loader outside an `interop` module",
             Self::StoreGate => "a `store` gate outside an `interop` or `pretrained` module",
-            Self::MirrorRename => "an upstream mirror not yet named `*Mirror`",
         }
     }
 }
 
-/// One item that breaks a rule: also an allowlist entry.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+/// One item that breaks a rule.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Finding {
     /// The rule it breaks.
     pub rule: Rule,
@@ -135,107 +110,27 @@ impl fmt::Display for Finding {
     }
 }
 
-/// Runs the check; `Ok(false)` when it fails.
+/// Runs the check; `Ok(false)` when it finds anything.
 ///
 /// # Errors
-/// When the tree or the allowlist can't be read or parsed.
+/// When the tree can't be read or parsed.
 pub fn run(args: &InteropArgs) -> Result<bool, String> {
     let scanned = scan(&args.root)?;
-    let allowed = if args.bless && !args.allowlist.exists() {
-        BTreeSet::new()
-    } else {
-        read_allowlist(&args.allowlist)?
-    };
-    let (renames, discovered): (BTreeSet<Finding>, BTreeSet<Finding>) = allowed
-        .into_iter()
-        .partition(|f| f.rule == Rule::MirrorRename);
-    let held = |f: &&Finding| scanned.types.contains(&(f.path.clone(), f.item.clone()));
-    if args.bless {
-        let mut entries = scanned.findings.clone();
-        entries.extend(renames.iter().filter(held).cloned());
-        fs::write(&args.allowlist, render_allowlist(&entries))
-            .map_err(|e| format!("{}: {e}", args.allowlist.display()))?;
-        println!(
-            "interop: wrote {} entries to {}",
-            entries.len(),
-            args.allowlist.display()
-        );
-        return Ok(true);
+    for finding in &scanned.findings {
+        println!("{finding}");
     }
-    let new: Vec<_> = scanned.findings.difference(&discovered).collect();
-    let mut stale: Vec<_> = discovered.difference(&scanned.findings).collect();
-    stale.extend(renames.iter().filter(|f| !held(f)));
-    for finding in &new {
-        println!("new: {finding}");
-    }
-    for entry in &stale {
-        println!("stale allowlist entry (fixed, so remove it): {entry}");
-    }
-    let ok = new.is_empty() && stale.is_empty();
-    println!(
-        "interop: {} findings and {} mirrors to rename allowlisted; {} new, {} stale",
-        discovered.len(),
-        renames.len(),
-        new.len(),
-        stale.len()
-    );
-    Ok(ok)
-}
-
-/// The allowlist's entries.
-///
-/// # Errors
-/// When the file can't be read or isn't a list of findings.
-pub fn read_allowlist(path: &Path) -> Result<BTreeSet<Finding>, String> {
-    let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let entries: Vec<Finding> =
-        serde_saphyr::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-    Ok(entries.into_iter().collect())
-}
-
-/// The allowlist file for `findings`.
-pub fn render_allowlist(findings: &BTreeSet<Finding>) -> String {
-    let mut out = String::from(
-        "# Findings of `cargo run -p source-checks -- interop` that the interop\n\
-         # migration (scratch/kit-interop/NOTES.md) hasn't reached yet. Each kit's\n\
-         # layer removes its own; the check fails on a stale entry. Regenerate\n\
-         # with `--bless`.\n",
-    );
-    if findings.is_empty() {
-        out.push_str("[]\n");
-    }
-    for f in findings {
-        out.push_str(&format!(
-            "- rule: {}\n  path: {}\n  item: {}\n",
-            f.rule.name(),
-            f.path,
-            yaml_scalar(&f.item)
-        ));
-    }
-    out
-}
-
-/// `s` as a YAML scalar: quoted when plain YAML would misread it.
-fn yaml_scalar(s: &str) -> String {
-    if s.contains(':') || s.contains('#') || s.starts_with(['*', '&', '!', '[', '{']) {
-        format!("'{}'", s.replace('\'', "''"))
-    } else {
-        s.to_string()
-    }
+    println!("interop: {} findings", scanned.findings.len());
+    Ok(scanned.findings.is_empty())
 }
 
 /// What a scan found.
 #[derive(Debug, Default)]
 pub struct Scan {
-    /// Every finding of the discovered rules.
+    /// Every finding.
     pub findings: BTreeSet<Finding>,
-
-    /// Every non-test struct and enum, by file and name: what a
-    /// `mirror-rename` entry is held against.
-    pub types: BTreeSet<(String, String)>,
 }
 
-/// Every finding in the tree under `root`, and every type it defines.
+/// Every finding in the tree under `root`.
 ///
 /// # Errors
 /// When a file can't be read or parsed.
@@ -255,7 +150,6 @@ pub fn scan(root: &Path) -> Result<Scan, String> {
             path: file.display().to_string(),
             segments,
             findings: &mut scanned.findings,
-            types: &mut scanned.types,
         };
         scope.items(&parsed.items);
     }
@@ -317,7 +211,6 @@ struct Scope<'a> {
     path: String,
     segments: Vec<String>,
     findings: &'a mut BTreeSet<Finding>,
-    types: &'a mut BTreeSet<(String, String)>,
 }
 
 impl Scope<'_> {
@@ -387,7 +280,6 @@ impl Scope<'_> {
         ident: &syn::Ident,
     ) {
         let name = ident.to_string();
-        self.types.insert((self.path.clone(), name.clone()));
         if name.ends_with("Mirror") && !self.within("interop") {
             self.report(Rule::Mirror, name);
         }
@@ -532,12 +424,10 @@ mod tests {
         source: &str,
     ) -> Vec<(Rule, String)> {
         let mut found = BTreeSet::new();
-        let mut types = BTreeSet::new();
         let mut scope = Scope {
             path: "f.rs".into(),
             segments: segments.iter().map(|s| s.to_string()).collect(),
             findings: &mut found,
-            types: &mut types,
         };
         scope.items(&syn::parse_file(source).unwrap().items);
         found.into_iter().map(|f| (f.rule, f.item)).collect()
@@ -586,29 +476,5 @@ mod tests {
             fn test_load() {}
         "#;
         assert!(findings(&["kits", "talker"], source).is_empty());
-    }
-
-    /// The allowlist reads back what `--bless` writes.
-    #[test]
-    fn test_allowlist_round_trip() {
-        let found: BTreeSet<Finding> = [
-            Finding {
-                rule: Rule::StoreGate,
-                path: "a/b.rs".into(),
-                item: "mod weights".into(),
-            },
-            Finding {
-                rule: Rule::Rekey,
-                path: "a/b.rs".into(),
-                item: "Talker::rekey".into(),
-            },
-        ]
-        .into_iter()
-        .collect();
-        let read: Vec<Finding> = serde_saphyr::from_str(&render_allowlist(&found)).unwrap();
-        assert_eq!(read.into_iter().collect::<BTreeSet<_>>(), found);
-        let empty: Vec<Finding> =
-            serde_saphyr::from_str(&render_allowlist(&BTreeSet::new())).unwrap();
-        assert!(empty.is_empty());
     }
 }
