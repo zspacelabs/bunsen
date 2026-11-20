@@ -8,3 +8,7 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+# The module's source-folder mappings: RustRover rewrites them from Cargo
+# metadata whenever a crate is added or a Cargo project is attached.
+/bunsen.iml
+/modules.xml
