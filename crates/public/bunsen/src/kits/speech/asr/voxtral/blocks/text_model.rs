@@ -106,8 +106,8 @@ pub struct VoxtralTextConfig {
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "1_000_000")]
-    pub rope_theta: usize,
+    #[config(default = "1_000_000.0")]
+    pub rope_theta: f64,
 
     /// The attention window, in positions; `None` attends to the whole past.
     #[config(default = "Some(8192)")]
@@ -329,7 +329,7 @@ mod tests {
     fn test_meta_and_cache() {
         let config = VoxtralTextConfig::new(40, 12, 2, 3, 1, 6, 20)
             .with_rms_eps(1e-6)
-            .with_rope_theta(500)
+            .with_rope_theta(500.0)
             .with_sliding_window(Some(3));
         let device = cpu_device();
         let model: VoxtralTextModel = config.init(&device);

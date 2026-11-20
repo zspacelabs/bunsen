@@ -137,7 +137,7 @@ pub struct Qwen3TtsCodecDecoderContractConfig {
     pub window: usize,
 
     /// Its rotary base.
-    pub rope_theta: usize,
+    pub rope_theta: f64,
 
     /// Its RMS norms' epsilon.
     pub rms_eps: f64,
@@ -162,10 +162,9 @@ impl Qwen3TtsCodecDecoderContractConfig {
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
-    /// feed-forward gate other than `silu`, a rotary base that is not a whole
-    /// number, an odd `codebook_dim`, fewer than two codebooks, heads that do
-    /// not group the key/value heads, or a vocoder width that its blocks do
-    /// not halve evenly.
+    /// feed-forward gate other than `silu`, an odd `codebook_dim`, fewer than
+    /// two codebooks, heads that do not group the key/value heads, or a vocoder
+    /// width that its blocks do not halve evenly.
     pub fn from_json(json: &Qwen3TtsCodecDecoderJson) -> BunsenResult<Self> {
         let unsupported = |what: String| Err(BunsenError::unsupported(what));
         if json.hidden_act != "silu" {
@@ -173,9 +172,6 @@ impl Qwen3TtsCodecDecoderContractConfig {
                 "a codec feed-forward gate of {:?}; only \"silu\"",
                 json.hidden_act
             ));
-        }
-        if json.rope_theta.fract() != 0.0 || json.rope_theta < 1.0 {
-            return unsupported(format!("a codec rotary base of {}", json.rope_theta));
         }
         if !json.codebook_dim.is_multiple_of(2) {
             return unsupported(format!("an odd codebook_dim, {}", json.codebook_dim));
@@ -216,7 +212,7 @@ impl Qwen3TtsCodecDecoderContractConfig {
                 .unwrap_or(json.hidden_size / json.num_attention_heads),
             json.intermediate_size,
             json.sliding_window,
-            json.rope_theta as usize,
+            json.rope_theta,
             json.rms_norm_eps,
             json.upsampling_ratios.clone(),
             json.upsample_rates.clone(),
@@ -451,7 +447,7 @@ mod tests {
         );
         assert_eq!(
             (config.head_dim, config.window, config.rope_theta),
-            (64, 72, 10000)
+            (64, 72, 10000.0)
         );
     }
 
@@ -477,10 +473,6 @@ mod tests {
             },
             Qwen3TtsCodecDecoderJson {
                 decoder_dim: 1000,
-                ..release.clone()
-            },
-            Qwen3TtsCodecDecoderJson {
-                rope_theta: 1e4 + 0.5,
                 ..release
             },
         ] {

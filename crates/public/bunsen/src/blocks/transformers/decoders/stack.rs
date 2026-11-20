@@ -1214,7 +1214,7 @@ mod tests {
     fn test_kind_rotary() {
         let device = crate::support::testing::cpu_device();
         let global = RotaryEmbeddingConfig::new(0, 8)
-            .with_base(1_000_000)
+            .with_base(1_000_000.0)
             .with_scaling(
                 crate::blocks::transformers::embedding::RopeScaling::Linear { factor: 2.0 },
             );

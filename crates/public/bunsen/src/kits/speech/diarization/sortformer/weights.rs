@@ -196,11 +196,6 @@ pub fn nemotron_config_from_transformers(json: &str) -> BunsenResult<NemotronDia
         1.0,
     )?;
     let theta = rope.f64("rope_theta")?;
-    if theta.fract() != 0.0 || theta < 1.0 {
-        return Err(BunsenError::unsupported(format!(
-            "config.json: `audio_config.rope_parameters.rope_theta` {theta} is not a whole number"
-        )));
-    }
     let factor = a.usize("subsampling_factor")?;
 
     let h = c.section("head_config")?;
@@ -214,7 +209,7 @@ pub fn nemotron_config_from_transformers(json: &str) -> BunsenResult<NemotronDia
         .with_n_heads(a.usize("num_attention_heads")?)
         .with_ff_expansion(intermediate / d_model)
         .with_subsampling_factor(factor)
-        .with_rope_base(theta as usize)
+        .with_rope_base(theta)
         .with_d_hidden(h.usize("hidden_size")?)
         .with_n_speakers(h.usize("num_speakers")?))
 }

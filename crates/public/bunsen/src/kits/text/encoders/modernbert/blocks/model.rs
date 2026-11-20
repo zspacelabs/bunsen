@@ -207,7 +207,7 @@ impl ModernBertContractConfig {
         theta: f64,
     ) -> RotaryEmbeddingConfig {
         RotaryEmbeddingConfig::new(0, self.d_model / self.n_heads)
-            .with_base(theta as usize)
+            .with_base(theta)
             .with_direction(RotaryDirection::Forward)
     }
 

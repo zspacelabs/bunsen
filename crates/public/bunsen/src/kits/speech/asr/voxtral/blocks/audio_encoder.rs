@@ -139,8 +139,8 @@ pub struct VoxtralAudioEncoderConfig {
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "1_000_000")]
-    pub rope_theta: usize,
+    #[config(default = "1_000_000.0")]
+    pub rope_theta: f64,
 
     /// The attention window, in encoder frames; `None` attends to the whole
     /// past.
@@ -447,7 +447,7 @@ mod tests {
     fn toy() -> VoxtralAudioEncoderConfig {
         VoxtralAudioEncoderConfig::new(6, 16, 2, 6, 24, 2)
             .with_rms_eps(1e-6)
-            .with_rope_theta(10_000)
+            .with_rope_theta(10_000.0)
             .with_sliding_window(Some(4))
     }
 
@@ -470,7 +470,7 @@ mod tests {
 
         let preset = VoxtralAudioEncoderConfig::voxtral_mini_4b_realtime();
         assert_eq!(preset.sliding_window(), Some(750));
-        assert_eq!(preset.rope_theta, 1_000_000);
+        assert_eq!(preset.rope_theta, 1_000_000.0);
     }
 
     /// The stem halves the frame rate and is causal: a frame's output does

@@ -155,7 +155,7 @@ pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealt
         ad.num_hidden_layers,
     )
     .with_rms_eps(ad.rms_norm_eps)
-    .with_rope_theta(ad.rope_theta as usize)
+    .with_rope_theta(ad.rope_theta)
     .with_sliding_window(ad.sliding_window);
 
     let t = c.section("text_config")?;
@@ -179,7 +179,7 @@ pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealt
         td.intermediate_size,
     )
     .with_rms_eps(td.rms_norm_eps)
-    .with_rope_theta(td.rope_theta as usize)
+    .with_rope_theta(td.rope_theta)
     .with_sliding_window(td.sliding_window);
 
     Ok(VoxtralRealtimeConfig::new(audio, text).with_downsample(c.usize("downsample_factor")?))
@@ -281,7 +281,7 @@ mod tests {
         assert_eq!(config.audio.head_dim(), expected.audio.head_dim());
         assert_eq!(config.audio.d_ff, expected.audio.d_ff);
         assert_eq!(config.audio.sliding_window(), Some(750));
-        assert_eq!(config.audio.rope_theta, 1_000_000);
+        assert_eq!(config.audio.rope_theta, 1_000_000.0);
         assert_eq!(config.text.n_vocab(), expected.text.n_vocab());
         assert_eq!(config.text.n_layers(), expected.text.n_layers());
         assert_eq!(config.text.n_kv_heads(), expected.text.n_kv_heads());

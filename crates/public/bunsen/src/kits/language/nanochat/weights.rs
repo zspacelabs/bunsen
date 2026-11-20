@@ -402,11 +402,11 @@ mod tests {
             ),
             (2048, 10, 65536, 20, 1280)
         );
-        assert!(!c.residual_lambdas && c.window_pattern.is_none() && c.rope_base == 10000);
+        assert!(!c.residual_lambdas && c.window_pattern.is_none() && c.rope_base == 10000.0);
 
         let c = meta(Some("SSSL")).gpt_config(NanoChatGeneration::Upstream2026);
         assert_eq!(c.window_pattern.as_deref(), Some("SSSL"));
-        assert!(c.residual_lambdas && c.value_embeds && c.backout && c.rope_base == 100000);
+        assert!(c.residual_lambdas && c.value_embeds && c.backout && c.rope_base == 100000.0);
     }
 
     /// Upstream's names land where bunsen keeps each part.

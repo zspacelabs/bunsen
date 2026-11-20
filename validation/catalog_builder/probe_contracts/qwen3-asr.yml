@@ -47,7 +47,7 @@ fermion:
           n_layers: 28
           n_vocab: 151936
           rms_eps: 1.0e-6
-          rope_theta: 1000000
+          rope_theta: 1000000.0
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -93,7 +93,7 @@ fermion:
           n_layers: 28
           n_vocab: 151936
           rms_eps: 1.0e-6
-          rope_theta: 1000000
+          rope_theta: 1000000.0
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -139,7 +139,7 @@ fermion:
           n_layers: 28
           n_vocab: 151936
           rms_eps: 1.0e-6
-          rope_theta: 1000000
+          rope_theta: 1000000.0
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -192,7 +192,7 @@ qwen:
           n_layers: 28
           n_vocab: 151936
           rms_eps: 1.0e-6
-          rope_theta: 1000000
+          rope_theta: 1000000.0
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -248,7 +248,7 @@ qwen:
           n_layers: 28
           n_vocab: 151936
           rms_eps: 1.0e-6
-          rope_theta: 1000000
+          rope_theta: 1000000.0
           softmax_widening: F32
           tied_head: true
     $hub:

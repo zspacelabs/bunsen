@@ -77,7 +77,7 @@ fn f32_tensor(
 ///   the inverse frequency `1.0 / base**(d / head_dim)`; f32 whatever the
 ///   device's default float.
 pub fn inverse_frequency_table(
-    base: usize,
+    base: f64,
     head_dim: usize,
     device: &Device,
 ) -> Tensor<1> {
@@ -107,7 +107,7 @@ pub fn inverse_frequency_table(
 ///   device's default float.
 pub fn positional_frequency_table(
     seq_len: usize,
-    base: usize,
+    base: f64,
     head_dim: usize,
     device: &Device,
 ) -> Tensor<2> {
@@ -179,7 +179,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let base = 10000;
+        let base = 10000.0;
         let head_dim = 4;
 
         let base_f = base as f32;
@@ -206,7 +206,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let base = 10000;
+        let base = 10000.0;
         let head_dim = 4;
 
         let base_f = base as f32;

@@ -142,7 +142,7 @@ pub fn qwen3_config_from_transformers_section(
         d.intermediate_size,
     )
     .with_rms_eps(d.rms_norm_eps)
-    .with_rope_theta(d.rope_theta as usize)
+    .with_rope_theta(d.rope_theta)
     .with_tied_head(t.bool_or("tie_word_embeddings", tie_default)?))
 }
 

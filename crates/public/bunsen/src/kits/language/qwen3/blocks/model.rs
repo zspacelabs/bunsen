@@ -99,8 +99,8 @@ pub struct Qwen3Config {
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "1_000_000")]
-    pub rope_theta: usize,
+    #[config(default = "1_000_000.0")]
+    pub rope_theta: f64,
 
     /// Whether the output head is the embedding (`transformers`'
     /// `tie_word_embeddings`); otherwise it is a linear map of its own.
@@ -142,7 +142,7 @@ impl Qwen3Config {
     /// The geometry of `Qwen3-4B-Instruct-2507` and `Qwen3-4B-Thinking-2507`:
     /// [`qwen3_4b`](Self::qwen3_4b)'s, with a rotary base of 5 * 10^6.
     pub fn qwen3_4b_2507() -> Self {
-        Self::qwen3_4b().with_rope_theta(5_000_000)
+        Self::qwen3_4b().with_rope_theta(5_000_000.0)
     }
 
     /// `Qwen3-8B`'s geometry: 36 layers of width 4096, 32 query and 8
@@ -320,7 +320,7 @@ mod tests {
     fn test_meta_and_cache() {
         let config = Qwen3Config::new(40, 12, 2, 3, 1, 6, 20)
             .with_rms_eps(1e-5)
-            .with_rope_theta(500);
+            .with_rope_theta(500.0);
         let device = cpu_device();
         let lm = config.to_structure();
         assert_eq!(lm.kv_cache_pre_size, QWEN3_KV_CACHE_PRE_SIZE);

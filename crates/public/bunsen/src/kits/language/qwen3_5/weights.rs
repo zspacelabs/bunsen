@@ -220,7 +220,7 @@ pub fn qwen3_5_config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Confi
     )
     .with_linear_conv_kernel(t.usize_opt("linear_conv_kernel_dim")?.unwrap_or(4))
     .with_rms_eps(d.rms_norm_eps)
-    .with_rope_theta(d.rope_theta as usize)
+    .with_rope_theta(d.rope_theta)
     .with_partial_rotary_factor(factor)
     .with_attn_output_gate(t.bool_or("attn_output_gate", true)?)
     .with_layer_kinds(layer_kinds)
@@ -385,7 +385,7 @@ mod tests {
             ),
             (16, 16, 128, 128, 4)
         );
-        assert_eq!(config.rope_theta, 10_000_000);
+        assert_eq!(config.rope_theta, 10_000_000.0);
         assert_eq!(config.rotary_dim(), 64);
         assert!(config.tied_head && config.attn_output_gate);
         assert_eq!(config.layer_kinds, Qwen3_5Config::every_nth_full(24, 4));

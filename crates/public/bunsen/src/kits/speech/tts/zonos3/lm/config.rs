@@ -160,7 +160,7 @@ pub struct Zonos3LmConfig {
     pub head_dim: usize,
 
     /// The rotary base.
-    pub rope_base: usize,
+    pub rope_base: f64,
 
     /// The gated `DeltaNet` heads.
     pub gdn_heads: usize,
@@ -218,20 +218,14 @@ impl Zonos3LmConfig {
     /// The config of an `lm` section.
     ///
     /// # Errors
-    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
-    /// rotary base that is not a whole number, or special ids other than the
-    /// end of audio at `codebook_size` and the pad after it.
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
+    /// special ids other than the end of audio at `codebook_size` and the pad
+    /// after it.
     pub fn from_json(json: &Zonos3LmJson) -> BunsenResult<Self> {
         if json.eoa_id != json.codebook_size || json.audio_pad_id != json.codebook_size + 1 {
             return Err(BunsenError::unsupported(format!(
                 "end of audio {} and pad {} for {} codes",
                 json.eoa_id, json.audio_pad_id, json.codebook_size
-            )));
-        }
-        if json.rope_theta.fract() != 0.0 || json.rope_theta < 1.0 {
-            return Err(BunsenError::unsupported(format!(
-                "rope_theta {}",
-                json.rope_theta
             )));
         }
         Ok(Self::new(
@@ -244,7 +238,7 @@ impl Zonos3LmConfig {
             json.n_heads,
             json.n_kv_heads,
             json.head_dim,
-            json.rope_theta as usize,
+            json.rope_theta,
             json.gdn_heads,
             json.gdn_head_dim,
             json.gdn_kernel,

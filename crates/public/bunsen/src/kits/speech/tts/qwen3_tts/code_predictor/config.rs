@@ -74,7 +74,7 @@ impl Qwen3TtsCodePredictorConfig {
             d.intermediate_size,
         )
         .with_rms_eps(d.rms_norm_eps)
-        .with_rope_theta(d.rope_theta as usize);
+        .with_rope_theta(d.rope_theta);
         Ok(Self::new(lm, talker_width, t.usize("num_code_groups")? - 1))
     }
 }
