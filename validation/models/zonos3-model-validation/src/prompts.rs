@@ -7,24 +7,25 @@ use bunsen::{
     data::resources::ResourceSet,
     kits::{
         speech::tts::zonos3::{
-            Zonos3Json,
-            lm::Zonos3LmConfig,
+            interop::zonos::Zonos3Mirror,
             pretrained::{
                 CONFIG,
                 TOKENIZER,
                 default_zonos3_factory,
             },
             prompt::{
-                Zonos3PromptConfig,
                 Zonos3PromptRequest,
                 Zonos3Speaker,
                 condition_bucket,
                 zonos3_text_ids,
             },
         },
-        support::tokens::{
-            BunsenTokenizer,
-            Tokenizer,
+        support::{
+            interop::json_mirror_from_path,
+            tokens::{
+                BunsenTokenizer,
+                Tokenizer,
+            },
         },
     },
 };
@@ -39,7 +40,7 @@ use crate::fixtures::{
 
 /// The release's config and tokenizer, from the weights cache, without its
 /// weights.
-fn release_files() -> (Zonos3Json, PathBuf) {
+fn release_files() -> (Zonos3Mirror, PathBuf) {
     let (_, pretrained) = default_zonos3_factory()
         .expect("the zonos3 factory")
         .lookup(MODEL)
@@ -51,9 +52,7 @@ fn release_files() -> (Zonos3Json, PathBuf) {
     let loaded = weights_cache()
         .load(&map)
         .unwrap_or_else(|e| panic!("{MODEL}: {e}"));
-    let config = loaded.expect(CONFIG).unwrap();
-    let json = serde_json::from_str(&std::fs::read_to_string(config).unwrap())
-        .unwrap_or_else(|e| panic!("{}: {e}", config.display()));
+    let json = json_mirror_from_path(loaded.expect(CONFIG).unwrap()).unwrap();
     (json, loaded.expect(TOKENIZER).unwrap().to_path_buf())
 }
 
@@ -85,13 +84,8 @@ mod zonos3_mini {
     fn prompts() {
         let (json, path) = release_files();
         let tokenizer = BunsenTokenizer::from_file(&path).unwrap();
-        let lm = Zonos3LmConfig::from_json(&json.lm).unwrap();
-        let config = Zonos3PromptConfig::new(
-            &lm,
-            json.lm.text_vocab as u32,
-            json.generation.silence_frame.clone(),
-            json.lm.reference_max_frames,
-        );
+        let lm = json.lm.lm_config().unwrap();
+        let config = json.prompt_config(&lm);
         let reference = FixtureFile::load(REFERENCE);
         for name in REQUESTS {
             let facts = reference.request(name);

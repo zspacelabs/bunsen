@@ -11,7 +11,6 @@ use burn::{
     tensor::DType,
 };
 
-use super::Zonos3GenerationJson;
 use crate::kits::support::decoding::{
     LogitFilter,
     MinP,
@@ -27,7 +26,8 @@ use crate::kits::support::decoding::{
 pub const ZONOS3_MIN_TEMPERATURE: f64 = 1e-6;
 
 /// Config for [`Zonos3Sampler`]; its defaults are the release's
-/// (`config.json`'s `generation`, [`from_generation`](Self::from_generation)).
+/// (`config.json`'s `generation`,
+/// [`Zonos3GenerationMirror::sampler_config`](super::interop::zonos::Zonos3GenerationMirror::sampler_config)).
 #[derive(Config, Debug, PartialEq)]
 pub struct Zonos3SamplerConfig {
     /// The temperature, at least [`ZONOS3_MIN_TEMPERATURE`].
@@ -61,19 +61,6 @@ pub struct Zonos3SamplerConfig {
 }
 
 impl Zonos3SamplerConfig {
-    /// The settings of a release's `generation` section.
-    pub fn from_generation(generation: &Zonos3GenerationJson) -> Self {
-        Self {
-            temperature: generation.temperature,
-            top_k: generation.topk,
-            top_p: generation.top_p,
-            min_p: generation.min_p,
-            repetition_penalty: generation.repetition_penalty,
-            repetition_window: generation.repetition_window,
-            repetition_codebooks: generation.repetition_codebooks,
-        }
-    }
-
     /// The sampler, for codebooks of `codebook_size` codes followed by the
     /// end of audio (`eoa_id`) and pads up to `audio_vocab`.
     ///

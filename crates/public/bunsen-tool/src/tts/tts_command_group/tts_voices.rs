@@ -7,14 +7,11 @@ use std::io::{
 };
 
 use bunsen::{
-    data::{
-        formats::SafetensorsCheckpoint,
-        resources::{
-            LoadedResourceSet,
-            Resource,
-            ResourceCache,
-            ResourceSet,
-        },
+    data::resources::{
+        LoadedResourceSet,
+        Resource,
+        ResourceCache,
+        ResourceSet,
     },
     errors::{
         BunsenError,
@@ -32,15 +29,11 @@ use bunsen::{
         },
         zonos3::{
             driver::zonos3_voice_list,
+            interop::zonos::load_zonos3_voices,
             pretrained::{
                 VOICE_INFO,
                 VOICES,
                 default_zonos3_factory,
-            },
-            voices::{
-                with_zonos3_voice_info,
-                zonos3_voice_info,
-                zonos3_voices,
             },
         },
     },
@@ -146,14 +139,7 @@ impl TtsVoicesCommand {
             set.insert(info.clone());
         }
         let loaded = self.load(cache, &set)?;
-        let mut voices =
-            zonos3_voices(SafetensorsCheckpoint::single(loaded.expect(VOICES)?).tensors()?)?;
-        if let Some(info) = loaded.get(VOICE_INFO) {
-            let path = &info.path;
-            let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
-            with_zonos3_voice_info(&mut voices, zonos3_voice_info(&json)?)?;
-        }
-        Ok(zonos3_voice_list(&voices))
+        Ok(zonos3_voice_list(&load_zonos3_voices(&loaded)?))
     }
 
     /// Qwen3-TTS's speakers, from its `config.json` alone.

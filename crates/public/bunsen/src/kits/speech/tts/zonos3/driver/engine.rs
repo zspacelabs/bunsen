@@ -49,13 +49,10 @@ pub fn zonos3_voice_list(voices: &BTreeMap<String, Zonos3Voice>) -> Vec<TtsVoice
     voices
         .iter()
         .map(|(name, voice)| {
-            let mut info = TtsVoiceInfo::stock(name.clone());
-            if let Some(said) = &voice.info {
-                info.gender = Some(said.gender.clone());
-                info.style.clone_from(&said.style);
-                info.description = Some(said.language.clone());
-            }
-            info
+            voice
+                .info
+                .clone()
+                .unwrap_or_else(|| TtsVoiceInfo::stock(name.clone()))
         })
         .collect()
 }
@@ -106,7 +103,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Zonos3Engine<T> {
         _voice: &Zonos3Speaker,
     ) -> BunsenResult<Option<BunsenLanguageTag>> {
         let key = language.unwrap_or(&self.config().default_language);
-        Ok(Some(self.construct().generation.language_tag(key)?))
+        Ok(Some(self.construct().language_tag(key)?))
     }
 
     fn generate(

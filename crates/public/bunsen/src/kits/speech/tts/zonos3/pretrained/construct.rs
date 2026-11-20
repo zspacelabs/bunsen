@@ -2,10 +2,7 @@
 
 use alloc::sync::Arc;
 
-use burn::tensor::{
-    Device,
-    FloatDType,
-};
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -17,17 +14,12 @@ use super::{
     ZONOS3_KIT,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
             ConstructInit,
         },
-        formats::{
-            LoadPolicy,
-            SafetensorsCheckpoint,
-            stored_float_dtype,
-        },
+        formats::LoadPolicy,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -36,36 +28,17 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
-    kits::speech::tts::zonos3::{
-        Zonos3Construct,
-        Zonos3Json,
-        codec::{
-            Zonos3Codec,
-            Zonos3CodecConfig,
-            weights::{
-                ZONOS3_CODEC_PREFIX,
-                load_zonos3_codec_tensors,
+    kits::{
+        speech::tts::zonos3::{
+            Zonos3Construct,
+            interop::zonos::{
+                Zonos3Mirror,
+                load_zonos3_lm_and_codec,
+                load_zonos3_voices,
             },
         },
-        lm::{
-            Zonos3Lm,
-            Zonos3LmConfig,
-            weights::{
-                ZONOS3_LM_PREFIX,
-                load_zonos3_lm_tensors,
-            },
-        },
-        prompt::{
-            Zonos3Condition,
-            Zonos3PromptConfig,
-        },
-        voices::{
-            with_zonos3_voice_info,
-            zonos3_voice_info,
-            zonos3_voices,
-        },
+        support::interop::json_mirror_from_path,
     },
 };
 
@@ -130,70 +103,23 @@ impl ConstructInit for Zonos3ConstructConfig {
         policy: LoadPolicy,
     ) -> BunsenResult<Arc<Zonos3Construct>> {
         let config_path = loaded.expect(CONFIG)?;
-        let json: Zonos3Json = serde_json::from_str(
-            &std::fs::read_to_string(config_path).map_err(sys_at("read", config_path))?,
-        )
-        .map_err(|e| BunsenError::invalid_resource(format!("{}: {e}", config_path.display())))?;
-        let lm_config = Zonos3LmConfig::from_json(&json.lm)?;
-        let codec_config = Zonos3CodecConfig::from_json(&json.codec)?;
-
-        let tensors = SafetensorsCheckpoint::single(loaded.expect(CHECKPOINT)?).tensors()?;
-        let stored = |prefix: &str| {
-            let part: alloc::vec::Vec<_> = tensors
-                .iter()
-                .filter(|t| t.name.starts_with(prefix))
-                .cloned()
-                .collect();
-            stored_float_dtype(&part).unwrap_or(FloatDType::F32)
-        };
-        let lm_dtype = policy.resolve(stored(ZONOS3_LM_PREFIX), device, |_| true)?;
-        let codec_dtype = policy.resolve(stored(ZONOS3_CODEC_PREFIX), device, |_| true)?;
-
-        let mut lm: Zonos3Lm = lm_config.try_init(device)?;
-        load_zonos3_lm_tensors(&mut lm, &lm_config, tensors.clone(), Some(lm_dtype))?;
-        let mut codec: Zonos3Codec = codec_config.try_init(device)?;
-        load_zonos3_codec_tensors(&mut codec, &codec_config, tensors, Some(codec_dtype))?;
-
-        let mut voices =
-            zonos3_voices(SafetensorsCheckpoint::single(loaded.expect(VOICES)?).tensors()?)?;
-        if let Some(info) = loaded.get(VOICE_INFO) {
-            let path = &info.path;
-            let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
-            with_zonos3_voice_info(&mut voices, zonos3_voice_info(&json)?)?;
-        }
-        let prompt = Zonos3PromptConfig::new(
-            &lm_config,
-            json.lm.text_vocab as u32,
-            json.generation.silence_frame.clone(),
-            json.lm.reference_max_frames,
-        );
-        let conditions = json
-            .lm
-            .condition_names
-            .iter()
-            .map(|name| {
-                let edges = json.lm.condition_edges.get(name).ok_or_else(|| {
-                    BunsenError::invalid_resource(format!(
-                        "{}: `lm.condition_edges` has no `{name}`",
-                        config_path.display()
-                    ))
-                })?;
-                Ok(Zonos3Condition {
-                    name: name.clone(),
-                    edges: edges.clone(),
-                })
-            })
-            .collect::<BunsenResult<Vec<_>>>()?;
+        let config: Zonos3Mirror = json_mirror_from_path(config_path)?;
+        let at = |e: crate::errors::BunsenError| e.context(config_path.display());
+        let lm_config = config.lm.lm_config().map_err(at)?;
+        let codec_config = config.codec.codec_config().map_err(at)?;
+        let (lm, codec) =
+            load_zonos3_lm_and_codec(loaded, &lm_config, &codec_config, device, policy)?;
         Ok(Arc::new(Zonos3Construct {
+            prompt: config.prompt_config(&lm_config),
+            conditions: config.lm.conditions().map_err(at)?,
+            engine_config: config.generation.engine_config(),
+            language_tags: config.generation.language_tags().map_err(at)?,
             lm,
             lm_config,
             codec,
             codec_config,
-            prompt,
-            generation: json.generation,
-            sample_rate: json.sampling_rate,
-            voices,
-            conditions,
+            sample_rate: config.sampling_rate,
+            voices: load_zonos3_voices(loaded)?,
             tokenizer: loaded.expect(TOKENIZER)?.to_path_buf(),
         }))
     }

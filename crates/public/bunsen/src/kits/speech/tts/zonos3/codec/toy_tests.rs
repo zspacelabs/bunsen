@@ -15,13 +15,15 @@ use burn::prelude::*;
 use super::{
     Zonos3Codec,
     Zonos3CodecConfig,
-    Zonos3CodecJson,
     Zonos3CodecMeta,
     Zonos3CodecStageMeta,
-    weights::load_zonos3_codec_tensors,
 };
 use crate::{
     burner::module::ModuleInit,
+    kits::speech::tts::zonos3::interop::zonos::{
+        Zonos3CodecMirror,
+        load_zonos3_codec_tensors,
+    },
     support::testing::{
         ToyFixture,
         assert_io_close_within,
@@ -51,9 +53,9 @@ fn load() -> (Zonos3CodecConfig, Zonos3Codec, ToyFixture) {
         &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
     )
     .expect("parse the toy config");
-    let codec: Zonos3CodecJson =
+    let codec: Zonos3CodecMirror =
         serde_json::from_value(json["codec"].clone()).expect("the toy's codec section");
-    let config = Zonos3CodecConfig::from_json(&codec).expect("the toy's config");
+    let config = codec.codec_config().expect("the toy's config");
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     let mut model: Zonos3Codec = config.init(&device);
     load_zonos3_codec_tensors(&mut model, &config, fixture.take_weights(), None)

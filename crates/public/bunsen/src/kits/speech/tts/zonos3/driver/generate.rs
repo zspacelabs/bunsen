@@ -45,7 +45,6 @@ use crate::{
             },
             zonos3::{
                 Zonos3Construct,
-                Zonos3GenerationJson,
                 lm::{
                     Zonos3LmMeta,
                     Zonos3RowConditioning,
@@ -104,12 +103,13 @@ pub fn zonos3_driver<T: Tokenizer + Send + Sync>(
 }
 
 /// Config for [`Zonos3Engine`]; its defaults are the release's
-/// (`config.json`'s `generation`, [`from_generation`](Self::from_generation)).
+/// (`config.json`'s `generation`,
+/// [`Zonos3GenerationMirror::engine_config`](crate::kits::speech::tts::zonos3::interop::zonos::Zonos3GenerationMirror::engine_config)).
 #[derive(Config, Debug)]
 pub struct Zonos3EngineConfig {
     /// The language a request that names none is in: a request code of the
     /// release's `languages` table (`en_us`, `fr_fr`), or a language tag
-    /// ([`Zonos3GenerationJson::language_tag`]).
+    /// ([`Zonos3Construct::language_tag`]).
     #[config(default = "String::from(\"en_us\")")]
     pub default_language: String,
 
@@ -158,20 +158,6 @@ pub struct Zonos3EngineConfig {
     /// The decode cache's storage.
     #[config(default = "KVCacheStorage::Auto")]
     pub storage: KVCacheStorage,
-}
-
-impl Zonos3EngineConfig {
-    /// The settings of a release's `generation` section (its markup tags
-    /// aside: the normalizer keeps none, as the release's reference).
-    pub fn from_generation(generation: &Zonos3GenerationJson) -> Self {
-        Self::new()
-            .with_sampler(Zonos3SamplerConfig::from_generation(generation))
-            .with_silence_prefill_frames(generation.silence_prefill_frames)
-            .with_silence_prefill_max_frames(generation.silence_prefill_max_frames)
-            .with_overlap_frames(generation.overlap_frames)
-            .with_headroom_db(generation.headroom_db)
-            .with_output_limit_dbfs(generation.output_limit_dbfs)
-    }
 }
 
 /// What [`Zonos3Engine`] speaks: one take.
@@ -277,7 +263,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a silence
     /// prefill past its limit; the default language's
-    /// ([`Zonos3GenerationJson::language_tag`]);
+    /// ([`Zonos3Construct::language_tag`]);
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a default voice
     /// that is not a stock voice, or a condition the release does not have.
     pub fn new(
@@ -291,9 +277,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
                 config.silence_prefill_frames, config.silence_prefill_max_frames
             )));
         }
-        let language = construct
-            .generation
-            .language_tag(&config.default_language)?;
+        let language = construct.language_tag(&config.default_language)?;
         if !construct.voices.contains_key(&config.default_voice) {
             return Err(BunsenError::lookup(
                 LookupError::missing("stock voice", &config.default_voice)
@@ -323,16 +307,13 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         let sampler = Self::sampler(&construct, &config.sampler);
         let capabilities = TtsCapabilities {
             languages: construct
-                .generation
-                .languages
+                .language_tags
                 .iter()
-                .map(|(key, grammar)| {
-                    Ok(TtsLanguage {
-                        key: key.clone(),
-                        tag: BunsenLanguageTag::parse(grammar)?,
-                    })
+                .map(|(key, tag)| TtsLanguage {
+                    key: key.clone(),
+                    tag: tag.clone(),
                 })
-                .collect::<BunsenResult<_>>()?,
+                .collect(),
             default_voice: Some(config.default_voice.clone()),
             stock_voices: true,
             described_voices: false,

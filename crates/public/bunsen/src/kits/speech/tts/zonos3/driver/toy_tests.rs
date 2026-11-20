@@ -28,19 +28,15 @@ use crate::{
             },
             zonos3::{
                 Zonos3Construct,
-                Zonos3GenerationJson,
-                codec::{
-                    Zonos3Codec,
-                    Zonos3CodecConfig,
-                    Zonos3CodecJson,
-                    weights::load_zonos3_codec_tensors,
+                codec::Zonos3Codec,
+                interop::zonos::{
+                    Zonos3CodecMirror,
+                    Zonos3GenerationMirror,
+                    Zonos3LmMirror,
+                    load_zonos3_codec_tensors,
+                    load_zonos3_lm_tensors,
                 },
-                lm::{
-                    Zonos3Lm,
-                    Zonos3LmConfig,
-                    Zonos3LmJson,
-                    weights::load_zonos3_lm_tensors,
-                },
+                lm::Zonos3Lm,
                 prompt::{
                     Zonos3PromptConfig,
                     Zonos3Speaker,
@@ -106,8 +102,8 @@ impl Tokenizer for Bytes {
     }
 }
 
-fn generation() -> Zonos3GenerationJson {
-    Zonos3GenerationJson {
+fn generation() -> Zonos3GenerationMirror {
+    Zonos3GenerationMirror {
         decode_context_frames: 30,
         headroom_db: 3.0,
         languages: BTreeMap::new(),
@@ -127,8 +123,9 @@ fn generation() -> Zonos3GenerationJson {
     }
 }
 
-/// The toy LM and codec as a construct, with one stock voice, `Toy`.
-fn construct() -> Zonos3Construct {
+/// The toy LM and codec as a construct, with one stock voice, `Toy`, and
+/// the release's languages `generation` gives.
+fn construct_with(generation: &Zonos3GenerationMirror) -> Zonos3Construct {
     let device = performance_device();
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
     let json: serde_json::Value = serde_json::from_str(
@@ -136,23 +133,22 @@ fn construct() -> Zonos3Construct {
     )
     .expect("parse the toy config");
 
-    let lm_json: Zonos3LmJson =
+    let lm_json: Zonos3LmMirror =
         serde_json::from_value(json["lm"].clone()).expect("the toy's lm section");
-    let lm_config = Zonos3LmConfig::from_json(&lm_json).expect("the toy's lm config");
+    let lm_config = lm_json.lm_config().expect("the toy's lm config");
     let mut lm: Zonos3Lm = lm_config.init(&device);
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     load_zonos3_lm_tensors(&mut lm, &lm_config, fixture.take_weights(), None)
         .expect("load the toy lm");
 
-    let codec_json: Zonos3CodecJson =
+    let codec_json: Zonos3CodecMirror =
         serde_json::from_value(json["codec"].clone()).expect("the toy's codec section");
-    let codec_config = Zonos3CodecConfig::from_json(&codec_json).expect("the toy's codec config");
+    let codec_config = codec_json.codec_config().expect("the toy's codec config");
     let mut codec: Zonos3Codec = codec_config.init(&device);
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     load_zonos3_codec_tensors(&mut codec, &codec_config, fixture.take_weights(), None)
         .expect("load the toy codec");
 
-    let generation = generation();
     let prompt = Zonos3PromptConfig::new(
         &lm_config,
         lm_json.text_vocab as u32,
@@ -173,7 +169,8 @@ fn construct() -> Zonos3Construct {
         codec,
         codec_config,
         prompt,
-        generation,
+        engine_config: generation.engine_config(),
+        language_tags: generation.language_tags().expect("the toy's languages"),
         sample_rate: 44_100,
         voices,
         conditions: vec![crate::kits::speech::tts::zonos3::prompt::Zonos3Condition {
@@ -182,6 +179,11 @@ fn construct() -> Zonos3Construct {
         }],
         tokenizer: PathBuf::new(),
     }
+}
+
+/// The toy construct, under the toy release's [`generation`].
+fn construct() -> Zonos3Construct {
+    construct_with(&generation())
 }
 
 /// The engine, its default voice the toy's.
@@ -196,8 +198,7 @@ fn engine(config: Zonos3EngineConfig) -> Zonos3Engine<Bytes> {
 
 #[test]
 fn test_generate_codes() {
-    let engine =
-        engine(Zonos3EngineConfig::from_generation(&generation()).with_max_new_frames(Some(12)));
+    let engine = engine(generation().engine_config().with_max_new_frames(Some(12)));
     let request = Zonos3Request::new("hello", engine.voice_reference("Toy").unwrap()).with_seed(7);
     let codes = engine.generate_codes(&request).unwrap();
     assert!(codes.rows <= 12);
@@ -354,12 +355,13 @@ fn test_tts_driver() {
 fn test_language_tags() {
     let mut generation = generation();
     generation.languages = BTreeMap::from([("en_us".to_string(), "en".to_string())]);
-    assert_eq!(generation.language_tag("en_us").unwrap().to_string(), "en");
+    let construct = construct_with(&generation);
+    assert_eq!(construct.language_tag("en_us").unwrap().to_string(), "en");
     assert_eq!(
-        generation.language_tag("fr-FR").unwrap().to_string(),
+        construct.language_tag("fr-FR").unwrap().to_string(),
         "fr-FR"
     );
-    let error = generation.language_tag("klingonese").unwrap_err();
+    let error = construct.language_tag("klingonese").unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Illegal);
 }
 

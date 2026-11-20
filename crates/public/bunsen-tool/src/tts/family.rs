@@ -41,7 +41,6 @@ use bunsen::{
             zonos3::{
                 driver::{
                     Zonos3Engine,
-                    Zonos3EngineConfig,
                     zonos3_release_normalization,
                 },
                 pretrained::{
@@ -187,7 +186,9 @@ impl TtsFamily {
                 let construct =
                     default_zonos3_factory()?.load_construct(model, cache, device, policy)?;
                 let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer)?;
-                let mut config = Zonos3EngineConfig::from_generation(&construct.generation)
+                let mut config = construct
+                    .engine_config
+                    .clone()
                     .with_conditions(flags.condition_values()?);
                 if let Some(frames) = flags.silence_prefill_frames {
                     config.silence_prefill_frames = frames;
