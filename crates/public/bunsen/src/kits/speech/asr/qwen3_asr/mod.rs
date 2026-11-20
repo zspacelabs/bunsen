@@ -23,27 +23,23 @@
 //!   [`asr_driver`](crate::kits::speech::asr::driver) core's engine; a
 //!   [`Qwen3AsrStreamDriver`] streams audio through it, under any
 //!   [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
-//! - `read_phonon1_archive` (feature `store`): a Phonon-1 archive's weights,
-//!   expanded to dense `transformers`-named tensors, and its vocabulary.
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
 //!   `fermion/phonon-1` the default, and the factory that loads one into a
 //!   construct.
-//! - [`weights`] (feature `store`): loading tensors named as `transformers`'
-//!   `Qwen3ASRForConditionalGeneration` state dict.
+//! - [`interop`]: its checkpoints' ecosystems: [`interop::transformers`], a
+//!   `Qwen3ASRForConditionalGeneration`'s `config.json` and state-dict names;
+//!   [`interop::phonon`], a Phonon-1 archive's weights expanded to dense
+//!   `transformers`-named tensors, and its vocabulary.
 
 pub mod blocks;
 
 mod alignment;
-#[cfg(feature = "store")]
-mod archive;
 mod construct;
 mod decode;
 mod engine;
 mod front_end;
 mod prompt;
 pub use alignment::*;
-#[cfg(feature = "store")]
-pub use archive::*;
 pub use construct::*;
 pub use decode::*;
 pub use engine::*;
@@ -53,8 +49,7 @@ pub use prompt::*;
 #[cfg(feature = "store")]
 pub mod pretrained;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;
