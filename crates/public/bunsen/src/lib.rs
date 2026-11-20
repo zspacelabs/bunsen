@@ -177,11 +177,15 @@
 //!
 //! | Ecosystem | Container | Shared schema and names | Kits |
 //! |---|---|---|---|
-//! | `transformers` | `data::formats::SafetensorsCheckpoint` | `kits::support::interop::transformers`: a `config.json` by field, the Llama and Whisper layer keys | `qwen3`, `qwen3_asr`, `sortformer` (Nemotron) |
+//! | `transformers` | `data::formats::SafetensorsCheckpoint` | `kits::support::interop::transformers`: a `config.json` by field, the Llama and Whisper layer keys | `qwen3`, `qwen3_asr`, `parakeet`, `whisper`, `sortformer` (Nemotron) |
 //! | `nemo` | `data::formats::nemo` (the `.nemo` tar) | `kits::support::interop::nemo`: the YAML config sections, the `FastConformer` and encoder keys | `sortformer` (v2) |
 //! | `torch` | `data::formats::read_pytorch_tensors` (`.pt`) | `kits::support::interop::torch`: `nn.TransformerEncoderLayer`'s and `nn.LSTM`'s keys | |
+//! | `openai_whisper` | burn's `PytorchStore` (`.pt`) | | `whisper` |
 //! | `qwen_tts` | `data::formats::SafetensorsCheckpoint` | | `qwen3_tts` |
-//! | `phonon` | `data::formats::fermion` | | `qwen3_asr` |
+//! | `zonos` | `data::formats::SafetensorsCheckpoint` | | `zonos3` |
+//! | `silero_vad` | burn's `SafetensorsStore` | | `silero_vad` |
+//! | `burn_onnx` | burn's `BurnpackStore` (a burnpack of an ONNX graph's nodes) | | `silero_vad` |
+//! | `phonon` | `data::formats::fermion` | | `qwen3_asr`, `parakeet` |
 //! | MLX | `data::formats::mlx` (affine-quantized tensors) | | |
 //!
 //! ## Crate Features
