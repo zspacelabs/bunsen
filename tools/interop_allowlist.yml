@@ -39,21 +39,6 @@
   path: crates/public/bunsen/src/kits/language/qwen3_5/weights.rs
   item: transformers_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/weights.rs
-  item: encoder_block_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/weights.rs
-  item: encoder_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/weights.rs
-  item: load_transformers_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/weights.rs
-  item: subsampling_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/weights.rs
-  item: transformers_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/speech/asr/voxtral/weights.rs
   item: audio_layer_rekey
 - rule: rekey
@@ -115,12 +100,6 @@
   item: mod weights
 - rule: store-gate
   path: crates/public/bunsen/src/kits/language/qwen3_5/mod.rs
-  item: mod weights
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/mod.rs
-  item: mod archive
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/asr/parakeet/mod.rs
   item: mod weights
 - rule: store-gate
   path: crates/public/bunsen/src/kits/speech/asr/voxtral/mod.rs

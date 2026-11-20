@@ -1,10 +1,19 @@
-//! Loading `transformers`-named tensors into a [`ParakeetTdt`].
-use burn::store::burn_pack::Tensor as PackTensor;
+//! # Parakeet in `transformers`' names
+//!
+//! A `ParakeetForTDT` checkpoint as bunsen's
+//! [`ParakeetTdt`](crate::kits::speech::asr::parakeet::ParakeetTdt), the
+//! names every Parakeet checkpoint here is read under:
+//!
+//! - **Config:** [`parakeet_tdt_config`] of a parsed `config.json`, and
+//!   [`parakeet_tdt_config_from_str`] / [`parakeet_tdt_config_from_path`].
+//! - **Names:** [`parakeet_tdt_rekey`], over the encoder's ([`encoder_rekey`]:
+//!   [`subsampling_rekey`], [`encoder_block_rekey`]).
+//! - **Loading** (feature `store`): `load_parakeet_tdt_tensors`; with `cache`,
+//!   `load_parakeet_tdt`, a resource set's checkpoint and `tokenizer.json`
+//!   vocabulary.
 
-use super::blocks::{
-    ParakeetTdt,
-    ParakeetTdtConfig,
-};
+use std::path::Path;
+
 use crate::{
     blocks::{
         signals::{
@@ -17,17 +26,22 @@ use crate::{
             ConformerEncoderConfig,
         },
     },
-    burner::module::{
-        CanonicalKeys,
-        Rekey,
+    burner::module::Rekey,
+    errors::BunsenResult,
+    kits::{
+        speech::asr::parakeet::ParakeetTdtConfig,
+        support::interop::transformers::{
+            TransformersConfigJson,
+            config_from_path,
+            config_from_str,
+        },
     },
-    data::formats::NamedTensorsApplied,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
-    kits::support::interop::transformers::TransformersConfigJson,
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// `transformers`' `ParakeetEncoderSubsampling` names onto a
 /// [`DwStridingSubsampling`](crate::blocks::signals::DwStridingSubsampling)'s,
@@ -79,8 +93,8 @@ pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 }
 
 /// `transformers`' `ParakeetForTDT` state-dict names onto a
-/// [`ParakeetTdt`]'s module paths: the encoder by [`encoder_rekey`], the
-/// prediction network's
+/// [`ParakeetTdt`](crate::kits::speech::asr::parakeet::ParakeetTdt)'s module
+/// paths: the encoder by [`encoder_rekey`], the prediction network's
 /// `nn.LSTM` by
 /// [`lstm_stack_rekey`](crate::kits::support::interop::torch::lstm_stack_rekey),
 /// the batch-norm counters dropped, and everything else as it is.
@@ -90,7 +104,7 @@ pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`Rekey::apply_to`] resolves to `gamma` / `beta`.
-pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
+pub fn parakeet_tdt_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     Rekey::keep_rest()
         .drop_suffix(".num_batches_tracked")
         .mount("encoder.", "encoder.", encoder_rekey(striding))
@@ -102,27 +116,7 @@ pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
         .rename("decoder.decoder_projector.", "decoder.projector.")
 }
 
-/// Loads tensors named as `transformers`' `ParakeetForTDT` state dict into
-/// `model`: [`Rekey::apply_to`] under [`transformers_rekey`], at
-/// `model`'s subsampling.
-///
-/// # Errors
-/// As [`Rekey::apply_to`];
-/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
-/// `model`'s encoder does not subsample by depthwise striding.
-pub fn load_transformers_tensors(
-    model: &mut ParakeetTdt,
-    tensors: impl IntoIterator<Item = PackTensor>,
-) -> BunsenResult<NamedTensorsApplied> {
-    let striding = model.encoder.subsampling.dw_striding().ok_or_else(|| {
-        BunsenError::invalid_resource("a Parakeet encoder subsamples by depthwise striding")
-    })?;
-    let rekey = transformers_rekey(striding);
-    let rekey = rekey.then(model.canonical_rekey());
-    rekey.apply_to(model, tensors)
-}
-
-/// The [`ParakeetTdtConfig`] of a `transformers` `ParakeetForTDT`
+/// The [`ParakeetTdtConfig`] of a parsed `transformers` `ParakeetForTDT`
 /// `config.json`: what an `hf:` repo's geometry is.
 ///
 /// The encoder's sizes, the prediction network's width and depth, the
@@ -132,12 +126,11 @@ pub fn load_transformers_tensors(
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
-/// naming the field, when the file lacks one or does not parse;
+/// naming the field, when the file lacks one;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Parakeet is not (a CTC model,
 /// another subsampling).
-pub fn parakeet_config_from_transformers(json: &str) -> BunsenResult<ParakeetTdtConfig> {
-    let c = TransformersConfigJson::parse(json)?;
+pub fn parakeet_tdt_config(c: &TransformersConfigJson) -> BunsenResult<ParakeetTdtConfig> {
     c.expect_str("model_type", "parakeet_tdt")?;
     let e = c.section("encoder_config")?;
     e.expect_eq("num_mel_bins", e.usize("num_mel_bins")?, 128)?;
@@ -181,12 +174,29 @@ pub fn parakeet_config_from_transformers(json: &str) -> BunsenResult<ParakeetTdt
     .with_durations(c.usizes("durations")?))
 }
 
+/// [`parakeet_tdt_config`] of a `config.json`'s text.
+///
+/// # Errors
+/// As [`config_from_str`] and [`parakeet_tdt_config`].
+pub fn parakeet_tdt_config_from_str(json: &str) -> BunsenResult<ParakeetTdtConfig> {
+    config_from_str(json, parakeet_tdt_config)
+}
+
+/// [`parakeet_tdt_config`] of the `config.json` at `path`; every error names
+/// the file.
+///
+/// # Errors
+/// As [`config_from_path`] and [`parakeet_tdt_config`].
+pub fn parakeet_tdt_config_from_path(path: &Path) -> BunsenResult<ParakeetTdtConfig> {
+    config_from_path(path, parakeet_tdt_config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_transformers_rekey() {
+    fn test_parakeet_tdt_rekey() {
         for (hf, bunsen) in [
             (
                 "encoder.subsampling.layers.0.weight",
@@ -258,7 +268,7 @@ mod tests {
             ("encoder_projector.weight", Some("encoder_projector.weight")),
         ] {
             assert_eq!(
-                transformers_rekey(&DwStridingSubsamplingConfig::new(128, 256, 1024))
+                parakeet_tdt_rekey(&DwStridingSubsamplingConfig::new(128, 256, 1024))
                     .apply(hf)
                     .as_deref(),
                 bunsen,
@@ -270,7 +280,7 @@ mod tests {
     /// `nvidia/parakeet-tdt-0.6b-v3`'s `config.json` is the built-in
     /// geometry; a CTC model's is refused by its `model_type`.
     #[test]
-    fn test_parakeet_config_from_transformers() {
+    fn test_parakeet_tdt_config() {
         const V3: &str = r#"{"architectures": ["ParakeetForTDT"], "blank_token_id": 8192,
             "decoder_hidden_size": 640, "durations": [0, 1, 2, 3, 4],
             "encoder_config": {"attention_bias": false, "conv_kernel_size": 9,
@@ -280,7 +290,7 @@ mod tests {
                 "subsampling_conv_channels": 256, "subsampling_conv_kernel_size": 3,
                 "subsampling_conv_stride": 2, "subsampling_factor": 8},
             "model_type": "parakeet_tdt", "num_decoder_layers": 2, "vocab_size": 8193}"#;
-        let config = parakeet_config_from_transformers(V3).unwrap();
+        let config = parakeet_tdt_config_from_str(V3).unwrap();
         assert_eq!(
             format!("{config:?}"),
             format!("{:?}", ParakeetTdtConfig::tdt_0_6b_v3())
@@ -289,10 +299,10 @@ mod tests {
         let ctc = V3.replace("parakeet_tdt", "parakeet_ctc");
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("`model_type`")
-            .assert_err(&parakeet_config_from_transformers(&ctc));
+            .assert_err(&parakeet_tdt_config_from_str(&ctc));
         let mels = V3.replace("\"num_mel_bins\": 128", "\"num_mel_bins\": 80");
         crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
             .message_contains("`encoder_config.num_mel_bins` is 80")
-            .assert_err(&parakeet_config_from_transformers(&mels));
+            .assert_err(&parakeet_tdt_config_from_str(&mels));
     }
 }
