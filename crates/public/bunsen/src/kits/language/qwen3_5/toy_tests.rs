@@ -40,9 +40,11 @@ use crate::{
             StackedLm,
         },
     },
-    ops::transformers::attention::KVCacheStorage,
+    ops::transformers::attention::{
+        KVCacheStorage,
+        testing::KV_CACHE_STORAGES,
+    },
     support::testing::{
-        KV_CACHE_STORAGES,
         ToyFixture,
         assert_io_close_within,
         performance_device,

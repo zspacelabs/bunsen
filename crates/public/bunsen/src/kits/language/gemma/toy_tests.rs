@@ -33,12 +33,14 @@ use crate::{
         KVCache,
         KVCacheConfig,
         KVCacheModel,
+        testing::{
+            DecoderToy,
+            check_decoder_toy,
+        },
     },
     support::testing::{
-        DecoderToy,
         ToyFixture,
         assert_io_close,
-        check_decoder_toy,
         performance_device,
     },
 };

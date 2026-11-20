@@ -48,9 +48,10 @@
 //! implementation's answers, which `tools/toy_fixture.py` writes into one
 //! safetensors file with the weights. [`ToyFixture`] reads the file (the
 //! `store` feature), and [`assert_io_close`] compares at the toy
-//! tolerance. A decoder is checked through [`DecoderToy`] by
-//! [`check_decoder_toy`]: its uncached logits, then a cached decode through
-//! every KV cache storage.
+//! tolerance. A decoder is checked through
+//! [`DecoderToy`](crate::ops::transformers::attention::testing::DecoderToy)
+//! by [`check_decoder_toy`](crate::ops::transformers::attention::testing::check_decoder_toy):
+//! its uncached logits, then a cached decode through every KV cache storage.
 //!
 //! # Seeded inputs
 //!
