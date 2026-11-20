@@ -10,13 +10,11 @@ use super::{
     LAYA_KIT,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
             ConstructInit,
         },
-        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -26,26 +24,25 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::{
         decision::laya::{
-            LayaAgentConfig,
             LayaConstruct,
-            LayaModel,
-            weights::{
+            interop::laya::{
+                LayaAgentMirror,
                 laya_config,
-                load_laya_tensors,
+                load_laya,
             },
         },
-        text::encoders::modernbert::interop::transformers::modernbert_config_from_str,
+        support::interop::json_mirror_from_path,
+        text::encoders::modernbert::interop::transformers::modernbert_config_from_path,
     },
 };
 
 /// How a Laya pretrained is built: its two configs, the encoder's
-/// `config.json` ([`modernbert_config_from_str`]) and the head's
+/// `config.json` ([`modernbert_config_from_path`]) and the head's
 /// `rl_agent_config.json`, give the model, into which its
-/// `model.safetensors` loads ([`load_laya_tensors`]) in the dtype the load
+/// `model.safetensors` loads ([`load_laya`]) in the dtype the load
 /// policy resolves; bundled with the head's config, and every file of the
 /// checkpoint by its key.
 ///
@@ -55,14 +52,15 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct LayaConstructConfig;
 
-fn read(
-    loaded: &LoadedResourceSet,
+/// The path of `loaded`'s `key`.
+fn part<'a>(
+    loaded: &'a LoadedResourceSet,
     key: &str,
-) -> BunsenResult<String> {
+) -> BunsenResult<&'a std::path::Path> {
     let part = loaded.get(key).ok_or_else(|| {
         BunsenError::invalid_resource(format!("a Laya checkpoint without its {key}"))
     })?;
-    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))
+    Ok(&part.path)
 }
 
 impl ConstructInit for LayaConstructConfig {
@@ -87,14 +85,10 @@ impl ConstructInit for LayaConstructConfig {
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<LayaConstruct>> {
-        let encoder = modernbert_config_from_str(&read(loaded, ENCODER_CONFIG)?)?;
-        let agent = LayaAgentConfig::parse(&read(loaded, AGENT_CONFIG)?)?;
-        let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        let stored = crate::data::formats::stored_float_dtype(&tensors)
-            .unwrap_or(burn::tensor::FloatDType::F32);
-        let dtype = policy.resolve(stored, device, |_| true)?;
-        let mut model: LayaModel = laya_config(encoder, &agent).try_init(device)?;
-        load_laya_tensors(&mut model, tensors, Some(dtype))?;
+        let encoder = modernbert_config_from_path(part(loaded, ENCODER_CONFIG)?)?;
+        let agent =
+            json_mirror_from_path::<LayaAgentMirror>(part(loaded, AGENT_CONFIG)?)?.agent_config();
+        let model = load_laya(loaded, &laya_config(encoder, &agent), device, policy)?;
         let mut bundle = LayaConstruct::new(model, agent);
         for (key, part) in &loaded.parts {
             bundle = bundle.with_file(key, &part.path);

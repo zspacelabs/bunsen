@@ -22,9 +22,9 @@
 //! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`LayaConstructConfig`],
 //! brings every file local through the cache, builds the model from its two
-//! configs ([`laya_config`](super::weights::laya_config)), and reads the
+//! configs ([`laya_config`](super::interop::laya::laya_config)), and reads the
 //! checkpoint into it
-//! ([`load_laya_tensors`](super::weights::load_laya_tensors)) in the dtype the
+//! ([`load_laya`](super::interop::laya::load_laya)) in the dtype the
 //! load policy resolves. The tokenizer files are handed back as paths, unread.
 
 mod construct;

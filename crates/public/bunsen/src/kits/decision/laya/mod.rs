@@ -10,9 +10,9 @@
 //! layers, and a scorer over each option's `[MASK]` marker; and an act head.
 //!
 //! - [`blocks`]: the model, built from a [`LayaConfig`].
-//! - [`LayaAgentConfig`]: `rl_agent_config.json`, the head's geometry, the
-//!   prompt budgets, and the temperatures that calibrate each question's logits
-//!   by its kind and option count.
+//! - [`LayaAgentConfig`]: the head's geometry, the prompt budgets, and the
+//!   temperatures that calibrate each question's logits by its kind and option
+//!   count; a release's is its `rl_agent_config.json`'s.
 //! - [`LayaQuestion`] and [`LayaAnswer`]: a typed question (its kind, what is
 //!   asked, its options), and its answer (each option's calibrated probability,
 //!   the most probable, its confidence).
@@ -25,9 +25,10 @@
 //!   tokenizer files, unread.
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
 //!   `laya/laya` the default, and the factory that loads one.
-//! - [`weights`] (feature `store`): loading a checkpoint's `model.safetensors`
-//!   (the encoder under `encoder.`, the fused projections split), and the
-//!   config from its two files.
+//! - [`interop`]: its checkpoints' ecosystem, [`interop::laya`]: the head's
+//!   `rl_agent_config.json`, the model's config from its two files, and the
+//!   `model.safetensors`' names (the encoder under `encoder.`, the fused
+//!   projections split).
 //!
 //! The tokenizer is a [`Tokenizer`](crate::kits::support::tokens::Tokenizer)
 //! the caller brings: `BunsenTokenizer` (feature `tokenizer`) reads a
@@ -38,8 +39,7 @@ pub mod blocks;
 mod construct;
 mod prompt;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 pub use agent_config::*;
 pub use blocks::model::*;
