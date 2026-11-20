@@ -280,3 +280,54 @@ fn test_synthesizer() {
         3
     );
 }
+
+/// A long text is several takes, split at its sentences under the take
+/// limit (the engine's when lower), each seeded in turn and joined by the
+/// gap; unsplit, one take; no text, refused.
+#[test]
+fn test_takes() {
+    let config = TtsDriverConfig::new()
+        .with_max_take_chars(12)
+        .with_take_gap_seconds(0.25);
+    let driver = driver(false, config.clone());
+    let text = "One two. Three four. Five.";
+    assert_eq!(driver.takes(text), ["One two.", "Three four.", "Five."]);
+    let speech = driver
+        .synthesize(&TtsRequest::new(text).with_seed(10))
+        .unwrap();
+    let seen = driver.engine().seen();
+    assert_eq!(
+        seen.iter().map(|s| s.text.as_str()).collect::<Vec<_>>(),
+        ["One two.", "Three four.", "Five."]
+    );
+    assert_eq!(
+        seen.iter().map(|s| s.seed).collect::<Vec<_>>(),
+        [Some(10), Some(11), Some(12)]
+    );
+    assert_eq!(speech.takes.len(), 3);
+    // 8 + 11 + 5 samples, and two gaps of 2 (0.25 s at 8 Hz).
+    assert_eq!(speech.samples.len(), 24 + 2 * 2);
+    assert_eq!(&speech.samples[8..10], [0.0, 0.0]);
+
+    let unsplit = self::driver(false, config.with_split(false));
+    assert_eq!(unsplit.takes(text), [text]);
+    assert_eq!(
+        unsplit
+            .synthesize(&TtsRequest::new(text))
+            .unwrap()
+            .takes
+            .len(),
+        1
+    );
+
+    ErrorMatcher::kind(BunsenErrorKind::Illegal)
+        .message_contains("no text")
+        .assert_err(&driver.synthesize(&TtsRequest::new("  ")));
+    for bad in [
+        TtsDriverConfig::new().with_max_take_chars(0),
+        TtsDriverConfig::new().with_take_gap_seconds(-1.0),
+    ] {
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .assert_err(&TtsDriver::new(Scripted::new(false), bad).map(|_| ()));
+    }
+}
