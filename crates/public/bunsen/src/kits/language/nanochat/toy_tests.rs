@@ -5,8 +5,8 @@
 //! checkpoint manager writes a checkpoint (`model_000001.pt`,
 //! `meta_000001.json`), and its answers in fp32 (`io.safetensors`;
 //! `tools/gen_nanochat_toy_fixtures.py`). Each loads through
-//! [`load_pt_checkpoint`], so the generation's detection, its config and the
-//! loader are under test with the model.
+//! [`load_nanochat_gpt_from_paths`], so the generation's detection, its config
+//! and the loader are under test with the model.
 
 use core::ops::Range;
 use std::path::PathBuf;
@@ -16,9 +16,9 @@ use serial_test::serial;
 
 use super::{
     NanoChatGpt,
-    weights::{
+    interop::nanochat::{
         NanoChatGeneration,
-        load_pt_checkpoint,
+        load_nanochat_gpt_from_paths,
     },
 };
 use crate::{
@@ -57,7 +57,7 @@ impl Toy {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("testdata/nanochat")
             .join(format!("toy_{generation}"));
-        let (model, generation) = load_pt_checkpoint(
+        let (model, generation) = load_nanochat_gpt_from_paths(
             &dir.join("meta_000001.json"),
             &dir.join("model_000001.pt"),
             device,
@@ -150,9 +150,9 @@ fn test_the_load_dtype_is_the_policy_s() {
         FloatDType,
     };
 
-    use super::weights::{
-        NanoChatMeta,
-        load_pt_tensors,
+    use super::interop::nanochat::{
+        NanoChatMetaMirror,
+        load_nanochat_gpt_tensors,
     };
     use crate::{
         burner::module::ModuleInit,
@@ -166,15 +166,16 @@ fn test_the_load_dtype_is_the_policy_s() {
     let device = cpu_device();
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/nanochat/toy_2025");
     let (meta, model) = (dir.join("meta_000001.json"), dir.join("model_000001.pt"));
-    let (stored, _) = load_pt_checkpoint(&meta, &model, &device, LoadPolicy::load_as_stored())
-        .expect("load the toy as stored");
+    let (stored, _) =
+        load_nanochat_gpt_from_paths(&meta, &model, &device, LoadPolicy::load_as_stored())
+            .expect("load the toy as stored");
     assert_eq!(stored.float_dtype(), DType::F32);
 
-    let meta = NanoChatMeta::from_file(&meta).unwrap();
+    let meta = NanoChatMetaMirror::from_path(&meta).unwrap();
     let tensors = read_pytorch_tensors(&model).unwrap();
     let names: Vec<&str> = tensors.iter().map(|t| t.name.as_str()).collect();
     let config = meta.gpt_config(meta.generation(&names).unwrap());
     let mut half: NanoChatGpt = config.try_init(&device).unwrap();
-    load_pt_tensors(&mut half, tensors, FloatDType::BF16).unwrap();
+    load_nanochat_gpt_tensors(&mut half, tensors, FloatDType::BF16).unwrap();
     assert_eq!(half.float_dtype(), DType::BF16);
 }

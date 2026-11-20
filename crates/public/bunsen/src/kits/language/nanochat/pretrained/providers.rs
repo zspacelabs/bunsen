@@ -68,9 +68,9 @@ mod tests {
             NanoChatGptContractConfig,
             TOKEN_BYTES,
             TOKENIZER,
-            weights::{
+            interop::nanochat::{
                 NanoChatGeneration,
-                NanoChatMeta,
+                NanoChatMetaMirror,
             },
         },
     };
@@ -118,7 +118,7 @@ mod tests {
                 map.get(META).unwrap().sha256,
                 "{name}: the committed meta is the pinned one"
             );
-            let meta = NanoChatMeta::from_file(&path).unwrap();
+            let meta = NanoChatMetaMirror::from_path(&path).unwrap();
             let generation = match meta.model_config.window_pattern {
                 Some(_) => NanoChatGeneration::Upstream2026,
                 None => NanoChatGeneration::Upstream2025,

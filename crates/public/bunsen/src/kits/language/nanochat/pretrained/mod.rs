@@ -35,10 +35,10 @@
 //! [`load_construct`](crate::data::builds::BuildFactory::load_construct)
 //! resolves a name to a deferred model carrying [`NanoChatConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint through
-//! [`load_pt_checkpoint`](super::weights::load_pt_checkpoint): the meta's
-//! geometry, which of upstream's models the state dict is, and the weights.
-//! The tokenizer files are handed back as paths, unread: the kit's model is
-//! ids in and logits out.
+//! [`load_nanochat_gpt`](super::interop::nanochat::load_nanochat_gpt): the
+//! meta's geometry, which of upstream's models the state dict is, and the
+//! weights. The tokenizer files are handed back as paths, unread: the kit's
+//! model is ids in and logits out.
 
 mod construct;
 mod prefabs;
