@@ -261,21 +261,6 @@ impl Zonos3LmConfig {
         .with_softcap(json.loss_softcap))
     }
 
-    /// Each codebook's vocabulary: the codes, the end of audio and the pad.
-    pub fn audio_vocab(&self) -> usize {
-        self.codebook_size + 2
-    }
-
-    /// The end-of-audio id.
-    pub fn eoa_id(&self) -> usize {
-        self.codebook_size
-    }
-
-    /// The audio pad id.
-    pub fn audio_pad_id(&self) -> usize {
-        self.codebook_size + 1
-    }
-
     /// Whether layer `l` attends (else it is a gated `DeltaNet`).
     pub fn layer_attends(
         &self,

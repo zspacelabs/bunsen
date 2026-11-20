@@ -33,6 +33,7 @@ use burn::{
 
 use super::lm::{
     Zonos3LmConfig,
+    Zonos3LmMeta,
     Zonos3RowConditioning,
 };
 use crate::{

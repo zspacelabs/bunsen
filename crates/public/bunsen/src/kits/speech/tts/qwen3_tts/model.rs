@@ -23,6 +23,7 @@ use super::{
     talker::{
         Qwen3TtsTalker,
         Qwen3TtsTalkerConfig,
+        Qwen3TtsTalkerMeta,
     },
 };
 use crate::{
@@ -68,6 +69,27 @@ impl Qwen3TtsModelConfig {
             talker.lm.d_model,
         )?;
         Ok(Self::new(talker, code_predictor))
+    }
+}
+
+/// A [`Qwen3TtsModel`]'s geometry, which its config and the model answer
+/// alike.
+pub trait Qwen3TtsModelMeta {
+    /// The talker's width, `W`.
+    fn d_model(&self) -> usize;
+
+    /// The codebooks a frame holds, `K + 1`: the talker's first and the code
+    /// predictor's rest.
+    fn code_groups(&self) -> usize;
+}
+
+impl Qwen3TtsModelMeta for Qwen3TtsModelConfig {
+    fn d_model(&self) -> usize {
+        self.talker.d_model()
+    }
+
+    fn code_groups(&self) -> usize {
+        self.code_predictor.codebooks() + 1
     }
 }
 
@@ -182,12 +204,17 @@ pub struct Qwen3TtsModel {
     pub code_predictor: DepthDecoder,
 }
 
-impl Qwen3TtsModel {
-    /// The codebooks a frame holds.
-    pub fn code_groups(&self) -> usize {
-        self.code_predictor.codebooks() + 1
+impl Qwen3TtsModelMeta for Qwen3TtsModel {
+    fn d_model(&self) -> usize {
+        self.talker.d_model()
     }
 
+    fn code_groups(&self) -> usize {
+        self.code_predictor.codebooks() + 1
+    }
+}
+
+impl Qwen3TtsModel {
     /// A take: the codes of `prompt`, chosen as `config` says (its samplers,
     /// [`Qwen3TtsSampler`](super::sampler::Qwen3TtsSampler)), ids from `ids`.
     ///
@@ -364,4 +391,26 @@ impl Qwen3TtsChooser for SampledChoices {
 /// The first id of `ids`.
 fn first_id(ids: Tensor<1, Int>) -> i64 {
     ids.into_data().iter::<i64>().next().expect("an id")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        kits::language::qwen3::Qwen3Config,
+        support::testing::cpu_device,
+    };
+
+    /// The config and the model built from it answer the meta alike.
+    #[test]
+    fn test_model_meta() {
+        let config = Qwen3TtsModelConfig::new(
+            Qwen3TtsTalkerConfig::new(Qwen3Config::new(11, 8, 1, 2, 1, 4, 12), 13, 6, 4),
+            Qwen3TtsCodePredictorConfig::new(Qwen3Config::new(7, 4, 1, 2, 1, 2, 6), 8, 3),
+        );
+        let model: Qwen3TtsModel = config.init(&cpu_device());
+        for meta in [&config as &dyn Qwen3TtsModelMeta, &model] {
+            assert_eq!([meta.d_model(), meta.code_groups()], [8, 4]);
+        }
+    }
 }

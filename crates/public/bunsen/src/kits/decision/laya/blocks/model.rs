@@ -116,12 +116,40 @@ pub struct LayaConfig {
     pub act_hidden: usize,
 }
 
-impl LayaConfig {
-    /// The width: the encoder's.
-    pub fn d_model(&self) -> usize {
+/// A [`LayaModel`]'s geometry, which its config and the model answer alike.
+pub trait LayaMeta {
+    /// The width, `d`: the encoder's.
+    fn d_model(&self) -> usize;
+
+    /// The head's encoder layers.
+    fn head_layers(&self) -> usize;
+
+    /// The act head's outputs.
+    fn n_act(&self) -> usize;
+
+    /// The act head's hidden width.
+    fn act_hidden(&self) -> usize;
+}
+
+impl LayaMeta for LayaConfig {
+    fn d_model(&self) -> usize {
         self.encoder.d_model
     }
 
+    fn head_layers(&self) -> usize {
+        self.head_layers
+    }
+
+    fn n_act(&self) -> usize {
+        self.n_act
+    }
+
+    fn act_hidden(&self) -> usize {
+        self.act_hidden
+    }
+}
+
+impl LayaConfig {
     /// A head layer: `PyTorch`'s `nn.TransformerEncoderLayer` as upstream
     /// builds it, pre-norm, `max(1, d / 64)` heads, a `4 d` `ReLU` MLP, and
     /// every projection and norm biased.
@@ -242,12 +270,25 @@ pub struct LayaModel {
     pub act_head: LayaActHead,
 }
 
-impl LayaModel {
-    /// The width.
-    pub fn d_model(&self) -> usize {
+impl LayaMeta for LayaModel {
+    fn d_model(&self) -> usize {
         self.encoder.d_model()
     }
 
+    fn head_layers(&self) -> usize {
+        self.head.len()
+    }
+
+    fn n_act(&self) -> usize {
+        self.act_head.out.weight.dims()[1]
+    }
+
+    fn act_hidden(&self) -> usize {
+        self.act_head.dense.weight.dims()[1]
+    }
+}
+
+impl LayaModel {
     /// The head's states: the prompts encoded, their question kinds'
     /// embeddings added, and mixed by the head's layers over each prompt's
     /// tokens.

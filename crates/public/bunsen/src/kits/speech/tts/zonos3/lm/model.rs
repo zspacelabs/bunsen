@@ -22,7 +22,10 @@ use super::Zonos3LmConfig;
 use crate::{
     blocks::transformers::decoders::{
         attn_res::AttnResStack,
-        stack::DecoderStackCache,
+        stack::{
+            DecoderStackCache,
+            DecoderStackMeta,
+        },
     },
     burner::module::{
         CanonicalKeys,
@@ -33,6 +36,95 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::KVCacheStorage,
 };
+
+/// A [`Zonos3Lm`]'s geometry, which its config and the model answer alike.
+pub trait Zonos3LmMeta {
+    /// The model width, `D`.
+    fn d_model(&self) -> usize;
+
+    /// The layers.
+    fn n_layers(&self) -> usize;
+
+    /// The audio codebooks, `K`.
+    fn n_codebooks(&self) -> usize;
+
+    /// Codes per codebook.
+    fn codebook_size(&self) -> usize;
+
+    /// The text table's rows.
+    fn text_rows(&self) -> usize;
+
+    /// The speaker embedding's width, `S`.
+    fn speaker_dim(&self) -> usize;
+
+    /// Each codebook's vocabulary, `V_a`: the codes, the end of audio and
+    /// the pad.
+    fn audio_vocab(&self) -> usize {
+        self.codebook_size() + 2
+    }
+
+    /// The end-of-audio id.
+    fn eoa_id(&self) -> usize {
+        self.codebook_size()
+    }
+
+    /// The audio pad id.
+    fn audio_pad_id(&self) -> usize {
+        self.codebook_size() + 1
+    }
+}
+
+impl Zonos3LmMeta for Zonos3LmConfig {
+    fn d_model(&self) -> usize {
+        self.d_model
+    }
+
+    fn n_layers(&self) -> usize {
+        self.n_layers
+    }
+
+    fn n_codebooks(&self) -> usize {
+        self.n_codebooks
+    }
+
+    fn codebook_size(&self) -> usize {
+        self.codebook_size
+    }
+
+    fn text_rows(&self) -> usize {
+        self.text_rows
+    }
+
+    fn speaker_dim(&self) -> usize {
+        self.speaker_dim
+    }
+}
+
+impl Zonos3LmMeta for Zonos3Lm {
+    fn d_model(&self) -> usize {
+        self.head.weight.dims()[0]
+    }
+
+    fn n_layers(&self) -> usize {
+        self.stack.stack.n_layers()
+    }
+
+    fn n_codebooks(&self) -> usize {
+        self.n_codebooks
+    }
+
+    fn codebook_size(&self) -> usize {
+        self.audio_vocab - 2
+    }
+
+    fn text_rows(&self) -> usize {
+        self.embedders[self.n_codebooks].weight.dims()[0]
+    }
+
+    fn speaker_dim(&self) -> usize {
+        self.speaker_projection.weight.dims()[0]
+    }
+}
 
 impl ModuleInit<Zonos3Lm> for Zonos3LmConfig {
     fn try_init(
