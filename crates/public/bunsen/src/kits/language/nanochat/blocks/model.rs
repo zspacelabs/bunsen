@@ -1158,7 +1158,7 @@ mod tests {
         assert_eq!(full.dims(), [1, n, 30]);
 
         let prefill = 3;
-        let mut cache = gpt.new_kv_cache(1);
+        let mut cache = gpt.new_kv_cache(1, &device);
         let mut steps =
             vec![gpt.forward(ids.clone().slice(s![.., ..prefill]), &mut Some(&mut cache))];
         for i in prefill..n {
@@ -1217,7 +1217,7 @@ mod tests {
         let ids: Tensor<2, Int> = Tensor::from_data([[7, 2, 9, 4, 4, 1, 0, 3]], &device);
         let full = gpt.forward(ids.clone(), &mut None);
 
-        let mut cache = gpt.new_kv_cache(1);
+        let mut cache = gpt.new_kv_cache(1, &device);
         let head = gpt.forward(ids.clone().slice(s![.., ..2]), &mut Some(&mut cache));
         let tail = gpt.forward_after(
             ids.clone().slice(s![.., 2..]),
@@ -1239,7 +1239,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let gpt = tiny_2026(&device);
-        let mut cache = gpt.new_kv_cache(1);
+        let mut cache = gpt.new_kv_cache(1, &device);
         gpt.forward(Tensor::zeros([1, 2], &device), &mut Some(&mut cache));
         gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
     }
@@ -1309,7 +1309,7 @@ mod tests {
             .with_n_layer(n_layer);
         let gpt: NanoChatGpt = cfg.init(&device);
 
-        let mut kv_cache = gpt.new_kv_cache(batch_size);
+        let mut kv_cache = gpt.new_kv_cache(batch_size, &device);
 
         let input_tokens = Tensor::<2>::random(
             [batch_size, seq_len],
@@ -1395,7 +1395,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let gpt = tiny_gpt(&device);
-        let mut cache = gpt.new_kv_cache(1);
+        let mut cache = gpt.new_kv_cache(1, &device);
         gpt.forward(Tensor::zeros([1, 7], &device), &mut Some(&mut cache));
         let logits = gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
         assert_eq!(logits.dims(), [1, 1, 16]);
@@ -1412,7 +1412,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let gpt = tiny_gpt(&device);
-        let mut cache = gpt.new_kv_cache(1);
+        let mut cache = gpt.new_kv_cache(1, &device);
         gpt.forward(Tensor::zeros([1, 8], &device), &mut Some(&mut cache));
         gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
     }

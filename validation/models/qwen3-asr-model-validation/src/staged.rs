@@ -6,6 +6,7 @@ use bunsen::{
         LmDecoderOps,
         LmKvForwardHidden,
     },
+    burner::module::ModuleInit,
     ops::transformers::attention::KVCacheModel,
     support::testing::{
         DeviceMemoryGuard,
@@ -62,7 +63,7 @@ mod qwen3_asr_0_6b {
         let decoder = &fixture.decoder;
         let seq = decoder.seq;
         let r_emb = lm.rotary(seq + 1, &device);
-        let mut cache = lm.kv_cache_config().with_seq_len(seq + 1).init();
+        let mut cache = lm.kv_cache_config().with_seq_len(seq + 1).init(&device);
         let hidden = lm.forward_hidden(synthetic_embeds(seq, 0, &device), &r_emb, Some(&mut cache));
         decoder
             .prefill_logits

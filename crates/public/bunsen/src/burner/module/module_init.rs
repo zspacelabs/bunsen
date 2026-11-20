@@ -325,14 +325,12 @@ use crate::errors::{
 ///   [`CausalSelfAttentionConfig::init`] and [`CausalDecoderBlockConfig::init`]
 ///   take a `layer_index`;
 /// - per-stream state that serves a model rather than standing alone:
-///   [`KVCacheConfig::init`] takes no device, and
 ///   [`SileroVadContextConfig::init`] takes the model it serves;
 /// - simulation state seeded with a value: [`LBMD2Q9Config::init`] takes the
 ///   initial density `rho`.
 ///
 /// [`CausalSelfAttentionConfig::init`]: crate::blocks::transformers::attention::csa::CausalSelfAttentionConfig::init
 /// [`CausalDecoderBlockConfig::init`]: crate::blocks::transformers::decoders::causal::CausalDecoderBlockConfig::init
-/// [`KVCacheConfig::init`]: crate::ops::transformers::attention::KVCacheConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::sims::lbm::d2q9::LBMD2Q9Config::init
 /// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig

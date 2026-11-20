@@ -265,7 +265,7 @@ impl Qwen3TtsModel {
 
         let l = prompt.embeds.dims()[1];
         let r_emb = talker.rotary(l + max_frames, &device);
-        let mut cache = talker.kv_cache_config().init();
+        let mut cache = talker.kv_cache_config().init(&device);
         let pad = talker.text_embed(Tensor::from_data(
             TensorData::new(vec![i64::from(ids.tts_pad)], [1, 1]),
             &device,

@@ -301,7 +301,7 @@ pub fn bunsen_decode(
 ) -> Vec<Tensor<2>> {
     let model = &bundle.model;
     let total = prompt.len() + fed.len();
-    let mut state = model.decode_state(1, total, storage);
+    let mut state = model.decode_state(1, total, storage, device);
     let ids = |ids: &[i64]| {
         Tensor::<2, Int>::from_data(TensorData::new(ids.to_vec(), [1, ids.len()]), device)
     };

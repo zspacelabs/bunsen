@@ -93,8 +93,8 @@ are not, yet. A context comes from
 [`PerceptiveAudioConverter::new_context`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverter::new_context),
 [`WhisperStreamDriver::new_context`](bunsen::kits::speech::asr::whisper::driver::WhisperStreamDriver::new_context),
 [`KVCacheModel::new_kv_cache`](bunsen::ops::transformers::attention::KVCacheModel::new_kv_cache) (a model's),
-[`KVCacheConfig::init`](bunsen::ops::transformers::attention::KVCacheConfig::init)
-(which takes no device), or
+[`KVCacheConfig`](bunsen::ops::transformers::attention::KVCacheConfig)'s
+`ModuleInit::init` (which takes the device), or
 [`SileroVadContextConfig::init`](bunsen::kits::speech::vad::silero_vad::SileroVadContextConfig::init)
 (which takes the model it serves). Look on the module first, then on a
 context config.

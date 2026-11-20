@@ -1182,7 +1182,7 @@ mod tests {
             .with_mask(AttentionMask::Bidirectional)
             .init(0, &device);
         let r_emb: RotaryEmbedding = RotaryEmbeddingConfig::new(3, csa.head_dim()).init(&device);
-        let mut cache = KVCacheConfig::new(1, 2, 3, csa.head_dim(), 1).init();
+        let mut cache = KVCacheConfig::new(1, 2, 3, csa.head_dim(), 1).init(&device);
         let _ = csa.forward(
             Tensor::zeros([1, 3, 16], &device),
             &r_emb,
@@ -1261,7 +1261,8 @@ mod tests {
             let full = csa.forward(input.clone(), &r_emb, &mut None);
 
             let mut cache: KVCache =
-                KVCacheConfig::new(batch, csa.n_kv_head(), seq_len, csa.head_dim(), 1).init();
+                KVCacheConfig::new(batch, csa.n_kv_head(), seq_len, csa.head_dim(), 1)
+                    .init(&device);
             let head = csa.forward(
                 input.clone().slice(s![.., ..prefix]),
                 &r_emb.clip_range(0..prefix),
@@ -1556,7 +1557,8 @@ mod tests {
         let (csa, r_emb, input) = windowed(3);
         let full = csa.forward(input.clone(), &r_emb, &mut None);
 
-        let mut cache: KVCache = KVCacheConfig::new(2, 2, 9, csa.head_dim(), 1).init();
+        let mut cache: KVCache =
+            KVCacheConfig::new(2, 2, 9, csa.head_dim(), 1).init(&input.device());
         let steps: Vec<Tensor<3>> = (0..9)
             .map(|i| {
                 csa.forward(
@@ -1568,7 +1570,8 @@ mod tests {
             .collect();
         assert_tensors_close(&Tensor::cat(steps, 1), &full, Tolerance::default());
 
-        let mut cache: KVCache = KVCacheConfig::new(2, 2, 9, csa.head_dim(), 1).init();
+        let mut cache: KVCache =
+            KVCacheConfig::new(2, 2, 9, csa.head_dim(), 1).init(&input.device());
         let head = csa.forward(
             input.clone().slice(s![.., ..4]),
             &r_emb.clip_range(0..4),

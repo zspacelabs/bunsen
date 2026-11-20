@@ -347,7 +347,7 @@ mod tests {
         let embeds = model.embed(tokens);
         let r_emb = model.rotary(8, &device);
         let whole = model.forward_hidden(embeds.clone(), &r_emb, None);
-        let mut cache = model.kv_cache_config().with_seq_len(8).init();
+        let mut cache = model.kv_cache_config().with_seq_len(8).init(&device);
         let head =
             model.forward_hidden(embeds.clone().slice_dim(1, 0..3), &r_emb, Some(&mut cache));
         let tail = model.forward_hidden(embeds.slice_dim(1, 3..5), &r_emb, Some(&mut cache));

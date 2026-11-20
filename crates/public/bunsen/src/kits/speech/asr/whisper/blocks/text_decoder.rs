@@ -337,11 +337,12 @@ impl TextDecoder {
         // so they are built in the decoder's precision whatever the caller
         // handed in.
         let xa = self.coerce_input(xa);
+        let device = xa.device();
 
         let mut cache = self
             .kv_cache_config()
             .with_batch_size(xa.dims()[0] * group)
-            .init();
+            .init(&device);
         for (layer, block) in self.blocks.iter().enumerate() {
             let (k, v) = block.cross_kv(xa.clone());
             cache.set_cross_kv(layer, k, v);

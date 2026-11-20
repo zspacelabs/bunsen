@@ -2,9 +2,12 @@
 //! and against the generated model step by step over a long decode, through
 //! every [`KVCacheStorage`].
 
-use bunsen::support::testing::{
-    DeviceMemoryGuard,
-    performance_device,
+use bunsen::{
+    burner::module::ModuleInit,
+    support::testing::{
+        DeviceMemoryGuard,
+        performance_device,
+    },
 };
 
 use super::*;
@@ -35,7 +38,7 @@ mod qwen3_0_6b {
         let seq = fixture.ids.len();
 
         let r_emb = model.rotary(seq + 1, &device);
-        let mut cache = model.kv_cache_config().with_seq_len(seq + 1).init();
+        let mut cache = model.kv_cache_config().with_seq_len(seq + 1).init(&device);
         let ids =
             Tensor::<2, Int>::from_data(TensorData::new(fixture.ids.clone(), [1, seq]), &device);
         let hidden = model.forward_hidden(model.embed(ids), &r_emb, Some(&mut cache));

@@ -3,6 +3,7 @@
 
 use bunsen::{
     blocks::transformers::models::language_decoder::LmDecoderOps,
+    burner::module::ModuleInit,
     kits::speech::asr::voxtral::blocks::VoxtralRealtimeMeta,
     ops::transformers::attention::KVCacheModel,
     support::testing::{
@@ -73,7 +74,10 @@ mod voxtral_mini_4b_realtime_2602 {
         let d = &fixture.decoder;
         let r_emb = lm.rotary(d.prefill + 1, &device);
         let cond = lm.delay_condition(EXPORT_DELAY, &device);
-        let mut cache = lm.kv_cache_config().with_seq_len(d.prefill + 1).init();
+        let mut cache = lm
+            .kv_cache_config()
+            .with_seq_len(d.prefill + 1)
+            .init(&device);
         let logits = lm.logits(lm.forward_hidden(
             synthetic_embeds(d.prefill, 0, &device),
             &r_emb,

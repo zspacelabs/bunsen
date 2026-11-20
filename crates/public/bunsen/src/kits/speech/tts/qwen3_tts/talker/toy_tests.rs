@@ -103,7 +103,7 @@ fn test_toy_take_logits() {
                 .with_seq_len(2)
                 .with_chunk_size(2)
                 .with_storage(storage)
-                .init();
+                .init(&prompt.device());
             let prefill =
                 talker.logits(talker.forward_hidden(prompt.clone(), &r_emb, Some(&mut cache)));
             let mut parts = vec![prefill.slice(s![.., l - 1..l, ..])];

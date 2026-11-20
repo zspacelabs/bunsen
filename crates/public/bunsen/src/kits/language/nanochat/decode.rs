@@ -13,6 +13,7 @@ use super::{
     NanoChatGptMeta,
 };
 use crate::{
+    burner::module::ModuleInit,
     kits::{
         language::driver::{
             CachedHistory,
@@ -69,8 +70,9 @@ impl NanoChatDecodeState {
 }
 
 impl NanoChatGpt {
-    /// A decode state for `rows` rows of at most `positions` positions each,
-    /// under `storage`: the cache allocated whole and capped there.
+    /// A decode state on `device` for `rows` rows of at most `positions`
+    /// positions each, under `storage`: the cache allocated whole and capped
+    /// there.
     ///
     /// # Panics
     /// When `positions` exceeds the rotary table's `max_seq_len`.
@@ -79,6 +81,7 @@ impl NanoChatGpt {
         rows: usize,
         positions: usize,
         storage: KVCacheStorage,
+        device: &burn::tensor::Device,
     ) -> NanoChatDecodeState {
         assert!(
             positions <= self.max_seq_len(),
@@ -92,7 +95,7 @@ impl NanoChatGpt {
                 .with_seq_len(positions)
                 .with_max_seq_len(Some(positions))
                 .with_storage(storage)
-                .init(),
+                .init(device),
             last: None,
         }
     }
@@ -155,9 +158,9 @@ impl CachedLm for NanoChatGpt {
         rows: usize,
         positions: usize,
         storage: KVCacheStorage,
-        _device: &burn::tensor::Device,
+        device: &burn::tensor::Device,
     ) -> NanoChatDecodeState {
-        NanoChatGpt::decode_state(self, rows, positions, storage)
+        NanoChatGpt::decode_state(self, rows, positions, storage, device)
     }
 
     fn prefill_ids(
@@ -246,7 +249,7 @@ mod tests {
         let prompt = vec![1i64, 5, 7];
 
         let budget = 6;
-        let mut state = model.decode_state(1, prompt.len() + budget, KVCacheStorage::Auto);
+        let mut state = model.decode_state(1, prompt.len() + budget, KVCacheStorage::Auto, &device);
         let first = model.prefill(ids(&prompt, 1, &device), &mut state);
         let mut search = SearchConfig::new().init_search(&[39], 0);
         let out = decode_cached(
@@ -274,7 +277,7 @@ mod tests {
             seen.push(token);
         }
 
-        let mut state = model.decode_state(3, prompt.len() + budget, KVCacheStorage::Auto);
+        let mut state = model.decode_state(3, prompt.len() + budget, KVCacheStorage::Auto, &device);
         let first = model.prefill(ids(&prompt, 3, &device), &mut state);
         let mut beam = SearchConfig::new().with_beam_size(3).init_search(&[39], 0);
         let out = decode_cached(
@@ -313,7 +316,7 @@ mod tests {
         assert_eq!(todo, [2, 6], "the shared prefix kept");
         let rewound = model.prefill_ids(ids(todo, 1, &device), &mut state);
 
-        let mut fresh = model.decode_state(1, 12, KVCacheStorage::Auto);
+        let mut fresh = model.decode_state(1, 12, KVCacheStorage::Auto, &device);
         let expected = model.prefill(ids(&next, 1, &device), &mut fresh);
         rewound.into_data().assert_approx_eq::<f32>(
             &expected.into_data(),
@@ -330,12 +333,12 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
         let model = model(&device);
 
-        let mut state = model.decode_state(1, 12, KVCacheStorage::Auto);
+        let mut state = model.decode_state(1, 12, KVCacheStorage::Auto, &device);
         model.prefill(ids(&[3, 1, 4, 1, 5], 1, &device), &mut state);
         state.rewind(3, Some(ids(&[4], 1, &device)));
         let rewound = model.prefill(ids(&[2, 6], 1, &device), &mut state);
 
-        let mut fresh = model.decode_state(1, 12, KVCacheStorage::Auto);
+        let mut fresh = model.decode_state(1, 12, KVCacheStorage::Auto, &device);
         let expected = model.prefill(ids(&[3, 1, 4, 2, 6], 1, &device), &mut fresh);
         rewound.into_data().assert_approx_eq::<f32>(
             &expected.into_data(),

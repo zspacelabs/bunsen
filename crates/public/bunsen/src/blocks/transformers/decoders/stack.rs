@@ -743,7 +743,7 @@ impl DecoderStack {
                 .with_batch_size(rows)
                 .with_max_seq_len(Some(positions))
                 .with_storage(storage)
-                .init(),
+                .init(device),
             linear: DeltaNetCache::new(
                 self.layers
                     .iter()
@@ -1328,7 +1328,7 @@ mod tests {
             let r_emb = stack.rotary(n, &device);
             let whole = stack.forward_hidden(x.clone(), &r_emb, None);
 
-            let mut cache = stack.kv_cache_config(2).with_chunk_size(2).init();
+            let mut cache = stack.kv_cache_config(2).with_chunk_size(2).init(&device);
             let mut parts =
                 vec![stack.forward_hidden(x.clone().slice_dim(1, 0..3), &r_emb, Some(&mut cache))];
             for pos in 3..n {
@@ -1389,7 +1389,7 @@ mod tests {
             [(false, 0), (false, 1), (true, 0), (false, 2), (true, 1)]
         );
         use crate::ops::transformers::attention::KVCacheMeta;
-        assert_eq!(stack.kv_cache_config(4).init().num_layers(), 2);
+        assert_eq!(stack.kv_cache_config(4).init(&device).num_layers(), 2);
         let cache = stack.decode_cache(3, 8, KVCacheStorage::Auto, &device);
         assert_eq!(cache.linear.layers.len(), 3);
         assert_eq!(cache.linear.layers[0].rows(), 3);
@@ -1489,7 +1489,7 @@ mod tests {
     fn test_hybrid_refuses_a_kv_cache_alone() {
         let device = crate::support::testing::cpu_device();
         let stack: DecoderStack = hybrid().init(&device);
-        let mut cache = stack.kv_cache_config(4).init();
+        let mut cache = stack.kv_cache_config(4).init(&device);
         let _ = stack.forward_hidden(
             Tensor::zeros([1, 2, 16], &device),
             &stack.rotary(4, &device),

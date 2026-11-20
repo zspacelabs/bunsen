@@ -10,7 +10,10 @@ use super::{
     KVCacheConfig,
     KVCacheStorage,
 };
-use crate::support::testing::assert_io_close;
+use crate::{
+    burner::module::ModuleInit,
+    support::testing::assert_io_close,
+};
 
 /// A decoder with its toy input, as [`check_decoder_toy`] runs it: the
 /// logits of any range of its positions, through a KV cache that holds the
@@ -66,6 +69,7 @@ pub fn check_decoder_toy(
         0 < prefill && prefill < n,
         "a prefill inside the input: {prefill} of {n}"
     );
+    let device = uncached.device();
     assert_io_close("uncached logits", toy.logits(0..n, None), uncached);
 
     for storage in KV_CACHE_STORAGES {
@@ -74,7 +78,7 @@ pub fn check_decoder_toy(
             .with_seq_len(2)
             .with_chunk_size(2)
             .with_storage(storage)
-            .init();
+            .init(&device);
         let mut parts = vec![toy.logits(0..prefill, Some(&mut cache))];
         for pos in prefill..n {
             parts.push(toy.logits(pos..pos + 1, Some(&mut cache)));
