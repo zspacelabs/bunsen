@@ -38,7 +38,10 @@ use crate::{
             },
         },
     },
-    burner::tensor::Widening,
+    burner::{
+        module::ModuleInit,
+        tensor::Widening,
+    },
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,

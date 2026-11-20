@@ -42,6 +42,7 @@ use crate::{
         BunsenNormalization,
         BunsenNormalizationConfig,
     },
+    burner::module::ModuleInit,
     ops::transformers::attention::{
         KVCache,
         cross_attn,

@@ -18,8 +18,10 @@ use crate::{
     burner::module::{
         Forward1Module,
         InputDTypes,
+        ModuleInit,
         ResultDType,
     },
+    errors::BunsenResult,
     ops::norm::RmsNormOptions,
 };
 
@@ -58,20 +60,22 @@ impl From<RmsNormConfig> for BunsenNormalizationConfig {
     }
 }
 
-impl BunsenNormalizationConfig {
-    /// The norm, on `device`.
-    pub fn init(
+/// The norm, on `device`.
+impl ModuleInit<BunsenNormalization> for BunsenNormalizationConfig {
+    fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenNormalization {
-        match self {
+    ) -> BunsenResult<BunsenNormalization> {
+        Ok(match self {
             Self::Identity => BunsenNormalization::Identity(Identity::new()),
             Self::Batch(config) => BunsenNormalization::Batch(config.init(device)),
             Self::Layer(config) => BunsenNormalization::Layer(LayerNorm::init(config, device)),
             Self::Rms(config) => BunsenNormalization::Rms(config.init(device)),
-        }
+        })
     }
+}
 
+impl BunsenNormalizationConfig {
     /// This config for `num_features` features; [`Identity`](Self::Identity)
     /// has none.
     pub fn with_num_features(

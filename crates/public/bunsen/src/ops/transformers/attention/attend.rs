@@ -306,7 +306,10 @@ mod tests {
         super::causal_mask,
         *,
     };
-    use crate::support::testing::cpu_device;
+    use crate::{
+        burner::module::ModuleInit,
+        support::testing::cpu_device,
+    };
 
     type F = f32;
 
