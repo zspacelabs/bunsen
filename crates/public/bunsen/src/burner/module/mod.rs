@@ -55,6 +55,90 @@
 //!
 //! The norm and activation seams implement [`Forward1Module`] at every rank.
 //! A view such as [`Gate`] borrows modules, and is not one.
+//!
+//! ## Design Rules
+//!
+//! The config lifecycle's invariants, for every module family in the crate.
+//! [`ModuleInit`] and [`ToStructureConfig`] define the two config shapes,
+//! with a compiled example of each; these rules say what a family must do.
+//!
+//! - **A config lives in the same file as the module it builds.** A config and
+//!   its module change together, and the build sits next to the struct it
+//!   fills. [`TransformerMlpConfig`] sits beside [`TransformerMlp`].
+//! - **A config whose module needs only a device implements [`ModuleInit`],
+//!   never an inherent `init`.** One with no parameters ignores the device
+//!   (`DropPathConfig`). A policy config implements [`ToStructureConfig`]
+//!   instead, and gets `ModuleInit` from the blanket impl. Only a constructor
+//!   that needs more than a device keeps an inherent `try_init` / `init` pair
+//!   ([hand-written `init`](ModuleInit#hand-written-init)). Every config then
+//!   builds through one call shape, and generic code bounded on `C:
+//!   ModuleInit<M>` accepts it.
+//! - **`try_init` reports a config whose fields disagree** as an
+//!   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error, usually with a
+//!   [`ConstraintError`](crate::errors::ConstraintError) naming the config and
+//!   the field; `init` panics only with that error's report, never through an
+//!   `assert!` of its own. Configs are data: deserialized, assembled by
+//!   loaders, edited by users.
+//! - **A Simple family's config is `FooConfig`, and builds `Foo`. A Stacked
+//!   family is a `FooStructureConfig`**, the unrolled tree that implements
+//!   `ModuleInit`, plus policy configs named for their policy
+//!   (`FooContractConfig`, `FooApiConfig`, ...). A bare `FooConfig` never
+//!   coexists with a `FooStructureConfig`. A policy's logic, validation
+//!   included, lives in `try_to_structure`, and a test checks that
+//!   `policy.init(&d)` and `policy.to_structure().init(&d)` agree. Loaders and
+//!   tooling work on the tree and users on the knobs, and the two build paths
+//!   cannot drift apart.
+//!   - A policy's `Structure` is the next config down; lowering may chain
+//!     through another policy, as `LmDecoderVariantConfig` lowers to
+//!     [`LmDecoderStructureConfig`].
+//!   - A family's user-facing config over another family's structure is that
+//!     family's own, and keeps the bare name: [`ConformerEncoderConfig`] lowers
+//!     to [`SubsampledEncoderConfig`].
+//!   - Promote a Simple family to Stacked when its user-facing knobs diverge
+//!     from the implementation's parameters, when a second default policy
+//!     appears, or when loaders and tooling need the unrolled tree.
+//! - **Every family has a narrow `FooMeta` trait**, which its config(s) and its
+//!   module implement: raw fields as required methods, derived values as
+//!   provided ones. Everything else stays on the config, reached from the
+//!   module through an accessor (`options()`, `config()`). A Simple family's
+//!   `FooConfig` and `Foo` implement it; a Stacked family's
+//!   `FooStructureConfig` and `Foo` must, and its policies may. A test asserts
+//!   that a config and the module it builds answer every method alike, with a
+//!   config that is non-default in every field. Tests and reflective code then
+//!   read the geometry from either form ([`ExpertStackMeta`]).
+//! - **A type that owns a `Tensor` derives `Module`**, as `#[derive(Module,
+//!   Debug)]` without `Clone` (the derive provides it), even when nothing in it
+//!   is learnable: `Module` is what lets `to_device` reach the tensors. A held
+//!   config or other value object is `#[module(skip)]`.
+//!   - A tensor rebuilt from the config (a table, a window, a state) is held
+//!     bare, not as a `Param`. Bare tensors are not written to records, are
+//!     skipped by `ModuleMapper` passes (dtype casts), and do not appear in
+//!     reflection; the type says so. [`SlidingStft`]'s window is one.
+//!   - A tensor that a checkpoint fills is a `Param`, even when nothing trains
+//!     it, because only records reach it: [`EuclideanCodebook`]'s loaded
+//!     buffers.
+//! - **A constant tensor that meets a model's data is cast to that data's dtype
+//!   where they meet**: a mask, a ramp, a lookup, a host-side embedding. A
+//!   block states the float dtype it computes in ([`InputDTypes`],
+//!   [`ResultDType`], [`CoercesInput`]), or its holder wraps it in
+//!   [`DTypeWrapped`]. burn does not promote dtypes: on the cubecl backends a
+//!   mixed op runs and returns garbage, and only a half-precision run shows it.
+//! - **Precision is always chosen explicitly.** A load's dtype comes from its
+//!   `LoadPolicy`, which only widens; an f32 island is a
+//!   [`Widening`](crate::burner::tensor::Widening) config field; a table's
+//!   dtype comes from a policy such as [`RotaryTableDTypePolicy`]. The device's
+//!   default float stays f32, and nothing sets it to a half dtype: a half
+//!   default hides loaders that skip the policy, and silently narrows tables.
+//!
+//! [`TransformerMlpConfig`]: crate::blocks::transformers::mlp::TransformerMlpConfig
+//! [`TransformerMlp`]: crate::blocks::transformers::mlp::TransformerMlp
+//! [`LmDecoderStructureConfig`]: crate::blocks::transformers::models::language_decoder::LmDecoderStructureConfig
+//! [`ConformerEncoderConfig`]: crate::blocks::transformers::encoders::conformer::ConformerEncoderConfig
+//! [`SubsampledEncoderConfig`]: crate::blocks::transformers::encoders::SubsampledEncoderConfig
+//! [`ExpertStackMeta`]: crate::blocks::transformers::moe::experts::ExpertStackMeta
+//! [`SlidingStft`]: crate::ops::signal::SlidingStft
+//! [`EuclideanCodebook`]: crate::blocks::quantization::EuclideanCodebook
+//! [`RotaryTableDTypePolicy`]: crate::ops::embedding::RotaryTableDTypePolicy
 
 #[cfg(feature = "reflection")]
 pub mod reflection;

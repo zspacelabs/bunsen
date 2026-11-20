@@ -8,7 +8,7 @@ defined, with a compiled example of each, in
 [`ModuleInit`](bunsen::burner::module::ModuleInit#two-config-shapes) and
 [`ToStructureConfig`](bunsen::burner::module::ToStructureConfig). What the
 author of a family must do (naming, promotion, the required tests) is set by
-[STYLE.md, "Module design"](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design).
+[`burner::module`'s Design Rules](bunsen::burner::module#design-rules).
 
 ## Why conventions at all
 

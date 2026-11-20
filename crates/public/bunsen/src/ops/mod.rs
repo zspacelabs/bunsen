@@ -66,6 +66,40 @@
 //! something (a module, a state, a table); a single value is named for what
 //! it is ([`LogBase`](math::LogBase), [`SizeSpec`](drop::SizeSpec)).
 //!
+//! ## Design Rules
+//!
+//! Also binding here: the crate root's [layering](crate#design-rules), and the
+//! dtype rules of [`burner::module`'s Design
+//! Rules](crate::burner::module#design-rules).
+//!
+//! - **An op is an operation:** a free function, a small value object, or a
+//!   `Module` / `Config` used only to hold a cached table or state. A tensor
+//!   operation or table that blocks share lives here, and `ops` never imports
+//!   [`crate::blocks`] ([Ops and blocks](#ops-and-blocks)). Operations stay
+//!   reusable by any block or kit, without pulling in module trees.
+//! - **Cache and stream state is injected, never owned by the model** ([Ops and
+//!   blocks](#ops-and-blocks) is the rule's one definition): the module is
+//!   immutable, and the caller passes a per-stream context or a per-decode
+//!   cache in on every call.
+//! - **Settings worth naming form one value object**, `Clone`, comparable and
+//!   serializable, passed straight to the op. A config embeds the value object
+//!   rather than copying its fields, and a module holds it as `#[module(skip)]`
+//!   ([Value objects as configuration](#value-objects-as-configuration)). A
+//!   bundle of settings handed to an op is `*Options`; `*Config` builds
+//!   something (a module, a state, a table); a single value is named for what
+//!   it is.
+//! - **An op checks the shapes at its boundary with [`crate::contracts`]**, in
+//!   the notation of its rustdoc, as blocks do
+//!   ([`drop_block_2d`](drop::drop_block_2d)). An op is the last place a wrong
+//!   shape can be named before it turns into a wrong value.
+//! - **A table or constant that an op builds is made in a dtype the caller
+//!   names**, through a dtype policy or a
+//!   [`Widening`](crate::burner::tensor::Widening), never in the device default
+//!   by implication
+//!   ([`RotaryTableDTypePolicy`](embedding::RotaryTableDTypePolicy)). A table
+//!   built in the device default turns into a silent narrowing as soon as that
+//!   default changes.
+//!
 //! ## Map of the module
 //!
 //! ### Tensor generation

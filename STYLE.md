@@ -62,6 +62,12 @@ non-public, non-test module has more than one `//!` line.
 inlines items that are not publicly reachable anyway); don't write it. Use
 it only on a re-export from a *public* module, where it changes the output.
 
+### Timeless docs and comments
+
+A doc or comment describes the code as it is, and any contract for how it
+may evolve. It never narrates a refactor, a fixed bug, a plan, a phase or
+a decision: those belong in commit messages and the CHANGELOG.
+
 ### Errors: `try_x` and `x`
 
 The [`bunsen::errors`](https://docs.rs/bunsen/latest/bunsen/errors/index.html#convention-try_x-and-x)
@@ -134,93 +140,22 @@ These are **not** tensor shapes — leave them as written:
 
 ## Module design
 
-How a bunsen module, its config, and its metadata fit together. What the
-two config shapes are and how they work (Simple and Stacked,
-`ToStructureConfig` and its blanket `ModuleInit`, the role of the `FooMeta`
-trait) is defined, with compiled examples, in the rustdoc of
-[`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
-and
-[`ToStructureConfig`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ToStructureConfig.html).
-This section sets what the author of a module family must do. How the `bunsen`
-crate's public items are named and placed is in its own
-[naming and placement guide](crates/public/bunsen/STYLE.md).
+The rules for how a bunsen module, its config and its metadata fit together
+are invariants of the code, so they live with it, in the rustdoc's
+**Design Rules** sections:
 
-### Config shapes: Simple and Stacked
+* [`bunsen::burner::module`](https://docs.rs/bunsen/latest/bunsen/burner/module/index.html#design-rules):
+  the config lifecycle (`ModuleInit`, the Simple and Stacked shapes, `FooMeta`
+  traits, modules over bare tensors, dtypes and precision);
+* [the crate root](https://docs.rs/bunsen/latest/bunsen/index.html#design-rules):
+  layering, names and placement;
+* [`bunsen::blocks`](https://docs.rs/bunsen/latest/bunsen/blocks/index.html#design-rules),
+  [`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#design-rules)
+  and [`bunsen::kits`](https://docs.rs/bunsen/latest/bunsen/kits/index.html#design-rules):
+  each layer's own.
 
-* The config lives in the same file as the module it builds.
-* A Simple family's config is `FooConfig`, and builds `Foo`.
-* A Stacked family's structure config is `FooStructureConfig`. Each policy
-  config is named for its policy (`FooContractConfig`, `FooApiConfig`,
-  `FooSignalConfig`, ...), never bare `FooConfig`.
-* A bare `FooConfig` never coexists with a `FooStructureConfig`.
-* Promote a Simple family to Stacked when its user-facing knobs diverge from
-  the implementation's parameters, when a second default policy appears, or
-  when loaders and tooling need the unrolled tree.
-* Every Stacked family has a test that `policy.init(&d)` and
-  `policy.to_structure().init(&d)` build modules that agree.
-
-### Meta traits
-
-Every family has a narrow `FooMeta` trait; the
-[`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
-docs say what it is for.
-
-* It holds only the values a caller or a test needs to read back from
-  either form. Raw fields are required methods; derived values are provided
-  methods. Everything else stays on the config, reached from the module
-  through an accessor (`options()`, `config()`).
-* Simple: `FooMeta` is implemented by `FooConfig` and `Foo` (and a context,
-  if there is one).
-* Stacked: required on `FooStructureConfig` and `Foo`; optional on policies.
-* A test asserts that a config and the module built from it answer every
-  `FooMeta` method alike, using a config that is non-default in every field.
-
-### Modules over bare tensors
-
-A type that owns a `Tensor` derives `Module`, even when nothing in it is
-learnable: `Module` is the traversal and device-mapping trait, and deriving it
-is what lets `to_device` reach the tensors. Hold non-learnable tensors bare,
-not as `Param`.
-
-* `#[derive(Module, Debug)]`, without `Clone`: the derive provides `Clone`.
-* A held config, or any other value object, is `#[module(skip)]`: the derive
-  treats every field that is not a primitive as a sub-module, so a field that
-  is not a `Module` must be skipped. A `Param` field cannot be.
-* Bare tensors are not written to records, are skipped by `ModuleMapper`
-  passes (dtype casts), and do not appear in reflection. Say so on the type.
-
-### Injected state
-
-Cache and stream state is injected, never owned by the model; the rule's one
-definition is in the "Ops and blocks" section of the
-[`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#ops-and-blocks)
-module docs.
-
-### `ops` and `blocks`
-
-* **blocks** are `torch.nn`-like components, meant to be used as `Module`
-  roots or as parts of a module tree.
-* **ops** are operation-focused. They may use the `Module` / `Config`
-  machinery, but only to hold cached tables or state.
-* `ops` never imports `blocks`.
-
-The rule's one definition is the "Ops and blocks" section of the
-[`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#ops-and-blocks)
-module docs.
-
-### Variant behaviour lives on the enum
-
-A value or transform that differs per enum variant is a method on the enum,
-not a `match` at the use site. The calling pipeline then reads as a sequence
-of named steps, and a new variant changes one place.
-
-### Value objects as configuration
-
-When an op has parameters worth naming, they form a value object that
-serializes and embeds in other configs, and that value object is the unit of
-configuration: `ClampOptions` inside `NoiseOptions` inside `DropBlockOptions`
-inside `DropBlock2dConfig`. A config embeds the value object; it does not
-copy its fields.
+The `bunsen` crate's [test-fixture guide](crates/public/bunsen/STYLE.md)
+covers where its test support lives.
 
 ### Test modules
 
