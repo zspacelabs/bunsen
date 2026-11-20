@@ -16,10 +16,7 @@ use std::path::Path;
 use crate::{
     blocks::{
         conv::ConvSeq2d,
-        transformers::{
-            encoders::residual::ResidualEncoderAttentionBlock,
-            models::language_decoder::LmDecoderMeta,
-        },
+        transformers::models::language_decoder::LmDecoderMeta,
     },
     burner::module::Rekey,
     errors::BunsenResult,
@@ -53,7 +50,7 @@ pub use weights::*;
 /// paths: under `model.`, the audio tower's 1-based `conv2d{n}` onto its stem's
 /// 0-based `ConvSeq2d` blocks ([`ConvSeq2d::one_based_rekey`]), its layers by
 /// `transformers`' Whisper layer names
-/// ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`]); the text
+/// ([`whisper_encoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_encoder_layer_rekey)); the text
 /// model onto its
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 /// (`language_model.lm.`): its layers by [`text_layer_rekey`], its embedding
@@ -75,7 +72,7 @@ pub fn qwen3_asr_rekey() -> Rekey {
             .mount_indexed(
                 "audio_tower.layers.",
                 "audio_tower.layers.",
-                ResidualEncoderAttentionBlock::whisper_transformers_rekey(),
+                crate::kits::support::interop::transformers::whisper_encoder_layer_rekey(),
             )
             .mount_indexed(
                 "language_model.layers.",

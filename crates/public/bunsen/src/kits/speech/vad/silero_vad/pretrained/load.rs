@@ -12,10 +12,7 @@ use burn::{
 };
 
 use crate::{
-    blocks::{
-        conv::ConvSeq1d,
-        rnn::lstm::FusedLstm,
-    },
+    blocks::conv::ConvSeq1d,
     burner::module::{
         ModuleInit,
         Rekey,
@@ -231,13 +228,17 @@ impl SileroVadCollection {
 /// |---|---|
 /// | `stft_conv` | `stft` |
 /// | `conv1` … `conv4` | `encoder.blocks.0` … `3.conv`, by [`ConvSeq1d::one_based_rekey`] |
-/// | `lstm_cell` (an `nn.LSTMCell`) | `lstm`, by [`FusedLstm::torch_cell_rekey`] |
+/// | `lstm_cell` (an `nn.LSTMCell`) | `lstm`, by [`lstm_cell_rekey`](crate::kits::support::interop::torch::lstm_cell_rekey) |
 /// | `final_conv` | `decoder` |
 pub fn upstream_rekey() -> Rekey {
     Rekey::drop_rest()
         .rename("stft_conv.", "stft.")
         .rename("final_conv.", "decoder.")
-        .mount("lstm_cell.", "lstm.", FusedLstm::torch_cell_rekey())
+        .mount(
+            "lstm_cell.",
+            "lstm.",
+            crate::kits::support::interop::torch::lstm_cell_rekey(),
+        )
         .mount("conv", "encoder.", ConvSeq1d::one_based_rekey())
 }
 

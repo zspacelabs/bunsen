@@ -6,13 +6,7 @@ use burn::{
 };
 
 use crate::{
-    blocks::{
-        conv::ConvSeq1d,
-        transformers::{
-            decoders::cross::CrossDecoderBlock,
-            encoders::residual::ResidualEncoderAttentionBlock,
-        },
-    },
+    blocks::conv::ConvSeq1d,
     burner::module::{
         CanonicalKeys,
         ModuleInit,
@@ -35,8 +29,8 @@ use crate::{
 
 /// `transformers`' `WhisperForConditionalGeneration` state-dict names onto
 /// a [`Whisper`]'s module paths: under `model.`, the layers by their blocks'
-/// maps ([`ResidualEncoderAttentionBlock::whisper_transformers_rekey`],
-/// [`CrossDecoderBlock::whisper_transformers_rekey`]), `layers.N` as
+/// maps ([`whisper_encoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_encoder_layer_rekey),
+/// [`whisper_decoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_decoder_layer_rekey)), `layers.N` as
 /// `blocks.N`; the two convolutions, `conv1` and `conv2`, the encoder head's
 /// blocks ([`ConvSeq1d::one_based_rekey`]); the positional tables
 /// without their `.weight`; `embed_tokens` the token embedding; the final
@@ -67,12 +61,12 @@ pub fn transformers_rekey() -> Rekey {
             .mount_indexed(
                 "encoder.layers.",
                 "encoder.blocks.",
-                ResidualEncoderAttentionBlock::whisper_transformers_rekey(),
+                crate::kits::support::interop::transformers::whisper_encoder_layer_rekey(),
             )
             .mount_indexed(
                 "decoder.layers.",
                 "decoder.blocks.",
-                CrossDecoderBlock::whisper_transformers_rekey(),
+                crate::kits::support::interop::transformers::whisper_decoder_layer_rekey(),
             )
             .rename("encoder.layer_norm.", "encoder.ln_post.")
             .rename("decoder.layer_norm.", "decoder.ln."),
