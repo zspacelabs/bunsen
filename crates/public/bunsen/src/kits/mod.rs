@@ -148,12 +148,47 @@
 //!   cache that the caller creates and passes back in
 //!   ([`WhisperStreamContext`](speech::asr::whisper::driver::WhisperStreamContext)),
 //!   so one loaded model serves several streams at once.
-//! - **A type that deserializes an upstream config names every field exactly as
-//!   the upstream schema does**, renaming only what Rust cannot spell
-//!   (`_target_`); bunsen's vocabulary starts in the config the mirror converts
-//!   to. Each field then greps straight to the upstream source
+//! - **Everything a kit knows about an external ecosystem lives in an interop
+//!   module**: the upstream mirrors, their conversions to the kit's configs,
+//!   the rekeys and the loaders. What any kit would share about an ecosystem is
+//!   [`support::interop`]`::{ecosystem}`; a kit's own mapping of its model onto
+//!   one is `{kit}::interop::{ecosystem}`
+//!   ([`speech::tts::qwen3_tts::interop::qwen_tts`]). An ecosystem is named for
+//!   the schema's owner (`transformers`, `nemo`, `torch`, `qwen_tts`,
+//!   `phonon`), never the organization, and a module's path names the source,
+//!   so its maps and loaders need no prefix. A kit's model modules hold only
+//!   bunsen types and carry no `store` gate; its `pretrained` resolves files
+//!   and the catalog's facts and calls its interop. A second source or an
+//!   export direction then adds a module, not files under every component.
+//!   `cargo run -p source-checks -- interop` holds the layout, against an
+//!   allowlist of what a migration has not yet reached.
+//! - **A mirror is named `*Mirror`, and names every field exactly as the
+//!   upstream schema does**, renaming only what Rust cannot spell (`_target_`);
+//!   bunsen's vocabulary starts in the config the mirror converts to. Each
+//!   field then greps straight to the upstream source
 //!   ([`NemoTransformerEncoderMirror`](support::interop::nemo::NemoTransformerEncoderMirror)'
-//!   s `pre_ln`).
+//!   s `pre_ln`). A generic parsed document
+//!   ([`TransformersConfigJson`](support::interop::transformers::TransformersConfigJson))
+//!   is not a mirror.
+//! - **A conversion lives on the upstream side.** When it reads one mirror,
+//!   it is a method on that mirror, named for its target
+//!   ([`codec_decoder_config`](speech::tts::qwen3_tts::interop::qwen_tts::Qwen3TtsCodecDecoderMirror::codec_decoder_config));
+//!   otherwise (several sources, or a parsed document) a free function in the
+//!   interop module, named the same way. It is never a method on the bunsen
+//!   config nor a `From` / `TryFrom` impl, and it takes the parsed form, never
+//!   raw text. The bunsen config then knows nothing about the upstream.
+//! - **A kit's interop entry points follow one ladder of names**:
+//!   `{target}_config` (a conversion), `{target}_config_from_str` and
+//!   `{target}_config_from_path` (for a config a caller starts from),
+//!   `load_{target}_tensors` (a rekey and a load) and `load_{target}(loaded,
+//!   &config, device, policy)` (a loaded component; a self-describing
+//!   container, a `.nemo`, reads its own config). The kit's own root config's
+//!   target is the kit's name (`qwen3_config`, `load_qwen3_tensors`). A reader
+//!   of one kit can then find every other's.
+//! - **An interop module is ungated; its loaders sit in a `store`-gated
+//!   child**, so a build without `store` still reads a `config.json` into a
+//!   bunsen config. A kit's toy tests load through its interop's rungs, so a
+//!   toy catches a broken rekey or config read.
 //! - **A kit's tests read no fetched asset.** They run toy fixtures and
 //!   committed recordings, and a validation crate holds the kit's checkpoints
 //!   to their upstream reference, on an accelerator in a half dtype as well as
