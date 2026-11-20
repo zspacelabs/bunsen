@@ -49,6 +49,7 @@ use crate::{
         PowOpModuleConfig,
     },
     burner::module::ModuleInit,
+    errors::BunsenResult,
 };
 
 /// An [`BunsenActivation`]'s config: its kind, and that kind's config.
@@ -129,13 +130,13 @@ pub enum BunsenActivationConfig {
     Chain(Vec<BunsenActivationConfig>),
 }
 
-impl BunsenActivationConfig {
-    /// The activation, on `device` (where a kind has parameters).
-    pub fn init(
+/// The activation, on `device` (where a kind has parameters).
+impl ModuleInit<BunsenActivation> for BunsenActivationConfig {
+    fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenActivation {
-        match self {
+    ) -> BunsenResult<BunsenActivation> {
+        Ok(match self {
             Self::Identity => BunsenActivation::Identity(Identity::new()),
             Self::Relu => BunsenActivation::Relu(Relu::new()),
             Self::Gelu => BunsenActivation::Gelu(Gelu::new()),
@@ -157,11 +158,14 @@ impl BunsenActivationConfig {
             Self::Shrink(config) => BunsenActivation::Shrink(config.init()),
             Self::Silu => BunsenActivation::Silu(SiLU::new()),
             Self::Pow(exponent) => BunsenActivation::Pow(PowOpModuleConfig::new(*exponent).init()),
-            Self::Snake(config) => BunsenActivation::Snake(config.init(device)),
-            Self::Chain(kinds) => {
-                BunsenActivation::Chain(kinds.iter().map(|kind| kind.init(device)).collect())
-            }
-        }
+            Self::Snake(config) => BunsenActivation::Snake(config.try_init(device)?),
+            Self::Chain(kinds) => BunsenActivation::Chain(
+                kinds
+                    .iter()
+                    .map(|kind| kind.try_init(device))
+                    .collect::<BunsenResult<_>>()?,
+            ),
+        })
     }
 }
 

@@ -152,7 +152,10 @@ mod tests {
                 BunsenNormalizationConfig,
             },
         },
-        burner::module::DTypeMapper,
+        burner::module::{
+            DTypeMapper,
+            ModuleInit,
+        },
         support::testing::{
             assert_tensors_close,
             cpu_device,
