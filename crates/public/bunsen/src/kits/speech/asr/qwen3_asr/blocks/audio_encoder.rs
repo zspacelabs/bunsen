@@ -174,7 +174,7 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
             .map(|_| {
                 ResidualEncoderAttentionBlockConfig::new(self.d_model)
                     .with_d_head(self.d_model / self.n_heads)
-                    .with_expansion_factor(self.d_ff / self.d_model)
+                    .with_d_hidden(Some(self.d_ff))
                     .with_key_bias(true)
                     .try_init(device)
             })

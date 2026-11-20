@@ -127,8 +127,8 @@
 //!   - A public name carries its family or its owner, never a bare general
 //!     word, and the qualifier must not narrow the meaning:
 //!     [`DecoderStackCache`](blocks::transformers::decoders::stack::DecoderStackCache),
-//!     not `DecoderCache`; `TransformerMlp`, not `Mlp`;
-//!     `DwStridingFlattenOrder`, not `FlattenOrder`.
+//!     not `DecoderCache`; `BunsenMlp`, not `Mlp`; `DwStridingFlattenOrder`,
+//!     not `FlattenOrder`.
 //!   - A name says what the value is, in the field's standard terms. The
 //!     residual is the branch, `F(x)`; `x + F(x)` is an update to the residual
 //!     stream, so a function returning it is `*_residual_update`. "Connection"

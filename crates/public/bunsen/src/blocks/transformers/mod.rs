@@ -45,11 +45,12 @@
 //!   encoder-decoder layer with cross-attention, Whisper's.
 //! - [`head`]: [`LmHead`](head::LmHead), a language model's head: tied to the
 //!   token table or its own, with an optional slice, soft-cap and logits dtype.
-//! - [`mlp`]: [`TransformerMlp`](mlp::TransformerMlp), the position-wise
-//!   feed-forward block (expand, activate, project back), and
-//!   [`TransformerFeedForward`](mlp::TransformerFeedForward), the sublayer that
-//!   holds it, the gated form
-//!   ([`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp): `SwiGLU`,
+//! - [`mlp`]: [`TransformerFeedForward`](mlp::TransformerFeedForward), a
+//!   layer's position-wise feed-forward sublayer: a
+//!   [`BunsenMlp`](crate::blocks::mlp::BunsenMlp) (expand, activate, project
+//!   back; [`TransformerMlpConfig`](mlp::TransformerMlpConfig) is its
+//!   `expansion_factor` policy), a
+//!   [`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp) (`SwiGLU`,
 //!   `GeGLU`), or a mixture of experts.
 //! - [`moe`]: the parts of a sparse mixture of experts:
 //!   [`ExpertStack`](moe::experts::ExpertStack), a packed stack of `SwiGLU`
