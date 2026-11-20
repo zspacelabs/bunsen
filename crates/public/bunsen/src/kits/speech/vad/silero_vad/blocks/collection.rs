@@ -24,6 +24,25 @@ pub struct SileroVadCollection {
 }
 
 impl SileroVadCollection {
+    /// A collection of one 16 kHz model: what upstream's
+    /// `silero_vad_16k.safetensors` holds.
+    pub fn from_16khz(vad_16: SileroVad) -> Self {
+        Self {
+            branches: vec![(16000, vad_16)],
+        }
+    }
+
+    /// A collection of a 16 kHz and an 8 kHz model: what upstream's ONNX
+    /// graph holds.
+    pub fn from_16khz_8khz(
+        vad_16: SileroVad,
+        vad_8: SileroVad,
+    ) -> Self {
+        Self {
+            branches: vec![(16000, vad_16), (8000, vad_8)],
+        }
+    }
+
     /// The model for the given sample rate.
     ///
     /// # Arguments

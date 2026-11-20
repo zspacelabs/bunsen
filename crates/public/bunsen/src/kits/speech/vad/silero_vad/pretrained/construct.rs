@@ -25,6 +25,10 @@ use crate::{
             SileroConstruct,
             SileroPolicy,
             SileroVadCollection,
+            interop::{
+                burn_onnx,
+                silero_vad,
+            },
             pretrained::{
                 BURNPACK,
                 BURNPACK_FORMAT,
@@ -47,7 +51,7 @@ pub enum SileroReader {
 
     /// Upstream's 16 kHz state dict under [`CHECKPOINT`]
     /// ([`SAFETENSORS_FORMAT`]), read through
-    /// [`upstream_rekey`](super::load::upstream_rekey).
+    /// [`silero_vad_rekey`](crate::kits::speech::vad::silero_vad::interop::silero_vad::silero_vad_rekey).
     /// Needs the `store` feature.
     Safetensors,
 }
@@ -136,14 +140,12 @@ impl ConstructInit for SileroConstructConfig {
             &ResolvedPresetSet::default(),
         )?;
         let vads = match self.reader {
-            SileroReader::Burnpack => {
-                SileroVadCollection::load_from_burnpack_file(loaded.expect(BURNPACK)?, device)?
-            }
+            SileroReader::Burnpack => burn_onnx::load_silero_vad_collection_from_burnpack_path(
+                loaded.expect(BURNPACK)?,
+                device,
+            )?,
             SileroReader::Safetensors => SileroVadCollection::from_16khz(
-                crate::kits::speech::vad::silero_vad::SileroVad::load_16khz_from_safetensors_file(
-                    loaded.expect(CHECKPOINT)?,
-                    device,
-                )?,
+                silero_vad::load_silero_vad_16khz_from_path(loaded.expect(CHECKPOINT)?, device)?,
             ),
         };
         // The files' precision (f32), or wider as the policy asks.
