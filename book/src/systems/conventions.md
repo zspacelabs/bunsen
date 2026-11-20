@@ -87,8 +87,8 @@ then changes one place.
 `FooMeta`. This is the shape for a module whose user-facing knobs are the
 parameters its implementation needs.
 
-In the crate, [`TransformerMlpConfig`](bunsen::blocks::transformers::mlp::TransformerMlpConfig)
-builds [`TransformerMlp`](bunsen::blocks::transformers::mlp::TransformerMlp), and
+In the crate, [`BunsenMlpConfig`](bunsen::blocks::mlp::BunsenMlpConfig)
+builds [`BunsenMlp`](bunsen::blocks::mlp::BunsenMlp), and
 [`SlidingStftConfig`](bunsen::ops::signal::SlidingStftConfig) builds
 [`SlidingStft`](bunsen::ops::signal::SlidingStft). The compiled toy is
 [`ModuleInit`'s Simple Config example](bunsen::burner::module::ModuleInit#simple-config).

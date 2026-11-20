@@ -75,7 +75,7 @@ impl ModuleInit<ConformerFeedForward> for ConformerFeedForwardConfig {
 /// The Conformer block holds two of these, macaron style, around its
 /// attention and convolution modules (see
 /// [`ConformerBlock`](super::ConformerBlock)). Its activation is fixed. It
-/// is not a [`TransformerMlp`](crate::blocks::transformers::mlp::TransformerMlp),
+/// is not a [`BunsenMlp`](crate::blocks::mlp::BunsenMlp),
 /// whose hidden width is an integer multiple of its input's: a Conformer's
 /// `d_ff` need not be.
 ///

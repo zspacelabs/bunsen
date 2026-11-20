@@ -138,8 +138,9 @@
 //!     encoders' bidirectional attentions, relative-position and rotary.
 //!   - [`transformers::embedding`]: `RotaryEmbedding`, and fixture embeddings
 //!     for tests.
-//!   - [`transformers::mlp`]: `TransformerMlp` and `BunsenGatedMlp`, the
-//!     transformer feed-forward blocks.
+//!   - [`transformers::mlp`]: `TransformerFeedForward`, a transformer layer's
+//!     feed-forward (a `BunsenMlp`, a `BunsenGatedMlp` or a mixture of
+//!     experts), and `TransformerMlpConfig`, the plain one's policy.
 //!   - [`transformers::encoders`]: bidirectional encoder layers and stacks: the
 //!     residual layer, the rotary encoder, and the `FastConformer` encoder with
 //!     its relative-position attention, convolution and feed-forward modules

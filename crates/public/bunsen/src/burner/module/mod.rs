@@ -64,7 +64,7 @@
 //!
 //! - **A config lives in the same file as the module it builds.** A config and
 //!   its module change together, and the build sits next to the struct it
-//!   fills. [`TransformerMlpConfig`] sits beside [`TransformerMlp`].
+//!   fills. [`BunsenMlpConfig`] sits beside [`BunsenMlp`].
 //! - **A config whose module needs only a device implements [`ModuleInit`],
 //!   never an inherent `init`.** One with no parameters ignores the device
 //!   (`DropPathConfig`). A policy config implements [`ToStructureConfig`]
@@ -131,7 +131,8 @@
 //!   default hides loaders that skip the policy, and silently narrows tables.
 //!
 //! [`TransformerMlpConfig`]: crate::blocks::transformers::mlp::TransformerMlpConfig
-//! [`TransformerMlp`]: crate::blocks::transformers::mlp::TransformerMlp
+//! [`BunsenMlp`]: crate::blocks::mlp::BunsenMlp
+//! [`BunsenMlpConfig`]: crate::blocks::mlp::BunsenMlpConfig
 //! [`LmDecoderStructureConfig`]: crate::blocks::transformers::models::language_decoder::LmDecoderStructureConfig
 //! [`ConformerEncoderConfig`]: crate::blocks::transformers::encoders::conformer::ConformerEncoderConfig
 //! [`SubsampledEncoderConfig`]: crate::blocks::transformers::encoders::SubsampledEncoderConfig

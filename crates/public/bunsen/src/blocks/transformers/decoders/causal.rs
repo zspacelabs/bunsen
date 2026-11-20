@@ -244,9 +244,9 @@ impl CausalDecoderBlockConfig {
 ///
 /// What tells its users apart is config: the norm
 /// ([`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)),
-/// the feed-forward ([`TransformerFeedForward`]: an `TransformerMlp` or a gated
+/// the feed-forward ([`TransformerFeedForward`]: a `BunsenMlp` or a gated
 /// `SwiGLU`), and the attention's own options (grouped-query heads, QK-norm and
-/// where it sits). RMS norms, a `ReLU`² `TransformerMlp` and QK-norm after the
+/// where it sits). RMS norms, a `ReLU`² `BunsenMlp` and QK-norm after the
 /// rotary embedding, it is nanochat's `Block`; RMS norms, a `SwiGLU` and
 /// QK-norm before it, Qwen3's decoder layer. With an [`AdaptiveScale`] on the
 /// feed-forward's input, `x = x + mlp(mlp.pre(x) * (1 + f(cond)))`, it is

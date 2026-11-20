@@ -16,21 +16,19 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+        },
         norm::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
         },
-        transformers::{
-            mlp::{
-                TransformerMlp,
-                TransformerMlpConfig,
-            },
-            sublayer::{
-                PlainSublayer,
-                ResidualSublayer,
-                ResidualSublayerConfig,
-                SelfAttnSublayer,
-            },
+        transformers::sublayer::{
+            PlainSublayer,
+            ResidualSublayer,
+            ResidualSublayerConfig,
+            SelfAttnSublayer,
         },
     },
     burner::module::{
@@ -86,9 +84,14 @@ pub struct ResidualEncoderAttentionBlockConfig {
     #[config(default = "0.0")]
     pub dropout: f64,
 
-    /// The MLP's hidden width over `d_model`.
+    /// The MLP's hidden width over `d_model`, when
+    /// [`d_hidden`](Self::d_hidden) is `None`.
     #[config(default = "4")]
     pub expansion_factor: usize,
+
+    /// The MLP's hidden width outright; `None`, `d_model * expansion_factor`.
+    #[config(default = "None")]
+    pub d_hidden: Option<usize>,
 
     /// Whether the key projection carries a bias. Whisper's does not;
     /// Qwen3-ASR's audio encoder's does. The query, value, output and MLP
@@ -139,8 +142,10 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             .with_key_bias(self.key_bias);
 
         // The MLP projections carry a bias: `Linear -> act -> Linear`.
-        let mlp: TransformerMlp = TransformerMlpConfig::new(self.d_model)
-            .with_expansion_factor(self.expansion_factor)
+        let d_hidden = self
+            .d_hidden
+            .unwrap_or(self.d_model * self.expansion_factor);
+        let mlp: BunsenMlp = BunsenMlpConfig::new(self.d_model, d_hidden, self.d_model)
             .with_activation(self.activation.clone())
             .with_bias(true)
             .try_init(device)?;
@@ -180,7 +185,7 @@ pub struct ResidualEncoderAttentionBlock {
     /// The MLP sublayer: the MLP (`branch`), and its norm, when the block
     /// normalizes: before it (`pre`) or after the add (`out`), by the
     /// block's placement.
-    pub mlp: ResidualSublayer<TransformerMlp>,
+    pub mlp: ResidualSublayer<BunsenMlp>,
 
     /// Where the block normalizes, when it does.
     #[module(skip)]

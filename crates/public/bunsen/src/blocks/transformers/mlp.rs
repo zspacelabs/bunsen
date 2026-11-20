@@ -1,29 +1,26 @@
-//! Transformer feed-forwards: [`TransformerMlp`], and
-//! [`TransformerFeedForward`], a plain, gated or sparse feed-forward chosen by
-//! config; the gated form is
+//! Transformer feed-forwards: [`TransformerFeedForward`], a plain, gated or
+//! sparse feed-forward chosen by config, the sublayer a layer holds; its
+//! plain form a [`BunsenMlp`] (as [`TransformerMlpConfig`], the
+//! `expansion_factor` policy, lowers to), its gated form a
 //! [`BunsenGatedMlp`].
 
 use burn::{
     config::Config,
     module::Module,
-    nn::{
-        Linear,
-        LinearConfig,
-    },
     prelude::Tensor,
     tensor::Device,
 };
 
 use crate::{
     blocks::{
-        activation::{
-            BunsenActivation,
-            BunsenActivationConfig,
-        },
+        activation::BunsenActivationConfig,
         mlp::{
             BunsenGatedMlp,
             BunsenGatedMlpConfig,
             BunsenGatedMlpMeta,
+            BunsenMlp,
+            BunsenMlpConfig,
+            BunsenMlpMeta,
         },
         transformers::{
             moe::sparse::{
@@ -33,23 +30,24 @@ use crate::{
             sublayer::SublayerBranch,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     errors::BunsenResult,
 };
 
-/// Common meta for [`TransformerMlp`] and [`TransformerMlpConfig`].
-pub trait TransformerMlpMeta {
-    /// Returns the size of the input and output.
-    fn n_embed(&self) -> usize;
-}
-
-/// Config for [`TransformerMlp`].
+/// The policy of a transformer's plain feed-forward: `n_embed` wide, its
+/// hidden width `n_embed * expansion_factor`. It lowers to a
+/// [`BunsenMlpConfig`] ([`ToStructureConfig`]) and builds a [`BunsenMlp`]; a
+/// hidden width that is not a whole multiple is a [`BunsenMlpConfig`] given
+/// outright.
 #[derive(Config, Debug)]
 pub struct TransformerMlpConfig {
-    /// Embedding Size.
+    /// The input and output width.
     pub n_embed: usize,
 
-    /// Internal Expansion Factor.
+    /// The hidden width's multiple of `n_embed`.
     #[config(default = "4")]
     pub expansion_factor: usize,
 
@@ -63,99 +61,40 @@ pub struct TransformerMlpConfig {
     pub bias: bool,
 }
 
-impl TransformerMlpMeta for TransformerMlpConfig {
-    fn n_embed(&self) -> usize {
-        self.n_embed
-    }
-}
-
 impl TransformerMlpConfig {
-    /// Returns the size of the hidden layer.
+    /// The hidden width: `n_embed * expansion_factor`.
     pub fn hidden_size(&self) -> usize {
         self.n_embed * self.expansion_factor
     }
 }
 
-impl ModuleInit<TransformerMlp> for TransformerMlpConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<TransformerMlp> {
-        let linear1 = LinearConfig::new(self.n_embed(), self.hidden_size())
-            .with_bias(self.bias)
-            .init(device);
-        let linear2 = LinearConfig::new(self.hidden_size(), self.n_embed())
-            .with_bias(self.bias)
-            .init(device);
+impl BunsenMlpMeta for TransformerMlpConfig {
+    fn d_input(&self) -> usize {
+        self.n_embed
+    }
 
-        Ok(TransformerMlp {
-            linear1,
-            act: self.activation.init(device),
-            linear2,
-        })
+    fn d_hidden(&self) -> usize {
+        self.hidden_size()
+    }
+
+    fn d_output(&self) -> usize {
+        self.n_embed
+    }
+
+    fn dropout(&self) -> f64 {
+        0.0
     }
 }
 
-/// GPT Block MLP Module
-///
-/// The position-wise feed-forward block of a transformer: an up-projection to
-/// an expanded hidden size, an activation, and a down-projection back to the
-/// embedding size. Construct via [`TransformerMlpConfig`] and `.init(device)`,
-/// then call [`forward`](TransformerMlp::forward) on a `[batch, time, embed]`
-/// input.
-///
-/// Built by [`TransformerMlpConfig`].
-#[derive(Module, Debug)]
-pub struct TransformerMlp {
-    /// Feed Forward Layer.
-    pub linear1: Linear,
+impl ToStructureConfig for TransformerMlpConfig {
+    type Structure = BunsenMlpConfig;
 
-    /// Activation.
-    pub act: BunsenActivation,
-
-    /// Output Projection.
-    pub linear2: Linear,
-}
-
-impl TransformerMlpMeta for TransformerMlp {
-    fn n_embed(&self) -> usize {
-        self.linear1.weight.dims()[0]
-    }
-}
-
-impl TransformerMlp {
-    /// MLP Forward Pass.
-    ///
-    /// # Arguments
-    /// - `x`: a `[batch, time, embed]` input.
-    ///
-    /// # Returns
-    /// a `[batch, time, embed]` result.
-    pub fn forward(
-        &self,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, time] = crate::contracts::unpack_shape_contract!(
-            ["batch", "time", "embed"],
-            &x,
-            &["batch", "time"],
-            &[("embed", self.n_embed())]
-        );
-
-        let x = self.linear1.forward(x);
-        let x = self.act.forward(x);
-
-        let x = self.linear2.forward(x);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "time", "embed"],
-            &x,
-            &[("batch", batch), ("time", time), ("embed", self.n_embed())]
-        );
-
-        x
+    fn try_to_structure(&self) -> BunsenResult<BunsenMlpConfig> {
+        Ok(
+            BunsenMlpConfig::new(self.n_embed, self.hidden_size(), self.n_embed)
+                .with_activation(self.activation.clone())
+                .with_bias(self.bias),
+        )
     }
 }
 
@@ -172,8 +111,9 @@ pub trait TransformerFeedForwardMeta {
 /// Implements [`TransformerFeedForwardMeta`].
 #[derive(Config, Debug)]
 pub enum TransformerFeedForwardConfig {
-    /// [`TransformerMlp`]: expand, activate, project back.
-    Mlp(TransformerMlpConfig),
+    /// [`BunsenMlp`]: expand, activate, project back, as wide out as in (a
+    /// [`TransformerMlpConfig`] lowers to one).
+    Mlp(BunsenMlpConfig),
 
     /// [`BunsenGatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
     Gated(BunsenGatedMlpConfig),
@@ -183,7 +123,14 @@ pub enum TransformerFeedForwardConfig {
 }
 
 impl From<TransformerMlpConfig> for TransformerFeedForwardConfig {
+    /// Its structure, the [`BunsenMlpConfig`] it lowers to.
     fn from(config: TransformerMlpConfig) -> Self {
+        Self::Mlp(config.to_structure())
+    }
+}
+
+impl From<BunsenMlpConfig> for TransformerFeedForwardConfig {
+    fn from(config: BunsenMlpConfig) -> Self {
         Self::Mlp(config)
     }
 }
@@ -203,7 +150,7 @@ impl From<SparseMoeConfig> for TransformerFeedForwardConfig {
 impl TransformerFeedForwardMeta for TransformerFeedForwardConfig {
     fn n_embed(&self) -> usize {
         match self {
-            Self::Mlp(c) => TransformerMlpMeta::n_embed(c),
+            Self::Mlp(c) => c.d_input(),
             Self::Gated(c) => BunsenGatedMlpMeta::n_embed(c),
             Self::Moe(c) => c.n_embed(),
         }
@@ -216,7 +163,16 @@ impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
         device: &Device,
     ) -> BunsenResult<TransformerFeedForward> {
         Ok(match self {
-            Self::Mlp(c) => TransformerFeedForward::Mlp(c.try_init(device)?),
+            Self::Mlp(c) => {
+                if c.d_output() != c.d_input() {
+                    return Err(crate::errors::BunsenError::illegal(format!(
+                        "a transformer feed-forward is as wide out as in, not {} to {}",
+                        c.d_input(),
+                        c.d_output()
+                    )));
+                }
+                TransformerFeedForward::Mlp(c.try_init(device)?)
+            }
             Self::Gated(c) => TransformerFeedForward::Gated(c.try_init(device)?),
             Self::Moe(c) => TransformerFeedForward::Moe(c.try_init(device)?),
         })
@@ -235,8 +191,8 @@ impl ModuleInit<TransformerFeedForward> for TransformerFeedForwardConfig {
 // One per layer: the variants' size gap costs nothing worth a box.
 #[allow(clippy::large_enum_variant)]
 pub enum TransformerFeedForward {
-    /// [`TransformerMlp`].
-    Mlp(TransformerMlp),
+    /// [`BunsenMlp`].
+    Mlp(BunsenMlp),
 
     /// [`BunsenGatedMlp`].
     Gated(BunsenGatedMlp),
@@ -248,7 +204,7 @@ pub enum TransformerFeedForward {
 impl TransformerFeedForwardMeta for TransformerFeedForward {
     fn n_embed(&self) -> usize {
         match self {
-            Self::Mlp(m) => TransformerMlpMeta::n_embed(m),
+            Self::Mlp(m) => m.d_input(),
             Self::Gated(m) => BunsenGatedMlpMeta::n_embed(m),
             Self::Moe(m) => m.n_embed(),
         }
@@ -275,8 +231,8 @@ impl TransformerFeedForward {
     }
 }
 
-/// Takes only the stream.
-impl SublayerBranch<(), 3> for TransformerMlp {
+/// Takes only the stream, `[batch, time, embed]`, as wide out as in.
+impl SublayerBranch<(), 3> for BunsenMlp {
     type Output = Tensor<3>;
 
     fn call_branch(
@@ -284,7 +240,19 @@ impl SublayerBranch<(), 3> for TransformerMlp {
         z: Tensor<3>,
         (): (),
     ) -> Tensor<3> {
-        self.forward(z)
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "time", "embed"],
+            &z.dims(),
+            &["batch", "time"],
+            &[("embed", self.d_input())]
+        );
+        let y = self.forward(z);
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "embed"],
+            &y.dims(),
+            &[("batch", batch), ("time", time), ("embed", self.d_input())]
+        );
+        y
     }
 }
 
@@ -368,8 +336,38 @@ mod tests {
         assert_eq!(cfg.n_embed, 3);
         assert_eq!(cfg.expansion_factor, 4);
 
-        assert_eq!(cfg.n_embed(), 3);
+        assert_eq!(cfg.d_input(), 3);
         assert_eq!(cfg.hidden_size(), 3 * 4);
+        let structure = cfg.to_structure();
+        assert_eq!(
+            (
+                structure.d_input(),
+                structure.d_hidden(),
+                structure.d_output()
+            ),
+            (3, 12, 3)
+        );
+        assert!(!structure.bias);
+    }
+
+    /// A transformer's plain feed-forward is as wide out as in: a policy
+    /// lowers to its structure, and a structure that resizes is refused.
+    #[test]
+    fn test_mlp_variant() {
+        let device = crate::support::testing::cpu_device();
+        let config: TransformerFeedForwardConfig = TransformerMlpConfig::new(4).into();
+        let TransformerFeedForwardConfig::Mlp(structure) = &config else {
+            panic!("a plain feed-forward");
+        };
+        assert_eq!(structure.d_hidden(), 16);
+        let ff: TransformerFeedForward = config.init(&device);
+        assert_eq!(ff.n_embed(), 4);
+        let resize: TransformerFeedForwardConfig = BunsenMlpConfig::new(4, 8, 2).into();
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Illegal)
+            .message_contains("as wide out as in")
+            .assert_err(&ModuleInit::<TransformerFeedForward>::try_init(
+                &resize, &device,
+            ));
     }
 
     #[test]
@@ -391,11 +389,12 @@ mod tests {
                         BunsenActivationConfig::Pow(2.0),
                     ]));
 
-                let mlp: TransformerMlp = cfg.init(&device);
+                let mlp: BunsenMlp = cfg.init(&device);
 
-                assert_eq!(mlp.n_embed(), n_embed);
+                assert_eq!(mlp.d_input(), n_embed);
 
-                let input = Tensor::random([b, t, n_embed], Distribution::Default, &device);
+                let input: Tensor<3> =
+                    Tensor::random([b, t, n_embed], Distribution::Default, &device);
                 let output = mlp.forward(input.clone());
 
                 let x = input;
