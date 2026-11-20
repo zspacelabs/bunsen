@@ -58,10 +58,10 @@ pub fn audio_layer_rekey() -> Rekey {
 /// `transformers`' Voxtral Realtime text-layer names onto a
 /// [`CausalDecoderBlock`]'s:
 /// Mistral's, which are Qwen3's ([`text_layer_rekey`]), and `ada_rms_norm`
-/// the block's
+/// (its `linear1` / `linear2`) the MLP of the block's
 /// [`mlp_scale`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock::mlp_scale).
 pub fn text_layer_rekey_voxtral() -> Rekey {
-    text_layer_rekey().rename("ada_rms_norm.", "mlp_scale.")
+    text_layer_rekey().rename("ada_rms_norm.", "mlp_scale.mlp.")
 }
 
 /// The names of `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
@@ -247,7 +247,7 @@ mod tests {
             ),
             (
                 "language_model.model.layers.25.ada_rms_norm.linear1.weight",
-                Some("language_model.lm.stack.layers.25.mlp_scale.linear1.weight"),
+                Some("language_model.lm.stack.layers.25.mlp_scale.mlp.linear1.weight"),
             ),
             (
                 "language_model.model.layers.3.self_attn.k_proj.weight",
