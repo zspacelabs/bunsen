@@ -15,9 +15,16 @@ use burn::{
     },
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
+use crate::{
+    burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// Common meta trait for [`KVCache`] and [`KVCacheConfig`].
@@ -53,9 +60,9 @@ pub trait KVCacheMeta {
 /// assembling one, and overrides what it knows better on the config:
 ///
 /// ```rust,ignore
-/// let mut cache = model.new_kv_cache(batch);
+/// let mut cache = model.new_kv_cache(batch, &device);
 /// // Or, knowing the decode's length:
-/// let mut cache = model.kv_cache_config().with_batch_size(batch).with_seq_len(n).init();
+/// let mut cache = model.kv_cache_config().with_batch_size(batch).with_seq_len(n).init(&device);
 /// ```
 ///
 /// A model's config implements it too, so a cache can be sized (or its
@@ -65,13 +72,16 @@ pub trait KVCacheModel {
     /// default pre-size, and its cap.
     fn kv_cache_config(&self) -> KVCacheConfig;
 
-    /// A cache for `batch_size` decodes, sized as
+    /// A cache on `device` for `batch_size` decodes, sized as
     /// [`kv_cache_config`](Self::kv_cache_config) says.
     fn new_kv_cache(
         &self,
         batch_size: usize,
+        device: &Device,
     ) -> KVCache {
-        self.kv_cache_config().with_batch_size(batch_size).init()
+        self.kv_cache_config()
+            .with_batch_size(batch_size)
+            .init(device)
     }
 }
 
@@ -86,8 +96,8 @@ pub trait KVCacheModel {
 /// [`KVCache`]'s API.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum KVCacheStorage {
-    /// The best known storage for the device the cache first writes on:
-    /// [`auto_for`](Self::auto_for).
+    /// The best known storage for the cache's device, resolved when it is
+    /// built: [`auto_for`](Self::auto_for).
     #[default]
     Auto,
 
@@ -306,39 +316,50 @@ impl KVCacheMeta for KVCacheConfig {
     }
 }
 
-impl KVCacheConfig {
-    /// Initializes a [`KVCache`].
-    ///
-    /// # Panics
-    /// When `chunk_size` is 0, or `seq_len` exceeds `max_seq_len`.
-    pub fn init(self) -> KVCache {
-        assert!(
-            self.chunk_size > 0,
-            "a KV cache's chunk_size must be positive"
-        );
-        if let Some(max) = self.max_seq_len {
-            assert!(
-                self.seq_len <= max,
+/// A cache on `device`, empty: its storage is resolved for `device`
+/// ([`KVCacheStorage::resolve`]), and its buffers are allocated on the
+/// first write, in that write's dtype.
+///
+/// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when `chunk_size`
+/// is 0, `seq_len` exceeds `max_seq_len`, `layer_windows` is neither empty
+/// nor one entry per layer, or a window is 0.
+impl ModuleInit<KVCache> for KVCacheConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<KVCache> {
+        if self.chunk_size == 0 {
+            return Err(BunsenError::illegal(
+                "a KV cache's chunk_size must be positive",
+            ));
+        }
+        if let Some(max) = self.max_seq_len
+            && self.seq_len > max
+        {
+            return Err(BunsenError::illegal(format!(
                 "a KV cache's seq_len ({}) exceeds its max_seq_len ({max})",
                 self.seq_len
-            );
+            )));
         }
-        assert!(
-            self.layer_windows.is_empty() || self.layer_windows.len() == self.num_layers,
-            "a KV cache's layer_windows has {} entries for {} layers",
-            self.layer_windows.len(),
-            self.num_layers
-        );
-        assert!(
-            self.layer_windows.iter().flatten().all(|&w| w > 0),
-            "a KV cache layer's window must be positive"
-        );
+        if !self.layer_windows.is_empty() && self.layer_windows.len() != self.num_layers {
+            return Err(BunsenError::illegal(format!(
+                "a KV cache's layer_windows has {} entries for {} layers",
+                self.layer_windows.len(),
+                self.num_layers
+            )));
+        }
+        if self.layer_windows.iter().flatten().any(|&w| w == 0) {
+            return Err(BunsenError::illegal(
+                "a KV cache layer's window must be positive",
+            ));
+        }
         let layer_windows = if self.layer_windows.is_empty() {
             vec![None; self.num_layers]
         } else {
-            self.layer_windows
+            self.layer_windows.clone()
         };
-        KVCache {
+        Ok(KVCache {
             batch_size: self.batch_size,
             num_heads: self.num_heads,
             seq_len: self.seq_len,
@@ -349,8 +370,8 @@ impl KVCacheConfig {
             chunk_size: self.chunk_size,
             extra_chunks: 1,
             max_seq_len: self.max_seq_len,
-            storage: self.storage,
-            resolved: None,
+            storage: self.storage.resolve(device),
+            init_device: device.clone(),
             keys: vec![None; self.num_layers],
             values: vec![None; self.num_layers],
             cross_keys: vec![None; self.num_layers],
@@ -358,7 +379,7 @@ impl KVCacheConfig {
             group: 1,
             window_start: vec![0; self.num_layers],
             layer_windows,
-        }
+        })
     }
 }
 
@@ -380,9 +401,12 @@ impl KVCacheConfig {
 /// beam search's beams, `row = encoder_row * group + member`), so the bulk of
 /// the cache isn't repeated per beam. `reset` and `reorder` leave them alone.
 ///
-/// How it stores the history is its config's [`KVCacheStorage`] policy,
-/// resolved on the first write, on the device of the first keys
-/// ([`storage`](KVCache::storage) reports it). The preallocated storages
+/// It lives on one device, the one it is built on: a write of keys or
+/// values from another panics, as no write moves data between devices
+/// ([`device`](KVCache::device)). How it stores the history is its config's
+/// [`KVCacheStorage`] policy, resolved for that device
+/// ([`storage`](KVCache::storage) reports it); its buffers take the first
+/// write's dtype. The preallocated storages
 /// allocate `seq_len` positions, and grow in chunks (`chunk_size` positions,
 /// 1024 by default) when a step runs past their end, up to `max_seq_len`
 /// when the cache is capped.
@@ -395,8 +419,8 @@ impl KVCacheConfig {
 /// [`cross_attn_w_kv_cache`](super::cross_attn_w_kv_cache))
 /// are its consumers.
 ///
-/// Built by [`KVCacheConfig`], whose `init` takes no device; a model hands
-/// out its own through [`KVCacheModel`].
+/// Built by [`KVCacheConfig`] ([`ModuleInit`]); a model hands out its own
+/// through [`KVCacheModel`].
 ///
 /// [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 #[derive(Module, Debug)]
@@ -411,12 +435,12 @@ pub struct KVCache {
     extra_chunks: usize,
     max_seq_len: Option<usize>,
 
-    /// The configured policy.
+    /// The storage in use: the configured policy, resolved for the device.
     #[module(skip)]
     storage: KVCacheStorage,
-    /// The storage in use, once the first write resolved it.
+    /// The device it was built on, which it keeps until it holds tensors.
     #[module(skip)]
-    resolved: Option<KVCacheStorage>,
+    init_device: Device,
 
     pos: usize,
     /// [`KVCacheStorage::MultiLayer`]'s buffer.
@@ -549,10 +573,41 @@ impl KVCache {
     }
 
     /// The storage in use: the configured policy, with
-    /// [`Auto`](KVCacheStorage::Auto) resolved once the first write has
-    /// told it the device.
+    /// [`Auto`](KVCacheStorage::Auto) resolved for the cache's device.
     pub fn storage(&self) -> KVCacheStorage {
-        self.resolved.unwrap_or(self.storage)
+        self.storage
+    }
+
+    /// The cache's device: that of the tensors it holds, or, while it holds
+    /// none, the device it was built on. A [`to_device`](Module::to_device)
+    /// moves what it holds, and so the cache.
+    pub fn device(&self) -> Device {
+        self.cache
+            .as_ref()
+            .map(Tensor::device)
+            .or_else(|| {
+                self.keys
+                    .iter()
+                    .chain(&self.cross_keys)
+                    .flatten()
+                    .next()
+                    .map(Tensor::device)
+            })
+            .unwrap_or_else(|| self.init_device.clone())
+    }
+
+    /// Panics unless `tensor` is on the cache's device: a write never moves
+    /// data between devices.
+    fn expect_device(
+        &self,
+        what: &str,
+        tensor: &Tensor<4>,
+    ) {
+        let (got, want) = (tensor.device(), self.device());
+        assert!(
+            got == want,
+            "a KV cache's {what} on {got:?}, the cache on {want:?}"
+        );
     }
 
     /// Decode rows per cross-attention row: one, unless the cross-attention
@@ -583,6 +638,8 @@ impl KVCache {
             v.dims(),
             "cross-attention keys and values differ in shape"
         );
+        self.expect_device("cross-attention keys", &k);
+        self.expect_device("cross-attention values", &v);
         assert_eq!(
             (heads, head_dim),
             (self.num_heads, self.head_dim),
@@ -660,11 +717,7 @@ impl KVCache {
         if !self.is_allocated() || sources.iter().enumerate().all(|(r, &s)| r == s) {
             return;
         }
-        let device = match (&self.cache, self.keys.iter().flatten().next()) {
-            (Some(cache), _) => cache.device(),
-            (None, Some(key)) => key.device(),
-            (None, None) => return,
-        };
+        let device = self.device();
         let indices: Tensor<1, Int> = Tensor::from_data(
             TensorData::new(
                 sources.iter().map(|&s| s as i64).collect::<Vec<_>>(),
@@ -721,6 +774,11 @@ impl KVCache {
         assert_eq!(
             self.layer_windows, other.layer_windows,
             "a KV cache prefills from one with the same windows"
+        );
+        let (from, to) = (other.device(), self.device());
+        assert!(
+            from == to,
+            "a KV cache prefills from one on its own device: {from:?}, not {to:?}"
         );
         if other.pos > 0 {
             for layer in 0..self.num_layers {
@@ -815,6 +873,8 @@ impl KVCache {
             ]
         );
 
+        self.expect_device("keys", &k);
+        self.expect_device("values", &v);
         let t0 = self.pos;
         let t1 = t0 + t_add;
         if let Some(max) = self.max_seq_len {
@@ -851,11 +911,7 @@ impl KVCache {
             return self.write_window(layer, window, t0, k, v);
         }
         let t1 = t0 + k.dims()[2];
-        let configured = self.storage;
-        let storage = *self
-            .resolved
-            .get_or_insert_with(|| configured.resolve(&k.device()));
-        match storage {
+        match self.storage {
             KVCacheStorage::MultiLayer => self.write_multi_layer(layer, t0, t1, k, v),
             KVCacheStorage::PerLayer => {
                 let key = self.keys[layer].take();
@@ -873,7 +929,7 @@ impl KVCache {
                 self.values[layer] = Some(v.clone());
                 (k, v)
             }
-            KVCacheStorage::Auto => unreachable!("resolved above"),
+            KVCacheStorage::Auto => unreachable!("resolved at init"),
         }
     }
 
@@ -1056,11 +1112,20 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::{
-        DeviceMemoryGuard,
-        cpu_device,
-        performance_device,
-        seeded_tensor,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                text,
+            },
+        },
+        support::testing::{
+            DeviceMemoryGuard,
+            cpu_device,
+            performance_device,
+            seeded_tensor,
+        },
     };
 
     /// The storages a cache can be pinned to.
@@ -1121,7 +1186,7 @@ mod tests {
         let mut source: KVCache =
             KVCacheConfig::new(1, num_heads, source_seq_len, head_dim, num_layers)
                 .with_storage(from)
-                .init();
+                .init(&device);
         let steps = fill(&mut source, filled, &device);
         assert_eq!(source.pos(), filled);
 
@@ -1129,7 +1194,7 @@ mod tests {
         let mut cache: KVCache =
             KVCacheConfig::new(batch, num_heads, source_seq_len, head_dim, num_layers)
                 .with_storage(to)
-                .init();
+                .init(&device);
         cache.prefill(&source);
         assert_eq!(cache.storage(), to, "{from:?} into {to:?}");
         assert_eq!(cache.pos(), filled);
@@ -1168,7 +1233,7 @@ mod tests {
             let mut cache = KVCacheConfig::new(batch, num_heads, 4, head_dim, num_layers)
                 .with_chunk_size(2)
                 .with_storage(storage)
-                .init();
+                .init(&device);
             let first = fill(&mut cache, 6, &device);
             cache.truncate(2);
             assert_eq!(cache.pos(), 2, "{storage:?}");
@@ -1198,7 +1263,7 @@ mod tests {
             let mut cache = KVCacheConfig::new(batch, heads, 4, head_dim, 2)
                 .with_storage(storage)
                 .with_layer_windows(vec![Some(3), None])
-                .init();
+                .init(&device);
             let step = |cache: &mut KVCache, at: usize, n: usize| {
                 let x = |layer: usize| {
                     Tensor::<1, Int>::arange(at as i64..(at + n) as i64, &device)
@@ -1238,7 +1303,7 @@ mod tests {
     fn test_window_truncate_reorder_prefill() {
         let device = cpu_device();
         let config = KVCacheConfig::new(2, 1, 4, 2, 1).with_layer_windows(vec![Some(3)]);
-        let mut cache = config.clone().init();
+        let mut cache = config.clone().init(&device);
         let rows = |values: [f32; 2], n: usize| {
             Tensor::<1>::from_floats(values, &device)
                 .reshape([2, 1, 1, 1])
@@ -1251,7 +1316,7 @@ mod tests {
         assert!(!cache.can_truncate(2) && !cache.can_truncate(6));
 
         cache.reorder(&[1, 1]);
-        let mut copy = config.clone().with_batch_size(2).init();
+        let mut copy = config.clone().with_batch_size(2).init(&device);
         copy.prefill(&cache);
         assert_eq!((copy.pos(), copy.retained_from()), (5, 3));
         let (k, _) = copy.insert_kv(0, rows([7.0, 7.0], 1), rows([7.0, 7.0], 1));
@@ -1275,7 +1340,7 @@ mod tests {
         let device = cpu_device();
         let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1)
             .with_layer_windows(vec![Some(3)])
-            .init();
+            .init(&device);
         let x = Tensor::<4>::zeros([1, 1, 5, 2], &device);
         cache.insert_kv(0, x.clone(), x);
         cache.truncate(2);
@@ -1284,7 +1349,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "cannot truncate")]
     fn test_truncate_past_the_position_panics() {
-        let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1).init();
+        let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1).init(&cpu_device());
         cache.truncate(1);
     }
 
@@ -1344,7 +1409,7 @@ mod tests {
             .with_seq_len(32)
             .with_chunk_size(8)
             .with_max_seq_len(Some(40));
-        let cache = config.init();
+        let cache = config.init(&cpu_device());
         assert_eq!(cache.batch_size(), 5);
         assert_eq!(cache.seq_len(), 32);
         assert_eq!(cache.chunk_size(), 8);
@@ -1353,16 +1418,73 @@ mod tests {
         // Whole chunks, a spare one, and never past the cap.
         assert_eq!(cache.allocation_size(33), 40);
         assert_eq!(cache.allocation_size(17), 32);
-        let uncapped = KVCacheConfig::new(1, 2, 16, 4, 3).with_chunk_size(8).init();
+        let uncapped = KVCacheConfig::new(1, 2, 16, 4, 3)
+            .with_chunk_size(8)
+            .init(&cpu_device());
         assert_eq!(uncapped.allocation_size(33), 48);
     }
 
+    /// A config whose fields disagree is refused, naming what is wrong.
     #[test]
-    #[should_panic(expected = "exceeds its max_seq_len")]
-    fn test_config_rejects_a_pre_size_past_its_cap() {
-        KVCacheConfig::new(1, 2, 16, 4, 3)
-            .with_max_seq_len(Some(8))
-            .init();
+    fn test_config_refuses_disagreeing_fields() {
+        let device = cpu_device();
+        let illegal = |config: KVCacheConfig, message: &str| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .display(text::eq(message))
+                .assert_err(&config.try_init(&device));
+        };
+        illegal(
+            KVCacheConfig::new(1, 2, 16, 4, 3).with_max_seq_len(Some(8)),
+            "a KV cache's seq_len (16) exceeds its max_seq_len (8)",
+        );
+        illegal(
+            KVCacheConfig::new(1, 2, 16, 4, 3).with_chunk_size(0),
+            "a KV cache's chunk_size must be positive",
+        );
+        illegal(
+            KVCacheConfig::new(1, 2, 16, 4, 3).with_layer_windows(vec![None]),
+            "a KV cache's layer_windows has 1 entries for 3 layers",
+        );
+        illegal(
+            KVCacheConfig::new(1, 2, 16, 4, 1).with_layer_windows(vec![Some(0)]),
+            "a KV cache layer's window must be positive",
+        );
+    }
+
+    /// A new cache has its storage resolved for its device, and is on that
+    /// device until it holds tensors, then on theirs.
+    #[test]
+    fn test_device_and_storage_at_init() {
+        let device = cpu_device();
+        let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1).init(&device);
+        assert_eq!(cache.storage(), KVCacheStorage::Auto.resolve(&device));
+        assert_ne!(cache.storage(), KVCacheStorage::Auto);
+        assert!(cache.device() == device);
+        let t = Tensor::<4>::zeros([1, 1, 2, 2], &device);
+        cache.insert_kv(0, t.clone(), t);
+        assert!(cache.device() == device);
+    }
+
+    /// A write from another device is refused, naming both: the cache never
+    /// moves data between devices. Runs where the test devices differ.
+    #[test]
+    #[serial]
+    fn test_a_write_from_another_device_panics() {
+        let (cpu, other) = (cpu_device(), performance_device());
+        if cpu == other {
+            return;
+        }
+        let _memory = DeviceMemoryGuard::new(&other);
+        let t = Tensor::<4>::zeros([1, 1, 2, 2], &other);
+        let written = std::panic::catch_unwind(core::panic::AssertUnwindSafe(|| {
+            let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1).init(&cpu);
+            cache.insert_kv(0, t.clone(), t.clone());
+        }));
+        let message = *written
+            .expect_err("a write from another device")
+            .downcast::<String>()
+            .expect("a formatted panic");
+        assert!(message.starts_with("a KV cache's keys on "), "{message}");
     }
 
     /// A capped cache grows to its cap, and no further: a decode may fill it
@@ -1377,7 +1499,7 @@ mod tests {
                 .with_chunk_size(4)
                 .with_max_seq_len(Some(6))
                 .with_storage(storage)
-                .init();
+                .init(&device);
             fill(&mut cache, 4, &device);
             fill(&mut cache, 2, &device);
             assert_eq!(cache.pos(), 6);
@@ -1392,7 +1514,7 @@ mod tests {
         let device = performance_device();
         let mut cache = KVCacheConfig::new(1, 2, 2, 4, 2)
             .with_max_seq_len(Some(4))
-            .init();
+            .init(&device);
         fill(&mut cache, 3, &device);
         fill(&mut cache, 2, &device);
     }
@@ -1405,12 +1527,12 @@ mod tests {
                 KVCacheConfig::new(1, 2, 16, 4, 3).with_max_seq_len(Some(64))
             }
         }
-        let cache = Model.new_kv_cache(7);
+        let cache = Model.new_kv_cache(7, &cpu_device());
         assert_eq!(cache.batch_size(), 7);
         assert_eq!(cache.num_layers(), 3);
         assert_eq!(cache.seq_len(), 16);
         assert_eq!(cache.max_seq_len(), Some(64));
-        assert_eq!(cache.storage(), KVCacheStorage::Auto);
+        assert_eq!(cache.storage(), KVCacheStorage::auto_for(&cpu_device()));
     }
 
     /// Every storage returns the same history through the same writes: a
@@ -1436,7 +1558,7 @@ mod tests {
             let mut cache = KVCacheConfig::new(batch, heads, 4, head_dim, layers)
                 .with_chunk_size(2)
                 .with_storage(storage)
-                .init();
+                .init(&device);
             let mut histories = Vec::new();
             for (i, &(t, reset)) in script.iter().enumerate() {
                 if reset {
@@ -1471,7 +1593,7 @@ mod tests {
         for storage in STORAGES {
             let mut cache = KVCacheConfig::new(6, heads, 4, head_dim, layers)
                 .with_storage(storage)
-                .init();
+                .init(&device);
             assert_eq!(cache.group(), 1);
             assert!(cache.cross_kv(0).is_none());
             assert_eq!(cache.dtype(), None);
@@ -1507,7 +1629,7 @@ mod tests {
     #[should_panic(expected = "not a whole multiple")]
     fn test_cross_kv_rows_must_divide_the_batch() {
         let device = cpu_device();
-        let mut cache = KVCacheConfig::new(5, 2, 4, 4, 1).init();
+        let mut cache = KVCacheConfig::new(5, 2, 4, 4, 1).init(&device);
         cache.set_cross_kv(
             0,
             Tensor::zeros([2, 2, 3, 4], &device),
@@ -1519,7 +1641,7 @@ mod tests {
     #[should_panic(expected = "shares one group")]
     fn test_cross_kv_layers_share_a_group() {
         let device = cpu_device();
-        let mut cache = KVCacheConfig::new(4, 2, 4, 4, 2).init();
+        let mut cache = KVCacheConfig::new(4, 2, 4, 4, 2).init(&device);
         cache.set_cross_kv(
             0,
             Tensor::zeros([2, 2, 3, 4], &device),
@@ -1546,7 +1668,7 @@ mod tests {
             let mut cache = KVCacheConfig::new(batch, heads, 2, head_dim, layers)
                 .with_chunk_size(2)
                 .with_storage(storage)
-                .init();
+                .init(&device);
             // 3 positions: past the pre-size, so the buffers have grown.
             let before: Vec<(Tensor<4>, Tensor<4>)> = (0..layers)
                 .map(|layer| {
@@ -1585,7 +1707,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "one source row per batch row")]
     fn test_reorder_takes_one_source_per_row() {
-        let mut cache = KVCacheConfig::new(3, 2, 4, 4, 1).init();
+        let mut cache = KVCacheConfig::new(3, 2, 4, 4, 1).init(&cpu_device());
         cache.reorder(&[0, 1]);
     }
 
@@ -1647,10 +1769,10 @@ mod tests {
         }
     }
 
-    /// `Auto` resolves on the first write, on the device of the first keys:
-    /// on the CPU, to `PerLayer`.
+    /// `Auto` resolves when the cache is built, for its device: on the CPU,
+    /// to `PerLayer`.
     #[test]
-    fn test_auto_resolves_on_the_first_write() {
+    fn test_auto_resolves_at_init() {
         let device = cpu_device();
         assert_eq!(KVCacheStorage::auto_for(&device), KVCacheStorage::PerLayer);
         assert_eq!(
@@ -1658,8 +1780,8 @@ mod tests {
             KVCacheStorage::Concat
         );
 
-        let mut cache = KVCacheConfig::new(1, 2, 4, 4, 1).init();
-        assert_eq!(cache.storage(), KVCacheStorage::Auto);
+        let mut cache = KVCacheConfig::new(1, 2, 4, 4, 1).init(&device);
+        assert_eq!(cache.storage(), KVCacheStorage::PerLayer);
         cache.insert_kv(
             0,
             Tensor::zeros([1, 2, 1, 4], &device),

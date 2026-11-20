@@ -40,10 +40,13 @@ use std::time::{
     Instant,
 };
 
-use bunsen::ops::transformers::attention::{
-    KVCache,
-    KVCacheConfig,
-    KVCacheStorage,
+use bunsen::{
+    burner::module::ModuleInit,
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
+        KVCacheStorage,
+    },
 };
 use bunsen_app::device::BackendArgs;
 use burn::{
@@ -236,7 +239,7 @@ impl History {
                 KVCacheConfig::new(batch, args.heads, args.steps, args.head_dim, args.layers)
                     .with_max_seq_len(Some(args.steps))
                     .with_storage(storage)
-                    .init(),
+                    .init(device),
             );
         }
         match strategy {

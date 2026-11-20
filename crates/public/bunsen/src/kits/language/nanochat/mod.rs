@@ -117,7 +117,7 @@
 //! assert_eq!(gpt.forward(ids, &mut None).dims(), [1, 8, 64]);
 //!
 //! // Decoding: the caller owns the cache, and passes it to every step.
-//! let mut cache = gpt.new_kv_cache(1);
+//! let mut cache = gpt.new_kv_cache(1, &device);
 //! let prompt = Tensor::<2, Int>::zeros([1, 4], &device);
 //! let _ = gpt.forward(prompt, &mut Some(&mut cache));
 //! let next = Tensor::<2, Int>::zeros([1, 1], &device);

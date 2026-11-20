@@ -348,7 +348,7 @@ mod tests {
         let r_emb = model.rotary(8, &device);
         let cond = model.delay_condition(6, &device);
         let whole = model.forward_hidden(embeds.clone(), &r_emb, &cond, None);
-        let mut cache = model.kv_cache_config().with_seq_len(8).init();
+        let mut cache = model.kv_cache_config().with_seq_len(8).init(&device);
         let head = model.forward_hidden(
             embeds.clone().slice_dim(1, 0..4),
             &r_emb,

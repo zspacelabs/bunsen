@@ -151,6 +151,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        burner::module::ModuleInit,
         ops::transformers::attention::KVCacheConfig,
         support::testing::cpu_device,
     };
@@ -166,7 +167,7 @@ mod tests {
 
     #[test]
     fn test_rewind_keeps_the_shared_prefix() {
-        let mut cache = KVCacheConfig::new(1, 1, 8, 2, 1).init();
+        let mut cache = KVCacheConfig::new(1, 1, 8, 2, 1).init(&cpu_device());
         let mut history = CachedHistory::new();
 
         let first = [1, 2, 3, 4];
@@ -206,7 +207,7 @@ mod tests {
         };
         let device = cpu_device();
         DecoderStackCache {
-            cache: KVCacheConfig::new(1, 1, 8, 2, 1).init(),
+            cache: KVCacheConfig::new(1, 1, 8, 2, 1).init(&device),
             linear: DeltaNetCache::new(vec![
                 DeltaNetStateConfig::new(1, 3, 2, 1, 2, 2).init(&device),
             ]),
@@ -283,7 +284,7 @@ mod tests {
     fn test_rewind_past_a_window_resets() {
         let mut cache = KVCacheConfig::new(1, 1, 8, 2, 1)
             .with_layer_windows(vec![Some(2)])
-            .init();
+            .init(&cpu_device());
         let mut history = CachedHistory::new();
         let first = [1, 2, 3, 4];
         let todo = history.rewind(&mut cache, &first);

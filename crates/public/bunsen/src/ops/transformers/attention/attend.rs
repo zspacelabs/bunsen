@@ -382,7 +382,7 @@ mod tests {
         batch: usize,
         seq: usize,
     ) -> KVCache {
-        super::super::KVCacheConfig::new(batch, mha.n_heads, seq, mha.d_k, 1).init()
+        super::super::KVCacheConfig::new(batch, mha.n_heads, seq, mha.d_k, 1).init(&cpu_device())
     }
 
     /// **The contract.** Stepping a sequence through the cache one token at a

@@ -54,6 +54,7 @@ use bunsen::{
         LmDecoderOps,
         LmKvForwardHidden,
     },
+    burner::module::ModuleInit,
     data::formats::LoadPolicy,
     kits::language::gemma::GemmaConstruct,
     ops::transformers::attention::{
@@ -367,7 +368,7 @@ pub fn bunsen_decode(
         .with_seq_len(CACHE_CHUNK)
         .with_chunk_size(CACHE_CHUNK)
         .with_storage(storage)
-        .init();
+        .init(device);
     let last = |ids: &[i64], cache: &mut _| {
         let tokens =
             Tensor::<2, Int>::from_data(TensorData::new(ids.to_vec(), [1, ids.len()]), device);

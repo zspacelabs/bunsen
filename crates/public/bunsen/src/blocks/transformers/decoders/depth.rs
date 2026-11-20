@@ -278,7 +278,7 @@ impl DepthDecoder {
         let k = self.codebooks();
         let device = context.device();
         let r_emb = self.rotary(p + k - 1, &device);
-        let mut cache = self.kv_cache_config(p).with_batch_size(b).init();
+        let mut cache = self.kv_cache_config(p).with_batch_size(b).init(&device);
         let last = |hidden: Tensor<3>| {
             let t = hidden.dims()[1];
             hidden.slice(s![.., t - 1..t, ..])

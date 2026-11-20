@@ -508,7 +508,7 @@ mod tests {
 
         let x = encoder.stem(features);
         let r_emb = encoder.rotary(10, &device);
-        let mut cache = encoder.kv_cache_config().with_seq_len(10).init();
+        let mut cache = encoder.kv_cache_config().with_seq_len(10).init(&device);
         let parts: Vec<Tensor<3>> = [0..3, 3..4, 4..10]
             .into_iter()
             .map(|r| encoder.forward_frames(x.clone().slice_dim(1, r), &r_emb, Some(&mut cache)))
