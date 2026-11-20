@@ -3,7 +3,15 @@
 use burn::{
     config::Config,
     module::Module,
-    prelude::Tensor,
+    prelude::{
+        Device,
+        Tensor,
+    },
+};
+
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
 };
 
 /// Common meta for [`PowOpModule`] and [`PowOpModuleConfig`].
@@ -25,13 +33,15 @@ impl PowOpModuleMeta for PowOpModuleConfig {
     }
 }
 
-impl PowOpModuleConfig {
-    /// The module; it has no parameters.
-    #[must_use]
-    pub fn init(&self) -> PowOpModule {
-        PowOpModule {
+/// The module; it has no parameters, so `device` is unused.
+impl ModuleInit<PowOpModule> for PowOpModuleConfig {
+    fn try_init(
+        &self,
+        _device: &Device,
+    ) -> BunsenResult<PowOpModule> {
+        Ok(PowOpModule {
             exponent: self.exponent,
-        }
+        })
     }
 }
 
@@ -75,7 +85,7 @@ mod tests {
     #[test]
     fn test_meta() {
         let config = PowOpModuleConfig::new(3.0);
-        let module = config.init();
+        let module = config.init(&cpu_device());
         assert_eq!(config.exponent(), 3.0);
         assert_eq!(module.exponent(), config.exponent());
     }
@@ -86,7 +96,7 @@ mod tests {
         let device = cpu_device();
         let x = Tensor::<1>::from_floats([-2.0, -0.5, 0.0, 1.0, 3.0], &device);
         PowOpModuleConfig::new(2.0)
-            .init()
+            .init(&device)
             .forward(x)
             .into_data()
             .assert_approx_eq::<f32>(

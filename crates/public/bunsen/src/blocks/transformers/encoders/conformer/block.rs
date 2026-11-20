@@ -3,7 +3,6 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::LayerNormConfig,
     prelude::Bool,
     tensor::Device,
 };
@@ -17,6 +16,7 @@ use super::{
 use crate::{
     blocks::{
         norm::{
+            BunsenLayerNormConfig,
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
@@ -79,7 +79,7 @@ pub struct ConformerBlockConfig {
     /// The normalization before each module and after the block, sized to
     /// `d_model` whatever feature count it names: a `LayerNorm` by default,
     /// the Conformer's.
-    #[config(default = "BunsenNormalizationConfig::Layer(LayerNormConfig::new(0))")]
+    #[config(default = "BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0))")]
     pub norm: BunsenNormalizationConfig,
 }
 

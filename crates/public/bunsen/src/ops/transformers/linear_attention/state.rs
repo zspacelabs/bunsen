@@ -16,6 +16,14 @@ use burn::{
     },
 };
 
+use crate::{
+    burner::module::ModuleInit,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+};
+
 /// Config for [`DeltaNetState`]: the decode's rows, and the layer's
 /// convolution and delta-rule geometry.
 #[derive(Config, Debug)]
@@ -39,22 +47,27 @@ pub struct DeltaNetStateConfig {
     pub value_dim: usize,
 }
 
-impl DeltaNetStateConfig {
-    /// A state of zeros, the start of a sequence, in f32.
-    pub fn init(
+/// A state of zeros, the start of a sequence, in f32.
+///
+/// # Errors
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a `conv_kernel`
+/// below 2.
+impl ModuleInit<DeltaNetState> for DeltaNetStateConfig {
+    fn try_init(
         &self,
         device: &Device,
-    ) -> DeltaNetState {
-        assert!(
-            self.conv_kernel >= 2,
-            "a causal convolution of at least 2 taps; got {}",
-            self.conv_kernel
-        );
+    ) -> BunsenResult<DeltaNetState> {
+        if self.conv_kernel < 2 {
+            return Err(BunsenError::illegal(format!(
+                "a causal convolution of at least 2 taps; got {}",
+                self.conv_kernel
+            )));
+        }
         let f32 = (device, FloatDType::F32.into());
-        DeltaNetState {
+        Ok(DeltaNetState {
             conv: Tensor::zeros([self.rows, self.conv_kernel - 1, self.conv_channels], f32),
             recurrent: Tensor::zeros([self.rows, self.heads, self.key_dim, self.value_dim], f32),
-        }
+        })
     }
 }
 
@@ -234,9 +247,18 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        cpu_device,
-        seeded_tensor,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                text,
+            },
+        },
+        support::testing::{
+            cpu_device,
+            seeded_tensor,
+        },
     };
 
     fn state() -> DeltaNetState {
@@ -259,6 +281,14 @@ mod tests {
             assert_eq!(dtype, DType::F32);
         }
         assert_eq!(state.recurrent.abs().max().into_scalar::<f32>(), 0.0);
+    }
+
+    /// A convolution of fewer than 2 taps is refused.
+    #[test]
+    fn test_init_refuses_a_short_kernel() {
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq("a causal convolution of at least 2 taps; got 1"))
+            .assert_err(&DeltaNetStateConfig::new(2, 10, 1, 3, 5, 6).try_init(&cpu_device()));
     }
 
     /// Row `r` takes row `sources[r]`'s convolution inputs and delta-rule

@@ -7,7 +7,6 @@ use burn::{
         Param,
     },
     nn::{
-        LayerNormConfig,
         Linear,
         LinearConfig,
     },
@@ -23,7 +22,10 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         layout::BoundaryPermutes,
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         signals::{
             DwStridingSubsamplingConfig,
             EncoderSubsamplingConfig,
@@ -274,7 +276,7 @@ impl NemotronDiarizationConfig {
     /// `rotate_half` convention; a biased `Linear -> GELU -> Linear`
     /// feed-forward.
     pub fn encoder_stack(&self) -> UniformStackConfig {
-        let norm = BunsenNormalizationConfig::Layer(LayerNormConfig::new(0));
+        let norm = BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0));
         UniformStackConfig::new(
             self.n_layers,
             CausalDecoderBlockConfig::new(

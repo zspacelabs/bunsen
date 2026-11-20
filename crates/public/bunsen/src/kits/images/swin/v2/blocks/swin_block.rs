@@ -495,7 +495,7 @@ impl ModuleInit<ShiftedWindowTransformerBlock> for ShiftedWindowTransformerBlock
             shift_mask,
             drop_path: DropPathConfig::new()
                 .with_drop_prob(self.drop_path_rate)
-                .init(),
+                .init(device),
             norm1: LayerNormConfig::new(self.d_input).init(device),
             norm2: LayerNormConfig::new(self.d_input).init(device),
             win_attn,

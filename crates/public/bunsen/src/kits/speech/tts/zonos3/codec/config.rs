@@ -2,16 +2,16 @@
 
 use alloc::vec::Vec;
 
-use burn::{
-    config::Config,
-    nn::LayerNormConfig,
-};
+use burn::config::Config;
 use serde::Deserialize;
 
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
             decoders::{
@@ -140,7 +140,7 @@ impl Zonos3CodecStageConfig {
                 .into(),
         )
         .with_norm(BunsenNormalizationConfig::Layer(
-            LayerNormConfig::new(0).with_epsilon(1e-5),
+            BunsenLayerNormConfig::new(0).with_epsilon(1e-5),
         ))
         .with_layer_scale(true);
         let head_dim = self.width / self.n_heads;

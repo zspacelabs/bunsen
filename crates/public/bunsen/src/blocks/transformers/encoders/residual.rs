@@ -6,12 +6,9 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        LayerNormConfig,
-        attention::{
-            MultiHeadAttention,
-            MultiHeadAttentionConfig,
-        },
+    nn::attention::{
+        MultiHeadAttention,
+        MultiHeadAttentionConfig,
     },
     tensor::Device,
 };
@@ -19,7 +16,10 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             mlp::{
                 TransformerMlp,
@@ -99,7 +99,7 @@ pub struct ResidualEncoderAttentionBlockConfig {
 
     /// The normalization of each sublayer, sized to `d_model` whatever
     /// feature count it names; `None` normalizes nothing, and builds no norm.
-    #[config(default = "Some(BunsenNormalizationConfig::Layer(LayerNormConfig::new(0)))")]
+    #[config(default = "Some(BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0)))")]
     pub norm: Option<BunsenNormalizationConfig>,
 
     /// Where the block normalizes, when it does.

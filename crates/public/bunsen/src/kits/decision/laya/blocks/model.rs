@@ -4,7 +4,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LayerNormConfig,
         Linear,
         LinearConfig,
     },
@@ -29,7 +28,10 @@ use serde::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        norm::LayerNorm,
+        norm::{
+            BunsenLayerNormConfig,
+            LayerNorm,
+        },
         transformers::{
             embedding::{
                 TokenEmbedding,
@@ -147,7 +149,7 @@ impl ModuleInit<LayaModel> for LayaConfig {
             type_emb: TokenEmbeddingConfig::new(LayaQuestionKind::ALL.len(), d).try_init(device)?,
             head,
             scorer: LayaScorer {
-                norm: LayerNorm::init(&LayerNormConfig::new(d), device),
+                norm: BunsenLayerNormConfig::new(d).init(device),
                 dense: LinearConfig::new(d, d).init(device),
                 out: LinearConfig::new(d, 1).init(device),
             },
