@@ -9,10 +9,7 @@ use super::{
 };
 use crate::{
     blocks::transformers::{
-        decoders::causal::{
-            CausalDecoderBlock,
-            DecoderLayerKeys,
-        },
+        decoders::causal::CausalDecoderBlock,
         embedding::RopeScaling,
     },
     burner::module::{
@@ -27,7 +24,10 @@ use crate::{
     },
     kits::support::{
         construct::load_lm_rekeyed,
-        interop::transformers::TransformersConfigJson,
+        interop::transformers::{
+            TransformersConfigJson,
+            llama_layer_keys,
+        },
     },
 };
 
@@ -48,11 +48,11 @@ pub const GEMMA_TEXT_PREFIXES: [&str; 3] =
 pub fn text_layer_rekey(post_norms: bool) -> Rekey {
     if post_norms {
         CausalDecoderBlock::layer_rekey(
-            &DecoderLayerKeys::llama("input_layernorm", "pre_feedforward_layernorm")
+            &llama_layer_keys("input_layernorm", "pre_feedforward_layernorm")
                 .with_post_norms("post_attention_layernorm", "post_feedforward_layernorm"),
         )
     } else {
-        CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+        CausalDecoderBlock::layer_rekey(&llama_layer_keys(
             "input_layernorm",
             "post_attention_layernorm",
         ))

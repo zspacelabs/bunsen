@@ -6,10 +6,7 @@ use super::{
     Qwen3Model,
 };
 use crate::{
-    blocks::transformers::decoders::causal::{
-        CausalDecoderBlock,
-        DecoderLayerKeys,
-    },
+    blocks::transformers::decoders::causal::CausalDecoderBlock,
     burner::module::Rekey,
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
@@ -18,6 +15,7 @@ use crate::{
         interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
+            llama_layer_keys,
         },
     },
 };
@@ -29,7 +27,7 @@ use crate::{
 /// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
 /// QK-norms, and the `SwiGLU`'s projections as they are.
 pub fn text_layer_rekey() -> Rekey {
-    CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+    CausalDecoderBlock::layer_rekey(&llama_layer_keys(
         "input_layernorm",
         "post_attention_layernorm",
     ))
