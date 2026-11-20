@@ -73,6 +73,13 @@
 //!   options make the shared block unreadable:
 //!   [`CausalSelfAttentionConfig`](transformers::attention::csa::CausalSelfAttentionConfig)
 //!   carries the encoders' two-sided window as an option.
+//! - **A two-layer position-wise network is a [`BunsenMlp`](mlp::BunsenMlp) or
+//!   a [`BunsenGatedMlp`](mlp::BunsenGatedMlp)**, never a hand-rolled pair of
+//!   linears: a transformer's feed-forward, a projector between towers, a
+//!   conditioning scale, a position-bias table. Its widths, activation, biases
+//!   and dropout are its config's; a checkpoint's names for its parts are its
+//!   kit's interop's rekey. One block then carries the MLP's shape contract and
+//!   dtype traits for every model.
 //! - **A wrapper module never implements `Deref` or `DerefMut` to its inner
 //!   module**; callers reach through the field
 //!   ([`ResidualSublayer`](transformers::sublayer::ResidualSublayer)'s

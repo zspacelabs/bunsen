@@ -102,7 +102,8 @@ in one of three ways:
    the first one. [`ConvBlock1d`](bunsen::blocks::conv::ConvBlock1d) and
    [`ConvSeq1d`](bunsen::blocks::conv::ConvSeq1d) serve both Whisper and
    Silero VAD, and [`BunsenMlp`](bunsen::blocks::mlp::BunsenMlp) serves
-   both Whisper and NanoChat. The language models share their ends:
+   Whisper, NanoChat, Conformer, Swin, Qwen3-TTS's text projection and
+   Qwen3-ASR's projector. The language models share their ends:
    [`LmHead`](bunsen::blocks::transformers::head::LmHead) (tied or its own,
    with an optional logit soft-cap) serves Qwen3, Gemma, NanoChat and
    Voxtral, and
