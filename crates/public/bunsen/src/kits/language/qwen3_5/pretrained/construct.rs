@@ -26,11 +26,11 @@ use crate::{
         },
         support::{
             interop::transformers::TransformersConfigJson,
-            model_config::{
+            pretrained::{
                 ProbeSpec,
+                TransformersLmKit,
                 probe_loaded,
             },
-            pretrained::TransformersLmKit,
         },
     },
 };

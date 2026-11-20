@@ -1,4 +1,4 @@
-//! Probes: readers of a pretrained's files that find its presets' values.
+//! Probes: what a pretrained's files say of its presets' values.
 
 use alloc::fmt;
 
@@ -8,9 +8,15 @@ use serde_json::{
     json,
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::support::interop::transformers::{
+        TransformersGenerationConfigMirror,
+        TransformersTokenizerConfigMirror,
+    },
 };
 
 /// One probe of a pretrained's files: a named reader of one of its files,
@@ -75,7 +81,7 @@ fn no_token(
 /// several) and the sampling (`do_sample`, `temperature`, `top_k`, `top_p`,
 /// `min_p`; the argmax without `do_sample`), and `max_new_tokens` when it
 /// names one. Its patch is under `generation`
-/// ([`GenerationPolicy`](super::GenerationPolicy)).
+/// ([`GenerationPolicy`](crate::kits::support::model_config::GenerationPolicy)).
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct GenerationConfigProbe;
 
@@ -90,30 +96,14 @@ impl Probe for GenerationConfigProbe {
         entry: &ProbeSpec,
     ) -> BunsenResult<Value> {
         no_token(self.name(), entry.token.as_deref())?;
-        let c = read_json(file, "a generation_config.json")?;
+        let c = TransformersGenerationConfigMirror::from_slice(file)?;
         let mut generation = Map::new();
-        match c.get("eos_token_id") {
-            Some(Value::Array(ids)) => {
-                generation.insert("stop_ids".into(), Value::Array(ids.clone()));
-            }
-            Some(id @ Value::Number(_)) => {
-                generation.insert("stop_ids".into(), json!([id]));
-            }
-            _ => {}
+        if let Some(ids) = c.stop_ids() {
+            generation.insert("stop_ids".into(), json!(ids));
         }
-        let sampling = if c.get("do_sample").and_then(Value::as_bool) == Some(true) {
-            json!({
-                "temperature": c.get("temperature").cloned().unwrap_or(json!(1.0)),
-                "top_k": c.get("top_k").cloned().unwrap_or(Value::Null),
-                "top_p": c.get("top_p").cloned().unwrap_or(Value::Null),
-                "min_p": c.get("min_p").cloned().unwrap_or(Value::Null),
-            })
-        } else {
-            Value::Null
-        };
-        generation.insert("sampling".into(), sampling);
-        if let Some(n) = c.get("max_new_tokens").filter(|v| v.is_u64()) {
-            generation.insert("max_new_tokens".into(), n.clone());
+        generation.insert("sampling".into(), json!(c.sampling_policy()));
+        if let Some(n) = c.max_new_tokens {
+            generation.insert("max_new_tokens".into(), json!(n));
         }
         Ok(json!({ "generation": generation }))
     }
@@ -136,42 +126,30 @@ impl Probe for TokenizerConfigProbe {
         file: &[u8],
         entry: &ProbeSpec,
     ) -> BunsenResult<Value> {
-        let c = read_json(file, "a tokenizer_config.json")?;
-        let eos = match (entry.token.as_deref(), c.get("eos_token")) {
+        let c = TransformersTokenizerConfigMirror::from_slice(file)?;
+        let eos = match (entry.token.as_deref(), c.eos_spelling()) {
             (Some(token), _) => token,
-            (None, Some(Value::String(s))) => s.as_str(),
-            (None, Some(Value::Object(o))) => {
-                o.get("content").and_then(Value::as_str).unwrap_or("")
-            }
-            _ => {
+            (None, Some(spelling)) => spelling,
+            (None, None) => {
                 return Err(BunsenError::invalid_resource(
                     "a tokenizer_config.json without an `eos_token`",
                 ));
             }
         };
-        let id = c
-            .get("added_tokens_decoder")
-            .and_then(Value::as_object)
-            .and_then(|tokens| {
-                tokens.iter().find_map(|(id, t)| {
-                    (t.get("content").and_then(Value::as_str) == Some(eos))
-                        .then(|| id.parse::<i64>().ok())
-                        .flatten()
-                })
-            })
-            .ok_or_else(|| {
-                BunsenError::invalid_resource(format!(
-                    "a tokenizer_config.json whose stop token {eos:?} is no added token"
-                ))
-            })?;
+        let id = c.added_token_id(eos).ok_or_else(|| {
+            BunsenError::invalid_resource(format!(
+                "a tokenizer_config.json whose stop token {eos:?} is no added token"
+            ))
+        })?;
         Ok(json!({ "generation": { "stop_ids": [id] } }))
     }
 }
 
 /// A chat template's file: a `tokenizer_config.json` that holds a
 /// `chat_template`, or a template file of its own (`chat_template.jinja`),
-/// as the row's [`ChatTemplateSource::File`](super::ChatTemplateSource) by
-/// its resource key; a `tokenizer_config.json` without one says nothing.
+/// as the row's
+/// [`ChatTemplateSource::File`](crate::kits::support::model_config::ChatTemplateSource)
+/// by its resource key; a `tokenizer_config.json` without one says nothing.
 /// Its patch is under `generation`.
 ///
 /// Probed after a `tokenizer_config.json`, a `chat_template.jinja` is the
@@ -190,8 +168,12 @@ impl Probe for ChatTemplateProbe {
         entry: &ProbeSpec,
     ) -> BunsenResult<Value> {
         no_token(self.name(), entry.token.as_deref())?;
+        // A `tokenizer_config.json` says whether it holds a template; any
+        // other file is a template's own source, unless it is empty.
         let holds = match serde_json::from_slice::<Value>(file) {
-            Ok(Value::Object(config)) => config.get("chat_template").is_some_and(Value::is_string),
+            Ok(Value::Object(_)) => {
+                TransformersTokenizerConfigMirror::from_slice(file)?.holds_chat_template()
+            }
             _ => !core::str::from_utf8(file)
                 .map_err(|e| {
                     BunsenError::invalid_resource("a chat template that is not UTF-8").with_cause(e)
@@ -204,21 +186,6 @@ impl Probe for ChatTemplateProbe {
         } else {
             json!({})
         })
-    }
-}
-
-fn read_json(
-    file: &[u8],
-    what: &'static str,
-) -> BunsenResult<Value> {
-    let value: Value = serde_json::from_slice(file)
-        .map_err(|e| BunsenError::invalid_resource(what).with_cause(e))?;
-    if value.is_object() {
-        Ok(value)
-    } else {
-        Err(BunsenError::invalid_resource(format!(
-            "{what} that is not an object"
-        )))
     }
 }
 

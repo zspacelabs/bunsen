@@ -4,6 +4,10 @@
 //!   of it, read field by field, each error naming the field's dotted path. A
 //!   kit's `interop::transformers` converts it into the kit's configs.
 //! - [`TransformersDecoderSection`]: the fields every decoder section has.
+//! - [`TransformersGenerationConfigMirror`] (`generation_config.json`: the stop
+//!   ids and the sampling) and [`TransformersTokenizerConfigMirror`]
+//!   (`tokenizer_config.json`: the tokens and the chat template), the files the
+//!   catalog's probes read.
 //! - [`llama_layer_keys`]: the Llama line's decoder-layer key set, which
 //!   `blocks`' generic [`CausalDecoderBlock::layer_rekey`] maps onto a block.
 //! - [`config_from_str`] and [`config_from_path`]: a conversion over a
@@ -25,11 +29,15 @@ use crate::errors::{
 
 mod config_json;
 mod decoder_section;
+mod generation_config;
 mod layer_keys;
+mod tokenizer_config;
 
 pub use config_json::*;
 pub use decoder_section::*;
+pub use generation_config::*;
 pub use layer_keys::*;
+pub use tokenizer_config::*;
 
 #[cfg(feature = "store")]
 mod weights;
