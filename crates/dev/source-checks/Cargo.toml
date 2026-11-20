@@ -1,0 +1,22 @@
+[package]
+name = "source-checks"
+description = "Checks the repository's source layout that the compiler can't: where external-format code lives in `bunsen::kits`."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde-saphyr = { workspace = true }
+syn = { workspace = true, features = ["full", "visit", "printing"] }
+
+[lints]
+workspace = true
