@@ -54,7 +54,7 @@ use crate::{
             },
         },
         support::{
-            model_config::TransformersConfigJson,
+            interop::transformers::TransformersConfigJson,
             text::BunsenLanguageTag,
             tokens::{
                 Detokenizer,

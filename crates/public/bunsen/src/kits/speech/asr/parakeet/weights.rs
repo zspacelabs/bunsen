@@ -27,7 +27,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::model_config::TransformersConfigJson,
+    kits::support::interop::transformers::TransformersConfigJson,
 };
 
 /// `transformers`' `ParakeetEncoderSubsampling` names onto a

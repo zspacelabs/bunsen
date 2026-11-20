@@ -11,7 +11,7 @@ use crate::{
     },
     kits::{
         language::qwen3::Qwen3Config,
-        support::model_config::{
+        support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
         },

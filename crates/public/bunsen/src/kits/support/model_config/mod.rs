@@ -1,12 +1,11 @@
 //! # Model config: what a model is configured from
 //!
-//! The config side of a kit, apart from building: reading the configs a
-//! checkpoint ships with into a kit's own. Building a model from its config
-//! is `construct`'s (feature `cache`).
+//! The config side of a kit, apart from building and from reading an
+//! upstream's files: presets, generation policy, and the catalog's probes.
+//! Reading a checkpoint's own configs is
+//! [`interop`](super::interop)'s; building a model from its config is
+//! `construct`'s (feature `cache`).
 //!
-//! - [`TransformersConfigJson`]: a `transformers` `config.json`, or one section
-//!   of it, read field by field, each error naming the field's dotted path. The
-//!   kits' `hf:` readers map it onto their configs.
 //! - [`resolve_presets`]: a config resolved through a pretrained's presets
 //!   ([`ResolvedPresetSet`](crate::data::catalog::presets::ResolvedPresetSet))
 //!   as a [`PresetSelection`](crate::data::catalog::presets::PresetSelection)
@@ -26,11 +25,7 @@
 mod generation;
 mod presets;
 mod probes;
-mod transformers_config;
-mod transformers_decoder_section;
 
 pub use generation::*;
 pub use presets::*;
 pub use probes::*;
-pub use transformers_config::*;
-pub use transformers_decoder_section::*;

@@ -20,7 +20,7 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    kits::support::model_config::TransformersConfigJson,
+    kits::support::interop::transformers::TransformersConfigJson,
     ops::transformers::attention::{
         KVCacheModel,
         testing::KV_CACHE_STORAGES,

@@ -36,7 +36,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::support::model_config::TransformersConfigJson,
+    kits::support::interop::transformers::TransformersConfigJson,
     ops::transformers::attention::KVCacheModel,
 };
 

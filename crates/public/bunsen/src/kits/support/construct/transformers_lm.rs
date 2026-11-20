@@ -51,9 +51,9 @@ use crate::{
         BunsenResult,
         sys_at,
     },
-    kits::support::model_config::{
-        TransformersConfigJson,
-        resolve_ref_presets,
+    kits::support::{
+        interop::transformers::TransformersConfigJson,
+        model_config::resolve_ref_presets,
     },
 };
 

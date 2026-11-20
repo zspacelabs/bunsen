@@ -25,7 +25,7 @@ use crate::{
             conformer_encoder_rekey,
             transformer_encoder_rekey,
         },
-        support::model_config::TransformersConfigJson,
+        support::interop::transformers::TransformersConfigJson,
     },
 };
 

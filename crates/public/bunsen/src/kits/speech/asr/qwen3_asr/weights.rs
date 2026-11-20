@@ -26,7 +26,7 @@ use crate::{
             qwen3_config_from_transformers_section,
             text_layer_rekey,
         },
-        support::model_config::TransformersConfigJson,
+        support::interop::transformers::TransformersConfigJson,
     },
 };
 
