@@ -29,23 +29,18 @@
 //!   [`EmissionPolicy`](crate::kits::speech::asr::driver::EmissionPolicy).
 //! - [`pretrained`] (features `store` and `cache`): the index of named
 //!   checkpoints, `fermion/phonon-2` the default, and the factory that loads
-//!   one into a construct. `read_phonon2_archive` (feature `store`) reads
-//!   Phonon-2's archive through the shared
-//!   [`fermion`](crate::data::formats::fermion) readers.
-//! - [`weights`] (feature `store`): loading tensors named as `transformers`'
-//!   `ParakeetForTDT` state dict, the names every Parakeet checkpoint format
-//!   here is read under.
+//!   one into a construct.
+//! - [`interop`]: its checkpoints' ecosystems: [`interop::transformers`], a
+//!   `ParakeetForTDT`'s `config.json` and state-dict names, the names every
+//!   Parakeet checkpoint here is read under; [`interop::phonon`], a Phonon-2
+//!   archive's weights and vocabulary.
 
 pub mod blocks;
 
-#[cfg(feature = "store")]
-mod archive;
 mod construct;
 mod decode;
 mod engine;
 mod vocab;
-#[cfg(feature = "store")]
-pub use archive::*;
 pub use construct::*;
 pub use decode::*;
 pub use engine::*;
@@ -66,8 +61,8 @@ pub use crate::kits::speech::nemo::NemoMelFrontEndMeta as ParakeetFrontEndMeta;
 
 #[cfg(feature = "store")]
 pub mod pretrained;
-#[cfg(feature = "store")]
-pub mod weights;
+
+pub mod interop;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;

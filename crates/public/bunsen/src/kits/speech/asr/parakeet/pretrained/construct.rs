@@ -12,7 +12,6 @@ use super::{
     VOCABULARY,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
@@ -20,7 +19,6 @@ use crate::{
             ConstructInit,
         },
         catalog::presets::ResolvedPresetSet,
-        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -30,18 +28,15 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::{
         speech::asr::parakeet::{
             ParakeetConstruct,
             ParakeetPolicy,
-            ParakeetTdt,
             ParakeetTdtConfig,
-            ParakeetVocabulary,
-            weights::{
-                load_transformers_tensors,
-                parakeet_config_from_transformers,
+            interop::{
+                phonon,
+                transformers,
             },
         },
         support::model_config::resolve_ref_presets,
@@ -76,31 +71,13 @@ impl ParakeetReader {
             ))),
         }
     }
-
-    /// Reads the weights and the vocabulary.
-    fn read(
-        self,
-        loaded: &LoadedResourceSet,
-    ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ParakeetVocabulary)> {
-        match self {
-            Self::PhononArchive => {
-                crate::kits::speech::asr::parakeet::read_phonon2_archive(loaded.expect(CHECKPOINT)?)
-            }
-            Self::Safetensors => {
-                let tokenizer = loaded.expect(VOCABULARY)?;
-                let json = std::fs::read_to_string(tokenizer).map_err(sys_at("read", tokenizer))?;
-                let vocab = ParakeetVocabulary::from_tokenizer_json(&json)
-                    .map_err(|e| e.context(tokenizer.display()))?;
-                let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-                Ok((tensors, vocab))
-            }
-        }
-    }
 }
 
 /// How a Parakeet pretrained is built: its checkpoint read by the
 /// [`ParakeetReader`] its `kind` names, into the geometry its `config.json`
-/// gives ([`parakeet_config_from_transformers`]; `parakeet-tdt-0.6b-v3`'s when
+/// gives
+/// ([`parakeet_tdt_config_from_path`](transformers::parakeet_tdt_config_from_path);
+/// `parakeet-tdt-0.6b-v3`'s when
 /// the map has none), with its vocabulary, behind the default front end.
 ///
 /// The Parakeet kit's construct config: its [`ConstructInit`] hook.
@@ -153,27 +130,25 @@ impl ConstructInit for ParakeetConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<ParakeetConstruct>> {
-        let (tensors, vocab) = self.reader.read(loaded)?;
         let config = match loaded.get(CONFIG) {
-            Some(part) => {
-                let json =
-                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                parakeet_config_from_transformers(&json)
-                    .map_err(|e| e.context(part.path.display()))?
-            }
+            Some(part) => transformers::parakeet_tdt_config_from_path(&part.path)?,
             None => ParakeetTdtConfig::tdt_0_6b_v3(),
+        };
+        let (asr, vocab) = match self.reader {
+            ParakeetReader::Safetensors => {
+                transformers::load_parakeet_tdt(loaded, &config, device, load)?
+            }
+            ParakeetReader::PhononArchive => {
+                phonon::load_parakeet_tdt(loaded, &config, device, load)?
+            }
         };
         let policy = resolve_ref_presets(
             &ParakeetPolicy::default(),
             model,
             &ResolvedPresetSet::default(),
         )?;
-        let mut model: ParakeetTdt = config.try_init(device)?;
-        load_transformers_tensors(&mut model, tensors)?;
-        // The files' precision (f32), or wider as the policy asks.
-        let model = load.place(model, device, |_| true)?;
         Ok(Arc::new(
-            ParakeetConstruct::new(model, vocab, device)?
+            ParakeetConstruct::new(asr, vocab, device)?
                 .with_policy(policy.config.clone(), policy.applied()),
         ))
     }

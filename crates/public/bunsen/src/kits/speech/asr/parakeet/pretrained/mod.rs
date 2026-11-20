@@ -26,8 +26,9 @@
 //! resolves a name to a deferred model carrying [`ParakeetConstructConfig`],
 //! the hook its checkpoint's `kind` calls for, brings every file local through
 //! the cache, and reads them into a `parakeet-tdt-0.6b-v3`-shaped
-//! [`ParakeetTdt`](super::ParakeetTdt) through
-//! [`load_transformers_tensors`](super::weights::load_transformers_tensors).
+//! [`ParakeetTdt`](super::ParakeetTdt) through its source's
+//! `load_parakeet_tdt` ([`interop::transformers`](super::interop::transformers)
+//! or [`interop::phonon`](super::interop::phonon)).
 
 mod construct;
 mod providers;

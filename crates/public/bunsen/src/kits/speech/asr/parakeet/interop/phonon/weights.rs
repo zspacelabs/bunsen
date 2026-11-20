@@ -1,9 +1,8 @@
-//! Phonon-2's archive.
+//! Reading a `FermionResearch` Phonon-2 archive.
 use std::path::Path;
 
 use burn::store::burn_pack::Tensor as PackTensor;
 
-use super::ParakeetVocabulary;
 use crate::{
     data::formats::fermion::{
         PhononArchive,
@@ -13,6 +12,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    kits::speech::asr::parakeet::ParakeetVocabulary,
 };
 
 /// The container inside Phonon-2's archive.
@@ -49,4 +49,28 @@ pub fn read_phonon2_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, Parak
         ))
     };
     read().map_err(|e| e.context(path.display()))
+}
+
+/// The model of `loaded`'s Phonon-2 archive (its `checkpoint`), built from
+/// `config`, and the vocabulary the archive carries: the weights in the
+/// files' precision (f32), or wider as `policy` asks.
+///
+/// # Errors
+/// As [`read_phonon2_archive`], and as the `transformers` loader.
+#[cfg(feature = "cache")]
+pub fn load_parakeet_tdt(
+    loaded: &crate::data::resources::LoadedResourceSet,
+    config: &crate::kits::speech::asr::parakeet::ParakeetTdtConfig,
+    device: &burn::tensor::Device,
+    policy: crate::data::formats::LoadPolicy,
+) -> BunsenResult<(
+    crate::kits::speech::asr::parakeet::ParakeetTdt,
+    ParakeetVocabulary,
+)> {
+    use crate::kits::speech::asr::parakeet::{
+        interop::transformers::build_parakeet_tdt,
+        pretrained::CHECKPOINT,
+    };
+    let (tensors, vocab) = read_phonon2_archive(loaded.expect(CHECKPOINT)?)?;
+    Ok((build_parakeet_tdt(tensors, config, device, policy)?, vocab))
 }
