@@ -27,7 +27,7 @@ use crate::{
     },
     kits::support::{
         construct::load_lm_rekeyed,
-        model_config::TransformersConfigJson,
+        interop::transformers::TransformersConfigJson,
     },
 };
 

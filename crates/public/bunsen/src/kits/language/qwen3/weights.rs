@@ -15,7 +15,7 @@ use crate::{
     errors::BunsenResult,
     kits::support::{
         construct::load_lm_rekeyed,
-        model_config::{
+        interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
         },

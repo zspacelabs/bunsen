@@ -19,9 +19,11 @@
 //! - [`catalog_contracts`]: each kit's build-catalog contract, the signature
 //!   its loader implements, gathered for the catalog builder (with `store`, as
 //!   the pretrained indexes are).
-//! - [`model_config`]: the config side, apart from building: reading the
-//!   configs a checkpoint ships with, such as a `transformers` `config.json`
-//!   ([`TransformersConfigJson`](model_config::TransformersConfigJson)).
+//! - [`interop`]: what an external ecosystem's files and names mean, for any
+//!   kit: a `transformers` `config.json`
+//!   ([`TransformersConfigJson`](interop::transformers::TransformersConfigJson)).
+//! - [`model_config`]: the config side, apart from building and from an
+//!   upstream's files: presets, generation policy, the catalog's probes.
 //! - [`text`]: text normalization ([`TextNormalizer`](text::TextNormalizer),
 //!   the chain, the normalizers bunsen ships) and language tags
 //!   ([`BunsenLanguageTag`](text::BunsenLanguageTag)).
@@ -30,6 +32,7 @@
 pub mod catalog_contracts;
 pub mod construct;
 pub mod decoding;
+pub mod interop;
 pub mod model_config;
 pub mod text;
 pub mod tokens;

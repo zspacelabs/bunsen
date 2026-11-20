@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    kits::support::model_config::TransformersConfigJson,
+    kits::support::interop::transformers::TransformersConfigJson,
     support::testing::{
         ToyFixture,
         assert_io_close,

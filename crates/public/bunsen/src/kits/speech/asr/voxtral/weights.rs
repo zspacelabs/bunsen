@@ -23,7 +23,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::qwen3::weights::text_layer_rekey,
-        support::model_config::{
+        support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
         },

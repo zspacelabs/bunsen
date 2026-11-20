@@ -69,7 +69,7 @@ use crate::{
             weights::load_qwen3_tts_model_tensors,
         },
         support::{
-            model_config::TransformersConfigJson,
+            interop::transformers::TransformersConfigJson,
             text::BunsenLanguageTag,
         },
     },

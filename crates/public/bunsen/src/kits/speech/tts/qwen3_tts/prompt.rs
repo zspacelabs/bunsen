@@ -562,7 +562,7 @@ mod toy_tests {
                 Qwen3TtsTalkerConfig,
                 weights::load_qwen3_tts_talker_tensors,
             },
-            support::model_config::TransformersConfigJson,
+            support::interop::transformers::TransformersConfigJson,
         },
         support::testing::{
             ToyFixture,

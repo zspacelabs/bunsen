@@ -1,9 +1,7 @@
 //! The decoder fields a `transformers` config section shares.
 
-use crate::{
-    errors::BunsenResult,
-    kits::support::model_config::TransformersConfigJson,
-};
+use super::TransformersConfigJson;
+use crate::errors::BunsenResult;
 
 /// What a `transformers` decoder stack's config section says, in the
 /// spellings its families use: a whole `config.json` of a causal LM, or the
