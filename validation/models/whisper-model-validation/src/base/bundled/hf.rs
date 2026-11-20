@@ -1,8 +1,8 @@
 use bunsen::{
     data::formats::SafetensorsCheckpoint,
-    kits::speech::asr::whisper::pretrained::{
-        PytorchWhisperScanner,
-        SafetensorsWhisperScanner,
+    kits::speech::asr::whisper::interop::{
+        openai_whisper::PytorchWhisperScanner,
+        transformers::SafetensorsWhisperScanner,
     },
     support::testing::cpu_device,
 };

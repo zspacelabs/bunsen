@@ -51,9 +51,6 @@
   path: crates/public/bunsen/src/kits/speech/asr/voxtral/weights.rs
   item: transformers_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/asr/whisper/pretrained/safetensors_utils.rs
-  item: transformers_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/text/encoders/modernbert/weights.rs
   item: load_transformers_tensors
 - rule: rekey

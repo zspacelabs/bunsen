@@ -41,10 +41,12 @@ use crate::{
                 WhisperConstruct,
                 WhisperPolicy,
             },
+            interop::{
+                openai_whisper::PytorchWhisperScanner,
+                transformers::SafetensorsWhisperScanner,
+            },
             pretrained::{
                 CHECKPOINT,
-                PytorchWhisperScanner,
-                SafetensorsWhisperScanner,
                 VOCABULARY,
                 WHISPER_KIT,
                 WhisperVocabulary,

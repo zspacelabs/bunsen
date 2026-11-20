@@ -129,15 +129,3 @@ pub use providers::*;
 pub use resource_sets::*;
 #[cfg(feature = "store")]
 pub use vocab::*;
-
-#[cfg(feature = "store")]
-mod pytorch_utils;
-
-#[cfg(feature = "store")]
-pub use pytorch_utils::*;
-
-#[cfg(feature = "store")]
-mod safetensors_utils;
-
-#[cfg(feature = "store")]
-pub use safetensors_utils::*;

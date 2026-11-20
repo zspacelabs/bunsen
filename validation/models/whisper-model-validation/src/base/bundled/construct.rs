@@ -29,10 +29,10 @@ use bunsen::{
         WhisperApiConfig,
         WhisperGeometry,
         WhisperMeta,
+        interop::openai_whisper::PytorchWhisperScanner,
         pretrained::{
             CHECKPOINT,
             GeometryMismatch,
-            PytorchWhisperScanner,
             VOCABULARY,
             WhisperConstructConfig,
             WhisperVocabulary,
