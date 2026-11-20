@@ -118,6 +118,19 @@ The shipped profiles are cumulative: `small-core`, `small-all`,
 `medium-core`, `medium-all`, `large-core` and `large-all`, each `-core` the
 representatives up to that size and each `-all` every model up to it.
 `ci` is the stream drivers on the smallest models, on the CPU: what CI runs.
+
+`incremental` is medium-core less the five representatives whose cost is a
+variation only they carry: Gemma 3 4B's and Gemma 2's (f32 on the CPU, as their
+tables bind no wgpu buffer), Qwen3.5 4B's, and the ONNX stage-by-stage checks of
+Parakeet's and Qwen3-ASR's base weights. Every kit keeps a row, and every bf16
+check except Gemma 2's stays. The profile file names what each denied row stands
+for. When to run which:
+
+| run | profile |
+|---|---|
+| a stack's top, before its PRs are marked ready | `incremental`, wgpu f32 and cuda bf16 |
+| a stack's top that touches a variation `incremental` denies | `medium-core` |
+| before a release | `medium-core` |
 `profiles/example-machine.yml` is one machine's. A profile is named by
 `--profile` (a name here, or a path), else `BUNSEN_VALIDATE_PROFILE`.
 
