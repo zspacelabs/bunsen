@@ -73,7 +73,11 @@ fn upstream_file() -> std::path::PathBuf {
 
 /// Upstream's 16 kHz model, from its safetensors.
 fn upstream(device: &burn::tensor::Device) -> SileroVad {
-    SileroVad::load_16khz_from_safetensors_file(upstream_file(), device).unwrap()
+    bunsen::kits::speech::vad::silero_vad::interop::silero_vad::load_silero_vad_16khz_from_path(
+        upstream_file(),
+        device,
+    )
+    .unwrap()
 }
 
 /// A cache rooted at the bundle's directory, offline.

@@ -8,14 +8,13 @@
 //! [`SileroConstructConfig`] reads it into a
 //! [`SileroVadCollection`](super::SileroVadCollection) of the 16 kHz branch.
 //! A resource set of a burnpack (both branches, keyed as `burn-onnx` names
-//! the ONNX graph's nodes) reads too. The loaders in [`load`] read files or
-//! bytes directly, with no cache.
+//! the ONNX graph's nodes) reads too. The loaders in
+//! [`interop`](super::interop) read files or bytes directly, with no cache.
 //!
 //! The whole module needs the `store` and `cache` features, both
 //! default. The kit has no prefab map.
 
 mod construct;
-pub mod load;
 mod providers;
 
 pub use construct::*;

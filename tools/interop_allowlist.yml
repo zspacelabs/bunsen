@@ -72,12 +72,6 @@
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/lm/weights.rs
   item: zonos3_lm_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/vad/silero_vad/pretrained/load.rs
-  item: 'SileroVad::load_16khz_from_upstream_tensors'
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/vad/silero_vad/pretrained/load.rs
-  item: upstream_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/text/encoders/modernbert/weights.rs
   item: load_transformers_tensors
 - rule: rekey

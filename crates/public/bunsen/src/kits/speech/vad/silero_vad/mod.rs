@@ -14,8 +14,11 @@
 //!   weights arrive.
 //!   [`default_silero_factory`](pretrained::default_silero_factory) is the
 //!   index: one row, `silero/vad-16k`, upstream's 16 kHz safetensors, fetched
-//!   into the cache on first use. The loaders in [`pretrained::load`] read a
-//!   file with no cache at all, for a binary that wants nothing else.
+//!   into the cache on first use.
+//! - [`interop`]: its checkpoints' ecosystems: [`interop::silero_vad`],
+//!   upstream's 16 kHz state dict; [`interop::burn_onnx`], a burnpack of
+//!   upstream's ONNX graph. Their loaders (feature `store`) read a file with no
+//!   cache at all, for a binary that wants nothing else.
 //!
 //! The ONNX reference this was transliterated from, and the cross-checks
 //! against it, live in the `silero-model-validation` crate. There is
@@ -130,6 +133,7 @@ pub mod pretrained;
 
 pub mod blocks;
 mod construct;
+pub mod interop;
 
 #[doc(inline)]
 pub use blocks::*;

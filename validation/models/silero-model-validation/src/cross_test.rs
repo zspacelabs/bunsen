@@ -46,7 +46,10 @@ mod vad_16k {
     /// bunsen's Silero VAD on the graph's weights: both branches, from the
     /// burnpack `burn-onnx` generated alongside the reference.
     fn graph_collection(device: &burn::tensor::Device) -> BunsenResult<SileroVadCollection> {
-        SileroVadCollection::load_from_burnpack_file(burnpack_path(), device)
+        bunsen::kits::speech::vad::silero_vad::interop::burn_onnx::load_silero_vad_collection_from_burnpack_path(
+            burnpack_path(),
+            device,
+        )
     }
 
     #[test]
