@@ -14,17 +14,17 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        Linear,
-        LinearConfig,
-    },
     tensor::Device,
 };
 
 use crate::{
-    blocks::activation::{
-        BunsenActivation,
-        BunsenActivationConfig,
+    blocks::{
+        activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+            BunsenMlpMeta,
+        },
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -75,42 +75,30 @@ impl ModuleInit<AdaptiveScale> for AdaptiveScaleConfig {
         device: &Device,
     ) -> BunsenResult<AdaptiveScale> {
         Ok(AdaptiveScale {
-            linear1: LinearConfig::new(self.d_model, self.d_hidden)
+            mlp: BunsenMlpConfig::new(self.d_model, self.d_hidden, self.d_model)
+                .with_activation(self.activation.clone())
                 .with_bias(self.bias)
-                .init(device),
-            act: self.activation.init(device),
-            linear2: LinearConfig::new(self.d_hidden, self.d_model)
-                .with_bias(self.bias)
-                .init(device),
+                .try_init(device)?,
         })
     }
 }
 
 /// A per-channel scale learned from a conditioning vector:
-/// `1 + linear2(act(linear1(cond)))`, which multiplies a normalized
-/// activation (adaptive normalization).
-///
-/// The fields carry the names `transformers` gives Voxtral Realtime's
-/// `ada_rms_norm`.
+/// `1 + mlp(cond)`, a [`BunsenMlp`] `d_model -> d_hidden -> d_model`, which
+/// multiplies a normalized activation (adaptive normalization).
 ///
 /// Built by [`AdaptiveScaleConfig`].
 /// Implements [`AdaptiveScaleMeta`].
 #[derive(Module, Debug)]
 pub struct AdaptiveScale {
-    /// `d_model -> d_hidden`.
-    pub linear1: Linear,
-
-    /// The activation between the projections.
-    pub act: BunsenActivation,
-
-    /// `d_hidden -> d_model`.
-    pub linear2: Linear,
+    /// The scale's MLP, `d_model -> d_hidden -> d_model`.
+    pub mlp: BunsenMlp,
 }
 
 impl crate::burner::module::InputDTypes for AdaptiveScale {
     /// Its projections' dtype.
     fn preferred_dtype(&self) -> burn::tensor::FloatDType {
-        burn::tensor::FloatDType::from(self.linear1.weight.val().dtype())
+        crate::burner::module::InputDTypes::preferred_dtype(&self.mlp)
     }
 }
 
@@ -130,11 +118,11 @@ impl crate::burner::module::ResultDType for AdaptiveScale {
 
 impl AdaptiveScaleMeta for AdaptiveScale {
     fn d_model(&self) -> usize {
-        self.linear1.weight.dims()[0]
+        self.mlp.d_input()
     }
 
     fn d_hidden(&self) -> usize {
-        self.linear1.weight.dims()[1]
+        self.mlp.d_hidden()
     }
 }
 
@@ -158,10 +146,7 @@ impl AdaptiveScale {
             &[("d_model", self.d_model())]
         );
         let cond = crate::burner::module::InputDTypes::coerce_input(self, cond);
-        let y = self
-            .linear2
-            .forward(self.act.forward(self.linear1.forward(cond)))
-            .add_scalar(1.0);
+        let y = self.mlp.forward(cond).add_scalar(1.0);
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "seq", "d_model"],
@@ -222,12 +207,15 @@ mod tests {
         let block: AdaptiveScale = config.init(&cpu_device());
         assert_eq!(block.d_model(), config.d_model());
         assert_eq!(block.d_hidden(), config.d_hidden());
-        assert!(block.linear1.bias.is_some() && block.linear2.bias.is_some());
-        assert!(matches!(block.act, BunsenActivation::Relu(_)));
+        assert!(block.mlp.linear1.bias.is_some() && block.mlp.linear2.bias.is_some());
+        assert!(matches!(
+            block.mlp.act,
+            crate::blocks::activation::BunsenActivation::Relu(_)
+        ));
     }
 
-    /// The scale is `1 + linear2(gelu(linear1(cond)))`, broadcast over the
-    /// sequence; with `linear2` zeroed it is the identity.
+    /// The scale is `1 + mlp(cond)`, its MLP GELU by default, broadcast over
+    /// the sequence; with `linear2` zeroed it is the identity.
     #[test]
     fn test_scale() {
         let device = cpu_device();
@@ -236,8 +224,8 @@ mod tests {
         let cond = seeded_tensor::<3>(2, [1, 1, 6], Distribution::Default, &device);
 
         let expected = x.clone()
-            * (block.linear2.forward(burn::tensor::activation::gelu(
-                block.linear1.forward(cond.clone()),
+            * (block.mlp.linear2.forward(burn::tensor::activation::gelu(
+                block.mlp.linear1.forward(cond.clone()),
             )) + 1.0);
         assert_tensors_close(
             &block.forward(x.clone(), cond.clone()),
@@ -245,7 +233,7 @@ mod tests {
             Tolerance::default(),
         );
 
-        block.linear2.weight = Param::from_tensor(block.linear2.weight.val().zeros_like());
+        block.mlp.linear2.weight = Param::from_tensor(block.mlp.linear2.weight.val().zeros_like());
         assert_tensors_close(&block.forward(x.clone(), cond), &x, Tolerance::default());
     }
 }
