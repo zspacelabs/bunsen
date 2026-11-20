@@ -64,10 +64,22 @@ pub struct BunsenMlpConfig {
     #[config(default = "true")]
     pub bias: bool,
 
+    /// Whether `linear2` carries a bias; `None` follows `bias`. Swin V2's
+    /// continuous position bias biases only `linear1`.
+    #[config(default = "None")]
+    pub down_bias: Option<bool>,
+
     /// The dropout rate, after the activation and after `linear2` (as
     /// `timm`'s `Mlp` drops); 0 is none.
     #[config(default = 0.0)]
     pub dropout: f64,
+}
+
+impl BunsenMlpConfig {
+    /// Whether `linear2` carries a bias: `down_bias`, else `bias`.
+    pub fn down_bias(&self) -> bool {
+        self.down_bias.unwrap_or(self.bias)
+    }
 }
 
 impl BunsenMlpMeta for BunsenMlpConfig {
@@ -99,7 +111,7 @@ impl ModuleInit<BunsenMlp> for BunsenMlpConfig {
                 .init(device),
             act: self.activation.try_init(device)?,
             linear2: LinearConfig::new(self.d_hidden, self.d_output)
-                .with_bias(self.bias)
+                .with_bias(self.down_bias())
                 .init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
         })
@@ -221,6 +233,10 @@ mod tests {
             );
         }
         assert!(mlp.linear1.bias.is_none() && mlp.linear2.bias.is_none());
+        let up_only: BunsenMlp = BunsenMlpConfig::new(2, 4, 3)
+            .with_down_bias(Some(false))
+            .init(&cpu_device());
+        assert!(up_only.linear1.bias.is_some() && up_only.linear2.bias.is_none());
     }
 
     /// The forward is the two projections around the activation, over the

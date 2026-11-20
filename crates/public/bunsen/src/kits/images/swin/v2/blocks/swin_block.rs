@@ -4,12 +4,8 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        Dropout,
-        DropoutConfig,
         LayerNorm,
         LayerNormConfig,
-        Linear,
-        LinearConfig,
     },
     prelude::Tensor,
     tensor::{
@@ -20,13 +16,15 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::{
-            BunsenActivation,
-            BunsenActivationConfig,
-        },
+        activation::BunsenActivationConfig,
         images::drop::drop_path::{
             DropPath,
             DropPathConfig,
+        },
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+            BunsenMlpMeta,
         },
     },
     burner::module::ModuleInit,
@@ -51,162 +49,6 @@ use crate::{
         },
     },
 };
-
-/// Common meta-interface for `BlockMlp` config.
-pub trait BlockMlpMeta {
-    /// Returns the input dimension size.
-    fn d_input(&self) -> usize;
-
-    /// Returns the hidden dimension size.
-    fn d_hidden(&self) -> usize;
-
-    /// Returns the output dimension size.
-    fn d_output(&self) -> usize;
-
-    /// Returns the dropout rate.
-    fn drop(&self) -> f64;
-}
-
-/// Configuration for [`BlockMlp`].
-///
-/// Describes the two-layer feed-forward MLP used inside a Swin transformer
-/// block. Build it with `.init(device)`, then `forward` a tensor whose last
-/// dimension is `d_input`.
-#[derive(Config, Debug)]
-pub struct BlockMlpConfig {
-    d_input: usize,
-
-    #[config(default = "None")]
-    d_hidden: Option<usize>,
-
-    #[config(default = "None")]
-    d_output: Option<usize>,
-
-    #[config(default = 0.)]
-    drop: f64,
-
-    /// The activation layer configuration.
-    #[config(default = "BunsenActivationConfig::Relu")]
-    pub activation: BunsenActivationConfig,
-}
-
-impl BlockMlpMeta for BlockMlpConfig {
-    fn d_input(&self) -> usize {
-        self.d_input
-    }
-
-    fn d_hidden(&self) -> usize {
-        self.d_hidden.unwrap_or(self.d_input)
-    }
-
-    fn d_output(&self) -> usize {
-        self.d_output.unwrap_or(self.d_input)
-    }
-
-    fn drop(&self) -> f64 {
-        self.drop
-    }
-}
-
-impl ModuleInit<BlockMlp> for BlockMlpConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<BlockMlp> {
-        let d_input = self.d_input();
-        let d_hidden = self.d_hidden();
-        let d_output = self.d_output();
-
-        Ok(BlockMlp {
-            fc1: LinearConfig::new(d_input, d_hidden).init(device),
-            fc2: LinearConfig::new(d_hidden, d_output).init(device),
-            act: self.activation.init(device),
-            drop: DropoutConfig { prob: self.drop }.init(),
-        })
-    }
-}
-
-/// Swin MLP Module.
-///
-/// A two linear-layer MLP with activation and dropout, applied to the trailing
-/// feature dimension of an input tensor.
-///
-/// Built by [`BlockMlpConfig`].
-#[derive(Module, Debug)]
-pub struct BlockMlp {
-    /// First linear layer.
-    fc1: Linear,
-
-    /// Second linear layer.
-    fc2: Linear,
-
-    /// Activation function.
-    act: BunsenActivation,
-
-    /// Dropout layer.
-    drop: Dropout,
-}
-
-impl BlockMlpMeta for BlockMlp {
-    fn d_input(&self) -> usize {
-        self.fc1.weight.dims()[0]
-    }
-
-    fn d_hidden(&self) -> usize {
-        self.fc1.weight.dims()[1]
-    }
-
-    fn d_output(&self) -> usize {
-        self.fc2.weight.dims()[1]
-    }
-
-    fn drop(&self) -> f64 {
-        self.drop.prob
-    }
-}
-
-impl BlockMlp {
-    /// Applies the MLP to the input tensor.
-    ///
-    /// # Arguments
-    ///
-    /// - `x`: a tensor of `[batch = ..., in]`.
-    ///
-    /// # Returns
-    ///
-    /// A tensor of `[batch = ... out]`
-    #[must_use]
-    pub fn forward<const D: usize>(
-        &self,
-        x: Tensor<D>,
-    ) -> Tensor<D> {
-        assert_shape_contract_periodically!(
-            [..., "in"],
-            &x.dims(),
-            &[("in", self.d_input())]
-        );
-
-        let x = self.fc1.forward(x);
-        assert_shape_contract_periodically!(
-            [..., "h"],
-            &x.dims(),
-            &[("h", self.d_hidden())]
-        );
-
-        let x = self.act.forward(x);
-
-        let x = self.drop.forward(x);
-
-        let x = self.fc2.forward(x);
-        assert_shape_contract_periodically!(
-            [..., "out"],
-            &x.dims(),
-            &[("out", self.d_output())]
-        );
-
-        self.drop.forward(x)
-    }
-}
 
 /// Applies an inner function under conditional cyclic shift.
 ///
@@ -456,10 +298,10 @@ impl ModuleInit<ShiftedWindowTransformerBlock> for ShiftedWindowTransformerBlock
         self.check();
 
         let hidden_dim = (self.d_input as f64 * self.mlp_ratio) as usize;
-        let self1 = &BlockMlpConfig::new(self.d_input)
-            .with_d_hidden(Some(hidden_dim))
-            .with_drop(self.drop_rate);
-        let block_mlp = self1.try_init(device).ok_or_panic();
+        let block_mlp = BunsenMlpConfig::new(self.d_input, hidden_dim, self.d_input)
+            .with_dropout(self.drop_rate)
+            .try_init(device)
+            .ok_or_panic();
 
         let self2 = &WindowAttentionConfig::new(
             self.d_input,
@@ -538,7 +380,7 @@ pub struct ShiftedWindowTransformerBlock {
     pub win_attn: WindowAttention,
 
     /// MLP block.
-    pub block_mlp: BlockMlp,
+    pub block_mlp: BunsenMlp,
 }
 
 impl ShiftedWindowTransformerBlockMeta for ShiftedWindowTransformerBlock {
@@ -567,7 +409,7 @@ impl ShiftedWindowTransformerBlockMeta for ShiftedWindowTransformerBlock {
     }
 
     fn drop_rate(&self) -> f64 {
-        self.block_mlp.drop()
+        self.block_mlp.dropout()
     }
 
     fn attn_drop_rate(&self) -> f64 {
@@ -694,69 +536,6 @@ mod tests {
         cpu_device,
         performance_device,
     };
-
-    #[test]
-    fn test_block_mlp_meta() {
-        {
-            let d_input = 4;
-            let config = BlockMlpConfig::new(d_input);
-
-            assert_eq!(config.d_input(), d_input);
-            assert_eq!(config.d_hidden(), d_input);
-            assert_eq!(config.d_output(), d_input);
-            assert_eq!(config.drop(), 0.);
-        }
-
-        {
-            let d_input = 4;
-            let d_hidden = 8;
-            let d_output = 6;
-            let drop = 0.1;
-
-            let config = BlockMlpConfig::new(d_input)
-                .with_d_hidden(Some(d_hidden))
-                .with_d_output(Some(d_output))
-                .with_drop(drop);
-
-            assert_eq!(config.d_input(), d_input);
-            assert_eq!(config.d_hidden(), d_hidden);
-            assert_eq!(config.d_output(), d_output);
-            assert_eq!(config.drop(), drop);
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_mlp() {
-        let device = performance_device();
-        let _memory = DeviceMemoryGuard::new(&device);
-
-        let a = 2;
-        let b = 3;
-        let d_input = 4;
-        let d_hidden = 8;
-        let d_output = 6;
-        let drop = 0.1;
-
-        let config = BlockMlpConfig::new(d_input)
-            .with_d_hidden(Some(d_hidden))
-            .with_d_output(Some(d_output))
-            .with_drop(drop);
-
-        let mlp: BlockMlp = config.try_init(&device).ok_or_panic();
-
-        assert_eq!(mlp.d_input(), config.d_input());
-        assert_eq!(mlp.d_hidden(), config.d_hidden());
-        assert_eq!(mlp.d_output(), config.d_output());
-        assert_eq!(mlp.drop(), config.drop());
-
-        let distribution = Distribution::Normal(0., 1.);
-        let x = Tensor::random([a, b, d_input], distribution, &device);
-
-        let y = mlp.forward(x);
-
-        assert_eq!(y.dims(), [a, b, d_output]);
-    }
 
     #[test]
     #[serial]

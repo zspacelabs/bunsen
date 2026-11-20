@@ -1,7 +1,6 @@
 use burn::{
     config::Config,
     module::Module,
-    nn,
     prelude::{
         Int,
         Tensor,
@@ -13,9 +12,12 @@ use burn::{
 };
 
 use crate::{
-    blocks::activation::{
-        BunsenActivation,
-        BunsenActivationConfig,
+    blocks::{
+        activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+        },
     },
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
@@ -106,9 +108,9 @@ impl ModuleInit<OffsetGridRelativePositionBias> for OffsetGridRelativePositionBi
 
             rel_index: window_attention_relative_position_index(self.window_shape, device),
 
-            cbp: ContinuousPositionBiasMlpConfig::new(self.num_heads)
-                .with_d_hidden(self.mlp_hidden_dim)
+            cbp: BunsenMlpConfig::new(2, self.mlp_hidden_dim, self.num_heads)
                 .with_activation(self.mlp_activation.clone())
+                .with_down_bias(Some(false))
                 .init(device),
         })
     }
@@ -137,7 +139,7 @@ pub struct OffsetGridRelativePositionBias {
     pub rel_index: Tensor<2, Int>,
 
     /// The continuous position bias MLP.
-    pub cbp: ContinuousPositionBiasMlp,
+    pub cbp: BunsenMlp,
 }
 
 impl OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBias {
@@ -211,103 +213,6 @@ impl OffsetGridRelativePositionBias {
         );
 
         x
-    }
-}
-
-/// Common introspection interface for continuous position bias MLPs.
-pub trait ContinuousPositionBiasMlpMeta {
-    /// Returns the hidden dimension of the MLP.
-    fn d_hidden(&self) -> usize;
-
-    /// Returns the number of heads.
-    fn num_heads(&self) -> usize;
-}
-
-/// Configuration for [`ContinuousPositionBiasMlp`].
-///
-/// Specifies the head count, hidden width and activation for the small MLP that
-/// maps relative-offset coordinates to per-head bias values. Build it with
-/// `.init(device)`, then `forward` a `[..., 2]` coordinate tensor.
-#[derive(Config, Debug)]
-pub struct ContinuousPositionBiasMlpConfig {
-    /// The number of heads.
-    pub num_heads: usize,
-
-    /// The hidden dimension of the MLP.
-    #[config(default = 512)]
-    pub d_hidden: usize,
-
-    /// The activation layer configuration.
-    #[config(default = "BunsenActivationConfig::Relu")]
-    pub activation: BunsenActivationConfig,
-}
-
-impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlpConfig {
-    fn d_hidden(&self) -> usize {
-        self.d_hidden
-    }
-
-    fn num_heads(&self) -> usize {
-        self.num_heads
-    }
-}
-
-/// A multi-layer perceptron (MLP) for continuous position bias.
-///
-/// Built by [`ContinuousPositionBiasMlpConfig`].
-#[derive(Module, Debug)]
-pub struct ContinuousPositionBiasMlp {
-    l1: nn::Linear,
-    act: BunsenActivation,
-    l2: nn::Linear,
-}
-
-impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlp {
-    fn d_hidden(&self) -> usize {
-        self.l1.weight.dims()[1]
-    }
-
-    fn num_heads(&self) -> usize {
-        self.l2.weight.dims()[1]
-    }
-}
-
-impl ModuleInit<ContinuousPositionBiasMlp> for ContinuousPositionBiasMlpConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<ContinuousPositionBiasMlp> {
-        Ok(ContinuousPositionBiasMlp {
-            l1: nn::LinearConfig::new(2, self.d_hidden).init(device),
-
-            act: self.activation.init(device),
-
-            l2: nn::LinearConfig::new(self.d_hidden, self.num_heads)
-                .with_bias(false)
-                .init(device),
-        })
-    }
-}
-
-impl ContinuousPositionBiasMlp {
-    /// Applies the MLP to the input tensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `x`: A tensor of `[..., 2]` of the relative log-offset coordinates
-    ///   table.
-    ///
-    /// # Returns
-    ///
-    /// A tensor of `[..., num_heads]` of the learned bias table.
-    #[must_use]
-    pub fn forward<const D: usize>(
-        &self,
-        x: Tensor<D>,
-    ) -> Tensor<D> {
-        let x = self.l1.forward(x);
-        let x = self.act.forward(x);
-        self.l2.forward(x)
     }
 }
 
@@ -386,20 +291,5 @@ mod tests {
                 ("w", window_shape[1]),
             ],
         );
-    }
-
-    #[test]
-    #[serial]
-    fn test_cpb_mlp_meta() {
-        let config = ContinuousPositionBiasMlpConfig::new(8).with_d_hidden(512);
-
-        assert_eq!(config.d_hidden(), 512);
-        assert_eq!(config.num_heads(), 8);
-
-        let device = cpu_device();
-        let mlp: ContinuousPositionBiasMlp = config.init(&device);
-
-        assert_eq!(mlp.d_hidden(), 512);
-        assert_eq!(mlp.num_heads(), 8);
     }
 }
