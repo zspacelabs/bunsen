@@ -30,8 +30,9 @@
 //!   decodes it under any search.
 //! - [`Qwen3Construct`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer and generation files, unread.
-//! - [`weights`] (feature `store`): loading tensors named as `transformers`'
-//!   `Qwen3ForCausalLM` state dict, and reading its `config.json`.
+//! - [`interop`]: its checkpoints' ecosystems: [`interop::transformers`], a
+//!   `Qwen3ForCausalLM`'s `config.json` and state-dict names, and loading it
+//!   (feature `store`).
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
 //!   `qwen/qwen3-0.6b` the default, and the factory that loads one.
 //!
@@ -43,8 +44,7 @@ pub mod blocks;
 mod construct;
 pub use construct::*;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 #[cfg(feature = "store")]
 pub mod pretrained;

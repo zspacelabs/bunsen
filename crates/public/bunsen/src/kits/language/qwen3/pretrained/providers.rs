@@ -100,7 +100,7 @@ mod tests {
         },
         kits::language::qwen3::{
             Qwen3Config,
-            weights::qwen3_config_from_transformers,
+            interop::transformers::qwen3_config_from_str,
         },
     };
 
@@ -168,8 +168,7 @@ mod tests {
                 map.get(CONFIG).unwrap().sha256,
                 "{name}: the committed config.json is the pinned one"
             );
-            let config =
-                qwen3_config_from_transformers(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            let config = qwen3_config_from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
             let config = format!("{config:?}");
             assert!(
                 Qwen3Config::PREFABS

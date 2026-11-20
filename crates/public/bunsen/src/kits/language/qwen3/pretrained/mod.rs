@@ -35,7 +35,7 @@
 //! Then `hf:org/repo` names any Hugging Face repo in `transformers`'
 //! `Qwen3ForCausalLM` layout: its safetensors checkpoint (one file or
 //! shards), its `config.json`, which gives the geometry
-//! ([`qwen3_config_from_transformers`](super::weights::qwen3_config_from_transformers)), and
+//! ([`qwen3_config_from_str`](super::interop::transformers::qwen3_config_from_str)), and
 //! those of its tokenizer and generation files it has.
 //!
 //! Every file of a catalog row is pinned to its digest and fetched from a
@@ -63,7 +63,7 @@
 //! resolves a name to a deferred model carrying [`Qwen3ConstructConfig`],
 //! brings every file local through the cache, and reads the checkpoint into its
 //! geometry through
-//! [`load_transformers_tensors`](super::weights::load_transformers_tensors).
+//! [`load_qwen3_tensors`](super::interop::transformers::load_qwen3_tensors).
 //! The tokenizer and generation files are handed back as paths, unread: the
 //! kit's model is ids in and logits out.
 

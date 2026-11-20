@@ -1,24 +1,39 @@
-//! Loading `transformers`-named tensors into a [`Qwen3Model`].
-use burn::store::burn_pack::Tensor as PackTensor;
+//! # Qwen3 in `transformers`' names
+//!
+//! A `Qwen3ForCausalLM` checkpoint as bunsen's [`Qwen3Model`]:
+//!
+//! - **Config:** [`qwen3_config`] (a `config.json` section, or the
+//!   `text_config` of a model a Qwen3 is the text model of), and
+//!   [`qwen3_config_from_str`] / [`qwen3_config_from_path`] for a whole file.
+//! - **Names:** [`text_layer_rekey`], a decoder layer's names, which the kits
+//!   whose text model is a Qwen3 mount; [`qwen3_rekey`], the whole state
+//!   dict's.
+//! - **Loading** (feature `store`): [`load_qwen3_tensors`].
+//!
+//! [`Qwen3Model`]: crate::kits::language::qwen3::Qwen3Model
 
-use super::{
-    Qwen3Config,
-    Qwen3Model,
-};
+use std::path::Path;
+
 use crate::{
     blocks::transformers::decoders::causal::CausalDecoderBlock,
     burner::module::Rekey,
-    data::formats::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::support::{
-        construct::load_lm_rekeyed,
-        interop::transformers::{
+    kits::{
+        language::qwen3::Qwen3Config,
+        support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
+            config_from_path,
+            config_from_str,
             llama_layer_keys,
         },
     },
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// `transformers`' Qwen3 decoder layer names onto a
 /// [`CausalDecoderBlock`]'s,
@@ -34,7 +49,7 @@ pub fn text_layer_rekey() -> Rekey {
 }
 
 /// `transformers`' `Qwen3ForCausalLM` state-dict names onto the module paths
-/// of a [`Qwen3Model`]'s
+/// of a [`Qwen3Model`](crate::kits::language::qwen3::Qwen3Model)'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under `model.`, the layers by [`text_layer_rekey`], the embedding
 /// (`embed_tokens`, the model's `embedding`) and the final norm; and
@@ -46,7 +61,7 @@ pub fn text_layer_rekey() -> Rekey {
 ///
 /// Normalization parameters keep their `weight` spelling, which
 /// [`Rekey::load`](crate::burner::module::Rekey::load) resolves to `gamma`.
-pub fn transformers_rekey() -> Rekey {
+pub fn qwen3_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
             "model.",
@@ -59,50 +74,27 @@ pub fn transformers_rekey() -> Rekey {
         .exact("lm_head.weight", "head.proj.weight")
 }
 
-/// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
-/// `model`'s [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel): [`load_lm_rekeyed`] under
-/// [`transformers_rekey`], in the dtype `model`
-/// was built in. The checkpoints ship `bf16`, which not every backend computes
-/// in.
-///
-/// # Errors
-/// As [`load_lm_rekeyed`].
-pub fn load_transformers_tensors(
-    model: &mut Qwen3Model,
-    tensors: impl IntoIterator<Item = PackTensor>,
-) -> BunsenResult<NamedTensorsApplied> {
-    load_lm_rekeyed(model, tensors, transformers_rekey(), None)
-}
-
-/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
-/// load policy's resolution, [`LoadPolicy::resolve`]) rather than the dtype the
-/// model was built in: a freshly built model's parameters are lazy, so they
-/// are never materialized in the build dtype first.
-///
-/// [`LoadPolicy::resolve`]: crate::data::formats::LoadPolicy::resolve
-///
-/// # Errors
-/// As [`load_lm_rekeyed`].
-pub fn load_transformers_tensors_as(
-    model: &mut Qwen3Model,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: burn::tensor::FloatDType,
-) -> BunsenResult<NamedTensorsApplied> {
-    load_lm_rekeyed(model, tensors, transformers_rekey(), Some(dtype))
-}
-
 /// The [`Qwen3Config`] of a `transformers` `Qwen3ForCausalLM` `config.json`:
 /// what an `hf:` repo's geometry is, any dense Qwen3's.
 ///
-/// As [`qwen3_config_from_transformers_section`] over the whole file, which
-/// must say `model_type` `qwen3`: a mixture of experts (`qwen3_moe`) is
-/// refused. The head is untied when the file does not say, as `transformers`'
-/// `Qwen3Config` defaults it.
+/// As [`qwen3_config`] over the whole file, which must say `model_type`
+/// `qwen3`: a mixture of experts (`qwen3_moe`) is refused. The head is
+/// untied when the file does not say, as `transformers`' `Qwen3Config`
+/// defaults it.
 ///
 /// # Errors
-/// As [`qwen3_config_from_transformers_section`].
-pub fn qwen3_config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
-    qwen3_config_from_transformers_section(&TransformersConfigJson::parse(json)?, false)
+/// As [`config_from_str`] and [`qwen3_config`].
+pub fn qwen3_config_from_str(json: &str) -> BunsenResult<Qwen3Config> {
+    config_from_str(json, |t| qwen3_config(t, false))
+}
+
+/// [`qwen3_config_from_str`] of the `config.json` at `path`; every error
+/// names the file.
+///
+/// # Errors
+/// As [`config_from_path`] and [`qwen3_config`].
+pub fn qwen3_config_from_path(path: &Path) -> BunsenResult<Qwen3Config> {
+    config_from_path(path, |t| qwen3_config(t, false))
 }
 
 /// The [`Qwen3Config`] of a `transformers` Qwen3 text config: a whole
@@ -120,7 +112,7 @@ pub fn qwen3_config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
 /// naming the field, when the section lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Qwen3 is not.
-pub fn qwen3_config_from_transformers_section(
+pub fn qwen3_config(
     t: &TransformersConfigJson,
     tie_default: bool,
 ) -> BunsenResult<Qwen3Config> {
@@ -173,8 +165,8 @@ mod tests {
     }
 
     #[test]
-    fn test_transformers_rekey() {
-        let rekey = transformers_rekey();
+    fn test_qwen3_rekey() {
+        let rekey = qwen3_rekey();
         for (hf, bunsen) in [
             ("model.embed_tokens.weight", Some("embedding.weight")),
             (
@@ -211,7 +203,7 @@ mod tests {
     /// Each pinned checkpoint's `config.json` is its built-in geometry, and a
     /// model bunsen's Qwen3 is not is refused by the field that says so.
     #[test]
-    fn test_qwen3_config_from_transformers() {
+    fn test_qwen3_config_from_str() {
         for (name, json, expected) in [
             (
                 "qwen3-0.6b",
@@ -284,7 +276,7 @@ mod tests {
                 Qwen3Config::qwen3_8b(),
             ),
         ] {
-            let config = qwen3_config_from_transformers(json).unwrap();
+            let config = qwen3_config_from_str(json).unwrap();
             assert_eq!(format!("{config:?}"), format!("{expected:?}"), "{name}");
         }
 
@@ -304,19 +296,16 @@ mod tests {
             assert!(small.contains(from), "{from}");
             ErrorMatcher::kind(BunsenErrorKind::Unsupported)
                 .message_contains(field)
-                .assert_err(&qwen3_config_from_transformers(&small.replace(from, to)));
+                .assert_err(&qwen3_config_from_str(&small.replace(from, to)));
         }
 
         // A window in force is refused; `use_sliding_window: false` switches
         // a stated one off, as `transformers` reads it.
         let windowed = small.replace("\"sliding_window\": null", "\"sliding_window\": 4096");
-        assert!(
-            qwen3_config_from_transformers(&windowed).is_ok(),
-            "switched off"
-        );
+        assert!(qwen3_config_from_str(&windowed).is_ok(), "switched off");
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("sliding_window")
-            .assert_err(&qwen3_config_from_transformers(&windowed.replace(
+            .assert_err(&qwen3_config_from_str(&windowed.replace(
                 "\"use_sliding_window\": false",
                 "\"use_sliding_window\": true",
             )));
@@ -328,7 +317,7 @@ mod tests {
         );
         let unsaid = small.replace("\"tie_word_embeddings\": true,", "");
         for json in [untied, unsaid] {
-            let config = qwen3_config_from_transformers(&json).unwrap();
+            let config = qwen3_config_from_str(&json).unwrap();
             assert!(!config.tied_head);
             assert_eq!(config.d_model, 1024, "the rest as it was");
         }
