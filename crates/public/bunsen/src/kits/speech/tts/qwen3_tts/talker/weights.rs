@@ -27,7 +27,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::language::qwen3::weights::text_layer_rekey,
+    kits::language::qwen3::interop::transformers::text_layer_rekey,
 };
 
 /// The prefix the talker's tensors sit under in a model file.

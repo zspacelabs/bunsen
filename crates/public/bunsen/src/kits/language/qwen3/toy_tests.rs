@@ -6,8 +6,8 @@
 //! embedding, which a tied loader must not read. `toy_untied.safetensors` is
 //! the same with a head of its own, which the logits are computed through.
 //! Each geometry comes from its `config.json` through
-//! [`qwen3_config_from_transformers`], and the weights load through
-//! [`load_transformers_tensors`], so the loader is under test too.
+//! [`qwen3_config_from_path`], and the weights load through
+//! [`load_qwen3_tensors`], so the loader is under test too.
 
 use core::ops::Range;
 use std::path::PathBuf;
@@ -16,9 +16,9 @@ use burn::prelude::*;
 
 use super::{
     Qwen3Model,
-    weights::{
-        load_transformers_tensors,
-        qwen3_config_from_transformers,
+    interop::transformers::{
+        load_qwen3_tensors,
+        qwen3_config_from_path,
     },
 };
 use crate::{
@@ -62,13 +62,12 @@ impl Toy {
         device: &Device,
     ) -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3");
-        let json = std::fs::read_to_string(dir.join(format!("{name}.config.json")))
+        let config = qwen3_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
-        let config = qwen3_config_from_transformers(&json).expect("parse the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
         let device = device.clone();
         let mut model: Qwen3Model = config.init(&device);
-        let applied = load_transformers_tensors(&mut model, fixture.take_weights())
+        let applied = load_qwen3_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         if config.tied_head {
             assert_eq!(applied.unused, ["head.proj.weight"], "{name}");

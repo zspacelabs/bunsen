@@ -243,7 +243,7 @@ impl LmDecoderMeta for Qwen3Config {
 ///
 /// An [`LmDecoderModel`] whose stack ([`Qwen3Config::stack`]) is RMS norms, a
 /// `SwiGLU`, and QK-norm before the rotary embedding;
-/// [`transformers_rekey`](crate::kits::language::qwen3::weights::transformers_rekey)
+/// [`qwen3_rekey`](crate::kits::language::qwen3::interop::transformers::qwen3_rekey)
 /// maps `transformers`' `Qwen3ForCausalLM` names onto the
 /// [`LmDecoderModel`]'s, and the load is into [`lm`](Self::lm).
 ///

@@ -23,9 +23,9 @@ use crate::{
             Qwen3Config,
             Qwen3Model,
             TOKENIZER_CONFIG,
-            weights::{
-                load_transformers_tensors_as,
-                qwen3_config_from_transformers,
+            interop::transformers::{
+                load_qwen3_tensors,
+                qwen3_config_from_str,
             },
         },
         support::{
@@ -40,7 +40,7 @@ use crate::{
 
 /// How a Qwen3 pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
-/// ([`qwen3_config_from_transformers`]), or else the prefab its row names, in
+/// ([`qwen3_config_from_str`]), or else the prefab its row names, in
 /// the dtype the load policy resolves; bundled with the positions the
 /// `config.json` says it was trained on, and every file of the checkpoint by
 /// its key.
@@ -62,7 +62,7 @@ impl TransformersLmKit for Qwen3ConstructConfig {
     const NAME: &'static str = "Qwen3";
 
     fn config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
-        qwen3_config_from_transformers(json)
+        qwen3_config_from_str(json)
     }
 
     fn load_tensors(
@@ -70,7 +70,7 @@ impl TransformersLmKit for Qwen3ConstructConfig {
         tensors: Vec<PackTensor>,
         dtype: FloatDType,
     ) -> BunsenResult<NamedTensorsApplied> {
-        load_transformers_tensors_as(model, tensors, dtype)
+        load_qwen3_tensors(model, tensors, Some(dtype))
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the

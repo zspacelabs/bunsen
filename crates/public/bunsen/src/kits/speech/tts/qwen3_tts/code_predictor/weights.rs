@@ -26,7 +26,7 @@ use crate::{
         BunsenResult,
     },
     kits::{
-        language::qwen3::weights::text_layer_rekey,
+        language::qwen3::interop::transformers::text_layer_rekey,
         speech::tts::qwen3_tts::talker::weights::QWEN3_TTS_CODE_PREDICTOR_PREFIX,
     },
 };

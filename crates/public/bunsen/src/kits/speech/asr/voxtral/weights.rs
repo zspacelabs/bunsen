@@ -19,7 +19,7 @@ use crate::{
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::{
-        language::qwen3::weights::text_layer_rekey,
+        language::qwen3::interop::transformers::text_layer_rekey,
         support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,

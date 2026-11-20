@@ -22,8 +22,8 @@ use crate::{
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::{
-        language::qwen3::weights::{
-            qwen3_config_from_transformers_section,
+        language::qwen3::interop::transformers::{
+            qwen3_config,
             text_layer_rekey,
         },
         support::interop::transformers::TransformersConfigJson,
@@ -110,7 +110,7 @@ pub fn load_transformers_tensors_as(
 /// file. What bunsen's model fixes is checked: a GELU audio tower with as
 /// many key/value heads as query heads, whose output is the text model's
 /// width; and a text model as
-/// [`qwen3_config_from_transformers_section`] reads it, with its head tied: the
+/// [`qwen3_config`] reads it, with its head tied: the
 /// section or the file may say so or say nothing, as Qwen3-ASR ships no head
 /// of its own.
 ///
@@ -148,7 +148,7 @@ pub fn qwen3_asr_config_from_transformers(json: &str) -> BunsenResult<Qwen3AsrCo
         a.expect_eq("max_position_embeddings", positions, audio.chunk_out())?;
     }
 
-    let text = qwen3_config_from_transformers_section(
+    let text = qwen3_config(
         &c.section("text_config")?,
         c.bool_or("tie_word_embeddings", true)?,
     )?;
