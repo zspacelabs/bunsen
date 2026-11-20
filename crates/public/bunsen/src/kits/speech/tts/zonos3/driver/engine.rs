@@ -114,7 +114,7 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Zonos3Engine<T> {
         take: &TtsTakeRequest<'_, Zonos3Speaker>,
     ) -> BunsenResult<Zonos3Codes> {
         let mut request = Zonos3Request::new(take.text.to_string(), take.voice.clone());
-        request.condition_buckets = self.config().condition_buckets.clone();
+        request.condition_buckets = self.condition_buckets.clone();
         request.seed = take.seed;
         if let Some(seconds) = take.max_seconds {
             let rate = f64::from(self.sample_rate()) / self.construct().codec_config.hop as f64;

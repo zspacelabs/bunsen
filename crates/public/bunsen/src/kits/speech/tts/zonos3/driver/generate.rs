@@ -50,6 +50,7 @@ use crate::{
                 prompt::{
                     Zonos3PromptRequest,
                     Zonos3Speaker,
+                    condition_bucket,
                     zonos3_text_ids,
                 },
                 sampler::{
@@ -113,10 +114,12 @@ pub struct Zonos3EngineConfig {
     #[config(default = "String::from(\"Savannah\")")]
     pub default_voice: String,
 
-    /// Each condition's bucket; `None` (or a short list) is the unknown
-    /// bucket.
-    #[config(default = "Vec::new()")]
-    pub condition_buckets: Vec<Option<usize>>,
+    /// A value for each condition the take is conditioned on, by its name
+    /// (the construct's [`conditions`](Zonos3Construct::conditions):
+    /// `loudness`, `fmax`, `speaking_rate`), bucketed by its edges; a
+    /// condition without one is the unknown bucket.
+    #[config(default = "BTreeMap::new()")]
+    pub conditions: BTreeMap<String, f64>,
 
     /// How each step's codes are sampled.
     #[config(default = "Zonos3SamplerConfig::new()")]
@@ -260,6 +263,7 @@ pub struct Zonos3Engine<T: Tokenizer> {
     sampler: Zonos3Sampler,
     tokenizer: T,
     pub(super) capabilities: TtsCapabilities,
+    pub(super) condition_buckets: Vec<Option<usize>>,
     config: Zonos3EngineConfig,
 }
 
@@ -272,7 +276,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
     /// prefill past its limit; the default language's
     /// ([`Zonos3GenerationJson::language_tag`]);
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a default voice
-    /// that is not a stock voice.
+    /// that is not a stock voice, or a condition the release does not have.
     pub fn new(
         construct: Arc<Zonos3Construct>,
         tokenizer: T,
@@ -293,6 +297,26 @@ impl<T: Tokenizer> Zonos3Engine<T> {
                     .with_candidates(construct.voices.keys()),
             ));
         }
+        if let Some(name) = config
+            .conditions
+            .keys()
+            .find(|name| !construct.conditions.iter().any(|c| &c.name == *name))
+        {
+            return Err(BunsenError::lookup(
+                LookupError::missing("condition", name)
+                    .with_candidates(construct.conditions.iter().map(|c| c.name.clone())),
+            ));
+        }
+        let condition_buckets = construct
+            .conditions
+            .iter()
+            .map(|c| {
+                config
+                    .conditions
+                    .get(&c.name)
+                    .map(|&value| condition_bucket(&c.edges, value))
+            })
+            .collect();
         let sampler = Self::sampler(&construct, &config.sampler);
         let capabilities = TtsCapabilities {
             languages: construct
@@ -317,6 +341,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
             sampler,
             tokenizer,
             capabilities,
+            condition_buckets,
             config,
         })
     }

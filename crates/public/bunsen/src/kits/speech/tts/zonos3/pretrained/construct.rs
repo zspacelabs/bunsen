@@ -57,7 +57,10 @@ use crate::{
                 load_zonos3_lm_tensors,
             },
         },
-        prompt::Zonos3PromptConfig,
+        prompt::{
+            Zonos3Condition,
+            Zonos3PromptConfig,
+        },
         voices::{
             with_zonos3_voice_info,
             zonos3_voice_info,
@@ -164,6 +167,23 @@ impl ConstructInit for Zonos3ConstructConfig {
             json.generation.silence_frame.clone(),
             json.lm.reference_max_frames,
         );
+        let conditions = json
+            .lm
+            .condition_names
+            .iter()
+            .map(|name| {
+                let edges = json.lm.condition_edges.get(name).ok_or_else(|| {
+                    BunsenError::invalid_resource(format!(
+                        "{}: `lm.condition_edges` has no `{name}`",
+                        config_path.display()
+                    ))
+                })?;
+                Ok(Zonos3Condition {
+                    name: name.clone(),
+                    edges: edges.clone(),
+                })
+            })
+            .collect::<BunsenResult<Vec<_>>>()?;
         Ok(Arc::new(Zonos3Construct {
             lm,
             lm_config,
@@ -173,6 +193,7 @@ impl ConstructInit for Zonos3ConstructConfig {
             generation: json.generation,
             sample_rate: json.sampling_rate,
             voices,
+            conditions,
             tokenizer: loaded.expect(TOKENIZER)?.to_path_buf(),
         }))
     }
