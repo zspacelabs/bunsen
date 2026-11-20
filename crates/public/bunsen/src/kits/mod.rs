@@ -160,8 +160,8 @@
 //!   bunsen types and carry no `store` gate; its `pretrained` resolves files
 //!   and the catalog's facts and calls its interop. A second source or an
 //!   export direction then adds a module, not files under every component.
-//!   `cargo run -p source-checks -- interop` holds the layout, against an
-//!   allowlist of what a migration has not yet reached.
+//!   Every kit is on this layout, and `cargo run -p source-checks -- interop`
+//!   holds it: any mirror, rekey, loader or `store` gate outside one fails.
 //! - **A mirror is named `*Mirror`, and names every field exactly as the
 //!   upstream schema does**, renaming only what Rust cannot spell (`_target_`);
 //!   bunsen's vocabulary starts in the config the mirror converts to. Each

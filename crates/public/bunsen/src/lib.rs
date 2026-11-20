@@ -177,7 +177,7 @@
 //!
 //! | Ecosystem | Container | Shared schema and names | Kits |
 //! |---|---|---|---|
-//! | `transformers` | `data::formats::SafetensorsCheckpoint` | `kits::support::interop::transformers`: a `config.json` by field, the Llama and Whisper layer keys | `qwen3`, `qwen3_5`, `gemma`, `voxtral`, `qwen3_asr`, `parakeet`, `whisper`, `sortformer` (Nemotron) |
+//! | `transformers` | `data::formats::SafetensorsCheckpoint` | `kits::support::interop::transformers`: a `config.json` by field, the `generation_config.json` and `tokenizer_config.json` the catalog's probes read, the Llama and Whisper layer keys | `qwen3`, `qwen3_5`, `gemma`, `modernbert`, `voxtral`, `qwen3_asr`, `parakeet`, `whisper`, `sortformer` (Nemotron) |
 //! | `nemo` | `data::formats::nemo` (the `.nemo` tar) | `kits::support::interop::nemo`: the YAML config sections, the `FastConformer` and encoder keys | `sortformer` (v2) |
 //! | `torch` | `data::formats::read_pytorch_tensors` (`.pt`) | `kits::support::interop::torch`: `nn.TransformerEncoderLayer`'s and `nn.LSTM`'s keys | |
 //! | `openai_whisper` | burn's `PytorchStore` (`.pt`) | | `whisper` |
@@ -185,6 +185,8 @@
 //! | `zonos` | `data::formats::SafetensorsCheckpoint` | | `zonos3` |
 //! | `mistral_common` | | `kits::support::interop::mistral_common`: `tekken.json`, the vocabulary and an audio model's stream geometry | `voxtral` |
 //! | `nanochat` | `data::formats::read_pytorch_tensors` (`.pt`) | | `nanochat` |
+//! | `laya` | `data::formats::SafetensorsCheckpoint` | | `laya` (its encoder's `config.json` is `modernbert`'s) |
+//! | `torchvision` | `data::formats::read_pytorch_tensors` (`.pt`) | | `resnet` (`timm`'s checkpoints share the names) |
 //! | `silero_vad` | burn's `SafetensorsStore` | | `silero_vad` |
 //! | `burn_onnx` | burn's `BurnpackStore` (a burnpack of an ONNX graph's nodes) | | `silero_vad` |
 //! | `phonon` | `data::formats::fermion` | | `qwen3_asr`, `parakeet` |

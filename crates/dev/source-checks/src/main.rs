@@ -30,8 +30,7 @@ pub struct Cli {
 pub enum Command {
     /// External-format code in `bunsen::kits` lives in `interop` modules.
     ///
-    /// Fails on a finding the allowlist doesn't hold, and on an allowlist
-    /// entry that no longer matches a finding, so the allowlist only shrinks.
+    /// Fails on any finding.
     Interop(interop::InteropArgs),
 }
 

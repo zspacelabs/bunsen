@@ -98,9 +98,8 @@ jobs:
           pr-comment: false
           save-cache: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy --no-deps -- -D warnings
-      # External-format code in `bunsen::kits` lives in `interop` modules;
-      # `tools/interop_allowlist.yml` holds what the migration hasn't
-      # reached, and a stale entry fails too (`crates/dev/source-checks`).
+      # External-format code in `bunsen::kits` lives in `interop` modules
+      # (`crates/dev/source-checks`); any finding fails.
       - name: Interop layout
         run: cargo run -q -p source-checks -- interop
 
