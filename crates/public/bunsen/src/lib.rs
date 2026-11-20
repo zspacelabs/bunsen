@@ -153,8 +153,36 @@
 //!   has, use theirs**: burn's `FloatDType`, burn-store's `PytorchStore`,
 //!   `serde_pickle`. A duplicate competes with the upstream vocabulary, and
 //!   blocks moving code upstream.
+//! - **Interop is by layer, not a module.** Below `kits`, a module or reader
+//!   per format or source *is* that ecosystem's interop, named for it
+//!   (`data::formats::nemo`, `data::formats::fermion`, the Hub's
+//!   `data::builds::HfProvider`); `kits`, organized by model, gives an
+//!   ecosystem's code an `interop` namespace
+//!   (`kits::support::interop::{ecosystem}`, and each kit's own). There is no
+//!   crate-level `interop` and no `data::interop`: one ecosystem has a piece at
+//!   every layer, and a single module would span layers or give every item two
+//!   paths. [Interop by ecosystem](#interop-by-ecosystem) lists each one's
+//!   modules.
 //! - **A module with submodules is laid out as `m/mod.rs` plus `m/sub.rs`**,
 //!   never as `m.rs` plus `m/`, so a module's files are always where you look.
+//!
+//! ## Interop by ecosystem
+//!
+//! Each ecosystem's pieces, by layer: its container (how bytes become named
+//! tensors, `data::formats`), its shared schema and names (what any kit
+//! reads alike, `kits::support::interop`), and the kits whose own `interop`
+//! maps their model onto it. Where the files come from is `data::builds`
+//! (the Hub, `data::builds::HfProvider`), and a tensor's layout (torch's `[out,
+//! in]` linear, a norm's `weight`) is `burner::module`'s load transforms.
+//!
+//! | Ecosystem | Container | Shared schema and names | Kits |
+//! |---|---|---|---|
+//! | `transformers` | `data::formats::SafetensorsCheckpoint` | `kits::support::interop::transformers`: a `config.json` by field, the Llama and Whisper layer keys | `qwen3`, `qwen3_asr`, `sortformer` (Nemotron) |
+//! | `nemo` | `data::formats::nemo` (the `.nemo` tar) | `kits::support::interop::nemo`: the YAML config sections, the `FastConformer` and encoder keys | `sortformer` (v2) |
+//! | `torch` | `data::formats::read_pytorch_tensors` (`.pt`) | `kits::support::interop::torch`: `nn.TransformerEncoderLayer`'s and `nn.LSTM`'s keys | |
+//! | `qwen_tts` | `data::formats::SafetensorsCheckpoint` | | `qwen3_tts` |
+//! | `phonon` | `data::formats::fermion` | | `qwen3_asr` |
+//! | MLX | `data::formats::mlx` (affine-quantized tensors) | | |
 //!
 //! ## Crate Features
 #![doc = document_features::document_features!()]

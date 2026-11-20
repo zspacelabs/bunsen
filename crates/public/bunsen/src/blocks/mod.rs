@@ -83,6 +83,15 @@
 //!   machinery has neutral names, an upstream's spelling is data, and nothing
 //!   outside the Hub code is named `hf_`: the Hub is one source of checkpoints,
 //!   not the namespace for key mapping.
+//! - **A block provides key-mapping machinery, never an ecosystem's key
+//!   set.** The machinery is generic
+//!   ([`CausalDecoderBlock::layer_rekey`](transformers::decoders::causal::CausalDecoderBlock::layer_rekey)
+//!   over a [`DecoderLayerKeys`](transformers::decoders::causal::DecoderLayerKeys),
+//!   `ConvSeq2d::one_based_rekey`); the names an ecosystem gives a block's
+//!   parts (Llama's decoder layer, Whisper's, `PyTorch`'s
+//!   `nn.TransformerEncoderLayer`) are that ecosystem's interop's, in
+//!   `kits::support::interop`. Blocks stay format-free, and an ecosystem's
+//!   names live in one place.
 //! - **A change that moves a block onto other combinators is a correct
 //!   rewrite**, held to every kit built on the block: each kit is checked
 //!   against its reference on a small real row, or, where none exists, the old
