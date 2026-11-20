@@ -1,15 +1,9 @@
 //! bunsen's codec decoder in float32 against `qwen_tts`' own, from fixed
 //! codes, through upstream's chunked decode.
 
-use bunsen::{
-    kits::speech::tts::qwen3_tts::codec::{
-        QWEN3_TTS_DECODE_CHUNK,
-        QWEN3_TTS_DECODE_CONTEXT,
-    },
-    support::testing::{
-        DeviceMemoryGuard,
-        performance_device,
-    },
+use bunsen::support::testing::{
+    DeviceMemoryGuard,
+    performance_device,
 };
 
 use super::*;
@@ -50,11 +44,7 @@ mod qwen3_tts_12hz_0_6b_customvoice {
             )
             .transpose()
             .unsqueeze_dim(0);
-            let audio = construct.codec.chunked_decode(
-                codes,
-                QWEN3_TTS_DECODE_CHUNK,
-                QWEN3_TTS_DECODE_CONTEXT,
-            );
+            let audio = construct.codec.chunked_decode(codes, &construct.decode);
             let audio = audio
                 .into_data()
                 .convert::<f32>()
