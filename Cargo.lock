@@ -10288,6 +10288,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4fdfe13e1c42e45f497416afb8dc4e783bf0e25b7be9077c1c77c5fb14cb998"
 
 [[package]]
+name = "source-checks"
+version = "0.42.0"
+dependencies = [
+ "clap",
+ "proc-macro2",
+ "quote",
+ "serde",
+ "serde-saphyr",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "spanned_error_message"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
