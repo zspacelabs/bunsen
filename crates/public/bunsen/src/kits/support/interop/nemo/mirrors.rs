@@ -1,5 +1,8 @@
 //! Typed sections of a `NeMo` YAML config, and the bunsen configs they give.
-use serde::Deserialize;
+use serde::{
+    Deserialize,
+    de::DeserializeOwned,
+};
 
 use crate::{
     blocks::{
@@ -594,4 +597,18 @@ mod defaults {
     pub fn relu() -> String {
         "relu".into()
     }
+}
+
+/// Deserializes a `NeMo` YAML config (an archive's
+/// `model_config.yaml`), or a section of one, into `T`. Fields `T` does
+/// not name are ignored, so a type names only what it reads.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource), with
+/// the parser's message (its line and column), when the text is not YAML or
+/// does not fit `T`.
+pub fn parse_nemo_yaml<T: DeserializeOwned>(yaml: &str) -> BunsenResult<T> {
+    serde_saphyr::from_str(yaml).map_err(|e| {
+        BunsenError::invalid_resource(format!("a NeMo config that does not parse: {e}"))
+    })
 }

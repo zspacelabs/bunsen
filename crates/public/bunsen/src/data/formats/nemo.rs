@@ -1,8 +1,8 @@
 //! # `.nemo` checkpoints: `NeMo`'s tar of a config and a state dict
 //!
 //! [`NemoArchive`] opens one; [`read_nemo_weights`] reads its state dict,
-//! and [`parse_nemo_yaml`] its config into the typed sections of
-//! `kits::support::interop::nemo`.
+//! and its config, into any type ([`NemoArchive::config`]); the typed
+//! sections are `kits::support::interop::nemo`'s.
 use std::{
     fs::File,
     io::{
@@ -104,13 +104,14 @@ impl NemoArchive {
         &self.config
     }
 
-    /// The config, deserialized: [`parse_nemo_yaml`] of
+    /// The config, deserialized from
     /// [`config_yaml`](Self::config_yaml).
     ///
     /// # Errors
-    /// As [`parse_nemo_yaml`].
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// with the parser's message, when it is not YAML or does not fit `T`.
     pub fn config<T: DeserializeOwned>(&self) -> BunsenResult<T> {
-        parse_nemo_yaml(&self.config).map_err(|e| e.context(self.path.display()))
+        parse_yaml(&self.config).map_err(|e| e.context(self.path.display()))
     }
 
     /// Copies the state dict out of the archive to `dest`, written whole or
@@ -230,20 +231,6 @@ pub fn read_nemo_weights(path: &Path) -> BunsenResult<Vec<PackTensor>> {
     Ok(tensors)
 }
 
-/// Deserializes a `NeMo` YAML config (an archive's
-/// [`NEMO_CONFIG_MEMBER`]), or a section of one, into `T`. Fields `T` does
-/// not name are ignored, so a type names only what it reads.
-///
-/// # Errors
-/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource), with
-/// the parser's message (its line and column), when the text is not YAML or
-/// does not fit `T`.
-pub fn parse_nemo_yaml<T: DeserializeOwned>(yaml: &str) -> BunsenResult<T> {
-    serde_saphyr::from_str(yaml).map_err(|e| {
-        BunsenError::invalid_resource(format!("a NeMo config that does not parse: {e}"))
-    })
-}
-
 /// Whether `bytes` start as gzip does.
 fn is_gzip(bytes: &[u8]) -> bool {
     bytes.starts_with(&[0x1f, 0x8b])
@@ -292,4 +279,17 @@ fn for_each_member(
         }
     }
     Ok(())
+}
+
+/// Deserializes the archive's YAML config into `T`. Fields `T` does
+/// not name are ignored, so a type names only what it reads.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource), with
+/// the parser's message (its line and column), when the text is not YAML or
+/// does not fit `T`.
+fn parse_yaml<T: DeserializeOwned>(yaml: &str) -> BunsenResult<T> {
+    serde_saphyr::from_str(yaml).map_err(|e| {
+        BunsenError::invalid_resource(format!("a NeMo config that does not parse: {e}"))
+    })
 }

@@ -1,28 +1,55 @@
-//! A Sortformer `.nemo`'s config, as bunsen's.
+//! # Sortformer as `NeMo` saves it
+//!
+//! A `.nemo` of a `SortformerEncLabelModel` (Sortformer v2 and v2.1) as
+//! bunsen's [`Sortformer`](crate::kits::speech::diarization::sortformer::Sortformer): its `model_config.yaml`'s mirror,
+//! [`NemoSortformerMirror`] (whose sections are the shared
+//! [`support::interop::nemo`](crate::kits::support::interop::nemo)'s), the
+//! configs it gives
+//! ([`sortformer_structure_config`](NemoSortformerMirror::sortformer_structure_config),
+//! [`mel_front_end_config`](NemoSortformerMirror::mel_front_end_config)),
+//! and its state dict's names ([`sortformer_v2_rekey`]).
+//!
+//! - **Loading** (feature `store`): `load_sortformer_v2_tensors`; with `cache`,
+//!   `load_sortformer_v2`, a resource set's archive. A `.nemo` carries its own
+//!   config, so the loader reads it and returns the model's front end with the
+//!   model.
 use serde::Deserialize;
 
-use super::blocks::{
-    SortformerHeadConfig,
-    SortformerStructureConfig,
-};
 use crate::{
     blocks::{
         layout::BoundaryPermutes,
+        signals::DwStridingSubsamplingMeta,
         transformers::encoders::residual::ResidualEncoderTransformerConfig,
     },
-    burner::module::ToStructureConfig,
-    data::formats::nemo::parse_nemo_yaml,
+    burner::module::{
+        Rekey,
+        ToStructureConfig,
+    },
     errors::BunsenResult,
     kits::{
-        speech::nemo::NemoMelFrontEndConfig,
+        speech::{
+            diarization::sortformer::blocks::{
+                SortformerHeadConfig,
+                SortformerStructureConfig,
+            },
+            nemo::NemoMelFrontEndConfig,
+        },
         support::interop::nemo::{
             NemoConformerEncoderMirror,
             NemoPreprocessorMirror,
             NemoTransformerEncoderMirror,
+            conformer_encoder_rekey,
+            parse_nemo_yaml,
+            transformer_encoder_rekey,
             unsupported_field,
         },
     },
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// The `NeMo` class a Sortformer `.nemo` instantiates.
 const SORTFORMER_TARGET: &str = "SortformerEncLabelModel";
@@ -31,10 +58,11 @@ const SORTFORMER_TARGET: &str = "SortformerEncLabelModel";
 /// `model_config.yaml`): the sections bunsen builds the model and its front
 /// end from, each named as `NeMo` names it. Every other key is ignored.
 ///
-/// [`structure`](Self::structure) is the model,
-/// [`front_end`](Self::front_end) the front end it was trained behind.
+/// [`sortformer_structure_config`](Self::sortformer_structure_config) is the
+/// model, [`mel_front_end_config`](Self::mel_front_end_config) the front end
+/// it was trained behind.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct NemoSortformerConfig {
+pub struct NemoSortformerMirror {
     /// The class `NeMo` instantiates.
     pub target: String,
 
@@ -48,7 +76,7 @@ pub struct NemoSortformerConfig {
     pub transformer_encoder: NemoTransformerEncoderMirror,
 
     /// The projection, the head, and the streaming defaults.
-    pub sortformer_modules: NemoSortformerModulesConfig,
+    pub sortformer_modules: NemoSortformerModulesMirror,
 }
 
 /// Checks the model class is [`SORTFORMER_TARGET`].
@@ -68,9 +96,9 @@ fn expect_model(target: &str) -> BunsenResult<()> {
 /// the model, named as `NeMo` names them and each defaulting as its
 /// constructor defaults it. Its streaming arguments are not read: a stream's
 /// geometry is a
-/// [`SortformerStreamingConfig`](super::SortformerStreamingConfig) preset.
+/// [`SortformerStreamingConfig`](crate::kits::speech::diarization::sortformer::SortformerStreamingConfig) preset.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct NemoSortformerModulesConfig {
+pub struct NemoSortformerModulesMirror {
     /// The class `NeMo` instantiates.
     #[serde(rename = "_target_")]
     pub target: String,
@@ -105,7 +133,7 @@ pub struct NemoSortformerModulesConfig {
     pub use_activity_head: bool,
 }
 
-impl NemoSortformerConfig {
+impl NemoSortformerMirror {
     /// Parses a `.nemo`'s config, its model class first: a config of another
     /// model is refused naming its class, not the first section it lacks.
     ///
@@ -136,7 +164,7 @@ impl NemoSortformerConfig {
     /// disagree on a width or on the subsampling, a transformer that ends
     /// with a norm, an upsampled output, a learned silence embedding, or an
     /// activity head.
-    pub fn structure(&self) -> BunsenResult<SortformerStructureConfig> {
+    pub fn sortformer_structure_config(&self) -> BunsenResult<SortformerStructureConfig> {
         expect_model(&self.target)?;
         let modules = &self.sortformer_modules;
         if !modules.target.ends_with("SortformerModules") {
@@ -227,9 +255,32 @@ impl NemoSortformerConfig {
     ///
     /// # Errors
     /// As [`NemoPreprocessorMirror::mel_front_end_config`].
-    pub fn front_end(&self) -> BunsenResult<NemoMelFrontEndConfig> {
+    pub fn mel_front_end_config(&self) -> BunsenResult<NemoMelFrontEndConfig> {
         self.preprocessor.mel_front_end_config()
     }
+}
+
+/// `NeMo` `SortformerEncLabelModel` state-dict names, in Sortformer v2's
+/// layout, onto a
+/// [`Sortformer`](crate::kits::speech::diarization::sortformer::Sortformer)'s
+/// module paths: the `FastConformer` by [`conformer_encoder_rekey`], the
+/// `transformer_encoder` by [`transformer_encoder_rekey`], the projection and
+/// head by prefix. Anything else is dropped: `num_batches_tracked`, the
+/// featurizer's tables, and the unused `hidden_to_spks`.
+///
+/// `striding` is the encoder's subsampling, a config or a built module: its
+/// stage count and flatten order fix its map.
+pub fn sortformer_v2_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
+    Rekey::drop_rest()
+        .mount("encoder.", "encoder.", conformer_encoder_rekey(striding))
+        .mount(
+            "transformer_encoder.",
+            "transformer.",
+            transformer_encoder_rekey(),
+        )
+        .rename("sortformer_modules.encoder_proj.", "projection.")
+        .rename("sortformer_modules.first_hidden_to_hidden.", "head.dense.")
+        .rename("sortformer_modules.single_hidden_to_spks.", "head.out.")
 }
 
 /// `SortformerModules`' constructor defaults.
@@ -297,14 +348,14 @@ mod tests {
     /// `NeMo`'s front end without normalization.
     #[test]
     fn test_toy_config() {
-        let config: NemoSortformerConfig = parse_nemo_yaml(&toy_yaml()).unwrap();
+        let config: NemoSortformerMirror = parse_nemo_yaml(&toy_yaml()).unwrap();
         assert_eq!(config.sortformer_modules.num_spks, 3);
         assert_eq!(config.sortformer_modules.subsampling_factor, 8);
         assert_eq!(
-            json(&config.structure().unwrap()),
+            json(&config.sortformer_structure_config().unwrap()),
             json(&toy_v2().to_structure())
         );
-        let front_end = config.front_end().unwrap();
+        let front_end = config.mel_front_end_config().unwrap();
         assert_eq!(front_end.n_mels, 24);
         assert_eq!(front_end.normalize, FeatureNormalization::None);
         assert!(!front_end.bf16_tables);
@@ -315,17 +366,17 @@ mod tests {
     #[test]
     fn test_from_yaml() {
         assert_eq!(
-            NemoSortformerConfig::from_yaml(&toy_yaml()).unwrap(),
-            parse_nemo_yaml::<NemoSortformerConfig>(&toy_yaml()).unwrap()
+            NemoSortformerMirror::from_yaml(&toy_yaml()).unwrap(),
+            parse_nemo_yaml::<NemoSortformerMirror>(&toy_yaml()).unwrap()
         );
-        let err = NemoSortformerConfig::from_yaml(
+        let err = NemoSortformerMirror::from_yaml(
             "target: nemo.collections.asr.models.rnnt_bpe_models.EncDecRNNTBPEModel\n",
         )
         .unwrap_err();
         assert_eq!(err.kind(), BunsenErrorKind::Unsupported, "{err}");
         assert!(err.to_string().contains("EncDecRNNTBPEModel"), "{err}");
         assert_eq!(
-            NemoSortformerConfig::from_yaml("target: [")
+            NemoSortformerMirror::from_yaml("target: [")
                 .unwrap_err()
                 .kind(),
             BunsenErrorKind::InvalidResource
@@ -389,11 +440,53 @@ mod tests {
             ),
         ] {
             assert_eq!(yaml.matches(from).count(), 1, "{from}");
-            let config: NemoSortformerConfig =
+            let config: NemoSortformerMirror =
                 parse_nemo_yaml(&yaml.replacen(from, to, 1)).unwrap();
-            let err = config.structure().unwrap_err();
+            let err = config.sortformer_structure_config().unwrap_err();
             assert_eq!(err.kind(), BunsenErrorKind::Unsupported, "{field}: {err}");
             assert!(err.to_string().contains(field), "{field}: {err}");
+        }
+    }
+    #[test]
+    fn test_v2_paths() {
+        for (nemo, bunsen) in [
+            (
+                "encoder.pre_encode.conv.0.weight",
+                Some("encoder.subsampling.stem.conv.weight"),
+            ),
+            (
+                "encoder.layers.16.self_attn.linear_q.bias",
+                Some("encoder.transformer.layers.16.attn.query.bias"),
+            ),
+            ("encoder.layers.0.conv.batch_norm.num_batches_tracked", None),
+            (
+                "transformer_encoder.layers.17.first_sub_layer.out_projection.weight",
+                Some("transformer.layers.17.attn.output.weight"),
+            ),
+            (
+                "sortformer_modules.encoder_proj.weight",
+                Some("projection.weight"),
+            ),
+            (
+                "sortformer_modules.first_hidden_to_hidden.bias",
+                Some("head.dense.bias"),
+            ),
+            (
+                "sortformer_modules.single_hidden_to_spks.weight",
+                Some("head.out.weight"),
+            ),
+            ("sortformer_modules.hidden_to_spks.weight", None),
+            ("preprocessor.featurizer.fb", None),
+        ] {
+            assert_eq!(
+                sortformer_v2_rekey(&crate::blocks::signals::DwStridingSubsamplingConfig::new(
+                    128, 256, 512
+                ))
+                .apply(nemo)
+                .as_deref(),
+                bunsen,
+                "{nemo}"
+            );
         }
     }
 }

@@ -28,12 +28,11 @@
 //! - [`pretrained`] (features `store` and `cache`): the index of named
 //!   checkpoints, `nvidia/nemotron-3-diarization` the default, `hf:` repos, and
 //!   the factory that loads one into a construct.
-//! - [`weights`] (feature `store`): loading tensors named as `transformers`'
-//!   `Nemotron3DiarizationForAudioFrameClassification` state dict, or as a
-//!   Sortformer v2 `.nemo`'s.
-//! - `NemoSortformerConfig` (feature `store`): a Sortformer `.nemo`'s config,
-//!   which gives the model's [`SortformerStructureConfig`] and its front end's
-//!   config.
+//! - [`interop`]: its checkpoints' ecosystems: [`interop::transformers`], a
+//!   `Nemotron3DiarizationForAudioFrameClassification`'s `config.json` and
+//!   state dict; [`interop::nemo`], a Sortformer v2 `.nemo`'s config (which
+//!   gives the model's [`SortformerStructureConfig`] and its front end's
+//!   config) and state dict.
 //!
 //! Its front end is `NeMo`'s mel front end:
 //! [`NemoMelFrontEndConfig::nemotron_diarization`](crate::kits::speech::nemo::NemoMelFrontEndConfig::nemotron_diarization)
@@ -53,13 +52,7 @@ pub use streaming::*;
 #[cfg(feature = "store")]
 pub mod pretrained;
 
-#[cfg(feature = "store")]
-pub mod weights;
-
-#[cfg(feature = "store")]
-mod nemo_config;
-#[cfg(feature = "store")]
-pub use nemo_config::*;
+pub mod interop;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;
