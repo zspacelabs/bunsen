@@ -35,8 +35,9 @@
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoint,
 //!   `mistralai/voxtral-mini-4b-realtime-2602` the default, `hf:` repos, and
 //!   the factory that loads one into a construct.
-//! - [`weights`] (feature `store`): loading tensors named as the published
-//!   `model.safetensors` names them, and reading its `config.json`.
+//! - [`interop`]: its checkpoint's ecosystems: [`interop::transformers`], the
+//!   published `config.json` and `model.safetensors`' names;
+//!   [`interop::mistral_common`], the stream's layout from `tekken.json`.
 
 pub mod blocks;
 pub mod driver;
@@ -55,8 +56,7 @@ pub use transcript::*;
 #[cfg(feature = "store")]
 pub mod pretrained;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;

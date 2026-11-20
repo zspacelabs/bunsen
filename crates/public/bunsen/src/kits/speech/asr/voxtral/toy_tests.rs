@@ -4,7 +4,7 @@
 //! `VoxtralRealtimeForConditionalGeneration`'s weights, under the names the
 //! published checkpoint gives them, and its answers, computed in float64
 //! (`tools/gen_voxtral_toy_fixtures.py`). The weights load through
-//! [`load_transformers_tensors`], so the loader is under test too.
+//! [`load_voxtral_realtime_tensors`], so the loader is under test too.
 
 use core::ops::Range;
 
@@ -17,7 +17,7 @@ use super::{
         VoxtralRealtimeConfig,
         VoxtralTextConfig,
     },
-    weights::load_transformers_tensors,
+    interop::transformers::load_voxtral_realtime_tensors,
 };
 use crate::{
     blocks::transformers::models::language_decoder::LmDecoderOps,
@@ -68,7 +68,7 @@ impl Toy {
         let mut fixture = ToyFixture::load(path, device);
         let device = device.clone();
         let mut model: VoxtralRealtime = toy_config().init(&device);
-        let applied = load_transformers_tensors(&mut model, fixture.take_weights())
+        let applied = load_voxtral_realtime_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         assert!(applied.unused.is_empty(), "unused: {:?}", applied.unused);
         Self {

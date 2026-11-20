@@ -5,6 +5,7 @@ use bunsen::kits::{
     speech::asr::voxtral::{
         VoxtralTokenLayoutConfig,
         VoxtralTranscript,
+        interop::mistral_common::voxtral_token_layout_config,
     },
     support::interop::mistral_common::TekkenMirror,
 };
@@ -50,7 +51,7 @@ mod voxtral_mini_4b_realtime_2602 {
             .unwrap();
         assert_eq!(vocab.vocab_size(), 131_072);
         assert_eq!(vocab.special_id("[STREAMING_PAD]"), Some(32));
-        let layout = VoxtralTokenLayoutConfig::from_tekken_json(&json)
+        let layout = voxtral_token_layout_config(&TekkenMirror::from_json(&json).unwrap())
             .unwrap()
             .init();
         assert_eq!(layout.config(), &VoxtralTokenLayoutConfig::new());

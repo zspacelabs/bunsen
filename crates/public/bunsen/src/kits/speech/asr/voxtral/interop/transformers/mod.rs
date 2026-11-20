@@ -1,32 +1,47 @@
-//! Loading `transformers`-named tensors into a [`VoxtralRealtime`].
-use burn::store::burn_pack::Tensor as PackTensor;
+//! # Voxtral Realtime in `transformers`' names
+//!
+//! A `VoxtralRealtimeForConditionalGeneration` checkpoint
+//! (`mistralai/Voxtral-Mini-4B-Realtime-2602`'s published layout) as bunsen's
+//! [`VoxtralRealtime`](crate::kits::speech::asr::voxtral::VoxtralRealtime):
+//!
+//! - **Config:** [`voxtral_realtime_config`] of a parsed `config.json`, and
+//!   [`voxtral_realtime_config_from_str`] /
+//!   [`voxtral_realtime_config_from_path`].
+//! - **Names:** [`voxtral_realtime_rekey`], over [`audio_layer_rekey`] and
+//!   [`text_layer_rekey_voxtral`] (Qwen3's text layers, with Voxtral's
+//!   `ada_rms_norm`).
+//! - **Loading** (feature `store`): `load_voxtral_realtime_tensors`; with
+//!   `cache`, `load_voxtral_realtime`, a resource set's checkpoint.
+use std::path::Path;
 
-use super::blocks::{
-    VoxtralAudioEncoderConfig,
-    VoxtralRealtime,
-    VoxtralRealtimeConfig,
-    VoxtralTextConfig,
-};
 use crate::{
     blocks::{
         conv::ConvSeq1d,
         transformers::decoders::causal::CausalDecoderBlock,
     },
-    burner::module::{
-        CanonicalKeys,
-        Rekey,
-    },
-    data::formats::NamedTensorsApplied,
+    burner::module::Rekey,
     errors::BunsenResult,
     kits::{
         language::qwen3::interop::transformers::text_layer_rekey,
+        speech::asr::voxtral::blocks::{
+            VoxtralAudioEncoderConfig,
+            VoxtralRealtimeConfig,
+            VoxtralTextConfig,
+        },
         support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
+            config_from_path,
+            config_from_str,
             llama_layer_keys,
         },
     },
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// `transformers`' Voxtral Realtime audio-encoder layer names onto a
 /// [`CausalDecoderBlock`]'s,
@@ -50,9 +65,10 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 }
 
 /// The names of `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
-/// `model.safetensors` onto a [`VoxtralRealtime`]'s module paths: the audio
-/// tower's `embedder.conv1` and `conv2` onto its stem's 0-based
-/// [`ConvSeq1d`] blocks ([`ConvSeq1d::one_based_rekey`]), its layers by
+/// `model.safetensors` onto a
+/// [`VoxtralRealtime`](crate::kits::speech::asr::voxtral::VoxtralRealtime)'s
+/// module paths: the audio tower's `embedder.conv1` and `conv2` onto its stem's
+/// 0-based [`ConvSeq1d`] blocks ([`ConvSeq1d::one_based_rekey`]), its layers by
 /// [`audio_layer_rekey`]; the projector's `linear_1` onto its stacking's
 /// projection; the text model, under `language_model.model.`, onto its
 /// language model (`language_model.lm.`): its layers by
@@ -61,8 +77,8 @@ pub fn text_layer_rekey_voxtral() -> Rekey {
 /// tied, so nothing else is read.
 ///
 /// Normalization parameters keep their `weight` spelling, which
-/// [`Rekey::load`] resolves to `gamma`.
-pub fn transformers_rekey() -> Rekey {
+/// [`Rekey::load`](crate::burner::module::Rekey::load) resolves to `gamma`.
+pub fn voxtral_realtime_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
             "audio_tower.",
@@ -87,37 +103,8 @@ pub fn transformers_rekey() -> Rekey {
         )
 }
 
-/// Loads tensors named as `mistralai/Voxtral-Mini-4B-Realtime-2602`'s
-/// `model.safetensors` names them into `model`: [`Rekey::load`] under
-/// [`transformers_rekey`], in the dtype `model` was built in. The checkpoint
-/// ships `bf16`, which not every backend computes in.
-///
-/// # Errors
-/// As [`Rekey::load`].
-pub fn load_transformers_tensors(
-    model: &mut VoxtralRealtime,
-    tensors: impl IntoIterator<Item = PackTensor>,
-) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey().then(model.canonical_rekey());
-    rekey.load(model, tensors, None)
-}
-
-/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
-/// load policy's resolution) rather than the dtype the model was built in.
-///
-/// # Errors
-/// As [`Rekey::load`].
-pub fn load_transformers_tensors_as(
-    model: &mut VoxtralRealtime,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: burn::tensor::FloatDType,
-) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey().then(model.canonical_rekey());
-    rekey.load(model, tensors, Some(dtype))
-}
-
-/// The [`VoxtralRealtimeConfig`] of a `transformers` `VoxtralRealtime`
-/// `config.json`.
+/// The [`VoxtralRealtimeConfig`] of a parsed `transformers`
+/// `VoxtralRealtime` `config.json`.
 ///
 /// The audio encoder's and the text model's sizes, their windows, norm
 /// epsilons and rotary bases, and the downsampling come from the file. What
@@ -127,11 +114,10 @@ pub fn load_transformers_tensors_as(
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
-/// naming the field, when the file lacks one or does not parse;
+/// naming the field, when the file lacks one;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Voxtral Realtime is not.
-pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealtimeConfig> {
-    let c = TransformersConfigJson::parse(json)?;
+pub fn voxtral_realtime_config(c: &TransformersConfigJson) -> BunsenResult<VoxtralRealtimeConfig> {
     c.expect_str("model_type", "voxtral_realtime")?;
     c.expect_str("projector_hidden_act", "gelu")?;
 
@@ -183,6 +169,23 @@ pub fn voxtral_config_from_transformers(json: &str) -> BunsenResult<VoxtralRealt
     Ok(VoxtralRealtimeConfig::new(audio, text).with_downsample(c.usize("downsample_factor")?))
 }
 
+/// [`voxtral_realtime_config`] of a `config.json`'s text.
+///
+/// # Errors
+/// As [`config_from_str`] and [`voxtral_realtime_config`].
+pub fn voxtral_realtime_config_from_str(json: &str) -> BunsenResult<VoxtralRealtimeConfig> {
+    config_from_str(json, voxtral_realtime_config)
+}
+
+/// [`voxtral_realtime_config`] of the `config.json` at `path`; every error
+/// names the file.
+///
+/// # Errors
+/// As [`config_from_path`] and [`voxtral_realtime_config`].
+pub fn voxtral_realtime_config_from_path(path: &Path) -> BunsenResult<VoxtralRealtimeConfig> {
+    config_from_path(path, voxtral_realtime_config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,8 +202,8 @@ mod tests {
     };
 
     #[test]
-    fn test_transformers_rekey() {
-        let rekey = transformers_rekey();
+    fn test_voxtral_realtime_rekey() {
+        let rekey = voxtral_realtime_rekey();
         for (hf, bunsen) in [
             (
                 "audio_tower.embedder.conv1.weight",
@@ -271,8 +274,8 @@ mod tests {
 
     /// The published `config.json` is the published geometry.
     #[test]
-    fn test_config_from_transformers() {
-        let config = voxtral_config_from_transformers(CONFIG_JSON).unwrap();
+    fn test_voxtral_realtime_config() {
+        let config = voxtral_realtime_config_from_str(CONFIG_JSON).unwrap();
         let expected = VoxtralRealtimeConfig::voxtral_mini_4b_realtime();
         assert_eq!(config.audio.n_layers(), expected.audio.n_layers());
         assert_eq!(config.audio.d_model(), expected.audio.d_model());
@@ -295,10 +298,10 @@ mod tests {
         );
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("tie_word_embeddings")
-            .assert_err(&voxtral_config_from_transformers(&untied));
+            .assert_err(&voxtral_realtime_config_from_str(&untied));
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("model_type")
-            .assert_err(&voxtral_config_from_transformers(
+            .assert_err(&voxtral_realtime_config_from_str(
                 &CONFIG_JSON.replace("\"voxtral_realtime\"", "\"voxtral\""),
             ));
     }

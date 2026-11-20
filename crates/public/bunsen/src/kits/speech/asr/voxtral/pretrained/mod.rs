@@ -20,7 +20,7 @@
 //! Then `hf:org/repo` names any Hugging Face repo in the published layout:
 //! its safetensors checkpoint (one file or shards), its `config.json`, which
 //! gives the geometry
-//! ([`voxtral_config_from_transformers`](super::weights::voxtral_config_from_transformers)),
+//! ([`voxtral_realtime_config_from_path`](super::interop::transformers::voxtral_realtime_config_from_path)),
 //! and its `tekken.json`, which gives the vocabulary and the stream's layout.
 //!
 //! Every file is pinned to its digest and fetched from a fixed revision of
@@ -32,7 +32,7 @@
 //! resolves a name to a deferred model carrying [`VoxtralConstructConfig`],
 //! brings every file local through the cache, and reads them into the row's
 //! prefab through
-//! [`load_transformers_tensors`](super::weights::load_transformers_tensors).
+//! [`load_voxtral_realtime`](super::interop::transformers::load_voxtral_realtime).
 
 mod construct;
 mod prefabs;
