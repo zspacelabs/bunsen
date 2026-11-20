@@ -19,9 +19,9 @@ use crate::{
     errors::BunsenResult,
     kits::text::encoders::modernbert::{
         ModernBertContractConfig,
-        weights::{
-            transformers_rekey as modernbert_rekey,
-            transformers_row_splits as modernbert_row_splits,
+        interop::transformers::{
+            modernbert_rekey,
+            modernbert_row_splits,
         },
     },
 };

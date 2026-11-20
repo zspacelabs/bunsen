@@ -12,17 +12,16 @@
 //! it. Its norms are `LayerNorm`s without a bias, and no projection has one.
 //!
 //! - [`blocks`]: the model, built from a [`ModernBertContractConfig`].
-//! - [`weights`] (feature `store`): loading tensors named as a `transformers`
-//!   `ModernBertModel` state dict (a bare model's, or a `ModernBertFor*`'s
-//!   under `model.`, its head dropped), and reading its `config.json`.
+//! - [`interop`]: its checkpoints' ecosystem, [`interop::transformers`]: a
+//!   `transformers` `ModernBertModel`'s `config.json` and state-dict names (a
+//!   bare model's, or a `ModernBertFor*`'s under `model.`, its head dropped).
 //!
 //! The model gives the final hidden states; a head of its user's reads them.
 //! A tokenizer is not part of the kit.
 
 pub mod blocks;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 pub use blocks::model::*;
 
