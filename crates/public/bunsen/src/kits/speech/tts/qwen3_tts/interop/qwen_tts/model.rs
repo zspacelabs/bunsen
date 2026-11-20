@@ -116,6 +116,12 @@ pub struct Qwen3TtsPromptMirror {
     pub tts_bos_token_id: u32,
     /// The text EOS.
     pub tts_eos_token_id: u32,
+    /// `<|im_start|>`.
+    pub im_start_token_id: u32,
+    /// `<|im_end|>`.
+    pub im_end_token_id: u32,
+    /// `assistant`.
+    pub assistant_token_id: u32,
     /// The codec ids, languages and speakers.
     pub talker_config: Qwen3TtsTalkerIdsMirror,
 }
@@ -148,6 +154,9 @@ impl Qwen3TtsPromptMirror {
             self.tts_pad_token_id,
             self.tts_bos_token_id,
             self.tts_eos_token_id,
+            self.im_start_token_id,
+            self.im_end_token_id,
+            self.assistant_token_id,
             t.codec_pad_id,
             t.codec_bos_id,
             t.codec_eos_token_id,
@@ -289,6 +298,7 @@ mod tests {
     fn test_bad_dialect_refused() {
         let mut json: Qwen3TtsPromptMirror = serde_json::from_str(
             r#"{"tts_pad_token_id": 1, "tts_bos_token_id": 2, "tts_eos_token_id": 3,
+                "im_start_token_id": 11, "im_end_token_id": 12, "assistant_token_id": 13,
                 "talker_config": {"codec_pad_id": 4, "codec_bos_id": 5,
                 "codec_eos_token_id": 6, "codec_think_id": 7, "codec_nothink_id": 8,
                 "codec_think_bos_id": 9, "codec_think_eos_id": 10}}"#,

@@ -171,6 +171,7 @@ MODEL = dict(
     tts_model_type="custom_voice",
     im_start_token_id=IM_START,
     im_end_token_id=IM_END,
+    assistant_token_id=ASSISTANT,
     tts_pad_token_id=TTS_PAD,
     tts_bos_token_id=TTS_BOS,
     tts_eos_token_id=TTS_EOS,

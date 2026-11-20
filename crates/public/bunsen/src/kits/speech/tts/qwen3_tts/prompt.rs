@@ -24,8 +24,10 @@
 //!
 //! The text is chat-wrapped and tokenized by the caller:
 //! `<|im_start|>assistant\n{text}<|im_end|>\n<|im_start|>assistant\n`, whose
-//! first three ids are the role and last five the close; an instruction is
-//! `<|im_start|>user\n{instruction}<|im_end|>\n`.
+//! first [`role_ids`](Qwen3TtsPromptConfig::role_ids) ids (three) are the role
+//! and last [`close_ids`](Qwen3TtsPromptConfig::close_ids) (five) the close;
+//! [`Qwen3TtsPromptRows::build`] checks both against the config's chat ids. An
+//! instruction is `<|im_start|>user\n{instruction}<|im_end|>\n`.
 
 use alloc::{
     collections::BTreeMap,
@@ -70,6 +72,20 @@ pub struct Qwen3TtsPromptConfig {
     pub tts_bos: u32,
     /// The text EOS.
     pub tts_eos: u32,
+    /// `<|im_start|>`, which opens a chat turn.
+    pub im_start: u32,
+    /// `<|im_end|>`, which closes a chat turn.
+    pub im_end: u32,
+    /// `assistant`, the role of the text's turn.
+    pub assistant: u32,
+    /// The ids of the role a wrapped text opens with,
+    /// `<|im_start|>assistant\n` (upstream's text is `input_ids[:, 3:-5]`).
+    #[config(default = 3)]
+    pub role_ids: usize,
+    /// The ids of the close a wrapped text ends with,
+    /// `<|im_end|>\n<|im_start|>assistant\n`.
+    #[config(default = 5)]
+    pub close_ids: usize,
     /// The codec pad.
     pub codec_pad: u32,
     /// The codec BOS.
@@ -154,8 +170,9 @@ impl Qwen3TtsPromptConfig {
 /// and the resolved speaker and language rows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Qwen3TtsPromptRequest {
-    /// The text, chat-wrapped and tokenized: the role's 3 ids, the text's, the
-    /// close's 5.
+    /// The text, chat-wrapped and tokenized: the role's ids, the text's, the
+    /// close's ([`Qwen3TtsPromptConfig::role_ids`],
+    /// [`close_ids`](Qwen3TtsPromptConfig::close_ids)).
     pub input_ids: Vec<u32>,
 
     /// The instruction, chat-wrapped and tokenized, when there is one.
@@ -171,12 +188,6 @@ pub struct Qwen3TtsPromptRequest {
     /// Where the text goes.
     pub placement: Qwen3TtsTextPlacement,
 }
-
-/// The ids of the role at the start of a wrapped text.
-const ROLE: usize = 3;
-
-/// The ids of the close at the end of a wrapped text.
-const CLOSE: usize = 5;
 
 /// A prompt row's text id and codec id; a row has at least one, and both
 /// are summed.
@@ -199,24 +210,41 @@ impl Qwen3TtsPromptRows {
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a text of no
-    /// ids between its role and its close.
+    /// ids between its role and its close, or one that is not wrapped in the
+    /// config's chat ids: the role opening with `<|im_start|>` and
+    /// `assistant`, the close opening with `<|im_end|>` and ending with the
+    /// role again.
     pub fn build(
         config: &Qwen3TtsPromptConfig,
         request: &Qwen3TtsPromptRequest,
     ) -> BunsenResult<Self> {
         let ids = &request.input_ids;
-        if ids.len() < ROLE + 1 + CLOSE {
+        let [role_n, close_n] = [config.role_ids, config.close_ids];
+        if ids.len() < role_n + 1 + close_n {
             return Err(BunsenError::illegal(format!(
-                "a Qwen3-TTS text of {} ids: the role's {ROLE}, at least one, the close's {CLOSE}",
+                "a Qwen3-TTS text of {} ids: the role's {role_n}, at least one, the close's \
+                 {close_n}",
                 ids.len()
             )));
         }
-        let text = &ids[ROLE..ids.len() - CLOSE];
+        let role = &ids[..role_n];
+        let close = &ids[ids.len() - close_n..];
+        let opens = role.len() >= 2 && role[..2] == [config.im_start, config.assistant];
+        let closes = close.first() == Some(&config.im_end) && close.ends_with(role);
+        if !(opens && closes) {
+            return Err(BunsenError::illegal(format!(
+                "a Qwen3-TTS text wrapped as {role:?} … {close:?}; the role opens with \
+                 <|im_start|> and assistant ({}, {}), the close opens with <|im_end|> ({}) and \
+                 ends with the role",
+                config.im_start, config.assistant, config.im_end
+            )));
+        }
+        let text = &ids[role_n..ids.len() - close_n];
         let mut rows: Vec<Qwen3TtsPromptRow> = Vec::new();
         if let Some(instruct) = &request.instruct_ids {
             rows.extend(instruct.iter().map(|&id| (Some(id), None)));
         }
-        rows.extend(ids[..ROLE].iter().map(|&id| (Some(id), None)));
+        rows.extend(role.iter().map(|&id| (Some(id), None)));
 
         let mut codec = match request.language {
             Some(language) => vec![
@@ -325,7 +353,8 @@ mod tests {
         let json: Qwen3TtsPromptMirror = serde_json::from_str(
             r#"{
                 "tts_pad_token_id": 151671, "tts_bos_token_id": 151672,
-                "tts_eos_token_id": 151673,
+                "tts_eos_token_id": 151673, "im_start_token_id": 151644,
+                "im_end_token_id": 151645, "assistant_token_id": 77091,
                 "talker_config": {
                     "codec_pad_id": 2148, "codec_bos_id": 2149, "codec_eos_token_id": 2150,
                     "codec_think_id": 2154, "codec_nothink_id": 2155,
@@ -341,9 +370,20 @@ mod tests {
         Qwen3TtsPromptMirror::prompt_config(&json).expect("the release's ids")
     }
 
+    /// `<|im_start|>assistant\n`, the release's ids.
+    const ROLE: [u32; 3] = [151_644, 77_091, 198];
+
+    /// `<|im_end|>\n`, then the role.
+    const CLOSE: [u32; 5] = [151_645, 198, 151_644, 77_091, 198];
+
+    /// `text`, wrapped in the release's role and close.
+    fn wrapped(text: &[u32]) -> Vec<u32> {
+        [&ROLE[..], text, &CLOSE[..]].concat()
+    }
+
     fn request(placement: Qwen3TtsTextPlacement) -> Qwen3TtsPromptRequest {
         Qwen3TtsPromptRequest {
-            input_ids: vec![1, 2, 3, 10, 11, 12, 4, 5, 1, 2, 3],
+            input_ids: wrapped(&[10, 11, 12]),
             instruct_ids: None,
             speaker: Some(3061),
             language: Some(2050),
@@ -386,9 +426,9 @@ mod tests {
         assert_eq!(
             rows.rows,
             vec![
-                (Some(1), None),
-                (Some(2), None),
-                (Some(3), None),
+                (Some(ROLE[0]), None),
+                (Some(ROLE[1]), None),
+                (Some(ROLE[2]), None),
                 (Some(pad), Some(2154)),
                 (Some(pad), Some(2156)),
                 (Some(pad), Some(2050)),
@@ -417,9 +457,9 @@ mod tests {
             vec![
                 (Some(7), None),
                 (Some(8), None),
-                (Some(1), None),
-                (Some(2), None),
-                (Some(3), None),
+                (Some(ROLE[0]), None),
+                (Some(ROLE[1]), None),
+                (Some(ROLE[2]), None),
                 (Some(pad), Some(2155)),
                 (Some(pad), Some(2156)),
                 (Some(pad), Some(2157)),
@@ -437,13 +477,52 @@ mod tests {
     #[test]
     fn test_empty_text_refused() {
         let mut request = request(Qwen3TtsTextPlacement::Interleaved);
-        request.input_ids = vec![1, 2, 3, 4, 5, 1, 2, 3];
+        request.input_ids = wrapped(&[]);
         assert_eq!(
             Qwen3TtsPromptRows::build(&config(), &request)
                 .unwrap_err()
                 .kind(),
             BunsenErrorKind::Illegal
         );
+    }
+
+    /// A text not wrapped in the config's chat ids is refused: another
+    /// opening, another role, another close, a close without the role.
+    #[test]
+    fn test_unwrapped_text_refused() {
+        let text = [10, 11, 12];
+        let other_close = [151_645, 198, 151_644, 872, 198];
+        for input_ids in [
+            [&[151_643, 77_091, 198][..], &text, &CLOSE].concat(),
+            [&[151_644, 872, 198][..], &text, &CLOSE].concat(),
+            [&ROLE[..], &text, &[151_643, 198, 151_644, 77_091, 198]].concat(),
+            [&ROLE[..], &text, &other_close].concat(),
+        ] {
+            let mut request = request(Qwen3TtsTextPlacement::Interleaved);
+            request.input_ids = input_ids;
+            assert_eq!(
+                Qwen3TtsPromptRows::build(&config(), &request)
+                    .unwrap_err()
+                    .kind(),
+                BunsenErrorKind::Illegal
+            );
+        }
+    }
+
+    /// The spans are the config's: a role of 2 ids and a close of 3.
+    #[test]
+    fn test_spans_from_config() {
+        let config = config().with_role_ids(2).with_close_ids(3);
+        let mut request = request(Qwen3TtsTextPlacement::Upfront);
+        request.input_ids = vec![151_644, 77_091, 10, 151_645, 151_644, 77_091];
+        request.speaker = None;
+        request.language = None;
+        let rows = Qwen3TtsPromptRows::build(&config, &request).unwrap();
+        assert_eq!(
+            &rows.rows[..2],
+            [(Some(151_644), None), (Some(77_091), None)]
+        );
+        assert_eq!(rows.rows[6], (Some(10), Some(2148)));
     }
 }
 
