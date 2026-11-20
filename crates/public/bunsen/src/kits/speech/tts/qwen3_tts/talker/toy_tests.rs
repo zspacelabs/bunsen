@@ -7,20 +7,19 @@
 //! (`tools/gen_qwen3_tts_toy_fixtures.py`); and the first mode's prefill
 //! through the stack. The geometry comes from `toy.config.json`'s
 //! `model.talker_config`, and the weights load through
-//! [`load_qwen3_tts_talker_tensors`].
+//! [`load_talker_tensors`].
 
 use std::path::PathBuf;
 
 use burn::prelude::*;
 
-use super::{
-    Qwen3TtsTalker,
-    Qwen3TtsTalkerConfig,
-    weights::load_qwen3_tts_talker_tensors,
-};
+use super::Qwen3TtsTalker;
 use crate::{
     burner::module::ModuleInit,
-    kits::support::interop::transformers::TransformersConfigJson,
+    kits::{
+        speech::tts::qwen3_tts::interop::qwen_tts::*,
+        support::interop::transformers::TransformersConfigJson,
+    },
     ops::transformers::attention::{
         KVCacheModel,
         testing::KV_CACHE_STORAGES,
@@ -53,12 +52,10 @@ fn load() -> (Qwen3TtsTalker, ToyFixture) {
         .section("model")
         .and_then(|model| model.section("talker_config"))
         .expect("the toy's talker_config");
-    let config =
-        Qwen3TtsTalkerConfig::from_transformers_section(&section).expect("the toy's config");
+    let config = talker_config(&section).expect("the toy's config");
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     let mut model: Qwen3TtsTalker = config.init(&device);
-    load_qwen3_tts_talker_tensors(&mut model, fixture.take_weights(), None)
-        .expect("load the toy weights");
+    load_talker_tensors(&mut model, fixture.take_weights(), None).expect("load the toy weights");
     (model, fixture)
 }
 

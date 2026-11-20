@@ -35,23 +35,22 @@
 //!   [`Qwen3TtsSampler`](sampler::Qwen3TtsSampler) as upstream's `generate`
 //!   makes it ([`Qwen3TtsTakeConfig`], from `generation_config.json`).
 //!
-//! - [`driver`] (feature `store`): Qwen3-TTS as a TTS engine,
+//! - [`driver`]: Qwen3-TTS as a TTS engine,
 //!   [`Qwen3TtsEngine`](driver::Qwen3TtsEngine);
 //!   [`Qwen3TtsDriver`](driver::Qwen3TtsDriver) is the [TTS
 //!   driver](super::driver) over it.
-//! - [`Qwen3TtsConstruct`] (feature `store`): a loaded model, its talker and
-//!   code predictor and codec with their configs, the prompt's ids, the
-//!   release's take settings and the tokenizer's files.
+//! - [`Qwen3TtsConstruct`]: a loaded model, its talker and code predictor and
+//!   codec with their configs, the prompt's ids, the release's take settings
+//!   and the tokenizer's files.
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints,
 //!   `qwen/qwen3-tts/qwen3-tts-12hz-{0.6b,1.7b}-customvoice` and
 //!   `…-1.7b-voicedesign`, and the factory that loads them into a construct.
 //!
-//! The codec's weights are `Qwen/Qwen3-TTS-Tokenizer-12Hz`'s
-//! `model.safetensors`, whose `decoder.*` tensors the decoder reads as they
-//! are ([`codec::weights`]). A model's `model.safetensors` holds the talker
-//! under `talker.` ([`talker::weights`]), its code predictor under
-//! `talker.code_predictor.` ([`code_predictor::weights`]);
-//! [`weights::load_qwen3_tts_model_tensors`] loads both.
+//! - [`interop`]: its checkpoints' ecosystems. [`interop::qwen_tts`] reads a
+//!   model's `config.json` and `generation_config.json`, its
+//!   `model.safetensors` (the talker under `talker.`, its code predictor under
+//!   `talker.code_predictor.`), and the 12 Hz codec's `config.json` and
+//!   `model.safetensors` (its `decoder.*` tensors).
 
 pub mod code_predictor;
 pub mod codec;
@@ -62,15 +61,11 @@ pub mod talker;
 mod model;
 pub use model::*;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
-#[cfg(feature = "store")]
 mod construct;
-#[cfg(feature = "store")]
 pub use construct::*;
 
-#[cfg(feature = "store")]
 pub mod driver;
 
 #[cfg(all(feature = "store", feature = "cache"))]

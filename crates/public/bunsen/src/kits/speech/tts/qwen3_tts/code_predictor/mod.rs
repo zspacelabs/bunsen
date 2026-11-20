@@ -1,15 +1,13 @@
 //! Qwen3-TTS's code predictor: a
 //! [`DepthDecoder`](crate::blocks::transformers::decoders::depth::DepthDecoder)
-//! over a frame's codebooks after the first, its config from a model
-//! `config.json`'s `talker_config.code_predictor_config`
-//! ([`Qwen3TtsCodePredictorConfig`]), and the loader of the model file's
-//! `talker.code_predictor.*` tensors ([`weights`]).
+//! over a frame's codebooks after the first, and its config
+//! ([`Qwen3TtsCodePredictorConfig`]). A model `config.json`'s
+//! `talker_config.code_predictor_config` and the model file's
+//! `talker.code_predictor.*` tensors are
+//! [`interop::qwen_tts`](super::interop::qwen_tts)'s.
 
 mod config;
 pub use config::*;
-
-#[cfg(feature = "store")]
-pub mod weights;
 
 #[cfg(all(test, feature = "store"))]
 mod toy_tests;

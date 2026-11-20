@@ -12,7 +12,6 @@ use burn::{
     tensor::activation::silu,
 };
 
-use super::Qwen3TtsTalkerConfig;
 use crate::{
     blocks::transformers::{
         embedding::RotarySet,
@@ -24,7 +23,10 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::language::qwen3::Qwen3Model,
+    kits::language::qwen3::{
+        Qwen3Config,
+        Qwen3Model,
+    },
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,
@@ -277,6 +279,26 @@ impl KVCacheModel for Qwen3TtsTalker {
     fn kv_cache_config(&self) -> KVCacheConfig {
         self.lm.kv_cache_config()
     }
+}
+
+/// Config for [`Qwen3TtsTalker`](super::Qwen3TtsTalker): the language model
+/// over the first codebook, and the text table its prompt reads.
+#[derive(Config, Debug)]
+pub struct Qwen3TtsTalkerConfig {
+    /// The decoder: a Qwen3 stack over the codec table (`n_vocab`, the
+    /// codes and the control rows), its head a projection of its own.
+    pub lm: Qwen3Config,
+
+    /// The text table's rows.
+    pub text_vocab: usize,
+
+    /// The text table's width, the resize projection's input and hidden
+    /// width.
+    pub text_width: usize,
+
+    /// The codebooks a frame holds: the talker's first and the code
+    /// predictor's rest.
+    pub code_groups: usize,
 }
 
 #[cfg(test)]

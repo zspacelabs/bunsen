@@ -5,13 +5,8 @@ use alloc::{
     format,
     sync::Arc,
 };
-use std::path::Path;
 
-use burn::tensor::{
-    Device,
-    FloatDType,
-};
-use serde::Deserialize;
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -26,17 +21,12 @@ use super::{
     VOCAB,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
             ConstructInit,
         },
-        formats::{
-            LoadPolicy,
-            SafetensorsCheckpoint,
-            stored_float_dtype,
-        },
+        formats::LoadPolicy,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -45,61 +35,41 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::{
         speech::tts::qwen3_tts::{
             Qwen3TtsConstruct,
-            Qwen3TtsModel,
-            Qwen3TtsModelConfig,
-            Qwen3TtsModelKind,
-            Qwen3TtsTakeConfig,
             Qwen3TtsTokenizerFiles,
-            codec::{
-                Qwen3TtsCodecDecoder,
-                Qwen3TtsCodecDecoderContractConfig,
-                Qwen3TtsCodecDecoderJson,
-                weights::load_qwen3_tts_codec_tensors,
+            interop::qwen_tts::{
+                Qwen3TtsCodecMirror,
+                Qwen3TtsGenerationMirror,
+                Qwen3TtsModelTypeMirror,
+                Qwen3TtsPromptMirror,
+                load_codec_decoder,
+                load_model,
+                model_config,
             },
-            prompt::{
-                Qwen3TtsPromptConfig,
-                Qwen3TtsPromptJson,
-            },
-            sampler::Qwen3TtsGenerationJson,
-            weights::load_qwen3_tts_model_tensors,
         },
         support::{
-            interop::transformers::TransformersConfigJson,
+            interop::{
+                json_mirror_from_path,
+                transformers::config_from_path,
+            },
             text::BunsenLanguageTag,
         },
     },
 };
 
-/// The codec's `config.json`, as far as the decoder reads it.
-#[derive(Clone, Debug, Deserialize)]
-struct CodecJson {
-    output_sample_rate: u32,
-    decoder_config: Qwen3TtsCodecDecoderJson,
-}
-
-/// `path`'s contents.
-fn read(path: &Path) -> BunsenResult<String> {
-    std::fs::read_to_string(path).map_err(sys_at("read", path))
-}
-
-/// `path`'s JSON, as `T`.
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> BunsenResult<T> {
-    serde_json::from_str(&read(path)?)
-        .map_err(|e| BunsenError::invalid_resource(format!("{}: {e}", path.display())))
-}
-
-/// How a Qwen3-TTS pretrained is built: the model's `config.json` gives the
-/// talker's and code predictor's geometries and the prompt's ids, the
-/// codec's gives its decoder's; the checkpoints load into them, each in the
-/// dtype the load policy resolves its stored dtype to (the model is bf16 in
-/// its file, the codec f32); `generation_config.json` gives the release's
-/// take; the tokenizer's files are handed back unread. Together, a
-/// [`Qwen3TtsConstruct`].
+/// How a Qwen3-TTS pretrained is built, through
+/// [`interop::qwen_tts`](crate::kits::speech::tts::qwen3_tts::interop::qwen_tts):
+/// the model's `config.json` gives the talker's and code predictor's
+/// geometries, the prompt's ids and the model's kind; the codec's gives its
+/// decoder's; the checkpoints load into them, each in the dtype the load
+/// policy resolves its stored dtype to (the model is bf16 in its file, the
+/// codec f32); `generation_config.json` gives the release's take; the
+/// catalog row's tags give whether it takes an instruction and its
+/// languages' tags; the tokenizer's files are handed back unread. Together,
+/// a [`Qwen3TtsConstruct`].
 ///
 /// The Qwen3-TTS kit's construct config: its [`ConstructInit`] hook.
 /// [`default_qwen3_tts_factory`](super::default_qwen3_tts_factory) attaches
@@ -150,27 +120,20 @@ impl ConstructInit for Qwen3TtsConstructConfig {
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3TtsConstruct>> {
-        let config_path = loaded.expect(CONFIG)?;
-        let config_text = read(config_path)?;
-        let model_config = Qwen3TtsModelConfig::from_transformers(
-            &TransformersConfigJson::parse(&config_text)
-                .map_err(|e| e.context(config_path.display()))?,
-        )?;
-        let prompt_json: Qwen3TtsPromptJson = serde_json::from_str(&config_text).map_err(|e| {
-            BunsenError::invalid_resource(format!("{}: {e}", config_path.display()))
+        // One parse of `config.json`: the geometry, the prompt's ids, the kind.
+        let (model_config, prompt, model_type) = config_from_path(loaded.expect(CONFIG)?, |t| {
+            Ok((
+                model_config(t)?,
+                t.mirror::<Qwen3TtsPromptMirror>()?.prompt_config()?,
+                t.mirror::<Qwen3TtsModelTypeMirror>()?,
+            ))
         })?;
-        let prompt = Qwen3TtsPromptConfig::from_json(&prompt_json)?;
-        let model_type: ModelTypeJson = serde_json::from_str(&config_text).map_err(|e| {
-            BunsenError::invalid_resource(format!("{}: {e}", config_path.display()))
-        })?;
-        let kind =
-            Qwen3TtsModelKind::from_model_type(&model_type.tts_model_type).ok_or_else(|| {
-                BunsenError::unsupported(format!(
-                    "{}: a `tts_model_type` of {:?}",
-                    config_path.display(),
-                    model_type.tts_model_type
-                ))
-            })?;
+        let codec: Qwen3TtsCodecMirror = json_mirror_from_path(loaded.expect(CODEC_CONFIG)?)?;
+        let codec_config = codec.decoder_config.codec_decoder_config()?;
+        let generation: Qwen3TtsGenerationMirror =
+            json_mirror_from_path(loaded.expect(GENERATION_CONFIG)?)?;
+
+        // The catalog row's facts, where it states them.
         let build = match model {
             BuildRef::Named { build, .. } => Some(build.as_ref()),
             BuildRef::Given(_) => None,
@@ -179,10 +142,7 @@ impl ConstructInit for Qwen3TtsConstructConfig {
             Some(value) => value.as_bool().ok_or_else(|| {
                 BunsenError::invalid_resource(format!("the `instruction` tag is {value}"))
             })?,
-            None => {
-                kind == Qwen3TtsModelKind::CustomVoice
-                    && model_type.tts_model_size.as_deref() != Some("0b6")
-            }
+            None => model_type.takes_instruction()?,
         };
         let mut language_tags = BTreeMap::new();
         if let Some(value) = build.and_then(|b| b.tag("language_keys")) {
@@ -196,55 +156,25 @@ impl ConstructInit for Qwen3TtsConstructConfig {
                 language_tags.insert(key.clone(), BunsenLanguageTag::parse(tag)?);
             }
         }
-        let codec_json: CodecJson = read_json(loaded.expect(CODEC_CONFIG)?)?;
-        let codec_config =
-            Qwen3TtsCodecDecoderContractConfig::from_json(&codec_json.decoder_config)?;
-        let generation: Qwen3TtsGenerationJson = read_json(loaded.expect(GENERATION_CONFIG)?)?;
-
-        let dtype = |tensors: &[burn::store::burn_pack::Tensor]| {
-            policy.resolve(
-                stored_float_dtype(tensors).unwrap_or(FloatDType::F32),
-                device,
-                |_| true,
-            )
-        };
-        let tensors = SafetensorsCheckpoint::single(loaded.expect(CHECKPOINT)?).tensors()?;
-        let model_dtype = dtype(&tensors)?;
-        let mut model: Qwen3TtsModel = model_config.try_init(device)?;
-        load_qwen3_tts_model_tensors(&mut model, tensors, Some(model_dtype))?;
-
-        let tensors = SafetensorsCheckpoint::single(loaded.expect(CODEC)?).tensors()?;
-        let codec_dtype = dtype(&tensors)?;
-        let mut codec: Qwen3TtsCodecDecoder = codec_config.try_init(device)?;
-        load_qwen3_tts_codec_tensors(&mut codec, &codec_config, tensors, Some(codec_dtype))?;
 
         Ok(Arc::new(Qwen3TtsConstruct {
-            model,
+            model: load_model(loaded, &model_config, device, policy)?,
             model_config,
-            codec,
+            codec: load_codec_decoder(loaded, &codec_config, device, policy)?,
             codec_config,
             prompt,
-            take: Qwen3TtsTakeConfig::from_generation(&generation),
-            generation,
-            sample_rate: codec_json.output_sample_rate,
+            take: generation.take_config(),
+            sample_rate: codec.output_sample_rate,
             tokenizer: Qwen3TtsTokenizerFiles {
                 vocab: loaded.expect(VOCAB)?.to_path_buf(),
                 merges: loaded.expect(MERGES)?.to_path_buf(),
                 tokenizer_config: loaded.expect(TOKENIZER_CONFIG)?.to_path_buf(),
             },
-            kind,
+            kind: model_type.model_kind()?,
             instruction,
             language_tags,
         }))
     }
-}
-
-/// `config.json`'s model kind and size, under upstream's names.
-#[derive(Deserialize)]
-struct ModelTypeJson {
-    tts_model_type: String,
-    #[serde(default)]
-    tts_model_size: Option<String>,
 }
 
 #[cfg(test)]

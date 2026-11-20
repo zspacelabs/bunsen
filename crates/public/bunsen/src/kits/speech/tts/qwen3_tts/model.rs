@@ -16,10 +16,7 @@ use super::{
         Qwen3TtsPrompt,
         Qwen3TtsPromptConfig,
     },
-    sampler::{
-        Qwen3TtsGenerationJson,
-        Qwen3TtsSamplerConfig,
-    },
+    sampler::Qwen3TtsSamplerConfig,
     talker::{
         Qwen3TtsTalker,
         Qwen3TtsTalkerConfig,
@@ -36,7 +33,6 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::support::interop::transformers::TransformersConfigJson,
     ops::transformers::attention::KVCacheModel,
 };
 
@@ -52,24 +48,6 @@ pub struct Qwen3TtsModelConfig {
 
     /// The code predictor.
     pub code_predictor: Qwen3TtsCodePredictorConfig,
-}
-
-impl Qwen3TtsModelConfig {
-    /// The config of a model `config.json`: its `talker_config`, and that
-    /// section's `code_predictor_config`.
-    ///
-    /// # Errors
-    /// As [`Qwen3TtsTalkerConfig::from_transformers_section`] and
-    /// [`Qwen3TtsCodePredictorConfig::from_transformers_section`].
-    pub fn from_transformers(json: &TransformersConfigJson) -> BunsenResult<Self> {
-        let section = json.section("talker_config")?;
-        let talker = Qwen3TtsTalkerConfig::from_transformers_section(&section)?;
-        let code_predictor = Qwen3TtsCodePredictorConfig::from_transformers_section(
-            &section.section("code_predictor_config")?,
-            talker.lm.d_model,
-        )?;
-        Ok(Self::new(talker, code_predictor))
-    }
 }
 
 /// A [`Qwen3TtsModel`]'s geometry, which its config and the model answer
@@ -107,7 +85,7 @@ impl ModuleInit<Qwen3TtsModel> for Qwen3TtsModelConfig {
 
 /// Config for a take ([`Qwen3TtsModel::generate_codes`]); its defaults are
 /// the release's (`generation_config.json`,
-/// [`from_generation`](Self::from_generation)).
+/// [`take_config`](crate::kits::speech::tts::qwen3_tts::interop::qwen_tts::Qwen3TtsGenerationMirror::take_config)).
 #[derive(Config, Debug, PartialEq)]
 pub struct Qwen3TtsTakeConfig {
     /// The talker's sampler: codebook 0.
@@ -128,16 +106,6 @@ pub struct Qwen3TtsTakeConfig {
     /// `min_new_tokens`).
     #[config(default = 2)]
     pub min_frames: usize,
-}
-
-impl Qwen3TtsTakeConfig {
-    /// The settings of a `generation_config.json`.
-    pub fn from_generation(generation: &Qwen3TtsGenerationJson) -> Self {
-        Self::new()
-            .with_talker(Qwen3TtsSamplerConfig::talker(generation))
-            .with_code_predictor(Qwen3TtsSamplerConfig::code_predictor(generation))
-            .with_max_frames(generation.max_new_tokens.saturating_sub(1))
-    }
 }
 
 /// Why a take ended.

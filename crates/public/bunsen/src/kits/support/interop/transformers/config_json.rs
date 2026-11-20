@@ -38,6 +38,25 @@ impl TransformersConfigJson {
         })
     }
 
+    /// This file or section as the typed mirror `T`, for the fields a kit
+    /// reads as a whole (its own ids, its kind): one parse of the file serves
+    /// both. Fields `T` does not name are ignored.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// with the parser's message, naming the section, when it does not fit
+    /// `T`.
+    pub fn mirror<T: serde::de::DeserializeOwned>(&self) -> BunsenResult<T> {
+        serde_json::from_value(self.value.clone()).map_err(|e| {
+            let at = if self.path.is_empty() {
+                String::new()
+            } else {
+                format!(" `{}`", self.path)
+            };
+            BunsenError::invalid_resource(format!("config.json{at}: {e}"))
+        })
+    }
+
     fn field(
         &self,
         name: &str,
