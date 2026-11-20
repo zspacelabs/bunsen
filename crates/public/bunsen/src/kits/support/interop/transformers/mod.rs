@@ -4,6 +4,8 @@
 //!   of it, read field by field, each error naming the field's dotted path. A
 //!   kit's `interop::transformers` converts it into the kit's configs.
 //! - [`TransformersDecoderSection`]: the fields every decoder section has.
+//! - [`llama_layer_keys`]: the Llama line's decoder-layer key set, which
+//!   `blocks`' generic [`CausalDecoderBlock::layer_rekey`] maps onto a block.
 //! - [`config_from_str`] and [`config_from_path`]: a conversion over a
 //!   `config.json`'s text or file, the second naming the file in its errors:
 //!   what a kit's `{target}_config_from_str` and `{target}_config_from_path`
@@ -11,6 +13,8 @@
 
 use std::path::Path;
 
+#[cfg(doc)]
+use crate::blocks::transformers::decoders::causal::CausalDecoderBlock;
 use crate::errors::{
     BunsenResult,
     sys_at,
@@ -18,9 +22,11 @@ use crate::errors::{
 
 mod config_json;
 mod decoder_section;
+mod layer_keys;
 
 pub use config_json::*;
 pub use decoder_section::*;
+pub use layer_keys::*;
 
 /// `convert` over a `config.json`'s text.
 ///

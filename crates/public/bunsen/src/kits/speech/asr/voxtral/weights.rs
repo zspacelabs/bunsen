@@ -10,10 +10,7 @@ use super::blocks::{
 use crate::{
     blocks::{
         conv::ConvSeq1d,
-        transformers::decoders::causal::{
-            CausalDecoderBlock,
-            DecoderLayerKeys,
-        },
+        transformers::decoders::causal::CausalDecoderBlock,
     },
     burner::module::{
         CanonicalKeys,
@@ -26,6 +23,7 @@ use crate::{
         support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
+            llama_layer_keys,
         },
     },
 };
@@ -36,7 +34,7 @@ use crate::{
 /// `final_layer_norm` the feed-forward's, `self_attn`'s `{q,k,v,o}_proj` the
 /// attention's projections, and the `SwiGLU`'s projections as they are.
 pub fn audio_layer_rekey() -> Rekey {
-    CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+    CausalDecoderBlock::layer_rekey(&llama_layer_keys(
         "self_attn_layer_norm",
         "final_layer_norm",
     ))

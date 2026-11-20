@@ -8,10 +8,7 @@ use super::{
     Qwen3_5Model,
 };
 use crate::{
-    blocks::transformers::decoders::causal::{
-        CausalDecoderBlock,
-        DecoderLayerKeys,
-    },
+    blocks::transformers::decoders::causal::CausalDecoderBlock,
     burner::module::{
         Rekey,
         Select,
@@ -27,6 +24,7 @@ use crate::{
         interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
+            llama_layer_keys,
         },
     },
 };
@@ -54,7 +52,7 @@ const ZERO_CENTERED_LAYER_NORMS: [&str; 4] = [
 /// which is `a_log`, and the gated norm's gain, which is its norm's
 /// (`norm.norm.weight`); and the `SwiGLU`'s projections as they are.
 pub fn text_layer_rekey() -> Rekey {
-    CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+    CausalDecoderBlock::layer_rekey(&llama_layer_keys(
         "input_layernorm",
         "post_attention_layernorm",
     ))

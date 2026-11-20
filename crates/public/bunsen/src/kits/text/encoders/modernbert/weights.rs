@@ -25,7 +25,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::interop::transformers::TransformersConfigJson,
+    kits::support::interop::transformers::{
+        TransformersConfigJson,
+        llama_layer_keys,
+    },
 };
 
 /// The fused projections of a `transformers` `ModernBERT` layer, split by
@@ -54,7 +57,7 @@ pub fn transformers_layer_keys() -> DecoderLayerKeys {
     DecoderLayerKeys {
         attn: "attn".to_string(),
         attn_projs: ["Wq", "Wk", "Wv", "Wo"].map(String::from),
-        ..DecoderLayerKeys::llama("attn_norm", "mlp_norm")
+        ..llama_layer_keys("attn_norm", "mlp_norm")
     }
 }
 

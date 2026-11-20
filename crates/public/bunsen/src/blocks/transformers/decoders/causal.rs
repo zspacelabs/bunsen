@@ -84,6 +84,9 @@ pub trait CausalDecoderBlockMeta {
 
 /// A decoder layer's names for its parts, as a checkpoint spells them: what
 /// [`CausalDecoderBlock::layer_rekey`] maps onto the block's.
+///
+/// The machinery only: an ecosystem's own key set is its interop's (the
+/// Llama line's is `kits::support::interop::transformers::llama_layer_keys`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DecoderLayerKeys {
     /// The attention's input norm.
@@ -105,24 +108,6 @@ pub struct DecoderLayerKeys {
 }
 
 impl DecoderLayerKeys {
-    /// Llama's line (Qwen3, Mistral, Gemma): `self_attn` with
-    /// `{q,k,v,o}_proj`, under the layer's names for its two norms, the
-    /// attention's and the feed-forward's (`input_layernorm` and
-    /// `post_attention_layernorm` in Llama's own; `self_attn_layer_norm` and
-    /// `final_layer_norm` in Voxtral's audio tower).
-    pub fn llama(
-        attn_norm: impl Into<String>,
-        mlp_norm: impl Into<String>,
-    ) -> Self {
-        Self {
-            attn_norm: attn_norm.into(),
-            mlp_norm: mlp_norm.into(),
-            post_norms: None,
-            attn: "self_attn".to_string(),
-            attn_projs: ["q_proj", "k_proj", "v_proj", "o_proj"].map(String::from),
-        }
-    }
-
     /// With post-norms: the attention's and the feed-forward's output norms
     /// (`post_attention_layernorm` and `post_feedforward_layernorm` in
     /// Gemma 2 and 3).
@@ -889,8 +874,14 @@ mod tests {
     #[test]
     fn test_layer_rekey_with_post_norms() {
         let rekey = CausalDecoderBlock::layer_rekey(
-            &DecoderLayerKeys::llama("input_layernorm", "pre_feedforward_layernorm")
-                .with_post_norms("post_attention_layernorm", "post_feedforward_layernorm"),
+            &DecoderLayerKeys {
+                attn_norm: "input_layernorm".into(),
+                mlp_norm: "pre_feedforward_layernorm".into(),
+                post_norms: None,
+                attn: "self_attn".into(),
+                attn_projs: ["q_proj", "k_proj", "v_proj", "o_proj"].map(String::from),
+            }
+            .with_post_norms("post_attention_layernorm", "post_feedforward_layernorm"),
         );
         for (stored, bunsen) in [
             ("input_layernorm.weight", "attn_norm.weight"),

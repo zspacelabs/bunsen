@@ -25,16 +25,14 @@ use super::{
     Qwen3TtsCodecDecoderContractConfig,
 };
 use crate::{
-    blocks::transformers::decoders::causal::{
-        CausalDecoderBlock,
-        DecoderLayerKeys,
-    },
+    blocks::transformers::decoders::causal::CausalDecoderBlock,
     burner::module::Rekey,
     data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
     },
+    kits::support::interop::transformers::llama_layer_keys,
 };
 
 /// The prefix the decoder's tensors sit under in the codec's file.
@@ -45,7 +43,7 @@ pub const QWEN3_TTS_CODEC_DECODER_PREFIX: &str = "decoder.";
 /// `{q,k,v,o}_proj`, the `SwiGLU`'s projections as they are), and the layer
 /// scales, `self_attn_layer_scale.scale` and `mlp_layer_scale.scale`.
 pub fn qwen3_tts_codec_layer_rekey() -> Rekey {
-    CausalDecoderBlock::layer_rekey(&DecoderLayerKeys::llama(
+    CausalDecoderBlock::layer_rekey(&llama_layer_keys(
         "input_layernorm",
         "post_attention_layernorm",
     ))
