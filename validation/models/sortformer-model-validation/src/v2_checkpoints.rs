@@ -16,11 +16,13 @@ use bunsen::{
     },
     kits::speech::{
         diarization::sortformer::{
-            NemoSortformerConfig,
             Sortformer,
             SortformerV2Config,
+            interop::nemo::{
+                NemoSortformerMirror,
+                load_sortformer_v2_tensors,
+            },
             pretrained::CHECKPOINT,
-            weights::load_sortformer_v2_nemo_tensors,
         },
         nemo::FeatureNormalization,
     },
@@ -34,15 +36,15 @@ use super::*;
 /// filled, leaving over only what the loader drops.
 fn assert_loads(path: &Path) {
     let archive = NemoArchive::open(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    let config: NemoSortformerConfig = archive.config().unwrap();
+    let config: NemoSortformerMirror = archive.config().unwrap();
     let v2 = SortformerV2Config::diar_streaming_sortformer_4spk_v2().to_structure();
     assert_eq!(
-        serde_json::to_value(config.structure().unwrap()).unwrap(),
+        serde_json::to_value(config.sortformer_structure_config().unwrap()).unwrap(),
         serde_json::to_value(v2).unwrap(),
         "{}",
         path.display()
     );
-    let front_end = config.front_end().unwrap();
+    let front_end = config.mel_front_end_config().unwrap();
     assert_eq!(
         (front_end.n_mels, front_end.normalize, front_end.bf16_tables),
         (128, FeatureNormalization::None, false)
@@ -54,7 +56,7 @@ fn assert_loads(path: &Path) {
 
     let mut model: Sortformer =
         SortformerV2Config::diar_streaming_sortformer_4spk_v2().init(&cpu_device());
-    let applied = load_sortformer_v2_nemo_tensors(&mut model, tensors)
+    let applied = load_sortformer_v2_tensors(&mut model, tensors)
         .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     for name in &applied.unused {
         assert!(

@@ -4,7 +4,7 @@
 //! `SortformerEncLabelModel` in Sortformer v2's layout, its weights under
 //! `NeMo`'s names, and its answers stage by stage, computed in float64 by
 //! `NeMo` (`tools/gen_sortformer_v2_toy_fixtures.py`). The weights load
-//! through [`load_sortformer_v2_nemo_tensors`], so the loader is under test
+//! through [`load_sortformer_v2_tensors`], so the loader is under test
 //! too.
 
 use alloc::collections::BTreeMap;
@@ -29,7 +29,7 @@ use super::{
         Sortformer,
         SortformerV2Config,
     },
-    weights::load_sortformer_v2_nemo_tensors,
+    interop::nemo::load_sortformer_v2_tensors,
 };
 use crate::{
     burner::module::ModuleInit,
@@ -127,7 +127,7 @@ impl Toy {
         let device = performance_device();
         let mut model: Sortformer = toy_config().init(&device);
         let applied =
-            load_sortformer_v2_nemo_tensors(&mut model, weights).expect("load the toy weights");
+            load_sortformer_v2_tensors(&mut model, weights).expect("load the toy weights");
         // What the loader drops, and nothing else.
         for name in &applied.unused {
             assert!(

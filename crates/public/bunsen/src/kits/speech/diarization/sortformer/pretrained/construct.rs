@@ -10,14 +10,12 @@ use super::{
     SORTFORMER_KIT,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
             CONFIG,
             ConstructInit,
         },
-        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResourceSet,
             ResourceCache,
@@ -28,19 +26,17 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::{
         speech::{
             diarization::sortformer::{
                 NemotronDiarizationConfig,
-                Sortformer,
                 SortformerConstruct,
                 SortformerFamily,
                 SortformerPolicy,
-                weights::{
-                    load_nemotron_transformers_tensors,
-                    nemotron_config_from_transformers,
+                interop::{
+                    nemo,
+                    transformers,
                 },
             },
             nemo::NemoMelFrontEndConfig,
@@ -88,7 +84,7 @@ pub const NEMO_CONFIG_PREFIX: u64 = 1024 * 1024;
 /// checkpoint's `kind` names:
 ///
 /// - a `.nemo`: the model and its front end from the archive's config
-///   (`NemoSortformerConfig`, feature `store`), the weights from its state
+///   ([`NemoSortformerMirror`](crate::kits::speech::diarization::sortformer::interop::nemo::NemoSortformerMirror)), the weights from its state
 ///   dict; a [`SortformerFamily::SortformerV2`].
 /// - a `transformers` safetensors checkpoint (one file, or a sharded one's
 ///   index): the geometry its `config.json` gives (Nemotron-3-Diarization's
@@ -109,12 +105,6 @@ pub struct SortformerConstructConfig {
 }
 
 impl SortformerConstructConfig {
-    /// The geometry of a map's `config.json` at `path`.
-    fn read_config(path: &std::path::Path) -> BunsenResult<NemotronDiarizationConfig> {
-        let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
-        nemotron_config_from_transformers(&json).map_err(|e| e.context(path.display()))
-    }
-
     /// A Nemotron construct from a `transformers` checkpoint.
     fn construct_safetensors(
         loaded: &LoadedResourceSet,
@@ -122,14 +112,10 @@ impl SortformerConstructConfig {
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
         let config = match loaded.get(CONFIG) {
-            Some(part) => Self::read_config(&part.path)?,
+            Some(part) => transformers::nemotron_diarization_config_from_path(&part.path)?,
             None => NemotronDiarizationConfig::nemotron_3_diarization(),
         };
-        let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        let mut model: Sortformer = config.try_init(device)?;
-        load_nemotron_transformers_tensors(&mut model, tensors)?;
-        // The files' precision (f32), or wider as the policy asks.
-        let model = load.place(model, device, |_| true)?;
+        let model = transformers::load_nemotron_diarization(loaded, &config, device, load)?;
         let front_end = NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(config.n_mels);
         SortformerConstruct::new(model, SortformerFamily::Nemotron, &front_end, device)
     }
@@ -144,19 +130,16 @@ impl SortformerConstructConfig {
         map: &ResourceSet,
         cache: &ResourceCache,
     ) -> BunsenResult<()> {
-        use crate::{
-            data::formats::nemo::NemoArchive,
-            kits::speech::diarization::sortformer::NemoSortformerConfig,
-        };
+        use crate::data::formats::nemo::NemoArchive;
         let checkpoint = map.try_get(CHECKPOINT)?;
         let prefix = cache.read_prefix(checkpoint, NEMO_CONFIG_PREFIX)?;
         let Some(yaml) = NemoArchive::config_from_prefix(&prefix) else {
             return Ok(());
         };
         let in_file = |e: BunsenError| e.context(&checkpoint.file);
-        let config = NemoSortformerConfig::from_yaml(&yaml).map_err(in_file)?;
-        config.structure().map_err(in_file)?;
-        config.front_end().map_err(in_file)?;
+        let config = nemo::NemoSortformerMirror::from_yaml(&yaml).map_err(in_file)?;
+        config.sortformer_structure_config().map_err(in_file)?;
+        config.mel_front_end_config().map_err(in_file)?;
         Ok(())
     }
 
@@ -166,22 +149,7 @@ impl SortformerConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<SortformerConstruct> {
-        use crate::{
-            data::formats::nemo::NemoArchive,
-            kits::speech::diarization::sortformer::{
-                NemoSortformerConfig,
-                weights::load_sortformer_v2_nemo_tensors,
-            },
-        };
-        let path = loaded.expect(CHECKPOINT)?;
-        let in_path = |e: BunsenError| e.context(path.display());
-        let archive = NemoArchive::open(path)?;
-        let config = NemoSortformerConfig::from_yaml(archive.config_yaml()).map_err(in_path)?;
-        let structure = config.structure().map_err(in_path)?;
-        let front_end = config.front_end().map_err(in_path)?;
-        let mut model: Sortformer = structure.try_init(device)?;
-        archive.with_weights(|tensors| load_sortformer_v2_nemo_tensors(&mut model, tensors))?;
-        let model = load.place(model, device, |_| true)?;
+        let (model, front_end) = nemo::load_sortformer_v2(loaded, device, load)?;
         SortformerConstruct::new(model, SortformerFamily::SortformerV2, &front_end, device)
     }
 }
@@ -221,7 +189,7 @@ impl ConstructInit for SortformerConstructConfig {
             SortformerReader::Safetensors => {
                 if let Some(config) = map.get(CONFIG) {
                     let resolved = cache.resolve(config)?;
-                    Self::read_config(&resolved.path)?;
+                    transformers::nemotron_diarization_config_from_path(&resolved.path)?;
                 }
             }
             SortformerReader::Nemo => Self::check_nemo_config(&map, cache)?,

@@ -24,7 +24,6 @@ use crate::{
             NEMO_CONFIG_MEMBER,
             NEMO_WEIGHTS_MEMBER,
             NemoArchive,
-            parse_nemo_yaml,
             read_nemo_weights,
         },
     },

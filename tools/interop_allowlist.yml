@@ -69,27 +69,6 @@
   path: crates/public/bunsen/src/kits/speech/asr/whisper/pretrained/safetensors_utils.rs
   item: transformers_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: embedder_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: encoder_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: encoder_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: load_nemotron_transformers_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: load_sortformer_v2_nemo_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: nemotron_transformers_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
-  item: sortformer_v2_nemo_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/weights.rs
   item: load_zonos3_codec_tensors
 - rule: rekey
@@ -147,12 +126,6 @@
   path: crates/public/bunsen/src/kits/speech/asr/voxtral/mod.rs
   item: mod weights
 - rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/mod.rs
-  item: mod nemo_config
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/mod.rs
-  item: mod weights
-- rule: store-gate
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/mod.rs
   item: mod weights
 - rule: store-gate
@@ -185,12 +158,6 @@
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/language/nanochat/weights.rs
   item: NanoChatModelConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/nemo_config.rs
-  item: NemoSortformerConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/diarization/sortformer/nemo_config.rs
-  item: NemoSortformerModulesConfig
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/config.rs
   item: Zonos3CodecJson
