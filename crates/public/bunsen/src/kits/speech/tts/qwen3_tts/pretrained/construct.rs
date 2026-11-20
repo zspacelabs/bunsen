@@ -1,6 +1,7 @@
 //! # Constructing a Qwen3-TTS pretrained
 
 use alloc::{
+    collections::BTreeMap,
     format,
     sync::Arc,
 };
@@ -51,6 +52,7 @@ use crate::{
             Qwen3TtsConstruct,
             Qwen3TtsModel,
             Qwen3TtsModelConfig,
+            Qwen3TtsModelKind,
             Qwen3TtsTakeConfig,
             Qwen3TtsTokenizerFiles,
             codec::{
@@ -66,7 +68,10 @@ use crate::{
             sampler::Qwen3TtsGenerationJson,
             weights::load_qwen3_tts_model_tensors,
         },
-        support::model_config::TransformersConfigJson,
+        support::{
+            model_config::TransformersConfigJson,
+            text::BunsenLanguageTag,
+        },
     },
 };
 
@@ -140,7 +145,7 @@ impl ConstructInit for Qwen3TtsConstructConfig {
 
     fn try_init(
         &self,
-        _model: &BuildRef,
+        model: &BuildRef,
         loaded: &LoadedResourceSet,
         device: &Device,
         policy: LoadPolicy,
@@ -155,6 +160,42 @@ impl ConstructInit for Qwen3TtsConstructConfig {
             BunsenError::invalid_resource(format!("{}: {e}", config_path.display()))
         })?;
         let prompt = Qwen3TtsPromptConfig::from_json(&prompt_json)?;
+        let model_type: ModelTypeJson = serde_json::from_str(&config_text).map_err(|e| {
+            BunsenError::invalid_resource(format!("{}: {e}", config_path.display()))
+        })?;
+        let kind =
+            Qwen3TtsModelKind::from_model_type(&model_type.tts_model_type).ok_or_else(|| {
+                BunsenError::unsupported(format!(
+                    "{}: a `tts_model_type` of {:?}",
+                    config_path.display(),
+                    model_type.tts_model_type
+                ))
+            })?;
+        let build = match model {
+            BuildRef::Named { build, .. } => Some(build.as_ref()),
+            BuildRef::Given(_) => None,
+        };
+        let instruction = match build.and_then(|b| b.tag("instruction")) {
+            Some(value) => value.as_bool().ok_or_else(|| {
+                BunsenError::invalid_resource(format!("the `instruction` tag is {value}"))
+            })?,
+            None => {
+                kind == Qwen3TtsModelKind::CustomVoice
+                    && model_type.tts_model_size.as_deref() != Some("0b6")
+            }
+        };
+        let mut language_tags = BTreeMap::new();
+        if let Some(value) = build.and_then(|b| b.tag("language_keys")) {
+            let map = value.as_object().ok_or_else(|| {
+                BunsenError::invalid_resource(format!("the `language_keys` tag is {value}"))
+            })?;
+            for (key, tag) in map {
+                let tag = tag.as_str().ok_or_else(|| {
+                    BunsenError::invalid_resource(format!("`language_keys.{key}` is {tag}"))
+                })?;
+                language_tags.insert(key.clone(), BunsenLanguageTag::parse(tag)?);
+            }
+        }
         let codec_json: CodecJson = read_json(loaded.expect(CODEC_CONFIG)?)?;
         let codec_config =
             Qwen3TtsCodecDecoderContractConfig::from_json(&codec_json.decoder_config)?;
@@ -191,8 +232,19 @@ impl ConstructInit for Qwen3TtsConstructConfig {
                 merges: loaded.expect(MERGES)?.to_path_buf(),
                 tokenizer_config: loaded.expect(TOKENIZER_CONFIG)?.to_path_buf(),
             },
+            kind,
+            instruction,
+            language_tags,
         }))
     }
+}
+
+/// `config.json`'s model kind and size, under upstream's names.
+#[derive(Deserialize)]
+struct ModelTypeJson {
+    tts_model_type: String,
+    #[serde(default)]
+    tts_model_size: Option<String>,
 }
 
 #[cfg(test)]

@@ -35,6 +35,10 @@
 //!   [`Qwen3TtsSampler`](sampler::Qwen3TtsSampler) as upstream's `generate`
 //!   makes it ([`Qwen3TtsTakeConfig`], from `generation_config.json`).
 //!
+//! - [`driver`] (feature `store`): Qwen3-TTS as a TTS engine,
+//!   [`Qwen3TtsEngine`](driver::Qwen3TtsEngine);
+//!   [`Qwen3TtsDriver`](driver::Qwen3TtsDriver) is the [TTS
+//!   driver](super::driver) over it.
 //! - [`Qwen3TtsConstruct`] (feature `store`): a loaded model, its talker and
 //!   code predictor and codec with their configs, the prompt's ids, the
 //!   release's take settings and the tokenizer's files.
@@ -65,6 +69,9 @@ pub mod weights;
 mod construct;
 #[cfg(feature = "store")]
 pub use construct::*;
+
+#[cfg(feature = "store")]
+pub mod driver;
 
 #[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;
