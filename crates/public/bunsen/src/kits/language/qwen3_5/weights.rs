@@ -19,9 +19,9 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::{
-        construct::load_lm_rekeyed,
-        interop::transformers::{
+    kits::support::interop::{
+        load_lm_rekeyed,
+        transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,
             llama_layer_keys,
@@ -148,8 +148,8 @@ pub fn load_transformers_tensors_as(
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Qwen3.5 is not (a mixture of
 /// experts, `qwen3_5_moe`, among them).
-pub fn qwen3_5_config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Config> {
-    let root = TransformersConfigJson::parse(json)?;
+pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config> {
+    let root = c.clone();
     let tie_default = root.bool_or("tie_word_embeddings", false)?;
     let t = match root.str("model_type")? {
         "qwen3_5" => {
@@ -234,6 +234,14 @@ pub fn qwen3_5_config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Confi
         )?;
     }
     Ok(config)
+}
+
+/// [`qwen3_5_config`] of a `config.json`'s text.
+///
+/// # Errors
+/// As [`TransformersConfigJson::parse`] and [`qwen3_5_config`].
+pub fn qwen3_5_config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Config> {
+    qwen3_5_config(&TransformersConfigJson::parse(json)?)
 }
 
 #[cfg(test)]

@@ -2,10 +2,11 @@
 //!
 //! `bunsen-catalog` holds the catalog the catalog builder writes from its
 //! probe-contract sources (`validation/catalog_builder`): the prelude, whose
-//! `$contracts` are the kits' own (`kits::support::catalog_contracts`), the
-//! commons, and a layer per kit, each with the bunsen feature it needs.
-//! [`builtin_stack`] imports them in order, skipping a layer whose feature
-//! this build of bunsen doesn't have.
+//! `$contracts` are the kits' own
+//! (`kits::support::pretrained::catalog_contracts`), the commons, and a layer
+//! per kit, each with the bunsen feature it needs. [`builtin_stack`] imports
+//! them in order, skipping a layer whose feature this build of bunsen doesn't
+//! have.
 
 use alloc::{
     collections::BTreeMap,
@@ -340,7 +341,7 @@ mod tests {
     fn test_the_builtin_contracts_are_the_kits() {
         use crate::{
             data::catalog::document::OrderedNode,
-            kits::support::catalog_contracts::{
+            kits::support::pretrained::catalog_contracts::{
                 contracts_section,
                 kit_catalog_contracts,
             },

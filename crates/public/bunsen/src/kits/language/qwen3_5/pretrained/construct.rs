@@ -1,10 +1,5 @@
 //! # Constructing a Qwen3.5 pretrained
-use alloc::vec::Vec;
-
-use burn::{
-    store::burn_pack::Tensor as PackTensor,
-    tensor::FloatDType,
-};
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -13,7 +8,7 @@ use super::{
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
-        formats::NamedTensorsApplied,
+        formats::LoadPolicy,
         resources::LoadedResourceSet,
     },
     errors::BunsenResult,
@@ -26,15 +21,19 @@ use crate::{
             TOKENIZER_CONFIG,
             weights::{
                 load_transformers_tensors_as,
-                qwen3_5_config_from_transformers,
+                qwen3_5_config,
             },
         },
         support::{
-            construct::TransformersLmKit,
+            interop::transformers::{
+                TransformersConfigJson,
+                load_transformers_lm,
+            },
             model_config::{
                 ProbeSpec,
                 probe_loaded,
             },
+            pretrained::TransformersLmKit,
         },
     },
 };
@@ -45,7 +44,7 @@ pub const END_OF_TEXT: &str = "<|endoftext|>";
 
 /// How a Qwen3.5 pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
-/// ([`qwen3_5_config_from_transformers`]), or else the prefab its row names,
+/// ([`qwen3_5_config`]), or else the prefab its row names,
 /// in the dtype the load policy resolves; bundled with the positions the
 /// `config.json` says it was trained on, and every file of the checkpoint by
 /// its key.
@@ -66,16 +65,24 @@ impl TransformersLmKit for Qwen3_5ConstructConfig {
     const KIT: &'static str = QWEN3_5_KIT;
     const NAME: &'static str = "Qwen3.5";
 
-    fn config_from_transformers(json: &str) -> BunsenResult<Qwen3_5Config> {
-        qwen3_5_config_from_transformers(json)
+    fn config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config> {
+        qwen3_5_config(c)
     }
 
-    fn load_tensors(
-        model: &mut Qwen3_5Model,
-        tensors: Vec<PackTensor>,
-        dtype: FloatDType,
-    ) -> BunsenResult<NamedTensorsApplied> {
-        load_transformers_tensors_as(model, tensors, dtype)
+    fn load(
+        loaded: &LoadedResourceSet,
+        config: &Qwen3_5Config,
+        device: &Device,
+        policy: LoadPolicy,
+    ) -> BunsenResult<Qwen3_5Model> {
+        load_transformers_lm(
+            loaded,
+            CHECKPOINT,
+            config,
+            device,
+            policy,
+            load_transformers_tensors_as,
+        )
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the

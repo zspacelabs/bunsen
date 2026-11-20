@@ -1,10 +1,5 @@
 //! # Constructing a Gemma pretrained
-use alloc::vec::Vec;
-
-use burn::{
-    store::burn_pack::Tensor as PackTensor,
-    tensor::FloatDType,
-};
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -14,7 +9,7 @@ use super::{
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
-        formats::NamedTensorsApplied,
+        formats::LoadPolicy,
         resources::LoadedResourceSet,
     },
     errors::BunsenResult,
@@ -27,23 +22,27 @@ use crate::{
             GemmaModel,
             TOKENIZER_CONFIG,
             weights::{
-                gemma_config_from_transformers,
+                gemma_config,
                 load_transformers_tensors_as,
             },
         },
         support::{
-            construct::TransformersLmKit,
+            interop::transformers::{
+                TransformersConfigJson,
+                load_transformers_lm,
+            },
             model_config::{
                 ProbeSpec,
                 probe_loaded,
             },
+            pretrained::TransformersLmKit,
         },
     },
 };
 
 /// How a Gemma pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
-/// ([`gemma_config_from_transformers`]), or else the prefab its row names, in
+/// ([`gemma_config`]), or else the prefab its row names, in
 /// the dtype the load policy resolves; bundled with the positions the
 /// `config.json` says it was trained on, and every file of the checkpoint by
 /// its key.
@@ -64,16 +63,24 @@ impl TransformersLmKit for GemmaConstructConfig {
     const KIT: &'static str = GEMMA_KIT;
     const NAME: &'static str = "Gemma";
 
-    fn config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
-        gemma_config_from_transformers(json)
+    fn config(c: &TransformersConfigJson) -> BunsenResult<GemmaConfig> {
+        gemma_config(c)
     }
 
-    fn load_tensors(
-        model: &mut GemmaModel,
-        tensors: Vec<PackTensor>,
-        dtype: FloatDType,
-    ) -> BunsenResult<NamedTensorsApplied> {
-        load_transformers_tensors_as(model, tensors, dtype)
+    fn load(
+        loaded: &LoadedResourceSet,
+        config: &GemmaConfig,
+        device: &Device,
+        policy: LoadPolicy,
+    ) -> BunsenResult<GemmaModel> {
+        load_transformers_lm(
+            loaded,
+            CHECKPOINT,
+            config,
+            device,
+            policy,
+            load_transformers_tensors_as,
+        )
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the

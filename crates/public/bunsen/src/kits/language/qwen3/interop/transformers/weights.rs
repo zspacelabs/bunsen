@@ -10,7 +10,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         language::qwen3::Qwen3Model,
-        support::construct::load_lm_rekeyed,
+        support::interop::load_lm_rekeyed,
     },
 };
 
@@ -32,4 +32,30 @@ pub fn load_qwen3_tensors(
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
     load_lm_rekeyed(model, tensors, qwen3_rekey(), dtype)
+}
+
+/// The model of `loaded`'s checkpoint (its `checkpoint`, one file or
+/// shards), built from `config`: the weights in the stored dtype (bf16)
+/// where `policy` and the device allow it, never f16, which overflows
+/// Qwen3's activations.
+///
+/// # Errors
+/// As
+/// [`load_transformers_lm`](crate::kits::support::interop::transformers::load_transformers_lm)
+/// and [`load_qwen3_tensors`].
+#[cfg(feature = "cache")]
+pub fn load_qwen3(
+    loaded: &crate::data::resources::LoadedResourceSet,
+    config: &crate::kits::language::qwen3::Qwen3Config,
+    device: &burn::tensor::Device,
+    policy: crate::data::formats::LoadPolicy,
+) -> BunsenResult<Qwen3Model> {
+    crate::kits::support::interop::transformers::load_transformers_lm(
+        loaded,
+        crate::kits::language::qwen3::pretrained::CHECKPOINT,
+        config,
+        device,
+        policy,
+        |model, tensors, dtype| load_qwen3_tensors(model, tensors, Some(dtype)),
+    )
 }

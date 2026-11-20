@@ -15,6 +15,10 @@
 //!   `nn.LSTM`) onto bunsen's blocks.
 //! - [`json_mirror_from_path`]: a JSON file a kit reads whole, as its typed
 //!   mirror.
+//! - `load_lm_rekeyed` (feature `store`): a checkpoint's tensors into a
+//!   language model holder's
+//!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
+//!   under the kit's rekey.
 //! - [`nemo`] (feature `speech`): `NeMo`'s YAML config sections, the bunsen
 //!   configs they give, and its state-dict names.
 //! - [`mistral_common`]: Mistral's `tekken.json`, its vocabulary and an audio
@@ -43,8 +47,12 @@ pub mod mistral_common;
 pub mod nemo;
 pub mod torch;
 pub mod transformers;
-
+#[cfg(feature = "store")]
+mod weights;
 use std::path::Path;
+
+#[cfg(feature = "store")]
+pub use weights::*;
 
 use crate::errors::{
     BunsenError,

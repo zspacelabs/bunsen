@@ -63,12 +63,6 @@
   path: crates/public/bunsen/src/kits/language/qwen3_5/mod.rs
   item: mod weights
 - rule: store-gate
-  path: crates/public/bunsen/src/kits/support/construct/mod.rs
-  item: mod transformers_lm
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/support/mod.rs
-  item: mod catalog_contracts
-- rule: store-gate
   path: crates/public/bunsen/src/kits/text/encoders/modernbert/mod.rs
   item: mod weights
 - rule: mirror-rename

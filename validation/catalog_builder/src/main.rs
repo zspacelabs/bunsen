@@ -12,7 +12,7 @@
 //! first. A source writes what a person decides: the namespaces, builds,
 //! template classes, presets and resources. The builder adds what is read
 //! ([`layer`]): every kit's contract, into the prelude's `$contracts`
-//! ([`catalog_contracts`](bunsen::kits::support::catalog_contracts)); each
+//! ([`catalog_contracts`](bunsen::kits::support::pretrained::catalog_contracts)); each
 //! file's digest and size, from the Hub's listing or the file; a
 //! checkpoint's dtype, from its `config.json`; and the presets the probes
 //! find, from the files they read. Every built layer imports into one stack,

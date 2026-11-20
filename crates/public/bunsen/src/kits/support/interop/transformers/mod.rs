@@ -10,6 +10,9 @@
 //!   `config.json`'s text or file, the second naming the file in its errors:
 //!   what a kit's `{target}_config_from_str` and `{target}_config_from_path`
 //!   wrap.
+//! - [`lm_max_positions`]: the positions a language model was trained on.
+//! - **Loading** (feature `store`, with `cache`): `load_transformers_lm`, the
+//!   language-model loader a kit's `load_{target}` wraps.
 
 use std::path::Path;
 
@@ -27,6 +30,22 @@ mod layer_keys;
 pub use config_json::*;
 pub use decoder_section::*;
 pub use layer_keys::*;
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
+
+/// The positions a language model was trained on: its
+/// `max_position_embeddings`, its `text_config`'s where it has one (a
+/// multimodal model's); `None` when the file names none.
+pub fn lm_max_positions(c: &TransformersConfigJson) -> Option<usize> {
+    let text = c.section("text_config").ok();
+    text.as_ref()
+        .unwrap_or(c)
+        .usize("max_position_embeddings")
+        .ok()
+}
 
 /// `convert` over a `config.json`'s text.
 ///
