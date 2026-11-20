@@ -37,7 +37,7 @@ use crate::{
 ///
 /// [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 #[derive(Config, Debug, Copy)]
-pub struct ScaledDotProductAttentionConfig {
+pub struct ScaledDotProductAttentionOptions {
     /// Causal or not.
     #[config(default = "false")]
     pub is_causal: bool,
@@ -97,7 +97,7 @@ pub fn scaled_dot_product_attention(
     bias: Option<Tensor<2>>,
     mask: Option<Tensor<2, Bool>>,
     key_valid: Option<Tensor<2, Bool>>,
-    config: ScaledDotProductAttentionConfig,
+    config: ScaledDotProductAttentionOptions,
 ) -> Tensor<4> {
     let [b, h_q, _t_q, d] = unpack_shape_contract!(["B", "H_q", "T_q", "D"], &q.dims());
     let [h_kv] = unpack_shape_contract!(
@@ -147,7 +147,7 @@ pub fn sdpa_attn_weight(
     bias: Option<Tensor<2>>,
     mask: Option<Tensor<2, Bool>>,
     key_valid: Option<Tensor<2, Bool>>,
-    config: ScaledDotProductAttentionConfig,
+    config: ScaledDotProductAttentionOptions,
 ) -> Tensor<4> {
     let [b, h_q, t_q, d] = unpack_shape_contract!(["B", "H_q", "T_q", "D"], &q.dims());
     let [h_k, t_k] = unpack_shape_contract!(
@@ -292,7 +292,7 @@ mod tests {
         let q = seeded_tensor::<4>(1, shape, Distribution::Default, &device);
         let k = seeded_tensor::<4>(2, shape, Distribution::Default, &device);
         let (scale, cap) = (0.5, 0.4);
-        let config = ScaledDotProductAttentionConfig::new()
+        let config = ScaledDotProductAttentionOptions::new()
             .with_is_causal(true)
             .with_scale(Some(scale))
             .with_softcap(Some(cap));
@@ -324,7 +324,7 @@ mod tests {
         // and 3 alone.
         let valid = crate::ops::transformers::attention::length_mask(&[2], 4, &device);
         let window = crate::ops::transformers::attention::two_sided_window_visible(4, 2, &device);
-        let config = ScaledDotProductAttentionConfig::new();
+        let config = ScaledDotProductAttentionOptions::new();
         let w = sdpa_attn_weight(
             q.clone(),
             k.clone(),
@@ -364,7 +364,7 @@ mod tests {
             None,
             None,
             Some(valid),
-            ScaledDotProductAttentionConfig::new(),
+            ScaledDotProductAttentionOptions::new(),
         );
         // Item 1's last key is padding.
         let padded = w.clone().slice([1..2, 0..1, 0..3, 2..3]);
@@ -376,7 +376,7 @@ mod tests {
             None,
             None,
             None,
-            ScaledDotProductAttentionConfig::new(),
+            ScaledDotProductAttentionOptions::new(),
         );
         crate::support::testing::assert_tensors_close(
             &w.slice([1..2, 0..1, 0..3, 0..2]),
@@ -399,7 +399,7 @@ mod tests {
         let k = seeded_tensor::<4>(2, shape, Distribution::Default, &device);
 
         let p = 0.5;
-        let config = ScaledDotProductAttentionConfig::new();
+        let config = ScaledDotProductAttentionOptions::new();
         let read = |t: Tensor<4>| t.into_data().try_to_vec_as::<f32>().unwrap();
         let kept = read(sdpa_attn_weight(
             q.clone(),
@@ -571,7 +571,7 @@ mod tests {
         let q = seeded_tensor::<4>(1, [1, 2, 6, 8], Distribution::Normal(0.0, 3.0), &device);
         let k = seeded_tensor::<4>(2, [1, 2, 6, 8], Distribution::Normal(0.0, 3.0), &device);
         let v = seeded_tensor::<4>(3, [1, 2, 6, 8], Distribution::Default, &device);
-        let causal = ScaledDotProductAttentionConfig::new().with_is_causal(true);
+        let causal = ScaledDotProductAttentionOptions::new().with_is_causal(true);
         let f32_out =
             scaled_dot_product_attention(q.clone(), k.clone(), v.clone(), None, None, None, causal);
         let half = |t: &Tensor<4>| t.clone().cast(DType::BF16);

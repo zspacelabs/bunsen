@@ -1,8 +1,8 @@
 //! # Noise as a value
 //!
-//! [`NoiseConfig`] is a [`Distribution`] plus an optional [`ClampOp`], held
-//! as one value object, with [`NoiseConfig::noise`] and
-//! [`NoiseConfig::noise_like`] to sample it. `DropBlockOptions` carries one
+//! [`NoiseOptions`] is a [`Distribution`] plus an optional [`ClampOptions`],
+//! held as one value object, with [`NoiseOptions::noise`] and
+//! [`NoiseOptions::noise_like`] to sample it. `DropBlockOptions` carries one
 //! to refill dropped regions.
 
 use burn::{
@@ -27,23 +27,23 @@ use serde::{
 
 use crate::{
     burner::distribution::DistributionDisplayAdapter,
-    ops::clamp::ClampOp,
+    ops::clamp::ClampOptions,
 };
 
 /// Noise Configuration.
 ///
-/// Carries a [`Distribution`] and an optional [`ClampOp`].
+/// Carries a [`Distribution`] and an optional [`ClampOptions`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct NoiseConfig {
+pub struct NoiseOptions {
     /// The noise distribution.
     pub distribution: Distribution,
 
     /// The noise clip range.
-    pub clamp: Option<ClampOp>,
+    pub clamp: Option<ClampOptions>,
 }
 
-impl ModuleDisplay for NoiseConfig {}
-impl ModuleDisplayDefault for NoiseConfig {
+impl ModuleDisplay for NoiseOptions {}
+impl ModuleDisplayDefault for NoiseOptions {
     fn content(
         &self,
         content: Content,
@@ -59,7 +59,7 @@ impl ModuleDisplayDefault for NoiseConfig {
     }
 }
 
-impl Default for NoiseConfig {
+impl Default for NoiseOptions {
     fn default() -> Self {
         Self {
             distribution: Distribution::Default,
@@ -68,7 +68,7 @@ impl Default for NoiseConfig {
     }
 }
 
-impl NoiseConfig {
+impl NoiseOptions {
     /// Extends the config with the given [`Distribution`].
     pub fn with_distribution(
         self,
@@ -80,13 +80,13 @@ impl NoiseConfig {
         }
     }
 
-    /// Extends the config with the given [`ClampOp`].
+    /// Extends the config with the given [`ClampOptions`].
     pub fn with_clamp<C>(
         self,
         clamp: C,
     ) -> Self
     where
-        C: Into<Option<ClampOp>>,
+        C: Into<Option<ClampOptions>>,
     {
         Self {
             clamp: clamp.into(),
@@ -147,15 +147,15 @@ mod tests {
 
     #[test]
     fn test_noise_config_display() {
-        let config = NoiseConfig::default().with_clamp(ClampOp::new(0.5, 1.0));
+        let config = NoiseOptions::default().with_clamp(ClampOptions::new(0.5, 1.0));
         let settings = DisplaySettings::default();
 
         assert_eq!(
             config.format(settings),
             indoc::indoc! {r#"
-                NoiseConfig {
+                NoiseOptions {
                   distribution: Distribution::Default
-                  clamp: ClampOp {
+                  clamp: ClampOptions {
                       min: 0.5
                       max: 1
                     }
@@ -166,41 +166,41 @@ mod tests {
 
     #[test]
     fn test_noise_default() {
-        let cfg = NoiseConfig::default();
+        let cfg = NoiseOptions::default();
         assert_eq!(
             cfg,
-            NoiseConfig {
+            NoiseOptions {
                 distribution: Distribution::Default,
                 clamp: None
             }
         );
 
-        let cfg = NoiseConfig::default()
+        let cfg = NoiseOptions::default()
             .with_distribution(Distribution::Bernoulli(0.3))
-            .with_clamp(ClampOp::default());
+            .with_clamp(ClampOptions::default());
         assert_eq!(
             cfg,
-            NoiseConfig {
+            NoiseOptions {
                 distribution: Distribution::Bernoulli(0.3),
-                clamp: Some(ClampOp::default())
+                clamp: Some(ClampOptions::default())
             }
         );
 
-        let cfg = NoiseConfig::default().with_clamp(Some(ClampOp::default()));
+        let cfg = NoiseOptions::default().with_clamp(Some(ClampOptions::default()));
         assert_eq!(
             cfg,
-            NoiseConfig {
+            NoiseOptions {
                 distribution: Distribution::Default,
-                clamp: Some(ClampOp::default())
+                clamp: Some(ClampOptions::default())
             }
         );
 
-        let cfg = NoiseConfig::default()
-            .with_clamp(ClampOp::default())
+        let cfg = NoiseOptions::default()
+            .with_clamp(ClampOptions::default())
             .with_clamp(None);
         assert_eq!(
             cfg,
-            NoiseConfig {
+            NoiseOptions {
                 distribution: Distribution::Default,
                 clamp: None,
             }
@@ -214,8 +214,8 @@ mod tests {
         let reference: Tensor<2> = Tensor::ones([20, 20], &device);
         let numel = reference.shape().num_elements() as f64;
 
-        let noise = NoiseConfig::default()
-            .with_clamp(ClampOp::default().with_min(0.5))
+        let noise = NoiseOptions::default()
+            .with_clamp(ClampOptions::default().with_min(0.5))
             .noise_like(&reference);
 
         assert_eq!(noise.shape(), reference.shape());
@@ -250,7 +250,7 @@ mod tests {
 
         let p = 0.1;
 
-        let noise = NoiseConfig::default()
+        let noise = NoiseOptions::default()
             .with_distribution(Distribution::Bernoulli(p))
             .noise_like(&reference);
 

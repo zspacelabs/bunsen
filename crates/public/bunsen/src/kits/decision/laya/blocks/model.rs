@@ -54,7 +54,7 @@ use crate::{
     contracts::unpack_shape_contract,
     errors::BunsenResult,
     kits::text::encoders::modernbert::{
-        ModernBertConfig,
+        ModernBertContractConfig,
         ModernBertMeta,
         ModernBertModel,
     },
@@ -96,12 +96,12 @@ impl LayaQuestionKind {
     }
 }
 
-/// Config for [`LayaModel`]: a [`ModernBertConfig`] encoder and the decision
-/// head over it, as upstream's `DecisionModel` builds it.
+/// Config for [`LayaModel`]: a [`ModernBertContractConfig`] encoder and the
+/// decision head over it, as upstream's `DecisionModel` builds it.
 #[derive(Config, Debug)]
 pub struct LayaConfig {
     /// The encoder.
-    pub encoder: ModernBertConfig,
+    pub encoder: ModernBertContractConfig,
 
     /// The head's encoder layers (`rl_agent_config.json`'s `head_layers`).
     #[config(default = "2")]

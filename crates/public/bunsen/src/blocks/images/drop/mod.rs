@@ -11,7 +11,7 @@
 //!   [`drop_block_2d`](crate::ops::drop::drop_block_2d). The config's one field
 //!   is a [`DropBlockOptions`](crate::ops::drop::DropBlockOptions) value
 //!   (re-exported in [`drop_block`]), whose block size is a
-//!   [`SizeConfig`](crate::ops::drop::SizeConfig) per axis.
+//!   [`SizeSpec`](crate::ops::drop::SizeSpec) per axis.
 //!
 //!   `DropBlock` ([Ghiasi et al., 2018](https://arxiv.org/pdf/1810.12890.pdf))
 //!   drops contiguous blocks of activations instead of independent pixels.

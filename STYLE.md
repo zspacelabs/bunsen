@@ -218,7 +218,7 @@ of named steps, and a new variant changes one place.
 
 When an op has parameters worth naming, they form a value object that
 serializes and embeds in other configs, and that value object is the unit of
-configuration: `ClampOp` inside `NoiseConfig` inside `DropBlockOptions`
+configuration: `ClampOptions` inside `NoiseOptions` inside `DropBlockOptions`
 inside `DropBlock2dConfig`. A config embeds the value object; it does not
 copy its fields.
 

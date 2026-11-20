@@ -1,8 +1,9 @@
 //! # `ModernBERT`
 //!
 //! Answer.AI's `ModernBERT` encoder, as `transformers`' `ModernBertModel`
-//! defines it: a [`ModernBertModel`], built from a [`ModernBertConfig`], is
-//! a token embedding with a `LayerNorm`, then a
+//! defines it: a [`ModernBertModel`], built from a
+//! [`ModernBertContractConfig`], is a token embedding with a `LayerNorm`, then
+//! a
 //! [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
 //! of bidirectional pre-norm layers with a `GeGLU` (exact `GELU`), every
 //! third layer global and the others local (a two-sided window of
@@ -10,7 +11,7 @@
 //! first layer has no attention norm, the embedding's norm standing in for
 //! it. Its norms are `LayerNorm`s without a bias, and no projection has one.
 //!
-//! - [`blocks`]: the model, built from a [`ModernBertConfig`].
+//! - [`blocks`]: the model, built from a [`ModernBertContractConfig`].
 //! - [`weights`] (feature `store`): loading tensors named as a `transformers`
 //!   `ModernBertModel` state dict (a bare model's, or a `ModernBertFor*`'s
 //!   under `model.`, its head dropped), and reading its `config.json`.

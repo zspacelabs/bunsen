@@ -121,7 +121,7 @@ pub enum SpectrumImpl {
 /// Whisper's `maximum(log_spec, log_spec.max() - 8.0)`.
 ///
 /// Applied by the caller with [`apply`](Self::apply), to a finished
-/// spectrogram. It is deliberately not a [`PerceptiveAudioConverterOptions`]
+/// spectrogram. It is deliberately not a [`PerceptiveAudioConverterConfig`]
 /// field: [`PerWindowClamp`](Self::PerWindowClamp) reduces over whatever it is
 /// handed,
 /// so folding it into the pipeline would make a streamed run differ from a
@@ -184,7 +184,7 @@ impl RangeClamp {
 /// Applied by the caller with [`apply`](Self::apply). Like
 /// [`RangeClamp`], it is packaging for a particular model's input rather than
 /// a mel-spectrogram parameter, so it is not a
-/// [`PerceptiveAudioConverterOptions`] field.
+/// [`PerceptiveAudioConverterConfig`] field.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub struct AffineCompress {
     /// Added before the division.
@@ -223,7 +223,7 @@ impl AffineCompress {
 /// [`try_init`](crate::burner::module::ModuleInit::try_init) runs before
 /// building anything.
 #[derive(Config, Debug)]
-pub struct PerceptiveAudioConverterOptions {
+pub struct PerceptiveAudioConverterConfig {
     // ---- spectral ----
     /// The signal sample rate, in Hz.
     #[config(default = "16000")]
@@ -318,7 +318,7 @@ pub struct PerceptiveAudioConverterOptions {
     pub spectrum_impl: SpectrumImpl,
 }
 
-/// Common geometry for [`PerceptiveAudioConverterOptions`] and
+/// Common geometry for [`PerceptiveAudioConverterConfig`] and
 /// [`PerceptiveAudioConverter`].
 ///
 /// Lets test and reflective code read the framing geometry uniformly from a
@@ -326,7 +326,7 @@ pub struct PerceptiveAudioConverterOptions {
 ///
 /// Deliberately narrow. Only values needed for that uniform access live here;
 /// everything else — the mel span, the compression settings — stays on
-/// [`PerceptiveAudioConverterOptions`], reachable from a module via
+/// [`PerceptiveAudioConverterConfig`], reachable from a module via
 /// [`PerceptiveAudioConverter::options`].
 pub trait PerceptiveAudioConverterMeta {
     /// The signal sample rate, in Hz.
@@ -388,7 +388,7 @@ pub trait PerceptiveAudioConverterMeta {
     }
 }
 
-impl PerceptiveAudioConverterMeta for PerceptiveAudioConverterOptions {
+impl PerceptiveAudioConverterMeta for PerceptiveAudioConverterConfig {
     fn sample_rate(&self) -> usize {
         self.sample_rate
     }
@@ -418,13 +418,13 @@ impl PerceptiveAudioConverterMeta for PerceptiveAudioConverterOptions {
     }
 }
 
-impl Default for PerceptiveAudioConverterOptions {
+impl Default for PerceptiveAudioConverterConfig {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl PerceptiveAudioConverterOptions {
+impl PerceptiveAudioConverterConfig {
     /// The high edge of the mel span in Hz, resolving `None` to Nyquist.
     pub fn f_max_hz(&self) -> f64 {
         self.f_max.unwrap_or(self.nyquist())
@@ -532,7 +532,7 @@ impl PerceptiveAudioConverterOptions {
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) if
     /// `pre_emphasis` is set or `remove_dc` is true: neither is implemented.
     pub fn validate(&self) -> BunsenResult<()> {
-        const OWNER: &str = "PerceptiveAudioConverterOptions";
+        const OWNER: &str = "PerceptiveAudioConverterConfig";
         if self.sample_rate == 0 {
             return Err(ConstraintError::zero_or_empty(OWNER, "sample_rate").into());
         }
@@ -595,12 +595,12 @@ impl PerceptiveAudioConverterOptions {
         // streaming carry — not a change to make untested.
         if self.pre_emphasis.is_some() {
             return Err(BunsenError::unsupported(
-                "PerceptiveAudioConverterOptions.pre_emphasis is not implemented",
+                "PerceptiveAudioConverterConfig.pre_emphasis is not implemented",
             ));
         }
         if self.remove_dc {
             return Err(BunsenError::unsupported(
-                "PerceptiveAudioConverterOptions.remove_dc is not implemented",
+                "PerceptiveAudioConverterConfig.remove_dc is not implemented",
             ));
         }
 
@@ -608,13 +608,13 @@ impl PerceptiveAudioConverterOptions {
     }
 }
 
-impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterOptions {
+impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterConfig {
     /// Initializes a [`PerceptiveAudioConverter`] on `device`.
     ///
     /// # Errors
     ///
-    /// See [`validate`](PerceptiveAudioConverterOptions::validate) and
-    /// [`to_vec_filterbank`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
+    /// See [`validate`](PerceptiveAudioConverterConfig::validate) and
+    /// [`to_vec_filterbank`](PerceptiveAudioConverterConfig::try_to_filterbank_vec).
     fn try_init(
         &self,
         device: &Device,
@@ -649,13 +649,13 @@ impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterOptions {
 
 /// Waveform to log-mel conversion module.
 ///
-/// Built by [`PerceptiveAudioConverterOptions`]. Holds the precomputed analysis
+/// Built by [`PerceptiveAudioConverterConfig`]. Holds the precomputed analysis
 /// constants; like [`SlidingStft`](crate::ops::signal::SlidingStft) these are
 /// bare tensors rather than `Param`s, so they ride `to_device` but are neither
 /// recorded nor visited.
 ///
 /// Implements [`PerceptiveAudioConverterMeta`], so geometry reads the same here
-/// as on the [`PerceptiveAudioConverterOptions`] it was built from.
+/// as on the [`PerceptiveAudioConverterConfig`] it was built from.
 #[derive(Module, Debug)]
 pub struct PerceptiveAudioConverter {
     /// The options this was built from.
@@ -663,7 +663,7 @@ pub struct PerceptiveAudioConverter {
     /// `skip`ped: it is configuration, not module state, and carries no
     /// tensors for the derive to traverse.
     #[module(skip)]
-    options: PerceptiveAudioConverterOptions,
+    options: PerceptiveAudioConverterConfig,
 
     /// The `[n_fft]` analysis window.
     ///
@@ -689,7 +689,7 @@ impl PerceptiveAudioConverter {
     ///
     /// The escape hatch for everything [`PerceptiveAudioConverterMeta`]
     /// deliberately leaves out — the mel span, the compression settings.
-    pub fn options(&self) -> &PerceptiveAudioConverterOptions {
+    pub fn options(&self) -> &PerceptiveAudioConverterConfig {
         &self.options
     }
 
@@ -994,7 +994,7 @@ mod tests {
     fn test_converter_tensor_shapes() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         assert_eq!(conv.window.dims(), [400]);
@@ -1005,7 +1005,7 @@ mod tests {
         // `pad_to_pow2` widens the transform, so the bin axis grows — but the
         // DFT tables keep `n_fft` rows, because the padding is zeros that
         // contribute nothing to the sum.
-        let pow2: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let pow2: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .with_pad_to_pow2(true)
             .try_init(&device)
             .ok_or_panic();
@@ -1020,7 +1020,7 @@ mod tests {
     fn test_converter_tensors_match_host_reference() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         // The window is the same one `StftWindowConfig` builds on the host.
@@ -1060,7 +1060,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, n_bins, batch) = (512, 257, 3);
 
-        let opts = PerceptiveAudioConverterOptions::default()
+        let opts = PerceptiveAudioConverterConfig::default()
             .with_n_fft(n_fft)
             .with_hop(128);
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
@@ -1086,7 +1086,7 @@ mod tests {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -1151,7 +1151,7 @@ mod tests {
     fn test_frame_count() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -1177,7 +1177,7 @@ mod tests {
     fn test_frame_matches_host_reference() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
         let window = opts.window.to_vec_window(opts.n_fft);
 
@@ -1212,7 +1212,7 @@ mod tests {
     fn test_frame_rows_are_independent() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         // A ragged length, so this also exercises the trimmed path.
@@ -1263,7 +1263,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, hop, n_mels) = (64, 32, 8);
-        let opts = PerceptiveAudioConverterOptions::default()
+        let opts = PerceptiveAudioConverterConfig::default()
             .with_n_fft(n_fft)
             .with_hop(hop)
             .with_n_mels(n_mels);
@@ -1297,7 +1297,7 @@ mod tests {
     fn test_spectrum_peaks_at_bin_centre() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let (n_fft, n_bins) = (opts.n_fft, opts.n_bins());
@@ -1337,7 +1337,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, n_mels) = (64, 8);
-        let opts = PerceptiveAudioConverterOptions::default()
+        let opts = PerceptiveAudioConverterConfig::default()
             .with_n_fft(n_fft)
             .with_hop(32)
             .with_n_mels(n_mels);
@@ -1375,7 +1375,7 @@ mod tests {
     fn test_compress_floors_zero_input() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let zeros: Tensor<3> = Tensor::zeros([2, 4, opts.n_mels], &device);
@@ -1448,7 +1448,7 @@ mod tests {
         let n_mels = 2;
 
         // `ln(max(v, floor))`.
-        let opts = PerceptiveAudioConverterOptions::default()
+        let opts = PerceptiveAudioConverterConfig::default()
             .with_n_mels(n_mels)
             .with_log_base(LogBase::E);
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
@@ -1465,7 +1465,7 @@ mod tests {
     fn test_forward_chains_the_stages() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let (batch, samples) = (2, 4000);
@@ -1489,7 +1489,7 @@ mod tests {
 
     #[test]
     fn test_defaults_are_librosa() {
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
 
         assert_eq!(opts.sample_rate, 16000);
         assert_eq!(opts.n_fft, 400);
@@ -1510,7 +1510,7 @@ mod tests {
 
     #[test]
     fn test_derived_geometry() {
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
 
         // No pow2 rounding by default: 400 stays 400, 201 bins.
         assert_eq!(opts.fft_len(), 400);
@@ -1521,26 +1521,26 @@ mod tests {
 
         // Kaldi flavour: 400 rounds to 512, giving 257 bins at different
         // centres. This is a different frontend, not the same one padded.
-        let pow2 = PerceptiveAudioConverterOptions::default().with_pad_to_pow2(true);
+        let pow2 = PerceptiveAudioConverterConfig::default().with_pad_to_pow2(true);
         assert_eq!(pow2.fft_len(), 512);
         assert_eq!(pow2.n_bins(), 257);
 
         // `None` start padding contributes nothing.
         let unpadded =
-            PerceptiveAudioConverterOptions::default().with_start_padding(PaddingMode::None);
+            PerceptiveAudioConverterConfig::default().with_start_padding(PaddingMode::None);
         assert_eq!(unpadded.start_pad_len(), 0);
     }
 
     #[test]
     fn test_explicit_f_max_overrides_nyquist_default() {
-        let opts = PerceptiveAudioConverterOptions::default().with_f_max(Some(4000.0));
+        let opts = PerceptiveAudioConverterConfig::default().with_f_max(Some(4000.0));
         assert_eq!(opts.f_max_hz(), 4000.0);
         opts.validate().unwrap();
     }
 
     #[test]
     fn test_validation_rejects_bad_geometry() {
-        let base = PerceptiveAudioConverterOptions::default;
+        let base = PerceptiveAudioConverterConfig::default;
 
         for bad in [
             base().with_sample_rate(0),
@@ -1563,7 +1563,7 @@ mod tests {
 
     #[test]
     fn test_validation_rejects_unimplemented_options() {
-        let base = PerceptiveAudioConverterOptions::default;
+        let base = PerceptiveAudioConverterConfig::default;
 
         for bad in [
             base().with_pre_emphasis(Some(0.97)),
@@ -1578,7 +1578,7 @@ mod tests {
     #[test]
     fn test_filterbank_build_rejects_empty_triangles() {
         // Scalar validation passes; only building the bank catches this.
-        let opts = PerceptiveAudioConverterOptions::default()
+        let opts = PerceptiveAudioConverterConfig::default()
             .with_n_fft(256)
             .with_n_mels(128);
 
@@ -1593,20 +1593,20 @@ mod tests {
 
     #[test]
     fn test_filterbank_matches_derived_shape() {
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let bank = opts.try_to_filterbank_vec().unwrap();
         assert_eq!(bank.len(), opts.n_mels * opts.n_bins());
     }
 
     #[test]
     fn test_config_roundtrips_through_serde() {
-        let opts = PerceptiveAudioConverterOptions::default()
+        let opts = PerceptiveAudioConverterConfig::default()
             .with_n_mels(40)
             .with_f_max(Some(7600.0))
             .with_mel_scale(MelScale::Htk);
 
         let json = serde_json::to_string(&opts).unwrap();
-        let back: PerceptiveAudioConverterOptions = serde_json::from_str(&json).unwrap();
+        let back: PerceptiveAudioConverterConfig = serde_json::from_str(&json).unwrap();
 
         assert_eq!(back.n_mels, 40);
         assert_eq!(back.f_max, Some(7600.0));
@@ -1620,7 +1620,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let options = PerceptiveAudioConverterOptions::default();
+        let options = PerceptiveAudioConverterConfig::default();
         let _conv: PerceptiveAudioConverter = options.try_init(&device).ok_or_panic();
     }
 
@@ -1635,7 +1635,7 @@ mod tests {
 
         // Non-default across every meta field, so a delegation that read the
         // wrong one — or a default — shows up.
-        let options = PerceptiveAudioConverterOptions::default()
+        let options = PerceptiveAudioConverterConfig::default()
             .with_sample_rate(8000)
             .with_n_fft(300)
             .with_hop(120)
@@ -1682,7 +1682,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         // Scalar geometry.
-        let bad = PerceptiveAudioConverterOptions::default().with_hop(0);
+        let bad = PerceptiveAudioConverterConfig::default().with_hop(0);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .has_cause::<ConstraintError>()
             .assert_err(&ModuleInit::<PerceptiveAudioConverter>::try_init(
@@ -1690,7 +1690,7 @@ mod tests {
             ));
 
         // Only reachable by building the filterbank.
-        let empty_rows = PerceptiveAudioConverterOptions::default()
+        let empty_rows = PerceptiveAudioConverterConfig::default()
             .with_n_fft(256)
             .with_n_mels(128);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -1701,7 +1701,7 @@ mod tests {
             ));
 
         // A non-default but legal configuration still initializes.
-        let ok = PerceptiveAudioConverterOptions::default()
+        let ok = PerceptiveAudioConverterConfig::default()
             .with_n_mels(40)
             .with_start_padding(PaddingMode::None);
         let _conv: PerceptiveAudioConverter = ok.try_init(&device).ok_or_panic();

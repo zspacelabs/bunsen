@@ -51,7 +51,7 @@ use crate::{
     },
 };
 
-/// Common meta for [`ModernBertModel`] and [`ModernBertConfig`].
+/// Common meta for [`ModernBertModel`] and [`ModernBertContractConfig`].
 pub trait ModernBertMeta {
     /// The token count: the embedding's rows.
     fn n_vocab(&self) -> usize;
@@ -72,17 +72,18 @@ pub enum ModernBertLayerKind {
     Global,
 
     /// Attention over the positions within
-    /// [`local_radius`](ModernBertConfig::local_radius) of the query, on
-    /// either side, with the local rotary base.
+    /// [`local_radius`](ModernBertContractConfig::local_radius) of the query,
+    /// on either side, with the local rotary base.
     Local,
 }
 
-/// Config for [`ModernBertModel`]: `transformers`' `ModernBertConfig`, as
-/// far as the encoder's forward needs it.
+/// The policy of [`ModernBertModel`]'s Stacked config: `transformers`'
+/// `ModernBertConfig`, as far as the encoder's forward needs it. It lowers
+/// to the unrolled [`ModernBertStructureConfig`] ([`ToStructureConfig`]).
 ///
 /// Implements [`ModernBertMeta`].
 #[derive(Config, Debug)]
-pub struct ModernBertConfig {
+pub struct ModernBertContractConfig {
     /// The token count.
     pub n_vocab: usize,
 
@@ -121,7 +122,7 @@ pub struct ModernBertConfig {
     pub local_rope_theta: f64,
 }
 
-impl ModernBertMeta for ModernBertConfig {
+impl ModernBertMeta for ModernBertContractConfig {
     fn n_vocab(&self) -> usize {
         self.n_vocab
     }
@@ -135,7 +136,7 @@ impl ModernBertMeta for ModernBertConfig {
     }
 }
 
-impl ModernBertConfig {
+impl ModernBertContractConfig {
     /// `ModernBERT-base`'s geometry: 22 layers of width 768, 12 heads, a
     /// hidden width of 1152, 50368 tokens.
     pub fn modernbert_base() -> Self {
@@ -221,7 +222,7 @@ impl ModernBertConfig {
     pub fn stack(&self) -> BunsenResult<PatternedStackConfig> {
         if !self.layer_kinds.is_empty() && self.layer_kinds.len() != self.n_layers {
             return Err(ConstraintError::new(
-                "ModernBertConfig",
+                "ModernBertContractConfig",
                 "layer_kinds",
                 Rule::Relation {
                     lhs: ("layer_kinds.len".into(), self.layer_kinds.len().to_string()),
@@ -233,7 +234,7 @@ impl ModernBertConfig {
         }
         if self.n_heads == 0 || !self.d_model.is_multiple_of(self.n_heads) {
             return Err(ConstraintError::new(
-                "ModernBertConfig",
+                "ModernBertContractConfig",
                 "n_heads",
                 Rule::Relation {
                     lhs: ("n_heads".into(), self.n_heads.to_string()),
@@ -273,7 +274,7 @@ impl ModernBertConfig {
     }
 }
 
-impl ToStructureConfig for ModernBertConfig {
+impl ToStructureConfig for ModernBertContractConfig {
     type Structure = ModernBertStructureConfig;
 
     /// # Errors
@@ -287,7 +288,7 @@ impl ToStructureConfig for ModernBertConfig {
 }
 
 /// Structure config for [`ModernBertModel`]: its token embedding and its
-/// encoder stack, unrolled. [`ModernBertConfig`] lowers to it.
+/// encoder stack, unrolled. [`ModernBertContractConfig`] lowers to it.
 #[derive(Config, Debug)]
 pub struct ModernBertStructureConfig {
     /// The token embedding, its rows normalized.
@@ -311,14 +312,14 @@ impl ModuleInit<ModernBertModel> for ModernBertStructureConfig {
 
 /// Answer.AI's `ModernBERT` encoder: a normalized token embedding, then a
 /// [`DecoderStack`] of bidirectional `GeGLU` layers, global and local by
-/// layer ([`ModernBertConfig::stack`]), and a final `LayerNorm`.
+/// layer ([`ModernBertContractConfig::stack`]), and a final `LayerNorm`.
 ///
 /// [`transformers_rekey`](crate::kits::text::encoders::modernbert::weights::transformers_rekey)
 /// maps a `transformers` state dict's names onto it, after
 /// [`transformers_row_splits`](crate::kits::text::encoders::modernbert::weights::transformers_row_splits)
 /// has split its fused projections.
 ///
-/// Built by [`ModernBertConfig`] (high-level) or
+/// Built by [`ModernBertContractConfig`] (high-level) or
 /// [`ModernBertStructureConfig`].
 /// Implements [`ModernBertMeta`].
 #[derive(Module, Debug)]
@@ -381,7 +382,7 @@ mod tests {
     /// layers windowed `local_radius + 1` (two-sided) with the local table.
     #[test]
     fn test_layer_pattern() {
-        let config = ModernBertConfig::new(32, 16, 5, 2, 24).with_local_radius(3);
+        let config = ModernBertContractConfig::new(32, 16, 5, 2, 24).with_local_radius(3);
         let kinds: Vec<_> = (0..5).map(|i| config.layer_kind(i)).collect();
         use ModernBertLayerKind::*;
         assert_eq!(kinds, [Global, Local, Local, Global, Local]);
@@ -405,11 +406,13 @@ mod tests {
 
     #[test]
     fn test_layer_kinds_must_cover_the_layers() {
-        let config = ModernBertConfig::new(32, 16, 3, 2, 24)
+        let config = ModernBertContractConfig::new(32, 16, 3, 2, 24)
             .with_layer_kinds(vec![ModernBertLayerKind::Global]);
         assert!(config.stack().is_err());
         assert!(
-            ModernBertConfig::new(32, 16, 3, 3, 24).stack().is_err(),
+            ModernBertContractConfig::new(32, 16, 3, 3, 24)
+                .stack()
+                .is_err(),
             "3 heads over 16"
         );
     }

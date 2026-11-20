@@ -1,16 +1,18 @@
-//! A size relative to a reference size.
+//! A size stated against a reference that is known later.
 
 use serde::{
     Deserialize,
     Serialize,
 };
 
-/// A size, given relative to a reference size that is only known later.
+/// A size, stated as the reference size itself, a ratio of it, or a fixed
+/// count, where the reference is only known later.
 ///
 /// [`resolve`](Self::resolve) turns it into a count once the reference is
-/// known. In the crate, [`DropBlockOptions`] uses it: each side of its
-/// `kernel` is a `SizeConfig`, resolved against the input's height or width,
-/// so a block can be "7 pixels" or "a quarter of the image".
+/// known; a [`Fixed`](Self::Fixed) size ignores the reference. In the crate,
+/// [`DropBlockOptions`] uses it: each side of its `kernel` is a `SizeSpec`,
+/// resolved against the input's height or width, so a block can be "7 pixels"
+/// or "a quarter of the image".
 ///
 /// `From<usize>` builds [`Fixed`](Self::Fixed) and `From<f64>` builds
 /// [`Ratio`](Self::Ratio), so `with_block_size(7)` and
@@ -18,7 +20,7 @@ use serde::{
 ///
 /// [`DropBlockOptions`]: super::DropBlockOptions
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
-pub enum SizeConfig {
+pub enum SizeSpec {
     /// The reference size itself.
     #[default]
     Default,
@@ -32,8 +34,8 @@ pub enum SizeConfig {
     Fixed(usize),
 }
 
-impl SizeConfig {
-    /// The reference size itself; the same as [`SizeConfig::Default`].
+impl SizeSpec {
+    /// The reference size itself; the same as [`SizeSpec::Default`].
     pub fn source() -> Self {
         Self::Default
     }
@@ -56,23 +58,23 @@ impl SizeConfig {
         source_size: usize,
     ) -> usize {
         match self {
-            SizeConfig::Default => source_size,
-            SizeConfig::Ratio(ratio) => {
+            SizeSpec::Default => source_size,
+            SizeSpec::Ratio(ratio) => {
                 assert!(ratio >= 0.0, "Ratio must be non-negative: {ratio}");
                 ((source_size as f64) * ratio) as usize
             }
-            SizeConfig::Fixed(size) => size,
+            SizeSpec::Fixed(size) => size,
         }
     }
 }
 
-impl From<usize> for SizeConfig {
+impl From<usize> for SizeSpec {
     fn from(size: usize) -> Self {
         Self::Fixed(size)
     }
 }
 
-impl From<f64> for SizeConfig {
+impl From<f64> for SizeSpec {
     fn from(ratio: f64) -> Self {
         Self::Ratio(ratio)
     }
@@ -83,14 +85,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_size_config() {
-        assert_eq!(SizeConfig::default(), SizeConfig::Default);
+    fn test_size_spec() {
+        assert_eq!(SizeSpec::default(), SizeSpec::Default);
 
-        assert_eq!(SizeConfig::from(42), SizeConfig::Fixed(42));
+        assert_eq!(SizeSpec::from(42), SizeSpec::Fixed(42));
 
-        assert_eq!(SizeConfig::from(1.5), SizeConfig::Ratio(1.5));
+        assert_eq!(SizeSpec::from(1.5), SizeSpec::Ratio(1.5));
 
-        assert_eq!(SizeConfig::source(), SizeConfig::Default);
-        assert_eq!(SizeConfig::source().resolve(50), 50);
+        assert_eq!(SizeSpec::source(), SizeSpec::Default);
+        assert_eq!(SizeSpec::source().resolve(50), 50);
     }
 }

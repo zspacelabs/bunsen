@@ -20,8 +20,8 @@ use crate::{
             perceptive_audio::{
                 PaddingMode,
                 PerceptiveAudioConverter,
+                PerceptiveAudioConverterConfig,
                 PerceptiveAudioConverterMeta,
-                PerceptiveAudioConverterOptions,
             },
         },
         transformers::attention::length_mask,
@@ -163,8 +163,8 @@ impl NemoMelFrontEndConfig {
     /// Zero-padding the windowed frame at its end, rather than centring the
     /// window in the FFT as `torch.stft` does, circularly shifts the frame,
     /// which leaves the power spectrum unchanged.
-    pub fn converter_options(&self) -> PerceptiveAudioConverterOptions {
-        PerceptiveAudioConverterOptions::new()
+    pub fn converter_options(&self) -> PerceptiveAudioConverterConfig {
+        PerceptiveAudioConverterConfig::new()
             .with_sample_rate(self.sample_rate)
             .with_n_fft(self.win_length)
             .with_window(StftWindowConfig::Hann { periodic: false })

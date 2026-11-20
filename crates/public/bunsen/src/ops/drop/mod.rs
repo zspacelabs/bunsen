@@ -17,10 +17,10 @@
 //!   it.
 //! - [`drop_block_2d`] is `DropBlock`: it drops contiguous spatial blocks of a
 //!   `[batch, channels, height, width]` map. Its settings are one
-//!   [`DropBlockOptions`] value, whose block size is a [`SizeConfig`] per axis
+//!   [`DropBlockOptions`] value, whose block size is a [`SizeSpec`] per axis
 //!   and whose dropped regions can be refilled with
-//!   [`NoiseConfig`](crate::ops::noise::NoiseConfig) noise. The [`DropBlock2d`]
-//!   module holds a `DropBlockOptions` and calls it.
+//!   [`NoiseOptions`](crate::ops::noise::NoiseOptions) noise. The
+//!   [`DropBlock2d`] module holds a `DropBlockOptions` and calls it.
 //!
 //! Why the structured drops regularize, and the rate tables that configure
 //! a stack of `DropPath` layers, are in [`crate::blocks::images::drop`].
@@ -32,9 +32,9 @@
 mod drop_block;
 mod drop_path_func;
 mod dropout_func;
-mod size_config;
+mod size_spec;
 
 pub use drop_block::*;
 pub use drop_path_func::*;
 pub use dropout_func::*;
-pub use size_config::*;
+pub use size_spec::*;

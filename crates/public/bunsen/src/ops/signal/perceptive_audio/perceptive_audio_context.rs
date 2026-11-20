@@ -330,7 +330,7 @@ impl PerceptiveAudioConversionContext {
     ///
     /// Currently the identity. This is where pre-emphasis and DC removal will
     /// land; both are rejected by
-    /// [`validate`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterOptions::validate)
+    /// [`validate`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterConfig::validate)
     /// until then, so the stage cannot silently drop a configured filter.
     ///
     /// `[batch, extended]` -> `[batch, extended]`.
@@ -421,7 +421,7 @@ mod tests {
             WithOkOrPanic,
             testing::ErrorMatcher,
         },
-        ops::signal::perceptive_audio::PerceptiveAudioConverterOptions,
+        ops::signal::perceptive_audio::PerceptiveAudioConverterConfig,
         support::testing::{
             DeviceMemoryGuard,
             assert_close_to_vec,
@@ -465,7 +465,7 @@ mod tests {
     fn test_context_meta_and_lifecycle() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let ctx = conv.new_context(2);
@@ -501,7 +501,7 @@ mod tests {
     fn test_frame_accounting_over_a_30s_window() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let opts = PerceptiveAudioConverterOptions::default();
+        let opts = PerceptiveAudioConverterConfig::default();
         let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         // 30 s at the default 16 kHz sample rate.
@@ -529,7 +529,7 @@ mod tests {
     fn test_running_frame_count_is_invariant() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
         let hop = conv.hop();
@@ -567,7 +567,7 @@ mod tests {
     fn test_chunked_transform_is_a_homomorphism() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -621,7 +621,7 @@ mod tests {
     fn test_batch_rows_are_independent() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -656,7 +656,7 @@ mod tests {
     fn test_transform_rejects_bad_input() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -690,7 +690,7 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         // No end padding: nothing to flush.
-        let unpadded: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let unpadded: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .with_end_padding(PaddingMode::None)
             .try_init(&device)
             .ok_or_panic();
@@ -705,7 +705,7 @@ mod tests {
 
         // Zero end padding produces the same frame count as reflect; only the
         // values differ.
-        let zero: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let zero: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .with_end_padding(PaddingMode::Zero)
             .try_init(&device)
             .ok_or_panic();
@@ -723,7 +723,7 @@ mod tests {
     fn test_stage_stack_matches_transform() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -750,7 +750,7 @@ mod tests {
     fn test_extend_stage_carry_contents() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterConfig::default()
             .try_init(&device)
             .ok_or_panic();
         let (n_fft, hop) = (conv.n_fft(), conv.hop());

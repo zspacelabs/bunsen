@@ -11,7 +11,7 @@
 //! Each analyzer is split three ways:
 //!
 //! 1. A config value ([`SlidingStftConfig`],
-//!    [`PerceptiveAudioConverterOptions`]) is validated and builds the
+//!    [`PerceptiveAudioConverterConfig`]) is validated and builds the
 //!    coefficients through `ModuleInit`.
 //! 2. A coefficients `Module` ([`SlidingStft`], [`PerceptiveAudioConverter`])
 //!    holds fixed tables: windows, DFT tables, a mel filterbank. They are bare
@@ -46,7 +46,7 @@
 //! burn's counterpart is `burn::tensor::signal` (`stft`, `rfft`), which
 //! [`SlidingStft`] is built on.
 //!
-//! [`PerceptiveAudioConverterOptions`]: perceptive_audio::PerceptiveAudioConverterOptions
+//! [`PerceptiveAudioConverterConfig`]: perceptive_audio::PerceptiveAudioConverterConfig
 //! [`PerceptiveAudioConverter`]: perceptive_audio::PerceptiveAudioConverter
 //! [`PerceptiveAudioConverter::new_context`]: perceptive_audio::PerceptiveAudioConverter::new_context
 //! [`PerceptiveAudioConversionContext`]: perceptive_audio::PerceptiveAudioConversionContext

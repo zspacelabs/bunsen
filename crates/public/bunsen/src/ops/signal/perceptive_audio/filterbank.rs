@@ -166,7 +166,7 @@ pub fn mel_points(
 /// `mel_points[i]` to `mel_points[i + 1]` and falls to `mel_points[i + 2]`.
 ///
 /// [`PerceptiveAudioConverter`]: super::PerceptiveAudioConverter
-/// [`to_mel_filterbank_config`]: super::PerceptiveAudioConverterOptions::to_mel_filterbank_config
+/// [`to_mel_filterbank_config`]: super::PerceptiveAudioConverterConfig::to_mel_filterbank_config
 #[derive(Config, Debug)]
 pub struct MelFilterbankConfig {
     /// The sample rate, in Hz.

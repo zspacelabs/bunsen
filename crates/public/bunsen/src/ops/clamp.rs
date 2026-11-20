@@ -1,8 +1,8 @@
 //! # Clamping as a value
 //!
-//! [`ClampOp`] is an optional minimum and an optional maximum, held as one
-//! value object, with [`ClampOp::clamp`] to apply it. It is for clamping as a
-//! *setting* (a config field, a noise generator's range) rather than a
+//! [`ClampOptions`] is an optional minimum and an optional maximum, held as one
+//! value object, with [`ClampOptions::clamp`] to apply it. It is for clamping
+//! as a *setting* (a config field, a noise generator's range) rather than a
 //! one-shot call, where burn's `Tensor::clamp` is enough.
 
 use burn::{
@@ -20,7 +20,7 @@ use serde::{
 
 /// Clamping operation: an optional min and an optional max.
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ClampOp {
+pub struct ClampOptions {
     /// The minimum value.
     min: Option<f64>,
 
@@ -28,10 +28,10 @@ pub struct ClampOp {
     max: Option<f64>,
 }
 
-impl ClampOp {}
+impl ClampOptions {}
 
-impl ModuleDisplay for ClampOp {}
-impl ModuleDisplayDefault for ClampOp {
+impl ModuleDisplay for ClampOptions {}
+impl ModuleDisplayDefault for ClampOptions {
     fn content(
         &self,
         content: Content,
@@ -40,8 +40,8 @@ impl ModuleDisplayDefault for ClampOp {
     }
 }
 
-impl ClampOp {
-    /// Creates a new `ClampOp`.
+impl ClampOptions {
+    /// Creates a new `ClampOptions`.
     pub fn new<A, B>(
         min: A,
         max: B,
@@ -117,14 +117,14 @@ mod tests {
 
     #[test]
     fn test_clamp_config_display() {
-        let config = ClampOp::default().with_min(0.5);
+        let config = ClampOptions::default().with_min(0.5);
         let settings = DisplaySettings::default();
 
         assert_eq!(
             config.format(settings),
             indoc::indoc! {
                 r#"
-                ClampOp {
+                ClampOptions {
                   min: 0.5
                   max: None
                 }"#
@@ -136,10 +136,10 @@ mod tests {
     fn test_config() {
         let device = cpu_device();
 
-        let cfg = ClampOp::default();
+        let cfg = ClampOptions::default();
         assert_eq!(
             cfg,
-            ClampOp {
+            ClampOptions {
                 min: None,
                 max: None,
             }
@@ -150,10 +150,10 @@ mod tests {
             .to_data()
             .assert_eq(&TensorData::from([-1.0, 0.0, 1.0]), false);
 
-        let cfg = ClampOp::default().with_min(-0.5).with_max(0.5);
+        let cfg = ClampOptions::default().with_min(-0.5).with_max(0.5);
         assert_eq!(
             cfg,
-            ClampOp {
+            ClampOptions {
                 min: Some(-0.5),
                 max: Some(0.5),
             }
