@@ -13,6 +13,8 @@
 //! - its greedy take, code for code (`take`);
 //! - its codec's audio from fixed codes, through upstream's chunked decode,
 //!   past one chunk too (`codec`);
+//! - the TTS driver over the model: a sampled take, and Harvard sentences
+//!   transcribed by Whisper within a word error rate (`driver`);
 //! - the logits again in bf16 on CUDA (`tests/cuda_bf16.rs`).
 //!
 //! ## This crate hosts nothing
@@ -359,3 +361,6 @@ mod take;
 
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod codec;
+
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod driver;

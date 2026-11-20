@@ -372,7 +372,8 @@ crates:
           embeddings, the code predictor (a depth decoder over 15 codebooks), the dual-track prompt
           (stock speakers, languages and a dialect under `auto`, text upfront and interleaved); the
           12 Hz codec's decoder (split RVQ, windowed attention, ConvNeXt upsamplers, a SnakeBeta
-          vocoder, chunked decode); the tokenizer from slow files
+          vocoder, chunked decode); the tokenizer from slow files; the TTS driver, its speech
+          transcribed by Whisper
   zonos3:
     package: zonos3-model-validation
     features: [checkpoints, gpu-tests]

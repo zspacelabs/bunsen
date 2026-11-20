@@ -1,4 +1,4 @@
-//! Speech synthesis judged by speech recognition: [`tts_asr_round_trip`].
+//! Speech synthesis judged by speech recognition.
 
 use alloc::{
     string::String,
@@ -11,6 +11,10 @@ use super::wer::{
 };
 use crate::{
     errors::BunsenResult,
+    kits::speech::tts::driver::{
+        TtsRequest,
+        TtsSynthesizer,
+    },
     support::audio::resample,
 };
 
@@ -115,6 +119,39 @@ where
     Ok(RoundTripReport { cases })
 }
 
+/// [`tts_asr_round_trip`] through a TTS driver: each of `texts` spoken by
+/// `synthesizer` as `request` asks, with that text, and text `i` seeded by
+/// `request`'s seed plus `i` (unseeded when `request` is).
+///
+/// # Errors
+/// As [`tts_asr_round_trip`]: the first of the synthesizer's or
+/// `transcribe`'s.
+pub fn tts_synthesizer_round_trip<T>(
+    texts: &[&str],
+    synthesizer: &dyn TtsSynthesizer,
+    request: &TtsRequest,
+    asr_rate: usize,
+    transcribe: T,
+) -> BunsenResult<RoundTripReport>
+where
+    T: FnMut(&[f32]) -> BunsenResult<String>,
+{
+    let mut index = 0u64;
+    tts_asr_round_trip(
+        texts,
+        |text| {
+            let mut take = request.clone();
+            take.text = text.into();
+            take.seed = request.seed.map(|seed| seed.wrapping_add(index));
+            index += 1;
+            let speech = synthesizer.synthesize(&take)?;
+            Ok((speech.samples, speech.sample_rate as usize))
+        },
+        asr_rate,
+        transcribe,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec;
@@ -157,6 +194,73 @@ mod tests {
         assert_eq!(report.worst(), 0.5);
         // 2 errors over 2 + 3 + 4 words.
         assert_eq!(report.word_error_rate(), 2.0 / 9.0);
+    }
+
+    /// A synthesizer that speaks each text as a second of silence, and
+    /// remembers each request.
+    #[derive(Debug)]
+    struct Silence {
+        heard: std::sync::Mutex<Vec<TtsRequest>>,
+        capabilities: crate::kits::speech::tts::driver::TtsCapabilities,
+    }
+
+    impl TtsSynthesizer for Silence {
+        fn capabilities(&self) -> &crate::kits::speech::tts::driver::TtsCapabilities {
+            &self.capabilities
+        }
+
+        fn sample_rate(&self) -> u32 {
+            8000
+        }
+
+        fn voices(&self) -> Vec<crate::kits::speech::tts::driver::TtsVoiceInfo> {
+            Vec::new()
+        }
+
+        fn synthesize(
+            &self,
+            request: &TtsRequest,
+        ) -> BunsenResult<crate::kits::speech::tts::driver::TtsSpeech> {
+            self.heard.lock().unwrap().push(request.clone());
+            Ok(crate::kits::speech::tts::driver::TtsSpeech {
+                samples: vec![0.0; 8000],
+                sample_rate: 8000,
+                takes: Vec::new(),
+                notes: Vec::new(),
+            })
+        }
+    }
+
+    /// Through a synthesizer: each text is the template's request with that
+    /// text, seeded in turn; the speech is resampled to the recognizer.
+    #[test]
+    fn test_synthesizer_round_trip() {
+        let synthesizer = Silence {
+            heard: std::sync::Mutex::new(Vec::new()),
+            capabilities: Default::default(),
+        };
+        let template = TtsRequest::new("").with_language("english").with_seed(10);
+        let report = tts_synthesizer_round_trip(
+            &["one", "two"],
+            &synthesizer,
+            &template,
+            16000,
+            |samples| {
+                assert_eq!(samples.len(), 16000);
+                Ok("one".into())
+            },
+        )
+        .unwrap();
+        assert_eq!(report.cases[0].errors, 0);
+        assert_eq!(report.cases[1].errors, 1);
+        let heard = synthesizer.heard.lock().unwrap();
+        assert_eq!(heard.len(), 2);
+        assert_eq!(heard[1].text, "two");
+        assert_eq!(heard[1].language.as_deref(), Some("english"));
+        assert_eq!(
+            heard.iter().map(|r| r.seed).collect::<Vec<_>>(),
+            [Some(10), Some(11)]
+        );
     }
 
     #[test]

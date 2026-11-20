@@ -24,11 +24,12 @@ use bunsen::{
                     pretrained::default_whisper_factory,
                 },
             },
-            testing::tts_asr_round_trip,
+            testing::tts_synthesizer_round_trip,
             tts::{
                 driver::{
                     TtsRequest,
                     TtsStop,
+                    TtsSynthesizer,
                     TtsVoiceChoice,
                 },
                 zonos3::driver::{
@@ -143,14 +144,10 @@ mod zonos3_mini {
             .init_from_construct(whisper, &device)
             .unwrap();
 
-        let mut seed = 0;
-        let report = tts_asr_round_trip(
+        let report = tts_synthesizer_round_trip(
             &HARVARD,
-            |text| {
-                seed += 1;
-                let speech = tts.synthesize(&request(text, seed))?;
-                Ok((speech.samples, speech.sample_rate as usize))
-            },
+            &tts as &dyn TtsSynthesizer,
+            &request("", 1),
             16_000,
             |samples| {
                 let mut ctx =
