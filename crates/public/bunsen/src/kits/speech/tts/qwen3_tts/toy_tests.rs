@@ -15,20 +15,20 @@ use super::{
     Qwen3TtsChooser,
     Qwen3TtsCodes,
     Qwen3TtsModel,
-    Qwen3TtsModelConfig,
     Qwen3TtsStop,
     Qwen3TtsTakeConfig,
     prompt::{
         Qwen3TtsPrompt,
         Qwen3TtsPromptConfig,
-        Qwen3TtsPromptJson,
     },
     sampler::Qwen3TtsSamplerConfig,
-    weights::load_qwen3_tts_model_tensors,
 };
 use crate::{
     burner::module::ModuleInit,
-    kits::support::interop::transformers::TransformersConfigJson,
+    kits::{
+        speech::tts::qwen3_tts::interop::qwen_tts::*,
+        support::interop::transformers::TransformersConfigJson,
+    },
     support::testing::{
         ToyFixture,
         assert_io_close,
@@ -59,17 +59,16 @@ impl Toy {
         let model_json = TransformersConfigJson::parse(&text)
             .and_then(|c| c.section("model"))
             .expect("the toy's model config");
-        let config = Qwen3TtsModelConfig::from_transformers(&model_json).expect("the toy");
+        let config = model_config(&model_json).expect("the toy");
         let value: serde_json::Value = serde_json::from_str(&text).expect("parse");
-        let ids: Qwen3TtsPromptJson =
+        let ids: Qwen3TtsPromptMirror =
             serde_json::from_value(value["model"].clone()).expect("the toy's ids");
         let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
         let mut model: Qwen3TtsModel = config.init(&device);
-        load_qwen3_tts_model_tensors(&mut model, fixture.take_weights(), None)
-            .expect("load the toy");
+        load_model_tensors(&mut model, fixture.take_weights(), None).expect("load the toy");
         Self {
             model,
-            ids: Qwen3TtsPromptConfig::from_json(&ids).expect("the toy's prompt ids"),
+            ids: Qwen3TtsPromptMirror::prompt_config(&ids).expect("the toy's prompt ids"),
             fixture,
         }
     }

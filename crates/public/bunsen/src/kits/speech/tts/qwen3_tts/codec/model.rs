@@ -10,6 +10,7 @@ use burn::{
     nn::{
         Linear,
         LinearConfig,
+        RmsNormConfig,
     },
     prelude::*,
 };
@@ -30,24 +31,40 @@ use crate::{
             CausalConvTranspose1dConfig,
             CausalConvTranspose1dMeta,
         },
+        norm::BunsenNormalizationConfig,
         quantization::{
             EuclideanCodebookMeta,
             SplitResidualVectorQuantizer,
             SplitResidualVectorQuantizerConfig,
             SplitResidualVectorQuantizerMeta,
         },
-        transformers::decoders::{
-            causal::CausalDecoderBlockMeta,
-            stack::{
-                DecoderStack,
-                UniformStackConfig,
+        transformers::{
+            attention::csa::CausalSelfAttentionConfig,
+            decoders::{
+                causal::{
+                    CausalDecoderBlockConfig,
+                    CausalDecoderBlockMeta,
+                },
+                stack::{
+                    DecoderStack,
+                    UniformStackConfig,
+                },
             },
+            embedding::{
+                RotaryDirection,
+                RotaryEmbeddingConfig,
+            },
+            mlp::TransformerGatedMlpConfig,
         },
     },
-    burner::module::{
-        CanonicalKeys,
-        ModuleInit,
-        Rekey,
+    burner::{
+        module::{
+            CanonicalKeys,
+            ModuleInit,
+            Rekey,
+            ToStructureConfig,
+        },
+        tensor::Widening,
     },
     contracts::unpack_shape_contract,
     errors::{
@@ -816,5 +833,261 @@ pub const QWEN3_TTS_DECODE_CONTEXT: usize = 25;
 impl CanonicalKeys for Qwen3TtsCodecDecoder {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest().mount_canonical("pre_transformer.stack.", &self.pre_transformer.stack)
+    }
+}
+
+/// The policy of [`Qwen3TtsCodecDecoder`](super::Qwen3TtsCodecDecoder), the
+/// 12 Hz codec's decoder (codes in, audio out): its geometry, as a
+/// `decoder_config` gives it
+/// ([`codec_decoder_config`](crate::kits::speech::tts::qwen3_tts::interop::qwen_tts::Qwen3TtsCodecDecoderMirror::codec_decoder_config)).
+///
+///
+/// Lowers to the [`Qwen3TtsCodecDecoderStructureConfig`] that builds the
+/// decoder ([`ToStructureConfig`]): the vocoder's widths halving block by
+/// block, the transformer's layers from the geometry.
+#[derive(Config, Debug)]
+pub struct Qwen3TtsCodecDecoderContractConfig {
+    /// The codebooks, `K`; the first apart from the rest.
+    pub codebooks: usize,
+
+    /// Codes per codebook.
+    pub codebook_size: usize,
+
+    /// The quantizer's latent width, the pre-conv's input; each codebook's
+    /// vectors are half of it.
+    pub codebook_dim: usize,
+
+    /// The width the pre-conv writes and the upsamplers keep.
+    pub latent_width: usize,
+
+    /// The transformer's width.
+    pub width: usize,
+
+    /// Its layers.
+    pub n_layers: usize,
+
+    /// Its attention heads.
+    pub n_heads: usize,
+
+    /// Its key/value heads.
+    pub n_kv_heads: usize,
+
+    /// Its head width.
+    pub head_dim: usize,
+
+    /// Its feed-forward's hidden width.
+    pub d_ff: usize,
+
+    /// Its causal window, in frames, the frame's own included.
+    pub window: usize,
+
+    /// Its rotary base.
+    pub rope_theta: f64,
+
+    /// Its RMS norms' epsilon.
+    pub rms_eps: f64,
+
+    /// Whether its attention projections carry biases.
+    #[config(default = false)]
+    pub attention_bias: bool,
+
+    /// The upsamplers' factors, each a transposed convolution and a
+    /// `ConvNeXt` block.
+    pub upsampling_ratios: Vec<usize>,
+
+    /// The vocoder's blocks' factors.
+    pub upsample_rates: Vec<usize>,
+
+    /// The vocoder's first width, halved by each block.
+    pub vocoder_width: usize,
+}
+
+impl Qwen3TtsCodecDecoderContractConfig {
+    /// The transformer's layers: pre-RMS-norm, attention over a causal sliding
+    /// window with half-split rotary and no QK-norm (its softmax in f32, as
+    /// `transformers`' eager attention), a `SwiGLU` feed-forward without
+    /// biases, a layer scale on each sublayer, and a final RMS norm.
+    pub fn stack(&self) -> UniformStackConfig {
+        let norm = BunsenNormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
+        let layer = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.width)
+                .with_head_dim(Some(self.head_dim))
+                .with_norm(None)
+                .with_qkv_bias(self.attention_bias)
+                .with_output_bias(self.attention_bias)
+                .with_sliding_window(Some(self.window))
+                .with_softmax_widening(Widening::F32)
+                .into(),
+            TransformerGatedMlpConfig::new(self.width, self.d_ff).into(),
+        )
+        .with_norm(norm.clone())
+        .with_layer_scale(true);
+        UniformStackConfig::new(
+            self.n_layers,
+            layer,
+            norm,
+            RotaryEmbeddingConfig::new(0, self.head_dim)
+                .with_base(self.rope_theta)
+                .with_direction(RotaryDirection::Forward),
+        )
+    }
+}
+
+impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoderContractConfig {
+    fn codebooks(&self) -> usize {
+        self.codebooks
+    }
+
+    fn codebook_size(&self) -> usize {
+        self.codebook_size
+    }
+
+    fn samples_per_frame(&self) -> usize {
+        self.upsampling_ratios
+            .iter()
+            .chain(&self.upsample_rates)
+            .product()
+    }
+}
+
+impl ToStructureConfig for Qwen3TtsCodecDecoderContractConfig {
+    type Structure = Qwen3TtsCodecDecoderStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<Qwen3TtsCodecDecoderStructureConfig> {
+        let latent = self.latent_width;
+        Ok(Qwen3TtsCodecDecoderStructureConfig::new(
+            SplitResidualVectorQuantizerConfig::new(
+                self.codebooks,
+                self.codebook_size,
+                self.codebook_dim / 2,
+                self.codebook_dim,
+            ),
+            CausalConv1dConfig::new([self.codebook_dim, latent], 3),
+            Qwen3TtsCodecTransformerConfig::new(latent, self.stack()),
+            self.upsampling_ratios
+                .iter()
+                .map(|&r| Qwen3TtsCodecUpsampleConfig::new(latent, r))
+                .collect(),
+            Qwen3TtsVocoderConfig::new(latent, self.vocoder_width, self.upsample_rates.clone()),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::module::Module;
+
+    use super::*;
+    use crate::{
+        burner::module::ModuleInit,
+        kits::speech::tts::qwen3_tts::{
+            codec::{
+                QWEN3_TTS_VOCODER_DILATIONS,
+                Qwen3TtsCodecDecoder,
+                Qwen3TtsCodecTransformerMeta,
+                Qwen3TtsCodecUpsampleMeta,
+                Qwen3TtsVocoderBlockConfig,
+                Qwen3TtsVocoderBlockMeta,
+                Qwen3TtsVocoderMeta,
+                Qwen3TtsVocoderResidualUnitConfig,
+                Qwen3TtsVocoderResidualUnitMeta,
+            },
+            interop::qwen_tts::*,
+        },
+        support::testing::cpu_device,
+    };
+
+    /// A small decoder, every width distinct.
+    fn small() -> Qwen3TtsCodecDecoderContractConfig {
+        Qwen3TtsCodecDecoderMirror::codec_decoder_config(&Qwen3TtsCodecDecoderMirror {
+            codebook_size: 9,
+            codebook_dim: 4,
+            hidden_size: 8,
+            latent_dim: 6,
+            rope_theta: 10000.0,
+            num_attention_heads: 2,
+            num_key_value_heads: 1,
+            head_dim: Some(4),
+            attention_bias: false,
+            sliding_window: 4,
+            intermediate_size: 16,
+            hidden_act: "silu".into(),
+            rms_norm_eps: 1e-5,
+            num_hidden_layers: 1,
+            num_quantizers: 3,
+            upsample_rates: vec![2, 3],
+            upsampling_ratios: vec![2],
+            decoder_dim: 12,
+        })
+        .expect("a small config")
+    }
+
+    /// The policy, its lowering and the decoders built from either answer
+    /// the meta alike, and the decoders have the same parameters.
+    #[test]
+    fn test_lowering_agrees() {
+        let device = cpu_device();
+        let policy = small();
+        let structure = policy.to_structure();
+        let direct: Qwen3TtsCodecDecoder = policy.init(&device);
+        let lowered: Qwen3TtsCodecDecoder = structure.init(&device);
+        for meta in [
+            &policy as &dyn Qwen3TtsCodecDecoderMeta,
+            &structure,
+            &direct,
+            &lowered,
+        ] {
+            assert_eq!(
+                [
+                    meta.codebooks(),
+                    meta.codebook_size(),
+                    meta.samples_per_frame()
+                ],
+                [3, 9, 12]
+            );
+        }
+        assert_eq!(direct.num_params(), lowered.num_params());
+    }
+
+    /// Each part's config and the part built from it answer its meta alike.
+    #[test]
+    fn test_part_meta() {
+        let device = cpu_device();
+        let structure = small().to_structure();
+        let decoder: Qwen3TtsCodecDecoder = structure.init(&device);
+
+        let t = &structure.pre_transformer;
+        for meta in [
+            t as &dyn Qwen3TtsCodecTransformerMeta,
+            &decoder.pre_transformer,
+        ] {
+            assert_eq!([meta.latent_width(), meta.width()], [6, 8]);
+        }
+        let u = &structure.upsample[0];
+        for meta in [u as &dyn Qwen3TtsCodecUpsampleMeta, &decoder.upsample[0]] {
+            assert_eq!([meta.width(), meta.factor()], [6, 2]);
+        }
+        let v = &structure.decoder;
+        for meta in [v as &dyn Qwen3TtsVocoderMeta, &decoder.decoder] {
+            assert_eq!(
+                (meta.latent_width(), meta.width(), meta.factors()),
+                (6, 12, vec![2, 3])
+            );
+            assert_eq!([meta.out_width(), meta.factor()], [3, 6]);
+        }
+        let b = Qwen3TtsVocoderBlockConfig::new([12, 6], 2);
+        for meta in [
+            &b as &dyn Qwen3TtsVocoderBlockMeta,
+            &decoder.decoder.blocks[0],
+        ] {
+            assert_eq!((meta.channels(), meta.factor()), ([12, 6], 2));
+        }
+        let r = Qwen3TtsVocoderResidualUnitConfig::new(3, QWEN3_TTS_VOCODER_DILATIONS[2]);
+        for meta in [
+            &r as &dyn Qwen3TtsVocoderResidualUnitMeta,
+            &decoder.decoder.blocks[1].residuals[2],
+        ] {
+            assert_eq!([meta.channels(), meta.dilation()], [3, 9]);
+        }
     }
 }

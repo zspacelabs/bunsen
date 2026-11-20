@@ -12,7 +12,6 @@ use burn::{
     prelude::Int,
     tensor::DType,
 };
-use serde::Deserialize;
 
 use crate::kits::support::decoding::{
     LogitFilter,
@@ -22,32 +21,6 @@ use crate::kits::support::decoding::{
     TopP,
     sample_softmax,
 };
-
-/// A model's `generation_config.json`, under upstream's names: the talker's
-/// settings, and the code predictor's (`subtalker_*`).
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct Qwen3TtsGenerationJson {
-    /// Whether the talker samples; else it takes the argmax.
-    pub do_sample: bool,
-    /// The talker's repetition penalty.
-    pub repetition_penalty: f64,
-    /// The talker's temperature.
-    pub temperature: f64,
-    /// The talker's top-p.
-    pub top_p: f64,
-    /// The talker's top-k.
-    pub top_k: usize,
-    /// Whether the code predictor samples.
-    pub subtalker_dosample: bool,
-    /// Its temperature.
-    pub subtalker_temperature: f64,
-    /// Its top-p.
-    pub subtalker_top_p: f64,
-    /// Its top-k.
-    pub subtalker_top_k: usize,
-    /// The most codebook-0 tokens a take generates.
-    pub max_new_tokens: usize,
-}
 
 /// Config for [`Qwen3TtsSampler`]; its defaults are the release's talker's.
 #[derive(Config, Debug, PartialEq)]
@@ -78,27 +51,6 @@ pub struct Qwen3TtsSamplerConfig {
 }
 
 impl Qwen3TtsSamplerConfig {
-    /// The talker's settings of a `generation_config.json`.
-    pub fn talker(generation: &Qwen3TtsGenerationJson) -> Self {
-        Self::new()
-            .with_sample(generation.do_sample)
-            .with_temperature(generation.temperature)
-            .with_top_k(generation.top_k)
-            .with_top_p(generation.top_p)
-            .with_repetition_penalty(generation.repetition_penalty)
-    }
-
-    /// The code predictor's settings of a `generation_config.json`: its own
-    /// sampling, no repetition penalty (upstream passes it none).
-    pub fn code_predictor(generation: &Qwen3TtsGenerationJson) -> Self {
-        Self::new()
-            .with_sample(generation.subtalker_dosample)
-            .with_temperature(generation.subtalker_temperature)
-            .with_top_k(generation.subtalker_top_k)
-            .with_top_p(generation.subtalker_top_p)
-            .with_repetition_penalty(1.0)
-    }
-
     /// The sampler, never choosing `suppressed`.
     pub fn init(
         &self,
@@ -189,39 +141,6 @@ impl Qwen3TtsSampler {
 mod tests {
     use super::*;
     use crate::support::testing::cpu_device;
-
-    fn release() -> Qwen3TtsGenerationJson {
-        serde_json::from_str(
-            r#"{"do_sample": true, "repetition_penalty": 1.05, "temperature": 0.9,
-                "top_p": 1.0, "top_k": 50, "subtalker_dosample": true,
-                "subtalker_temperature": 0.9, "subtalker_top_p": 1.0,
-                "subtalker_top_k": 50, "max_new_tokens": 8192}"#,
-        )
-        .expect("parse")
-    }
-
-    /// The release's settings: the config's defaults for the talker; the
-    /// predictor's without a penalty.
-    #[test]
-    fn test_release_settings() {
-        assert_eq!(
-            Qwen3TtsSamplerConfig::talker(&release()).repetition_penalty,
-            1.05
-        );
-        assert_eq!(
-            Qwen3TtsSamplerConfig::talker(&release()),
-            Qwen3TtsSamplerConfig::new().with_repetition_penalty(1.05)
-        );
-        let predictor = Qwen3TtsSamplerConfig::code_predictor(&release());
-        assert_eq!(
-            (
-                predictor.temperature,
-                predictor.top_k,
-                predictor.repetition_penalty
-            ),
-            (0.9, 50, 1.0)
-        );
-    }
 
     /// The argmax, after the suppressed ids, the penalty and the blocked
     /// ones.

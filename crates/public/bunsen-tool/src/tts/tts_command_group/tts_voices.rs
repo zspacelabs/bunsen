@@ -24,13 +24,10 @@ use bunsen::{
     kits::speech::tts::{
         driver::TtsVoiceInfo,
         qwen3_tts::{
+            interop::qwen_tts::Qwen3TtsPromptMirror,
             pretrained::{
                 CONFIG,
                 default_qwen3_tts_factory,
-            },
-            prompt::{
-                Qwen3TtsPromptConfig,
-                Qwen3TtsPromptJson,
             },
         },
         zonos3::{
@@ -173,9 +170,9 @@ impl TtsVoicesCommand {
         let loaded = self.load(cache, &set)?;
         let path = loaded.expect(CONFIG)?;
         let text = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
-        let json: Qwen3TtsPromptJson = serde_json::from_str(&text)
+        let json: Qwen3TtsPromptMirror = serde_json::from_str(&text)
             .map_err(|e| BunsenError::invalid_resource(format!("{}: {e}", path.display())))?;
-        Ok(Qwen3TtsPromptConfig::from_json(&json)?.voices())
+        Ok(Qwen3TtsPromptMirror::prompt_config(&json)?.voices())
     }
 }
 

@@ -31,26 +31,13 @@ use crate::{
             qwen3_tts::{
                 Qwen3TtsConstruct,
                 Qwen3TtsModel,
-                Qwen3TtsModelConfig,
                 Qwen3TtsModelKind,
                 Qwen3TtsTakeConfig,
                 Qwen3TtsTokenizerFiles,
-                codec::{
-                    Qwen3TtsCodecDecoder,
-                    Qwen3TtsCodecDecoderContractConfig,
-                    Qwen3TtsCodecDecoderJson,
-                    weights::load_qwen3_tts_codec_tensors,
-                },
-                prompt::{
-                    Qwen3TtsPromptConfig,
-                    Qwen3TtsPromptJson,
-                    Qwen3TtsTextPlacement,
-                },
-                sampler::{
-                    Qwen3TtsGenerationJson,
-                    Qwen3TtsSamplerConfig,
-                },
-                weights::load_qwen3_tts_model_tensors,
+                codec::Qwen3TtsCodecDecoder,
+                interop::qwen_tts::*,
+                prompt::Qwen3TtsTextPlacement,
+                sampler::Qwen3TtsSamplerConfig,
             },
         },
         support::{
@@ -151,28 +138,22 @@ fn construct(
     let model_json = TransformersConfigJson::parse(&text)
         .and_then(|c| c.section("model"))
         .expect("the toy's model config");
-    let model_config = Qwen3TtsModelConfig::from_transformers(&model_json).expect("the toy");
+    let model_config = model_config(&model_json).expect("the toy");
     let value: serde_json::Value = serde_json::from_str(&text).expect("parse");
-    let ids: Qwen3TtsPromptJson =
+    let ids: Qwen3TtsPromptMirror =
         serde_json::from_value(value["model"].clone()).expect("the toy's ids");
-    let codec_json: Qwen3TtsCodecDecoderJson =
+    let codec_json: Qwen3TtsCodecDecoderMirror =
         serde_json::from_value(value["codec"]["decoder_config"].clone()).expect("the codec");
     let codec_config =
-        Qwen3TtsCodecDecoderContractConfig::from_json(&codec_json).expect("the toy codec");
+        Qwen3TtsCodecDecoderMirror::codec_decoder_config(&codec_json).expect("the toy codec");
 
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     let weights = fixture.take_weights();
     let mut model: Qwen3TtsModel = model_config.init(&device);
-    load_qwen3_tts_model_tensors(&mut model, weights.clone(), None).expect("the toy model");
+    load_model_tensors(&mut model, weights.clone(), None).expect("the toy model");
     let mut codec: Qwen3TtsCodecDecoder = codec_config.init(&device);
-    load_qwen3_tts_codec_tensors(&mut codec, &codec_config, weights, None).expect("the toy codec");
+    load_codec_decoder_tensors(&mut codec, &codec_config, weights, None).expect("the toy codec");
 
-    let generation: Qwen3TtsGenerationJson = serde_json::from_str(
-        r#"{"do_sample": true, "repetition_penalty": 1.05, "temperature": 0.9, "top_p": 1.0,
-            "top_k": 50, "subtalker_dosample": true, "subtalker_temperature": 0.9,
-            "subtalker_top_p": 1.0, "subtalker_top_k": 50, "max_new_tokens": 8192}"#,
-    )
-    .expect("a generation config");
     let take = Qwen3TtsTakeConfig::new()
         .with_talker(
             Qwen3TtsSamplerConfig::new()
@@ -187,9 +168,8 @@ fn construct(
         model_config,
         codec,
         codec_config,
-        prompt: Qwen3TtsPromptConfig::from_json(&ids).expect("the toy's prompt ids"),
+        prompt: Qwen3TtsPromptMirror::prompt_config(&ids).expect("the toy's prompt ids"),
         take,
-        generation,
         sample_rate: 300,
         tokenizer: Qwen3TtsTokenizerFiles {
             vocab: PathBuf::new(),

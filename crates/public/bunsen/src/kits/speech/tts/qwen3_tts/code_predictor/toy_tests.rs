@@ -12,19 +12,16 @@ use std::path::PathBuf;
 
 use burn::prelude::*;
 
-use super::{
-    Qwen3TtsCodePredictorConfig,
-    weights::load_qwen3_tts_code_predictor_tensors,
-};
 use crate::{
     blocks::transformers::decoders::depth::DepthDecoder,
     burner::module::ModuleInit,
     kits::{
-        speech::tts::qwen3_tts::talker::{
-            Qwen3TtsTalker,
-            Qwen3TtsTalkerConfig,
-            Qwen3TtsTalkerMeta,
-            weights::load_qwen3_tts_talker_tensors,
+        speech::tts::qwen3_tts::{
+            interop::qwen_tts::*,
+            talker::{
+                Qwen3TtsTalker,
+                Qwen3TtsTalkerMeta,
+            },
         },
         support::interop::transformers::TransformersConfigJson,
     },
@@ -55,9 +52,8 @@ fn load() -> (Qwen3TtsTalker, DepthDecoder, ToyFixture) {
         .section("model")
         .and_then(|model| model.section("talker_config"))
         .expect("the toy's talker_config");
-    let talker_config =
-        Qwen3TtsTalkerConfig::from_transformers_section(&section).expect("the toy's talker");
-    let predictor_config = Qwen3TtsCodePredictorConfig::from_transformers_section(
+    let talker_config = talker_config(&section).expect("the toy's talker");
+    let predictor_config = code_predictor_config(
         &section
             .section("code_predictor_config")
             .expect("the toy's code_predictor_config"),
@@ -67,9 +63,9 @@ fn load() -> (Qwen3TtsTalker, DepthDecoder, ToyFixture) {
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     let weights = fixture.take_weights();
     let mut talker: Qwen3TtsTalker = talker_config.init(&device);
-    load_qwen3_tts_talker_tensors(&mut talker, weights.clone(), None).expect("the talker");
+    load_talker_tensors(&mut talker, weights.clone(), None).expect("the talker");
     let mut predictor: DepthDecoder = predictor_config.init(&device);
-    load_qwen3_tts_code_predictor_tensors(&mut predictor, weights, None).expect("the predictor");
+    load_code_predictor_tensors(&mut predictor, weights, None).expect("the predictor");
     (talker, predictor, fixture)
 }
 

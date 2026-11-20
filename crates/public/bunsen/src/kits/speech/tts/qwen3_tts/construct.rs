@@ -12,7 +12,6 @@ use super::{
         Qwen3TtsCodecDecoderContractConfig,
     },
     prompt::Qwen3TtsPromptConfig,
-    sampler::Qwen3TtsGenerationJson,
 };
 use crate::kits::support::text::BunsenLanguageTag;
 
@@ -29,19 +28,6 @@ pub enum Qwen3TtsModelKind {
 
     /// `base`: a voice cloned from a reference (no stock speakers).
     Base,
-}
-
-impl Qwen3TtsModelKind {
-    /// The kind `config.json`'s `tts_model_type` names; `None`, one this
-    /// kit does not know.
-    pub fn from_model_type(model_type: &str) -> Option<Self> {
-        match model_type {
-            "custom_voice" => Some(Self::CustomVoice),
-            "voice_design" => Some(Self::VoiceDesign),
-            "base" => Some(Self::Base),
-            _ => None,
-        }
-    }
 }
 
 /// A Qwen3-TTS tokenizer's slow files, unread: `transformers` builds the
@@ -99,9 +85,6 @@ pub struct Qwen3TtsConstruct {
 
     /// The release's take: `generation_config.json`'s settings.
     pub take: Qwen3TtsTakeConfig,
-
-    /// `generation_config.json`, as the release writes it.
-    pub generation: Qwen3TtsGenerationJson,
 
     /// The output's sample rate, in Hz.
     pub sample_rate: u32,

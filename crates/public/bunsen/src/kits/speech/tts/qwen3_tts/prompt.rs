@@ -39,7 +39,6 @@ use burn::{
     config::Config,
     prelude::*,
 };
-use serde::Deserialize;
 
 use super::talker::Qwen3TtsTalker;
 use crate::{
@@ -59,49 +58,6 @@ pub enum Qwen3TtsTextPlacement {
 
     /// The whole text before the first frame (upstream's "non-streaming").
     Upfront,
-}
-
-/// The ids a model `config.json` gives its prompt, under upstream's names:
-/// the top level's text ids, and `talker_config`'s codec ids, languages and
-/// speakers.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct Qwen3TtsPromptJson {
-    /// The text pad.
-    pub tts_pad_token_id: u32,
-    /// The text BOS.
-    pub tts_bos_token_id: u32,
-    /// The text EOS.
-    pub tts_eos_token_id: u32,
-    /// The codec ids, languages and speakers.
-    pub talker_config: Qwen3TtsTalkerIdsJson,
-}
-
-/// `talker_config`'s codec ids, languages and speakers.
-#[derive(Clone, Debug, Deserialize, PartialEq)]
-pub struct Qwen3TtsTalkerIdsJson {
-    /// The codec pad.
-    pub codec_pad_id: u32,
-    /// The codec BOS.
-    pub codec_bos_id: u32,
-    /// The codec EOS: the first codebook's end of the take.
-    pub codec_eos_token_id: u32,
-    /// The think tag.
-    pub codec_think_id: u32,
-    /// The no-think tag.
-    pub codec_nothink_id: u32,
-    /// The think block's open.
-    pub codec_think_bos_id: u32,
-    /// The think block's close.
-    pub codec_think_eos_id: u32,
-    /// Each language's codec row, by the model's key.
-    #[serde(default)]
-    pub codec_language_id: BTreeMap<String, u32>,
-    /// Each stock speaker's codec row.
-    #[serde(default)]
-    pub spk_id: BTreeMap<String, u32>,
-    /// Each stock speaker's dialect, a language key, or `false`.
-    #[serde(default)]
-    pub spk_is_dialect: BTreeMap<String, serde_json::Value>,
 }
 
 /// The ids the prompt is laid out of, and the languages and speakers by
@@ -139,46 +95,6 @@ pub struct Qwen3TtsPromptConfig {
 }
 
 impl Qwen3TtsPromptConfig {
-    /// The config of a model `config.json`'s ids.
-    ///
-    /// # Errors
-    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
-    /// for a speaker whose dialect is neither `false` nor a language the
-    /// config lists.
-    pub fn from_json(json: &Qwen3TtsPromptJson) -> BunsenResult<Self> {
-        let t = &json.talker_config;
-        let mut speaker_languages = BTreeMap::new();
-        for (speaker, dialect) in &t.spk_is_dialect {
-            match dialect {
-                serde_json::Value::Bool(false) => {}
-                serde_json::Value::String(key) if t.codec_language_id.contains_key(key) => {
-                    speaker_languages.insert(speaker.clone(), key.clone());
-                }
-                other => {
-                    return Err(BunsenError::invalid_resource(format!(
-                        "config.json: `talker_config.spk_is_dialect.{speaker}` is {other}, \
-                         neither false nor a language of `codec_language_id`"
-                    )));
-                }
-            }
-        }
-        Ok(Self::new(
-            json.tts_pad_token_id,
-            json.tts_bos_token_id,
-            json.tts_eos_token_id,
-            t.codec_pad_id,
-            t.codec_bos_id,
-            t.codec_eos_token_id,
-            t.codec_think_id,
-            t.codec_nothink_id,
-            t.codec_think_bos_id,
-            t.codec_think_eos_id,
-            t.codec_language_id.clone(),
-            t.spk_id.clone(),
-            speaker_languages,
-        ))
-    }
-
     /// What the driver says of the stock speakers: each one's dialect, a
     /// language key, as its default language.
     pub fn voices(&self) -> Vec<TtsVoiceInfo> {
@@ -400,10 +316,13 @@ pub struct Qwen3TtsPrompt {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::BunsenErrorKind;
+    use crate::{
+        errors::BunsenErrorKind,
+        kits::speech::tts::qwen3_tts::interop::qwen_tts::*,
+    };
 
     fn config() -> Qwen3TtsPromptConfig {
-        let json: Qwen3TtsPromptJson = serde_json::from_str(
+        let json: Qwen3TtsPromptMirror = serde_json::from_str(
             r#"{
                 "tts_pad_token_id": 151671, "tts_bos_token_id": 151672,
                 "tts_eos_token_id": 151673,
@@ -419,7 +338,7 @@ mod tests {
             }"#,
         )
         .expect("parse");
-        Qwen3TtsPromptConfig::from_json(&json).expect("the release's ids")
+        Qwen3TtsPromptMirror::prompt_config(&json).expect("the release's ids")
     }
 
     fn request(placement: Qwen3TtsTextPlacement) -> Qwen3TtsPromptRequest {
@@ -526,24 +445,6 @@ mod tests {
             BunsenErrorKind::Illegal
         );
     }
-
-    #[test]
-    fn test_bad_dialect_refused() {
-        let mut json: Qwen3TtsPromptJson = serde_json::from_str(
-            r#"{"tts_pad_token_id": 1, "tts_bos_token_id": 2, "tts_eos_token_id": 3,
-                "talker_config": {"codec_pad_id": 4, "codec_bos_id": 5,
-                "codec_eos_token_id": 6, "codec_think_id": 7, "codec_nothink_id": 8,
-                "codec_think_bos_id": 9, "codec_think_eos_id": 10}}"#,
-        )
-        .expect("parse");
-        json.talker_config
-            .spk_is_dialect
-            .insert("eric".into(), serde_json::Value::String("martian".into()));
-        assert_eq!(
-            Qwen3TtsPromptConfig::from_json(&json).unwrap_err().kind(),
-            BunsenErrorKind::InvalidResource
-        );
-    }
 }
 
 /// The toy prompts against `qwen_tts`' own: every mode's prefill rows and
@@ -558,10 +459,7 @@ mod toy_tests {
     use crate::{
         burner::module::ModuleInit,
         kits::{
-            speech::tts::qwen3_tts::talker::{
-                Qwen3TtsTalkerConfig,
-                weights::load_qwen3_tts_talker_tensors,
-            },
+            speech::tts::qwen3_tts::interop::qwen_tts::*,
             support::interop::transformers::TransformersConfigJson,
         },
         support::testing::{
@@ -625,10 +523,10 @@ mod toy_tests {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts");
         let text = std::fs::read_to_string(dir.join("toy.config.json")).expect("read");
         let value: serde_json::Value = serde_json::from_str(&text).expect("parse");
-        let json: Qwen3TtsPromptJson =
+        let json: Qwen3TtsPromptMirror =
             serde_json::from_value(value["model"].clone()).expect("the toy's ids");
-        let config = Qwen3TtsPromptConfig::from_json(&json).expect("the toy's prompt config");
-        let talker_config = Qwen3TtsTalkerConfig::from_transformers_section(
+        let config = Qwen3TtsPromptMirror::prompt_config(&json).expect("the toy's prompt config");
+        let talker_config = talker_config(
             &TransformersConfigJson::parse(&text)
                 .and_then(|c| c.section("model"))
                 .and_then(|m| m.section("talker_config"))
@@ -637,8 +535,7 @@ mod toy_tests {
         .expect("the toy's talker");
         let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
         let mut talker: Qwen3TtsTalker = talker_config.init(&device);
-        load_qwen3_tts_talker_tensors(&mut talker, fixture.take_weights(), None)
-            .expect("the talker");
+        load_talker_tensors(&mut talker, fixture.take_weights(), None).expect("the talker");
 
         for (mode, speaker, language, placement) in MODES {
             let instruct_key = format!("{mode}.instruct_ids");

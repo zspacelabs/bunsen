@@ -7,7 +7,7 @@
 //! pre-conv, the transformer, each upsampler and vocoder step, the audio,
 //! and `chunked_decode`'s audio in chunks of 8 frames with 3 of context. The
 //! geometry comes from `toy.config.json`'s `codec.decoder_config`, and the
-//! weights load through [`load_qwen3_tts_codec_tensors`].
+//! weights load through [`load_codec_decoder_tensors`].
 
 use std::path::PathBuf;
 
@@ -19,12 +19,11 @@ use burn::{
 use super::{
     Qwen3TtsCodecDecoder,
     Qwen3TtsCodecDecoderContractConfig,
-    Qwen3TtsCodecDecoderJson,
     Qwen3TtsCodecDecoderMeta,
-    weights::load_qwen3_tts_codec_tensors,
 };
 use crate::{
     burner::module::ModuleInit,
+    kits::speech::tts::qwen3_tts::interop::qwen_tts::*,
     support::testing::{
         ToyFixture,
         assert_io_close,
@@ -59,13 +58,14 @@ fn load() -> (
         &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
     )
     .expect("parse the toy config");
-    let section: Qwen3TtsCodecDecoderJson =
+    let section: Qwen3TtsCodecDecoderMirror =
         serde_json::from_value(json["codec"]["decoder_config"].clone())
             .expect("the toy's decoder_config");
-    let config = Qwen3TtsCodecDecoderContractConfig::from_json(&section).expect("the toy's config");
+    let config =
+        Qwen3TtsCodecDecoderMirror::codec_decoder_config(&section).expect("the toy's config");
     let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
     let mut model: Qwen3TtsCodecDecoder = config.init(&device);
-    load_qwen3_tts_codec_tensors(&mut model, &config, fixture.take_weights(), None)
+    load_codec_decoder_tensors(&mut model, &config, fixture.take_weights(), None)
         .expect("load the toy weights");
     (config, model, fixture)
 }

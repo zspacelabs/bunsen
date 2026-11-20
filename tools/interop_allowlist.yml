@@ -96,30 +96,6 @@
   path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
   item: sortformer_v2_nemo_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/code_predictor/weights.rs
-  item: load_qwen3_tts_code_predictor_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/code_predictor/weights.rs
-  item: qwen3_tts_code_predictor_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/codec/weights.rs
-  item: load_qwen3_tts_codec_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/codec/weights.rs
-  item: qwen3_tts_codec_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/codec/weights.rs
-  item: qwen3_tts_codec_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/talker/weights.rs
-  item: load_qwen3_tts_talker_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/talker/weights.rs
-  item: qwen3_tts_talker_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/weights.rs
-  item: load_qwen3_tts_model_tensors
-- rule: rekey
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/weights.rs
   item: load_zonos3_codec_tensors
 - rule: rekey
@@ -189,24 +165,6 @@
   path: crates/public/bunsen/src/kits/speech/diarization/sortformer/mod.rs
   item: mod weights
 - rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/code_predictor/mod.rs
-  item: mod weights
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/codec/mod.rs
-  item: mod weights
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/mod.rs
-  item: mod construct
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/mod.rs
-  item: mod driver
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/mod.rs
-  item: mod weights
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/talker/mod.rs
-  item: mod weights
-- rule: store-gate
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/mod.rs
   item: mod weights
 - rule: store-gate
@@ -260,24 +218,6 @@
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/speech/diarization/sortformer/nemo_config.rs
   item: NemoSortformerModulesConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/codec/config.rs
-  item: Qwen3TtsCodecDecoderJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/pretrained/construct.rs
-  item: CodecJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/pretrained/construct.rs
-  item: ModelTypeJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/prompt.rs
-  item: Qwen3TtsPromptJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/prompt.rs
-  item: Qwen3TtsTalkerIdsJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/sampler.rs
-  item: Qwen3TtsGenerationJson
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/config.rs
   item: Zonos3CodecJson
