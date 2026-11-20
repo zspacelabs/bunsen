@@ -106,6 +106,8 @@ pub mod pretrained;
 
 pub mod blocks;
 
+pub mod interop;
+
 pub use blocks::resnet_model::*;
 
 /// ResNet-18 block depths.
