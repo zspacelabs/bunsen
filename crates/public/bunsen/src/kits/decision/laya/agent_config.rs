@@ -1,19 +1,13 @@
-//! `rl_agent_config.json`: a Laya checkpoint's head and calibration.
+//! A Laya checkpoint's head and calibration.
 use alloc::collections::BTreeMap;
 
-use serde::Deserialize;
-
 use super::LayaQuestionKind;
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-};
 
-/// A Laya checkpoint's `rl_agent_config.json`, under upstream's field names:
-/// the head's geometry, the prompt's token budgets, and the temperatures
-/// that calibrate each question's logits. Fields the inference does not
-/// read (training's) are ignored.
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+/// A Laya checkpoint's head and calibration: the head's geometry, the
+/// prompt's token budgets, and the temperatures that calibrate each
+/// question's logits. A release's is its `rl_agent_config.json`'s
+/// ([`LayaAgentMirror::agent_config`](super::interop::laya::LayaAgentMirror::agent_config)).
+#[derive(Clone, Debug, PartialEq)]
 pub struct LayaAgentConfig {
     /// The head's encoder layers.
     pub head_layers: usize,
@@ -26,7 +20,6 @@ pub struct LayaAgentConfig {
 
     /// Each costed act, by name; the act head has one output per act, and
     /// one for none.
-    #[serde(default)]
     pub act_costs: BTreeMap<String, f64>,
 
     /// Each question kind's temperature, by [`LayaQuestionKind::index`].
@@ -35,21 +28,10 @@ pub struct LayaAgentConfig {
     /// Temperatures by question kind and option count, keyed as
     /// [`temperature_bucket`](Self::temperature_bucket) names them; a key
     /// absent here falls back to [`temperature`](Self::temperature).
-    #[serde(default)]
     pub temperature_by_options: BTreeMap<String, f64>,
 }
 
 impl LayaAgentConfig {
-    /// Parses an `rl_agent_config.json`.
-    ///
-    /// # Errors
-    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
-    /// when it does not parse as one.
-    pub fn parse(json: &str) -> BunsenResult<Self> {
-        serde_json::from_str(json)
-            .map_err(|e| BunsenError::invalid_resource("an rl_agent_config.json").with_cause(e))
-    }
-
     /// The act head's outputs.
     pub fn n_act(&self) -> usize {
         self.act_costs.len() + 1
@@ -103,6 +85,11 @@ impl LayaAgentConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kits::decision::laya::interop::laya::LayaAgentMirror;
+
+    fn agent(json: &str) -> LayaAgentConfig {
+        LayaAgentMirror::from_json(json).unwrap().agent_config()
+    }
 
     const JSON: &str = r#"{
         "encoder": "answerdotai/ModernBERT-large", "head_layers": 2, "max_len": 512,
@@ -112,22 +99,11 @@ mod tests {
         "training": {"updates": 7313}
     }"#;
 
-    #[test]
-    fn test_parse() {
-        let config = LayaAgentConfig::parse(JSON).unwrap();
-        assert_eq!(
-            (config.head_layers, config.max_len, config.head_max_len),
-            (2, 512, 192)
-        );
-        assert_eq!(config.n_act(), 2);
-        assert!(LayaAgentConfig::parse("{}").is_err());
-    }
-
     /// A bucket's temperature, else the kind's.
     #[test]
     fn test_temperature() {
         use LayaQuestionKind::*;
-        let config = LayaAgentConfig::parse(JSON).unwrap();
+        let config = agent(JSON);
         assert_eq!(LayaAgentConfig::temperature_bucket(Choice, 4), "choice:3-5");
         assert_eq!(LayaAgentConfig::temperature_bucket(Score, 11), "score:11+");
         assert_eq!(config.temperature(Choice, 4), 1.75);
@@ -140,7 +116,7 @@ mod tests {
     /// `ln 4 · T` apart are 0.8 and 0.2.
     #[test]
     fn test_probabilities() {
-        let config = LayaAgentConfig::parse(JSON).unwrap();
+        let config = agent(JSON);
         let t = config.temperature(LayaQuestionKind::Noul, 2);
         let gap = (4.0f64.ln() * t) as f32;
         let p = config.probabilities(LayaQuestionKind::Noul, &[gap, 0.0]);

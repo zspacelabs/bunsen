@@ -13,13 +13,15 @@ use std::path::PathBuf;
 use burn::prelude::*;
 
 use super::{
-    LayaAgentConfig,
     LayaConfig,
     LayaMeta,
     LayaModel,
     LayaQuestion,
     LayaSpecials,
-    weights::load_laya_tensors,
+    interop::laya::{
+        LayaAgentMirror,
+        load_laya_tensors,
+    },
 };
 use crate::{
     burner::module::ModuleInit,
@@ -29,7 +31,7 @@ use crate::{
             Detokenizer,
             Tokenizer,
         },
-        text::encoders::modernbert::interop::transformers::modernbert_config_from_str,
+        text::encoders::modernbert::interop::transformers::modernbert_config_from_path,
     },
     support::testing::{
         ToyFixture,
@@ -48,9 +50,8 @@ struct Toy {
 impl Toy {
     fn load(device: &Device) -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
-        let json = std::fs::read_to_string(dir.join("laya_toy.encoder.config.json"))
+        let encoder = modernbert_config_from_path(&dir.join("laya_toy.encoder.config.json"))
             .expect("read the toy encoder config");
-        let encoder = modernbert_config_from_str(&json).expect("parse the toy config");
         let mut fixture = ToyFixture::load(dir.join("laya_toy.safetensors"), device);
         let mut model: LayaModel = LayaConfig::new(encoder).init(device);
         let applied =
@@ -177,11 +178,12 @@ fn test_decide_batches_alike() {
         &Bytes,
     )
     .unwrap();
-    let agent = LayaAgentConfig::parse(
+    let agent = LayaAgentMirror::from_json(
         r#"{"head_layers": 2, "max_len": 60, "head_max_len": 40,
             "temperature": [1.5, 1.25, 2.0], "temperature_by_options": {"choice:3-5": 0.5}}"#,
     )
-    .unwrap();
+    .unwrap()
+    .agent_config();
     let questions: Vec<LayaQuestion> = serde_json::from_str(
         r#"[
             {"type": "choice", "question": "which next?", "options": ["retry", "escalate", "close"]},
@@ -228,9 +230,8 @@ fn test_decide_batches_alike() {
 #[test]
 fn test_meta() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
-    let json = std::fs::read_to_string(dir.join("laya_toy.encoder.config.json"))
+    let encoder = modernbert_config_from_path(&dir.join("laya_toy.encoder.config.json"))
         .expect("read the toy encoder config");
-    let encoder = modernbert_config_from_str(&json).expect("parse the toy config");
     let config = LayaConfig::new(encoder)
         .with_head_layers(1)
         .with_n_act(3)
