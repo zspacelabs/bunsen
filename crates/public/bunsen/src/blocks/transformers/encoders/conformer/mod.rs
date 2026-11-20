@@ -9,7 +9,9 @@
 //!   [`DwStridingSubsampling`](crate::blocks::signals::DwStridingSubsampling)
 //!   (8x over time by default), then a [`ConformerTransformer`]: the stack of
 //!   [`ConformerBlock`]s sharing one relative-position table.
-//! - [`ConformerBlock`]: two half-step [`ConformerFeedForward`] modules around
+//! - [`ConformerBlock`]: two half-step feed-forwards
+//!   ([`BunsenMlp`](crate::blocks::mlp::BunsenMlp)s: expand, `SiLU`, project
+//!   back) around
 //!   [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention)
 //!   and a [`ConformerConvolution`], each pre-normalized and residual.
 //! - [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention): Transformer-XL relative-position self-attention,
@@ -26,11 +28,9 @@
 mod block;
 mod convolution;
 mod encoder;
-mod feed_forward;
 mod transformer;
 
 pub use block::*;
 pub use convolution::*;
 pub use encoder::*;
-pub use feed_forward::*;
 pub use transformer::*;

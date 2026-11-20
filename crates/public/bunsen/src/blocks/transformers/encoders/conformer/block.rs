@@ -10,11 +10,14 @@ use burn::{
 use super::{
     ConformerConvolution,
     ConformerConvolutionConfig,
-    ConformerFeedForward,
-    ConformerFeedForwardConfig,
 };
 use crate::{
     blocks::{
+        activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+        },
         norm::{
             BunsenLayerNormConfig,
             BunsenNormalization,
@@ -105,7 +108,8 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
                 .init(device)
         };
         let ff = || {
-            ConformerFeedForwardConfig::new(self.d_model, self.d_ff)
+            BunsenMlpConfig::new(self.d_model, self.d_ff, self.d_model)
+                .with_activation(BunsenActivationConfig::Silu)
                 .with_bias(self.bias)
                 .try_init(device)
         };
@@ -151,7 +155,7 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 pub struct ConformerBlock {
     /// The first feed-forward sublayer: its norm (`pre`) and the module
     /// (`branch`).
-    pub feed_forward1: ResidualSublayer<ConformerFeedForward>,
+    pub feed_forward1: ResidualSublayer<BunsenMlp>,
 
     /// The attention sublayer: its norm (`pre`) and relative-position
     /// self-attention (`branch`).
@@ -163,7 +167,7 @@ pub struct ConformerBlock {
 
     /// The second feed-forward sublayer: its norm (`pre`) and the module
     /// (`branch`).
-    pub feed_forward2: ResidualSublayer<ConformerFeedForward>,
+    pub feed_forward2: ResidualSublayer<BunsenMlp>,
 
     /// The final normalization.
     pub out_norm: BunsenNormalization,
