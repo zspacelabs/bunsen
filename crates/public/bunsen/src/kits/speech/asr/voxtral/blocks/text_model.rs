@@ -215,7 +215,7 @@ impl ToStructureConfig for VoxtralTextConfig {
 /// ([`LmDecoderOps`](crate::blocks::transformers::models::language_decoder::LmDecoderOps):
 /// the embedding, the head, the rotary tables), its meta and its KV cache
 /// come through the holder's blanket impls;
-/// [`weights::transformers_rekey`](crate::kits::speech::asr::voxtral::weights::transformers_rekey)
+/// [`voxtral_realtime_rekey`](crate::kits::speech::asr::voxtral::interop::transformers::voxtral_realtime_rekey)
 /// maps the checkpoint's names onto its language model, `lm`.
 ///
 /// Built by [`VoxtralTextConfig`].

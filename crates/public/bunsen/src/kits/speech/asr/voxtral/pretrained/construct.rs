@@ -11,7 +11,6 @@ use super::{
     VOXTRAL_KIT,
 };
 use crate::{
-    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
@@ -20,7 +19,6 @@ use crate::{
             GEOMETRY,
         },
         catalog::presets::ResolvedPresetSet,
-        formats::SafetensorsCheckpoint,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -30,22 +28,25 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::{
         speech::asr::voxtral::{
             VoxtralConstruct,
             VoxtralPolicy,
-            VoxtralRealtime,
             VoxtralRealtimeConfig,
-            VoxtralTokenLayoutConfig,
-            weights::{
-                load_transformers_tensors_as,
-                voxtral_config_from_transformers,
+            interop::{
+                mistral_common::voxtral_token_layout_config,
+                transformers::{
+                    load_voxtral_realtime,
+                    voxtral_realtime_config_from_path,
+                },
             },
         },
         support::{
-            interop::mistral_common::TekkenMirror,
+            interop::{
+                json_mirror_from_path,
+                mistral_common::TekkenMirror,
+            },
             model_config::resolve_ref_presets,
         },
     },
@@ -53,11 +54,11 @@ use crate::{
 
 /// How a Voxtral Realtime pretrained is built: its safetensors checkpoint
 /// read into the geometry its `config.json` gives
-/// ([`voxtral_config_from_transformers`]), or else the prefab its row names
+/// ([`voxtral_realtime_config_from_path`]), or else the prefab its row names
 /// (`voxtral-mini-4b-realtime-2602` when it names none), in the device's
 /// float dtype; its `tekken.json` read as the vocabulary
 /// ([`TekkenVocabulary`](crate::kits::support::tokens::TekkenVocabulary)) and
-/// as the stream's layout ([`VoxtralTokenLayoutConfig::from_tekken_json`]: the
+/// as the stream's layout ([`voxtral_token_layout_config`]: the
 /// delay it names, 480 ms for the published model); behind a front end of the
 /// model's mel count and the default decoder.
 ///
@@ -114,33 +115,21 @@ impl ConstructInit for VoxtralConstructConfig {
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<VoxtralConstruct>> {
         let tekken = loaded.expect(VOCABULARY)?;
-        let json = std::fs::read_to_string(tekken).map_err(sys_at("read", tekken))?;
-        let vocab = TekkenMirror::from_json(&json)
-            .and_then(|m| m.tekken_vocabulary())
-            .map_err(|e| e.context(tekken.display()))?;
-        let layout = VoxtralTokenLayoutConfig::from_tekken_json(&json)
+        let mirror: TekkenMirror = json_mirror_from_path(tekken)?;
+        let at = |e: BunsenError| e.context(tekken.display());
+        let vocab = mirror.tekken_vocabulary().map_err(at)?;
+        let layout = voxtral_token_layout_config(&mirror)
             .and_then(|c| c.try_init())
-            .map_err(|e| e.context(tekken.display()))?;
-        drop(json);
+            .map_err(at)?;
+        drop(mirror);
 
         let config = match loaded.get(CONFIG) {
-            Some(part) => {
-                let json =
-                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                voxtral_config_from_transformers(&json)
-                    .map_err(|e| e.context(part.path.display()))?
-            }
+            Some(part) => voxtral_realtime_config_from_path(&part.path)?,
             None => model
                 .stated(GEOMETRY)?
                 .unwrap_or_else(VoxtralRealtimeConfig::voxtral_mini_4b_realtime),
         };
-        let mut voxtral: VoxtralRealtime = config.try_init(device)?;
-        let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-        // The stored dtype (bf16), where the policy and the device allow it.
-        let stored = crate::data::formats::stored_float_dtype(&tensors)
-            .unwrap_or(burn::tensor::FloatDType::F32);
-        let dtype = load.resolve(stored, device, |_| true)?;
-        load_transformers_tensors_as(&mut voxtral, tensors, dtype)?;
+        let voxtral = load_voxtral_realtime(loaded, &config, device, load)?;
         let policy = resolve_ref_presets(
             &VoxtralPolicy::default(),
             model,
