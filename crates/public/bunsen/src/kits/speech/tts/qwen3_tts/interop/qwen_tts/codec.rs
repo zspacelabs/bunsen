@@ -18,7 +18,6 @@ use crate::{
     },
     kits::{
         speech::tts::qwen3_tts::codec::{
-            QWEN3_TTS_VOCODER_DILATIONS,
             Qwen3TtsCodecDecoderContractConfig,
             Qwen3TtsCodecDecoderMeta,
         },
@@ -274,7 +273,7 @@ pub fn codec_decoder_rekey(config: &Qwen3TtsCodecDecoderContractConfig) -> Rekey
         );
     let blocks = config.upsample_rates.len();
     let rekey = (0..blocks).fold(rekey.rename("decoder.0.", "decoder.input."), |rekey, i| {
-        let units = (0..QWEN3_TTS_VOCODER_DILATIONS.len()).fold(
+        let units = (0..config.vocoder_dilations.len()).fold(
             Rekey::drop_rest()
                 .rename("0.", "act.")
                 .rename("1.", "upsample."),
