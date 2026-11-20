@@ -1,27 +1,14 @@
-//! Loading `Zyphra/ZONOS3-Mini-hf`'s `lm.*` tensors into a [`Zonos3Lm`].
-//!
-//! The file names the language model as upstream's reference does
-//! (`zonos3.reference.lm`, whose state dict it is, under `lm.`). Its
-//! projections are packed where bunsen's blocks hold them apart, so three
-//! tensors are split by rows first ([`zonos3_lm_row_splits`]); the names
-//! then map onto the blocks' canonical names ([`zonos3_lm_rekey`]), layer by
-//! layer, as each layer's kind spells them.
+//! The language model's `config.json` section and `-hf` names.
 
 use alloc::{
+    collections::BTreeMap,
     format,
     string::String,
     vec::Vec,
 };
 
-use burn::{
-    store::burn_pack::Tensor as PackTensor,
-    tensor::FloatDType,
-};
+use serde::Deserialize;
 
-use super::{
-    Zonos3Lm,
-    Zonos3LmConfig,
-};
 use crate::{
     burner::module::{
         Rekey,
@@ -29,16 +16,143 @@ use crate::{
         TensorLoadRowSplit,
         TensorLoadTransform,
     },
-    data::formats::{
-        NamedTensorsApplied,
-        split_rows,
-        unit_scale_tensors,
-    },
     errors::{
         BunsenError,
         BunsenResult,
     },
+    kits::speech::tts::zonos3::{
+        lm::Zonos3LmConfig,
+        prompt::Zonos3Condition,
+    },
 };
+
+/// The `lm` section of `Zyphra/ZONOS3-Mini-hf`'s `config.json`, under
+/// upstream's names.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+pub struct Zonos3LmMirror {
+    /// The audio pad id, `codebook_size + 1`.
+    pub audio_pad_id: usize,
+    /// Codes per codebook.
+    pub codebook_size: usize,
+    /// Each condition table's buckets, without its unknown bucket.
+    pub condition_bucket_counts: Vec<usize>,
+    /// Each condition's bucket edges.
+    pub condition_edges: BTreeMap<String, Vec<f64>>,
+    /// The conditions, in table order.
+    pub condition_names: Vec<String>,
+    /// The model width.
+    pub dim: usize,
+    /// The end-of-audio id, `codebook_size`.
+    pub eoa_id: usize,
+    /// The dense feed-forward's hidden width.
+    pub ffn_hidden: usize,
+    /// Each gated `DeltaNet` head's width.
+    pub gdn_head_dim: usize,
+    /// The gated `DeltaNet` heads (query, key and value alike).
+    pub gdn_heads: usize,
+    /// The gated `DeltaNet`'s convolution kernel.
+    pub gdn_kernel: usize,
+    /// Every `gdn_period`-th layer attends; the others are gated `DeltaNet`s.
+    pub gdn_period: usize,
+    /// Each attention head's width.
+    pub head_dim: usize,
+    /// The logits' tanh soft-cap.
+    pub loss_softcap: f64,
+    /// The longest sequence of rows.
+    pub max_seqlen: usize,
+    /// Each expert's hidden width.
+    pub moe_hidden: usize,
+    /// The latent the experts run in.
+    pub moe_routed_dim: usize,
+    /// The experts each row is routed to.
+    pub moe_topk: usize,
+    /// The audio codebooks.
+    pub n_codebooks: usize,
+    /// The experts.
+    pub n_experts: usize,
+    /// The attention's query heads.
+    pub n_heads: usize,
+    /// The attention's key and value heads.
+    pub n_kv_heads: usize,
+    /// The layers.
+    pub n_layers: usize,
+    /// The RMS norms' epsilon.
+    pub norm_eps: f64,
+    /// The most frames of reference codes a prompt holds.
+    pub reference_max_frames: usize,
+    /// The rotary base.
+    pub rope_theta: f64,
+    /// The speaker embedding's width.
+    pub speaker_embedding_dim: usize,
+    /// The text table's rows: the vocabulary and its padding row.
+    pub text_rows: usize,
+    /// The text vocabulary.
+    pub text_vocab: usize,
+}
+
+impl Zonos3LmMirror {
+    /// The [`Zonos3LmConfig`] of the section.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
+    /// special ids other than the end of audio at `codebook_size` and the pad
+    /// after it.
+    pub fn lm_config(&self) -> BunsenResult<Zonos3LmConfig> {
+        let json = self;
+        if json.eoa_id != json.codebook_size || json.audio_pad_id != json.codebook_size + 1 {
+            return Err(BunsenError::unsupported(format!(
+                "end of audio {} and pad {} for {} codes",
+                json.eoa_id, json.audio_pad_id, json.codebook_size
+            )));
+        }
+        Ok(Zonos3LmConfig::new(
+            json.dim,
+            json.n_layers,
+            json.gdn_period,
+            json.n_codebooks,
+            json.codebook_size,
+            json.text_rows,
+            json.n_heads,
+            json.n_kv_heads,
+            json.head_dim,
+            json.rope_theta,
+            json.gdn_heads,
+            json.gdn_head_dim,
+            json.gdn_kernel,
+            json.ffn_hidden,
+            json.n_experts,
+            json.moe_topk,
+            json.moe_hidden,
+            json.moe_routed_dim,
+            json.speaker_embedding_dim,
+            json.condition_bucket_counts.clone(),
+            json.max_seqlen,
+        )
+        .with_norm_eps(json.norm_eps)
+        .with_softcap(json.loss_softcap))
+    }
+
+    /// The conditions a prompt carries, in table order: each of
+    /// `condition_names` with its `condition_edges`.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// for a condition without edges.
+    pub fn conditions(&self) -> BunsenResult<Vec<Zonos3Condition>> {
+        self.condition_names
+            .iter()
+            .map(|name| {
+                let edges = self.condition_edges.get(name).ok_or_else(|| {
+                    BunsenError::invalid_resource(format!("`lm.condition_edges` has no `{name}`"))
+                })?;
+                Ok(Zonos3Condition {
+                    name: name.clone(),
+                    edges: edges.clone(),
+                })
+            })
+            .collect()
+    }
+}
 
 /// The prefix the language model's tensors sit under in the `-hf` file.
 pub const ZONOS3_LM_PREFIX: &str = "lm.";
@@ -150,10 +264,11 @@ pub fn zonos3_lm_layer_rekey(
 }
 
 /// The language model's names, after [`zonos3_lm_row_splits`] and without
-/// [`ZONOS3_LM_PREFIX`], onto a [`Zonos3Lm`]'s canonical ones: the row
-/// tables, the speaker projection and the condition tables as they are;
-/// each layer by [`zonos3_lm_layer_rekey`]; the `AttnRes` queries, the final
-/// norm (`out_norm`) and the head (`multi_output`). Anything else is
+/// [`ZONOS3_LM_PREFIX`], onto a
+/// [`Zonos3Lm`](crate::kits::speech::tts::zonos3::lm::Zonos3Lm)'s canonical
+/// ones: the row tables, the speaker projection and the condition tables as
+/// they are; each layer by [`zonos3_lm_layer_rekey`]; the `AttnRes` queries,
+/// the final norm (`out_norm`) and the head (`multi_output`). Anything else is
 /// dropped.
 pub fn zonos3_lm_rekey(config: &Zonos3LmConfig) -> Rekey {
     (0..config.n_layers).fold(
@@ -172,76 +287,4 @@ pub fn zonos3_lm_rekey(config: &Zonos3LmConfig) -> Rekey {
             )
         },
     )
-}
-
-/// Whether the parameter at `path` is a norm scale the checkpoint has none
-/// for: upstream's weightless RMS norms, on the embedding (the stack's
-/// input norm) and on the attention's queries and keys.
-fn is_weightless_scale(
-    path: &str,
-    _containers: &str,
-) -> bool {
-    path == "stack.stack.input_norm.gamma"
-        || path.ends_with("attn.branch.q_norm.gamma")
-        || path.ends_with("attn.branch.k_norm.gamma")
-}
-
-/// Whether the parameter at `path` is a router's choice bias: read in f32,
-/// and stored in f32 by the `-hf` file, so it keeps that width under a half
-/// load.
-fn is_choice_bias(path: &str) -> bool {
-    path.ends_with(".router.choice_bias")
-}
-
-/// Loads the `-hf` file's tensors (`lm.*`; any others are dropped) into
-/// `model`, built from `config`: the packed projections split
-/// ([`zonos3_lm_row_splits`]), the names mapped ([`zonos3_lm_rekey`]), the
-/// weightless norms' scales set to ones, every floating tensor in `dtype`
-/// (a load policy's resolution), or, when `None`, in the dtype `model` was
-/// built in; the routers' choice biases, which the file keeps in f32, stay
-/// f32 whatever the dtype.
-///
-/// # Errors
-/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) as
-/// [`split_rows`] and [`Rekey::load`]: a tensor that does not split, does
-/// not fit, or a parameter the file lacks;
-/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
-/// naming any `lm.*` tensor the model has no parameter for.
-pub fn load_zonos3_lm_tensors(
-    model: &mut Zonos3Lm,
-    config: &Zonos3LmConfig,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: Option<FloatDType>,
-) -> BunsenResult<NamedTensorsApplied> {
-    let tensors: Vec<PackTensor> = tensors
-        .into_iter()
-        .filter(|t| t.name.starts_with(ZONOS3_LM_PREFIX))
-        .collect();
-    let mut tensors = split_rows(tensors, &zonos3_lm_row_splits(config))?;
-    let scales = unit_scale_tensors(model, is_weightless_scale);
-    let names: Vec<String> = scales.iter().map(|t| t.name.clone()).collect();
-    tensors.extend(scales);
-
-    let first = names
-        .iter()
-        .fold(Rekey::drop_rest(), |rekey, n| {
-            rekey.exact(n.clone(), n.clone())
-        })
-        .mount(ZONOS3_LM_PREFIX, "", zonos3_lm_rekey(config));
-    let last = names
-        .iter()
-        .fold(Rekey::keep_rest(), |rekey, n| {
-            rekey.exact(n.clone(), n.clone())
-        })
-        .mount_canonical("", model);
-    let applied = first
-        .then(last)
-        .load_keeping(model, tensors, dtype, is_choice_bias)?;
-    if !applied.unused.is_empty() {
-        return Err(BunsenError::invalid_resource(format!(
-            "ZONOS3 language model tensors the model has no parameter for: {}",
-            applied.unused.join(", ")
-        )));
-    }
-    Ok(applied)
 }

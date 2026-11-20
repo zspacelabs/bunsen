@@ -35,7 +35,6 @@ use bunsen::{
                 zonos3::driver::{
                     Zonos3Driver,
                     Zonos3Engine,
-                    Zonos3EngineConfig,
                     zonos3_driver,
                 },
             },
@@ -75,7 +74,7 @@ pub const ROUND_TRIP_WER: f64 = 0.10;
 fn driver(device: &Device) -> Zonos3Driver<BunsenTokenizer> {
     let construct = load_construct(device);
     let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer).unwrap();
-    let config = Zonos3EngineConfig::from_generation(&construct.generation);
+    let config = construct.engine_config.clone();
     zonos3_driver(Zonos3Engine::new(construct, tokenizer, config).unwrap()).unwrap()
 }
 

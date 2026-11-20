@@ -27,46 +27,38 @@
 //! - [`sampler`]: each step's codes from its logits,
 //!   [`Zonos3Sampler`](sampler::Zonos3Sampler), as the release samples them
 //!   (its settings, [`Zonos3SamplerConfig`](sampler::Zonos3SamplerConfig)).
-//! - [`voices`] (feature `store`): the stock voices, each reference codes and a
-//!   speaker embedding.
-//! - [`Zonos3Json`]: the release's `config.json`, from which
-//!   [`Zonos3LmConfig::from_json`](lm::Zonos3LmConfig::from_json) and the
-//!   codec's and prompt's configs are read.
-//! - [`Zonos3Construct`] (feature `store`): a loaded model, its language model
-//!   and codec with their configs, the prompt layout, the generation settings,
-//!   the voices and the tokenizer's file.
+//! - [`voices`]: the stock voices, each reference codes and a speaker
+//!   embedding.
+//! - [`Zonos3Construct`]: a loaded model, its language model and codec with
+//!   their configs, the prompt layout, the release's engine settings and
+//!   languages, the voices and the tokenizer's file.
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoint,
 //!   `zyphra/zonos3/zonos3-mini`, and the factory that loads it into a
 //!   construct.
 //!
-//! - [`driver`] (feature `store`): ZONOS3 as a TTS engine,
+//! - [`driver`]: ZONOS3 as a TTS engine,
 //!   [`Zonos3Engine`](driver::Zonos3Engine), one take decoded whole, as the
 //!   release generates it; [`Zonos3Driver`](driver::Zonos3Driver) is the [TTS
 //!   driver](super::driver) over it.
 //!
-//! The weights are `Zyphra/ZONOS3-Mini-hf`'s `model.safetensors`, whose
-//! `lm.*` tensors are upstream's release language model as it is
-//! ([`lm::weights`]), and its `codec.*` tensors the decoder, weight norm
-//! fused ([`codec::weights`]).
+//! - [`interop`]: its checkpoint's ecosystem, [`interop::zonos`]: the release's
+//!   `config.json` and voices, and its `model.safetensors`, whose `lm.*`
+//!   tensors are upstream's release language model as it is, and its `codec.*`
+//!   tensors the decoder, weight norm fused.
 
 pub mod codec;
 pub mod lm;
 pub mod prompt;
 pub mod sampler;
 
-mod config;
-pub use config::*;
-
-#[cfg(feature = "store")]
 pub mod voices;
 
-#[cfg(feature = "store")]
 pub mod driver;
 
-#[cfg(feature = "store")]
 mod construct;
-#[cfg(feature = "store")]
 pub use construct::*;
+
+pub mod interop;
 
 #[cfg(all(feature = "store", feature = "cache"))]
 pub mod pretrained;

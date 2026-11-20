@@ -54,24 +54,6 @@
   path: crates/public/bunsen/src/kits/speech/asr/whisper/pretrained/safetensors_utils.rs
   item: transformers_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/weights.rs
-  item: load_zonos3_codec_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/weights.rs
-  item: zonos3_codec_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/weights.rs
-  item: zonos3_codec_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/lm/weights.rs
-  item: load_zonos3_lm_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/lm/weights.rs
-  item: zonos3_lm_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/lm/weights.rs
-  item: zonos3_lm_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/text/encoders/modernbert/weights.rs
   item: load_transformers_tensors
 - rule: rekey
@@ -99,21 +81,6 @@
   path: crates/public/bunsen/src/kits/speech/asr/voxtral/mod.rs
   item: mod weights
 - rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/mod.rs
-  item: mod weights
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/lm/mod.rs
-  item: mod weights
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/mod.rs
-  item: mod construct
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/mod.rs
-  item: mod driver
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/mod.rs
-  item: mod voices
-- rule: store-gate
   path: crates/public/bunsen/src/kits/support/construct/mod.rs
   item: mod transformers_lm
 - rule: store-gate
@@ -131,24 +98,6 @@
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/language/nanochat/weights.rs
   item: NanoChatModelConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/config.rs
-  item: Zonos3CodecJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/codec/config.rs
-  item: Zonos3CodecStageJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/config.rs
-  item: Zonos3GenerationJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/config.rs
-  item: Zonos3Json
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/lm/config.rs
-  item: Zonos3LmJson
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/tts/zonos3/voices.rs
-  item: Zonos3VoiceInfo
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/support/tokens/tekken.rs
   item: TekkenConfigJson

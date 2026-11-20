@@ -16,13 +16,15 @@ use burn::prelude::*;
 use super::{
     Zonos3Lm,
     Zonos3LmConfig,
-    Zonos3LmJson,
     Zonos3LmMeta,
     Zonos3RowConditioning,
-    weights::load_zonos3_lm_tensors,
 };
 use crate::{
     burner::module::ModuleInit,
+    kits::speech::tts::zonos3::interop::zonos::{
+        Zonos3LmMirror,
+        load_zonos3_lm_tensors,
+    },
     ops::transformers::attention::KVCacheStorage,
     support::testing::{
         ToyFixture,
@@ -74,9 +76,9 @@ impl Toy {
             &std::fs::read_to_string(dir.join("toy.config.json")).expect("read the toy config"),
         )
         .expect("parse the toy config");
-        let lm: Zonos3LmJson =
+        let lm: Zonos3LmMirror =
             serde_json::from_value(json["lm"].clone()).expect("the toy's lm section");
-        let config = Zonos3LmConfig::from_json(&lm).expect("the toy's config");
+        let config = lm.lm_config().expect("the toy's config");
         let mut fixture = ToyFixture::load(dir.join("toy.safetensors"), &device);
         let mut model: Zonos3Lm = config.init(&device);
         load_zonos3_lm_tensors(&mut model, &config, fixture.take_weights(), dtype)
