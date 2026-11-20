@@ -18,7 +18,16 @@ use crate::{
         ModuleInit,
         Rekey,
     },
-    data::formats::apply_named_tensors,
+    data::formats::{
+        apply_named_tensors,
+        nemo::{
+            NEMO_CONFIG_MEMBER,
+            NEMO_WEIGHTS_MEMBER,
+            NemoArchive,
+            parse_nemo_yaml,
+            read_nemo_weights,
+        },
+    },
     errors::BunsenErrorKind,
     support::testing::cpu_device,
 };
@@ -36,9 +45,9 @@ fn toy() -> NemoArchive {
 /// The sections of the toy's config these tests read.
 #[derive(Debug, Deserialize)]
 struct ToyConfig {
-    preprocessor: NemoPreprocessorConfig,
-    encoder: NemoConformerEncoderConfig,
-    transformer_encoder: NemoTransformerEncoderConfig,
+    preprocessor: NemoPreprocessorMirror,
+    encoder: NemoConformerEncoderMirror,
+    transformer_encoder: NemoTransformerEncoderMirror,
     max_num_of_spks: usize,
 }
 
@@ -81,7 +90,7 @@ fn test_config_sections() {
     assert_eq!(config.transformer_encoder.hidden_act, "relu");
     assert!(!config.transformer_encoder.pre_ln);
     assert!(config.transformer_encoder.pre_ln_final_layer_norm);
-    assert!(!config.transformer_encoder.final_norm());
+    assert!(!config.transformer_encoder.transformer_encoder_final_norm());
 }
 
 /// Each section gives the bunsen config it describes.
@@ -99,7 +108,7 @@ fn test_bunsen_configs() {
     };
     let config: ToyConfig = toy().config().unwrap();
 
-    let front_end = config.preprocessor.front_end().unwrap();
+    let front_end = config.preprocessor.mel_front_end_config().unwrap();
     assert_eq!(
         (front_end.win_length, front_end.hop, front_end.n_mels),
         (400, 160, 24)
@@ -108,14 +117,17 @@ fn test_bunsen_configs() {
     assert_eq!(front_end.preemphasis, 0.97);
     assert!(!front_end.bf16_tables);
 
-    let conformer = config.encoder.conformer().unwrap();
+    let conformer = config.encoder.conformer_encoder_config().unwrap();
     assert_eq!(conformer.d_model(), 16);
     assert_eq!(conformer.n_layers(), 2);
     assert_eq!(conformer.subsampling_factor(), 8);
     assert!(conformer.scale_input);
     assert_eq!(conformer.block.d_ff, 32);
 
-    let block = config.transformer_encoder.block().unwrap();
+    let block = config
+        .transformer_encoder
+        .transformer_encoder_block_config()
+        .unwrap();
     assert_eq!((block.d_model, block.n_heads()), (8, 2));
     assert_eq!(block.expansion_factor, 2);
     assert_eq!(block.norm_placement(), NormPlacement::Post);
@@ -152,9 +164,12 @@ fn test_unsupported_settings() {
         assert!(yaml.contains(from), "{from}");
         let config: ToyConfig = parse_nemo_yaml(&yaml.replacen(from, to, 1)).unwrap();
         let err = match field.split('.').next().unwrap() {
-            "preprocessor" => config.preprocessor.front_end().err(),
-            "encoder" => config.encoder.conformer().err(),
-            _ => config.transformer_encoder.block().err(),
+            "preprocessor" => config.preprocessor.mel_front_end_config().err(),
+            "encoder" => config.encoder.conformer_encoder_config().err(),
+            _ => config
+                .transformer_encoder
+                .transformer_encoder_block_config()
+                .err(),
         }
         .unwrap_or_else(|| panic!("{field} accepted"));
         assert_eq!(err.kind(), BunsenErrorKind::Unsupported);
@@ -232,7 +247,7 @@ fn test_with_weights() {
 #[test]
 fn test_conformer_loads() {
     let config: ToyConfig = toy().config().unwrap();
-    let conformer = config.encoder.conformer().unwrap();
+    let conformer = config.encoder.conformer_encoder_config().unwrap();
     let mut encoder: SubsampledEncoder = conformer.init(&cpu_device());
     let tensors = weights()
         .into_iter()
@@ -276,7 +291,7 @@ fn test_conformer_loads_in_either_flatten_order() {
     let device = cpu_device();
     let config: ToyConfig = toy().config().unwrap();
     let load = |flatten: DwStridingFlattenOrder| {
-        let mut conformer = config.encoder.conformer().unwrap();
+        let mut conformer = config.encoder.conformer_encoder_config().unwrap();
         conformer.subsampling.flatten = flatten;
         let mut encoder: SubsampledEncoder = conformer.init(&device);
         let rekey = Rekey::drop_rest().mount(
@@ -312,7 +327,10 @@ fn test_conformer_loads_in_either_flatten_order() {
 #[test]
 fn test_transformer_loads() {
     let config: ToyConfig = toy().config().unwrap();
-    let block = config.transformer_encoder.block().unwrap();
+    let block = config
+        .transformer_encoder
+        .transformer_encoder_block_config()
+        .unwrap();
     let mut stack: ResidualEncoderTransformer =
         ResidualEncoderTransformerConfig::new(block, config.transformer_encoder.num_layers)
             .init(&cpu_device());

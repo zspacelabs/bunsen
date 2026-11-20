@@ -20,12 +20,12 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::{
-        speech::nemo::{
+    kits::support::interop::{
+        nemo::{
             conformer_encoder_rekey,
             transformer_encoder_rekey,
         },
-        support::interop::transformers::TransformersConfigJson,
+        transformers::TransformersConfigJson,
     },
 };
 

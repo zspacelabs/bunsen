@@ -1,4 +1,8 @@
-//! `.nemo` checkpoints: `NeMo`'s tar of a config and a state dict.
+//! # `.nemo` checkpoints: `NeMo`'s tar of a config and a state dict
+//!
+//! [`NemoArchive`] opens one; [`read_nemo_weights`] reads its state dict,
+//! and [`parse_nemo_yaml`] its config into the typed sections of
+//! `kits::support::interop::nemo`.
 use std::{
     fs::File,
     io::{

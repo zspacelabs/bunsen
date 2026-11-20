@@ -3,7 +3,8 @@
 //! A kit's hook reads its checkpoint's own format with the readers here: the
 //! safetensors checkpoint and header ([`SafetensorsCheckpoint`]), the
 //! `PyTorch` reader ([`read_pytorch_tensors`]), MLX's affine-quantized
-//! tensors ([`mlx`]), `FermionResearch`'s Phonon formats ([`fermion`]), and
+//! tensors ([`mlx`]), `FermionResearch`'s Phonon formats ([`fermion`]),
+//! `NeMo`'s `.nemo` archive ([`nemo`]), and
 //! [`apply_named_tensors`], which loads any of them into a module under a
 //! kit's names, or [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to),
 //! under a [`Rekey`](crate::burner::module::Rekey) whose targets may also
@@ -20,6 +21,9 @@ pub mod fermion;
 #[cfg(feature = "cache")]
 mod load_policy;
 pub mod mlx;
+// A `.nemo` may be gzipped, which the `speech` feature's `flate2` reads.
+#[cfg(all(feature = "store", feature = "speech"))]
+pub mod nemo;
 #[cfg(feature = "store")]
 mod pytorch;
 #[cfg(feature = "store")]

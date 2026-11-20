@@ -105,21 +105,6 @@
   path: crates/public/bunsen/src/kits/speech/diarization/sortformer/weights.rs
   item: sortformer_v2_nemo_rekey
 - rule: rekey
-  path: crates/public/bunsen/src/kits/speech/nemo/rekey.rs
-  item: conformer_encoder_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/nemo/rekey.rs
-  item: conformer_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/nemo/rekey.rs
-  item: conv_subsampling_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/nemo/rekey.rs
-  item: transformer_encoder_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/speech/nemo/rekey.rs
-  item: transformer_encoder_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/code_predictor/weights.rs
   item: load_qwen3_tts_code_predictor_tensors
 - rule: rekey
@@ -216,12 +201,6 @@
   path: crates/public/bunsen/src/kits/speech/diarization/sortformer/mod.rs
   item: mod weights
 - rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/nemo/mod.rs
-  item: mod archive
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/speech/nemo/mod.rs
-  item: mod config
-- rule: store-gate
   path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/code_predictor/mod.rs
   item: mod weights
 - rule: store-gate
@@ -293,15 +272,6 @@
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/speech/diarization/sortformer/nemo_config.rs
   item: NemoSortformerModulesConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/nemo/config.rs
-  item: NemoConformerEncoderConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/nemo/config.rs
-  item: NemoPreprocessorConfig
-- rule: mirror-rename
-  path: crates/public/bunsen/src/kits/speech/nemo/config.rs
-  item: NemoTransformerEncoderConfig
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/speech/tts/qwen3_tts/codec/config.rs
   item: Qwen3TtsCodecDecoderJson
