@@ -39,7 +39,7 @@ pub const CHAT_TEMPLATE_JINJA: &str = "chat_template.jinja";
 
 /// What the gemma kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
-/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+/// [`kit_catalog_contracts`](crate::kits::support::pretrained::catalog_contracts::kit_catalog_contracts).
 pub const GEMMA_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
@@ -172,13 +172,13 @@ mod tests {
                 },
             },
             kits::support::{
-                catalog_contracts::testing::contract_lines,
                 construct::{
                     CHAT_TEMPLATE,
                     GENERATION_CONFIG,
                     TOKENIZER,
                     TOKENIZER_CONFIG,
                 },
+                pretrained::catalog_contracts::testing::contract_lines,
             },
         };
         assert_eq!(

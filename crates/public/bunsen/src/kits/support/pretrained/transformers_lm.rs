@@ -1,31 +1,17 @@
-//! [`TransformersLmKit`] and [`load_lm_rekeyed`]: loading a `transformers` LM.
+//! The construct hook of a `transformers` language model.
 use alloc::{
     format,
     sync::Arc,
-    vec::Vec,
 };
 use core::fmt::Debug;
 
 use burn::{
     config::Config,
-    store::burn_pack::Tensor as PackTensor,
-    tensor::{
-        Device,
-        FloatDType,
-    },
+    tensor::Device,
 };
 
-use super::{
-    LmConstruct,
-    LmPolicy,
-};
 use crate::{
-    blocks::transformers::models::language_decoder::LmDecoderHolder,
-    burner::module::{
-        CanonicalKeys,
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     data::{
         builds::{
             BuildRef,
@@ -33,12 +19,7 @@ use crate::{
             ConstructInit,
         },
         catalog::presets::ResolvedPresetSet,
-        formats::{
-            LoadPolicy,
-            NamedTensorsApplied,
-            SafetensorsCheckpoint,
-            stored_float_dtype,
-        },
+        formats::LoadPolicy,
         resources::{
             LoadedResourceSet,
             ResourceSet,
@@ -49,10 +30,17 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
-        sys_at,
     },
     kits::support::{
-        interop::transformers::TransformersConfigJson,
+        construct::{
+            LmConstruct,
+            LmPolicy,
+        },
+        interop::transformers::{
+            TransformersConfigJson,
+            config_from_path,
+            lm_max_positions,
+        },
         model_config::resolve_ref_presets,
     },
 };
@@ -65,12 +53,12 @@ use crate::{
 /// [`LmPolicy`] from the ref's presets over the probed ones, and every file of
 /// the checkpoint by its key.
 ///
-/// What tells such kits apart is this trait's: the config, the model, the
-/// prefabs, the `config.json` reader, the tensor loader and the probes. Each
-/// kit's construct config implements it, and is its [`ConstructInit`] hook by
-/// a blanket impl. The weights are placed in the stored dtype where the load
-/// policy and the device allow it, never f16 (whose range a bf16-trained
-/// model's activations exceed).
+/// What tells such kits apart is this trait's: the config, the model, and
+/// the kit's interop rungs (its `config.json` conversion and its loader) and
+/// probes. Each kit's construct config implements it, and is its
+/// [`ConstructInit`] hook by a blanket impl. The hook reads `config.json`
+/// once, through
+/// [`config_from_path`](crate::kits::support::interop::transformers::config_from_path).
 pub trait TransformersLmKit: Default {
     /// The kit's name ([`ConstructInit::KIT`]).
     const KIT: &'static str;
@@ -87,22 +75,26 @@ pub trait TransformersLmKit: Default {
     /// The model.
     type Model: burn::module::Module;
 
-    /// The config of a `config.json`.
+    /// The config of a parsed `config.json`: the kit's
+    /// `interop::transformers` conversion.
     ///
     /// # Errors
     /// The kit's: a file that does not describe its model.
-    fn config_from_transformers(json: &str) -> BunsenResult<Self::Config>;
+    fn config(c: &TransformersConfigJson) -> BunsenResult<Self::Config>;
 
-    /// Loads the checkpoint's tensors into `model`, every floating tensor in
-    /// `dtype`.
+    /// The model of `loaded`'s checkpoint, built from `config`: the kit's
+    /// `interop::transformers` loader (its weights in the stored dtype where
+    /// `policy` and the device allow it, never f16, whose range a
+    /// bf16-trained model's activations exceed).
     ///
     /// # Errors
     /// The kit's loader's.
-    fn load_tensors(
-        model: &mut Self::Model,
-        tensors: Vec<PackTensor>,
-        dtype: FloatDType,
-    ) -> BunsenResult<NamedTensorsApplied>;
+    fn load(
+        loaded: &LoadedResourceSet,
+        config: &Self::Config,
+        device: &Device,
+        policy: LoadPolicy,
+    ) -> BunsenResult<Self::Model>;
 
     /// The presets of a checkpoint no row describes (an `hf:` repo's), as the
     /// catalog builder probes a row's.
@@ -147,30 +139,16 @@ impl<K: TransformersLmKit> ConstructInit for K {
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<Arc<LmConstruct<K::Model>>> {
-        let (config, max_positions) = match loaded.get(CONFIG) {
-            Some(part) => {
-                let json =
-                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
-                let config = K::config_from_transformers(&json)
-                    .map_err(|e| e.context(part.path.display()))?;
-                let root = TransformersConfigJson::parse(&json)?;
-                let text = root.section("text_config").unwrap_or(root);
-                let max_positions = text.usize("max_position_embeddings").ok();
-                (config, max_positions)
-            }
-            None => {
-                return Err(BunsenError::invalid_resource(format!(
-                    "a {} checkpoint without a config.json",
-                    K::NAME
-                ))
-                .context(&loaded.map.name));
-            }
+        let Some(part) = loaded.get(CONFIG) else {
+            return Err(BunsenError::invalid_resource(format!(
+                "a {} checkpoint without a config.json",
+                K::NAME
+            ))
+            .context(&loaded.map.name));
         };
-        let tensors = SafetensorsCheckpoint::from_loaded(loaded, K::CHECKPOINT)?.tensors()?;
-        let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);
-        let dtype = policy.resolve(stored, device, |d| d != FloatDType::F16)?;
-        let mut lm: K::Model = config.try_init(device)?;
-        K::load_tensors(&mut lm, tensors, dtype)?;
+        let (config, max_positions) =
+            config_from_path(&part.path, |c| Ok((K::config(c)?, lm_max_positions(c))))?;
+        let lm = K::load(loaded, &config, device, policy)?;
         let policy = resolve_ref_presets(&LmPolicy::default(), model, &K::probed(loaded)?)?;
         let mut bundle = LmConstruct::new(lm)
             .with_max_positions(max_positions)
@@ -180,23 +158,4 @@ impl<K: TransformersLmKit> ConstructInit for K {
         }
         Ok(Arc::new(bundle))
     }
-}
-
-/// Loads tensors under a checkpoint's names into `model`'s
-/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel),
-/// not its holder: [`Rekey::load`] under `rekey` (onto the language model's
-/// own paths, `embedding.`, `head.`, `stack.`) then its canonical keys; every
-/// floating tensor in `dtype`, or, when `None`, the dtype it was built in.
-///
-/// # Errors
-/// As [`Rekey::load`].
-pub fn load_lm_rekeyed<W: LmDecoderHolder>(
-    model: &mut W,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    rekey: Rekey,
-    dtype: Option<FloatDType>,
-) -> BunsenResult<NamedTensorsApplied> {
-    let lm = model.lm_mut();
-    let rekey = rekey.then(lm.canonical_rekey());
-    rekey.load(lm, tensors, dtype)
 }

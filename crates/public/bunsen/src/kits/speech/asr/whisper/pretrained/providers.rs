@@ -20,7 +20,7 @@ pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 
 /// What the whisper kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
-/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+/// [`kit_catalog_contracts`](crate::kits::support::pretrained::catalog_contracts::kit_catalog_contracts).
 pub const WHISPER_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
@@ -192,7 +192,7 @@ mod tests {
                 PYTORCH_FP16,
                 TIKTOKEN,
             },
-            support::catalog_contracts::testing::contract_lines,
+            support::pretrained::catalog_contracts::testing::contract_lines,
         };
         assert_eq!(
             contract_lines(WHISPER_CONTRACT),

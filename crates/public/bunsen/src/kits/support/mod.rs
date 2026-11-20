@@ -9,16 +9,16 @@
 //! - [`tokens`]: the token seams, [`Detokenizer`](tokens::Detokenizer) (ids to
 //!   text) and [`Tokenizer`](tokens::Tokenizer) (text to ids, and back), their
 //!   implementations, and the vocabulary readers behind them.
-//! - [`construct`]: the construct side of the pretrained pathway: what a
-//!   language model's pretrained loads to; and, with the feature `cache`, the
-//!   hook a kit builds through, deferred models, the factory, and the loaded
-//!   handle.
+//! - [`construct`]: what a language model's pretrained loads to
+//!   ([`LmConstruct`](construct::LmConstruct)).
 //! - [`decoding`]: the search machinery, from a step's logits to the ids a
 //!   decode returns: logit filters, greedy and beam search, sampling, ranking,
 //!   and the temperature ladder.
-//! - [`catalog_contracts`]: each kit's build-catalog contract, the signature
-//!   its loader implements, gathered for the catalog builder (with `store`, as
-//!   the pretrained indexes are).
+//! - [`pretrained`] (feature `store`, as the kits' pretrained indexes are): the
+//!   shared pretrained tier: each kit's build-catalog contract
+//!   ([`catalog_contracts`](pretrained::catalog_contracts)), and the construct
+//!   hook the `transformers` language models share
+//!   ([`TransformersLmKit`](pretrained::TransformersLmKit)).
 //! - [`interop`]: what an external ecosystem's files and names mean, for any
 //!   kit: a `transformers` `config.json`
 //!   ([`TransformersConfigJson`](interop::transformers::TransformersConfigJson)).
@@ -28,11 +28,11 @@
 //!   the chain, the normalizers bunsen ships) and language tags
 //!   ([`BunsenLanguageTag`](text::BunsenLanguageTag)).
 
-#[cfg(feature = "store")]
-pub mod catalog_contracts;
 pub mod construct;
 pub mod decoding;
 pub mod interop;
 pub mod model_config;
+#[cfg(feature = "store")]
+pub mod pretrained;
 pub mod text;
 pub mod tokens;

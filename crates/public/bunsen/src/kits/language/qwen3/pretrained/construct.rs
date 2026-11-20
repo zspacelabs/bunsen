@@ -1,10 +1,5 @@
 //! # Constructing a Qwen3 pretrained
-use alloc::vec::Vec;
-
-use burn::{
-    store::burn_pack::Tensor as PackTensor,
-    tensor::FloatDType,
-};
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -13,7 +8,7 @@ use super::{
 use crate::{
     data::{
         catalog::presets::ResolvedPresetSet,
-        formats::NamedTensorsApplied,
+        formats::LoadPolicy,
         resources::LoadedResourceSet,
     },
     errors::BunsenResult,
@@ -24,23 +19,24 @@ use crate::{
             Qwen3Model,
             TOKENIZER_CONFIG,
             interop::transformers::{
-                load_qwen3_tensors,
-                qwen3_config_from_str,
+                load_qwen3,
+                qwen3_config,
             },
         },
         support::{
-            construct::TransformersLmKit,
+            interop::transformers::TransformersConfigJson,
             model_config::{
                 ProbeSpec,
                 probe_loaded,
             },
+            pretrained::TransformersLmKit,
         },
     },
 };
 
 /// How a Qwen3 pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
-/// ([`qwen3_config_from_str`]), or else the prefab its row names, in
+/// ([`qwen3_config`]), or else the prefab its row names, in
 /// the dtype the load policy resolves; bundled with the positions the
 /// `config.json` says it was trained on, and every file of the checkpoint by
 /// its key.
@@ -61,16 +57,17 @@ impl TransformersLmKit for Qwen3ConstructConfig {
     const KIT: &'static str = QWEN3_KIT;
     const NAME: &'static str = "Qwen3";
 
-    fn config_from_transformers(json: &str) -> BunsenResult<Qwen3Config> {
-        qwen3_config_from_str(json)
+    fn config(c: &TransformersConfigJson) -> BunsenResult<Qwen3Config> {
+        qwen3_config(c, false)
     }
 
-    fn load_tensors(
-        model: &mut Qwen3Model,
-        tensors: Vec<PackTensor>,
-        dtype: FloatDType,
-    ) -> BunsenResult<NamedTensorsApplied> {
-        load_qwen3_tensors(model, tensors, Some(dtype))
+    fn load(
+        loaded: &LoadedResourceSet,
+        config: &Qwen3Config,
+        device: &Device,
+        policy: LoadPolicy,
+    ) -> BunsenResult<Qwen3Model> {
+        load_qwen3(loaded, config, device, policy)
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the

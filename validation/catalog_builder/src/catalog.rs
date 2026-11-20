@@ -23,7 +23,7 @@ use bunsen::{
         CatalogErrorExt,
         document::OrderedNode,
     },
-    kits::support::catalog_contracts::{
+    kits::support::pretrained::catalog_contracts::{
         contracts_section,
         kit_catalog_contracts,
     },

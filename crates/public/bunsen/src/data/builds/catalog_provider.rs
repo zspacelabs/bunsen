@@ -37,7 +37,7 @@ pub const GEOMETRY: &str = "geometry";
 /// named in full (`qwen/qwen3/qwen3-0.6b`).
 ///
 /// A contract is what a kit's loader implements
-/// ([`catalog_contracts`](crate::kits::support::catalog_contracts)), so the
+/// ([`catalog_contracts`](crate::kits::support::pretrained::catalog_contracts)), so the
 /// builds of a kit's contract, its variants' among them, are the ones its
 /// loader can build. The builds are resolved once, when the provider is
 /// made: a stack is not shared between threads, and a provider is.

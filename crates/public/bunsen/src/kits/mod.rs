@@ -58,7 +58,7 @@
 //! - **A catalog contract.** `contract.yml`, beside the providers
 //!   (`{KIT}_CONTRACT`): the signature its loader implements, the resource
 //!   slots and arguments a build catalog's builds bind
-//!   ([`catalog_contracts`](support::catalog_contracts)).
+//!   ([`catalog_contracts`](support::pretrained::catalog_contracts)).
 //! - **A construct config.** `{Kit}ConstructConfig` is the kit's hook, its
 //!   [`ConstructInit`](crate::data::builds::ConstructInit): the kit's name
 //!   (`{KIT}_KIT`), and how the loaded files become its construct,

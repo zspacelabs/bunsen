@@ -19,7 +19,7 @@ pub const PYTORCH_FP32: &str = "pytorch fp32";
 
 /// What the resnet kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
-/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+/// [`kit_catalog_contracts`](crate::kits::support::pretrained::catalog_contracts::kit_catalog_contracts).
 pub const RESNET_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
@@ -137,7 +137,7 @@ mod tests {
     /// the resource keys the loader reads, of the kinds it reads them as.
     #[test]
     fn test_the_contract_is_the_loaders() {
-        use crate::kits::support::catalog_contracts::testing::contract_lines;
+        use crate::kits::support::pretrained::catalog_contracts::testing::contract_lines;
         assert_eq!(
             contract_lines(RESNET_CONTRACT),
             [

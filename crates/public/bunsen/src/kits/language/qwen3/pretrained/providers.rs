@@ -38,7 +38,7 @@ pub const GENERATION_CONFIG_JSON: &str = "generation_config.json";
 
 /// What the qwen3 kit's loader implements, as a build catalog's contract:
 /// `contract.yml`, gathered by
-/// [`kit_catalog_contracts`](crate::kits::support::catalog_contracts::kit_catalog_contracts).
+/// [`kit_catalog_contracts`](crate::kits::support::pretrained::catalog_contracts::kit_catalog_contracts).
 pub const QWEN3_CONTRACT: &str = include_str!("contract.yml");
 
 /// The contract the kit's loader implements, by its name in the built-in
@@ -196,12 +196,12 @@ mod tests {
                 },
             },
             kits::support::{
-                catalog_contracts::testing::contract_lines,
                 construct::{
                     GENERATION_CONFIG,
                     TOKENIZER,
                     TOKENIZER_CONFIG,
                 },
+                pretrained::catalog_contracts::testing::contract_lines,
             },
         };
         assert_eq!(

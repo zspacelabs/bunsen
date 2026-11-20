@@ -22,9 +22,9 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::{
-        construct::load_lm_rekeyed,
-        interop::transformers::{
+    kits::support::interop::{
+        load_lm_rekeyed,
+        transformers::{
             TransformersConfigJson,
             llama_layer_keys,
         },
@@ -145,8 +145,8 @@ enum Generation {
 /// naming the field, when the file lacks one or does not parse;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's Gemma is not.
-pub fn gemma_config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
-    let root = TransformersConfigJson::parse(json)?;
+pub fn gemma_config(c: &TransformersConfigJson) -> BunsenResult<GemmaConfig> {
+    let root = c.clone();
     let tie_default = root.bool_or("tie_word_embeddings", true)?;
     let (t, generation, multimodal) = match root.str("model_type")? {
         "gemma" => (root, Generation::Gemma, false),
@@ -315,6 +315,14 @@ fn layer_kinds(
         },
     };
     Ok(GemmaConfig::every_nth_full(n_layers, full_every))
+}
+
+/// [`gemma_config`] of a `config.json`'s text.
+///
+/// # Errors
+/// As [`TransformersConfigJson::parse`] and [`gemma_config`].
+pub fn gemma_config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
+    gemma_config(&TransformersConfigJson::parse(json)?)
 }
 
 #[cfg(test)]
