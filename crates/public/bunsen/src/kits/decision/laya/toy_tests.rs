@@ -29,7 +29,7 @@ use crate::{
             Detokenizer,
             Tokenizer,
         },
-        text::encoders::modernbert::weights::modernbert_config_from_transformers,
+        text::encoders::modernbert::interop::transformers::modernbert_config_from_str,
     },
     support::testing::{
         ToyFixture,
@@ -50,7 +50,7 @@ impl Toy {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
         let json = std::fs::read_to_string(dir.join("laya_toy.encoder.config.json"))
             .expect("read the toy encoder config");
-        let encoder = modernbert_config_from_transformers(&json).expect("parse the toy config");
+        let encoder = modernbert_config_from_str(&json).expect("parse the toy config");
         let mut fixture = ToyFixture::load(dir.join("laya_toy.safetensors"), device);
         let mut model: LayaModel = LayaConfig::new(encoder).init(device);
         let applied =
@@ -230,7 +230,7 @@ fn test_meta() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/laya");
     let json = std::fs::read_to_string(dir.join("laya_toy.encoder.config.json"))
         .expect("read the toy encoder config");
-    let encoder = modernbert_config_from_transformers(&json).expect("parse the toy config");
+    let encoder = modernbert_config_from_str(&json).expect("parse the toy config");
     let config = LayaConfig::new(encoder)
         .with_head_layers(1)
         .with_n_act(3)

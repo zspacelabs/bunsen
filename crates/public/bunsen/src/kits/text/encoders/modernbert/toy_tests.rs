@@ -6,8 +6,8 @@
 //! tokens, two rotary bases, random norm gains, and a padded batch, whose
 //! references are each item run alone, unpadded: what padding must not
 //! change. Its geometry comes from its `config.json` through
-//! [`modernbert_config_from_transformers`], and its weights, `Wqkv` and `Wi`
-//! fused, load through [`load_transformers_tensors`], so the reader, the
+//! [`modernbert_config_from_path`], and its weights, `Wqkv` and `Wi`
+//! fused, load through [`load_modernbert_tensors`], so the reader, the
 //! splits and the loader are under test too.
 
 use std::path::PathBuf;
@@ -16,9 +16,9 @@ use burn::prelude::*;
 
 use super::{
     ModernBertModel,
-    weights::{
-        load_transformers_tensors,
-        modernbert_config_from_transformers,
+    interop::transformers::{
+        load_modernbert_tensors,
+        modernbert_config_from_path,
     },
 };
 use crate::{
@@ -39,12 +39,11 @@ struct Toy {
 impl Toy {
     fn load(device: &Device) -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/modernbert");
-        let json = std::fs::read_to_string(dir.join("modernbert_toy.config.json"))
+        let config = modernbert_config_from_path(&dir.join("modernbert_toy.config.json"))
             .expect("read the toy config");
-        let config = modernbert_config_from_transformers(&json).expect("parse the toy config");
         let mut fixture = ToyFixture::load(dir.join("modernbert_toy.safetensors"), device);
         let mut model: ModernBertModel = config.init(device);
-        let applied = load_transformers_tensors(&mut model, fixture.take_weights(), None)
+        let applied = load_modernbert_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         assert!(applied.unused.is_empty(), "{:?}", applied.unused);
         let lengths: Tensor<1> = fixture.io("lengths");

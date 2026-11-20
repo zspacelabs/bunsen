@@ -14,21 +14,12 @@
 - rule: rekey
   path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
   item: 'ResNet::torchvision_rekey'
-- rule: rekey
-  path: crates/public/bunsen/src/kits/text/encoders/modernbert/weights.rs
-  item: load_transformers_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/text/encoders/modernbert/weights.rs
-  item: transformers_rekey
 - rule: store-gate
   path: crates/public/bunsen/src/kits/decision/laya/mod.rs
   item: mod weights
 - rule: store-gate
   path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
   item: 'ResNet::load_pytorch_weights'
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/text/encoders/modernbert/mod.rs
-  item: mod weights
 - rule: mirror-rename
   path: crates/public/bunsen/src/kits/decision/laya/agent_config.rs
   item: LayaAgentConfig

@@ -38,12 +38,12 @@ use crate::{
                 load_laya_tensors,
             },
         },
-        text::encoders::modernbert::weights::modernbert_config_from_transformers,
+        text::encoders::modernbert::interop::transformers::modernbert_config_from_str,
     },
 };
 
 /// How a Laya pretrained is built: its two configs, the encoder's
-/// `config.json` ([`modernbert_config_from_transformers`]) and the head's
+/// `config.json` ([`modernbert_config_from_str`]) and the head's
 /// `rl_agent_config.json`, give the model, into which its
 /// `model.safetensors` loads ([`load_laya_tensors`]) in the dtype the load
 /// policy resolves; bundled with the head's config, and every file of the
@@ -87,7 +87,7 @@ impl ConstructInit for LayaConstructConfig {
         device: &Device,
         policy: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<LayaConstruct>> {
-        let encoder = modernbert_config_from_transformers(&read(loaded, ENCODER_CONFIG)?)?;
+        let encoder = modernbert_config_from_str(&read(loaded, ENCODER_CONFIG)?)?;
         let agent = LayaAgentConfig::parse(&read(loaded, AGENT_CONFIG)?)?;
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let stored = crate::data::formats::stored_float_dtype(&tensors)

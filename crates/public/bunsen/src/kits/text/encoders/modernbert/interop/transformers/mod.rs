@@ -1,35 +1,49 @@
-//! Loading `transformers`-named tensors into a [`ModernBertModel`], and
-//! reading its `config.json`.
-use burn::store::burn_pack::Tensor as PackTensor;
+//! # `ModernBERT` in `transformers`' names
+//!
+//! A `transformers` `ModernBertModel` checkpoint (a bare model's, or a
+//! `ModernBertFor*`'s under `model.`, its head dropped) as bunsen's
+//! [`ModernBertModel`](crate::kits::text::encoders::modernbert::ModernBertModel):
+//!
+//! - **Config:** [`modernbert_config`] of a parsed `config.json`, and
+//!   [`modernbert_config_from_str`] / [`modernbert_config_from_path`].
+//! - **Names:** [`modernbert_rekey`], after the fused projections' row splits
+//!   ([`modernbert_row_splits`]), its layers by [`modernbert_layer_keys`].
+//! - **Loading** (feature `store`): `load_modernbert_tensors`. The kit has no
+//!   pretrained of its own: a model built on it (Laya) loads it.
 
-use super::{
-    ModernBertContractConfig,
-    ModernBertLayerKind,
-    ModernBertModel,
-};
+use std::path::Path;
+
 use crate::{
     blocks::transformers::decoders::causal::{
         CausalDecoderBlock,
         DecoderLayerKeys,
     },
     burner::module::{
-        CanonicalKeys,
         Rekey,
         TensorLoadRowSplit,
-    },
-    data::formats::{
-        NamedTensorsApplied,
-        split_rows,
     },
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::interop::transformers::{
-        TransformersConfigJson,
-        llama_layer_keys,
+    kits::{
+        support::interop::transformers::{
+            TransformersConfigJson,
+            config_from_path,
+            config_from_str,
+            llama_layer_keys,
+        },
+        text::encoders::modernbert::{
+            ModernBertContractConfig,
+            ModernBertLayerKind,
+        },
     },
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// The fused projections of a `transformers` `ModernBERT` layer, split by
 /// rows into the parts the block holds apart, named in the checkpoint's
@@ -37,7 +51,7 @@ use crate::{
 /// into `mlp.Wi_gate`, its first half (upstream's `input`, the half the
 /// activation takes), and `mlp.Wi_up`, its second (upstream's `gate`, the
 /// half it multiplies).
-pub fn transformers_row_splits() -> [TensorLoadRowSplit; 2] {
+pub fn modernbert_row_splits() -> [TensorLoadRowSplit; 2] {
     [
         TensorLoadRowSplit::equal(
             ".attn.Wqkv.weight",
@@ -51,9 +65,9 @@ pub fn transformers_row_splits() -> [TensorLoadRowSplit; 2] {
 }
 
 /// The names of a `transformers` `ModernBERT` layer's parts, once
-/// [`transformers_row_splits`] has split its projections: `attn_norm` and
+/// [`modernbert_row_splits`] has split its projections: `attn_norm` and
 /// `mlp_norm`, and `attn`'s `Wq`, `Wk`, `Wv` and `Wo`.
-pub fn transformers_layer_keys() -> DecoderLayerKeys {
+pub fn modernbert_layer_keys() -> DecoderLayerKeys {
     DecoderLayerKeys {
         attn: "attn".to_string(),
         attn_projs: ["Wq", "Wk", "Wv", "Wo"].map(String::from),
@@ -62,16 +76,17 @@ pub fn transformers_layer_keys() -> DecoderLayerKeys {
 }
 
 /// `transformers`' `ModernBertModel` state-dict names, after
-/// [`transformers_row_splits`], onto a [`ModernBertModel`]'s module paths,
+/// [`modernbert_row_splits`], onto a
+/// [`ModernBertModel`](crate::kits::text::encoders::modernbert::ModernBertModel)'s module paths,
 /// relative to the encoder: the embedding's table and norm, each layer by
-/// [`transformers_layer_keys`] and its `GeGLU`'s parts (`Wi_gate`, `Wi_up`,
+/// [`modernbert_layer_keys`] and its `GeGLU`'s parts (`Wi_gate`, `Wi_up`,
 /// `Wo`), and the final norm. Anything else is dropped (a `ModernBertFor*`'s
 /// head).
 ///
 /// Normalization parameters keep their `weight` spellings, which
-/// [`Rekey::load`] resolves to `gamma`.
-pub fn transformers_rekey() -> Rekey {
-    let layer = CausalDecoderBlock::layer_rekey(&transformers_layer_keys())
+/// [`Rekey::load`](crate::burner::module::Rekey::load) resolves to `gamma`.
+pub fn modernbert_rekey() -> Rekey {
+    let layer = CausalDecoderBlock::layer_rekey(&modernbert_layer_keys())
         .rename("mlp.Wi_gate.", "mlp.gate_proj.")
         .rename("mlp.Wi_up.", "mlp.up_proj.")
         .rename("mlp.Wo.", "mlp.down_proj.");
@@ -82,39 +97,7 @@ pub fn transformers_rekey() -> Rekey {
         .rename("final_norm.", "stack.norm.")
 }
 
-/// The prefix a checkpoint's encoder sits under: `model.` for a
-/// `ModernBertFor*`'s (a masked LM's, a classifier's), none for a bare
-/// `ModernBertModel`'s.
-pub fn transformers_prefix(tensors: &[PackTensor]) -> &'static str {
-    if tensors.iter().any(|t| t.name.starts_with("model.layers.")) {
-        "model."
-    } else {
-        ""
-    }
-}
-
-/// Loads tensors named as a `transformers` `ModernBERT` state dict (a bare
-/// model's, or under [`transformers_prefix`]) into `model`: the fused
-/// projections split ([`transformers_row_splits`]), then [`Rekey::load`]
-/// under [`transformers_rekey`]; in `dtype` (a load policy's resolution),
-/// or, when `None`, in the dtype `model` was built in.
-///
-/// # Errors
-/// As [`split_rows`] and [`Rekey::load`].
-pub fn load_transformers_tensors(
-    model: &mut ModernBertModel,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: Option<burn::tensor::FloatDType>,
-) -> BunsenResult<NamedTensorsApplied> {
-    let tensors: Vec<PackTensor> = tensors.into_iter().collect();
-    let prefix = transformers_prefix(&tensors);
-    let tensors = split_rows(tensors, &transformers_row_splits())?;
-    let rekey = Rekey::drop_rest().mount(prefix, "", transformers_rekey());
-    let rekey = rekey.then(model.canonical_rekey());
-    rekey.load(model, tensors, dtype)
-}
-
-/// The [`ModernBertContractConfig`] of a `transformers` `ModernBERT`
+/// The [`ModernBertContractConfig`] of a parsed `transformers` `ModernBERT`
 /// `config.json` (`model_type` `modernbert`).
 ///
 /// The layer kinds are read as `layer_types` or, without them, as
@@ -127,11 +110,10 @@ pub fn load_transformers_tensors(
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
-/// naming the field, when the file lacks one or does not parse;
+/// naming the field, when the file lacks one;
 /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
 /// field and its value, for a model bunsen's `ModernBERT` is not.
-pub fn modernbert_config_from_transformers(json: &str) -> BunsenResult<ModernBertContractConfig> {
-    let t = TransformersConfigJson::parse(json)?;
+pub fn modernbert_config(t: &TransformersConfigJson) -> BunsenResult<ModernBertContractConfig> {
     t.expect_str("model_type", "modernbert")?;
     t.expect_eq(
         "hidden_activation",
@@ -202,6 +184,23 @@ pub fn modernbert_config_from_transformers(json: &str) -> BunsenResult<ModernBer
     .with_local_rope_theta(local_theta))
 }
 
+/// [`modernbert_config`] of a `config.json`'s text.
+///
+/// # Errors
+/// As [`config_from_str`] and [`modernbert_config`].
+pub fn modernbert_config_from_str(json: &str) -> BunsenResult<ModernBertContractConfig> {
+    config_from_str(json, modernbert_config)
+}
+
+/// [`modernbert_config`] of the `config.json` at `path`; every error names
+/// the file.
+///
+/// # Errors
+/// As [`config_from_path`] and [`modernbert_config`].
+pub fn modernbert_config_from_path(path: &Path) -> BunsenResult<ModernBertContractConfig> {
+    config_from_path(path, modernbert_config)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,8 +208,8 @@ mod tests {
     /// A layer's names, once split, land on the block's: the projections,
     /// the norms, the `GeGLU`'s parts.
     #[test]
-    fn test_transformers_rekey() {
-        let rekey = Rekey::drop_rest().mount("model.", "", transformers_rekey());
+    fn test_modernbert_rekey() {
+        let rekey = Rekey::drop_rest().mount("model.", "", modernbert_rekey());
         for (stored, bunsen) in [
             (
                 "model.embeddings.tok_embeddings.weight",
@@ -277,7 +276,7 @@ mod tests {
                 "sliding_attention": {"rope_theta": 10000.0, "rope_type": "default"}
             }
         }"#;
-        let config = modernbert_config_from_transformers(json).unwrap();
+        let config = modernbert_config_from_str(json).unwrap();
         assert_eq!(
             (
                 config.n_vocab,
@@ -306,7 +305,7 @@ mod tests {
             "global_attn_every_n_layers": 2, "global_rope_theta": 1000.0,
             "local_rope_theta": 100.0, "local_attention": 8
         }"#;
-        let config = modernbert_config_from_transformers(older).unwrap();
+        let config = modernbert_config_from_str(older).unwrap();
         assert_eq!(config.layer_kinds, [Global, Local, Global, Local]);
         assert_eq!(
             (
@@ -318,6 +317,6 @@ mod tests {
         );
 
         let biased = json.replace(r#""mlp_bias": false"#, r#""mlp_bias": true"#);
-        assert!(modernbert_config_from_transformers(&biased).is_err());
+        assert!(modernbert_config_from_str(&biased).is_err());
     }
 }
