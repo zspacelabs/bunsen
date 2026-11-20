@@ -87,8 +87,9 @@ pub fn talker_config(t: &TransformersConfigJson) -> BunsenResult<Qwen3TtsTalkerC
 /// The talker's names, without [`QWEN3_TTS_TALKER_PREFIX`], onto a
 /// [`Qwen3TtsTalker`](crate::kits::speech::tts::qwen3_tts::talker::Qwen3TtsTalker)'s canonical ones: the decoder's layers by Qwen3's
 /// [`text_layer_rekey`], its final norm, the codec table as the decoder's
-/// embedding and `codec_head` as its head; the text table and its
-/// projection as they are.
+/// embedding and `codec_head` as its head; the text table as it is, and its
+/// projection's `linear_fc1` / `linear_fc2` as its
+/// [`BunsenMlp`](crate::blocks::mlp::BunsenMlp)'s `linear1` / `linear2`.
 pub fn talker_rekey() -> Rekey {
     Rekey::drop_rest()
         .mount(
@@ -101,7 +102,13 @@ pub fn talker_rekey() -> Rekey {
                 .rename("text_embedding.", "text_embedding."),
         )
         .rename("codec_head.", "lm.head.proj.")
-        .rename("text_projection.", "text_projection.")
+        .mount(
+            "text_projection.",
+            "text_projection.",
+            Rekey::keep_rest()
+                .rename("linear_fc1.", "linear1.")
+                .rename("linear_fc2.", "linear2."),
+        )
 }
 
 #[cfg(test)]
@@ -142,6 +149,25 @@ mod tests {
         );
         assert!(!config.lm.tied_head);
         assert_eq!(config.lm.rope_theta, 1_000_000.0);
+    }
+
+    /// The text projection's names land on its MLP's.
+    #[test]
+    fn test_text_projection_rekey() {
+        let rekey = talker_rekey();
+        for (stored, bunsen) in [
+            (
+                "text_projection.linear_fc1.weight",
+                "text_projection.linear1.weight",
+            ),
+            (
+                "text_projection.linear_fc2.bias",
+                "text_projection.linear2.bias",
+            ),
+            ("model.text_embedding.weight", "text_embedding.weight"),
+        ] {
+            assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
+        }
     }
 
     /// M-RoPE sections that do not cover the head's frequencies are refused.
