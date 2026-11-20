@@ -10,6 +10,7 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        mlp::BunsenGatedMlpConfig,
         norm::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
@@ -35,7 +36,6 @@ use crate::{
                 TokenEmbeddingConfig,
                 TokenEmbeddingMeta,
             },
-            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::{
@@ -193,7 +193,7 @@ impl ModernBertContractConfig {
                 .with_mask(AttentionMask::Bidirectional)
                 .with_sliding_window(window)
                 .into(),
-            TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
+            BunsenGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_activation(BunsenActivationConfig::Gelu)
                 .into(),
         )

@@ -1,5 +1,7 @@
-//! Transformer feed-forwards: [`TransformerMlp`], [`TransformerGatedMlp`], and
-//! [`TransformerFeedForward`], either one chosen by config.
+//! Transformer feed-forwards: [`TransformerMlp`], and
+//! [`TransformerFeedForward`], a plain, gated or sparse feed-forward chosen by
+//! config; the gated form is
+//! [`BunsenGatedMlp`].
 
 use burn::{
     config::Config,
@@ -17,6 +19,11 @@ use crate::{
         activation::{
             BunsenActivation,
             BunsenActivationConfig,
+        },
+        mlp::{
+            BunsenGatedMlp,
+            BunsenGatedMlpConfig,
+            BunsenGatedMlpMeta,
         },
         transformers::{
             moe::sparse::{
@@ -152,137 +159,6 @@ impl TransformerMlp {
     }
 }
 
-/// Common meta for [`TransformerGatedMlp`] and [`TransformerGatedMlpConfig`].
-pub trait TransformerGatedMlpMeta {
-    /// The input and output width.
-    fn n_embed(&self) -> usize;
-
-    /// The hidden width.
-    fn d_ff(&self) -> usize;
-}
-
-/// Config for [`TransformerGatedMlp`].
-///
-/// Implements [`TransformerGatedMlpMeta`].
-#[derive(Config, Debug)]
-pub struct TransformerGatedMlpConfig {
-    /// The input and output width.
-    pub n_embed: usize,
-
-    /// The hidden width.
-    pub d_ff: usize,
-
-    /// Whether the three projections carry a bias.
-    #[config(default = "false")]
-    pub bias: bool,
-
-    /// Whether the down projection carries a bias; `None` follows `bias`.
-    ///
-    /// Voxtral Realtime's audio encoder biases only its down projection
-    /// (`Some(true)` without `bias`).
-    #[config(default = "None")]
-    pub down_bias: Option<bool>,
-
-    /// The gate's activation: `Silu` for a `SwiGLU`, `GeluApproximate` for
-    /// Gemma's `GeGLU`.
-    #[config(default = "BunsenActivationConfig::Silu")]
-    pub activation: BunsenActivationConfig,
-}
-
-impl TransformerGatedMlpConfig {
-    /// Whether the down projection carries a bias: `down_bias`, else `bias`.
-    pub fn down_bias(&self) -> bool {
-        self.down_bias.unwrap_or(self.bias)
-    }
-}
-
-impl TransformerGatedMlpMeta for TransformerGatedMlpConfig {
-    fn n_embed(&self) -> usize {
-        self.n_embed
-    }
-
-    fn d_ff(&self) -> usize {
-        self.d_ff
-    }
-}
-
-impl ModuleInit<TransformerGatedMlp> for TransformerGatedMlpConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<TransformerGatedMlp> {
-        let linear = |i, o, bias| LinearConfig::new(i, o).with_bias(bias).init(device);
-        Ok(TransformerGatedMlp {
-            gate_proj: linear(self.n_embed, self.d_ff, self.bias),
-            up_proj: linear(self.n_embed, self.d_ff, self.bias),
-            down_proj: linear(self.d_ff, self.n_embed, self.down_bias()),
-            act: self.activation.init(device),
-        })
-    }
-}
-
-/// The gated feed-forward block (Shazeer 2020): `down(act(gate(x)) *
-/// up(x))`. With `silu`, the `SwiGLU` of Llama, Qwen and their kin; with
-/// tanh-approximated GELU, Gemma's `GeGLU`.
-///
-/// The fields carry the names `transformers` gives them.
-///
-/// Built by [`TransformerGatedMlpConfig`].
-/// Implements [`TransformerGatedMlpMeta`].
-#[derive(Module, Debug)]
-pub struct TransformerGatedMlp {
-    /// `n_embed -> d_ff`, the gate.
-    pub gate_proj: Linear,
-
-    /// `n_embed -> d_ff`.
-    pub up_proj: Linear,
-
-    /// `d_ff -> n_embed`.
-    pub down_proj: Linear,
-
-    /// The gate's activation.
-    pub act: BunsenActivation,
-}
-
-impl TransformerGatedMlpMeta for TransformerGatedMlp {
-    fn n_embed(&self) -> usize {
-        self.gate_proj.weight.dims()[0]
-    }
-
-    fn d_ff(&self) -> usize {
-        self.gate_proj.weight.dims()[1]
-    }
-}
-
-impl TransformerGatedMlp {
-    /// Applies the block.
-    ///
-    /// # Arguments
-    /// * `x` - `[batch, seq, n_embed]`.
-    ///
-    /// # Returns
-    /// `[batch, seq, n_embed]`.
-    pub fn forward(
-        &self,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        let [batch, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "n_embed"],
-            &x.dims(),
-            &["batch", "seq"],
-            &[("n_embed", self.n_embed())]
-        );
-        let gate = self.act.forward(self.gate_proj.forward(x.clone()));
-        let y = self.down_proj.forward(gate * self.up_proj.forward(x));
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "seq", "n_embed"],
-            &y.dims(),
-            &[("batch", batch), ("seq", seq), ("n_embed", self.n_embed())]
-        );
-        y
-    }
-}
-
 /// Common meta for [`TransformerFeedForward`] and
 /// [`TransformerFeedForwardConfig`].
 pub trait TransformerFeedForwardMeta {
@@ -299,8 +175,8 @@ pub enum TransformerFeedForwardConfig {
     /// [`TransformerMlp`]: expand, activate, project back.
     Mlp(TransformerMlpConfig),
 
-    /// [`TransformerGatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
-    Gated(TransformerGatedMlpConfig),
+    /// [`BunsenGatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
+    Gated(BunsenGatedMlpConfig),
 
     /// [`SparseMoe`]: a sparse mixture of experts.
     Moe(SparseMoeConfig),
@@ -312,8 +188,8 @@ impl From<TransformerMlpConfig> for TransformerFeedForwardConfig {
     }
 }
 
-impl From<TransformerGatedMlpConfig> for TransformerFeedForwardConfig {
-    fn from(config: TransformerGatedMlpConfig) -> Self {
+impl From<BunsenGatedMlpConfig> for TransformerFeedForwardConfig {
+    fn from(config: BunsenGatedMlpConfig) -> Self {
         Self::Gated(config)
     }
 }
@@ -328,7 +204,7 @@ impl TransformerFeedForwardMeta for TransformerFeedForwardConfig {
     fn n_embed(&self) -> usize {
         match self {
             Self::Mlp(c) => TransformerMlpMeta::n_embed(c),
-            Self::Gated(c) => TransformerGatedMlpMeta::n_embed(c),
+            Self::Gated(c) => BunsenGatedMlpMeta::n_embed(c),
             Self::Moe(c) => c.n_embed(),
         }
     }
@@ -362,8 +238,8 @@ pub enum TransformerFeedForward {
     /// [`TransformerMlp`].
     Mlp(TransformerMlp),
 
-    /// [`TransformerGatedMlp`].
-    Gated(TransformerGatedMlp),
+    /// [`BunsenGatedMlp`].
+    Gated(BunsenGatedMlp),
 
     /// [`SparseMoe`].
     Moe(SparseMoe),
@@ -373,7 +249,7 @@ impl TransformerFeedForwardMeta for TransformerFeedForward {
     fn n_embed(&self) -> usize {
         match self {
             Self::Mlp(m) => TransformerMlpMeta::n_embed(m),
-            Self::Gated(m) => TransformerGatedMlpMeta::n_embed(m),
+            Self::Gated(m) => BunsenGatedMlpMeta::n_embed(m),
             Self::Moe(m) => m.n_embed(),
         }
     }
@@ -413,7 +289,7 @@ impl SublayerBranch<(), 3> for TransformerMlp {
 }
 
 /// Takes only the stream.
-impl SublayerBranch<(), 3> for TransformerGatedMlp {
+impl SublayerBranch<(), 3> for BunsenGatedMlp {
     type Output = Tensor<3>;
 
     fn call_branch(
@@ -554,78 +430,5 @@ mod tests {
                 output.to_data().assert_eq(&x.to_data(), true);
             }
         }
-    }
-
-    #[test]
-    fn test_gated_mlp() {
-        use crate::support::testing::cpu_device;
-        let config = TransformerGatedMlpConfig::new(6, 10).with_bias(true);
-        let mlp: TransformerGatedMlp = config.init(&cpu_device());
-        assert_eq!(mlp.n_embed(), config.n_embed());
-        assert_eq!(mlp.d_ff(), config.d_ff());
-        assert!(mlp.up_proj.bias.is_some());
-        // silu(0) = 0, so a zero input gives the down projection's bias.
-        let y = mlp.forward(Tensor::zeros([2, 3, 6], &cpu_device()));
-        assert_eq!(y.dims(), [2, 3, 6]);
-    }
-
-    /// The gated block applies its configured activation to the gate:
-    /// `down(act(gate(x)) * up(x))`, `silu` by default.
-    #[test]
-    fn test_gated_mlp_activation() {
-        use crate::support::testing::{
-            assert_tensors_close,
-            cpu_device,
-            seeded_tensor,
-        };
-        let device = cpu_device();
-        let x = seeded_tensor::<3>(7, [2, 3, 6], Distribution::Default, &device);
-        for (config, act) in [
-            (
-                TransformerGatedMlpConfig::new(6, 10),
-                burn::tensor::activation::silu::<3> as fn(Tensor<3>) -> Tensor<3>,
-            ),
-            (
-                TransformerGatedMlpConfig::new(6, 10)
-                    .with_activation(BunsenActivationConfig::GeluApproximate),
-                burn::tensor::activation::gelu_approximate::<3>,
-            ),
-        ] {
-            let mlp: TransformerGatedMlp = config.init(&device);
-            let expected = mlp
-                .down_proj
-                .forward(act(mlp.gate_proj.forward(x.clone())) * mlp.up_proj.forward(x.clone()));
-            assert_tensors_close(&mlp.forward(x.clone()), &expected, Default::default());
-        }
-    }
-
-    /// The down projection's bias follows `bias` unless `down_bias` says
-    /// otherwise.
-    #[test]
-    fn test_gated_mlp_down_bias() {
-        use crate::support::testing::cpu_device;
-        let device = cpu_device();
-        let config = TransformerGatedMlpConfig::new(6, 10).with_down_bias(Some(true));
-        assert!(!config.bias);
-        assert!(config.down_bias());
-        let mlp: TransformerGatedMlp = config.init(&device);
-        assert!(mlp.gate_proj.bias.is_none());
-        assert!(mlp.up_proj.bias.is_none());
-        assert!(mlp.down_proj.bias.is_some());
-        // With no gate bias, a zero input is the down projection's bias.
-        let y = mlp.forward(Tensor::zeros([1, 2, 6], &device));
-        let bias = mlp.down_proj.bias.as_ref().unwrap().val();
-        crate::support::testing::assert_tensors_close(
-            &y,
-            &bias.unsqueeze_dims::<3>(&[0, 0]).repeat_dim(1, 2),
-            burn::tensor::Tolerance::default(),
-        );
-
-        let config = TransformerGatedMlpConfig::new(6, 10)
-            .with_bias(true)
-            .with_down_bias(Some(false));
-        let mlp: TransformerGatedMlp = config.init(&device);
-        assert!(mlp.gate_proj.bias.is_some());
-        assert!(mlp.down_proj.bias.is_none());
     }
 }

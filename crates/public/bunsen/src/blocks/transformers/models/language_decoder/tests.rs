@@ -10,6 +10,7 @@ use burn::{
 use super::*;
 use crate::{
     blocks::{
+        mlp::BunsenGatedMlpConfig,
         norm::{
             BunsenNormalizationConfig,
             GatedNormConfig,
@@ -31,7 +32,6 @@ use crate::{
             },
             head::LmHeadConfig,
             mixers::GatedDeltaNetConfig,
-            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::{
@@ -62,7 +62,7 @@ fn attention_layer() -> CausalDecoderBlockConfig {
         CausalSelfAttentionConfig::new(3, 1, 12)
             .with_head_dim(Some(6))
             .into(),
-        TransformerGatedMlpConfig::new(12, 20).into(),
+        BunsenGatedMlpConfig::new(12, 20).into(),
     )
     .with_norm(norm())
 }
@@ -72,7 +72,7 @@ fn linear_layer() -> CausalDecoderBlockConfig {
         GatedDeltaNetConfig::new(12, 2, 4, 4, 3)
             .with_norm(GatedNormConfig::rms(0, 1e-6))
             .into(),
-        TransformerGatedMlpConfig::new(12, 20).into(),
+        BunsenGatedMlpConfig::new(12, 20).into(),
     )
     .with_norm(norm())
 }

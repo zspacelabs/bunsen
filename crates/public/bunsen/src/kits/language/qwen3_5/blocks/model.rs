@@ -8,6 +8,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        mlp::BunsenGatedMlpConfig,
         norm::{
             BunsenNormalizationConfig,
             GatedNormConfig,
@@ -29,7 +30,6 @@ use crate::{
             },
             head::LmHeadConfig,
             mixers::GatedDeltaNetConfig,
-            mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmDecoderHolder,
                 LmDecoderMeta,
@@ -327,7 +327,7 @@ impl Qwen3_5Config {
         };
         CausalDecoderBlockConfig::new(
             mixer,
-            TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
+            BunsenGatedMlpConfig::new(self.d_model, self.d_ff).into(),
         )
         .with_norm(norm(0))
     }

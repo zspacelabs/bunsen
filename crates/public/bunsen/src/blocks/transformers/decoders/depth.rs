@@ -329,12 +329,12 @@ mod tests {
     use super::*;
     use crate::{
         blocks::{
+            mlp::BunsenGatedMlpConfig,
             norm::BunsenNormalizationConfig,
             transformers::{
                 attention::csa::CausalSelfAttentionConfig,
                 decoders::causal::CausalDecoderBlockConfig,
                 embedding::RotaryEmbeddingConfig,
-                mlp::TransformerGatedMlpConfig,
             },
         },
         support::testing::{
@@ -353,7 +353,7 @@ mod tests {
             CausalSelfAttentionConfig::new(2, 1, width)
                 .with_head_dim(Some(4))
                 .into(),
-            TransformerGatedMlpConfig::new(width, 2 * width).into(),
+            BunsenGatedMlpConfig::new(width, 2 * width).into(),
         )
         .with_norm(norm.clone());
         DepthDecoderConfig::new(

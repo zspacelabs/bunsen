@@ -7,7 +7,7 @@
 //! (`tie_word_embeddings`). [`Qwen3Model`] is built from a
 //! [`Qwen3Config`] out of the shared
 //! [`CausalSelfAttention`](crate::blocks::transformers::attention::csa::CausalSelfAttention),
-//! [`TransformerGatedMlp`](crate::blocks::transformers::mlp::TransformerGatedMlp) and
+//! [`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
 //! wrapping an attention-only
 //! [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel), and

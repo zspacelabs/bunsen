@@ -8,6 +8,7 @@ use burn::{
 
 use crate::{
     blocks::{
+        mlp::BunsenGatedMlpConfig,
         norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
@@ -24,7 +25,6 @@ use crate::{
                 TokenEmbeddingConfig,
             },
             head::LmHeadConfig,
-            mlp::TransformerGatedMlpConfig,
             models::language_decoder::{
                 LmAttentionOnlyKind,
                 LmDecoderHolder,
@@ -184,7 +184,7 @@ impl Qwen3Config {
                     .with_qk_norm(QkNormPlacement::BeforeRope)
                     .with_softmax_widening(self.softmax_widening)
                     .into(),
-                TransformerGatedMlpConfig::new(self.d_model, self.d_ff).into(),
+                BunsenGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
             .with_norm(norm(0)),
             norm(0),

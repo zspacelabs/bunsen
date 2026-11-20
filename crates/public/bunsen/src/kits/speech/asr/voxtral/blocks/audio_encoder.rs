@@ -19,6 +19,7 @@ use crate::{
             ConvSeq1d,
             ConvSeq1dConfig,
         },
+        mlp::BunsenGatedMlpConfig,
         norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
@@ -36,7 +37,6 @@ use crate::{
                 RotaryEmbeddingConfig,
                 RotarySet,
             },
-            mlp::TransformerGatedMlpConfig,
         },
     },
     burner::module::{
@@ -182,7 +182,7 @@ impl VoxtralAudioEncoderConfig {
                 // As `transformers`' eager attention: the softmax in f32.
                 .with_softmax_widening(crate::burner::tensor::Widening::F32)
                 .into(),
-            TransformerGatedMlpConfig::new(self.d_model, self.d_ff)
+            BunsenGatedMlpConfig::new(self.d_model, self.d_ff)
                 .with_down_bias(Some(true))
                 .into(),
         )
