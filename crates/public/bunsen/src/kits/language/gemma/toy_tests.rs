@@ -7,8 +7,8 @@
 //! tokens, a `query_pre_attn_scalar` that is not the head width, a linear
 //! factor on the global table alone, caps of 2 and 3, random norm weights).
 //! Each geometry comes from its `config.json` through
-//! [`gemma_config_from_transformers`], and the weights load through
-//! [`load_transformers_tensors`], so the reader and the loader are under test
+//! [`gemma_config_from_path`], and the weights load through
+//! [`load_gemma_tensors`], so the reader and the loader are under test
 //! too.
 
 use core::ops::Range;
@@ -18,9 +18,9 @@ use burn::prelude::*;
 
 use super::{
     GemmaModel,
-    weights::{
-        gemma_config_from_transformers,
-        load_transformers_tensors,
+    interop::transformers::{
+        gemma_config_from_path,
+        load_gemma_tensors,
     },
 };
 use crate::{
@@ -60,12 +60,11 @@ impl Toy {
         device: &Device,
     ) -> Self {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/gemma");
-        let json = std::fs::read_to_string(dir.join(format!("{name}.config.json")))
+        let config = gemma_config_from_path(&dir.join(format!("{name}.config.json")))
             .expect("read the toy config");
-        let config = gemma_config_from_transformers(&json).expect("parse the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
         let mut model: GemmaModel = config.init(device);
-        let applied = load_transformers_tensors(&mut model, fixture.take_weights())
+        let applied = load_gemma_tensors(&mut model, fixture.take_weights(), None)
             .expect("load the toy weights");
         assert!(applied.unused.is_empty(), "{name}: {:?}", applied.unused);
         Self {

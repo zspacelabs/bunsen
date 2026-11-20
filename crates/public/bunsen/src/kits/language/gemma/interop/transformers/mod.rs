@@ -1,12 +1,17 @@
-//! Loading `transformers`-named tensors into a [`GemmaModel`], and reading
-//! its `config.json`.
-use burn::store::burn_pack::Tensor as PackTensor;
+//! # Gemma in `transformers`' names
+//!
+//! A `transformers` Gemma checkpoint (Gemma 1, 2 or 3; a causal LM's, or a
+//! multimodal Gemma 3's text model, its vision tower dropped) as bunsen's
+//! [`GemmaModel`](crate::kits::language::gemma::GemmaModel):
+//!
+//! - **Config:** [`gemma_config`] of a parsed `config.json`, and
+//!   [`gemma_config_from_str`] / [`gemma_config_from_path`].
+//! - **Names:** [`gemma_rekey`], its layers by [`text_layer_rekey`].
+//! - **Loading** (feature `store`): `load_gemma_tensors`; with `cache`,
+//!   `load_gemma`, a resource set's checkpoint.
 
-use super::{
-    GemmaConfig,
-    GemmaLayerKind,
-    GemmaModel,
-};
+use std::path::Path;
+
 use crate::{
     blocks::transformers::{
         decoders::causal::CausalDecoderBlock,
@@ -17,19 +22,28 @@ use crate::{
         Select,
         TensorLoadTransform,
     },
-    data::formats::NamedTensorsApplied,
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::interop::{
-        load_lm_rekeyed,
-        transformers::{
+    kits::{
+        language::gemma::{
+            GemmaConfig,
+            GemmaLayerKind,
+        },
+        support::interop::transformers::{
             TransformersConfigJson,
+            config_from_path,
+            config_from_str,
             llama_layer_keys,
         },
     },
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// The prefixes a Gemma's text model sits under: `transformers` 5's
 /// `Gemma3ForConditionalGeneration`, its 4.x spelling, and a causal LM's
@@ -60,14 +74,14 @@ pub fn text_layer_rekey(post_norms: bool) -> Rekey {
 }
 
 /// `transformers`' Gemma state-dict names onto the module paths of a
-/// [`GemmaModel`]'s
+/// [`GemmaModel`](crate::kits::language::gemma::GemmaModel)'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
 /// under any of [`GEMMA_TEXT_PREFIXES`], the layers by [`text_layer_rekey`],
 /// the embedding (`embed_tokens`, the model's `embedding`) and the final norm;
 /// every norm's gain, stored as `w` for `1 + w`, loaded as `1 + w`
 /// ([`TensorLoadTransform::zero_centered_gain`]). Anything else is dropped: a
 /// tied head's copy, a vision tower and its projector.
-pub fn transformers_rekey(post_norms: bool) -> Rekey {
+pub fn gemma_rekey(post_norms: bool) -> Rekey {
     let text = || {
         Rekey::keep_rest()
             .mount_indexed("layers.", "stack.layers.", text_layer_rekey(post_norms))
@@ -83,36 +97,6 @@ pub fn transformers_rekey(post_norms: bool) -> Rekey {
             Select::suffix("norm.weight"),
             TensorLoadTransform::zero_centered_gain(),
         )
-}
-
-/// Loads tensors named as a `transformers` Gemma state dict into `model`'s
-/// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
-/// [`load_lm_rekeyed`] under
-/// [`transformers_rekey`] for `model`'s generation, in the dtype `model` was
-/// built in.
-///
-/// # Errors
-/// As [`load_lm_rekeyed`].
-pub fn load_transformers_tensors(
-    model: &mut GemmaModel,
-    tensors: impl IntoIterator<Item = PackTensor>,
-) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey(model.lm.stack.layers[0].attn.post.is_some());
-    load_lm_rekeyed(model, tensors, rekey, None)
-}
-
-/// [`load_transformers_tensors`], every floating tensor placed in `dtype` (a
-/// load policy's resolution) rather than the dtype the model was built in.
-///
-/// # Errors
-/// As [`load_lm_rekeyed`].
-pub fn load_transformers_tensors_as(
-    model: &mut GemmaModel,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: burn::tensor::FloatDType,
-) -> BunsenResult<NamedTensorsApplied> {
-    let rekey = transformers_rekey(model.lm.stack.layers[0].attn.post.is_some());
-    load_lm_rekeyed(model, tensors, rekey, Some(dtype))
 }
 
 /// A Gemma generation, as a `config.json`'s `model_type` names it.
@@ -320,9 +304,18 @@ fn layer_kinds(
 /// [`gemma_config`] of a `config.json`'s text.
 ///
 /// # Errors
-/// As [`TransformersConfigJson::parse`] and [`gemma_config`].
-pub fn gemma_config_from_transformers(json: &str) -> BunsenResult<GemmaConfig> {
-    gemma_config(&TransformersConfigJson::parse(json)?)
+/// As [`config_from_str`] and [`gemma_config`].
+pub fn gemma_config_from_str(json: &str) -> BunsenResult<GemmaConfig> {
+    config_from_str(json, gemma_config)
+}
+
+/// [`gemma_config`] of the `config.json` at `path`; every error names the
+/// file.
+///
+/// # Errors
+/// As [`config_from_path`] and [`gemma_config`].
+pub fn gemma_config_from_path(path: &Path) -> BunsenResult<GemmaConfig> {
+    config_from_path(path, gemma_config)
 }
 
 #[cfg(test)]
@@ -334,7 +327,7 @@ mod tests {
     };
 
     #[test]
-    fn test_transformers_rekey() {
+    fn test_gemma_rekey() {
         for (post_norms, hf, bunsen) in [
             (true, "model.embed_tokens.weight", Some("embedding.weight")),
             (
@@ -375,18 +368,14 @@ mod tests {
                 Some("stack.layers.0.mlp_norm.weight"),
             ),
         ] {
-            assert_eq!(
-                transformers_rekey(post_norms).apply(hf).as_deref(),
-                bunsen,
-                "{hf}"
-            );
+            assert_eq!(gemma_rekey(post_norms).apply(hf).as_deref(), bunsen, "{hf}");
         }
     }
 
     /// Every norm loads as `1 + w`; nothing else is transformed.
     #[test]
-    fn test_transformers_rekey_transforms_the_norms() {
-        let plan = transformers_rekey(true).plan([
+    fn test_gemma_rekey_transforms_the_norms() {
+        let plan = gemma_rekey(true).plan([
             "model.layers.0.input_layernorm.weight",
             "model.layers.0.post_feedforward_layernorm.weight",
             "model.layers.0.self_attn.k_norm.weight",
@@ -421,7 +410,7 @@ mod tests {
     /// 4's spelling: the pattern, the two tables, the global scaling.
     #[test]
     fn test_gemma3_multimodal() {
-        let c = gemma_config_from_transformers(GEMMA3_4B).unwrap();
+        let c = gemma_config_from_str(GEMMA3_4B).unwrap();
         assert_eq!(
             (
                 c.n_vocab,
@@ -451,7 +440,7 @@ mod tests {
     /// table.
     #[test]
     fn test_gemma2_and_gemma1() {
-        let c = gemma_config_from_transformers(
+        let c = gemma_config_from_str(
             r#"{"model_type": "gemma2", "hidden_size": 16, "num_attention_heads": 2,
                 "num_key_value_heads": 1, "head_dim": 8, "intermediate_size": 32,
                 "num_hidden_layers": 4, "vocab_size": 50, "hidden_activation": "gelu_pytorch_tanh",
@@ -471,7 +460,7 @@ mod tests {
         assert_eq!((c.attn_softcap, c.final_softcap), (Some(50.0), Some(30.0)));
         assert!(c.post_norms && !c.qk_norm && c.rope_local_theta.is_none());
 
-        let c = gemma_config_from_transformers(
+        let c = gemma_config_from_str(
             r#"{"model_type": "gemma", "hidden_size": 16, "num_attention_heads": 2,
                 "num_key_value_heads": 1, "head_dim": 8, "intermediate_size": 32,
                 "num_hidden_layers": 2, "vocab_size": 50, "hidden_act": "gelu",
@@ -485,19 +474,17 @@ mod tests {
     fn test_refusals() {
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("model_type")
-            .assert_err(&gemma_config_from_transformers(
-                r#"{"model_type": "llama"}"#,
-            ));
+            .assert_err(&gemma_config_from_str(r#"{"model_type": "llama"}"#));
         let bidirectional = GEMMA3_4B.replace(
             r#""final_logit_softcapping": null,"#,
             r#""final_logit_softcapping": null, "use_bidirectional_attention": true,"#,
         );
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("use_bidirectional_attention")
-            .assert_err(&gemma_config_from_transformers(&bidirectional));
+            .assert_err(&gemma_config_from_str(&bidirectional));
         let yarn = GEMMA3_4B.replace(r#""rope_type": "linear""#, r#""rope_type": "yarn""#);
         ErrorMatcher::kind(BunsenErrorKind::Unsupported)
             .message_contains("yarn")
-            .assert_err(&gemma_config_from_transformers(&yarn));
+            .assert_err(&gemma_config_from_str(&yarn));
     }
 }

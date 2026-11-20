@@ -13,8 +13,8 @@ use bunsen::{
     },
     kits::language::gemma::{
         GemmaConfig,
+        interop::transformers::gemma_config_from_path,
         pretrained::default_gemma_factory,
-        weights::gemma_config_from_transformers,
     },
 };
 
@@ -31,8 +31,8 @@ fn test_every_row_is_a_prefab() {
         let mut map = ResourceSet::new(row.resource_set().name.clone());
         map.insert(row.resource_set().try_get(CONFIG).unwrap().clone());
         let loaded = cache.load(&map).unwrap_or_else(|e| panic!("{id}: {e}"));
-        let json = std::fs::read_to_string(loaded.expect(CONFIG).unwrap()).unwrap();
-        let config = gemma_config_from_transformers(&json).unwrap_or_else(|e| panic!("{id}: {e}"));
+        let config = gemma_config_from_path(loaded.expect(CONFIG).unwrap())
+            .unwrap_or_else(|e| panic!("{id}: {e}"));
         let config = format!("{config:?}");
         assert!(
             GemmaConfig::PREFABS
