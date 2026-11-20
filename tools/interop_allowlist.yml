@@ -15,15 +15,6 @@
   path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
   item: 'ResNet::torchvision_rekey'
 - rule: rekey
-  path: crates/public/bunsen/src/kits/language/gemma/weights.rs
-  item: load_transformers_tensors
-- rule: rekey
-  path: crates/public/bunsen/src/kits/language/gemma/weights.rs
-  item: text_layer_rekey
-- rule: rekey
-  path: crates/public/bunsen/src/kits/language/gemma/weights.rs
-  item: transformers_rekey
-- rule: rekey
   path: crates/public/bunsen/src/kits/language/nanochat/weights.rs
   item: load_pt_tensors
 - rule: rekey
@@ -41,9 +32,6 @@
 - rule: store-gate
   path: crates/public/bunsen/src/kits/images/resnet/blocks/resnet_model.rs
   item: 'ResNet::load_pytorch_weights'
-- rule: store-gate
-  path: crates/public/bunsen/src/kits/language/gemma/mod.rs
-  item: mod weights
 - rule: store-gate
   path: crates/public/bunsen/src/kits/language/nanochat/mod.rs
   item: mod construct

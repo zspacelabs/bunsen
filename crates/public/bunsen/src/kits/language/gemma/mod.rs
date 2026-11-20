@@ -25,9 +25,9 @@
 //! - [`pretrained`] (features `store` and `cache`): the named checkpoints, on
 //!   the `unsloth/` mirrors, `gemma/gemma-3-1b-it` the default, and the factory
 //!   that loads one.
-//! - [`weights`] (feature `store`): loading tensors named as a `transformers`
-//!   Gemma state dict (a causal LM's, or a multimodal Gemma 3's text model's,
-//!   its vision tower dropped), and reading its `config.json`.
+//! - [`interop`]: its checkpoints' ecosystem, [`interop::transformers`]: a
+//!   `transformers` Gemma's `config.json` and state-dict names (a causal LM's,
+//!   or a multimodal Gemma 3's text model's, its vision tower dropped).
 //!
 //! A tokenizer and a chat template are not part of the kit; the searches are
 //! [`kits::support::decoding`](crate::kits::support::decoding)'s.
@@ -37,8 +37,7 @@ pub mod blocks;
 mod construct;
 pub use construct::*;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 #[cfg(feature = "store")]
 pub mod pretrained;

@@ -21,16 +21,13 @@ use crate::{
             GemmaConfig,
             GemmaModel,
             TOKENIZER_CONFIG,
-            weights::{
+            interop::transformers::{
                 gemma_config,
-                load_transformers_tensors_as,
+                load_gemma,
             },
         },
         support::{
-            interop::transformers::{
-                TransformersConfigJson,
-                load_transformers_lm,
-            },
+            interop::transformers::TransformersConfigJson,
             model_config::{
                 ProbeSpec,
                 probe_loaded,
@@ -73,14 +70,7 @@ impl TransformersLmKit for GemmaConstructConfig {
         device: &Device,
         policy: LoadPolicy,
     ) -> BunsenResult<GemmaModel> {
-        load_transformers_lm(
-            loaded,
-            CHECKPOINT,
-            config,
-            device,
-            policy,
-            load_transformers_tensors_as,
-        )
+        load_gemma(loaded, config, device, policy)
     }
 
     /// The presets of a checkpoint no row describes, an `hf:` repo's, as the

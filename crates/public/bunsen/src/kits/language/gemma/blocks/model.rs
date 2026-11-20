@@ -434,7 +434,7 @@ impl ToStructureConfig for GemmaConfig {
 /// and full attention by layer ([`GemmaConfig::stack`]); the embedding scaled
 /// by `√d_model`; the head tied to it.
 ///
-/// [`transformers_rekey`](crate::kits::language::gemma::weights::transformers_rekey)
+/// [`gemma_rekey`](crate::kits::language::gemma::interop::transformers::gemma_rekey)
 /// maps `transformers`' `GemmaModel` names onto the [`LmDecoderModel`]'s, and
 /// loads each norm's `w` as `1 + w`; the load is into [`lm`](Self::lm).
 ///
