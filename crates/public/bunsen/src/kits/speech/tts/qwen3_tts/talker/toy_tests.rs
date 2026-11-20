@@ -21,9 +21,11 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     kits::support::model_config::TransformersConfigJson,
-    ops::transformers::attention::KVCacheModel,
+    ops::transformers::attention::{
+        KVCacheModel,
+        testing::KV_CACHE_STORAGES,
+    },
     support::testing::{
-        KV_CACHE_STORAGES,
         ToyFixture,
         assert_io_close,
         performance_device,

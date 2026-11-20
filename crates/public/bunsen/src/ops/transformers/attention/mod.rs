@@ -99,3 +99,6 @@ pub use kv_cache::*;
 pub use length_mask::*;
 pub use rel_pos::*;
 pub use sdpa::*;
+
+#[cfg(all(any(test, feature = "testing"), feature = "store"))]
+pub mod testing;
