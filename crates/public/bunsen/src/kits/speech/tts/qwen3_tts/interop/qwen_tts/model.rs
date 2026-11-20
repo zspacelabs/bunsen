@@ -14,6 +14,7 @@ use super::{
     talker_config,
 };
 use crate::{
+    blocks::transformers::decoders::depth::DepthDecoderMeta,
     errors::{
         BunsenError,
         BunsenResult,
@@ -22,9 +23,11 @@ use crate::{
         speech::tts::qwen3_tts::{
             Qwen3TtsModelConfig,
             Qwen3TtsModelKind,
+            Qwen3TtsModelMeta,
             Qwen3TtsTakeConfig,
             prompt::Qwen3TtsPromptConfig,
             sampler::Qwen3TtsSamplerConfig,
+            talker::Qwen3TtsTalkerMeta,
         },
         support::interop::transformers::{
             TransformersConfigJson,
@@ -34,12 +37,19 @@ use crate::{
     },
 };
 
+/// The control rows upstream's `generate` suppresses at the codec table's
+/// end, whatever the table: `range(vocab_size - 1024, vocab_size)`.
+const UPSTREAM_CONTROL_ROWS: usize = 1024;
+
 /// The [`Qwen3TtsModelConfig`] of a model `config.json`: its `talker_config`,
 /// and that section's `code_predictor_config`.
 ///
 /// # Errors
 /// As [`talker_config`] and
-/// [`code_predictor_config`].
+/// [`code_predictor_config`];
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when the
+/// talker's codec table past the code predictor's codes is not the 1024
+/// control rows upstream's `generate` suppresses.
 pub fn model_config(json: &TransformersConfigJson) -> BunsenResult<Qwen3TtsModelConfig> {
     let section = json.section("talker_config")?;
     let talker = talker_config(&section)?;
@@ -47,7 +57,17 @@ pub fn model_config(json: &TransformersConfigJson) -> BunsenResult<Qwen3TtsModel
         &section.section("code_predictor_config")?,
         talker.lm.d_model,
     )?;
-    Ok(Qwen3TtsModelConfig::new(talker, code_predictor))
+    let config = Qwen3TtsModelConfig::new(talker, code_predictor);
+    if config.control_rows() != UPSTREAM_CONTROL_ROWS {
+        return Err(BunsenError::unsupported(format!(
+            "a talker codec table of {} rows over {} codes: {} control rows; upstream's \
+             `generate` suppresses {UPSTREAM_CONTROL_ROWS}",
+            config.talker.codec_vocab(),
+            config.code_predictor.vocab(),
+            config.control_rows()
+        )));
+    }
+    Ok(config)
 }
 
 /// [`model_config`] of a `config.json`'s text.
@@ -292,6 +312,26 @@ mod tests {
             ),
             (0.9, 50, 1.0)
         );
+    }
+
+    /// The toy's `model` section (its codec table: 32 codes, then 1024
+    /// control rows), with its talker's `vocab_size` set to `vocab`.
+    fn toy_model_json(vocab: u64) -> String {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3_tts/toy.config.json");
+        let text = std::fs::read_to_string(path).expect("read");
+        let mut value: serde_json::Value = serde_json::from_str(&text).expect("parse");
+        value["model"]["talker_config"]["vocab_size"] = vocab.into();
+        value["model"].to_string()
+    }
+
+    /// The control rows are the codec table past the predictor's codes; any
+    /// count but upstream's 1024 is refused.
+    #[test]
+    fn test_control_rows_checked() {
+        let config = model_config_from_str(&toy_model_json(32 + 1024)).expect("the toy");
+        assert_eq!(config.control_rows(), 1024);
+        let error = model_config_from_str(&toy_model_json(32 + 1023)).unwrap_err();
+        assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
     }
 
     #[test]
