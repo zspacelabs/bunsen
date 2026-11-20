@@ -14,14 +14,19 @@ use super::{
     Qwen3AsrAudioEncoder,
     Qwen3AsrAudioEncoderConfig,
     Qwen3AsrAudioEncoderMeta,
-    Qwen3AsrProjector,
-    Qwen3AsrProjectorConfig,
 };
 use crate::{
-    blocks::transformers::models::language_decoder::{
-        LmDecoderMeta,
-        LmDecoderOps,
-        LmKvForwardHidden,
+    blocks::{
+        activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+        },
+        transformers::models::language_decoder::{
+            LmDecoderMeta,
+            LmDecoderOps,
+            LmKvForwardHidden,
+        },
     },
     burner::module::{
         CanonicalKeys,
@@ -115,10 +120,12 @@ impl ModuleInit<Qwen3Asr> for Qwen3AsrConfig {
     ) -> BunsenResult<Qwen3Asr> {
         Ok(Qwen3Asr {
             audio_tower: self.audio.try_init(device)?,
-            multi_modal_projector: Qwen3AsrProjectorConfig::new(
+            multi_modal_projector: BunsenMlpConfig::new(
+                self.audio.d_model(),
                 self.audio.d_model(),
                 self.text.d_model(),
             )
+            .with_activation(BunsenActivationConfig::Gelu)
             .try_init(device)?,
             language_model: self.text.try_init(device)?,
             audio_token: self.audio_token,
@@ -141,7 +148,7 @@ pub struct Qwen3Asr {
     pub audio_tower: Qwen3AsrAudioEncoder,
 
     /// Audio frames into the text model's embedding space.
-    pub multi_modal_projector: Qwen3AsrProjector,
+    pub multi_modal_projector: BunsenMlp,
 
     /// The text model.
     pub language_model: Qwen3Model,

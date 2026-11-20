@@ -15,10 +15,7 @@ use burn::{
         Int,
         TensorData,
     },
-    tensor::{
-        Device,
-        activation::gelu,
-    },
+    tensor::Device,
 };
 
 use crate::{
@@ -383,101 +380,6 @@ impl Qwen3AsrAudioEncoder {
     }
 }
 
-/// Common meta for [`Qwen3AsrProjector`] and [`Qwen3AsrProjectorConfig`].
-pub trait Qwen3AsrProjectorMeta {
-    /// The audio encoder's width.
-    fn d_audio(&self) -> usize;
-
-    /// The text model's width.
-    fn d_text(&self) -> usize;
-}
-
-/// Config for [`Qwen3AsrProjector`].
-///
-/// Implements [`Qwen3AsrProjectorMeta`].
-#[derive(Config, Debug)]
-pub struct Qwen3AsrProjectorConfig {
-    /// The audio encoder's width.
-    pub d_audio: usize,
-
-    /// The text model's width.
-    pub d_text: usize,
-}
-
-impl Qwen3AsrProjectorMeta for Qwen3AsrProjectorConfig {
-    fn d_audio(&self) -> usize {
-        self.d_audio
-    }
-
-    fn d_text(&self) -> usize {
-        self.d_text
-    }
-}
-
-impl ModuleInit<Qwen3AsrProjector> for Qwen3AsrProjectorConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Qwen3AsrProjector> {
-        Ok(Qwen3AsrProjector {
-            linear_1: LinearConfig::new(self.d_audio, self.d_audio).init(device),
-            linear_2: LinearConfig::new(self.d_audio, self.d_text).init(device),
-        })
-    }
-}
-
-/// Audio frames into the text model's embedding space: linear, GELU, linear
-/// (`transformers`' `multi_modal_projector`).
-///
-/// Built by [`Qwen3AsrProjectorConfig`].
-/// Implements [`Qwen3AsrProjectorMeta`].
-#[derive(Module, Debug)]
-pub struct Qwen3AsrProjector {
-    /// `d_audio -> d_audio`.
-    pub linear_1: Linear,
-
-    /// `d_audio -> d_text`.
-    pub linear_2: Linear,
-}
-
-impl Qwen3AsrProjectorMeta for Qwen3AsrProjector {
-    fn d_audio(&self) -> usize {
-        self.linear_1.weight.dims()[0]
-    }
-
-    fn d_text(&self) -> usize {
-        self.linear_2.weight.dims()[1]
-    }
-}
-
-impl Qwen3AsrProjector {
-    /// Projects audio frames.
-    ///
-    /// # Arguments
-    /// * `x` - `[n, d_audio]`.
-    ///
-    /// # Returns
-    /// `[n, d_text]`.
-    pub fn forward(
-        &self,
-        x: Tensor<2>,
-    ) -> Tensor<2> {
-        let [n] = crate::contracts::unpack_shape_contract!(
-            ["n", "d_audio"],
-            &x.dims(),
-            &["n"],
-            &[("d_audio", self.d_audio())]
-        );
-        let y = self.linear_2.forward(gelu(self.linear_1.forward(x)));
-        crate::contracts::assert_shape_contract_periodically!(
-            ["n", "d_text"],
-            &y.dims(),
-            &[("n", n), ("d_text", self.d_text())]
-        );
-        y
-    }
-}
-
 impl CanonicalKeys for Qwen3AsrAudioEncoder {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest().mount_canonical("layers.", &self.layers)
@@ -526,11 +428,5 @@ mod tests {
         assert_eq!(encoder.layers[0].mlp.branch.linear1.weight.dims(), [32, 64]);
         let y = encoder.forward(Tensor::zeros([16, 300], &cpu_device()), 250);
         assert_eq!(y.dims(), [33, 32]);
-
-        let projector_config = Qwen3AsrProjectorConfig::new(32, 24);
-        let projector: Qwen3AsrProjector = projector_config.init(&cpu_device());
-        assert_eq!(projector.d_audio(), projector_config.d_audio());
-        assert_eq!(projector.d_text(), projector_config.d_text());
-        assert_eq!(projector.forward(y).dims(), [33, 24]);
     }
 }

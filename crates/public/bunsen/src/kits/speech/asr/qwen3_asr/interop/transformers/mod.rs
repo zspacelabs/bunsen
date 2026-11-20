@@ -54,7 +54,9 @@ pub use weights::*;
 /// model onto its
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
 /// (`language_model.lm.`): its layers by [`text_layer_rekey`], its embedding
-/// and final norm; and everything else as it is.
+/// and final norm; the projector's `linear_1` / `linear_2` as its
+/// [`BunsenMlp`](crate::blocks::mlp::BunsenMlp)'s `linear1` / `linear2`; and
+/// everything else as it is.
 /// Anything outside `model.` (the tied `lm_head.weight`) is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
@@ -83,7 +85,14 @@ pub fn qwen3_asr_rekey() -> Rekey {
                 "language_model.embed_tokens.",
                 "language_model.lm.embedding.",
             )
-            .rename("language_model.norm.", "language_model.lm.stack.norm."),
+            .rename("language_model.norm.", "language_model.lm.stack.norm.")
+            .mount(
+                "multi_modal_projector.",
+                "multi_modal_projector.",
+                Rekey::keep_rest()
+                    .rename("linear_1.", "linear1.")
+                    .rename("linear_2.", "linear2."),
+            ),
     )
 }
 
@@ -202,7 +211,7 @@ mod tests {
             ),
             (
                 "model.multi_modal_projector.linear_1.weight",
-                Some("multi_modal_projector.linear_1.weight"),
+                Some("multi_modal_projector.linear1.weight"),
             ),
             (
                 "model.language_model.layers.0.self_attn.o_proj.weight",
