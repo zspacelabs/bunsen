@@ -1,16 +1,15 @@
-//! # Reading a `transformers` Whisper checkpoint
+//! Reading a `transformers` Whisper checkpoint.
 
 use burn::{
     config::Config,
     tensor::Device,
 };
 
+use super::whisper_rekey;
 use crate::{
-    blocks::conv::ConvSeq1d,
     burner::module::{
         CanonicalKeys,
         ModuleInit,
-        Rekey,
     },
     data::formats::SafetensorsCheckpoint,
     errors::{
@@ -27,52 +26,6 @@ use crate::{
     },
 };
 
-/// `transformers`' `WhisperForConditionalGeneration` state-dict names onto
-/// a [`Whisper`]'s module paths: under `model.`, the layers by their blocks'
-/// maps ([`whisper_encoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_encoder_layer_rekey),
-/// [`whisper_decoder_layer_rekey`](crate::kits::support::interop::transformers::whisper_decoder_layer_rekey)), `layers.N` as
-/// `blocks.N`; the two convolutions, `conv1` and `conv2`, the encoder head's
-/// blocks ([`ConvSeq1d::one_based_rekey`]); the positional tables
-/// without their `.weight`; `embed_tokens` the token embedding; the final
-/// norms `ln_post` and `ln`; everything else as it is. Anything outside
-/// `model.` (a tied `proj_out.weight`) is dropped.
-///
-/// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`Rekey::apply_to`] resolves to `gamma` / `beta`.
-pub fn transformers_rekey() -> Rekey {
-    Rekey::drop_rest().mount(
-        "model.",
-        "",
-        Rekey::keep_rest()
-            .mount(
-                "encoder.conv",
-                "encoder.head.",
-                ConvSeq1d::one_based_rekey(),
-            )
-            .exact(
-                "encoder.embed_positions.weight",
-                "encoder.positional_embedding",
-            )
-            .exact(
-                "decoder.embed_positions.weight",
-                "decoder.positional_embedding",
-            )
-            .rename("decoder.embed_tokens.", "decoder.token_embedding.")
-            .mount_indexed(
-                "encoder.layers.",
-                "encoder.blocks.",
-                crate::kits::support::interop::transformers::whisper_encoder_layer_rekey(),
-            )
-            .mount_indexed(
-                "decoder.layers.",
-                "decoder.blocks.",
-                crate::kits::support::interop::transformers::whisper_decoder_layer_rekey(),
-            )
-            .rename("encoder.layer_norm.", "encoder.ln_post.")
-            .rename("decoder.layer_norm.", "decoder.ln."),
-    )
-}
-
 /// Reads a `transformers` Whisper checkpoint: `model.safetensors`, or its
 /// shards.
 ///
@@ -84,11 +37,11 @@ pub fn transformers_rekey() -> Rekey {
 /// reads that layout: the geometry from the files' headers alone
 /// ([`scan_cfg`](Self::scan_cfg)), the weights through the generic
 /// [`SafetensorsCheckpoint`] with the names mapped to bunsen's
-/// ([`transformers_rekey`]). The tied output projection, when a repo carries
+/// ([`whisper_rekey`]). The tied output projection, when a repo carries
 /// it, is left unused: bunsen's decoder projects through its token embedding,
 /// as upstream's does.
 ///
-/// [`WhisperReader`](super::WhisperReader) picks this for a checkpoint
+/// [`WhisperReader`](crate::kits::speech::asr::whisper::pretrained::WhisperReader) picks this for a checkpoint
 /// whose `kind` is safetensors, which is what the `hf:` provider serves.
 #[derive(Debug, Config)]
 pub struct SafetensorsWhisperScanner {
@@ -183,7 +136,8 @@ impl SafetensorsWhisperScanner {
     ///
     /// # Errors
     /// As [`scan_cfg`](Self::scan_cfg),
-    /// [`SafetensorsCheckpoint::tensors`] and [`Rekey::apply_to`].
+    /// [`SafetensorsCheckpoint::tensors`] and
+    /// [`Rekey::apply_to`](crate::burner::module::Rekey::apply_to).
     pub fn load(
         &self,
         checkpoint: &SafetensorsCheckpoint,
@@ -191,7 +145,7 @@ impl SafetensorsWhisperScanner {
     ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         let cfg = self.scan_cfg(checkpoint)?;
         let mut module: Whisper = cfg.try_init(device)?;
-        let rekey = transformers_rekey().then(module.canonical_rekey());
+        let rekey = whisper_rekey().then(module.canonical_rekey());
         rekey.apply_to(&mut module, checkpoint.tensors()?)?;
         Ok((module, cfg))
     }
@@ -222,7 +176,7 @@ mod tests {
     };
 
     /// The key remappings from bunsen's names to `transformers`': the inverse
-    /// of [`transformers_rekey`], for writing a file in that layout.
+    /// of [`whisper_rekey`], for writing a file in that layout.
     const BUNSEN_TO_TRANSFORMERS: &[(&str, &str)] = &[
         (r"^encoder\.head\.blocks\.0\.conv\.", "encoder.conv1."),
         (r"^encoder\.head\.blocks\.1\.conv\.", "encoder.conv2."),
@@ -310,8 +264,8 @@ mod tests {
     /// `transformers`' names onto bunsen's, one of each kind; a tied
     /// output projection is dropped.
     #[test]
-    fn test_transformers_rekey() {
-        let rekey = transformers_rekey();
+    fn test_whisper_rekey() {
+        let rekey = whisper_rekey();
         for (hf, bunsen) in [
             (
                 "model.encoder.conv1.weight",

@@ -14,6 +14,10 @@
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo. It resolves a name
 //!   to a [`WhisperConstruct`](driver::WhisperConstruct): the model at the
 //!   precision it ships in, its token layout, and its vocabulary.
+//! - [`interop`]: its checkpoints' ecosystems: [`interop::openai_whisper`],
+//!   `OpenAI`'s `.pt`; [`interop::transformers`], a
+//!   `WhisperForConditionalGeneration`'s state-dict names. Each reads the
+//!   geometry from the checkpoint's tensors.
 //! - [`decode`]: one window of audio to tokens, with upstream's temperature
 //!   fallback.
 //! - [`logit_filters`]: what the decode may and may not emit.
@@ -288,6 +292,7 @@
 pub mod blocks;
 pub mod decode;
 pub mod driver;
+pub mod interop;
 pub mod logit_filters;
 pub mod pretrained;
 

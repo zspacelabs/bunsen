@@ -1,3 +1,4 @@
+//! Reading an `OpenAI` Whisper `.pt`.
 use std::path::{
     Path,
     PathBuf,
