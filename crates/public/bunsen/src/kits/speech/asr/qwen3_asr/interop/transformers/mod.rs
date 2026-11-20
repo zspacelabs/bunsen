@@ -161,7 +161,6 @@ pub fn qwen3_asr_config_from_path(path: &Path) -> BunsenResult<Qwen3AsrConfig> {
 }
 
 #[cfg(test)]
-#[cfg(test)]
 mod tests {
     use super::*;
 
