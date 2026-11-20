@@ -3,7 +3,7 @@
 `bunsen-tool`: [bunsen](https://crates.io/crates/bunsen)'s models on the command line, a branch for each kind of model:
 
 - `bunsen-tool asr`: speech to text, by ASR preset or by model family, and who spoke when ([below](#asr-speech-to-text)).
-- `bunsen-tool tts`: text to speech with ZONOS3-Mini, in a stock voice ([below](#tts-text-to-speech-with-zonos3-mini)).
+- `bunsen-tool tts`: text to speech with ZONOS3-Mini and Qwen3-TTS ([below](#tts-text-to-speech-with-zonos3-mini-and-qwen3-tts)).
 - `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint ([below](#chat-qwen3-gemma-and-nanochat)).
 - `bunsen-tool decide`: typed questions about a context, answered with calibrated probabilities by a Laya decision
   model ([below](#decide-typed-questions-answered-by-laya)).
@@ -154,6 +154,24 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 * zyphra/zonos3/zonos3-mini: [2.39 GB bf16 f32]
   ZONOS3-Mini: 800 M parameters (100 M active), 44.1 kHz speech in 9
   languages, 27 stock voices.
+
+# contract: qwen3-tts
+# A Qwen3-TTS model as Qwen's repositories lay it out: the talker and its
+# code predictor in one safetensors file, the 12 Hz codec in another, their
+# geometry from their `config.json`s; the tokenizer as its slow files.
+# publisher: qwen - Qwen, Alibaba Cloud's model team.
+
+* qwen/qwen3-tts/qwen3-tts-12hz-0.6b-customvoice: [2.50 GB f32]
+  Qwen3-TTS-12Hz-0.6B-CustomVoice: 9 stock voices in 10 languages and two
+  Chinese dialects, 24 kHz speech; no style instruction.
+
+* qwen/qwen3-tts/qwen3-tts-12hz-1.7b-customvoice: [4.52 GB f32]
+  Qwen3-TTS-12Hz-1.7B-CustomVoice: 9 stock voices in 10 languages and two
+  Chinese dialects, 24 kHz speech, steered by a style instruction.
+
+* qwen/qwen3-tts/qwen3-tts-12hz-1.7b-voicedesign: [4.52 GB f32]
+  Qwen3-TTS-12Hz-1.7B-VoiceDesign: a voice from a description, in 10
+  languages, 24 kHz speech; no stock voices.
 
 # bunsen-tool chat ...
 # Chat and Text Generation
@@ -679,44 +697,61 @@ cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcr
 `$DATA_DIR/SLR45/text.txt` holds the transcripts. The pushes are sized to the stream driver's grain, so the
 autotuned kernels see one shape; the first file of a run pays for the tuning.
 
-## tts: text to speech with ZONOS3-Mini
+## tts: text to speech with ZONOS3-Mini and Qwen3-TTS
 
-`bunsen-tool tts` speaks a text with Zyphra's ZONOS3-Mini (`Zyphra/ZONOS3-Mini-hf`, Apache-2.0), in one of its 27
-stock voices, to a mono 16-bit WAV file at 44.1 kHz, to a speaker, or both. A take is generated whole, then decoded.
+`bunsen-tool tts` speaks a text with a TTS model's checkpoint, in one of its voices, to a mono 16-bit WAV file at the
+model's rate, to a speaker, or both. Every family runs through the same driver: the text is normalized as the model's
+release normalizes it, split into takes at its sentences, and each take generated whole, then decoded.
 
 ```sh
-bunsen-tool tts list [--urls]                            # the ZONOS3 checkpoints, and what of each is cached
-bunsen-tool tts fetch NAME...                            # bring checkpoints into the cache
-bunsen-tool tts voices [--yes]                           # the stock voices: language, style, gender
-bunsen-tool tts run -o OUT.wav [--voice NAME] [--seed N] [TEXT]...   # the text from stdin when omitted
+bunsen-tool tts list [--urls]                            # every family's checkpoints, and what of each is cached
+bunsen-tool tts fetch [--family F] NAME...               # bring checkpoints into the cache
+bunsen-tool tts voices [--model NAME] [--yes]            # a checkpoint's stock voices: language, style, gender
+bunsen-tool tts run -o OUT.wav [--model NAME] [--voice NAME] [--seed N] [TEXT]...   # the text from stdin when omitted
 bunsen-tool tts run --play [--output-device NAME] [TEXT]...          # played once it is synthesized
 bunsen-tool tts run --list-output-devices                # the output devices; loads nothing
 ```
 
-`--play` (feature `live`, on by default) plays the take on the host's default output device, or the one
-`--output-device` names by a substring of its id or name; at 44.1 kHz where the device opens at it, else resampled to
-its rate, every channel the same. Playback starts once the take is synthesized; Ctrl-C stops it.
+| family | checkpoints | default |
+|---|---|---|
+| `zonos3` | Zyphra's ZONOS3-Mini (`Zyphra/ZONOS3-Mini-hf`, Apache-2.0): 27 stock voices, 44.1 kHz | `zyphra/zonos3/zonos3-mini` |
+| `qwen3-tts` | Qwen's Qwen3-TTS 12 Hz line (Apache-2.0): `-0.6b-customvoice` and `-1.7b-customvoice` (stock speakers; 1.7B takes a style instruction), `-1.7b-voicedesign` (a voice described in words); 24 kHz | `qwen/qwen3-tts/qwen3-tts-12hz-0.6b-customvoice` |
 
-The text is normalized first, as the release normalizes it: numbers, money, dates and the like are spoken
-(`$12.50` as "twelve dollars fifty cents"), by Zyphra's normalizer in the `--language` given (`en_us` by default; a
-release code such as `fr_fr`, or a language tag such as `fr`). `--normalize none` speaks the text as typed, its line
-breaks collapsed. `bunsen-tool text normalize` runs the same normalizers on their own.
+`--model` and the stage flags choose the checkpoint among every family's builds ([Choosing a model](#choosing-a-model));
+ZONOS3-Mini is the default. `--family` limits the choice to one family, and names the family of an `hf:org/repo`.
 
-`--voice` picks the stock voice (`Savannah` by default); `bunsen-tool tts voices` lists them, as the release
-describes each one (its language, its style where it names one, such as `Irish` or `announcer`, and its gender), with
-the length of its reference codes in codec frames. It reads only the voices' two files (`voices.safetensors` and
-`voices.json`, about 240 KB), not the model, and asks before fetching them when the cache does not hold them
-(`--yes` fetches without asking; without a terminal to ask on, it says to pass `--yes`). Its reference codes lead the prompt, the release's default
-speaker mode.
+`--play` (feature `live`, on by default) plays the speech on the host's default output device, or the one
+`--output-device` names by a substring of its id or name; at the model's rate where the device opens at it, else
+resampled to its rate, every channel the same. Playback starts once the speech is synthesized; Ctrl-C stops it.
 
-Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them, and `--max-frames`
-caps the take (15 frames a second). A take is sampled, so each run differs; `--seed` repeats one on the same device,
-and the seed is printed with every take. The language model loads at the precision it ships in (bf16) where the device
-accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere); the codec runs in f32.
+The text is normalized first, as the model's release normalizes it (`--normalize release`, the default): ZONOS3's
+release speaks numbers, money, dates and the like (`$12.50` as "twelve dollars fifty cents") through Zyphra's
+normalizer, in the language's grammar; Qwen3-TTS's speaks the text as typed. `--normalize zyphra` runs Zyphra's
+normalizer for either, and `--normalize none` speaks the text as typed (ZONOS3's line breaks collapsed).
+`bunsen-tool text normalize` runs the same normalizers on their own. A long text is spoken as several takes, split at
+its sentences (about 20 seconds each) and joined by a short pause; `--no-split` speaks it as one.
+
+`--voice` picks the stock voice: ZONOS3's `Savannah` by default; Qwen3-TTS has no default speaker, and its names match
+without case (`Ryan`, `ryan`). `--describe` gives a VoiceDesign checkpoint its voice in words. `--language` is one of
+the model's keys: ZONOS3's release codes (`en_us`, `fr_fr`) or a language tag; Qwen3-TTS's languages (`english`,
+`sichuan_dialect`) or `auto` (its default: the speaker's dialect, or none). `--instruct` steers a checkpoint that takes a
+style instruction; one that takes none refuses it, unless `--strip-instruction` drops it (and says so).
+
+`bunsen-tool tts voices` lists a checkpoint's voices: ZONOS3's as the release describes each one (its language, its
+style where it names one, such as `Irish` or `announcer`, and its gender), Qwen3-TTS's speakers with their dialects.
+It reads only the voices' files (ZONOS3's `voices.safetensors` and `voices.json`, about 240 KB; Qwen3-TTS's
+`config.json`), not the model, and asks before fetching them when the cache does not hold them (`--yes` fetches without
+asking; without a terminal to ask on, it says to pass `--yes`).
+
+Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them (Qwen3-TTS's for its
+talker), and `--max-seconds` caps each take. A take is sampled, so each run differs; `--seed` repeats one on the same
+device, and the seed is printed with the speech. A model loads at the precision it ships in where the device
+accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere).
 
 ```sh
 cargo run --release -p bunsen-tool --features wgpu -- tts run -o hello.wav "Hello, this is ZONOS3."
 echo "It costs \$12.50." | cargo run --release -p bunsen-tool --features cuda -- tts run --device cuda --voice Cillian -o cost.wav
+cargo run --release -p bunsen-tool --features wgpu -- tts run --model qwen3-tts --voice ryan -o ryan.wav "Hello from Qwen."
 cargo run --release -p bunsen-tool --features wgpu -- tts run --play "Spoken, not saved."
 ```
 

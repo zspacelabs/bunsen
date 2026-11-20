@@ -42,10 +42,13 @@ use burn::{
 use serde::Deserialize;
 
 use super::talker::Qwen3TtsTalker;
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-    LookupError,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+        LookupError,
+    },
+    kits::speech::tts::driver::TtsVoiceInfo,
 };
 
 /// Where the text goes: all before the first frame, or a token a frame.
@@ -174,6 +177,19 @@ impl Qwen3TtsPromptConfig {
             t.spk_id.clone(),
             speaker_languages,
         ))
+    }
+
+    /// What the driver says of the stock speakers: each one's dialect, a
+    /// language key, as its default language.
+    pub fn voices(&self) -> Vec<TtsVoiceInfo> {
+        self.speakers
+            .keys()
+            .map(|name| {
+                let mut info = TtsVoiceInfo::stock(name.clone());
+                info.default_language = self.speaker_languages.get(name).cloned();
+                info
+            })
+            .collect()
     }
 
     /// A stock speaker's codec row.

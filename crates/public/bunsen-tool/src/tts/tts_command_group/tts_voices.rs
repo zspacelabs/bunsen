@@ -1,19 +1,18 @@
 //! `tts voices`.
 
-use std::{
-    collections::BTreeMap,
-    io::{
-        BufRead,
-        IsTerminal,
-        Write,
-    },
+use std::io::{
+    BufRead,
+    IsTerminal,
+    Write,
 };
 
 use bunsen::{
     data::{
         formats::SafetensorsCheckpoint,
         resources::{
+            LoadedResourceSet,
             Resource,
+            ResourceCache,
             ResourceSet,
         },
     },
@@ -22,17 +21,30 @@ use bunsen::{
         BunsenResult,
         sys_at,
     },
-    kits::speech::tts::zonos3::{
-        pretrained::{
-            VOICE_INFO,
-            VOICES,
-            default_zonos3_factory,
+    kits::speech::tts::{
+        driver::TtsVoiceInfo,
+        qwen3_tts::{
+            pretrained::{
+                CONFIG,
+                default_qwen3_tts_factory,
+            },
+            prompt::{
+                Qwen3TtsPromptConfig,
+                Qwen3TtsPromptJson,
+            },
         },
-        voices::{
-            Zonos3Voice,
-            with_zonos3_voice_info,
-            zonos3_voice_info,
-            zonos3_voices,
+        zonos3::{
+            driver::zonos3_voice_list,
+            pretrained::{
+                VOICE_INFO,
+                VOICES,
+                default_zonos3_factory,
+            },
+            voices::{
+                with_zonos3_voice_info,
+                zonos3_voice_info,
+                zonos3_voices,
+            },
         },
     },
 };
@@ -51,7 +63,10 @@ use log::LevelFilter;
 
 use crate::{
     support::ChooseArgs,
-    tts::choose_tts_model,
+    tts::{
+        TtsFamily,
+        choose_tts_model,
+    },
 };
 
 /// Lists a checkpoint's stock voices.
@@ -66,6 +81,10 @@ pub struct TtsVoicesCommand {
     /// The checkpoint, chosen as `tts run` chooses it.
     #[clap(flatten)]
     choose: ChooseArgs,
+
+    /// The family the checkpoint is chosen among, as `tts run` takes it.
+    #[arg(long, value_enum)]
+    family: Option<TtsFamily>,
 
     /// Fetch the voices' files without asking, when they are not cached.
     #[arg(long)]
@@ -84,15 +103,23 @@ impl TtsVoicesCommand {
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
         let flags = self.choose.flags(matches)?;
-        let model = choose_tts_model(&self.choose.model, &flags)?;
-        let plan = default_zonos3_factory()?
-            .resolve(&model, &cache)?
-            .plan(&cache)?;
-        let mut set = ResourceSet::new(plan.name.clone());
-        set.insert(plan.try_get(VOICES)?.clone());
-        if let Some(info) = plan.get(VOICE_INFO) {
-            set.insert(info.clone());
-        }
+        let (model, family) = choose_tts_model(&self.choose.model, &flags, self.family)?;
+        let voices = match family {
+            TtsFamily::Zonos3 => self.zonos3_voices(&model, &cache)?,
+            TtsFamily::Qwen3Tts => self.qwen3_tts_voices(&model, &cache)?,
+        };
+        println!("# {model}: {} stock voices", voices.len());
+        print!("{}", voice_table(&voices));
+        Ok(())
+    }
+
+    /// `set` loaded, its files fetched first if they are not cached and the
+    /// user agrees ([`confirm_fetch`]).
+    fn load(
+        &self,
+        cache: &ResourceCache,
+        set: &ResourceSet,
+    ) -> BunsenResult<LoadedResourceSet> {
         let mut missing = Vec::new();
         for resource in set.resources.values() {
             if cache.cached_path(resource)?.is_none() {
@@ -104,7 +131,24 @@ impl TtsVoicesCommand {
             let interactive = stdin.is_terminal();
             confirm_fetch(&missing, self.yes, interactive, &mut stdin.lock())?;
         }
-        let loaded = cache.load(&set)?;
+        cache.load(set)
+    }
+
+    /// ZONOS3's voices, from its voices' files alone.
+    fn zonos3_voices(
+        &self,
+        model: &str,
+        cache: &ResourceCache,
+    ) -> BunsenResult<Vec<TtsVoiceInfo>> {
+        let plan = default_zonos3_factory()?
+            .resolve(model, cache)?
+            .plan(cache)?;
+        let mut set = ResourceSet::new(plan.name.clone());
+        set.insert(plan.try_get(VOICES)?.clone());
+        if let Some(info) = plan.get(VOICE_INFO) {
+            set.insert(info.clone());
+        }
+        let loaded = self.load(cache, &set)?;
         let mut voices =
             zonos3_voices(SafetensorsCheckpoint::single(loaded.expect(VOICES)?).tensors()?)?;
         if let Some(info) = loaded.get(VOICE_INFO) {
@@ -112,35 +156,52 @@ impl TtsVoicesCommand {
             let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
             with_zonos3_voice_info(&mut voices, zonos3_voice_info(&json)?)?;
         }
-        println!("# {model}: {} stock voices", voices.len());
-        print!("{}", voice_table(&voices));
-        Ok(())
+        Ok(zonos3_voice_list(&voices))
+    }
+
+    /// Qwen3-TTS's speakers, from its `config.json` alone.
+    fn qwen3_tts_voices(
+        &self,
+        model: &str,
+        cache: &ResourceCache,
+    ) -> BunsenResult<Vec<TtsVoiceInfo>> {
+        let plan = default_qwen3_tts_factory()?
+            .resolve(model, cache)?
+            .plan(cache)?;
+        let mut set = ResourceSet::new(plan.name.clone());
+        set.insert(plan.try_get(CONFIG)?.clone());
+        let loaded = self.load(cache, &set)?;
+        let path = loaded.expect(CONFIG)?;
+        let text = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
+        let json: Qwen3TtsPromptJson = serde_json::from_str(&text)
+            .map_err(|e| BunsenError::invalid_resource(format!("{}: {e}", path.display())))?;
+        Ok(Qwen3TtsPromptConfig::from_json(&json)?.voices())
     }
 }
 
-/// The voices as a table: name, language, style, gender, and the length of
-/// their reference codes in codec frames; `-` where the release says
-/// nothing.
-fn voice_table(voices: &BTreeMap<String, Zonos3Voice>) -> String {
+/// The voices as a table: name, language (its default, a model key, or what
+/// the release says), style and gender; `-` where nothing is said.
+fn voice_table(voices: &[TtsVoiceInfo]) -> String {
     let mut rows = vec![[
         "name".to_string(),
         "language".to_string(),
         "style".to_string(),
         "gender".to_string(),
-        "reference".to_string(),
     ]];
-    for (name, voice) in voices {
-        let info = voice.info.as_ref();
+    for voice in voices {
         let dash = || "-".to_string();
         rows.push([
-            name.clone(),
-            info.map_or_else(dash, |i| i.language.clone()),
-            info.and_then(|i| i.style.clone()).unwrap_or_else(dash),
-            info.map_or_else(dash, |i| i.gender.clone()),
-            format!("{} frames", voice.codes.len()),
+            voice.name.clone(),
+            voice
+                .default_language
+                .clone()
+                .or_else(|| voice.description.clone())
+                .unwrap_or_else(dash),
+            voice.style.clone().unwrap_or_else(dash),
+            voice.gender.clone().unwrap_or_else(dash),
         ]);
     }
-    let widths: Vec<usize> = (0..5)
+    let widths: Vec<usize> = (0..4)
         .map(|c| rows.iter().map(|r| r[c].chars().count()).max().unwrap_or(0))
         .collect();
     let mut out = String::new();
@@ -211,10 +272,7 @@ fn confirm_fetch(
 
 #[cfg(test)]
 mod tests {
-    use bunsen::{
-        errors::BunsenErrorKind,
-        kits::speech::tts::zonos3::voices::Zonos3VoiceInfo,
-    };
+    use bunsen::errors::BunsenErrorKind;
 
     use super::*;
 
@@ -264,28 +322,19 @@ mod tests {
     /// One row a voice, aligned; `-` where nothing is said of it.
     #[test]
     fn test_voice_table() {
-        let voice = |info: Option<Zonos3VoiceInfo>| Zonos3Voice {
-            codes: vec![vec![0; 10]; 3],
-            embedding: vec![0.0; 4],
-            info,
-        };
-        let voices = BTreeMap::from([
-            (
-                "Cillian".to_string(),
-                voice(Some(Zonos3VoiceInfo {
-                    language: "English".into(),
-                    style: Some("Irish".into()),
-                    gender: "male".into(),
-                    file: "Cillian_en-Irish_M_1".into(),
-                })),
-            ),
-            ("Zed".to_string(), voice(None)),
-        ]);
+        let mut cillian = TtsVoiceInfo::stock("Cillian");
+        cillian.description = Some("English".into());
+        cillian.style = Some("Irish".into());
+        cillian.gender = Some("male".into());
+        let mut eric = TtsVoiceInfo::stock("eric");
+        eric.default_language = Some("sichuan_dialect".into());
+        let voices = [cillian, eric, TtsVoiceInfo::stock("Zed")];
         assert_eq!(
             voice_table(&voices),
-            "name     language  style  gender  reference\n\
-             Cillian  English   Irish  male    3 frames\n\
-             Zed      -         -      -       3 frames\n"
+            "name     language         style  gender\n\
+             Cillian  English          Irish  male\n\
+             eric     sichuan_dialect  -      -\n\
+             Zed      -                -      -\n"
         );
     }
 }

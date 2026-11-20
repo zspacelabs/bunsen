@@ -17,27 +17,14 @@ use bunsen::{
         sys_at,
     },
     kits::{
-        speech::tts::{
-            driver::{
-                TtsDriver,
-                TtsDriverConfig,
-                TtsRequest,
-                TtsStop,
-                TtsVoiceChoice,
-            },
-            zonos3::{
-                driver::{
-                    Zonos3Engine,
-                    Zonos3EngineConfig,
-                    zonos3_release_normalization,
-                },
-                pretrained::default_zonos3_factory,
-            },
+        speech::tts::driver::{
+            TtsDriverConfig,
+            TtsRequest,
+            TtsSamplingOverrides,
+            TtsStop,
+            TtsVoiceChoice,
         },
-        support::{
-            text::TextNormalizationConfig,
-            tokens::BunsenTokenizer,
-        },
+        support::text::TextNormalizationConfig,
     },
     support::audio::save_wav_mono,
 };
@@ -59,19 +46,24 @@ use crate::{
         with_patch,
         with_presets,
     },
-    tts::choose_tts_model,
+    tts::{
+        TtsFamily,
+        choose_tts_model,
+    },
 };
-
-/// The stock voice `tts run` speaks in when none is named.
-pub const DEFAULT_TTS_VOICE: &str = "Savannah";
 
 /// How `tts run` normalizes its text, as `--normalize` takes it.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TtsNormalize {
-    /// Zyphra's normalizer, the release's: numbers, money and dates spoken.
+    /// The model's release's: ZONOS3's Zyphra normalizer (numbers, money
+    /// and dates spoken), Qwen3-TTS's text as typed.
+    Release,
+
+    /// Zyphra's normalizer, line breaks collapsed first.
     Zyphra,
 
-    /// The text as typed, line breaks collapsed.
+    /// The text as typed (for ZONOS3, line breaks collapsed: its prompt has
+    /// no place for them).
     None,
 }
 
@@ -84,9 +76,9 @@ pub struct TtsRunCommand {
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
-    /// The device. The language model loads at the precision it ships in
-    /// (bf16) where the device accelerates it, else in f32
-    /// (`LoadPolicy::performance`); `--min-precision` puts a floor under that.
+    /// The device. A model loads at the precision it ships in where the
+    /// device accelerates it, else in f32 (`LoadPolicy::performance`);
+    /// `--min-precision` puts a floor under that.
     #[clap(flatten)]
     device: BackendArgs,
 
@@ -94,19 +86,44 @@ pub struct TtsRunCommand {
     #[clap(flatten)]
     precision: MinPrecisionArgs,
 
-    /// The checkpoint, chosen among ZONOS3's builds by `--model` and the
-    /// stage flags; the default checkpoint when nothing is named.
+    /// The checkpoint, chosen among every TTS family's builds by `--model`
+    /// and the stage flags; the default checkpoint when nothing is named.
     #[clap(flatten)]
     choose: ChooseArgs,
 
+    /// The family the checkpoint is chosen among (`zonos3`, `qwen3-tts`).
+    ///
+    /// Every family's when omitted. Needed for a provider ref
+    /// (`hf:org/repo`), which names no family.
+    #[arg(long, value_enum)]
+    family: Option<TtsFamily>,
+
     /// The stock voice the speech is in (`tts voices` lists them).
     ///
-    /// Its reference codes lead the prompt, the release's default speaker
-    /// mode.
-    #[arg(long, default_value = DEFAULT_TTS_VOICE)]
-    voice: String,
+    /// The model's default voice when omitted: ZONOS3's Savannah; Qwen3-TTS
+    /// has none, and needs one named.
+    #[arg(long)]
+    voice: Option<String>,
 
-    /// Where the speech is written: a mono 16-bit WAV file at 44.1 kHz.
+    /// A voice described in words, in place of `--voice`.
+    ///
+    /// For a model that designs one (Qwen3-TTS `VoiceDesign`).
+    #[arg(long, conflicts_with = "voice")]
+    describe: Option<String>,
+
+    /// A style instruction, for a model that takes one.
+    ///
+    /// Qwen3-TTS `CustomVoice` 1.7B takes one; a model that takes none refuses
+    /// it unless `--strip-instruction`.
+    #[arg(long)]
+    instruct: Option<String>,
+
+    /// Drop `--instruct`, with a note, for a model that takes none.
+    #[arg(long)]
+    strip_instruction: bool,
+
+    /// Where the speech is written: a mono 16-bit WAV file at the model's
+    /// rate.
     ///
     /// Needed unless the speech is played (`--play`, with `live`).
     #[arg(long, short)]
@@ -117,32 +134,35 @@ pub struct TtsRunCommand {
     #[clap(flatten)]
     playback: crate::tts::PlaybackArgs,
 
-    /// Seeds the take, to repeat it; a seed from the clock when omitted.
+    /// Seeds the takes, to repeat them; a seed from the clock when omitted.
     ///
-    /// The seed is printed with the take either way.
+    /// The seed is printed with the speech either way.
     #[arg(long)]
     seed: Option<u64>,
 
     /// How the text is normalized before it is spoken.
-    #[arg(long, value_enum, default_value_t = TtsNormalize::Zyphra)]
+    #[arg(long, value_enum, default_value_t = TtsNormalize::Release)]
     normalize: TtsNormalize,
 
-    /// The text's language, which `--normalize zyphra` reads by.
+    /// The text's language, as one of the model's keys.
     ///
-    /// A request code of the release (`en_us`, `fr_fr`) or a language tag
-    /// (`en`, `fr-FR`); one the normalizer has no grammar for is an error.
-    #[arg(long, default_value = "en_us")]
-    language: String,
+    /// ZONOS3's request codes (`en_us`, `fr_fr`) or a language tag;
+    /// Qwen3-TTS's languages (`english`, `sichuan_dialect`) or `auto`. The
+    /// model's default when omitted (ZONOS3's `en_us`, Qwen3-TTS's
+    /// `auto`).
+    #[arg(long)]
+    language: Option<String>,
 
-    /// The sampling temperature (the release's 0.75 when omitted).
+    /// The sampling temperature; the release's when omitted.
     #[arg(long)]
     temperature: Option<f64>,
 
-    /// Codes kept per codebook, the most probable (the release's 80).
+    /// Codes kept per choice, the most probable; the release's when
+    /// omitted.
     #[arg(long)]
     top_k: Option<usize>,
 
-    /// The probability mass kept per codebook (the release's 0.69).
+    /// The probability mass kept per choice; the release's when omitted.
     #[arg(long)]
     top_p: Option<f64>,
 
@@ -153,11 +173,10 @@ pub struct TtsRunCommand {
     #[arg(long)]
     no_split: bool,
 
-    /// The most frames each take generates, at 15 a second.
-    ///
-    /// As many as the model's context leaves when omitted.
+    /// The longest take, in seconds; as long as the model allows when
+    /// omitted.
     #[arg(long)]
-    max_frames: Option<usize>,
+    max_seconds: Option<f64>,
 
     /// The text; stdin when omitted (words joined by spaces).
     text: Vec<String>,
@@ -191,7 +210,7 @@ impl TtsRunCommand {
         let cache = self.cache.init()?;
         let device = self.device.open()?;
         let flags = self.choose.flags(matches)?;
-        let mut model = choose_tts_model(&self.choose.model, &flags)?;
+        let (mut model, family) = choose_tts_model(&self.choose.model, &flags, self.family)?;
         if !flags.presets.presets.is_empty() {
             let presets: Vec<&str> = flags.presets.presets.iter().map(String::as_str).collect();
             model = with_presets(&model, &presets)?;
@@ -199,43 +218,45 @@ impl TtsRunCommand {
         if let Some(patch) = self.choose.patch()? {
             model = with_patch(&model, &patch)?;
         }
-        let construct = default_zonos3_factory()?.load_construct(
+        let synthesizer = family.load(
             &model,
             &cache,
             &device,
             self.precision.load_policy(),
+            self.driver_config(family),
         )?;
-        let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer)?;
-        let engine = Zonos3Engine::new(
-            construct.clone(),
-            tokenizer,
-            self.engine_config(Zonos3EngineConfig::from_generation(&construct.generation)),
-        )?;
-        let driver = TtsDriver::new(engine, self.driver_config())?;
 
         let seed = self.seed.unwrap_or_else(clock_seed);
         let request = self.request(text, seed);
         let started = Instant::now();
-        let speech = driver.synthesize(&request)?;
+        let speech = synthesizer.synthesize(&request)?;
         let spoken = started.elapsed().as_secs_f64();
-        let rows: usize = speech.takes.iter().map(|take| take.steps).sum();
+        for note in &speech.notes {
+            log::warn!("{}: {}", note.stage, note.note);
+        }
         if speech.takes.iter().any(|take| take.stop == TtsStop::Budget) {
-            log::warn!("the take ran out of frames before it ended: raise --max-frames");
+            log::warn!("a take ran out of frames before it ended: raise --max-seconds");
         }
         if let Some(out) = &self.out {
             save_wav_mono(out, &speech.samples, speech.sample_rate)?;
         }
-        let seconds = speech.samples.len() as f64 / f64::from(speech.sample_rate);
+        let steps: usize = speech.takes.iter().map(|take| take.steps).sum();
         let place = self
             .out
             .as_ref()
             .map_or_else(|| "the speech".to_string(), |out| out.display().to_string());
+        let voice = self
+            .voice
+            .clone()
+            .or_else(|| self.describe.as_ref().map(|_| "a described".to_string()))
+            .or_else(|| synthesizer.capabilities().default_voice.clone())
+            .unwrap_or_else(|| "the default".to_string());
         eprintln!(
-            "{place}: {seconds:.2} s in {}'s voice, seed {seed}; synthesized in {spoken:.2} s \
-             ({} rows, {:.1} a second)",
-            self.voice,
-            rows,
-            rows as f64 / spoken,
+            "{place}: {:.2} s in {voice}'s voice ({model}), seed {seed}; {} takes synthesized \
+             in {spoken:.2} s ({steps} steps, {:.1} a second)",
+            speech.seconds(),
+            speech.takes.len(),
+            steps as f64 / spoken,
         );
         #[cfg(feature = "live")]
         if let Some(playback) = &playback {
@@ -266,44 +287,51 @@ impl TtsRunCommand {
         Ok(text)
     }
 
-    /// The request: the text in the flags' voice and language, seeded.
+    /// The request: the text in the flags' voice, language and instruction,
+    /// seeded, at their sampling and length.
     fn request(
         &self,
         text: String,
         seed: u64,
     ) -> TtsRequest {
-        TtsRequest::new(text)
-            .with_voice(TtsVoiceChoice::Stock(self.voice.clone()))
-            .with_language(self.language.clone())
+        let voice = match (&self.voice, &self.describe) {
+            (Some(name), _) => TtsVoiceChoice::Stock(name.clone()),
+            (None, Some(description)) => TtsVoiceChoice::Described(description.clone()),
+            (None, None) => TtsVoiceChoice::Default,
+        };
+        let mut request = TtsRequest::new(text)
+            .with_voice(voice)
             .with_seed(seed)
+            .with_sampling(TtsSamplingOverrides {
+                temperature: self.temperature,
+                top_k: self.top_k,
+                top_p: self.top_p,
+                ..TtsSamplingOverrides::default()
+            });
+        request.language.clone_from(&self.language);
+        request.instruction.clone_from(&self.instruct);
+        request.max_seconds = self.max_seconds;
+        request
     }
 
-    /// The driver's config: the flags' normalization and splitting.
-    fn driver_config(&self) -> TtsDriverConfig {
-        TtsDriverConfig::new()
-            .with_normalization(match self.normalize {
-                TtsNormalize::Zyphra => zonos3_release_normalization(),
-                TtsNormalize::None => TextNormalizationConfig::CollapseLineBreaks,
-            })
-            .with_split(!self.no_split)
-    }
-
-    /// The engine's `config` with the flags' settings over it.
-    fn engine_config(
+    /// The driver's config for `family`: the flags' normalization,
+    /// splitting and instruction stripping.
+    fn driver_config(
         &self,
-        mut config: Zonos3EngineConfig,
-    ) -> Zonos3EngineConfig {
-        if let Some(temperature) = self.temperature {
-            config.sampler.temperature = temperature;
-        }
-        if let Some(top_k) = self.top_k {
-            config.sampler.top_k = top_k;
-        }
-        if let Some(top_p) = self.top_p {
-            config.sampler.top_p = top_p;
-        }
-        config.max_new_frames = self.max_frames;
-        config
+        family: TtsFamily,
+    ) -> TtsDriverConfig {
+        let normalization = match self.normalize {
+            TtsNormalize::Release => family.release_normalization(),
+            TtsNormalize::Zyphra => TtsFamily::Zonos3.release_normalization(),
+            TtsNormalize::None => match family {
+                TtsFamily::Zonos3 => TextNormalizationConfig::CollapseLineBreaks,
+                TtsFamily::Qwen3Tts => TextNormalizationConfig::None,
+            },
+        };
+        TtsDriverConfig::new()
+            .with_normalization(normalization)
+            .with_split(!self.no_split)
+            .with_strip_instruction(self.strip_instruction)
     }
 }
 
@@ -328,64 +356,101 @@ mod tests {
         run: TtsRunCommand,
     }
 
+    fn cli(argv: &[&str]) -> TtsRunCommand {
+        Cli::try_parse_from([&["tts"], argv].concat()).unwrap().run
+    }
+
     /// Without `--out` or `--play`, the speech has nowhere to go.
     #[test]
     fn test_needs_a_destination() {
-        let cli = Cli::try_parse_from(["tts", "hi"]).unwrap();
         let matches = clap::ArgMatches::default();
-        let error = cli.run.run(&matches).unwrap_err();
+        let error = cli(&["hi"]).run(&matches).unwrap_err();
         assert_eq!(error.kind(), bunsen::errors::BunsenErrorKind::Illegal);
         assert!(error.to_string().contains("--out"), "{error}");
     }
 
-    /// The flags lay over the release's settings; the text joins its words.
+    /// The request carries the flags: the voice (named, described, or the
+    /// model's), the language and instruction, the seed, the sampling and the
+    /// take length; the text joins its words.
     #[test]
-    fn test_config() {
-        let cli = Cli::try_parse_from([
-            "tts",
+    fn test_request() {
+        let run = cli(&[
             "-o",
             "out.wav",
-            "--normalize",
-            "none",
+            "--voice",
+            "Ryan",
+            "--language",
+            "english",
+            "--instruct",
+            "slowly",
             "--temperature",
             "0.5",
             "--top-k",
             "40",
-            "--max-frames",
-            "90",
+            "--max-seconds",
+            "9",
             "Hello",
             "there.",
-        ])
-        .unwrap();
+        ]);
+        assert_eq!(run.read_text().unwrap(), "Hello there.");
+        let request = run.request("Hello there.".into(), 3);
+        assert_eq!(request.voice, TtsVoiceChoice::Stock("Ryan".into()));
+        assert_eq!(request.language.as_deref(), Some("english"));
+        assert_eq!(request.instruction.as_deref(), Some("slowly"));
+        assert_eq!(request.seed, Some(3));
+        assert_eq!(request.max_seconds, Some(9.0));
+        assert_eq!(request.sampling.temperature, Some(0.5));
+        assert_eq!(request.sampling.top_k, Some(40));
+        assert_eq!(request.sampling.top_p, None, "the release's");
+
+        let described = cli(&["-o", "o.wav", "--describe", "a calm voice", "Hi"]);
         assert_eq!(
-            cli.run.driver_config().normalization,
+            described.request("Hi".into(), 1).voice,
+            TtsVoiceChoice::Described("a calm voice".into())
+        );
+        let default = cli(&["-o", "o.wav", "Hi"]).request("Hi".into(), 1);
+        assert_eq!(default.voice, TtsVoiceChoice::Default);
+        assert_eq!(default.language, None);
+        assert!(Cli::try_parse_from(["tts", "--voice", "a", "--describe", "b", "x"]).is_err());
+    }
+
+    /// The driver's config: each family's release normalization by default,
+    /// Zyphra's or none on request; splitting unless `--no-split`; stripping
+    /// on request.
+    #[test]
+    fn test_driver_config() {
+        let run = cli(&["-o", "o.wav", "Hi"]);
+        let zonos3 = run.driver_config(TtsFamily::Zonos3);
+        assert_eq!(
+            zonos3.normalization,
+            TtsFamily::Zonos3.release_normalization()
+        );
+        assert!(zonos3.split && !zonos3.strip_instruction);
+        assert_eq!(
+            run.driver_config(TtsFamily::Qwen3Tts).normalization,
+            TextNormalizationConfig::None
+        );
+
+        let run = cli(&[
+            "-o",
+            "o.wav",
+            "--normalize",
+            "none",
+            "--no-split",
+            "--strip-instruction",
+            "Hi",
+        ]);
+        let config = run.driver_config(TtsFamily::Zonos3);
+        assert_eq!(
+            config.normalization,
             TextNormalizationConfig::CollapseLineBreaks
         );
-        assert!(cli.run.driver_config().split, "split by default");
-        let config = cli.run.engine_config(Zonos3EngineConfig::new());
-        assert_eq!(config.sampler.temperature, 0.5);
-        assert_eq!(config.sampler.top_k, 40);
-        assert_eq!(config.sampler.top_p, 0.69, "the release's");
-        assert_eq!(config.max_new_frames, Some(90));
-        assert_eq!(cli.run.read_text().unwrap(), "Hello there.");
-        assert_eq!(cli.run.voice, DEFAULT_TTS_VOICE);
-
-        let cli =
-            Cli::try_parse_from(["tts", "-o", "o.wav", "--language", "fr_fr", "Bonjour"]).unwrap();
+        assert!(!config.split && config.strip_instruction);
+        let qwen = cli(&["-o", "o.wav", "--normalize", "zyphra", "Hi"]);
         assert_eq!(
-            cli.run.driver_config().normalization,
-            zonos3_release_normalization()
+            qwen.driver_config(TtsFamily::Qwen3Tts).normalization,
+            TtsFamily::Zonos3.release_normalization()
         );
-        let request = cli.run.request("Bonjour".into(), 3);
-        assert_eq!(request.language.as_deref(), Some("fr_fr"));
-        assert_eq!(
-            request.voice,
-            TtsVoiceChoice::Stock(DEFAULT_TTS_VOICE.into())
-        );
-        assert_eq!(request.seed, Some(3));
-
-        let cli = Cli::try_parse_from(["tts", "-o", "o.wav", "--no-split", "Hi"]).unwrap();
-        assert!(!cli.run.driver_config().split);
     }
 
     #[test]
