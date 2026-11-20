@@ -1,63 +1,58 @@
-//! Loading upstream nanochat's own checkpoints into a [`NanoChatGpt`].
+//! # nanochat as upstream's checkpoint manager saves it
 //!
-//! Upstream's checkpoint manager writes a step as two files: the model's
-//! state dict, `model_<step>.pt` (`torch.save`), and its `meta_<step>.json`,
-//! whose `model_config` is the model's geometry. [`NanoChatMeta`] reads the
-//! meta, [`NanoChatMeta::generation`] tells from the state dict's names which
-//! of upstream's models it is, [`NanoChatMeta::gpt_config`] builds the config
-//! for both, and [`load_pt_tensors`] loads the state dict through [`pt_rekey`].
+//! Upstream nanochat (`karpathy/nanochat`) writes a step as two files: the
+//! model's state dict, `model_<step>.pt` (`torch.save`), and its
+//! `meta_<step>.json`, whose `model_config` is the model's geometry. As
+//! bunsen's [`NanoChatGpt`](crate::kits::language::nanochat::NanoChatGpt):
+//!
+//! - **Mirrors:** [`NanoChatMetaMirror`] (the meta) and
+//!   [`NanoChatModelConfigMirror`] (its `model_config`, upstream's
+//!   `GPTConfig`); [`generation`](NanoChatMetaMirror::generation) tells from
+//!   the state dict's names which of upstream's models it is
+//!   ([`NanoChatGeneration`]), and
+//!   [`gpt_config`](NanoChatMetaMirror::gpt_config) is the config for both.
+//! - **Names:** [`nanochat_gpt_rekey`].
+//! - **Loading** (feature `store`): `load_nanochat_gpt_tensors`, and
+//!   `load_nanochat_gpt_from_paths`, a meta and a state dict; with `cache`,
+//!   `load_nanochat_gpt`, a resource set's.
 
 use std::path::Path;
 
-use burn::{
-    store::burn_pack::Tensor as PackTensor,
-    tensor::{
-        Device,
-        FloatDType,
-    },
-};
 use serde::Deserialize;
 
-use super::{
-    NanoChatGpt,
-    NanoChatGptContractConfig,
-};
 use crate::{
-    burner::module::{
-        ModuleInit,
-        Rekey,
-    },
-    data::formats::{
-        NamedTensorsApplied,
-        read_pytorch_tensors,
-        stored_float_dtype,
-        unit_scale_tensors,
-    },
+    burner::module::Rekey,
     errors::{
         BunsenError,
         BunsenResult,
         ResultContext,
         sys_at,
     },
+    kits::language::nanochat::NanoChatGptContractConfig,
 };
+
+#[cfg(feature = "store")]
+mod weights;
+#[cfg(feature = "store")]
+pub use weights::*;
 
 /// A nanochat checkpoint's `meta_<step>.json`: the parts bunsen reads. The
 /// rest (the training run's settings, its losses, a chat template some
 /// uploads add) is ignored.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-pub struct NanoChatMeta {
+pub struct NanoChatMetaMirror {
     /// The training step the checkpoint is of, when the meta says.
     #[serde(default)]
     pub step: Option<u64>,
 
     /// The model's geometry, as upstream's `GPTConfig`.
-    pub model_config: NanoChatModelConfig,
+    pub model_config: NanoChatModelConfigMirror,
 }
 
 /// Upstream's `GPTConfig`, as a checkpoint's meta writes it: upstream's
 /// names.
 #[derive(Clone, Debug, PartialEq, Deserialize)]
-pub struct NanoChatModelConfig {
+pub struct NanoChatModelConfigMirror {
     /// The training context, in tokens; the rotary table is ten times it.
     pub sequence_len: usize,
 
@@ -82,7 +77,7 @@ pub struct NanoChatModelConfig {
     pub window_pattern: Option<String>,
 }
 
-impl NanoChatMeta {
+impl NanoChatMetaMirror {
     /// Parses a `meta_<step>.json`.
     ///
     /// # Errors
@@ -99,7 +94,7 @@ impl NanoChatMeta {
     /// # Errors
     /// As [`sys_at`] when the file cannot be read; as
     /// [`from_json`](Self::from_json) when it is not a nanochat meta.
-    pub fn from_file(path: &Path) -> BunsenResult<Self> {
+    pub fn from_path(path: &Path) -> BunsenResult<Self> {
         let json = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
         Self::from_json(&json).with_context(|| path.display().to_string())
     }
@@ -113,7 +108,7 @@ pub enum NanoChatGeneration {
     Upstream2025,
 
     /// Upstream's 2026 model (`a3ca42a6`): the 2025 one with
-    /// [`with_upstream_2026`](NanoChatGptContractConfig::with_upstream_2026).
+    /// [`with_upstream_2026`](crate::kits::language::nanochat::NanoChatGptContractConfig::with_upstream_2026).
     Upstream2026,
 }
 
@@ -127,7 +122,7 @@ const UPSTREAM_2026_MARKERS: [&str; 5] = [
     "backout_lambda",
 ];
 
-impl NanoChatMeta {
+impl NanoChatMetaMirror {
     /// Which of upstream's models the checkpoint whose state dict holds `names`
     /// and whose meta this is: the 2026 one when the state dict has its
     /// parameters and the meta its window pattern, the 2025 one when it has
@@ -172,7 +167,7 @@ impl NanoChatMeta {
     }
 }
 
-impl NanoChatMeta {
+impl NanoChatMetaMirror {
     /// The config of a checkpoint of `generation` whose meta is `meta`: its
     /// geometry, `sequence_len` the initial sequence length (the rotary table
     /// ten times it, as upstream's), and the generation's options.
@@ -198,18 +193,19 @@ impl NanoChatMeta {
     }
 }
 
-/// Upstream's state-dict names onto a [`NanoChatGpt`]'s module paths: the
-/// `transformer.` prefix dropped; onto its language model's (`lm.`), the
-/// embedding `wte` its `lm.embedding`, the blocks `h.{i}` the stack's
+/// Upstream's state-dict names onto a
+/// [`NanoChatGpt`](crate::kits::language::nanochat::NanoChatGpt)'s module
+/// paths: the `transformer.` prefix dropped; onto its language model's (`lm.`),
+/// the embedding `wte` its `lm.embedding`, the blocks `h.{i}` the stack's
 /// `lm.stack.layers.{i}` (the feed-forward's `c_fc` / `c_proj` its
 /// `linear1` / `linear2`, the value gate `ve_gate` its `value_gate`), and the
 /// head `lm_head` its projection, `lm.head.proj`; everything else
 /// (`attn.c_q`, the lambdas, `value_embeds.{i}`, `smear_gate`) bunsen names
 /// as upstream does.
 ///
-/// Unlike the wrappers' rekeys, it names the [`NanoChatGpt`]'s paths, not its
+/// Unlike the wrappers' rekeys, it names the model's paths, not its
 /// language model's alone: the 2026 additions sit beside the language model.
-pub fn pt_rekey() -> Rekey {
+pub fn nanochat_gpt_rekey() -> Rekey {
     Rekey::keep_rest()
         .rename("lm_head.", "lm.head.proj.")
         .mount(
@@ -228,92 +224,6 @@ pub fn pt_rekey() -> Rekey {
         )
 }
 
-/// Loads an upstream nanochat state dict (`tensors`, under upstream's names)
-/// into `model` by [`pt_rekey`], every floating tensor cast to `dtype`: a
-/// bf16 checkpoint loaded at bf16 takes its tensors as they are.
-///
-/// Upstream's norms carry no learned scale, and bunsen's do: each norm's
-/// scale (a [`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)'s
-/// `gamma`, found by type) loads as ones, which is upstream's norm exactly,
-/// in any dtype. The ones are named by their record paths, which the map's
-/// last stage loads them at as they are, ahead of the model's
-/// [`canonical_rekey`](crate::burner::module::CanonicalKeys::canonical_rekey).
-///
-/// # Errors
-/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) naming any
-/// tensor the model has no parameter for; otherwise as
-/// [`Rekey::apply_as`].
-pub fn load_pt_tensors(
-    model: &mut NanoChatGpt,
-    tensors: impl IntoIterator<Item = PackTensor>,
-    dtype: FloatDType,
-) -> BunsenResult<NamedTensorsApplied> {
-    let mut tensors: Vec<PackTensor> = tensors.into_iter().collect();
-    let scales = unit_scale_tensors(model, is_norm_scale);
-    let last = scales
-        .iter()
-        .fold(Rekey::keep_rest(), |rekey, t| {
-            rekey.exact(t.name.clone(), t.name.clone())
-        })
-        .mount_canonical("", model);
-    tensors.extend(scales);
-    let rekey = pt_rekey().then(last);
-    let applied = rekey.apply_as(model, tensors, Some(dtype.into()))?;
-    if !applied.unused.is_empty() {
-        return Err(BunsenError::unsupported(format!(
-            "a nanochat state dict with tensors the model has no parameter for: {}",
-            applied.unused.join(", ")
-        )));
-    }
-    Ok(applied)
-}
-
-/// Whether the parameter at `path`, under the module types `containers`
-/// (`Struct:NanoChatGpt.…`), is a norm's scale.
-fn is_norm_scale(
-    path: &str,
-    containers: &str,
-) -> bool {
-    path.ends_with(".gamma")
-        && containers
-            .split('.')
-            .any(|c| c == "Enum:BunsenNormalization")
-}
-
-/// An upstream nanochat checkpoint, its `meta_<step>.json` at `meta` and its
-/// `model_<step>.pt` at `model`, as a [`NanoChatGpt`] on `device`: its
-/// config from the meta and the state dict's names
-/// ([`NanoChatMeta::generation`], [`NanoChatMeta::gpt_config`]), built, and
-/// loaded ([`load_pt_tensors`]) at the dtype `policy` resolves the state
-/// dict's stored dtype to on `device`
-/// ([`LoadPolicy::resolve`](crate::data::formats::LoadPolicy::resolve)).
-///
-/// # Errors
-/// As [`NanoChatMeta::from_file`],
-/// [`read_pytorch_tensors`], [`NanoChatMeta::generation`],
-/// [`LoadPolicy::resolve`](crate::data::formats::LoadPolicy::resolve)
-/// and [`load_pt_tensors`]; each names the file it is about.
-pub fn load_pt_checkpoint(
-    meta: &Path,
-    model: &Path,
-    device: &Device,
-    policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<(NanoChatGpt, NanoChatGeneration)> {
-    let meta_data = NanoChatMeta::from_file(meta)?;
-    let tensors = read_pytorch_tensors(model)?;
-    let names: Vec<&str> = tensors.iter().map(|t| t.name.as_str()).collect();
-    let generation = meta_data
-        .generation(&names)
-        .with_context(|| format!("{} and {}", meta.display(), model.display()))?;
-    let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);
-    let dtype = policy
-        .resolve(stored, device, |_| true)
-        .with_context(|| model.display().to_string())?;
-    let mut gpt: NanoChatGpt = meta_data.gpt_config(generation).try_init(device)?;
-    load_pt_tensors(&mut gpt, tensors, dtype).with_context(|| model.display().to_string())?;
-    Ok((gpt, generation))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -322,10 +232,10 @@ mod tests {
         testing::ErrorMatcher,
     };
 
-    fn meta(window: Option<&str>) -> NanoChatMeta {
-        NanoChatMeta {
+    fn meta(window: Option<&str>) -> NanoChatMetaMirror {
+        NanoChatMetaMirror {
             step: Some(1),
-            model_config: NanoChatModelConfig {
+            model_config: NanoChatModelConfigMirror {
                 sequence_len: 2048,
                 vocab_size: 65536,
                 n_layer: 20,
@@ -341,7 +251,7 @@ mod tests {
     /// ignored.
     #[test]
     fn test_meta_from_json() {
-        let m = NanoChatMeta::from_json(
+        let m = NanoChatMetaMirror::from_json(
             r#"{"step": 650, "val_loss": 1.07, "model_config": {"sequence_len": 2048,
             "vocab_size": 65536, "n_layer": 20, "n_head": 10, "n_kv_head": 10, "n_embd": 1280,
             "bos_token": "<|bos|>", "chat_template": "..."}}"#,
@@ -350,13 +260,13 @@ mod tests {
         assert_eq!(m.step, Some(650));
         assert_eq!(
             m,
-            NanoChatMeta {
+            NanoChatMetaMirror {
                 step: Some(650),
                 ..meta(None)
             }
         );
 
-        let err = NanoChatMeta::from_json(r#"{"step": 1}"#).unwrap_err();
+        let err = NanoChatMetaMirror::from_json(r#"{"step": 1}"#).unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert(&err);
     }
 
@@ -411,8 +321,8 @@ mod tests {
 
     /// Upstream's names land where bunsen keeps each part.
     #[test]
-    fn test_pt_rekey() {
-        let r = pt_rekey();
+    fn test_nanochat_gpt_rekey() {
+        let r = nanochat_gpt_rekey();
         for (from, to) in [
             ("transformer.wte.weight", "lm.embedding.weight"),
             (

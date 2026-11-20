@@ -27,11 +27,11 @@ use crate::{
             CHECKPOINT,
             META,
             NanoChatConstruct,
-            nanochat_default_policy,
-            weights::{
-                NanoChatMeta,
-                load_pt_checkpoint,
+            interop::nanochat::{
+                NanoChatMetaMirror,
+                load_nanochat_gpt,
             },
+            nanochat_default_policy,
         },
         support::model_config::resolve_ref_presets,
     },
@@ -39,7 +39,7 @@ use crate::{
 
 /// How a nanochat pretrained is built: its `model_<step>.pt` read into the
 /// geometry its `meta_<step>.json` gives, as the generation its state dict
-/// is ([`load_pt_checkpoint`]); bundled with the positions it was trained on
+/// is ([`load_nanochat_gpt`]); bundled with the positions it was trained on
 /// (the meta's `sequence_len`), the ref's presets over
 /// [`nanochat_default_policy`], and every file of the checkpoint by its key.
 ///
@@ -79,10 +79,10 @@ impl ConstructInit for NanoChatConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<NanoChatConstruct>> {
-        let meta = loaded.expect(META)?;
-        let checkpoint = loaded.expect(CHECKPOINT)?;
-        let sequence_len = NanoChatMeta::from_file(meta)?.model_config.sequence_len;
-        let (gpt, _) = load_pt_checkpoint(meta, checkpoint, device, load)?;
+        let sequence_len = NanoChatMetaMirror::from_path(loaded.expect(META)?)?
+            .model_config
+            .sequence_len;
+        let (gpt, _) = load_nanochat_gpt(loaded, device, load)?;
         let policy = resolve_ref_presets(&nanochat_default_policy(), model, &Default::default())?;
         let mut bundle = NanoChatConstruct::new(gpt)
             .with_max_positions(Some(sequence_len))

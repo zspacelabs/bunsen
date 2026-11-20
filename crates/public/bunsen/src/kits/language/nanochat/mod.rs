@@ -8,8 +8,9 @@
 //!
 //! The model trains from scratch (`examples/train-chat`), and loads
 //! upstream's own checkpoints, `model_<step>.pt` and `meta_<step>.json` as
-//! upstream's checkpoint manager writes them, through [`weights`]
-//! ([`load_pt_checkpoint`](weights::load_pt_checkpoint)): the meta's geometry,
+//! upstream's checkpoint manager writes them, through
+//! [`interop::nanochat`] (`load_nanochat_gpt`, feature `store`): the meta's
+//! geometry,
 //! which of upstream's models the state dict is, and the weights through the
 //! burn-store's `PyTorch` reader.
 //!
@@ -130,13 +131,10 @@ pub mod datasets;
 mod decode;
 pub use decode::*;
 
-#[cfg(feature = "store")]
 mod construct;
-#[cfg(feature = "store")]
 pub use construct::*;
 
-#[cfg(feature = "store")]
-pub mod weights;
+pub mod interop;
 
 #[cfg(feature = "store")]
 pub mod pretrained;
