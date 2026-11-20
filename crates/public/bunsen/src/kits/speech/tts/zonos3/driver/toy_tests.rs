@@ -1,7 +1,7 @@
-//! The driver on the toy fixtures: the language model's half
-//! ([`generate_codes`](Zonos3Driver::generate_codes)) on the toy LM, the
-//! codec's half ([`render`](Zonos3Driver::render)) on the toy codec, whose
-//! codebooks differ from the LM's.
+//! The engine on the toy fixtures: the language model's half
+//! ([`generate_codes`](Zonos3Engine::generate_codes)) on the toy LM, the
+//! codec's half ([`render`](Zonos3Engine::render)) on the toy codec, whose
+//! codebooks differ from the LM's; and the TTS driver over it.
 
 use alloc::{
     collections::BTreeMap,
@@ -17,33 +17,40 @@ use crate::{
         BunsenResult,
     },
     kits::{
-        speech::tts::zonos3::{
-            Zonos3Construct,
-            Zonos3GenerationJson,
-            codec::{
-                Zonos3Codec,
-                Zonos3CodecConfig,
-                Zonos3CodecJson,
-                weights::load_zonos3_codec_tensors,
+        speech::tts::{
+            driver::{
+                TtsDriver,
+                TtsDriverConfig,
+                TtsEngine,
+                TtsRequest,
+                TtsSamplingOverrides,
+                TtsVoiceChoice,
             },
-            lm::{
-                Zonos3Lm,
-                Zonos3LmConfig,
-                Zonos3LmJson,
-                weights::load_zonos3_lm_tensors,
+            zonos3::{
+                Zonos3Construct,
+                Zonos3GenerationJson,
+                codec::{
+                    Zonos3Codec,
+                    Zonos3CodecConfig,
+                    Zonos3CodecJson,
+                    weights::load_zonos3_codec_tensors,
+                },
+                lm::{
+                    Zonos3Lm,
+                    Zonos3LmConfig,
+                    Zonos3LmJson,
+                    weights::load_zonos3_lm_tensors,
+                },
+                prompt::{
+                    Zonos3PromptConfig,
+                    Zonos3Speaker,
+                },
+                voices::Zonos3Voice,
             },
-            prompt::{
-                Zonos3PromptConfig,
-                Zonos3Speaker,
-            },
-            voices::Zonos3Voice,
         },
-        support::{
-            text::TextNormalizationConfig,
-            tokens::{
-                Detokenizer,
-                Tokenizer,
-            },
+        support::tokens::{
+            Detokenizer,
+            Tokenizer,
         },
     },
     support::testing::{
@@ -173,22 +180,22 @@ fn construct() -> Zonos3Construct {
     }
 }
 
-/// The driver, its text as typed (the toy's tokenizer is no release's).
-fn driver(config: Zonos3DriverConfig) -> Zonos3Driver<Bytes> {
-    Zonos3Driver::new(
+/// The engine, its default voice the toy's.
+fn engine(config: Zonos3EngineConfig) -> Zonos3Engine<Bytes> {
+    Zonos3Engine::new(
         Arc::new(construct()),
         Bytes,
-        config.with_normalization(TextNormalizationConfig::None),
+        config.with_default_voice("Toy".to_string()),
     )
-    .expect("the toy driver")
+    .expect("the toy engine")
 }
 
 #[test]
 fn test_generate_codes() {
-    let driver =
-        driver(Zonos3DriverConfig::from_generation(&generation()).with_max_new_frames(Some(12)));
-    let request = Zonos3Request::new("hello", driver.voice_reference("Toy").unwrap()).with_seed(7);
-    let codes = driver.generate_codes(&request).unwrap();
+    let engine =
+        engine(Zonos3EngineConfig::from_generation(&generation()).with_max_new_frames(Some(12)));
+    let request = Zonos3Request::new("hello", engine.voice_reference("Toy").unwrap()).with_seed(7);
+    let codes = engine.generate_codes(&request).unwrap();
     assert!(codes.rows <= 12);
     assert!(codes.rows == 12 || codes.stop == Zonos3Stop::EndOfAudio);
     assert_eq!(codes.start, 0, "the prefill of 3 is under the overlap of 4");
@@ -200,18 +207,22 @@ fn test_generate_codes() {
         "codes alone, before the end of audio: {:?}",
         codes.frames
     );
-    assert_eq!(driver.generate_codes(&request).unwrap(), codes, "seeded");
+    assert_eq!(engine.generate_codes(&request).unwrap(), codes, "seeded");
+    let shorter = engine
+        .generate_codes(&request.clone().with_max_frames(5))
+        .unwrap();
+    assert!(shorter.rows <= 5, "the request's bound under the config's");
 }
 
 #[test]
 fn test_generate_codes_cold() {
     // No silence prefill and no speaker: the prompt ends in a text row.
-    let driver = driver(
-        Zonos3DriverConfig::new()
+    let engine = engine(
+        Zonos3EngineConfig::new()
             .with_silence_prefill_frames(0)
             .with_max_new_frames(Some(14)),
     );
-    let codes = driver
+    let codes = engine
         .generate_codes(
             &Zonos3Request::new("hi", Zonos3Speaker::Embedding(vec![0.5; 8])).with_seed(3),
         )
@@ -222,24 +233,27 @@ fn test_generate_codes_cold() {
 
 #[test]
 fn test_refusals() {
-    let error = Zonos3Driver::new(
-        Arc::new(construct()),
-        Bytes,
-        Zonos3DriverConfig::new()
-            .with_normalization(TextNormalizationConfig::None)
-            .with_silence_prefill_frames(31),
-    )
+    let new = |config: Zonos3EngineConfig| Zonos3Engine::new(Arc::new(construct()), Bytes, config);
+    let error = new(Zonos3EngineConfig::new()
+        .with_default_voice("Toy".to_string())
+        .with_silence_prefill_frames(31))
     .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Illegal);
-
-    let driver = driver(Zonos3DriverConfig::new());
+    let error = new(Zonos3EngineConfig::new()).unwrap_err();
     assert_eq!(
-        driver.voice_reference("Nobody").unwrap_err().kind(),
+        error.kind(),
+        BunsenErrorKind::Lookup,
+        "no stock voice Savannah"
+    );
+
+    let engine = engine(Zonos3EngineConfig::new());
+    assert_eq!(
+        engine.voice_reference("Nobody").unwrap_err().kind(),
         BunsenErrorKind::Lookup
     );
     // The toy's context is 256 rows.
     let long = "x".repeat(300);
-    let error = driver
+    let error = engine
         .generate_codes(&Zonos3Request::new(long, Zonos3Speaker::None))
         .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Illegal);
@@ -247,7 +261,7 @@ fn test_refusals() {
 
 #[test]
 fn test_render() {
-    let driver = driver(Zonos3DriverConfig::new());
+    let engine = engine(Zonos3EngineConfig::new());
     let codes = |frames: Vec<Vec<u32>>| Zonos3Codes {
         frames,
         start: 0,
@@ -255,19 +269,58 @@ fn test_render() {
         rows: 0,
     };
     // The toy codec reads 3 codebooks of 16 codes; its hop is 9 samples.
-    let samples = driver
+    let samples = engine
         .render(&codes((0..5).map(|f| vec![f, 15 - f, 7]).collect()))
         .unwrap();
     assert_eq!(samples.len(), 5 * 9);
     assert!(samples.iter().all(|x| x.abs() < 1.0));
 
-    assert!(driver.render(&codes(Vec::new())).unwrap().is_empty());
+    assert!(engine.render(&codes(Vec::new())).unwrap().is_empty());
     for bad in [vec![vec![0, 1]], vec![vec![0, 1, 16]]] {
         assert_eq!(
-            driver.render(&codes(bad)).unwrap_err().kind(),
+            engine.render(&codes(bad)).unwrap_err().kind(),
             BunsenErrorKind::Illegal
         );
     }
+}
+
+/// Through the TTS driver: the default voice is the toy's; the take's frames
+/// are what it renders; `max_seconds` bounds its rows at the codec's frame
+/// rate (44.1 kHz over a hop of 9, 4900 a second); a sampling override
+/// reaches the sampler (greedy is seed-free); a designed voice is refused.
+#[test]
+fn test_tts_driver() {
+    let engine = engine(Zonos3EngineConfig::new());
+    let capabilities = engine.capabilities().clone();
+    assert_eq!(capabilities.default_voice.as_deref(), Some("Toy"));
+    assert!(capabilities.stock_voices && !capabilities.instruction);
+    assert_eq!(TtsEngine::voices(&engine).len(), 1);
+    let driver = TtsDriver::new(engine, TtsDriverConfig::new()).unwrap();
+
+    let request = TtsRequest::new("hello")
+        .with_seed(7)
+        .with_max_seconds(12.0 / 4900.0);
+    let speech = driver.synthesize(&request).unwrap();
+    let [take] = speech.takes.as_slice() else {
+        panic!("one take: {:?}", speech.takes);
+    };
+    assert!(take.steps <= 12, "{take:?}");
+    assert_eq!(speech.samples.len(), take.frames * 9);
+    assert_eq!(speech.sample_rate, 44_100);
+    assert_eq!(driver.synthesize(&request).unwrap(), speech, "seeded");
+
+    let greedy = request.clone().with_sampling(TtsSamplingOverrides {
+        temperature: Some(0.0),
+        ..TtsSamplingOverrides::default()
+    });
+    let a = driver.synthesize(&greedy).unwrap();
+    let b = driver.synthesize(&greedy.clone().with_seed(8)).unwrap();
+    assert_eq!(a, b, "greedy takes ignore the seed");
+
+    let error = driver
+        .synthesize(&TtsRequest::new("hi").with_voice(TtsVoiceChoice::Described("calm".into())))
+        .unwrap_err();
+    assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
 }
 
 #[test]
@@ -284,30 +337,29 @@ fn test_language_tags() {
 }
 
 /// The release's normalization refuses a language it has no grammar for
-/// when the driver is built (and, without `zyphra-textnorm`, any).
+/// (and, without `zyphra-textnorm`, refuses to be built).
 #[test]
 fn test_release_normalization_checks_the_language() {
-    let error = Zonos3Driver::new(
-        Arc::new(construct()),
-        Bytes,
-        Zonos3DriverConfig::new().with_language("tlh".to_string()),
-    )
-    .unwrap_err();
+    let error = zonos3_driver(engine(Zonos3EngineConfig::new()))
+        .and_then(|driver| driver.synthesize(&TtsRequest::new("hi").with_language("tlh")))
+        .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Unsupported);
 }
 
 #[cfg(feature = "zyphra-textnorm")]
 #[test]
 fn test_release_normalization() {
-    let driver = Zonos3Driver::new(Arc::new(construct()), Bytes, Zonos3DriverConfig::new())
-        .expect("the toy driver, normalized");
-    assert_eq!(driver.normalizer().name(), "collapse-line-breaks > zyphra");
-    assert_eq!(driver.language().to_string(), "en-US");
-    assert_eq!(
-        driver
-            .normalizer()
-            .normalize("It costs\n$5.", Some(driver.language()))
-            .unwrap(),
-        "It costs five dollars."
-    );
+    let driver =
+        zonos3_driver(engine(Zonos3EngineConfig::new())).expect("the toy driver, normalized");
+    let stage = &driver.stages()[0];
+    assert_eq!(stage.name(), "text: collapse-line-breaks > zyphra");
+    assert_eq!(driver.engine().language().to_string(), "en-US");
+    let (request, notes) = stage
+        .apply(
+            TtsRequest::new("It costs\n$5."),
+            Some(driver.engine().language()),
+        )
+        .unwrap();
+    assert_eq!(request.text, "It costs five dollars.");
+    assert!(notes.is_empty());
 }

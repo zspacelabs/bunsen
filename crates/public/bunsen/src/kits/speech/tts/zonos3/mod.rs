@@ -39,9 +39,10 @@
 //!   `zyphra/zonos3/zonos3-mini`, and the factory that loads it into a
 //!   construct.
 //!
-//! - [`driver`] (feature `store`): text and a speaker to speech,
-//!   [`Zonos3Driver`](driver::Zonos3Driver), one take decoded whole, as the
-//!   release generates it.
+//! - [`driver`] (feature `store`): ZONOS3 as a TTS engine,
+//!   [`Zonos3Engine`](driver::Zonos3Engine), one take decoded whole, as the
+//!   release generates it; [`Zonos3Driver`](driver::Zonos3Driver) is the [TTS
+//!   driver](super::driver) over it.
 //!
 //! The weights are `Zyphra/ZONOS3-Mini-hf`'s `model.safetensors`, whose
 //! `lm.*` tensors are upstream's release language model as it is

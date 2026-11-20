@@ -25,11 +25,18 @@ use bunsen::{
                 },
             },
             testing::tts_asr_round_trip,
-            tts::zonos3::driver::{
-                Zonos3Driver,
-                Zonos3DriverConfig,
-                Zonos3Request,
-                Zonos3Stop,
+            tts::{
+                driver::{
+                    TtsRequest,
+                    TtsStop,
+                    TtsVoiceChoice,
+                },
+                zonos3::driver::{
+                    Zonos3Driver,
+                    Zonos3Engine,
+                    Zonos3EngineConfig,
+                    zonos3_driver,
+                },
             },
         },
         support::tokens::BunsenTokenizer,
@@ -62,12 +69,23 @@ pub const HARVARD: [&str; 5] = [
 /// f32: 0.000, every sentence heard word for word.
 pub const ROUND_TRIP_WER: f64 = 0.10;
 
-/// ZONOS3-Mini's driver on `device`, the release's settings.
+/// ZONOS3-Mini's driver on `device`, the release's settings and
+/// normalization.
 fn driver(device: &Device) -> Zonos3Driver<BunsenTokenizer> {
     let construct = load_construct(device);
     let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer).unwrap();
-    let config = Zonos3DriverConfig::from_generation(&construct.generation);
-    Zonos3Driver::new(construct, tokenizer, config).unwrap()
+    let config = Zonos3EngineConfig::from_generation(&construct.generation);
+    zonos3_driver(Zonos3Engine::new(construct, tokenizer, config).unwrap()).unwrap()
+}
+
+/// `text` in [`VOICE`]'s voice, seeded.
+fn request(
+    text: &str,
+    seed: u64,
+) -> TtsRequest {
+    TtsRequest::new(text)
+        .with_voice(TtsVoiceChoice::Stock(VOICE.to_string()))
+        .with_seed(seed)
 }
 
 mod zonos3_mini {
@@ -81,29 +99,26 @@ mod zonos3_mini {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let driver = driver(&device);
-        let request = Zonos3Request::new(TEXT, driver.voice_reference(VOICE).unwrap()).with_seed(1);
 
         let started = Instant::now();
-        let codes = driver.generate_codes(&request).unwrap();
-        let generating = started.elapsed();
-        let started = Instant::now();
-        let samples = driver.render(&codes).unwrap();
-        let rendering = started.elapsed();
+        let speech = driver.synthesize(&request(TEXT, 1)).unwrap();
+        let elapsed = started.elapsed().as_secs_f64();
 
-        let seconds = samples.len() as f64 / f64::from(driver.sample_rate());
+        let seconds = speech.seconds();
+        let [take] = speech.takes.as_slice() else {
+            panic!("one take: {:?}", speech.takes);
+        };
         eprintln!(
-            "{VOICE}: {} rows in {:.2} s ({:.1} rows/s), {} frames, {seconds:.2} s of audio \
-             rendered in {:.2} s, stop {:?}",
-            codes.rows,
-            generating.as_secs_f64(),
-            codes.rows as f64 / generating.as_secs_f64(),
-            codes.frames.len(),
-            rendering.as_secs_f64(),
-            codes.stop,
+            "{VOICE}: {} rows, {} frames, {seconds:.2} s of audio in {elapsed:.2} s \
+             ({:.1} rows/s), stop {:?}",
+            take.steps,
+            take.frames,
+            take.steps as f64 / elapsed,
+            take.stop,
         );
-        assert_eq!(codes.stop, Zonos3Stop::EndOfAudio);
+        assert_eq!(take.stop, TtsStop::End);
         assert!((1.0..10.0).contains(&seconds), "{seconds} s");
-        assert!(samples.iter().all(|x| x.abs() < 1.0));
+        assert!(speech.samples.iter().all(|x| x.abs() < 1.0));
     }
 
     /// Takes of [`HARVARD`] in [`VOICE`]'s voice, transcribed by Whisper
@@ -114,7 +129,6 @@ mod zonos3_mini {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let tts = driver(&device);
-        let speaker = tts.voice_reference(VOICE).unwrap();
         let whisper = default_whisper_factory()
             .unwrap()
             .load_construct(
@@ -134,8 +148,7 @@ mod zonos3_mini {
             &HARVARD,
             |text| {
                 seed += 1;
-                let request = Zonos3Request::new(text, speaker.clone()).with_seed(seed);
-                let speech = tts.synthesize(&request)?;
+                let speech = tts.synthesize(&request(text, seed))?;
                 Ok((speech.samples, speech.sample_rate as usize))
             },
             16_000,

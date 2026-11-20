@@ -17,14 +17,22 @@ use bunsen::{
         sys_at,
     },
     kits::{
-        speech::tts::zonos3::{
+        speech::tts::{
             driver::{
-                Zonos3Driver,
-                Zonos3DriverConfig,
-                Zonos3Request,
-                Zonos3Stop,
+                TtsDriver,
+                TtsDriverConfig,
+                TtsRequest,
+                TtsStop,
+                TtsVoiceChoice,
             },
-            pretrained::default_zonos3_factory,
+            zonos3::{
+                driver::{
+                    Zonos3Engine,
+                    Zonos3EngineConfig,
+                    zonos3_release_normalization,
+                },
+                pretrained::default_zonos3_factory,
+            },
         },
         support::{
             text::TextNormalizationConfig,
@@ -191,16 +199,20 @@ impl TtsRunCommand {
             self.precision.load_policy(),
         )?;
         let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer)?;
-        let config = self.config(Zonos3DriverConfig::from_generation(&construct.generation));
-        let driver = Zonos3Driver::new(construct, tokenizer, config)?;
+        let engine = Zonos3Engine::new(
+            construct.clone(),
+            tokenizer,
+            self.engine_config(Zonos3EngineConfig::from_generation(&construct.generation)),
+        )?;
+        let driver = TtsDriver::new(engine, self.driver_config())?;
 
         let seed = self.seed.unwrap_or_else(clock_seed);
-        let request =
-            Zonos3Request::new(text, driver.voice_reference(&self.voice)?).with_seed(seed);
+        let request = self.request(text, seed);
         let started = Instant::now();
         let speech = driver.synthesize(&request)?;
         let spoken = started.elapsed().as_secs_f64();
-        if speech.codes.stop == Zonos3Stop::Budget {
+        let rows: usize = speech.takes.iter().map(|take| take.steps).sum();
+        if speech.takes.iter().any(|take| take.stop == TtsStop::Budget) {
             log::warn!("the take ran out of frames before it ended: raise --max-frames");
         }
         if let Some(out) = &self.out {
@@ -215,8 +227,8 @@ impl TtsRunCommand {
             "{place}: {seconds:.2} s in {}'s voice, seed {seed}; synthesized in {spoken:.2} s \
              ({} rows, {:.1} a second)",
             self.voice,
-            speech.codes.rows,
-            speech.codes.rows as f64 / spoken,
+            rows,
+            rows as f64 / spoken,
         );
         #[cfg(feature = "live")]
         if let Some(playback) = &playback {
@@ -247,16 +259,31 @@ impl TtsRunCommand {
         Ok(text)
     }
 
-    /// `config` with the flags' settings over it.
-    fn config(
+    /// The request: the text in the flags' voice and language, seeded.
+    fn request(
         &self,
-        mut config: Zonos3DriverConfig,
-    ) -> Zonos3DriverConfig {
-        config.normalization = match self.normalize {
-            TtsNormalize::Zyphra => Zonos3DriverConfig::release_normalization(),
+        text: String,
+        seed: u64,
+    ) -> TtsRequest {
+        TtsRequest::new(text)
+            .with_voice(TtsVoiceChoice::Stock(self.voice.clone()))
+            .with_language(self.language.clone())
+            .with_seed(seed)
+    }
+
+    /// The driver's config: the flags' normalization.
+    fn driver_config(&self) -> TtsDriverConfig {
+        TtsDriverConfig::new().with_normalization(match self.normalize {
+            TtsNormalize::Zyphra => zonos3_release_normalization(),
             TtsNormalize::None => TextNormalizationConfig::CollapseLineBreaks,
-        };
-        config.language = self.language.clone();
+        })
+    }
+
+    /// The engine's `config` with the flags' settings over it.
+    fn engine_config(
+        &self,
+        mut config: Zonos3EngineConfig,
+    ) -> Zonos3EngineConfig {
         if let Some(temperature) = self.temperature {
             config.sampler.temperature = temperature;
         }
@@ -321,11 +348,11 @@ mod tests {
             "there.",
         ])
         .unwrap();
-        let config = cli.run.config(Zonos3DriverConfig::new());
         assert_eq!(
-            config.normalization,
+            cli.run.driver_config().normalization,
             TextNormalizationConfig::CollapseLineBreaks
         );
+        let config = cli.run.engine_config(Zonos3EngineConfig::new());
         assert_eq!(config.sampler.temperature, 0.5);
         assert_eq!(config.sampler.top_k, 40);
         assert_eq!(config.sampler.top_p, 0.69, "the release's");
@@ -335,12 +362,17 @@ mod tests {
 
         let cli =
             Cli::try_parse_from(["tts", "-o", "o.wav", "--language", "fr_fr", "Bonjour"]).unwrap();
-        let config = cli.run.config(Zonos3DriverConfig::new());
         assert_eq!(
-            config.normalization,
-            Zonos3DriverConfig::release_normalization()
+            cli.run.driver_config().normalization,
+            zonos3_release_normalization()
         );
-        assert_eq!(config.language, "fr_fr");
+        let request = cli.run.request("Bonjour".into(), 3);
+        assert_eq!(request.language.as_deref(), Some("fr_fr"));
+        assert_eq!(
+            request.voice,
+            TtsVoiceChoice::Stock(DEFAULT_TTS_VOICE.into())
+        );
+        assert_eq!(request.seed, Some(3));
     }
 
     #[test]

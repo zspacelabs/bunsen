@@ -1,4 +1,4 @@
-//! [`Zonos3Driver`]: text and a speaker to speech.
+//! [`Zonos3Engine`]: text and a speaker to codes, and codes to speech.
 
 use alloc::{
     collections::BTreeMap,
@@ -35,26 +35,34 @@ use crate::{
         LookupError,
     },
     kits::{
-        speech::tts::zonos3::{
-            Zonos3Construct,
-            Zonos3GenerationJson,
-            lm::Zonos3RowConditioning,
-            prompt::{
-                Zonos3PromptRequest,
-                Zonos3Speaker,
-                zonos3_text_ids,
+        speech::tts::{
+            driver::{
+                TtsCapabilities,
+                TtsDriver,
+                TtsDriverConfig,
+                TtsLanguage,
+                TtsSamplingOverrides,
             },
-            sampler::{
-                Zonos3Sampler,
-                Zonos3SamplerConfig,
+            zonos3::{
+                Zonos3Construct,
+                Zonos3GenerationJson,
+                lm::Zonos3RowConditioning,
+                prompt::{
+                    Zonos3PromptRequest,
+                    Zonos3Speaker,
+                    zonos3_text_ids,
+                },
+                sampler::{
+                    Zonos3Sampler,
+                    Zonos3SamplerConfig,
+                },
+                voices::Zonos3Voice,
             },
-            voices::Zonos3Voice,
         },
         support::{
             text::{
                 BunsenLanguageTag,
                 TextNormalizationConfig,
-                TextNormalizer,
                 ZyphraNormalizationConfig,
             },
             tokens::Tokenizer,
@@ -63,22 +71,52 @@ use crate::{
     ops::transformers::attention::KVCacheStorage,
 };
 
-/// Config for [`Zonos3Driver`]; its defaults are the release's
+/// The release's text normalization, which a [`Zonos3Driver`] runs a
+/// request's text through: line breaks collapsed, then Zyphra's normalizer
+/// (feature `zyphra-textnorm`), with no markup tags and no pre-pass, as the
+/// release's reference normalizes.
+pub fn zonos3_release_normalization() -> TextNormalizationConfig {
+    TextNormalizationConfig::Chain(vec![
+        TextNormalizationConfig::CollapseLineBreaks,
+        TextNormalizationConfig::Zyphra(ZyphraNormalizationConfig::new()),
+    ])
+}
+
+/// ZONOS3-Mini's TTS driver: [`TtsDriver`] over [`Zonos3Engine`].
+pub type Zonos3Driver<T> = TtsDriver<Zonos3Engine<T>>;
+
+/// The driver of `engine`, its text normalized as the release normalizes
+/// it ([`zonos3_release_normalization`]).
+///
+/// # Errors
+/// The normalizer's, building it.
+pub fn zonos3_driver<T: Tokenizer + Send + Sync>(
+    engine: Zonos3Engine<T>
+) -> BunsenResult<Zonos3Driver<T>> {
+    TtsDriver::new(
+        engine,
+        TtsDriverConfig::new().with_normalization(zonos3_release_normalization()),
+    )
+}
+
+/// Config for [`Zonos3Engine`]; its defaults are the release's
 /// (`config.json`'s `generation`, [`from_generation`](Self::from_generation)).
 #[derive(Config, Debug)]
-pub struct Zonos3DriverConfig {
-    /// How a request's text is normalized: by default the release's, line
-    /// breaks collapsed and then Zyphra's normalizer
-    /// ([`release_normalization`](Self::release_normalization); feature
-    /// `zyphra-textnorm`).
-    #[config(default = "Zonos3DriverConfig::release_normalization()")]
-    pub normalization: TextNormalizationConfig,
-
-    /// The text's language, which the normalizer reads by: a request code of
-    /// the release's `languages` table (`en_us`, `fr_fr`), or a language tag
+pub struct Zonos3EngineConfig {
+    /// The language a request that names none is in: a request code of the
+    /// release's `languages` table (`en_us`, `fr_fr`), or a language tag
     /// ([`Zonos3GenerationJson::language_tag`]).
     #[config(default = "String::from(\"en_us\")")]
-    pub language: String,
+    pub default_language: String,
+
+    /// The stock voice a request that names none speaks in.
+    #[config(default = "String::from(\"Savannah\")")]
+    pub default_voice: String,
+
+    /// Each condition's bucket; `None` (or a short list) is the unknown
+    /// bucket.
+    #[config(default = "Vec::new()")]
+    pub condition_buckets: Vec<Option<usize>>,
 
     /// How each step's codes are sampled.
     #[config(default = "Zonos3SamplerConfig::new()")]
@@ -116,17 +154,7 @@ pub struct Zonos3DriverConfig {
     pub storage: KVCacheStorage,
 }
 
-impl Zonos3DriverConfig {
-    /// The release's normalization: line breaks collapsed, then Zyphra's
-    /// normalizer, with no markup tags and no pre-pass, as the release's
-    /// reference normalizes.
-    pub fn release_normalization() -> TextNormalizationConfig {
-        TextNormalizationConfig::Chain(vec![
-            TextNormalizationConfig::CollapseLineBreaks,
-            TextNormalizationConfig::Zyphra(ZyphraNormalizationConfig::new()),
-        ])
-    }
-
+impl Zonos3EngineConfig {
     /// The settings of a release's `generation` section (its markup tags
     /// aside: the normalizer keeps none, as the release's reference).
     pub fn from_generation(generation: &Zonos3GenerationJson) -> Self {
@@ -140,12 +168,11 @@ impl Zonos3DriverConfig {
     }
 }
 
-/// What [`Zonos3Driver`] speaks.
+/// What [`Zonos3Engine`] speaks: one take.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Zonos3Request {
-    /// The text, as typed: the driver normalizes it
-    /// ([`normalization`](Zonos3DriverConfig::normalization), in its
-    /// [`language`](Zonos3DriverConfig::language)).
+    /// The text, as the model reads it: normalized already (a
+    /// [`Zonos3Driver`] normalizes a request's).
     pub text: String,
 
     /// The speaker.
@@ -158,6 +185,11 @@ pub struct Zonos3Request {
     /// Seeds the device's random numbers before the take; `None` leaves
     /// them as they are.
     pub seed: Option<u64>,
+
+    /// The most rows the take generates, under the config's
+    /// [`max_new_frames`](Zonos3EngineConfig::max_new_frames); `None`, the
+    /// config's.
+    pub max_frames: Option<usize>,
 }
 
 impl Zonos3Request {
@@ -171,6 +203,7 @@ impl Zonos3Request {
             speaker,
             condition_buckets: Vec::new(),
             seed: None,
+            max_frames: None,
         }
     }
 
@@ -180,6 +213,15 @@ impl Zonos3Request {
         seed: u64,
     ) -> Self {
         self.seed = Some(seed);
+        self
+    }
+
+    /// At most `frames` rows long.
+    pub fn with_max_frames(
+        mut self,
+        frames: usize,
+    ) -> Self {
+        self.max_frames = Some(frames);
         self
     }
 }
@@ -201,53 +243,40 @@ pub struct Zonos3Codes {
     pub rows: usize,
 }
 
-/// A take: its samples, and the codes they decode.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Zonos3Speech {
-    /// The samples, mono, in `[-1, 1]`.
-    pub samples: Vec<f32>,
-
-    /// Their rate, in Hz.
-    pub sample_rate: u32,
-
-    /// The codes.
-    pub codes: Zonos3Codes,
-}
-
-/// ZONOS3-Mini's driver: text and a speaker to speech, one take decoded
-/// whole, as the release generates it.
+/// ZONOS3-Mini as a TTS engine
+/// ([`TtsEngine`](crate::kits::speech::tts::driver::TtsEngine)): text and a
+/// speaker to codes, one take decoded whole, as the release generates it.
 ///
-/// A take is the text, normalized (the config's
-/// [`normalization`](Zonos3DriverConfig::normalization)); its prompt
+/// A take is the text (normalized by its driver, [`Zonos3Driver`]); its prompt
 /// ([`Zonos3PromptConfig::build`](crate::kits::speech::tts::zonos3::prompt::Zonos3PromptConfig::build))
 /// run through the language model, then one row a step through its decode
 /// cache, each row's codes sampled by [`Zonos3Sampler`] and fed back with the
 /// text pad, until [`Zonos3TakeRows`]'s stop rule; then the frames it covers,
 /// decoded by the codec, through the output stage ([`zonos3_output_stage`]).
 #[derive(Debug)]
-pub struct Zonos3Driver<T: Tokenizer> {
+pub struct Zonos3Engine<T: Tokenizer> {
     construct: Arc<Zonos3Construct>,
-    normalizer: Arc<dyn TextNormalizer>,
     language: BunsenLanguageTag,
     sampler: Zonos3Sampler,
     tokenizer: T,
-    config: Zonos3DriverConfig,
+    pub(super) capabilities: TtsCapabilities,
+    config: Zonos3EngineConfig,
 }
 
-impl<T: Tokenizer> Zonos3Driver<T> {
+impl<T: Tokenizer> Zonos3Engine<T> {
     /// The driver of a loaded model, its text read by `tokenizer` (the
     /// construct's [`tokenizer`](Zonos3Construct::tokenizer) file).
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a silence
-    /// prefill past its limit; the language's
-    /// ([`Zonos3GenerationJson::language_tag`]); the normalizer's, building
-    /// it or for the language
-    /// ([`check_language`](TextNormalizer::check_language)).
+    /// prefill past its limit; the default language's
+    /// ([`Zonos3GenerationJson::language_tag`]);
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a default voice
+    /// that is not a stock voice.
     pub fn new(
         construct: Arc<Zonos3Construct>,
         tokenizer: T,
-        config: Zonos3DriverConfig,
+        config: Zonos3EngineConfig,
     ) -> BunsenResult<Self> {
         if config.silence_prefill_frames > config.silence_prefill_max_frames {
             return Err(BunsenError::illegal(format!(
@@ -255,21 +284,49 @@ impl<T: Tokenizer> Zonos3Driver<T> {
                 config.silence_prefill_frames, config.silence_prefill_max_frames
             )));
         }
-        let language = construct.generation.language_tag(&config.language)?;
-        let normalizer = config.normalization.init()?;
-        normalizer.check_language(Some(&language))?;
-        let lm = &construct.lm_config;
-        let sampler = config
-            .sampler
-            .init(lm.codebook_size, lm.eoa_id(), lm.audio_vocab());
+        let language = construct
+            .generation
+            .language_tag(&config.default_language)?;
+        if !construct.voices.contains_key(&config.default_voice) {
+            return Err(BunsenError::lookup(
+                LookupError::missing("stock voice", &config.default_voice)
+                    .with_candidates(construct.voices.keys()),
+            ));
+        }
+        let sampler = Self::sampler(&construct, &config.sampler);
+        let capabilities = TtsCapabilities {
+            languages: construct
+                .generation
+                .languages
+                .iter()
+                .map(|(key, grammar)| {
+                    Ok(TtsLanguage {
+                        key: key.clone(),
+                        tag: BunsenLanguageTag::parse(grammar)?,
+                    })
+                })
+                .collect::<BunsenResult<_>>()?,
+            default_voice: Some(config.default_voice.clone()),
+            stock_voices: true,
+            described_voices: false,
+            instruction: false,
+        };
         Ok(Self {
             construct,
-            normalizer,
             language,
             sampler,
             tokenizer,
+            capabilities,
             config,
         })
+    }
+
+    fn sampler(
+        construct: &Zonos3Construct,
+        config: &Zonos3SamplerConfig,
+    ) -> Zonos3Sampler {
+        let lm = &construct.lm_config;
+        config.init(lm.codebook_size, lm.eoa_id(), lm.audio_vocab())
     }
 
     /// The model.
@@ -277,18 +334,13 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         &self.construct
     }
 
-    /// The normalizer a request's text is read through.
-    pub fn normalizer(&self) -> &Arc<dyn TextNormalizer> {
-        &self.normalizer
-    }
-
-    /// The text's language, as a tag.
+    /// The default language, as a tag.
     pub fn language(&self) -> &BunsenLanguageTag {
         &self.language
     }
 
     /// The config.
-    pub fn config(&self) -> &Zonos3DriverConfig {
+    pub fn config(&self) -> &Zonos3EngineConfig {
         &self.config
     }
 
@@ -333,11 +385,12 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         logits.slice(s![0..1, t - 1..t, .., ..]).reshape([k, v])
     }
 
-    /// The take's codes: the text normalized, the prompt, the generated
-    /// rows, and the frames they cover.
+    /// The take's codes: the prompt, the generated rows, and the frames they
+    /// cover, sampled by the config's
+    /// [`sampler`](Zonos3EngineConfig::sampler).
     ///
     /// # Errors
-    /// The normalizer's, the tokenizer's, the prompt's
+    /// The tokenizer's, the prompt's
     /// ([`build`](crate::kits::speech::tts::zonos3::prompt::Zonos3PromptConfig::build)); and
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a prompt
     /// that leaves the model no room to generate, or a budget of none.
@@ -345,16 +398,52 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         &self,
         request: &Zonos3Request,
     ) -> BunsenResult<Zonos3Codes> {
+        self.generate_codes_sampled(request, &self.sampler)
+    }
+
+    /// [`generate_codes`](Self::generate_codes), its sampler the config's
+    /// with `overrides` over it.
+    ///
+    /// # Errors
+    /// As [`generate_codes`](Self::generate_codes).
+    pub fn generate_codes_with(
+        &self,
+        request: &Zonos3Request,
+        overrides: &TtsSamplingOverrides,
+    ) -> BunsenResult<Zonos3Codes> {
+        let mut config = self.config.sampler.clone();
+        if let Some(t) = overrides.temperature {
+            config.temperature = t;
+        }
+        if let Some(k) = overrides.top_k {
+            config.top_k = k;
+        }
+        if let Some(p) = overrides.top_p {
+            config.top_p = p;
+        }
+        if let Some(p) = overrides.min_p {
+            config.min_p = p;
+        }
+        if let Some(r) = overrides.repetition_penalty {
+            config.repetition_penalty = r;
+        }
+        self.generate_codes_sampled(request, &Self::sampler(&self.construct, &config))
+    }
+
+    /// [`generate_codes`](Self::generate_codes), sampled by `sampler`.
+    ///
+    /// # Errors
+    /// As [`generate_codes`](Self::generate_codes).
+    fn generate_codes_sampled(
+        &self,
+        request: &Zonos3Request,
+        sampler: &Zonos3Sampler,
+    ) -> BunsenResult<Zonos3Codes> {
         let lm = &self.construct.lm;
         let layout = &self.construct.prompt;
         let max_rows = self.construct.lm_config.max_rows;
         let prompt = layout.build(&Zonos3PromptRequest {
-            text_ids: zonos3_text_ids(
-                &self.tokenizer,
-                &self
-                    .normalizer
-                    .normalize(&request.text, Some(&self.language))?,
-            )?,
+            text_ids: zonos3_text_ids(&self.tokenizer, &request.text)?,
             speaker: request.speaker.clone(),
             condition_buckets: request.condition_buckets.clone(),
             silence_prefill_frames: self.config.silence_prefill_frames,
@@ -369,6 +458,7 @@ impl<T: Tokenizer> Zonos3Driver<T> {
             .config
             .max_new_frames
             .unwrap_or(max_rows)
+            .min(request.max_frames.unwrap_or(max_rows))
             .min(max_rows - r);
         if budget == 0 {
             return Err(BunsenError::illegal("a take of no frames"));
@@ -395,8 +485,7 @@ impl<T: Tokenizer> Zonos3Driver<T> {
         let mut take = Zonos3TakeRows::new(n, eoa, pad, cold_start, budget);
         let mut history: Vec<Vec<i64>> = vec![Vec::new(); n];
         let stop = loop {
-            let mut codes: Vec<u32> = self
-                .sampler
+            let mut codes: Vec<u32> = sampler
                 .sample(logits, &history)
                 .into_iter()
                 .map(|c| c as u32)
@@ -480,22 +569,5 @@ impl<T: Tokenizer> Zonos3Driver<T> {
             self.config.output_limit_dbfs,
         );
         Ok(samples)
-    }
-
-    /// A take: [`generate_codes`](Self::generate_codes), then
-    /// [`render`](Self::render).
-    ///
-    /// # Errors
-    /// As theirs.
-    pub fn synthesize(
-        &self,
-        request: &Zonos3Request,
-    ) -> BunsenResult<Zonos3Speech> {
-        let codes = self.generate_codes(request)?;
-        Ok(Zonos3Speech {
-            samples: self.render(&codes)?,
-            sample_rate: self.sample_rate(),
-            codes,
-        })
     }
 }
