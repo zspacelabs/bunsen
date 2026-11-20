@@ -117,8 +117,8 @@ pub struct Qwen3_5Config {
     pub rms_eps: f64,
 
     /// The rotary embedding's base.
-    #[config(default = "10_000_000")]
-    pub rope_theta: usize,
+    #[config(default = "10_000_000.0")]
+    pub rope_theta: f64,
 
     /// The share of each head the rotary embedding rotates, from its first
     /// dimension: `rotary_dim = head_dim · partial_rotary_factor`.

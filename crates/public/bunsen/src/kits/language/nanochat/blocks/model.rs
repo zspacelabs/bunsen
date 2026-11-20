@@ -265,8 +265,8 @@ pub struct NanoChatGptContractConfig {
 
     /// The rotary embedding's base: 10000 in upstream's 2025 model, 100000
     /// in its 2026 one.
-    #[config(default = "10000")]
-    pub rope_base: usize,
+    #[config(default = "10000.0")]
+    pub rope_base: f64,
 
     /// Whether the rotary tables are rounded to bf16 values, as upstream's
     /// 2025 model keeps them whatever it computes in (its checkpoints were
@@ -358,7 +358,7 @@ impl NanoChatGptContractConfig {
         self,
         window_pattern: impl Into<String>,
     ) -> Self {
-        self.with_rope_base(100000)
+        self.with_rope_base(100_000.0)
             .with_rope_bf16_tables(false)
             .with_pad_vocab_to(Some(64))
             .with_residual_lambdas(true)
@@ -1017,7 +1017,7 @@ mod tests {
         }));
 
         let structure = NanoChatGptContractConfig::new().to_structure();
-        assert_eq!(structure.lm.stack.rotary.base, 10000);
+        assert_eq!(structure.lm.stack.rotary.base, 10000.0);
         assert_eq!(
             structure.lm.stack.rotary.table_dtype,
             Some(FloatDType::BF16)
@@ -1067,7 +1067,7 @@ mod tests {
             .with_upstream_2026("SL");
         assert_eq!(policy.padded_vocab_size(), 64);
         let structure = policy.to_structure();
-        assert_eq!(structure.lm.stack.rotary.base, 100000);
+        assert_eq!(structure.lm.stack.rotary.base, 100000.0);
         assert_eq!(structure.lm.stack.rotary.table_dtype, None);
         assert_eq!(structure.lm.embedding.n_vocab, 64);
         assert_eq!(structure.vocab_size(), 60);

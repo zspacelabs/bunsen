@@ -358,7 +358,7 @@ impl GemmaConfig {
         scaling: RopeScaling,
     ) -> RotaryEmbeddingConfig {
         RotaryEmbeddingConfig::new(0, self.head_dim)
-            .with_base(theta as usize)
+            .with_base(theta)
             .with_scaling(scaling)
             .with_direction(RotaryDirection::Forward)
     }
@@ -509,9 +509,9 @@ mod tests {
         assert_eq!(stack.kinds[1].attn.attention().sliding_window, Some(4));
         assert_eq!(stack.kinds[0].attn.attention().score_scale, Some(0.25));
         assert!(stack.kinds[0].attn.attention().norm.is_some() && stack.kinds[0].post_norms);
-        assert_eq!(stack.rotary.base, 1_000_000);
+        assert_eq!(stack.rotary.base, 1_000_000.0);
         assert_eq!(stack.rotary.scaling, RopeScaling::Linear { factor: 2.0 });
-        assert_eq!(stack.rotary_alts[0].base, 10_000);
+        assert_eq!(stack.rotary_alts[0].base, 10_000.0);
         assert_eq!(stack.kind_rotary, [None, Some(0)]);
 
         let device = cpu_device();

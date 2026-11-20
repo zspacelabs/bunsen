@@ -251,8 +251,8 @@ pub struct NemotronDiarizationConfig {
     pub subsampling_factor: usize,
 
     /// The rotary embedding's base.
-    #[config(default = "10000")]
-    pub rope_base: usize,
+    #[config(default = "10000.0")]
+    pub rope_base: f64,
 
     /// The head's width.
     #[config(default = "192")]
@@ -721,7 +721,7 @@ mod tests {
             .with_d_hidden(8)
             .with_n_speakers(3)
             .with_subsampling_factor(4)
-            .with_rope_base(500)
+            .with_rope_base(500.0)
     }
 
     fn assert_meta_agree(

@@ -32,7 +32,7 @@ mistralai:
             n_layers: 32
             n_mels: 128
             rms_eps: 0.00001
-            rope_theta: 1000000
+            rope_theta: 1000000.0
             sliding_window: 750
           downsample: 4
           text:
@@ -44,7 +44,7 @@ mistralai:
             n_layers: 26
             n_vocab: 131072
             rms_eps: 0.00001
-            rope_theta: 1000000
+            rope_theta: 1000000.0
             sliding_window: 8192
       $hub:
         $repo: mistralai/Voxtral-Mini-4B-Realtime-2602

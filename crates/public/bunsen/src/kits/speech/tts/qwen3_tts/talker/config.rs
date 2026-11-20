@@ -85,7 +85,7 @@ impl Qwen3TtsTalkerConfig {
             d.intermediate_size,
         )
         .with_rms_eps(d.rms_norm_eps)
-        .with_rope_theta(d.rope_theta as usize)
+        .with_rope_theta(d.rope_theta)
         .with_tied_head(false);
         Ok(Self::new(
             lm,
@@ -133,7 +133,7 @@ mod tests {
             (151_936, 2048, 16)
         );
         assert!(!config.lm.tied_head);
-        assert_eq!(config.lm.rope_theta, 1_000_000);
+        assert_eq!(config.lm.rope_theta, 1_000_000.0);
     }
 
     /// M-RoPE sections that do not cover the head's frequencies are refused.

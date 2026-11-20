@@ -69,9 +69,10 @@ pub struct RotaryEmbeddingConfig {
     #[config(default = "None")]
     pub rotary_dim: Option<usize>,
 
-    /// Base.
-    #[config(default = 10000)]
-    pub base: usize,
+    /// The base, `θ`: the frequencies are `θ^(-2i / d)`. Any positive,
+    /// finite value; upstream configs give fractional ones.
+    #[config(default = 10000.0)]
+    pub base: f64,
 
     /// The rotation's sign convention.
     #[config(default = "RotaryDirection::Reverse")]
@@ -271,6 +272,17 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
                 Rule::NotMultiple {
                     value: rotary_dim,
                     of: "2".into(),
+                },
+            )
+            .into());
+        }
+        if !(self.base.is_finite() && self.base > 0.0) {
+            return Err(ConstraintError::new(
+                "RotaryEmbeddingConfig",
+                "base",
+                Rule::OutOfRange {
+                    value: self.base.to_string(),
+                    range: "a positive, finite base".into(),
                 },
             )
             .into());
@@ -512,6 +524,13 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                text,
+            },
+        },
         support::testing::{
             DeviceMemoryGuard,
             performance_device,
@@ -528,7 +547,7 @@ mod tests {
             .with_scaling(RopeScaling::Linear { factor: 2.0 })
             .init(&device);
         // The angles are the positions times the halved inverse frequencies.
-        let inv = inverse_frequency_table(10000, 16, &device);
+        let inv = inverse_frequency_table(10000.0, 16, &device);
         let expected = frequency_table(4, inv.div_scalar(2.0)).cos();
         scaled
             .cos
@@ -664,6 +683,34 @@ mod tests {
             .assert_eq(&re.cos.clone().slice_dim(1, 10..20).to_data(), true);
     }
 
+    /// A base that is not positive and finite is refused, naming the field.
+    #[test]
+    fn test_base_must_be_positive_and_finite() {
+        let device = crate::support::testing::cpu_device();
+        for base in [0.0, -10.0, f64::NAN, f64::INFINITY] {
+            let built: BunsenResult<RotaryEmbedding> = RotaryEmbeddingConfig::new(8, 4)
+                .with_base(base)
+                .try_init(&device);
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .display(text::contains("RotaryEmbeddingConfig.base"))
+                .assert_err(&built);
+        }
+    }
+
+    /// A fractional base is used as it is, not truncated: its tables are
+    /// not the whole base's.
+    #[test]
+    fn test_a_fractional_base_is_kept() {
+        let device = crate::support::testing::cpu_device();
+        let tables = |base: f64| {
+            let rotary: RotaryEmbedding = RotaryEmbeddingConfig::new(8, 4)
+                .with_base(base)
+                .init(&device);
+            rotary.cos.into_data().try_to_vec::<f32>().unwrap()
+        };
+        assert_ne!(tables(10.5), tables(10.0));
+    }
+
     #[test]
     #[serial]
     fn test_rotary_embedding() {
@@ -678,7 +725,7 @@ mod tests {
         let config = RotaryEmbeddingConfig::new(seq_len, head_dim);
         assert_eq!(config.seq_len(), seq_len);
         assert_eq!(config.head_dim(), head_dim);
-        assert_eq!(config.base, 10000);
+        assert_eq!(config.base, 10000.0);
 
         let re: RotaryEmbedding = config.init(&device);
         assert_eq!(re.seq_len(), seq_len);
