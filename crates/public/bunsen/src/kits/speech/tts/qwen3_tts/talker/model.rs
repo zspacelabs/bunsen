@@ -5,20 +5,24 @@ use burn::{
     nn::{
         Embedding,
         EmbeddingConfig,
-        Linear,
-        LinearConfig,
     },
     prelude::*,
-    tensor::activation::silu,
 };
 
 use crate::{
-    blocks::transformers::{
-        embedding::RotarySet,
-        models::language_decoder::{
-            LmDecoderMeta,
-            LmDecoderModel,
-            LmKvForwardHidden,
+    blocks::{
+        activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+        },
+        transformers::{
+            embedding::RotarySet,
+            models::language_decoder::{
+                LmDecoderMeta,
+                LmDecoderModel,
+                LmKvForwardHidden,
+            },
         },
     },
     burner::module::ModuleInit,
@@ -33,94 +37,6 @@ use crate::{
         KVCacheModel,
     },
 };
-
-/// Common meta for [`Qwen3TtsResizeMlp`] and [`Qwen3TtsResizeMlpConfig`].
-pub trait Qwen3TtsResizeMlpMeta {
-    /// The input width.
-    fn d_input(&self) -> usize;
-
-    /// The hidden width.
-    fn d_hidden(&self) -> usize;
-
-    /// The output width.
-    fn d_output(&self) -> usize;
-}
-
-/// Config for [`Qwen3TtsResizeMlp`].
-#[derive(Config, Debug)]
-pub struct Qwen3TtsResizeMlpConfig {
-    /// The input width.
-    pub d_input: usize,
-
-    /// The hidden width.
-    pub d_hidden: usize,
-
-    /// The output width.
-    pub d_output: usize,
-}
-
-impl Qwen3TtsResizeMlpMeta for Qwen3TtsResizeMlpConfig {
-    fn d_input(&self) -> usize {
-        self.d_input
-    }
-
-    fn d_hidden(&self) -> usize {
-        self.d_hidden
-    }
-
-    fn d_output(&self) -> usize {
-        self.d_output
-    }
-}
-
-impl ModuleInit<Qwen3TtsResizeMlp> for Qwen3TtsResizeMlpConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Qwen3TtsResizeMlp> {
-        Ok(Qwen3TtsResizeMlp {
-            linear_fc1: LinearConfig::new(self.d_input, self.d_hidden).init(device),
-            linear_fc2: LinearConfig::new(self.d_hidden, self.d_output).init(device),
-        })
-    }
-}
-
-/// The text projection: `linear_fc2(silu(linear_fc1(x)))`, both with biases,
-/// from the text table's width to the talker's.
-///
-/// Built by [`Qwen3TtsResizeMlpConfig`].
-#[derive(Module, Debug)]
-pub struct Qwen3TtsResizeMlp {
-    /// `[D_in, D_h]`.
-    pub linear_fc1: Linear,
-
-    /// `[D_h, D_out]`.
-    pub linear_fc2: Linear,
-}
-
-impl Qwen3TtsResizeMlpMeta for Qwen3TtsResizeMlp {
-    fn d_input(&self) -> usize {
-        self.linear_fc1.weight.dims()[0]
-    }
-
-    fn d_hidden(&self) -> usize {
-        self.linear_fc1.weight.dims()[1]
-    }
-
-    fn d_output(&self) -> usize {
-        self.linear_fc2.weight.dims()[1]
-    }
-}
-
-impl Qwen3TtsResizeMlp {
-    /// `[..., T_w]` to `[..., W]`.
-    pub fn forward<const D: usize>(
-        &self,
-        x: Tensor<D>,
-    ) -> Tensor<D> {
-        self.linear_fc2.forward(silu(self.linear_fc1.forward(x)))
-    }
-}
 
 /// A [`Qwen3TtsTalker`]'s geometry, which its config and the talker answer
 /// alike.
@@ -178,8 +94,9 @@ pub struct Qwen3TtsTalker {
     /// The text table, `[V_t, T_w]`.
     pub text_embedding: Embedding,
 
-    /// The text table's projection to the talker's width.
-    pub text_projection: Qwen3TtsResizeMlp,
+    /// The text table's projection to the talker's width:
+    /// `linear2(silu(linear1(x)))`, both with biases, `T_w -> T_w -> W`.
+    pub text_projection: BunsenMlp,
 }
 
 impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
@@ -191,11 +108,12 @@ impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
         Ok(Qwen3TtsTalker {
             lm,
             text_embedding: EmbeddingConfig::new(self.text_vocab, self.text_width).init(device),
-            text_projection: Qwen3TtsResizeMlpConfig::new(
+            text_projection: BunsenMlpConfig::new(
                 self.text_width,
                 self.text_width,
                 self.lm.d_model,
             )
+            .with_activation(BunsenActivationConfig::Silu)
             .try_init(device)?,
         })
     }
@@ -323,19 +241,6 @@ mod tests {
                     meta.text_width()
                 ],
                 [8, 11, 13, 6]
-            );
-        }
-    }
-
-    /// The config and the projection built from it answer the meta alike.
-    #[test]
-    fn test_resize_mlp_meta() {
-        let config = Qwen3TtsResizeMlpConfig::new(3, 5, 7);
-        let mlp: Qwen3TtsResizeMlp = config.init(&cpu_device());
-        for meta in [&config as &dyn Qwen3TtsResizeMlpMeta, &mlp] {
-            assert_eq!(
-                [meta.d_input(), meta.d_hidden(), meta.d_output()],
-                [3, 5, 7]
             );
         }
     }
