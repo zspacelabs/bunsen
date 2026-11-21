@@ -6,33 +6,52 @@ use burn::{
 
 use super::blocks::Qwen3Asr;
 use crate::{
+    errors::BunsenResult,
     kits::{
         language::driver::CachedLm,
-        support::decoding::{
-            GreedySearch,
-            StackedLm,
-            decode_cached,
+        support::{
+            decoding::{
+                GreedySearch,
+                StackedLm,
+                decode_cached,
+            },
+            tokens::ByteLevelVocabulary,
         },
     },
     ops::transformers::attention::KVCacheStorage,
 };
 
-/// `Qwen3-ASR-0.6B`'s end tokens: `<|endoftext|>` and `<|im_end|>`.
-pub const QWEN3_ASR_EOS: [usize; 2] = [151_643, 151_645];
+/// The pieces that end a Qwen3-ASR decode: the end of the text and of the
+/// assistant's turn.
+const EOS: [&str; 2] = ["<|endoftext|>", "<|im_end|>"];
 
 /// Config for [`Qwen3AsrGreedyDecoder`].
 #[derive(Config, Debug)]
 pub struct Qwen3AsrGreedyDecoderConfig {
+    /// The tokens that end a decode; the last one generated is kept. A
+    /// model's are its vocabulary's `<|endoftext|>` and `<|im_end|>`
+    /// ([`from_vocabulary`](Self::from_vocabulary)).
+    pub eos: Vec<usize>,
+
     /// The most tokens one decode generates.
     #[config(default = "512")]
     pub max_new_tokens: usize,
-
-    /// The tokens that end a decode; the last one generated is kept.
-    #[config(default = "QWEN3_ASR_EOS.to_vec()")]
-    pub eos: Vec<usize>,
 }
 
 impl Qwen3AsrGreedyDecoderConfig {
+    /// The decoder of a model whose vocabulary is `vocab`: its end tokens.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// naming the piece, for an end token the vocabulary lacks.
+    pub fn from_vocabulary(vocab: &ByteLevelVocabulary) -> BunsenResult<Self> {
+        let eos = EOS
+            .iter()
+            .map(|piece| super::prompt::piece_id(vocab, piece))
+            .collect::<BunsenResult<_>>()?;
+        Ok(Self::new(eos))
+    }
+
     /// Builds the decoder.
     pub fn init(&self) -> Qwen3AsrGreedyDecoder {
         Qwen3AsrGreedyDecoder {

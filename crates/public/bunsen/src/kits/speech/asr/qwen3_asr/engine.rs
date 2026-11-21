@@ -197,7 +197,10 @@ impl Qwen3AsrEngine {
     }
 
     /// Lays a reply out for the core: its transcript, one segment over the
-    /// window, or a skip when it has none.
+    /// window, or a skip when it has none. An
+    /// [`Unheaded`](super::Qwen3AsrReplyForm::Unheaded) reply is committed as
+    /// all transcript, as [`parse`](super::Qwen3AsrPromptConfig::parse) reads
+    /// it; the driver has no channel to flag it on.
     fn lay_out(
         &self,
         reply: Qwen3AsrTranscript,
@@ -366,6 +369,7 @@ mod tests {
                         Qwen3AsrFrontEndConfig,
                         Qwen3AsrGreedyDecoderConfig,
                         Qwen3AsrPromptConfig,
+                        Qwen3AsrReplyForm,
                         blocks::{
                             Qwen3Asr,
                             Qwen3AsrAudioEncoderConfig,
@@ -404,13 +408,8 @@ mod tests {
             model,
             front_end: Qwen3AsrFrontEndConfig::new().with_n_mels(16).init(device),
             vocab,
-            prompt: Qwen3AsrPromptConfig::new()
-                .with_prefix(vec![1, 2])
-                .with_suffix(vec![3])
-                .with_text_token(text_token),
-            decoder: Qwen3AsrGreedyDecoderConfig::new()
-                .with_max_new_tokens(3)
-                .with_eos(eos),
+            prompt: Qwen3AsrPromptConfig::new(vec![1, 2], vec![3], text_token),
+            decoder: Qwen3AsrGreedyDecoderConfig::new(eos).with_max_new_tokens(3),
             policy: Default::default(),
             presets: Default::default(),
         }
@@ -508,6 +507,7 @@ mod tests {
             tokens,
             language: language.map(String::from),
             text: String::new(),
+            form: Qwen3AsrReplyForm::Headed,
         };
 
         let decode = engine.lay_out(reply(vec![10, 4, 12, 13, 5, 9], Some("English")), 100);

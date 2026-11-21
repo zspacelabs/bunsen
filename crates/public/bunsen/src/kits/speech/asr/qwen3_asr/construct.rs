@@ -14,6 +14,7 @@ use super::{
     Qwen3AsrFrontEndMeta,
     Qwen3AsrGreedyDecoderConfig,
     Qwen3AsrPromptConfig,
+    Qwen3AsrReplyForm,
     Qwen3AsrTranscript,
     blocks::{
         Qwen3Asr,
@@ -28,9 +29,15 @@ use crate::{
     },
     burner::module::ModuleInit,
     data::catalog::presets::PresetSelection,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     kits::support::tokens::ByteLevelVocabulary,
 };
+
+/// The audio placeholder's piece: a model's `audio_token` is its id.
+const AUDIO_PAD: &str = "<|audio_pad|>";
 
 /// How a Qwen3-ASR pretrained transcribes a stream: the config its lookup's
 /// patch sets (`{window_seconds: 20}`). It has one known policy, this
@@ -85,22 +92,35 @@ impl Qwen3AsrConstruct {
     /// most 30 s.
     pub const MAX_WINDOW_SECONDS: usize = 30;
 
-    /// A construct of `model` and `vocab`, behind the default front end, prompt
-    /// and decoder.
+    /// A construct of `model` and `vocab`, behind the default front end, its
+    /// prompt and end tokens `vocab`'s ids
+    /// ([`Qwen3AsrPromptConfig::from_vocabulary`],
+    /// [`Qwen3AsrGreedyDecoderConfig::from_vocabulary`]).
     ///
     /// # Errors
-    /// As [`Qwen3AsrFrontEndConfig`]'s `try_init`.
+    /// As [`Qwen3AsrFrontEndConfig`]'s `try_init` and the two
+    /// `from_vocabulary`;
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// when the model's audio placeholder is not `vocab`'s `<|audio_pad|>`.
     pub fn new(
         model: Qwen3Asr,
         vocab: ByteLevelVocabulary,
         device: &Device,
     ) -> BunsenResult<Self> {
+        let pad = vocab.added_id(AUDIO_PAD);
+        if pad != Some(model.audio_token()) {
+            return Err(BunsenError::invalid_resource(format!(
+                "a Qwen3-ASR model whose audio placeholder is {}, and whose vocabulary's \
+                 {AUDIO_PAD} is {pad:?}",
+                model.audio_token()
+            )));
+        }
         Ok(Self {
             model,
             front_end: Qwen3AsrFrontEndConfig::new().try_init(device)?,
+            prompt: Qwen3AsrPromptConfig::from_vocabulary(&vocab)?,
+            decoder: Qwen3AsrGreedyDecoderConfig::from_vocabulary(&vocab)?,
             vocab,
-            prompt: Qwen3AsrPromptConfig::new(),
-            decoder: Qwen3AsrGreedyDecoderConfig::new(),
             policy: Qwen3AsrPolicy::default(),
             presets: PresetSelection::default(),
         })
@@ -220,7 +240,8 @@ impl Qwen3AsrConstruct {
     /// cut at the quietest mel frame of the window's last sixth
     /// ([`quiet_cuts`](crate::ops::signal::quiet_cuts)), and each window is
     /// transcribed alone. The texts are joined with spaces; the language is
-    /// the first window's that names one.
+    /// the first window's that names one; the form is
+    /// [`Unheaded`](Qwen3AsrReplyForm::Unheaded) when any window's is.
     ///
     /// # Errors
     /// As [`transcribe`](Self::transcribe).
@@ -238,12 +259,16 @@ impl Qwen3AsrConstruct {
             tokens: Vec::new(),
             language: None,
             text: String::new(),
+            form: Qwen3AsrReplyForm::Headed,
         };
         let mut texts = Vec::new();
         for (a, b) in windows {
             let t = self.transcribe(&samples[a..b], device)?;
             joined.tokens.extend(t.tokens);
             joined.language = joined.language.or(t.language);
+            if t.form == Qwen3AsrReplyForm::Unheaded {
+                joined.form = Qwen3AsrReplyForm::Unheaded;
+            }
             if !t.text.is_empty() {
                 texts.push(t.text);
             }
