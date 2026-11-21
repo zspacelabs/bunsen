@@ -247,7 +247,7 @@ fn test_toy_construct() {
         model: toy.model,
         front_end: Qwen3AsrFrontEndConfig::new()
             .with_n_mels(16)
-            .with_min_seconds(1)
+            .with_chunk_seconds(1)
             .init(&device),
         vocab: toy_vocab(),
         prompt: Qwen3AsrPromptConfig::new(vec![1, 2], vec![3, 4], 5),
@@ -293,7 +293,7 @@ fn test_toy_audio_attention() {
         model: toy.model,
         front_end: Qwen3AsrFrontEndConfig::new()
             .with_n_mels(16)
-            .with_min_seconds(1)
+            .with_chunk_seconds(1)
             .init(&device),
         vocab: toy_vocab(),
         prompt: Qwen3AsrPromptConfig::new(vec![1, 2], vec![3, 4], 5),

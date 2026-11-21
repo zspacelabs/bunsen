@@ -25,11 +25,18 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::support::tokens::ByteLevelVocabulary,
+    kits::{
+        speech::asr::qwen3_asr::interop::transformers::Qwen3AsrFeatureExtractorMirror,
+        support::tokens::ByteLevelVocabulary,
+    },
 };
 
 /// The member of a Phonon-1 archive that describes its packing.
 pub const PHONON_1_MANIFEST: &str = "packed_manifest.json";
+
+/// The member of a Phonon-1 archive that holds its feature extractor's
+/// settings: the original library's `WhisperFeatureExtractor`'s.
+pub const PREPROCESSOR_CONFIG: &str = "preprocessor_config.json";
 
 /// A decoder linear's shape, from the manifest's `modules`.
 #[derive(Debug, Deserialize)]
@@ -103,9 +110,25 @@ impl Phonon1ManifestMirror {
     }
 }
 
+/// A Phonon-1 archive's contents, as [`read_phonon1_archive`] reads them.
+#[derive(Debug)]
+pub struct Phonon1Archive {
+    /// The weights, dense, named as `transformers`'
+    /// `Qwen3ASRForConditionalGeneration` state dict.
+    pub tensors: Vec<PackTensor>,
+
+    /// The vocabulary: `vocab.json` and `tokenizer_config.json`'s added
+    /// tokens.
+    pub vocab: ByteLevelVocabulary,
+
+    /// The feature extractor's settings, its `preprocessor_config.json`, when
+    /// it carries one.
+    pub feature_extractor: Option<Qwen3AsrFeatureExtractorMirror>,
+}
+
 /// Reads a Phonon-1 archive (`phonon-*.bps.tar.zst`): its weights, expanded
 /// to dense tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
-/// state dict, and its vocabulary.
+/// state dict, its vocabulary, and its feature extractor's settings.
 ///
 /// `FermionResearch`'s Phonon-1 builds of `Qwen3-ASR-0.6B` pack their
 /// checkpoint three ways, as `packed_manifest.json` describes:
@@ -126,8 +149,8 @@ impl Phonon1ManifestMirror {
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
 /// the archive cannot be read, a member is missing, or a tensor does not fit
 /// its packing; the error carries `path`.
-pub fn read_phonon1_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, ByteLevelVocabulary)> {
-    let read = || -> BunsenResult<(Vec<PackTensor>, ByteLevelVocabulary)> {
+pub fn read_phonon1_archive(path: &Path) -> BunsenResult<Phonon1Archive> {
+    let read = || -> BunsenResult<Phonon1Archive> {
         let mut archive = PhononArchive::read(path)?;
         let manifest = Phonon1ManifestMirror::parse(archive.expect(PHONON_1_MANIFEST)?)?;
         let text = |archive: &PhononArchive, name: &str| -> BunsenResult<String> {
@@ -139,6 +162,14 @@ pub fn read_phonon1_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, ByteL
             &text(&archive, "vocab.json")?,
             Some(&text(&archive, "tokenizer_config.json")?),
         )?;
+        let feature_extractor = match archive.get(PREPROCESSOR_CONFIG) {
+            Some(_) => Some(
+                serde_json::from_str(&text(&archive, PREPROCESSOR_CONFIG)?).map_err(|e| {
+                    BunsenError::invalid_resource(format!("`{PREPROCESSOR_CONFIG}`: {e}"))
+                })?,
+            ),
+            None => None,
+        };
 
         let mut stored = Vec::new();
         for shard in &manifest.shards {
@@ -160,7 +191,11 @@ pub fn read_phonon1_archive(path: &Path) -> BunsenResult<(Vec<PackTensor>, ByteL
                 .collect::<Vec<_>>();
             stored.extend(tensors);
         }
-        Ok((expand_phonon1(&manifest, stored)?, vocab))
+        Ok(Phonon1Archive {
+            tensors: expand_phonon1(&manifest, stored)?,
+            vocab,
+            feature_extractor,
+        })
     };
     read().map_err(|e| e.context(path.display()))
 }
@@ -462,12 +497,14 @@ mod tests {
 }
 
 /// The model of `loaded`'s Phonon-1 archive (its `checkpoint`), built from
-/// `config` (the catalog row's geometry: the archive has no `config.json`),
-/// and the vocabulary the archive carries; the weights in the stored dtype
-/// where `policy` and the device allow it, never f16.
+/// `config` (the catalog row's geometry), the vocabulary the archive carries,
+/// and the front end its `preprocessor_config.json` describes, when it carries
+/// one; the weights in the stored dtype where `policy` and the device allow
+/// it, never f16.
 ///
 /// # Errors
-/// As [`read_phonon1_archive`], and as the `transformers` loader.
+/// As [`read_phonon1_archive`], as the `transformers` loader, and as
+/// [`Qwen3AsrFeatureExtractorMirror`]'s conversion and model check.
 #[cfg(feature = "cache")]
 pub fn load_qwen3_asr(
     loaded: &crate::data::resources::LoadedResourceSet,
@@ -477,11 +514,26 @@ pub fn load_qwen3_asr(
 ) -> BunsenResult<(
     crate::kits::speech::asr::qwen3_asr::Qwen3Asr,
     ByteLevelVocabulary,
+    Option<crate::kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndConfig>,
 )> {
     use crate::kits::speech::asr::qwen3_asr::{
         interop::transformers::build_qwen3_asr,
         pretrained::CHECKPOINT,
     };
-    let (tensors, vocab) = read_phonon1_archive(loaded.expect(CHECKPOINT)?)?;
-    Ok((build_qwen3_asr(tensors, config, device, policy)?, vocab))
+    let path = loaded.expect(CHECKPOINT)?;
+    let archive = read_phonon1_archive(path)?;
+    let front_end = match &archive.feature_extractor {
+        Some(extractor) => Some(
+            extractor
+                .check_model(config)
+                .and_then(|()| extractor.front_end_config())
+                .map_err(|e| e.context(path.display()))?,
+        ),
+        None => None,
+    };
+    Ok((
+        build_qwen3_asr(archive.tensors, config, device, policy)?,
+        archive.vocab,
+        front_end,
+    ))
 }

@@ -28,15 +28,21 @@ pub trait Qwen3AsrFrontEndMeta {
     /// The mel channel count.
     fn n_mels(&self) -> usize;
 
-    /// The shortest window, in samples.
+    /// The shortest window, in samples: the chunk, which shorter audio is
+    /// zero-padded to.
     fn min_samples(&self) -> usize;
 
-    /// The valid frames of a `samples`-long utterance: `ceil(samples / hop)`.
+    /// The shortest audio whose frames are all valid, in samples: shorter
+    /// audio is zero-padded to it, and the padding counted as valid.
+    fn min_valid_samples(&self) -> usize;
+
+    /// The valid frames of a `samples`-long utterance:
+    /// `ceil(max(samples, min_valid_samples) / hop)`.
     fn valid_frames(
         &self,
         samples: usize,
     ) -> usize {
-        samples.div_ceil(self.hop())
+        samples.max(self.min_valid_samples()).div_ceil(self.hop())
     }
 }
 
@@ -49,9 +55,17 @@ pub struct Qwen3AsrFrontEndConfig {
     #[config(default = "128")]
     pub n_mels: usize,
 
-    /// The shortest window, in seconds: shorter audio is zero-padded to it.
+    /// The chunk, in seconds (upstream's `chunk_length`): shorter audio is
+    /// zero-padded to it, and a construct transcribes at most this much at
+    /// once (the utterances the model was trained on).
     #[config(default = "30")]
-    pub min_seconds: usize,
+    pub chunk_seconds: usize,
+
+    /// The shortest audio whose frames are all valid, in samples (upstream's
+    /// `min_length`; the original library's half second): shorter audio is
+    /// zero-padded to it before the chunk, and the encoder reads the padding.
+    #[config(default = "8000")]
+    pub min_valid_samples: usize,
 
     /// The Whisper front end this one is.
     #[config(default = "WhisperFrontEndConfig::new()")]
@@ -72,7 +86,11 @@ impl Qwen3AsrFrontEndMeta for Qwen3AsrFrontEndConfig {
     }
 
     fn min_samples(&self) -> usize {
-        self.min_seconds * self.whisper.sample_rate
+        self.chunk_seconds * self.whisper.sample_rate
+    }
+
+    fn min_valid_samples(&self) -> usize {
+        self.min_valid_samples
     }
 }
 
@@ -88,14 +106,17 @@ impl ModuleInit<Qwen3AsrFrontEnd> for Qwen3AsrFrontEndConfig {
     }
 }
 
-/// Qwen3-ASR's feature extractor: Whisper's, over windows of at least 30 s.
+/// Qwen3-ASR's feature extractor: Whisper's, over windows of at least a chunk
+/// (the release's 30 s).
 ///
 /// `transformers`' `Qwen3ASRFeatureExtractor` is Whisper's: the waveform
-/// zero-padded to 30 s, a centred 25 ms Hann STFT every 10 ms with its last
-/// frame dropped, log10 mels floored 8 dB under the window's maximum, then
+/// zero-padded to the chunk, a centred 25 ms Hann STFT every 10 ms with its
+/// last frame dropped, log10 mels floored 8 dB under the window's maximum, then
 /// `(x + 4) / 4`. A longer utterance is one window of its own length. The
-/// first [`valid_frames`](Qwen3AsrFrontEndMeta::valid_frames) are valid; the
-/// encoder reads only those.
+/// first [`valid_frames`](Qwen3AsrFrontEndMeta::valid_frames) are valid,
+/// audio under [`min_valid_samples`](Qwen3AsrFrontEndConfig::min_valid_samples)
+/// counted as padded to it, as upstream pads it; the encoder reads only
+/// those.
 ///
 /// It is [`WhisperFrontEndConfig`]'s converter and packaging, shared. The
 /// converter's tables are bare tensors: moved by `to_device`, not recorded,
@@ -128,6 +149,10 @@ impl Qwen3AsrFrontEndMeta for Qwen3AsrFrontEnd {
 
     fn min_samples(&self) -> usize {
         self.config.min_samples()
+    }
+
+    fn min_valid_samples(&self) -> usize {
+        self.config.min_valid_samples
     }
 }
 
@@ -187,17 +212,22 @@ mod tests {
         let device = cpu_device();
         let config = Qwen3AsrFrontEndConfig::new()
             .with_n_mels(80)
-            .with_min_seconds(2)
+            .with_chunk_seconds(2)
+            .with_min_valid_samples(4000)
             .with_whisper(WhisperFrontEndConfig::new().with_range_clamp_db(6.0));
         let front: Qwen3AsrFrontEnd = config.init(&device);
         assert_eq!(front.sample_rate(), config.sample_rate());
         assert_eq!(front.hop(), config.hop());
         assert_eq!(front.n_mels(), config.n_mels());
         assert_eq!(front.min_samples(), config.min_samples());
+        assert_eq!(front.min_valid_samples(), 4000);
         assert_eq!(front.devices(), vec![device.clone()]);
 
+        // 1000 samples count as the 4000 they are padded to: 25 frames
         let (features, valid) = front.forward(&vec![0.1; 1000], &device).unwrap();
         assert_eq!(features.dims(), [80, 200]);
-        assert_eq!(valid, 7);
+        assert_eq!(valid, 25);
+        let (_, valid) = front.forward(&vec![0.1; 10_000], &device).unwrap();
+        assert_eq!(valid, 63);
     }
 }

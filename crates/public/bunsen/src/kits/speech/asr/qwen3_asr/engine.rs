@@ -46,10 +46,9 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 /// - **Features:** the construct's log-mels, streamed ([`LogMelFeatures`]), and
 ///   packaged per window as its front end packages an utterance: floored 8 dB
 ///   under the window's [`MaxLevel`], scaled, and padded with silence to the
-///   front end's 30 s. A window is at most
-///   [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS) of frames by
-///   default, and never more
-///   ([`with_window_seconds`](Self::with_window_seconds)).
+///   front end's chunk. A window is at most the construct's
+///   [`max_window`](Qwen3AsrConstruct::max_window) of frames by default, and
+///   never more ([`with_window_seconds`](Self::with_window_seconds)).
 /// - **Decode:**
 ///   [`transcribe_features`](Qwen3AsrConstruct::transcribe_features), one
 ///   window at a time: the greedy decoder takes one prompt. A reply's
@@ -87,8 +86,8 @@ pub struct Qwen3AsrEngine {
 impl Qwen3AsrEngine {
     /// The engine of `bundle`, on the model's device, with windows of at most
     /// its policy's [`window_seconds`](super::Qwen3AsrPolicy::window_seconds)
-    /// ([`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS) by
-    /// default), each full one cut at a quiet point.
+    /// ([`max_window`](Qwen3AsrConstruct::max_window) by default), each full
+    /// one cut at a quiet point.
     ///
     /// # Errors
     /// As [`with_window_seconds`](Self::with_window_seconds), for the
@@ -134,8 +133,8 @@ impl Qwen3AsrEngine {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`](crate::errors::ConstraintError) cause, if that is
     /// under one frame, or over
-    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), the most
-    /// the model was trained on.
+    /// [`max_window`](Qwen3AsrConstruct::max_window), the most the model was
+    /// trained on.
     pub fn with_window_seconds(
         mut self,
         seconds: f64,

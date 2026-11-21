@@ -138,7 +138,7 @@ impl ConstructInit for Qwen3AsrConstructConfig {
                 .unwrap_or_else(Qwen3AsrConfig::qwen3_asr_0_6b),
         };
         let n_mels = config.audio.n_mels;
-        let (asr, vocab) = match self.reader {
+        let (asr, vocab, front_end) = match self.reader {
             Qwen3AsrReader::Safetensors => {
                 transformers::load_qwen3_asr(loaded, &config, device, load)?
             }
@@ -151,11 +151,11 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         )?;
         let mut bundle = Qwen3AsrConstruct::new(asr, vocab, device)?
             .with_policy(policy.config.clone(), policy.applied());
-        if n_mels != bundle.front_end.config.n_mels {
-            bundle.front_end = Qwen3AsrFrontEndConfig::new()
-                .with_n_mels(n_mels)
-                .try_init(device)?;
-        }
+        // the front end the model's files describe; without one, the default
+        // at the model's mel count
+        let front_end =
+            front_end.unwrap_or_else(|| Qwen3AsrFrontEndConfig::new().with_n_mels(n_mels));
+        bundle.front_end = front_end.try_init(device)?;
         Ok(Arc::new(bundle))
     }
 }
