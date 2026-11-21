@@ -62,6 +62,6 @@ and `--preset` adds to its box; a name no provider has fails with the names
 nearest it, as "did you mean?"; `bunsen-tool asr family whisper inspect`
 checks a checkpoint against the geometry its build states, and
 `bunsen-tool asr family whisper prefabs` lists the geometries;
-`bunsen-tool cache` lists and clears what the cache holds. Its
-[README](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md#whisper-models)
-explains Whisper's builds.
+`bunsen-tool cache` lists and clears what the cache holds.
+[Loading builds](./data/builds.md) explains how Whisper's builds, prefabs
+and resources fit together.

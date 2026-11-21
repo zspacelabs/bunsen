@@ -16,7 +16,7 @@
 //!
 //! - `asr` (feature `speech`): presets and model families for speech to text,
 //!   the stream drivers, the publishers; `asr::AsrCommandGroup`.
-//! - `tts` (feature `speech`): text to speech with ZONOS3-Mini;
+//! - `tts` (feature `speech`): text to speech with ZONOS3-Mini or Qwen3-TTS;
 //!   `tts::TtsCommandGroup`.
 //! - [`chat`]: the chat driver; [`chat::ChatCommandGroup`].
 //! - [`decide`]: Laya decisions on typed questions;

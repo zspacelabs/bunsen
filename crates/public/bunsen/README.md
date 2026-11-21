@@ -1,4 +1,4 @@
-# bunsen - tackling tomorrow's burn problems today!
+# bunsen - inventing tomorrow's burn problems today!
 
 *by [ZSpaceLabs](https://zspacelabs.ai)*
 
@@ -8,48 +8,19 @@
 [![Discord](https://img.shields.io/discord/1475229838754316502?label=discord)](https://discord.gg/vBgXHWCeah)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zspacelabs/bunsen)
 
-The [burn](https://burn.dev) team is working hard to give us a stable long term foundation
-for developing high-performance and maintainable tensor programming in
-Rust; The "in Rust" aspect requires a degree of type and runtime R&D research
-and that requires a conservative posture to api extension.
-
-`bunsen` provides a "batteries included" complementary community standard library
-for research extensions to `burn`; ideas which are useful enough
-to collect into one place, document, and build upon; but front-run
-the `burn` interface frontier.
-Every idea in `bunsen` seeks to either be refined and ported into `burn`,
-or supplanted by the eventual `burn` solution to that problem.
-
+- [bunsen-tool](https://crates.io/crates/bunsen-tool) - cli model tool: chat, asr, tts, and decision models.
 - [The bunsen book](https://zspacelabs.ai/bunsen/book/) explains how bunsen is organized, the systems that cut across
   it, and how it is developed. Start with
   [Installing and first use](https://zspacelabs.ai/bunsen/book/organization/install.html).
-- [The API docs](https://docs.rs/bunsen/latest/bunsen/) document every type and lifecycle, with worked examples, and
-  list the crate's features.
+- [The API docs](https://docs.rs/bunsen/latest/bunsen/) document every type and lifecycle, with worked examples.
 
-## Kits
+#### Pretrained Catalog
 
-A kit is a whole model, with its configs and the weights it loads by name
-([Kits](https://zspacelabs.ai/bunsen/book/organization/kits.html)):
+`bunsen` ships with an extensive catalog of pretrained models, and the caching and loading mechanisms needed to load and
+run them.
 
-- [`language::decision::laya`](https://docs.rs/bunsen/latest/bunsen/kits/language/decision/laya/index.html): Laya, an open decision
-  model: typed questions about a state answered with calibrated probabilities, with its checkpoints by name.
-- [`images::classification::resnet`](https://docs.rs/bunsen/latest/bunsen/kits/images/classification/resnet/index.html): ResNet image classifiers,
-  with torchvision's and `timm`'s checkpoints by name.
-- [`images::classification::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/images/classification/swin/v2/index.html): Swin Transformer V2
-  image classifiers, without pretrained weights.
-- [`language::generation::nanochat`](https://docs.rs/bunsen/latest/bunsen/kits/language/generation/nanochat/index.html): a port of karpathy's
-  nanochat GPT, and the corpus it trains on. Work in progress.
-- [`speech::asr::whisper`](https://docs.rs/bunsen/latest/bunsen/kits/speech/asr/whisper/index.html): OpenAI's Whisper, with
-  a pretrained index, decoders, and a stream driver.
-- [`speech::vad::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/vad/silero_vad/index.html): the Silero
-  voice-activity detector, with weights a build can bundle.
-- [`language::encoders::modernbert`](https://docs.rs/bunsen/latest/bunsen/kits/language/encoders/modernbert/index.html):
-  Answer.AI's ModernBERT text encoder, which Laya is built on.
-- [`support`](https://docs.rs/bunsen/latest/bunsen/kits/support/index.html): not a model; what kits of more than one
-  family share: the ids-to-text seam, and the decoding search machinery.
-
-The builds the kits run, by command, contract and publisher, as `bunsen-tool summary` prints them
-(`cargo make cards` rebuilds this card):
+<details>
+<summary>Click to expand the pretrained catalog summary.</summary>
 
 <!-- card: bunsen-tool summary -->
 
@@ -389,12 +360,180 @@ The builds the kits run, by command, contract and publisher, as `bunsen-tool sum
 ```
 
 <!-- /card -->
+</details>
 
+## What is bunsen?
+
+__bunsen - inventing tomorrow's burn problems today!__
+
+The [burn](https://burn.dev) community is building a stable, long-term foundation for high-performance,
+maintainable tensor programming in Rust; work which requires extensive incremental
+novel research into Rust type and runtime extensions.
+
+`bunsen` contributes to the community work as a "batteries included" standard library for the frontier, by driving real
+models and
+applications ahead of the `burn` foundation: exploring the novel problems they raise, unifying their partial
+solutions incrementally, and upstreaming stabilized components back into `burn`.
+
+The frontier has two halves: the components model families are built from, and the runtime around
+those models (loading, driving and testing them). `bunsen` drives research through a development
+pipeline in which each stage increases breadth:
+
+- The frontier is **Expanded** by porting new model families and the components they need, widening
+  what is possible.
+- The model families are **Consolidated** by building and improving the runtime around those applications (loading,
+  driving,
+  testing), making them supportable.
+- Bespoke solutions are incrementally **Unified** into shared parts, making the next family easier to develop.
+- Stabilized foundations are **Upstreamed** into `burn`, making them standard.
+
+Every idea in `bunsen` is headed for `burn`: refined and ported, or supplanted by `burn`'s own
+solution.
+
+<table>
+  <tr>
+    <th colspan="5" align="left">Expansion</th>
+  </tr>
+  <tr>
+    <td colspan="5"><i>The frontier, expanded by porting new model families and the components they need,
+      widening what is possible.</i></td>
+  </tr>
+  <tr>
+    <th rowspan="2">Generative language</th>
+    <th rowspan="2">Decision</th>
+    <th colspan="2">Speech</th>
+    <th rowspan="2">Image classification</th>
+  </tr>
+  <tr>
+    <th>ASR</th>
+    <th>VAD</th>
+  </tr>
+  <tr>
+    <td>Gemma 1, 2, 3</td>
+    <td>Laya</td>
+    <td>Whisper</td>
+    <td>Silero VAD</td>
+    <td>ResNet</td>
+  </tr>
+  <tr>
+    <td>Qwen3, 3.5</td>
+    <td></td>
+    <td>Qwen3-ASR</td>
+    <th>Diarization</th>
+    <td></td>
+  </tr>
+  <tr>
+    <td>nanochat</td>
+    <td></td>
+    <td>Parakeet</td>
+    <td>Sortformer</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td>Voxtral</td>
+    <th>TTS</th>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td>Qwen3-TTS</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td></td>
+    <td></td>
+    <td>ZONOS3</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td colspan="5">pretrained public model catalog: 87 models</td>
+  </tr>
+  <tr>
+    <th colspan="5" align="left">Consolidation</th>
+  </tr>
+  <tr>
+    <td colspan="5"><i>
+Model family support consolidation (loading, driving, testing):</i></td>
+  </tr>
+  <tr>
+    <td><b>chat driver:</b><br>cached LMs<br>streamed text<br>stop strings</td>
+    <td><b>decision models:</b><br>prompt building<br>calibrated answers</td>
+    <td><b>ASR stream driver:</b><br>emission policies<br>VAD gate<br>speaker attribution<br>stream clock<br>batched streams</td>
+    <td><b>diarization:</b><br>turns, RTTM<br><b>TTS driver:</b><br>request stages<br>take splitting<br>seeding</td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><code>bunsen-tool chat</code></td>
+    <td><code>bunsen-tool decide</code></td>
+    <td><code>bunsen-tool asr</code>:<br>microphone capture<br>transcript publishers</td>
+    <td><code>bunsen-tool tts</code>:<br>speaker playback</td>
+    <td></td>
+  </tr>
+  <tr>
+    <th>find and fetch</th>
+    <th>load</th>
+    <th>text in and out</th>
+    <th>decoding</th>
+    <th>audio</th>
+  </tr>
+  <tr>
+    <td>model catalog<br>pinned resources<br>disk cache<br>hub mirrors<br>offline bundles</td>
+    <td>checkpoint readers<br>rekeying<br>dtype placement<br>config interop</td>
+    <td>tokenizers<br>text normalizers<br>chat templates<br>stop strings</td>
+    <td>searches, sampling<br>rewindable KV caches<br>linear-attention state</td>
+    <td>streaming STFT<br>log-mel front ends<br>quiet-point cuts<br>audio decoding</td>
+  </tr>
+  <tr>
+    <th>every command</th>
+    <th colspan="2">testing</th>
+    <th colspan="2">training</th>
+  </tr>
+  <tr>
+    <td>device selection<br>precision flags</td>
+    <td colspan="2">validation against reference implementations<br>audit probes and baselines<br>test
+      devices</td>
+    <td colspan="2">shard-set datasets<br>Arrow dataloaders<br>parameter groups</td>
+  </tr>
+  <tr>
+    <th colspan="5" align="left">Unification</th>
+  </tr>
+  <tr>
+    <td colspan="5"><i>Bespoke solutions, incrementally unified into shared parts, making the next family
+      easier to develop.</i></td>
+  </tr>
+  <tr>
+    <th colspan="2">runtime needs and meta-traits</th>
+    <th colspan="3">model isomorphisms</th>
+  </tr>
+  <tr>
+    <td colspan="2"><code>burn</code> reflective meta-descriptions<br>recurrent <code>Config</code> and
+      <code>Module</code> traits<br>optimizer extensions<br>shape contracts<br>weight caching<br>common
+      format loading and probing</td>
+    <td colspan="3">~60 structural combinator <code>Module</code>s in <code>bunsen::blocks</code><br>~14
+      model family kits in <code>bunsen::kits</code>, mostly near-trivial combinations of
+      <code>bunsen::blocks</code></td>
+  </tr>
+  <tr>
+    <th colspan="5" align="left">Upstreaming</th>
+  </tr>
+  <tr>
+    <td colspan="5"><i>Stabilized foundations, upstreamed into <code>burn</code>, making them
+      standard.</i></td>
+  </tr>
+  <tr>
+    <td colspan="5"><a href="https://github.com/tracel-ai/burn/pulls?q=is%3Apr+state%3Aclosed+author%3Acrutcher">&gt;100 merged burn PRs</a></td>
+  </tr>
+</table>
 
 ## Simulations
 
-Simulations written as tensor programs, built the way the kits are, a config and a state you step
-([`bunsen::sims`](https://docs.rs/bunsen/latest/bunsen/sims/index.html)):
+Simulations written as tensor programs, built the way the kits are, a config and a state you step ([
+`bunsen::sims`](https://docs.rs/bunsen/latest/bunsen/sims/index.html)):
 
 - [`sims::conway`](https://docs.rs/bunsen/latest/bunsen/sims/conway/index.html): Conway's Game of Life on
   toroidal 2D and 3D boards.
@@ -402,17 +541,24 @@ Simulations written as tensor programs, built the way the kits are, a config and
 
 ## The workspace
 
-Most users depend on `bunsen` alone. The [bunsen repository](https://github.com/zspacelabs/bunsen) also publishes its
-companion crates (the firehose data pipeline, a Parquet-to-tokens data loader, the shape-contract macro, and bundled
-model assets), and holds the development, validation, and example crates.
-[The workspace](https://zspacelabs.ai/bunsen/book/organization/workspace.html) describes each one.
+Most users depend on `bunsen` alone. The [bunsen repository](https://github.com/zspacelabs/bunsen) also publishes its companion crates (the firehose data
+pipeline, a Parquet-to-tokens data loader, the shape-contract macro, and bundled model assets), and holds the
+development, validation and example
+crates. [The workspace](https://zspacelabs.ai/bunsen/book/organization/workspace.html)
+describes each one.
 
 ## Examples
 
-The repository's [`examples/`](https://github.com/zspacelabs/bunsen/tree/main/examples) directory holds runnable
-programs, one or more per kit or system. The book's
+[`examples/`](https://github.com/zspacelabs/bunsen/tree/main/examples) holds runnable programs, one or more per kit or system: speech to text, image-model training
+and fine-tuning, GPT training, and live simulations. The book's
 [Examples](https://zspacelabs.ai/bunsen/book/organization/examples.html) page says what each one shows.
+
+## Contributing
+
+[CONTRIBUTING.md](https://github.com/zspacelabs/bunsen/blob/main/CONTRIBUTING.md) has the setup, the checks a pull request must pass, and the release process.
 
 ## License
 
 `bunsen` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+See [LICENSE-APACHE](https://github.com/zspacelabs/bunsen/blob/main/LICENSE-APACHE) and [LICENSE-MIT](https://github.com/zspacelabs/bunsen/blob/main/LICENSE-MIT) for details. Opening a pull request is assumed to
+signal agreement with these licensing terms.

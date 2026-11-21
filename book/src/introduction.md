@@ -1,18 +1,35 @@
 # Introduction
 
-## bunsen - tackling tomorrow's burn problems today!
+## bunsen - inventing tomorrow's burn problems today!
 
-The [burn](https://burn.dev) team is working hard to give us a stable long term foundation
-for developing high-performance and maintainable tensor programming in
-Rust; The "in Rust" aspect requires a degree of type and runtime R&D research
-and that requires a conservative posture to api extension.
+The [burn](https://burn.dev) community is building a stable, long-term
+foundation for high-performance, maintainable tensor programming in Rust;
+work which requires extensive incremental novel research into Rust type and
+runtime extensions.
 
-`bunsen` provides a "batteries included" complementary community standard library
-for research extensions to `burn`; ideas which are useful enough
-to collect into one place, document, and build upon; but front-run
-the `burn` interface frontier.
-Every idea in `bunsen` seeks to either be refined and ported into `burn`,
-or supplanted by the eventual `burn` solution to that problem.
+`bunsen` contributes to the community work as a "batteries included"
+standard library for the frontier, by driving real models and applications
+ahead of the `burn` foundation: exploring the novel problems they raise,
+unifying their partial solutions incrementally, and upstreaming stabilized
+components back into `burn`.
+
+The frontier has two halves: the components model families are built from,
+and the runtime around those models (loading, driving and testing them).
+`bunsen` drives research through a development pipeline in which each stage
+increases breadth:
+
+- The frontier is **Expanded** by porting new model families and the
+  components they need, widening what is possible.
+- The model families are **Consolidated** by building and improving the
+  runtime around those applications (loading, driving, testing), making them
+  supportable.
+- Bespoke solutions are incrementally **Unified** into shared parts, making
+  the next family easier to develop.
+- Stabilized foundations are **Upstreamed** into `burn`, making them
+  standard.
+
+Every idea in `bunsen` is headed for `burn`: refined and ported, or
+supplanted by `burn`'s own solution.
 
 ## This book and the API docs
 

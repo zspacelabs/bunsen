@@ -10,7 +10,7 @@ license.workspace = true
 rust-version.workspace = true
 homepage = "https://zspacelabs.ai/bunsen/book/"
 documentation = "https://docs.rs/bunsen/latest/"
-description = "bunsen is a batteries included common library for burn"
+description = "bunsen is a batteries included standard library for the burn frontier"
 
 # docs.rs builds this feature list, not `all-features`: the backends only
 # change which device `support::testing::performance_device()` returns. The

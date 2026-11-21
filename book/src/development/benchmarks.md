@@ -28,10 +28,9 @@ Outside the benches:
   `benchmark` subcommand reports the sustained steps per second of the 2D or
   3D Game of Life on the device `--device` selects. It measures the tensor
   kernels behind the simulation kits.
-- [`bunsen-tool`](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md#benchmarks)'s
+- [`bunsen-tool`](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md)'s
   `transcribe` logs, at `-v`, each file's audio length, transcription time
-  and realtime factor, and the totals over the set. Its README runs it over
-  a speech dataset.
+  and realtime factor, and the totals over the set.
 
 ## Cold and warm
 
