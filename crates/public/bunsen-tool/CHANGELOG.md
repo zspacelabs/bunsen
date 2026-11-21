@@ -10,6 +10,31 @@ release (0.41.0), is in [its changelog](https://github.com/zspacelabs/bunsen/blo
 
 ## [Unreleased]
 
+## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.42.0...bunsen-tool-v0.43.0) - 2026-11-21
+
+### Added
+
+- *(qwen3_asr)* [**breaking**] the front end is read from the model's feature-extractor file ([#846](https://github.com/zspacelabs/bunsen/pull/846))
+- *(bunsen-tool)* [**breaking**] `tts run`'s normalizer specs and each family's own flags ([#780](https://github.com/zspacelabs/bunsen/pull/780))
+- *(bunsen-tool)* [**breaking**] `tts` across every TTS family ([#779](https://github.com/zspacelabs/bunsen/pull/779))
+- *(tts)* long text spoken as several takes ([#777](https://github.com/zspacelabs/bunsen/pull/777))
+- *(tts)* [**breaking**] the TTS driver core, with ZONOS3 as its first engine ([#776](https://github.com/zspacelabs/bunsen/pull/776))
+- *(bunsen-tool)* `text normalize` and `text normalizers` ([#754](https://github.com/zspacelabs/bunsen/pull/754))
+- *(text)* Zyphra's normalizer behind `TextNormalizer`; ZONOS3 normalizes through it ([#752](https://github.com/zspacelabs/bunsen/pull/752))
+- *(bunsen-tool)* `--min-precision` on every command that loads a model ([#732](https://github.com/zspacelabs/bunsen/pull/732))
+- *(bunsen-tool)* `tts voices`, the stock voices without the model ([#727](https://github.com/zspacelabs/bunsen/pull/727))
+
+### Other
+
+- *(kits)* [**breaking**] the decoder-only language models are `language::generation` ([#852](https://github.com/zspacelabs/bunsen/pull/852))
+- *(kits)* [**breaking**] the decision models are `language::decision` ([#851](https://github.com/zspacelabs/bunsen/pull/851))
+- *(zonos3)* [**breaking**] ZONOS3's files move to `zonos3::interop::zonos` ([#806](https://github.com/zspacelabs/bunsen/pull/806))
+- *(qwen3_tts)* [**breaking**] Qwen3-TTS's files move to `qwen3_tts::interop::qwen_tts`, the interop pilot ([#798](https://github.com/zspacelabs/bunsen/pull/798))
+- crutcher/tts voice info ([#729](https://github.com/zspacelabs/bunsen/pull/729))
+- crutcher/tts play ([#726](https://github.com/zspacelabs/bunsen/pull/726))
+- crutcher/tts tool ([#725](https://github.com/zspacelabs/bunsen/pull/725))
+- [**breaking**] the windowed-sinc `Resampler` moves to bunsen's `support::audio` ([#723](https://github.com/zspacelabs/bunsen/pull/723))
+
 ## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.41.0...bunsen-tool-v0.42.0) - 2026-11-13
 
 ### Added
