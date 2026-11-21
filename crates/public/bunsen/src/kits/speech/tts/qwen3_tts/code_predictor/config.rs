@@ -9,7 +9,7 @@ use crate::{
     },
     burner::module::ToStructureConfig,
     errors::BunsenResult,
-    kits::language::qwen3::Qwen3Config,
+    kits::language::generation::qwen3::Qwen3Config,
 };
 
 /// Config for Qwen3-TTS's code predictor: a Qwen3 stack (QK-norm before the

@@ -24,7 +24,7 @@ use crate::{
     burner::module::Rekey,
     errors::BunsenResult,
     kits::{
-        language::qwen3::interop::transformers::{
+        language::generation::qwen3::interop::transformers::{
             qwen3_config,
             text_layer_rekey,
         },

@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bunsen::{
     errors::BunsenResult,
     kits::{
-        language::nanochat::NanoChatGpt,
+        language::generation::nanochat::NanoChatGpt,
         support::{
             construct::LmConstruct,
             model_config::GenerationPolicy,
@@ -33,7 +33,7 @@ use crate::chat::{
 ///
 /// nanochat's checkpoints carry no generation config: its sampling is the
 /// kit's policy
-/// ([`nanochat_default_policy`](bunsen::kits::language::nanochat::nanochat_default_policy),
+/// ([`nanochat_default_policy`](bunsen::kits::language::generation::nanochat::nanochat_default_policy),
 /// upstream's chat scripts'), and a reply ends at its tokenizer's
 /// `<|assistant_end|>` or `<|bos|>`. It has no thinking switch.
 pub type NanoChatChat = LmChat<NanoChatGpt>;

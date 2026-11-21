@@ -9,7 +9,7 @@ use crate::{
         BunsenResult,
     },
     kits::{
-        language::qwen3::{
+        language::generation::qwen3::{
             Qwen3Config,
             interop::transformers::text_layer_rekey,
         },

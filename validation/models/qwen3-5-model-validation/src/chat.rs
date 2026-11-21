@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use bunsen::{
     data::resources::ResourceSet,
     kits::{
-        language::qwen3_5::{
+        language::generation::qwen3_5::{
             CHAT_TEMPLATE,
             TOKENIZER,
             TOKENIZER_CONFIG,

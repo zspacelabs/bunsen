@@ -456,7 +456,7 @@ impl ChatThinkingFilter {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::kits::language::{
+    use bunsen::kits::language::generation::{
         nanochat::pretrained::DEFAULT_NANOCHAT_MODEL,
         qwen3::pretrained::DEFAULT_QWEN3_MODEL,
     };

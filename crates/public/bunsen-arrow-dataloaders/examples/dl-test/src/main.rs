@@ -8,7 +8,7 @@ use bunsen::{
         cache::BunsenDiskCache,
         datasets::ShardSetDescriptor,
     },
-    kits::language::nanochat::datasets::FINEWEB_EDU_100B_SHUFFLE,
+    kits::language::generation::nanochat::datasets::FINEWEB_EDU_100B_SHUFFLE,
     support::testing::performance_device,
 };
 use bunsen_app::{

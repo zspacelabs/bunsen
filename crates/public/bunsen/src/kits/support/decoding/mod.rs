@@ -28,7 +28,7 @@
 //!
 //! [`speech::asr::whisper::decode`](crate::kits::speech::asr::whisper::decode)
 //! runs its own loop over these parts (its cache is grouped across beams);
-//! [`language::qwen3`](crate::kits::language::qwen3) is a [`CachedStep`],
+//! [`language::generation::qwen3`](crate::kits::language::generation::qwen3) is a [`CachedStep`],
 //! decoded by [`decode_cached`].
 
 mod beam;

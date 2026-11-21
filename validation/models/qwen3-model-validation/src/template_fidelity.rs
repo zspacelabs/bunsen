@@ -1,6 +1,6 @@
 //! The `thinking-mode` presets' default against each chat template's own.
 
-use bunsen::kits::language::qwen3::{
+use bunsen::kits::language::generation::qwen3::{
     Qwen3Policy,
     TOKENIZER_CONFIG,
     pretrained::default_qwen3_factory,

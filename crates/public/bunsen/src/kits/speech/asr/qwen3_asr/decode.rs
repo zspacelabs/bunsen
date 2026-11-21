@@ -8,7 +8,7 @@ use super::blocks::Qwen3Asr;
 use crate::{
     errors::BunsenResult,
     kits::{
-        language::driver::CachedLm,
+        language::generation::driver::CachedLm,
         support::{
             decoding::{
                 GreedySearch,

@@ -352,7 +352,7 @@ mod tests {
         burner::module::ModuleInit,
         errors::BunsenErrorKind,
         kits::{
-            language::qwen3::Qwen3Config,
+            language::generation::qwen3::Qwen3Config,
             speech::{
                 asr::{
                     driver::{

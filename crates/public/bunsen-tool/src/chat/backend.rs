@@ -14,7 +14,7 @@ use bunsen::{
         BunsenResult,
     },
     kits::{
-        language::{
+        language::generation::{
             driver::{
                 CachedHistory,
                 CachedLm,

@@ -10,7 +10,7 @@ use bunsen::{
         pretrained::Prefabs,
         resources::ResourceSet,
     },
-    kits::language::qwen3_5::{
+    kits::language::generation::qwen3_5::{
         Qwen3_5Config,
         interop::transformers::qwen3_5_config_from_path,
         pretrained::default_qwen3_5_factory,

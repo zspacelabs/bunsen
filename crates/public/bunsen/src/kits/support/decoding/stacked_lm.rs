@@ -20,7 +20,7 @@ use crate::{
 ///
 /// The decode is the trait's: [`prefill`](Self::prefill), and
 /// [`CachedStep`] and
-/// [`CachedLm`](crate::kits::language::driver::CachedLm) (whose
+/// [`CachedLm`](crate::kits::language::generation::driver::CachedLm) (whose
 /// `decode_state` is the stack's
 /// [`decode_cache`](crate::blocks::transformers::decoders::stack::DecoderStack::decode_cache)), so
 /// [`decode_cached`](super::decode_cached) steps it. Every
@@ -109,7 +109,7 @@ mod tests {
             },
         },
         burner::module::ModuleInit,
-        kits::language::driver::CachedLm,
+        kits::language::generation::driver::CachedLm,
         ops::transformers::attention::KVCacheStorage,
         support::testing::{
             assert_tensors_close,

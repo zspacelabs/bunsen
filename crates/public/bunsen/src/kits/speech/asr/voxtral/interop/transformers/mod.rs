@@ -22,7 +22,7 @@ use crate::{
     burner::module::Rekey,
     errors::BunsenResult,
     kits::{
-        language::qwen3::interop::transformers::text_layer_rekey,
+        language::generation::qwen3::interop::transformers::text_layer_rekey,
         speech::asr::voxtral::blocks::{
             VoxtralAudioEncoderConfig,
             VoxtralRealtimeConfig,

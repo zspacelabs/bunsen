@@ -60,10 +60,12 @@ use bunsen::{
     },
     kits::language::{
         decision::laya::pretrained::default_laya_factory,
-        gemma::pretrained::default_gemma_factory,
-        nanochat::pretrained::default_nanochat_factory,
-        qwen3::pretrained::default_qwen3_factory,
-        qwen3_5::pretrained::default_qwen3_5_factory,
+        generation::{
+            gemma::pretrained::default_gemma_factory,
+            nanochat::pretrained::default_nanochat_factory,
+            qwen3::pretrained::default_qwen3_factory,
+            qwen3_5::pretrained::default_qwen3_5_factory,
+        },
     },
 };
 use bunsen_app::cache::human_bytes;
