@@ -8,13 +8,10 @@
 //! fine-tunes in `burn`. The port is incremental, one family at a time,
 //! and each family's docs list what of upstream it lacks.
 //!
-//! - [`resnet`]: the `ResNet` family. Six prefabs, `resnet18` to `resnet152`,
-//!   and 14 pretrained rows, torchvision's and `timm`'s, loaded by name through
-//!   [`default_resnet_factory`](resnet::pretrained::default_resnet_factory).
-//!   Its [compatibility](resnet#compatibility) section lists what of `timm`'s
-//!   `ResNet` is missing.
-//! - [`swin::v2`]: Swin Transformer V2. The model and its configs, with no
-//!   prefabs and no pretrained weights yet.
+//! The kits are grouped by the task each does:
+//!
+//! - [`classification`]: image classifiers, the `ResNet` family and Swin
+//!   Transformer V2.
 //!
 //! Both families are Stacked configs: a policy config, what the model
 //! means, lowers to a structure config, the unrolled tree, which builds
@@ -29,5 +26,4 @@
 //! `examples/resnet_finetune`, `examples/resnet_tiny` and
 //! `examples/swin_tiny` train them.
 
-pub mod resnet;
-pub mod swin;
+pub mod classification;

@@ -141,7 +141,7 @@
 //! [`ShardSet`]: datasets::ShardSet
 //! [`ShardSetDescriptor`]: datasets::ShardSetDescriptor
 //! [`Prefabs`]: pretrained::Prefabs
-//! [`default_resnet_factory`]: crate::kits::images::resnet::pretrained::default_resnet_factory
+//! [`default_resnet_factory`]: crate::kits::images::classification::resnet::pretrained::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::vad::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::asr::whisper::pretrained::default_whisper_factory
 //! [dispatch rules]: crate::data::builds::BuildFactory#dispatch

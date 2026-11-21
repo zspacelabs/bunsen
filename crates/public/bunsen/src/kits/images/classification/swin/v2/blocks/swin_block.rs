@@ -36,7 +36,7 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::images::swin::{
+    kits::images::classification::swin::{
         ops::{
             sw_attn_mask,
             window_partition,

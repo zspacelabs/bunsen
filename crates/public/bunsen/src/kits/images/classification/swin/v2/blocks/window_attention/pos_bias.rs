@@ -22,7 +22,7 @@ use crate::{
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
     errors::BunsenResult,
-    kits::images::swin::ops::{
+    kits::images::classification::swin::ops::{
         window_attention_relative_position_index,
         window_log1p_relative_offset_grid,
     },

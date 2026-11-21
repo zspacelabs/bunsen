@@ -47,7 +47,7 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    kits::images::swin::v2::blocks::{
+    kits::images::classification::swin::v2::blocks::{
         PatchMerging,
         PatchMergingConfig,
         StochasticDepthTransformerBlockSequence,
@@ -812,7 +812,7 @@ mod tests {
             WithOkOrPanic,
             testing::ErrorMatcher,
         },
-        kits::images::swin::v2::blocks::ShiftedWindowTransformerBlockMeta,
+        kits::images::classification::swin::v2::blocks::ShiftedWindowTransformerBlockMeta,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,

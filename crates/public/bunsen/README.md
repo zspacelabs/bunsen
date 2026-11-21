@@ -33,9 +33,9 @@ A kit is a whole model, with its configs and the weights it loads by name
 
 - [`language::decision::laya`](https://docs.rs/bunsen/latest/bunsen/kits/language/decision/laya/index.html): Laya, an open decision
   model: typed questions about a state answered with calibrated probabilities, with its checkpoints by name.
-- [`images::resnet`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/index.html): ResNet image classifiers,
+- [`images::classification::resnet`](https://docs.rs/bunsen/latest/bunsen/kits/images/classification/resnet/index.html): ResNet image classifiers,
   with torchvision's and `timm`'s checkpoints by name.
-- [`images::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/images/swin/v2/index.html): Swin Transformer V2
+- [`images::classification::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/images/classification/swin/v2/index.html): Swin Transformer V2
   image classifiers, without pretrained weights.
 - [`language::generation::nanochat`](https://docs.rs/bunsen/latest/bunsen/kits/language/generation/nanochat/index.html): a port of karpathy's
   nanochat GPT, and the corpus it trains on. Work in progress.

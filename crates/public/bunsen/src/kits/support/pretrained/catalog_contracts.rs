@@ -41,7 +41,7 @@ pub struct KitCatalogContract {
 /// a fixed order.
 pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
     use crate::kits::{
-        images::resnet::pretrained::{
+        images::classification::resnet::pretrained::{
             RESNET_CONTRACT,
             RESNET_KIT,
         },

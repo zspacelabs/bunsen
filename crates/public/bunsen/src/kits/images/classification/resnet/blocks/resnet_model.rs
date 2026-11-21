@@ -47,7 +47,7 @@ use crate::{
         ResultContext,
         WithOkOrPanic,
     },
-    kits::images::resnet::blocks::{
+    kits::images::classification::resnet::blocks::{
         BottleneckPolicyConfig,
         LayerBlock,
         LayerBlockContractConfig,
@@ -689,7 +689,7 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::images::resnet::{
+        kits::images::classification::resnet::{
             RESNET34_BLOCKS,
             RESNET50_BLOCKS,
         },
@@ -709,7 +709,7 @@ mod tests {
                 ResourceCache,
                 ResourceCacheOptions,
             },
-            kits::images::resnet::pretrained::default_resnet_factory,
+            kits::images::classification::resnet::pretrained::default_resnet_factory,
         };
 
         let device = performance_device();

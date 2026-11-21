@@ -33,7 +33,7 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::images::swin::{
+    kits::images::classification::swin::{
         ops::apply_attention_mask,
         v2::blocks::window_attention::{
             OffsetGridRelativePositionBias,

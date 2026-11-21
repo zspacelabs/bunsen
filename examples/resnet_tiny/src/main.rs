@@ -28,7 +28,7 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::images::resnet::{
+    kits::images::classification::resnet::{
         ResNet,
         ResNetContractConfig,
         pretrained::default_resnet_factory,

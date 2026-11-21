@@ -332,14 +332,14 @@ use crate::errors::{
 /// [`CausalDecoderBlockConfig::init`]: crate::blocks::transformers::decoders::causal::CausalDecoderBlockConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::sims::lbm::d2q9::LBMD2Q9Config::init
-/// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig
-/// [`ResNetStructureConfig`]: crate::kits::images::resnet::ResNetStructureConfig
-/// [`ResNet`]: crate::kits::images::resnet::ResNet
+/// [`ResNetContractConfig`]: crate::kits::images::classification::resnet::ResNetContractConfig
+/// [`ResNetStructureConfig`]: crate::kits::images::classification::resnet::ResNetStructureConfig
+/// [`ResNet`]: crate::kits::images::classification::resnet::ResNet
 /// [`SileroVadSignalConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig
 /// [`SileroVadStftConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStftConfig
 /// [`SileroVadStructureConfig`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadStructureConfig
 /// [`to_stft`]: crate::kits::speech::vad::silero_vad::blocks::SileroVadSignalConfig::to_stft
-/// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
+/// [`SwinTransformerV2ContractConfig`]: crate::kits::images::classification::swin::v2::SwinTransformerV2ContractConfig
 pub trait ModuleInit<M: Module> {
     /// Builds the module on `device`, or reports why the config cannot build
     /// it.

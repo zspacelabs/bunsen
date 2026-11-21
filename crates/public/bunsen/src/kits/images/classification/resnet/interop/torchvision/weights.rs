@@ -5,7 +5,7 @@ use super::resnet_rekey;
 use crate::{
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
-    kits::images::resnet::ResNet,
+    kits::images::classification::resnet::ResNet,
 };
 
 /// Loads tensors named as torchvision's `ResNet` state dict into `model`:
@@ -36,14 +36,14 @@ pub fn load_resnet_tensors(
 #[cfg(feature = "cache")]
 pub fn load_resnet(
     loaded: &crate::data::resources::LoadedResourceSet,
-    config: &crate::kits::images::resnet::ResNetContractConfig,
+    config: &crate::kits::images::classification::resnet::ResNetContractConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<ResNet> {
     use crate::{
         burner::module::ModuleInit,
         errors::ResultContext,
-        kits::images::resnet::pretrained::CHECKPOINT,
+        kits::images::classification::resnet::pretrained::CHECKPOINT,
     };
     let path = loaded.expect(CHECKPOINT)?;
     let tensors = crate::data::formats::read_pytorch_tensors(path)?;

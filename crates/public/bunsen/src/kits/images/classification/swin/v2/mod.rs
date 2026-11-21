@@ -50,7 +50,7 @@
 //!         ModuleInit,
 //!         ToStructureConfig,
 //!     },
-//!     kits::images::swin::v2::{
+//!     kits::images::classification::swin::v2::{
 //!         LayerConfig,
 //!         SwinTransformerV2,
 //!         SwinTransformerV2ContractConfig,

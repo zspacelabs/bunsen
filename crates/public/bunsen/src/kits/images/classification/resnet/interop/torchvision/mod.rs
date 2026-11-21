@@ -1,7 +1,7 @@
 //! # `ResNet` as torchvision saves it
 //!
 //! torchvision's `ResNet` state dict (a `.pt`; `timm`'s checkpoints use the
-//! same names) as bunsen's [`ResNet`](crate::kits::images::resnet::ResNet).
+//! same names) as bunsen's [`ResNet`](crate::kits::images::classification::resnet::ResNet).
 //! A checkpoint does not describe its own geometry: the catalog row's prefab
 //! does.
 //!
@@ -20,7 +20,7 @@ mod weights;
 pub use weights::*;
 
 /// torchvision's `ResNet` state-dict names (timm's are the same) onto a
-/// [`ResNet`](crate::kits::images::resnet::ResNet)'s module paths.
+/// [`ResNet`](crate::kits::images::classification::resnet::ResNet)'s module paths.
 ///
 /// | torchvision | bunsen |
 /// |---|---|
@@ -34,7 +34,7 @@ pub use weights::*;
 /// is kept as it is, for the load to report.
 ///
 /// ```rust
-/// use bunsen::kits::images::resnet::interop::torchvision::resnet_rekey;
+/// use bunsen::kits::images::classification::resnet::interop::torchvision::resnet_rekey;
 ///
 /// let rekey = resnet_rekey();
 /// assert_eq!(

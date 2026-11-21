@@ -22,7 +22,7 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::images::resnet::{
+    kits::images::classification::resnet::{
         ResNet,
         ResNetContractConfig,
         pretrained::RESNET_KIT,
@@ -35,7 +35,7 @@ use crate::{
 /// `ResNet`'s [`ConstructInit`] hook, behind
 /// [`default_resnet_factory`](super::default_resnet_factory). It
 /// builds a [`ResNet`] from the config, then reads the checkpoint into
-/// it with [`load_resnet`](crate::kits::images::resnet::interop::torchvision::load_resnet).
+/// it with [`load_resnet`](crate::kits::images::classification::resnet::interop::torchvision::load_resnet).
 ///
 /// A checkpoint does not describe its own geometry, so the config comes
 /// from the prefab the row names, or from
@@ -116,7 +116,7 @@ impl ConstructInit for ResNetConstructConfig {
     ) -> BunsenResult<Arc<ResNet>> {
         let config = self.config_for(model)?;
         Ok(Arc::new(
-            crate::kits::images::resnet::interop::torchvision::load_resnet(
+            crate::kits::images::classification::resnet::interop::torchvision::load_resnet(
                 loaded, &config, device, load,
             )?,
         ))
@@ -128,7 +128,7 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::Prefabs,
-        kits::images::resnet::{
+        kits::images::classification::resnet::{
             ResNetContractConfig,
             pretrained::{
                 CHECKPOINT,
