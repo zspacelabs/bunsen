@@ -10,9 +10,11 @@
 //!
 //! [`default_qwen3_asr_factory`] is the index a caller holds, over two
 //! providers. First the catalog rows, the built-in catalog's builds of
-//! [`QWEN3_ASR_CATALOG_CONTRACT`], each stating its geometry, one of
+//! [`QWEN3_ASR_CATALOG_CONTRACT`]: a Phonon-1 archive's row states its
+//! geometry, one of
 //! [`Qwen3AsrConfig`](crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig)'s
-//! prefabs:
+//! prefabs; a base model's carries its `config.json` and
+//! `processor_config.json`:
 //!
 //! - `fermion/phonon-1` (`phonon-1`): `FermionResearch`'s Phonon-1, an English
 //!   fine-tune of `Qwen3-ASR-0.6B` (other speech comes out as broken English),
@@ -45,7 +47,7 @@
 //! the cache, and reads them, through the source's `load_qwen3_asr`
 //! ([`interop::transformers`](super::interop::transformers) or
 //! [`interop::phonon`](super::interop::phonon)), into the geometry its
-//! `config.json` gives or the row's prefab.
+//! `config.json` gives or the row states; a build with neither is refused.
 
 mod construct;
 mod prefabs;

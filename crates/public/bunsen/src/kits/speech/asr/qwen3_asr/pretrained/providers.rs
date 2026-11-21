@@ -129,11 +129,26 @@ mod tests {
                 "{spec}"
             );
         }
+        // The base models read their geometry from their `config.json`.
+        for (spec, name) in [
+            ("qwen3-asr-0.6b", "qwen/qwen3-asr-0.6b"),
+            ("qwen3-asr-1.7b", "qwen/qwen3-asr-1.7b"),
+        ] {
+            let (_, row) = factory.lookup(spec).unwrap();
+            assert_eq!(row.name, name);
+            assert!(
+                !row.args.contains_key(crate::data::builds::GEOMETRY),
+                "{name}"
+            );
+            let map = row.resource_set();
+            for key in [crate::data::builds::CONFIG, PROCESSOR] {
+                assert!(map.try_get(key).unwrap().is_pinned(), "{name}: {key}");
+            }
+        }
+        // A Phonon archive's geometry is stated.
         for (spec, name) in [
             ("phonon-1-micro", "fermion/phonon-1-micro"),
             ("phonon-1-big", "fermion/phonon-1-big"),
-            ("qwen3-asr-0.6b", "qwen/qwen3-asr-0.6b"),
-            ("qwen3-asr-1.7b", "qwen/qwen3-asr-1.7b"),
         ] {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, name);
