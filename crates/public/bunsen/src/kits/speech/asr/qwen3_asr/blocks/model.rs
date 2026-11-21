@@ -75,6 +75,10 @@ pub struct Qwen3AsrConfig {
     /// The token whose positions the audio frames take in a prompt.
     #[config(default = "QWEN3_ASR_AUDIO_TOKEN")]
     pub audio_token: usize,
+
+    /// The activation between the audio-to-text projector's two linears.
+    #[config(default = "BunsenActivationConfig::Gelu")]
+    pub projector_activation: BunsenActivationConfig,
 }
 
 impl Qwen3AsrConfig {
@@ -125,7 +129,7 @@ impl ModuleInit<Qwen3Asr> for Qwen3AsrConfig {
                 self.audio.d_model(),
                 self.text.d_model(),
             )
-            .with_activation(BunsenActivationConfig::Gelu)
+            .with_activation(self.projector_activation.clone())
             .try_init(device)?,
             language_model: self.text.try_init(device)?,
             audio_token: self.audio_token,

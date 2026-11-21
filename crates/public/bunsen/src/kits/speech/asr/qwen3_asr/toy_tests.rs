@@ -324,6 +324,23 @@ fn test_toy_audio_attention() {
             "{sums:?}"
         );
     }
+    // a head past the text model's two layers or four heads is refused
+    for heads in [[(2, 0)], [(0, 4)]] {
+        assert_eq!(
+            bundle
+                .token_frames(features.clone(), valid, &reply, &heads)
+                .unwrap_err()
+                .kind(),
+            crate::errors::BunsenErrorKind::Illegal
+        );
+    }
+    assert_eq!(
+        bundle
+            .token_frames(features.clone(), valid, &reply, &[(1, 3), (0, 0)])
+            .unwrap()
+            .len(),
+        reply.len()
+    );
 
     let audio = bundle.model.encode_audio(features, valid);
     let mut ids = bundle.prompt.prompt(n_audio, bundle.model.audio_token());

@@ -29,14 +29,25 @@ fermion:
       geometry:
         audio:
           conv_channels: 480
+          conv_out_bias: false
           d_ff: 3584
           d_model: 896
+          key_bias: true
+          layer_norm_eps: 1.0e-5
           n_heads: 14
           n_layers: 18
           n_mels: 128
           n_window: 50
           n_window_infer: 800
+          sinusoid_base: 10000.0
+          stem:
+            activation: Gelu
+            convs: 3
+            kernel: 3
+            padding: 1
+            stride: 2
         audio_token: 151676
+        projector_activation: Gelu
         text:
           d_ff: 3072
           d_model: 1024
@@ -79,14 +90,25 @@ fermion:
       geometry:
         audio:
           conv_channels: 480
+          conv_out_bias: false
           d_ff: 3584
           d_model: 896
+          key_bias: true
+          layer_norm_eps: 1.0e-5
           n_heads: 14
           n_layers: 18
           n_mels: 128
           n_window: 50
           n_window_infer: 800
+          sinusoid_base: 10000.0
+          stem:
+            activation: Gelu
+            convs: 3
+            kernel: 3
+            padding: 1
+            stride: 2
         audio_token: 151676
+        projector_activation: Gelu
         text:
           d_ff: 3072
           d_model: 1024
@@ -129,14 +151,25 @@ fermion:
       geometry:
         audio:
           conv_channels: 480
+          conv_out_bias: false
           d_ff: 3584
           d_model: 896
+          key_bias: true
+          layer_norm_eps: 1.0e-5
           n_heads: 14
           n_layers: 18
           n_mels: 128
           n_window: 50
           n_window_infer: 800
+          sinusoid_base: 10000.0
+          stem:
+            activation: Gelu
+            convs: 3
+            kernel: 3
+            padding: 1
+            stride: 2
         audio_token: 151676
+        projector_activation: Gelu
         text:
           d_ff: 3072
           d_model: 1024
