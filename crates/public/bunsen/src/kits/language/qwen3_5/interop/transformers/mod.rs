@@ -141,7 +141,9 @@ pub fn qwen3_5_rekey(config: &Qwen3_5Config) -> Rekey {
 /// What bunsen's model fixes is checked: `SiLU`, no attention bias, no
 /// sliding window, the default rotary embedding, an `mrope_section` (text
 /// positions are the same on its three axes, so it reduces to one table) that
-/// covers the rotated dimensions, and no `mlp_only_layers`.
+/// covers the rotated dimensions, no `mlp_only_layers`, a `mamba_ssm_dtype`
+/// (the delta rule's state) of `float32`, and `architectures`, when stated,
+/// its model type's class (whose layout [`QWEN3_5_TEXT_PREFIXES`] reads).
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
@@ -152,19 +154,34 @@ pub fn qwen3_5_rekey(config: &Qwen3_5Config) -> Rekey {
 pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config> {
     let root = c.clone();
     let tie_default = root.bool_or("tie_word_embeddings", false)?;
-    let t = match root.str("model_type")? {
+    let (t, architecture) = match root.str("model_type")? {
         "qwen3_5" => {
             let text = root.section("text_config")?;
             text.expect_str("model_type", "qwen3_5_text")?;
-            text
+            (text, "Qwen3_5ForConditionalGeneration")
         }
-        "qwen3_5_text" => root,
+        "qwen3_5_text" => (root.clone(), "Qwen3_5ForCausalLM"),
         other => {
             return Err(BunsenError::unsupported(format!(
                 "config.json: `model_type` is {other:?}, not a dense Qwen3.5"
             )));
         }
     };
+    // The tensors sit under the prefix the class lays them out at
+    // (`QWEN3_5_TEXT_PREFIXES`); a config whose class is not its model type's
+    // lays them out otherwise.
+    if let Some(architectures) = root.strs_opt("architectures")? {
+        root.expect_eq(
+            "architectures",
+            architectures,
+            vec![architecture.to_string()],
+        )?;
+    }
+    // The delta rule's state is f32; a model that keeps it narrower would
+    // decode otherwise.
+    if let Some(dtype) = t.str_opt("mamba_ssm_dtype")? {
+        t.expect_eq("mamba_ssm_dtype", dtype, "float32")?;
+    }
     let d = TransformersDecoderSection::read(&t)?;
     t.expect_eq("hidden_act", d.hidden_act.as_str(), "silu")?;
     t.expect_eq("attention_bias", d.attention_bias, false)?;
@@ -447,6 +464,18 @@ mod tests {
         assert_eq!(config.layer_kinds, Qwen3_5Config::every_nth_full(24, 3));
     }
 
+    /// An f32 delta-rule state, as the release's files state it, is read.
+    #[test]
+    fn test_f32_state_accepted() {
+        let json = QWEN3_5_0_8B.replace(
+            r#""model_type": "qwen3_5_text", "attention_bias": false,"#,
+            r#""model_type": "qwen3_5_text", "attention_bias": false,
+               "mamba_ssm_dtype": "float32","#,
+        );
+        assert_ne!(json, QWEN3_5_0_8B);
+        qwen3_5_config_from_str(&json).unwrap();
+    }
+
     /// What bunsen's Qwen3.5 is not is refused, naming the field.
     #[test]
     fn test_refusals() {
@@ -475,6 +504,17 @@ mod tests {
                 r#""rope_type": "default""#,
                 r#""rope_type": "yarn""#,
                 "rope_type",
+            ),
+            (
+                r#"["Qwen3_5ForConditionalGeneration"]"#,
+                r#"["Qwen3_5ForCausalLM"]"#,
+                "architectures",
+            ),
+            (
+                r#""model_type": "qwen3_5_text", "attention_bias": false,"#,
+                r#""model_type": "qwen3_5_text", "attention_bias": false,
+                   "mamba_ssm_dtype": "bfloat16","#,
+                "mamba_ssm_dtype",
             ),
         ] {
             let json = QWEN3_5_0_8B.replace(from, to);
