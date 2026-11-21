@@ -481,6 +481,7 @@ mod tests {
         ];
         let policy = FetchPolicy::default()
             .with_parallel(2)
+            .with_retries(0)
             .with_on_failure(OnFailure::Continue);
 
         let report = cache.fetch_many(&jobs, &policy);
