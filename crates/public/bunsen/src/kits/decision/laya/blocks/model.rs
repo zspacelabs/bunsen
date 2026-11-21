@@ -53,7 +53,7 @@ use crate::{
     },
     contracts::unpack_shape_contract,
     errors::BunsenResult,
-    kits::text::encoders::modernbert::{
+    kits::language::encoders::modernbert::{
         ModernBertContractConfig,
         ModernBertMeta,
         ModernBertModel,

@@ -1,6 +1,8 @@
 //! # Language models
 //!
-//! Whole decoder-only language models. Their parts are elsewhere:
+//! Models of text: the decoder-only language models, and the text
+//! [`encoders`], which read a whole input at once and give a hidden state for
+//! each token, for a head of their user's to read. Their parts are elsewhere:
 //! attention, the MLP and the rotary embedding in
 //! [`crate::blocks::transformers`], the KV cache in
 //! [`crate::ops::transformers::attention`]. A kit here assembles them into
@@ -19,6 +21,9 @@
 //! - [`driver`]: the model-generic parts of a driver that streams a model's
 //!   output: text deltas, stop strings, and the cached prefix a multi-turn
 //!   session keeps.
+//! - [`encoders`]: the text encoders; an encoder's stack is a
+//!   [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
+//!   whose attention is bidirectional.
 //!
 //! Tokenizers and training loops are not part of a kit:
 //! `examples/train-chat` brings its own (a `wordchipper` tokenizer, burn's
@@ -26,6 +31,7 @@
 //! [`NanoChatGpt`](nanochat::NanoChatGpt).
 
 pub mod driver;
+pub mod encoders;
 pub mod gemma;
 pub mod nanochat;
 pub mod qwen3;

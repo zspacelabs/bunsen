@@ -2,7 +2,7 @@
 //!
 //! A `transformers` `ModernBertModel` checkpoint (a bare model's, or a
 //! `ModernBertFor*`'s under `model.`, its head dropped) as bunsen's
-//! [`ModernBertModel`](crate::kits::text::encoders::modernbert::ModernBertModel):
+//! [`ModernBertModel`](crate::kits::language::encoders::modernbert::ModernBertModel):
 //!
 //! - **Config:** [`modernbert_config`] of a parsed `config.json`, and
 //!   [`modernbert_config_from_str`] / [`modernbert_config_from_path`].
@@ -27,15 +27,15 @@ use crate::{
         BunsenResult,
     },
     kits::{
+        language::encoders::modernbert::{
+            ModernBertContractConfig,
+            ModernBertLayerKind,
+        },
         support::interop::transformers::{
             TransformersConfigJson,
             config_from_path,
             config_from_str,
             llama_layer_keys,
-        },
-        text::encoders::modernbert::{
-            ModernBertContractConfig,
-            ModernBertLayerKind,
         },
     },
 };
@@ -77,7 +77,7 @@ pub fn modernbert_layer_keys() -> DecoderLayerKeys {
 
 /// `transformers`' `ModernBertModel` state-dict names, after
 /// [`modernbert_row_splits`], onto a
-/// [`ModernBertModel`](crate::kits::text::encoders::modernbert::ModernBertModel)'s module paths,
+/// [`ModernBertModel`](crate::kits::language::encoders::modernbert::ModernBertModel)'s module paths,
 /// relative to the encoder: the embedding's table and norm, each layer by
 /// [`modernbert_layer_keys`] and its `GeGLU`'s parts (`Wi_gate`, `Wi_up`,
 /// `Wo`), and the final norm. Anything else is dropped (a `ModernBertFor*`'s

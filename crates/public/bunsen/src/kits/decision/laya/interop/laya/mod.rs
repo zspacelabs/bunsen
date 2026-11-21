@@ -28,7 +28,7 @@ use crate::{
             LayaAgentConfig,
             LayaConfig,
         },
-        text::encoders::modernbert::{
+        language::encoders::modernbert::{
             ModernBertContractConfig,
             interop::transformers::modernbert_rekey,
         },

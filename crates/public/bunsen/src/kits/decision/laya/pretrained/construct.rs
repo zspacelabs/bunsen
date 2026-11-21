@@ -34,8 +34,8 @@ use crate::{
                 load_laya,
             },
         },
+        language::encoders::modernbert::interop::transformers::modernbert_config_from_path,
         support::interop::json_mirror_from_path,
-        text::encoders::modernbert::interop::transformers::modernbert_config_from_path,
     },
 };
 

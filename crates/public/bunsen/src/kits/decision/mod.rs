@@ -2,7 +2,7 @@
 //!
 //! Models that answer typed questions about a state with probabilities over
 //! each question's options, in one forward pass, and generate no text. Their
-//! encoders are [`crate::kits::text::encoders`]'.
+//! encoders are [`crate::kits::language::encoders`]'.
 //!
 //! - [`laya`]: Laya (`convaiinnovations/laya`), a `ModernBERT` encoder and a
 //!   decision head.

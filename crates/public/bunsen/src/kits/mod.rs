@@ -27,12 +27,11 @@
 //! | [`speech::vad::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
 //! | [`speech::tts::qwen3_tts`] | Qwen's Qwen3-TTS text to speech (the 12 Hz line): a Qwen3 talker over summed text and codec embeddings, its code predictor (a depth decoder), the dual-track prompt and the take loop, the 12 Hz codec's decoder, and a pretrained index (`qwen/qwen3-tts/qwen3-tts-12hz-0.6b-customvoice` by default). |
 //! | [`speech::tts::zonos3`] | Zyphra's ZONOS3-Mini text to speech: a language model over rows of audio codec codes and text, without a residual stream, its prompt layout and stock voices, the codec decoder, a sampler and a driver (text and a voice to speech), and a pretrained index (`zyphra/zonos3/zonos3-mini`). |
-//! | [`text::encoders::modernbert`] | Answer.AI's `ModernBERT` text encoder: the model, loaded from a `transformers` `ModernBertModel` state dict and its `config.json`. |
+//! | [`language::encoders::modernbert`] | Answer.AI's `ModernBERT` text encoder: the model, loaded from a `transformers` `ModernBertModel` state dict and its `config.json`. |
 //! | [`support`] | Not a model: what kits of more than one family share: [`support::tokens`], the ids-to-text seam, and [`support::decoding`], the search machinery (logit filters, greedy and beam search, sampling, ranking, and the temperature ladder). |
 //!
-//! The area modules, [`decision`], [`images`], [`language`], [`speech`] and
-//! [`text`], group the kits by domain and say what the kits in each have in
-//! common.
+//! The area modules, [`decision`], [`images`], [`language`] and [`speech`],
+//! group the kits by domain and say what the kits in each have in common.
 //!
 //! # Anatomy of a kit
 //!
@@ -212,4 +211,3 @@ pub mod language;
 #[cfg(feature = "speech")]
 pub mod speech;
 pub mod support;
-pub mod text;

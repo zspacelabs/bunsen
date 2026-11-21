@@ -314,9 +314,9 @@ impl ModuleInit<ModernBertModel> for ModernBertStructureConfig {
 /// [`DecoderStack`] of bidirectional `GeGLU` layers, global and local by
 /// layer ([`ModernBertContractConfig::stack`]), and a final `LayerNorm`.
 ///
-/// [`modernbert_rekey`](crate::kits::text::encoders::modernbert::interop::transformers::modernbert_rekey)
+/// [`modernbert_rekey`](crate::kits::language::encoders::modernbert::interop::transformers::modernbert_rekey)
 /// maps a `transformers` state dict's names onto it, after
-/// [`modernbert_row_splits`](crate::kits::text::encoders::modernbert::interop::transformers::modernbert_row_splits)
+/// [`modernbert_row_splits`](crate::kits::language::encoders::modernbert::interop::transformers::modernbert_row_splits)
 /// has split its fused projections.
 ///
 /// Built by [`ModernBertContractConfig`] (high-level) or
