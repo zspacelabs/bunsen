@@ -18,7 +18,7 @@
 //!   [`model_config_from_str`] / [`model_config_from_path`].
 //! - **Names:** [`talker_rekey`] (the talker is a Qwen3 under a TTS prefix, its
 //!   layers Qwen3's
-//!   [`text_layer_rekey`](crate::kits::language::qwen3::interop::transformers::text_layer_rekey)),
+//!   [`text_layer_rekey`](crate::kits::language::generation::qwen3::interop::transformers::text_layer_rekey)),
 //!   [`code_predictor_rekey`], [`codec_decoder_rekey`].
 //! - **Loading** (feature `store`): `load_talker_tensors`,
 //!   `load_code_predictor_tensors`, `load_codec_decoder_tensors`,

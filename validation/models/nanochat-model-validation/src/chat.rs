@@ -3,7 +3,7 @@
 //! `RustBPETokenizer`.
 
 use bunsen::kits::{
-    language::nanochat::TOKENIZER,
+    language::generation::nanochat::TOKENIZER,
     support::tokens::{
         BunsenTokenizer,
         Detokenizer,

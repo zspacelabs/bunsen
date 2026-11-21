@@ -1,8 +1,8 @@
 //! # Qwen3.5 cross-check against `transformers`.
 //!
-//! Validates [`bunsen`]'s dense Qwen3.5 (`kits::language::qwen3_5`) against
-//! `transformers`' own greedy decodes, in float32, of `qwen3.5-0.8b` (equal
-//! linear key and value heads, a tied head), `qwen3.5-2b` (wider) and
+//! Validates [`bunsen`]'s dense Qwen3.5 (`kits::language::generation::qwen3_5`)
+//! against `transformers`' own greedy decodes, in float32, of `qwen3.5-0.8b`
+//! (equal linear key and value heads, a tied head), `qwen3.5-2b` (wider) and
 //! `qwen3.5-4b` (twice the value heads), and in bf16 of `qwen3.5-9b` (on
 //! `--features cuda`, which runs bunsen in bf16 too: in float32 it does not fit
 //! a 24 GB device; its head is its own). Every comparison runs bunsen through
@@ -47,7 +47,7 @@ use bunsen::{
     blocks::transformers::models::language_decoder::LmDecoderOps,
     data::formats::LoadPolicy,
     kits::{
-        language::{
+        language::generation::{
             driver::CachedLm,
             qwen3_5::Qwen3_5Construct,
         },
@@ -270,7 +270,7 @@ pub fn load_construct_with(
     device: &Device,
     policy: LoadPolicy,
 ) -> std::sync::Arc<Qwen3_5Construct> {
-    bunsen::kits::language::qwen3_5::pretrained::default_qwen3_5_factory()
+    bunsen::kits::language::generation::qwen3_5::pretrained::default_qwen3_5_factory()
         .expect("the qwen3.5 factory")
         .load_construct(name, &weights_cache(), device, policy)
         .unwrap_or_else(|e| panic!("load {name}: {e}"))

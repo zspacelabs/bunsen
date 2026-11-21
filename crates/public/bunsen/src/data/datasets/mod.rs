@@ -11,7 +11,7 @@
 //! With the `cache` feature, [`ShardSet`] binds one to a directory and
 //! brings shards in through the disk cache. Sets of interest are named by
 //! the kit that trains on them, such as
-//! [`kits::language::nanochat::datasets`](crate::kits::language::nanochat::datasets).
+//! [`kits::language::generation::nanochat::datasets`](crate::kits::language::generation::nanochat::datasets).
 //!
 //! ## Lifecycle
 //!

@@ -1,8 +1,8 @@
-//! Chat with bunsen's Qwen3 ([`bunsen::kits::language::qwen3`]), Gemma
-//! ([`bunsen::kits::language::gemma`]) or nanochat
-//! ([`bunsen::kits::language::nanochat`]): what turns a conversation into the
-//! ids the model reads and its ids back into text, and the driver that holds a
-//! conversation on the KV cache.
+//! Chat with bunsen's Qwen3 ([`bunsen::kits::language::generation::qwen3`]),
+//! Gemma ([`bunsen::kits::language::generation::gemma`]) or nanochat
+//! ([`bunsen::kits::language::generation::nanochat`]): what turns a
+//! conversation into the ids the model reads and its ids back into text, and
+//! the driver that holds a conversation on the KV cache.
 //!
 //! - [`ChatModel`] and [`ChatSession`]: the shared, immutable half of a chat (a
 //!   loaded checkpoint and its files) and one conversation (its messages and

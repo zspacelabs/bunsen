@@ -50,21 +50,23 @@ pub fn kit_catalog_contracts() -> Vec<KitCatalogContract> {
                 LAYA_CONTRACT,
                 LAYA_KIT,
             },
-            gemma::pretrained::{
-                GEMMA_CONTRACT,
-                GEMMA_KIT,
-            },
-            nanochat::pretrained::{
-                NANOCHAT_CONTRACT,
-                NANOCHAT_KIT,
-            },
-            qwen3::pretrained::{
-                QWEN3_CONTRACT,
-                QWEN3_KIT,
-            },
-            qwen3_5::pretrained::{
-                QWEN3_5_CONTRACT,
-                QWEN3_5_KIT,
+            generation::{
+                gemma::pretrained::{
+                    GEMMA_CONTRACT,
+                    GEMMA_KIT,
+                },
+                nanochat::pretrained::{
+                    NANOCHAT_CONTRACT,
+                    NANOCHAT_KIT,
+                },
+                qwen3::pretrained::{
+                    QWEN3_CONTRACT,
+                    QWEN3_KIT,
+                },
+                qwen3_5::pretrained::{
+                    QWEN3_5_CONTRACT,
+                    QWEN3_5_KIT,
+                },
             },
         },
     };

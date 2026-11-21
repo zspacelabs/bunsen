@@ -25,7 +25,7 @@ use bunsen::{
         ResultContext,
         sys_at,
     },
-    kits::language::nanochat::{
+    kits::language::generation::nanochat::{
         NanoChatGpt,
         NanoChatGptContractConfig,
         NanoChatGptMeta,

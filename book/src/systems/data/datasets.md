@@ -25,7 +25,7 @@ A [`ShardSetDescriptor`](bunsen::data::datasets::ShardSetDescriptor) says
 what a set is: its name, the base URLs its files come from, how they are
 named and numbered, and whether they are pinned. It is plain data, a view of
 a catalog build of a dataset contract (`parquet-shards`), whose shards are
-one templated resource; [NanoChat's corpus](bunsen::kits::language::nanochat::datasets)
+one templated resource; [NanoChat's corpus](bunsen::kits::language::generation::nanochat::datasets)
 is the built-in catalog's `karpathy/fineweb-edu-100b-shuffle`
 ([`from_builtin`](bunsen::data::datasets::ShardSetDescriptor::from_builtin)). A
 [`ShardSet`](bunsen::data::datasets::ShardSet) binds a descriptor to a

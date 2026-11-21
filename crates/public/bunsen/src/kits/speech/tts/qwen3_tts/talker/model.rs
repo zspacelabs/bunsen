@@ -31,7 +31,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::language::qwen3::{
+    kits::language::generation::qwen3::{
         Qwen3Config,
         Qwen3Model,
     },
@@ -257,7 +257,7 @@ pub struct Qwen3TtsTalkerConfig {
 mod tests {
     use super::*;
     use crate::{
-        kits::language::qwen3::Qwen3Config,
+        kits::language::generation::qwen3::Qwen3Config,
         support::testing::cpu_device,
     };
 

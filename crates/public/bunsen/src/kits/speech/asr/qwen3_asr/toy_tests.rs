@@ -27,7 +27,7 @@ use crate::{
         LmKvForwardHidden,
     },
     burner::module::ModuleInit,
-    kits::language::qwen3::Qwen3Config,
+    kits::language::generation::qwen3::Qwen3Config,
     ops::transformers::attention::{
         KVCache,
         KVCacheConfig,

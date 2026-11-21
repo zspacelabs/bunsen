@@ -18,7 +18,7 @@ use bunsen::{
     },
     errors::BunsenResult,
     kits::{
-        language::{
+        language::generation::{
             gemma::pretrained::{
                 DEFAULT_GEMMA_MODEL,
                 GEMMA_KIT,

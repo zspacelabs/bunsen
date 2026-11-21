@@ -379,7 +379,7 @@ mod tests {
     use super::*;
     use crate::{
         kits::{
-            language::qwen3::Qwen3Config,
+            language::generation::qwen3::Qwen3Config,
             speech::tts::qwen3_tts::talker::release_text_projection,
         },
         support::testing::cpu_device,

@@ -2,7 +2,7 @@
 //!
 //! Not a model: the machinery that kits across families build on. A module
 //! shared within one family stays with that family
-//! ([`language::driver`](crate::kits::language::driver),
+//! ([`language::generation::driver`](crate::kits::language::generation::driver),
 //! `speech::support::testing`, behind the `testing` feature); one shared across
 //! families is here.
 //!

@@ -37,7 +37,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::language::qwen3::{
+    kits::language::generation::qwen3::{
         Qwen3Config,
         Qwen3Model,
     },

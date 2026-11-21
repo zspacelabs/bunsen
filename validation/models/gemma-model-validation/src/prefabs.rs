@@ -11,7 +11,7 @@ use bunsen::{
         pretrained::Prefabs,
         resources::ResourceSet,
     },
-    kits::language::gemma::{
+    kits::language::generation::gemma::{
         GemmaConfig,
         interop::transformers::gemma_config_from_path,
         pretrained::default_gemma_factory,

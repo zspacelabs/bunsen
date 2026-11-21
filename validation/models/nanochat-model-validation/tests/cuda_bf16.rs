@@ -14,7 +14,7 @@ use bunsen::{
         read_pytorch_tensors,
     },
     kits::{
-        language::nanochat::{
+        language::generation::nanochat::{
             CHECKPOINT,
             NanoChatConstruct,
             pretrained::DEFAULT_NANOCHAT_MODEL,
