@@ -36,10 +36,6 @@ use crate::{
     ops::transformers::attention::KVCacheModel,
 };
 
-/// The codec table's control rows, at its end: `generate` never samples
-/// them but EOS.
-pub const QWEN3_TTS_CONTROL_ROWS: usize = 1024;
-
 /// Config for [`Qwen3TtsModel`].
 #[derive(Config, Debug)]
 pub struct Qwen3TtsModelConfig {
@@ -59,6 +55,11 @@ pub trait Qwen3TtsModelMeta {
     /// The codebooks a frame holds, `K + 1`: the talker's first and the code
     /// predictor's rest.
     fn code_groups(&self) -> usize;
+
+    /// The codec table's control rows, at its end, which a take never samples
+    /// but EOS: the table past the code predictor's codes (the release's
+    /// 1024, which upstream's `generate` fixes).
+    fn control_rows(&self) -> usize;
 }
 
 impl Qwen3TtsModelMeta for Qwen3TtsModelConfig {
@@ -68,6 +69,12 @@ impl Qwen3TtsModelMeta for Qwen3TtsModelConfig {
 
     fn code_groups(&self) -> usize {
         self.code_predictor.codebooks() + 1
+    }
+
+    fn control_rows(&self) -> usize {
+        self.talker
+            .codec_vocab()
+            .saturating_sub(self.code_predictor.vocab())
     }
 }
 
@@ -180,6 +187,12 @@ impl Qwen3TtsModelMeta for Qwen3TtsModel {
     fn code_groups(&self) -> usize {
         self.code_predictor.codebooks() + 1
     }
+
+    fn control_rows(&self) -> usize {
+        self.talker
+            .codec_vocab()
+            .saturating_sub(self.code_predictor.vocab())
+    }
 }
 
 impl Qwen3TtsModel {
@@ -196,7 +209,7 @@ impl Qwen3TtsModel {
     ) -> Qwen3TtsCodes {
         let vocab = self.talker.lm.n_logits();
         let eos = i64::from(ids.codec_eos);
-        let control = vocab.saturating_sub(QWEN3_TTS_CONTROL_ROWS) as i64..vocab as i64;
+        let control = vocab.saturating_sub(self.control_rows()) as i64..vocab as i64;
         let mut chooser = SampledChoices {
             talker: config.talker.init(control.filter(|&id| id != eos)),
             code_predictor: config.code_predictor.init([]),
@@ -369,7 +382,9 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    /// The config and the model built from it answer the meta alike.
+    /// The config and the model built from it answer the meta alike: the
+    /// control rows are the codec table's 11 rows past the predictor's 7
+    /// codes.
     #[test]
     fn test_model_meta() {
         let config = Qwen3TtsModelConfig::new(
@@ -378,7 +393,10 @@ mod tests {
         );
         let model: Qwen3TtsModel = config.init(&cpu_device());
         for meta in [&config as &dyn Qwen3TtsModelMeta, &model] {
-            assert_eq!([meta.d_model(), meta.code_groups()], [8, 4]);
+            assert_eq!(
+                [meta.d_model(), meta.code_groups(), meta.control_rows()],
+                [8, 4, 4]
+            );
         }
     }
 }
