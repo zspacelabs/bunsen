@@ -31,7 +31,7 @@ use crate::{
         Rule,
         WithOkOrPanic,
     },
-    kits::images::resnet::blocks::{
+    kits::images::classification::resnet::blocks::{
         BottleneckPolicyConfig,
         ResidualBlock,
         ResidualBlockContractConfig,
@@ -452,7 +452,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        kits::images::resnet::blocks::BasicBlockConfig,
+        kits::images::classification::resnet::blocks::BasicBlockConfig,
         support::testing::{
             DeviceMemoryGuard,
             performance_device,

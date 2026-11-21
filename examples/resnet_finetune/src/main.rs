@@ -31,7 +31,7 @@ use bunsen::{
         ResultContext,
         sys_at,
     },
-    kits::images::resnet::{
+    kits::images::classification::resnet::{
         ResNet,
         ResNetContractConfig,
         pretrained::default_resnet_factory,
@@ -212,7 +212,7 @@ pub struct Args {
 
 #[allow(clippy::too_many_arguments)]
 mod local {
-    use bunsen::kits::images::resnet::ResNetContractConfig;
+    use bunsen::kits::images::classification::resnet::ResNetContractConfig;
     use burn::config::Config;
 
     /// Log config.
@@ -516,7 +516,7 @@ impl InferenceStep for Host {
 /// Whether `stated`, a build's stated geometry, is `config`'s.
 fn same_geometry(
     stated: &serde_json::Value,
-    config: &bunsen::kits::images::resnet::ResNetContractConfig,
+    config: &bunsen::kits::images::classification::resnet::ResNetContractConfig,
 ) -> bool {
     serde_json::to_value(config).is_ok_and(|c| &c == stated)
 }

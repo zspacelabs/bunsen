@@ -134,10 +134,10 @@ is [`ModuleInit`'s Stacked Config example](bunsen::burner::module::ModuleInit#st
 The crate's Stacked families show the variations:
 
 - **ResNet** has one policy,
-  [`ResNetContractConfig`](bunsen::kits::images::resnet::ResNetContractConfig),
-  over [`ResNetStructureConfig`](bunsen::kits::images::resnet::ResNetStructureConfig).
+  [`ResNetContractConfig`](bunsen::kits::images::classification::resnet::ResNetContractConfig),
+  over [`ResNetStructureConfig`](bunsen::kits::images::classification::resnet::ResNetStructureConfig).
   Inside it,
-  [`ResidualBlockStructureConfig`](bunsen::kits::images::resnet::blocks::ResidualBlockStructureConfig)
+  [`ResidualBlockStructureConfig`](bunsen::kits::images::classification::resnet::blocks::ResidualBlockStructureConfig)
   is an enum. That makes it one contract with two implementations (basic and
   bottleneck), and the enum, not its callers, dispatches each method to the
   variant it holds.
@@ -163,7 +163,7 @@ The crate's Stacked families show the variations:
   one block config per layer, which a kit with its own per-layer rules
   (nanochat's window pattern and value embeddings) builds directly.
 - **Swin Transformer V2** has a fallible lowering.
-  [`SwinTransformerV2ContractConfig`](bunsen::kits::images::swin::v2::SwinTransformerV2ContractConfig)
+  [`SwinTransformerV2ContractConfig`](bunsen::kits::images::classification::swin::v2::SwinTransformerV2ContractConfig)
   checks that its stages fit the input and the window, so `try_init` on a
   bad policy returns an error instead of panicking.
 

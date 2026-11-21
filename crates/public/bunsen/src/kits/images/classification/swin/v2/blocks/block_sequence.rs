@@ -19,7 +19,7 @@ use crate::{
         define_shape_contract,
     },
     errors::BunsenResult,
-    kits::images::swin::v2::blocks::{
+    kits::images::classification::swin::v2::blocks::{
         ShiftedWindowTransformerBlock,
         ShiftedWindowTransformerBlockConfig,
         ShiftedWindowTransformerBlockMeta,

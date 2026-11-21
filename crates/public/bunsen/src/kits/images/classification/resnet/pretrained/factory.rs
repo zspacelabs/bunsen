@@ -3,7 +3,7 @@
 use crate::{
     data::builds::BuildFactory,
     errors::BunsenResult,
-    kits::images::resnet::pretrained::{
+    kits::images::classification::resnet::pretrained::{
         ResNetConstructConfig,
         default_resnet_providers,
     },
@@ -24,7 +24,7 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::Prefabs,
-        kits::images::resnet::{
+        kits::images::classification::resnet::{
             ResNetContractConfig,
             pretrained::RESNET_KIT,
         },

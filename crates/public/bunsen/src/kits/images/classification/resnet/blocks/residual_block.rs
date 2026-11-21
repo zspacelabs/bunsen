@@ -20,7 +20,7 @@ use crate::{
         ToStructureConfig,
     },
     errors::BunsenResult,
-    kits::images::resnet::blocks::{
+    kits::images::classification::resnet::blocks::{
         BasicBlock,
         BasicBlockConfig,
         BasicBlockMeta,

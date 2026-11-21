@@ -7,7 +7,7 @@
 //! both default. Fetching a checkpoint needs `fetch`.
 //!
 //! The geometries are
-//! [`ResNetContractConfig`](crate::kits::images::resnet::ResNetContractConfig)'
+//! [`ResNetContractConfig`](crate::kits::images::classification::resnet::ResNetContractConfig)'
 //! s prefabs: six
 //! [`ResNetContractConfig`](super::ResNetContractConfig)s by name,
 //! `resnet18` to `resnet152`, each with 1000 classes. The checkpoints are
@@ -43,7 +43,7 @@
 //!             ResourceCacheOptions,
 //!         },
 //!     },
-//!     kits::images::resnet::{
+//!     kits::images::classification::resnet::{
 //!         ResNet,
 //!         ResNetContractConfig,
 //!         pretrained::default_resnet_factory,

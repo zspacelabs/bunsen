@@ -7,7 +7,7 @@ use crate::{
         PrefabTable,
         Prefabs,
     },
-    kits::images::resnet::ResNetContractConfig,
+    kits::images::classification::resnet::ResNetContractConfig,
 };
 
 impl ResNetContractConfig {

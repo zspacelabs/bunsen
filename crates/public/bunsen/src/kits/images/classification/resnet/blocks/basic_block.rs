@@ -37,7 +37,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::images::resnet::blocks::ResNetDownsampleConfig,
+    kits::images::classification::resnet::blocks::ResNetDownsampleConfig,
     ops::{
         conv::stride_div_output_resolution,
         drop::DropBlockOptions,

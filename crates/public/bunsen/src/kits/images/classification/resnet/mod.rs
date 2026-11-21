@@ -29,7 +29,7 @@
 //!         ResourceCache,
 //!         ResourceCacheOptions,
 //!     },
-//!     kits::images::resnet::{
+//!     kits::images::classification::resnet::{
 //!         ResNet,
 //!         pretrained::default_resnet_factory,
 //!     },

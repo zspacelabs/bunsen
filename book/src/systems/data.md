@@ -21,7 +21,7 @@ one before:
 | [`datasets`](bunsen::data::datasets) | dataset shard sets | [Datasets](./data/datasets.md) |
 
 The kits show three sizes of the same machinery.
-[`default_resnet_factory`](bunsen::kits::images::resnet::pretrained::default_resnet_factory)
+[`default_resnet_factory`](bunsen::kits::images::classification::resnet::pretrained::default_resnet_factory)
 is the simple case: the catalog's `torchvision` and `timm` checkpoints.
 [`default_whisper_factory`](bunsen::kits::speech::asr::whisper::pretrained::default_whisper_factory)
 is the full one: the catalog's builds, and Hugging Face repos.

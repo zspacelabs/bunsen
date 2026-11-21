@@ -38,7 +38,7 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::Prefabs,
-        kits::images::resnet::ResNetContractConfig,
+        kits::images::classification::resnet::ResNetContractConfig,
     };
 
     /// Every row states the geometry of a prefab the map has and is one
@@ -57,7 +57,7 @@ mod tests {
                 .get(GEOMETRY)
                 .expect("every resnet row states its geometry")
                 .value;
-            let config: crate::kits::images::resnet::ResNetContractConfig =
+            let config: crate::kits::images::classification::resnet::ResNetContractConfig =
                 serde_json::from_value(geometry.clone()).unwrap();
             assert!(
                 ResNetContractConfig::PREFABS

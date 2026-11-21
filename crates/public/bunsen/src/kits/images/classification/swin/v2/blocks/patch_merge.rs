@@ -23,7 +23,7 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::images::swin::ops::collate_patches,
+    kits::images::classification::swin::ops::collate_patches,
 };
 
 /// Metadata for `PatchMerging`.
