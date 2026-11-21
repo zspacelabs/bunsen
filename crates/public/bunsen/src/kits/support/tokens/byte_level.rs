@@ -37,6 +37,7 @@ pub(crate) fn byte_alphabet() -> [char; 256] {
 pub struct ByteLevelVocabulary {
     spans: BTreeMap<usize, Vec<u8>>,
     added: BTreeMap<String, usize>,
+    pieces: BTreeMap<Vec<u8>, usize>,
 }
 
 impl ByteLevelVocabulary {
@@ -133,6 +134,7 @@ impl ByteLevelVocabulary {
             inverse.insert(*c, b as u8);
         }
         let mut spans = BTreeMap::new();
+        let mut by_bytes = BTreeMap::new();
         for (token, id) in pieces {
             let bytes = token
                 .chars()
@@ -144,11 +146,15 @@ impl ByteLevelVocabulary {
                     })
                 })
                 .collect::<BunsenResult<Vec<u8>>>()?;
+            // GPT-2's alphabet is one char per byte, so distinct tokens spell
+            // distinct bytes.
+            by_bytes.insert(bytes.clone(), id);
             spans.insert(id, bytes);
         }
         Ok(Self {
             spans,
             added: BTreeMap::new(),
+            pieces: by_bytes,
         })
     }
 
@@ -186,6 +192,15 @@ impl ByteLevelVocabulary {
         content: &str,
     ) -> Option<usize> {
         self.added.get(content).copied()
+    }
+
+    /// The id of the vocabulary entry, not an added token, that spells
+    /// exactly `bytes`: `system`, or `\n`.
+    pub fn piece_id(
+        &self,
+        bytes: &[u8],
+    ) -> Option<usize> {
+        self.pieces.get(bytes).copied()
     }
 
     /// The `{ id -> bytes }` table, in id order.
@@ -243,5 +258,19 @@ mod tests {
         let b = ByteLevelVocabulary::from_tokenizer_json(tok).unwrap();
         assert_eq!(a, b);
         assert!(ByteLevelVocabulary::from_vocab_json(r#"{"☃": 0}"#, None).is_err());
+    }
+
+    /// A piece is found by its exact bytes; an added token is not a piece,
+    /// nor is a piece's prefix.
+    #[test]
+    fn test_piece_id() {
+        let vocab = r#"{"system": 4, "Ċ": 2, "sys": 3, "Ġthe": 0, "Ġthe2": 9}"#;
+        let config = r#"{"added_tokens_decoder": {"5": {"content": "<|im_end|>"}}}"#;
+        let v = ByteLevelVocabulary::from_vocab_json(vocab, Some(config)).unwrap();
+        assert_eq!(v.piece_id(b"system"), Some(4));
+        assert_eq!(v.piece_id(b"\n"), Some(2));
+        assert_eq!(v.piece_id(b" the"), Some(0));
+        assert_eq!(v.piece_id(b"syst"), None);
+        assert_eq!(v.piece_id(b"<|im_end|>"), None);
     }
 }

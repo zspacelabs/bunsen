@@ -27,6 +27,19 @@ const CLIP: &str = "jfk_moon.mp3";
 /// The token that ends a reply's header and begins its transcript.
 const ASR_TEXT: &str = "<asr_text>";
 
+/// The release's prompt before the audio, as ids:
+/// `<|im_start|>system\n<|im_end|>\n<|im_start|>user\n<|audio_start|>`.
+const RELEASE_PREFIX: [usize; 9] = [151_644, 8948, 198, 151_645, 198, 151_644, 872, 198, 151_669];
+
+/// The release's prompt after the audio:
+/// `<|audio_end|><|im_end|>\n<|im_start|>assistant\n`.
+const RELEASE_SUFFIX: [usize; 6] = [151_670, 151_645, 198, 151_644, 77_091, 198];
+
+/// The release's `<asr_text>`, and its end tokens, `<|endoftext|>` and
+/// `<|im_end|>`.
+const RELEASE_TEXT_TOKEN: usize = 151_704;
+const RELEASE_EOS: [usize; 2] = [151_643, 151_645];
+
 fn wer(
     hypothesis: &str,
     reference: &str,
@@ -63,6 +76,18 @@ fn transcribe_windows(
     let bundle = load_construct(name, &device);
     let rate = bundle.front_end.sample_rate();
     let samples = speech_clip(CLIP);
+    // Every row's template and end tokens, read from its vocabulary, are the
+    // release's ids.
+    assert_eq!(
+        (
+            bundle.prompt.prefix.as_slice(),
+            bundle.prompt.suffix.as_slice(),
+            bundle.prompt.text_token
+        ),
+        (&RELEASE_PREFIX[..], &RELEASE_SUFFIX[..], RELEASE_TEXT_TOKEN),
+        "{name}: the prompt"
+    );
+    assert_eq!(bundle.decoder.eos, RELEASE_EOS, "{name}: the end tokens");
 
     let mut texts = Vec::new();
     for window in fixture {
@@ -88,6 +113,11 @@ fn transcribe_windows(
             ),
         }
         assert_eq!(transcript.language.as_deref(), Some("English"), "{name}");
+        assert_eq!(
+            transcript.form,
+            bunsen::kits::speech::asr::qwen3_asr::Qwen3AsrReplyForm::Headed,
+            "{name}"
+        );
         texts.push(transcript.text);
     }
     let text = texts.join(" ");

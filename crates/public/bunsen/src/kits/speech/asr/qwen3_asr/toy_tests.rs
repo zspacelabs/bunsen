@@ -209,9 +209,8 @@ fn test_toy_cached_decode_matches_uncached() {
     let toy = Toy::load();
     let audio = toy.model.encode_audio(toy.features(), FEATURE_LEN);
     let mut embeds = toy.model.prompt_embeds(&toy.ids(), audio).unwrap();
-    let generated = Qwen3AsrGreedyDecoderConfig::new()
+    let generated = Qwen3AsrGreedyDecoderConfig::new(vec![])
         .with_max_new_tokens(6)
-        .with_eos(vec![])
         .init()
         .decode(&toy.model, embeds.clone());
     assert_eq!(generated.len(), 6);
@@ -251,13 +250,8 @@ fn test_toy_construct() {
             .with_min_seconds(1)
             .init(&device),
         vocab: toy_vocab(),
-        prompt: Qwen3AsrPromptConfig::new()
-            .with_prefix(vec![1, 2])
-            .with_suffix(vec![3, 4])
-            .with_text_token(5),
-        decoder: Qwen3AsrGreedyDecoderConfig::new()
-            .with_max_new_tokens(4)
-            .with_eos(vec![6]),
+        prompt: Qwen3AsrPromptConfig::new(vec![1, 2], vec![3, 4], 5),
+        decoder: Qwen3AsrGreedyDecoderConfig::new(vec![6]).with_max_new_tokens(4),
         policy: Default::default(),
         presets: Default::default(),
     };
@@ -302,13 +296,8 @@ fn test_toy_audio_attention() {
             .with_min_seconds(1)
             .init(&device),
         vocab: toy_vocab(),
-        prompt: Qwen3AsrPromptConfig::new()
-            .with_prefix(vec![1, 2])
-            .with_suffix(vec![3, 4])
-            .with_text_token(5),
-        decoder: Qwen3AsrGreedyDecoderConfig::new()
-            .with_max_new_tokens(4)
-            .with_eos(vec![6]),
+        prompt: Qwen3AsrPromptConfig::new(vec![1, 2], vec![3, 4], 5),
+        decoder: Qwen3AsrGreedyDecoderConfig::new(vec![6]).with_max_new_tokens(4),
         policy: Default::default(),
         presets: Default::default(),
     };
