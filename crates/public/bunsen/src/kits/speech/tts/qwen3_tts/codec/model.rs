@@ -27,6 +27,7 @@ use crate::{
             CausalConv1dMeta,
             CausalConvNext1d,
             CausalConvNext1dConfig,
+            CausalConvNext1dMeta,
             CausalConvTranspose1d,
             CausalConvTranspose1dConfig,
             CausalConvTranspose1dMeta,
@@ -188,9 +189,16 @@ pub trait Qwen3TtsCodecUpsampleMeta {
 
     /// The factor, `r`: output frames per input frame.
     fn factor(&self) -> usize;
+
+    /// The `ConvNeXt` block's hidden width.
+    fn hidden(&self) -> usize;
+
+    /// The `ConvNeXt` block's depthwise taps.
+    fn block_kernel(&self) -> usize;
 }
 
-/// Config for [`Qwen3TtsCodecUpsample`].
+/// Config for [`Qwen3TtsCodecUpsample`]: its factor, and its `ConvNeXt`
+/// block's config.
 #[derive(Config, Debug)]
 pub struct Qwen3TtsCodecUpsampleConfig {
     /// The width, `L`.
@@ -198,6 +206,9 @@ pub struct Qwen3TtsCodecUpsampleConfig {
 
     /// The factor, `r`.
     pub factor: usize,
+
+    /// The `ConvNeXt` block, over `L`.
+    pub block: CausalConvNext1dConfig,
 }
 
 impl Qwen3TtsCodecUpsampleMeta for Qwen3TtsCodecUpsampleConfig {
@@ -208,29 +219,43 @@ impl Qwen3TtsCodecUpsampleMeta for Qwen3TtsCodecUpsampleConfig {
     fn factor(&self) -> usize {
         self.factor
     }
+
+    fn hidden(&self) -> usize {
+        self.block.hidden
+    }
+
+    fn block_kernel(&self) -> usize {
+        self.block.kernel
+    }
 }
 
 impl ModuleInit<Qwen3TtsCodecUpsample> for Qwen3TtsCodecUpsampleConfig {
     /// # Errors
-    /// As the convolutions' builds: a factor of 0 is refused.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a block not
+    /// over `L`; as the convolutions' builds: a factor of 0 is refused.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<Qwen3TtsCodecUpsample> {
         let [w, r] = [self.width, self.factor];
+        if self.block.width != w {
+            return Err(BunsenError::illegal(format!(
+                "an upsampler of width {w} with a ConvNeXt block of width {}",
+                self.block.width
+            )));
+        }
         Ok(Qwen3TtsCodecUpsample {
             up: CausalConvTranspose1dConfig::new([w, w], r)
                 .with_stride(r)
                 .try_init(device)?,
-            block: CausalConvNext1dConfig::new(w, 4 * w)
-                .with_layer_scale(true)
-                .try_init(device)?,
+            block: self.block.try_init(device)?,
         })
     }
 }
 
 /// One upsampler: a causal transposed convolution (kernel and stride its
-/// factor), then a causal `ConvNeXt` block with a layer scale.
+/// factor), then a causal `ConvNeXt` block (the release's with a layer
+/// scale).
 ///
 /// Built by [`Qwen3TtsCodecUpsampleConfig`].
 #[derive(Module, Debug)]
@@ -249,6 +274,14 @@ impl Qwen3TtsCodecUpsampleMeta for Qwen3TtsCodecUpsample {
 
     fn factor(&self) -> usize {
         self.up.stride()
+    }
+
+    fn hidden(&self) -> usize {
+        self.block.hidden()
+    }
+
+    fn block_kernel(&self) -> usize {
+        self.block.kernel()
     }
 }
 
@@ -698,6 +731,10 @@ pub struct Qwen3TtsCodecDecoderStructureConfig {
 
     /// The vocoder.
     pub decoder: Qwen3TtsVocoderConfig,
+
+    /// The bound the audio is clamped to, `[-c, c]`; `None`, unclamped.
+    #[config(default = "Some(1.0)")]
+    pub output_clamp: Option<f64>,
 }
 
 impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoderStructureConfig {
@@ -736,6 +773,7 @@ impl ModuleInit<Qwen3TtsCodecDecoder> for Qwen3TtsCodecDecoderStructureConfig {
                 .collect::<BunsenResult<_>>()?,
             decoder: self.decoder.try_init(device)?,
             samples_per_frame: self.samples_per_frame(),
+            output_clamp: self.output_clamp,
         })
     }
 }
@@ -768,7 +806,7 @@ pub struct Qwen3TtsCodecTrace {
 /// z = pre_conv(rvq(codes))                    (split RVQ, then a causal conv of 3 taps)
 /// z = transformer(z)                          (windowed causal attention, layer scales)
 /// z = upsample_n(… upsample_1(z))             (x2 each: a transposed conv and a ConvNeXt block)
-/// y = clamp(vocoder(z), -1, 1)                (DAC: SnakeBeta, transposed convs, residual units)
+/// y = clamp(vocoder(z), -c, c)                (DAC: SnakeBeta, transposed convs, residual units)
 /// ```
 ///
 /// A take longer than a chunk is decoded in chunks with a little left
@@ -799,6 +837,10 @@ pub struct Qwen3TtsCodecDecoder {
     /// Audio samples per frame of codes.
     #[module(skip)]
     pub samples_per_frame: usize,
+
+    /// The bound the audio is clamped to, `[-c, c]`; `None`, unclamped.
+    #[module(skip)]
+    pub output_clamp: Option<f64>,
 }
 
 impl Qwen3TtsCodecDecoderMeta for Qwen3TtsCodecDecoder {
@@ -826,7 +868,8 @@ impl Qwen3TtsCodecDecoder {
     /// - `codes`: `[B, K, T]`, `K` the codebooks.
     ///
     /// # Returns
-    /// `[B, 1, T · samples_per_frame]`, in `[-1, 1]`.
+    /// `[B, 1, T · samples_per_frame]`, in `[-c, c]` for an
+    /// [`output_clamp`](Self::output_clamp) of `c` (the release's 1).
     pub fn forward(
         &self,
         codes: Tensor<3, Int>,
@@ -875,7 +918,10 @@ impl Qwen3TtsCodecDecoder {
         steps.push(y.clone());
         y = vocoder.output.forward(y);
         steps.push(y.clone());
-        let audio = y.clamp(-1.0, 1.0);
+        let audio = match self.output_clamp {
+            Some(c) => y.clamp(-c, c),
+            None => y,
+        };
         crate::contracts::assert_shape_contract_periodically!(
             ["B", "C", "N"],
             &audio.dims(),
@@ -906,7 +952,8 @@ impl Qwen3TtsCodecDecoder {
     /// - `codes`: `[B, K, T]`.
     ///
     /// # Returns
-    /// `[B, 1, T · samples_per_frame]`, in `[-1, 1]`.
+    /// `[B, 1, T · samples_per_frame]`, in `[-c, c]` for an
+    /// [`output_clamp`](Self::output_clamp) of `c` (the release's 1).
     ///
     /// # Panics
     /// For a chunk of no frames.
@@ -1026,23 +1073,47 @@ pub struct Qwen3TtsCodecDecoderContractConfig {
     /// `ratio · r` (DAC's 2).
     #[config(default = 2)]
     pub vocoder_kernel_ratio: usize,
+
+    /// The pre-conv's taps.
+    #[config(default = 3)]
+    pub pre_conv_kernel: usize,
+
+    /// Each upsampler's `ConvNeXt` hidden width per unit of the latent
+    /// width: `ratio · L`.
+    #[config(default = 4)]
+    pub upsample_hidden_ratio: usize,
+
+    /// The transformer's query/key normalization (QK-norm); `None`, none.
+    #[config(default = "None")]
+    pub qk_norm: Option<BunsenNormalizationConfig>,
+
+    /// The widening the transformer's softmax runs in (`transformers`' eager
+    /// attention's f32).
+    #[config(default = "Widening::F32")]
+    pub softmax_widening: Widening,
+
+    /// The transformer's rotary convention (`rotate_half`'s).
+    #[config(default = "RotaryDirection::Forward")]
+    pub rotary_direction: RotaryDirection,
 }
 
 impl Qwen3TtsCodecDecoderContractConfig {
     /// The transformer's layers: pre-RMS-norm, attention over a causal sliding
-    /// window with half-split rotary and no QK-norm (its softmax in f32, as
-    /// `transformers`' eager attention), a `SwiGLU` feed-forward without
-    /// biases, a layer scale on each sublayer, and a final RMS norm.
+    /// window with half-split rotary in [`rotary_direction`](Self::rotary_direction)
+    /// and [`qk_norm`](Self::qk_norm) (the release's none; its softmax in
+    /// [`softmax_widening`](Self::softmax_widening), the release's f32), a
+    /// `SwiGLU` feed-forward without biases, a layer scale on each sublayer,
+    /// and a final RMS norm.
     pub fn stack(&self) -> UniformStackConfig {
         let norm = BunsenNormalizationConfig::Rms(RmsNormConfig::new(0).with_epsilon(self.rms_eps));
         let layer = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.width)
                 .with_head_dim(Some(self.head_dim))
-                .with_norm(None)
+                .with_norm(self.qk_norm.clone())
                 .with_qkv_bias(self.attention_bias)
                 .with_output_bias(self.attention_bias)
                 .with_sliding_window(Some(self.window))
-                .with_softmax_widening(Widening::F32)
+                .with_softmax_widening(self.softmax_widening)
                 .into(),
             BunsenGatedMlpConfig::new(self.width, self.d_ff).into(),
         )
@@ -1054,7 +1125,7 @@ impl Qwen3TtsCodecDecoderContractConfig {
             norm,
             RotaryEmbeddingConfig::new(0, self.head_dim)
                 .with_base(self.rope_theta)
-                .with_direction(RotaryDirection::Forward),
+                .with_direction(self.rotary_direction),
         )
     }
 
@@ -1119,11 +1190,18 @@ impl ToStructureConfig for Qwen3TtsCodecDecoderContractConfig {
                 self.codebook_dim,
             )
             .with_first_codebooks(self.semantic_codebooks),
-            CausalConv1dConfig::new([self.codebook_dim, latent], 3),
+            CausalConv1dConfig::new([self.codebook_dim, latent], self.pre_conv_kernel),
             Qwen3TtsCodecTransformerConfig::new(latent, self.stack()),
             self.upsampling_ratios
                 .iter()
-                .map(|&r| Qwen3TtsCodecUpsampleConfig::new(latent, r))
+                .map(|&r| {
+                    Qwen3TtsCodecUpsampleConfig::new(
+                        latent,
+                        r,
+                        CausalConvNext1dConfig::new(latent, self.upsample_hidden_ratio * latent)
+                            .with_layer_scale(true),
+                    )
+                })
                 .collect(),
             self.vocoder(),
         ))
@@ -1136,6 +1214,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        blocks::transformers::mixers::TokenMixerConfig,
         burner::module::ModuleInit,
         kits::speech::tts::qwen3_tts::{
             codec::{
@@ -1186,7 +1265,12 @@ mod tests {
         let policy = small()
             .with_semantic_codebooks(2)
             .with_vocoder_dilations(vec![2, 5])
-            .with_vocoder_kernel_ratio(3);
+            .with_vocoder_kernel_ratio(3)
+            .with_pre_conv_kernel(2)
+            .with_upsample_hidden_ratio(3)
+            .with_qk_norm(Some(BunsenNormalizationConfig::Rms(RmsNormConfig::new(0))))
+            .with_softmax_widening(Widening::NONE)
+            .with_rotary_direction(RotaryDirection::Reverse);
         let structure = policy.to_structure();
         let direct: Qwen3TtsCodecDecoder = policy.init(&device);
         let lowered: Qwen3TtsCodecDecoder = structure.init(&device);
@@ -1300,6 +1384,44 @@ mod tests {
         let u = &v.blocks[0].residuals[1];
         assert_eq!([u.kernel(), u.pointwise_kernel(), u.dilation()], [5, 3, 5]);
         assert_eq!(v.blocks[0].residuals[0].kernel(), 7);
+    }
+
+    /// The policy's pre-conv taps, upsampler hidden ratio and transformer
+    /// conventions, and the structure's output clamp, reach the modules.
+    #[test]
+    fn test_codec_fields_reach_the_parts() {
+        let device = cpu_device();
+        let policy = small()
+            .with_pre_conv_kernel(2)
+            .with_upsample_hidden_ratio(3)
+            .with_qk_norm(Some(BunsenNormalizationConfig::Rms(RmsNormConfig::new(0))))
+            .with_softmax_widening(Widening::NONE)
+            .with_rotary_direction(RotaryDirection::Reverse);
+        let mut structure = policy.to_structure();
+        assert_eq!(structure.output_clamp, Some(1.0));
+        structure.output_clamp = Some(0.5);
+        let TokenMixerConfig::Attention(attn) = &structure.pre_transformer.stack.layer.attn else {
+            panic!("an attention layer");
+        };
+        assert!(attn.norm.is_some());
+        assert_eq!(attn.softmax_widening, Widening::NONE);
+        assert_eq!(
+            structure.pre_transformer.stack.rotary.direction,
+            RotaryDirection::Reverse
+        );
+
+        let decoder: Qwen3TtsCodecDecoder = structure.init(&device);
+        assert_eq!(decoder.pre_conv.kernel_size(), 2);
+        for meta in [
+            &structure.upsample[0] as &dyn Qwen3TtsCodecUpsampleMeta,
+            &decoder.upsample[0],
+        ] {
+            assert_eq!([meta.hidden(), meta.block_kernel()], [18, 7]);
+        }
+        assert_eq!(decoder.output_clamp, Some(0.5));
+        let codes = Tensor::<3, Int>::zeros([1, 3, 2], &device);
+        let peak = decoder.forward(codes).abs().max().into_scalar::<f32>();
+        assert!(peak <= 0.5, "clamped to 0.5: {peak}");
     }
 
     /// A vocoder whose blocks do not chain, or a block whose residual unit
