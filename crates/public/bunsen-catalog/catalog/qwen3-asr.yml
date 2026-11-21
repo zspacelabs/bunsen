@@ -182,40 +182,12 @@ qwen:
       - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf
-    $contract: qwen3-asr/stated
+    $contract: qwen3-asr/probed
     $resources:
       checkpoint: checkpoint
+      config: config
       processor: processor
       vocabulary: vocabulary
-    $args:
-      geometry:
-        audio:
-          conv_channels: 480
-          d_ff: 3584
-          d_model: 896
-          n_heads: 14
-          n_layers: 18
-          n_mels: 128
-          n_window: 50
-          n_window_infer: 800
-        audio_token: 151676
-        text:
-          d_ff: 3072
-          d_model: 1024
-          head_dim: 128
-          kv_cache_pre_size: 1024
-          logits_dtype: F32
-          n_heads: 16
-          n_kv_heads: 8
-          n_layers: 28
-          n_vocab: 151936
-          qk_norm_eps: null
-          qk_norm_placement: BeforeRope
-          rms_eps: 1.0e-6
-          rope_theta: 1000000.0
-          rotary_direction: Forward
-          softmax_widening: F32
-          tied_head: true
     language:
       - en
       - zh
@@ -231,6 +203,16 @@ qwen:
       $sha256: d3f212dd20abecd315d830bc54ae3865e56ebfc3276484e57b771288ba27fd35
       $size: 1564928088
       $dtype: bfloat16
+      $sources:
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-0.6B-hf
+            $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 9eecf6f1b383e343889c2e6010e632590fa57d4bc678e151c7d6a160a0dfb04a
+      $size: 2398
       $sources:
         - $hub:
             $repo: Qwen/Qwen3-ASR-0.6B-hf
@@ -262,40 +244,12 @@ qwen:
       - qwen3-asr
     $license: Apache-2.0
     $origin: https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf
-    $contract: qwen3-asr/stated
+    $contract: qwen3-asr/probed
     $resources:
       checkpoint: checkpoint
+      config: config
       processor: processor
       vocabulary: vocabulary
-    $args:
-      geometry:
-        audio:
-          conv_channels: 480
-          d_ff: 4096
-          d_model: 1024
-          n_heads: 16
-          n_layers: 24
-          n_mels: 128
-          n_window: 50
-          n_window_infer: 800
-        audio_token: 151676
-        text:
-          d_ff: 6144
-          d_model: 2048
-          head_dim: 128
-          kv_cache_pre_size: 1024
-          logits_dtype: F32
-          n_heads: 16
-          n_kv_heads: 8
-          n_layers: 28
-          n_vocab: 151936
-          qk_norm_eps: null
-          qk_norm_placement: BeforeRope
-          rms_eps: 1.0e-6
-          rope_theta: 1000000.0
-          rotary_direction: Forward
-          softmax_widening: F32
-          tied_head: true
     language:
       - en
       - zh
@@ -311,6 +265,16 @@ qwen:
       $sha256: 2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1
       $size: 4076193080
       $dtype: bfloat16
+      $sources:
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-1.7B-hf
+            $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
+    config:
+      $kind: resource
+      $file: config.json
+      $format: json
+      $sha256: 117ac8e63e2af7cae3665e5a632d6eb03f5f384915519ceb6403c15ec6533f63
+      $size: 2399
       $sources:
         - $hub:
             $repo: Qwen/Qwen3-ASR-1.7B-hf

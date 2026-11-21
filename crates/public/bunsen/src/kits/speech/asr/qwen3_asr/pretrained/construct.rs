@@ -131,11 +131,14 @@ impl ConstructInit for Qwen3AsrConstructConfig {
         device: &Device,
         load: crate::data::formats::LoadPolicy,
     ) -> BunsenResult<Arc<Qwen3AsrConstruct>> {
-        let config = match loaded.get(CONFIG) {
+        let config: Qwen3AsrConfig = match loaded.get(CONFIG) {
             Some(part) => transformers::qwen3_asr_config_from_path(&part.path)?,
-            None => model
-                .stated(GEOMETRY)?
-                .unwrap_or_else(Qwen3AsrConfig::qwen3_asr_0_6b),
+            None => model.stated(GEOMETRY)?.ok_or_else(|| {
+                BunsenError::invalid_resource(format!(
+                    "{}: a Qwen3-ASR build with neither a `{CONFIG}` nor a stated `{GEOMETRY}`",
+                    model.id()
+                ))
+            })?,
         };
         let n_mels = config.audio.n_mels;
         let (asr, vocab, front_end) = match self.reader {
