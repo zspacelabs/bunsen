@@ -101,7 +101,8 @@ pub struct FetchPolicy {
     /// help: one whose kind
     /// [is retryable](crate::errors::BunsenErrorKind::is_retryable), such as
     /// a dropped connection, a timeout, or a 5xx. Each retry waits first:
-    /// see [`BunsenDiskCache::fetch_from_urls_retrying`].
+    /// see [`BunsenDiskCache::fetch_from_urls_retrying`]. Three by default,
+    /// so one dropped connection does not fail a multi-gigabyte shard.
     pub retries: u32,
 
     /// What one failure does to the jobs not yet started.
@@ -109,11 +110,11 @@ pub struct FetchPolicy {
 }
 
 impl Default for FetchPolicy {
-    /// Eight at once, one attempt, stop on the first failure.
+    /// Eight at once, three retries per mirror, stop on the first failure.
     fn default() -> Self {
         Self {
             parallel: 8,
-            retries: 0,
+            retries: 3,
             on_failure: OnFailure::Stop,
         }
     }
@@ -442,15 +443,15 @@ mod tests {
     fn test_policy_and_job_builders() {
         let policy = FetchPolicy::default();
         assert_eq!(policy.parallel, 8);
-        assert_eq!(policy.retries, 0);
+        assert_eq!(policy.retries, 3);
         assert_eq!(policy.on_failure, OnFailure::Stop);
 
         let policy = policy
             .with_parallel(2)
-            .with_retries(3)
+            .with_retries(5)
             .with_on_failure(OnFailure::Continue);
         assert_eq!(policy.parallel, 2);
-        assert_eq!(policy.retries, 3);
+        assert_eq!(policy.retries, 5);
         assert_eq!(policy.on_failure, OnFailure::Continue);
 
         let job = FetchJob::new(["a", "b"], "/d/f.bin").with_sha256(ABC_SHA256);
@@ -480,6 +481,7 @@ mod tests {
         ];
         let policy = FetchPolicy::default()
             .with_parallel(2)
+            .with_retries(0)
             .with_on_failure(OnFailure::Continue);
 
         let report = cache.fetch_many(&jobs, &policy);
@@ -566,7 +568,7 @@ mod tests {
 
         let flaky = serve_flaky("n.bin", b"abc", 1);
         let jobs = vec![FetchJob::new([flaky], dir.path().join("n.bin"))];
-        let report = cache.fetch_many(&jobs, &FetchPolicy::default());
+        let report = cache.fetch_many(&jobs, &FetchPolicy::default().with_retries(0));
         assert!(
             matches!(report.outcomes[0], FetchOutcome::Failed { attempts: 1, .. }),
             "{report}"
