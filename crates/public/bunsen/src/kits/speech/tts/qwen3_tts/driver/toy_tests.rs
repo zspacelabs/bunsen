@@ -55,17 +55,18 @@ use crate::{
     },
 };
 
-/// The toy's text ids: the chat specials and roles one id each, any other
-/// character `4 + (c mod 30)`.
+/// The toy's text ids: the chat specials and roles one id each, the
+/// generator's (`tools/gen_qwen3_tts_toy_fixtures.py`), any other character
+/// `4 + (c mod 30)`.
 #[derive(Debug)]
 struct Words;
 
 const WORDS: [(&str, i64); 5] = [
     ("<|im_start|>", 40),
     ("<|im_end|>", 41),
-    ("assistant", 1),
-    ("user", 2),
-    ("\n", 3),
+    ("assistant", 42),
+    ("user", 44),
+    ("\n", 43),
 ];
 
 impl Detokenizer for Words {
@@ -239,7 +240,7 @@ fn test_capabilities() {
 }
 
 /// The prompt request: the text wrapped as the assistant's turn (the role's
-/// 3 ids, the text's, the close's 5), the instruction as the user's, the
+/// ids, the text's, the close's), the instruction as the user's, the
 /// speaker's row, the language's row (`auto`: the speaker's dialect, or
 /// none), the config's placement.
 #[test]
@@ -262,11 +263,11 @@ fn test_prompt_request() {
         .unwrap();
     assert_eq!(
         request.input_ids,
-        [40, 1, 3, 4 + 97 % 30, 4 + 98 % 30, 41, 3, 40, 1, 3]
+        [40, 42, 43, 4 + 97 % 30, 4 + 98 % 30, 41, 43, 40, 42, 43]
     );
     assert_eq!(
         request.instruct_ids,
-        Some(vec![40, 2, 3, 4 + 120 % 30, 41, 3])
+        Some(vec![40, 44, 43, 4 + 120 % 30, 41, 43])
     );
     assert_eq!(request.speaker, Some(1045));
     assert_eq!(request.language, Some(34));
@@ -420,7 +421,7 @@ fn test_instruction_and_design() {
     assert_eq!(request.speaker, None);
     assert_eq!(
         request.instruct_ids,
-        Some(vec![40, 2, 3, 4 + 97 % 30, 4 + 98 % 30, 41, 3])
+        Some(vec![40, 44, 43, 4 + 97 % 30, 4 + 98 % 30, 41, 43])
     );
     let driver = qwen3_tts_driver(design).unwrap();
     driver

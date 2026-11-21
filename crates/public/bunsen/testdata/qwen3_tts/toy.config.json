@@ -35,6 +35,7 @@
     "architectures": [
       "Qwen3TTSForConditionalGeneration"
     ],
+    "assistant_token_id": 42,
     "im_end_token_id": 41,
     "im_start_token_id": 40,
     "model_type": "qwen3_tts",
