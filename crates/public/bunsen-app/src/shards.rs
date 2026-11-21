@@ -60,7 +60,7 @@ pub struct ShardArgs {
     pub parallel: usize,
 
     /// Extra attempts per shard after the first.
-    #[arg(long, default_value_t = 0)]
+    #[arg(long, default_value_t = 3)]
     pub retries: u32,
 
     /// Keep fetching after a shard fails, and report at the end.
