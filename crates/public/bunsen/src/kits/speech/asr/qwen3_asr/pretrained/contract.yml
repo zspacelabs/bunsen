@@ -15,6 +15,12 @@ qwen3-asr:
       $format: [tokenizer.json]
       $optional: true
       $description: "The tokenizer, beside safetensors weights: a Phonon-1 archive carries its own."
+    processor:
+      $format: [json]
+      $optional: true
+      $description: >-
+        transformers' `processor_config.json`, the feature extractor's settings, beside safetensors
+        weights: a Phonon-1 archive carries its own `preprocessor_config.json`.
   geometry:
     $kind: type
     $description: >-

@@ -45,16 +45,16 @@ const AUDIO_PAD: &str = "<|audio_pad|>";
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Qwen3AsrPolicy {
     /// The longest window, in seconds, that the
-    /// [`Qwen3AsrEngine`](super::Qwen3AsrEngine) decodes at once: at most
-    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS), the
-    /// default.
+    /// [`Qwen3AsrEngine`](super::Qwen3AsrEngine) decodes at once: at most the
+    /// front end's [`chunk_seconds`](Qwen3AsrFrontEndConfig::chunk_seconds);
+    /// the default front end's by default.
     pub window_seconds: f64,
 }
 
 impl Default for Qwen3AsrPolicy {
     fn default() -> Self {
         Self {
-            window_seconds: Qwen3AsrConstruct::MAX_WINDOW_SECONDS as f64,
+            window_seconds: Qwen3AsrFrontEndConfig::new().chunk_seconds as f64,
         }
     }
 }
@@ -87,11 +87,6 @@ pub struct Qwen3AsrConstruct {
 }
 
 impl Qwen3AsrConstruct {
-    /// The longest window [`transcribe_long`](Self::transcribe_long) is
-    /// meant to take, in seconds: Qwen3-ASR was trained on utterances of at
-    /// most 30 s.
-    pub const MAX_WINDOW_SECONDS: usize = 30;
-
     /// A construct of `model` and `vocab`, behind the default front end, its
     /// prompt and end tokens `vocab`'s ids
     /// ([`Qwen3AsrPromptConfig::from_vocabulary`],
@@ -142,7 +137,7 @@ impl Qwen3AsrConstruct {
     /// # Arguments
     /// * `samples` - mono audio at the front end's
     ///   [`sample_rate`](Qwen3AsrFrontEndMeta::sample_rate); at most
-    ///   [`MAX_WINDOW_SECONDS`](Self::MAX_WINDOW_SECONDS) is the model's range.
+    ///   [`max_window`](Self::max_window) is the model's range.
     ///
     /// # Errors
     /// As [`Qwen3AsrFrontEnd::forward`]; [`InvalidResource`] if a decoded
@@ -277,8 +272,11 @@ impl Qwen3AsrConstruct {
         Ok(joined)
     }
 
-    /// [`MAX_WINDOW_SECONDS`](Self::MAX_WINDOW_SECONDS), in samples.
+    /// The longest window [`transcribe_long`](Self::transcribe_long) is
+    /// meant to take, in samples: the front end's chunk
+    /// ([`chunk_seconds`](Qwen3AsrFrontEndConfig::chunk_seconds)), the
+    /// utterances the model was trained on.
     pub fn max_window(&self) -> usize {
-        Self::MAX_WINDOW_SECONDS * self.front_end.sample_rate()
+        self.front_end.config.chunk_seconds * self.front_end.sample_rate()
     }
 }

@@ -35,7 +35,7 @@ pub struct Qwen3AsrFlags {}
 /// # Errors
 /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) if the policy's
 /// `window_seconds` is under one frame or over
-/// [`MAX_WINDOW_SECONDS`](Qwen3AsrConstruct::MAX_WINDOW_SECONDS); as the driver
+/// the construct's [`max_window`](Qwen3AsrConstruct::max_window); as the driver
 /// and the VAD.
 pub fn driver(
     bundle: Arc<Qwen3AsrConstruct>,

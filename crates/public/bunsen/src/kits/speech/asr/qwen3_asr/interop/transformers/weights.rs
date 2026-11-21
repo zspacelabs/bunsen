@@ -31,22 +31,30 @@ pub fn load_qwen3_asr_tensors(
 }
 
 /// The model of `loaded`'s `transformers` checkpoint (its `checkpoint`,
-/// one file or shards), built from `config`, and its `tokenizer.json`
-/// vocabulary (its `vocabulary`): the weights in the stored dtype (bf16)
-/// where `policy` and the device allow it, never f16, which overflows its
-/// Qwen3 text model.
+/// one file or shards), built from `config`; its `tokenizer.json`
+/// vocabulary (its `vocabulary`); and its front end, when it has a
+/// `processor_config.json` (its `processor`): the weights in the stored dtype
+/// (bf16) where `policy` and the device allow it, never f16, which overflows
+/// its Qwen3 text model.
 ///
 /// # Errors
-/// When a file can't be read or parsed, and as [`load_qwen3_asr_tensors`].
+/// When a file can't be read or parsed; as [`load_qwen3_asr_tensors`], and
+/// as [`Qwen3AsrFeatureExtractorMirror`](super::Qwen3AsrFeatureExtractorMirror)'s
+/// conversion and model check.
 #[cfg(feature = "cache")]
 pub fn load_qwen3_asr(
     loaded: &crate::data::resources::LoadedResourceSet,
     config: &crate::kits::speech::asr::qwen3_asr::Qwen3AsrConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<(Qwen3Asr, crate::kits::support::tokens::ByteLevelVocabulary)> {
+) -> BunsenResult<(
+    Qwen3Asr,
+    crate::kits::support::tokens::ByteLevelVocabulary,
+    Option<crate::kits::speech::asr::qwen3_asr::Qwen3AsrFrontEndConfig>,
+)> {
     use crate::kits::speech::asr::qwen3_asr::pretrained::{
         CHECKPOINT,
+        PROCESSOR,
         VOCABULARY,
     };
     let tokenizer = loaded.expect(VOCABULARY)?;
@@ -54,9 +62,26 @@ pub fn load_qwen3_asr(
         std::fs::read_to_string(tokenizer).map_err(crate::errors::sys_at("read", tokenizer))?;
     let vocab = crate::kits::support::tokens::ByteLevelVocabulary::from_tokenizer_json(&json)
         .map_err(|e| e.context(tokenizer.display()))?;
+    let front_end = match loaded.get(PROCESSOR) {
+        Some(part) => {
+            let processor: super::Qwen3AsrProcessorMirror =
+                crate::kits::support::interop::json_mirror_from_path(&part.path)?;
+            let extractor = processor.feature_extractor;
+            extractor
+                .check_model(config)
+                .and_then(|()| extractor.front_end_config())
+                .map_err(|e| e.context(part.path.display()))
+                .map(Some)?
+        }
+        None => None,
+    };
     let tensors =
         crate::data::formats::SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
-    Ok((build_qwen3_asr(tensors, config, device, policy)?, vocab))
+    Ok((
+        build_qwen3_asr(tensors, config, device, policy)?,
+        vocab,
+        front_end,
+    ))
 }
 
 /// `config`'s model with `tensors` loaded, in the stored dtype where `policy`

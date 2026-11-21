@@ -185,6 +185,7 @@ qwen:
     $contract: qwen3-asr/stated
     $resources:
       checkpoint: checkpoint
+      processor: processor
       vocabulary: vocabulary
     $args:
       geometry:
@@ -234,6 +235,16 @@ qwen:
         - $hub:
             $repo: Qwen/Qwen3-ASR-0.6B-hf
             $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
+    processor:
+      $kind: resource
+      $file: processor_config.json
+      $format: json
+      $sha256: bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a
+      $size: 487
+      $sources:
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-0.6B-hf
+            $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
     vocabulary:
       $kind: resource
       $file: tokenizer.json
@@ -254,6 +265,7 @@ qwen:
     $contract: qwen3-asr/stated
     $resources:
       checkpoint: checkpoint
+      processor: processor
       vocabulary: vocabulary
     $args:
       geometry:
@@ -299,6 +311,16 @@ qwen:
       $sha256: 2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1
       $size: 4076193080
       $dtype: bfloat16
+      $sources:
+        - $hub:
+            $repo: Qwen/Qwen3-ASR-1.7B-hf
+            $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
+    processor:
+      $kind: resource
+      $file: processor_config.json
+      $format: json
+      $sha256: bc0b230081b44e629dd5b9045b78495615c1831b4b9f4cffe97bd37e82a6156a
+      $size: 487
       $sources:
         - $hub:
             $repo: Qwen/Qwen3-ASR-1.7B-hf

@@ -21,6 +21,11 @@ pub const CHECKPOINT: &str = "checkpoint";
 /// that does not carry its own.
 pub const VOCABULARY: &str = "vocabulary";
 
+/// The key of `transformers`' `processor_config.json` in a Qwen3-ASR resource
+/// set, its feature extractor's settings, for a checkpoint that does not
+/// carry its own.
+pub const PROCESSOR: &str = "processor";
+
 /// The `kind` of a Phonon-1 archive: a zstd tar of a packed checkpoint, its
 /// `packed_manifest.json`, and its vocabulary.
 pub const PHONON_ARCHIVE: &str = "phonon archive";
@@ -160,6 +165,7 @@ mod tests {
             [
                 "qwen3-asr: abstract".to_string(),
                 format!("qwen3-asr: {CHECKPOINT} [{PHONON_ARCHIVE}, {SAFETENSORS}]"),
+                format!("qwen3-asr: {PROCESSOR}? [json]"),
                 format!("qwen3-asr: {VOCABULARY}? [{TOKENIZER_JSON}]"),
                 format!("qwen3-asr/probed: {CONFIG} [json]"),
                 "qwen3-asr/stated: geometry: \"geometry\"".to_string(),

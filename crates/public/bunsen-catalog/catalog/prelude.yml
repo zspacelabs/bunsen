@@ -197,6 +197,13 @@ $contracts:
         $format:
           - phonon archive
           - safetensors
+      processor:
+        $description: "transformers' `processor_config.json`, the feature extractor's settings,
+          beside safetensors weights: a Phonon-1 archive carries its own
+          `preprocessor_config.json`."
+        $format:
+          - json
+        $optional: true
       vocabulary:
         $description: "The tokenizer, beside safetensors weights: a Phonon-1 archive carries its
           own."

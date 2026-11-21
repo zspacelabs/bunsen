@@ -216,12 +216,17 @@ qwen:
       $revision: 7f1569a48a89f3e3f4dc3a5c9d28bddd903bc76c
     $resources:
       checkpoint: checkpoint
+      processor: processor
       vocabulary: vocabulary
     checkpoint:
       $kind: resource
       $file: model.safetensors
       $format: safetensors
       $dtype: bfloat16
+    processor:
+      $kind: resource
+      $file: processor_config.json
+      $format: json
     vocabulary:
       $kind: resource
       $file: tokenizer.json
@@ -276,12 +281,17 @@ qwen:
       $revision: bcd2b5b7f32b480ab5790554cfa8347f246a14f3
     $resources:
       checkpoint: checkpoint
+      processor: processor
       vocabulary: vocabulary
     checkpoint:
       $kind: resource
       $file: model.safetensors
       $format: safetensors
       $dtype: bfloat16
+    processor:
+      $kind: resource
+      $file: processor_config.json
+      $format: json
     vocabulary:
       $kind: resource
       $file: tokenizer.json
