@@ -1,9 +1,9 @@
 //! # Laya cross-check against upstream.
 //!
-//! Validates [`bunsen`]'s Laya (`kits::decision::laya`), its `ModernBERT`
-//! encoder (`kits::language::encoders::modernbert`) with it, against upstream's
-//! own decision model (`rl_common.py` and `rl_agent_api.py` of
-//! `convaiinnovations/laya`), in float32, on each of its three checkpoints,
+//! Validates [`bunsen`]'s Laya (`kits::language::decision::laya`), its
+//! `ModernBERT` encoder (`kits::language::encoders::modernbert`) with it,
+//! against upstream's own decision model (`rl_common.py` and `rl_agent_api.py`
+//! of `convaiinnovations/laya`), in float32, on each of its three checkpoints,
 //! [`ROWS`]: for every question of every case, bunsen's prompt is upstream's
 //! (the ids and the option markers, through bunsen's `BunsenTokenizer`);
 //! its encoder's states at the first token and each marker are upstream's;
@@ -38,7 +38,7 @@ use std::collections::BTreeMap;
 
 use bunsen::{
     data::formats::LoadPolicy,
-    kits::decision::laya::{
+    kits::language::decision::laya::{
         LayaConstruct,
         LayaQuestion,
     },
@@ -115,7 +115,7 @@ pub fn load_construct(
     name: &str,
     device: &Device,
 ) -> std::sync::Arc<LayaConstruct> {
-    bunsen::kits::decision::laya::pretrained::default_laya_factory()
+    bunsen::kits::language::decision::laya::pretrained::default_laya_factory()
         .expect("the laya factory")
         .load_construct(
             name,

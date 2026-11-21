@@ -31,7 +31,7 @@ or supplanted by the eventual `burn` solution to that problem.
 A kit is a whole model, with its configs and the weights it loads by name
 ([Kits](https://zspacelabs.ai/bunsen/book/organization/kits.html)):
 
-- [`decision::laya`](https://docs.rs/bunsen/latest/bunsen/kits/decision/laya/index.html): Laya, an open decision
+- [`language::decision::laya`](https://docs.rs/bunsen/latest/bunsen/kits/language/decision/laya/index.html): Laya, an open decision
   model: typed questions about a state answered with calibrated probabilities, with its checkpoints by name.
 - [`images::resnet`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/index.html): ResNet image classifiers,
   with torchvision's and `timm`'s checkpoints by name.
@@ -43,7 +43,7 @@ A kit is a whole model, with its configs and the weights it loads by name
   a pretrained index, decoders, and a stream driver.
 - [`speech::vad::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/vad/silero_vad/index.html): the Silero
   voice-activity detector, with weights a build can bundle.
-- [`language::encoders::modernbert`](https://docs.rs/bunsen/latest/bunsen/kits/text/encoders/modernbert/index.html):
+- [`language::encoders::modernbert`](https://docs.rs/bunsen/latest/bunsen/kits/language/encoders/modernbert/index.html):
   Answer.AI's ModernBERT text encoder, which Laya is built on.
 - [`support`](https://docs.rs/bunsen/latest/bunsen/kits/support/index.html): not a model; what kits of more than one
   family share: the ids-to-text seam, and the decoding search machinery.

@@ -2,7 +2,7 @@
 
 use bunsen::{
     errors::BunsenResult,
-    kits::decision::laya::pretrained::default_laya_factory,
+    kits::language::decision::laya::pretrained::default_laya_factory,
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,

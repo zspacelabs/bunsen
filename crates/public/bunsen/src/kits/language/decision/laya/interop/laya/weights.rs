@@ -12,9 +12,9 @@ use crate::{
         split_rows,
     },
     errors::BunsenResult,
-    kits::{
+    kits::language::{
         decision::laya::LayaModel,
-        language::encoders::modernbert::interop::transformers::modernbert_row_splits,
+        encoders::modernbert::interop::transformers::modernbert_row_splits,
     },
 };
 
@@ -51,7 +51,7 @@ pub fn load_laya_tensors(
 #[cfg(feature = "cache")]
 pub fn load_laya(
     loaded: &crate::data::resources::LoadedResourceSet,
-    config: &crate::kits::decision::laya::LayaConfig,
+    config: &crate::kits::language::decision::laya::LayaConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<LayaModel> {
@@ -61,7 +61,7 @@ pub fn load_laya(
             SafetensorsCheckpoint,
             stored_float_dtype,
         },
-        kits::decision::laya::pretrained::CHECKPOINT,
+        kits::language::decision::laya::pretrained::CHECKPOINT,
     };
     let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
     let stored = stored_float_dtype(&tensors).unwrap_or(FloatDType::F32);

@@ -4,7 +4,7 @@
 //! `ModernBERT` encoder's `encoder/config.json`, the head's
 //! `rl_agent_config.json`, and one `model.safetensors` (the encoder under
 //! `encoder.`, the head's `PyTorch` layers under `head.layers.`), as bunsen's
-//! [`LayaModel`](crate::kits::decision::laya::LayaModel):
+//! [`LayaModel`](crate::kits::language::decision::laya::LayaModel):
 //!
 //! - **Mirror:** [`LayaAgentMirror`] (`rl_agent_config.json`), its
 //!   [`agent_config`](LayaAgentMirror::agent_config) the head and calibration;
@@ -23,12 +23,12 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::{
+    kits::language::{
         decision::laya::{
             LayaAgentConfig,
             LayaConfig,
         },
-        language::encoders::modernbert::{
+        encoders::modernbert::{
             ModernBertContractConfig,
             interop::transformers::modernbert_rekey,
         },
@@ -105,7 +105,7 @@ pub fn laya_config(
 
 /// A Laya `model.safetensors`' names, once its fused projections are split
 /// (`load_laya_tensors`), onto a
-/// [`LayaModel`](crate::kits::decision::laya::LayaModel)'s module paths: the
+/// [`LayaModel`](crate::kits::language::decision::laya::LayaModel)'s module paths: the
 /// `ModernBERT` encoder under `encoder.`; the head's `PyTorch` encoder
 /// layers, `head.layers.N.`
 /// ([`transformer_encoder_layer_rekey`](crate::kits::support::interop::torch::transformer_encoder_layer_rekey)); the type embedding;
