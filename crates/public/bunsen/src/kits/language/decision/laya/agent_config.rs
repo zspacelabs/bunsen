@@ -85,7 +85,7 @@ impl LayaAgentConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::decision::laya::interop::laya::LayaAgentMirror;
+    use crate::kits::language::decision::laya::interop::laya::LayaAgentMirror;
 
     fn agent(json: &str) -> LayaAgentConfig {
         LayaAgentMirror::from_json(json).unwrap().agent_config()

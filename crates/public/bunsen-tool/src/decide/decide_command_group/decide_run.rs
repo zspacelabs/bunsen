@@ -15,7 +15,7 @@ use bunsen::{
         sys_at,
     },
     kits::{
-        decision::laya::{
+        language::decision::laya::{
             LayaAnswer,
             LayaConstruct,
             LayaRequest,
@@ -150,7 +150,7 @@ fn parse_request(text: &str) -> BunsenResult<LayaRequest> {
 ///
 /// # Errors
 /// As the tokenizer's files, and
-/// [`LayaModel::decide`](bunsen::kits::decision::laya::LayaModel::decide).
+/// [`LayaModel::decide`](bunsen::kits::language::decision::laya::LayaModel::decide).
 fn decide(
     construct: &LayaConstruct,
     request: &LayaRequest,

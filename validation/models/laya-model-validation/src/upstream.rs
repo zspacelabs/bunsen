@@ -3,7 +3,7 @@
 
 use bunsen::{
     kits::{
-        decision::laya::{
+        language::decision::laya::{
             LayaQuestionKind,
             LayaSpecials,
             build_prompt,

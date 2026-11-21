@@ -20,7 +20,7 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    kits::decision::laya::pretrained::{
+    kits::language::decision::laya::pretrained::{
         DEFAULT_LAYA_MODEL,
         default_laya_factory,
     },
