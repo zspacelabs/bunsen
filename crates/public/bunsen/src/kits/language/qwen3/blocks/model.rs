@@ -46,21 +46,15 @@ use crate::{
     },
 };
 
-/// The positions a Qwen3 cache allocates up front by default: one growth
-/// chunk. Qwen3 builds its rotary tables to order, so it has no positional cap
-/// of its own; a caller that knows a decode's length sizes (and caps) the
-/// cache to it.
-pub const QWEN3_KV_CACHE_PRE_SIZE: usize = 1024;
-
 /// The cache a Qwen3 of this geometry decodes with, before it is built: its
-/// KV heads, head width and layer count, [`QWEN3_KV_CACHE_PRE_SIZE`]
-/// positions up front, uncapped; the built model's
-/// ([`LmDecoderModel`]'s) is the same.
+/// KV heads, head width and layer count,
+/// [`kv_cache_pre_size`](Qwen3Config::kv_cache_pre_size) positions up front,
+/// uncapped; the built model's ([`LmDecoderModel`]'s) is the same.
 impl KVCacheModel for Qwen3Config {
     fn kv_cache_config(&self) -> KVCacheConfig {
         KVCacheConfig::for_decode(
             self.n_kv_heads(),
-            QWEN3_KV_CACHE_PRE_SIZE,
+            self.kv_cache_pre_size,
             self.head_dim(),
             self.n_layers(),
         )
@@ -118,6 +112,27 @@ pub struct Qwen3Config {
     /// `None` leaves them in the model's dtype.
     #[config(default = "Some(FloatDType::F32)")]
     pub logits_dtype: Option<FloatDType>,
+
+    /// The rotary convention: `transformers`' `rotate_half`.
+    #[config(default = "RotaryDirection::Forward")]
+    pub rotary_direction: RotaryDirection,
+
+    /// Where the attention's QK-norm applies: before the rotary embedding,
+    /// as `transformers`' Qwen3 applies it.
+    #[config(default = "QkNormPlacement::BeforeRope")]
+    pub qk_norm_placement: QkNormPlacement,
+
+    /// The QK-norm's epsilon; `None`, [`rms_eps`](Self::rms_eps), as
+    /// `transformers`' Qwen3 (one `rms_norm_eps` for every norm).
+    #[config(default = "None")]
+    pub qk_norm_eps: Option<f64>,
+
+    /// The positions the KV cache allocates up front: one growth chunk.
+    /// Qwen3 builds its rotary tables to order, so it has no positional cap of
+    /// its own; a caller that knows a decode's length sizes (and caps) the
+    /// cache to it.
+    #[config(default = 1024)]
+    pub kv_cache_pre_size: usize,
 }
 
 impl Qwen3Config {
@@ -159,7 +174,7 @@ impl Qwen3Config {
     ) -> RotaryEmbeddingConfig {
         RotaryEmbeddingConfig::new(seq_len, self.head_dim)
             .with_base(self.rope_theta)
-            .with_direction(RotaryDirection::Forward)
+            .with_direction(self.rotary_direction)
     }
 
     /// The output head: tied to the embedding or a projection of its own
@@ -171,23 +186,25 @@ impl Qwen3Config {
     }
 
     /// The decoder stack: `n_layers` alike, each RMS norms, a `SwiGLU`, and
-    /// grouped-query attention with QK-norm before the rotary embedding.
+    /// grouped-query attention with QK-norm
+    /// ([`qk_norm_placement`](Self::qk_norm_placement), the release's before
+    /// the rotary embedding).
     pub fn stack(&self) -> UniformStackConfig {
-        let norm =
-            |n| BunsenNormalizationConfig::Rms(RmsNormConfig::new(n).with_epsilon(self.rms_eps));
+        let norm = |n, eps| BunsenNormalizationConfig::Rms(RmsNormConfig::new(n).with_epsilon(eps));
+        let qk_eps = self.qk_norm_eps.unwrap_or(self.rms_eps);
         UniformStackConfig::new(
             self.n_layers,
             CausalDecoderBlockConfig::new(
                 CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                     .with_head_dim(Some(self.head_dim))
-                    .with_norm(Some(norm(self.head_dim)))
-                    .with_qk_norm(QkNormPlacement::BeforeRope)
+                    .with_norm(Some(norm(self.head_dim, qk_eps)))
+                    .with_qk_norm(self.qk_norm_placement)
                     .with_softmax_widening(self.softmax_widening)
                     .into(),
                 BunsenGatedMlpConfig::new(self.d_model, self.d_ff).into(),
             )
-            .with_norm(norm(0)),
-            norm(0),
+            .with_norm(norm(0, self.rms_eps)),
+            norm(0, self.rms_eps),
             self.rotary(0),
         )
     }
@@ -200,7 +217,7 @@ impl Qwen3Config {
 
 /// The language model: [`embedding`](Qwen3Config::embedding),
 /// [`head`](Qwen3Config::head) and [`stack`](Qwen3Config::stack), its KV cache
-/// [`QWEN3_KV_CACHE_PRE_SIZE`] positions up front.
+/// [`kv_cache_pre_size`](Qwen3Config::kv_cache_pre_size) positions up front.
 ///
 /// # Errors
 /// Never: a Qwen3's lowering is total.
@@ -210,7 +227,7 @@ impl ToStructureConfig for Qwen3Config {
     fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
         Ok(
             LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack().into())
-                .with_kv_cache_pre_size(QWEN3_KV_CACHE_PRE_SIZE),
+                .with_kv_cache_pre_size(self.kv_cache_pre_size),
         )
     }
 }
@@ -292,6 +309,7 @@ mod tests {
     use crate::{
         blocks::transformers::{
             head::LmHeadMeta,
+            mixers::TokenMixerConfig,
             models::language_decoder::{
                 LmDecoderOps,
                 LmKvForwardHidden,
@@ -320,10 +338,27 @@ mod tests {
     fn test_meta_and_cache() {
         let config = Qwen3Config::new(40, 12, 2, 3, 1, 6, 20)
             .with_rms_eps(1e-5)
-            .with_rope_theta(500.0);
+            .with_rope_theta(500.0)
+            .with_rotary_direction(RotaryDirection::Reverse)
+            .with_qk_norm_placement(QkNormPlacement::AfterRope)
+            .with_qk_norm_eps(Some(1e-3))
+            .with_kv_cache_pre_size(64);
         let device = cpu_device();
         let lm = config.to_structure();
-        assert_eq!(lm.kv_cache_pre_size, QWEN3_KV_CACHE_PRE_SIZE);
+        assert_eq!(lm.kv_cache_pre_size, 64);
+        assert_eq!(config.kv_cache_config().seq_len, 64);
+        let stack = config.stack();
+        let TokenMixerConfig::Attention(attn) = &stack.layer.attn else {
+            panic!("an attention layer");
+        };
+        let Some(BunsenNormalizationConfig::Rms(qk)) = &attn.norm else {
+            panic!("an RMS QK-norm");
+        };
+        assert_eq!(qk.epsilon, 1e-3);
+        let BunsenNormalizationConfig::Rms(layer_norm) = &stack.layer.norm else {
+            panic!("an RMS layer norm");
+        };
+        assert_eq!(layer_norm.epsilon, 1e-5);
         let model: Qwen3Model = config.init(&device);
         assert_eq!(model.n_vocab(), config.n_vocab());
         assert_eq!(model.d_model(), config.d_model());
@@ -331,6 +366,11 @@ mod tests {
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.lm.stack.rotary.base, config.rope_theta);
+        assert_eq!(model.lm.stack.rotary.direction, RotaryDirection::Reverse);
+        assert_eq!(
+            model.lm.stack.layers[0].attn.branch.attention().qk_norm,
+            QkNormPlacement::AfterRope
+        );
         assert_eq!(
             model.lm.stack.layers[0]
                 .attn

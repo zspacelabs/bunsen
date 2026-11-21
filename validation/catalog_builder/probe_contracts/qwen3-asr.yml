@@ -41,13 +41,17 @@ fermion:
           d_ff: 3072
           d_model: 1024
           head_dim: 128
+          kv_cache_pre_size: 1024
           logits_dtype: F32
           n_heads: 16
           n_kv_heads: 8
           n_layers: 28
           n_vocab: 151936
+          qk_norm_eps: null
+          qk_norm_placement: BeforeRope
           rms_eps: 1.0e-6
           rope_theta: 1000000.0
+          rotary_direction: Forward
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -87,13 +91,17 @@ fermion:
           d_ff: 3072
           d_model: 1024
           head_dim: 128
+          kv_cache_pre_size: 1024
           logits_dtype: F32
           n_heads: 16
           n_kv_heads: 8
           n_layers: 28
           n_vocab: 151936
+          qk_norm_eps: null
+          qk_norm_placement: BeforeRope
           rms_eps: 1.0e-6
           rope_theta: 1000000.0
+          rotary_direction: Forward
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -133,13 +141,17 @@ fermion:
           d_ff: 3072
           d_model: 1024
           head_dim: 128
+          kv_cache_pre_size: 1024
           logits_dtype: F32
           n_heads: 16
           n_kv_heads: 8
           n_layers: 28
           n_vocab: 151936
+          qk_norm_eps: null
+          qk_norm_placement: BeforeRope
           rms_eps: 1.0e-6
           rope_theta: 1000000.0
+          rotary_direction: Forward
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -186,13 +198,17 @@ qwen:
           d_ff: 3072
           d_model: 1024
           head_dim: 128
+          kv_cache_pre_size: 1024
           logits_dtype: F32
           n_heads: 16
           n_kv_heads: 8
           n_layers: 28
           n_vocab: 151936
+          qk_norm_eps: null
+          qk_norm_placement: BeforeRope
           rms_eps: 1.0e-6
           rope_theta: 1000000.0
+          rotary_direction: Forward
           softmax_widening: F32
           tied_head: true
     $hub:
@@ -242,13 +258,17 @@ qwen:
           d_ff: 6144
           d_model: 2048
           head_dim: 128
+          kv_cache_pre_size: 1024
           logits_dtype: F32
           n_heads: 16
           n_kv_heads: 8
           n_layers: 28
           n_vocab: 151936
+          qk_norm_eps: null
+          qk_norm_placement: BeforeRope
           rms_eps: 1.0e-6
           rope_theta: 1000000.0
+          rotary_direction: Forward
           softmax_widening: F32
           tied_head: true
     $hub:
