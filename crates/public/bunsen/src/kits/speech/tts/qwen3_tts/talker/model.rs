@@ -15,6 +15,7 @@ use crate::{
         mlp::{
             BunsenMlp,
             BunsenMlpConfig,
+            BunsenMlpMeta,
         },
         transformers::{
             embedding::RotarySet,
@@ -26,7 +27,10 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     kits::language::qwen3::{
         Qwen3Config,
         Qwen3Model,
@@ -52,6 +56,9 @@ pub trait Qwen3TtsTalkerMeta {
 
     /// The text table's width, `T_w`.
     fn text_width(&self) -> usize;
+
+    /// The text projection's hidden width (the release's `T_w`).
+    fn text_hidden(&self) -> usize;
 }
 
 impl Qwen3TtsTalkerMeta for Qwen3TtsTalkerConfig {
@@ -69,6 +76,10 @@ impl Qwen3TtsTalkerMeta for Qwen3TtsTalkerConfig {
 
     fn text_width(&self) -> usize {
         self.text_width
+    }
+
+    fn text_hidden(&self) -> usize {
+        self.text_projection.d_hidden
     }
 }
 
@@ -94,29 +105,46 @@ pub struct Qwen3TtsTalker {
     /// The text table, `[V_t, T_w]`.
     pub text_embedding: Embedding,
 
-    /// The text table's projection to the talker's width:
-    /// `linear2(silu(linear1(x)))`, both with biases, `T_w -> T_w -> W`.
+    /// The text table's projection to the talker's width,
+    /// `linear2(act(linear1(x)))` (the release's
+    /// [`release_text_projection`]).
     pub text_projection: BunsenMlp,
 }
 
 impl ModuleInit<Qwen3TtsTalker> for Qwen3TtsTalkerConfig {
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a text
+    /// projection that does not read `T_w` and write `W`; as the parts'
+    /// builds.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<Qwen3TtsTalker> {
+        let p = &self.text_projection;
+        if [p.d_input, p.d_output] != [self.text_width, self.lm.d_model] {
+            return Err(BunsenError::illegal(format!(
+                "a text projection {} -> {}; the talker's is {} -> {}",
+                p.d_input, p.d_output, self.text_width, self.lm.d_model
+            )));
+        }
         let Qwen3Model { lm } = self.lm.try_init(device)?;
         Ok(Qwen3TtsTalker {
             lm,
             text_embedding: EmbeddingConfig::new(self.text_vocab, self.text_width).init(device),
-            text_projection: BunsenMlpConfig::new(
-                self.text_width,
-                self.text_width,
-                self.lm.d_model,
-            )
-            .with_activation(BunsenActivationConfig::Silu)
-            .try_init(device)?,
+            text_projection: p.try_init(device)?,
         })
     }
+}
+
+/// The release's text projection (upstream's `Qwen3TTSTalkerResizeMLP`):
+/// `text_width -> text_width -> d_model`, `SiLU`, both projections with
+/// biases.
+pub fn release_text_projection(
+    text_width: usize,
+    d_model: usize,
+) -> BunsenMlpConfig {
+    BunsenMlpConfig::new(text_width, text_width, d_model)
+        .with_activation(BunsenActivationConfig::Silu)
 }
 
 impl Qwen3TtsTalkerMeta for Qwen3TtsTalker {
@@ -134,6 +162,10 @@ impl Qwen3TtsTalkerMeta for Qwen3TtsTalker {
 
     fn text_width(&self) -> usize {
         self.text_embedding.weight.dims()[1]
+    }
+
+    fn text_hidden(&self) -> usize {
+        self.text_projection.d_hidden()
     }
 }
 
@@ -210,9 +242,11 @@ pub struct Qwen3TtsTalkerConfig {
     /// The text table's rows.
     pub text_vocab: usize,
 
-    /// The text table's width, the resize projection's input and hidden
-    /// width.
+    /// The text table's width, the text projection's input.
     pub text_width: usize,
+
+    /// The text projection, `T_w` to the decoder's width.
+    pub text_projection: BunsenMlpConfig,
 
     /// The codebooks a frame holds: the talker's first and the code
     /// predictor's rest.
@@ -227,10 +261,17 @@ mod tests {
         support::testing::cpu_device,
     };
 
-    /// The config and the talker built from it answer the meta alike.
+    /// The config and the talker built from it answer the meta alike, a
+    /// text projection's hidden width other than the release's included.
     #[test]
     fn test_talker_meta() {
-        let config = Qwen3TtsTalkerConfig::new(Qwen3Config::new(11, 8, 1, 2, 1, 4, 12), 13, 6, 4);
+        let config = Qwen3TtsTalkerConfig::new(
+            Qwen3Config::new(11, 8, 1, 2, 1, 4, 12),
+            13,
+            6,
+            BunsenMlpConfig::new(6, 5, 8).with_activation(BunsenActivationConfig::Gelu),
+            4,
+        );
         let talker: Qwen3TtsTalker = config.init(&cpu_device());
         for meta in [&config as &dyn Qwen3TtsTalkerMeta, &talker] {
             assert_eq!(
@@ -238,9 +279,10 @@ mod tests {
                     meta.d_model(),
                     meta.codec_vocab(),
                     meta.text_vocab(),
-                    meta.text_width()
+                    meta.text_width(),
+                    meta.text_hidden()
                 ],
-                [8, 11, 13, 6]
+                [8, 11, 13, 6, 5]
             );
         }
     }

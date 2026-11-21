@@ -267,15 +267,15 @@ impl Qwen3TtsGenerationMirror {
             .with_repetition_penalty(self.repetition_penalty)
     }
 
-    /// The code predictor's sampler settings: its own sampling, no
-    /// repetition penalty (upstream passes it none).
+    /// The code predictor's sampler settings: its own sampling, and the
+    /// field's default repetition penalty, 1.0, none (upstream passes it
+    /// none).
     pub fn code_predictor_sampler_config(&self) -> Qwen3TtsSamplerConfig {
         Qwen3TtsSamplerConfig::new()
             .with_sample(self.subtalker_dosample)
             .with_temperature(self.subtalker_temperature)
             .with_top_k(self.subtalker_top_k)
             .with_top_p(self.subtalker_top_p)
-            .with_repetition_penalty(1.0)
     }
 }
 
