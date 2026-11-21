@@ -93,7 +93,7 @@ impl Toy {
             .expect("read the toy config");
         let mut fixture = ToyFixture::load(dir.join(format!("{name}.safetensors")), device);
         let mut model: Qwen3_5Model = config.init(device);
-        let applied = load_qwen3_5_tensors(&mut model, fixture.take_weights(), None)
+        let applied = load_qwen3_5_tensors(&mut model, &config, fixture.take_weights(), None)
             .expect("load the toy weights");
         // Unused: the dropped vision tower and prediction head, and a tied
         // toy's decoy head, which a tied model has nowhere to load.

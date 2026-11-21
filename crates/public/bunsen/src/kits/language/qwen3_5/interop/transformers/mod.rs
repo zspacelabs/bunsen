@@ -14,7 +14,10 @@
 use std::path::Path;
 
 use crate::{
-    blocks::transformers::decoders::causal::CausalDecoderBlock,
+    blocks::transformers::{
+        attention::csa::AttentionOutputGate,
+        decoders::causal::CausalDecoderBlock,
+    },
     burner::module::{
         Rekey,
         Select,
@@ -82,14 +85,20 @@ pub fn text_layer_rekey() -> Rekey {
 /// under either of [`QWEN3_5_TEXT_PREFIXES`], the layers by
 /// [`text_layer_rekey`], the embedding (`embed_tokens`, the model's
 /// `embedding`) and the final norm; `lm_head.weight`, the head's projection;
-/// every `1 + w` norm's gain, stored as `w`, loaded as `1 + w`
+/// when `config`'s [`zero_centered_norms`](Qwen3_5Config::zero_centered_norms)
+/// says so, every `1 + w` norm's gain, stored as `w`, loaded as `1 + w`
 /// ([`TensorLoadTransform::zero_centered_gain`]). Anything else is dropped: the
 /// vision tower, and the multi-token-prediction head (`mtp.`).
 ///
 /// A tied model has no `lm_head` to load: a checkpoint's `lm_head.weight`
 /// is then unused, as `transformers` ties over it.
-pub fn qwen3_5_rekey() -> Rekey {
-    let layer = ZERO_CENTERED_LAYER_NORMS
+pub fn qwen3_5_rekey(config: &Qwen3_5Config) -> Rekey {
+    let zero_centered: &[&str] = if config.zero_centered_norms {
+        &ZERO_CENTERED_LAYER_NORMS
+    } else {
+        &[]
+    };
+    let layer = zero_centered
         .iter()
         .fold(text_layer_rekey(), |rekey, norm| {
             rekey.transform(
@@ -101,11 +110,15 @@ pub fn qwen3_5_rekey() -> Rekey {
         .mount("visual.", "", Rekey::drop_rest())
         .mount_indexed("layers.", "stack.layers.", layer)
         .rename("embed_tokens.", "embedding.")
-        .rename("norm.", "stack.norm.")
-        .transform(
+        .rename("norm.", "stack.norm.");
+    let text = if config.zero_centered_norms {
+        text.transform(
             Select::suffix("stack.norm.weight"),
             TensorLoadTransform::zero_centered_gain(),
-        );
+        )
+    } else {
+        text
+    };
     QWEN3_5_TEXT_PREFIXES
         .iter()
         .fold(Rekey::drop_rest(), |rekey, prefix| {
@@ -171,26 +184,6 @@ pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config>
     };
 
     let n_layers = d.num_hidden_layers;
-    let layer_kinds = match &d.layer_types {
-        Some(types) => {
-            t.expect_eq("layer_types.len", types.len(), n_layers)?;
-            types
-                .iter()
-                .map(|kind| match kind.as_str() {
-                    "linear_attention" => Ok(Qwen3_5LayerKind::Linear),
-                    "full_attention" => Ok(Qwen3_5LayerKind::Full),
-                    other => Err(BunsenError::unsupported(format!(
-                        "config.json: a layer type of {other:?}"
-                    ))),
-                })
-                .collect::<BunsenResult<_>>()?
-        }
-        None => Qwen3_5Config::every_nth_full(
-            n_layers,
-            t.usize_opt("full_attention_interval")?.unwrap_or(4),
-        ),
-    };
-
     let config = Qwen3_5Config::new(
         t.usize("vocab_size")?,
         d.hidden_size,
@@ -208,9 +201,32 @@ pub fn qwen3_5_config(c: &TransformersConfigJson) -> BunsenResult<Qwen3_5Config>
     .with_rms_eps(d.rms_norm_eps)
     .with_rope_theta(d.rope_theta)
     .with_partial_rotary_factor(factor)
-    .with_attn_output_gate(t.bool_or("attn_output_gate", true)?)
-    .with_layer_kinds(layer_kinds)
+    .with_attn_output_gate(
+        t.bool_or("attn_output_gate", true)?
+            .then_some(AttentionOutputGate::Elementwise),
+    )
     .with_tied_head(t.bool_or("tie_word_embeddings", tie_default)?);
+    let interval = t
+        .usize_opt("full_attention_interval")?
+        .unwrap_or(config.full_attention_interval);
+    let config = config.with_full_attention_interval(interval);
+    let config = match &d.layer_types {
+        Some(types) => {
+            t.expect_eq("layer_types.len", types.len(), n_layers)?;
+            let kinds = types
+                .iter()
+                .map(|kind| match kind.as_str() {
+                    "linear_attention" => Ok(Qwen3_5LayerKind::Linear),
+                    "full_attention" => Ok(Qwen3_5LayerKind::Full),
+                    other => Err(BunsenError::unsupported(format!(
+                        "config.json: a layer type of {other:?}"
+                    ))),
+                })
+                .collect::<BunsenResult<_>>()?;
+            config.with_layer_kinds(kinds)
+        }
+        None => config.with_every_nth_full(),
+    };
 
     if let Some(rope) = &rope
         && let Ok(section) = rope.usizes("mrope_section")
@@ -253,7 +269,7 @@ mod tests {
     /// vision tower and the prediction head dropped.
     #[test]
     fn test_qwen3_5_rekey() {
-        let rekey = qwen3_5_rekey();
+        let rekey = qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b());
         for (hf, bunsen) in [
             (
                 "model.language_model.embed_tokens.weight",
@@ -308,7 +324,7 @@ mod tests {
     /// and everything else, as stored.
     #[test]
     fn test_zero_centered_norms() {
-        let rekey = qwen3_5_rekey();
+        let rekey = qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b());
         let transformed = |name: &str| {
             rekey
                 .target(name)
@@ -329,6 +345,21 @@ mod tests {
             "model.language_model.layers.3.self_attn.q_proj.weight",
         ] {
             assert!(!transformed(name), "{name}: as stored");
+        }
+
+        let as_stored =
+            qwen3_5_rekey(&Qwen3_5Config::qwen3_5_0_8b().with_zero_centered_norms(false));
+        for name in [
+            "model.language_model.layers.0.input_layernorm.weight",
+            "model.language_model.layers.3.self_attn.q_norm.weight",
+            "model.language_model.norm.weight",
+        ] {
+            assert!(
+                as_stored
+                    .target(name)
+                    .is_some_and(|target| target.transform_names.is_empty()),
+                "{name}: as stored without zero-centered norms"
+            );
         }
     }
 
@@ -390,7 +421,9 @@ mod tests {
         );
         assert_eq!(config.rope_theta, 10_000_000.0);
         assert_eq!(config.rotary_dim(), 64);
-        assert!(config.tied_head && config.attn_output_gate);
+        assert!(
+            config.tied_head && config.attn_output_gate == Some(AttentionOutputGate::Elementwise)
+        );
         assert_eq!(config.layer_kinds, Qwen3_5Config::every_nth_full(24, 4));
     }
 

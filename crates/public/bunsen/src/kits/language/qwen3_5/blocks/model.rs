@@ -70,7 +70,8 @@ pub enum Qwen3_5LayerKind {
 /// every few a full attention layer, with QK-norm, a sigmoid gate on its
 /// output, and a rotary embedding over a quarter of each head. Every layer
 /// has a `SwiGLU`; every norm but the `DeltaNet`'s gated one is a `1 + w` RMS
-/// norm (loaded as `1 + w`, the norms applying the gain as stored).
+/// norm (loaded as `1 + w`, the norms applying the gain as stored;
+/// [`zero_centered_norms`](Self::zero_centered_norms)).
 ///
 /// Implements [`LmDecoderMeta`].
 #[derive(Config, Debug)]
@@ -125,15 +126,38 @@ pub struct Qwen3_5Config {
     #[config(default = "0.25")]
     pub partial_rotary_factor: f64,
 
-    /// Whether the full-attention layers gate their output
-    /// (`attn_output_gate`).
-    #[config(default = "true")]
-    pub attn_output_gate: bool,
+    /// The full-attention layers' output gate (`attn_output_gate`):
+    /// Qwen3.5's elementwise sigmoid gate; `None`, ungated.
+    #[config(default = "Some(AttentionOutputGate::Elementwise)")]
+    pub attn_output_gate: Option<AttentionOutputGate>,
 
-    /// Each layer's mixer; empty, `transformers`' default, every fourth layer
+    /// Each layer's mixer; empty, `transformers`' default, every
+    /// [`full_attention_interval`](Self::full_attention_interval)-th layer
     /// full ([`every_nth_full`](Self::every_nth_full)).
     #[config(default = "Vec::new()")]
     pub layer_kinds: Vec<Qwen3_5LayerKind>,
+
+    /// Every how many layers one is full when
+    /// [`layer_kinds`](Self::layer_kinds) is empty (`transformers`'
+    /// `full_attention_interval`).
+    #[config(default = "4")]
+    pub full_attention_interval: usize,
+
+    /// Whether the `1 + w` norms (each sublayer's, the QK-norms and the
+    /// final norm) store their gain as `w`, as Qwen3.5's do; the loader then
+    /// loads `1 + w`. The `DeltaNet`'s gated norm stores its gain as it is
+    /// applied either way.
+    #[config(default = "true")]
+    pub zero_centered_norms: bool,
+
+    /// The rotary convention: `transformers`' `rotate_half`.
+    #[config(default = "RotaryDirection::Forward")]
+    pub rotary_direction: RotaryDirection,
+
+    /// Where the full-attention layers' QK-norm applies: before the rotary
+    /// embedding, as `transformers`' Qwen3.5 applies it.
+    #[config(default = "QkNormPlacement::BeforeRope")]
+    pub qk_norm_placement: QkNormPlacement,
 
     /// Whether the output head is the embedding (`tie_word_embeddings`);
     /// otherwise it is a linear map of its own.
@@ -201,8 +225,16 @@ impl Qwen3_5Config {
             128,
             128,
         )
-        .with_layer_kinds(Self::every_nth_full(n_layers, 4))
         .with_tied_head(tied_head)
+        .with_every_nth_full()
+    }
+
+    /// This config with its [`layer_kinds`](Self::layer_kinds) stated:
+    /// every [`full_attention_interval`](Self::full_attention_interval)-th
+    /// layer full.
+    pub fn with_every_nth_full(self) -> Self {
+        let kinds = Self::every_nth_full(self.n_layers, self.full_attention_interval);
+        self.with_layer_kinds(kinds)
     }
 
     /// `Qwen3.5-0.8B`'s geometry: 24 layers of width 1024, 8 query and 2
@@ -259,7 +291,7 @@ impl Qwen3_5Config {
     ) -> Qwen3_5LayerKind {
         match self.layer_kinds.get(i) {
             Some(kind) => *kind,
-            None if (i + 1).is_multiple_of(4) => Qwen3_5LayerKind::Full,
+            None if (i + 1).is_multiple_of(self.full_attention_interval) => Qwen3_5LayerKind::Full,
             None => Qwen3_5LayerKind::Linear,
         }
     }
@@ -285,12 +317,12 @@ impl Qwen3_5Config {
     }
 
     /// The rotary embedding: over the first [`rotary_dim`](Self::rotary_dim)
-    /// dimensions of each head, in the `rotate_half` convention.
+    /// dimensions of each head, in [`rotary_direction`](Self::rotary_direction).
     pub fn rotary(&self) -> RotaryEmbeddingConfig {
         RotaryEmbeddingConfig::new(0, self.head_dim)
             .with_base(self.rope_theta)
             .with_rotary_dim(Some(self.rotary_dim()))
-            .with_direction(RotaryDirection::Forward)
+            .with_direction(self.rotary_direction)
     }
 
     /// A layer of `kind`: its mixer, then a `SwiGLU`, each under an RMS
@@ -306,11 +338,8 @@ impl Qwen3_5Config {
                 CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                     .with_head_dim(Some(self.head_dim))
                     .with_norm(Some(norm(self.head_dim)))
-                    .with_qk_norm(QkNormPlacement::BeforeRope)
-                    .with_output_gate(
-                        self.attn_output_gate
-                            .then_some(AttentionOutputGate::Elementwise),
-                    )
+                    .with_qk_norm(self.qk_norm_placement)
+                    .with_output_gate(self.attn_output_gate)
                     .with_softmax_widening(self.softmax_widening)
                     .into()
             }
@@ -515,6 +544,40 @@ mod tests {
                 .with_layer_kinds(vec![Qwen3_5LayerKind::Full])
                 .stack()
                 .is_err()
+        );
+    }
+
+    /// The attention conventions and the layer interval are the config's:
+    /// an ungated output, the other rotary direction, the QK-norm after the
+    /// rotary, every third layer full.
+    #[test]
+    fn test_convention_fields() {
+        let device = cpu_device();
+        let model: Qwen3_5Model = config()
+            .with_attn_output_gate(None)
+            .with_rotary_direction(RotaryDirection::Reverse)
+            .with_qk_norm_placement(QkNormPlacement::AfterRope)
+            .init(&device);
+        assert_eq!(model.lm.stack.rotary.direction, RotaryDirection::Reverse);
+        match &model.lm.stack.layers[1].attn.branch {
+            TokenMixer::Attention(attn) => {
+                assert_eq!(attn.output_gate, None);
+                assert_eq!(attn.qk_norm, QkNormPlacement::AfterRope);
+            }
+            other => panic!("a full layer attends: {other:?}"),
+        }
+
+        let every_third =
+            Qwen3_5Config::new(40, 16, 6, 4, 2, 8, 24, 2, 4, 4, 3).with_full_attention_interval(3);
+        assert_eq!(
+            (0..6)
+                .map(|i| every_third.layer_kind(i))
+                .collect::<Vec<_>>(),
+            Qwen3_5Config::every_nth_full(6, 3)
+        );
+        assert_eq!(
+            every_third.with_every_nth_full().layer_kinds,
+            Qwen3_5Config::every_nth_full(6, 3)
         );
     }
 }
