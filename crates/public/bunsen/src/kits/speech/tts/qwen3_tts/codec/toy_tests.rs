@@ -20,6 +20,7 @@ use super::{
     Qwen3TtsCodecDecoder,
     Qwen3TtsCodecDecoderContractConfig,
     Qwen3TtsCodecDecoderMeta,
+    Qwen3TtsDecodeConfig,
 };
 use crate::{
     burner::module::ModuleInit,
@@ -113,7 +114,8 @@ fn test_toy_decode() {
 fn test_toy_chunked_decode() {
     let (config, model, fixture) = load();
     let codes = fixture.io::<3>("codec.codes").int();
-    let chunked = model.chunked_decode(codes.clone(), 8, 3);
+    let decode = Qwen3TtsDecodeConfig::new().with_chunk(8).with_context(3);
+    let chunked = model.chunked_decode(codes.clone(), &decode);
     assert_io_close_within(
         "chunked_audio",
         chunked.clone(),
@@ -141,7 +143,10 @@ fn test_toy_one_chunk_is_whole() {
     let codes = fixture.io::<3>("codec.codes").int();
     assert_io_close(
         "one chunk",
-        model.chunked_decode(codes.clone(), 64, 3),
+        model.chunked_decode(
+            codes.clone(),
+            &Qwen3TtsDecodeConfig::new().with_chunk(64).with_context(3),
+        ),
         model.forward(codes),
     );
 }

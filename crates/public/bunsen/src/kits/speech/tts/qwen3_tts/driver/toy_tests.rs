@@ -34,7 +34,10 @@ use crate::{
                 Qwen3TtsModelKind,
                 Qwen3TtsTakeConfig,
                 Qwen3TtsTokenizerFiles,
-                codec::Qwen3TtsCodecDecoder,
+                codec::{
+                    Qwen3TtsCodecDecoder,
+                    Qwen3TtsDecodeConfig,
+                },
                 interop::qwen_tts::*,
                 prompt::Qwen3TtsTextPlacement,
                 sampler::Qwen3TtsSamplerConfig,
@@ -169,6 +172,7 @@ fn construct(
         model_config,
         codec,
         codec_config,
+        decode: Qwen3TtsDecodeConfig::new(),
         prompt: Qwen3TtsPromptMirror::prompt_config(&ids).expect("the toy's prompt ids"),
         take,
         sample_rate: 300,
@@ -384,6 +388,18 @@ fn test_refusals() {
     )
     .unwrap_err();
     assert_eq!(error.kind(), BunsenErrorKind::Lookup);
+
+    let error = Qwen3TtsEngine::new(
+        construct(Qwen3TtsModelKind::CustomVoice, false),
+        Words,
+        Qwen3TtsEngineConfig::new().with_decode(Some(Qwen3TtsDecodeConfig::new().with_chunk(0))),
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.kind(),
+        BunsenErrorKind::Illegal,
+        "a decode chunk of no frames"
+    );
 }
 
 /// A model that takes an instruction gets it; a `VoiceDesign` model speaks in

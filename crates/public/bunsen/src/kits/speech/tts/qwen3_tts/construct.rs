@@ -10,6 +10,7 @@ use super::{
     codec::{
         Qwen3TtsCodecDecoder,
         Qwen3TtsCodecDecoderContractConfig,
+        Qwen3TtsDecodeConfig,
     },
     prompt::Qwen3TtsPromptConfig,
 };
@@ -63,9 +64,9 @@ impl Qwen3TtsTokenizerFiles {
 }
 
 /// What a Qwen3-TTS pretrained loads to: the model (talker and code
-/// predictor) and the codec decoder with their configs, the prompt's ids,
-/// languages and speakers, the release's take settings, the output's sample
-/// rate, and the tokenizer's files.
+/// predictor) and the codec decoder with their configs and its chunking, the
+/// prompt's ids, languages and speakers, the release's take settings, the
+/// output's sample rate, and the tokenizer's files.
 #[derive(Debug)]
 pub struct Qwen3TtsConstruct {
     /// The talker and its code predictor.
@@ -79,6 +80,9 @@ pub struct Qwen3TtsConstruct {
 
     /// Its config.
     pub codec_config: Qwen3TtsCodecDecoderContractConfig,
+
+    /// How the codec decodes a take: upstream's chunking.
+    pub decode: Qwen3TtsDecodeConfig,
 
     /// The prompt's ids, languages and speakers.
     pub prompt: Qwen3TtsPromptConfig,

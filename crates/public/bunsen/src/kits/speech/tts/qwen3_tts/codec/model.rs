@@ -940,9 +940,9 @@ impl Qwen3TtsCodecDecoder {
     }
 
     /// Codes to audio as upstream decodes a take (`chunked_decode`): chunks
-    /// of `chunk` frames, each decoded with up to `context` frames before it
-    /// and their audio dropped. Upstream's are 300 and 25
-    /// ([`QWEN3_TTS_DECODE_CHUNK`], [`QWEN3_TTS_DECODE_CONTEXT`]).
+    /// of [`chunk`](Qwen3TtsDecodeConfig::chunk) frames, each decoded with up
+    /// to [`context`](Qwen3TtsDecodeConfig::context) frames before it and
+    /// their audio dropped.
     ///
     /// The first chunk's audio is the whole decode's; a later one's is not,
     /// when the context is shorter than the decoder's reach (the release's
@@ -960,9 +960,9 @@ impl Qwen3TtsCodecDecoder {
     pub fn chunked_decode(
         &self,
         codes: Tensor<3, Int>,
-        chunk: usize,
-        context: usize,
+        config: &Qwen3TtsDecodeConfig,
     ) -> Tensor<3> {
+        let Qwen3TtsDecodeConfig { chunk, context } = *config;
         assert!(chunk >= 1, "a decode chunk of at least one frame");
         let t = codes.dims()[2];
         let mut parts = Vec::with_capacity(t.div_ceil(chunk));
@@ -982,11 +982,20 @@ impl Qwen3TtsCodecDecoder {
     }
 }
 
-/// Upstream's decode chunk, in frames (`chunked_decode`'s `chunk_size`).
-pub const QWEN3_TTS_DECODE_CHUNK: usize = 300;
+/// How [`Qwen3TtsCodecDecoder::chunked_decode`] splits a take; the defaults
+/// are upstream's (`chunked_decode(codes, chunk_size=300,
+/// left_context_size=25)`).
+#[derive(Config, Copy, Debug, PartialEq, Eq)]
+pub struct Qwen3TtsDecodeConfig {
+    /// The frames decoded at once (upstream's `chunk_size`); at least one.
+    #[config(default = 300)]
+    pub chunk: usize,
 
-/// Upstream's left context per chunk, in frames (`left_context_size`).
-pub const QWEN3_TTS_DECODE_CONTEXT: usize = 25;
+    /// The frames of left context a later chunk is decoded with (upstream's
+    /// `left_context_size`).
+    #[config(default = 25)]
+    pub context: usize,
+}
 
 impl CanonicalKeys for Qwen3TtsCodecDecoder {
     fn canonical_rekey(&self) -> Rekey {
@@ -1422,6 +1431,18 @@ mod tests {
         let codes = Tensor::<3, Int>::zeros([1, 3, 2], &device);
         let peak = decoder.forward(codes).abs().max().into_scalar::<f32>();
         assert!(peak <= 0.5, "clamped to 0.5: {peak}");
+    }
+
+    /// The decode's defaults are upstream's `chunked_decode`'s.
+    #[test]
+    fn test_decode_defaults() {
+        assert_eq!(
+            Qwen3TtsDecodeConfig::new(),
+            Qwen3TtsDecodeConfig {
+                chunk: 300,
+                context: 25
+            }
+        );
     }
 
     /// A vocoder whose blocks do not chain, or a block whose residual unit

@@ -42,9 +42,8 @@ use crate::{
                 Qwen3TtsStop,
                 Qwen3TtsTakeConfig,
                 codec::{
-                    QWEN3_TTS_DECODE_CHUNK,
-                    QWEN3_TTS_DECODE_CONTEXT,
                     Qwen3TtsCodecDecoderMeta,
+                    Qwen3TtsDecodeConfig,
                 },
                 prompt::{
                     Qwen3TtsPromptRequest,
@@ -99,13 +98,10 @@ pub struct Qwen3TtsEngineConfig {
     #[config(default = "None")]
     pub take: Option<Qwen3TtsTakeConfig>,
 
-    /// The frames the codec decodes at once.
-    #[config(default = "QWEN3_TTS_DECODE_CHUNK")]
-    pub decode_chunk: usize,
-
-    /// The frames of left context a later chunk is decoded with.
-    #[config(default = "QWEN3_TTS_DECODE_CONTEXT")]
-    pub decode_context: usize,
+    /// How the codec decodes a take, in chunks; `None`, the construct's
+    /// ([`Qwen3TtsConstruct::decode`], upstream's).
+    #[config(default = "None")]
+    pub decode: Option<Qwen3TtsDecodeConfig>,
 }
 
 /// A voice, as [`Qwen3TtsEngine`] speaks in it.
@@ -161,7 +157,7 @@ impl<T: Tokenizer> Qwen3TtsEngine<T> {
         tokenizer: T,
         config: Qwen3TtsEngineConfig,
     ) -> BunsenResult<Self> {
-        if config.decode_chunk == 0 {
+        if config.decode.unwrap_or(construct.decode).chunk == 0 {
             return Err(BunsenError::illegal("a decode chunk of no frames"));
         }
         if let Some(voice) = &config.default_voice {
@@ -391,11 +387,11 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Qwen3TtsEngine<T> {
         if take.frames.is_empty() {
             return Ok(Vec::new());
         }
-        let audio = self.construct.codec.chunked_decode(
-            take.codec_input(&self.device()),
-            self.config.decode_chunk,
-            self.config.decode_context,
-        );
+        let decode = self.config.decode.unwrap_or(self.construct.decode);
+        let audio = self
+            .construct
+            .codec
+            .chunked_decode(take.codec_input(&self.device()), &decode);
         let samples: Vec<f32> = audio
             .cast(DType::F32)
             .into_data()

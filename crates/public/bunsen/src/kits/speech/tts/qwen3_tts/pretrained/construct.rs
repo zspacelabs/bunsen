@@ -40,6 +40,7 @@ use crate::{
         speech::tts::qwen3_tts::{
             Qwen3TtsConstruct,
             Qwen3TtsTokenizerFiles,
+            codec::Qwen3TtsDecodeConfig,
             interop::qwen_tts::{
                 Qwen3TtsCodecMirror,
                 Qwen3TtsGenerationMirror,
@@ -162,6 +163,7 @@ impl ConstructInit for Qwen3TtsConstructConfig {
             model_config,
             codec: load_codec_decoder(loaded, &codec_config, device, policy)?,
             codec_config,
+            decode: Qwen3TtsDecodeConfig::new(),
             prompt,
             take: generation.take_config(),
             sample_rate: codec.output_sample_rate,
