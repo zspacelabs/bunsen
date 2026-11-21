@@ -9,25 +9,29 @@ use crate::{
     data::formats::NamedTensorsApplied,
     errors::BunsenResult,
     kits::{
-        language::qwen3_5::Qwen3_5Model,
+        language::qwen3_5::{
+            Qwen3_5Config,
+            Qwen3_5Model,
+        },
         support::interop::load_lm_rekeyed,
     },
 };
 
 /// Loads tensors named as a `transformers` Qwen3.5 state dict into `model`'s
 /// [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel):
-/// [`load_lm_rekeyed`] under [`qwen3_5_rekey`], every floating tensor in
-/// `dtype` (a load policy's resolution), or, with `None`, in the dtype
-/// `model` was built in.
+/// [`load_lm_rekeyed`] under [`qwen3_5_rekey`] of `config`, `model`'s, every
+/// floating tensor in `dtype` (a load policy's resolution), or, with `None`, in
+/// the dtype `model` was built in.
 ///
 /// # Errors
 /// As [`load_lm_rekeyed`].
 pub fn load_qwen3_5_tensors(
     model: &mut Qwen3_5Model,
+    config: &Qwen3_5Config,
     tensors: impl IntoIterator<Item = PackTensor>,
     dtype: Option<FloatDType>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    load_lm_rekeyed(model, tensors, qwen3_5_rekey(), dtype)
+    load_lm_rekeyed(model, tensors, qwen3_5_rekey(config), dtype)
 }
 
 /// The model of `loaded`'s checkpoint (its `checkpoint`, one file or
@@ -51,6 +55,6 @@ pub fn load_qwen3_5(
         config,
         device,
         policy,
-        |model, tensors, dtype| load_qwen3_5_tensors(model, tensors, Some(dtype)),
+        |model, tensors, dtype| load_qwen3_5_tensors(model, config, tensors, Some(dtype)),
     )
 }
