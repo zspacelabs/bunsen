@@ -5,7 +5,10 @@ use super::{
     Qwen3AsrConstruct,
     blocks::Qwen3AsrAudioEncoderMeta,
 };
-use crate::errors::BunsenResult;
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+};
 
 /// The decoder heads, `(layer, head)`, whose attention onto the audio
 /// follows the speech in `Qwen3-ASR-0.6B` and `FermionResearch`'s Phonon-1
@@ -25,10 +28,6 @@ pub const QWEN3_ASR_0_6B_ALIGNMENT_HEADS: [(usize, usize); 8] = [
     (16, 14),
     (19, 5),
 ];
-
-/// The mel frames between encoder frames within a chunk: three stride-2
-/// convolutions.
-const MEL_FRAMES_PER_ENCODER_FRAME: usize = 8;
 
 /// Aligns `rows` to `cols` monotonically, through `score` (row-major, higher
 /// is better): the path from the first cell to the last, moving down, right
@@ -142,10 +141,12 @@ impl Qwen3AsrConstruct {
     /// A frame per token of `reply`, non-decreasing.
     ///
     /// # Errors
-    /// As [`audio_attention`](Self::audio_attention).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a head past
+    /// the text model's layers or heads; as
+    /// [`audio_attention`](Self::audio_attention).
     ///
     /// # Panics
-    /// If `reply` or `heads` is empty, or a head is past the model's.
+    /// If `reply` or `heads` is empty.
     pub fn token_frames(
         &self,
         features: Tensor<2>,
@@ -157,7 +158,22 @@ impl Qwen3AsrConstruct {
         let mut layers: Vec<usize> = heads.iter().map(|&(layer, _)| layer).collect();
         layers.sort_unstable();
         layers.dedup();
+        let n_layers =
+            crate::blocks::transformers::models::language_decoder::LmDecoderMeta::n_layers(
+                &self.model.language_model,
+            );
+        if let Some(&layer) = layers.iter().find(|&&layer| layer >= n_layers) {
+            return Err(BunsenError::illegal(format!(
+                "an alignment head in layer {layer} of a {n_layers}-layer text model"
+            )));
+        }
         let weights = self.audio_attention(features, valid, reply, &layers)?;
+        let n_heads = weights.first().map_or(0, |w| w.dims()[0]);
+        if let Some(&(layer, head)) = heads.iter().find(|&&(_, head)| head >= n_heads) {
+            return Err(BunsenError::illegal(format!(
+                "an alignment head ({layer}, {head}) of a text model with {n_heads} heads"
+            )));
+        }
         let picked: Vec<Tensor<2>> = heads
             .iter()
             .map(|&(layer, head)| {
@@ -179,14 +195,17 @@ impl Qwen3AsrConstruct {
 
     /// The mel frame, of the window the audio was encoded from, that encoder
     /// frame `frame` starts on: each chunk of the encoder's mel frames yields
-    /// its encoder frames eight mel frames apart.
+    /// its encoder frames the stem's
+    /// [`frames_per_output`](super::blocks::Qwen3AsrStemConfig::frames_per_output)
+    /// mel frames apart (the release's eight).
     pub fn encoder_frame_mel(
         &self,
         frame: usize,
     ) -> usize {
         let tower = &self.model.audio_tower;
         let per_chunk = tower.chunk_out();
-        frame / per_chunk * tower.chunk_frames() + frame % per_chunk * MEL_FRAMES_PER_ENCODER_FRAME
+        frame / per_chunk * tower.chunk_frames()
+            + frame % per_chunk * tower.stem_shape().frames_per_output()
     }
 }
 
