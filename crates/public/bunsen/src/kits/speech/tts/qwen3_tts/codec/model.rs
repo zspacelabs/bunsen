@@ -272,9 +272,15 @@ pub trait Qwen3TtsVocoderResidualUnitMeta {
 
     /// The dilated convolution's dilation.
     fn dilation(&self) -> usize;
+
+    /// The dilated convolution's taps.
+    fn kernel(&self) -> usize;
+
+    /// The pointwise convolution's taps.
+    fn pointwise_kernel(&self) -> usize;
 }
 
-/// Config for [`Qwen3TtsVocoderResidualUnit`].
+/// Config for [`Qwen3TtsVocoderResidualUnit`]; the default taps are DAC's.
 #[derive(Config, Debug)]
 pub struct Qwen3TtsVocoderResidualUnitConfig {
     /// The channels, `C`.
@@ -282,6 +288,14 @@ pub struct Qwen3TtsVocoderResidualUnitConfig {
 
     /// The dilated convolution's dilation.
     pub dilation: usize,
+
+    /// The dilated convolution's taps.
+    #[config(default = 7)]
+    pub kernel: usize,
+
+    /// The pointwise convolution's taps.
+    #[config(default = 1)]
+    pub pointwise_kernel: usize,
 }
 
 impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnitConfig {
@@ -291,6 +305,14 @@ impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnitConfig {
 
     fn dilation(&self) -> usize {
         self.dilation
+    }
+
+    fn kernel(&self) -> usize {
+        self.kernel
+    }
+
+    fn pointwise_kernel(&self) -> usize {
+        self.pointwise_kernel
     }
 }
 
@@ -302,15 +324,15 @@ impl ModuleInit<Qwen3TtsVocoderResidualUnit> for Qwen3TtsVocoderResidualUnitConf
         let c = self.channels;
         Ok(Qwen3TtsVocoderResidualUnit {
             act1: snake(c, device)?,
-            conv1: causal_conv([c, c], 7, self.dilation, device)?,
+            conv1: causal_conv([c, c], self.kernel, self.dilation, device)?,
             act2: snake(c, device)?,
-            conv2: causal_conv([c, c], 1, 1, device)?,
+            conv2: causal_conv([c, c], self.pointwise_kernel, 1, device)?,
         })
     }
 }
 
-/// A vocoder residual unit: `SnakeBeta`, a dilated causal convolution of 7
-/// taps, `SnakeBeta`, a pointwise convolution, and the input added.
+/// A vocoder residual unit: `SnakeBeta`, a dilated causal convolution,
+/// `SnakeBeta`, a (pointwise) convolution, and the input added.
 ///
 /// Built by [`Qwen3TtsVocoderResidualUnitConfig`].
 #[derive(Module, Debug)]
@@ -336,6 +358,14 @@ impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnit {
     fn dilation(&self) -> usize {
         self.conv1.dilation()
     }
+
+    fn kernel(&self) -> usize {
+        self.conv1.kernel_size()
+    }
+
+    fn pointwise_kernel(&self) -> usize {
+        self.conv2.kernel_size()
+    }
 }
 
 impl Qwen3TtsVocoderResidualUnit {
@@ -357,10 +387,16 @@ pub trait Qwen3TtsVocoderBlockMeta {
 
     /// The factor, `r`: output frames per input frame.
     fn factor(&self) -> usize;
+
+    /// The upsampler's taps.
+    fn kernel(&self) -> usize;
+
+    /// The residual units' dilations, in order.
+    fn dilations(&self) -> Vec<usize>;
 }
 
-/// Config for [`Qwen3TtsVocoderBlock`]; its residual units' dilations are
-/// [`QWEN3_TTS_VOCODER_DILATIONS`].
+/// Config for [`Qwen3TtsVocoderBlock`]: its upsampler, and each residual
+/// unit's config.
 #[derive(Config, Debug)]
 pub struct Qwen3TtsVocoderBlockConfig {
     /// The channels, `[C_in, C_out]`.
@@ -368,6 +404,12 @@ pub struct Qwen3TtsVocoderBlockConfig {
 
     /// The factor, `r`.
     pub factor: usize,
+
+    /// The upsampler's taps; at least `r`.
+    pub kernel: usize,
+
+    /// The residual units, in order, each over `C_out`.
+    pub residuals: Vec<Qwen3TtsVocoderResidualUnitConfig>,
 }
 
 impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlockConfig {
@@ -378,33 +420,49 @@ impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlockConfig {
     fn factor(&self) -> usize {
         self.factor
     }
+
+    fn kernel(&self) -> usize {
+        self.kernel
+    }
+
+    fn dilations(&self) -> Vec<usize> {
+        self.residuals.iter().map(|u| u.dilation).collect()
+    }
 }
 
 impl ModuleInit<Qwen3TtsVocoderBlock> for Qwen3TtsVocoderBlockConfig {
     /// # Errors
-    /// As the convolutions' builds: a factor of 0 is refused.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a residual
+    /// unit not over `C_out`; as the convolutions' builds: a factor of 0, or
+    /// a kernel shorter than it, is refused.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<Qwen3TtsVocoderBlock> {
         let [c_in, c_out] = self.channels;
-        let r = self.factor;
+        if let Some(unit) = self.residuals.iter().find(|u| u.channels != c_out) {
+            return Err(BunsenError::illegal(format!(
+                "a vocoder block writing {c_out} channels with a residual unit over {}",
+                unit.channels
+            )));
+        }
         Ok(Qwen3TtsVocoderBlock {
             act: snake(c_in, device)?,
-            upsample: CausalConvTranspose1dConfig::new([c_in, c_out], 2 * r)
-                .with_stride(r)
+            upsample: CausalConvTranspose1dConfig::new([c_in, c_out], self.kernel)
+                .with_stride(self.factor)
                 .try_init(device)?,
-            residuals: QWEN3_TTS_VOCODER_DILATIONS
+            residuals: self
+                .residuals
                 .iter()
-                .map(|&d| Qwen3TtsVocoderResidualUnitConfig::new(c_out, d).try_init(device))
+                .map(|u| u.try_init(device))
                 .collect::<BunsenResult<_>>()?,
         })
     }
 }
 
 /// A vocoder block (DAC's): `SnakeBeta`, a causal transposed convolution
-/// upsampling by `r` (kernel `2 r`) and halving the width, then residual
-/// units of dilation 1, 3 and 9.
+/// upsampling by `r` (the release's kernel `2 r`) and halving the width,
+/// then residual units (the release's of dilation 1, 3 and 9).
 ///
 /// Built by [`Qwen3TtsVocoderBlockConfig`].
 #[derive(Module, Debug)]
@@ -427,10 +485,18 @@ impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlock {
     fn factor(&self) -> usize {
         self.upsample.stride()
     }
+
+    fn kernel(&self) -> usize {
+        self.upsample.kernel_size()
+    }
+
+    fn dilations(&self) -> Vec<usize> {
+        self.residuals.iter().map(|u| u.dilation()).collect()
+    }
 }
 
 impl Qwen3TtsVocoderBlock {
-    /// `[B, C, T]` to `[B, C / 2, r T]`.
+    /// `[B, C_in, T]` to `[B, C_out, r T]`.
     pub fn forward(
         &self,
         x: Tensor<3>,
@@ -440,25 +506,26 @@ impl Qwen3TtsVocoderBlock {
     }
 }
 
-/// The dilations of a vocoder block's residual units.
-pub const QWEN3_TTS_VOCODER_DILATIONS: [usize; 3] = [1, 3, 9];
-
 /// Common meta for [`Qwen3TtsVocoder`] and [`Qwen3TtsVocoderConfig`].
 pub trait Qwen3TtsVocoderMeta {
     /// The latent width, `L`: its input's.
     fn latent_width(&self) -> usize;
 
-    /// Its width, `V`: its first block's input, halved by each block.
+    /// Its width, `V`: its first block's input.
     fn width(&self) -> usize;
 
     /// Each block's factor.
     fn factors(&self) -> Vec<usize>;
 
-    /// Its last width, its output convolution's input: `V` halved by each
-    /// block.
-    fn out_width(&self) -> usize {
-        self.width() >> self.factors().len()
-    }
+    /// Its last width, its output convolution's input: the last block's
+    /// output, or `V` without blocks.
+    fn out_width(&self) -> usize;
+
+    /// The input convolution's taps.
+    fn in_kernel(&self) -> usize;
+
+    /// The output convolution's taps.
+    fn out_kernel(&self) -> usize;
 
     /// Output samples per input frame: the blocks' factors, multiplied.
     fn factor(&self) -> usize {
@@ -466,17 +533,25 @@ pub trait Qwen3TtsVocoderMeta {
     }
 }
 
-/// Config for [`Qwen3TtsVocoder`].
+/// Config for [`Qwen3TtsVocoder`]: its convolutions, and each block's config.
 #[derive(Config, Debug)]
 pub struct Qwen3TtsVocoderConfig {
     /// The latent width, `L`.
     pub latent_width: usize,
 
-    /// The width, `V`.
+    /// The width, `V`: the first block's input.
     pub width: usize,
 
-    /// Each block's factor.
-    pub factors: Vec<usize>,
+    /// The blocks, in order, each reading the one before's output.
+    pub blocks: Vec<Qwen3TtsVocoderBlockConfig>,
+
+    /// The input convolution's taps.
+    #[config(default = 7)]
+    pub in_kernel: usize,
+
+    /// The output convolution's taps.
+    #[config(default = 7)]
+    pub out_kernel: usize,
 }
 
 impl Qwen3TtsVocoderMeta for Qwen3TtsVocoderConfig {
@@ -489,39 +564,51 @@ impl Qwen3TtsVocoderMeta for Qwen3TtsVocoderConfig {
     }
 
     fn factors(&self) -> Vec<usize> {
-        self.factors.clone()
+        self.blocks.iter().map(|b| b.factor).collect()
+    }
+
+    fn out_width(&self) -> usize {
+        self.blocks.last().map_or(self.width, |b| b.channels[1])
+    }
+
+    fn in_kernel(&self) -> usize {
+        self.in_kernel
+    }
+
+    fn out_kernel(&self) -> usize {
+        self.out_kernel
     }
 }
 
 impl ModuleInit<Qwen3TtsVocoder> for Qwen3TtsVocoderConfig {
     /// # Errors
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a width its
-    /// blocks do not halve evenly; as the blocks' builds.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a block that
+    /// does not read what the one before it (or the input convolution)
+    /// writes; as the blocks' builds.
     fn try_init(
         &self,
         device: &Device,
     ) -> BunsenResult<Qwen3TtsVocoder> {
-        let n = self.factors.len() as u32;
-        if !self.width.is_multiple_of(1 << n) {
-            return Err(BunsenError::illegal(format!(
-                "a vocoder width of {} over {n} halving blocks",
-                self.width
-            )));
+        let mut width = self.width;
+        for (i, block) in self.blocks.iter().enumerate() {
+            if block.channels[0] != width {
+                return Err(BunsenError::illegal(format!(
+                    "vocoder block {i} reads {} channels; it is given {width}",
+                    block.channels[0]
+                )));
+            }
+            width = block.channels[1];
         }
-        let v = self.width;
         let out = self.out_width();
         Ok(Qwen3TtsVocoder {
-            input: causal_conv([self.latent_width, v], 7, 1, device)?,
+            input: causal_conv([self.latent_width, self.width], self.in_kernel, 1, device)?,
             blocks: self
-                .factors
+                .blocks
                 .iter()
-                .enumerate()
-                .map(|(i, &r)| {
-                    Qwen3TtsVocoderBlockConfig::new([v >> i, v >> (i + 1)], r).try_init(device)
-                })
+                .map(|b| b.try_init(device))
                 .collect::<BunsenResult<_>>()?,
             output_act: snake(out, device)?,
-            output: causal_conv([out, 1], 7, 1, device)?,
+            output: causal_conv([out, 1], self.out_kernel, 1, device)?,
         })
     }
 }
@@ -532,16 +619,16 @@ impl ModuleInit<Qwen3TtsVocoder> for Qwen3TtsVocoderConfig {
 /// Built by [`Qwen3TtsVocoderConfig`].
 #[derive(Module, Debug)]
 pub struct Qwen3TtsVocoder {
-    /// `[L, V]`, 7 taps.
+    /// `[L, V]`.
     pub input: CausalConv1d,
 
-    /// The blocks, each upsampling and halving the width.
+    /// The blocks, each upsampling and (the release's) halving the width.
     pub blocks: Vec<Qwen3TtsVocoderBlock>,
 
     /// The activation before the output.
     pub output_act: SnakeActivation,
 
-    /// To one channel, 7 taps.
+    /// To one channel.
     pub output: CausalConv1d,
 }
 
@@ -556,6 +643,18 @@ impl Qwen3TtsVocoderMeta for Qwen3TtsVocoder {
 
     fn factors(&self) -> Vec<usize> {
         self.blocks.iter().map(|b| b.factor()).collect()
+    }
+
+    fn out_width(&self) -> usize {
+        self.output.channels()[0]
+    }
+
+    fn in_kernel(&self) -> usize {
+        self.input.kernel_size()
+    }
+
+    fn out_kernel(&self) -> usize {
+        self.output.kernel_size()
     }
 }
 
@@ -918,6 +1017,15 @@ pub struct Qwen3TtsCodecDecoderContractConfig {
 
     /// The vocoder's first width, halved by each block.
     pub vocoder_width: usize,
+
+    /// Each vocoder block's residual units' dilations (DAC's).
+    #[config(default = "alloc::vec![1, 3, 9]")]
+    pub vocoder_dilations: Vec<usize>,
+
+    /// Each vocoder block's upsampler's taps per unit of its factor: kernel
+    /// `ratio · r` (DAC's 2).
+    #[config(default = 2)]
+    pub vocoder_kernel_ratio: usize,
 }
 
 impl Qwen3TtsCodecDecoderContractConfig {
@@ -948,6 +1056,32 @@ impl Qwen3TtsCodecDecoderContractConfig {
                 .with_base(self.rope_theta)
                 .with_direction(RotaryDirection::Forward),
         )
+    }
+
+    /// The vocoder, unrolled: block `i` from `vocoder_width >> i` to half
+    /// that, upsampling by `upsample_rates[i]` with a kernel of
+    /// `vocoder_kernel_ratio` times it, a residual unit per
+    /// `vocoder_dilations`.
+    pub fn vocoder(&self) -> Qwen3TtsVocoderConfig {
+        let v = self.vocoder_width;
+        let blocks = self
+            .upsample_rates
+            .iter()
+            .enumerate()
+            .map(|(i, &r)| {
+                let out = v >> (i + 1);
+                Qwen3TtsVocoderBlockConfig::new(
+                    [v >> i, out],
+                    r,
+                    self.vocoder_kernel_ratio * r,
+                    self.vocoder_dilations
+                        .iter()
+                        .map(|&d| Qwen3TtsVocoderResidualUnitConfig::new(out, d))
+                        .collect(),
+                )
+            })
+            .collect();
+        Qwen3TtsVocoderConfig::new(self.latent_width, v, blocks)
     }
 }
 
@@ -991,7 +1125,7 @@ impl ToStructureConfig for Qwen3TtsCodecDecoderContractConfig {
                 .iter()
                 .map(|&r| Qwen3TtsCodecUpsampleConfig::new(latent, r))
                 .collect(),
-            Qwen3TtsVocoderConfig::new(latent, self.vocoder_width, self.upsample_rates.clone()),
+            self.vocoder(),
         ))
     }
 }
@@ -1005,14 +1139,11 @@ mod tests {
         burner::module::ModuleInit,
         kits::speech::tts::qwen3_tts::{
             codec::{
-                QWEN3_TTS_VOCODER_DILATIONS,
                 Qwen3TtsCodecDecoder,
                 Qwen3TtsCodecTransformerMeta,
                 Qwen3TtsCodecUpsampleMeta,
-                Qwen3TtsVocoderBlockConfig,
                 Qwen3TtsVocoderBlockMeta,
                 Qwen3TtsVocoderMeta,
-                Qwen3TtsVocoderResidualUnitConfig,
                 Qwen3TtsVocoderResidualUnitMeta,
             },
             interop::qwen_tts::*,
@@ -1052,7 +1183,10 @@ mod tests {
     #[test]
     fn test_lowering_agrees() {
         let device = cpu_device();
-        let policy = small().with_semantic_codebooks(2);
+        let policy = small()
+            .with_semantic_codebooks(2)
+            .with_vocoder_dilations(vec![2, 5])
+            .with_vocoder_kernel_ratio(3);
         let structure = policy.to_structure();
         let direct: Qwen3TtsCodecDecoder = policy.init(&device);
         let lowered: Qwen3TtsCodecDecoder = structure.init(&device);
@@ -1099,21 +1233,90 @@ mod tests {
                 (meta.latent_width(), meta.width(), meta.factors()),
                 (6, 12, vec![2, 3])
             );
-            assert_eq!([meta.out_width(), meta.factor()], [3, 6]);
+            assert_eq!(
+                [
+                    meta.out_width(),
+                    meta.factor(),
+                    meta.in_kernel(),
+                    meta.out_kernel()
+                ],
+                [3, 6, 7, 7]
+            );
         }
-        let b = Qwen3TtsVocoderBlockConfig::new([12, 6], 2);
+        let b = &structure.decoder.blocks[0];
         for meta in [
-            &b as &dyn Qwen3TtsVocoderBlockMeta,
+            b as &dyn Qwen3TtsVocoderBlockMeta,
             &decoder.decoder.blocks[0],
         ] {
-            assert_eq!((meta.channels(), meta.factor()), ([12, 6], 2));
+            assert_eq!(
+                (
+                    meta.channels(),
+                    meta.factor(),
+                    meta.kernel(),
+                    meta.dilations()
+                ),
+                ([12, 6], 2, 4, vec![1, 3, 9])
+            );
         }
-        let r = Qwen3TtsVocoderResidualUnitConfig::new(3, QWEN3_TTS_VOCODER_DILATIONS[2]);
+        let r = &structure.decoder.blocks[1].residuals[2];
         for meta in [
-            &r as &dyn Qwen3TtsVocoderResidualUnitMeta,
+            r as &dyn Qwen3TtsVocoderResidualUnitMeta,
             &decoder.decoder.blocks[1].residuals[2],
         ] {
-            assert_eq!([meta.channels(), meta.dilation()], [3, 9]);
+            assert_eq!(
+                [
+                    meta.channels(),
+                    meta.dilation(),
+                    meta.kernel(),
+                    meta.pointwise_kernel()
+                ],
+                [3, 9, 7, 1]
+            );
+        }
+    }
+
+    /// The vocoder's taps and dilations are its parts' configs': the policy's
+    /// dilations and kernel ratio, and each convolution's taps set in the
+    /// structure, reach the modules.
+    #[test]
+    fn test_vocoder_fields_reach_the_parts() {
+        let device = cpu_device();
+        let mut structure = small()
+            .with_vocoder_dilations(vec![2, 5])
+            .with_vocoder_kernel_ratio(3)
+            .to_structure();
+        structure.decoder.in_kernel = 5;
+        structure.decoder.out_kernel = 3;
+        let unit = &mut structure.decoder.blocks[0].residuals[1];
+        unit.kernel = 5;
+        unit.pointwise_kernel = 3;
+        let decoder: Qwen3TtsCodecDecoder = structure.init(&device);
+        let v = &decoder.decoder;
+        assert_eq!([v.in_kernel(), v.out_kernel()], [5, 3]);
+        assert_eq!(
+            (v.blocks[1].kernel(), v.blocks[1].dilations()),
+            (9, vec![2, 5])
+        );
+        let u = &v.blocks[0].residuals[1];
+        assert_eq!([u.kernel(), u.pointwise_kernel(), u.dilation()], [5, 3, 5]);
+        assert_eq!(v.blocks[0].residuals[0].kernel(), 7);
+    }
+
+    /// A vocoder whose blocks do not chain, or a block whose residual unit
+    /// is not over its output, is refused.
+    #[test]
+    fn test_vocoder_refusals() {
+        let device = cpu_device();
+        let vocoder = small().vocoder();
+        let mut unchained = vocoder.clone();
+        unchained.blocks[1].channels[0] = 5;
+        let mut unit = vocoder;
+        unit.blocks[0].residuals[0].channels = 5;
+        for config in [unchained, unit] {
+            assert_eq!(
+                config.try_init(&device).unwrap_err().kind(),
+                crate::errors::BunsenErrorKind::Illegal
+            );
         }
     }
 }
