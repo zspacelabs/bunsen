@@ -48,7 +48,10 @@ pub fn load_sortformer_v2(
     loaded: &crate::data::resources::LoadedResourceSet,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
-) -> BunsenResult<(Sortformer, crate::kits::speech::nemo::NemoMelFrontEndConfig)> {
+) -> BunsenResult<(
+    Sortformer,
+    crate::kits::speech::support::nemo::NemoMelFrontEndConfig,
+)> {
     use crate::{
         burner::module::ModuleInit,
         data::formats::nemo::NemoArchive,

@@ -8,7 +8,7 @@
 use bunsen::{
     kits::speech::{
         asr::qwen3_asr::Qwen3AsrFrontEndMeta,
-        testing::wer::{
+        support::testing::wer::{
             normalize_transcript,
             word_error_rate,
         },

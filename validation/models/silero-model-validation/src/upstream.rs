@@ -25,7 +25,7 @@ use bunsen::data::{
 use bunsen::{
     data::resources::ResourceSet,
     kits::speech::{
-        testing::RecordedVoiceActivity,
+        support::testing::RecordedVoiceActivity,
         vad::silero_vad::{
             SileroVad,
             SileroVadContextConfig,

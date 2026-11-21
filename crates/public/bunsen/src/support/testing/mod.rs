@@ -87,7 +87,7 @@
 //! # Speech
 //!
 //! Speech scoring is with the speech kits, in
-//! [`kits::speech::testing`](crate::kits::speech::testing): word error rates
+//! [`kits::speech::support::testing`](crate::kits::speech::support::testing): word error rates
 //! and diarization error rates.
 //!
 //! # Example

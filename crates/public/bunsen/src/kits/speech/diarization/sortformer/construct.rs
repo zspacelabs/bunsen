@@ -33,7 +33,7 @@ use crate::{
             SpeakerTurn,
             TurnFilterConfig,
         },
-        nemo::{
+        support::nemo::{
             NemoMelFrontEnd,
             NemoMelFrontEndConfig,
             NemoMelFrontEndMeta,

@@ -28,7 +28,7 @@ use crate::{
             SpeakerActivity,
             SpeakerActivityStream,
         },
-        nemo::{
+        support::nemo::{
             NemoMelFeatures,
             NemoMelFrontEnd,
             NemoMelFrontEndMeta,

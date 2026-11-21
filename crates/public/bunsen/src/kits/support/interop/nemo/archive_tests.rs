@@ -103,7 +103,7 @@ fn test_bunsen_configs() {
                 ResidualEncoderAttentionBlockMeta,
             },
         },
-        kits::speech::nemo::FeatureNormalization,
+        kits::speech::support::nemo::FeatureNormalization,
     };
     let config: ToyConfig = toy().config().unwrap();
 

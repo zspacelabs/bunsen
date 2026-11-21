@@ -1576,7 +1576,7 @@ mod tests {
                     TranscriptSegment,
                     VoiceActivityFilterConfig,
                 },
-                testing::RecordedVoiceActivity,
+                support::testing::RecordedVoiceActivity,
                 vad::silero_vad::{
                     SileroPolicy,
                     SileroVad,
@@ -2094,7 +2094,7 @@ mod tests {
                 MeanActivity,
                 SpeakerCutConfig,
             },
-            testing::ScriptedDiarizer,
+            support::testing::ScriptedDiarizer,
         };
 
         let device = performance_device();

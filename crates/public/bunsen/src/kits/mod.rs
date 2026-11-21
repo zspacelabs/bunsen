@@ -136,11 +136,11 @@
 //! - **Kits group by domain, then by task where a domain's kits serve different
 //!   tasks**: `speech::{asr, diarization, tts, vad}`. A task's
 //!   model-independent parts sit beside its models ([`speech::asr::driver`]); a
-//!   family layer that crosses tasks ([`speech::nemo`]) and the domain's
-//!   `testing` sit beside the tasks. [`support`] holds what kits of more than
-//!   one domain share, and simulations are [`crate::sims`], not kits. A kit's
-//!   module is named for its model, as close to the model's own name as a Rust
-//!   identifier allows, even when that repeats its group
+//!   family layer that crosses tasks ([`speech::support::nemo`]) and the
+//!   domain's `testing` sit beside the tasks. [`support`] holds what kits of
+//!   more than one domain share, and simulations are [`crate::sims`], not kits.
+//!   A kit's module is named for its model, as close to the model's own name as
+//!   a Rust identifier allows, even when that repeats its group
 //!   ([`speech::asr::qwen3_asr`]). An op that only one kit uses lives in that
 //!   kit's `ops` ([`images::swin::ops`]). A kit is found by what it is, and
 //!   kit-only code stays out of the shared layers.

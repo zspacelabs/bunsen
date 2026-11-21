@@ -20,7 +20,7 @@ use bunsen::{
                     split_mel_windows,
                 },
             },
-            testing::wer::text_error_rate,
+            support::testing::wer::text_error_rate,
         },
         support::decoding::{
             LogitFilter,

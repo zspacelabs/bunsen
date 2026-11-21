@@ -23,7 +23,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::nemo::{
+    kits::speech::support::nemo::{
         FeatureNormalization,
         NemoMelFrontEndConfig,
     },

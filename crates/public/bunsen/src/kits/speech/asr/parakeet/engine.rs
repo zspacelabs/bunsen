@@ -322,7 +322,7 @@ mod tests {
                     ParakeetVocabulary,
                 },
             },
-            testing::ToneConfig,
+            support::testing::ToneConfig,
         },
         support::testing::performance_device,
     };

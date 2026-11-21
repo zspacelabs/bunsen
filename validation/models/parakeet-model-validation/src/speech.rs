@@ -11,7 +11,7 @@ use bunsen::{
             ParakeetFrontEndMeta,
             pretrained::DEFAULT_PARAKEET_MODEL,
         },
-        testing::wer::{
+        support::testing::wer::{
             normalize_transcript,
             word_error_rate,
         },
