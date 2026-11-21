@@ -43,7 +43,7 @@ A kit is a whole model, with its configs and the weights it loads by name
   a pretrained index, decoders, and a stream driver.
 - [`speech::vad::silero_vad`](https://docs.rs/bunsen/latest/bunsen/kits/speech/vad/silero_vad/index.html): the Silero
   voice-activity detector, with weights a build can bundle.
-- [`text::encoders::modernbert`](https://docs.rs/bunsen/latest/bunsen/kits/text/encoders/modernbert/index.html):
+- [`language::encoders::modernbert`](https://docs.rs/bunsen/latest/bunsen/kits/text/encoders/modernbert/index.html):
   Answer.AI's ModernBERT text encoder, which Laya is built on.
 - [`support`](https://docs.rs/bunsen/latest/bunsen/kits/support/index.html): not a model; what kits of more than one
   family share: the ids-to-text seam, and the decoding search machinery.

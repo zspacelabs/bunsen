@@ -14,7 +14,7 @@ use crate::{
     errors::BunsenResult,
     kits::{
         decision::laya::LayaModel,
-        text::encoders::modernbert::interop::transformers::modernbert_row_splits,
+        language::encoders::modernbert::interop::transformers::modernbert_row_splits,
     },
 };
 

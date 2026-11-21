@@ -1,7 +1,7 @@
 //! # Laya cross-check against upstream.
 //!
 //! Validates [`bunsen`]'s Laya (`kits::decision::laya`), its `ModernBERT`
-//! encoder (`kits::text::encoders::modernbert`) with it, against upstream's
+//! encoder (`kits::language::encoders::modernbert`) with it, against upstream's
 //! own decision model (`rl_common.py` and `rl_agent_api.py` of
 //! `convaiinnovations/laya`), in float32, on each of its three checkpoints,
 //! [`ROWS`]: for every question of every case, bunsen's prompt is upstream's

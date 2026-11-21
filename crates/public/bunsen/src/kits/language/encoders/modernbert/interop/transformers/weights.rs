@@ -18,7 +18,7 @@ use crate::{
         split_rows,
     },
     errors::BunsenResult,
-    kits::text::encoders::modernbert::ModernBertModel,
+    kits::language::encoders::modernbert::ModernBertModel,
 };
 
 /// The prefix a checkpoint's encoder sits under: `model.` for a

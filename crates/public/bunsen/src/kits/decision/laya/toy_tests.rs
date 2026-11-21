@@ -27,11 +27,11 @@ use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::{
+        language::encoders::modernbert::interop::transformers::modernbert_config_from_path,
         support::tokens::{
             Detokenizer,
             Tokenizer,
         },
-        text::encoders::modernbert::interop::transformers::modernbert_config_from_path,
     },
     support::testing::{
         ToyFixture,

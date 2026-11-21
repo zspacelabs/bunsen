@@ -5,7 +5,7 @@
 //! scale, a yes/no probability), calibrated probabilities over each
 //! question's options out, in one forward pass. A [`LayaModel`], built from a
 //! [`LayaConfig`], is upstream's `DecisionModel`: a
-//! [`ModernBertModel`](crate::kits::text::encoders::modernbert::ModernBertModel)
+//! [`ModernBertModel`](crate::kits::language::encoders::modernbert::ModernBertModel)
 //! encoder, the question kind's type embedding, two `PyTorch`-layout encoder
 //! layers, and a scorer over each option's `[MASK]` marker; and an act head.
 //!
