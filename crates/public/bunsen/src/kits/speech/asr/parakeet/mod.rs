@@ -13,8 +13,8 @@
 //!   builds.
 //! - [`ParakeetFrontEnd`]: the feature extractor, waveforms to normalized
 //!   log-mels, built from a [`ParakeetFrontEndConfig`]: `NeMo`'s
-//!   [`NemoMelFrontEnd`](crate::kits::speech::nemo::NemoMelFrontEnd) under its
-//!   defaults.
+//!   [`NemoMelFrontEnd`](crate::kits::speech::support::nemo::NemoMelFrontEnd)
+//!   under its defaults.
 //! - [`TdtGreedyDecoder`]: greedy decoding of the transducer, batched, to
 //!   [`TdtHypothesis`] tokens with their frames.
 //! - [`ParakeetVocabulary`]: the `SentencePiece` pieces, as a
@@ -48,16 +48,16 @@ pub use vocab::*;
 
 /// Parakeet's feature extractor: `NeMo`'s mel front end, whose defaults are
 /// `parakeet-tdt-0.6b-v3`'s.
-pub type ParakeetFrontEnd = crate::kits::speech::nemo::NemoMelFrontEnd;
+pub type ParakeetFrontEnd = crate::kits::speech::support::nemo::NemoMelFrontEnd;
 
 /// Config for [`ParakeetFrontEnd`]: `NeMo`'s, its defaults
 /// `parakeet-tdt-0.6b-v3`'s.
-pub type ParakeetFrontEndConfig = crate::kits::speech::nemo::NemoMelFrontEndConfig;
+pub type ParakeetFrontEndConfig = crate::kits::speech::support::nemo::NemoMelFrontEndConfig;
 
 /// Parakeet's front end, streamed.
-pub type ParakeetFeatures = crate::kits::speech::nemo::NemoMelFeatures;
+pub type ParakeetFeatures = crate::kits::speech::support::nemo::NemoMelFeatures;
 
-pub use crate::kits::speech::nemo::NemoMelFrontEndMeta as ParakeetFrontEndMeta;
+pub use crate::kits::speech::support::nemo::NemoMelFrontEndMeta as ParakeetFrontEndMeta;
 
 #[cfg(feature = "store")]
 pub mod pretrained;

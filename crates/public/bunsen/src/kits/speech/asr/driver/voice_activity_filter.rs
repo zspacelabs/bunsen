@@ -633,7 +633,7 @@ mod tests {
     /// patience, does not.
     mod silero {
         use super::*;
-        use crate::kits::speech::testing::RecordedVoiceActivity;
+        use crate::kits::speech::support::testing::RecordedVoiceActivity;
 
         /// Silero's probabilities for the clip, one per chunk, and its length.
         fn probabilities() -> (Vec<f32>, usize) {

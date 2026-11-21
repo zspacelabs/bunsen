@@ -36,7 +36,7 @@ use bunsen::{
                 pretrained::default_whisper_factory,
             },
         },
-        testing::wer::{
+        support::testing::wer::{
             cp_word_error_rate,
             text_error_rate,
         },

@@ -9,7 +9,7 @@
 use bunsen::{
     kits::speech::{
         asr::voxtral::VoxtralFrontEndMeta,
-        testing::wer::{
+        support::testing::wer::{
             normalize_transcript,
             word_error_rate,
         },

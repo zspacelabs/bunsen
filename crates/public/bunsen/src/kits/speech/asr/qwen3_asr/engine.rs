@@ -376,7 +376,7 @@ mod tests {
                         },
                     },
                 },
-                testing::ToneConfig,
+                support::testing::ToneConfig,
             },
             support::tokens::ByteLevelVocabulary,
         },
@@ -636,7 +636,7 @@ mod tests {
                 MeanActivity,
                 SpeakerCutConfig,
             },
-            testing::ScriptedDiarizer,
+            support::testing::ScriptedDiarizer,
         };
 
         let device = performance_device();

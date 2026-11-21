@@ -32,7 +32,7 @@ use crate::{
                 SortformerHeadConfig,
                 SortformerStructureConfig,
             },
-            nemo::NemoMelFrontEndConfig,
+            support::nemo::NemoMelFrontEndConfig,
         },
         support::interop::nemo::{
             NemoConformerEncoderMirror,
@@ -313,7 +313,7 @@ mod tests {
         errors::BunsenErrorKind,
         kits::speech::{
             diarization::sortformer::SortformerV2Config,
-            nemo::FeatureNormalization,
+            support::nemo::FeatureNormalization,
         },
     };
 

@@ -21,7 +21,7 @@
 //! `cargo validate` (`validation/tools/validate`) runs this crate under a
 //! profile, which chooses the models (`validation/models.yml`). Every test of a
 //! model has the model's id in its path
-//! (`speech::nemotron_3_diarization::offline_diarizes_like_nemo`,
+//! (`speech::support::nemotron_3_diarization::offline_diarizes_like_nemo`,
 //! `v2_checkpoints::sortformer_v2_1::loads`,
 //! `asr::sortformer_speakers::whisper`):
 //!

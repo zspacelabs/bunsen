@@ -14,7 +14,7 @@ use bunsen::{
             TurnFilterConfig,
             sortformer::SortformerStreamingConfig,
         },
-        testing::der::diarization_error,
+        support::testing::der::diarization_error,
     },
     support::{
         audio::load_audio_mono_sr,

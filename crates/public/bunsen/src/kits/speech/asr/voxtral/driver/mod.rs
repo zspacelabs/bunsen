@@ -71,7 +71,7 @@ mod tests {
                         },
                     },
                 },
-                testing::ToneConfig,
+                support::testing::ToneConfig,
             },
             support::interop::mistral_common::TekkenMirror,
         },

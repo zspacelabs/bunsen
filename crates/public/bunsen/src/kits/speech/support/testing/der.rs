@@ -5,7 +5,7 @@
 //! of names that makes them agree longest, as NIST's `md-eval` and
 //! `pyannote.metrics` compare them. A speaker-attributed transcript is scored
 //! by words instead:
-//! [`cp_word_error_rate`](crate::kits::speech::testing::wer::cp_word_error_rate).
+//! [`cp_word_error_rate`](crate::kits::speech::support::testing::wer::cp_word_error_rate).
 
 use crate::kits::speech::diarization::RttmSegment;
 

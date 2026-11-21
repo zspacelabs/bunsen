@@ -46,7 +46,7 @@ use bunsen::{
                 },
                 pretrained::WhisperVocabulary,
             },
-            testing::wer::text_error_rate,
+            support::testing::wer::text_error_rate,
         },
         support::tokens::{
             Detokenizer,

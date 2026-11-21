@@ -16,7 +16,7 @@ use bunsen::{
                     pretrained::default_whisper_factory,
                 },
             },
-            testing::tts_synthesizer_round_trip,
+            support::testing::tts_synthesizer_round_trip,
             tts::{
                 driver::{
                     TtsRequest,

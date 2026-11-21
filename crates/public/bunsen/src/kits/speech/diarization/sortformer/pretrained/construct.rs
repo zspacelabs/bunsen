@@ -39,7 +39,7 @@ use crate::{
                     transformers,
                 },
             },
-            nemo::NemoMelFrontEndConfig,
+            support::nemo::NemoMelFrontEndConfig,
         },
         support::model_config::resolve_ref_presets,
     },
@@ -263,7 +263,7 @@ mod tests {
             },
             kits::speech::{
                 diarization::sortformer::SortformerMeta,
-                nemo::NemoMelFrontEndMeta,
+                support::nemo::NemoMelFrontEndMeta,
             },
             support::testing::cpu_device,
         };

@@ -985,7 +985,7 @@ mod tests {
                 VoiceActivityModel,
             },
             diarization::SpeakerActivityModel,
-            testing::ScriptedDiarizer,
+            support::testing::ScriptedDiarizer,
         },
         support::testing::cpu_device,
     };

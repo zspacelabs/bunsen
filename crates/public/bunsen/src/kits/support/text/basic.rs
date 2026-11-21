@@ -66,7 +66,7 @@ impl TextNormalizer for CollapseLineBreaks {
 /// A transcript for comparison: lowercase, punctuation dropped (apostrophes
 /// kept), one space between words; any language.
 ///
-/// What word error rates count over (`kits::speech::testing`'s
+/// What word error rates count over (`kits::speech::support::testing`'s
 /// `normalize_transcript` splits its output into words). Deliberately small:
 /// it does not reconcile
 /// spelled-out numbers with digits, or expand contractions; a normalizer that

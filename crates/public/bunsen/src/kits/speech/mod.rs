@@ -31,8 +31,8 @@
 //!     rows of audio codec codes and text, without a residual stream, and the
 //!     codec that decodes its codes.
 //!
-//! Beside the tasks, [`nemo`] holds the parts NVIDIA's `NeMo` models share
-//! across them (the mel front end, `.nemo` checkpoints): Parakeet's and
+//! Beside the tasks, [`support::nemo`] holds the parts NVIDIA's `NeMo` models
+//! share across them (the mel front end, `.nemo` checkpoints): Parakeet's and
 //! Sortformer's.
 //!
 //! # How they connect
@@ -90,9 +90,6 @@
 
 pub mod asr;
 pub mod diarization;
-pub mod nemo;
+pub mod support;
 pub mod tts;
 pub mod vad;
-
-#[cfg(feature = "testing")]
-pub mod testing;
