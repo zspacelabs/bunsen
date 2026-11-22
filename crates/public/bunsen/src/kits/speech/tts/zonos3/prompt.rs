@@ -5,7 +5,7 @@
 //!
 //! 1. the speaker: an all-pad row whose embedding is replaced by the projected
 //!    speaker embedding ([`Zonos3Speaker::Embedding`]), or a reference prefix,
-//!    raw codec codes laid out as audio rows ([`Zonos3Speaker::Reference`]), or
+//!    raw codec codes laid out as audio rows ([`Zonos3Speaker::Codes`]), or
 //!    nothing;
 //! 2. one all-pad row per condition, each replaced by its table's row for its
 //!    bucket (the unknown bucket when the request gives none);
@@ -134,9 +134,10 @@ pub enum Zonos3Speaker {
     /// A speaker embedding, projected into one row.
     Embedding(Vec<f32>),
 
-    /// A reference prefix: raw codec codes, `[F][n]`, kept to the first
+    /// A voice's codes: raw codec codes, `[F][n]`, laid out as a prefix of
+    /// audio rows, kept to the first
     /// [`max_reference_frames`](Zonos3PromptConfig::max_reference_frames).
-    Reference(Vec<Vec<u32>>),
+    Codes(Vec<Vec<u32>>),
 }
 
 /// What [`Zonos3PromptConfig::build`] lays out.
@@ -302,7 +303,7 @@ impl Zonos3PromptConfig {
                 speaker = Some((rows.len(), embedding.clone()));
                 rows.push(self.pad_row());
             }
-            Zonos3Speaker::Reference(codes) => {
+            Zonos3Speaker::Codes(codes) => {
                 if codes.is_empty()
                     || codes.iter().any(|f| {
                         f.len() != n || f.iter().any(|&c| c as usize >= self.codebook_size)
@@ -469,11 +470,7 @@ mod tests {
         let prompt = config()
             .build(&Zonos3PromptRequest {
                 text_ids: vec![2, 3],
-                speaker: Zonos3Speaker::Reference(vec![
-                    vec![1, 2, 3],
-                    vec![4, 5, 6],
-                    vec![7, 0, 7],
-                ]),
+                speaker: Zonos3Speaker::Codes(vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 0, 7]]),
                 condition_buckets: vec![],
                 silence_prefill_frames: 0,
             })
@@ -502,9 +499,9 @@ mod tests {
             silence_prefill_frames: 0,
         };
         for bad in [
-            request(Zonos3Speaker::Reference(vec![]), vec![]),
-            request(Zonos3Speaker::Reference(vec![vec![1, 2]]), vec![]),
-            request(Zonos3Speaker::Reference(vec![vec![1, 2, 8]]), vec![]),
+            request(Zonos3Speaker::Codes(vec![]), vec![]),
+            request(Zonos3Speaker::Codes(vec![vec![1, 2]]), vec![]),
+            request(Zonos3Speaker::Codes(vec![vec![1, 2, 8]]), vec![]),
             request(Zonos3Speaker::None, vec![Some(5)]),
             request(Zonos3Speaker::None, vec![None, None, None]),
         ] {

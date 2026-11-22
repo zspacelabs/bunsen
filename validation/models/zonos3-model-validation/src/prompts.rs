@@ -100,7 +100,7 @@ mod zonos3_mini {
                 Some("embedding") => {
                     Zonos3Speaker::Embedding(reference.floats(&format!("{name}.speaker_embedding")))
                 }
-                Some("reference") => Zonos3Speaker::Reference(
+                Some("reference") => Zonos3Speaker::Codes(
                     serde_json::from_value(request["speaker_reference_codes"].clone()).unwrap(),
                 ),
                 None => Zonos3Speaker::None,

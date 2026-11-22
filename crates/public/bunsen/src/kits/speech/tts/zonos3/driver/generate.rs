@@ -102,6 +102,32 @@ pub fn zonos3_driver<T: Tokenizer + Send + Sync>(
     )
 }
 
+/// How [`Zonos3Engine`] speaks in a stock voice: the release ships each as
+/// both its reference codes and its speaker embedding.
+#[derive(Config, Copy, Debug, PartialEq, Eq)]
+pub enum Zonos3SpeakerMode {
+    /// Its codes: its reference recording's codec codes, a prefix of audio
+    /// rows (the release's default).
+    Codes,
+
+    /// Its speaker embedding, through the prompt's speaker row (the
+    /// studio's default, and the mode a cloned voice speaks in).
+    Embedding,
+}
+
+impl Zonos3SpeakerMode {
+    /// `voice` as a speaker in this mode.
+    pub fn speaker(
+        self,
+        voice: &Zonos3Voice,
+    ) -> Zonos3Speaker {
+        match self {
+            Self::Codes => Zonos3Speaker::Codes(voice.codes.clone()),
+            Self::Embedding => Zonos3Speaker::Embedding(voice.embedding.clone()),
+        }
+    }
+}
+
 /// Config for [`Zonos3Engine`]; its defaults are the release's
 /// (`config.json`'s `generation`,
 /// [`Zonos3GenerationMirror::engine_config`](crate::kits::speech::tts::zonos3::interop::zonos::Zonos3GenerationMirror::engine_config)).
@@ -116,6 +142,10 @@ pub struct Zonos3EngineConfig {
     /// The stock voice a request that names none speaks in.
     #[config(default = "String::from(\"Savannah\")")]
     pub default_voice: String,
+
+    /// How a stock voice is spoken in.
+    #[config(default = "Zonos3SpeakerMode::Codes")]
+    pub speaker_mode: Zonos3SpeakerMode,
 
     /// A value for each condition the take is conditioned on, by its name
     /// (the construct's [`conditions`](Zonos3Construct::conditions):
@@ -363,25 +393,45 @@ impl<T: Tokenizer> Zonos3Engine<T> {
         &self.construct.voices
     }
 
-    /// A stock voice as a reference prefix, the release's default speaker
-    /// mode.
+    /// The stock voice `name`.
     ///
     /// # Errors
     /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a name that is
     /// not a stock voice.
+    pub fn stock_voice(
+        &self,
+        name: &str,
+    ) -> BunsenResult<&Zonos3Voice> {
+        let voices = self.voices();
+        voices.get(name).ok_or_else(|| {
+            BunsenError::lookup(
+                LookupError::missing("stock voice", name).with_candidates(voices.keys()),
+            )
+        })
+    }
+
+    /// A stock voice as a speaker in the config's
+    /// [`speaker_mode`](Zonos3EngineConfig::speaker_mode).
+    ///
+    /// # Errors
+    /// As [`stock_voice`](Self::stock_voice).
+    pub fn stock_speaker(
+        &self,
+        name: &str,
+    ) -> BunsenResult<Zonos3Speaker> {
+        Ok(self.config.speaker_mode.speaker(self.stock_voice(name)?))
+    }
+
+    /// A stock voice as a reference prefix, the release's default speaker
+    /// mode, whatever the config's.
+    ///
+    /// # Errors
+    /// As [`stock_voice`](Self::stock_voice).
     pub fn voice_reference(
         &self,
         name: &str,
     ) -> BunsenResult<Zonos3Speaker> {
-        let voices = self.voices();
-        voices
-            .get(name)
-            .map(|voice| Zonos3Speaker::Reference(voice.codes.clone()))
-            .ok_or_else(|| {
-                BunsenError::lookup(
-                    LookupError::missing("stock voice", name).with_candidates(voices.keys()),
-                )
-            })
+        Ok(Zonos3SpeakerMode::Codes.speaker(self.stock_voice(name)?))
     }
 
     fn device(&self) -> Device {
