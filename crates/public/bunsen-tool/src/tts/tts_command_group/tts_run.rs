@@ -22,35 +22,27 @@ use bunsen::{
             TtsRequest,
             TtsSamplingOverrides,
             TtsStop,
+            TtsSynthesizer,
             TtsVoiceChoice,
+            TtsVoicePrint,
+            TtsVoiceReference,
         },
         support::text::TextNormalizationConfig,
     },
     support::audio::save_wav_mono,
 };
-use bunsen_app::{
-    cache::WeightsCacheArgs,
-    device::BackendArgs,
-    logging::{
-        LogArgs,
-        LogPolicy,
-    },
-    precision::MinPrecisionArgs,
+use bunsen_app::logging::{
+    LogArgs,
+    LogPolicy,
 };
 use clap::ArgMatches;
 use log::LevelFilter;
 
-use crate::{
-    support::{
-        ChooseArgs,
-        with_patch,
-        with_presets,
-    },
-    tts::{
-        TtsFamily,
-        TtsFamilyArgs,
-        choose_tts_model,
-    },
+use crate::tts::{
+    TtsFamily,
+    TtsLoaded,
+    TtsModelArgs,
+    read_voice_file,
 };
 
 /// Speaks a text, to a WAV file.
@@ -59,37 +51,37 @@ pub struct TtsRunCommand {
     #[clap(flatten)]
     logging: LogArgs,
 
+    /// The checkpoint, and how it loads.
     #[clap(flatten)]
-    cache: WeightsCacheArgs,
+    model: TtsModelArgs,
 
-    /// The device. A model loads at the precision it ships in where the
-    /// device accelerates it, else in f32 (`LoadPolicy::performance`);
-    /// `--min-precision` puts a floor under that.
-    #[clap(flatten)]
-    device: BackendArgs,
-
-    /// The narrowest float the checkpoint's weights are placed in.
-    #[clap(flatten)]
-    precision: MinPrecisionArgs,
-
-    /// The checkpoint, chosen among every TTS family's builds by `--model`
-    /// and the stage flags; the default checkpoint when nothing is named.
-    #[clap(flatten)]
-    choose: ChooseArgs,
-
-    /// The family the checkpoint is chosen among (`zonos3`, `qwen3-tts`).
+    /// The voice the speech is in.
     ///
-    /// Every family's when omitted. Needed for a provider ref
-    /// (`hf:org/repo`), which names no family.
-    #[arg(long, value_enum)]
-    family: Option<TtsFamily>,
-
-    /// The stock voice the speech is in (`tts voices` lists them).
+    /// A stock voice (`tts voices` lists them), else a voice file in
+    /// `--voice-dir`.
     ///
     /// The model's default voice when omitted: ZONOS3's Savannah; Qwen3-TTS
     /// has none, and needs one named.
     #[arg(long)]
     voice: Option<String>,
+
+    /// A voice directory, for `--voice` names that are not stock voices.
+    ///
+    /// `--voice NAME` is its `NAME.voice.safetensors` (`tts build-voice
+    /// --voice-dir` writes them).
+    #[arg(long)]
+    voice_dir: Option<PathBuf>,
+
+    /// A voice file to speak in (`tts build-voice` makes one), in place of
+    /// `--voice`.
+    #[arg(long, conflicts_with_all = ["voice", "describe", "voice_reference"])]
+    voice_file: Option<PathBuf>,
+
+    /// A voice reference to speak in, in place of `--voice`.
+    ///
+    /// It is built for this run alone; nothing is written.
+    #[arg(long, conflicts_with_all = ["voice", "describe"])]
+    voice_reference: Option<PathBuf>,
 
     /// A voice described in words, in place of `--voice`.
     ///
@@ -136,10 +128,6 @@ pub struct TtsRunCommand {
     /// `FILE.json`, ... (`text normalizers` lists them).
     #[arg(long = "normalize", value_name = "SPEC")]
     normalizers: Vec<String>,
-
-    /// The flags of one family's engine.
-    #[clap(flatten)]
-    family_flags: TtsFamilyArgs,
 
     /// The text's language, as one of the model's keys.
     ///
@@ -204,28 +192,17 @@ impl TtsRunCommand {
             ));
         }
         let text = self.read_text()?;
-        let cache = self.cache.init()?;
-        let device = self.device.open()?;
-        let flags = self.choose.flags(matches)?;
-        let (mut model, family) = choose_tts_model(&self.choose.model, &flags, self.family)?;
-        if !flags.presets.presets.is_empty() {
-            let presets: Vec<&str> = flags.presets.presets.iter().map(String::as_str).collect();
-            model = with_presets(&model, &presets)?;
-        }
-        if let Some(patch) = self.choose.patch()? {
-            model = with_patch(&model, &patch)?;
-        }
-        let synthesizer = family.load(
-            &model,
-            &cache,
-            &device,
-            self.precision.load_policy(),
-            self.driver_config(family)?,
-            &self.family_flags,
-        )?;
+        let TtsLoaded {
+            synthesizer, model, ..
+        } = self
+            .model
+            .load(matches, |family| self.driver_config(family))?;
 
         let seed = self.seed.unwrap_or_else(clock_seed);
-        let request = self.request(text, seed);
+        let mut request = self.request(text, seed);
+        if let Some(voice) = self.user_voice(synthesizer.as_ref())? {
+            request.voice = voice;
+        }
         let started = Instant::now();
         let speech = synthesizer.synthesize(&request)?;
         let spoken = started.elapsed().as_secs_f64();
@@ -246,6 +223,12 @@ impl TtsRunCommand {
         let voice = self
             .voice
             .clone()
+            .or_else(|| {
+                self.voice_file
+                    .as_ref()
+                    .or(self.voice_reference.as_ref())
+                    .map(|p| p.display().to_string())
+            })
             .or_else(|| self.describe.as_ref().map(|_| "a described".to_string()))
             .or_else(|| synthesizer.capabilities().default_voice.clone())
             .unwrap_or_else(|| "the default".to_string());
@@ -283,6 +266,35 @@ impl TtsRunCommand {
             return Err(BunsenError::illegal("no text to speak"));
         }
         Ok(text)
+    }
+
+    /// A cloned voice the flags name, for `synthesizer`: `--voice-file`;
+    /// `--voice-reference`, built now; or `--voice NAME` that is not one of
+    /// its stock voices, from `--voice-dir`. `None`, the request's own.
+    ///
+    /// # Errors
+    /// The file's or the reference's read; the build's; and
+    /// [`Lookup`](bunsen::errors::BunsenErrorKind::Lookup) for a `--voice`
+    /// that is neither a stock voice nor in `--voice-dir`.
+    fn user_voice(
+        &self,
+        synthesizer: &dyn TtsSynthesizer,
+    ) -> BunsenResult<Option<TtsVoiceChoice>> {
+        if let Some(path) = &self.voice_file {
+            return Ok(Some(TtsVoiceChoice::Print(TtsVoicePrint::read(path)?)));
+        }
+        if let Some(dir) = &self.voice_reference {
+            let reference = TtsVoiceReference::read_dir(dir)?;
+            return Ok(Some(TtsVoiceChoice::Print(
+                synthesizer.build_voice(&reference, None)?,
+            )));
+        }
+        match (&self.voice, &self.voice_dir) {
+            (Some(name), Some(dir)) if !synthesizer.voices().iter().any(|v| &v.name == name) => {
+                Ok(Some(TtsVoiceChoice::Print(read_voice_file(dir, name)?)))
+            }
+            _ => Ok(None),
+        }
     }
 
     /// The request: the text in the flags' voice, language and instruction,
@@ -458,6 +470,25 @@ mod tests {
         assert!(!config.split && config.strip_instruction);
         let bad = cli(&["-o", "o.wav", "--normalize", "no-such", "Hi"]);
         assert!(bad.driver_config(TtsFamily::Zonos3).is_err());
+    }
+
+    /// A voice file or a reference stands in for `--voice`; `--voice-dir`
+    /// goes with it.
+    #[test]
+    fn test_voice_flags() {
+        let run = cli(&["-o", "o.wav", "--voice", "Ada", "--voice-dir", "v", "Hi"]);
+        assert_eq!(run.voice_dir, Some(PathBuf::from("v")));
+        let file = cli(&["-o", "o.wav", "--voice-file", "a.voice.safetensors", "Hi"]);
+        assert_eq!(file.voice_file, Some(PathBuf::from("a.voice.safetensors")));
+        for bad in [
+            ["--voice", "a", "--voice-file", "f"],
+            ["--voice", "a", "--voice-reference", "s"],
+            ["--voice-file", "f", "--voice-reference", "s"],
+            ["--describe", "x", "--voice-reference", "s"],
+        ] {
+            let argv = [&["tts", "-o", "o.wav"], &bad[..], &["Hi"]].concat();
+            assert!(Cli::try_parse_from(argv).is_err(), "{bad:?}");
+        }
     }
 
     #[test]

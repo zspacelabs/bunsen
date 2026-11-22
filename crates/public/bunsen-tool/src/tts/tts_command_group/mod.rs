@@ -1,5 +1,8 @@
 //! `bunsen-tool tts`: the command group.
 
+mod tts_build_voice;
+mod tts_clone;
+mod tts_collect_voice;
 mod tts_fetch;
 mod tts_list;
 mod tts_run;
@@ -7,6 +10,9 @@ mod tts_voices;
 
 use bunsen::errors::BunsenResult;
 use clap::ArgMatches;
+pub use tts_build_voice::*;
+pub use tts_clone::*;
+pub use tts_collect_voice::*;
 pub use tts_fetch::*;
 pub use tts_list::*;
 pub use tts_run::*;
@@ -15,7 +21,10 @@ pub use tts_voices::*;
 /// `bunsen-tool tts`'s commands: text to speech with every TTS family's
 /// checkpoints (ZONOS3-Mini, Qwen3-TTS). `tts run` speaks a text in a voice
 /// to a WAV file or a speaker; `tts voices` lists a checkpoint's stock
-/// voices; `tts list` and `tts fetch` are the checkpoints'.
+/// voices; `tts list` and `tts fetch` are the checkpoints'. Cloning is in two
+/// steps: `tts collect-voice` makes a model-free reference from clips, `tts
+/// build-voice` makes a checkpoint's voice file from a reference; `tts clone`
+/// does both.
 #[derive(clap::Args, Debug)]
 pub struct TtsCommandGroup {
     #[clap(subcommand)]
@@ -46,6 +55,28 @@ pub enum TtsSubCommand {
 
     /// Brings every file of the named checkpoints into the weights cache.
     Fetch(TtsFetchCommand),
+
+    /// Collects reference clips into a voice reference, for any model to clone.
+    ///
+    /// The clips are copied into the reference directory as they are, at their
+    /// own rate and channels, with `reference.json`: each clip's hash and
+    /// geometry, and what is given of the voice (its name, transcript,
+    /// language). Loads no model.
+    CollectVoice(Box<TtsCollectVoiceCommand>),
+
+    /// Builds one checkpoint's voice file from a voice reference.
+    ///
+    /// The checkpoint's encoder reads the reference's clips (resampled and
+    /// mixed as it was trained) into a voice of its own tensors, which `tts run
+    /// --voice-file` (or `--voice NAME --voice-dir DIR`) speaks in.
+    BuildVoice(Box<TtsBuildVoiceCommand>),
+
+    /// Clones a voice from reference clips: `collect-voice`, then
+    /// `build-voice`.
+    ///
+    /// The reference is kept, so the voice can be built again for another
+    /// checkpoint.
+    Clone(Box<TtsCloneCommand>),
 }
 
 impl TtsCommandGroup {
@@ -59,6 +90,9 @@ impl TtsCommandGroup {
             TtsSubCommand::Voices(cmd) => cmd.run(matches),
             TtsSubCommand::List(cmd) => cmd.run(),
             TtsSubCommand::Fetch(cmd) => cmd.run(),
+            TtsSubCommand::CollectVoice(cmd) => cmd.run(),
+            TtsSubCommand::BuildVoice(cmd) => cmd.run(matches),
+            TtsSubCommand::Clone(cmd) => cmd.run(matches),
         }
     }
 }

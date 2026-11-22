@@ -3,7 +3,10 @@
 //! [TTS driver](bunsen::kits::speech::tts::driver).
 //!
 //! - [`TtsCommandGroup`]: the `tts` command tree, `tts
-//!   <run|voices|list|fetch>`.
+//!   <run|voices|list|fetch|collect-voice|build-voice|clone>`.
+//! - [`TtsModelArgs`]: the flags that choose and load a checkpoint;
+//!   [`TtsAnnotationArgs`] and [`TtsVoiceOutArgs`], a cloned voice's reference
+//!   and its file.
 //! - [`choose_tts_model`]: the checkpoint `--model` and the stage flags choose
 //!   among every family's builds ([`tts_selection`]), or one family's
 //!   (`--family`).
@@ -13,9 +16,11 @@ mod family;
 mod playback;
 mod tts_command_group;
 mod tts_select;
+mod tts_voice_args;
 
 pub use family::*;
 #[cfg(feature = "live")]
 pub use playback::*;
 pub use tts_command_group::*;
 pub use tts_select::*;
+pub use tts_voice_args::*;

@@ -19,7 +19,10 @@ use bunsen::{
         sys_at,
     },
     kits::speech::tts::{
-        driver::TtsVoiceInfo,
+        driver::{
+            TtsVoiceInfo,
+            TtsVoicePrint,
+        },
         qwen3_tts::{
             interop::qwen_tts::Qwen3TtsPromptMirror,
             pretrained::{
@@ -56,6 +59,7 @@ use crate::{
     tts::{
         TtsFamily,
         choose_tts_model,
+        voice_files,
     },
 };
 
@@ -79,6 +83,12 @@ pub struct TtsVoicesCommand {
     /// Fetch the voices' files without asking, when they are not cached.
     #[arg(long)]
     yes: bool,
+
+    /// A voice directory, whose voice files are listed too.
+    ///
+    /// Each with the family, mode and build it was made for.
+    #[arg(long)]
+    voice_dir: Option<std::path::PathBuf>,
 }
 
 impl TtsVoicesCommand {
@@ -100,6 +110,21 @@ impl TtsVoicesCommand {
         };
         println!("# {model}: {} stock voices", voices.len());
         print!("{}", voice_table(&voices));
+        if let Some(dir) = &self.voice_dir {
+            let files = voice_files(dir)?;
+            println!("# {}: {} voice files", dir.display(), files.len());
+            let mut rows = vec![["name", "family", "mode", "build"].map(String::from)];
+            for (name, path) in files {
+                let voice = TtsVoicePrint::read(&path)?;
+                rows.push([
+                    name,
+                    voice.identity.family,
+                    voice.identity.mode,
+                    voice.identity.encoder,
+                ]);
+            }
+            print!("{}", table(&rows));
+        }
         Ok(())
     }
 
@@ -184,6 +209,11 @@ fn voice_table(voices: &[TtsVoiceInfo]) -> String {
             voice.gender.clone().unwrap_or_else(dash),
         ]);
     }
+    table(&rows)
+}
+
+/// `rows` as a table, each column as wide as its widest cell.
+fn table(rows: &[[String; 4]]) -> String {
     let widths: Vec<usize> = (0..4)
         .map(|c| rows.iter().map(|r| r[c].chars().count()).max().unwrap_or(0))
         .collect();
