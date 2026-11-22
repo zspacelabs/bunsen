@@ -29,8 +29,10 @@ use crate::{
     ops::{
         math::LogBase,
         signal::{
-            SamplingWindowBuilder,
-            StftWindowConfig,
+            kernels::window::{
+                SamplingWindowBuilder,
+                StftWindowConfig,
+            },
             perceptive_audio::{
                 MelFilterbankConfig,
                 filterbank::{

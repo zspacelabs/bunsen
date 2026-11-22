@@ -12,7 +12,7 @@ use num_traits::Float;
 
 use crate::ops::{
     arange::tensor_arange_start_step,
-    signal::window_builder::SamplingWindowBuilder,
+    signal::kernels::window::SamplingWindowBuilder,
 };
 
 /// Cosine Window:
@@ -240,7 +240,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ops::signal::testing::assert_sampling_window_builder_implementation,
+        ops::signal::kernels::window::testing::assert_sampling_window_builder_implementation,
         support::testing::cpu_device,
     };
 

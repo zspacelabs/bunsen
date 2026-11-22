@@ -26,7 +26,7 @@ use crate::{
     burner::module::ModuleInit,
     errors::WithOkOrPanic,
     ops::signal::{
-        SamplingWindowBuilder,
+        kernels::window::SamplingWindowBuilder,
         perceptive_audio::{
             AffineCompress,
             FilterNorm,
