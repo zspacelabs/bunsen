@@ -1,4 +1,4 @@
-//! The code predictor's config.
+//! [`Qwen3TtsCodePredictorConfig`]: the code predictor's config.
 
 use burn::config::Config;
 

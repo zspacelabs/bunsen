@@ -36,14 +36,14 @@ use crate::{
                 TtsVoiceInfo,
             },
             qwen3_tts::{
-                Qwen3TtsCodes,
                 Qwen3TtsConstruct,
                 Qwen3TtsModelKind,
-                Qwen3TtsStop,
-                Qwen3TtsTakeConfig,
-                codec::{
+                blocks::{
                     Qwen3TtsCodecDecoderMeta,
+                    Qwen3TtsCodes,
                     Qwen3TtsDecodeConfig,
+                    Qwen3TtsStop,
+                    Qwen3TtsTakeConfig,
                 },
                 prompt::{
                     Qwen3TtsPromptRequest,

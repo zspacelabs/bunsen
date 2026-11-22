@@ -4,13 +4,13 @@ use alloc::collections::BTreeMap;
 use std::path::PathBuf;
 
 use super::{
-    Qwen3TtsModel,
-    Qwen3TtsModelConfig,
-    Qwen3TtsTakeConfig,
-    codec::{
+    blocks::{
         Qwen3TtsCodecDecoder,
         Qwen3TtsCodecDecoderContractConfig,
         Qwen3TtsDecodeConfig,
+        Qwen3TtsModel,
+        Qwen3TtsModelConfig,
+        Qwen3TtsTakeConfig,
     },
     prompt::Qwen3TtsPromptConfig,
 };

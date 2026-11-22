@@ -12,11 +12,13 @@ use std::path::PathBuf;
 use burn::prelude::*;
 
 use super::{
-    Qwen3TtsChooser,
-    Qwen3TtsCodes,
-    Qwen3TtsModel,
-    Qwen3TtsStop,
-    Qwen3TtsTakeConfig,
+    blocks::{
+        Qwen3TtsChooser,
+        Qwen3TtsCodes,
+        Qwen3TtsModel,
+        Qwen3TtsStop,
+        Qwen3TtsTakeConfig,
+    },
     prompt::{
         Qwen3TtsPrompt,
         Qwen3TtsPromptConfig,

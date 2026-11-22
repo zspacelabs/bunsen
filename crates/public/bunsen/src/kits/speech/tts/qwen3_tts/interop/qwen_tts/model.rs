@@ -21,13 +21,15 @@ use crate::{
     },
     kits::{
         speech::tts::qwen3_tts::{
-            Qwen3TtsModelConfig,
             Qwen3TtsModelKind,
-            Qwen3TtsModelMeta,
-            Qwen3TtsTakeConfig,
+            blocks::{
+                Qwen3TtsModelConfig,
+                Qwen3TtsModelMeta,
+                Qwen3TtsTakeConfig,
+                Qwen3TtsTalkerMeta,
+            },
             prompt::Qwen3TtsPromptConfig,
             sampler::Qwen3TtsSamplerConfig,
-            talker::Qwen3TtsTalkerMeta,
         },
         support::interop::transformers::{
             TransformersConfigJson,
@@ -247,7 +249,7 @@ pub struct Qwen3TtsGenerationMirror {
 
 impl Qwen3TtsGenerationMirror {
     /// The release's take
-    /// ([`Qwen3TtsModel::generate_codes`](crate::kits::speech::tts::qwen3_tts::Qwen3TtsModel::generate_codes)):
+    /// ([`Qwen3TtsModel::generate_codes`](crate::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsModel::generate_codes)):
     /// the talker's and the code predictor's samplers, and `max_new_tokens`
     /// of codebook-0 tokens, one frame fewer.
     pub fn take_config(&self) -> Qwen3TtsTakeConfig {

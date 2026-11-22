@@ -13,11 +13,13 @@ use std::path::PathBuf;
 
 use burn::prelude::*;
 
-use super::Qwen3TtsTalker;
 use crate::{
     burner::module::ModuleInit,
     kits::{
-        speech::tts::qwen3_tts::interop::qwen_tts::*,
+        speech::tts::qwen3_tts::{
+            blocks::Qwen3TtsTalker,
+            interop::qwen_tts::*,
+        },
         support::interop::transformers::TransformersConfigJson,
     },
     ops::transformers::attention::{

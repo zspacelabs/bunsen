@@ -27,13 +27,11 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::tts::qwen3_tts::{
+    kits::speech::tts::qwen3_tts::blocks::{
+        Qwen3TtsCodecDecoder,
+        Qwen3TtsCodecDecoderContractConfig,
         Qwen3TtsModel,
-        codec::{
-            Qwen3TtsCodecDecoder,
-            Qwen3TtsCodecDecoderContractConfig,
-        },
-        talker::Qwen3TtsTalker,
+        Qwen3TtsTalker,
     },
 };
 
@@ -193,7 +191,7 @@ fn under(
 #[cfg(feature = "cache")]
 pub fn load_model(
     loaded: &crate::data::resources::LoadedResourceSet,
-    config: &crate::kits::speech::tts::qwen3_tts::Qwen3TtsModelConfig,
+    config: &crate::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsModelConfig,
     device: &burn::tensor::Device,
     policy: crate::data::formats::LoadPolicy,
 ) -> BunsenResult<Qwen3TtsModel> {

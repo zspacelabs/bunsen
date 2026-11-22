@@ -13,7 +13,7 @@ use crate::{
             Qwen3Config,
             interop::transformers::text_layer_rekey,
         },
-        speech::tts::qwen3_tts::talker::{
+        speech::tts::qwen3_tts::blocks::{
             Qwen3TtsTalkerConfig,
             release_text_projection,
         },
@@ -90,7 +90,7 @@ pub fn talker_config(t: &TransformersConfigJson) -> BunsenResult<Qwen3TtsTalkerC
 }
 
 /// The talker's names, without [`QWEN3_TTS_TALKER_PREFIX`], onto a
-/// [`Qwen3TtsTalker`](crate::kits::speech::tts::qwen3_tts::talker::Qwen3TtsTalker)'s canonical ones: the decoder's layers by Qwen3's
+/// [`Qwen3TtsTalker`](crate::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsTalker)'s canonical ones: the decoder's layers by Qwen3's
 /// [`text_layer_rekey`], its final norm, the codec table as the decoder's
 /// embedding and `codec_head` as its head; the text table as it is, and its
 /// projection's `linear_fc1` / `linear_fc2` as its

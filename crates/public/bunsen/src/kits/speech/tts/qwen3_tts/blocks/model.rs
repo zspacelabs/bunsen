@@ -1,4 +1,4 @@
-//! The model: the talker and its code predictor, and the take loop.
+//! [`Qwen3TtsModel`]: the talker and its code predictor, and the take loop.
 
 use alloc::{
     vec,
@@ -11,17 +11,10 @@ use burn::{
 };
 
 use super::{
-    code_predictor::Qwen3TtsCodePredictorConfig,
-    prompt::{
-        Qwen3TtsPrompt,
-        Qwen3TtsPromptConfig,
-    },
-    sampler::Qwen3TtsSamplerConfig,
-    talker::{
-        Qwen3TtsTalker,
-        Qwen3TtsTalkerConfig,
-        Qwen3TtsTalkerMeta,
-    },
+    Qwen3TtsCodePredictorConfig,
+    Qwen3TtsTalker,
+    Qwen3TtsTalkerConfig,
+    Qwen3TtsTalkerMeta,
 };
 use crate::{
     blocks::transformers::{
@@ -33,6 +26,13 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
+    kits::speech::tts::qwen3_tts::{
+        prompt::{
+            Qwen3TtsPrompt,
+            Qwen3TtsPromptConfig,
+        },
+        sampler::Qwen3TtsSamplerConfig,
+    },
     ops::transformers::attention::KVCacheModel,
 };
 
@@ -197,7 +197,7 @@ impl Qwen3TtsModelMeta for Qwen3TtsModel {
 
 impl Qwen3TtsModel {
     /// A take: the codes of `prompt`, chosen as `config` says (its samplers,
-    /// [`Qwen3TtsSampler`](super::sampler::Qwen3TtsSampler)), ids from `ids`.
+    /// [`Qwen3TtsSampler`](crate::kits::speech::tts::qwen3_tts::sampler::Qwen3TtsSampler)), ids from `ids`.
     ///
     /// The draws run on the backend's random numbers: `device.seed(..)`
     /// before the call repeats a sampled take.
@@ -330,8 +330,8 @@ pub trait Qwen3TtsChooser {
 /// repetition penalty over the take's codebook-0 history, the predictor's
 /// over the frame's codes.
 struct SampledChoices {
-    talker: super::sampler::Qwen3TtsSampler,
-    code_predictor: super::sampler::Qwen3TtsSampler,
+    talker: crate::kits::speech::tts::qwen3_tts::sampler::Qwen3TtsSampler,
+    code_predictor: crate::kits::speech::tts::qwen3_tts::sampler::Qwen3TtsSampler,
     history: Vec<i64>,
     frame: Vec<i64>,
 }
@@ -380,7 +380,7 @@ mod tests {
     use crate::{
         kits::{
             language::generation::qwen3::Qwen3Config,
-            speech::tts::qwen3_tts::talker::release_text_projection,
+            speech::tts::qwen3_tts::blocks::release_text_projection,
         },
         support::testing::cpu_device,
     };

@@ -9,8 +9,10 @@ use bunsen::{
             TtsVoiceChoice,
         },
         qwen3_tts::{
-            Qwen3TtsStop,
-            Qwen3TtsTakeConfig,
+            blocks::{
+                Qwen3TtsStop,
+                Qwen3TtsTakeConfig,
+            },
             driver::{
                 Qwen3TtsEngine,
                 Qwen3TtsEngineConfig,

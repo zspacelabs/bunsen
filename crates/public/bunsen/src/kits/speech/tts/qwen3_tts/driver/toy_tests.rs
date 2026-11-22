@@ -30,13 +30,13 @@ use crate::{
             },
             qwen3_tts::{
                 Qwen3TtsConstruct,
-                Qwen3TtsModel,
                 Qwen3TtsModelKind,
-                Qwen3TtsTakeConfig,
                 Qwen3TtsTokenizerFiles,
-                codec::{
+                blocks::{
                     Qwen3TtsCodecDecoder,
                     Qwen3TtsDecodeConfig,
+                    Qwen3TtsModel,
+                    Qwen3TtsTakeConfig,
                 },
                 interop::qwen_tts::*,
                 prompt::Qwen3TtsTextPlacement,

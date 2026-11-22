@@ -16,15 +16,17 @@ use burn::{
     tensor::Tolerance,
 };
 
-use super::{
-    Qwen3TtsCodecDecoder,
-    Qwen3TtsCodecDecoderContractConfig,
-    Qwen3TtsCodecDecoderMeta,
-    Qwen3TtsDecodeConfig,
-};
 use crate::{
     burner::module::ModuleInit,
-    kits::speech::tts::qwen3_tts::interop::qwen_tts::*,
+    kits::speech::tts::qwen3_tts::{
+        blocks::{
+            Qwen3TtsCodecDecoder,
+            Qwen3TtsCodecDecoderContractConfig,
+            Qwen3TtsCodecDecoderMeta,
+            Qwen3TtsDecodeConfig,
+        },
+        interop::qwen_tts::*,
+    },
     support::testing::{
         ToyFixture,
         assert_io_close,
