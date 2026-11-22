@@ -76,8 +76,6 @@ minijinja-contrib = { version = "2", features = ["pycompat"] }
 rumqttc = { version = "0.25.1", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-# A `version` tag's release order, for the `latest` selection step.
-semver = { workspace = true }
 # "did you mean?" on a failed lookup.
 strsim = { workspace = true }
 # YAML, for `--format yml`.
