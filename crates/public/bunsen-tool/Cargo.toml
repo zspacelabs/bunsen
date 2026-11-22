@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-tool"
-description = "bunsen's models on the command line. `bunsen-tool asr`: speech to text, by profile or with Parakeet TDT, Qwen3-ASR, Voxtral Realtime or Whisper, and who spoke when, through NVIDIA's Sortformer; `bunsen-tool chat`: chat with Qwen3 or nanochat. The chat driver is also a library, `bunsen_tool::chat`."
+description = "bunsen's models on the command line: speech to text (Parakeet, Qwen3-ASR, Voxtral Realtime, Whisper) and who spoke when (Sortformer), text to speech (ZONOS3, Qwen3-TTS), chat (Qwen3, Qwen3.5, Gemma, nanochat) and typed decisions (Laya). The chat driver is also a library, `bunsen_tool::chat`."
 publish = true
 authors.workspace = true
 edition.workspace = true

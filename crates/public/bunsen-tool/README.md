@@ -1,26 +1,31 @@
 # bunsen-tool
 
-`bunsen-tool`: [bunsen](https://crates.io/crates/bunsen)'s models on the command line, a branch for each kind of model:
+[bunsen](https://crates.io/crates/bunsen)'s models on the command line: speech to text and who spoke when, text to
+speech, chat, and typed decisions, each loading its models by name from bunsen's catalog.
 
-- `bunsen-tool asr`: speech to text, by ASR preset or by model family, and who spoke when ([below](#asr-speech-to-text)).
-- `bunsen-tool tts`: text to speech with ZONOS3-Mini and Qwen3-TTS ([below](#tts-text-to-speech-with-zonos3-mini-and-qwen3-tts)).
-- `bunsen-tool chat`: chat with a Qwen3, Gemma or nanochat checkpoint ([below](#chat-qwen3-gemma-and-nanochat)).
-- `bunsen-tool decide`: typed questions about a context, answered with calibrated probabilities by a Laya decision
-  model ([below](#decide-typed-questions-answered-by-laya)).
-- `bunsen-tool text`: text normalization on its own: numbers spoken, Unicode folded, punctuation dropped
-  ([below](#text-normalization-on-its-own)).
-- `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by name.
+This README is a tour. Every command and flag documents itself: `bunsen-tool --help`, `bunsen-tool <command> --help`,
+and `-h` for the short form.
 
-`bunsen-tool` replaces `bunsen-asr`, whose last release is 0.41.0: its commands are `bunsen-tool asr`'s, and its
-`cache` is `bunsen-tool cache`. The chat driver under `bunsen-tool chat` is also this crate's library,
-[`bunsen_tool::chat`](https://docs.rs/bunsen-tool/latest/bunsen_tool/chat/).
+## Install
+
+```sh
+cargo install bunsen-tool --features wgpu     # or vulkan, metal, cuda; the CPU is always there
+bunsen-tool asr transcribe recording.wav
+```
+
+On Linux, the microphone and speaker commands link ALSA (`libasound2-dev`). The default features build every command;
+`--no-default-features --features speech` builds `asr` and `tts` without audio devices, and `--no-default-features`
+alone builds the tool without `asr` and `tts`. `bunsen-tool devices` lists the backends a build has, and what each device does with
+each float dtype.
 
 ## Models
 
-`bunsen-tool summary` lists the builds this binary runs: a section per command (`asr`, `tts`, `chat`, `decide`), the
-builds in it grouped by contract and then by publisher, each by its full name with its size, dtypes, preset axes (the
-default starred) and aliases, and its description below it; `--kind` prints one section. The builds, as
-`bunsen-tool summary` prints them (`cargo make cards` rebuilds this card):
+`bunsen-tool summary` lists every model this binary runs, by command, contract and publisher, with its size, dtypes,
+presets (the default starred) and aliases; each command's `list` adds licences and what is cached. As it prints them
+(`cargo make cards` rebuilds this card):
+
+<details>
+<summary>Click to expand the pretrained catalog summary.</summary>
 
 <!-- card: bunsen-tool summary -->
 
@@ -360,205 +365,84 @@ default starred) and aliases, and its description below it; `--kind` prints one 
 ```
 
 <!-- /card -->
+</details>
 
-`bunsen-tool devices` lists the backends the build compiled in, each one's default device, and what the device does
-with each float dtype, as burn reports it: `storage` (holds and converts it), `arithmetic` (computes in it) and
-`accelerated` (runs it on tensor cores). On an RTX 3090, CUDA accelerates f32, f16 and bf16; wgpu accelerates none and
-has no bf16; the CPU computes in each and accelerates none. `--format json` prints JSON.
+Models are fetched into the weights cache on first use. `fetch NAME...` brings them in ahead of time, for a deployment
+that runs `--offline`.
 
 ## asr: speech to text
 
-Name an **ASR preset**, a model chosen by what it is for, and `bunsen-tool asr` picks the family, the model and its
-settings, for files (`transcribe`) or the microphone (`live`):
+Name a **preset**, a model chosen by what it is for, and `asr` picks the family, the model and its settings, for files
+(`transcribe`) or the microphone (`live`):
 
 ```sh
-bunsen-tool asr transcribe [--preset en] [FLAGS] FILE...   # audio files
-bunsen-tool asr live       [--preset en] [FLAGS]           # the microphone, as it speaks
-bunsen-tool asr live       [--speech S] [--task T] [--quality Q] [FLAGS]   # or by what is needed
-bunsen-tool asr presets   (list|show|fetch)                # what each ASR preset is for, and what it runs
+bunsen-tool asr transcribe recording.wav                       # English, the default preset
+bunsen-tool asr transcribe --preset multi --json recording.wav # any language, as JSON lines
+bunsen-tool asr live --preset translate-en                     # the microphone, translated to English
+bunsen-tool asr transcribe --language de --quality fast recording.wav
+bunsen-tool asr presets list                                   # what each preset is for, and runs
 ```
 
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr transcribe recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --preset multi --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr live --preset translate-en
-cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --speech multi --quality fast recording.wav
-```
+| preset | for | `transcribe` runs | `live` runs |
+|---|---|---|---|
+| `en` (`default`) | English | Parakeet, `fermion/phonon-2` | the same |
+| `multi` | many languages, found from the speech | Qwen3-ASR, `qwen/qwen3-asr-1.7b` | `qwen/qwen3-asr-0.6b` |
+| `translate-en` | other speech, as English text | Whisper, `large-v3[translate]` | `tiny[translate]` |
 
-| ASR preset | for | selects | `transcribe` runs | `live` runs |
-|---|---|---|---|---|
-| `en` (`default`) | English | `keep: {language: en}` | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
-| `multi` | many languages, found from the speech | `keep: {$multilingual: true}` | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
-| `translate-en` | other speech, as English text | `keep: {translate: true}` | `whisper` `openai/whisper/large/large-v3[translate]{beam_size: 5}` | `whisper` `openai/whisper/tiny[translate]{beam_size: 1}`, `conservative` |
-
-An ASR preset's stages choose its model among every speech family's builds, by their tags ([Choosing a
-model](#choosing-a-model)), after the table's own default (each release group's newest weighted first), and then the
-table's order: the heaviest, then the lowest published English word error rate (`$wer_en`, from `scores: {wer.en}`), a
-model without one after those with, then the smallest. `$multilingual` is a build whose `language` lists more than one
-language, or `"*"`. `--quality fast` and `live` add `keep: {parameters: {le: 1e9}}`, a model small enough to keep up;
-`--quality good` orders the larger first among equals. The ASR presets are this binary's, and
-improve with it: when a better model arrives, its tags choose it, and the command lines that name the ASR preset do not
-change. `presets show [NAME...]` prints each recipe as the `bunsen-tool asr family`
-command it runs, `-v` logs it before a run, and `transcribe --json` records `preset`, `need` (the point served:
-`speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model expression, emission, push size, VAD)
-with each transcript. `presets fetch NAME...` brings every file an ASR preset runs into the cache, as `family <family> fetch` does
-for a model.
-
-Each ASR preset serves a need: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`) x `--quality`
-(`fast`, `balanced`, `good`). `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and
-`translate-en` is `multi`/`translate`/`balanced`.
-
-The flags choose, in this order:
-
-1. **`--language` implies `--speech`**, by the table's `language` entry: `en` means `en` speech, any other code
-   `multi`. A `--speech` that does not hear it is an error (`--speech en --language de`); `multi` hears English.
-2. **The ASR preset.** Without `--preset`, the flags name it: `translate-en` for `--task translate` (unless the
-   speech is English), else `multi` for `multi` speech, else `en`; the axes not given are its need's, and `--json`
-   records the need (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--preset`, the
-   axes not given are the ASR preset's, and `--speech` (or the speech `--language` implies) must be one it hears.
-3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its
-   transcript, so nothing translates English.
-4. **What runs.** The ASR preset's selection, adjusted by the need: a translator for a need that translates
-   (`--preset multi --task translate` runs Whisper), the size cap at `--quality fast` and `live`, and `--language`
-   preferred; then its family's recipe for the mode (emission, push size, and Whisper's `beam_size`). A task other than
-   the model's default is set on it (Whisper's `[translate]` preset in its model's box).
-
-So the task is `transcribe` unless `translate-en` or `--task translate` asks to translate speech that is not English.
+A preset chooses its model by the catalog's tags, so a better model, when it arrives, is chosen without the command line
+changing. `--speech`, `--task`, `--quality` and `--language` choose a preset, or adjust one, by what is needed:
 
 | command line | runs | task |
 |---|---|---|
 | (nothing) | `en`: Parakeet | transcribe |
-| `--language de` | `multi/transcribe/balanced`: Qwen3-ASR | transcribe |
-| `--task translate` | `multi/translate/balanced`: Whisper | translate |
-| `--speech en --task translate` | `en/transcribe/balanced`: Parakeet | transcribe |
-| `--preset translate-en --task transcribe` | `translate-en`: Whisper, without `[translate]` | transcribe |
-| `--preset translate-en --speech en` | `translate-en`: Whisper, without `[translate]` | transcribe |
-| `--preset en --task translate` | `en`: Parakeet | transcribe |
-| `--preset en --language de` | an error: `en` hears only English | |
+| `--language de` | `multi`: Qwen3-ASR | transcribe |
+| `--task translate` | `translate-en`: Whisper | translate |
+| `--speech en --task translate` | `en`: Parakeet (English is never translated to English) | transcribe |
 | `--preset multi --task translate` | `multi`, translating: Whisper | translate |
+| `--preset en --language de` | an error: `en` hears only English | |
 
-An ASR preset's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
-`--device`, the cache's and `live`'s capture flags), and:
+`presets show` prints what a preset runs as the `asr family` command line, and `-v` logs the choice.
 
-- `--language CODE`: the spoken language. It implies `--speech` (above), and is given to a model that can be told it
-  (Whisper); one that finds the language itself goes on doing so.
-- `--model EXPR`: the model, as a lookup expression (`--model 'openai/small[translate]{beam_size: 1}'`), in place of
-  the ASR preset's. The family that lists it runs, logged at `INFO` when it is not the ASR preset's
-  (`asr transcribe --model openai/small` runs Whisper); a name no family lists (`hf:org/repo`) runs in the ASR preset's.
-- `--emission` and `--chunk-ms`, in place of the ASR preset's.
-- `--vad EXPR`: the VAD that finds the speech regions, in place of the table's (`silero/vad-16k[faster-whisper]`,
-  which `asr presets show` prints). It is an error under `--emission offline`, which finds none.
+### Model families, directly
 
-A model's settings are its expression's, not flags: its presets in the box and any field in the patch
-(`--model 'openai/small[translate]{beam_size: 1, timestamps: true}'`; the [table below](#family-settings) has each
-family's). `--language` on Whisper joins the patch, and a task the ASR preset sets joins the box.
-
-### Choosing a family yourself
-
-`bunsen-tool asr family` runs a model family directly, each with its own `list` and `transcribe` and only the flags that
-apply to it:
+`asr family <family>` runs one family, with only the flags that apply to it: `parakeet`, `qwen3-asr`, `voxtral` and
+`whisper`, each with `list`, `fetch`, `transcribe` and `live`.
 
 ```sh
-bunsen-tool asr family parakeet  (list|fetch|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
-bunsen-tool asr family qwen3-asr (list|fetch|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 (English) by default
-bunsen-tool asr family voxtral   (list|fetch|transcribe|live) [FLAGS]   # Mistral's Voxtral Realtime; Voxtral-Mini-4B-Realtime-2602 by default
-bunsen-tool asr family whisper   (list|fetch|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
-bunsen-tool asr diarize          (list|fetch|run|live)        [FLAGS]   # who spoke when: NVIDIA's Nemotron-3-Diarization
+bunsen-tool asr family qwen3-asr list
+bunsen-tool asr family whisper transcribe --model 'openai/small[translate]{beam_size: 1}' recording.wav
+bunsen-tool asr family parakeet live --emission drafting
 ```
+
+`--model` takes a lookup expression: a name, its presets in brackets, and a YAML patch of its settings in braces (quote
+it: `[` and `]` glob). `list` shows each model's presets. The settings a patch can set:
+
+| family | settings |
+|---|---|
+| `parakeet` | `window_seconds` (60) |
+| `qwen3-asr` | `window_seconds` (30) |
+| `voxtral` | `window_seconds` (30); `delay_ms` (480): how far the transcript runs behind the audio |
+| `whisper` | `language`, `task`, `beam_size` (5), `timestamps`, `max_tokens`, `condition_on_previous_text`, `fallback` |
+
+Every family also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout. `--emission` says when to decode:
+`offline` (whole windows), `conservative` (each speech region as it ends, found by a VAD) or `drafting` (conservative,
+plus a draft of the speech so far, which `live` shows).
+
+### Who spoke when
 
 ```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet transcribe recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr family qwen3-asr transcribe --model qwen/qwen3-asr-1.7b --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr family voxtral transcribe --model 'mistralai/voxtral-mini-4b-realtime-2602{delay_ms: 960}' --json recording.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcribe --emission conservative --model 'openai/base{language: en}' recording.wav
-cargo run --release -p bunsen-tool -- asr family qwen3-asr list
+bunsen-tool asr diarize run --rttm meeting.wav > meeting.rttm            # speaker turns alone
+bunsen-tool asr transcribe --preset multi --diarize --json meeting.wav   # each statement with its speaker
+bunsen-tool asr live --diarize
 ```
 
-Installed from crates.io, with the GPU backends you want (the CPU is always there):
-
-```sh
-cargo install bunsen-tool --features wgpu
-bunsen-tool asr transcribe recording.wav
-```
-
-`list` shows the family's named models, with each one's licence, its presets (each axis and its members, described,
-the default marked), its files, and whether each is cached; `diarize list` and `chat list` show theirs the same way. A name that
-no table has, a model's, a model's preset or an ASR preset's, fails with the names nearest it (`did you mean
-`openai/tiny`?`), by edit distance, case aside. Every family
-also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `config.json` gives the geometry;
-`diarize` also takes one holding a Sortformer v2 `.nemo` alone, whose own config does
-(`hf:nvidia/diar_streaming_sortformer_4spk-v2.1`), read from the archive's head before the archive is fetched. `fetch
-NAME...` brings every file of the named models into the cache and prints where each one is (`--verify` re-hashes each
-pinned file): a deployment that runs `--offline` fills its cache this way ahead of time.
-
-`transcribe` loads `--model` (the family's default unless named) through bunsen's resource cache, fetching it on
-first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints
-each file's text. `--json` prints JSON lines instead ([where the transcript goes](#where-the-transcript-goes)): each
-file's statements, then its `transcript`: the text, the language when the model names one (Qwen3-ASR, Whisper), each
-word's start and end in seconds (Parakeet, Voxtral), and each segment's (Whisper; Qwen3-ASR's are its committed windows), every
-word and segment with the token ids it was decoded as. After each file it logs how
-long the transcription took at `INFO`, and after several, the total. Audio is read at the model's rate, 16 kHz mono,
-and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
-
-`--emission` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
-another (a family's `transcribe` default; an ASR preset names its own); `conservative` also finds speech regions with a VAD (`--vad EXPR`; Silero's
-`silero/vad-16k[faster-whisper]`, through the same cache, by default, and an error under `offline`) and decodes each
-as it ends, so silence is never decoded; `drafting` adds a draft of the speech so far every 600 ms of
-it, which `live` shows. `--chunk-ms` (1000) is how much audio each push carries.
-
-`live` transcribes the microphone as it speaks, through the same driver: the host's default input device, or
-`--input-device` (a substring of an id or name from `--list-devices`), opened at the model's rate when it offers that
-and resampled otherwise. Each decode's committed text is a line on stdout (a statement per speaker under `--diarize`),
-its times, where a target shows them, the wall clock's; under `--emission drafting` the draft of the speech so far is
-on stderr, redrawn in place on a terminal. A family's `--emission` defaults to `conservative` here, `--chunk-ms`
-to 250; `--seconds` stops after that much audio, Ctrl-C otherwise, and either way the speech past the last commit is
-decoded before the process exits. The default `live` feature builds it: it captures through `cpal`, which on Linux
-links ALSA (`libasound2-dev`); `--no-default-features --features speech` builds `asr` without it. The default `speech`
-feature builds `asr` itself; `--no-default-features` alone builds a tool with only `chat`, `decide`, `cache`, `card`
-and `devices`.
-
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr family parakeet live --emission drafting
-cargo run --release -p bunsen-tool -- asr live --list-devices
-```
-
-`diarize` says who spoke when, through NVIDIA's Sortformer diarizers: `nvidia/nemotron-3-diarization` (up to 8 speakers,
-10 ms frames, the default), or the streaming Sortformer v2 and v2.1 (`--model sortformer-v2`, `--model sortformer-v2.1`;
-up to 4 speakers, 80 ms frames). `diarize run FILE...` prints each file's speaker turns as lines of `{start} {end}
-speaker_{k}` in seconds, speakers numbered in the order they first speak; `--rttm` prints NIST RTTM instead (the file's
-stem as its recording id), and `--json` one object per file, its turns and each speaker's total. `diarize live` prints
-each turn as it closes, from the microphone, opened as the families' `live` opens it. The model's presets
-(`--preset`, a comma list) choose its `latency`: `low` (1.04 s, the default), `ultra-low` (0.32 s), `offline` (30.4 s
-chunks, the most accurate on files), and the presets only one family has, `very-low` (0.64 s, Nemotron-3-Diarization)
-and `high` (10 s, Sortformer v2); and its `postprocess`, how activity becomes turns: `none` (thresholds of 0.5, the
-default), or NeMo's tuned `dihard3` or `callhome` parameters. `list` and `fetch` work as for the families.
-
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --preset offline,dihard3 meeting.wav
-cargo run --release -p bunsen-tool --features wgpu -- asr diarize run --rttm meeting.wav > meeting.rttm
-```
-
-`--diarize` on `transcribe` or `live`, an ASR preset's or any family's, says who said what: the diarizer (`--diarize` alone for
-`nvidia/nemotron-3-diarization`, `--diarize=EXPR` for another, or for its presets) runs beside the recognizer, through the stream
-driver's speaker seam, and labels each word (Parakeet) or segment with its speaker. Qwen3-ASR and Whisper also cut
-their windows at speaker turns, so a segment is one speaker's. The text is printed a line per statement, a run of one
-speaker's words, `[speaker_k] text` (`[?]` where the diarizer heard nobody). Under `--json` each statement is wrapped
-under its speaker, and the `transcript` adds each word's or segment's `speaker`, and the `turns`: each speaker's runs
-with their start, end and text. `--rttm` prints the statements as NIST RTTM. The diarizer's latency is its expression's preset, as for `diarize`
-(`--diarize='nvidia/nemotron-3-diarization[very-low]'`); a decode waits until the diarizer has caught up with it.
-
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr live --diarize
-cargo run --release -p bunsen-tool --features wgpu -- asr transcribe --preset multi --diarize --json meeting.wav
-```
+`diarize` runs NVIDIA's Sortformer diarizers: `nvidia/nemotron-3-diarization` (up to 8 speakers) by default, or
+Sortformer v2 and v2.1 (up to 4). Their presets choose the latency (`ultra-low` to `offline`) and the post-processing.
 
 ### Where the transcript goes
 
-`transcribe` and `live` push what they hear into a publisher, which delivers it to every target `--publish CONFIG`
-names, at once. Without it, the target is stdout: text, or with `--json` JSON lines, or with `--rttm` NIST RTTM.
-`CONFIG` is inline or a file's path, in JSON or YAML (`.json`, `.yaml`, `.yml`; inline, either): the list of targets,
-or `{targets: [...]}` with `times`, `speakers` and `events` set for every target, each of which a target may set for
-itself.
+Without `--publish`, to stdout, as text, `--json` lines or `--rttm`. `--publish CONFIG` sends it to every target a
+config names at once, inline or from a file, in YAML or JSON:
 
 ```yaml
 times: true
@@ -584,354 +468,86 @@ targets:
     username: asr                   # and password, both optional
 ```
 
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- asr live --diarize \
-  --publish '[{type: stdout}, {type: mqtt, broker: broker.lan, prefix: office/asr}]'
-```
+The records are `statement` (committed text, with its speaker under `--diarize`), `draft` (`live`'s latest draft) and
+`transcript` (a file's whole transcript); `times`, `speakers` and `events` may be set for every target or per target. A
+network target delivers from its own thread, so a slow one never holds the audio up.
 
-The records are the events: a `statement`, a run of committed text one speaker spoke (undiarized, a decode's text on
-`live`, a file's on `transcribe`); a `draft`, `live`'s latest draft under `--emission drafting`; and a `transcript`,
-a file's whole transcript after its statements, with the ASR preset and recipe that chose its model. A statement is flat;
-under `--diarize`, it is wrapped under its speaker (`null` where the diarizer heard nobody):
-
-```json
-{"event":"statement","file":"meeting.wav","start":1.2,"end":3.4,"text":"hello there"}
-{"event":"statement","file":"meeting.wav","speaker":{"id":"speaker_0","confidence":0.91},"statement":{"start":1.2,"end":3.4,"text":"hello there"}}
-{"event":"draft","start":"2026-10-23T16:37:35.948Z","end":"2026-10-23T16:37:36.548Z","text":"hello th"}
-```
-
-- `times` (off for text, on otherwise): each statement's and draft's start and end. For a file, seconds from its start
-  (`HH:MM:SS.mmm` in text); for the microphone, the wall clock, RFC 3339 in UTC (`HH:MM:SS.mmmZ` in text). RTTM always
-  has seconds from the start.
-- `speakers` (on): under `--diarize`, each statement's speaker; off, a diarized statement is a plain one.
-- `events` (all): the records a target takes, of `statement`, `draft` and `transcript`. Text shows statements, and on
-  stdout drafts on stderr; RTTM shows the statements with a speaker.
-
-The default `webhook` and `mqtt` features build the network targets (through `ureq` and `rumqttc`); a build without
-them refuses a config that names one. A local write that fails ends the run. A network target delivers from a thread of its own, so a slow one never holds
-the audio up: a failed POST, or a publish while the broker is gone (`rumqttc` reconnects), is logged and the next
-record tried, and at the end each waits for what is queued (MQTT up to 5 s for the broker's acknowledgements). The
-log is filtered as every log is: `RUST_LOG=bunsen_tool::transcript=info` shows a `log` target's records alone.
-
-<a id="family-settings"></a>A family's settings are its model's policy, set in the model's patch (`--model
-'NAME{key: value}'`) or by its presets; the flags left are paths:
-
-| Family | Settings (patch keys) | Flags of its own |
-|---|---|---|
-| `parakeet` | `window_seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it | |
-| `qwen3-asr` | `window_seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third | |
-| `voxtral` | `window_seconds` (30), as Parakeet's; `delay_ms` (the model's, 480): how far the transcript runs behind the audio, a multiple of 80 up to 1200, or 2400 | |
-| `whisper` | `language` (detected when unset), `task` (`Transcribe`, `Translate`; or the `[translate]` preset), `beam_size` (5), `timestamps` (split segments on timestamp tokens), `max_tokens` (224 a window), `condition_on_previous_text` (`true`: prompt each window with the transcript so far), `fallback` (`true`: upstream's temperature ladder) | `--vocab` (a vocabulary file in place of the layout's), `--upstream-cache-dir` (`openai-whisper`'s download cache, used in place; `~/.cache/whisper`); `--model` also takes a checkpoint's path |
-
-`bunsen-tool asr family whisper inspect NAME|PATH` scans a Whisper checkpoint and checks it against its prefab (its resources and
-where each stands, the geometry it promised, and the one its shapes say); `bunsen-tool asr family whisper prefabs` lists
-the geometries. Neither needs a backend.
-
-`bunsen-tool cache` manages the weights cache every family loads through (`bunsen_app::cache`):
+## tts: text to speech
 
 ```sh
-bunsen-tool cache path                                 # the cache directory
-bunsen-tool cache list [NAME]                          # each file's name, size, fetched and last used (UTC), pin
-bunsen-tool cache clear [NAME] [--partial] [--age AGE] [--yes]
+bunsen-tool tts run -o hello.wav "Hello, this is ZONOS3."
+bunsen-tool tts run --play "Spoken, not saved."
+bunsen-tool tts run --model qwen3-tts --voice ryan -o ryan.wav "Hello from Qwen."
+bunsen-tool tts voices                                   # a model's stock voices
 ```
 
-A file is cached under its name: its resource's full name in the built-in catalog
-(`openai/whisper/base/checkpoint`), an `hf:` repo's under `hf/<org>/<repo>/<slot>`, and a given path's under `given`.
-`NAME` selects the files cached under it: `qwen`, `openai/whisper`, `openai/whisper/base`, `hf`, `hf/openai`.
-`clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads, and `--age 30d` the
-files not loaded for 30 days (`s`, `m`, `h`, `d`, `w`). A load that finds a file in the cache marks it used; listing,
-and checking what is cached, do not.
+ZONOS3-Mini is the default; Qwen3-TTS's checkpoints add a style instruction (`--instruct`) and a voice described in words
+(`--describe`). The text is normalized as the model's release normalizes it, so `$12.50` is spoken as "twelve dollars
+fifty cents", and long text is spoken as several takes. A take is sampled; `--seed` repeats one.
 
-`transcribe` and `live` take `--emission` and `--chunk-ms` (`diarize live` takes `--chunk-ms`); every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
-`metal`, `cuda`; the CPU is always there) and `-v`/`-q`; the commands that load a model take `--min-precision f32` (or
-`f64`), a floor under the dtypes its weights are placed in (they never narrow).
-
-| model | | licence |
-|---|---|---|
-| `parakeet`: `fermion/phonon-2` | 164 MB, `parakeet-tdt-0.6b-v3` with a five-value encoder, English | CC-BY-4.0 |
-| `parakeet`: `nvidia/parakeet-tdt-0.6b-v3` | 2.5 GB, NVIDIA's base model, 25 European languages | CC-BY-4.0 |
-| `qwen3-asr`: `fermion/phonon-1` | 415 MB, `Qwen3-ASR-0.6B` fine-tuned for English (other speech comes out as broken English); `-micro` (285 MB) and `-big` (581 MB) builds | Apache-2.0 |
-| `qwen3-asr`: `qwen/qwen3-asr-0.6b`, `qwen/qwen3-asr-1.7b` | 1.6 and 4.1 GB, Qwen's base models, 30 languages | Apache-2.0 |
-| `whisper`: `openai/*` | every `openai-whisper` checkpoint, `tiny` to `large-v3-turbo` | MIT |
-| `diarize`: `nvidia/nemotron-3-diarization` | 397 MB, NVIDIA's streaming Sortformer, up to 8 speakers | OpenMDW-1.1 |
-
-### Whisper models
-
-Whisper's index keeps three things apart, because they vary independently:
-
-- A **prefab** is a public configuration: a geometry with no weights (`n_mels`, vocabulary size, `d_model`, layer
-  counts), upstream's `ModelDimensions` typed in, so a name means a shape before anything is fetched. The vocabulary
-  size is part of it: `tiny.en` (51864) and `tiny` (51865) are different prefabs; `large-v3` has 128 mels and a
-  hundredth language; `large-v3-turbo` a four-layer decoder. `bunsen-tool asr family whisper prefabs` lists them.
-- A **pretrained** is a row: a name and its aliases (`large` is `large-v3`, `turbo` is `large-v3-turbo`), the prefab
-  it instantiates, and its resources. An `openai` row is two, `checkpoint` and the `vocabulary` its token layout
-  selects; the two `.tiktoken` vocabularies are shared by the twelve checkpoints.
-- A **resource** is one file, pinned to a SHA-256 and reachable from its sources in order: for a checkpoint,
-  `openai-whisper`'s `~/.cache/whisper` (`--upstream-cache-dir`), whose file is used in place, then upstream's
-  digest-addressed URL, streamed to a `.partial`, hashed as it lands, and renamed into place only on a match.
-
-Fetched files live at `<cache>/resources/<resource>/<sha256>/<file>`, `<resource>` the catalog resource's full name
-(`openai/whisper/base/checkpoint`): the digest in the path is the pin, so
-a file there is trusted without re-hashing, and a directory laid out this way is the cache (`fetch` fills one ahead
-of time for a deployment that runs `--offline`). `hf:openai/whisper-large-v3` is a Hugging Face repo's safetensors
-checkpoint at `main`, sharded or not, each file pinned by the digest the hub's listing carries; its vocabulary is the
-one its layout selects, as for a checkpoint's path.
-
-`bunsen-tool asr family whisper inspect NAME|PATH` prints a model's resources and where each stands, the prefab it promised, and
-the geometry its checkpoint's shapes say; on a path, which prefab, if any, that geometry is, and which vocabulary its
-layout selects; on a name whose checkpoint does not scan as its prefab, the mismatch. `transcribe` makes the same
-check before it reads any tensors. The index is bunsen's (`kits::speech::asr::whisper::pretrained`), and this binary keeps
-none of its own.
-
-### Benchmarks
-
-At `-v`, `transcribe` logs each file's audio length, how long it took and the realtime factor, then the totals over
-the files. Over a few utterances of [SLR45](https://www.openslr.org/45/):
+## chat: Qwen3, Qwen3.5, Gemma and nanochat
 
 ```sh
-cd "$DATA_DIR" && mkdir -p SLR45 && cd SLR45
-wget https://openslr.trmal.net/resources/45/ST-AEDS-20180100_1-OS.tgz && tar xzf ST-AEDS-20180100_1-OS.tgz
-cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcribe -v --json "$DATA_DIR"/SLR45/f0001_us_f0001_0000{1,2,3,4,5}.wav
+bunsen-tool chat run --no-think "What is the capital of France?"
+bunsen-tool chat repl --model qwen3-4b-instruct-2507 --stats
+bunsen-tool chat run --model gemma-3-270m-it "What is the capital of France?"
+bunsen-tool chat family nanochat run "What is the capital of France?"
 ```
 
-`$DATA_DIR/SLR45/text.txt` holds the transcripts. The pushes are sized to the stream driver's grain, so the
-autotuned kernels see one shape; the first file of a run pays for the tuning.
-
-## tts: text to speech with ZONOS3-Mini and Qwen3-TTS
-
-`bunsen-tool tts` speaks a text with a TTS model's checkpoint, in one of its voices, to a mono 16-bit WAV file at the
-model's rate, to a speaker, or both. Every family runs through the same driver: the text is normalized as the model's
-release normalizes it, split into takes at its sentences, and each take generated whole, then decoded.
-
-```sh
-bunsen-tool tts list [--urls]                            # every family's checkpoints, and what of each is cached
-bunsen-tool tts fetch [--family F] NAME...               # bring checkpoints into the cache
-bunsen-tool tts voices [--model NAME] [--yes]            # a checkpoint's stock voices: language, style, gender
-bunsen-tool tts run -o OUT.wav [--model NAME] [--voice NAME] [--seed N] [TEXT]...   # the text from stdin when omitted
-bunsen-tool tts run --play [--output-device NAME] [TEXT]...          # played once it is synthesized
-bunsen-tool tts run --list-output-devices                # the output devices; loads nothing
-```
-
-| family | checkpoints | default |
-|---|---|---|
-| `zonos3` | Zyphra's ZONOS3-Mini (`Zyphra/ZONOS3-Mini-hf`, Apache-2.0): 27 stock voices, 44.1 kHz | `zyphra/zonos3/zonos3-mini` |
-| `qwen3-tts` | Qwen's Qwen3-TTS 12 Hz line (Apache-2.0): `-0.6b-customvoice` and `-1.7b-customvoice` (stock speakers; 1.7B takes a style instruction), `-1.7b-voicedesign` (a voice described in words); 24 kHz | `qwen/qwen3-tts/qwen3-tts-12hz-0.6b-customvoice` |
-
-`--model` and the stage flags choose the checkpoint among every family's builds ([Choosing a model](#choosing-a-model));
-ZONOS3-Mini is the default. `--family` limits the choice to one family, and names the family of an `hf:org/repo`.
-
-`--play` (feature `live`, on by default) plays the speech on the host's default output device, or the one
-`--output-device` names by a substring of its id or name; at the model's rate where the device opens at it, else
-resampled to its rate, every channel the same. Playback starts once the speech is synthesized; Ctrl-C stops it.
-
-The text is normalized first, as the model's release normalizes it (`--normalize release`, the default): ZONOS3's
-release collapses line breaks, then speaks numbers, money, dates and the like (`$12.50` as "twelve dollars fifty
-cents") through Zyphra's normalizer, in the language's grammar; Qwen3-TTS's speaks the text as typed. Otherwise
-`--normalize` takes normalizers by spec, as `bunsen-tool text normalize` does (`none`, `collapse-line-breaks`, `zyphra`,
-`tokenizers:NFKC`, `FILE.json`, ...); repeated, they run in order. A long text is spoken as several takes, split at
-its sentences (about 20 seconds each) and joined by a short pause; `--no-split` speaks it as one.
-
-`--voice` picks the stock voice: ZONOS3's `Savannah` by default; Qwen3-TTS has no default speaker, and its names match
-without case (`Ryan`, `ryan`). `--describe` gives a VoiceDesign checkpoint its voice in words. `--language` is one of
-the model's keys: ZONOS3's release codes (`en_us`, `fr_fr`) or a language tag; Qwen3-TTS's languages (`english`,
-`sichuan_dialect`) or `auto` (its default: the speaker's dialect, or none). `--instruct` steers a checkpoint that takes a
-style instruction; one that takes none refuses it, unless `--strip-instruction` drops it (and says so).
-
-`bunsen-tool tts voices` lists a checkpoint's voices: ZONOS3's as the release describes each one (its language, its
-style where it names one, such as `Irish` or `announcer`, and its gender), Qwen3-TTS's speakers with their dialects.
-It reads only the voices' files (ZONOS3's `voices.safetensors` and `voices.json`, about 240 KB; Qwen3-TTS's
-`config.json`), not the model, and asks before fetching them when the cache does not hold them (`--yes` fetches without
-asking; without a terminal to ask on, it says to pass `--yes`).
-
-Sampling follows the release's settings; `--temperature`, `--top-k` and `--top-p` override them (Qwen3-TTS's for its
-talker), and `--max-seconds` caps each take. Each family also reads flags of its own, and refuses another's:
-ZONOS3's `--condition NAME=VALUE` (`loudness`, `fmax` or `speaking_rate`, bucketed by the release's edges; repeated)
-and `--silence-prefill-frames`; Qwen3-TTS's `--placement upfront|interleaved` (where the text goes in the prompt) and
-`--predictor-temperature`, `--predictor-top-k` and `--predictor-top-p` (its code predictor's sampling). A take is sampled, so each run differs; `--seed` repeats one on the same
-device, and the seed is printed with the speech. A model loads at the precision it ships in where the device
-accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere).
-
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- tts run -o hello.wav "Hello, this is ZONOS3."
-echo "It costs \$12.50." | cargo run --release -p bunsen-tool --features cuda -- tts run --device cuda --voice Cillian -o cost.wav
-cargo run --release -p bunsen-tool --features wgpu -- tts run --model qwen3-tts --voice ryan -o ryan.wav "Hello from Qwen."
-cargo run --release -p bunsen-tool --features wgpu -- tts run --play "Spoken, not saved."
-```
-
-## text: normalization on its own
-
-`bunsen-tool text normalize` runs a text through normalizers, in the order the `--normalize` flags give them, and
-prints the result: the normalizers a TTS model speaks through and a word error rate compares through.
-
-```sh
-bunsen-tool text normalizers                                       # each normalizer's spec, and whether this build has it
-bunsen-tool text normalize --normalize SPEC... [--language TAG] [--explain] [--file PATH | TEXT...]   # stdin when omitted
-```
-
-A spec is a normalizer by name: `none`; `collapse-line-breaks` (line breaks and tabs to one space); `transcript`
-(lowercase, punctuation dropped: what word error rates compare); `zyphra` (Zyphra's normalizer: numbers, money and
-dates spoken, by the language's grammar, in 43 languages; it needs `--language`); `tokenizers:NFKC` (a `tokenizers`
-normalizer by type, or `tokenizers:{...}` in `tokenizer.json`'s syntax); `tokenizer-json:PATH` (a `tokenizer.json`'s
-own normalizer); or `FILE.json` (a normalization config). `--language` is a language tag (`en`, `fr-FR`; `en_US` reads
-as `en-US`). `--explain` prints each normalizer's output in turn.
-
-```sh
-$ printf 'It costs $5.32\non 3/4/2025.\n' | bunsen-tool text normalize --normalize zyphra --normalize transcript --language en --explain
-== zyphra
-It costs five dollars thirty two cents on march fourth twenty twenty five.
-== transcript
-it costs five dollars thirty two cents on march fourth twenty twenty five
-```
-
-## chat: Qwen3, Gemma and nanochat
-
-`bunsen-tool chat` answers one prompt (`run`) or holds a conversation on stdin (`repl`: `/reset` starts over, `/quit`
-or the end of input leaves), on the KV cache: each turn prefills only what the cache does not already hold.
-
-```sh
-bunsen-tool chat list [--urls]                       # every family's checkpoints, and what of each is cached
-bunsen-tool chat fetch NAME...                       # bring checkpoints into the cache
-bunsen-tool chat run  [--model NAME]... [STAGES] [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
-bunsen-tool chat repl [--model NAME]... [STAGES] [FLAGS]            # a conversation
-bunsen-tool chat family (qwen3|gemma|nanochat) (list|fetch|run|repl) [FLAGS]   # one family's, its own default by default
-```
-
-```sh
-cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat repl --model qwen3-4b-instruct-2507 --stats
-cargo run --release -p bunsen-tool --features wgpu -- chat run --model gemma-3-270m-it "What is the capital of France?"
-cargo run --release -p bunsen-tool --features wgpu -- chat run --model qwen --eq thinking always "Why is the sky blue?"
-cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
-cargo run --release -p bunsen-tool --features cuda -- chat family nanochat repl --device cuda
-```
-
-`--model` and the stage flags choose the checkpoint, among every family's builds (one family's under `family`), by
-their tags ([Choosing a model](#choosing-a-model)); outside `family`, the chosen checkpoint's family runs it, and
-Qwen3's default (`qwen/qwen3/qwen3-0.6b`) is the default. An `hf:org/repo` is a Qwen3, or under `family` the family's.
-The families:
-
-| family | checkpoints | default |
-|---|---|---|
-| `qwen3` | Qwen's Qwen3 by name, or `hf:org/repo`, any Hugging Face repo in `transformers`' `Qwen3ForCausalLM` layout | `qwen/qwen3-0.6b` |
-| `gemma` | Google's Gemma 1, 2 and 3 text models by name (`gemma-3-{270m,1b,4b}`, `gemma-2-{2b,9b}`, `gemma-{2b,7b}`, each with its `-it` build), fetched from their `unsloth/` mirrors; under `family gemma`, `hf:org/repo` in a `transformers` Gemma's layout | `gemma/gemma-3-1b-it` |
-| `nanochat` | community checkpoints of upstream nanochat's 2025 and 2026 models (`nanochat-students/{base,mid,rl}-d20`, `nitishpandey04/nanochat-d18-{base,sft}`) | `nanochat-students/rl-d20` |
-
-Each family takes only the flags that apply to it: thinking (`--think`, `--no-think`, `--show-thinking`) is Qwen3's
-and Qwen3.5's. `--think` and `--no-think` are `--on thinking` and `--off thinking`: they keep only the checkpoints
-that offer the preset, and apply it to the one chosen.
-Sampling follows the checkpoint's generation defaults; `--greedy`, `--temperature`, `--top-k`, `--top-p` and `--seed`
-override them. A checkpoint loads at the precision it ships in where the device accelerates it, else in f32: Qwen3's
-bf16 on cuda and metal, f32 on vulkan, wgpu and the CPU (`--min-precision f32` holds it to f32 everywhere);
-`bunsen-tool devices` shows what a device accelerates.
-`--context` sizes the KV cache (the checkpoint's trained length by default),
-`--kv-storage` picks how it stores its history, and `--stats` prints, after each reply, the model's lookup expression (its name with the presets the flags add), then the reply's token counts and speeds.
+`run` answers one prompt; `repl` holds a conversation, prefilling only what the KV cache does not already hold. The
+chat driver is also a library, [`bunsen_tool::chat`](https://docs.rs/bunsen-tool/latest/bunsen_tool/chat/).
 
 ## decide: typed questions answered by Laya
 
-`bunsen-tool decide` answers questions about a context with calibrated probabilities over each question's options,
-in one forward pass of a Laya decision model (`convaiinnovations/laya`, Apache-2.0: a `ModernBERT` encoder and a
-decision head). It generates no text.
-
-```sh
-bunsen-tool decide list [--urls]                         # the Laya checkpoints, and what of each is cached
-bunsen-tool decide fetch NAME...                         # bring checkpoints into the cache
-bunsen-tool decide run [--model NAME]... [STAGES] [--format yml|json] [REQUEST]   # the request from stdin when omitted
-```
-
-`--model` and the stage flags choose the checkpoint among Laya's, as chat's do ([Choosing a
-model](#choosing-a-model)); `laya/laya/laya` is the default.
-
-A request is a YAML (or JSON) document: a `context`, and its `choices`, each a `type`, a `question` and its
-`options`:
-
-- `choice`: a pick among named options, each a name or `{name: what it means}`;
-- `score`: a level on a scale, the options its levels in order; the answer also gives the expected level (`score`);
-- `noul`: a yes/no probability; its options, when given, say what `{false: ...}` and `{true: ...}` mean.
+`decide run` answers questions about a context with calibrated probabilities over each question's options, in one
+forward pass of a Laya decision model. The request is YAML or JSON:
 
 ```yaml
 context: "Customer: my kettle arrived with a cracked lid and I asked for a refund twice with no answer."
 choices:
-  - type: choice
+  - type: choice                    # a pick among named options
     question: "What should the agent do next?"
     options: [refund, replace, {escalate: "hand the case to a supervisor"}, close]
-  - type: noul
+  - type: noul                      # a yes/no probability; `score` is a level on a scale
     question: "Is the customer satisfied?"
 ```
 
-Each result has the question, its type, each option's probability (a score's by level, a yes/no question's as
-`false` and `true`), the most probable option (`answer`), the `confidence` (one less the distribution's normalized
-entropy), and the act head's probability (`act_probability`, which upstream's model card says carries no usable
-signal yet):
-
-```yaml
-- question: What should the agent do next?
-  type: choice
-  probabilities:
-    refund: 0.606
-    replace: 0.343
-    escalate: 0.024
-    close: 0.027
-  answer: refund
-  confidence: 0.383
-  act_probability: 1.0
+```sh
+bunsen-tool decide run request.yml
 ```
+
+Each result has each option's probability, the most probable (`answer`) and a `confidence`.
+
+## text: normalization on its own
 
 ```sh
-cargo run --release -p bunsen-tool --features wgpu -- decide run request.yml
-cargo run --release -p bunsen-tool --features wgpu -- decide run --model laya-multilingual --format json < request.yml
+$ printf 'It costs $5.32\non 3/4/2025.\n' | bunsen-tool text normalize --normalize zyphra --normalize transcript --language en
+it costs five dollars thirty two cents on march fourth twenty twenty five
 ```
+
+The normalizers TTS speaks through and word error rates compare through; `text normalizers` lists them.
 
 ## Choosing a model
 
-`chat`, `decide` and `tts` choose their checkpoint with a pipeline over the built-in catalog's builds
-([`catalog select`](#catalog-build-catalogs) runs the same pipeline, and its flags are theirs). A checkpoint's facts are
-its tags, which its build carries: `instruct`, `thinking` (`always`, `switch` or `never`), `reasoning`, `language`
-(BCP 47 tags; `"*"` for unspecified others), `parameters`, `contract`, `family`, `publisher`; and its release group and
-date.
-
-- `--model NAME`, repeatable, names what to choose among: a build (its full name, its bare name or an alias) is that
-  build, as named; a group (`qwen`, `gemma/gemma`, `nanochat-students`) is its builds; `default` is the command's
-  default. Several names are one `from`.
-- The command's defaults choose within a group, unless one build is named alone: a tuned model (`keep: instruct`,
-  labeled `instruct`; not for `decide`), each release group's newest weighted first (`release: latest`, labeled
-  `latest`), the heaviest first.
-- The stage flags follow, each one stage, in command-line order: `--keep P`, `--drop P`, `--lt/--le/--gt/--ge/--eq/--ne
-  KEY V`, `--has TAG V`, `--weigh E`, `--cutoff W`, `--asc K`, `--desc K`, `--limit N`, `--pipeline [..]`, and `--unset
-  LABEL` to remove a default (`--unset instruct`).
-- `--preset P`, `--on AXIS` and `--off AXIS` (and chat's `--think`, `--no-think`) keep only the builds that offer the
-  presets, wherever they are written, and apply them to the one chosen; `--patch {..}` merges over its config.
-- `hf:org/repo` is a Hugging Face repo no build describes, loaded as it is; it takes no stage flags.
+`chat`, `decide` and `tts` choose their model by a pipeline over the catalog's builds, by their tags:
 
 ```sh
-bunsen-tool chat run --model qwen/qwen3 --unset instruct --eq thinking never --asc parameters "Hi"
-bunsen-tool chat run --model qwen --le parameters 2e9 --weigh '{match: {language: zh}, else: 0}' "你好"
+bunsen-tool chat run --model qwen --le parameters 2e9 "Hi"                       # a group, filtered
+bunsen-tool chat run --model qwen/qwen3 --eq thinking never --asc parameters "Hi"  # stages, in order
 ```
 
-The choice, and why, is logged at `INFO` (`RUST_LOG=bunsen_tool=info`).
+`--model` names a build, an alias or a group; stage flags (`--keep`, `--le`, `--weigh`, `--asc`, ...) keep and order
+within it; presets (`--preset`, `--on`, `--off`) apply to the one chosen. `-v` logs the choice and why.
+`bunsen-tool catalog` browses the catalog itself: `tree`, `show`, `resolve`, and `select`, the same pipeline.
 
-The checkpoints: `laya/laya/laya` (English, on `ModernBERT-large`; the default), `laya/laya/laya-multilingual` (on
-`mmBERT-base`) and `laya/laya/laya-typed-decisions`. A checkpoint loads at the precision it ships in (f16) where the
-device accelerates it, else in f32 (`--min-precision f32` holds it to f32 everywhere).
-
-## catalog: build catalogs
-
-`bunsen-tool catalog` queries bunsen's built-in model catalog, the one the kits load from
-(`bunsen::data::catalog`; its `catalog_format` page describes the document,
-and its `usage` page the select language). `--catalog` imports an extension over it, YAML or
-JSON, repeatable, in order: an extension may add builds, template classes and resources, but
-not contracts.
+## The weights cache
 
 ```sh
-bunsen-tool catalog tree
-bunsen-tool catalog --catalog local.yml select qwen3 --off thinking --limit 1
+bunsen-tool cache path                          # where it is
+bunsen-tool cache list [NAME]                   # what it holds, and when each file was last used
+bunsen-tool cache clear [NAME] --age 30d --yes  # what has not been used for 30 days
 ```
 
-| command | does |
-|---|---|
-| `layers` | the imported catalogs, in order |
-| `show NAME` | an entry's kind, history (which catalog declared, updated or replaced it) and merged fields |
-| `resolve BUILD [--preset P] [--on AXIS] [--off AXIS] [--patch {..}]` | the resolved build, and the document its presets make |
-| `select [--kind K] [NAME]... [--keep P] [--drop P] [--le KEY V]... [--weigh E] [--cutoff W] [--asc K] [--desc K] [--limit N] [--use NAME] [--unset L] [--per G .. --end] [--pipeline ..] [--floor F] [--preset P] [--on/--off AXIS] [--defaults ..] [--rank]` | a YAML report: the composed query, why (each stage, where it came from, and what it removed), the presets applied, and the result in order, each build resolved with its `weight`; each flag is one stage, in command-line order, but the preset flags, which are the prefix; `--rank` adds every removed row with why |
-| `tree [NAME] [--kind K]... [--all] [--aliases inline\|entries\|both\|none] [--depth N]` | the namespace as a directory view, from the root's entries or one entry: `name: description` for a namespace, `name: aliases {axis: default\|other} description` for a build, `name -> target` for an alias. It shows namespaces, builds and the aliases that name them; `--kind` keeps only those kinds (and the containers on the way to them), `--all` shows every kind, as `name (kind): ..`, and the base catalog's `$contracts`; `--aliases` says where aliases show (both, by default) |
-| `dump [--format yml\|json]` | the imported catalogs, in order, as one sequence: each item's `layer`, `path` and `catalog`, the document in its keyed form |
-| `releases GROUP` | a release group's members, oldest first |
+Every fetched file is pinned to a SHA-256 and verified as it lands. `--cache-dir` moves the cache, and `--offline` never reaches
+the network. Every command also takes `--device`, and the commands that load a model `--min-precision f32`, a floor
+under the dtypes its weights are placed in.

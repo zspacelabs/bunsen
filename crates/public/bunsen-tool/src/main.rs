@@ -1,6 +1,6 @@
 //! `bunsen-tool`: bunsen's models on the command line. `bunsen-tool asr`
 //! is speech to text, by preset or by model family, and who spoke when;
-//! `bunsen-tool tts` is text to speech with ZONOS3-Mini;
+//! `bunsen-tool tts` is text to speech with ZONOS3-Mini or Qwen3-TTS;
 //! `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or nanochat
 //! checkpoint; `bunsen-tool decide` answers typed questions about a context
 //! with a Laya decision model; `bunsen-tool text` normalizes text on its own;
@@ -39,7 +39,8 @@ use clap::{
 /// bunsen's models on the command line.
 ///
 /// `bunsen-tool asr` is speech to text, by preset or by model family, and who
-/// spoke when; `bunsen-tool tts` is text to speech with ZONOS3-Mini;
+/// spoke when; `bunsen-tool tts` is text to speech with ZONOS3-Mini or
+/// Qwen3-TTS;
 /// `bunsen-tool chat` chats with a Qwen3, Qwen3.5, Gemma or
 /// nanochat checkpoint; `bunsen-tool decide` answers typed questions about a
 /// context with a Laya decision model; `bunsen-tool text` normalizes text on
@@ -64,7 +65,7 @@ enum Command {
     #[cfg(feature = "speech")]
     Asr(asr::AsrCommandGroup),
 
-    /// Text to speech with ZONOS3-Mini, in a stock voice.
+    /// Text to speech with ZONOS3-Mini or Qwen3-TTS.
     ///
     /// A text spoken to a WAV file or a speaker (`tts run`), the stock voices
     /// (`tts voices`), and the checkpoints (`tts list`, `tts fetch`).
