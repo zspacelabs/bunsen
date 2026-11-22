@@ -362,6 +362,38 @@ run them.
 <!-- /card -->
 </details>
 
+## Join the bunsen raid party
+
+[Discord](https://discord.gg/vBgXHWCeah) · [Repo](https://github.com/zspacelabs/bunsen) ·
+[API docs](https://docs.rs/bunsen) · [The book](https://zspacelabs.ai/bunsen/book/)
+
+Do you want HPC AI on Rust? Join the bunsen raid party.
+
+Between a paper's model and a Rust program that runs it lies the dungeon of theory and practice:
+missing layers, checkpoint formats, tokenizers, streaming, and the question of whether the port
+computes what the original does. We clear it one model family at a time. **Expand**: port the
+family. **Consolidate**: give it a real runtime, validated against the reference. **Unify**: fold
+what the families share into common parts. **Upstream**: hand the stable parts to
+[burn](https://burn.dev).
+
+**[bunsen](https://crates.io/crates/bunsen)** is where that work lives: a "batteries included"
+standard library for the frontier of burn. It has the blocks models are built from, a kit per
+model family, a pinned catalog of 87 pretrained checkpoints that load by name, and the drivers
+that run them: streaming speech recognition, chat, text to speech, typed decisions.
+
+**[bunsen-tool](https://crates.io/crates/bunsen-tool)** is the loot you can carry out today:
+those models on the command line, in one `cargo install`:
+
+```sh
+cargo install bunsen-tool --features wgpu          # or vulkan, metal, cuda; the CPU is always there
+bunsen-tool asr live --diarize                     # Parakeet, Qwen3-ASR, Voxtral, Whisper; Sortformer
+bunsen-tool tts run --play "Hello from Rust."      # ZONOS3-Mini, Qwen3-TTS
+bunsen-tool chat repl                              # Qwen3/3.5, Gemma, nanochat
+bunsen-tool decide run request.yml                 # Laya: typed questions, calibrated answers
+```
+
+The party needs model porters, hardware testers and opinionated reviewers.
+
 ## What is bunsen?
 
 __bunsen - inventing tomorrow's burn problems today!__
