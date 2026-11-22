@@ -3,10 +3,6 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn::{
-        Linear,
-        LinearConfig,
-    },
     prelude::{
         Bool,
         Int,
@@ -14,10 +10,7 @@ use burn::{
     tensor::{
         DType,
         Device,
-        activation::{
-            gelu,
-            softmax,
-        },
+        activation::softmax,
     },
 };
 use serde::{
@@ -28,6 +21,11 @@ use serde::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+            BunsenMlpMeta,
+        },
         norm::{
             BunsenLayerNormConfig,
             LayerNorm,
@@ -38,8 +36,10 @@ use crate::{
                 TokenEmbeddingConfig,
             },
             encoders::residual::{
-                ResidualEncoderAttentionBlock,
                 ResidualEncoderAttentionBlockConfig,
+                ResidualEncoderTransformer,
+                ResidualEncoderTransformerConfig,
+                ResidualEncoderTransformerMeta,
             },
         },
     },
@@ -58,7 +58,6 @@ use crate::{
         ModernBertMeta,
         ModernBertModel,
     },
-    ops::transformers::attention::length_mask,
 };
 
 /// A Laya question's type: what its options are, and which head
@@ -169,38 +168,34 @@ impl ModuleInit<LayaModel> for LayaConfig {
         device: &Device,
     ) -> BunsenResult<LayaModel> {
         let d = self.d_model();
-        let head = (0..self.head_layers)
-            .map(|_| self.head_layer().try_init(device))
-            .collect::<BunsenResult<_>>()?;
+        let mlp = |d_in, d_hidden, d_out| {
+            BunsenMlpConfig::new(d_in, d_hidden, d_out)
+                .with_activation(BunsenActivationConfig::Gelu)
+                .try_init(device)
+        };
         Ok(LayaModel {
             encoder: self.encoder.try_init(device)?,
             type_emb: TokenEmbeddingConfig::new(LayaQuestionKind::ALL.len(), d).try_init(device)?,
-            head,
+            head: ResidualEncoderTransformerConfig::new(self.head_layer(), self.head_layers)
+                .try_init(device)?,
             scorer: LayaScorer {
                 norm: BunsenLayerNormConfig::new(d).init(device),
-                dense: LinearConfig::new(d, d).init(device),
-                out: LinearConfig::new(d, 1).init(device),
+                mlp: mlp(d, d, 1)?,
             },
-            act_head: LayaActHead {
-                dense: LinearConfig::new(d + 4, self.act_hidden).init(device),
-                out: LinearConfig::new(self.act_hidden, self.n_act).init(device),
-            },
+            act_head: mlp(d + 4, self.act_hidden, self.n_act)?,
         })
     }
 }
 
-/// The scorer: an option's marker state to its logit, `LayerNorm`, a
-/// `Linear`, an exact `GELU` and a `Linear` to one.
+/// The scorer: an option's marker state to its logit, a `LayerNorm` and an
+/// MLP (`d -> d`, an exact `GELU`, `d -> 1`).
 #[derive(Module, Debug)]
 pub struct LayaScorer {
     /// The input's norm.
     pub norm: LayerNorm,
 
-    /// `d -> d`.
-    pub dense: Linear,
-
-    /// `d -> 1`.
-    pub out: Linear,
+    /// `d -> d -> 1`.
+    pub mlp: BunsenMlp,
 }
 
 impl LayaScorer {
@@ -209,21 +204,8 @@ impl LayaScorer {
         &self,
         x: Tensor<D>,
     ) -> Tensor<D> {
-        self.out
-            .forward(gelu(self.dense.forward(self.norm.forward(x))))
+        self.mlp.forward(self.norm.forward(x))
     }
-}
-
-/// The act head: the first token's state and four statistics of the answer
-/// distribution to the act logits, a `Linear`, an exact `GELU` and a
-/// `Linear`.
-#[derive(Module, Debug)]
-pub struct LayaActHead {
-    /// `d + 4 -> act_hidden`.
-    pub dense: Linear,
-
-    /// `act_hidden -> n_act`.
-    pub out: Linear,
 }
 
 /// What [`LayaModel::forward`] gives: per question, its options' logits
@@ -261,13 +243,14 @@ pub struct LayaModel {
     pub type_emb: TokenEmbedding,
 
     /// The head's encoder layers.
-    pub head: Vec<ResidualEncoderAttentionBlock>,
+    pub head: ResidualEncoderTransformer,
 
     /// Each option's marker state to its logit.
     pub scorer: LayaScorer,
 
-    /// The act head.
-    pub act_head: LayaActHead,
+    /// The act head: `d + 4 -> act_hidden`, an exact `GELU`, `act_hidden ->
+    /// n_act`.
+    pub act_head: BunsenMlp,
 }
 
 impl LayaMeta for LayaModel {
@@ -276,15 +259,15 @@ impl LayaMeta for LayaModel {
     }
 
     fn head_layers(&self) -> usize {
-        self.head.len()
+        self.head.n_layers()
     }
 
     fn n_act(&self) -> usize {
-        self.act_head.out.weight.dims()[1]
+        self.act_head.d_output()
     }
 
     fn act_hidden(&self) -> usize {
-        self.act_head.dense.weight.dims()[1]
+        self.act_head.d_hidden()
     }
 }
 
@@ -306,17 +289,11 @@ impl LayaModel {
         lengths: &[usize],
         kinds: Tensor<1, Int>,
     ) -> Tensor<3> {
-        let [b, t] = unpack_shape_contract!(["B", "T"], &ids.dims());
-        let device = ids.device();
+        let [_b, _t] = unpack_shape_contract!(["B", "T"], &ids.dims());
+        let _device = ids.device();
         let h = self.encoder.forward(ids, Some(lengths));
         let h = h + self.type_emb.forward(kinds.unsqueeze_dim::<2>(1));
-        let padding = length_mask(lengths, t, &device)
-            .bool_not()
-            .unsqueeze_dim::<3>(1)
-            .expand([b, t, t]);
-        self.head
-            .iter()
-            .fold(h, |h, layer| layer.forward_masked(h, Some(padding.clone())))
+        self.head.forward(h, Some(lengths))
     }
 
     /// Each question's option logits and act logits.
@@ -367,12 +344,8 @@ impl LayaModel {
         let feats = Tensor::cat(vec![first, margin, entropy, count / 255.0], 1);
         let pooled = h.slice_dim(1, 0..1).squeeze_dim::<2>(1).cast(DType::F32);
         let act_in = Tensor::cat(vec![pooled, feats], 1)
-            .cast(param_float_dtype(&self.act_head.dense.weight));
-        let act_logits = self
-            .act_head
-            .out
-            .forward(gelu(self.act_head.dense.forward(act_in)))
-            .cast(DType::F32);
+            .cast(param_float_dtype(&self.act_head.linear1.weight));
+        let act_logits = self.act_head.forward(act_in).cast(DType::F32);
         LayaOutput { logits, act_logits }
     }
 }
