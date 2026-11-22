@@ -15,7 +15,7 @@ use crate::{
         TtsRequest,
         TtsSynthesizer,
     },
-    support::audio::resample,
+    ops::signal::resample::StreamingResampler,
 };
 
 /// One text's round trip.
@@ -87,7 +87,7 @@ impl RoundTripReport {
 /// - `texts`: what to speak.
 /// - `synthesize`: a text to its speech, mono samples and their rate in Hz.
 /// - `asr_rate`: the rate `transcribe` reads, in Hz; the speech is resampled to
-///   it ([`resample`]).
+///   it ([`StreamingResampler::resample`]).
 /// - `transcribe`: mono samples at `asr_rate` to their transcript.
 ///
 /// # Errors
@@ -105,7 +105,7 @@ where
     let mut cases = Vec::with_capacity(texts.len());
     for &text in texts {
         let (speech, rate) = synthesize(text)?;
-        let heard = resample(&speech, rate, asr_rate);
+        let heard = StreamingResampler::resample(&speech, rate, asr_rate);
         let transcript = transcribe(&heard)?;
         let reference = normalize_transcript(text);
         cases.push(RoundTripCase {

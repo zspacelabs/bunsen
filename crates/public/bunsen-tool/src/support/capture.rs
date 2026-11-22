@@ -22,7 +22,7 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    support::audio::Resampler,
+    ops::signal::resample::StreamingResampler,
 };
 use cpal::{
     Data,
@@ -130,7 +130,7 @@ impl Capture {
     ) -> BunsenResult<f64> {
         let supported = pick_config(&self.input, rate as u32)?;
         let capture_rate = supported.sample_rate() as usize;
-        let mut resampler = Resampler::new(capture_rate, rate);
+        let mut resampler = StreamingResampler::new(capture_rate, rate);
         log::info!(
             "capture: {}: {} ch, {capture_rate} Hz, {}{}",
             self.name,

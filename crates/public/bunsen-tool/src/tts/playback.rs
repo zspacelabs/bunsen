@@ -16,7 +16,7 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    support::audio::resample,
+    ops::signal::resample::StreamingResampler,
 };
 use cpal::{
     Data,
@@ -127,7 +127,7 @@ impl Playback {
     ) -> BunsenResult<()> {
         let supported = pick_config(&self.device, rate)?;
         let device_rate = supported.sample_rate();
-        let samples = resample(samples, rate as usize, device_rate as usize);
+        let samples = StreamingResampler::resample(samples, rate as usize, device_rate as usize);
         log::info!(
             "playback: {}: {} ch, {device_rate} Hz, {}{}",
             self.name,

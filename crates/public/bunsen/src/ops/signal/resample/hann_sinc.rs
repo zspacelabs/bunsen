@@ -26,7 +26,7 @@ use crate::ops::signal::kernels::{
 /// applied exactly; `torchaudio`'s float32 convolution is off it by float32's
 /// accumulation.
 ///
-/// Unlike [`Resampler`](crate::support::audio::Resampler), this is not
+/// Unlike [`StreamingResampler`](super::StreamingResampler), this is not
 /// streaming, and its output is not phase-aligned to the output rate's grid:
 /// it reproduces a reference, sample for sample.
 #[derive(Config, Copy, Debug, PartialEq)]
