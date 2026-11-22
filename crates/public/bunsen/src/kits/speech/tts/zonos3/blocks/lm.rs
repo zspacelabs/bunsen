@@ -34,12 +34,10 @@ use crate::{
                 QkNormPlacement,
             },
             decoders::{
-                attn_res::{
-                    AttnResStack,
-                    AttnResStackConfig,
-                },
+                attn_res::AttnResRoutesConfig,
                 causal::CausalDecoderBlockConfig,
                 stack::{
+                    DecoderStack,
                     DecoderStackCache,
                     DecoderStackMeta,
                     DecoderStackStructureConfig,
@@ -235,19 +233,16 @@ impl Zonos3LmConfig {
     /// Residuals), a weightless input norm (the embedding's), the final
     /// norm, and the interleaved rotary table the attention layers share,
     /// which rotates half inputs in f32, as the reference does.
-    pub fn stack(&self) -> AttnResStackConfig {
+    pub fn stack(&self) -> DecoderStackStructureConfig {
         let layers = (0..self.n_layers).map(|l| self.layer(l)).collect();
         let rotary = RotaryEmbeddingConfig::new(0, self.head_dim)
             .with_base(self.rope_base)
             .with_direction(RotaryDirection::Forward)
             .with_pair_layout(RotaryPairLayout::Interleaved)
             .with_widening(Widening::F32);
-        AttnResStackConfig::new(
-            DecoderStackStructureConfig::new(layers, self.rms(), rotary)
-                .with_input_norm(Some(self.rms()))
-                .into(),
-        )
-        .with_key_eps(self.norm_eps)
+        DecoderStackStructureConfig::new(layers, self.rms(), rotary)
+            .with_input_norm(Some(self.rms()))
+            .with_routes(Some(AttnResRoutesConfig::new().with_key_eps(self.norm_eps)))
     }
 }
 
@@ -320,7 +315,7 @@ impl Zonos3LmMeta for Zonos3Lm {
     }
 
     fn n_layers(&self) -> usize {
-        self.stack.stack.n_layers()
+        self.stack.n_layers()
     }
 
     fn n_codebooks(&self) -> usize {
@@ -409,8 +404,9 @@ pub struct Zonos3LmTrace {
 /// A row is `n_codebooks` audio ids and a text id; its embedding is the sum
 /// of each id's row in its own table (the text table last). A speaker row's
 /// and the condition rows' embeddings are replaced instead
-/// ([`Zonos3RowConditioning`]). The rows go through an [`AttnResStack`] of
-/// gated `DeltaNet` and global attention layers, the first with a dense
+/// ([`Zonos3RowConditioning`]). The rows go through a [`DecoderStack`] with
+/// attention-residual routes in place of a residual stream, of gated
+/// `DeltaNet` and global attention layers, the first with a dense
 /// `SwiGLU`, the rest with a latent mixture of experts; one linear then
 /// gives each codebook's logits, soft-capped by `c · tanh(x / c)`.
 ///
@@ -426,8 +422,9 @@ pub struct Zonos3Lm {
     /// Each condition's table, its buckets and an unknown bucket last.
     pub condition_embeddings: Vec<Embedding>,
 
-    /// The layers.
-    pub stack: AttnResStack,
+    /// The layers, with attention-residual routes in place of a residual
+    /// stream.
+    pub stack: DecoderStack,
 
     /// Every codebook's logits, `[D, K V_a]`.
     pub head: Linear,
@@ -447,7 +444,7 @@ pub struct Zonos3Lm {
 
 impl Zonos3Lm {
     /// A decode cache for `rows` batch rows of at most `positions` positions
-    /// ([`AttnResStack::decode_cache`]).
+    /// ([`DecoderStack::decode_cache`]).
     pub fn decode_cache(
         &self,
         rows: usize,
@@ -548,7 +545,7 @@ impl Zonos3Lm {
                 Some(&mut cache.linear),
             ),
             None => {
-                let rotary = self.stack.stack.rotary(t, &emb_cond.device());
+                let rotary = self.stack.rotary(t, &emb_cond.device());
                 self.stack
                     .forward_bank(emb_cond.clone(), &rotary, None, None)
             }

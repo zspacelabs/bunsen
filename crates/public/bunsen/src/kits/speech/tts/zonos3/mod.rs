@@ -8,8 +8,9 @@
 //!   - The language model, [`Zonos3Lm`](blocks::Zonos3Lm). Each row's ids are
 //!     summed through their own tables (a speaker row and the condition rows
 //!     replaced), run through a stack of gated `DeltaNet` and global attention
-//!     layers without a residual stream
-//!     ([`AttnResStack`](crate::blocks::transformers::decoders::attn_res::AttnResStack)),
+//!     layers without a residual stream (a
+//!     [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
+//!     with [`AttnResRoutes`](crate::blocks::transformers::decoders::attn_res::AttnResRoutes)),
 //!     their feed-forwards a dense `SwiGLU` and then latent mixtures of
 //!     experts, and read out as every codebook's logits. Decoding is cached,
 //!     one row a step, through
