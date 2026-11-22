@@ -1,4 +1,4 @@
-//! The microphone, captured for `live`, in pushes at a model's rate.
+//! The microphone, captured in pushes at a rate asked for.
 use std::{
     sync::{
         Arc,
@@ -102,6 +102,16 @@ pub struct Capture {
 }
 
 impl Capture {
+    /// The device's own capture rate: its default input configuration's.
+    ///
+    /// # Errors
+    /// As the host reading the device's default configuration.
+    pub fn native_rate(&self) -> BunsenResult<usize> {
+        Ok(AudioDirection::Input
+            .default_config(&self.input)?
+            .sample_rate() as usize)
+    }
+
     /// Captures, resampled to `rate`, handing `push` each `chunk` samples
     /// with the capture time of its first sample (seconds from the first
     /// callback's, when the host's clock can say); after the stop, the
