@@ -13,6 +13,10 @@
 //! - its codec's audio from fixed codes, in float32 (`codec`);
 //! - its speaker encoder over each stock voice's codec render, from the clip at
 //!   44.1 kHz to the embedding, in float32 (`speaker`);
+//! - a voice cloned from a clip of a speaker it does not ship, end to end
+//!   (`clone`): the voice file round-trips, its speech is understood (Whisper's
+//!   word error rate), and sounds like the clip rather than a stock voice (the
+//!   speaker encoder's cosines);
 //! - its driver, a take of a stock voice end to end (`driver`): it ends on the
 //!   end of audio, at a plausible length;
 //! - the logits again in bf16 on CUDA, against the reference's own bf16
@@ -370,3 +374,6 @@ mod driver;
 
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod speaker;
+
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod clone;
