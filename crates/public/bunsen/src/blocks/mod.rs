@@ -133,6 +133,8 @@
 //!   boundary, so a caller's activation layout and the block's need not agree.
 //! - [`math`]: math operations as modules: `PowOpModule`, `x^p`, the activation
 //!   seam's `Pow` kind.
+//! - [`pooling`]: a sequence pooled over time: `AttentiveStatsPooling`, each
+//!   channel's attention-weighted mean and deviation (speaker encoders').
 //! - [`quantization`]: a residual vector quantizer's decode, codes to their
 //!   latent: `EuclideanCodebook`, `ResidualVectorQuantizer` and
 //!   `SplitResidualVectorQuantizer` (Mimi's and Qwen3-TTS's codecs').
@@ -167,6 +169,7 @@ pub mod layout;
 pub mod math;
 pub mod mlp;
 pub mod norm;
+pub mod pooling;
 pub mod quantization;
 pub mod rnn;
 pub mod signals;
