@@ -21,9 +21,12 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    ops::signal::kernels::window::{
-        SamplingWindowBuilder,
-        StftWindowConfig,
+    ops::signal::kernels::{
+        mel::KaldiMelBanksConfig,
+        window::{
+            SamplingWindowBuilder,
+            StftWindowConfig,
+        },
     },
 };
 
@@ -148,11 +151,6 @@ impl KaldiFbankMeta for KaldiFbankConfig {
     }
 }
 
-/// Kaldi's mel scale: `1127 ln(1 + f / 700)`.
-fn kaldi_mel(hz: f64) -> f64 {
-    1127.0 * (1.0 + hz / 700.0).ln()
-}
-
 impl KaldiFbankConfig {
     /// The bins' upper edge, in Hz: [`high_freq`](Self::high_freq), or the
     /// Nyquist frequency plus it when it is 0 or less.
@@ -243,28 +241,16 @@ impl KaldiFbankConfig {
     }
 
     /// The mel filterbank, `[fft_size / 2 + 1, M]` row-major: bin `k`'s
-    /// weight in mel bin `m` at `k * M + m`.
-    ///
-    /// Each mel bin is a triangle on Kaldi's mel scale, its edges equally
-    /// spaced between the low and high edges, over each FFT bin's center
-    /// frequency; the Nyquist bin weighs nothing in any.
+    /// weight in mel bin `m` at `k * M + m` ([`KaldiMelBanksConfig`]).
     pub fn mel_banks(&self) -> Vec<f64> {
-        let (bins, fft_bins) = (self.num_mel_bins, self.fft_size() / 2);
-        let (mel_low, mel_high) = (kaldi_mel(self.low_freq), kaldi_mel(self.high_freq_hz()));
-        let delta = (mel_high - mel_low) / (bins + 1) as f64;
-        let bin_width = self.sample_rate / self.fft_size() as f64;
-        let mut banks = vec![0.0; (fft_bins + 1) * bins];
-        for k in 0..fft_bins {
-            let mel = kaldi_mel(bin_width * k as f64);
-            for m in 0..bins {
-                let left = mel_low + m as f64 * delta;
-                let (center, right) = (left + delta, left + 2.0 * delta);
-                let up = (mel - left) / (center - left);
-                let down = (right - mel) / (right - center);
-                banks[k * bins + m] = up.min(down).max(0.0);
-            }
+        KaldiMelBanksConfig {
+            num_mel_bins: self.num_mel_bins,
+            fft_size: self.fft_size(),
+            sample_rate: self.sample_rate,
+            low_freq: self.low_freq,
+            high_freq: self.high_freq_hz(),
         }
-        banks
+        .to_vec()
     }
 }
 

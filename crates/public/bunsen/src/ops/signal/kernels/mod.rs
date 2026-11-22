@@ -13,6 +13,9 @@
 //!   function on `[-1, 1]` by [`window::WindowTaper`].
 //! - [`sinc`]: windowed-sinc low-pass kernels over any taper, and the phase
 //!   tables a rational rate conversion applies.
+//! - [`mel`]: the mel scales and the mel filterbanks over an FFT's bins
+//!   (`librosa`'s, Kaldi's).
 
+pub mod mel;
 pub mod sinc;
 pub mod window;

@@ -24,10 +24,11 @@
 //!
 //! ## The mel bank
 //!
-//! [`MelFilterbankConfig`] builds the triangular filterbank on the host, in
-//! `Vec<f64>`, following `librosa.filters.mel`; [`MelScale`] picks the
-//! frequency-to-mel curve and [`FilterNorm`] the triangle normalization. The
-//! converter lifts it to the device at init.
+//! The bank is [`kernels::mel`](crate::ops::signal::kernels::mel)'s:
+//! `MelFilterbankConfig` builds it on the host, in `Vec<f64>`, following
+//! `librosa.filters.mel`; `MelScale` picks the frequency-to-mel curve and
+//! `FilterNorm` the triangle normalization. The converter lifts it to the
+//! device at init.
 //!
 //! ## Dynamic-range packaging is the caller's step
 //!
@@ -39,13 +40,11 @@
 //!
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
-mod filterbank;
 mod perceptive_audio_context;
 mod perceptive_audio_converter;
 
 #[cfg(test)]
 mod cross_test;
 
-pub use filterbank::*;
 pub use perceptive_audio_context::*;
 pub use perceptive_audio_converter::*;
