@@ -4,14 +4,12 @@
 //! never resampled; [`load_audio`]: a file as it is, at its own rate and
 //! channels ([`DecodedAudio`]); [`save_wav_mono`], mono samples to a WAV file.
 //! [`Resampler`] (and [`resample`], for a whole signal): the rate conversion
-//! a caller decides on. [`HannSincResampler`]: `torchaudio`'s
-//! `sinc_interp_hann` conversion, for a model trained behind it.
+//! a caller decides on. `torchaudio`'s conversion, for a model trained behind
+//! it, is [`HannSincResampler`](crate::ops::signal::resample::HannSincResampler).
 
-mod hann_sinc;
 mod resample;
 use std::path::Path;
 
-pub use hann_sinc::*;
 use hound::{
     SampleFormat,
     WavReader,

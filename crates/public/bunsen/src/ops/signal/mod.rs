@@ -43,6 +43,9 @@
 //!   [`KaldiFbankMeta`] on both: whole signals to Kaldi's `fbank` features, as
 //!   `torchaudio.compliance.kaldi.fbank` computes them (speaker encoders' front
 //!   end).
+//! - **Rate conversion.** [`resample`]:
+//!   [`HannSincResampler`](resample::HannSincResampler), `torchaudio`'s
+//!   `sinc_interp_hann` conversion, on [`kernels::sinc`].
 //! - **Long audio.** [`quiet_cuts`] cuts a long recording into bounded windows
 //!   at its quietest points, for models that take bounded utterances.
 //!
@@ -56,6 +59,7 @@
 
 pub mod kernels;
 pub mod perceptive_audio;
+pub mod resample;
 
 mod inverse_stft;
 mod kaldi_fbank;

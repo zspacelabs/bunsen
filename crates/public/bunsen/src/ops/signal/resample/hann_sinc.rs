@@ -1,33 +1,34 @@
 //! [`HannSincResampler`]: `torchaudio`'s `sinc_interp_hann` resample.
 
 use alloc::vec::Vec;
-use core::f64::consts::PI;
 
 use burn::config::Config;
+
+use crate::ops::signal::kernels::{
+    sinc::{
+        SincPhaseTable,
+        WindowedSinc,
+    },
+    window::CosineWindowConfig,
+};
 
 /// A whole-signal rate conversion by a Hann-windowed sinc, as
 /// `torchaudio.transforms.Resample` computes it (`sinc_interp_hann`), for a
 /// model trained behind it (ZONOS3's speaker encoder).
 ///
-/// The rates are reduced by their greatest common divisor to `in' : out'`.
-/// Each of the `out'` output phases has its own kernel over
-/// `2 * width + in'` input samples, `width = ceil(lowpass_filter_width *
-/// in' / base)`, with `base = min(in', out') * rolloff` the cut-off: the sinc
-/// at `base`, under a `cos²` window clamped to `lowpass_filter_width` zero
-/// crossings, scaled by `base / in'`. The signal is zero-padded by `width`
-/// before and `width + in'` after, and output `j * out' + i` is phase `i`'s
-/// kernel over the padded samples from `j * in'`; the output keeps
-/// `ceil(n * out / in)` samples.
+/// The kernels are a Hann-windowed sinc over `lowpass_filter_width` zero
+/// crossings, tabulated per output phase of the reduced ratio `in' : out'` as
+/// `torchaudio` tabulates them ([`SincPhaseTable::torchaudio`]). The signal is
+/// zero-padded by `width` before and `width + in'` after; phase `i`'s output
+/// of frame `j` (output `j·out' + i`) is its kernel over the padded samples
+/// from `j·in'`, and the output keeps `ceil(n · out / in)` samples. Each
+/// output is accumulated in float64, so this is `torchaudio`'s float32 kernel
+/// applied exactly; `torchaudio`'s float32 convolution is off it by float32's
+/// accumulation.
 ///
-/// The kernels are computed in float64 (each phase's offset in float32, as
-/// `torchaudio` divides it) and rounded to float32, as `torchaudio` stores
-/// them, and each output is accumulated in float64. So
-/// this is `torchaudio`'s float32 kernel applied exactly; `torchaudio`'s
-/// float32 convolution is off it by float32's accumulation.
-///
-/// Unlike [`Resampler`](super::Resampler), this is not streaming, and its
-/// output is not phase-aligned to the output rate's grid: it reproduces a
-/// reference, sample for sample.
+/// Unlike [`Resampler`](crate::support::audio::Resampler), this is not
+/// streaming, and its output is not phase-aligned to the output rate's grid:
+/// it reproduces a reference, sample for sample.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub struct HannSincResampler {
     /// The kernel's half-width in zero crossings of the sinc; at least 1.
@@ -39,43 +40,18 @@ pub struct HannSincResampler {
     pub rolloff: f64,
 }
 
-/// The greatest common divisor of `a` and `b`.
-fn gcd(
-    a: usize,
-    b: usize,
-) -> usize {
-    if b == 0 { a } else { gcd(b, a % b) }
-}
-
-/// One conversion's kernels: `phases` rows of `taps` each, and the padding
-/// before the signal.
-#[derive(Clone, Debug, PartialEq)]
-pub struct HannSincKernels {
-    /// The reduced input rate, `in'`: the stride between output frames.
-    pub stride: usize,
-
-    /// The zeros before the signal; `width + stride` follow it.
-    pub width: usize,
-
-    /// The kernels, `[phases, taps]` row-major, `phases = out'`, `taps =
-    /// 2 * width + stride`.
-    pub kernels: Vec<f32>,
-}
-
-impl HannSincKernels {
-    /// The kernels' length, `2 * width + stride`.
-    pub fn taps(&self) -> usize {
-        2 * self.width + self.stride
-    }
-
-    /// The output phases, `out'`.
-    pub fn phases(&self) -> usize {
-        self.kernels.len() / self.taps()
-    }
-}
-
 impl HannSincResampler {
-    /// The kernels from `in_rate` to `out_rate`.
+    /// The windowed-sinc kernel: Hann over `lowpass_filter_width` zero
+    /// crossings.
+    pub fn kernel(&self) -> WindowedSinc<CosineWindowConfig> {
+        WindowedSinc {
+            taper: CosineWindowConfig::hann(true),
+            zero_crossings: self.lowpass_filter_width as f64,
+        }
+    }
+
+    /// The kernels from `in_rate` to `out_rate`
+    /// ([`SincPhaseTable::torchaudio`]).
     ///
     /// # Panics
     /// If either rate is zero, or the filter width is.
@@ -83,38 +59,12 @@ impl HannSincResampler {
         &self,
         in_rate: usize,
         out_rate: usize,
-    ) -> HannSincKernels {
-        assert!(in_rate > 0 && out_rate > 0, "rates must be non-zero");
+    ) -> SincPhaseTable {
         assert!(
             self.lowpass_filter_width > 0,
             "lowpass_filter_width must be non-zero"
         );
-        let g = gcd(in_rate, out_rate);
-        let (orig, new) = (in_rate / g, out_rate / g);
-        let lpw = self.lowpass_filter_width as f64;
-        let base = orig.min(new) as f64 * self.rolloff;
-        let width = (lpw * orig as f64 / base).ceil() as usize;
-        let taps = 2 * width + orig;
-        let scale = base / orig as f64;
-        let mut kernels = Vec::with_capacity(new * taps);
-        for phase in 0..new {
-            // `torchaudio` divides the phase in float32 (an int64 `arange`
-            // over an int is float32's default dtype), then widens it.
-            let shift = f64::from(-(phase as f32) / new as f32);
-            for k in 0..taps {
-                let idx = (k as f64 - width as f64) / orig as f64;
-                let t = ((shift + idx) * base).clamp(-lpw, lpw);
-                let window = (t * PI / lpw / 2.0).cos().powi(2);
-                let t = t * PI;
-                let sinc = if t == 0.0 { 1.0 } else { t.sin() / t };
-                kernels.push((sinc * window * scale) as f32);
-            }
-        }
-        HannSincKernels {
-            stride: orig,
-            width,
-            kernels,
-        }
+        SincPhaseTable::torchaudio(&self.kernel(), self.rolloff, in_rate, out_rate)
     }
 
     /// `input`, a whole signal at `in_rate`, at `out_rate`: `ceil(n *
@@ -217,21 +167,6 @@ mod tests {
             );
             assert_io_close_within(&case, actual, expected, Tolerance::rel_abs(1e-6, 1e-6));
         }
-    }
-
-    /// The kernels' geometry, as `torchaudio` sizes it: 24 kHz to 16 kHz is
-    /// 3:2, a cut-off of `2 * 0.99`, so `ceil(6 * 3 / 1.98) = 10` zeros of
-    /// padding and kernels of 23 taps, two phases.
-    #[test]
-    fn test_kernel_geometry() {
-        let kernels = HannSincResampler::new().kernels(24000, 16000);
-        assert_eq!(kernels.stride, 3);
-        assert_eq!(kernels.width, 10);
-        assert_eq!(kernels.taps(), 23);
-        assert_eq!(kernels.phases(), 2);
-        // Phase 0 is centered on its frame's first sample: the sinc's peak.
-        let peak = kernels.kernels[kernels.width];
-        assert!(kernels.kernels[..23].iter().all(|&w| w <= peak));
     }
 
     /// Equal rates pass the signal through; the length rounds up.

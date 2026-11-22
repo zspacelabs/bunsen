@@ -15,8 +15,8 @@ use crate::{
     ops::signal::{
         KaldiFbankConfig,
         kernels::window::StftWindowConfig,
+        resample::HannSincResampler,
     },
-    support::audio::HannSincResampler,
 };
 
 /// Common meta for [`Zonos3SpeakerEncoder`](super::Zonos3SpeakerEncoder) and
