@@ -9,9 +9,15 @@ use core::fmt::Debug;
 use super::{
     TtsTakeRequest,
     TtsVoiceChoice,
+    TtsVoicePrint,
+    TtsVoiceReference,
 };
 use crate::{
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+        LookupError,
+    },
     kits::support::text::BunsenLanguageTag,
 };
 
@@ -43,6 +49,98 @@ pub struct TtsCapabilities {
 
     /// Whether a request may carry a style instruction.
     pub instruction: bool,
+
+    /// The modes it clones a voice in, its default first; none, it clones
+    /// none.
+    pub clone_modes: Vec<TtsCloneMode>,
+}
+
+impl TtsCapabilities {
+    /// The mode to build a voice from `reference` in: `asked`, when it names
+    /// one; else the first that `reference` satisfies.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for an
+    /// engine that clones none; [`Lookup`](crate::errors::BunsenErrorKind::Lookup)
+    /// for a mode it does not have; [`Illegal`](crate::errors::BunsenErrorKind::Illegal)
+    /// for one `reference` does not satisfy, or none it does, naming the need.
+    pub fn clone_mode(
+        &self,
+        reference: &TtsVoiceReference,
+        asked: Option<&str>,
+    ) -> BunsenResult<&TtsCloneMode> {
+        if self.clone_modes.is_empty() {
+            return Err(BunsenError::unsupported("this model clones no voices"));
+        }
+        match asked {
+            Some(name) => {
+                let mode = self
+                    .clone_modes
+                    .iter()
+                    .find(|m| m.name == name)
+                    .ok_or_else(|| {
+                        BunsenError::lookup(
+                            LookupError::missing("clone mode", name)
+                                .with_candidates(self.clone_modes.iter().map(|m| &m.name)),
+                        )
+                    })?;
+                mode.check(reference)?;
+                Ok(mode)
+            }
+            None => self
+                .clone_modes
+                .iter()
+                .find(|m| m.check(reference).is_ok())
+                .ok_or_else(|| {
+                    let first = &self.clone_modes[0];
+                    first.check(reference).unwrap_err()
+                }),
+        }
+    }
+}
+
+/// A mode an engine clones a voice in, and what it needs of a reference.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TtsCloneMode {
+    /// Its name (`embedding`, `xvector`, `icl`).
+    pub name: String,
+
+    /// Whether it needs the reference's transcript.
+    pub needs_transcript: bool,
+}
+
+impl TtsCloneMode {
+    /// A mode named `name` that needs a clip alone.
+    pub fn clip(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            needs_transcript: false,
+        }
+    }
+
+    /// Refuses a reference this mode cannot build a voice from.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a reference of
+    /// no clips, or of no transcript where it needs one, naming the mode.
+    pub fn check(
+        &self,
+        reference: &TtsVoiceReference,
+    ) -> BunsenResult<()> {
+        if reference.clips.is_empty() {
+            return Err(BunsenError::illegal(format!(
+                "a voice reference of no clips, for clone mode {}",
+                self.name
+            )));
+        }
+        if self.needs_transcript && reference.transcript().is_none_or(str::is_empty) {
+            return Err(BunsenError::illegal(format!(
+                "clone mode {} needs the reference's transcript: give one, or transcribe the clips",
+                self.name
+            )));
+        }
+        Ok(())
+    }
 }
 
 /// What kind of voice a [`TtsVoiceInfo`] is.
@@ -51,6 +149,9 @@ pub struct TtsCapabilities {
 pub enum TtsVoiceKind {
     /// One the release ships.
     Stock,
+
+    /// One built from a voice reference ([`TtsVoicePrint`]).
+    User,
 }
 
 /// What an engine says of one of its voices.
@@ -195,4 +296,22 @@ pub trait TtsEngine: Debug + Send + Sync {
         &self,
         take: &Self::Take,
     ) -> TtsTakeInfo;
+
+    /// The voice built from `reference` for this engine's build, in `mode` (the
+    /// [default](TtsCapabilities::clone_mode) when `None`): its clips
+    /// prepared for the encoder, its transcript tokenized where the mode
+    /// reads one, encoded, to a voice of the engine's own tensors.
+    ///
+    /// The default clones none.
+    ///
+    /// # Errors
+    /// As [`TtsCapabilities::clone_mode`]; the encoder's.
+    fn build_voice(
+        &self,
+        reference: &TtsVoiceReference,
+        mode: Option<&str>,
+    ) -> BunsenResult<TtsVoicePrint> {
+        self.capabilities().clone_mode(reference, mode)?;
+        Err(BunsenError::unsupported("this model clones no voices"))
+    }
 }

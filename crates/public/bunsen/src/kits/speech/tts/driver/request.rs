@@ -17,6 +17,10 @@ pub enum TtsVoiceChoice {
     /// A voice described in words, for an engine that designs one
     /// ([`TtsCapabilities::described_voices`](super::TtsCapabilities::described_voices)).
     Described(String),
+
+    /// A voice built for this engine's build
+    /// ([`TtsEngine::build_voice`](super::TtsEngine::build_voice)).
+    Print(super::TtsVoicePrint),
 }
 
 /// Sampling settings over an engine's release defaults: each `None` keeps
