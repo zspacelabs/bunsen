@@ -1,0 +1,447 @@
+//! Decoding audio files: [`load_audio_mono_sr`] and [`load_audio`].
+
+use std::path::Path;
+
+use hound::{
+    SampleFormat,
+    WavReader,
+};
+use symphonia::core::{
+    codecs::audio::AudioDecoderOptions,
+    formats::{
+        FormatOptions,
+        TrackType,
+        probe::Hint,
+    },
+    io::MediaSourceStream,
+    meta::MetadataOptions,
+};
+
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+    sys_at,
+};
+
+/// Loads a mono audio file, as `f32` samples in `[-1, 1]`.
+///
+/// `.wav` is read with `hound`; every other extension is handed to
+/// `symphonia`, which covers the compressed formats (mp3).
+///
+/// The file must *already* be mono at `sample_rate`: this decodes, it does not
+/// resample or downmix. A file that disagrees is an error rather than a silent
+/// conversion, because a resample is a signal-processing decision the caller
+/// should make deliberately — the mel front end's output depends on it.
+///
+/// # Arguments
+/// * `filename` - path to an audio file.
+/// * `sample_rate` - the sample rate the file is required to have.
+///
+/// # Errors
+/// Every error names the file.
+/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a missing or
+///   forbidden file; [`Sys`](crate::errors::BunsenErrorKind::Sys) (or another
+///   kind [`sys_at`] sorts it to) for any other io failure;
+/// - [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for a
+///   file that does not decode, has no audio track, is not mono, or is not at
+///   `sample_rate`; the decoder's error, if any, is the cause;
+/// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
+///   container, codec or WAV format the decoders do not support.
+pub fn load_audio_mono_sr(
+    filename: impl AsRef<Path>,
+    sample_rate: usize,
+) -> BunsenResult<Vec<f32>> {
+    let filename = filename.as_ref();
+    let (rate, channels, samples) = decode(filename)?;
+    check_mono_sr(filename, channels, rate, sample_rate)?;
+    Ok(samples)
+}
+
+/// A decoded audio file: its rate, and its samples per channel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecodedAudio {
+    /// The sample rate, in Hz.
+    pub sample_rate: u32,
+
+    /// The samples, `[channels][samples]`, in `[-1, 1]`.
+    pub channels: Vec<Vec<f32>>,
+}
+
+/// Loads an audio file as it is: at its own rate and channels, as `f32`
+/// samples in `[-1, 1]`, for a caller that resamples or mixes down
+/// deliberately (a reference clip a voice is cloned from).
+///
+/// `.wav` is read with `hound`; every other extension is handed to
+/// `symphonia`.
+///
+/// # Errors
+/// As [`load_audio_mono_sr`]'s, but for the channel and rate checks; and
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for
+/// a compressed file whose rate or channels change mid-stream.
+pub fn load_audio(filename: impl AsRef<Path>) -> BunsenResult<DecodedAudio> {
+    let filename = filename.as_ref();
+    let (rate, channels, samples) = decode(filename)?;
+    let channels = channels.max(1);
+    let per = samples.len() / channels;
+    let channels = (0..channels)
+        .map(|c| (0..per).map(|i| samples[i * channels + c]).collect())
+        .collect();
+    Ok(DecodedAudio {
+        sample_rate: rate as u32,
+        channels,
+    })
+}
+
+/// A file's rate, channels and interleaved samples, by its extension's
+/// decoder.
+fn decode(filename: &Path) -> BunsenResult<(usize, usize, Vec<f32>)> {
+    let ext = filename
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "wav" | "wave" => decode_wav(filename),
+        _ => decode_compressed(filename, &ext),
+    }
+}
+
+/// Rejects anything that is not single-channel audio at `expected`.
+fn check_mono_sr(
+    filename: &Path,
+    channels: usize,
+    rate: usize,
+    expected: usize,
+) -> BunsenResult<()> {
+    if channels != 1 {
+        return Err(BunsenError::invalid_resource(format!(
+            "{}: the audio has {channels} channels; it must be single-channel",
+            filename.display()
+        )));
+    }
+    if rate != expected {
+        return Err(BunsenError::invalid_resource(format!(
+            "{}: the sample rate is {rate}; it must be {expected}",
+            filename.display()
+        )));
+    }
+    Ok(())
+}
+
+/// Sorts a `hound` error about `filename`, met while doing `op`.
+///
+/// An io error is sorted by [`sys_at`], except an unexpected end of file:
+/// the file is truncated.
+pub(super) fn hound_error(
+    op: &'static str,
+    filename: &Path,
+) -> impl FnOnce(hound::Error) -> BunsenError {
+    let filename = filename.to_path_buf();
+    move |e| match e {
+        hound::Error::IoError(e) if e.kind() != std::io::ErrorKind::UnexpectedEof => {
+            sys_at(op, &filename)(e)
+        }
+        hound::Error::Unsupported => BunsenError::unsupported(format!(
+            "{}: {op}: the WAV format is not supported",
+            filename.display()
+        ))
+        .with_cause(e),
+        e => BunsenError::invalid_resource(format!(
+            "{}: {op}: not a readable WAV file",
+            filename.display()
+        ))
+        .with_cause(e),
+    }
+}
+
+/// Sorts a `symphonia` error about `filename`, met while doing `op`.
+///
+/// An io error is sorted by [`sys_at`], except an unexpected end of file:
+/// the stream is truncated.
+fn symphonia_error(
+    op: &'static str,
+    filename: &Path,
+) -> impl FnOnce(symphonia::core::errors::Error) -> BunsenError {
+    use symphonia::core::errors::Error;
+
+    let filename = filename.to_path_buf();
+    move |e| match e {
+        Error::IoError(e) if e.kind() != std::io::ErrorKind::UnexpectedEof => {
+            sys_at(op, &filename)(e)
+        }
+        Error::Unsupported(_) => BunsenError::unsupported(format!(
+            "{}: {op}: the audio format is not supported",
+            filename.display()
+        ))
+        .with_cause(e),
+        e => BunsenError::invalid_resource(format!(
+            "{}: {op}: the audio does not decode",
+            filename.display()
+        ))
+        .with_cause(e),
+    }
+}
+
+/// Reads a WAV file through `hound`: its rate, channels and interleaved
+/// samples.
+fn decode_wav(filename: &Path) -> BunsenResult<(usize, usize, Vec<f32>)> {
+    let mut reader = WavReader::open(filename).map_err(hound_error("open", filename))?;
+    let spec = reader.spec();
+
+    let samples: Vec<f32> = match (spec.sample_format, spec.bits_per_sample) {
+        (SampleFormat::Float, 32) => reader
+            .samples::<f32>()
+            .collect::<Result<Vec<f32>, _>>()
+            .map_err(hound_error("read samples", filename))?,
+        (SampleFormat::Int, bits) => {
+            let scale = (1i64 << (bits - 1)) as f32;
+            reader
+                .samples::<i32>()
+                .collect::<Result<Vec<i32>, _>>()
+                .map_err(hound_error("read samples", filename))?
+                .into_iter()
+                .map(|s| s as f32 / scale)
+                .collect()
+        }
+        _ => unreachable!("hound rejects other formats at open"),
+    };
+
+    Ok((spec.sample_rate as usize, spec.channels as usize, samples))
+}
+
+/// Decodes a compressed file through `symphonia`.
+///
+/// Gapless playback is the `AudioDecoderOptions` default, so an mp3's encoder
+/// delay and padding are trimmed rather than returned as leading and trailing
+/// silence — which would otherwise shift every frame of a spectrogram computed
+/// from it.
+fn decode_compressed(
+    filename: &Path,
+    ext: &str,
+) -> BunsenResult<(usize, usize, Vec<f32>)> {
+    let file = std::fs::File::open(filename).map_err(sys_at("open", filename))?;
+    let stream = MediaSourceStream::new(Box::new(file), Default::default());
+
+    let mut hint = Hint::new();
+    if !ext.is_empty() {
+        hint.with_extension(ext);
+    }
+
+    let mut format = symphonia::default::get_probe()
+        .probe(
+            &hint,
+            stream,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
+        .map_err(symphonia_error("probe", filename))?;
+
+    let track = format.default_track(TrackType::Audio).ok_or_else(|| {
+        BunsenError::invalid_resource(format!(
+            "{}: the file has no decodable audio track",
+            filename.display()
+        ))
+    })?;
+
+    let track_id = track.id;
+
+    let codec_params = track
+        .codec_params
+        .as_ref()
+        .and_then(|params| params.audio())
+        .ok_or_else(|| {
+            BunsenError::invalid_resource(format!(
+                "{}: the audio track has no audio codec parameters",
+                filename.display()
+            ))
+        })?;
+
+    let mut decoder = symphonia::default::get_codecs()
+        .make_audio_decoder(codec_params, &AudioDecoderOptions::default())
+        .map_err(symphonia_error("make a decoder", filename))?;
+
+    let mut samples: Vec<f32> = Vec::new();
+    let mut layout: Option<(usize, usize)> = None;
+
+    // Reused across packets: `copy_to_vec_interleaved` resizes to the exact
+    // sample count and keeps whatever capacity the widest packet so far needed.
+    let mut packet_samples: Vec<f32> = Vec::new();
+
+    // A clean end of stream is `Ok(None)`.
+    while let Some(packet) = format
+        .next_packet()
+        .map_err(symphonia_error("read a packet", filename))?
+    {
+        if packet.track_id != track_id {
+            continue;
+        }
+
+        let decoded = decoder
+            .decode(&packet)
+            .map_err(symphonia_error("decode a packet", filename))?;
+        let spec = decoded.spec();
+        let this = (spec.rate() as usize, spec.channels().count());
+        match layout {
+            None => layout = Some(this),
+            Some(first) if first != this => {
+                return Err(BunsenError::invalid_resource(format!(
+                    "{}: the stream changes from {} Hz, {} channels to {} Hz, {} channels",
+                    filename.display(),
+                    first.0,
+                    first.1,
+                    this.0,
+                    this.1
+                )));
+            }
+            Some(_) => {}
+        }
+
+        decoded.copy_to_vec_interleaved(&mut packet_samples);
+        samples.extend_from_slice(&packet_samples);
+    }
+
+    let (rate, channels) = layout.unwrap_or((0, 1));
+    Ok((rate, channels, samples))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        LookupError,
+        testing::ErrorMatcher,
+    };
+
+    /// A short synthetic tone, in both formats: `bunsen-test-audio`'s
+    /// `tone.wav` and `tone.mp3`.
+    fn wav() -> std::path::PathBuf {
+        bunsen_test_audio::TONE_WAV.path()
+    }
+
+    fn mp3() -> std::path::PathBuf {
+        bunsen_test_audio::TONE_MP3.path()
+    }
+
+    /// 0.5 s at 16 kHz.
+    const EXPECTED: usize = 8_000;
+
+    /// The rate a WAV declares is checked, not assumed.
+    #[test]
+    fn test_load_audio_mono_sr_wav() {
+        let samples = load_audio_mono_sr(wav(), 16000).unwrap();
+        assert_eq!(samples.len(), EXPECTED);
+
+        // A sample-rate mismatch is an error, not a silent resample.
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("tone.wav: the sample rate is 16000; it must be 8000")
+            .assert_err(&load_audio_mono_sr(wav(), 8000));
+    }
+
+    /// A file as it is: a stereo WAV's channels apart, at its own rate; and a
+    /// stereo file is refused by the mono loader.
+    #[test]
+    fn test_load_audio_stereo() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("stereo.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 22_050,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(&path, spec).unwrap();
+        for (l, r) in [(8192i16, -8192i16), (16384, 0), (0, 16384)] {
+            writer.write_sample(l).unwrap();
+            writer.write_sample(r).unwrap();
+        }
+        writer.finalize().unwrap();
+        let audio = load_audio(&path).unwrap();
+        assert_eq!(audio.sample_rate, 22_050);
+        assert_eq!(
+            audio.channels,
+            vec![vec![0.25, 0.5, 0.0], vec![-0.25, 0.0, 0.5]]
+        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("2 channels")
+            .assert_err(&load_audio_mono_sr(&path, 22_050));
+
+        let mono = load_audio(mp3()).unwrap();
+        assert_eq!(mono.sample_rate, 16_000);
+        assert_eq!(mono.channels.len(), 1);
+    }
+
+    /// mp3 goes through a different decoder than WAV, so it gets its own case.
+    #[test]
+    fn test_load_audio_mono_sr_mp3() {
+        let samples = load_audio_mono_sr(mp3(), 16000).unwrap();
+
+        // Gapless trims the encoder delay, but mp3 still frames in blocks of
+        // 576 samples, so the tail is padded out to a whole frame.
+        let slack = samples.len().abs_diff(EXPECTED);
+        assert!(
+            slack <= 1152,
+            "decoded {} samples, expected about {EXPECTED} (off by {slack})",
+            samples.len(),
+        );
+
+        assert!(
+            samples.iter().all(|s| s.is_finite() && s.abs() <= 1.0),
+            "samples must be finite and within [-1, 1]",
+        );
+        assert!(
+            samples.iter().any(|&s| s.abs() > 0.01),
+            "decoded to silence",
+        );
+
+        // A sample-rate mismatch is an error, not a silent resample.
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("tone.mp3: the sample rate is 16000; it must be 44100")
+            .assert_err(&load_audio_mono_sr(mp3(), 44100));
+    }
+
+    /// A missing file is a `Lookup` naming the path, in both decoders.
+    #[test]
+    fn test_missing_file_is_a_lookup() {
+        for name in ["no-such-file.wav", "no-such-file.mp3"] {
+            let path = bunsen_test_audio::testdata_dir().join(name);
+            ErrorMatcher::kind(BunsenErrorKind::Lookup)
+                .message_contains(name)
+                .has_cause::<LookupError>()
+                .assert_err(&load_audio_mono_sr(&path, 16000));
+        }
+    }
+
+    /// A file that is not audio is an `InvalidResource` or `Unsupported`
+    /// naming the path.
+    #[test]
+    fn test_non_audio_file_names_the_file() {
+        let wav = load_audio_mono_sr(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"), 16000);
+        ErrorMatcher::new()
+            .with_kind_matching(crate::errors::testing::value::one_of([
+                BunsenErrorKind::InvalidResource,
+                BunsenErrorKind::Unsupported,
+            ]))
+            .message_contains("Cargo.toml")
+            .assert_err(&wav);
+    }
+
+    /// The two formats must agree on the signal they carry.
+    ///
+    /// mp3 is lossy, so this is a coarse check — but a decoder that dropped a
+    /// channel, mis-scaled, or returned garbage would fail it.
+    #[test]
+    fn test_wav_and_mp3_carry_the_same_tone() {
+        let wav = load_audio_mono_sr(wav(), 16000).unwrap();
+        let mp3 = load_audio_mono_sr(mp3(), 16000).unwrap();
+
+        let rms =
+            |x: &[f32]| (x.iter().map(|v| (v * v) as f64).sum::<f64>() / x.len() as f64).sqrt();
+
+        let (a, b) = (rms(&wav[..EXPECTED / 2]), rms(&mp3[..EXPECTED / 2]));
+        assert!(
+            (a - b).abs() / a < 0.05,
+            "rms differs by more than 5%: wav {a:.4} vs mp3 {b:.4}",
+        );
+    }
+}

@@ -5,7 +5,7 @@
 //! mean?" on a failed lookup ([`did_you_mean`]); with `live`, the host's audio
 //! devices (`find_audio_device`, `list_audio_devices`) and the microphone,
 //! captured at a rate asked for (`Capture`), resampled when the device's
-//! differs (bunsen's `support::audio::Resampler`).
+//! differs (bunsen's `ops::signal::resample::StreamingResampler`).
 
 #[cfg(feature = "live")]
 mod audio_devices;

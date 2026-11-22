@@ -44,8 +44,10 @@
 //!   `torchaudio.compliance.kaldi.fbank` computes them (speaker encoders' front
 //!   end).
 //! - **Rate conversion.** [`resample`]:
+//!   [`StreamingResampler`](resample::StreamingResampler), a streaming
+//!   Blackman-windowed sinc, and
 //!   [`HannSincResampler`](resample::HannSincResampler), `torchaudio`'s
-//!   `sinc_interp_hann` conversion, on [`kernels::sinc`].
+//!   `sinc_interp_hann` conversion; both on [`kernels::sinc`].
 //! - **Long audio.** [`quiet_cuts`] cuts a long recording into bounded windows
 //!   at its quietest points, for models that take bounded utterances.
 //!

@@ -1,28 +1,55 @@
-//! A windowed-sinc resampler: audio at one rate to another.
+//! [`StreamingResampler`]: a Blackman-windowed sinc, streaming.
 
-use core::f64::consts::PI;
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
+// `std` has these float methods inherently; `core` has them through `Float`.
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
+
+use crate::ops::signal::kernels::{
+    sinc::normalized_sinc,
+    window::{
+        DualCosineWindow,
+        WindowTaper,
+    },
+};
+
+/// The classic Blackman window, `0.42 + 0.5·cos(πx) + 0.08·cos(2πx)`, its
+/// coefficients as written ([`DualCosineWindow::blackman`] computes `gamma`
+/// as `1 - 0.92`, a rounding off `0.08`).
+const BLACKMAN: DualCosineWindow = DualCosineWindow {
+    alpha: 0.42,
+    beta: 0.5,
+    gamma: 0.08,
+    periodic: false,
+};
 
 /// Kernel half-width in output-rate samples; widened by the ratio when
 /// downsampling, so the stop band stays where the aliases are.
 const HALF_TAPS: usize = 16;
 
 /// A streaming rate converter: feed input in any pieces, collect output;
-/// [`resample`] converts a whole signal.
+/// [`resample`](Self::resample) converts a whole signal.
 ///
 /// bunsen decodes files at a model's rate and declines to resample them
-/// ([`load_audio_mono_sr`](super::load_audio_mono_sr)), because a resample
+/// ([`load_audio_mono_sr`](crate::support::audio::load_audio_mono_sr)), because a resample
 /// is a signal-processing decision the caller makes deliberately: a
 /// microphone opened at another rate, or one model's output read by
 /// another.
 ///
 /// Each output sample is the input convolved with a Blackman-windowed sinc
-/// centred on its position, cut off at the lower of the two Nyquist rates,
-/// and normalized to unit DC gain for its phase. The kernel is symmetric
+/// ([`kernels::sinc`](crate::ops::signal::kernels::sinc)) centred on its
+/// position, cut off at the lower of the two Nyquist rates, and normalized to
+/// unit DC gain for its phase. The kernel is symmetric
 /// and output sample `n` sits at input position `n * in / out` exactly, so
 /// there is no delay to account for, and the output is the same whatever
 /// the pushes were cut into.
 #[derive(Debug, Clone)]
-pub struct Resampler {
+pub struct StreamingResampler {
     in_rate: usize,
     out_rate: usize,
 
@@ -44,7 +71,7 @@ pub struct Resampler {
     emitted: usize,
 }
 
-impl Resampler {
+impl StreamingResampler {
     /// A converter from `in_rate` to `out_rate`, both in samples per second.
     ///
     /// # Panics
@@ -65,6 +92,23 @@ impl Resampler {
             released: 0,
             emitted: 0,
         }
+    }
+
+    /// `input`, a whole signal at `in_rate`, at `out_rate`: `in_len * out /
+    /// in` samples ([`new`](Self::new), then [`finish`](Self::finish)).
+    ///
+    /// # Panics
+    /// If either rate is zero.
+    pub fn resample(
+        input: &[f32],
+        in_rate: usize,
+        out_rate: usize,
+    ) -> Vec<f32> {
+        let mut resampler = Self::new(in_rate, out_rate);
+        let mut out = Vec::with_capacity(input.len() * out_rate / in_rate + 1);
+        resampler.process(input, &mut out);
+        resampler.finish(&mut out);
+        out
     }
 
     /// Whether the rates are equal, so samples pass straight through.
@@ -146,14 +190,7 @@ impl Resampler {
         if t.abs() >= 1.0 {
             return 0.0;
         }
-        let window = 0.42 + 0.5 * (PI * t).cos() + 0.08 * (2.0 * PI * t).cos();
-        let arg = self.cutoff * x;
-        let sinc = if arg.abs() < 1e-9 {
-            1.0
-        } else {
-            (PI * arg).sin() / (PI * arg)
-        };
-        self.cutoff * sinc * window
+        self.cutoff * normalized_sinc(self.cutoff * x) * BLACKMAN.taper(t)
     }
 
     /// One output sample at position `pos` in `buffer`.
@@ -174,26 +211,39 @@ impl Resampler {
     }
 }
 
-/// `input`, a whole signal at `in_rate`, at `out_rate`: `in_len * out / in`
-/// samples ([`Resampler`], then [`finish`](Resampler::finish)).
-///
-/// # Panics
-/// If either rate is zero.
-pub fn resample(
-    input: &[f32],
-    in_rate: usize,
-    out_rate: usize,
-) -> Vec<f32> {
-    let mut resampler = Resampler::new(in_rate, out_rate);
-    let mut out = Vec::with_capacity(input.len() * out_rate / in_rate + 1);
-    resampler.process(input, &mut out);
-    resampler.finish(&mut out);
-    out
-}
-
 #[cfg(test)]
 mod tests {
+    use core::f64::consts::PI;
+
     use super::*;
+    use crate::ops::signal::kernels::sinc::WindowedSinc;
+
+    /// The kernel is `kernels::sinc`'s windowed sinc in the sinc's units: `t =
+    /// cutoff · x`, over `cutoff · half` zero crossings, scaled by the cut-off.
+    #[test]
+    fn test_kernel_is_the_windowed_sinc() {
+        for (in_rate, out_rate) in [(48000, 16000), (44100, 16000), (8000, 16000)] {
+            let resampler = StreamingResampler::new(in_rate, out_rate);
+            let kernel = WindowedSinc {
+                taper: BLACKMAN,
+                zero_crossings: resampler.cutoff * resampler.half as f64,
+            };
+            let half = resampler.half as f64;
+            for i in -400..=400 {
+                let x = i as f64 * half / 380.0;
+                let expected = if x.abs() >= half {
+                    0.0
+                } else {
+                    resampler.cutoff * kernel.at(resampler.cutoff * x)
+                };
+                let got = resampler.kernel(x);
+                assert!(
+                    (got - expected).abs() < 1e-15,
+                    "{in_rate}->{out_rate} at {x}: {got} vs {expected}"
+                );
+            }
+        }
+    }
 
     fn tone(
         rate: usize,
@@ -212,7 +262,7 @@ mod tests {
     #[test]
     fn test_identity_passes_through() {
         let input = tone(16000, 440.0, 0.1);
-        let mut resampler = Resampler::new(16000, 16000);
+        let mut resampler = StreamingResampler::new(16000, 16000);
         assert!(resampler.is_identity());
 
         let mut out = Vec::new();
@@ -229,7 +279,7 @@ mod tests {
         hz: f64,
     ) {
         let input = tone(in_rate, hz, 1.0);
-        let mut resampler = Resampler::new(in_rate, out_rate);
+        let mut resampler = StreamingResampler::new(in_rate, out_rate);
         assert!(!resampler.is_identity());
 
         let mut out = Vec::new();
@@ -276,7 +326,7 @@ mod tests {
     #[test]
     fn test_alias_removed() {
         let input = tone(48000, 12000.0, 1.0);
-        let mut resampler = Resampler::new(48000, 16000);
+        let mut resampler = StreamingResampler::new(48000, 16000);
         let mut out = Vec::new();
         resampler.process(&input, &mut out);
 
@@ -291,10 +341,10 @@ mod tests {
         let input = tone(44100, 700.0, 0.5);
 
         let mut whole = Vec::new();
-        Resampler::new(44100, 16000).process(&input, &mut whole);
+        StreamingResampler::new(44100, 16000).process(&input, &mut whole);
 
         let mut pieces = Vec::new();
-        let mut resampler = Resampler::new(44100, 16000);
+        let mut resampler = StreamingResampler::new(44100, 16000);
         let sizes = [1usize, 7, 100, 333, 1024];
         let mut at = 0;
         let mut i = 0;
@@ -312,13 +362,16 @@ mod tests {
     #[test]
     fn test_resample_whole() {
         let input = tone(44100, 1000.0, 1.0);
-        let out = resample(&input, 44100, 16000);
+        let out = StreamingResampler::resample(&input, 44100, 16000);
         assert_eq!(out.len(), 16000);
         // The tail, whose kernel reaches past the end, still holds the tone.
         let tail = &out[16000 - 200..16000 - 20];
         assert!(rms(tail) > 0.6, "the tail's rms {:.3}", rms(tail));
 
-        assert_eq!(resample(&input, 44100, 44100), input);
-        assert_eq!(resample(&input[..441], 44100, 8000).len(), 80);
+        assert_eq!(StreamingResampler::resample(&input, 44100, 44100), input);
+        assert_eq!(
+            StreamingResampler::resample(&input[..441], 44100, 8000).len(),
+            80
+        );
     }
 }

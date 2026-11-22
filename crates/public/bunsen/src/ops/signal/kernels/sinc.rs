@@ -11,8 +11,11 @@
 //! The rate converters in [`ops::signal::resample`](crate::ops::signal::resample)
 //! differ in how they place the kernel, not in the kernel:
 //! [`HannSincResampler`](crate::ops::signal::resample::HannSincResampler)
-//! (`torchaudio`'s `sinc_interp_hann`) tabulates it at each output phase of a
-//! reduced ratio ([`SincPhaseTable::torchaudio`]).
+//! (`torchaudio`'s `sinc_interp_hann`) tabulates it under Hann at each output
+//! phase of a reduced ratio ([`SincPhaseTable::torchaudio`]);
+//! [`StreamingResampler`](crate::ops::signal::resample::StreamingResampler)
+//! evaluates it under Blackman at each output's exact position, over `16 /
+//! cutoff` input samples, and normalizes each output's taps to unit DC gain.
 
 use alloc::vec::Vec;
 use core::f64::consts::PI;
