@@ -351,11 +351,13 @@ $contracts:
     $resources:
       checkpoint:
         $description: "The weights: the language model under `lm.`, the codec decoder under
-          `codec.`."
+          `codec.`, and the speaker encoder under `speaker_encoder.` where config.json has its
+          section."
         $format:
           - safetensors
       config:
-        $description: "`config.json`: the `lm`, `codec` and `generation` sections."
+        $description: "`config.json`: the `lm`, `codec` and `generation` sections, and an optional
+          `speaker_encoder` section."
         $format:
           - json
       tokenizer:

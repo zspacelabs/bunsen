@@ -116,6 +116,9 @@ pub struct Zonos3Mirror {
     pub generation: Zonos3GenerationMirror,
     /// The output's sample rate.
     pub sampling_rate: u32,
+    /// The speaker encoder, when the release ships one.
+    #[serde(default)]
+    pub speaker_encoder: Option<super::Zonos3SpeakerEncoderMirror>,
 }
 
 impl Zonos3Mirror {

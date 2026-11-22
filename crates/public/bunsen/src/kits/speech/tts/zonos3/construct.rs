@@ -19,6 +19,10 @@ use super::{
         Zonos3LmConfig,
     },
     prompt::Zonos3PromptConfig,
+    speaker::{
+        Zonos3SpeakerEncoder,
+        Zonos3SpeakerEncoderConfig,
+    },
     voices::Zonos3Voice,
 };
 use crate::{
@@ -67,6 +71,11 @@ pub struct Zonos3Construct {
     /// The `tokenizer.json`: ids already offset past the four special ids
     /// ([`zonos3_text_ids`](super::prompt::zonos3_text_ids)).
     pub tokenizer: PathBuf,
+
+    /// The speaker encoder and its config, when the release ships one
+    /// (`config.json`'s `speaker_encoder` section): always in f32, as
+    /// upstream runs it whatever the language model's dtype.
+    pub speaker: Option<(Zonos3SpeakerEncoder, Zonos3SpeakerEncoderConfig)>,
 }
 
 impl Zonos3Construct {

@@ -11,6 +11,8 @@
 //!   prefill, then [`fixtures::STEPS`] decode steps teacher-forced through its
 //!   cache (`logits`);
 //! - its codec's audio from fixed codes, in float32 (`codec`);
+//! - its speaker encoder over each stock voice's codec render, from the clip at
+//!   44.1 kHz to the embedding, in float32 (`speaker`);
 //! - its driver, a take of a stock voice end to end (`driver`): it ends on the
 //!   end of audio, at a plausible length;
 //! - the logits again in bf16 on CUDA, against the reference's own bf16
@@ -30,6 +32,8 @@
 //!   teacher-forced decode steps;
 //! - `testdata/reference_bf16.safetensors`: the same in bfloat16;
 //! - `testdata/codec.safetensors`: the `-hf` codec's audio from fixed codes;
+//! - `testdata/speaker.safetensors`: the `-hf` speaker encoder's stages and
+//!   embedding over each stock voice's codec render;
 //! - `testdata/tokenizer.safetensors`: the `-hf` tokenizer's ids for the UDHR
 //!   texts.
 //!
@@ -363,3 +367,6 @@ mod codec;
 
 #[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod driver;
+
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
+mod speaker;
