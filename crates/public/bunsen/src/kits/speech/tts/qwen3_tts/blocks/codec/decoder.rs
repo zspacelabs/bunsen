@@ -12,11 +12,6 @@ use super::{
     Qwen3TtsCodecTransformerConfig,
     Qwen3TtsCodecUpsample,
     Qwen3TtsCodecUpsampleConfig,
-    Qwen3TtsVocoder,
-    Qwen3TtsVocoderBlockConfig,
-    Qwen3TtsVocoderConfig,
-    Qwen3TtsVocoderMeta,
-    Qwen3TtsVocoderResidualUnitConfig,
 };
 use crate::{
     blocks::{
@@ -32,6 +27,13 @@ use crate::{
             SplitResidualVectorQuantizer,
             SplitResidualVectorQuantizerConfig,
             SplitResidualVectorQuantizerMeta,
+        },
+        signals::{
+            DacDecoder,
+            DacDecoderBlockConfig,
+            DacDecoderConfig,
+            DacDecoderMeta,
+            DacResidualUnitConfig,
         },
         transformers::{
             attention::csa::CausalSelfAttentionConfig,
@@ -98,7 +100,7 @@ pub struct Qwen3TtsCodecDecoderStructureConfig {
     pub upsample: Vec<Qwen3TtsCodecUpsampleConfig>,
 
     /// The vocoder.
-    pub decoder: Qwen3TtsVocoderConfig,
+    pub decoder: DacDecoderConfig,
 
     /// The bound the audio is clamped to, `[-c, c]`; `None`, unclamped.
     #[config(default = "Some(1.0)")]
@@ -200,7 +202,7 @@ pub struct Qwen3TtsCodecDecoder {
     pub upsample: Vec<Qwen3TtsCodecUpsample>,
 
     /// The vocoder.
-    pub decoder: Qwen3TtsVocoder,
+    pub decoder: DacDecoder,
 
     /// Audio samples per frame of codes.
     #[module(skip)]
@@ -510,7 +512,7 @@ impl Qwen3TtsCodecDecoderContractConfig {
     /// that, upsampling by `upsample_rates[i]` with a kernel of
     /// `vocoder_kernel_ratio` times it, a residual unit per
     /// `vocoder_dilations`.
-    pub fn vocoder(&self) -> Qwen3TtsVocoderConfig {
+    pub fn vocoder(&self) -> DacDecoderConfig {
         let v = self.vocoder_width;
         let blocks = self
             .upsample_rates
@@ -518,18 +520,18 @@ impl Qwen3TtsCodecDecoderContractConfig {
             .enumerate()
             .map(|(i, &r)| {
                 let out = v >> (i + 1);
-                Qwen3TtsVocoderBlockConfig::new(
+                DacDecoderBlockConfig::new(
                     [v >> i, out],
                     r,
                     self.vocoder_kernel_ratio * r,
                     self.vocoder_dilations
                         .iter()
-                        .map(|&d| Qwen3TtsVocoderResidualUnitConfig::new(out, d))
+                        .map(|&d| DacResidualUnitConfig::new(out, d))
                         .collect(),
                 )
             })
             .collect();
-        Qwen3TtsVocoderConfig::new(self.latent_width, v, blocks)
+        DacDecoderConfig::new(self.latent_width, v, blocks)
     }
 }
 
@@ -593,6 +595,11 @@ mod tests {
     use crate::{
         blocks::{
             conv::CausalConv1dMeta,
+            signals::{
+                DacDecoderBlockMeta,
+                DacDecoderMeta,
+                DacResidualUnitMeta,
+            },
             transformers::{
                 decoders::projected::ProjectedDecoderStackMeta,
                 mixers::TokenMixerConfig,
@@ -603,9 +610,6 @@ mod tests {
             blocks::{
                 Qwen3TtsCodecDecoder,
                 Qwen3TtsCodecUpsampleMeta,
-                Qwen3TtsVocoderBlockMeta,
-                Qwen3TtsVocoderMeta,
-                Qwen3TtsVocoderResidualUnitMeta,
             },
             interop::qwen_tts::*,
         },
@@ -694,7 +698,7 @@ mod tests {
             assert_eq!([meta.width(), meta.factor()], [6, 2]);
         }
         let v = &structure.decoder;
-        for meta in [v as &dyn Qwen3TtsVocoderMeta, &decoder.decoder] {
+        for meta in [v as &dyn DacDecoderMeta, &decoder.decoder] {
             assert_eq!(
                 (meta.latent_width(), meta.width(), meta.factors()),
                 (6, 12, vec![2, 3])
@@ -710,10 +714,7 @@ mod tests {
             );
         }
         let b = &structure.decoder.blocks[0];
-        for meta in [
-            b as &dyn Qwen3TtsVocoderBlockMeta,
-            &decoder.decoder.blocks[0],
-        ] {
+        for meta in [b as &dyn DacDecoderBlockMeta, &decoder.decoder.blocks[0]] {
             assert_eq!(
                 (
                     meta.channels(),
@@ -726,7 +727,7 @@ mod tests {
         }
         let r = &structure.decoder.blocks[1].residuals[2];
         for meta in [
-            r as &dyn Qwen3TtsVocoderResidualUnitMeta,
+            r as &dyn DacResidualUnitMeta,
             &decoder.decoder.blocks[1].residuals[2],
         ] {
             assert_eq!(

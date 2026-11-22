@@ -1,4 +1,4 @@
-//! [`Qwen3TtsVocoder`]: the codec decoder's vocoder, its blocks and residual units, and their configs.
+//! [`DacDecoder`]: DAC's decoder, its blocks and residual units, and their configs.
 
 use alloc::{
     format,
@@ -32,7 +32,8 @@ use crate::{
     },
 };
 
-/// The `SnakeBeta` of the vocoder's, over `channels`.
+/// The decoder's activation, `SnakeBeta` in its log-scale parameterization,
+/// over `channels`.
 fn snake(
     channels: usize,
     device: &Device,
@@ -53,9 +54,9 @@ fn causal_conv(
         .try_init(device)
 }
 
-/// Common meta for [`Qwen3TtsVocoderResidualUnit`] and
-/// [`Qwen3TtsVocoderResidualUnitConfig`].
-pub trait Qwen3TtsVocoderResidualUnitMeta {
+/// Common meta for [`DacResidualUnit`] and
+/// [`DacResidualUnitConfig`].
+pub trait DacResidualUnitMeta {
     /// The channels, `C`, in and out.
     fn channels(&self) -> usize;
 
@@ -69,9 +70,9 @@ pub trait Qwen3TtsVocoderResidualUnitMeta {
     fn pointwise_kernel(&self) -> usize;
 }
 
-/// Config for [`Qwen3TtsVocoderResidualUnit`]; the default taps are DAC's.
+/// Config for [`DacResidualUnit`]; the default taps are DAC's.
 #[derive(Config, Debug)]
-pub struct Qwen3TtsVocoderResidualUnitConfig {
+pub struct DacResidualUnitConfig {
     /// The channels, `C`.
     pub channels: usize,
 
@@ -87,7 +88,7 @@ pub struct Qwen3TtsVocoderResidualUnitConfig {
     pub pointwise_kernel: usize,
 }
 
-impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnitConfig {
+impl DacResidualUnitMeta for DacResidualUnitConfig {
     fn channels(&self) -> usize {
         self.channels
     }
@@ -105,13 +106,13 @@ impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnitConfig {
     }
 }
 
-impl ModuleInit<Qwen3TtsVocoderResidualUnit> for Qwen3TtsVocoderResidualUnitConfig {
+impl ModuleInit<DacResidualUnit> for DacResidualUnitConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<Qwen3TtsVocoderResidualUnit> {
+    ) -> BunsenResult<DacResidualUnit> {
         let c = self.channels;
-        Ok(Qwen3TtsVocoderResidualUnit {
+        Ok(DacResidualUnit {
             act1: snake(c, device)?,
             conv1: causal_conv([c, c], self.kernel, self.dilation, device)?,
             act2: snake(c, device)?,
@@ -120,12 +121,12 @@ impl ModuleInit<Qwen3TtsVocoderResidualUnit> for Qwen3TtsVocoderResidualUnitConf
     }
 }
 
-/// A vocoder residual unit: `SnakeBeta`, a dilated causal convolution,
+/// A DAC residual unit: `SnakeBeta`, a dilated causal convolution,
 /// `SnakeBeta`, a (pointwise) convolution, and the input added.
 ///
-/// Built by [`Qwen3TtsVocoderResidualUnitConfig`].
+/// Built by [`DacResidualUnitConfig`].
 #[derive(Module, Debug)]
-pub struct Qwen3TtsVocoderResidualUnit {
+pub struct DacResidualUnit {
     /// The first activation.
     pub act1: SnakeActivation,
 
@@ -139,7 +140,7 @@ pub struct Qwen3TtsVocoderResidualUnit {
     pub conv2: CausalConv1d,
 }
 
-impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnit {
+impl DacResidualUnitMeta for DacResidualUnit {
     fn channels(&self) -> usize {
         self.conv1.channels()[0]
     }
@@ -157,7 +158,7 @@ impl Qwen3TtsVocoderResidualUnitMeta for Qwen3TtsVocoderResidualUnit {
     }
 }
 
-impl Qwen3TtsVocoderResidualUnit {
+impl DacResidualUnit {
     /// `[B, C, T]` to `[B, C, T]`.
     pub fn forward(
         &self,
@@ -168,9 +169,9 @@ impl Qwen3TtsVocoderResidualUnit {
     }
 }
 
-/// Common meta for [`Qwen3TtsVocoderBlock`] and
-/// [`Qwen3TtsVocoderBlockConfig`].
-pub trait Qwen3TtsVocoderBlockMeta {
+/// Common meta for [`DacDecoderBlock`] and
+/// [`DacDecoderBlockConfig`].
+pub trait DacDecoderBlockMeta {
     /// The channels, `[C_in, C_out]`.
     fn channels(&self) -> [usize; 2];
 
@@ -184,10 +185,10 @@ pub trait Qwen3TtsVocoderBlockMeta {
     fn dilations(&self) -> Vec<usize>;
 }
 
-/// Config for [`Qwen3TtsVocoderBlock`]: its upsampler, and each residual
+/// Config for [`DacDecoderBlock`]: its upsampler, and each residual
 /// unit's config.
 #[derive(Config, Debug)]
-pub struct Qwen3TtsVocoderBlockConfig {
+pub struct DacDecoderBlockConfig {
     /// The channels, `[C_in, C_out]`.
     pub channels: [usize; 2],
 
@@ -198,10 +199,10 @@ pub struct Qwen3TtsVocoderBlockConfig {
     pub kernel: usize,
 
     /// The residual units, in order, each over `C_out`.
-    pub residuals: Vec<Qwen3TtsVocoderResidualUnitConfig>,
+    pub residuals: Vec<DacResidualUnitConfig>,
 }
 
-impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlockConfig {
+impl DacDecoderBlockMeta for DacDecoderBlockConfig {
     fn channels(&self) -> [usize; 2] {
         self.channels
     }
@@ -219,7 +220,7 @@ impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlockConfig {
     }
 }
 
-impl ModuleInit<Qwen3TtsVocoderBlock> for Qwen3TtsVocoderBlockConfig {
+impl ModuleInit<DacDecoderBlock> for DacDecoderBlockConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a residual
     /// unit not over `C_out`; as the convolutions' builds: a factor of 0, or
@@ -227,7 +228,7 @@ impl ModuleInit<Qwen3TtsVocoderBlock> for Qwen3TtsVocoderBlockConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<Qwen3TtsVocoderBlock> {
+    ) -> BunsenResult<DacDecoderBlock> {
         let [c_in, c_out] = self.channels;
         if let Some(unit) = self.residuals.iter().find(|u| u.channels != c_out) {
             return Err(BunsenError::illegal(format!(
@@ -235,7 +236,7 @@ impl ModuleInit<Qwen3TtsVocoderBlock> for Qwen3TtsVocoderBlockConfig {
                 unit.channels
             )));
         }
-        Ok(Qwen3TtsVocoderBlock {
+        Ok(DacDecoderBlock {
             act: snake(c_in, device)?,
             upsample: CausalConvTranspose1dConfig::new([c_in, c_out], self.kernel)
                 .with_stride(self.factor)
@@ -249,13 +250,13 @@ impl ModuleInit<Qwen3TtsVocoderBlock> for Qwen3TtsVocoderBlockConfig {
     }
 }
 
-/// A vocoder block (DAC's): `SnakeBeta`, a causal transposed convolution
-/// upsampling by `r` (the release's kernel `2 r`) and halving the width,
-/// then residual units (the release's of dilation 1, 3 and 9).
+/// A DAC decoder block: `SnakeBeta`, a causal transposed convolution
+/// upsampling by `r` (DAC's kernel `2 r`) and halving the width, then
+/// residual units (DAC's of dilation 1, 3 and 9).
 ///
-/// Built by [`Qwen3TtsVocoderBlockConfig`].
+/// Built by [`DacDecoderBlockConfig`].
 #[derive(Module, Debug)]
-pub struct Qwen3TtsVocoderBlock {
+pub struct DacDecoderBlock {
     /// The activation before the upsampler.
     pub act: SnakeActivation,
 
@@ -263,10 +264,10 @@ pub struct Qwen3TtsVocoderBlock {
     pub upsample: CausalConvTranspose1d,
 
     /// The residual units.
-    pub residuals: Vec<Qwen3TtsVocoderResidualUnit>,
+    pub residuals: Vec<DacResidualUnit>,
 }
 
-impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlock {
+impl DacDecoderBlockMeta for DacDecoderBlock {
     fn channels(&self) -> [usize; 2] {
         self.upsample.channels()
     }
@@ -284,7 +285,7 @@ impl Qwen3TtsVocoderBlockMeta for Qwen3TtsVocoderBlock {
     }
 }
 
-impl Qwen3TtsVocoderBlock {
+impl DacDecoderBlock {
     /// `[B, C_in, T]` to `[B, C_out, r T]`.
     pub fn forward(
         &self,
@@ -295,8 +296,8 @@ impl Qwen3TtsVocoderBlock {
     }
 }
 
-/// Common meta for [`Qwen3TtsVocoder`] and [`Qwen3TtsVocoderConfig`].
-pub trait Qwen3TtsVocoderMeta {
+/// Common meta for [`DacDecoder`] and [`DacDecoderConfig`].
+pub trait DacDecoderMeta {
     /// The latent width, `L`: its input's.
     fn latent_width(&self) -> usize;
 
@@ -322,9 +323,9 @@ pub trait Qwen3TtsVocoderMeta {
     }
 }
 
-/// Config for [`Qwen3TtsVocoder`]: its convolutions, and each block's config.
+/// Config for [`DacDecoder`]: its convolutions, and each block's config.
 #[derive(Config, Debug)]
-pub struct Qwen3TtsVocoderConfig {
+pub struct DacDecoderConfig {
     /// The latent width, `L`.
     pub latent_width: usize,
 
@@ -332,7 +333,7 @@ pub struct Qwen3TtsVocoderConfig {
     pub width: usize,
 
     /// The blocks, in order, each reading the one before's output.
-    pub blocks: Vec<Qwen3TtsVocoderBlockConfig>,
+    pub blocks: Vec<DacDecoderBlockConfig>,
 
     /// The input convolution's taps.
     #[config(default = 7)]
@@ -343,7 +344,7 @@ pub struct Qwen3TtsVocoderConfig {
     pub out_kernel: usize,
 }
 
-impl Qwen3TtsVocoderMeta for Qwen3TtsVocoderConfig {
+impl DacDecoderMeta for DacDecoderConfig {
     fn latent_width(&self) -> usize {
         self.latent_width
     }
@@ -369,7 +370,7 @@ impl Qwen3TtsVocoderMeta for Qwen3TtsVocoderConfig {
     }
 }
 
-impl ModuleInit<Qwen3TtsVocoder> for Qwen3TtsVocoderConfig {
+impl ModuleInit<DacDecoder> for DacDecoderConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) for a block that
     /// does not read what the one before it (or the input convolution)
@@ -377,7 +378,7 @@ impl ModuleInit<Qwen3TtsVocoder> for Qwen3TtsVocoderConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<Qwen3TtsVocoder> {
+    ) -> BunsenResult<DacDecoder> {
         let mut width = self.width;
         for (i, block) in self.blocks.iter().enumerate() {
             if block.channels[0] != width {
@@ -389,7 +390,7 @@ impl ModuleInit<Qwen3TtsVocoder> for Qwen3TtsVocoderConfig {
             width = block.channels[1];
         }
         let out = self.out_width();
-        Ok(Qwen3TtsVocoder {
+        Ok(DacDecoder {
             input: causal_conv([self.latent_width, self.width], self.in_kernel, 1, device)?,
             blocks: self
                 .blocks
@@ -402,17 +403,17 @@ impl ModuleInit<Qwen3TtsVocoder> for Qwen3TtsVocoderConfig {
     }
 }
 
-/// The vocoder: a causal convolution into its width, its blocks, then
-/// `SnakeBeta` and a causal convolution to one channel.
+/// DAC's decoder, a vocoder: a causal convolution into its width, its
+/// blocks, then `SnakeBeta` and a causal convolution to one channel.
 ///
-/// Built by [`Qwen3TtsVocoderConfig`].
+/// Built by [`DacDecoderConfig`].
 #[derive(Module, Debug)]
-pub struct Qwen3TtsVocoder {
+pub struct DacDecoder {
     /// `[L, V]`.
     pub input: CausalConv1d,
 
     /// The blocks, each upsampling and (the release's) halving the width.
-    pub blocks: Vec<Qwen3TtsVocoderBlock>,
+    pub blocks: Vec<DacDecoderBlock>,
 
     /// The activation before the output.
     pub output_act: SnakeActivation,
@@ -421,7 +422,7 @@ pub struct Qwen3TtsVocoder {
     pub output: CausalConv1d,
 }
 
-impl Qwen3TtsVocoderMeta for Qwen3TtsVocoder {
+impl DacDecoderMeta for DacDecoder {
     fn latent_width(&self) -> usize {
         self.input.channels()[0]
     }

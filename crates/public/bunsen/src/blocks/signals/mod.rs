@@ -13,6 +13,13 @@
 //!   frame's channels then split into `factor` frames, a learned upsampling
 //!   (sub-pixel convolution, Shi et al. 2016).
 //!
+//! And the waveform out of frames: [`DacDecoder`], DAC's decoder (Descript
+//! Audio Codec, Kumar et al. 2023), a convolution into its width, blocks
+//! that each upsample by a factor through a causal transposed convolution
+//! and run residual units of `SnakeBeta` and dilated causal convolutions
+//! ([`DacDecoderBlock`], [`DacResidualUnit`]), and a convolution to one
+//! channel; Qwen3-TTS's codec vocoder.
+//!
 //! And [`EncoderSubsampling`], an encoder's front end chosen by config, over
 //! the two downsamplings: what a
 //! [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder)
@@ -21,11 +28,13 @@
 //! `Nemotron-3-Diarization` stacks 10 ms mel frames into 80 ms encoder frames
 //! and upsamples them back to 10 ms before its classifier.
 
+mod dac;
 mod dw_striding;
 mod feature_stacking;
 mod subpixel;
 mod subsampling;
 
+pub use dac::*;
 pub use dw_striding::*;
 pub use feature_stacking::*;
 pub use subpixel::*;
