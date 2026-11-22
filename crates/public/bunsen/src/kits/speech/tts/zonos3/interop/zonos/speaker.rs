@@ -11,7 +11,7 @@ use crate::{
         TensorLoadTransform,
     },
     errors::BunsenResult,
-    kits::speech::tts::zonos3::speaker::{
+    kits::speech::tts::zonos3::blocks::{
         Zonos3MectBlockSpec,
         Zonos3SpeakerEncoderConfig,
         Zonos3SpeakerEncoderMeta,
@@ -107,7 +107,7 @@ impl Zonos3SpeakerEncoderMirror {
 pub const ZONOS3_SPEAKER_PREFIX: &str = "speaker_encoder.";
 
 /// One MECT block's names onto a
-/// [`Zonos3MectBlock`](crate::kits::speech::tts::zonos3::speaker::Zonos3MectBlock)'s:
+/// [`Zonos3MectBlock`](crate::kits::speech::tts::zonos3::blocks::Zonos3MectBlock)'s:
 /// the `Sequential` indices of upstream's shortcut, reduce, projection and
 /// position convolution onto named parts, and the attention's projections
 /// onto burn's.
@@ -157,7 +157,7 @@ pub fn zonos3_mect_block_rekey() -> Rekey {
 }
 
 /// The encoder's names, without [`ZONOS3_SPEAKER_PREFIX`], onto a
-/// [`Zonos3SpeakerEncoder`](crate::kits::speech::tts::zonos3::speaker::Zonos3SpeakerEncoder)'s
+/// [`Zonos3SpeakerEncoder`](crate::kits::speech::tts::zonos3::blocks::Zonos3SpeakerEncoder)'s
 /// built from `config`: upstream's `mect_block{s}` (from 1) onto
 /// `stages.{s - 1}`; the stage mix's `[1, n, D, 1]` as `[n, D]`; the
 /// pooling's kernel-1 convolutions, `[out, in, 1]`, as its MLP's linears'

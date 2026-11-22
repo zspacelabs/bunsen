@@ -12,17 +12,19 @@ use std::path::PathBuf;
 
 use burn::prelude::*;
 
-use super::{
-    Zonos3Codec,
-    Zonos3CodecConfig,
-    Zonos3CodecMeta,
-    Zonos3CodecStageMeta,
-};
 use crate::{
     burner::module::ModuleInit,
-    kits::speech::tts::zonos3::interop::zonos::{
-        Zonos3CodecMirror,
-        load_zonos3_codec_tensors,
+    kits::speech::tts::zonos3::{
+        blocks::{
+            Zonos3Codec,
+            Zonos3CodecConfig,
+            Zonos3CodecMeta,
+            Zonos3CodecStageMeta,
+        },
+        interop::zonos::{
+            Zonos3CodecMirror,
+            load_zonos3_codec_tensors,
+        },
     },
     support::testing::{
         ToyFixture,

@@ -22,7 +22,7 @@
 //!   `Zonos3MiniCodec`, weight norm already fused: each trunk layer's packed
 //!   `qkv` is split by rows ([`zonos3_codec_row_splits`]), and the stage list's
 //!   odd entries are the parameterless patch-ups, so stage `2 i` is
-//!   [`Zonos3Codec::stages`](crate::kits::speech::tts::zonos3::codec::Zonos3Codec::stages)`[i]`
+//!   [`Zonos3Codec::stages`](crate::kits::speech::tts::zonos3::blocks::Zonos3Codec::stages)`[i]`
 //!   ([`zonos3_codec_rekey`]).
 //! - **Speaker encoder:** its `config.json` section,
 //!   [`Zonos3SpeakerEncoderMirror`]

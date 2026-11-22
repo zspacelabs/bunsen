@@ -16,7 +16,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::tts::zonos3::codec::{
+    kits::speech::tts::zonos3::blocks::{
         Zonos3CodecConfig,
         Zonos3CodecStageConfig,
         Zonos3CodecStageMeta,
@@ -183,7 +183,7 @@ pub fn zonos3_codec_layer_rekey() -> Rekey {
 
 /// The decoder's names, after [`zonos3_codec_row_splits`] and without
 /// [`ZONOS3_CODEC_PREFIX`], onto a
-/// [`Zonos3Codec`](crate::kits::speech::tts::zonos3::codec::Zonos3Codec)'s
+/// [`Zonos3Codec`](crate::kits::speech::tts::zonos3::blocks::Zonos3Codec)'s
 /// canonical ones.
 pub fn zonos3_codec_rekey(config: &Zonos3CodecConfig) -> Rekey {
     let semantic = config.semantic_depth;

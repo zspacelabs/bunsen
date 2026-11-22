@@ -59,7 +59,7 @@ use bunsen::{
     data::formats::LoadPolicy,
     kits::speech::tts::zonos3::{
         Zonos3Construct,
-        lm::Zonos3RowConditioning,
+        blocks::Zonos3RowConditioning,
         prompt::Zonos3Prompt,
     },
     ops::transformers::attention::KVCacheStorage,

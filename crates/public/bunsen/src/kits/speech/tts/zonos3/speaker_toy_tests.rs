@@ -11,16 +11,18 @@
 
 use std::path::PathBuf;
 
-use super::{
-    Zonos3SpeakerEncoder,
-    Zonos3SpeakerEncoderConfig,
-    Zonos3SpeakerEncoderMeta,
-};
 use crate::{
     burner::module::ModuleInit,
-    kits::speech::tts::zonos3::interop::zonos::{
-        Zonos3SpeakerEncoderMirror,
-        load_zonos3_speaker_tensors,
+    kits::speech::tts::zonos3::{
+        blocks::{
+            Zonos3SpeakerEncoder,
+            Zonos3SpeakerEncoderConfig,
+            Zonos3SpeakerEncoderMeta,
+        },
+        interop::zonos::{
+            Zonos3SpeakerEncoderMirror,
+            load_zonos3_speaker_tensors,
+        },
     },
     support::testing::{
         ToyFixture,
