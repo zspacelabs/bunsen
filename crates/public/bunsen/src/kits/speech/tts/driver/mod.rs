@@ -18,11 +18,13 @@
 //! - Cloned voices, in two levels: a [`TtsVoiceReference`], model-free (its
 //!   reference clips at their own rates, its transcript, what was given of the
 //!   speaker; saved as a directory, `reference.json` a
-//!   [`TtsVoiceReferenceRecord`]), which an engine builds
-//!   ([`TtsEngine::build_voice`], in one of its [`TtsCloneMode`]s) into a
-//!   [`TtsVoicePrint`] of its own: tensors, and the [`TtsVoiceIdentity`] of the
-//!   build that made it (with `store`, a safetensors file, the identity its
-//!   only metadata). A request speaks in one as [`TtsVoiceChoice::Print`].
+//!   [`TtsVoiceReferenceRecord`]; with `audio` and `cache`,
+//!   `TtsVoiceReference::collect` makes one from clips, the ingest and annotate
+//!   stages, and `read_dir` reads one), from which an engine builds a
+//!   [`TtsVoicePrint`] of its own ([`TtsEngine::build_voice`], in one of its
+//!   [`TtsCloneMode`]s): tensors, and the [`TtsVoiceIdentity`] of the build
+//!   that made it (with `store`, a safetensors file, the identity its only
+//!   metadata). A request speaks in one as [`TtsVoiceChoice::Print`].
 //! - [`TtsSynthesizer`]: the driver as a trait object, what a tool or a test
 //!   holds whatever the model; its output is [`TtsSpeech`].
 //!
@@ -44,6 +46,8 @@ mod stages;
 mod tts_driver;
 mod voice_print;
 mod voice_reference;
+#[cfg(all(feature = "audio", feature = "cache"))]
+mod voice_reference_dir;
 
 pub use engine::*;
 pub use request::*;
@@ -52,6 +56,8 @@ pub use stages::*;
 pub use tts_driver::*;
 pub use voice_print::*;
 pub use voice_reference::*;
+#[cfg(all(feature = "audio", feature = "cache"))]
+pub use voice_reference_dir::*;
 
 #[cfg(test)]
 mod tests;
