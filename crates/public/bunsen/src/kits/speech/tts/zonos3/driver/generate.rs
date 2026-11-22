@@ -38,6 +38,7 @@ use crate::{
         speech::tts::{
             driver::{
                 TtsCapabilities,
+                TtsCloneMode,
                 TtsDriver,
                 TtsDriverConfig,
                 TtsLanguage,
@@ -101,6 +102,16 @@ pub fn zonos3_driver<T: Tokenizer + Send + Sync>(
         TtsDriverConfig::new().with_normalization(zonos3_release_normalization()),
     )
 }
+
+/// The family a ZONOS3 voice file names.
+pub const ZONOS3_VOICE_FAMILY: &str = "zonos3";
+
+/// The clone mode a ZONOS3 voice file is made in: the speaker encoder's
+/// embedding, spoken through the prompt's speaker row.
+pub const ZONOS3_EMBEDDING_MODE: &str = "embedding";
+
+/// The tensor a ZONOS3 voice file holds: the raw embedding, `[S]` f32.
+pub const ZONOS3_EMBEDDING_TENSOR: &str = "embedding";
 
 /// How [`Zonos3Engine`] speaks in a stock voice: the release ships each as
 /// both its reference codes and its speaker embedding.
@@ -348,7 +359,11 @@ impl<T: Tokenizer> Zonos3Engine<T> {
             stock_voices: true,
             described_voices: false,
             instruction: false,
-            clone_modes: Vec::new(),
+            clone_modes: if construct.speaker.is_some() {
+                vec![TtsCloneMode::clip(ZONOS3_EMBEDDING_MODE)]
+            } else {
+                Vec::new()
+            },
         };
         Ok(Self {
             construct,

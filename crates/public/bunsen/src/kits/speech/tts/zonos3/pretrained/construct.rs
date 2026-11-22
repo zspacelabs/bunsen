@@ -31,7 +31,9 @@ use crate::{
     },
     kits::{
         speech::tts::zonos3::{
+            ZONOS3_SPEAKER_ENCODER,
             Zonos3Construct,
+            Zonos3SpeakerPart,
             interop::zonos::{
                 Zonos3Mirror,
                 load_zonos3_lm_and_codec,
@@ -115,7 +117,15 @@ impl ConstructInit for Zonos3ConstructConfig {
             Some(section) => {
                 let speaker_config = section.speaker_config().map_err(at)?;
                 let encoder = load_zonos3_speaker_encoder(loaded, &speaker_config, device)?;
-                Some((encoder, speaker_config))
+                let checkpoint = match loaded.map.get(CHECKPOINT).and_then(|r| r.sha256.clone()) {
+                    Some(pin) => pin,
+                    None => crate::data::cache::sha256_of(loaded.expect(CHECKPOINT)?)?,
+                };
+                Some(Zonos3SpeakerPart {
+                    encoder,
+                    config: speaker_config,
+                    build: format!("{ZONOS3_SPEAKER_ENCODER}@sha256:{checkpoint}"),
+                })
             }
             None => None,
         };
