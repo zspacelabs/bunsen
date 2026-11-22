@@ -2,10 +2,15 @@
 
 use alloc::vec::Vec;
 
-use burn::config::Config;
+use burn::{
+    Tensor,
+    config::Config,
+    tensor::TensorCreationOptions,
+};
 
 use crate::ops::signal::kernels::{
     sinc::{
+        SincPhaseKernels,
         SincPhaseTable,
         WindowedSinc,
     },
@@ -67,6 +72,46 @@ impl HannSincResampler {
         SincPhaseTable::torchaudio(&self.kernel(), self.rolloff, in_rate, out_rate)
     }
 
+    /// The kernels from `in_rate` to `out_rate`, built on a device
+    /// ([`SincPhaseTable::torchaudio_tensor`]).
+    ///
+    /// # Panics
+    /// If either rate is zero, or the filter width is.
+    pub fn device_kernels(
+        &self,
+        in_rate: usize,
+        out_rate: usize,
+        options: impl Into<TensorCreationOptions>,
+    ) -> SincPhaseKernels {
+        assert!(
+            self.lowpass_filter_width > 0,
+            "lowpass_filter_width must be non-zero"
+        );
+        SincPhaseTable::torchaudio_tensor(&self.kernel(), self.rolloff, in_rate, out_rate, options)
+    }
+
+    /// `input`, `[B, N]` whole signals at `in_rate`, at `out_rate` on their
+    /// device ([`SincPhaseKernels::resample`]): [`resample`](Self::resample)
+    /// as `torchaudio` runs it, a strided convolution in the device's float;
+    /// `input` itself when the rates are equal.
+    ///
+    /// # Panics
+    /// If either rate is zero, or the filter width is.
+    pub fn resample_tensor(
+        &self,
+        input: Tensor<2>,
+        in_rate: usize,
+        out_rate: usize,
+    ) -> Tensor<2> {
+        if in_rate == out_rate {
+            assert!(in_rate > 0, "rates must be non-zero");
+            return input;
+        }
+        let device = input.device();
+        self.device_kernels(in_rate, out_rate, &device)
+            .resample(input)
+    }
+
     /// `input`, a whole signal at `in_rate`, at `out_rate`: `ceil(n *
     /// out_rate / in_rate)` samples; `input` itself when the rates are
     /// equal.
@@ -125,11 +170,19 @@ mod tests {
         performance_device,
     };
 
+    /// The most the device's conversion may stray from the reference,
+    /// absolute: its kernels' float32 build
+    /// ([`SincPhaseTable::torchaudio_tensor`]) and its float32 convolution.
+    /// Measured on wgpu f32 (2026-11-22): 7.1e-6, at 441 : 320.
+    const DEVICE_ABS: f32 = 2e-5;
+
     /// `torchaudio.transforms.Resample`'s float32 kernels applied exactly
     /// (`tools/gen_resample_fixtures.py`), down and up, at reduced ratios
     /// of 3:2, 441:160, 441:320, 2:3 and 160:441. Bit-equal where measured
     /// (wgpu's host, 2026-11-21); the `1e-6` bound leaves room for another
-    /// platform's `sin` and `cos` in the kernels' last bits.
+    /// platform's `sin` and `cos` in the kernels' last bits. On the device
+    /// ([`resample_tensor`](HannSincResampler::resample_tensor)), the
+    /// kernels and the convolution are in its float.
     #[test]
     fn test_against_torchaudio() {
         let fixture = ToyFixture::load_io(
@@ -165,7 +218,17 @@ mod tests {
                 burn::tensor::TensorData::new(outputs.concat(), [rows, len]),
                 fixture.device(),
             );
-            assert_io_close_within(&case, actual, expected, Tolerance::rel_abs(1e-6, 1e-6));
+            assert_io_close_within(
+                &case,
+                actual,
+                expected.clone(),
+                Tolerance::rel_abs(1e-6, 1e-6),
+            );
+
+            let on_device = resampler.resample_tensor(input, orig, new);
+            let worst = on_device.sub(expected).abs().max().into_scalar::<f32>();
+            eprintln!("{case}: on the device within {worst:.2e} of the reference");
+            assert!(worst <= DEVICE_ABS, "{case} on the device: {worst}");
         }
     }
 

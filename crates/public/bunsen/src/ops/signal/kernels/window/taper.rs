@@ -2,6 +2,7 @@
 
 use core::f64::consts::PI;
 
+use burn::Tensor;
 // `std` has these float methods inherently; `core` has them through `Float`.
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -21,12 +22,31 @@ use super::{
 /// at `x_i = 2i/(N - 1) - 1`; whether a table is periodic does not change the
 /// taper. A windowed-sinc kernel reads it at fractional positions, which no
 /// table holds.
+///
+/// [`taper`](Self::taper) is the host's (`f64`, the reference) and
+/// [`taper_tensor`](Self::taper_tensor) a device's, element-wise; the two are
+/// cross-tested here.
 pub trait WindowTaper {
     /// The window at `x`; zero for `|x| > 1`.
     fn taper(
         &self,
         x: f64,
     ) -> f64;
+
+    /// The window at each of `x`'s values, on its device; zero where `|x| >
+    /// 1`.
+    fn taper_tensor<const D: usize>(
+        &self,
+        x: Tensor<D>,
+    ) -> Tensor<D>;
+}
+
+/// `y`, zero where `|x| > 1`.
+fn within_unit<const D: usize>(
+    x: Tensor<D>,
+    y: Tensor<D>,
+) -> Tensor<D> {
+    y.mask_fill(x.abs().greater_elem(1.0), 0.0)
 }
 
 impl WindowTaper for CosineWindowConfig {
@@ -43,6 +63,20 @@ impl WindowTaper for CosineWindowConfig {
         }
         (self.alpha - self.beta) + 2.0 * self.beta * (x * PI / 2.0).cos().powi(2)
     }
+
+    fn taper_tensor<const D: usize>(
+        &self,
+        x: Tensor<D>,
+    ) -> Tensor<D> {
+        let y = x
+            .clone()
+            .mul_scalar(PI / 2.0)
+            .cos()
+            .square()
+            .mul_scalar(2.0 * self.beta)
+            .add_scalar(self.alpha - self.beta);
+        within_unit(x, y)
+    }
 }
 
 impl WindowTaper for DualCosineWindow {
@@ -56,6 +90,15 @@ impl WindowTaper for DualCosineWindow {
             return 0.0;
         }
         self.alpha + self.beta * (PI * x).cos() + self.gamma * (2.0 * PI * x).cos()
+    }
+
+    fn taper_tensor<const D: usize>(
+        &self,
+        x: Tensor<D>,
+    ) -> Tensor<D> {
+        let one = x.clone().mul_scalar(PI).cos().mul_scalar(self.beta);
+        let two = x.clone().mul_scalar(2.0 * PI).cos().mul_scalar(self.gamma);
+        within_unit(x, one.add(two).add_scalar(self.alpha))
     }
 }
 
@@ -79,16 +122,36 @@ impl WindowTaper for StftWindowConfig {
             Self::Blackman { periodic } => DualCosineWindow::blackman(*periodic).taper(x),
         }
     }
+
+    fn taper_tensor<const D: usize>(
+        &self,
+        x: Tensor<D>,
+    ) -> Tensor<D> {
+        match self {
+            Self::Ones => within_unit(x.clone(), x.ones_like()),
+            Self::CosineWindow(cfg) => cfg.taper_tensor(x),
+            Self::Hann { periodic } => CosineWindowConfig::hann(*periodic).taper_tensor(x),
+            Self::Hamming { periodic } => CosineWindowConfig::hamming(*periodic).taper_tensor(x),
+            Self::DualCosineWindow(cfg) => cfg.taper_tensor(x),
+            Self::Blackman { periodic } => DualCosineWindow::blackman(*periodic).taper_tensor(x),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
 
+    use burn::tensor::Tolerance;
+
     use super::*;
     use crate::{
         ops::signal::kernels::window::SamplingWindowBuilder,
-        support::testing::assert_close_to_vec,
+        support::testing::{
+            assert_close_to_vec,
+            assert_tensor_close_to_vec,
+            performance_device,
+        },
     };
 
     /// The windows a table and a taper are held equal for.
@@ -146,5 +209,22 @@ mod tests {
             assert_eq!(hann.taper(x), (x * PI / 2.0).cos().powi(2));
         }
         assert!((DualCosineWindow::blackman(false).taper(0.0) - 1.0).abs() < 1e-15);
+    }
+
+    /// A device's taper is the host's, element-wise, inside and outside
+    /// `[-1, 1]`.
+    #[test]
+    fn test_tensor_taper_is_the_host_taper() {
+        let device = performance_device();
+        let xs: Vec<f64> = (-130..=130).map(|i| i as f64 / 100.0).collect();
+        for window in windows() {
+            let x = Tensor::<1>::from_data(xs.as_slice(), &device);
+            let expected: Vec<f64> = xs.iter().map(|&x| window.taper(x)).collect();
+            assert_tensor_close_to_vec(
+                &window.taper_tensor(x),
+                &expected,
+                Tolerance::rel_abs(1e-5, 1e-6),
+            );
+        }
     }
 }
