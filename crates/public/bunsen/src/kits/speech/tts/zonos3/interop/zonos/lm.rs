@@ -21,7 +21,7 @@ use crate::{
         BunsenResult,
     },
     kits::speech::tts::zonos3::{
-        lm::Zonos3LmConfig,
+        blocks::Zonos3LmConfig,
         prompt::Zonos3Condition,
     },
 };
@@ -265,7 +265,7 @@ pub fn zonos3_lm_layer_rekey(
 
 /// The language model's names, after [`zonos3_lm_row_splits`] and without
 /// [`ZONOS3_LM_PREFIX`], onto a
-/// [`Zonos3Lm`](crate::kits::speech::tts::zonos3::lm::Zonos3Lm)'s canonical
+/// [`Zonos3Lm`](crate::kits::speech::tts::zonos3::blocks::Zonos3Lm)'s canonical
 /// ones: the row tables, the speaker projection and the condition tables as
 /// they are; each layer by [`zonos3_lm_layer_rekey`]; the `AttnRes` queries,
 /// the final norm (`out_norm`) and the head (`multi_output`). Anything else is

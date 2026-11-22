@@ -37,15 +37,11 @@ use crate::{
         BunsenResult,
     },
     kits::speech::tts::zonos3::{
-        codec::{
+        blocks::{
             Zonos3Codec,
             Zonos3CodecConfig,
-        },
-        lm::{
             Zonos3Lm,
             Zonos3LmConfig,
-        },
-        speaker::{
             Zonos3SpeakerEncoder,
             Zonos3SpeakerEncoderConfig,
         },

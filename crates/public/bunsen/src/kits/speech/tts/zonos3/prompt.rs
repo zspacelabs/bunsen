@@ -31,7 +31,7 @@ use burn::{
     tensor::Device,
 };
 
-use super::lm::{
+use super::blocks::{
     Zonos3LmConfig,
     Zonos3LmMeta,
     Zonos3RowConditioning,

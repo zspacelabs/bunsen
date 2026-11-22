@@ -13,17 +13,19 @@ use std::path::PathBuf;
 
 use burn::prelude::*;
 
-use super::{
-    Zonos3Lm,
-    Zonos3LmConfig,
-    Zonos3LmMeta,
-    Zonos3RowConditioning,
-};
 use crate::{
     burner::module::ModuleInit,
-    kits::speech::tts::zonos3::interop::zonos::{
-        Zonos3LmMirror,
-        load_zonos3_lm_tensors,
+    kits::speech::tts::zonos3::{
+        blocks::{
+            Zonos3Lm,
+            Zonos3LmConfig,
+            Zonos3LmMeta,
+            Zonos3RowConditioning,
+        },
+        interop::zonos::{
+            Zonos3LmMirror,
+            load_zonos3_lm_tensors,
+        },
     },
     ops::transformers::attention::KVCacheStorage,
     support::testing::{

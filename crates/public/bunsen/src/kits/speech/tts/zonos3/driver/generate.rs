@@ -46,7 +46,7 @@ use crate::{
             },
             zonos3::{
                 Zonos3Construct,
-                lm::{
+                blocks::{
                     Zonos3LmMeta,
                     Zonos3RowConditioning,
                 },

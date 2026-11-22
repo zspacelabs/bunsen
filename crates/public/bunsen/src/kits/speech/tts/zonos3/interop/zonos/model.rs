@@ -16,8 +16,8 @@ use crate::{
     errors::BunsenResult,
     kits::{
         speech::tts::zonos3::{
+            blocks::Zonos3LmConfig,
             driver::Zonos3EngineConfig,
-            lm::Zonos3LmConfig,
             prompt::Zonos3PromptConfig,
             sampler::Zonos3SamplerConfig,
         },

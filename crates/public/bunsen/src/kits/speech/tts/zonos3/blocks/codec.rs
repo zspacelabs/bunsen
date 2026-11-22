@@ -1,4 +1,4 @@
-//! The codec decoder.
+//! [`Zonos3Codec`]: the codec decoder, its codebook embeddings and its config.
 
 use alloc::{
     format,
@@ -7,6 +7,7 @@ use alloc::{
 
 use burn::{
     Tensor,
+    config::Config,
     module::{
         Module,
         Param,
@@ -31,10 +32,7 @@ use burn::{
     },
 };
 
-use super::{
-    Zonos3CodecConfig,
-    Zonos3CodecStageConfig,
-};
+use super::Zonos3CodecStage;
 use crate::{
     blocks::{
         conv::{
@@ -46,10 +44,6 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::decoders::stack::{
-            DecoderStack,
-            DecoderStackMeta,
-        },
     },
     burner::module::{
         CanonicalKeys,
@@ -58,11 +52,80 @@ use crate::{
     },
     contracts::unpack_shape_contract,
     errors::BunsenResult,
+    kits::speech::tts::zonos3::blocks::{
+        Zonos3CodecStageConfig,
+        Zonos3CodecStageMeta,
+    },
     ops::signal::{
         InverseStft,
         InverseStftConfig,
     },
 };
+
+/// Config for [`Zonos3Codec`](super::Zonos3Codec): ZONOS3-Mini's codec
+/// decoder, codes in, audio out.
+#[derive(Config, Debug)]
+pub struct Zonos3CodecConfig {
+    /// Codes per codebook.
+    pub codebook_size: usize,
+
+    /// Each codebook vector's width.
+    pub codebook_dim: usize,
+
+    /// The codebooks after the first.
+    pub residual_codebooks: usize,
+
+    /// The first codebook's projection width, the semantic head's.
+    pub semantic_width: usize,
+
+    /// The semantic head's `ConvNeXt` blocks.
+    pub semantic_depth: usize,
+
+    /// Their hidden width.
+    pub semantic_hidden: usize,
+
+    /// The latent's width, the trunk's input.
+    pub latent_width: usize,
+
+    /// The trunk's stages; a 2x patch-up between each two.
+    pub stages: Vec<Zonos3CodecStageConfig>,
+
+    /// The iSTFT head's `ConvNeXt` blocks.
+    pub head_depth: usize,
+
+    /// Their hidden width.
+    pub head_hidden: usize,
+
+    /// The iSTFT branches' FFT sizes.
+    pub n_ffts: Vec<usize>,
+
+    /// The iSTFT hop, at the internal rate.
+    pub head_hop: usize,
+
+    /// The branch mixer's taps (odd: centred).
+    pub fir_kernel: usize,
+
+    /// The resampler's input stride.
+    pub resample_orig: usize,
+
+    /// Its output phases.
+    pub resample_new: usize,
+
+    /// Its kernel's half-width beyond the stride.
+    pub resample_width: usize,
+
+    /// Output samples per frame of codes.
+    pub hop: usize,
+}
+
+impl Zonos3CodecConfig {
+    /// The trunk's last width: the iSTFT head's.
+    pub fn head_width(&self) -> usize {
+        self.stages
+            .last()
+            .map_or(self.latent_width, |s| s.out_width())
+    }
+}
 
 /// One codebook's decoder: each code's vector, projected.
 #[derive(Module, Debug)]
@@ -88,105 +151,6 @@ impl Zonos3CodebookDecoder {
             .select(0, codes.reshape([b * t]))
             .reshape([b, t, d]);
         self.out_proj.forward(vectors)
-    }
-}
-
-/// A [`Zonos3CodecStage`]'s geometry, which its config and the stage answer
-/// alike.
-pub trait Zonos3CodecStageMeta {
-    /// The width it reads, `C_in`.
-    fn input_width(&self) -> usize;
-
-    /// Its width, `W`.
-    fn width(&self) -> usize;
-
-    /// Its layers.
-    fn n_layers(&self) -> usize;
-
-    /// The width it writes, `C_out`.
-    fn out_width(&self) -> usize;
-}
-
-impl Zonos3CodecStageMeta for Zonos3CodecStageConfig {
-    fn input_width(&self) -> usize {
-        self.input_width
-    }
-
-    fn width(&self) -> usize {
-        self.width
-    }
-
-    fn n_layers(&self) -> usize {
-        self.n_layers
-    }
-
-    fn out_width(&self) -> usize {
-        self.output_width.unwrap_or(self.width)
-    }
-}
-
-impl Zonos3CodecStageMeta for Zonos3CodecStage {
-    fn input_width(&self) -> usize {
-        self.input_proj.weight.dims()[0]
-    }
-
-    fn width(&self) -> usize {
-        self.input_proj.weight.dims()[1]
-    }
-
-    fn n_layers(&self) -> usize {
-        self.stack.n_layers()
-    }
-
-    fn out_width(&self) -> usize {
-        self.output_proj
-            .as_ref()
-            .map_or_else(|| self.width(), |proj| proj.weight.dims()[1])
-    }
-}
-
-/// One trunk stage: a projection in, a decoder stack, a projection out.
-#[derive(Module, Debug)]
-pub struct Zonos3CodecStage {
-    /// `[C_in, W]`, without a bias.
-    pub input_proj: Linear,
-
-    /// The layers, with no final norm.
-    pub stack: DecoderStack,
-
-    /// `[W, C_out]`, without a bias; `None`, the stage writes its width.
-    pub output_proj: Option<Linear>,
-}
-
-impl Zonos3CodecStage {
-    /// `[B, T, C_in]` to `[B, T, C_out]`, positions from 0.
-    pub fn forward(
-        &self,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        let t = x.dims()[1];
-        let x = self.input_proj.forward(x);
-        let x = self
-            .stack
-            .forward_hidden(x.clone(), &self.stack.rotary(t, &x.device()), None);
-        match &self.output_proj {
-            Some(proj) => proj.forward(x),
-            None => x,
-        }
-    }
-}
-
-impl ModuleInit<Zonos3CodecStage> for Zonos3CodecStageConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Zonos3CodecStage> {
-        let linear = |i, o| LinearConfig::new(i, o).with_bias(false).init(device);
-        Ok(Zonos3CodecStage {
-            input_proj: linear(self.input_width, self.width),
-            stack: self.stack().try_init(device)?,
-            output_proj: self.output_width.map(|o| linear(self.width, o)),
-        })
     }
 }
 

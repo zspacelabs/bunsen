@@ -9,20 +9,16 @@ use alloc::{
 use std::path::PathBuf;
 
 use super::{
-    codec::{
+    blocks::{
         Zonos3Codec,
         Zonos3CodecConfig,
-    },
-    driver::Zonos3EngineConfig,
-    lm::{
         Zonos3Lm,
         Zonos3LmConfig,
-    },
-    prompt::Zonos3PromptConfig,
-    speaker::{
         Zonos3SpeakerEncoder,
         Zonos3SpeakerEncoderConfig,
     },
+    driver::Zonos3EngineConfig,
+    prompt::Zonos3PromptConfig,
     voices::Zonos3Voice,
 };
 use crate::{

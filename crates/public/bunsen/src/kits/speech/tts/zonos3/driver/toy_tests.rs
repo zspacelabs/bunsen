@@ -36,7 +36,11 @@ use crate::{
             zonos3::{
                 Zonos3Construct,
                 Zonos3SpeakerPart,
-                codec::Zonos3Codec,
+                blocks::{
+                    Zonos3Codec,
+                    Zonos3Lm,
+                    Zonos3SpeakerEncoder,
+                },
                 interop::zonos::{
                     Zonos3CodecMirror,
                     Zonos3GenerationMirror,
@@ -46,12 +50,10 @@ use crate::{
                     load_zonos3_lm_tensors,
                     load_zonos3_speaker_tensors,
                 },
-                lm::Zonos3Lm,
                 prompt::{
                     Zonos3PromptConfig,
                     Zonos3Speaker,
                 },
-                speaker::Zonos3SpeakerEncoder,
                 voices::Zonos3Voice,
             },
         },
