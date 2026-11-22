@@ -38,6 +38,10 @@
 //!   picks one as a config value.
 //! - **Log-mel.** [`perceptive_audio`] converts waveforms to log-mel
 //!   spectrograms (Whisper's front end; defaults reproduce `librosa`).
+//! - **Kaldi filterbanks.** [`KaldiFbankConfig`] -> [`KaldiFbank`], with
+//!   [`KaldiFbankMeta`] on both: whole signals to Kaldi's `fbank` features, as
+//!   `torchaudio.compliance.kaldi.fbank` computes them (speaker encoders' front
+//!   end).
 //! - **Long audio.** [`quiet_cuts`] cuts a long recording into bounded windows
 //!   at its quietest points, for models that take bounded utterances.
 //! - **Testing.** The `testing` submodule (with the `testing` feature) has
@@ -58,6 +62,7 @@ pub mod testing;
 
 mod cosine_window;
 mod inverse_stft;
+mod kaldi_fbank;
 mod quiet_cuts;
 mod sliding_stft;
 mod stft_window;
@@ -65,6 +70,7 @@ mod window_builder;
 
 pub use cosine_window::*;
 pub use inverse_stft::*;
+pub use kaldi_fbank::*;
 pub use quiet_cuts::*;
 pub use sliding_stft::*;
 pub use stft_window::*;
