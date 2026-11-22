@@ -18,9 +18,9 @@
 //!   transformer ([`Qwen3TtsCodecTransformerConfig`], a
 //!   [`ProjectedDecoderStack`](crate::blocks::transformers::decoders::projected::ProjectedDecoderStack)),
 //!   upsampling stages ([`Qwen3TtsCodecUpsample`]) and a vocoder
-//!   ([`Qwen3TtsVocoder`], its blocks and residual units). The codec's
-//!   `config.json` (its `decoder_config`) and the codec file's `decoder.*`
-//!   tensors.
+//!   ([`DacDecoder`](crate::blocks::signals::DacDecoder), DAC's, its blocks and
+//!   residual units). The codec's `config.json` (its `decoder_config`) and the
+//!   codec file's `decoder.*` tensors.
 
 mod code_predictor;
 mod codec;

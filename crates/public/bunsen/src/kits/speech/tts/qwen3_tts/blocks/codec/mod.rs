@@ -3,9 +3,7 @@
 mod decoder;
 mod transformer;
 mod upsample;
-mod vocoder;
 
 pub use decoder::*;
 pub use transformer::*;
 pub use upsample::*;
-pub use vocoder::*;

@@ -294,11 +294,9 @@ pub fn codec_decoder_rekey(config: &Qwen3TtsCodecDecoderContractConfig) -> Rekey
 mod tests {
     use super::*;
     use crate::{
+        blocks::signals::DacDecoderMeta,
         burner::module::ToStructureConfig,
-        kits::speech::tts::qwen3_tts::blocks::{
-            Qwen3TtsCodecDecoderMeta,
-            Qwen3TtsVocoderMeta,
-        },
+        kits::speech::tts::qwen3_tts::blocks::Qwen3TtsCodecDecoderMeta,
     };
 
     /// The release's decoder: 1920 samples a frame (24 kHz at 12.5 Hz), the
