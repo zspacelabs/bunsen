@@ -130,7 +130,11 @@ impl VoxtralGreedyDecoder {
         let lm = &model.language_model;
         let positions = audio.dims()[1];
         VoxtralDecodeState {
-            cache: lm.lm.stack.decode_cache(1, positions, self.storage, device),
+            cache: lm
+                .lm
+                .decoder
+                .stack
+                .decode_cache(1, positions, self.storage, device),
             cond: lm.delay_condition(layout.delay_positions(), device),
             audio,
         }

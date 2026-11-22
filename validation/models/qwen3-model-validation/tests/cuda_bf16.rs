@@ -52,7 +52,7 @@ fn check_row(row: &str) {
         "{row}: performance() keeps bf16 where CUDA accelerates it"
     );
     assert!(
-        bundle.model.lm.head.proj.is_some(),
+        bundle.model.lm.decoder.head.proj.is_some(),
         "{row}: the head is its own"
     );
 

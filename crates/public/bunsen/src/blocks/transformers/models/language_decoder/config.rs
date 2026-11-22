@@ -3,7 +3,6 @@ use alloc::{
     format,
     string::ToString,
 };
-use core::marker::PhantomData;
 
 use burn::{
     config::Config,
@@ -14,6 +13,7 @@ use super::{
     LmDecodeKind,
     LmDecoderMeta,
     LmDecoderModel,
+    LmStackDecoderConfig,
 };
 use crate::{
     blocks::transformers::{
@@ -152,15 +152,18 @@ impl<K: LmDecodeKind> ModuleInit<LmDecoderModel<K>> for LmDecoderStructureConfig
         }
         Ok(LmDecoderModel {
             embedding: self.embedding.try_init(device)?,
-            head: self.head.try_init(device)?,
-            stack: self.stack.try_init(device)?,
-            kv_cache_pre_size: self.kv_cache_pre_size,
-            kind: PhantomData,
+            decoder: self.decoder().try_init(device)?,
         })
     }
 }
 
 impl LmDecoderStructureConfig {
+    /// The decoder's half: the head and the stack, without the embedding.
+    pub fn decoder(&self) -> LmStackDecoderConfig {
+        LmStackDecoderConfig::new(self.head.clone(), self.stack.clone())
+            .with_kv_cache_pre_size(self.kv_cache_pre_size)
+    }
+
     /// The parts agree: the embedding's and the head's widths are the
     /// stack's, and a tied head reads as many rows as the embedding holds.
     /// A stack of no layers has no width; its own build refuses it.

@@ -503,11 +503,11 @@ mod tests {
         assert_eq!(model.n_kv_heads(), 2);
         assert_eq!(model.head_dim(), 8);
         assert_eq!(
-            model.lm.stack.layer_attends(),
+            model.lm.decoder.stack.layer_attends(),
             [false, true, false, true],
             "the layer kinds"
         );
-        match &model.lm.stack.layers[1].attn.branch {
+        match &model.lm.decoder.stack.layers[1].attn.branch {
             TokenMixer::Attention(attn) => {
                 assert!(
                     attn.output_gate == Some(AttentionOutputGate::Elementwise)
@@ -517,7 +517,7 @@ mod tests {
             }
             other => panic!("a full layer attends: {other:?}"),
         }
-        match &model.lm.stack.layers[0].attn.branch {
+        match &model.lm.decoder.stack.layers[0].attn.branch {
             TokenMixer::GatedDeltaNet(net) => {
                 assert_eq!(
                     (
@@ -558,8 +558,11 @@ mod tests {
             .with_rotary_direction(RotaryDirection::Reverse)
             .with_qk_norm_placement(QkNormPlacement::AfterRope)
             .init(&device);
-        assert_eq!(model.lm.stack.rotary.direction, RotaryDirection::Reverse);
-        match &model.lm.stack.layers[1].attn.branch {
+        assert_eq!(
+            model.lm.decoder.stack.rotary.direction,
+            RotaryDirection::Reverse
+        );
+        match &model.lm.decoder.stack.layers[1].attn.branch {
             TokenMixer::Attention(attn) => {
                 assert_eq!(attn.output_gate, None);
                 assert_eq!(attn.qk_norm, QkNormPlacement::AfterRope);

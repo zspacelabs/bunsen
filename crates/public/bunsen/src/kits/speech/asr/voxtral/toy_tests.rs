@@ -164,7 +164,7 @@ fn test_toy_text_model() {
     let r_emb = lm.rotary(seq, &toy.device);
     let cond = lm.delay_condition(DELAYS[0], &toy.device);
 
-    let layer0 = lm.lm.stack.layers[0].forward_conditioned(
+    let layer0 = lm.lm.decoder.stack.layers[0].forward_conditioned(
         embeds.clone(),
         r_emb.for_layer(0),
         &mut None,

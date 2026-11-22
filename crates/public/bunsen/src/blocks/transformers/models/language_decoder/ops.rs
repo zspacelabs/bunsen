@@ -124,7 +124,7 @@ impl<K: LmDecodeKind> LmDecoderOps for LmDecoderModel<K> {
 
 impl<K: LmDecodeKind> LmPlainStackOps for LmDecoderModel<K> {
     fn stack(&self) -> &DecoderStack {
-        &self.stack
+        &self.decoder.stack
     }
 }
 
@@ -160,6 +160,6 @@ impl<W: LmDecoderHolder> LmDecoderOps for W {
 /// The wrapped model's stack.
 impl<W: LmDecoderWrapper> LmPlainStackOps for W {
     fn stack(&self) -> &DecoderStack {
-        &self.lm().stack
+        &self.lm().decoder.stack
     }
 }

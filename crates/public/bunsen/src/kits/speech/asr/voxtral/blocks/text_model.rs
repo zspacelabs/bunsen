@@ -245,7 +245,7 @@ impl LmDecoderHolder for VoxtralTextModel {
 impl VoxtralTextModel {
     /// The attention window, in positions, if any.
     pub fn sliding_window(&self) -> Option<usize> {
-        self.lm.stack.layers[0]
+        self.lm.decoder.stack.layers[0]
             .attn
             .branch
             .attention()
@@ -293,7 +293,7 @@ impl VoxtralTextModel {
         cond: &Tensor<3>,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        self.lm.stack.forward_with(
+        self.lm.decoder.stack.forward_with(
             embeds,
             r_emb,
             kv_cache,
@@ -339,9 +339,9 @@ mod tests {
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.sliding_window(), config.sliding_window());
-        assert_eq!(model.lm.stack.rotary.base, config.rope_theta);
-        assert_eq!(model.lm.stack.norm.epsilon(), Some(1e-6));
-        assert!(model.lm.stack.layers[0].mlp_scale.is_some());
+        assert_eq!(model.lm.decoder.stack.rotary.base, config.rope_theta);
+        assert_eq!(model.lm.decoder.stack.norm.epsilon(), Some(1e-6));
+        assert!(model.lm.decoder.stack.layers[0].mlp_scale.is_some());
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9, 3]], &device);
         let embeds = model.embed(tokens);

@@ -163,14 +163,17 @@ impl LmHead {
     /// # Arguments
     /// * `hidden` - `[batch, seq, d_model]`.
     /// * `table` - the `[n_rows, d_model]` token table a tied head projects
-    ///   onto; a head of its own ignores it.
+    ///   onto; a head of its own ignores it, and may be handed none.
     ///
     /// # Returns
     /// `[batch, seq, n_vocab]`.
+    ///
+    /// # Panics
+    /// If the head is tied and handed no table.
     pub fn forward(
         &self,
         hidden: Tensor<3>,
-        table: &Param<Tensor<2>>,
+        table: Option<&Param<Tensor<2>>>,
     ) -> Tensor<3> {
         let [batch, seq] = crate::contracts::unpack_shape_contract!(
             ["batch", "seq", "d_model"],
@@ -179,7 +182,10 @@ impl LmHead {
         );
         let y = match &self.proj {
             Some(proj) => proj.forward(hidden),
-            None => unembed(table.val(), hidden),
+            None => unembed(
+                table.expect("a tied head is handed its token table").val(),
+                hidden,
+            ),
         };
         let y = match self.vocab {
             Some(vocab) if vocab < y.dims()[2] => y.slice_dim(2, 0..vocab),
@@ -238,7 +244,7 @@ mod tests {
         assert_eq!(head.n_vocab(), 12);
         let (table, hidden) = (table(&device), hidden(&device));
         assert_tensors_close(
-            &head.forward(hidden.clone(), &table),
+            &head.forward(hidden.clone(), Some(&table)),
             &unembed(table.val(), hidden),
             Tolerance::default(),
         );
@@ -257,7 +263,7 @@ mod tests {
         assert!(proj.bias.is_some());
         let hidden = hidden(&device);
         assert_tensors_close(
-            &head.forward(hidden.clone(), &table(&device)),
+            &head.forward(hidden.clone(), Some(&table(&device))),
             &proj.forward(hidden),
             Tolerance::default(),
         );
@@ -276,7 +282,7 @@ mod tests {
             .with_logits_dtype(Some(FloatDType::F32))
             .init(&device);
         assert_eq!(head.n_vocab(), 10);
-        let logits = head.forward(hidden.clone(), &table);
+        let logits = head.forward(hidden.clone(), Some(&table));
         assert_eq!(logits.dims(), [2, 3, 10]);
         assert_eq!(logits.dtype(), DType::F32);
         let raw = unembed(table.val(), hidden).slice_dim(2, 0..10);

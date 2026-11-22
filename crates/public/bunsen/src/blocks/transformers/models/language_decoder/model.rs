@@ -1,9 +1,6 @@
 //! The model, [`LmDecoderModel`], and its forward APIs.
 use alloc::vec::Vec;
-use core::{
-    marker::PhantomData,
-    ops::Range,
-};
+use core::ops::Range;
 
 use burn::{
     Tensor,
@@ -16,19 +13,14 @@ use super::{
     LmAttentionOnlyKind,
     LmDecodeKind,
     LmHybridKind,
+    LmStackDecoder,
+    LmStackDecoderMeta,
 };
 use crate::{
-    blocks::transformers::{
-        decoders::stack::{
-            DecoderStack,
-            DecoderStackMeta,
-        },
-        embedding::{
-            RotarySet,
-            TokenEmbedding,
-            TokenEmbeddingMeta,
-        },
-        head::LmHead,
+    blocks::transformers::embedding::{
+        RotarySet,
+        TokenEmbedding,
+        TokenEmbeddingMeta,
     },
     burner::module::{
         CanonicalKeys,
@@ -69,9 +61,10 @@ pub trait LmDecoderMeta {
     fn head_dim(&self) -> usize;
 }
 
-/// A decoder-only language model: a [`TokenEmbedding`], a [`DecoderStack`]
-/// and an [`LmHead`], tied to the embedding or its own; what a named
-/// model's kit wraps, with the kit's config, weights and quirks.
+/// A decoder-only language model: a [`TokenEmbedding`] and an
+/// [`LmStackDecoder`] (a [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack) and an [`LmHead`](crate::blocks::transformers::head::LmHead), tied to the
+/// embedding or its own); what a named model's kit wraps, with the kit's
+/// config, weights and quirks.
 ///
 /// `K`, its [`LmDecodeKind`], says how it decodes: every kind through a
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
@@ -80,9 +73,11 @@ pub trait LmDecoderMeta {
 /// ([`LmKvForwardHidden`], [`KVCacheModel`]), an [`LmHybridKind`] one only
 /// uncached besides ([`LmUncachedForwardHidden`]).
 ///
-/// Its module paths are `embedding.`, `head.` and `stack.`: a kit's load
+/// Its canonical names are `embedding.`, `head.` and `stack.`: a kit's load
 /// rekeys a checkpoint's names onto them, and loads into the model itself,
-/// not the kit's wrapper around it.
+/// not the kit's wrapper around it; its canonical keys put `head.` and
+/// `stack.` at the decoder's module paths, `decoder.head.` and
+/// `decoder.stack.`.
 ///
 /// Built by [`LmDecoderVariantConfig`](super::LmDecoderVariantConfig) or
 /// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig). Implements
@@ -92,19 +87,8 @@ pub struct LmDecoderModel<K: LmDecodeKind = LmAttentionOnlyKind> {
     /// The token embedding, and the head's table when it is tied.
     pub embedding: TokenEmbedding,
 
-    /// The output head.
-    pub head: LmHead,
-
-    /// The decoder: its layers, final norm and rotary tables.
-    pub stack: DecoderStack,
-
-    /// The positions a KV cache allocates up front by default.
-    #[module(skip)]
-    pub(super) kv_cache_pre_size: usize,
-
-    /// The decode kind.
-    #[module(skip)]
-    pub(super) kind: PhantomData<K>,
+    /// The decoder: the stack and the head.
+    pub decoder: LmStackDecoder<K>,
 }
 
 impl<K: LmDecodeKind> LmDecoderMeta for LmDecoderModel<K> {
@@ -113,8 +97,7 @@ impl<K: LmDecodeKind> LmDecoderMeta for LmDecoderModel<K> {
     }
 
     fn n_logits(&self) -> usize {
-        use crate::blocks::transformers::head::LmHeadMeta;
-        self.head.n_vocab()
+        self.decoder.n_logits()
     }
 
     fn d_model(&self) -> usize {
@@ -122,22 +105,22 @@ impl<K: LmDecodeKind> LmDecoderMeta for LmDecoderModel<K> {
     }
 
     fn n_layers(&self) -> usize {
-        self.stack.n_layers()
+        self.decoder.n_layers()
     }
 
     fn n_kv_heads(&self) -> usize {
-        self.stack.n_kv_heads()
+        self.decoder.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.stack.head_dim()
+        self.decoder.head_dim()
     }
 }
 
 impl<K: LmDecodeKind> LmDecoderModel<K> {
     /// The positions a KV cache allocates up front by default.
     pub fn kv_cache_pre_size(&self) -> usize {
-        self.kv_cache_pre_size
+        self.decoder.kv_cache_pre_size()
     }
 
     /// The float dtype the model's weights are held, and computed, in: its
@@ -152,7 +135,7 @@ impl<K: LmDecodeKind> LmDecoderModel<K> {
         seq_len: usize,
         device: &Device,
     ) -> RotarySet {
-        self.stack.rotary(seq_len, device)
+        self.decoder.rotary(seq_len, device)
     }
 
     /// Embeds tokens.
@@ -204,11 +187,12 @@ impl<K: LmDecodeKind> LmDecoderModel<K> {
         rows: Range<usize>,
         cols: Range<usize>,
     ) -> Vec<Tensor<4>> {
-        self.stack
+        self.decoder
             .attention_weights(embeds, r_emb, layers, rows, cols)
     }
 
-    /// The head: logits over the vocabulary.
+    /// The head: logits over the vocabulary ([`LmStackDecoder::logits`],
+    /// handed the embedding's table for a tied head).
     ///
     /// # Arguments
     /// * `hidden` - `[batch, seq, d_model]`, the stack's output.
@@ -220,31 +204,7 @@ impl<K: LmDecodeKind> LmDecoderModel<K> {
         &self,
         hidden: Tensor<3>,
     ) -> Tensor<3> {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, seq] = crate::contracts::unpack_shape_contract!(
-            ["batch", "seq", "d_model"],
-            &hidden.dims(),
-            &["batch", "seq"],
-            &[("d_model", self.d_model())],
-        );
-
-        let y = self.head.forward(hidden, &self.embedding.weight);
-
-        #[cfg(any(debug_assertions, test))]
-        {
-            use crate::blocks::transformers::head::LmHeadMeta;
-            crate::contracts::assert_shape_contract_periodically!(
-                ["batch", "seq", "n_vocab"],
-                &y.dims(),
-                &[
-                    ("batch", batch),
-                    ("seq", seq),
-                    ("n_vocab", self.head.n_vocab())
-                ],
-            );
-        }
-
-        y
+        self.decoder.logits(hidden, Some(&self.embedding.weight))
     }
 }
 
@@ -277,7 +237,7 @@ impl LmKvForwardHidden for LmDecoderModel<LmAttentionOnlyKind> {
         r_emb: &RotarySet,
         kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        self.stack.forward_hidden(embeds, r_emb, kv_cache)
+        self.decoder.forward_hidden(embeds, r_emb, kv_cache)
     }
 }
 
@@ -308,7 +268,7 @@ impl LmUncachedForwardHidden for LmDecoderModel<LmHybridKind> {
         embeds: Tensor<3>,
         r_emb: &RotarySet,
     ) -> Tensor<3> {
-        self.stack.forward_hidden(embeds, r_emb, None)
+        self.decoder.forward_hidden(embeds, r_emb)
     }
 }
 
@@ -318,15 +278,16 @@ impl LmUncachedForwardHidden for LmDecoderModel<LmHybridKind> {
 /// fixes one (a nonzero `seq_len`), else uncapped.
 impl KVCacheModel for LmDecoderModel<LmAttentionOnlyKind> {
     fn kv_cache_config(&self) -> KVCacheConfig {
-        let cap = self.stack.rotary.seq_len;
-        self.stack
-            .kv_cache_config(self.kv_cache_pre_size)
-            .with_max_seq_len((cap > 0).then_some(cap))
+        self.decoder.kv_cache_config()
     }
 }
 
 impl<K: LmDecodeKind> CanonicalKeys for LmDecoderModel<K> {
     fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("stack.", &self.stack)
+        Rekey::keep_rest().rename("head.", "decoder.head.").mount(
+            "stack.",
+            "decoder.stack.",
+            self.decoder.stack.canonical_rekey(),
+        )
     }
 }

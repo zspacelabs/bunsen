@@ -1,10 +1,12 @@
 //! # The language decoder
 //!
 //! [`LmDecoderModel`], the generic decoder-only language model: a token
-//! embedding, a
+//! embedding and an [`LmStackDecoder`], a
 //! [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
 //! and a head, which a named model's kit wraps
-//! ([`LmDecoderHolder`], [`LmDecoderWrapper`]).
+//! ([`LmDecoderHolder`], [`LmDecoderWrapper`]). A model whose rows are not one
+//! table's lookups holds an [`LmStackDecoder`] alone, with its own embedder
+//! ([`LmStackDecoderConfig`]).
 //!
 //! - Configs: [`LmDecoderVariantConfig`], the stack in any of its configs'
 //!   shapes, lowers to [`LmDecoderStructureConfig`], which builds the model.
@@ -30,12 +32,14 @@ mod config;
 mod kind;
 mod model;
 mod ops;
+mod stack_decoder;
 mod wrapper;
 
 pub use config::*;
 pub use kind::*;
 pub use model::*;
 pub use ops::*;
+pub use stack_decoder::*;
 pub use wrapper::*;
 
 #[cfg(test)]

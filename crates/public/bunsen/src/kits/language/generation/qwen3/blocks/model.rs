@@ -365,14 +365,21 @@ mod tests {
         assert_eq!(model.n_layers(), config.n_layers());
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
-        assert_eq!(model.lm.stack.rotary.base, config.rope_theta);
-        assert_eq!(model.lm.stack.rotary.direction, RotaryDirection::Reverse);
+        assert_eq!(model.lm.decoder.stack.rotary.base, config.rope_theta);
         assert_eq!(
-            model.lm.stack.layers[0].attn.branch.attention().qk_norm,
+            model.lm.decoder.stack.rotary.direction,
+            RotaryDirection::Reverse
+        );
+        assert_eq!(
+            model.lm.decoder.stack.layers[0]
+                .attn
+                .branch
+                .attention()
+                .qk_norm,
             QkNormPlacement::AfterRope
         );
         assert_eq!(
-            model.lm.stack.layers[0]
+            model.lm.decoder.stack.layers[0]
                 .attn
                 .branch
                 .attention()
@@ -381,7 +388,7 @@ mod tests {
                 .dims(),
             [12, 18]
         );
-        assert!(model.lm.head.is_tied(), "tied by default");
+        assert!(model.lm.decoder.head.is_tied(), "tied by default");
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
         let embeds = model.embed(tokens);
@@ -406,7 +413,7 @@ mod tests {
         let model: Qwen3Model = Qwen3Config::new(40, 12, 1, 3, 1, 6, 20)
             .with_tied_head(false)
             .init(&device);
-        let head = model.lm.head.proj.as_ref().expect("an untied head");
+        let head = model.lm.decoder.head.proj.as_ref().expect("an untied head");
         assert_eq!(head.weight.dims(), [12, 40]);
         assert!(head.bias.is_none());
 
