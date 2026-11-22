@@ -73,9 +73,65 @@ pub const ROUND_TRIP_WER: f64 = 0.10;
 /// normalization.
 fn driver(device: &Device) -> Zonos3Driver<BunsenTokenizer> {
     let construct = load_construct(device);
-    let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer).unwrap();
     let config = construct.engine_config.clone();
+    driver_with(construct, config)
+}
+
+/// ZONOS3-Mini's driver over `construct` under `config`, the release's
+/// normalization.
+pub(crate) fn driver_with(
+    construct: Arc<bunsen::kits::speech::tts::zonos3::Zonos3Construct>,
+    config: bunsen::kits::speech::tts::zonos3::driver::Zonos3EngineConfig,
+) -> Zonos3Driver<BunsenTokenizer> {
+    let tokenizer = BunsenTokenizer::from_file(&construct.tokenizer).unwrap();
     zonos3_driver(Zonos3Engine::new(construct, tokenizer, config).unwrap()).unwrap()
+}
+
+/// Whisper (`openai/base`, English, f32) on `device`, as a round trip's
+/// transcriber: 16 kHz mono samples to their committed text.
+pub(crate) fn english_whisper(
+    device: &Device
+) -> impl FnMut(&[f32]) -> bunsen::errors::BunsenResult<String> {
+    let whisper = default_whisper_factory()
+        .unwrap()
+        .load_construct(
+            "openai/base",
+            &weights_cache(),
+            device,
+            LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
+        )
+        .unwrap();
+    let asr = WhisperStreamDriverConfig::new()
+        .with_language(Some("en".to_string()))
+        .init_from_construct(whisper, device)
+        .unwrap();
+    move |samples| {
+        let mut ctx = asr.new_context(StreamClock::uniform(16_000), LevelPolicy::Running)?;
+        let mut events = ctx.write_read(samples)?;
+        events.extend(ctx.end_read()?);
+        Ok(events
+            .into_iter()
+            .filter_map(|e| match e {
+                TranscriptEvent::Committed(s) => s.text,
+                TranscriptEvent::Draft(_) => None,
+            })
+            .collect::<Vec<_>>()
+            .join(" "))
+    }
+}
+
+/// Each case of `report`: its length, its word error rate, the text and
+/// what was heard.
+pub(crate) fn print_round_trip(report: &bunsen::kits::speech::support::testing::RoundTripReport) {
+    for case in &report.cases {
+        eprintln!(
+            "{:.2} s, WER {:.3}: {:?} heard as {:?}",
+            case.seconds,
+            case.word_error_rate(),
+            case.text,
+            case.transcript
+        );
+    }
 }
 
 /// `text` in [`VOICE`]'s voice, seeded.
@@ -129,50 +185,15 @@ mod zonos3_mini {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let tts = driver(&device);
-        let whisper = default_whisper_factory()
-            .unwrap()
-            .load_construct(
-                "openai/base",
-                &weights_cache(),
-                &device,
-                LoadPolicy::min_precision(burn::tensor::FloatDType::F32),
-            )
-            .unwrap();
-        let asr = WhisperStreamDriverConfig::new()
-            .with_language(Some("en".to_string()))
-            .init_from_construct(whisper, &device)
-            .unwrap();
-
         let report = tts_synthesizer_round_trip(
             &HARVARD,
             &tts as &dyn TtsSynthesizer,
             &request("", 1),
             16_000,
-            |samples| {
-                let mut ctx =
-                    asr.new_context(StreamClock::uniform(16_000), LevelPolicy::Running)?;
-                let mut events = ctx.write_read(samples)?;
-                events.extend(ctx.end_read()?);
-                Ok(events
-                    .into_iter()
-                    .filter_map(|e| match e {
-                        TranscriptEvent::Committed(s) => s.text,
-                        TranscriptEvent::Draft(_) => None,
-                    })
-                    .collect::<Vec<_>>()
-                    .join(" "))
-            },
+            english_whisper(&device),
         )
         .unwrap();
-        for case in &report.cases {
-            eprintln!(
-                "{:.2} s, WER {:.3}: {:?} heard as {:?}",
-                case.seconds,
-                case.word_error_rate(),
-                case.text,
-                case.transcript
-            );
-        }
+        print_round_trip(&report);
         let wer = report.word_error_rate();
         eprintln!("pooled WER {wer:.4}, worst {:.3}", report.worst());
         assert!(
