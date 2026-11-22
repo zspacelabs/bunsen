@@ -24,17 +24,25 @@
 //!   odd entries are the parameterless patch-ups, so stage `2 i` is
 //!   [`Zonos3Codec::stages`](crate::kits::speech::tts::zonos3::codec::Zonos3Codec::stages)`[i]`
 //!   ([`zonos3_codec_rekey`]).
+//! - **Speaker encoder:** its `config.json` section,
+//!   [`Zonos3SpeakerEncoderMirror`]
+//!   ([`speaker_config`](Zonos3SpeakerEncoderMirror::speaker_config)); the
+//!   `-hf` file's `speaker_encoder.*` tensors are the `-hf` port's
+//!   `Zonos3MiniSpeakerEncoder`, upstream's `ownmect_s2` checkpoint, whose
+//!   `Sequential` indices map onto named parts ([`zonos3_speaker_rekey`]).
 //! - **Voices:** each stock voice is two tensors of `voices.safetensors`,
 //!   `<Name>.codes`, `[F, n]` integers, its reference codes, and
 //!   `<Name>.embedding`, `[S]` floats, its speaker embedding; `voices.json`
 //!   maps each name to its language, style and gender, and its files' stem.
 //! - **Loading** (feature `store`): `load_zonos3_lm_tensors`,
-//!   `load_zonos3_codec_tensors`, `zonos3_voices`; with `cache`, the parts of a
-//!   resource set, `load_zonos3_lm_and_codec` and `load_zonos3_voices`.
+//!   `load_zonos3_codec_tensors`, `load_zonos3_speaker_tensors`,
+//!   `zonos3_voices`; with `cache`, the parts of a resource set,
+//!   `load_zonos3_lm_and_codec` and `load_zonos3_voices`.
 
 mod codec;
 mod lm;
 mod model;
+mod speaker;
 mod voices;
 #[cfg(feature = "store")]
 mod weights;
@@ -42,6 +50,7 @@ mod weights;
 pub use codec::*;
 pub use lm::*;
 pub use model::*;
+pub use speaker::*;
 pub use voices::*;
 #[cfg(feature = "store")]
 pub use weights::*;

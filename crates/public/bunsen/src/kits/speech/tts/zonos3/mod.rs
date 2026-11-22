@@ -29,6 +29,12 @@
 //!   (its settings, [`Zonos3SamplerConfig`](sampler::Zonos3SamplerConfig)).
 //! - [`voices`]: the stock voices, each reference codes and a speaker
 //!   embedding.
+//! - [`speaker`]: the speaker encoder,
+//!   [`Zonos3SpeakerEncoder`](speaker::Zonos3SpeakerEncoder), a clip to a
+//!   speaker embedding: a Kaldi filterbank, `AntSpeaker`'s MECT-B2 stages
+//!   (residual convolutions, then a transformer layer with a token soft mixture
+//!   of experts over the flattened channels), a mix of the stages, attentive
+//!   statistics pooling and a projection.
 //! - [`Zonos3Construct`]: a loaded model, its language model and codec with
 //!   their configs, the prompt layout, the release's engine settings and
 //!   languages, the voices and the tokenizer's file.
@@ -50,6 +56,7 @@ pub mod codec;
 pub mod lm;
 pub mod prompt;
 pub mod sampler;
+pub mod speaker;
 
 pub mod voices;
 

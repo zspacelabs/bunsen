@@ -1,0 +1,59 @@
+{
+  "speaker_encoder": {
+    "bottleneck_dim": 6,
+    "embed_dim": 5,
+    "feat_dim": 16,
+    "frame_length_ms": 25.0,
+    "frame_shift_ms": 10.0,
+    "hidden_dim": 8,
+    "in_channels": 4,
+    "max_seconds": 60.0,
+    "num_experts": 2,
+    "num_mel_bins": 16,
+    "sample_rate": 16000,
+    "stages": [
+      [
+        [
+          2,
+          4,
+          1,
+          1,
+          2
+        ]
+      ],
+      [
+        [
+          2,
+          8,
+          2,
+          1,
+          2
+        ],
+        [
+          1,
+          8,
+          1,
+          2,
+          2
+        ]
+      ],
+      [
+        [
+          1,
+          16,
+          2,
+          1,
+          1
+        ],
+        [
+          1,
+          16,
+          1,
+          2,
+          1
+        ]
+      ]
+    ],
+    "waveform_scale": 32768.0
+  }
+}

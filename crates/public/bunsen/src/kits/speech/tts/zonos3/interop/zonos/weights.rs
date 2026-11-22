@@ -18,10 +18,12 @@ use burn::{
 use super::{
     ZONOS3_CODEC_PREFIX,
     ZONOS3_LM_PREFIX,
+    ZONOS3_SPEAKER_PREFIX,
     zonos3_codec_rekey,
     zonos3_codec_row_splits,
     zonos3_lm_rekey,
     zonos3_lm_row_splits,
+    zonos3_speaker_rekey,
 };
 use crate::{
     burner::module::Rekey,
@@ -42,6 +44,10 @@ use crate::{
         lm::{
             Zonos3Lm,
             Zonos3LmConfig,
+        },
+        speaker::{
+            Zonos3SpeakerEncoder,
+            Zonos3SpeakerEncoderConfig,
         },
         voices::Zonos3Voice,
     },
@@ -147,6 +153,38 @@ pub fn load_zonos3_codec_tensors(
     if !applied.unused.is_empty() {
         return Err(BunsenError::invalid_resource(format!(
             "ZONOS3 codec tensors the model has no parameter for: {}",
+            applied.unused.join(", ")
+        )));
+    }
+    Ok(applied)
+}
+
+/// Loads the `-hf` file's tensors (`speaker_encoder.*`; any others are
+/// dropped) into `model`, built from `config`: the names mapped
+/// ([`zonos3_speaker_rekey`]), every floating tensor in `dtype`, or, when
+/// `None`, in the dtype `model` was built in. Upstream runs the encoder in
+/// f32 whatever the language model's dtype, and its file stores it so.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) as
+/// [`Rekey::load`]: a tensor that does not fit, or a parameter the file
+/// lacks; and naming any `speaker_encoder.*` tensor the model has no
+/// parameter for.
+pub fn load_zonos3_speaker_tensors(
+    model: &mut Zonos3SpeakerEncoder,
+    config: &Zonos3SpeakerEncoderConfig,
+    tensors: impl IntoIterator<Item = PackTensor>,
+    dtype: Option<FloatDType>,
+) -> BunsenResult<NamedTensorsApplied> {
+    let tensors: Vec<PackTensor> = tensors
+        .into_iter()
+        .filter(|t| t.name.starts_with(ZONOS3_SPEAKER_PREFIX))
+        .collect();
+    let rekey = Rekey::drop_rest().mount(ZONOS3_SPEAKER_PREFIX, "", zonos3_speaker_rekey(config));
+    let applied = rekey.load(model, tensors, dtype)?;
+    if !applied.unused.is_empty() {
+        return Err(BunsenError::invalid_resource(format!(
+            "ZONOS3 speaker-encoder tensors the model has no parameter for: {}",
             applied.unused.join(", ")
         )));
     }
