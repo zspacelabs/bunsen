@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.42.0...bunsen-app-v0.43.0) - 2026-11-22
+
+### Added
+
+- *(cache)* a fetch retries three times by default ([#855](https://github.com/zspacelabs/bunsen/pull/855))
+- *(bunsen-app)* `--min-precision` and `--init-dtype` ([#731](https://github.com/zspacelabs/bunsen/pull/731))
+
+### Other
+
+- crutcher/precision flags examples ([#733](https://github.com/zspacelabs/bunsen/pull/733))
+
 ## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.41.0...bunsen-app-v0.42.0) - 2026-11-13
 
 ### Added

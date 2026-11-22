@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-catalog-v0.42.0...bunsen-catalog-v0.43.0) - 2026-11-22
+
+### Added
+
+- *(qwen3_asr)* [**breaking**] the audio encoder's stem, biases, norm and positions are config fields ([#848](https://github.com/zspacelabs/bunsen/pull/848))
+- *(qwen3_asr)* [**breaking**] the base models read their geometry from config.json; no silent fallback ([#847](https://github.com/zspacelabs/bunsen/pull/847))
+- *(qwen3_asr)* [**breaking**] the front end is read from the model's feature-extractor file ([#846](https://github.com/zspacelabs/bunsen/pull/846))
+- *(qwen3)* [**breaking**] Qwen3's attention conventions and cache pre-size are config fields ([#842](https://github.com/zspacelabs/bunsen/pull/842))
+- *(qwen3_tts)* the Qwen3-TTS catalog rows and their loader ([#769](https://github.com/zspacelabs/bunsen/pull/769))
+- *(zonos3)* the `zyphra/zonos3/zonos3-mini` catalog row and its loader ([#709](https://github.com/zspacelabs/bunsen/pull/709))
+
+### Other
+
+- [**breaking**] the rotary base is an `f64` ([#792](https://github.com/zspacelabs/bunsen/pull/792))
+- crutcher/tts voice info ([#729](https://github.com/zspacelabs/bunsen/pull/729))
+- [**breaking**] the attention softmax widens through `Widening`, as `softmax_widening` ([#715](https://github.com/zspacelabs/bunsen/pull/715))
+
 ## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-catalog-v0.41.0...bunsen-catalog-v0.42.0) - 2026-11-13
 
 ### Added
