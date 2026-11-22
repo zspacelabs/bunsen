@@ -19,28 +19,39 @@ use crate::{
     kits::{
         speech::tts::{
             driver::{
+                TTS_VOICE_REFERENCE_VERSION,
+                TtsClipRecord,
+                TtsCloneMode,
                 TtsDriver,
                 TtsDriverConfig,
                 TtsEngine,
+                TtsReferenceClip,
                 TtsRequest,
                 TtsSamplingOverrides,
+                TtsSynthesizer,
                 TtsVoiceChoice,
+                TtsVoiceReference,
+                TtsVoiceReferenceRecord,
             },
             zonos3::{
                 Zonos3Construct,
+                Zonos3SpeakerPart,
                 codec::Zonos3Codec,
                 interop::zonos::{
                     Zonos3CodecMirror,
                     Zonos3GenerationMirror,
                     Zonos3LmMirror,
+                    Zonos3SpeakerEncoderMirror,
                     load_zonos3_codec_tensors,
                     load_zonos3_lm_tensors,
+                    load_zonos3_speaker_tensors,
                 },
                 lm::Zonos3Lm,
                 prompt::{
                     Zonos3PromptConfig,
                     Zonos3Speaker,
                 },
+                speaker::Zonos3SpeakerEncoder,
                 voices::Zonos3Voice,
             },
         },
@@ -423,4 +434,162 @@ fn test_release_normalization() {
         .unwrap();
     assert_eq!(request.text, "It costs five dollars.");
     assert!(notes.is_empty());
+}
+
+/// The toy speaker encoder (`testdata/zonos3/speaker_toy.*`), as a
+/// construct's part of the build `toy@sha256:00`.
+fn toy_speaker() -> Zonos3SpeakerPart {
+    let device = performance_device();
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/zonos3");
+    let json: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(dir.join("speaker_toy.config.json")).expect("read the config"),
+    )
+    .expect("parse the config");
+    let mirror: Zonos3SpeakerEncoderMirror =
+        serde_json::from_value(json["speaker_encoder"].clone()).expect("the speaker section");
+    let config = mirror.speaker_config().expect("the toy's config");
+    let mut fixture = ToyFixture::load(dir.join("speaker_toy.safetensors"), &device);
+    let mut encoder: Zonos3SpeakerEncoder = config.init(&device);
+    load_zonos3_speaker_tensors(&mut encoder, &config, fixture.take_weights(), None)
+        .expect("load the toy encoder");
+    Zonos3SpeakerPart {
+        encoder,
+        config,
+        build: "toy@sha256:00".into(),
+    }
+}
+
+/// A reference of one stereo clip: 0.5 s of two tones at 22.05 kHz.
+fn stereo_reference() -> TtsVoiceReference {
+    let rate = 22_050;
+    let n = rate / 2;
+    let tone = |hz: f32| -> Vec<f32> {
+        (0..n)
+            .map(|i| 0.3 * (core::f32::consts::TAU * hz * i as f32 / rate as f32).sin())
+            .collect()
+    };
+    let record = TtsClipRecord {
+        file: "a.wav".into(),
+        sha256: "00".into(),
+        sample_rate: rate as u32,
+        channels: 2,
+        samples: n,
+        edits: Vec::new(),
+    };
+    TtsVoiceReference {
+        record: TtsVoiceReferenceRecord {
+            version: TTS_VOICE_REFERENCE_VERSION,
+            name: None,
+            transcript: None,
+            language: None,
+            gender: None,
+            style: None,
+            created_unix: None,
+            clips: vec![record.clone()],
+        },
+        clips: vec![TtsReferenceClip {
+            record,
+            channels: vec![tone(220.0), tone(330.0)],
+        }],
+        digest: "feed".into(),
+    }
+}
+
+/// With a speaker encoder, the engine clones in `embedding` mode: a reference
+/// to a voice of its build, whose embedding is the encoder's of the clip
+/// mixed down; the voice resolves to that embedding. A voice of another
+/// build or mode, or with no embedding, is refused.
+#[test]
+fn test_build_voice() {
+    let mut construct = construct();
+    construct.speaker = Some(toy_speaker());
+    let engine = Zonos3Engine::new(
+        Arc::new(construct),
+        Bytes,
+        Zonos3EngineConfig::new().with_default_voice("Toy".to_string()),
+    )
+    .unwrap();
+    assert_eq!(
+        engine.capabilities().clone_modes,
+        vec![TtsCloneMode::clip("embedding")]
+    );
+    let reference = stereo_reference();
+    let voice = engine.build_voice(&reference, None).unwrap();
+    assert_eq!(voice.identity.family, "zonos3");
+    assert_eq!(voice.identity.encoder, "toy@sha256:00");
+    assert_eq!(voice.identity.mode, "embedding");
+    assert_eq!(voice.identity.reference, "feed");
+    let embedding = voice.f32_vector("embedding", 5).unwrap().to_vec();
+
+    let part = engine.speaker_part().unwrap();
+    let mono = reference.clips[0].mono();
+    let expected = part
+        .encoder
+        .embed(&mono, 22_050)
+        .unwrap()
+        .into_data()
+        .try_into_vec::<f32>()
+        .unwrap();
+    assert_eq!(
+        embedding, expected,
+        "the clip mixed down, then the encoder's"
+    );
+    assert_eq!(
+        engine
+            .resolve_voice(&TtsVoiceChoice::Print(voice.clone()))
+            .unwrap(),
+        Zonos3Speaker::Embedding(embedding)
+    );
+
+    let mut other = voice.clone();
+    other.identity.encoder = "other@sha256:11".into();
+    let mut mode = voice.clone();
+    mode.identity.mode = "reference".into();
+    for bad in [other, mode] {
+        assert_eq!(
+            engine
+                .resolve_voice(&TtsVoiceChoice::Print(bad))
+                .unwrap_err()
+                .kind(),
+            BunsenErrorKind::Illegal
+        );
+    }
+    let mut empty = voice;
+    empty.tensors.clear();
+    assert_eq!(
+        engine
+            .resolve_voice(&TtsVoiceChoice::Print(empty))
+            .unwrap_err()
+            .kind(),
+        BunsenErrorKind::InvalidResource
+    );
+    assert_eq!(
+        engine
+            .build_voice(&reference, Some("icl"))
+            .unwrap_err()
+            .kind(),
+        BunsenErrorKind::Lookup
+    );
+}
+
+/// Without a speaker encoder, the engine clones none and speaks in no
+/// voice file.
+#[test]
+fn test_build_voice_unsupported() {
+    let engine = engine(Zonos3EngineConfig::new());
+    assert!(engine.capabilities().clone_modes.is_empty());
+    assert_eq!(
+        engine
+            .build_voice(&stereo_reference(), None)
+            .unwrap_err()
+            .kind(),
+        BunsenErrorKind::Unsupported
+    );
+    let driver = TtsDriver::new(engine, TtsDriverConfig::new()).unwrap();
+    assert_eq!(
+        TtsSynthesizer::build_voice(&driver, &stereo_reference(), None)
+            .unwrap_err()
+            .kind(),
+        BunsenErrorKind::Unsupported
+    );
 }

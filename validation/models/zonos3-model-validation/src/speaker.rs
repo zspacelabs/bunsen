@@ -79,10 +79,11 @@ mod zonos3_mini {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let construct = load_construct(&device);
-        let (encoder, _) = construct
+        let encoder = &construct
             .speaker
             .as_ref()
-            .expect("the release's speaker encoder");
+            .expect("the release's speaker encoder")
+            .encoder;
         let fixture = FixtureFile::load(SPEAKER);
         let stride: usize = fixture.metadata("sample_stride").parse().unwrap();
         let voices: Vec<String> = fixture.metadata_json("voices");

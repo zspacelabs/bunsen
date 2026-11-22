@@ -72,10 +72,30 @@ pub struct Zonos3Construct {
     /// ([`zonos3_text_ids`](super::prompt::zonos3_text_ids)).
     pub tokenizer: PathBuf,
 
-    /// The speaker encoder and its config, when the release ships one
-    /// (`config.json`'s `speaker_encoder` section): always in f32, as
-    /// upstream runs it whatever the language model's dtype.
-    pub speaker: Option<(Zonos3SpeakerEncoder, Zonos3SpeakerEncoderConfig)>,
+    /// The speaker encoder, when the release ships one (`config.json`'s
+    /// `speaker_encoder` section).
+    pub speaker: Option<Zonos3SpeakerPart>,
+}
+
+/// The name of the release's speaker encoder, upstream's: the first part of
+/// a [`Zonos3SpeakerPart::build`].
+pub const ZONOS3_SPEAKER_ENCODER: &str = "ownmect_s2";
+
+/// A construct's speaker encoder: the encoder (always in f32, as upstream
+/// runs it whatever the language model's dtype), its config, and the build
+/// a voice it makes names.
+#[derive(Debug)]
+pub struct Zonos3SpeakerPart {
+    /// The encoder.
+    pub encoder: Zonos3SpeakerEncoder,
+
+    /// Its config.
+    pub config: Zonos3SpeakerEncoderConfig,
+
+    /// The build a voice it makes is of: the encoder and the checkpoint it
+    /// came in (`ownmect_s2@sha256:...`). A cloned embedding is read through
+    /// that checkpoint's speaker projection, so a voice speaks only in it.
+    pub build: String,
 }
 
 impl Zonos3Construct {
