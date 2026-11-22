@@ -15,10 +15,12 @@
 //! - **Codec decoder.** [`Qwen3TtsCodecDecoder`], its policy
 //!   ([`Qwen3TtsCodecDecoderContractConfig`]) and the structure config it
 //!   lowers to ([`Qwen3TtsCodecDecoderStructureConfig`], a config per part): a
-//!   transformer ([`Qwen3TtsCodecTransformer`]), upsampling stages
-//!   ([`Qwen3TtsCodecUpsample`]) and a vocoder ([`Qwen3TtsVocoder`], its blocks
-//!   and residual units). The codec's `config.json` (its `decoder_config`) and
-//!   the codec file's `decoder.*` tensors.
+//!   transformer ([`Qwen3TtsCodecTransformerConfig`], a
+//!   [`ProjectedDecoderStack`](crate::blocks::transformers::decoders::projected::ProjectedDecoderStack)),
+//!   upsampling stages ([`Qwen3TtsCodecUpsample`]) and a vocoder
+//!   ([`Qwen3TtsVocoder`], its blocks and residual units). The codec's
+//!   `config.json` (its `decoder_config`) and the codec file's `decoder.*`
+//!   tensors.
 
 mod code_predictor;
 mod codec;

@@ -10,7 +10,8 @@
 //!   section,
 //!   [`Zonos3CodecMirror::codec_config`](super::interop::zonos::Zonos3CodecMirror::codec_config)):
 //!   its codebooks' embeddings ([`Zonos3CodebookDecoder`]), its trunk stages
-//!   ([`Zonos3CodecStage`]), and its head of inverse STFTs.
+//!   ([`Zonos3CodecStageConfig`], each a
+//!   [`ProjectedDecoderStack`](crate::blocks::transformers::decoders::projected::ProjectedDecoderStack)), and its head of inverse STFTs.
 //! - **Speaker encoder.** [`Zonos3SpeakerEncoder`] and
 //!   [`Zonos3SpeakerEncoderConfig`] (the `speaker_encoder` section,
 //!   [`Zonos3SpeakerEncoderMirror::speaker_config`](super::interop::zonos::Zonos3SpeakerEncoderMirror::speaker_config)):

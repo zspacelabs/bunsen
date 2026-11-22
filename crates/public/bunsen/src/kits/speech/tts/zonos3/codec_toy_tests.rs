@@ -13,13 +13,13 @@ use std::path::PathBuf;
 use burn::prelude::*;
 
 use crate::{
+    blocks::transformers::decoders::projected::ProjectedDecoderStackMeta,
     burner::module::ModuleInit,
     kits::speech::tts::zonos3::{
         blocks::{
             Zonos3Codec,
             Zonos3CodecConfig,
             Zonos3CodecMeta,
-            Zonos3CodecStageMeta,
         },
         interop::zonos::{
             Zonos3CodecMirror,
@@ -81,8 +81,9 @@ fn test_toy_meta() {
         ]
     };
     assert_eq!(codec(&config), codec(&model));
-    let stage =
-        |m: &dyn Zonos3CodecStageMeta| [m.input_width(), m.width(), m.n_layers(), m.out_width()];
+    let stage = |m: &dyn ProjectedDecoderStackMeta| {
+        [m.input_width(), m.d_model(), m.n_layers(), m.output_width()]
+    };
     for (c, m) in config.stages.iter().zip(&model.stages) {
         assert_eq!(stage(c), stage(m));
     }

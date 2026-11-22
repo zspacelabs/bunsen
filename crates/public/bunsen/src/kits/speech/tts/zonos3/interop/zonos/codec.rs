@@ -8,6 +8,7 @@ use alloc::{
 use serde::Deserialize;
 
 use crate::{
+    blocks::transformers::decoders::projected::ProjectedDecoderStackMeta,
     burner::module::{
         Rekey,
         TensorLoadRowSplit,
@@ -19,7 +20,6 @@ use crate::{
     kits::speech::tts::zonos3::blocks::{
         Zonos3CodecConfig,
         Zonos3CodecStageConfig,
-        Zonos3CodecStageMeta,
     },
 };
 
@@ -119,7 +119,7 @@ impl Zonos3CodecMirror {
                 s.context_frames,
             )
             .with_output_width(s.output_dimension);
-            reads = stage.out_width() / 2;
+            reads = stage.output_width() / 2;
             stages.push(stage);
         }
         if json.fir_kernel.is_multiple_of(2) {

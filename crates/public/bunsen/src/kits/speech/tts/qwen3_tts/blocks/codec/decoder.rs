@@ -9,7 +9,6 @@ use burn::{
 };
 
 use super::{
-    Qwen3TtsCodecTransformer,
     Qwen3TtsCodecTransformerConfig,
     Qwen3TtsCodecUpsample,
     Qwen3TtsCodecUpsampleConfig,
@@ -38,6 +37,7 @@ use crate::{
             attention::csa::CausalSelfAttentionConfig,
             decoders::{
                 causal::CausalDecoderBlockConfig,
+                projected::ProjectedDecoderStack,
                 stack::UniformStackConfig,
             },
             embedding::{
@@ -133,7 +133,7 @@ impl ModuleInit<Qwen3TtsCodecDecoder> for Qwen3TtsCodecDecoderStructureConfig {
         Ok(Qwen3TtsCodecDecoder {
             quantizer: self.quantizer.try_init(device)?,
             pre_conv: self.pre_conv.try_init(device)?,
-            pre_transformer: self.pre_transformer.try_init(device)?,
+            pre_transformer: self.pre_transformer.projected()?.try_init(device)?,
             upsample: self
                 .upsample
                 .iter()
@@ -194,7 +194,7 @@ pub struct Qwen3TtsCodecDecoder {
     pub pre_conv: CausalConv1d,
 
     /// The transformer.
-    pub pre_transformer: Qwen3TtsCodecTransformer,
+    pub pre_transformer: ProjectedDecoderStack,
 
     /// The upsamplers.
     pub upsample: Vec<Qwen3TtsCodecUpsample>,
@@ -367,7 +367,7 @@ pub struct Qwen3TtsDecodeConfig {
 
 impl CanonicalKeys for Qwen3TtsCodecDecoder {
     fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("pre_transformer.stack.", &self.pre_transformer.stack)
+        Rekey::keep_rest().mount_canonical("pre_transformer.", &self.pre_transformer)
     }
 }
 
@@ -593,13 +593,15 @@ mod tests {
     use crate::{
         blocks::{
             conv::CausalConv1dMeta,
-            transformers::mixers::TokenMixerConfig,
+            transformers::{
+                decoders::projected::ProjectedDecoderStackMeta,
+                mixers::TokenMixerConfig,
+            },
         },
         burner::module::ModuleInit,
         kits::speech::tts::qwen3_tts::{
             blocks::{
                 Qwen3TtsCodecDecoder,
-                Qwen3TtsCodecTransformerMeta,
                 Qwen3TtsCodecUpsampleMeta,
                 Qwen3TtsVocoderBlockMeta,
                 Qwen3TtsVocoderMeta,
@@ -682,10 +684,10 @@ mod tests {
 
         let t = &structure.pre_transformer;
         for meta in [
-            t as &dyn Qwen3TtsCodecTransformerMeta,
+            t as &dyn ProjectedDecoderStackMeta,
             &decoder.pre_transformer,
         ] {
-            assert_eq!([meta.latent_width(), meta.width()], [6, 8]);
+            assert_eq!([meta.input_width(), meta.d_model()], [6, 8]);
         }
         let u = &structure.upsample[0];
         for meta in [u as &dyn Qwen3TtsCodecUpsampleMeta, &decoder.upsample[0]] {
