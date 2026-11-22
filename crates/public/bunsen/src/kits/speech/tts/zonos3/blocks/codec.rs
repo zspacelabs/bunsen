@@ -54,11 +54,16 @@ use crate::{
         Rekey,
     },
     contracts::unpack_shape_contract,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     kits::speech::tts::zonos3::blocks::Zonos3CodecStageConfig,
     ops::signal::{
         InverseStft,
         InverseStftConfig,
+        kernels::sinc::SincPhaseKernels,
+        resample::HannSincResampler,
     },
 };
 
@@ -111,14 +116,35 @@ pub struct Zonos3CodecConfig {
     /// Its output phases.
     pub resample_new: usize,
 
-    /// Its kernel's half-width beyond the stride.
+    /// Its kernel's half-width beyond the stride: the width
+    /// [`resampler`](Self::resampler)'s table has, which the build checks.
     pub resample_width: usize,
+
+    /// Its kernel's half-width in the sinc's zero crossings: upstream's
+    /// `lowpass_filter_width`, which `config.json` does not carry.
+    #[config(default = "16")]
+    pub resample_zero_crossings: usize,
+
+    /// Its cut-off, as a fraction of the lower rate's Nyquist frequency:
+    /// upstream's `rolloff`, which `config.json` does not carry.
+    #[config(default = "0.99")]
+    pub resample_rolloff: f64,
 
     /// Output samples per frame of codes.
     pub hop: usize,
 }
 
 impl Zonos3CodecConfig {
+    /// The resampler from the internal rate to the output's: `torchaudio`'s
+    /// Hann-windowed sinc, as upstream's `to_external` is
+    /// (`Resample(44160, 44100, lowpass_filter_width=16, rolloff=0.99)`); the
+    /// release's `to_external_kernel` is its table to the bit.
+    pub fn resampler(&self) -> HannSincResampler {
+        HannSincResampler::new()
+            .with_lowpass_filter_width(self.resample_zero_crossings)
+            .with_rolloff(self.resample_rolloff)
+    }
+
     /// The trunk's last width: the iSTFT head's.
     pub fn head_width(&self) -> usize {
         self.stages
@@ -233,6 +259,21 @@ impl ModuleInit<Zonos3Codec> for Zonos3CodecConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<Zonos3Codec> {
+        let resample = self
+            .resampler()
+            .kernels(self.resample_orig, self.resample_new);
+        if resample.width != self.resample_width {
+            return Err(BunsenError::illegal(format!(
+                "the codec's resampler, {} to {} over {} zero crossings at rolloff {}, is {} \
+                 wide; the config says {}",
+                self.resample_orig,
+                self.resample_new,
+                self.resample_zero_crossings,
+                self.resample_rolloff,
+                resample.width,
+                self.resample_width
+            )));
+        }
         let codebook = |width| Zonos3CodebookDecoder {
             codebook: Initializer::Normal {
                 mean: 0.0,
@@ -280,17 +321,8 @@ impl ModuleInit<Zonos3Codec> for Zonos3CodecConfig {
                 ))
                 .with_bias(false)
                 .init(device),
-            resampler: Conv1dConfig::new(
-                1,
-                self.resample_new,
-                2 * self.resample_width + self.resample_orig,
-            )
-            .with_stride(self.resample_orig)
-            .with_padding(PaddingConfig1d::Valid)
-            .with_bias(false)
-            .init(device),
+            resampler: resample.to_kernels((device, DType::F32)),
             head_hop: self.head_hop,
-            resample_width: self.resample_width,
             hop: self.hop,
         })
     }
@@ -360,16 +392,13 @@ pub struct Zonos3Codec {
     /// The branch mixer: a centred FIR over the branches, `[1, n_b, K]`.
     pub mixer: Conv1d,
 
-    /// The polyphase resampler, `[new, 1, 2 w + orig]`, stride `orig`.
-    pub resampler: Conv1d,
+    /// The resampler's kernels, built (not loaded): its table
+    /// ([`Zonos3CodecConfig::resampler`]), in f32.
+    pub resampler: SincPhaseKernels,
 
     /// The iSTFT hop.
     #[module(skip)]
     pub head_hop: usize,
-
-    /// The resampler's half-width beyond its stride.
-    #[module(skip)]
-    pub resample_width: usize,
 
     /// Output samples per frame of codes.
     #[module(skip)]
@@ -480,27 +509,13 @@ impl Zonos3Codec {
         )
     }
 
-    /// The resampler: `[B, N]` padded by `w` before and `w + orig` after,
-    /// strided through the polyphase kernel, its phases interleaved, cut to
-    /// `ceil(new N / orig)`.
+    /// The resampler: `[B, N]` at the internal rate to the output's,
+    /// `[B, ceil(new N / orig)]` ([`SincPhaseKernels::resample`]).
     pub fn resample(
         &self,
         x: Tensor<2>,
     ) -> Tensor<2> {
-        let [b, n] = x.dims();
-        let [new, _, k] = self.resampler.weight.dims();
-        let w = self.resample_width;
-        let orig = k - 2 * w;
-        let (device, dtype) = (x.device(), x.dtype());
-        let zeros = |len| Tensor::<2>::zeros([b, len], (&device, dtype));
-        let padded = Tensor::cat(vec![zeros(w), x, zeros(w + orig)], 1);
-        let y = self
-            .resampler
-            .forward(padded.unsqueeze_dim(1))
-            .swap_dims(1, 2);
-        let steps = y.dims()[1];
-        y.reshape([b, steps * new])
-            .slice(s![.., ..(new * n).div_ceil(orig)])
+        self.resampler.resample(x)
     }
 }
 

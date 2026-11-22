@@ -194,8 +194,7 @@ pub fn zonos3_codec_rekey(config: &Zonos3CodecConfig) -> Rekey {
         .rename("head.blocks.", "head_blocks.")
         .rename("head.norm.", "head_norm.")
         .rename("head.outs.", "head_outs.")
-        .rename("head.mixer.", "mixer.")
-        .exact("to_external_kernel", "resampler.weight");
+        .rename("head.mixer.", "mixer.");
     (0..config.stages.len()).fold(rekey, |rekey, i| {
         let from = format!("stages.{}.", 2 * i);
         let to = format!("stages.{i}.");

@@ -9,13 +9,15 @@ Run once; commit the outputs. Regenerating is not part of CI.
     hf download Zyphra/ZONOS3-Mini-hf modeling_zonos3.py configuration_zonos3.py \\
         --revision 73500c5a1fc3e0c4da69908e3cffd9346cdd97c2 --local-dir hf
     python3.12 -m venv venv
-    venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch==2.9.1
+    venv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch==2.9.1 \\
+        torchaudio==2.9.1
     venv/bin/pip install transformers==4.57.3 safetensors numpy
     venv/bin/pip install --no-deps -e upstream/model
     venv/bin/python -I tools/gen_zonos3_toy_fixtures.py --upstream upstream --hf hf
 
 Pinned versions used to produce the committed fixture:
-    torch 2.9.1+cpu, transformers 4.57.3, safetensors 0.8.0, Python 3.12;
+    torch 2.9.1+cpu, torchaudio 2.9.1+cpu, transformers 4.57.3, safetensors 0.8.0,
+    Python 3.12;
     upstream `Zyphra/ZONOS3-Mini` b171b191 (checked: `git rev-parse HEAD`);
     `Zyphra/ZONOS3-Mini-hf` 73500c5a's `modeling_zonos3.py` and `configuration_zonos3.py`
     (checked: sha256).
@@ -44,7 +46,10 @@ oracles:
   (and upstream runs its latent, head and resampler in float32 by design). Two stages,
   so one patch-up between them; sliding windows shorter than the sequence; two iSTFT
   branches of `n_fft` 24 and 72 (not powers of two, the release's ratios to the hop);
-  a 4 -> 3 resampler.
+  a 4 -> 3 resampler whose kernel is `torchaudio`'s own table, as the release's
+  `to_external_kernel` is (`Resample(44160, 44100, lowpass_filter_width=16,
+  rolloff=0.99)`): `Resample(4, 3)` under the same settings, so `resample_width` is that
+  table's, 22; bunsen builds the kernel rather than reading it.
 
 Weights are seeded random; the norm gains about one (`toy_fixture.init_weights`), so a
 misplaced one is caught. The codec's layer scales are random too.
@@ -199,7 +204,9 @@ CODEC = {
     "n_ffts": [24, 72],
     "resample_new": 3,
     "resample_orig": 4,
-    "resample_width": 2,
+    # `torchaudio`'s width for 4 -> 3 at 16 zero crossings, rolloff 0.99:
+    # ceil(16 * 4 / (3 * 0.99)).
+    "resample_width": 22,
     "residual_codebooks": 2,
     "semantic_depth": 2,
     "semantic_hidden": 32,
@@ -364,9 +371,33 @@ def lm_fixture(hf_module):
     return tensors, io_tensors(io, prefix="io.lm."), lm_config, report
 
 
+RESAMPLE_ZERO_CROSSINGS = 16
+"""The release's resampler's `lowpass_filter_width` (upstream's `to_external`)."""
+
+RESAMPLE_ROLLOFF = 0.99
+"""The release's resampler's `rolloff`."""
+
+
+def resample_kernel():
+    """`torchaudio`'s `[new, 1, 2 w + orig]` kernel for the toy's 4 -> 3, at the release's
+    settings: what `to_external_kernel` holds in the release."""
+    import torchaudio
+
+    resample = torchaudio.transforms.Resample(
+        CODEC["resample_orig"],
+        CODEC["resample_new"],
+        lowpass_filter_width=RESAMPLE_ZERO_CROSSINGS,
+        rolloff=RESAMPLE_ROLLOFF,
+    )
+    assert resample.width == CODEC["resample_width"], (resample.width, CODEC["resample_width"])
+    return resample.kernel.float()
+
+
 def codec_fixture(hf_module):
     model = build(lambda: hf_module.Zonos3MiniCodec(CODEC), seed=4321)
     init_weights(model, norm_bias=0.1)
+    with torch.no_grad():
+        model.to_external_kernel.copy_(resample_kernel())
     model = model.float()
     g = torch.Generator().manual_seed(11)
     codes = torch.randint(
@@ -399,21 +430,25 @@ def main() -> None:
     parser.add_argument(
         "--hf", type=pathlib.Path, required=True, help="the -hf repo's two .py files"
     )
+    parser.add_argument(
+        "--out", type=pathlib.Path, default=OUT, help="the output directory (the testdata's)"
+    )
     args = parser.parse_args()
+    out = args.out
     check_upstream(args.upstream)
     hf_module = load_hf(args.hf)
 
     lm_weights, lm_io, lm_config, report = lm_fixture(hf_module)
     codec_weights, codec_io = codec_fixture(hf_module)
 
-    write(OUT / "toy.safetensors", lm_weights, codec_weights, lm_io, codec_io)
-    write_json(OUT / "toy.config.json", {"lm": lm_config, "codec": CODEC}, indent=2, sort_keys=True)
+    write(out / "toy.safetensors", lm_weights, codec_weights, lm_io, codec_io)
+    write_json(out / "toy.config.json", {"lm": lm_config, "codec": CODEC}, indent=2, sort_keys=True)
 
     for name, gap in report.items():
         print(f"{name}: max |diff| {gap:.3e}")
     for name, shape in shapes({**lm_io, **codec_io}).items():
         print(f"{name}: {list(shape)}")
-    print(f"{len(lm_weights)} LM and {len(codec_weights)} codec tensors -> {OUT}")
+    print(f"{len(lm_weights)} LM and {len(codec_weights)} codec tensors -> {out}")
 
 
 if __name__ == "__main__":
