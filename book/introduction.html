@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-e76055c1.js";
+            window.path_to_searchindex_js = "searchindex-946ff7d1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-8ef3ccc5.js"></script>
@@ -182,19 +182,35 @@
                     <main>
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
-<h2 id="bunsen---tackling-tomorrows-burn-problems-today"><a class="header" href="#bunsen---tackling-tomorrows-burn-problems-today">bunsen - tackling tomorrow’s burn problems today!</a></h2>
-<p>The <a href="https://burn.dev">burn</a> team is working hard to give us a stable long term foundation
-for developing high-performance and maintainable tensor programming in
-Rust; The “in Rust” aspect requires a degree of type and runtime R&amp;D research
-and that requires a conservative posture to api extension.</p>
-<p><code>bunsen</code> provides a “batteries included” complementary community standard library
-for research extensions to <code>burn</code>; ideas which are useful enough
-to collect into one place, document, and build upon; but front-run
-the <code>burn</code> interface frontier.
-Every idea in <code>bunsen</code> seeks to either be refined and ported into <code>burn</code>,
-or supplanted by the eventual <code>burn</code> solution to that problem.</p>
+<h2 id="bunsen---inventing-tomorrows-burn-problems-today"><a class="header" href="#bunsen---inventing-tomorrows-burn-problems-today">bunsen - inventing tomorrow’s burn problems today!</a></h2>
+<p>The <a href="https://burn.dev">burn</a> community is building a stable, long-term
+foundation for high-performance, maintainable tensor programming in Rust;
+work which requires extensive incremental novel research into Rust type and
+runtime extensions.</p>
+<p><code>bunsen</code> contributes to the community work as a “batteries included”
+standard library for the frontier, by driving real models and applications
+ahead of the <code>burn</code> foundation: exploring the novel problems they raise,
+unifying their partial solutions incrementally, and upstreaming stabilized
+components back into <code>burn</code>.</p>
+<p>The frontier has two halves: the components model families are built from,
+and the runtime around those models (loading, driving and testing them).
+<code>bunsen</code> drives research through a development pipeline in which each stage
+increases breadth:</p>
+<ul>
+<li>The frontier is <strong>Expanded</strong> by porting new model families and the
+components they need, widening what is possible.</li>
+<li>The model families are <strong>Consolidated</strong> by building and improving the
+runtime around those applications (loading, driving, testing), making them
+supportable.</li>
+<li>Bespoke solutions are incrementally <strong>Unified</strong> into shared parts, making
+the next family easier to develop.</li>
+<li>Stabilized foundations are <strong>Upstreamed</strong> into <code>burn</code>, making them
+standard.</li>
+</ul>
+<p>Every idea in <code>bunsen</code> is headed for <code>burn</code>: refined and ported, or
+supplanted by <code>burn</code>’s own solution.</p>
 <h2 id="this-book-and-the-api-docs"><a class="header" href="#this-book-and-the-api-docs">This book and the API docs</a></h2>
-<p>The <a href="https://docs.rs/bunsen/0.42.0/bunsen/index.html" title="mod bunsen">API docs</a> answer <em>what is this type, and how do I call it?</em>
+<p>The <a href="https://docs.rs/bunsen/0.43.0/bunsen/index.html" title="mod bunsen">API docs</a> answer <em>what is this type, and how do I call it?</em>
 This book answers <em>how is bunsen put together, why is it built that way, and
 how do we work on it?</em> The two are deliberately split:</p>
 <ul>

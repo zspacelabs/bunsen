@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
+            window.path_to_searchindex_js = "../searchindex-946ff7d1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8ef3ccc5.js"></script>
@@ -214,12 +214,10 @@ and manage the weights cache. It is built on the same
 built with its cargo feature (<code>cuda</code>, <code>metal</code>, <code>vulkan</code>, <code>wgpu</code>); <code>flex</code>, the
 CPU, always is, and <code>auto</code>, the default, takes the first accelerator built
 in. Each README has the exact command.</p>
-<p><code>--precision</code> picks the default float dtype: <code>auto</code> is the example’s own
-choice, <code>full</code> is <code>f32</code>, and <code>half</code> is the example’s half precision, which
-resolves per backend: <code>bf16</code> where a training example wants <code>f32</code>’s range and
-the backend runs it well, <code>f16</code> where any 16-bit float will do, and <code>f32</code> on
-the CPU or where the backend lacks the half. <code>--float-dtype</code> and <code>--int-dtype</code>
-name an exact dtype instead. The training examples also draw burn’s terminal
+<p>The device’s default float dtype is <code>f32</code>. An example that simulates in
+another dtype takes <code>--init-dtype</code> (<code>lbm2d_vis</code> simulates its flow in <code>f16</code>
+by default, where the backend has it); the training examples train in <code>f32</code>.
+The training examples also draw burn’s terminal
 dashboard (their default <code>tui</code> feature) when run in a terminal.
 <a href="./features.html">Features, backends and the network</a> explains bunsen’s own
 backend features and why some examples also need <code>fetch</code>.</p>

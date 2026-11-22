@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
+            window.path_to_searchindex_js = "../searchindex-946ff7d1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8ef3ccc5.js"></script>
@@ -282,7 +282,7 @@ behaves against its reference is the validate targets’, run by hand. It runs
 only when asked: from the Actions tab, or for a pull request with the
 <code>validate</code> label, then on every push while the label stays.</p>
 <p><code>cargo make validate-&lt;model&gt;</code> (<code>silero</code>, <code>whisper</code>, <code>parakeet</code>, <code>qwen3-asr</code>,
-<code>qwen3</code>, <code>sortformer</code>, <code>voxtral</code>, <code>nanochat</code>, or <code>all</code>) runs a model’s whole suite, optimized, with debug assertions (the <code>validate</code> cargo profile), on
+<code>qwen3</code>, <code>sortformer</code>, <code>voxtral</code>, <code>nanochat</code>, <code>zonos3</code>, <code>qwen3-tts</code>, or <code>all</code>) runs a model’s whole suite, optimized, with debug assertions (the <code>validate</code> cargo profile), on
 <code>VALIDATION_BACKEND</code> (default <code>wgpu</code>). The
 <a href="https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#running-it">README</a>
 has the command. Without a backend feature the suite still passes, having

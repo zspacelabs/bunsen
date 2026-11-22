@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-e76055c1.js";
+            window.path_to_searchindex_js = "../searchindex-946ff7d1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-8ef3ccc5.js"></script>
@@ -190,7 +190,7 @@ rules are what they are. The rules themselves are in STYLE.md’s
 and
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#fetched-assets-live-in-out_dir">Fetched assets live in <code>OUT_DIR</code></a>;
 the features that carry them are listed in
-<a href="https://docs.rs/bunsen/0.42.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
 <h2 id="build-time-and-run-time"><a class="header" href="#build-time-and-run-time">Build time and run time</a></h2>
 <p>There are two switches, and neither implies the other:</p>
 <ul>
@@ -263,7 +263,7 @@ rewrites them to standard ONNX before <code>burn-onnx</code> imports the graph.<
 embedding, 19 GB), rewritten the same way, for its validation crate.</li>
 </ul>
 <p>The validation crates converted to <code>validation/models.yml</code> (Qwen3, nanochat,
-Qwen3-ASR, Parakeet, Sortformer, Voxtral) fetch no checkpoint at build time: their
+Qwen3-ASR, Parakeet, Sortformer, Voxtral, ZONOS3, Qwen3-TTS) fetch no checkpoint at build time: their
 tests load each through bunsen’s own pinned rows, at run time, into the
 weights cache, and a bind crate fetches only its ONNX reference.</p>
 <p>Only the validation crates depend on them, through their <code>reference</code>

@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../../searchindex-e76055c1.js";
+            window.path_to_searchindex_js = "../../searchindex-946ff7d1.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-8ef3ccc5.js"></script>
@@ -183,20 +183,20 @@
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="formats"><a class="header" href="#formats">Formats</a></h1>
 <p>A kit’s hook reads its checkpoint’s own format with the readers in
-<a href="https://docs.rs/bunsen/0.42.0/bunsen/data/formats/index.html" title="mod bunsen::data::formats"><code>bunsen::data::formats</code></a>: the safetensors checkpoint and header
-(<a href="https://docs.rs/bunsen/0.42.0/bunsen/data/formats/safetensors/struct.SafetensorsCheckpoint.html" title="struct bunsen::data::formats::safetensors::SafetensorsCheckpoint"><code>SafetensorsCheckpoint</code></a>),
+<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/formats/index.html" title="mod bunsen::data::formats"><code>bunsen::data::formats</code></a>: the safetensors checkpoint and header
+(<a href="https://docs.rs/bunsen/0.43.0/bunsen/data/formats/safetensors/struct.SafetensorsCheckpoint.html" title="struct bunsen::data::formats::safetensors::SafetensorsCheckpoint"><code>SafetensorsCheckpoint</code></a>),
 the <code>PyTorch</code> reader, MLX’s affine-quantized tensors, <code>FermionResearch</code>’s
 Phonon formats, and named-tensor application, which loads any of them into
 a module under a kit’s names, or under a
-<a href="https://docs.rs/bunsen/0.42.0/bunsen/burner/module/rekey/struct.Rekey.html" title="struct bunsen::burner::module::rekey::Rekey"><code>Rekey</code></a> whose targets may also change a
+<a href="https://docs.rs/bunsen/0.43.0/bunsen/burner/module/rekey/struct.Rekey.html" title="struct bunsen::burner::module::rekey::Rekey"><code>Rekey</code></a> whose targets may also change a
 tensor’s data on the way. The readers need the <code>store</code> feature
 (<a href="../../organization/features.html">features</a>).</p>
-<p>A <a href="https://docs.rs/bunsen/0.42.0/bunsen/data/formats/load_policy/struct.LoadPolicy.html" title="struct bunsen::data::formats::load_policy::LoadPolicy"><code>LoadPolicy</code></a> is the load call’s
+<p>A <a href="https://docs.rs/bunsen/0.43.0/bunsen/data/formats/load_policy/struct.LoadPolicy.html" title="struct bunsen::data::formats::load_policy::LoadPolicy"><code>LoadPolicy</code></a> is the load call’s
 choice of the float dtype a model’s parameters are placed in. A load only
 ever widens: a tensor goes in the dtype it was stored in, or f32, the first
 the policy, the device and the hook allow. <code>performance()</code> keeps a half
-dtype only where the device accelerates it, <code>as_stored()</code> wherever the
-device computes in it, and <code>at_least(f32)</code> holds a model to an f32
+dtype only where the device accelerates it, <code>load_as_stored()</code> wherever the
+device computes in it, and <code>min_precision(f32)</code> holds a model to an f32
 reference.</p>
 <h2 id="pytorch-checkpoints"><a class="header" href="#pytorch-checkpoints">PyTorch checkpoints</a></h2>
 <p>An OpenAI <code>.pt</code> checkpoint is read through burn-store’s PyTorch reader, and
