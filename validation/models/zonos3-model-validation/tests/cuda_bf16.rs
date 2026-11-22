@@ -70,7 +70,16 @@ mod zonos3_mini {
         let device = Device::cuda(0);
         let construct = load_construct_with(&device, LoadPolicy::performance());
         assert_eq!(
-            construct.lm.head.weight.val().dtype(),
+            construct
+                .lm
+                .decoder
+                .head
+                .proj
+                .as_ref()
+                .unwrap()
+                .weight
+                .val()
+                .dtype(),
             DType::BF16,
             "performance() keeps bf16 where CUDA accelerates it"
         );
