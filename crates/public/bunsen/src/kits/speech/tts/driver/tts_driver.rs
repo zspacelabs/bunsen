@@ -22,6 +22,8 @@ use super::{
     TtsTakeRequest,
     TtsTextStage,
     TtsVoiceInfo,
+    TtsVoicePrint,
+    TtsVoiceReference,
     tts_split_text,
 };
 use crate::{
@@ -113,6 +115,20 @@ pub trait TtsSynthesizer: Debug + Send + Sync {
         &self,
         request: &TtsRequest,
     ) -> BunsenResult<TtsSpeech>;
+
+    /// The voice built from `reference` for this model
+    /// ([`TtsEngine::build_voice`]); the default clones none.
+    ///
+    /// # Errors
+    /// As [`TtsEngine::build_voice`].
+    fn build_voice(
+        &self,
+        reference: &TtsVoiceReference,
+        mode: Option<&str>,
+    ) -> BunsenResult<TtsVoicePrint> {
+        self.capabilities().clone_mode(reference, mode)?;
+        Err(BunsenError::unsupported("this model clones no voices"))
+    }
 }
 
 /// The TTS driver: a request through its stages (text normalization, then
@@ -305,5 +321,13 @@ impl<E: TtsEngine> TtsSynthesizer for TtsDriver<E> {
         request: &TtsRequest,
     ) -> BunsenResult<TtsSpeech> {
         TtsDriver::synthesize(self, request)
+    }
+
+    fn build_voice(
+        &self,
+        reference: &TtsVoiceReference,
+        mode: Option<&str>,
+    ) -> BunsenResult<TtsVoicePrint> {
+        self.engine.build_voice(reference, mode)
     }
 }

@@ -1215,6 +1215,7 @@ dependencies = [
  "num-traits",
  "rand 0.10.3",
  "ruzstd",
+ "safetensors 0.8.0",
  "serde",
  "serde-pickle",
  "serde-saphyr",

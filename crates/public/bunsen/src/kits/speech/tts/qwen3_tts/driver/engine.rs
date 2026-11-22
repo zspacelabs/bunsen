@@ -182,6 +182,7 @@ impl<T: Tokenizer> Qwen3TtsEngine<T> {
             stock_voices: !construct.prompt.speakers.is_empty(),
             described_voices: construct.kind == Qwen3TtsModelKind::VoiceDesign,
             instruction: construct.instruction,
+            clone_modes: Vec::new(),
         };
         Ok(Self {
             construct,

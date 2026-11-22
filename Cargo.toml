@@ -68,6 +68,8 @@ regex = "1.13.1"
 regex-macro = "0.3.0"
 serde = "1.0.229"
 serde_json = "1.0.151"
+# A TTS voice file: tensors and an identity header (`kits::speech::tts::driver::TtsVoicePrint`).
+safetensors = "0.8.0"
 # Python pickles that are not tensors: nanochat's `tokenizer.pkl`, a pickled
 # `tiktoken` `Encoding`, read as data without resolving its class.
 serde-pickle = { version = "1.2.0", default-features = false }

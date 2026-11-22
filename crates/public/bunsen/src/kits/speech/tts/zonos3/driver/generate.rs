@@ -348,6 +348,7 @@ impl<T: Tokenizer> Zonos3Engine<T> {
             stock_voices: true,
             described_voices: false,
             instruction: false,
+            clone_modes: Vec::new(),
         };
         Ok(Self {
             construct,

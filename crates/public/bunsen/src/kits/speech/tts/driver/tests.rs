@@ -54,6 +54,7 @@ impl Scripted {
                 stock_voices: true,
                 described_voices: false,
                 instruction,
+                clone_modes: Vec::new(),
             },
             seen: Mutex::new(Vec::new()),
         }
@@ -330,4 +331,94 @@ fn test_takes() {
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .assert_err(&TtsDriver::new(Scripted::new(false), bad).map(|_| ()));
     }
+}
+
+/// A reference of one clip, with `transcript`.
+fn reference(transcript: Option<&str>) -> TtsVoiceReference {
+    let record = TtsClipRecord {
+        file: "a.wav".into(),
+        sha256: "00".into(),
+        sample_rate: 8,
+        channels: 1,
+        samples: 8,
+        edits: Vec::new(),
+    };
+    TtsVoiceReference {
+        record: TtsVoiceReferenceRecord {
+            version: TTS_VOICE_REFERENCE_VERSION,
+            name: Some("ada".into()),
+            transcript: transcript.map(Into::into),
+            language: None,
+            gender: None,
+            style: None,
+            created_unix: None,
+            clips: vec![record.clone()],
+        },
+        clips: vec![TtsReferenceClip {
+            record,
+            channels: vec![vec![0.0; 8]],
+        }],
+        digest: "ab".into(),
+    }
+}
+
+/// The clone mode: the one asked for, if the reference satisfies it; else the
+/// first it satisfies; refusals name the need.
+#[test]
+fn test_clone_mode() {
+    let capabilities = TtsCapabilities {
+        clone_modes: vec![
+            TtsCloneMode {
+                name: "icl".into(),
+                needs_transcript: true,
+            },
+            TtsCloneMode::clip("xvector"),
+        ],
+        ..TtsCapabilities::default()
+    };
+    let with = reference(Some("hello"));
+    let without = reference(None);
+    assert_eq!(capabilities.clone_mode(&with, None).unwrap().name, "icl");
+    assert_eq!(
+        capabilities.clone_mode(&without, None).unwrap().name,
+        "xvector"
+    );
+    assert_eq!(
+        capabilities
+            .clone_mode(&with, Some("xvector"))
+            .unwrap()
+            .name,
+        "xvector"
+    );
+    let err = capabilities.clone_mode(&without, Some("icl")).unwrap_err();
+    assert_eq!(err.kind(), BunsenErrorKind::Illegal);
+    assert!(format!("{err}").contains("transcript"), "{err}");
+    assert_eq!(
+        capabilities
+            .clone_mode(&with, Some("nope"))
+            .unwrap_err()
+            .kind(),
+        BunsenErrorKind::Lookup
+    );
+    let mut empty = without.clone();
+    empty.clips.clear();
+    assert_eq!(
+        capabilities.clone_mode(&empty, None).unwrap_err().kind(),
+        BunsenErrorKind::Illegal
+    );
+    assert_eq!(
+        TtsCapabilities::default()
+            .clone_mode(&with, None)
+            .unwrap_err()
+            .kind(),
+        BunsenErrorKind::Unsupported
+    );
+}
+
+/// An engine that clones none refuses to make a voice.
+#[test]
+fn test_build_voice_unsupported() {
+    let driver = TtsDriver::new(Scripted::new(false), TtsDriverConfig::new()).unwrap();
+    let err = TtsSynthesizer::build_voice(&driver, &reference(None), None).unwrap_err();
+    assert_eq!(err.kind(), BunsenErrorKind::Unsupported);
 }
