@@ -1,7 +1,8 @@
 //! # Audio Support
 //!
 //! [`load_audio_mono_sr`]: a mono file at the rate a model needs, decoded,
-//! never resampled; [`save_wav_mono`], mono samples to a WAV file.
+//! never resampled; [`load_audio`]: a file as it is, at its own rate and
+//! channels ([`DecodedAudio`]); [`save_wav_mono`], mono samples to a WAV file.
 //! [`Resampler`] (and [`resample`], for a whole signal): the rate conversion
 //! a caller decides on. [`HannSincResampler`]: `torchaudio`'s
 //! `sinc_interp_hann` conversion, for a model trained behind it.
@@ -64,16 +65,57 @@ pub fn load_audio_mono_sr(
     sample_rate: usize,
 ) -> BunsenResult<Vec<f32>> {
     let filename = filename.as_ref();
+    let (rate, channels, samples) = decode(filename)?;
+    check_mono_sr(filename, channels, rate, sample_rate)?;
+    Ok(samples)
+}
 
+/// A decoded audio file: its rate, and its samples per channel.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DecodedAudio {
+    /// The sample rate, in Hz.
+    pub sample_rate: u32,
+
+    /// The samples, `[channels][samples]`, in `[-1, 1]`.
+    pub channels: Vec<Vec<f32>>,
+}
+
+/// Loads an audio file as it is: at its own rate and channels, as `f32`
+/// samples in `[-1, 1]`, for a caller that resamples or mixes down
+/// deliberately (a reference clip a voice is cloned from).
+///
+/// `.wav` is read with `hound`; every other extension is handed to
+/// `symphonia`.
+///
+/// # Errors
+/// As [`load_audio_mono_sr`]'s, but for the channel and rate checks; and
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) for
+/// a compressed file whose rate or channels change mid-stream.
+pub fn load_audio(filename: impl AsRef<Path>) -> BunsenResult<DecodedAudio> {
+    let filename = filename.as_ref();
+    let (rate, channels, samples) = decode(filename)?;
+    let channels = channels.max(1);
+    let per = samples.len() / channels;
+    let channels = (0..channels)
+        .map(|c| (0..per).map(|i| samples[i * channels + c]).collect())
+        .collect();
+    Ok(DecodedAudio {
+        sample_rate: rate as u32,
+        channels,
+    })
+}
+
+/// A file's rate, channels and interleaved samples, by its extension's
+/// decoder.
+fn decode(filename: &Path) -> BunsenResult<(usize, usize, Vec<f32>)> {
     let ext = filename
         .extension()
         .and_then(|e| e.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
-
     match ext.as_str() {
-        "wav" | "wave" => load_wav_mono_sr(filename, sample_rate),
-        _ => load_compressed_mono_sr(filename, &ext, sample_rate),
+        "wav" | "wave" => decode_wav(filename),
+        _ => decode_compressed(filename, &ext),
     }
 }
 
@@ -182,20 +224,11 @@ fn symphonia_error(
     }
 }
 
-/// Reads a WAV file through `hound`.
-fn load_wav_mono_sr(
-    filename: &Path,
-    sample_rate: usize,
-) -> BunsenResult<Vec<f32>> {
+/// Reads a WAV file through `hound`: its rate, channels and interleaved
+/// samples.
+fn decode_wav(filename: &Path) -> BunsenResult<(usize, usize, Vec<f32>)> {
     let mut reader = WavReader::open(filename).map_err(hound_error("open", filename))?;
     let spec = reader.spec();
-
-    check_mono_sr(
-        filename,
-        spec.channels as usize,
-        spec.sample_rate as usize,
-        sample_rate,
-    )?;
 
     let samples: Vec<f32> = match (spec.sample_format, spec.bits_per_sample) {
         (SampleFormat::Float, 32) => reader
@@ -215,7 +248,7 @@ fn load_wav_mono_sr(
         _ => unreachable!("hound rejects other formats at open"),
     };
 
-    Ok(samples)
+    Ok((spec.sample_rate as usize, spec.channels as usize, samples))
 }
 
 /// Decodes a compressed file through `symphonia`.
@@ -224,11 +257,10 @@ fn load_wav_mono_sr(
 /// delay and padding are trimmed rather than returned as leading and trailing
 /// silence — which would otherwise shift every frame of a spectrogram computed
 /// from it.
-fn load_compressed_mono_sr(
+fn decode_compressed(
     filename: &Path,
     ext: &str,
-    sample_rate: usize,
-) -> BunsenResult<Vec<f32>> {
+) -> BunsenResult<(usize, usize, Vec<f32>)> {
     let file = std::fs::File::open(filename).map_err(sys_at("open", filename))?;
     let stream = MediaSourceStream::new(Box::new(file), Default::default());
 
@@ -271,6 +303,7 @@ fn load_compressed_mono_sr(
         .map_err(symphonia_error("make a decoder", filename))?;
 
     let mut samples: Vec<f32> = Vec::new();
+    let mut layout: Option<(usize, usize)> = None;
 
     // Reused across packets: `copy_to_vec_interleaved` resizes to the exact
     // sample count and keeps whatever capacity the widest packet so far needed.
@@ -289,19 +322,28 @@ fn load_compressed_mono_sr(
             .decode(&packet)
             .map_err(symphonia_error("decode a packet", filename))?;
         let spec = decoded.spec();
-
-        check_mono_sr(
-            filename,
-            spec.channels().count(),
-            spec.rate() as usize,
-            sample_rate,
-        )?;
+        let this = (spec.rate() as usize, spec.channels().count());
+        match layout {
+            None => layout = Some(this),
+            Some(first) if first != this => {
+                return Err(BunsenError::invalid_resource(format!(
+                    "{}: the stream changes from {} Hz, {} channels to {} Hz, {} channels",
+                    filename.display(),
+                    first.0,
+                    first.1,
+                    this.0,
+                    this.1
+                )));
+            }
+            Some(_) => {}
+        }
 
         decoded.copy_to_vec_interleaved(&mut packet_samples);
         samples.extend_from_slice(&packet_samples);
     }
 
-    Ok(samples)
+    let (rate, channels) = layout.unwrap_or((0, 1));
+    Ok((rate, channels, samples))
 }
 
 #[cfg(test)]
@@ -351,6 +393,39 @@ mod tests {
         for (got, want) in loaded.iter().zip(expected) {
             assert!((got - want).abs() < 1e-4, "{got} vs {want}");
         }
+    }
+
+    /// A file as it is: a stereo WAV's channels apart, at its own rate; and a
+    /// stereo file is refused by the mono loader.
+    #[test]
+    fn test_load_audio_stereo() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("stereo.wav");
+        let spec = WavSpec {
+            channels: 2,
+            sample_rate: 22_050,
+            bits_per_sample: 16,
+            sample_format: SampleFormat::Int,
+        };
+        let mut writer = WavWriter::create(&path, spec).unwrap();
+        for (l, r) in [(8192i16, -8192i16), (16384, 0), (0, 16384)] {
+            writer.write_sample(l).unwrap();
+            writer.write_sample(r).unwrap();
+        }
+        writer.finalize().unwrap();
+        let audio = load_audio(&path).unwrap();
+        assert_eq!(audio.sample_rate, 22_050);
+        assert_eq!(
+            audio.channels,
+            vec![vec![0.25, 0.5, 0.0], vec![-0.25, 0.0, 0.5]]
+        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("2 channels")
+            .assert_err(&load_audio_mono_sr(&path, 22_050));
+
+        let mono = load_audio(mp3()).unwrap();
+        assert_eq!(mono.sample_rate, 16_000);
+        assert_eq!(mono.channels.len(), 1);
     }
 
     /// mp3 goes through a different decoder than WAV, so it gets its own case.
