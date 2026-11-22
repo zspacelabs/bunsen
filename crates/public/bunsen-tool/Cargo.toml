@@ -31,9 +31,10 @@ speech = [
     "bunsen/zyphra-textnorm",
 ]
 ## The host's audio devices through its audio API (`cpal`; on Linux it links ALSA,
-## `libasound2-dev`), and Ctrl-C as a clean stop: the microphone for `asr live` and
-## `asr family <family> live`, a speaker for `tts run --play`.
-live = ["speech", "dep:cpal", "dep:ctrlc"]
+## `libasound2-dev`), and Ctrl-C as a clean stop: the microphone for `asr live`,
+## `asr family <family> live` and `tts collect-voice --record`, a speaker for
+## `tts run --play`.
+live = ["speech", "dep:cpal", "dep:ctrlc", "dep:tempfile"]
 ## `--publish` to a `webhook` target: each record POSTed as JSON (`ureq`).
 webhook = ["speech", "dep:ureq"]
 ## `--publish` to an `mqtt` target: each record published to a broker
@@ -80,6 +81,8 @@ serde_json = { workspace = true }
 strsim = { workspace = true }
 # YAML, for `--format yml`.
 serde-saphyr = { workspace = true, features = ["serialize"] }
+# The recording's scratch directory, for `tts collect-voice --record`.
+tempfile = { workspace = true, optional = true }
 time = { workspace = true }
 ureq = { workspace = true, optional = true }
 

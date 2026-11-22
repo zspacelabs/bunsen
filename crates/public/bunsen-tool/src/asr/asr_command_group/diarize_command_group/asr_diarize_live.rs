@@ -26,7 +26,7 @@ use super::{
     JsonTurn,
     text_line,
 };
-use crate::asr::CaptureArgs;
+use crate::support::CaptureArgs;
 
 /// Diarizes the microphone: each speaker turn printed as it closes, as a
 /// text line, an RTTM line (recording id `live`), or a JSON object.

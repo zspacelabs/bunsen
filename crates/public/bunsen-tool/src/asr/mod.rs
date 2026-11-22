@@ -14,14 +14,9 @@
 //!   and speaker turns.
 //! - [`publish`]: where a transcript goes (stdout, a file, a webhook, an MQTT
 //!   broker), and in which form (text, JSON lines, RTTM).
-//! - With `live`: the microphone, captured at a model's rate (`Capture`), and
-//!   resampled when the device's rate differs (bunsen's
-//!   `support::audio::Resampler`).
 //! - [`AsrCommandGroup`]: the `asr` command tree.
 
 mod asr_command_group;
-#[cfg(feature = "live")]
-mod capture;
 mod construct;
 mod driver;
 mod family;
@@ -34,8 +29,6 @@ pub mod voxtral;
 pub mod whisper;
 
 pub use asr_command_group::*;
-#[cfg(feature = "live")]
-pub use capture::*;
 pub use construct::*;
 pub use driver::*;
 pub use family::*;

@@ -26,7 +26,6 @@ use crate::{
     asr::{
         AsrFamily,
         AsrSpeakerArgs,
-        CaptureArgs,
         Driver,
         Emission,
         FamilyFlags,
@@ -42,6 +41,7 @@ use crate::{
         },
     },
     support::{
+        CaptureArgs,
         PresetArgs,
         log_build,
     },
