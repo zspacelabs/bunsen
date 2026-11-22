@@ -32,10 +32,11 @@
 //!   `numpy.fft.rfft`-compatible; see [`SlidingStft`]'s *Spectrum convention*.
 //! - **Inverse STFT.** [`InverseStftConfig`] -> [`InverseStft`]: spectra back
 //!   to a waveform, as `torch.istft` computes it, at any FFT size.
-//! - **Windows.** [`SamplingWindowBuilder`] materializes a window as a
-//!   `Vec<f64>` or a tensor. [`CosineWindowConfig`] (Hann, Hamming) and
-//!   [`DualCosineWindow`] (Blackman) are the families, and [`StftWindowConfig`]
-//!   picks one as a config value.
+//! - **Kernels.** [`kernels`]: the coefficient math the operators apply, one
+//!   family to a module, each built on the host and on a device and the two
+//!   cross-tested there. [`kernels::window`]: the analysis windows (Hann,
+//!   Hamming, Blackman), picked as a config value by
+//!   [`StftWindowConfig`](kernels::window::StftWindowConfig).
 //! - **Log-mel.** [`perceptive_audio`] converts waveforms to log-mel
 //!   spectrograms (Whisper's front end; defaults reproduce `librosa`).
 //! - **Kaldi filterbanks.** [`KaldiFbankConfig`] -> [`KaldiFbank`], with
@@ -44,8 +45,6 @@
 //!   end).
 //! - **Long audio.** [`quiet_cuts`] cuts a long recording into bounded windows
 //!   at its quietest points, for models that take bounded utterances.
-//! - **Testing.** The `testing` submodule (with the `testing` feature) has
-//!   assertions for window builders.
 //!
 //! burn's counterpart is `burn::tensor::signal` (`stft`, `rfft`), which
 //! [`SlidingStft`] is built on.
@@ -55,23 +54,15 @@
 //! [`PerceptiveAudioConverter::new_context`]: perceptive_audio::PerceptiveAudioConverter::new_context
 //! [`PerceptiveAudioConversionContext`]: perceptive_audio::PerceptiveAudioConversionContext
 
+pub mod kernels;
 pub mod perceptive_audio;
 
-#[cfg(any(test, feature = "testing"))]
-pub mod testing;
-
-mod cosine_window;
 mod inverse_stft;
 mod kaldi_fbank;
 mod quiet_cuts;
 mod sliding_stft;
-mod stft_window;
-mod window_builder;
 
-pub use cosine_window::*;
 pub use inverse_stft::*;
 pub use kaldi_fbank::*;
 pub use quiet_cuts::*;
 pub use sliding_stft::*;
-pub use stft_window::*;
-pub use window_builder::*;

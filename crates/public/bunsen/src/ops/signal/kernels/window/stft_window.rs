@@ -6,10 +6,10 @@ use burn::{
     tensor::TensorCreationOptions,
 };
 
-use crate::ops::signal::{
+use super::{
+    CosineWindowConfig,
     DualCosineWindow,
-    cosine_window::CosineWindowConfig,
-    window_builder::SamplingWindowBuilder,
+    SamplingWindowBuilder,
 };
 
 /// Analysis window function for the STFT family.

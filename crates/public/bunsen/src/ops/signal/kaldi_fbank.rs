@@ -21,7 +21,7 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    ops::signal::{
+    ops::signal::kernels::window::{
         SamplingWindowBuilder,
         StftWindowConfig,
     },

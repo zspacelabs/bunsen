@@ -1,4 +1,4 @@
-//! Testing utilities for signal operations.
+//! Testing utilities for window builders.
 
 use burn::{
     prelude::TensorData,
@@ -10,7 +10,7 @@ use burn::{
 use tracing::debug;
 
 use crate::{
-    ops::signal::SamplingWindowBuilder,
+    ops::signal::kernels::window::SamplingWindowBuilder,
     support::testing::assert_close_to_vec,
 };
 

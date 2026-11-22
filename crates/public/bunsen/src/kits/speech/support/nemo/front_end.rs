@@ -16,7 +16,7 @@ use crate::{
     kits::speech::asr::driver::StreamingFeatures,
     ops::{
         signal::{
-            StftWindowConfig,
+            kernels::window::StftWindowConfig,
             perceptive_audio::{
                 PaddingMode,
                 PerceptiveAudioConverter,

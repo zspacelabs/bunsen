@@ -25,7 +25,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    ops::signal::{
+    ops::signal::kernels::window::{
         SamplingWindowBuilder,
         StftWindowConfig,
     },

@@ -60,7 +60,7 @@
 //! derive `serde` and implement `ModuleDisplay` by hand
 //! ([`RmsNormOptions`](norm::RmsNormOptions) derives `serde` only); others
 //! are `#[derive(Config)]` types, such as [`LogBase`](math::LogBase),
-//! [`StftWindowConfig`](signal::StftWindowConfig) and
+//! [`StftWindowConfig`](signal::kernels::window::StftWindowConfig) and
 //! [`ScaledDotProductAttentionOptions`](transformers::attention::ScaledDotProductAttentionOptions).
 //! A bundle of settings handed to an op is `*Options`; `*Config` builds
 //! something (a module, a state, a table); a single value is named for what

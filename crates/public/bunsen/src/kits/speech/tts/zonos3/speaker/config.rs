@@ -14,7 +14,7 @@ use crate::{
     },
     ops::signal::{
         KaldiFbankConfig,
-        StftWindowConfig,
+        kernels::window::StftWindowConfig,
     },
     support::audio::HannSincResampler,
 };
