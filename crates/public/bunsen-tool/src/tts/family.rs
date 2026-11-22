@@ -41,6 +41,7 @@ use bunsen::{
             zonos3::{
                 driver::{
                     Zonos3Engine,
+                    Zonos3SpeakerMode,
                     zonos3_release_normalization,
                 },
                 pretrained::{
@@ -193,6 +194,12 @@ impl TtsFamily {
                 if let Some(frames) = flags.silence_prefill_frames {
                     config.silence_prefill_frames = frames;
                 }
+                if let Some(mode) = flags.speaker_mode {
+                    config.speaker_mode = match mode {
+                        TtsSpeakerMode::Codes => Zonos3SpeakerMode::Codes,
+                        TtsSpeakerMode::Embedding => Zonos3SpeakerMode::Embedding,
+                    };
+                }
                 let engine = Zonos3Engine::new(construct, tokenizer, config)?;
                 Ok(Arc::new(TtsDriver::new(engine, driver)?))
             }
@@ -227,6 +234,17 @@ impl TtsFamily {
     }
 }
 
+/// How ZONOS3 speaks in a stock voice, as `--speaker-mode` takes it.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TtsSpeakerMode {
+    /// Its codes: its reference recording's codec codes, a prefix of audio
+    /// rows (the release's default).
+    Codes,
+
+    /// Its speaker embedding, through the prompt's speaker row.
+    Embedding,
+}
+
 /// Where Qwen3-TTS puts the text in its prompt, as `--placement` takes it.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TtsPlacement {
@@ -252,6 +270,13 @@ pub struct TtsFamilyArgs {
     /// ZONOS3: the silence prefill's frames (the release's 3).
     #[arg(long)]
     pub silence_prefill_frames: Option<usize>,
+
+    /// ZONOS3: how a stock voice is spoken in (the release's `codes`).
+    ///
+    /// Each stock voice ships as reference codes and a speaker embedding;
+    /// `embedding` speaks through the embedding, as a cloned voice does.
+    #[arg(long, value_enum)]
+    pub speaker_mode: Option<TtsSpeakerMode>,
 
     /// Qwen3-TTS: where the text goes in the prompt.
     #[arg(long, value_enum)]
@@ -286,6 +311,7 @@ impl TtsFamilyArgs {
                 self.silence_prefill_frames.is_some(),
                 z,
             ),
+            ("--speaker-mode", self.speaker_mode.is_some(), z),
             ("--placement", self.placement.is_some(), q),
             (
                 "--predictor-temperature",

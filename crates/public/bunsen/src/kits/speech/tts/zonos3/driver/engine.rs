@@ -59,8 +59,10 @@ pub fn zonos3_voice_list(voices: &BTreeMap<String, Zonos3Voice>) -> Vec<TtsVoice
 
 /// ZONOS3 through the TTS driver.
 ///
-/// - A voice is a stock voice's reference codes, the release's default speaker
-///   mode; the default voice is the config's
+/// - A voice is a stock voice, spoken in the config's
+///   [`speaker_mode`](super::Zonos3EngineConfig::speaker_mode): its reference
+///   codes (the release's default) or its speaker embedding; the default voice
+///   is the config's
 ///   [`default_voice`](super::Zonos3EngineConfig::default_voice).
 /// - A language is a request code of the release's `languages` table, or a
 ///   language tag; none is the config's
@@ -89,8 +91,8 @@ impl<T: Tokenizer + Send + Sync> TtsEngine for Zonos3Engine<T> {
         choice: &TtsVoiceChoice,
     ) -> BunsenResult<Zonos3Speaker> {
         match choice {
-            TtsVoiceChoice::Default => self.voice_reference(&self.config().default_voice),
-            TtsVoiceChoice::Stock(name) => self.voice_reference(name),
+            TtsVoiceChoice::Default => self.stock_speaker(&self.config().default_voice),
+            TtsVoiceChoice::Stock(name) => self.stock_speaker(name),
             other => Err(BunsenError::unsupported(format!(
                 "ZONOS3 speaks in its stock voices; not {other:?}"
             ))),

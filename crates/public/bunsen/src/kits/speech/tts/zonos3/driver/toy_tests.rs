@@ -265,6 +265,37 @@ fn test_refusals() {
     assert_eq!(error.kind(), BunsenErrorKind::Illegal);
 }
 
+/// A stock voice speaks in the config's speaker mode: its reference codes by
+/// default, its embedding in embedding mode; `voice_reference` is the codes
+/// whatever the mode.
+#[test]
+fn test_speaker_mode() {
+    let reference = engine(Zonos3EngineConfig::new());
+    let toy = reference.stock_voice("Toy").unwrap().clone();
+    assert_eq!(
+        reference.resolve_voice(&TtsVoiceChoice::Default).unwrap(),
+        Zonos3Speaker::Codes(toy.codes.clone())
+    );
+    let embedding =
+        engine(Zonos3EngineConfig::new().with_speaker_mode(Zonos3SpeakerMode::Embedding));
+    assert_eq!(
+        embedding
+            .resolve_voice(&TtsVoiceChoice::Stock("Toy".into()))
+            .unwrap(),
+        Zonos3Speaker::Embedding(toy.embedding)
+    );
+    assert_eq!(
+        embedding.voice_reference("Toy").unwrap(),
+        Zonos3Speaker::Codes(toy.codes)
+    );
+    let codes = embedding
+        .generate_codes(
+            &Zonos3Request::new("hi", embedding.stock_speaker("Toy").unwrap()).with_seed(5),
+        )
+        .unwrap();
+    assert!(codes.rows >= 1);
+}
+
 /// A condition's value is bucketed by its edges, in table order; one not
 /// given is the unknown bucket; one the release does not have is refused.
 #[test]
