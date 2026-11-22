@@ -65,8 +65,8 @@ use crate::{
     ops::signal::{
         KaldiFbank,
         KaldiFbankMeta,
+        resample::HannSincResampler,
     },
-    support::audio::HannSincResampler,
 };
 
 /// A 2-d convolution, `[k, k]`, `padding` on every side.

@@ -9,6 +9,10 @@
 //!
 //! - [`window`]: analysis windows, the Hann, Hamming and Blackman families,
 //!   materialized as `N`-point tables by [`window::SamplingWindowBuilder`] and
-//!   picked as a config value by [`window::StftWindowConfig`].
+//!   picked as a config value by [`window::StftWindowConfig`], and as a
+//!   function on `[-1, 1]` by [`window::WindowTaper`].
+//! - [`sinc`]: windowed-sinc low-pass kernels over any taper, and the phase
+//!   tables a rational rate conversion applies.
 
+pub mod sinc;
 pub mod window;
