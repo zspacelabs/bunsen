@@ -1,46 +1,35 @@
-//! [`Zonos3CodecStage`]: one trunk stage of the codec decoder, and its config.
+//! [`Zonos3CodecStageConfig`]: one trunk stage's config.
 
-use burn::{
-    Tensor,
-    config::Config,
-    module::Module,
-    nn::{
-        Linear,
-        LinearConfig,
+use burn::config::Config;
+
+use crate::blocks::{
+    activation::BunsenActivationConfig,
+    norm::{
+        BunsenLayerNormConfig,
+        BunsenNormalizationConfig,
     },
-    tensor::Device,
+    transformers::{
+        attention::csa::CausalSelfAttentionConfig,
+        decoders::{
+            causal::CausalDecoderBlockConfig,
+            projected::{
+                ProjectedDecoderStackConfig,
+                ProjectedDecoderStackMeta,
+            },
+            stack::DecoderStackStructureConfig,
+        },
+        embedding::{
+            RotaryDirection,
+            RotaryEmbeddingConfig,
+            RotaryPairLayout,
+        },
+        mlp::TransformerMlpConfig,
+    },
 };
 
-use crate::{
-    blocks::{
-        activation::BunsenActivationConfig,
-        norm::{
-            BunsenLayerNormConfig,
-            BunsenNormalizationConfig,
-        },
-        transformers::{
-            attention::csa::CausalSelfAttentionConfig,
-            decoders::{
-                causal::CausalDecoderBlockConfig,
-                stack::{
-                    DecoderStack,
-                    DecoderStackMeta,
-                    DecoderStackStructureConfig,
-                },
-            },
-            embedding::{
-                RotaryDirection,
-                RotaryEmbeddingConfig,
-                RotaryPairLayout,
-            },
-            mlp::TransformerMlpConfig,
-        },
-    },
-    burner::module::ModuleInit,
-    errors::BunsenResult,
-};
-
-/// Config of one [`Zonos3Codec`](super::Zonos3Codec) trunk stage.
+/// Config of one [`Zonos3Codec`](super::Zonos3Codec) trunk stage, the
+/// release's `stages` entry; it lowers to a
+/// [`ProjectedDecoderStackConfig`] ([`projected`](Self::projected)).
 #[derive(Config, Debug)]
 pub struct Zonos3CodecStageConfig {
     /// The width it reads.
@@ -97,28 +86,22 @@ impl Zonos3CodecStageConfig {
     }
 }
 
-/// A [`Zonos3CodecStage`]'s geometry, which its config and the stage answer
-/// alike.
-pub trait Zonos3CodecStageMeta {
-    /// The width it reads, `C_in`.
-    fn input_width(&self) -> usize;
-
-    /// Its width, `W`.
-    fn width(&self) -> usize;
-
-    /// Its layers.
-    fn n_layers(&self) -> usize;
-
-    /// The width it writes, `C_out`.
-    fn out_width(&self) -> usize;
+impl Zonos3CodecStageConfig {
+    /// The stage as a [`ProjectedDecoderStackConfig`]: [`stack`](Self::stack)
+    /// between projections without a bias, the output projection only when
+    /// it writes another width.
+    pub fn projected(&self) -> ProjectedDecoderStackConfig {
+        ProjectedDecoderStackConfig::new(self.input_width, self.stack())
+            .with_output_width(self.output_width)
+    }
 }
 
-impl Zonos3CodecStageMeta for Zonos3CodecStageConfig {
+impl ProjectedDecoderStackMeta for Zonos3CodecStageConfig {
     fn input_width(&self) -> usize {
         self.input_width
     }
 
-    fn width(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.width
     }
 
@@ -126,72 +109,7 @@ impl Zonos3CodecStageMeta for Zonos3CodecStageConfig {
         self.n_layers
     }
 
-    fn out_width(&self) -> usize {
+    fn output_width(&self) -> usize {
         self.output_width.unwrap_or(self.width)
-    }
-}
-
-impl Zonos3CodecStageMeta for Zonos3CodecStage {
-    fn input_width(&self) -> usize {
-        self.input_proj.weight.dims()[0]
-    }
-
-    fn width(&self) -> usize {
-        self.input_proj.weight.dims()[1]
-    }
-
-    fn n_layers(&self) -> usize {
-        self.stack.n_layers()
-    }
-
-    fn out_width(&self) -> usize {
-        self.output_proj
-            .as_ref()
-            .map_or_else(|| self.width(), |proj| proj.weight.dims()[1])
-    }
-}
-
-/// One trunk stage: a projection in, a decoder stack, a projection out.
-#[derive(Module, Debug)]
-pub struct Zonos3CodecStage {
-    /// `[C_in, W]`, without a bias.
-    pub input_proj: Linear,
-
-    /// The layers, with no final norm.
-    pub stack: DecoderStack,
-
-    /// `[W, C_out]`, without a bias; `None`, the stage writes its width.
-    pub output_proj: Option<Linear>,
-}
-
-impl Zonos3CodecStage {
-    /// `[B, T, C_in]` to `[B, T, C_out]`, positions from 0.
-    pub fn forward(
-        &self,
-        x: Tensor<3>,
-    ) -> Tensor<3> {
-        let t = x.dims()[1];
-        let x = self.input_proj.forward(x);
-        let x = self
-            .stack
-            .forward_hidden(x.clone(), &self.stack.rotary(t, &x.device()), None);
-        match &self.output_proj {
-            Some(proj) => proj.forward(x),
-            None => x,
-        }
-    }
-}
-
-impl ModuleInit<Zonos3CodecStage> for Zonos3CodecStageConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Zonos3CodecStage> {
-        let linear = |i, o| LinearConfig::new(i, o).with_bias(false).init(device);
-        Ok(Zonos3CodecStage {
-            input_proj: linear(self.input_width, self.width),
-            stack: self.stack().try_init(device)?,
-            output_proj: self.output_width.map(|o| linear(self.width, o)),
-        })
     }
 }

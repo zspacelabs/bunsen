@@ -32,7 +32,6 @@ use burn::{
     },
 };
 
-use super::Zonos3CodecStage;
 use crate::{
     blocks::{
         conv::{
@@ -44,6 +43,10 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
+        transformers::decoders::projected::{
+            ProjectedDecoderStack,
+            ProjectedDecoderStackMeta,
+        },
     },
     burner::module::{
         CanonicalKeys,
@@ -52,10 +55,7 @@ use crate::{
     },
     contracts::unpack_shape_contract,
     errors::BunsenResult,
-    kits::speech::tts::zonos3::blocks::{
-        Zonos3CodecStageConfig,
-        Zonos3CodecStageMeta,
-    },
+    kits::speech::tts::zonos3::blocks::Zonos3CodecStageConfig,
     ops::signal::{
         InverseStft,
         InverseStftConfig,
@@ -123,7 +123,7 @@ impl Zonos3CodecConfig {
     pub fn head_width(&self) -> usize {
         self.stages
             .last()
-            .map_or(self.latent_width, |s| s.out_width())
+            .map_or(self.latent_width, |s| s.output_width())
     }
 }
 
@@ -254,7 +254,7 @@ impl ModuleInit<Zonos3Codec> for Zonos3CodecConfig {
             stages: self
                 .stages
                 .iter()
-                .map(|s| s.try_init(device))
+                .map(|s| s.projected().try_init(device))
                 .collect::<BunsenResult<_>>()?,
             head_blocks: (0..self.head_depth)
                 .map(|_| convnext(head, self.head_hidden))
@@ -343,7 +343,7 @@ pub struct Zonos3Codec {
     pub semantic_proj: Linear,
 
     /// The trunk's stages.
-    pub stages: Vec<Zonos3CodecStage>,
+    pub stages: Vec<ProjectedDecoderStack>,
 
     /// The iSTFT head's blocks.
     pub head_blocks: Vec<CausalConvNext1d>,
@@ -510,7 +510,7 @@ impl CanonicalKeys for Zonos3Codec {
             .iter()
             .enumerate()
             .fold(Rekey::keep_rest(), |rekey, (i, stage)| {
-                rekey.mount_canonical(format!("stages.{i}.stack."), &stage.stack)
+                rekey.mount_canonical(format!("stages.{i}."), stage)
             })
     }
 }
