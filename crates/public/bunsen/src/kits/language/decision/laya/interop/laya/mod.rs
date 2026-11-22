@@ -107,7 +107,8 @@ pub fn laya_config(
 /// (`load_laya_tensors`), onto a
 /// [`LayaModel`](crate::kits::language::decision::laya::LayaModel)'s module paths: the
 /// `ModernBERT` encoder under `encoder.`; the head's `PyTorch` encoder
-/// layers, `head.layers.N.`
+/// layers, `head.layers.N.` (a
+/// [`ResidualEncoderTransformer`](crate::blocks::transformers::encoders::residual::ResidualEncoderTransformer)'s)
 /// ([`transformer_encoder_layer_rekey`](crate::kits::support::interop::torch::transformer_encoder_layer_rekey)); the type embedding;
 /// the scorer's and the act head's `nn.Sequential` slots by name. Anything
 /// else is dropped: the `temperature` buffer, which calibration reads from
@@ -121,15 +122,15 @@ pub fn laya_rekey() -> Rekey {
         .mount("encoder.", "encoder.", modernbert_rekey())
         .mount_indexed(
             "head.layers.",
-            "head.",
+            "head.layers.",
             crate::kits::support::interop::torch::transformer_encoder_layer_rekey(),
         )
         .rename("type_emb.", "type_emb.")
         .rename("scorer.0.", "scorer.norm.")
-        .rename("scorer.1.", "scorer.dense.")
-        .rename("scorer.3.", "scorer.out.")
-        .rename("act_head.0.", "act_head.dense.")
-        .rename("act_head.2.", "act_head.out.")
+        .rename("scorer.1.", "scorer.mlp.linear1.")
+        .rename("scorer.3.", "scorer.mlp.linear2.")
+        .rename("act_head.0.", "act_head.linear1.")
+        .rename("act_head.2.", "act_head.linear2.")
 }
 
 #[cfg(test)]
@@ -148,19 +149,25 @@ mod tests {
             ("encoder.final_norm.weight", "encoder.stack.norm.weight"),
             (
                 "head.layers.1.self_attn.q_proj.bias",
-                "head.1.attn.query.bias",
+                "head.layers.1.attn.query.bias",
             ),
             (
                 "head.layers.0.self_attn.out_proj.weight",
-                "head.0.attn.output.weight",
+                "head.layers.0.attn.output.weight",
             ),
-            ("head.layers.0.norm1.weight", "head.0.attn_norm.weight"),
-            ("head.layers.0.norm2.bias", "head.0.mlp_norm.bias"),
-            ("head.layers.1.linear2.weight", "head.1.mlp.linear2.weight"),
+            (
+                "head.layers.0.norm1.weight",
+                "head.layers.0.attn_norm.weight",
+            ),
+            ("head.layers.0.norm2.bias", "head.layers.0.mlp_norm.bias"),
+            (
+                "head.layers.1.linear2.weight",
+                "head.layers.1.mlp.linear2.weight",
+            ),
             ("type_emb.weight", "type_emb.weight"),
             ("scorer.0.weight", "scorer.norm.weight"),
-            ("scorer.3.bias", "scorer.out.bias"),
-            ("act_head.2.weight", "act_head.out.weight"),
+            ("scorer.3.bias", "scorer.mlp.linear2.bias"),
+            ("act_head.2.weight", "act_head.linear2.weight"),
         ] {
             assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
         }
