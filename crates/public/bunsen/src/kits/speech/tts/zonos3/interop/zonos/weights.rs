@@ -121,6 +121,12 @@ pub fn load_zonos3_lm_tensors(
     Ok(applied)
 }
 
+/// The resampler's stored kernel, under [`ZONOS3_CODEC_PREFIX`]: not read.
+/// The codec builds its resampler's table
+/// ([`Zonos3CodecConfig::resampler`](crate::kits::speech::tts::zonos3::blocks::Zonos3CodecConfig::resampler)),
+/// which the release's `to_external_kernel` is to the bit.
+pub const ZONOS3_CODEC_RESAMPLE_KERNEL: &str = "to_external_kernel";
+
 /// Loads the `-hf` file's tensors (`codec.*`; any others are dropped) into
 /// `model`, built from `config`: the packed projections split
 /// ([`zonos3_codec_row_splits`]), the names mapped
@@ -140,6 +146,7 @@ pub fn load_zonos3_codec_tensors(
     let tensors: Vec<PackTensor> = tensors
         .into_iter()
         .filter(|t| t.name.starts_with(ZONOS3_CODEC_PREFIX))
+        .filter(|t| &t.name[ZONOS3_CODEC_PREFIX.len()..] != ZONOS3_CODEC_RESAMPLE_KERNEL)
         .collect();
     let tensors = split_rows(tensors, &zonos3_codec_row_splits())?;
     let rekey = Rekey::drop_rest()

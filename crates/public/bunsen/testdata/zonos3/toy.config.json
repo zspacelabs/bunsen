@@ -14,7 +14,7 @@
     ],
     "resample_new": 3,
     "resample_orig": 4,
-    "resample_width": 2,
+    "resample_width": 22,
     "residual_codebooks": 2,
     "semantic_depth": 2,
     "semantic_hidden": 32,
