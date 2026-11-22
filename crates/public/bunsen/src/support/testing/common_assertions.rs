@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 use burn::{
@@ -89,6 +90,34 @@ pub fn assert_tensors_close<const D: usize>(
     actual
         .to_data_as::<f32>()
         .assert_approx_eq::<f32>(&expected.to_data_as::<f32>(), tolerance);
+}
+
+/// A tensor's values on the host, as `E`, row-major.
+///
+/// # Panics
+///
+/// Panics if the values do not convert to `E`.
+pub fn tensor_to_vec_as<E: burn::tensor::Element, const D: usize>(tensor: &Tensor<D>) -> Vec<E> {
+    tensor
+        .to_data()
+        .try_into_vec_as::<E>()
+        .expect("the tensor's values, as the element type")
+}
+
+/// The cosine of the angle between `a` and `b`, accumulated in `f64`; NaN
+/// when either is all zeros.
+///
+/// # Panics
+///
+/// Panics if the lengths differ.
+pub fn cosine_similarity<T: Copy + Into<f64>>(
+    a: &[T],
+    b: &[T],
+) -> f64 {
+    assert_eq!(a.len(), b.len(), "cosine of vectors of different lengths");
+    let dot: f64 = a.iter().zip(b).map(|(&x, &y)| x.into() * y.into()).sum();
+    let norm = |v: &[T]| v.iter().map(|&x| x.into().powi(2)).sum::<f64>().sqrt();
+    dot / (norm(a) * norm(b))
 }
 
 #[cfg(test)]
@@ -237,5 +266,18 @@ mod tests {
         let a = square([1.0, 2.0, 3.0, f64::NAN], &device);
         let b = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());
+    }
+
+    /// The readback is row-major and converts; the cosine is 1 for a
+    /// vector and its multiple, -1 against its negation, 0 at a right angle.
+    #[test]
+    fn test_tensor_to_vec_as_and_cosine() {
+        let device = crate::support::testing::cpu_device();
+        let t = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+        assert_eq!(tensor_to_vec_as::<f64, 2>(&t), [1.0, 2.0, 3.0, 4.0]);
+        let a = [1.0f32, 2.0, 3.0];
+        assert!((cosine_similarity(&a, &[2.0, 4.0, 6.0]) - 1.0).abs() < 1e-12);
+        assert!((cosine_similarity(&a, &[-1.0, -2.0, -3.0]) + 1.0).abs() < 1e-12);
+        assert_eq!(cosine_similarity(&[1.0f64, 0.0], &[0.0, 1.0]), 0.0);
     }
 }
