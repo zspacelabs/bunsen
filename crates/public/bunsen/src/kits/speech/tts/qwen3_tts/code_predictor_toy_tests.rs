@@ -17,11 +17,11 @@ use crate::{
     burner::module::ModuleInit,
     kits::{
         speech::tts::qwen3_tts::{
-            interop::qwen_tts::*,
-            talker::{
+            blocks::{
                 Qwen3TtsTalker,
                 Qwen3TtsTalkerMeta,
             },
+            interop::qwen_tts::*,
         },
         support::interop::transformers::TransformersConfigJson,
     },

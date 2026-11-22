@@ -17,7 +17,7 @@ use crate::{
         BunsenResult,
     },
     kits::{
-        speech::tts::qwen3_tts::codec::{
+        speech::tts::qwen3_tts::blocks::{
             Qwen3TtsCodecDecoderContractConfig,
             Qwen3TtsCodecDecoderMeta,
         },
@@ -236,7 +236,7 @@ pub fn codec_decoder_layer_rekey() -> Rekey {
 }
 
 /// The decoder's names, without [`QWEN3_TTS_CODEC_DECODER_PREFIX`], onto a
-/// [`Qwen3TtsCodecDecoder`](crate::kits::speech::tts::qwen3_tts::codec::Qwen3TtsCodecDecoder)'s
+/// [`Qwen3TtsCodecDecoder`](crate::kits::speech::tts::qwen3_tts::blocks::Qwen3TtsCodecDecoder)'s
 /// canonical ones.
 pub fn codec_decoder_rekey(config: &Qwen3TtsCodecDecoderContractConfig) -> Rekey {
     let codebooks = Rekey::keep_rest().mount_indexed(
@@ -295,7 +295,7 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ToStructureConfig,
-        kits::speech::tts::qwen3_tts::codec::{
+        kits::speech::tts::qwen3_tts::blocks::{
             Qwen3TtsCodecDecoderMeta,
             Qwen3TtsVocoderMeta,
         },

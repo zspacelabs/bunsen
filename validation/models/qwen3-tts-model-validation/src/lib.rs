@@ -43,8 +43,8 @@ use std::sync::Arc;
 use bunsen::{
     data::formats::LoadPolicy,
     kits::speech::tts::qwen3_tts::{
-        Qwen3TtsChooser,
         Qwen3TtsConstruct,
+        blocks::Qwen3TtsChooser,
         prompt::{
             Qwen3TtsPromptConfig,
             Qwen3TtsPromptRequest,

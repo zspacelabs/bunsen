@@ -10,7 +10,7 @@ use crate::{
             Qwen3Config,
             interop::transformers::text_layer_rekey,
         },
-        speech::tts::qwen3_tts::code_predictor::Qwen3TtsCodePredictorConfig,
+        speech::tts::qwen3_tts::blocks::Qwen3TtsCodePredictorConfig,
         support::interop::transformers::{
             TransformersConfigJson,
             TransformersDecoderSection,

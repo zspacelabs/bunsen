@@ -42,7 +42,7 @@ use burn::{
     prelude::*,
 };
 
-use super::talker::Qwen3TtsTalker;
+use super::blocks::Qwen3TtsTalker;
 use crate::{
     errors::{
         BunsenError,

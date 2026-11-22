@@ -1,4 +1,4 @@
-//! The talker's modules.
+//! [`Qwen3TtsTalker`]: the talker, and its config.
 
 use burn::{
     config::Config,

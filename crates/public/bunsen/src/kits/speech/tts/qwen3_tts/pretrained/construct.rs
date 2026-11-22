@@ -40,7 +40,7 @@ use crate::{
         speech::tts::qwen3_tts::{
             Qwen3TtsConstruct,
             Qwen3TtsTokenizerFiles,
-            codec::Qwen3TtsDecodeConfig,
+            blocks::Qwen3TtsDecodeConfig,
             interop::qwen_tts::{
                 Qwen3TtsCodecMirror,
                 Qwen3TtsGenerationMirror,
