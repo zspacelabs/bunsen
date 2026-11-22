@@ -32,6 +32,10 @@ pub const REFERENCE_BF16: &str = "reference_bf16.safetensors";
 /// The `-hf` codec's audio from fixed codes.
 pub const CODEC: &str = "codec.safetensors";
 
+/// The `-hf` speaker encoder over each stock voice's codec render
+/// (`validation/tools/gen_zonos3_speaker_fixtures.py`).
+pub const SPEAKER: &str = "speaker.safetensors";
+
 /// The `-hf` tokenizer's ids for the `bunsen-test-audio` UDHR texts.
 pub const TOKENIZER: &str = "tokenizer.safetensors";
 

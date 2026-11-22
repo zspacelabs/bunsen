@@ -234,6 +234,30 @@ pub fn load_zonos3_lm_and_codec(
     Ok((lm, codec))
 }
 
+/// The speaker encoder of `loaded`'s checkpoint (its `speaker_encoder.*`
+/// tensors), built from `config` on `device`, in f32 whatever the load
+/// policy: upstream runs it in f32 (autocast off) beside a bf16 language
+/// model, and its file stores it so.
+///
+/// # Errors
+/// When the file can't be read, and as [`load_zonos3_speaker_tensors`].
+#[cfg(feature = "cache")]
+pub fn load_zonos3_speaker_encoder(
+    loaded: &crate::data::resources::LoadedResourceSet,
+    config: &Zonos3SpeakerEncoderConfig,
+    device: &burn::tensor::Device,
+) -> BunsenResult<Zonos3SpeakerEncoder> {
+    use crate::{
+        burner::module::ModuleInit,
+        data::formats::SafetensorsCheckpoint,
+        kits::speech::tts::zonos3::pretrained::CHECKPOINT,
+    };
+    let tensors = SafetensorsCheckpoint::single(loaded.expect(CHECKPOINT)?).tensors()?;
+    let mut encoder: Zonos3SpeakerEncoder = config.try_init(device)?;
+    load_zonos3_speaker_tensors(&mut encoder, config, tensors, Some(FloatDType::F32))?;
+    Ok(encoder)
+}
+
 /// The voices in `tensors` (a `voices.safetensors`'), by name.
 ///
 /// # Errors

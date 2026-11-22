@@ -178,6 +178,7 @@ fn construct_with(generation: &Zonos3GenerationMirror) -> Zonos3Construct {
             edges: vec![1.0, 2.0],
         }],
         tokenizer: PathBuf::new(),
+        speaker: None,
     }
 }
 

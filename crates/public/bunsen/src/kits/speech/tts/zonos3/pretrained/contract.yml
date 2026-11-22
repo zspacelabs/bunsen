@@ -8,10 +8,12 @@ zonos3-tts:
   $resources:
     checkpoint:
       $format: [safetensors]
-      $description: "The weights: the language model under `lm.`, the codec decoder under `codec.`."
+      $description: "The weights: the language model under `lm.`, the codec decoder under `codec.`,
+        and the speaker encoder under `speaker_encoder.` where config.json has its section."
     config:
       $format: [json]
-      $description: "`config.json`: the `lm`, `codec` and `generation` sections."
+      $description: "`config.json`: the `lm`, `codec` and `generation` sections, and an optional
+        `speaker_encoder` section."
     tokenizer:
       $format: [tokenizer.json]
       $description: "The text tokenizer, its ids already offset past the four special ids."

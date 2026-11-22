@@ -35,6 +35,7 @@ use crate::{
             interop::zonos::{
                 Zonos3Mirror,
                 load_zonos3_lm_and_codec,
+                load_zonos3_speaker_encoder,
                 load_zonos3_voices,
             },
         },
@@ -46,9 +47,10 @@ use crate::{
 /// sections give the geometries; the checkpoint's `lm.*` and `codec.*`
 /// tensors load into them, each in the dtype the load policy resolves its
 /// stored dtype to (the language model is bf16 in the file, the codec
-/// f32); the stock voices are read, with their descriptions where the row
-/// has them; the tokenizer is handed back as a path. Together, a
-/// [`Zonos3Construct`].
+/// f32); with a `speaker_encoder` section, its `speaker_encoder.*` tensors
+/// load into the speaker encoder, in f32 whatever the policy; the stock voices
+/// are read, with their descriptions where the row has them; the tokenizer is
+/// handed back as a path. Together, a [`Zonos3Construct`].
 ///
 /// The ZONOS3 kit's construct config: its [`ConstructInit`] hook.
 /// [`default_zonos3_factory`](super::default_zonos3_factory) attaches it; a
@@ -109,6 +111,14 @@ impl ConstructInit for Zonos3ConstructConfig {
         let codec_config = config.codec.codec_config().map_err(at)?;
         let (lm, codec) =
             load_zonos3_lm_and_codec(loaded, &lm_config, &codec_config, device, policy)?;
+        let speaker = match &config.speaker_encoder {
+            Some(section) => {
+                let speaker_config = section.speaker_config().map_err(at)?;
+                let encoder = load_zonos3_speaker_encoder(loaded, &speaker_config, device)?;
+                Some((encoder, speaker_config))
+            }
+            None => None,
+        };
         Ok(Arc::new(Zonos3Construct {
             prompt: config.prompt_config(&lm_config),
             conditions: config.lm.conditions().map_err(at)?,
@@ -121,6 +131,7 @@ impl ConstructInit for Zonos3ConstructConfig {
             sample_rate: config.sampling_rate,
             voices: load_zonos3_voices(loaded)?,
             tokenizer: loaded.expect(TOKENIZER)?.to_path_buf(),
+            speaker,
         }))
     }
 }
