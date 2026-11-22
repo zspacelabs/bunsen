@@ -1,4 +1,4 @@
-//! Mel scale and triangular filterbank.
+//! [`MelScale`] and `librosa`'s filterbank ([`MelFilterbankConfig`]).
 
 use alloc::{
     string::ToString,
@@ -49,6 +49,12 @@ pub enum MelScale {
 
     /// The HTK curve: `mel = 2595 * log10(1 + hz / 700)`.
     Htk,
+
+    /// Kaldi's curve: `mel = 1127 * ln(1 + hz / 700)`, as Kaldi's and
+    /// `torchaudio.compliance.kaldi`'s filterbanks compute it. Not [`Htk`](Self::Htk)
+    /// exactly: `2595 / ln(10)` is `1126.994`, so the two part by about 5e-6
+    /// of a mel value.
+    Kaldi,
 }
 
 impl MelScale {
@@ -62,6 +68,7 @@ impl MelScale {
     ) -> f64 {
         match self {
             Self::Htk => 2595.0 * (1.0 + hz / 700.0).log10(),
+            Self::Kaldi => 1127.0 * (1.0 + hz / 700.0).ln(),
             Self::Slaney => {
                 if hz < SLANEY_MIN_LOG_HZ {
                     hz / SLANEY_F_SP
@@ -81,6 +88,7 @@ impl MelScale {
     ) -> f64 {
         match self {
             Self::Htk => 700.0 * (10.0_f64.powf(mel / 2595.0) - 1.0),
+            Self::Kaldi => 700.0 * ((mel / 1127.0).exp() - 1.0),
             Self::Slaney => {
                 if mel < SLANEY_MIN_LOG_MEL {
                     mel * SLANEY_F_SP
@@ -165,8 +173,8 @@ pub fn mel_points(
 /// sits at `j * sample_rate / n_fft` Hz. Triangle `i` rises from
 /// `mel_points[i]` to `mel_points[i + 1]` and falls to `mel_points[i + 2]`.
 ///
-/// [`PerceptiveAudioConverter`]: super::PerceptiveAudioConverter
-/// [`to_mel_filterbank_config`]: super::PerceptiveAudioConverterConfig::to_mel_filterbank_config
+/// [`PerceptiveAudioConverter`]: crate::ops::signal::perceptive_audio::PerceptiveAudioConverter
+/// [`to_mel_filterbank_config`]: crate::ops::signal::perceptive_audio::PerceptiveAudioConverterConfig::to_mel_filterbank_config
 #[derive(Config, Debug)]
 pub struct MelFilterbankConfig {
     /// The sample rate, in Hz.
@@ -352,9 +360,22 @@ mod tests {
         );
     }
 
+    /// Kaldi's curve is 1000 mel at 1000 Hz to within its rounding, and
+    /// parts from HTK's by about 5e-6 of a value, never by more than 1e-5.
+    #[test]
+    fn test_kaldi_mel_scale() {
+        assert_rel(MelScale::Kaldi.hz_to_mel(0.0), 0.0, 1e-12);
+        assert_rel(MelScale::Kaldi.hz_to_mel(1000.0), 1000.0, 1e-4);
+        for hz in [100.0, 1000.0, 4000.0, 8000.0] {
+            let (kaldi, htk) = (MelScale::Kaldi.hz_to_mel(hz), MelScale::Htk.hz_to_mel(hz));
+            let rel = (kaldi - htk) / htk;
+            assert!(rel > 1e-6 && rel < 1e-5, "{hz} Hz: {kaldi} vs {htk}");
+        }
+    }
+
     #[test]
     fn test_mel_scale_roundtrips() {
-        for scale in [MelScale::Slaney, MelScale::Htk] {
+        for scale in [MelScale::Slaney, MelScale::Htk, MelScale::Kaldi] {
             // Sweep across the Slaney breakpoint, which is where a piecewise
             // inverse is most likely to be wrong.
             for step in 0..=160 {

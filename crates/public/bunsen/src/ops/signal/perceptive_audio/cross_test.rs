@@ -26,11 +26,15 @@ use crate::{
     burner::module::ModuleInit,
     errors::WithOkOrPanic,
     ops::signal::{
-        kernels::window::SamplingWindowBuilder,
+        kernels::{
+            mel::{
+                FilterNorm,
+                MelScale,
+            },
+            window::SamplingWindowBuilder,
+        },
         perceptive_audio::{
             AffineCompress,
-            FilterNorm,
-            MelScale,
             PaddingMode,
             PerceptiveAudioConverter,
             PerceptiveAudioConverterConfig,
