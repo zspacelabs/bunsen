@@ -15,7 +15,10 @@ use burn::{
 
 use crate::{
     blocks::{
-        norm::BunsenNormalizationConfig,
+        norm::{
+            BunsenNormalization,
+            BunsenNormalizationConfig,
+        },
         transformers::{
             attention::csa::AttentionSides,
             conditioning::{
@@ -34,6 +37,7 @@ use crate::{
                 TransformerFeedForwardMeta,
             },
             sublayer::{
+                NormPlacement,
                 ResidualSublayer,
                 ResidualSublayerConfig,
             },
@@ -140,6 +144,13 @@ pub struct CausalDecoderBlockConfig {
     #[config(default = true)]
     pub attn_norm: bool,
 
+    /// Where each sublayer's `norm` is: before its branch, inside the
+    /// residual (`x + f(norm(x))`, every decoder's), or after the residual
+    /// sum (`norm(x + f(x))`, the original Transformer's encoder layer,
+    /// Sortformer v2's). A post-norm block's stack takes no routes.
+    #[config(default = "NormPlacement::Pre")]
+    pub norm_placement: NormPlacement,
+
     /// Whether each sublayer's output is normalized too, by a `norm` of its
     /// own, before it is added to the residual stream: the sandwich of
     /// Gemma 2 and 3.
@@ -216,11 +227,14 @@ impl CausalDecoderBlockConfig {
             .into());
         }
         Ok(CausalDecoderBlock {
-            attn: ResidualSublayerConfig::pre_norm(self.attn_norm.then(|| self.norm.clone()))
-                .with_post(self.post_norms.then(|| self.norm.clone()))
-                .with_layer_scale(self.layer_scale)
-                .init(self.attn.try_init(layer_index, device)?, n_embed, device),
-            mlp: ResidualSublayerConfig::pre_norm(Some(self.norm.clone()))
+            attn: ResidualSublayerConfig::placed(
+                self.norm_placement,
+                self.attn_norm.then(|| self.norm.clone()),
+            )
+            .with_post(self.post_norms.then(|| self.norm.clone()))
+            .with_layer_scale(self.layer_scale)
+            .init(self.attn.try_init(layer_index, device)?, n_embed, device),
+            mlp: ResidualSublayerConfig::placed(self.norm_placement, Some(self.norm.clone()))
                 .with_post(self.post_norms.then(|| self.norm.clone()))
                 .with_layer_scale(self.layer_scale)
                 .init(self.mlp.try_init(device)?, n_embed, device),
@@ -238,7 +252,7 @@ impl CausalDecoderBlockConfig {
 /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp.pre(x))`.
 ///
 /// What tells its users apart is config: the norm
-/// ([`BunsenNormalization`](crate::blocks::norm::BunsenNormalization)),
+/// ([`BunsenNormalization`]),
 /// the feed-forward ([`TransformerFeedForward`]: a `BunsenMlp` or a gated
 /// `SwiGLU`), and the attention's own options (grouped-query heads, QK-norm and
 /// where it sits). RMS norms, a `ReLU`² `BunsenMlp` and QK-norm after the
@@ -507,15 +521,21 @@ impl CausalDecoderBlock {
 
 impl CanonicalKeys for CausalDecoderBlock {
     fn canonical_rekey(&self) -> Rekey {
-        // Each sublayer is a `ResidualSublayer`: its norms are its `pre` and
-        // `post`, its module its `branch`, its layer scale its `scale`.
+        // Each sublayer is a `ResidualSublayer`: its norm is its `pre`, or
+        // its `out` after the sum; its output norm its `post`, its module its
+        // `branch`, its layer scale its `scale`.
+        let norm = |sublayer: &Option<BunsenNormalization>| match sublayer {
+            Some(_) => "out.",
+            None => "pre.",
+        };
+        let (attn_norm, mlp_norm) = (norm(&self.attn.out), norm(&self.mlp.out));
         Rekey::keep_rest()
             .exact("attn_layer_scale", "attn.scale")
             .exact("mlp_layer_scale", "mlp.scale")
-            .rename("attn_norm.", "attn.pre.")
+            .rename("attn_norm.", format!("attn.{attn_norm}"))
             .rename("attn_post_norm.", "attn.post.")
             .rename("attn.", "attn.branch.")
-            .rename("mlp_norm.", "mlp.pre.")
+            .rename("mlp_norm.", format!("mlp.{mlp_norm}"))
             .rename("mlp_post_norm.", "mlp.post.")
             .rename("mlp.", "mlp.branch.")
     }
@@ -539,6 +559,7 @@ mod tests {
             norm::BunsenNormalization,
             transformers::{
                 attention::csa::{
+                    AttentionMask,
                     CausalSelfAttentionConfig,
                     CausalSelfAttentionMeta,
                 },
@@ -824,6 +845,68 @@ mod tests {
             ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
         ] {
             assert_eq!(rekey.apply(stored).as_deref(), Some(bunsen), "{stored}");
+        }
+    }
+
+    /// A post-norm block normalizes after each residual sum:
+    /// `x = attn.out(x + attn(x))`, then `x = mlp.out(x + mlp(x))`; its
+    /// canonical names put each norm in its `out` slot.
+    #[test]
+    fn test_post_norm_block_normalizes_each_sum() {
+        let device = crate::support::testing::cpu_device();
+        let [batch, seq_len, n_embed] = [2, 5, 16];
+        let mut block: CausalDecoderBlock = CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(4, 2, n_embed)
+                .with_mask(AttentionMask::Bidirectional)
+                .into(),
+            crate::blocks::mlp::BunsenGatedMlpConfig::new(n_embed, 24).into(),
+        )
+        .with_norm_placement(NormPlacement::Post)
+        .init(0, &device);
+        assert!(block.attn.pre.is_none() && block.mlp.pre.is_none());
+        for (seed, norm) in [
+            (3, block.attn.out.as_mut().expect("an attention norm")),
+            (4, block.mlp.out.as_mut().expect("a feed-forward norm")),
+        ] {
+            let BunsenNormalization::Rms(rms) = norm else {
+                panic!("an RMS norm");
+            };
+            rms.gamma = Param::from_tensor(seeded_tensor::<1>(
+                seed,
+                [n_embed],
+                Distribution::Uniform(0.5, 1.5),
+                &device,
+            ));
+        }
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())
+            .init(&device);
+        let input =
+            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+
+        let out = |norm: &Option<BunsenNormalization>, x| norm.as_ref().unwrap().forward(x);
+        let x = out(
+            &block.attn.out,
+            input.clone()
+                + block
+                    .attn
+                    .branch
+                    .attention()
+                    .forward(input.clone(), &r_emb, &mut None),
+        );
+        let expected = out(&block.mlp.out, x.clone() + block.mlp.branch.forward(x));
+        assert_tensors_close(
+            &block.forward(input, &r_emb, &mut None),
+            &expected,
+            Tolerance::default(),
+        );
+
+        let canonical = block.canonical_rekey();
+        for (name, path) in [
+            ("attn_norm.gamma", "attn.out.gamma"),
+            ("mlp_norm.gamma", "mlp.out.gamma"),
+            ("attn.c_q.weight", "attn.branch.c_q.weight"),
+        ] {
+            assert_eq!(canonical.apply(name).as_deref(), Some(path), "{name}");
         }
     }
 

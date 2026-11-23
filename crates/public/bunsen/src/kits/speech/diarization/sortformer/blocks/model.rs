@@ -57,13 +57,13 @@ use crate::{
                     ConformerEncoderConfig,
                 },
                 residual::{
-                    NormPlacement,
                     ResidualEncoderAttentionBlockConfig,
                     ResidualEncoderTransformer,
                     ResidualEncoderTransformerConfig,
                     ResidualEncoderTransformerMeta,
                 },
             },
+            sublayer::NormPlacement,
         },
     },
     burner::module::{

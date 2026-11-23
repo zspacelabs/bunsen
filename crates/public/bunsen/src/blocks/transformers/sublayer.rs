@@ -78,7 +78,32 @@ pub struct ResidualSublayerConfig {
     pub layer_scale: bool,
 }
 
+/// Where a residual sublayer normalizes: before its branch, or after its
+/// sum ([`ResidualSublayerConfig::placed`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum NormPlacement {
+    /// Before the sublayer, inside its residual: `x + f(norm(x))`. Whisper's
+    /// and Qwen3-ASR's.
+    Pre,
+
+    /// After the residual sum: `norm(x + f(x))`. The original Transformer's,
+    /// and `NeMo`'s `TransformerEncoder` without `pre_ln`: Sortformer v2's.
+    Post,
+}
+
 impl ResidualSublayerConfig {
+    /// A sublayer normalized by `norm` where `placement` says: a
+    /// [`pre_norm`](Self::pre_norm) or a [`post_norm`](Self::post_norm).
+    pub fn placed(
+        placement: NormPlacement,
+        norm: Option<BunsenNormalizationConfig>,
+    ) -> Self {
+        match placement {
+            NormPlacement::Pre => Self::pre_norm(norm),
+            NormPlacement::Post => Self::post_norm(norm),
+        }
+    }
+
     /// A pre-norm sublayer's: `pre` alone.
     pub fn pre_norm(pre: Option<BunsenNormalizationConfig>) -> Self {
         Self::new().with_pre(pre)
