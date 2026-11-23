@@ -93,8 +93,8 @@ pub struct TimingRecord {
 }
 
 impl TimingRecord {
-    /// Prefill throughput, rows times positions per warm prefill (median),
-    /// per second of wall time.
+    /// Prefill throughput, prompt positions (rows times `prefill`) per
+    /// second of a warm prefill's wall time (median).
     pub fn prefill_per_s(&self) -> f64 {
         per_s(self.rows * self.prefill, self.prefill_warm.wall.median_ms)
     }
