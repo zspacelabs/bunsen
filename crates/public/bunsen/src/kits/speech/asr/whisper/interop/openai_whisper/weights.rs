@@ -34,6 +34,9 @@ use crate::{
     },
 };
 
+/// The layers of the `kind` stack (`encoder` or `decoder`): one feed-forward
+/// norm each, a name the two stacks' layers share (their attentions'
+/// projections are named apart).
 fn block_layers_from_keys<S: AsRef<str>>(
     kind: &str,
     keys: &[S],
@@ -41,7 +44,7 @@ fn block_layers_from_keys<S: AsRef<str>>(
     keys.iter()
         .filter(|k| {
             let k = k.as_ref();
-            k.starts_with(&format!("{kind}.blocks.")) && k.ends_with(".attn.key.weight")
+            k.starts_with(&format!("{kind}.blocks.")) && k.ends_with(".mlp_norm.weight")
         })
         .count()
 }
@@ -105,6 +108,24 @@ impl PytorchWhisperScanner {
             .with_key_remapping(
                 r"encoder\.conv2\.",
                 format!("{}.", ConvSeq1d::block_conv_path("encoder.head", 1)),
+            )
+            // The encoder's attention is a decoder block's (`c_{q,k,v,proj}`);
+            // the decoder's, burn's multi-head attention's.
+            .with_key_remapping(
+                r"encoder\.blocks\.(\d+)\.attn\.query\.",
+                "encoder.blocks.$1.attn.c_q.",
+            )
+            .with_key_remapping(
+                r"encoder\.blocks\.(\d+)\.attn\.key\.",
+                "encoder.blocks.$1.attn.c_k.",
+            )
+            .with_key_remapping(
+                r"encoder\.blocks\.(\d+)\.attn\.value\.",
+                "encoder.blocks.$1.attn.c_v.",
+            )
+            .with_key_remapping(
+                r"encoder\.blocks\.(\d+)\.attn\.out\.",
+                "encoder.blocks.$1.attn.c_proj.",
             )
             .with_key_remapping(r"\.attn\.out", ".attn.output")
             .with_key_remapping(r"\.cross_attn\.out", ".cross_attn.output")

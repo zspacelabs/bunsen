@@ -11,7 +11,6 @@ use burn::{
         conv::Conv2dConfig,
     },
     prelude::{
-        Bool,
         Int,
         TensorData,
     },
@@ -26,13 +25,25 @@ use crate::{
             ConvSeq2d,
             ConvSeq2dConfig,
         },
+        mlp::BunsenMlpConfig,
         norm::{
-            BunsenNormalization,
+            BunsenLayerNormConfig,
             BunsenNormalizationConfig,
         },
-        transformers::encoders::residual::{
-            ResidualEncoderAttentionBlock,
-            ResidualEncoderAttentionBlockConfig,
+        transformers::{
+            attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
+            },
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    UniformStackConfig,
+                },
+            },
+            embedding::RotaryEmbeddingConfig,
         },
     },
     burner::module::{
@@ -225,6 +236,43 @@ impl Qwen3AsrAudioEncoderMeta for Qwen3AsrAudioEncoderConfig {
     }
 }
 
+impl Qwen3AsrAudioEncoderConfig {
+    /// The encoder layers and the final norm: pre-norm layers whose
+    /// attention sees its own window of
+    /// [`window_frames`](Qwen3AsrAudioEncoderMeta::window_frames) frames
+    /// alone, never across a window's edge, and carries no rotary positions
+    /// (the stem adds sinusoidal ones); every projection biased, the key's
+    /// as [`key_bias`](Self::key_bias) says; a `d_ff` `GELU` MLP.
+    pub fn stack(&self) -> UniformStackConfig {
+        let (d, heads) = (self.d_model, self.n_heads);
+        UniformStackConfig::new(
+            self.n_layers,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(heads, heads, d)
+                    .with_norm(None)
+                    .with_qkv_bias(true)
+                    .with_key_bias(Some(self.key_bias))
+                    .with_output_bias(true)
+                    .with_mask(AttentionMask::Blocks {
+                        window: self.window_frames(),
+                    })
+                    .into(),
+                BunsenMlpConfig::new(d, self.d_ff, d)
+                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_bias(true)
+                    .into(),
+            )
+            .with_norm(BunsenNormalizationConfig::Layer(
+                BunsenLayerNormConfig::new(0),
+            )),
+            BunsenNormalizationConfig::from(
+                LayerNormConfig::new(d).with_epsilon(self.layer_norm_eps),
+            ),
+            RotaryEmbeddingConfig::unrotated(d / heads),
+        )
+    }
+}
+
 impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
     fn try_init(
         &self,
@@ -241,15 +289,6 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
             )
             .with_act(Some(s.activation.clone()))
         };
-        let layers = (0..self.n_layers)
-            .map(|_| {
-                ResidualEncoderAttentionBlockConfig::new(self.d_model)
-                    .with_d_head(self.d_model / self.n_heads)
-                    .with_d_hidden(Some(self.d_ff))
-                    .with_key_bias(self.key_bias)
-                    .try_init(device)
-            })
-            .collect::<BunsenResult<_>>()?;
         Ok(Qwen3AsrAudioEncoder {
             stem: ConvSeq2dConfig::new(
                 (0..s.convs)
@@ -260,11 +299,7 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
             conv_out: LinearConfig::new(self.conv_channels * self.freq_out(), self.d_model)
                 .with_bias(self.conv_out_bias)
                 .init(device),
-            layers,
-            ln_post: BunsenNormalizationConfig::from(
-                LayerNormConfig::new(self.d_model).with_epsilon(self.layer_norm_eps),
-            )
-            .init(device),
+            stack: self.stack().try_init(device)?,
             n_window: self.n_window,
             n_window_infer: self.n_window_infer,
             stem_shape: self.stem.clone(),
@@ -299,11 +334,9 @@ pub struct Qwen3AsrAudioEncoder {
     /// `conv_channels * freq_out -> d_model` (the release's without a bias).
     pub conv_out: Linear,
 
-    /// The encoder layers.
-    pub layers: Vec<ResidualEncoderAttentionBlock>,
-
-    /// The final normalization.
-    pub ln_post: BunsenNormalization,
+    /// The encoder layers and the final normalization (canonically
+    /// `layers.*` and `ln_post.*`, `transformers`' names).
+    pub stack: DecoderStack,
 
     /// Half the mel frames of a convolution chunk.
     pub n_window: usize,
@@ -322,11 +355,11 @@ pub struct Qwen3AsrAudioEncoder {
 
 impl Qwen3AsrAudioEncoderMeta for Qwen3AsrAudioEncoder {
     fn d_model(&self) -> usize {
-        self.ln_post.num_features()
+        self.stack.d_model()
     }
 
     fn n_layers(&self) -> usize {
-        self.layers.len()
+        self.stack.n_layers()
     }
 
     fn chunk_frames(&self) -> usize {
@@ -435,20 +468,6 @@ impl Qwen3AsrAudioEncoder {
         y
     }
 
-    /// `[1, n, n]`: true where frames `i` and `j` are in different attention
-    /// windows; [`window_block_mask`] over
-    /// [`window_frames`](Qwen3AsrAudioEncoderMeta::window_frames).
-    ///
-    /// [`window_block_mask`]: crate::ops::transformers::attention::window_block_mask
-    pub fn window_mask(
-        &self,
-        n: usize,
-        device: &Device,
-    ) -> Tensor<3, Bool> {
-        crate::ops::transformers::attention::window_block_mask(n, self.window_frames(), device)
-            .unsqueeze_dim(0)
-    }
-
     /// Encodes one utterance.
     ///
     /// # Arguments
@@ -464,25 +483,33 @@ impl Qwen3AsrAudioEncoder {
     ) -> Tensor<2> {
         let x = self.stem(features, valid);
         let [n, d] = x.dims();
-        let mask = self.window_mask(n, &x.device());
-        let mut x = x.unsqueeze_dim::<3>(0);
-        for layer in &self.layers {
-            x = layer.forward_masked(x, Some(mask.clone()));
-        }
-        self.ln_post.forward(x).reshape([n, d])
+        self.stack
+            .encoder_forward(x.unsqueeze_dim::<3>(0), None)
+            .reshape([n, d])
     }
 }
 
 impl CanonicalKeys for Qwen3AsrAudioEncoder {
     fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("layers.", &self.layers)
+        // `transformers`' names for the layers and the final norm, onto the
+        // stack's, each layer's by its canonical names.
+        Rekey::keep_rest()
+            .mount(
+                "layers.",
+                "stack.layers.",
+                self.stack.layers.canonical_rekey(),
+            )
+            .rename("ln_post.", "stack.norm.")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        blocks::transformers::mlp::TransformerFeedForward,
+        support::testing::cpu_device,
+    };
 
     #[test]
     fn test_geometry() {
@@ -541,7 +568,18 @@ mod tests {
 
         let config = Qwen3AsrAudioEncoderConfig::new(16, 32, 4, 64, 2, 8).with_n_window_infer(200);
         let encoder: Qwen3AsrAudioEncoder = config.init(&cpu_device());
-        assert_eq!(encoder.layers[0].mlp.branch.linear1.weight.dims(), [32, 64]);
+        let layer = &encoder.stack.layers[0];
+        let TransformerFeedForward::Mlp(mlp) = &layer.mlp.branch else {
+            panic!("a plain feed-forward");
+        };
+        assert_eq!(mlp.linear1.weight.dims(), [32, 64]);
+        assert_eq!(
+            layer.attn.branch.attention().mask,
+            AttentionMask::Blocks {
+                window: config.window_frames()
+            },
+            "each layer attends within one window"
+        );
         let y = encoder.forward(Tensor::zeros([16, 300], &cpu_device()), 250);
         assert_eq!(y.dims(), [33, 32]);
     }
