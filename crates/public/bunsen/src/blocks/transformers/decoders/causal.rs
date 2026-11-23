@@ -10,7 +10,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::norm::RmsNormConfig,
-    prelude::Bool,
     tensor::Device,
 };
 
@@ -58,7 +57,7 @@ use crate::{
 };
 
 /// The side inputs of a [`CausalDecoderBlock`]'s
-/// [`forward_with`](CausalDecoderBlock::forward_with): each one only a block
+/// [`forward_with_caches`](CausalDecoderBlock::forward_with_caches): each one only a block
 /// configured for it takes.
 #[derive(Debug, Default)]
 pub struct DecoderSideInputs {
@@ -67,13 +66,9 @@ pub struct DecoderSideInputs {
     /// broadcasts to it.
     pub cond: Option<Tensor<3>>,
 
-    /// The `[B, T, H_kv * head_dim]` value embedding of a block whose
-    /// attention has a value residual.
-    pub value_embed: Option<Tensor<3>>,
-
-    /// `[B, T]`, true at the positions that are not padding, which alone
-    /// the attention's queries attend to.
-    pub key_valid: Option<Tensor<2, Bool>>,
+    /// The attention's: the value embedding of a block whose attention has a
+    /// value residual, and the key padding.
+    pub attn: AttentionSides,
 }
 
 /// Common meta for [`CausalDecoderBlock`] and [`CausalDecoderBlockConfig`].
@@ -159,7 +154,7 @@ pub struct CausalDecoderBlockConfig {
 
     /// A scale on the feed-forward's normalized input, learned from a
     /// conditioning vector the forward pass is handed
-    /// ([`forward_conditioned`](CausalDecoderBlock::forward_conditioned)):
+    /// ([`forward_with_caches`](CausalDecoderBlock::forward_with_caches)'s condition):
     /// Voxtral Realtime's delay conditioning. `None` scales nothing.
     #[config(default = "None")]
     pub mlp_scale: Option<AdaptiveScaleConfig>,
@@ -364,87 +359,37 @@ impl CausalDecoderBlock {
     /// # Panics
     /// If the block is conditioned (it has an
     /// [`mlp_scale`](Self::mlp_scale)): that needs
-    /// [`forward_conditioned`](Self::forward_conditioned).
+    /// [`forward_with_caches`](Self::forward_with_caches)'s condition.
     pub fn forward(
         &self,
         input: Tensor<3>,
         r_emb: &RotaryEmbedding,
         kv_cache: &mut Option<&mut KVCache>,
     ) -> Tensor<3> {
-        self.forward_conditioned(input, r_emb, kv_cache, None)
+        self.forward_with_caches(input, r_emb, kv_cache, None, DecoderSideInputs::default())
     }
 
-    /// Forward Pass, with the condition a conditioned block scales its
-    /// feed-forward's input by.
+    /// Forward Pass, with every side input a configured block takes, through
+    /// the decode's caches of both kinds: the KV cache an attention layer
+    /// reads and writes, and the [`DeltaNetCache`] a linear-attention layer
+    /// does. Without either, a layer starts the sequence at `input` and keeps
+    /// nothing.
     ///
     /// # Arguments
     /// - `input`: a `[B, T, D]` input.
     /// - `r_emb`: a `[1, T, 1, D/2]` embedding.
-    /// - `kv_cache`: optional KV cache.
-    /// - `cond`: the `[B, T, D]` condition, or one that broadcasts to it (`[1,
-    ///   1, D]`); `None` for a block without an [`mlp_scale`](Self::mlp_scale).
-    ///
-    /// # Returns
-    /// - the `[B, T, D]` block output.
-    ///
-    /// # Panics
-    /// If `cond` is given to a block without a scale, or withheld from one
-    /// with a scale.
-    pub fn forward_conditioned(
-        &self,
-        input: Tensor<3>,
-        r_emb: &RotaryEmbedding,
-        kv_cache: &mut Option<&mut KVCache>,
-        cond: Option<Tensor<3>>,
-    ) -> Tensor<3> {
-        self.forward_with(
-            input,
-            r_emb,
-            kv_cache,
-            DecoderSideInputs {
-                cond,
-                ..Default::default()
-            },
-        )
-    }
-
-    /// Forward Pass, with every side input a configured block takes.
-    ///
-    /// # Arguments
-    /// - `input`: a `[B, T, D]` input.
-    /// - `r_emb`: a `[1, T, 1, D/2]` embedding.
-    /// - `kv_cache`: optional KV cache.
+    /// - `kv_cache`, `linear`: the decode's caches, if any.
     /// - `sides`: the condition of a block with an
-    ///   [`mlp_scale`](Self::mlp_scale), and the value embedding of one whose
-    ///   attention has a value residual.
+    ///   [`mlp_scale`](Self::mlp_scale), and the attention's side inputs.
     ///
     /// # Returns
     /// - the `[B, T, D]` block output.
     ///
     /// # Panics
     /// If a side input is given to a block that does not take it, or withheld
-    /// from one that does; or a KV cache to a linear-attention block, which
-    /// decodes through [`forward_with_caches`](Self::forward_with_caches).
-    pub fn forward_with(
-        &self,
-        input: Tensor<3>,
-        r_emb: &RotaryEmbedding,
-        kv_cache: &mut Option<&mut KVCache>,
-        sides: DecoderSideInputs,
-    ) -> Tensor<3> {
-        self.forward_with_caches(input, r_emb, kv_cache, None, sides)
-    }
-
-    /// [`forward_with`](Self::forward_with), through the decode's caches of
-    /// both kinds: the KV cache an attention layer reads and writes, and the
-    /// [`DeltaNetCache`] a linear-attention layer does. Without either, a
-    /// layer starts the sequence at `input` and keeps nothing.
-    ///
-    /// # Panics
-    /// As [`forward_with`](Self::forward_with); and if a linear-attention
-    /// block is given a KV cache without a [`DeltaNetCache`] (a decode that
-    /// would lose its state), or a side input (value embeddings and key
-    /// padding are attention's).
+    /// from one that does; if a linear-attention block is given a KV cache
+    /// without a [`DeltaNetCache`] (a decode that would lose its state), or a
+    /// side input (value embeddings and key padding are attention's).
     pub fn forward_with_caches(
         &self,
         input: Tensor<3>,
@@ -455,23 +400,9 @@ impl CausalDecoderBlock {
     ) -> Tensor<3> {
         #[cfg(any(debug_assertions, test))]
         crate::burner::module::assert_input_dtype(self, input.dtype(), "causal decoder block");
-        let DecoderSideInputs {
-            cond,
-            value_embed,
-            key_valid,
-        } = sides;
+        let DecoderSideInputs { cond, attn } = sides;
         let x = self.attn.residual_update_with(input, |mixer, z| {
-            Self::run_mixer(
-                mixer,
-                z,
-                r_emb,
-                kv_cache,
-                linear,
-                AttentionSides {
-                    value_embed,
-                    key_valid,
-                },
-            )
+            Self::run_mixer(mixer, z, r_emb, kv_cache, linear, attn)
         });
         self.mlp
             .residual_update_with(x, |mlp, h| self.run_mlp(mlp, h, cond))
@@ -931,7 +862,16 @@ mod tests {
                 .mlp
                 .branch
                 .forward(scale.forward(block.mlp.pre.as_ref().unwrap().forward(x), cond.clone()));
-        let output = block.forward_conditioned(input, &r_emb, &mut None, Some(cond));
+        let output = block.forward_with_caches(
+            input,
+            &r_emb,
+            &mut None,
+            None,
+            DecoderSideInputs {
+                cond: Some(cond),
+                ..Default::default()
+            },
+        );
         assert_tensors_close(&output, &expected, Tolerance::default());
     }
 

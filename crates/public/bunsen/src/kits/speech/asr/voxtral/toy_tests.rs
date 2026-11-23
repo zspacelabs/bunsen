@@ -164,11 +164,15 @@ fn test_toy_text_model() {
     let r_emb = lm.rotary(seq, &toy.device);
     let cond = lm.delay_condition(DELAYS[0], &toy.device);
 
-    let layer0 = lm.lm.decoder.stack.layers[0].forward_conditioned(
+    let layer0 = lm.lm.decoder.stack.layers[0].forward_with_caches(
         embeds.clone(),
         r_emb.for_layer(0),
         &mut None,
-        Some(cond.clone()),
+        None,
+        crate::blocks::transformers::decoders::causal::DecoderSideInputs {
+            cond: Some(cond.clone()),
+            ..Default::default()
+        },
     );
     assert_io_close("text layer 0", layer0, toy.io("text_layer0"));
     let hidden = lm.forward_hidden(embeds, &r_emb, &cond, None);

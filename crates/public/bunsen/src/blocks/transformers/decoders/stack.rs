@@ -959,8 +959,10 @@ impl DecoderStack {
                 linear.as_deref_mut(),
                 DecoderSideInputs {
                     cond: cond.clone(),
-                    value_embed,
-                    key_valid: key_valid.clone(),
+                    attn: AttentionSides {
+                        value_embed,
+                        key_valid: key_valid.clone(),
+                    },
                 },
             );
             if mix.backout.as_ref().is_some_and(|(at, _)| *at == i) {
@@ -1697,7 +1699,16 @@ mod tests {
         );
         let mut y = x;
         for layer in &stack.layers {
-            y = layer.forward_conditioned(y, r_emb.for_layer(0), &mut None, Some(cond.clone()));
+            y = layer.forward_with_caches(
+                y,
+                r_emb.for_layer(0),
+                &mut None,
+                None,
+                DecoderSideInputs {
+                    cond: Some(cond.clone()),
+                    ..Default::default()
+                },
+            );
         }
         assert_tensors_close(&got, &stack.norm.forward(y), tolerance);
     }
