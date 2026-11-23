@@ -87,12 +87,17 @@ fn test_toy_forward() {
     let r_emb = model.stack.rotary(seq, &device);
     let valid = crate::ops::transformers::attention::length_mask(&toy.lengths, seq, &device);
     let sides = || crate::blocks::transformers::decoders::causal::DecoderSideInputs {
-        key_valid: Some(valid.clone()),
+        attn: crate::blocks::transformers::attention::csa::AttentionSides {
+            key_valid: Some(valid.clone()),
+            ..Default::default()
+        },
         ..Default::default()
     };
-    let layer0 = model.stack.layers[0].forward_with(embeds, r_emb.for_layer(0), &mut None, sides());
-    let layer1 =
-        model.stack.layers[1].forward_with(layer0.clone(), r_emb.for_layer(1), &mut None, sides());
+    let layer = |i: usize, x| {
+        model.stack.layers[i].forward_with_caches(x, r_emb.for_layer(i), &mut None, None, sides())
+    };
+    let layer0 = layer(0, embeds);
+    let layer1 = layer(1, layer0.clone());
     let hidden = model.forward(ids, Some(&toy.lengths));
     for row in 0..toy.lengths.len() {
         for (name, ours) in [
