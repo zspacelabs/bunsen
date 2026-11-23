@@ -5,3 +5,5 @@ validate = "run -q -p validate --"
 # Builds bunsen's built-in catalog from its probe contracts
 # (`catalog_builder`).
 catalog = "run -q -p catalog-builder --"
+# Times the kits' decodes on the catalog's checkpoints (`tools/timing`).
+timing = "run -q -p timing --bin timing --"

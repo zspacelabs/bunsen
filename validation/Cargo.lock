@@ -832,7 +832,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bunsen"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "bunsen-catalog",
  "bunsen-contracts-macros",
@@ -879,7 +879,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-app"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "bunsen",
  "burn",
@@ -895,14 +895,14 @@ dependencies = [
 
 [[package]]
 name = "bunsen-catalog"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "include_dir",
 ]
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -911,7 +911,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-fetch"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "document-features",
  "sha2 0.11.1",
@@ -920,14 +920,14 @@ dependencies = [
 
 [[package]]
 name = "bunsen-test-audio"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "bunsen-fetch",
 ]
 
 [[package]]
 name = "bunsen-tool"
-version = "0.43.0"
+version = "0.44.0"
 dependencies = [
  "bunsen",
  "bunsen-app",
@@ -1019,6 +1019,8 @@ dependencies = [
  "burn-dataset",
  "burn-derive",
  "burn-dispatch",
+ "burn-fusion",
+ "burn-ir",
  "burn-pack",
  "burn-rocm",
  "burn-std",
@@ -1044,6 +1046,7 @@ checksum = "f10c0fd4d4f7033725c838e025301c5ea149f64c887e0084511651a7bac49fab"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
+ "burn-fusion",
  "cubecl",
 ]
 
@@ -1094,6 +1097,7 @@ checksum = "02fd76ae6dc4f22a99ce4c5cd7ceb0d15e1ceb0910001df3a2ed87743648ae9d"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
+ "burn-fusion",
  "cubecl",
 ]
 
@@ -1141,6 +1145,7 @@ dependencies = [
  "burn-cubecl",
  "burn-flex",
  "burn-ndarray",
+ "burn-remote",
  "burn-tch",
  "paste",
  "portable-atomic",
@@ -1296,6 +1301,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-remote"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b1787a505a6d352991e1f5e1ef0f225889bdf067f334f23235ec569b8070d6d"
+dependencies = [
+ "burn-backend",
+ "burn-fusion",
+ "burn-ir",
+ "burn-router",
+ "burn-std",
+ "bytes",
+ "futures-util",
+ "gloo-timers",
+ "log",
+ "rand 0.10.3",
+ "rmp-serde",
+ "serde",
+ "serde_bytes",
+ "tokio",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "burn-rocm"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1303,7 +1331,24 @@ checksum = "f01ecc3d6bdf6a6e24912a85e0d9f6faae50dcf42c8c30754e6d891068ceb4f9"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
+ "burn-fusion",
  "cubecl",
+]
+
+[[package]]
+name = "burn-router"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ee6cc0353eb5c0aa07df9150c58887bcebfc55bdfe9476d8036c6be5ec4abdf"
+dependencies = [
+ "burn-backend",
+ "burn-fusion",
+ "burn-ir",
+ "burn-std",
+ "hashbrown 0.16.1",
+ "portable-atomic",
+ "serde",
+ "spin 0.12.3",
 ]
 
 [[package]]
@@ -1428,6 +1473,7 @@ dependencies = [
  "bon",
  "burn-core",
  "burn-cubecl",
+ "burn-fusion",
  "burn-std",
  "bytemuck",
  "cubecl",
@@ -1447,6 +1493,7 @@ checksum = "679909e6bf256e21498b5c97d668ad4b67a64e3765af5c0df13fec615d69486d"
 dependencies = [
  "burn-backend",
  "burn-cubecl",
+ "burn-fusion",
  "cubecl",
 ]
 
@@ -1713,9 +1760,9 @@ dependencies = [
 
 [[package]]
 name = "clap_complete"
-version = "4.6.11"
+version = "4.6.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "037e2a1a92236d0aff7e845093f64661d6df4c02c9fcc61a60e9e1d736fa392f"
+checksum = "6a35200383f20018d41c14d1ab19c1727c697f544492143f7d93aa39f0187848"
 dependencies = [
  "clap",
 ]
@@ -3250,6 +3297,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e6bd2d7c76d078cd7a460fa169f778c42c026fe16d90e37d7a45d37181bdce5"
 dependencies = [
  "enumset_derive",
+ "serde",
 ]
 
 [[package]]
@@ -3531,6 +3579,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
+name = "futures-channel"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f9e3d69d39e4862ffed03ed071a76f9a13ba1d9109d355b0f0aa6b15e393c4"
+dependencies = [
+ "futures-core",
+]
+
+[[package]]
 name = "futures-core"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3567,6 +3624,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-macro"
+version = "0.3.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "futures-task"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3585,6 +3653,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
 dependencies = [
  "futures-core",
+ "futures-macro",
  "futures-task",
  "pin-project-lite",
  "slab",
@@ -3871,6 +3940,18 @@ dependencies = [
  "log",
  "regex-automata 0.4.18",
  "regex-syntax 0.8.11",
+]
+
+[[package]]
+name = "gloo-timers"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "482ce8a491a501da4cd806bd190275363d674f2845005c6ddbd5d3e1dd54495d"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -5047,9 +5128,9 @@ checksum = "078e285eafdfb6c4b434e0d31e8cfcb5115b651496faca5749b88fafd4f23bfd"
 
 [[package]]
 name = "json5"
-version = "1.3.7"
+version = "1.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0348cde6df2b507ba3c3753beba226baba8567af588d6568cdb9877f02c75b60"
+checksum = "6c1d229cedc4e210dd2e2a6cdc59e36ce28e7338fb69367d0d2566e26de7d599"
 dependencies = [
  "serde",
  "ucd-trie",
@@ -5601,6 +5682,17 @@ checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
  "simd-adler32",
+]
+
+[[package]]
+name = "mio"
+version = "1.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1788edb87fdc09c7e26304471e2f5be8cdefb1b6930d6e3985fc02ff53bf86ee"
+dependencies = [
+ "libc",
+ "wasi",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6471,9 +6563,9 @@ dependencies = [
 
 [[package]]
 name = "postcard"
-version = "1.1.3"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6764c3b5dd454e283a30e6dfe78e9b31096d9e32036b5d1eaac7a6119ccb9a24"
+checksum = "5431b3dcfdf6d1985c87d11f267a171c0dec0a8cd544c6727b747d36365f1fca"
 dependencies = [
  "cobs",
  "embedded-io 0.4.0",
@@ -7521,9 +7613,9 @@ dependencies = [
 
 [[package]]
 name = "ryl-yaml-parser"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d6c26643dfe0aee9ef387b5c3261c02191305540e9449e9369be729be9f95e0"
+checksum = "9882dc6669a417df481bf86edb1411d5f349b1ac2bfb5c2bf8746d2a6c21c3ca"
 dependencies = [
  "arraydeque",
  "smallvec",
@@ -7840,6 +7932,16 @@ dependencies = [
  "scoped-tls",
  "smallvec",
  "tracing",
+]
+
+[[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
 ]
 
 [[package]]
@@ -8410,6 +8512,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "timing"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "burn",
+ "burn-backend",
+ "burn-dispatch",
+ "clap",
+ "cubecl-common",
+ "indexmap",
+ "serde",
+ "serde_json",
+ "validate",
+]
+
+[[package]]
 name = "tiny-keccak"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8484,7 +8602,24 @@ version = "1.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b52fd3255258d26fac7264ab5a76b53c13367136dc011d3d6ad4f8ed070396a3"
 dependencies = [
+ "bytes",
+ "libc",
+ "mio",
  "pin-project-lite",
+ "signal-hook-registry",
+ "tokio-macros",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "2.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
 ]
 
 [[package]]

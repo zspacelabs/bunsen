@@ -52,12 +52,9 @@
 //! unless `--reference`) and checks the validation schedule against them: every
 //! model has a test.
 
-use std::{
-    path::PathBuf,
-    process::{
-        Command,
-        ExitCode,
-    },
+use std::process::{
+    Command,
+    ExitCode,
 };
 
 use clap::{
@@ -65,32 +62,27 @@ use clap::{
     Subcommand,
 };
 use indexmap::IndexMap;
-
-use crate::{
+use validate::{
+    profile,
     profile::{
         Backend,
         Check,
         Profile,
-    },
-    run::{
-        Choice,
-        DRIVER,
     },
     schedule::{
         Dtype,
         ValidationSchedule,
         segment,
     },
+    validation_dir,
 };
 
-mod profile;
-mod run;
-mod schedule;
+use crate::run::{
+    Choice,
+    DRIVER,
+};
 
-/// The validation workspace: `validation/`.
-pub fn validation_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+mod run;
 
 /// Runs the validation crates under a profile: the models it chooses, their
 /// tests alone.

@@ -1,0 +1,47 @@
+[package]
+name = "timing"
+description = "Times bunsen's decodes on the validation catalog's checkpoints (`cargo timing`): each architecture's TimedDecode, phase by phase, through burn's device profiling."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## The backend the runner times on; the driver (`timing`) builds with none and
+## passes one to the runner it builds.
+wgpu = ["bunsen/wgpu"]
+vulkan = ["bunsen/vulkan"]
+cuda = ["bunsen/cuda"]
+metal = ["bunsen/metal"]
+
+## burn's fusion backend; off by default, as in `bunsen-tool` and the
+## validation crates.
+fusion = ["burn/fusion"]
+
+[dependencies]
+# `fetch`: the catalog's checkpoints, into the weights cache, as the
+# validation crates fetch them; `testing`: `performance_device`.
+bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache", "fetch"] }
+burn = { workspace = true }
+# `Dispatch::name`, which names the backend stack a run timed on
+# (`dispatch<fusion<cubecl<...>>>`); the versions burn uses, so cargo unifies
+# them.
+burn-backend = { version = "0.22.1", default-features = false }
+burn-dispatch = { version = "0.22.1", default-features = false }
+# The duration statistics of cubecl's benchmarks (`BenchmarkComputations`).
+cubecl-common = { version = "0.11.3", default-features = false, features = ["std"] }
+clap = { workspace = true, features = ["derive", "env"] }
+indexmap = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+# `cargo validate`'s reading of models.yml and the profiles.
+validate = { path = "../validate" }
