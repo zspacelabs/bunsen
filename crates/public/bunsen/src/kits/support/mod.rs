@@ -24,6 +24,8 @@
 //!   ([`TransformersConfigJson`](interop::transformers::TransformersConfigJson)).
 //! - [`model_config`]: the config side, apart from building and from an
 //!   upstream's files: presets, generation policy, the catalog's probes.
+//! - [`timing`]: one surface for every architecture's decode,
+//!   [`TimedDecode`](timing::TimedDecode), which a throughput harness drives.
 //! - [`text`]: text normalization ([`TextNormalizer`](text::TextNormalizer),
 //!   the chain, the normalizers bunsen ships) and language tags
 //!   ([`BunsenLanguageTag`](text::BunsenLanguageTag)).
@@ -35,4 +37,5 @@ pub mod model_config;
 #[cfg(feature = "store")]
 pub mod pretrained;
 pub mod text;
+pub mod timing;
 pub mod tokens;
