@@ -92,6 +92,14 @@ impl TimedDecode for Whisper {
         logits.slice_dim(1, len - 1..len).reshape([rows, vocab])
     }
 
+    fn timed_reorder(
+        &self,
+        state: &mut WhisperTimedState,
+        sources: &[usize],
+    ) {
+        state.cache().reorder(sources);
+    }
+
     fn timed_step(
         &self,
         state: &mut WhisperTimedState,

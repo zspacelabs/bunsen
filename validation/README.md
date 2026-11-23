@@ -210,8 +210,15 @@ Each run appends a JSON line per model and dtype (by default to
 `target/timing/{unix time}.jsonl`): the backend stack (whether fusion was on),
 the KV storage asked for and resolved, the label (the commit, by default), each
 phase's statistics, every warm step's wall time, the device pool's largest
-reading. After `--`, the runner's own options: `--rows`, `--prefill`,
-`--steps`, `--prefill-reps`, `--buckets`, `--storage`.
+reading, and the CPUs the runner was allowed. After `--`, the runner's own
+options: `--rows`, `--prefill`, `--steps`, `--prefill-reps`, `--buckets`,
+`--storage`; `--reorder none|shift|beam` (a beam-like `reorder` of the rows
+before each warm step, as a beam search reorders its cache), `--capacity`
+(a state sized past what the run writes, as a chat session sizes to its
+context), `--cleanup-every` (the device pool's free memory released every
+`n` steps, and the releases' time reported), `--wall-only` (no profiling
+windows: the wall clock alone). The driver's own: `--cpus` (the runner
+pinned, `taskset -c`), `--autotune` (burn's autotune on).
 
 Timed: every `CachedLm` (Qwen3, Qwen3.5, Gemma, nanochat), Whisper, Voxtral
 Realtime, ZONOS3's language model and Qwen3-TTS; a crate without a
@@ -222,11 +229,18 @@ Read the numbers knowing:
 
 - the device column is burn's profiling window, which reads above the wall
   time on wgpu and CUDA: not pure kernel time;
+- a phase's window closes on its tokens' bytes: `into_data` is lazy, and the
+  device's work and the copy finish on their first access;
+- where the runner's threads land matters as much as most changes: two busy
+  host threads (the runner's and the device runtime's) on separate cores of
+  one L3 (a Threadripper's CCX: `--cpus 0-3`) run a Qwen3-0.6B step in ~16
+  ms; left to the scheduler, ~28. Pin when comparing;
 - the cold phases are a process's first calls, which compile kernels; a
   backend may keep compiled kernels across runs (the CUDA driver's cache,
   `~/.nv/ComputeCache`), so a later run's cold phases are shorter. burn's
-  `autotune` feature is off in these builds: no tuning runs, and none
-  persists. The first warm step can still be partly cold (the record's
+  `autotune` feature is off in these builds unless `--autotune` asks for
+  it: then each process tunes anew, its cold phases carry the tuning (tens
+  of seconds), and tuning can still land inside the warm steps (their max). The first warm step can still be partly cold (the record's
   per-step times show it); and the first runs of a session can read well off
   the later ones, so repeat a run before trusting a difference under ~10%;
 - run it under the device lock, one heavy run at a time, as validation runs.

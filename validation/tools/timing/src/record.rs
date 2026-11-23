@@ -40,6 +40,27 @@ pub struct TimingRecord {
     /// What the run was labeled (a commit, a note).
     pub label: String,
 
+    /// The CPUs the runner was allowed (`/proc/self/status`'s
+    /// `Cpus_allowed_list`): a run's thread placement, which moves a decode's
+    /// step time by more than most changes measured with it.
+    #[serde(default)]
+    pub cpus: String,
+
+    /// The row permutation applied before each warm step (`none`, `shift`,
+    /// `beam`), as a beam search reorders its cache.
+    #[serde(default)]
+    pub reorder: String,
+
+    /// The positions each state was sized for, past what the run writes
+    /// (`--capacity`); `None` for exactly what it writes.
+    #[serde(default)]
+    pub capacity: Option<usize>,
+
+    /// The warm steps between device pool cleanups (`--cleanup-every`);
+    /// `None` for none.
+    #[serde(default)]
+    pub cleanup_every: Option<usize>,
+
     /// Rows decoded at once.
     pub rows: usize,
 

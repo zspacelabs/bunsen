@@ -170,6 +170,14 @@ impl<M: CachedLm> TimedDecode for M {
     ) -> Tensor<2> {
         self.step(synthetic_ids(rows, 0, 1, device), state)
     }
+
+    fn timed_reorder(
+        &self,
+        state: &mut M::State,
+        sources: &[usize],
+    ) {
+        self.reorder(state, sources);
+    }
 }
 
 #[cfg(test)]

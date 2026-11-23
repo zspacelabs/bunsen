@@ -55,7 +55,10 @@ use bunsen::{
             timing::TimedDecode,
         },
     },
-    ops::transformers::attention::KVCacheStorage,
+    ops::{
+        reduce::argmax_rows,
+        transformers::attention::KVCacheStorage,
+    },
     support::testing::performance_device,
 };
 use burn::tensor::{
@@ -104,6 +107,12 @@ struct Args {
     #[arg(long, default_value_t = 128)]
     steps: usize,
 
+    /// The positions each state is sized for, at least what the run writes
+    /// (`prefill + steps + 1`): a chat session sizes its cache to the whole
+    /// context.
+    #[arg(long)]
+    capacity: Option<usize>,
+
     /// Warm prefills timed after the cold one, each into a fresh state.
     #[arg(long, default_value_t = 3)]
     prefill_reps: usize,
@@ -116,6 +125,21 @@ struct Args {
     #[arg(long, value_enum, default_value = "auto")]
     storage: Storage,
 
+    /// The row permutation applied before each warm step, inside its
+    /// window, as a beam search reorders its cache between steps.
+    #[arg(long, value_enum, default_value = "none")]
+    reorder: Reorder,
+
+    /// Release the device pool's free memory every this many warm steps,
+    /// between windows (`Device::memory_cleanup`); never, by default.
+    #[arg(long)]
+    cleanup_every: Option<usize>,
+
+    /// Time on the wall clock alone, opening no device profiling window
+    /// (the device column is then empty).
+    #[arg(long)]
+    wall_only: bool,
+
     /// What the run is labeled in its records.
     #[arg(long, default_value = "")]
     label: String,
@@ -123,6 +147,40 @@ struct Args {
     /// The JSON-lines file each row's record is appended to.
     #[arg(long)]
     out: PathBuf,
+}
+
+/// A beam search's reorder, by shape.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Reorder {
+    /// None: a greedy decode.
+    None,
+    /// Every row from the next (`r <- (r + 1) % rows`): every row moves.
+    Shift,
+    /// Rows in pairs from the first half (`r <- r / 2`): beams branching,
+    /// some kept twice, some dropped.
+    Beam,
+}
+
+impl Reorder {
+    /// The sources of `rows` rows; `None` for no reorder.
+    fn sources(
+        self,
+        rows: usize,
+    ) -> Option<Vec<usize>> {
+        match self {
+            Reorder::None => None,
+            Reorder::Shift => Some((0..rows).map(|r| (r + 1) % rows).collect()),
+            Reorder::Beam => Some((0..rows).map(|r| r / 2).collect()),
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Reorder::None => "none",
+            Reorder::Shift => "shift",
+            Reorder::Beam => "beam",
+        }
+    }
 }
 
 /// [`KVCacheStorage`], by name.
@@ -147,6 +205,7 @@ impl Storage {
 
 fn main() {
     let args = Args::parse();
+    WALL_ONLY.store(args.wall_only, std::sync::atomic::Ordering::Relaxed);
     let device = performance_device();
     let cache = ResourceCache::new(
         ResourceCacheOptions::default()
@@ -336,6 +395,10 @@ where
         backend: backend_stack(device),
         storage: format!("{storage:?} -> {resolved:?}"),
         label: args.label.clone(),
+        reorder: args.reorder.name().to_string(),
+        capacity: args.capacity,
+        cleanup_every: args.cleanup_every,
+        cpus: allowed_cpus(),
         rows: args.rows,
         prefill: args.prefill,
         steps: args.steps,
@@ -343,6 +406,20 @@ where
         load_s,
         ..timed
     })
+}
+
+/// The CPUs this process may run on, as `/proc/self/status` lists them;
+/// empty where it does not say.
+fn allowed_cpus() -> String {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|status| {
+            status
+                .lines()
+                .find_map(|l| l.strip_prefix("Cpus_allowed_list:"))
+                .map(|l| l.trim().to_string())
+        })
+        .unwrap_or_default()
 }
 
 /// The backend stack the device dispatches to: burn's name for it.
@@ -372,6 +449,9 @@ fn window(
     window_of(device, || Some(f())).expect("the phase ran")
 }
 
+/// Whether windows skip the device's profiling (`--wall-only`).
+static WALL_ONLY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// [`window`] over a phase that may not apply (`f` gives `None`: a model
 /// without an encoder): `None`, and no window kept.
 fn window_of(
@@ -380,12 +460,31 @@ fn window_of(
 ) -> Option<Window> {
     device.sync().expect("sync the device");
     let start = Instant::now();
+    if WALL_ONLY.load(std::sync::atomic::Ordering::Relaxed) {
+        let read = f();
+        // `into_data` returns lazy bytes: the device's work and the copy
+        // finish on first access, so the window touches them.
+        let _ = read.as_ref().map(|d| d.as_bytes().len());
+        let wall_ms = start.elapsed().as_secs_f64() * 1000.0;
+        read?;
+        return Some(Window {
+            wall_ms,
+            device_ms: None,
+        });
+    }
     let (read, duration) = device.profile(f).expect("open a profiling window");
+    let _ = read.as_ref().map(|d| d.as_bytes().len());
     let wall_ms = start.elapsed().as_secs_f64() * 1000.0;
     read?;
     let device_ms =
         read_sync(duration.resolve()).map(|ticks| ticks.duration().as_secs_f64() * 1000.0);
     Some(Window { wall_ms, device_ms })
+}
+
+/// `[rows, n]` logits' ids, as a decode reads them: the chunked argmax
+/// ([`argmax_rows`], the one the searches take), read back.
+fn read_ids(logits: burn::Tensor<2>) -> TensorData {
+    argmax_rows(logits).into_data()
 }
 
 /// The encoder's pass over a new `state`, timed, where the model has one.
@@ -400,9 +499,7 @@ where
     M::State: Send,
 {
     window_of(device, || {
-        model
-            .timed_encode(state, rows, device)
-            .map(|t| t.argmax(1).into_data())
+        model.timed_encode(state, rows, device).map(read_ids)
     })
 }
 
@@ -421,35 +518,42 @@ where
     M::State: Send,
 {
     let (rows, prefill, steps) = (args.rows, args.prefill, args.steps);
-    let positions = prefill + steps + 1;
+    let positions = (prefill + steps + 1).max(args.capacity.unwrap_or(0));
     let storage = args.storage.storage();
     let mut memory = None;
 
     let mut state = model.timed_state(rows, positions, storage, device);
     let encode_cold = encode(model, &mut state, rows, device);
     let prefill_cold = window(device, || {
-        model
-            .timed_prefill(&mut state, rows, prefill, device)
-            .argmax(1)
-            .into_data()
+        read_ids(model.timed_prefill(&mut state, rows, prefill, device))
     });
     sample_memory(device, &mut memory);
     let step_cold = window(device, || {
-        model
-            .timed_step(&mut state, rows, device)
-            .argmax(1)
-            .into_data()
+        read_ids(model.timed_step(&mut state, rows, device))
     });
+    let (mut cleanup_ms, mut cleanups) = (0.0, 0usize);
+    let sources = args.reorder.sources(rows);
     let steps_warm: Vec<Window> = (1..steps)
-        .map(|_| {
+        .map(|i| {
+            if args.cleanup_every.is_some_and(|n| n > 0 && i % n == 0) {
+                device.sync().expect("sync the device");
+                let start = Instant::now();
+                device.memory_cleanup();
+                device.sync().expect("sync the device");
+                cleanup_ms += start.elapsed().as_secs_f64() * 1000.0;
+                cleanups += 1;
+            }
             window(device, || {
-                model
-                    .timed_step(&mut state, rows, device)
-                    .argmax(1)
-                    .into_data()
+                if let Some(sources) = &sources {
+                    model.timed_reorder(&mut state, sources);
+                }
+                read_ids(model.timed_step(&mut state, rows, device))
             })
         })
         .collect();
+    if cleanups > 0 {
+        eprintln!("  {cleanups} pool cleanups, {cleanup_ms:.2} ms in all");
+    }
     sample_memory(device, &mut memory);
     drop(state);
 
@@ -459,10 +563,7 @@ where
             let mut state = model.timed_state(rows, positions, storage, device);
             encodes_warm.extend(encode(model, &mut state, rows, device));
             window(device, || {
-                model
-                    .timed_prefill(&mut state, rows, prefill, device)
-                    .argmax(1)
-                    .into_data()
+                read_ids(model.timed_prefill(&mut state, rows, prefill, device))
             })
         })
         .collect();
@@ -489,6 +590,10 @@ where
         backend: String::new(),
         storage: String::new(),
         label: String::new(),
+        reorder: String::new(),
+        capacity: None,
+        cleanup_every: None,
+        cpus: String::new(),
         rows,
         prefill,
         steps,
@@ -514,8 +619,17 @@ fn print_record(r: &TimingRecord) {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     println!(
-        "{} ({}) {} rows={} prefill={} steps={} [{}] storage {} @{unix}",
-        r.build, r.krate, r.dtype, r.rows, r.prefill, r.steps, r.backend, r.storage
+        "{} ({}) {} rows={} prefill={} steps={} [{}] storage {} reorder {} cpus {} @{unix}",
+        r.build,
+        r.krate,
+        r.dtype,
+        r.rows,
+        r.prefill,
+        r.steps,
+        r.backend,
+        r.storage,
+        r.reorder,
+        r.cpus
     );
     println!("  {:<14} {:>10} {:>10}", "phase", "wall ms", "device ms*");
     println!("  {:<14} {:>10.1} s", "load", r.load_s);

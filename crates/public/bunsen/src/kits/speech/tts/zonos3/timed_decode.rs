@@ -53,6 +53,14 @@ impl TimedDecode for Zonos3Lm {
         self.timed_rows(state, rows, len, device)
     }
 
+    fn timed_reorder(
+        &self,
+        state: &mut DecoderStackCache,
+        sources: &[usize],
+    ) {
+        state.reorder(sources);
+    }
+
     fn timed_step(
         &self,
         state: &mut DecoderStackCache,

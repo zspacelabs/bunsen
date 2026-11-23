@@ -27,6 +27,11 @@ metal = ["bunsen/metal"]
 ## validation crates.
 fusion = ["burn/fusion"]
 
+## burn's autotune: the cubecl backends benchmark kernel choices on first
+## use, keyed on shapes; each process tunes anew (its cold phases carry the
+## tuning). Off by default, as in `bunsen-tool` and the validation crates.
+autotune = ["burn/autotune"]
+
 [dependencies]
 # `fetch`: the catalog's checkpoints, into the weights cache, as the
 # validation crates fetch them; `testing`: `performance_device`.
