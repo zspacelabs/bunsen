@@ -2,7 +2,7 @@
 
 use burn::{
     Tensor,
-    tensor::activation::log_softmax,
+    tensor::DType,
 };
 
 use super::{
@@ -10,6 +10,7 @@ use super::{
     TokenSearch,
     sample_softmax,
 };
+use crate::ops::reduce::logsumexp_rows;
 
 /// The argmax, one row per group; or sampling, `group` rows per group.
 ///
@@ -104,11 +105,10 @@ impl TokenSearch for GreedySearch {
 
         let picked = sample_softmax(logits.clone(), self.temperature);
         let chosen: Vec<i64> = picked.clone().into_data().try_into_vec_as::<i64>().unwrap();
-        let logprobs: Vec<f32> = log_softmax(logits, 1)
-            .gather(1, picked)
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .unwrap();
+        // The chosen ids' log probabilities, `x[c] - logsumexp(x)`, in f32;
+        // the row's whole log softmax is never taken.
+        let logprobs = logits.clone().cast(DType::F32).gather(1, picked) - logsumexp_rows(logits);
+        let logprobs: Vec<f32> = logprobs.into_data().try_into_vec_as::<f32>().unwrap();
 
         let mut feed = Vec::with_capacity(rows);
         for row in 0..rows {
