@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.44.0](https://github.com/zspacelabs/bunsen/compare/bunsen-catalog-v0.43.0...bunsen-catalog-v0.44.0) - 2026-11-23
+
+### Added
+
+- *(zonos3)* the construct loads the speaker encoder; validated on the release ([#891](https://github.com/zspacelabs/bunsen/pull/891))
+
+### Other
+
+- *(voxtral)* [**breaking**] the caches' pre-sizes are config fields ([#928](https://github.com/zspacelabs/bunsen/pull/928))
+
 ## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-catalog-v0.42.0...bunsen-catalog-v0.43.0) - 2026-11-22
 
 ### Added

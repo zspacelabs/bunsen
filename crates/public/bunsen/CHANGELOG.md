@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.44.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.43.0...bunsen-v0.44.0) - 2026-11-23
+
+### Added
+
+- *(blocks)* an encoder's knobs on the decoder block: block-window masks, no-rotary rotaries, post-norm placement ([#921](https://github.com/zspacelabs/bunsen/pull/921))
+- *(blocks)* [**breaking**] Attention Residuals as a `DecoderStack` topology; `AttnResStack` folds into it ([#913](https://github.com/zspacelabs/bunsen/pull/913))
+- *(blocks)* [**breaking**] `LmStackDecoder`, the language decoder without its token embedding; `LmDecoderModel` wraps it ([#912](https://github.com/zspacelabs/bunsen/pull/912))
+- *(blocks)* [**breaking**] DAC's decoder in `blocks::signals`, from Qwen3-TTS's codec vocoder ([#911](https://github.com/zspacelabs/bunsen/pull/911))
+- *(blocks)* [**breaking**] `ProjectedDecoderStack`, ZONOS3's codec stages and Qwen3-TTS's codec transformer as one block ([#908](https://github.com/zspacelabs/bunsen/pull/908))
+- *(signal)* the sinc kernels built on a device, and `torchaudio`'s resample as a strided convolution ([#905](https://github.com/zspacelabs/bunsen/pull/905))
+- *(signal)* `WindowTaper`, each window family as a function on [-1, 1] ([#901](https://github.com/zspacelabs/bunsen/pull/901))
+- *(zonos3)* clone a voice from a reference, and speak in it ([#895](https://github.com/zspacelabs/bunsen/pull/895))
+- *(tts)* a voice reference's directory, collected from clips and read back ([#894](https://github.com/zspacelabs/bunsen/pull/894))
+- *(tts)* voice references, voice files and the cloning seam ([#893](https://github.com/zspacelabs/bunsen/pull/893))
+- *(zonos3)* stock voices speak by reference codes or by embedding ([#892](https://github.com/zspacelabs/bunsen/pull/892))
+- *(zonos3)* the construct loads the speaker encoder; validated on the release ([#891](https://github.com/zspacelabs/bunsen/pull/891))
+- *(zonos3)* the MECT-B2 speaker encoder ([#890](https://github.com/zspacelabs/bunsen/pull/890))
+- *(blocks)* attentive statistics pooling ([#889](https://github.com/zspacelabs/bunsen/pull/889))
+- *(audio)* torchaudio's Hann-windowed sinc resample ([#888](https://github.com/zspacelabs/bunsen/pull/888))
+- *(signal)* Kaldi-compatible filterbank features ([#887](https://github.com/zspacelabs/bunsen/pull/887))
+
+### Other
+
+- *(voxtral)* [**breaking**] the caches' pre-sizes are config fields ([#928](https://github.com/zspacelabs/bunsen/pull/928))
+- *(gemma)* [**breaking**] the KV cache's pre-size is `GemmaConfig::kv_cache_pre_size` ([#927](https://github.com/zspacelabs/bunsen/pull/927))
+- *(blocks)* [**breaking**] one way to run a sublayer: closures over `residual_update_with` ([#926](https://github.com/zspacelabs/bunsen/pull/926))
+- *(blocks)* [**breaking**] one encoder layer: `ResidualEncoderAttentionBlock` and its stack go ([#925](https://github.com/zspacelabs/bunsen/pull/925))
+- *(whisper, qwen3-asr)* [**breaking**] the Whisper-family audio encoders are encoder `DecoderStack`s ([#924](https://github.com/zspacelabs/bunsen/pull/924))
+- *(sortformer)* [**breaking**] the v2 transformer is a post-norm encoder `DecoderStack` ([#923](https://github.com/zspacelabs/bunsen/pull/923))
+- *(laya)* [**breaking**] the head's layers are an encoder `DecoderStack` ([#922](https://github.com/zspacelabs/bunsen/pull/922))
+- *(blocks)* [**breaking**] single-use wrappers: `TransformerMlpConfig` is `BunsenMlpConfig::expansion`; `Pow` is an activation ([#920](https://github.com/zspacelabs/bunsen/pull/920))
+- *(blocks)* [**breaking**] the decoder block's side inputs nest the attention's; one conditioned forward ([#919](https://github.com/zspacelabs/bunsen/pull/919))
+- *(blocks)* [**breaking**] dead blocks swept: `AvgPool2dSame`, `AbstractConvBlock1dConfig`, `CausalAttnSublayer`, `residual_update_with_ctx` ([#918](https://github.com/zspacelabs/bunsen/pull/918))
+- *(blocks)* [**breaking**] `LmDecoderStructureConfig` nests its decoder's config ([#917](https://github.com/zspacelabs/bunsen/pull/917))
+- *(blocks)* [**breaking**] one decode state: the language decoder's kind parameter goes ([#916](https://github.com/zspacelabs/bunsen/pull/916))
+- *(zonos3)* [**breaking**] ZONOS3's language model on `LmStackDecoder` ([#914](https://github.com/zspacelabs/bunsen/pull/914))
+- *(laya)* [**breaking**] Laya's heads on `BunsenMlp` and `ResidualEncoderTransformer` ([#910](https://github.com/zspacelabs/bunsen/pull/910))
+- *(zonos3)* [**breaking**] the codec's resampler is the core's `torchaudio` table, built, not loaded ([#909](https://github.com/zspacelabs/bunsen/pull/909))
+- *(qwen3_tts)* [**breaking**] Qwen3-TTS's Modules in `qwen3_tts::blocks` ([#907](https://github.com/zspacelabs/bunsen/pull/907))
+- *(zonos3)* [**breaking**] ZONOS3-Mini's Modules in `zonos3::blocks` ([#906](https://github.com/zspacelabs/bunsen/pull/906))
+- *(signal)* [**breaking**] mel scales and filterbanks in `kernels::mel`; `MelScale::Kaldi` ([#904](https://github.com/zspacelabs/bunsen/pull/904))
+- *(signal)* [**breaking**] `StreamingResampler` in `ops::signal::resample`, on the shared kernels; `support::audio` is file I/O ([#903](https://github.com/zspacelabs/bunsen/pull/903))
+- *(signal)* [**breaking**] windowed-sinc kernels in `kernels::sinc`; `HannSincResampler` in `ops::signal::resample` ([#902](https://github.com/zspacelabs/bunsen/pull/902))
+- *(signal)* [**breaking**] the analysis windows move to `ops::signal::kernels::window` ([#900](https://github.com/zspacelabs/bunsen/pull/900))
+
 ## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.42.0...bunsen-v0.43.0) - 2026-11-22
 
 ### Added

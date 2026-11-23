@@ -10,6 +10,18 @@ release (0.41.0), is in [its changelog](https://github.com/zspacelabs/bunsen/blo
 
 ## [Unreleased]
 
+## [0.44.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.43.0...bunsen-tool-v0.44.0) - 2026-11-23
+
+### Added
+
+- *(bunsen-tool)* `tts collect-voice --record`, a clip from the microphone ([#899](https://github.com/zspacelabs/bunsen/pull/899))
+- *(bunsen-tool)* [**breaking**] `tts collect-voice`, `tts build-voice` and `tts clone` ([#896](https://github.com/zspacelabs/bunsen/pull/896))
+- *(zonos3)* stock voices speak by reference codes or by embedding ([#892](https://github.com/zspacelabs/bunsen/pull/892))
+
+### Other
+
+- *(signal)* [**breaking**] `StreamingResampler` in `ops::signal::resample`, on the shared kernels; `support::audio` is file I/O ([#903](https://github.com/zspacelabs/bunsen/pull/903))
+
 ## [0.43.0](https://github.com/zspacelabs/bunsen/compare/bunsen-tool-v0.42.0...bunsen-tool-v0.43.0) - 2026-11-22
 
 ### Added
