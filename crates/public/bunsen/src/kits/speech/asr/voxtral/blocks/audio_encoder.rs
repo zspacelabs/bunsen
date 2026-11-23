@@ -76,6 +76,9 @@ pub trait VoxtralAudioEncoderMeta {
     /// The attention window, in encoder frames, if any.
     fn sliding_window(&self) -> Option<usize>;
 
+    /// The encoder frames a streaming cache allocates up front.
+    fn kv_cache_pre_size(&self) -> usize;
+
     /// The encoder frames `frames` mel frames yield: `ceil(frames / 2)`.
     fn output_len(
         &self,
@@ -85,14 +88,10 @@ pub trait VoxtralAudioEncoderMeta {
     }
 }
 
-/// The positions an encoder cache allocates up front by default: 30 s of
-/// encoder frames.
-pub const VOXTRAL_AUDIO_KV_CACHE_PRE_SIZE: usize = 1536;
-
 fn kv_cache_config(meta: &impl VoxtralAudioEncoderMeta) -> KVCacheConfig {
     KVCacheConfig::for_decode(
         meta.n_heads(),
-        VOXTRAL_AUDIO_KV_CACHE_PRE_SIZE,
+        meta.kv_cache_pre_size(),
         meta.head_dim(),
         meta.n_layers(),
     )
@@ -106,7 +105,7 @@ impl KVCacheModel for VoxtralAudioEncoderConfig {
 
 impl KVCacheModel for VoxtralAudioEncoder {
     fn kv_cache_config(&self) -> KVCacheConfig {
-        self.stack.kv_cache_config(VOXTRAL_AUDIO_KV_CACHE_PRE_SIZE)
+        self.stack.kv_cache_config(self.kv_cache_pre_size)
     }
 }
 
@@ -146,6 +145,12 @@ pub struct VoxtralAudioEncoderConfig {
     /// past.
     #[config(default = "Some(750)")]
     pub sliding_window: Option<usize>,
+
+    /// The encoder frames a streaming cache allocates up front: 30 s of
+    /// them. A caller that knows a stream's length sizes (and caps) the
+    /// cache to it.
+    #[config(default = 1536)]
+    pub kv_cache_pre_size: usize,
 }
 
 impl VoxtralAudioEncoderConfig {
@@ -213,6 +218,10 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoderConfig {
     fn sliding_window(&self) -> Option<usize> {
         self.sliding_window
     }
+
+    fn kv_cache_pre_size(&self) -> usize {
+        self.kv_cache_pre_size
+    }
 }
 
 impl ToStructureConfig for VoxtralAudioEncoderConfig {
@@ -237,6 +246,7 @@ impl ToStructureConfig for VoxtralAudioEncoderConfig {
                 conv(self.d_model, VOXTRAL_STEM_STRIDE),
             ]),
             self.stack().try_to_structure()?,
+            self.kv_cache_pre_size,
         ))
     }
 }
@@ -250,6 +260,10 @@ pub struct VoxtralAudioEncoderStructureConfig {
 
     /// The layers, their final norm and their rotary embedding.
     pub stack: DecoderStackStructureConfig,
+
+    /// The encoder frames a streaming cache allocates up front
+    /// ([`VoxtralAudioEncoderConfig::kv_cache_pre_size`]).
+    pub kv_cache_pre_size: usize,
 }
 
 impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderStructureConfig {
@@ -260,6 +274,7 @@ impl ModuleInit<VoxtralAudioEncoder> for VoxtralAudioEncoderStructureConfig {
         Ok(VoxtralAudioEncoder {
             stem: self.stem.try_init(device)?,
             stack: self.stack.try_init(device)?,
+            kv_cache_pre_size: self.kv_cache_pre_size,
         })
     }
 }
@@ -291,6 +306,10 @@ pub struct VoxtralAudioEncoder {
 
     /// The layers, their final norm and their rotary embedding.
     pub stack: DecoderStack,
+
+    /// The encoder frames a streaming cache allocates up front.
+    #[module(skip)]
+    pub kv_cache_pre_size: usize,
 }
 
 impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
@@ -317,6 +336,10 @@ impl VoxtralAudioEncoderMeta for VoxtralAudioEncoder {
 
     fn sliding_window(&self) -> Option<usize> {
         self.stack.layers[0].attn.branch.attention().sliding_window
+    }
+
+    fn kv_cache_pre_size(&self) -> usize {
+        self.kv_cache_pre_size
     }
 }
 
@@ -467,6 +490,11 @@ mod tests {
         assert_eq!(encoder.stack.norm.epsilon(), Some(1e-6));
         assert_eq!(config.output_len(7), 4);
         assert_eq!(encoder.kv_cache_config().num_layers, 2);
+        assert_eq!(encoder.kv_cache_pre_size(), config.kv_cache_pre_size());
+        assert_eq!(encoder.kv_cache_config().seq_len, 1536, "30 s of frames");
+        assert_eq!(config.kv_cache_config().seq_len, 1536);
+        let sized: VoxtralAudioEncoder = toy().with_kv_cache_pre_size(64).init(&cpu_device());
+        assert_eq!(sized.kv_cache_config().seq_len, 64);
 
         let preset = VoxtralAudioEncoderConfig::voxtral_mini_4b_realtime();
         assert_eq!(preset.sliding_window(), Some(750));

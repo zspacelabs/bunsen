@@ -26,6 +26,7 @@ mistralai:
             d_ff: 5120
             d_model: 1280
             head_dim: 64
+            kv_cache_pre_size: 1536
             n_heads: 32
             n_layers: 32
             n_mels: 128
@@ -37,6 +38,7 @@ mistralai:
             d_ff: 9216
             d_model: 3072
             head_dim: 128
+            kv_cache_pre_size: 1024
             n_heads: 32
             n_kv_heads: 8
             n_layers: 26

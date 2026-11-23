@@ -48,10 +48,6 @@ use crate::{
     },
 };
 
-/// The positions a text cache allocates up front by default: 80 s of decoder
-/// positions.
-pub const VOXTRAL_TEXT_KV_CACHE_PRE_SIZE: usize = 1024;
-
 /// The bottleneck of each layer's delay conditioning
 /// (`transformers`' `ada_rms_norm`, fixed at 32).
 pub const VOXTRAL_ADA_HIDDEN: usize = 32;
@@ -61,12 +57,13 @@ pub const VOXTRAL_TIME_THETA: f32 = 10_000.0;
 
 /// The cache a Voxtral text model of this geometry decodes with, before it
 /// is built: its KV heads, head width and layer count,
-/// [`VOXTRAL_TEXT_KV_CACHE_PRE_SIZE`] positions up front.
+/// [`kv_cache_pre_size`](VoxtralTextConfig::kv_cache_pre_size) positions up
+/// front.
 impl KVCacheModel for VoxtralTextConfig {
     fn kv_cache_config(&self) -> KVCacheConfig {
         KVCacheConfig::for_decode(
             self.n_kv_heads(),
-            VOXTRAL_TEXT_KV_CACHE_PRE_SIZE,
+            self.kv_cache_pre_size,
             self.head_dim(),
             self.n_layers(),
         )
@@ -111,6 +108,12 @@ pub struct VoxtralTextConfig {
     /// The attention window, in positions; `None` attends to the whole past.
     #[config(default = "Some(8192)")]
     pub sliding_window: Option<usize>,
+
+    /// The positions the KV cache allocates up front: 80 s of decoder
+    /// positions. A caller that knows a decode's length sizes (and caps) the
+    /// cache to it.
+    #[config(default = 1024)]
+    pub kv_cache_pre_size: usize,
 }
 
 impl VoxtralTextConfig {
@@ -181,7 +184,8 @@ impl LmDecoderMeta for VoxtralTextConfig {
 
 /// The language model: a plain token embedding, the head tied to it, and
 /// [`stack`](VoxtralTextConfig::stack); its KV cache
-/// [`VOXTRAL_TEXT_KV_CACHE_PRE_SIZE`] positions up front.
+/// [`kv_cache_pre_size`](VoxtralTextConfig::kv_cache_pre_size) positions up
+/// front.
 ///
 /// # Errors
 /// Never: a Voxtral text model's lowering is total.
@@ -194,7 +198,7 @@ impl ToStructureConfig for VoxtralTextConfig {
             LmHeadConfig::new(self.d_model, self.n_vocab),
             self.stack().into(),
         )
-        .with_kv_cache_pre_size(VOXTRAL_TEXT_KV_CACHE_PRE_SIZE))
+        .with_kv_cache_pre_size(self.kv_cache_pre_size))
     }
 }
 
@@ -339,6 +343,10 @@ mod tests {
         assert_eq!(model.lm.decoder.stack.rotary.base, config.rope_theta);
         assert_eq!(model.lm.decoder.stack.norm.epsilon(), Some(1e-6));
         assert!(model.lm.decoder.stack.layers[0].mlp_scale.is_some());
+        assert_eq!(model.kv_cache_config().seq_len, 1024, "80 s of positions");
+        assert_eq!(config.kv_cache_config().seq_len, 1024);
+        let sized: VoxtralTextModel = config.clone().with_kv_cache_pre_size(64).init(&device);
+        assert_eq!(sized.kv_cache_config().seq_len, 64);
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9, 3]], &device);
         let embeds = model.embed(tokens);
