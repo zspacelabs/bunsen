@@ -3,17 +3,13 @@
 //! Bidirectional transformer encoder layers, and the encoders built from
 //! them:
 //!
-//! - [`residual`]: self-attention and an MLP, normalized before or after each
-//!   residual, as
-//!   [`ResidualEncoderAttentionBlock`](residual::ResidualEncoderAttentionBlock)
-//!   ([`NormPlacement`](super::sublayer::NormPlacement)): pre-norm, the encoder
-//!   layer of Whisper's and Qwen3-ASR's audio encoders; post-norm, of
-//!   Sortformer v2's transformer. And the stack of them,
-//!   [`ResidualEncoderTransformer`](residual::ResidualEncoderTransformer),
-//!   which masks padding as keys: Sortformer v2's transformer.
 //! - a [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)
-//!   whose attention is bidirectional: a pre-norm encoder with rotary
-//!   attention, `Nemotron-3-Diarization`'s.
+//!   whose attention sees the whole input (or its own window of it), padding
+//!   masked as keys: a pre-norm encoder with rotary attention,
+//!   `Nemotron-3-Diarization`'s; pre-norm layers without rotary positions,
+//!   Whisper's and Qwen3-ASR's audio encoders and Laya's head; post-norm
+//!   ([`NormPlacement`](super::sublayer::NormPlacement)), Sortformer v2's
+//!   transformer.
 //! - [`conformer`]: the `FastConformer` encoder,
 //!   [`ConformerEncoderConfig`](conformer::ConformerEncoderConfig), a policy
 //!   for a [`SubsampledEncoder`]: depthwise-striding subsampling, then
@@ -36,7 +32,6 @@
 //! bridging the caller's layout to the front end's.
 
 pub mod conformer;
-pub mod residual;
 
 mod encoder_transformer;
 mod subsampled;

@@ -23,13 +23,10 @@
 //! - [`embedding`]: [`RotaryEmbedding`](embedding::RotaryEmbedding), the rotary
 //!   position embedding tables as a module, and, in `embedding::testing`
 //!   (behind the `testing` feature), two fixture embeddings for tests.
-//! - [`encoders`]: bidirectional encoder layers and encoders:
-//!   [`ResidualEncoderAttentionBlock`](encoders::residual::ResidualEncoderAttentionBlock),
-//!   the pre- or post-norm layer of Whisper's, Qwen3-ASR's and Sortformer v2's
-//!   encoders, and its stack,
-//!   [`ResidualEncoderTransformer`](encoders::residual::ResidualEncoderTransformer);
-//!   a bidirectional [`DecoderStack`](decoders::stack::DecoderStack), a
-//!   pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s; and
+//! - [`encoders`]: bidirectional encoders: a bidirectional
+//!   [`DecoderStack`](decoders::stack::DecoderStack) (pre- or post-norm, with
+//!   rotary positions or none, windowed or not: Whisper's, Qwen3-ASR's,
+//!   Sortformer's and `Nemotron-3-Diarization`'s encoders, Laya's head); and
 //!   [`ConformerEncoderConfig`](encoders::conformer::ConformerEncoderConfig),
 //!   the `FastConformer`, Parakeet's and Sortformer v2's.
 //!   [`EncoderTransformer`](encoders::EncoderTransformer) is any of their
