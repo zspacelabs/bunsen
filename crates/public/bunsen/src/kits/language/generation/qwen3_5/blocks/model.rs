@@ -36,7 +36,6 @@ use crate::{
                 LmDecoderModel,
                 LmDecoderVariantConfig,
                 LmDecoderWrapper,
-                LmHybridKind,
             },
         },
     },
@@ -427,33 +426,31 @@ impl ToStructureConfig for Qwen3_5Config {
 /// [`LmDecoderModel`]'s, and loads each `1 + w` norm's `w` as `1 + w`; the
 /// load is into [`lm`](Self::lm).
 ///
-/// An [`LmHybridKind`] [`LmDecoderWrapper`]: it decodes through its stack's
-/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
+/// An [`LmDecoderWrapper`] with linear-attention layers: it decodes through its
+/// stack's [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), which carries a
 /// KV cache for its full-attention layers and a state for each linear one,
 /// and runs uncached through
-/// [`LmUncachedForwardHidden`](crate::blocks::transformers::models::language_decoder::LmUncachedForwardHidden).
+/// [`LmKvForwardHidden`](crate::blocks::transformers::models::language_decoder::LmKvForwardHidden).
 ///
 /// Built by [`Qwen3_5Config`].
 /// Implements [`LmDecoderMeta`].
 #[derive(Module, Debug)]
 pub struct Qwen3_5Model {
     /// The language model.
-    pub lm: LmDecoderModel<LmHybridKind>,
+    pub lm: LmDecoderModel,
 }
 
 impl LmDecoderHolder for Qwen3_5Model {
-    type Kind = LmHybridKind;
-
-    fn lm(&self) -> &LmDecoderModel<LmHybridKind> {
+    fn lm(&self) -> &LmDecoderModel {
         &self.lm
     }
 
-    fn lm_mut(&mut self) -> &mut LmDecoderModel<LmHybridKind> {
+    fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
     }
 
-    fn from_lm(lm: LmDecoderModel<LmHybridKind>) -> Self {
+    fn from_lm(lm: LmDecoderModel) -> Self {
         Self { lm }
     }
 }

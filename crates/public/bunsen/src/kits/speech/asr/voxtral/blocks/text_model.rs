@@ -29,7 +29,6 @@ use crate::{
             },
             head::LmHeadConfig,
             models::language_decoder::{
-                LmAttentionOnlyKind,
                 LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
@@ -227,8 +226,6 @@ pub struct VoxtralTextModel {
 }
 
 impl LmDecoderHolder for VoxtralTextModel {
-    type Kind = LmAttentionOnlyKind;
-
     fn lm(&self) -> &LmDecoderModel {
         &self.lm
     }

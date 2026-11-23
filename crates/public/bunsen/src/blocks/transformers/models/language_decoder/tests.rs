@@ -186,23 +186,33 @@ fn test_cached_matches_uncached() {
     assert_eq!(model.logits(whole).dims(), [1, 5, 40]);
 }
 
-/// A hybrid stack builds a hybrid-kind model, which runs uncached; an
-/// attention-only model refuses it, naming the linear layer.
+/// A stack of any mixers builds, and runs uncached; one with a
+/// linear-attention layer decodes only through a stack cache, so a flat
+/// cache is refused.
 #[test]
-fn test_kinds() {
+fn test_hybrid_stack() {
     let device = cpu_device();
-    let model: LmDecoderModel<LmHybridKind> = hybrid().init(&device);
+    let model: LmDecoderModel = hybrid().init(&device);
     assert_eq!(model.decoder.stack.layer_attends(), [false, true]);
     let tokens = Tensor::<2, Int>::from_data([[1, 5, 7]], &device);
-    let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(3, &device));
+    let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(3, &device), None);
     assert_eq!(model.logits(hidden).dims(), [1, 3, 40]);
+    let _: LmDecoderModel = uniform(1).init(&device);
+}
 
-    ErrorMatcher::kind(BunsenErrorKind::Illegal)
-        .message_contains("LmAttentionOnlyKind")
-        .message_contains("layer 0 is linear attention")
-        .assert_err(&ModuleInit::<LmDecoderModel>::try_init(&hybrid(), &device));
-
-    let _: LmDecoderModel<LmHybridKind> = uniform(1).init(&device);
+/// A hybrid model handed a flat cache refuses it.
+#[test]
+#[should_panic(expected = "DeltaNetCache")]
+fn test_hybrid_refuses_a_flat_cache() {
+    let device = cpu_device();
+    let model: LmDecoderModel = hybrid().init(&device);
+    let tokens = Tensor::<2, Int>::from_data([[1, 5, 7]], &device);
+    let mut cache = model.new_kv_cache(1, &device);
+    let _ = model.forward_hidden(
+        model.embed(tokens),
+        &model.rotary(3, &device),
+        Some(&mut cache),
+    );
 }
 
 /// A wrapper of an attention-only model, as a kit's.
@@ -212,8 +222,6 @@ struct Wrapped {
 }
 
 impl LmDecoderHolder for Wrapped {
-    type Kind = LmAttentionOnlyKind;
-
     fn lm(&self) -> &LmDecoderModel {
         &self.lm
     }
@@ -232,28 +240,26 @@ impl LmDecoderWrapper for Wrapped {}
 /// A wrapper of a hybrid model.
 #[derive(Module, Debug)]
 struct WrappedHybrid {
-    lm: LmDecoderModel<LmHybridKind>,
+    lm: LmDecoderModel,
 }
 
 impl LmDecoderHolder for WrappedHybrid {
-    type Kind = LmHybridKind;
-
-    fn lm(&self) -> &LmDecoderModel<LmHybridKind> {
+    fn lm(&self) -> &LmDecoderModel {
         &self.lm
     }
 
-    fn lm_mut(&mut self) -> &mut LmDecoderModel<LmHybridKind> {
+    fn lm_mut(&mut self) -> &mut LmDecoderModel {
         &mut self.lm
     }
 
-    fn from_lm(lm: LmDecoderModel<LmHybridKind>) -> Self {
+    fn from_lm(lm: LmDecoderModel) -> Self {
         Self { lm }
     }
 }
 
 impl LmDecoderWrapper for WrappedHybrid {}
 
-/// A wrapper's forward and cache are its model's, by kind.
+/// A wrapper's forward and cache are its model's.
 #[test]
 fn test_wrapper_passthrough() {
     let device = cpu_device();
@@ -287,8 +293,8 @@ fn test_wrapper_passthrough() {
     };
     let embeds = hybrid.lm().embed(tokens);
     assert_tensors_close(
-        &hybrid.forward_hidden(embeds.clone(), &r_emb),
-        &hybrid.lm.forward_hidden(embeds, &r_emb),
+        &hybrid.forward_hidden(embeds.clone(), &r_emb, None),
+        &hybrid.lm.forward_hidden(embeds, &r_emb, None),
         Tolerance::default(),
     );
 }
@@ -401,8 +407,8 @@ fn test_stack_decoder() {
     assert_eq!(own.logits(hidden, None).dims(), [1, 4, 40]);
 }
 
-/// A decoder refuses a head whose width is not its stack's, and a stack not
-/// of its kind.
+/// A decoder refuses a head whose width is not its stack's; a stack of any
+/// mixers builds.
 #[test]
 fn test_stack_decoder_refusals() {
     let device = cpu_device();
@@ -410,8 +416,5 @@ fn test_stack_decoder_refusals() {
     let wide = LmStackDecoderConfig::new(LmHeadConfig::new(16, 40), structure.stack.clone());
     assert!(ModuleInit::<LmStackDecoder>::try_init(&wide, &device).is_err());
     let hybrid = hybrid().to_structure();
-    assert!(ModuleInit::<LmStackDecoder>::try_init(&hybrid.decoder(), &device).is_err());
-    assert!(
-        ModuleInit::<LmStackDecoder<LmHybridKind>>::try_init(&hybrid.decoder(), &device).is_ok()
-    );
+    assert!(ModuleInit::<LmStackDecoder>::try_init(&hybrid.decoder(), &device).is_ok());
 }

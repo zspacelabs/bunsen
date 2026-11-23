@@ -10,9 +10,6 @@ use burn::{
 };
 
 use super::{
-    LmAttentionOnlyKind,
-    LmDecodeKind,
-    LmHybridKind,
     LmStackDecoder,
     LmStackDecoderMeta,
 };
@@ -66,12 +63,12 @@ pub trait LmDecoderMeta {
 /// embedding or its own); what a named model's kit wraps, with the kit's
 /// config, weights and quirks.
 ///
-/// `K`, its [`LmDecodeKind`], says how it decodes: every kind through a
+/// It decodes through a
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
-/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)); an
-/// [`LmAttentionOnlyKind`] model through a flat [`KVCache`] too
-/// ([`LmKvForwardHidden`], [`KVCacheModel`]), an [`LmHybridKind`] one only
-/// uncached besides ([`LmUncachedForwardHidden`]).
+/// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or, when every
+/// layer attends, through a flat [`KVCache`] too ([`LmKvForwardHidden`],
+/// [`KVCacheModel`]); a stack with linear-attention layers refuses a flat
+/// cache.
 ///
 /// Its canonical names are `embedding.`, `head.` and `stack.`: a kit's load
 /// rekeys a checkpoint's names onto them, and loads into the model itself,
@@ -83,15 +80,15 @@ pub trait LmDecoderMeta {
 /// [`LmDecoderStructureConfig`](super::LmDecoderStructureConfig). Implements
 /// [`LmDecoderMeta`].
 #[derive(Module, Debug)]
-pub struct LmDecoderModel<K: LmDecodeKind = LmAttentionOnlyKind> {
+pub struct LmDecoderModel {
     /// The token embedding, and the head's table when it is tied.
     pub embedding: TokenEmbedding,
 
     /// The decoder: the stack and the head.
-    pub decoder: LmStackDecoder<K>,
+    pub decoder: LmStackDecoder,
 }
 
-impl<K: LmDecodeKind> LmDecoderMeta for LmDecoderModel<K> {
+impl LmDecoderMeta for LmDecoderModel {
     fn n_vocab(&self) -> usize {
         self.embedding.n_vocab()
     }
@@ -117,7 +114,7 @@ impl<K: LmDecodeKind> LmDecoderMeta for LmDecoderModel<K> {
     }
 }
 
-impl<K: LmDecodeKind> LmDecoderModel<K> {
+impl LmDecoderModel {
     /// The positions a KV cache allocates up front by default.
     pub fn kv_cache_pre_size(&self) -> usize {
         self.decoder.kv_cache_pre_size()
@@ -208,8 +205,8 @@ impl<K: LmDecodeKind> LmDecoderModel<K> {
     }
 }
 
-/// The forward of a model that decodes through a flat [`KVCache`]: an
-/// [`LmAttentionOnlyKind`] [`LmDecoderModel`], and what wraps one.
+/// The forward of an [`LmDecoderModel`], and of what wraps one: uncached,
+/// or through a flat [`KVCache`].
 pub trait LmKvForwardHidden {
     /// Runs the decoder over embeddings at positions `start..start + seq`,
     /// through the cache when there is one.
@@ -222,6 +219,11 @@ pub trait LmKvForwardHidden {
     ///
     /// # Returns
     /// `[batch, seq, d_model]`, normalized: the head's input.
+    ///
+    /// # Panics
+    /// If handed a cache while the stack has linear-attention layers, which
+    /// decode through a
+    /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache).
     fn forward_hidden(
         &self,
         embeds: Tensor<3>,
@@ -230,7 +232,7 @@ pub trait LmKvForwardHidden {
     ) -> Tensor<3>;
 }
 
-impl LmKvForwardHidden for LmDecoderModel<LmAttentionOnlyKind> {
+impl LmKvForwardHidden for LmDecoderModel {
     fn forward_hidden(
         &self,
         embeds: Tensor<3>,
@@ -241,48 +243,17 @@ impl LmKvForwardHidden for LmDecoderModel<LmAttentionOnlyKind> {
     }
 }
 
-/// The uncached forward of a model whose decode runs only through a
-/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache):
-/// an [`LmHybridKind`] [`LmDecoderModel`], and what wraps one.
-pub trait LmUncachedForwardHidden {
-    /// Runs the decoder over embeddings at positions `0..seq`, uncached: a
-    /// decode runs through
-    /// [`StackedLm`](crate::kits::support::decoding::StackedLm).
-    ///
-    /// # Arguments
-    /// * `embeds` - `[batch, seq, d_model]`.
-    /// * `r_emb` - rotary tables covering `seq` positions.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`, normalized: the head's input.
-    fn forward_hidden(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-    ) -> Tensor<3>;
-}
-
-impl LmUncachedForwardHidden for LmDecoderModel<LmHybridKind> {
-    fn forward_hidden(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-    ) -> Tensor<3> {
-        self.decoder.forward_hidden(embeds, r_emb)
-    }
-}
-
 /// The cache's geometry is the stack's; it allocates the model's
 /// [`kv_cache_pre_size`](LmDecoderModel::kv_cache_pre_size) positions up
 /// front, and is capped at the stack's rotary table length where the stack
 /// fixes one (a nonzero `seq_len`), else uncapped.
-impl KVCacheModel for LmDecoderModel<LmAttentionOnlyKind> {
+impl KVCacheModel for LmDecoderModel {
     fn kv_cache_config(&self) -> KVCacheConfig {
         self.decoder.kv_cache_config()
     }
 }
 
-impl<K: LmDecodeKind> CanonicalKeys for LmDecoderModel<K> {
+impl CanonicalKeys for LmDecoderModel {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest().rename("head.", "decoder.head.").mount(
             "stack.",

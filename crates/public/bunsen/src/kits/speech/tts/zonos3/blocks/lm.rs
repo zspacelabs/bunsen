@@ -53,7 +53,6 @@ use crate::{
             },
             mlp::TransformerFeedForwardConfig,
             models::language_decoder::{
-                LmHybridKind,
                 LmStackDecoder,
                 LmStackDecoderConfig,
                 LmStackDecoderMeta,
@@ -439,7 +438,7 @@ pub struct Zonos3Lm {
     /// The decoder: the layers, with attention-residual routes in place of
     /// a residual stream, and the head, every codebook's logits (`[D, K
     /// V_a]`, soft-capped).
-    pub decoder: LmStackDecoder<LmHybridKind>,
+    pub decoder: LmStackDecoder,
 
     /// The audio codebooks, `K`.
     #[module(skip)]
