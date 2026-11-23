@@ -56,6 +56,15 @@ pub struct TimingRecord {
     /// seconds.
     pub load_s: f64,
 
+    /// The first encoder pass, on cold kernels, for a model with an encoder
+    /// (Whisper's audio); `None` for one without.
+    #[serde(default)]
+    pub encode_cold: Option<Window>,
+
+    /// The encoder passes after it, one per warm prefill's fresh state.
+    #[serde(default)]
+    pub encode_warm: Option<Phase>,
+
     /// The first prefill, on cold kernels.
     pub prefill_cold: Window,
 

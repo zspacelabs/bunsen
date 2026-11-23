@@ -20,14 +20,21 @@
 //!   [`TokenSearch`](crate::kits::support::decoding::TokenSearch) owns the
 //!   sequences' bookkeeping.
 //!
+//! - [`WhisperTimedState`]: the model as a
+//!   [`TimedDecode`](crate::kits::support::timing::TimedDecode), for a
+//!   throughput harness: the encoder's pass over a 30 s window, the text
+//!   decoder's prefill and steps through its cache.
+//!
 //! The stream driver ([`driver`](super::driver)) builds the
 //! [`DecodeConfig`] for every window and climbs the ladder; a caller with
 //! whole windows in hand can call the model directly.
 //!
 //! [`decode_windows`]: super::Whisper::decode_windows
 
+mod timed_decode;
 mod token_decoder;
 mod whisper_fallback_config;
 
+pub use timed_decode::*;
 pub use token_decoder::*;
 pub use whisper_fallback_config::*;

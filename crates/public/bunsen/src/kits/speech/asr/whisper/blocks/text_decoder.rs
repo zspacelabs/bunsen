@@ -46,6 +46,7 @@ use crate::{
             KVCache,
             KVCacheConfig,
             KVCacheModel,
+            KVCacheStorage,
             causal_mask,
         },
     },
@@ -330,6 +331,17 @@ impl TextDecoder {
         xa: Tensor<3>,
         group: usize,
     ) -> KVCache {
+        self.new_cache_with(xa, group, KVCacheStorage::Auto)
+    }
+
+    /// [`new_cache_grouped`](Self::new_cache_grouped), its history under
+    /// `storage` rather than the device's best-known one.
+    pub fn new_cache_with(
+        &self,
+        xa: Tensor<3>,
+        group: usize,
+        storage: KVCacheStorage,
+    ) -> KVCache {
         assert!(group >= 1, "at least one row per audio");
 
         // The cross-attention keys and values are the bulk of the decode's
@@ -342,6 +354,7 @@ impl TextDecoder {
         let mut cache = self
             .kv_cache_config()
             .with_batch_size(xa.dims()[0] * group)
+            .with_storage(storage)
             .init(&device);
         for (layer, block) in self.blocks.iter().enumerate() {
             let (k, v) = block.cross_kv(xa.clone());

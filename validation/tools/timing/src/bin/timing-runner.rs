@@ -40,6 +40,7 @@ use bunsen::{
             qwen3::pretrained::default_qwen3_factory,
             qwen3_5::pretrained::default_qwen3_5_factory,
         },
+        speech::asr::whisper::pretrained::default_whisper_factory,
         support::{
             construct::LmConstruct,
             timing::TimedDecode,
@@ -186,71 +187,91 @@ fn time_row(
         .split_once(':')
         .ok_or_else(|| format!("a row is `crate:model`, not `{row}`"))?;
     let lm = |e: bunsen::errors::BunsenError| e.to_string();
+    fn lm_model<M>(c: &LmConstruct<M>) -> &M {
+        &c.model
+    }
     match krate {
-        "qwen3" => time_lm(
+        "qwen3" => time_built(
             krate,
             model,
             &default_qwen3_factory().map_err(lm)?,
+            lm_model,
             args,
             cache,
             device,
         ),
-        "qwen3-5" => time_lm(
+        "qwen3-5" => time_built(
             krate,
             model,
             &default_qwen3_5_factory().map_err(lm)?,
+            lm_model,
             args,
             cache,
             device,
         ),
-        "gemma" => time_lm(
+        "gemma" => time_built(
             krate,
             model,
             &default_gemma_factory().map_err(lm)?,
+            lm_model,
             args,
             cache,
             device,
         ),
-        "nanochat" => time_lm(
+        "nanochat" => time_built(
             krate,
             model,
             &default_nanochat_factory().map_err(lm)?,
+            lm_model,
+            args,
+            cache,
+            device,
+        ),
+        "whisper" => time_built(
+            krate,
+            model,
+            &default_whisper_factory().map_err(lm)?,
+            |c| &c.model,
             args,
             cache,
             device,
         ),
         other => Err(format!(
-            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma and nanochat do)"
+            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat and whisper do)"
         )),
     }
 }
 
-/// The catalog build `model` names in `factory`: itself when it is one, else
-/// the build whose last `/` part it is (`models.yml`'s names).
+/// The catalog build `model` names in `factory`: itself when the factory
+/// resolves it (a build id, or a spec such as `openai/base`), else the build
+/// whose last `/` part it is (`models.yml`'s names, `qwen3-0.6b`).
 fn build_id<H: ConstructInit>(
     factory: &BuildFactory<H>,
     model: &str,
 ) -> Result<String, String> {
-    let ids = factory.ids();
-    ids.iter()
-        .find(|id| id.as_str() == model)
-        .or_else(|| ids.iter().find(|id| id.rsplit('/').next() == Some(model)))
-        .cloned()
+    if factory.lookup(model).is_ok() {
+        return Ok(model.to_string());
+    }
+    factory
+        .ids()
+        .into_iter()
+        .find(|id| id.rsplit('/').next() == Some(model))
         .ok_or_else(|| format!("no catalog build is named {model}"))
 }
 
-/// A language model's row: loaded by `factory`, timed through its
-/// [`TimedDecode`].
-fn time_lm<H, M>(
+/// A row: loaded by `factory`, its model (`model_of` its construct) timed
+/// through its [`TimedDecode`].
+fn time_built<H, M>(
     krate: &str,
     model: &str,
     factory: &BuildFactory<H>,
+    model_of: impl Fn(&H::Construct) -> &M,
     args: &Args,
     cache: &ResourceCache,
     device: &Device,
 ) -> Result<TimingRecord, String>
 where
-    H: ConstructInit<Construct = LmConstruct<M>>,
+    H: ConstructInit,
     M: TimedDecode + Sync,
     M::State: Send,
 {
@@ -260,11 +281,12 @@ where
         Dtype::Bf16 => LoadPolicy::performance(),
     };
     let start = Instant::now();
-    let construct: Arc<LmConstruct<M>> = factory
+    let construct: Arc<H::Construct> = factory
         .load_construct(&build, cache, device, policy)
         .map_err(|e| format!("load {build}: {e}"))?;
     let load_s = start.elapsed().as_secs_f64();
-    let timed = time_decode(&construct.model, args, device);
+    let timed_model = model_of(&construct);
+    let timed = time_decode(timed_model, args, device);
     let storage = args.storage.storage();
     let resolved = match storage {
         KVCacheStorage::Auto => KVCacheStorage::auto_for(device),
@@ -281,7 +303,7 @@ where
         rows: args.rows,
         prefill: args.prefill,
         steps: args.steps,
-        unit: construct.model.step_unit().to_string(),
+        unit: timed_model.step_unit().to_string(),
         load_s,
         ..timed
     })
@@ -311,17 +333,46 @@ fn window(
     device: &Device,
     f: impl FnOnce() -> TensorData + Send,
 ) -> Window {
-    device.sync().expect("sync the device");
-    let start = Instant::now();
-    let (_read, duration) = device.profile(f).expect("open a profiling window");
-    let wall_ms = start.elapsed().as_secs_f64() * 1000.0;
-    let device_ms =
-        read_sync(duration.resolve()).map(|ticks| ticks.duration().as_secs_f64() * 1000.0);
-    Window { wall_ms, device_ms }
+    window_of(device, || Some(f())).expect("the phase ran")
 }
 
-/// The phases of `model`'s decode: a cold prefill and its first step, the
-/// warm steps after them, then warm prefills into fresh states. Every window
+/// [`window`] over a phase that may not apply (`f` gives `None`: a model
+/// without an encoder): `None`, and no window kept.
+fn window_of(
+    device: &Device,
+    f: impl FnOnce() -> Option<TensorData> + Send,
+) -> Option<Window> {
+    device.sync().expect("sync the device");
+    let start = Instant::now();
+    let (read, duration) = device.profile(f).expect("open a profiling window");
+    let wall_ms = start.elapsed().as_secs_f64() * 1000.0;
+    read?;
+    let device_ms =
+        read_sync(duration.resolve()).map(|ticks| ticks.duration().as_secs_f64() * 1000.0);
+    Some(Window { wall_ms, device_ms })
+}
+
+/// The encoder's pass over a new `state`, timed, where the model has one.
+fn encode<M>(
+    model: &M,
+    state: &mut M::State,
+    rows: usize,
+    device: &Device,
+) -> Option<Window>
+where
+    M: TimedDecode + Sync,
+    M::State: Send,
+{
+    window_of(device, || {
+        model
+            .timed_encode(state, rows, device)
+            .map(|t| t.argmax(1).into_data())
+    })
+}
+
+/// The phases of `model`'s decode: a cold encode (a model with an encoder),
+/// a cold prefill and its first step, the warm steps after them, then warm
+/// encodes and prefills into fresh states. Every window
 /// closes on a read of the phase's tokens (the argmax of its logits), as a
 /// decode reads its token. The load fields are left for the caller.
 fn time_decode<M>(
@@ -339,6 +390,7 @@ where
     let mut memory = None;
 
     let mut state = model.timed_state(rows, positions, storage, device);
+    let encode_cold = encode(model, &mut state, rows, device);
     let prefill_cold = window(device, || {
         model
             .timed_prefill(&mut state, rows, prefill, device)
@@ -365,9 +417,11 @@ where
     sample_memory(device, &mut memory);
     drop(state);
 
+    let mut encodes_warm = Vec::new();
     let prefills_warm: Vec<Window> = (0..args.prefill_reps)
         .map(|_| {
             let mut state = model.timed_state(rows, positions, storage, device);
+            encodes_warm.extend(encode(model, &mut state, rows, device));
             window(device, || {
                 model
                     .timed_prefill(&mut state, rows, prefill, device)
@@ -404,6 +458,8 @@ where
         steps,
         unit: String::new(),
         load_s: 0.0,
+        encode_cold,
+        encode_warm: (!encodes_warm.is_empty()).then(|| Phase::of(&encodes_warm)),
         prefill_cold,
         prefill_warm: Phase::of(&prefills_warm),
         step_cold,
@@ -427,6 +483,23 @@ fn print_record(r: &TimingRecord) {
     );
     println!("  {:<14} {:>10} {:>10}", "phase", "wall ms", "device ms*");
     println!("  {:<14} {:>10.1} s", "load", r.load_s);
+    if let Some(e) = &r.encode_cold {
+        println!(
+            "  {:<14} {:>10.2} {:>10}",
+            "encode cold",
+            e.wall_ms,
+            device(e.device_ms)
+        );
+    }
+    if let Some(e) = &r.encode_warm {
+        println!(
+            "  {:<14} {:>10.2} {:>10}   median of {}",
+            "encode warm",
+            e.wall.median_ms,
+            device(phase_device(e)),
+            e.count
+        );
+    }
     println!(
         "  {:<14} {:>10.2} {:>10}",
         "prefill cold",
