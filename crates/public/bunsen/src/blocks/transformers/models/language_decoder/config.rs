@@ -1,8 +1,5 @@
 //! The configs of an [`LmDecoderModel`].
-use alloc::{
-    format,
-    string::ToString,
-};
+use alloc::string::ToString;
 
 use burn::{
     config::Config,
@@ -10,7 +7,6 @@ use burn::{
 };
 
 use super::{
-    LmDecodeKind,
     LmDecoderMeta,
     LmDecoderModel,
     LmStackDecoderConfig,
@@ -85,7 +81,6 @@ impl ToStructureConfig for LmDecoderVariantConfig {
 /// Structure config for [`LmDecoderModel`]: the embedding, the head, and
 /// the stack unrolled.
 ///
-/// Builds a model of any [`LmDecodeKind`] its stack is of.
 /// Implements [`LmDecoderMeta`] (once its stack has a layer that attends).
 #[derive(Config, Debug)]
 pub struct LmDecoderStructureConfig {
@@ -130,26 +125,17 @@ impl LmDecoderMeta for LmDecoderStructureConfig {
     }
 }
 
-impl<K: LmDecodeKind> ModuleInit<LmDecoderModel<K>> for LmDecoderStructureConfig {
+impl ModuleInit<LmDecoderModel> for LmDecoderStructureConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause, for a stack that is not of kind `K`, for an
-    /// embedding or head whose width is not the stack's, or for a tied head
-    /// whose rows are not the embedding's; and as the embedding's, head's and
-    /// stack's builds.
+    /// [`ConstraintError`] cause, for an embedding or head whose width is not
+    /// the stack's, or for a tied head whose rows are not the embedding's; and
+    /// as the embedding's, head's and stack's builds.
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<LmDecoderModel<K>> {
+    ) -> BunsenResult<LmDecoderModel> {
         self.check_agreement()?;
-        if let Some(why) = K::refusal(&self.stack.layer_attends()) {
-            return Err(ConstraintError::custom(
-                "LmDecoderStructureConfig",
-                "stack",
-                format!("not of kind {}: {why}", K::NAME),
-            )
-            .into());
-        }
         Ok(LmDecoderModel {
             embedding: self.embedding.try_init(device)?,
             decoder: self.decoder().try_init(device)?,
@@ -213,7 +199,7 @@ impl<W: super::LmDecoderHolder + burn::module::Module> ModuleInit<W> for LmDecod
         &self,
         device: &Device,
     ) -> BunsenResult<W> {
-        Ok(W::from_lm(ModuleInit::<LmDecoderModel<W::Kind>>::try_init(
+        Ok(W::from_lm(ModuleInit::<LmDecoderModel>::try_init(
             self, device,
         )?))
     }

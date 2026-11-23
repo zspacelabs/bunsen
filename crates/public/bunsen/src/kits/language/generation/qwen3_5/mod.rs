@@ -13,9 +13,9 @@
 //! - [`blocks`]: the model, built from a [`Qwen3_5Config`].
 //! - Decoding: the model wraps an
 //!   [`LmDecoderModel`](crate::blocks::transformers::models::language_decoder::LmDecoderModel)
-//!   of [`LmHybridKind`](crate::blocks::transformers::models::language_decoder::LmHybridKind),
-//!   and is a [`StackedLm`](crate::kits::support::decoding::StackedLm), its
-//!   decode state its stack's
+//!   with linear-attention layers, and is a
+//!   [`StackedLm`](crate::kits::support::decoding::StackedLm), its decode state
+//!   its stack's
 //!   [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache):
 //!   a KV cache for the full-attention layers, and a
 //!   [`DeltaNetState`](crate::ops::transformers::linear_attention::DeltaNetState)

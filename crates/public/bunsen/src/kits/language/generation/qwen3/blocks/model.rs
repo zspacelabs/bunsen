@@ -26,7 +26,6 @@ use crate::{
             },
             head::LmHeadConfig,
             models::language_decoder::{
-                LmAttentionOnlyKind,
                 LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
@@ -264,7 +263,7 @@ impl LmDecoderMeta for Qwen3Config {
 /// maps `transformers`' `Qwen3ForCausalLM` names onto the
 /// [`LmDecoderModel`]'s, and the load is into [`lm`](Self::lm).
 ///
-/// An [`LmAttentionOnlyKind`] [`LmDecoderWrapper`]: it decodes through its
+/// An [`LmDecoderWrapper`] whose every layer attends: it decodes through its
 /// stack's
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
@@ -281,8 +280,6 @@ pub struct Qwen3Model {
 }
 
 impl LmDecoderHolder for Qwen3Model {
-    type Kind = LmAttentionOnlyKind;
-
     fn lm(&self) -> &LmDecoderModel {
         &self.lm
     }

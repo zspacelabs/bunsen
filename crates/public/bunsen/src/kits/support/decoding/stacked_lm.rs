@@ -103,8 +103,7 @@ mod tests {
                 models::language_decoder::{
                     LmDecoderModel,
                     LmDecoderVariantConfig,
-                    LmHybridKind,
-                    LmUncachedForwardHidden,
+                    LmKvForwardHidden,
                 },
             },
         },
@@ -139,7 +138,7 @@ mod tests {
             mlp(),
         )
         .with_norm(norm());
-        let model: LmDecoderModel<LmHybridKind> = LmDecoderVariantConfig::new(
+        let model: LmDecoderModel = LmDecoderVariantConfig::new(
             TokenEmbeddingConfig::new(40, 12),
             LmHeadConfig::new(12, 40),
             PatternedStackConfig::new(
@@ -157,7 +156,7 @@ mod tests {
         model.prefill(model.embed(tokens.clone().slice_dim(1, 0..3)), &mut state);
         let stepped = model.step(tokens.clone().slice_dim(1, 3..4), &mut state);
 
-        let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(4, &device));
+        let hidden = model.forward_hidden(model.embed(tokens), &model.rotary(4, &device), None);
         let whole = model.logits(hidden.slice_dim(1, 3..4)).reshape([1, 40]);
         assert_tensors_close(&stepped, &whole, Tolerance::rel_abs(1e-4, 1e-5));
     }

@@ -12,7 +12,6 @@ use burn::{
 };
 
 use super::{
-    LmDecodeKind,
     LmDecoderHolder,
     LmDecoderModel,
     LmDecoderWrapper,
@@ -25,7 +24,7 @@ use crate::blocks::transformers::{
 /// The call API of a decoder-only language model that says nothing of its
 /// forward: the embedding, the head, the rotary tables and the float dtype.
 ///
-/// Every [`LmDecoderModel`], of any [`LmDecodeKind`], implements it, and
+/// Every [`LmDecoderModel`] implements it, and
 /// every [`LmDecoderHolder`] through a blanket impl, as the model it holds;
 /// a model whose forward is its own (nanochat's, with inputs beside the
 /// stack's) implements it by hand. The forward is [`LmPlainStackOps`]' and
@@ -94,7 +93,7 @@ pub trait LmPlainStackOps: LmDecoderOps {
     }
 }
 
-impl<K: LmDecodeKind> LmDecoderOps for LmDecoderModel<K> {
+impl LmDecoderOps for LmDecoderModel {
     fn float_dtype(&self) -> DType {
         LmDecoderModel::float_dtype(self)
     }
@@ -122,7 +121,7 @@ impl<K: LmDecodeKind> LmDecoderOps for LmDecoderModel<K> {
     }
 }
 
-impl<K: LmDecodeKind> LmPlainStackOps for LmDecoderModel<K> {
+impl LmPlainStackOps for LmDecoderModel {
     fn stack(&self) -> &DecoderStack {
         &self.decoder.stack
     }

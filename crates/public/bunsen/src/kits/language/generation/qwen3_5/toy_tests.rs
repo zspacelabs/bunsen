@@ -29,7 +29,7 @@ use crate::{
         decoders::stack::DecoderStackMeta,
         models::language_decoder::{
             LmDecoderOps,
-            LmUncachedForwardHidden,
+            LmKvForwardHidden,
         },
     },
     burner::module::ModuleInit,
@@ -170,7 +170,7 @@ fn test_toy_forward() {
             x,
             toy.fixture.io("full0"),
         );
-        let hidden = model.forward_hidden(embeds, &r_emb);
+        let hidden = model.forward_hidden(embeds, &r_emb, None);
         close(
             &format!("{name} hidden"),
             hidden.clone(),
@@ -253,7 +253,7 @@ fn test_toy_mixed_dtype() {
         let embeds = half.embed(toy.ids());
         assert_eq!(embeds.dtype(), DType::BF16, "{name}: the stream is bf16");
         let r_emb = half.rotary(embeds.dims()[1], &device);
-        let logits = half.logits(half.forward_hidden(embeds, &r_emb));
+        let logits = half.logits(half.forward_hidden(embeds, &r_emb, None));
         assert_eq!(
             logits.dtype(),
             DType::F32,

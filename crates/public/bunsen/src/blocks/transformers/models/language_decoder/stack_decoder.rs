@@ -1,14 +1,10 @@
 //! The decoder without its token embedding, [`LmStackDecoder`].
 
 use alloc::{
-    format,
     string::ToString,
     vec::Vec,
 };
-use core::{
-    marker::PhantomData,
-    ops::Range,
-};
+use core::ops::Range;
 
 use burn::{
     Tensor,
@@ -22,11 +18,7 @@ use burn::{
 
 use super::{
     LM_DECODER_KV_CACHE_PRE_SIZE,
-    LmAttentionOnlyKind,
-    LmDecodeKind,
-    LmHybridKind,
     LmKvForwardHidden,
-    LmUncachedForwardHidden,
 };
 use crate::{
     blocks::transformers::{
@@ -78,8 +70,6 @@ pub trait LmStackDecoderMeta {
 }
 
 /// Config for [`LmStackDecoder`]: the head and the stack unrolled.
-///
-/// Builds a decoder of any [`LmDecodeKind`] its stack is of.
 #[derive(Config, Debug)]
 pub struct LmStackDecoderConfig {
     /// The output head: a projection of its own, or tied to a token table the
@@ -116,24 +106,15 @@ impl LmStackDecoderMeta for LmStackDecoderConfig {
     }
 }
 
-impl<K: LmDecodeKind> ModuleInit<LmStackDecoder<K>> for LmStackDecoderConfig {
+impl ModuleInit<LmStackDecoder> for LmStackDecoderConfig {
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause, for a stack that is not of kind `K`, or a
-    /// head whose width is not the stack's; and as the head's and stack's
-    /// builds.
+    /// [`ConstraintError`] cause, for a head whose width is not the stack's;
+    /// and as the head's and stack's builds.
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<LmStackDecoder<K>> {
-        if let Some(why) = K::refusal(&self.stack.layer_attends()) {
-            return Err(ConstraintError::custom(
-                "LmStackDecoderConfig",
-                "stack",
-                format!("not of kind {}: {why}", K::NAME),
-            )
-            .into());
-        }
+    ) -> BunsenResult<LmStackDecoder> {
         if !self.stack.layers.is_empty() && self.head.d_model != self.stack.d_model() {
             return Err(ConstraintError::new(
                 "LmStackDecoderConfig",
@@ -150,7 +131,6 @@ impl<K: LmDecodeKind> ModuleInit<LmStackDecoder<K>> for LmStackDecoderConfig {
             head: self.head.try_init(device)?,
             stack: self.stack.try_init(device)?,
             kv_cache_pre_size: self.kv_cache_pre_size,
-            kind: PhantomData,
         })
     }
 }
@@ -163,10 +143,12 @@ impl<K: LmDecodeKind> ModuleInit<LmStackDecoder<K>> for LmStackDecoderConfig {
 /// a model whose rows are not one table's lookups (summed codebook tables,
 /// replaced rows) holds one directly, with its own embedder.
 ///
-/// `K`, its [`LmDecodeKind`], says how it decodes, as the model's does. Its
-/// module paths are `head.` and `stack.`. Built by [`LmStackDecoderConfig`].
+/// It decodes as the model does: through a
+/// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache),
+/// or, when every layer attends, a flat [`KVCache`] too. Its module paths are
+/// `head.` and `stack.`. Built by [`LmStackDecoderConfig`].
 #[derive(Module, Debug)]
-pub struct LmStackDecoder<K: LmDecodeKind = LmAttentionOnlyKind> {
+pub struct LmStackDecoder {
     /// The output head.
     pub head: LmHead,
 
@@ -176,13 +158,9 @@ pub struct LmStackDecoder<K: LmDecodeKind = LmAttentionOnlyKind> {
     /// The positions a KV cache allocates up front by default.
     #[module(skip)]
     pub(super) kv_cache_pre_size: usize,
-
-    /// The decode kind.
-    #[module(skip)]
-    pub(super) kind: PhantomData<K>,
 }
 
-impl<K: LmDecodeKind> LmStackDecoderMeta for LmStackDecoder<K> {
+impl LmStackDecoderMeta for LmStackDecoder {
     fn n_logits(&self) -> usize {
         self.head.n_vocab()
     }
@@ -204,7 +182,7 @@ impl<K: LmDecodeKind> LmStackDecoderMeta for LmStackDecoder<K> {
     }
 }
 
-impl<K: LmDecodeKind> LmStackDecoder<K> {
+impl LmStackDecoder {
     /// The positions a KV cache allocates up front by default.
     pub fn kv_cache_pre_size(&self) -> usize {
         self.kv_cache_pre_size
@@ -277,7 +255,7 @@ impl<K: LmDecodeKind> LmStackDecoder<K> {
     }
 }
 
-impl LmKvForwardHidden for LmStackDecoder<LmAttentionOnlyKind> {
+impl LmKvForwardHidden for LmStackDecoder {
     fn forward_hidden(
         &self,
         embeds: Tensor<3>,
@@ -288,21 +266,11 @@ impl LmKvForwardHidden for LmStackDecoder<LmAttentionOnlyKind> {
     }
 }
 
-impl LmUncachedForwardHidden for LmStackDecoder<LmHybridKind> {
-    fn forward_hidden(
-        &self,
-        embeds: Tensor<3>,
-        r_emb: &RotarySet,
-    ) -> Tensor<3> {
-        self.stack.forward_hidden(embeds, r_emb, None)
-    }
-}
-
 /// The cache's geometry is the stack's; it allocates the decoder's
 /// [`kv_cache_pre_size`](LmStackDecoder::kv_cache_pre_size) positions up
 /// front, and is capped at the stack's rotary table length where the stack
 /// fixes one (a nonzero `seq_len`), else uncapped.
-impl KVCacheModel for LmStackDecoder<LmAttentionOnlyKind> {
+impl KVCacheModel for LmStackDecoder {
     fn kv_cache_config(&self) -> KVCacheConfig {
         let cap = self.stack.rotary.seq_len;
         self.stack
@@ -311,7 +279,7 @@ impl KVCacheModel for LmStackDecoder<LmAttentionOnlyKind> {
     }
 }
 
-impl<K: LmDecodeKind> CanonicalKeys for LmStackDecoder<K> {
+impl CanonicalKeys for LmStackDecoder {
     fn canonical_rekey(&self) -> Rekey {
         Rekey::keep_rest().mount_canonical("stack.", &self.stack)
     }

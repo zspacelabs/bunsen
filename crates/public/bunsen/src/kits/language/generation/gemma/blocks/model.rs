@@ -28,7 +28,6 @@ use crate::{
             },
             head::LmHeadConfig,
             models::language_decoder::{
-                LmAttentionOnlyKind,
                 LmDecoderHolder,
                 LmDecoderMeta,
                 LmDecoderModel,
@@ -438,7 +437,7 @@ impl ToStructureConfig for GemmaConfig {
 /// maps `transformers`' `GemmaModel` names onto the [`LmDecoderModel`]'s, and
 /// loads each norm's `w` as `1 + w`; the load is into [`lm`](Self::lm).
 ///
-/// An [`LmAttentionOnlyKind`] [`LmDecoderWrapper`]: it decodes through its
+/// An [`LmDecoderWrapper`] whose every layer attends: it decodes through its
 /// stack's
 /// [`DecoderStackCache`](crate::blocks::transformers::decoders::stack::DecoderStackCache)
 /// ([`StackedLm`](crate::kits::support::decoding::StackedLm)), or a flat
@@ -455,8 +454,6 @@ pub struct GemmaModel {
 }
 
 impl LmDecoderHolder for GemmaModel {
-    type Kind = LmAttentionOnlyKind;
-
     fn lm(&self) -> &LmDecoderModel {
         &self.lm
     }
