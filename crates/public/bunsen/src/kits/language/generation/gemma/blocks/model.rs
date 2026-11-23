@@ -47,10 +47,6 @@ use crate::{
     },
 };
 
-/// The positions a Gemma cache allocates up front by default: one growth
-/// chunk.
-pub const GEMMA_KV_CACHE_PRE_SIZE: usize = 1024;
-
 /// A Gemma layer's attention: over a sliding window, or every earlier
 /// position (`transformers`' `layer_types`: `sliding_attention`,
 /// `full_attention`).
@@ -163,6 +159,11 @@ pub struct GemmaConfig {
     /// generates from.
     #[config(default = "Some(FloatDType::F32)")]
     pub logits_dtype: Option<FloatDType>,
+
+    /// The positions the KV cache allocates up front: one growth chunk. A
+    /// caller that knows a decode's length sizes (and caps) the cache to it.
+    #[config(default = 1024)]
+    pub kv_cache_pre_size: usize,
 }
 
 impl LmDecoderMeta for GemmaConfig {
@@ -413,7 +414,8 @@ impl GemmaConfig {
 
 /// The language model: [`embedding`](GemmaConfig::embedding),
 /// [`head`](GemmaConfig::head) and [`stack`](GemmaConfig::stack), its KV
-/// cache [`GEMMA_KV_CACHE_PRE_SIZE`] positions up front.
+/// cache [`kv_cache_pre_size`](GemmaConfig::kv_cache_pre_size) positions up
+/// front.
 ///
 /// # Errors
 /// As [`stack`](GemmaConfig::stack).
@@ -423,7 +425,7 @@ impl ToStructureConfig for GemmaConfig {
     fn try_to_structure(&self) -> BunsenResult<LmDecoderVariantConfig> {
         Ok(
             LmDecoderVariantConfig::new(self.embedding(), self.head(), self.stack()?.into())
-                .with_kv_cache_pre_size(GEMMA_KV_CACHE_PRE_SIZE),
+                .with_kv_cache_pre_size(self.kv_cache_pre_size),
         )
     }
 }
@@ -529,6 +531,10 @@ mod tests {
             model.kv_cache_config().layer_windows,
             [Some(4), None, Some(4)]
         );
+        assert_eq!(model.kv_cache_config().seq_len, 1024, "one growth chunk");
+
+        let sized: GemmaModel = config.with_kv_cache_pre_size(64).init(&device);
+        assert_eq!(sized.kv_cache_config().seq_len, 64);
     }
 
     /// A config whose kinds do not cover the layers, or whose sliding layers
