@@ -50,7 +50,10 @@ vulkan = ["bunsen-app/vulkan"]
 wgpu = ["bunsen-app/wgpu"]
 
 [dependencies]
-burn = { workspace = true }
+# `persistence`: cubecl keeps the kernels it compiles on disk, where a
+# `cubecl.toml` turns its compilation cache on (the repository's does), so a
+# later run skips compiling them.
+burn = { workspace = true, features = ["persistence"] }
 # The backend is chosen at run time with `--device`, from those compiled in
 # through this crate's backend features; the CPU is always there.
 #

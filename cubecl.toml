@@ -1,0 +1,9 @@
+# cubecl's runtime configuration for runs under this checkout: cubecl reads the
+# first `cubecl.toml` from the working directory up.
+#
+# The compiled-kernel cache: a build with burn's `persistence` feature (as
+# bunsen-tool is built) keeps the kernels it compiles in the environment store,
+# `target/environment` at the workspace root, and a later run loads them instead
+# of compiling them again. A build without the feature ignores the key.
+[compilation]
+cache = true
