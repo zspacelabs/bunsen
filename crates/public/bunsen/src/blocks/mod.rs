@@ -12,7 +12,7 @@
 //!
 //! A block is typically "these parameters, plus these `ops` calls in order";
 //! blocks import ops, never the reverse. A block need not own parameters:
-//! `DropPath`, `DropBlock2d` and `AvgPool2dSame` own none, and are blocks
+//! `DropPath` and `DropBlock2d` own none, and are blocks
 //! because they sit in a module tree as layers. A block that decodes takes
 //! its cache as an argument rather than holding it:
 //! [`CausalSelfAttention::forward`] takes a [`KVCache`].
@@ -125,8 +125,6 @@
 //!     and the drop-path rate tables.
 //!   - [`images::patching`]: `PatchEmbed`, the Swin Transformer V2 patch
 //!     embedding.
-//!   - [`images::pool`]: `AvgPool2dSame`, average pooling with TensorFlow-style
-//!     "SAME" padding.
 //! - [`mlp`]: position-wise MLPs over any rank: `BunsenMlp`, the general form
 //!   of burn's `PositionWiseFeedForward`.
 //! - [`layout`]: `BoundaryPermutes`, the axis permutes a block applies at its

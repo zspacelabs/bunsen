@@ -222,17 +222,6 @@ impl<M: Module> ResidualSublayer<M> {
     {
         self.residual_update_with(x, |branch, z| branch.call_branch(z, ctx))
     }
-
-    /// [`residual_update_with`](Self::residual_update_with), `f` also given
-    /// `ctx`: a call's context, for an `f` written once and passed around.
-    pub fn residual_update_with_ctx<const D: usize, C, O: BranchOutput<D>>(
-        &self,
-        x: Tensor<D>,
-        ctx: C,
-        f: impl FnOnce(&M, Tensor<D>, C) -> O,
-    ) -> O::Updated {
-        self.residual_update_with(x, |branch, z| f(branch, z, ctx))
-    }
 }
 
 /// What a [`ResidualSublayer`]'s branch returns: its residual, and anything
@@ -697,11 +686,6 @@ mod tests {
         });
         assert_tensors_close(&stream, &plain, tol);
         assert_eq!(aux, 7.0);
-
-        let scaled =
-            s.residual_update_with_ctx(x.clone(), 2.0, |l, z, k| l.forward(z).mul_scalar(k));
-        let expected = s.residual_update_with(x, |l, z| l.forward(z).mul_scalar(2.0));
-        assert_tensors_close(&scaled, &expected, tol);
     }
 
     impl SublayerBranch<(), 2> for Linear {

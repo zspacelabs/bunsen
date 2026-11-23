@@ -30,13 +30,7 @@ use crate::{
             BunsenNormalization,
             BunsenNormalizationConfig,
         },
-        transformers::{
-            embedding::RotaryEmbedding,
-            sublayer::{
-                ResidualSublayer,
-                SublayerBranch,
-            },
-        },
+        transformers::embedding::RotaryEmbedding,
     },
     burner::{
         module::ModuleInit,
@@ -851,68 +845,6 @@ impl CausalSelfAttention {
         );
 
         y
-    }
-}
-
-/// [`CausalSelfAttention`]'s call
-/// ([`forward_with`](CausalSelfAttention::forward_with)): the rotary table, the
-/// decode's cache if any, and the side inputs.
-#[derive(Debug)]
-pub struct CausalAttnCall<'a, 'c> {
-    /// The rotary table.
-    pub r_emb: &'a RotaryEmbedding,
-
-    /// The decode's cache, or `None` for a prefill without one.
-    pub kv_cache: &'a mut Option<&'c mut KVCache>,
-
-    /// The side inputs.
-    pub sides: AttentionSides,
-}
-
-impl SublayerBranch<CausalAttnCall<'_, '_>, 3> for CausalSelfAttention {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        ctx: CausalAttnCall<'_, '_>,
-    ) -> Tensor<3> {
-        self.forward_with(z, ctx.r_emb, ctx.kv_cache, ctx.sides)
-    }
-}
-
-/// A causal self-attention sublayer ([`CausalAttnCall`]).
-pub trait CausalAttnSublayer {
-    /// The residual update, the branch attending causally under `r_emb`,
-    /// over `kv_cache` when a decode has one, with the side inputs.
-    fn causal_attn(
-        &self,
-        x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
-        kv_cache: &mut Option<&mut KVCache>,
-        sides: AttentionSides,
-    ) -> Tensor<3>;
-}
-
-impl<M> CausalAttnSublayer for ResidualSublayer<M>
-where
-    M: Module + for<'a, 'c> SublayerBranch<CausalAttnCall<'a, 'c>, 3, Output = Tensor<3>>,
-{
-    fn causal_attn(
-        &self,
-        x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
-        kv_cache: &mut Option<&mut KVCache>,
-        sides: AttentionSides,
-    ) -> Tensor<3> {
-        self.residual_update(
-            x,
-            CausalAttnCall {
-                r_emb,
-                kv_cache,
-                sides,
-            },
-        )
     }
 }
 
