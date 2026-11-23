@@ -20,12 +20,9 @@ use crate::{
             BunsenMlpConfig,
             BunsenMlpMeta,
         },
-        transformers::{
-            moe::sparse::{
-                SparseMoe,
-                SparseMoeConfig,
-            },
-            sublayer::SublayerBranch,
+        transformers::moe::sparse::{
+            SparseMoe,
+            SparseMoeConfig,
         },
     },
     burner::module::ModuleInit,
@@ -155,57 +152,6 @@ impl TransformerFeedForward {
             Self::Gated(m) => m.forward(x),
             Self::Moe(m) => m.forward(x),
         }
-    }
-}
-
-/// Takes only the stream, `[batch, time, embed]`, as wide out as in.
-impl SublayerBranch<(), 3> for BunsenMlp {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        (): (),
-    ) -> Tensor<3> {
-        let [batch, time] = crate::contracts::unpack_shape_contract!(
-            ["batch", "time", "embed"],
-            &z.dims(),
-            &["batch", "time"],
-            &[("embed", self.d_input())]
-        );
-        let y = self.forward(z);
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "time", "embed"],
-            &y.dims(),
-            &[("batch", batch), ("time", time), ("embed", self.d_input())]
-        );
-        y
-    }
-}
-
-/// Takes only the stream.
-impl SublayerBranch<(), 3> for BunsenGatedMlp {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        (): (),
-    ) -> Tensor<3> {
-        self.forward(z)
-    }
-}
-
-/// Takes only the stream.
-impl SublayerBranch<(), 3> for TransformerFeedForward {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        (): (),
-    ) -> Tensor<3> {
-        self.forward(z)
     }
 }
 

@@ -16,11 +16,10 @@
 //! output is a [`BranchOutput`], which says where the residual is and what
 //! the update gives back, the stream alone or the stream with the rest.
 //!
-//! A branch is called by a mode: a [`SublayerBranch`] impl for a call's
-//! context type (`()` for a branch that takes only the stream), and
-//! [`ResidualSublayer::residual_update`] runs the sublayer by it. A call
-//! that is the block's own (a scale, a condition) passes a closure instead
-//! ([`ResidualSublayer::residual_update_with`]).
+//! A block runs a sublayer by a closure that calls its branch with whatever
+//! else the branch takes (a mask, a cache, a condition):
+//! [`ResidualSublayer::residual_update_with`], or
+//! [`ResidualSublayer::residual`] for the residual alone.
 
 use burn::{
     Tensor,
@@ -29,11 +28,7 @@ use burn::{
         Module,
         Param,
     },
-    nn::attention::{
-        MhaOutput,
-        MultiHeadAttention,
-    },
-    prelude::Bool,
+    nn::attention::MhaOutput,
     tensor::Device,
 };
 
@@ -43,13 +38,6 @@ use crate::{
         BunsenNormalizationConfig,
     },
     burner::module::ModuleInit,
-    ops::transformers::attention::{
-        KVCache,
-        cross_attn,
-        cross_attn_w_kv_cache,
-        self_attn,
-        self_attn_w_kv_cache,
-    },
 };
 
 /// Config for a [`ResidualSublayer`]'s norms: each slot's norm, sized to the
@@ -233,20 +221,6 @@ impl<M: Module> ResidualSublayer<M> {
         f(&self.branch, self.branch_input(x.clone()))
             .into_updated(|residual| Self::apply(&self.out, x + self.finish(residual)))
     }
-
-    /// The residual update by the branch's mode for `ctx`
-    /// ([`SublayerBranch`]): `out(x + post(r))`, `r` the residual of
-    /// `branch.call_branch(pre(x), ctx)`, `x` first through `input`.
-    pub fn residual_update<const D: usize, C>(
-        &self,
-        x: Tensor<D>,
-        ctx: C,
-    ) -> <M::Output as BranchOutput<D>>::Updated
-    where
-        M: SublayerBranch<C, D>,
-    {
-        self.residual_update_with(x, |branch, z| branch.call_branch(z, ctx))
-    }
 }
 
 /// What a [`ResidualSublayer`]'s branch returns: its residual, and anything
@@ -288,236 +262,6 @@ impl BranchOutput<3> for MhaOutput {
         update: impl FnOnce(Tensor<3>) -> Tensor<3>,
     ) -> (Tensor<3>, Tensor<4>) {
         (update(self.context), self.weights)
-    }
-}
-
-/// A branch a [`ResidualSublayer`] calls with a call's context `C`: one impl
-/// per mode, the way the branch is called (an attention's self-attention,
-/// its cross-attention, either over a decode's cache). `C` carries what the
-/// call takes besides the stream; `()` for a branch that takes only the
-/// stream.
-pub trait SublayerBranch<C, const D: usize> {
-    /// What the branch returns, its residual and anything with it.
-    type Output: BranchOutput<D>;
-
-    /// The branch on `z`, its input (the stream after the sublayer's
-    /// `input` and `pre` norms).
-    fn call_branch(
-        &self,
-        z: Tensor<D>,
-        ctx: C,
-    ) -> Self::Output;
-}
-
-/// [`MultiHeadAttention`]'s self-attention mode ([`self_attn`]): `mask`
-/// true where a query may not attend to a key. The residual is the context.
-#[derive(Debug, Clone)]
-pub struct SelfAttnCall {
-    /// `[batch | 1, seq, seq]`, or `None` to attend everywhere.
-    pub mask: Option<Tensor<3, Bool>>,
-}
-
-impl SublayerBranch<SelfAttnCall, 3> for MultiHeadAttention {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        ctx: SelfAttnCall,
-    ) -> Tensor<3> {
-        self_attn(self, z, ctx.mask).context
-    }
-}
-
-/// [`MultiHeadAttention`]'s cross-attention mode ([`cross_attn`]) over
-/// `xa`. The update returns the stream and the attention weights.
-#[derive(Debug, Clone)]
-pub struct CrossAttnCall {
-    /// `[batch, cross_len, d_model]`: what the stream attends over.
-    pub xa: Tensor<3>,
-}
-
-impl SublayerBranch<CrossAttnCall, 3> for MultiHeadAttention {
-    type Output = MhaOutput;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        ctx: CrossAttnCall,
-    ) -> MhaOutput {
-        cross_attn(self, z, ctx.xa)
-    }
-}
-
-/// [`MultiHeadAttention`]'s self-attention over a decode's cache
-/// ([`self_attn_w_kv_cache`]): the new tokens' keys and values appended to
-/// `layer`'s.
-#[derive(Debug)]
-pub struct SelfAttnKvCall<'a> {
-    /// As [`SelfAttnCall::mask`], over the new tokens and the cached ones.
-    pub mask: Option<Tensor<3, Bool>>,
-
-    /// The decode's cache.
-    pub cache: &'a mut KVCache,
-
-    /// The layer's slot in `cache`.
-    pub layer: usize,
-}
-
-impl SublayerBranch<SelfAttnKvCall<'_>, 3> for MultiHeadAttention {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        ctx: SelfAttnKvCall<'_>,
-    ) -> Tensor<3> {
-        self_attn_w_kv_cache(self, z, ctx.mask, ctx.cache, ctx.layer)
-    }
-}
-
-/// [`MultiHeadAttention`]'s cross-attention over a decode's cache
-/// ([`cross_attn_w_kv_cache`]): `layer`'s cached cross keys and values.
-#[derive(Debug, Clone, Copy)]
-pub struct CrossAttnKvCall<'a> {
-    /// The decode's cache.
-    pub cache: &'a KVCache,
-
-    /// The layer's slot in `cache`.
-    pub layer: usize,
-}
-
-impl SublayerBranch<CrossAttnKvCall<'_>, 3> for MultiHeadAttention {
-    type Output = Tensor<3>;
-
-    fn call_branch(
-        &self,
-        z: Tensor<3>,
-        ctx: CrossAttnKvCall<'_>,
-    ) -> Tensor<3> {
-        cross_attn_w_kv_cache(self, z, ctx.cache, ctx.layer)
-    }
-}
-
-/// A sublayer whose branch takes only the stream (the `()` mode).
-pub trait PlainSublayer<const D: usize> {
-    /// The residual update, `out(x + post(branch(pre(x))))`.
-    fn forward(
-        &self,
-        x: Tensor<D>,
-    ) -> Tensor<D>;
-}
-
-impl<const D: usize, M> PlainSublayer<D> for ResidualSublayer<M>
-where
-    M: Module + SublayerBranch<(), D, Output = Tensor<D>>,
-{
-    fn forward(
-        &self,
-        x: Tensor<D>,
-    ) -> Tensor<D> {
-        self.residual_update(x, ())
-    }
-}
-
-/// A self-attention sublayer ([`SelfAttnCall`]).
-pub trait SelfAttnSublayer {
-    /// The residual update, the branch self-attending under `mask`.
-    fn self_attn(
-        &self,
-        x: Tensor<3>,
-        mask: Option<Tensor<3, Bool>>,
-    ) -> Tensor<3>;
-}
-
-impl<M> SelfAttnSublayer for ResidualSublayer<M>
-where
-    M: Module + SublayerBranch<SelfAttnCall, 3, Output = Tensor<3>>,
-{
-    fn self_attn(
-        &self,
-        x: Tensor<3>,
-        mask: Option<Tensor<3, Bool>>,
-    ) -> Tensor<3> {
-        self.residual_update(x, SelfAttnCall { mask })
-    }
-}
-
-/// A cross-attention sublayer ([`CrossAttnCall`]).
-pub trait CrossAttnSublayer {
-    /// The residual update, the branch attending over `xa`, and the
-    /// attention weights: `(stream, weights)`.
-    fn cross_attn(
-        &self,
-        x: Tensor<3>,
-        xa: Tensor<3>,
-    ) -> (Tensor<3>, Tensor<4>);
-}
-
-impl<M> CrossAttnSublayer for ResidualSublayer<M>
-where
-    M: Module + SublayerBranch<CrossAttnCall, 3, Output = MhaOutput>,
-{
-    fn cross_attn(
-        &self,
-        x: Tensor<3>,
-        xa: Tensor<3>,
-    ) -> (Tensor<3>, Tensor<4>) {
-        self.residual_update(x, CrossAttnCall { xa })
-    }
-}
-
-/// A self-attention sublayer over a decode's cache ([`SelfAttnKvCall`]).
-pub trait SelfAttnKvSublayer {
-    /// The residual update of the new tokens, their keys and values
-    /// appended to `layer`'s in `cache`.
-    fn self_attn_w_kv_cache(
-        &self,
-        x: Tensor<3>,
-        mask: Option<Tensor<3, Bool>>,
-        cache: &mut KVCache,
-        layer: usize,
-    ) -> Tensor<3>;
-}
-
-impl<M> SelfAttnKvSublayer for ResidualSublayer<M>
-where
-    M: Module + for<'a> SublayerBranch<SelfAttnKvCall<'a>, 3, Output = Tensor<3>>,
-{
-    fn self_attn_w_kv_cache(
-        &self,
-        x: Tensor<3>,
-        mask: Option<Tensor<3, Bool>>,
-        cache: &mut KVCache,
-        layer: usize,
-    ) -> Tensor<3> {
-        self.residual_update(x, SelfAttnKvCall { mask, cache, layer })
-    }
-}
-
-/// A cross-attention sublayer over a decode's cache ([`CrossAttnKvCall`]).
-pub trait CrossAttnKvSublayer {
-    /// The residual update, the branch attending over `layer`'s cached
-    /// cross keys and values.
-    fn cross_attn_w_kv_cache(
-        &self,
-        x: Tensor<3>,
-        cache: &KVCache,
-        layer: usize,
-    ) -> Tensor<3>;
-}
-
-impl<M> CrossAttnKvSublayer for ResidualSublayer<M>
-where
-    M: Module + for<'a> SublayerBranch<CrossAttnKvCall<'a>, 3, Output = Tensor<3>>,
-{
-    fn cross_attn_w_kv_cache(
-        &self,
-        x: Tensor<3>,
-        cache: &KVCache,
-        layer: usize,
-    ) -> Tensor<3> {
-        self.residual_update(x, CrossAttnKvCall { cache, layer })
     }
 }
 
@@ -711,68 +455,5 @@ mod tests {
         });
         assert_tensors_close(&stream, &plain, tol);
         assert_eq!(aux, 7.0);
-    }
-
-    impl SublayerBranch<(), 2> for Linear {
-        type Output = Tensor<2>;
-
-        fn call_branch(
-            &self,
-            z: Tensor<2>,
-            (): (),
-        ) -> Tensor<2> {
-            self.forward(z)
-        }
-    }
-
-    /// A test mode: the branch scaled by `k`, its side output `k` back.
-    struct Scaled(f32);
-
-    impl SublayerBranch<Scaled, 2> for Linear {
-        type Output = WithAux;
-
-        fn call_branch(
-            &self,
-            z: Tensor<2>,
-            ctx: Scaled,
-        ) -> WithAux {
-            WithAux {
-                residual: self.forward(z).mul_scalar(ctx.0),
-                aux: ctx.0,
-            }
-        }
-    }
-
-    /// A mode's update is its closure form's; a mode's output collapses as
-    /// its `BranchOutput` says.
-    #[test]
-    fn test_modes() {
-        let tol = Tolerance::default();
-        let x = x();
-        let s = sublayer(ResidualSublayerConfig::pre_norm(rms()).with_post(rms()));
-        assert_tensors_close(
-            &s.residual_update(x.clone(), ()),
-            &s.residual_update_with(x.clone(), |l, z| l.forward(z)),
-            tol,
-        );
-        let (stream, k) = s.residual_update(x.clone(), Scaled(3.0));
-        assert_tensors_close(
-            &stream,
-            &s.residual_update_with(x, |l, z| l.forward(z).mul_scalar(3.0)),
-            tol,
-        );
-        assert_eq!(k, 3.0);
-    }
-
-    /// The plain mode's named form is its generic one.
-    #[test]
-    fn test_plain_sublayer() {
-        let x = x();
-        let s = sublayer(ResidualSublayerConfig::pre_norm(rms()).with_post(rms()));
-        assert_tensors_close(
-            &PlainSublayer::forward(&s, x.clone()),
-            &s.residual_update(x, ()),
-            Tolerance::default(),
-        );
     }
 }
