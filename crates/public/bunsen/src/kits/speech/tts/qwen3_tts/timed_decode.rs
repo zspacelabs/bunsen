@@ -26,10 +26,13 @@ use crate::{
         TimedDecode,
         synthetic_ids,
     },
-    ops::transformers::attention::{
-        KVCache,
-        KVCacheModel,
-        KVCacheStorage,
+    ops::{
+        reduce::argmax_rows,
+        transformers::attention::{
+            KVCache,
+            KVCacheModel,
+            KVCacheStorage,
+        },
     },
 };
 
@@ -143,10 +146,10 @@ impl Qwen3TtsModel {
     }
 }
 
-/// `[1, V]` logits' greedy choice, read back to the host.
+/// `[1, V]` logits' greedy choice, read back to the host: the argmax the
+/// samplers take ([`argmax_rows`]).
 fn greedy(logits: Tensor<2>) -> i64 {
-    logits
-        .argmax(1)
+    argmax_rows(logits)
         .into_data()
         .convert::<i64>()
         .try_to_vec::<i64>()

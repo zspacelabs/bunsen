@@ -26,18 +26,23 @@ use burn::{
         Bool,
         TensorData,
     },
-    tensor::activation::log_softmax,
 };
 
-use crate::kits::{
-    speech::asr::whisper::driver::WhisperSpecialIds,
-    support::{
-        decoding::{
-            LogitFilter,
-            SuppressTokens,
-            suppress,
+use crate::{
+    kits::{
+        speech::asr::whisper::driver::WhisperSpecialIds,
+        support::{
+            decoding::{
+                LogitFilter,
+                SuppressTokens,
+                suppress,
+            },
+            tokens::TiktokenRanks,
         },
-        tokens::TiktokenRanks,
+    },
+    ops::reduce::{
+        logsumexp_rows,
+        max_rows,
     },
 };
 
@@ -252,11 +257,11 @@ impl LogitFilter for ApplyTimestampRules {
         if tb == 0 || tb == vocab {
             return logits;
         }
-        let logprobs = log_softmax(logits.clone(), 1);
-        let timestamps = logprobs.clone().slice_dim(1, tb as isize..vocab as isize);
-        let peak = timestamps.clone().max_dim(1);
-        let timestamp_logprob = (timestamps - peak.clone()).exp().sum_dim(1).log() + peak;
-        let max_text_logprob = logprobs.slice_dim(1, 0..tb as isize).max_dim(1);
+        // log p(timestamps) > max log p(text) is the same comparison on the
+        // logits: the log softmax subtracts one normalizer from both sides.
+        let timestamp_logprob =
+            logsumexp_rows(logits.clone().slice_dim(1, tb as isize..vocab as isize));
+        let max_text_logprob = max_rows(logits.clone().slice_dim(1, 0..tb as isize));
         // Compared on the host: a Bool tensor's storage differs by
         // backend, and two floats per row are nothing to move.
         let timestamp_logprob: Vec<f32> = timestamp_logprob

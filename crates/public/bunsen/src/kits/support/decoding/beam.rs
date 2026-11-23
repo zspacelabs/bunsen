@@ -1,14 +1,15 @@
 //! Beam search, as `openai-whisper`'s `BeamSearchDecoder` does it.
 
-use burn::{
-    Tensor,
-    tensor::activation::log_softmax,
-};
+use burn::Tensor;
 use hashbrown::HashMap;
 
 use super::{
     Candidate,
     TokenSearch,
+};
+use crate::ops::reduce::{
+    logsumexp_rows,
+    topk_rows_host,
 };
 
 /// A finished set: insertion-ordered, unique by sequence, as a Python dict.
@@ -156,10 +157,21 @@ impl TokenSearch for BeamSearch {
             .finished
             .get_or_insert_with(|| vec![Finished::default(); n_groups]);
 
-        // Each row's k + 1 best next tokens, with their log probabilities.
-        let (values, indices) = log_softmax(logits, 1).topk_with_indices(k + 1, 1);
-        let values: Vec<f32> = values.into_data().try_into_vec_as::<f32>().unwrap();
-        let indices: Vec<i64> = indices.into_data().try_into_vec_as::<i64>().unwrap();
+        // Each row's k + 1 best next tokens, with their log probabilities, in
+        // f32: the top by logit are the top by log probability (the log
+        // softmax subtracts one normalizer a row), so only theirs is taken.
+        let top = topk_rows_host(logits.clone(), k + 1);
+        let normalizers: Vec<f32> = logsumexp_rows(logits)
+            .into_data()
+            .try_into_vec_as::<f32>()
+            .unwrap();
+        let indices = top.indices;
+        let values: Vec<f32> = top
+            .values
+            .chunks(k + 1)
+            .zip(&normalizers)
+            .flat_map(|(row, lse)| row.iter().map(move |v| v - lse))
+            .collect();
 
         let mut next: Vec<Vec<i64>> = Vec::with_capacity(rows);
         let mut next_sums: Vec<f32> = Vec::with_capacity(rows);

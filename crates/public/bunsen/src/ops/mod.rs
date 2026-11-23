@@ -163,6 +163,7 @@ pub mod embedding;
 pub mod math;
 pub mod noise;
 pub mod norm;
+pub mod reduce;
 pub mod repeat;
 pub mod signal;
 pub mod split;
