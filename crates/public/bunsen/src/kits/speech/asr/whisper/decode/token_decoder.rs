@@ -25,6 +25,7 @@ use crate::{
         support::decoding::{
             LogitFilter,
             MaximumLikelihoodRanker,
+            PoolRelease,
             SearchConfig,
             SequenceRanker,
             TokenSearch,
@@ -324,6 +325,7 @@ impl Whisper {
 
         let mut feed: Vec<i64> = config.prompt.repeat(rows);
         let mut step_len = prompt_len;
+        let pool = PoolRelease::default();
 
         for step in 0..config.max_tokens {
             let logits = self
@@ -363,6 +365,7 @@ impl Whisper {
 
             feed = next;
             step_len = 1;
+            pool.after_step(step, &device);
 
             if cache.pos() >= self.max_text_ctx() {
                 break;

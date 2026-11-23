@@ -25,6 +25,8 @@
 //!   [`Candidate`]s record the stop token that ended them.
 //!   [`decode_cached_observed`] shows a caller each step's sequences, to stream
 //!   them or stop early.
+//! - [`PoolRelease`]: how often a decode loop releases its device's free pool
+//!   memory, so a long decode's steps do not slow as it grows.
 //!
 //! [`speech::asr::whisper::decode`](crate::kits::speech::asr::whisper::decode)
 //! runs its own loop over these parts (its cache is grouped across beams);
@@ -35,6 +37,7 @@ mod beam;
 mod cached_decode;
 mod filters;
 mod greedy;
+mod pool_release;
 mod ranker;
 mod sampling;
 mod search;
@@ -45,6 +48,7 @@ pub use beam::*;
 pub use cached_decode::*;
 pub use filters::*;
 pub use greedy::*;
+pub use pool_release::*;
 pub use ranker::*;
 pub use sampling::*;
 pub use search::*;

@@ -13,6 +13,7 @@ use burn::{
 use super::{
     Candidate,
     LogitFilter,
+    PoolRelease,
     TokenSearch,
 };
 
@@ -50,7 +51,8 @@ pub trait CachedStep {
 
 /// Decodes from a prefilled state: filters the logits, lets the search
 /// choose, steps the model on its choice, until the search completes or
-/// `max_new_tokens` have been chosen.
+/// `max_new_tokens` have been chosen. The device's free pool memory is
+/// released between steps, as [`PoolRelease::default`] says.
 ///
 /// The caller prefills: it runs each row's prompt through the model into
 /// `state` (as embeddings, for a model whose prompt is not all tokens), and
@@ -118,6 +120,7 @@ pub fn decode_cached_observed<M: CachedStep>(
         "every prompt the same length"
     );
     let device = first_logits.device();
+    let pool = PoolRelease::default();
 
     search.reset();
     let mut tokens = prompts;
@@ -137,6 +140,7 @@ pub fn decode_cached_observed<M: CachedStep>(
         }
         let ids = Tensor::<2, Int>::from_data(TensorData::new(feed, [rows, 1]), &device);
         logits = model.step(ids, state);
+        pool.after_step(step, &device);
     }
     search.finalize(tokens, sum_logprobs, prompt_len)
 }
