@@ -40,7 +40,10 @@ use bunsen::{
             qwen3::pretrained::default_qwen3_factory,
             qwen3_5::pretrained::default_qwen3_5_factory,
         },
-        speech::asr::whisper::pretrained::default_whisper_factory,
+        speech::asr::{
+            voxtral::pretrained::default_voxtral_factory,
+            whisper::pretrained::default_whisper_factory,
+        },
         support::{
             construct::LmConstruct,
             timing::TimedDecode,
@@ -236,8 +239,17 @@ fn time_row(
             cache,
             device,
         ),
+        "voxtral" => time_built(
+            krate,
+            model,
+            &default_voxtral_factory().map_err(lm)?,
+            |c| &c.model,
+            args,
+            cache,
+            device,
+        ),
         other => Err(format!(
-            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat and whisper do)"
+            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat, whisper and voxtral do)"
         )),
     }
 }
