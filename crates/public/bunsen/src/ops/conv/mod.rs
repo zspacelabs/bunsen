@@ -25,7 +25,7 @@
 //!   [`build_square_conv2d_padding_config`] give the symmetric padding for a
 //!   square kernel. [`get_same_padding`] and [`pad_same`] give TensorFlow-style
 //!   "SAME" padding, which may be asymmetric and is applied to the input rather
-//!   than configured on the layer; [`AvgPool2dSame`] uses it.
+//!   than configured on the layer.
 //! - **Initialization.** [`CONV_INTO_RELU_INITIALIZER`] for a conv layer
 //!   feeding a `ReLU`.
 //! - **Functional convolution.** [`convolve_func_2d`] unfolds every window of a
@@ -38,7 +38,6 @@
 //! [`Conv1d`]: burn::nn::conv::Conv1d
 //! [`Conv2d`]: burn::nn::conv::Conv2d
 //! [`ConvBlock2dMeta::try_output_resolution`]: crate::blocks::conv::ConvBlock2dMeta::try_output_resolution
-//! [`AvgPool2dSame`]: crate::blocks::images::pool::AvgPool2dSame
 
 mod conv_func_2d;
 mod conv_shape;

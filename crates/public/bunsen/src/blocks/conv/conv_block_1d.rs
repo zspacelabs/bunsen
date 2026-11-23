@@ -33,42 +33,6 @@ use crate::{
     ops::conv::maybe_conv1d_output_size,
 };
 
-/// Abstract policy for [`ConvBlock1d`] Config.
-///
-/// Defines a [`BunsenNormalizationConfig`] and [`BunsenActivationConfig`],
-/// and can be lifted to a [`ConvBlock1dConfig`] to match a [`Conv1dConfig`].
-///
-/// The abstract [`BunsenNormalizationConfig`] will be feature matched
-/// with the target [`Conv1dConfig`].
-#[derive(Config, Debug)]
-pub struct AbstractConvBlock1dConfig {
-    /// The [`BunsenNormalization`] config.
-    pub norm: Option<BunsenNormalizationConfig>,
-
-    /// Activation Config.
-    #[config(default = "Some(BunsenActivationConfig::Relu)")]
-    pub act: Option<BunsenActivationConfig>,
-}
-
-impl AbstractConvBlock1dConfig {
-    /// Merges with a [`Conv1dConfig`] to construct a [`ConvBlock1dConfig`].
-    ///
-    /// The abstract [`BunsenNormalizationConfig`] will be feature matched
-    /// with the target [`Conv1dConfig`], resulting in a normalization
-    /// layer sized appropriately for the input convolution.
-    pub fn build_config(
-        &self,
-        conv: Conv1dConfig,
-    ) -> ConvBlock1dConfig {
-        ConvBlock1dConfig {
-            conv,
-            norm: self.norm.clone(),
-            act: self.act.clone(),
-        }
-        .match_norm_features()
-    }
-}
-
 /// [`ConvBlock1d`] Meta.
 pub trait ConvBlock1dMeta {
     /// Number of input channels.
@@ -430,25 +394,6 @@ mod tests {
         },
         support::testing::cpu_device,
     };
-
-    #[test]
-    fn test_conv_norm_config() {
-        let abstract_config = AbstractConvBlock1dConfig::new().with_norm(Some(
-            BunsenNormalizationConfig::Batch(BatchNormConfig::new(0)),
-        ));
-
-        let conv_config = Conv1dConfig::new(2, 4, 3)
-            .with_stride(2)
-            .with_padding(PaddingConfig1d::Explicit(1, 1))
-            .with_bias(false);
-
-        let config: ConvBlock1dConfig = abstract_config.build_config(conv_config.clone());
-
-        assert_eq!(config.in_channels(), 2);
-        assert_eq!(config.out_channels(), 4);
-        assert_eq!(config.groups(), 1);
-        assert_eq!(config.stride(), [2]);
-    }
 
     #[test]
     fn test_output_length() {
