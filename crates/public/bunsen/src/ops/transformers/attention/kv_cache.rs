@@ -695,6 +695,10 @@ impl KVCache {
     /// was. A source may appear more than once, which duplicates its row;
     /// that is how a beam search branches.
     ///
+    /// Only the written positions, `..pos`, move: a preallocated buffer's
+    /// positions past them keep whatever they held, and are written before
+    /// they are read.
+    ///
     /// The cross-attention keys and values are left alone: they are shared
     /// within a group, so reordering within one is a no-op, and a reorder
     /// across groups is the caller's error.
@@ -714,7 +718,8 @@ impl KVCache {
             sources.iter().all(|&s| s < self.batch_size),
             "a source row past the batch"
         );
-        if !self.is_allocated() || sources.iter().enumerate().all(|(r, &s)| r == s) {
+        if !self.is_allocated() || self.pos == 0 || sources.iter().enumerate().all(|(r, &s)| r == s)
+        {
             return;
         }
         let device = self.device();
@@ -725,12 +730,35 @@ impl KVCache {
             ),
             &device,
         );
+        // Only the written positions are permuted. A preallocated buffer's
+        // positions past them are stale and never read before a write;
+        // copying them would make each step's reorder scale with the cache's
+        // capacity, not with what it holds.
+        let pos = self.pos;
         if let Some(cache) = self.cache.take() {
-            self.cache = Some(cache.select(2, indices.clone()));
+            let held = cache.dims()[4];
+            self.cache = Some(if pos < held {
+                let head = cache
+                    .clone()
+                    .slice(s![.., .., .., .., ..pos])
+                    .select(2, indices.clone());
+                cache.slice_assign(s![.., .., .., .., ..pos], head)
+            } else {
+                cache.select(2, indices.clone())
+            });
         }
         for slot in self.keys.iter_mut().chain(self.values.iter_mut()) {
             if let Some(history) = slot.take() {
-                *slot = Some(history.select(0, indices.clone()));
+                let held = history.dims()[2];
+                *slot = Some(if pos < held {
+                    let head = history
+                        .clone()
+                        .slice(s![.., .., ..pos])
+                        .select(0, indices.clone());
+                    history.slice_assign(s![.., .., ..pos], head)
+                } else {
+                    history.select(0, indices.clone())
+                });
             }
         }
     }
@@ -1655,7 +1683,9 @@ mod tests {
     }
 
     /// `reorder` picks the history's rows, duplicates included, in every
-    /// storage, and later steps append to the reordered rows.
+    /// storage, and later steps append to the reordered rows: in buffers
+    /// grown past their pre-size, and in buffers pre-sized well past what
+    /// they hold (whose unwritten positions a reorder leaves alone).
     #[test]
     #[serial]
     fn test_reorder_picks_history_rows() {
@@ -1664,8 +1694,8 @@ mod tests {
         let [batch, heads, head_dim, layers] = [3, 2, 4, 2];
         let sources = [2, 0, 2];
         let indices = Tensor::<1, Int>::from_data([2i64, 0, 2], &device);
-        for storage in STORAGES {
-            let mut cache = KVCacheConfig::new(batch, heads, 2, head_dim, layers)
+        for (storage, pre_size) in STORAGES.into_iter().flat_map(|s| [(s, 2), (s, 16)]) {
+            let mut cache = KVCacheConfig::new(batch, heads, pre_size, head_dim, layers)
                 .with_chunk_size(2)
                 .with_storage(storage)
                 .init(&device);
@@ -1691,7 +1721,11 @@ mod tests {
                     Tensor::zeros(step, &device),
                     Tensor::zeros(step, &device),
                 );
-                assert_eq!(k_all.dims(), [batch, heads, 4, head_dim], "{storage:?}");
+                assert_eq!(
+                    k_all.dims(),
+                    [batch, heads, 4, head_dim],
+                    "{storage:?} pre-sized {pre_size}"
+                );
                 k_all
                     .slice(s![.., .., ..3])
                     .into_data()
