@@ -12,7 +12,9 @@ onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind 
 models.yml, profiles/               the validation schedule of models and the profiles that choose from it
 catalog_builder/                   `cargo catalog`: builds bunsen's built-in catalog from its probe contracts (probe_contracts/)
 models/{model}-model-validation/   each model's cross-checks
-tools/                             the fixture generators whose output lands in models/*/testdata
+tools/validate/                    `cargo validate`: runs the crates under a profile; its schedule and profile reading is a library too
+tools/timing/                      `cargo timing`: times the kits' decodes on the catalog's checkpoints
+tools/*.py                         the fixture generators whose output lands in models/*/testdata
 ```
 
 No command in the bunsen workspace builds anything here. Run a crate from
@@ -187,3 +189,44 @@ contract, each file's digest and size (from the Hub's listing, or the file),
 a checkpoint's dtype (from its `config.json`), and the presets its probes
 find in the files they read. The catalog's format is
 `crates/public/bunsen/src/data/catalog/catalog_format.md`.
+
+## Timing the decodes: `cargo timing`
+
+Throughput, on demand: never a check, it reports. `cargo timing run` chooses
+models as `cargo validate` does (`models.yml` and a profile), builds its runner
+for one backend, and drives each model's decode through its kit's
+`TimedDecode` (`bunsen::kits::support::timing`) on the model's own fixed
+synthetic input: an encoder's pass where the model has one, a prefill, then
+steps. Each phase is a burn `Device::profile` window closed on a read of its
+tokens, timed on the wall clock and the device's; statistics are cubecl's.
+
+```sh
+cargo timing run --profile large-all --crate qwen3 --model qwen3-0.6b --backend cuda --dtypes f32,bf16
+cargo timing run --profile medium-core --backend wgpu --fusion -- --prefill 256 --steps 128 --rows 1
+cargo timing compare target/timing/a.jsonl target/timing/b.jsonl    # b / a, phase by phase
+```
+
+Each run appends a JSON line per model and dtype (by default to
+`target/timing/{unix time}.jsonl`): the backend stack (whether fusion was on),
+the KV storage asked for and resolved, the label (the commit, by default), each
+phase's statistics, every warm step's wall time, the device pool's largest
+reading. After `--`, the runner's own options: `--rows`, `--prefill`,
+`--steps`, `--prefill-reps`, `--buckets`, `--storage`.
+
+Timed: every `CachedLm` (Qwen3, Qwen3.5, Gemma, nanochat), Whisper, Voxtral
+Realtime, ZONOS3's language model and Qwen3-TTS; a crate without a
+`TimedDecode` is reported and skipped. A new decode kit implements one beside
+its decode loop (a `CachedLm` has it already) and joins the runner's list.
+
+Read the numbers knowing:
+
+- the device column is burn's profiling window, which reads above the wall
+  time on wgpu and CUDA: not pure kernel time;
+- the cold phases are a process's first calls, which compile kernels; a
+  backend may keep compiled kernels across runs (the CUDA driver's cache,
+  `~/.nv/ComputeCache`), so a later run's cold phases are shorter. burn's
+  `autotune` feature is off in these builds: no tuning runs, and none
+  persists. The first warm step can still be partly cold (the record's
+  per-step times show it); and the first runs of a session can read well off
+  the later ones, so repeat a run before trusting a difference under ~10%;
+- run it under the device lock, one heavy run at a time, as validation runs.

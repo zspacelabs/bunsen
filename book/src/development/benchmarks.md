@@ -28,6 +28,13 @@ Outside the benches:
   `benchmark` subcommand reports the sustained steps per second of the 2D or
   3D Game of Life on the device `--device` selects. It measures the tensor
   kernels behind the simulation kits.
+- [`cargo timing`](https://github.com/zspacelabs/bunsen/tree/main/validation/tools/timing),
+  in the validation workspace, times each kit's decode on the catalog's
+  checkpoints, phase by phase (an encoder's pass, the prefill, the steps by
+  cache position), through its
+  [`TimedDecode`](bunsen::kits::support::timing::TimedDecode), and compares
+  two runs (commits, backends, dtypes, fusion). The validation README has its
+  commands.
 - [`bunsen-tool`](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-tool/README.md)'s
   `transcribe` logs, at `-v`, each file's audio length, transcription time
   and realtime factor, and the totals over the set.
@@ -45,6 +52,11 @@ to optimize, and know which one a number is.
   `cold`.
 - `conway benchmark` leaves a warmup fraction of its steps out of the
   timing.
+- `cargo timing` reports each phase's first call apart (`cold`) from the
+  ones after it, and keeps every warm step's time, so a step still partly
+  cold shows. A cold call compiles kernels, and a backend may keep compiled
+  kernels across runs (the CUDA driver's cache), so a later run's cold calls
+  are shorter: cold is a process's first call, not the machine's.
 - `bunsen-tool` sizes every push to the stream driver's grain, so the front
   end and the autotuned kernels behind it see one shape, not a drift of
   remainders.
