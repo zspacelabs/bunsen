@@ -12,8 +12,7 @@ use std::{
 };
 
 use indexmap::IndexMap;
-
-use crate::{
+use validate::{
     profile::Check,
     schedule::segment,
 };
