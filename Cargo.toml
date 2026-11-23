@@ -80,6 +80,8 @@ dashmap = "6.2.1"
 
 clap = "4.6.7"
 directories-next = "2.0.0"
+# `--cpus`: pinning the process's threads (`sched_setaffinity`, Linux).
+libc = "0.2.191"
 
 tracing = "0.1.44"
 tracing-test = "0.2.6"

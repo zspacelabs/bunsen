@@ -1,10 +1,11 @@
 //! Run-time device selection for the example binaries.
 //!
-//! - [`BackendArgs`]: `--device` and `--device-index`, the backend to run on. A
-//!   backend is selectable only when the binary was built with its feature
-//!   (`cuda`, `metal`, `vulkan`, `wgpu`), forwarded to this crate; `flex`, the
-//!   CPU, is always there. `auto` takes the first compiled-in accelerator in
-//!   that order, else the CPU.
+//! - [`BackendArgs`]: `--device` and `--device-index`, the backend to run on,
+//!   and `--cpus`, where the process's threads run
+//!   ([`placement`](crate::placement)). A backend is selectable only when the
+//!   binary was built with its feature (`cuda`, `metal`, `vulkan`, `wgpu`),
+//!   forwarded to this crate; `flex`, the CPU, is always there. `auto` takes
+//!   the first compiled-in accelerator in that order, else the CPU.
 //! - [`DeviceArgs`]: the backend, built with the program's [`DevicePrefs`] (its
 //!   int dtype, autodiff for training) by [`DeviceArgs::init`].
 //!
@@ -34,6 +35,8 @@ use burn::tensor::{
     FloatDType,
     IntDType,
 };
+
+use crate::placement::Placement;
 
 /// A backend to run on.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -73,6 +76,15 @@ pub struct BackendArgs {
     /// Which device of the backend; the backend's default when omitted.
     #[arg(long)]
     pub device_index: Option<usize>,
+
+    /// The CPUs the process runs on: `auto`, `all`, or a list (`0-3,64-67`).
+    ///
+    /// `auto` pins an accelerator's process to the CPUs sharing one L3 cache,
+    /// where the host thread and the device's runtime thread hand work back and
+    /// forth fastest; the CPU backend is not pinned. `all` never pins. Linux
+    /// only; elsewhere `auto` does nothing.
+    #[arg(long, default_value_t = Placement::Auto)]
+    pub cpus: Placement,
 }
 
 impl BackendArgs {
@@ -99,17 +111,19 @@ impl BackendArgs {
         }
     }
 
-    /// Builds the selected device, with the backend's default dtypes.
+    /// Builds the selected device, with the backend's default dtypes, after
+    /// placing the process's threads (`--cpus`, [`Placement::apply`]).
     ///
     /// Only compiled-in backends are [`DeviceChoice`] variants, so this does
     /// not fail; it returns a `Result` for the backends that someday might.
     ///
     /// # Errors
-    /// None at present; a backend that someday can fail to start reports
-    /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported).
+    /// As [`Placement::apply`]; a backend that someday can fail to start
+    /// reports [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported).
     pub fn init(&self) -> BunsenResult<Device> {
         #[allow(unused_variables)]
         let index = self.device_index;
+        self.cpus.apply(self.choice() != DeviceChoice::Flex)?;
         Ok(match self.choice() {
             DeviceChoice::Auto => unreachable!("resolved by `choice`"),
             DeviceChoice::Flex => Device::flex(),
@@ -277,6 +291,7 @@ mod tests {
             backend: BackendArgs {
                 device: DeviceChoice::Flex,
                 device_index: None,
+                cpus: Placement::Auto,
             },
         };
         let device = args

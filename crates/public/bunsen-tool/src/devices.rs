@@ -14,9 +14,12 @@ use bunsen::{
         sys_at,
     },
 };
-use bunsen_app::device::{
-    BackendArgs,
-    DeviceChoice,
+use bunsen_app::{
+    device::{
+        BackendArgs,
+        DeviceChoice,
+    },
+    placement::Placement,
 };
 use burn::tensor::FloatDType;
 use clap::ValueEnum;
@@ -59,6 +62,7 @@ fn devices() -> BunsenResult<Value> {
         let device = BackendArgs {
             device: choice,
             device_index: None,
+            cpus: Placement::All,
         }
         .init()?;
         let floats = float_dtype_usages(&device)
