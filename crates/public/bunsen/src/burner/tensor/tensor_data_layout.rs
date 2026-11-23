@@ -27,6 +27,9 @@ pub fn permute_data(
         seen[axis] = true;
     }
 
+    if order == [1, 0] {
+        return transpose_data(data);
+    }
     let n = shape.iter().product::<usize>();
     let dtype = data.dtype();
     let bytes = data.as_bytes();
@@ -57,6 +60,76 @@ pub fn permute_data(
         }
     }
     TensorData::from_bytes_vec(out, out_shape, dtype)
+}
+
+/// A matrix's transpose on the host: `[rows, cols]` to `[cols, rows]`, any
+/// element type; the bytes are moved, not converted. [`permute_data`] of
+/// `[1, 0]`.
+///
+/// What a load does to every `PyTorch` linear weight (`[out, in]` to burn's
+/// `[in, out]`), so it is blocked (tiles of [`TRANSPOSE_TILE`] elements a
+/// side, which keep the strided reads in cache) and its element moves are
+/// fixed-size copies for the 1, 2, 4 and 8-byte types: a model's weights
+/// move at memory speed, not a call per element.
+///
+/// # Panics
+/// If `data` is not of rank 2, or is quantized (its bytes are not whole
+/// elements).
+pub fn transpose_data(data: TensorData) -> TensorData {
+    let shape = data.shape().as_slice().to_vec();
+    assert_eq!(shape.len(), 2, "a transpose of a matrix, not {shape:?}");
+    let (rows, cols) = (shape[0], shape[1]);
+    let dtype = data.dtype();
+    let bytes = data.as_bytes();
+    let n = rows * cols;
+    if n == 0 {
+        return TensorData::from_bytes_vec(Vec::new(), vec![cols, rows], dtype);
+    }
+    assert_eq!(bytes.len() % n, 0, "whole elements only");
+    let mut out = vec![0u8; bytes.len()];
+    match bytes.len() / n {
+        1 => transpose_blocked::<1>(bytes, &mut out, rows, cols),
+        2 => transpose_blocked::<2>(bytes, &mut out, rows, cols),
+        4 => transpose_blocked::<4>(bytes, &mut out, rows, cols),
+        8 => transpose_blocked::<8>(bytes, &mut out, rows, cols),
+        elem => {
+            for i in 0..rows {
+                for j in 0..cols {
+                    out[(j * rows + i) * elem..][..elem]
+                        .copy_from_slice(&bytes[(i * cols + j) * elem..][..elem]);
+                }
+            }
+        }
+    }
+    TensorData::from_bytes_vec(out, vec![cols, rows], dtype)
+}
+
+/// The side, in elements, of the tiles [`transpose_data`] moves.
+pub const TRANSPOSE_TILE: usize = 32;
+
+/// `src`, `[rows, cols]` of `E`-byte elements, transposed into `out`, a
+/// tile at a time.
+fn transpose_blocked<const E: usize>(
+    src: &[u8],
+    out: &mut [u8],
+    rows: usize,
+    cols: usize,
+) {
+    for jb in (0..cols).step_by(TRANSPOSE_TILE) {
+        let je = (jb + TRANSPOSE_TILE).min(cols);
+        for ib in (0..rows).step_by(TRANSPOSE_TILE) {
+            let ie = (ib + TRANSPOSE_TILE).min(rows);
+            for j in jb..je {
+                for i in ib..ie {
+                    let from = (i * cols + j) * E;
+                    let to = (j * rows + i) * E;
+                    let element: [u8; E] =
+                        src[from..from + E].try_into().expect("an element's bytes");
+                    out[to..to + E].copy_from_slice(&element);
+                }
+            }
+        }
+    }
 }
 
 /// `data` with a new shape of the same element count; the bytes are
@@ -154,7 +227,10 @@ fn shape_of(
 mod tests {
     use burn::{
         Tensor,
-        tensor::Int,
+        tensor::{
+            DType,
+            Int,
+        },
     };
 
     use super::*;
@@ -181,6 +257,26 @@ mod tests {
 
         let f = Tensor::<3>::from_floats([[[1.0, 2.0], [3.0, 4.0]]], &device);
         permute_data(f.to_data(), &[0, 2, 1]).assert_eq(&f.permute([0, 2, 1]).to_data(), true);
+    }
+
+    /// The blocked transpose is the device's, for shapes not a whole number
+    /// of tiles and for 1-, 2-, 4- and 8-byte elements.
+    #[test]
+    fn test_transpose_matches_the_device() {
+        let device = cpu_device();
+        for (rows, cols) in [(1, 1), (3, 5), (33, 64), (70, 257)] {
+            let x = Tensor::<1, Int>::arange(0..(rows * cols) as i64, &device)
+                .remainder_scalar(100)
+                .reshape([rows, cols]);
+            let want = x.clone().transpose().to_data();
+            for dtype in [DType::U8, DType::I16, DType::I32, DType::I64] {
+                let data = x.to_data().convert_dtype(dtype);
+                let got = transpose_data(data.clone());
+                assert_eq!(got.shape().as_slice(), [cols, rows]);
+                got.assert_eq(&want.clone().convert_dtype(dtype), true);
+                permute_data(data, &[1, 0]).assert_eq(&want.clone().convert_dtype(dtype), true);
+            }
+        }
     }
 
     #[test]
