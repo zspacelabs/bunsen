@@ -28,18 +28,26 @@ use crate::{
         },
         norm::{
             BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
             LayerNorm,
         },
         transformers::{
+            attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
+            },
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    UniformStackConfig,
+                },
+            },
             embedding::{
+                RotaryEmbeddingConfig,
                 TokenEmbedding,
                 TokenEmbeddingConfig,
-            },
-            encoders::residual::{
-                ResidualEncoderAttentionBlockConfig,
-                ResidualEncoderTransformer,
-                ResidualEncoderTransformerConfig,
-                ResidualEncoderTransformerMeta,
             },
         },
     },
@@ -150,15 +158,39 @@ impl LayaMeta for LayaConfig {
 
 impl LayaConfig {
     /// A head layer: `PyTorch`'s `nn.TransformerEncoderLayer` as upstream
-    /// builds it, pre-norm, `max(1, d / 64)` heads, a `4 d` `ReLU` MLP, and
-    /// every projection and norm biased.
-    pub fn head_layer(&self) -> ResidualEncoderAttentionBlockConfig {
+    /// builds it, pre-norm, `max(1, d / 64)` heads over every token (no
+    /// rotary positions), a `4 d` `ReLU` MLP, and every projection and norm
+    /// biased.
+    pub fn head_layer(&self) -> CausalDecoderBlockConfig {
         let d = self.d_model();
         let heads = (d / 64).max(1);
-        ResidualEncoderAttentionBlockConfig::new(d)
-            .with_d_head(d / heads)
-            .with_key_bias(true)
-            .with_activation(BunsenActivationConfig::Relu)
+        CausalDecoderBlockConfig::new(
+            CausalSelfAttentionConfig::new(heads, heads, d)
+                .with_norm(None)
+                .with_qkv_bias(true)
+                .with_output_bias(true)
+                .with_mask(AttentionMask::Bidirectional)
+                .into(),
+            BunsenMlpConfig::expansion(d, 4)
+                .with_activation(BunsenActivationConfig::Relu)
+                .with_bias(true)
+                .into(),
+        )
+        .with_norm(BunsenNormalizationConfig::Layer(
+            BunsenLayerNormConfig::new(0),
+        ))
+    }
+
+    /// The head: [`head_layers`](LayaMeta::head_layers) of
+    /// [`head_layer`](Self::head_layer), no final norm.
+    pub fn head(&self) -> UniformStackConfig {
+        let d = self.d_model();
+        UniformStackConfig::new(
+            self.head_layers,
+            self.head_layer(),
+            BunsenNormalizationConfig::Identity,
+            RotaryEmbeddingConfig::unrotated(d / (d / 64).max(1)),
+        )
     }
 }
 
@@ -176,8 +208,7 @@ impl ModuleInit<LayaModel> for LayaConfig {
         Ok(LayaModel {
             encoder: self.encoder.try_init(device)?,
             type_emb: TokenEmbeddingConfig::new(LayaQuestionKind::ALL.len(), d).try_init(device)?,
-            head: ResidualEncoderTransformerConfig::new(self.head_layer(), self.head_layers)
-                .try_init(device)?,
+            head: self.head().try_init(device)?,
             scorer: LayaScorer {
                 norm: BunsenLayerNormConfig::new(d).init(device),
                 mlp: mlp(d, d, 1)?,
@@ -243,7 +274,7 @@ pub struct LayaModel {
     pub type_emb: TokenEmbedding,
 
     /// The head's encoder layers.
-    pub head: ResidualEncoderTransformer,
+    pub head: DecoderStack,
 
     /// Each option's marker state to its logit.
     pub scorer: LayaScorer,
@@ -293,7 +324,7 @@ impl LayaModel {
         let _device = ids.device();
         let h = self.encoder.forward(ids, Some(lengths));
         let h = h + self.type_emb.forward(kinds.unsqueeze_dim::<2>(1));
-        self.head.forward(h, Some(lengths))
+        self.head.encoder_forward(h, Some(lengths))
     }
 
     /// Each question's option logits and act logits.

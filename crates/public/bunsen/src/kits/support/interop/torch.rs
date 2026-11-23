@@ -15,7 +15,7 @@ use alloc::format;
 #[cfg(doc)]
 use crate::blocks::{
     rnn::lstm::FusedLstm,
-    transformers::encoders::residual::ResidualEncoderAttentionBlock,
+    transformers::decoders::causal::CausalDecoderBlock,
 };
 use crate::burner::module::{
     Rekey,
@@ -50,16 +50,16 @@ pub fn transformer_encoder_layer_row_splits() -> [TensorLoadRowSplit; 2] {
 /// A `PyTorch` `nn.TransformerEncoderLayer`'s names, once
 /// [`transformer_encoder_layer_row_splits`] has split its
 /// projections, onto a
-/// [`ResidualEncoderAttentionBlock`]'s, relative to it: `self_attn`'s
-/// `{q,k,v,out}_proj` the attention, `norm1` and `norm2` the norms,
-/// `linear{1,2}` the MLP; everything else as it is. With `norm_first`, the
-/// block is pre-norm; its `ReLU` is the block's `activation`.
+/// [`CausalDecoderBlock`]'s, relative to it: `self_attn`'s
+/// `{q,k,v,out}_proj` the attention's `c_{q,k,v,proj}`, `norm1` and `norm2`
+/// the norms, `linear{1,2}` the MLP; everything else as it is. With
+/// `norm_first`, the block is pre-norm; its `ReLU` is the MLP's activation.
 pub fn transformer_encoder_layer_rekey() -> Rekey {
     Rekey::keep_rest()
-        .rename("self_attn.q_proj.", "attn.query.")
-        .rename("self_attn.k_proj.", "attn.key.")
-        .rename("self_attn.v_proj.", "attn.value.")
-        .rename("self_attn.out_proj.", "attn.output.")
+        .rename("self_attn.q_proj.", "attn.c_q.")
+        .rename("self_attn.k_proj.", "attn.c_k.")
+        .rename("self_attn.v_proj.", "attn.c_v.")
+        .rename("self_attn.out_proj.", "attn.c_proj.")
         .rename("norm1.", "attn_norm.")
         .rename("norm2.", "mlp_norm.")
         .rename("linear1.", "mlp.linear1.")
