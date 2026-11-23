@@ -118,6 +118,14 @@ impl TimedDecode for VoxtralRealtime {
         logits.slice_dim(1, len - 1..len).reshape([rows, vocab])
     }
 
+    fn timed_reorder(
+        &self,
+        state: &mut VoxtralTimedState,
+        sources: &[usize],
+    ) {
+        VoxtralDecodeStep { model: self }.reorder(state.decode(), sources);
+    }
+
     fn timed_step(
         &self,
         state: &mut VoxtralTimedState,

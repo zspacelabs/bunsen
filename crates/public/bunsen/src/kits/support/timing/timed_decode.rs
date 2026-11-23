@@ -71,6 +71,16 @@ pub trait TimedDecode {
         device: &Device,
     ) -> Tensor<2>;
 
+    /// Permutes the state's rows, row `r` becoming row `sources[r]`, as a
+    /// beam search does after each step; nothing by default (a decode that
+    /// never branches).
+    fn timed_reorder(
+        &self,
+        _state: &mut Self::State,
+        _sources: &[usize],
+    ) {
+    }
+
     /// One step of every row, at `state`'s position.
     ///
     /// # Returns

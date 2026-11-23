@@ -78,6 +78,17 @@ enum Cmd {
         #[arg(long)]
         fusion: bool,
 
+        /// Build the runner with burn's autotune.
+        #[arg(long)]
+        autotune: bool,
+
+        /// The CPUs the runner runs on (`taskset -c`'s list, `0-3`); it is
+        /// built unpinned first. Keeping the host's threads inside one L3
+        /// domain (a Zen core complex) keeps a decode out of a slow mode of
+        /// thread placement, as much as 1.8x on a Threadripper.
+        #[arg(long)]
+        cpus: Option<String>,
+
         /// The JSON-lines file the records go to; else
         /// `validation/target/timing/{unix time}.jsonl`.
         #[arg(long)]
@@ -125,6 +136,8 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             backend,
             dtypes,
             fusion,
+            autotune,
+            cpus,
             out,
             label,
             runner_args,
@@ -184,21 +197,43 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
                 if fusion {
                     features.push("fusion");
                 }
-                let mut command =
-                    Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
-                command.current_dir(&validation).args([
-                    "run",
-                    "-q",
-                    "--profile",
-                    "validate",
-                    "-p",
-                    "timing",
-                    "--bin",
-                    "timing-runner",
-                ]);
-                if !features.is_empty() {
-                    command.args(["--features", &features.join(",")]);
+                if autotune {
+                    features.push("autotune");
                 }
+                let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+                let runner = |command: &mut Command, verb: &str| {
+                    command.current_dir(&validation).args([
+                        verb,
+                        "-q",
+                        "--profile",
+                        "validate",
+                        "-p",
+                        "timing",
+                        "--bin",
+                        "timing-runner",
+                    ]);
+                    if !features.is_empty() {
+                        command.args(["--features", &features.join(",")]);
+                    }
+                };
+                let mut command = match &cpus {
+                    Some(cpus) => {
+                        // Built on every CPU first; only the run is pinned.
+                        let mut build = Command::new(&cargo);
+                        runner(&mut build, "build");
+                        let built = build
+                            .status()
+                            .map_err(|e| format!("build the timing runner: {e}"))?;
+                        if !built.success() {
+                            return Err("the timing runner did not build".to_string());
+                        }
+                        let mut taskset = Command::new("taskset");
+                        taskset.args(["-c", cpus]).arg(&cargo);
+                        taskset
+                    }
+                    None => Command::new(&cargo),
+                };
+                runner(&mut command, "run");
                 command.arg("--");
                 for row in &rows {
                     command.args(["--row", row]);
