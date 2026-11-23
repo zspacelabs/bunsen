@@ -24,10 +24,7 @@ use crate::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
-    ops::{
-        drop::dropout,
-        repeat,
-    },
+    ops::drop::dropout,
 };
 
 /// Config options for [`scaled_dot_product_attention`].
@@ -42,8 +39,10 @@ pub struct ScaledDotProductAttentionOptions {
     #[config(default = "false")]
     pub is_causal: bool,
 
-    /// Enable Group Query Attention: repeat each key/value head
-    /// `H_q / H_kv` times to match the query heads.
+    /// Enable Group Query Attention: each key/value head serves `H_q / H_kv`
+    /// consecutive query heads, as if repeated that many times (the query
+    /// heads are grouped by key/value head; the keys and values are never
+    /// copied).
     #[config(default = "false")]
     pub enable_gqa: bool,
 
@@ -112,12 +111,18 @@ pub fn scaled_dot_product_attention(
         &[("B", b), ("H_kv", h_kv), ("D", d)]
     );
 
+    let t_q = q.dims()[2];
     let attn_weight = sdpa_attn_weight(q, k, bias, mask, key_valid, config);
 
-    let mut v = v;
-    if config.enable_gqa {
-        let v_repeats = h_q / h_kv;
-        v = repeat::repeat_interleave::<4, 5, _>(v, v_repeats, 1);
+    if config.enable_gqa && h_q != h_kv {
+        // Each key/value head's `g` query heads as one `[g T_q, T_k]` block
+        // of rows: the weights against the head's values, never repeated.
+        let g = h_q / h_kv;
+        let t_k = attn_weight.dims()[3];
+        return attn_weight
+            .reshape([b, h_kv, g * t_q, t_k])
+            .matmul(v)
+            .reshape([b, h_q, t_q, d]);
     }
 
     attn_weight.matmul(v)
@@ -160,15 +165,18 @@ pub fn sdpa_attn_weight(
     let device = q.device();
     let dtype = q.dtype();
 
-    let mut k = k;
-
-    if config.enable_gqa {
-        let k_repeats = h_q / h_k;
-        k = repeat::repeat_interleave::<4, 5, _>(k, k_repeats, 1);
-    }
-
     let scale_factor = config.scale.unwrap_or(1.0 / (q.dims()[3] as f64).sqrt());
-    let scores = q.matmul(k.swap_dims(2, 3)) * scale_factor;
+    let scores = if config.enable_gqa && h_q != h_k {
+        // Query head `h` attends with key head `h / g`: a key head's `g`
+        // query heads, grouped as rows against its keys, which are never
+        // repeated to the query heads.
+        let g = h_q / h_k;
+        q.reshape([b, h_k, g * t_q, d])
+            .matmul(k.swap_dims(2, 3))
+            .reshape([b, h_q, t_q, t_k])
+    } else {
+        q.matmul(k.swap_dims(2, 3))
+    } * scale_factor;
     // Capped in the scores' dtype, before the softmax's cast, as
     // `transformers`' eager attention caps them.
     let scores = match config.softcap {
@@ -272,12 +280,16 @@ pub fn sdpa_bias(
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Distribution;
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
+    };
     use serial_test::serial;
 
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
+        assert_tensors_close,
         cpu_device,
         performance_device,
         seeded_tensor,
@@ -433,6 +445,40 @@ mod tests {
         }
         // 128 weights, each dropped with p = 0.5.
         assert!(n_dropped > 0 && n_dropped < kept.len(), "{n_dropped}");
+    }
+
+    /// Grouped-query attention is attention against each key/value head
+    /// repeated to its query heads, causal and not, one query and several.
+    #[test]
+    fn test_gqa_is_attention_over_repeated_heads() {
+        let device = cpu_device();
+        let [b, h_q, h_kv, t_k, d] = [2, 6, 2, 7, 4];
+        let k = seeded_tensor::<4>(2, [b, h_kv, t_k, d], Distribution::Default, &device);
+        let v = seeded_tensor::<4>(3, [b, h_kv, t_k, d], Distribution::Default, &device);
+        let repeated = |x: Tensor<4>| crate::ops::repeat::repeat_interleave::<4, 5, _>(x, 3, 1);
+        for (t_q, causal) in [(1, false), (t_k, true), (t_k, false)] {
+            let q = seeded_tensor::<4>(1, [b, h_q, t_q, d], Distribution::Default, &device);
+            let config = ScaledDotProductAttentionOptions::new().with_is_causal(causal);
+            let grouped = scaled_dot_product_attention(
+                q.clone(),
+                k.clone(),
+                v.clone(),
+                None,
+                None,
+                None,
+                config.with_enable_gqa(true),
+            );
+            let expected = scaled_dot_product_attention(
+                q,
+                repeated(k.clone()),
+                repeated(v.clone()),
+                None,
+                None,
+                None,
+                config,
+            );
+            assert_tensors_close(&grouped, &expected, Tolerance::default());
+        }
     }
 
     #[test]
