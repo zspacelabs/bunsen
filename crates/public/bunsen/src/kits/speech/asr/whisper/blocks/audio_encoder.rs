@@ -6,8 +6,6 @@ use burn::{
         Param,
     },
     nn::{
-        LayerNorm,
-        LayerNormConfig,
         PaddingConfig1d,
         conv::Conv1dConfig,
     },
@@ -29,10 +27,26 @@ use crate::{
             ConvSeq1dConfig,
             ConvSeq1dMeta,
         },
-        transformers::encoders::residual::{
-            ResidualEncoderAttentionBlock,
-            ResidualEncoderAttentionBlockConfig,
-            ResidualEncoderAttentionBlockMeta,
+        mlp::BunsenMlpConfig,
+        norm::{
+            BunsenLayerNormConfig,
+            BunsenNormalizationConfig,
+        },
+        transformers::{
+            attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
+                CausalSelfAttentionMeta,
+            },
+            decoders::{
+                causal::CausalDecoderBlockConfig,
+                stack::{
+                    DecoderStack,
+                    DecoderStackMeta,
+                    UniformStackConfig,
+                },
+            },
+            embedding::RotaryEmbeddingConfig,
         },
     },
     burner::module::{
@@ -149,16 +163,40 @@ impl ModuleInit<AudioEncoder> for AudioEncoderConfig {
                 device,
             )),
 
-            blocks: (0..self.n_layers)
-                .map(|_| {
-                    ResidualEncoderAttentionBlockConfig::new(self.d_model)
-                        .with_d_head(self.d_head)
-                        .try_init(device)
-                })
-                .collect::<BunsenResult<Vec<ResidualEncoderAttentionBlock>>>()?,
-
-            ln_post: LayerNormConfig::new(self.d_model).init(device),
+            stack: self.stack().try_init(device)?,
         })
+    }
+}
+
+impl AudioEncoderConfig {
+    /// The encoder layers and the final norm: pre-norm layers whose
+    /// attention sees every position and carries no rotary positions (the
+    /// input carries absolute ones), its projections biased but the key
+    /// (as Whisper's are), and a `4 d_model` `GELU` MLP.
+    pub fn stack(&self) -> UniformStackConfig {
+        let d = self.d_model;
+        let heads = self.n_heads();
+        let norm = BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0));
+        UniformStackConfig::new(
+            self.n_layers,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(heads, heads, d)
+                    .with_head_dim(Some(self.d_head))
+                    .with_norm(None)
+                    .with_qkv_bias(true)
+                    .with_key_bias(Some(false))
+                    .with_output_bias(true)
+                    .with_mask(AttentionMask::Bidirectional)
+                    .into(),
+                BunsenMlpConfig::expansion(d, 4)
+                    .with_activation(BunsenActivationConfig::Gelu)
+                    .with_bias(true)
+                    .into(),
+            )
+            .with_norm(norm.clone()),
+            norm,
+            RotaryEmbeddingConfig::unrotated(self.d_head),
+        )
     }
 }
 
@@ -176,11 +214,9 @@ pub struct AudioEncoder {
     /// The positional embedding.
     pub positional_embedding: Param<Tensor<2>>,
 
-    /// The audio encoder blocks.
-    pub blocks: Vec<ResidualEncoderAttentionBlock>,
-
-    /// The final `LayerNorm`.
-    pub ln_post: LayerNorm,
+    /// The encoder layers and the final `LayerNorm` (canonically `blocks.*`
+    /// and `ln_post.*`, Whisper's own names).
+    pub stack: DecoderStack,
 }
 
 impl AudioEncoderMeta for AudioEncoder {
@@ -189,7 +225,7 @@ impl AudioEncoderMeta for AudioEncoder {
     }
 
     fn d_model(&self) -> usize {
-        self.blocks[0].d_model()
+        self.stack.d_model()
     }
 
     fn max_context(&self) -> usize {
@@ -200,11 +236,11 @@ impl AudioEncoderMeta for AudioEncoder {
     }
 
     fn n_heads(&self) -> usize {
-        self.blocks[0].n_heads()
+        self.stack.layers[0].attn.branch.attention().n_head()
     }
 
     fn n_layers(&self) -> usize {
-        self.blocks.len()
+        self.stack.n_layers()
     }
 }
 
@@ -255,13 +291,8 @@ impl AudioEncoder {
     ) -> Tensor<3> {
         let x = self.forward_head(x);
 
-        let mut x = self.embed(x);
-
-        for b in self.blocks.iter() {
-            x = b.forward(x);
-        }
-
-        self.ln_post.forward(x)
+        let x = self.embed(x);
+        self.stack.encoder_forward(x, None)
     }
 
     /// Forward pass through the audio encoder head.
@@ -338,7 +369,15 @@ impl AudioEncoder {
 
 impl CanonicalKeys for AudioEncoder {
     fn canonical_rekey(&self) -> Rekey {
-        Rekey::keep_rest().mount_canonical("blocks.", &self.blocks)
+        // Whisper's names for the layers and the final norm, onto the
+        // stack's, each layer's by its canonical names.
+        Rekey::keep_rest()
+            .mount(
+                "blocks.",
+                "stack.layers.",
+                self.stack.layers.canonical_rekey(),
+            )
+            .rename("ln_post.", "stack.norm.")
     }
 }
 

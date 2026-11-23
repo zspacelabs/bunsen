@@ -182,7 +182,12 @@ mod tests {
         (r"^encoder\.head\.blocks\.1\.conv\.", "encoder.conv2."),
         (r"\.positional_embedding$", ".embed_positions.weight"),
         (r"\.token_embedding\.", ".embed_tokens."),
+        (r"^encoder\.stack\.layers\.(\d+)\.", "encoder.layers.$1."),
         (r"\.blocks\.(\d+)\.", ".layers.$1."),
+        (r"\.attn\.branch\.c_q\.", ".self_attn.q_proj."),
+        (r"\.attn\.branch\.c_k\.", ".self_attn.k_proj."),
+        (r"\.attn\.branch\.c_v\.", ".self_attn.v_proj."),
+        (r"\.attn\.branch\.c_proj\.", ".self_attn.out_proj."),
         (r"\.attn\.branch\.query\.", ".self_attn.q_proj."),
         (r"\.attn\.branch\.key\.", ".self_attn.k_proj."),
         (r"\.attn\.branch\.value\.", ".self_attn.v_proj."),
@@ -196,7 +201,7 @@ mod tests {
         (r"\.mlp\.pre\.", ".final_layer_norm."),
         (r"\.mlp\.branch\.linear1\.", ".fc1."),
         (r"\.mlp\.branch\.linear2\.", ".fc2."),
-        (r"^encoder\.ln_post\.", "encoder.layer_norm."),
+        (r"^encoder\.stack\.norm\.", "encoder.layer_norm."),
         (r"^decoder\.ln\.", "decoder.layer_norm."),
         (r"^", "model."),
     ];
@@ -240,8 +245,20 @@ mod tests {
             x.into_data().assert_eq(&y.into_data(), false);
         };
         same(
-            a.encoder.blocks[0].attn.branch.query.weight.val(),
-            b.encoder.blocks[0].attn.branch.query.weight.val(),
+            a.encoder.stack.layers[0]
+                .attn
+                .branch
+                .attention()
+                .c_q
+                .weight
+                .val(),
+            b.encoder.stack.layers[0]
+                .attn
+                .branch
+                .attention()
+                .c_q
+                .weight
+                .val(),
         );
         same(
             a.decoder.blocks[2].cross_attn.branch.output.weight.val(),
@@ -289,7 +306,7 @@ mod tests {
             ),
             (
                 "model.encoder.layers.3.self_attn.out_proj.weight",
-                Some("encoder.blocks.3.attn.output.weight"),
+                Some("encoder.blocks.3.attn.c_proj.weight"),
             ),
             (
                 "model.encoder.layers.3.self_attn_layer_norm.bias",

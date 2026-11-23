@@ -1,7 +1,7 @@
 //! The layer key sets `transformers` models share.
 
 #[cfg(doc)]
-use crate::blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock;
+use crate::blocks::transformers::decoders::causal::CausalDecoderBlock;
 use crate::{
     blocks::transformers::decoders::causal::DecoderLayerKeys,
     burner::module::Rekey,
@@ -26,29 +26,35 @@ pub fn llama_layer_keys(
 }
 
 /// `transformers`' Whisper encoder layer names (Whisper's own, and
-/// Qwen3-ASR's audio tower's) onto a
-/// [`ResidualEncoderAttentionBlock`]'s, relative to it:
-/// `self_attn`'s `{q,k,v,out}_proj` the attention,
-/// `self_attn_layer_norm` and `final_layer_norm` the norms, `fc{1,2}`
-/// the MLP; everything else as it is.
+/// Qwen3-ASR's audio tower's) onto a [`CausalDecoderBlock`]'s, relative to
+/// it: `self_attn`'s `{q,k,v,out}_proj` the attention's `c_{q,k,v,proj}`,
+/// and the norms and the MLP as [`whisper_layer_rest_rekey`] has them.
 pub fn whisper_encoder_layer_rekey() -> Rekey {
     Rekey::keep_rest()
-        .rename("self_attn.q_proj.", "attn.query.")
-        .rename("self_attn.k_proj.", "attn.key.")
-        .rename("self_attn.v_proj.", "attn.value.")
-        .rename("self_attn.out_proj.", "attn.output.")
+        .rename("self_attn.q_proj.", "attn.c_q.")
+        .rename("self_attn.k_proj.", "attn.c_k.")
+        .rename("self_attn.v_proj.", "attn.c_v.")
+        .rename("self_attn.out_proj.", "attn.c_proj.")
+        .mount("", "", whisper_layer_rest_rekey())
+}
+
+/// The names a Whisper encoder and decoder layer share, but the
+/// attention's projections: `self_attn_layer_norm` and `final_layer_norm`
+/// the norms, `fc{1,2}` the MLP; everything else as it is.
+pub fn whisper_layer_rest_rekey() -> Rekey {
+    Rekey::keep_rest()
         .rename("self_attn_layer_norm.", "attn_norm.")
         .rename("final_layer_norm.", "mlp_norm.")
         .rename("fc1.", "mlp.linear1.")
         .rename("fc2.", "mlp.linear2.")
 }
 
-/// `transformers`' Whisper decoder layer names onto a
-/// cross-attention decoder block's,
-/// relative to it: `encoder_attn`'s `{q,k,v,out}_proj` the
-/// cross-attention and `encoder_attn_layer_norm` its norm; the rest as
-/// an encoder layer's
-/// ([`whisper_encoder_layer_rekey`]).
+/// `transformers`' Whisper decoder layer names onto a cross-attention
+/// decoder block's, relative to it: `self_attn`'s and `encoder_attn`'s
+/// `{q,k,v,out}_proj` the self- and cross-attention's
+/// `{query,key,value,output}`, `encoder_attn_layer_norm` the
+/// cross-attention's norm; the rest as [`whisper_layer_rest_rekey`] has
+/// them.
 pub fn whisper_decoder_layer_rekey() -> Rekey {
     Rekey::keep_rest()
         .rename("encoder_attn.q_proj.", "cross_attn.query.")
@@ -56,5 +62,9 @@ pub fn whisper_decoder_layer_rekey() -> Rekey {
         .rename("encoder_attn.v_proj.", "cross_attn.value.")
         .rename("encoder_attn.out_proj.", "cross_attn.output.")
         .rename("encoder_attn_layer_norm.", "cross_attn_norm.")
-        .mount("", "", whisper_encoder_layer_rekey())
+        .rename("self_attn.q_proj.", "attn.query.")
+        .rename("self_attn.k_proj.", "attn.key.")
+        .rename("self_attn.v_proj.", "attn.value.")
+        .rename("self_attn.out_proj.", "attn.output.")
+        .mount("", "", whisper_layer_rest_rekey())
 }

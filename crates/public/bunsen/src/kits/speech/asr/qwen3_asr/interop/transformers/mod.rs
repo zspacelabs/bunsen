@@ -197,11 +197,11 @@ mod tests {
             ),
             (
                 "model.audio_tower.layers.3.self_attn.k_proj.bias",
-                Some("audio_tower.layers.3.attn.key.bias"),
+                Some("audio_tower.layers.3.attn.c_k.bias"),
             ),
             (
                 "model.audio_tower.layers.3.self_attn.out_proj.weight",
-                Some("audio_tower.layers.3.attn.output.weight"),
+                Some("audio_tower.layers.3.attn.c_proj.weight"),
             ),
             (
                 "model.audio_tower.layers.3.final_layer_norm.weight",

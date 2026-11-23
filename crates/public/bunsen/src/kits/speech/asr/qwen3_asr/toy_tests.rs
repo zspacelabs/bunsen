@@ -145,8 +145,12 @@ fn test_toy_audio_tower() {
     let stem = tower.stem(toy.features(), FEATURE_LEN);
     assert_io_close("conv stem", stem.clone(), toy.io("conv"));
 
-    let mask = tower.window_mask(stem.dims()[0], &toy.device);
-    let layer0 = tower.layers[0].forward_masked(stem.unsqueeze_dim(0), Some(mask));
+    let n = stem.dims()[0];
+    let layer0 = tower.stack.layers[0].forward(
+        stem.unsqueeze_dim(0),
+        tower.stack.rotary(n, &toy.device).for_layer(0),
+        &mut None,
+    );
     assert_io_close(
         "audio layer 0",
         layer0.squeeze_dim::<2>(0),

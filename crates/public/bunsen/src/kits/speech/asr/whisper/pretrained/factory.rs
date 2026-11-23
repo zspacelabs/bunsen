@@ -320,7 +320,7 @@ mod hub_tests {
         assert_eq!(hf.model.d_model(), tiny.d_model);
         assert_eq!(hf.model.max_audio_ctx(), tiny.max_audio_ctx);
         assert_eq!(hf.model.max_text_ctx(), tiny.max_text_ctx);
-        assert_eq!(hf.model.encoder.blocks.len(), tiny.n_encoder_layers);
+        assert_eq!(hf.model.encoder.stack.layers.len(), tiny.n_encoder_layers);
         assert_eq!(hf.model.decoder.blocks.len(), tiny.n_decoder_layers);
         assert!(hf.layout.ids().is_multilingual());
         assert_eq!(hf.ranks.as_ref().map(|r| r.len()), Some(50257));
@@ -336,15 +336,16 @@ mod hub_tests {
         let close = |a: Tensor<2>, b: Tensor<2>| {
             assert_tensors_close(&a, &b, Tolerance::<f32>::default());
         };
-        close(
-            hf.model.encoder.blocks[0].attn.branch.query.weight.val(),
-            openai.model.encoder.blocks[0]
+        let c_q = |model: &crate::kits::speech::asr::whisper::Whisper| {
+            model.encoder.stack.layers[0]
                 .attn
                 .branch
-                .query
+                .attention()
+                .c_q
                 .weight
-                .val(),
-        );
+                .val()
+        };
+        close(c_q(&hf.model), c_q(&openai.model));
         close(
             hf.model.decoder.blocks[3]
                 .cross_attn
