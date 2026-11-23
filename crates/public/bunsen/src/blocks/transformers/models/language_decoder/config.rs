@@ -10,12 +10,12 @@ use super::{
     LmDecoderMeta,
     LmDecoderModel,
     LmStackDecoderConfig,
+    LmStackDecoderMeta,
 };
 use crate::{
     blocks::transformers::{
         decoders::stack::{
             DecoderStackMeta,
-            DecoderStackStructureConfig,
             DecoderStackVariantConfig,
         },
         embedding::TokenEmbeddingConfig,
@@ -69,17 +69,19 @@ impl ToStructureConfig for LmDecoderVariantConfig {
     fn try_to_structure(&self) -> BunsenResult<LmDecoderStructureConfig> {
         Ok(LmDecoderStructureConfig::new(
             self.embedding.clone(),
-            self.head.clone(),
-            self.stack
-                .try_to_structure()
-                .context("lowering an LmDecoderVariantConfig's stack")?,
-        )
-        .with_kv_cache_pre_size(self.kv_cache_pre_size))
+            LmStackDecoderConfig::new(
+                self.head.clone(),
+                self.stack
+                    .try_to_structure()
+                    .context("lowering an LmDecoderVariantConfig's stack")?,
+            )
+            .with_kv_cache_pre_size(self.kv_cache_pre_size),
+        ))
     }
 }
 
-/// Structure config for [`LmDecoderModel`]: the embedding, the head, and
-/// the stack unrolled.
+/// Structure config for [`LmDecoderModel`]: the embedding, and the
+/// decoder's (the head, and the stack unrolled).
 ///
 /// Implements [`LmDecoderMeta`] (once its stack has a layer that attends).
 #[derive(Config, Debug)]
@@ -87,15 +89,9 @@ pub struct LmDecoderStructureConfig {
     /// The token embedding.
     pub embedding: TokenEmbeddingConfig,
 
-    /// The output head: tied to the embedding, or a projection of its own.
-    pub head: LmHeadConfig,
-
-    /// The decoder stack.
-    pub stack: DecoderStackStructureConfig,
-
-    /// The positions a KV cache allocates up front by default.
-    #[config(default = "LM_DECODER_KV_CACHE_PRE_SIZE")]
-    pub kv_cache_pre_size: usize,
+    /// The decoder: the head (tied to the embedding, or a projection of its
+    /// own), the stack, and the KV cache's pre-size.
+    pub decoder: LmStackDecoderConfig,
 }
 
 impl LmDecoderMeta for LmDecoderStructureConfig {
@@ -104,8 +100,7 @@ impl LmDecoderMeta for LmDecoderStructureConfig {
     }
 
     fn n_logits(&self) -> usize {
-        use crate::blocks::transformers::head::LmHeadMeta;
-        self.head.n_vocab()
+        self.decoder.n_logits()
     }
 
     fn d_model(&self) -> usize {
@@ -113,15 +108,15 @@ impl LmDecoderMeta for LmDecoderStructureConfig {
     }
 
     fn n_layers(&self) -> usize {
-        self.stack.n_layers()
+        self.decoder.n_layers()
     }
 
     fn n_kv_heads(&self) -> usize {
-        self.stack.n_kv_heads()
+        self.decoder.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.stack.head_dim()
+        self.decoder.head_dim()
     }
 }
 
@@ -138,18 +133,12 @@ impl ModuleInit<LmDecoderModel> for LmDecoderStructureConfig {
         self.check_agreement()?;
         Ok(LmDecoderModel {
             embedding: self.embedding.try_init(device)?,
-            decoder: self.decoder().try_init(device)?,
+            decoder: self.decoder.try_init(device)?,
         })
     }
 }
 
 impl LmDecoderStructureConfig {
-    /// The decoder's half: the head and the stack, without the embedding.
-    pub fn decoder(&self) -> LmStackDecoderConfig {
-        LmStackDecoderConfig::new(self.head.clone(), self.stack.clone())
-            .with_kv_cache_pre_size(self.kv_cache_pre_size)
-    }
-
     /// The parts agree: the embedding's and the head's widths are the
     /// stack's, and a tied head reads as many rows as the embedding holds.
     /// A stack of no layers has no width; its own build refuses it.
@@ -166,8 +155,8 @@ impl LmDecoderStructureConfig {
             )
             .into())
         };
-        if !self.stack.layers.is_empty() {
-            let width = ("stack.d_model", self.stack.d_model());
+        if !self.decoder.stack.layers.is_empty() {
+            let width = ("stack.d_model", self.decoder.stack.d_model());
             if self.embedding.d_model != width.1 {
                 return mismatch(
                     "embedding",
@@ -175,14 +164,14 @@ impl LmDecoderStructureConfig {
                     width,
                 );
             }
-            if self.head.d_model != width.1 {
-                return mismatch("head", ("head.d_model", self.head.d_model), width);
+            if self.decoder.head.d_model != width.1 {
+                return mismatch("head", ("head.d_model", self.decoder.head.d_model), width);
             }
         }
-        if self.head.tied && self.head.n_rows != self.embedding.n_vocab {
+        if self.decoder.head.tied && self.decoder.head.n_rows != self.embedding.n_vocab {
             return mismatch(
                 "head",
-                ("head.n_rows", self.head.n_rows),
+                ("head.n_rows", self.decoder.head.n_rows),
                 ("embedding.n_vocab", self.embedding.n_vocab),
             );
         }

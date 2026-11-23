@@ -330,14 +330,20 @@ fn test_parts_agree() {
         ),
         (
             LmDecoderStructureConfig {
-                head: LmHeadConfig::new(10, 40).with_tied(false),
+                decoder: LmStackDecoderConfig {
+                    head: LmHeadConfig::new(10, 40).with_tied(false),
+                    ..structure.decoder.clone()
+                },
                 ..structure.clone()
             },
             "head.d_model",
         ),
         (
             LmDecoderStructureConfig {
-                head: LmHeadConfig::new(12, 48),
+                decoder: LmStackDecoderConfig {
+                    head: LmHeadConfig::new(12, 48),
+                    ..structure.decoder.clone()
+                },
                 ..structure.clone()
             },
             "head.n_rows",
@@ -349,7 +355,10 @@ fn test_parts_agree() {
             .assert_err(&ModuleInit::<LmDecoderModel>::try_init(&config, &device));
     }
     let untied = LmDecoderStructureConfig {
-        head: LmHeadConfig::new(12, 48).with_tied(false),
+        decoder: LmStackDecoderConfig {
+            head: LmHeadConfig::new(12, 48).with_tied(false),
+            ..structure.decoder.clone()
+        },
         ..structure
     };
     let _: LmDecoderModel = untied.init(&device);
@@ -364,7 +373,7 @@ fn test_stack_decoder() {
     let device = cpu_device();
     let structure = uniform(2).to_structure();
     let model: LmDecoderModel = structure.init(&device);
-    let decoder: LmStackDecoder = structure.decoder().init(&device);
+    let decoder: LmStackDecoder = structure.decoder.clone().init(&device);
     assert_eq!(
         decoder.num_params() + model.embedding.num_params(),
         model.num_params()
@@ -379,7 +388,7 @@ fn test_stack_decoder() {
         )
     };
     assert_eq!(meta(&decoder), (40, 12, 2, 1, 6));
-    assert_eq!(meta(&structure.decoder()), meta(&decoder));
+    assert_eq!(meta(&structure.decoder.clone()), meta(&decoder));
     assert_eq!(meta(&model.decoder), meta(&decoder));
 
     let tokens = Tensor::<2, Int>::from_data([[1, 2, 3, 4]], &device);
@@ -401,7 +410,7 @@ fn test_stack_decoder() {
 
     let own = LmStackDecoderConfig::new(
         LmHeadConfig::new(12, 40).with_tied(false),
-        structure.stack.clone(),
+        structure.decoder.stack.clone(),
     );
     let own: LmStackDecoder = own.init(&device);
     assert_eq!(own.logits(hidden, None).dims(), [1, 4, 40]);
@@ -413,8 +422,9 @@ fn test_stack_decoder() {
 fn test_stack_decoder_refusals() {
     let device = cpu_device();
     let structure = uniform(1).to_structure();
-    let wide = LmStackDecoderConfig::new(LmHeadConfig::new(16, 40), structure.stack.clone());
+    let wide =
+        LmStackDecoderConfig::new(LmHeadConfig::new(16, 40), structure.decoder.stack.clone());
     assert!(ModuleInit::<LmStackDecoder>::try_init(&wide, &device).is_err());
     let hybrid = hybrid().to_structure();
-    assert!(ModuleInit::<LmStackDecoder>::try_init(&hybrid.decoder(), &device).is_ok());
+    assert!(ModuleInit::<LmStackDecoder>::try_init(&hybrid.decoder.clone(), &device).is_ok());
 }

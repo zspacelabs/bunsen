@@ -61,6 +61,7 @@ use crate::{
             models::language_decoder::{
                 LmDecoderModel,
                 LmDecoderStructureConfig,
+                LmStackDecoderConfig,
             },
         },
     },
@@ -425,20 +426,22 @@ impl ToStructureConfig for NanoChatGptContractConfig {
         Ok(NanoChatGptStructureConfig {
             lm: LmDecoderStructureConfig::new(
                 TokenEmbeddingConfig::new(vocab, self.n_embed).with_norm_eps(Some(self.norm_eps)),
-                LmHeadConfig::new(self.n_embed, vocab)
-                    .with_tied(false)
-                    .with_bias(self.head_bias)
-                    .with_softcap(Some(self.softcap))
-                    .with_vocab(Some(self.vocab_size)),
-                DecoderStackStructureConfig::new(
-                    h,
-                    self.norm.clone(),
-                    RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
-                        .with_base(self.rope_base)
-                        .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
-                ),
-            )
-            .with_kv_cache_pre_size(self.init_seq_len),
+                LmStackDecoderConfig::new(
+                    LmHeadConfig::new(self.n_embed, vocab)
+                        .with_tied(false)
+                        .with_bias(self.head_bias)
+                        .with_softcap(Some(self.softcap))
+                        .with_vocab(Some(self.vocab_size)),
+                    DecoderStackStructureConfig::new(
+                        h,
+                        self.norm.clone(),
+                        RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
+                            .with_base(self.rope_base)
+                            .with_table_dtype(self.rope_bf16_tables.then_some(FloatDType::BF16)),
+                    ),
+                )
+                .with_kv_cache_pre_size(self.init_seq_len),
+            ),
             residual_lambdas: self.residual_lambdas,
             value_embeds: (0..self.n_layer)
                 .map(|i| {
@@ -495,31 +498,31 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 
     fn n_head(&self) -> usize {
-        self.lm.stack.layers[0].attn.attention().n_head()
+        self.lm.decoder.stack.layers[0].attn.attention().n_head()
     }
 
     fn n_kv_head(&self) -> usize {
-        self.lm.stack.n_kv_heads()
+        self.lm.decoder.stack.n_kv_heads()
     }
 
     fn head_dim(&self) -> usize {
-        self.lm.stack.head_dim()
+        self.lm.decoder.stack.head_dim()
     }
 
     fn init_seq_len(&self) -> usize {
-        self.lm.kv_cache_pre_size
+        self.lm.decoder.kv_cache_pre_size
     }
 
     fn max_seq_len(&self) -> usize {
-        self.lm.stack.rotary.seq_len()
+        self.lm.decoder.stack.rotary.seq_len()
     }
 
     fn n_layer(&self) -> usize {
-        self.lm.stack.n_layers()
+        self.lm.decoder.stack.n_layers()
     }
 
     fn vocab_size(&self) -> usize {
-        self.lm.head.n_vocab()
+        self.lm.decoder.head.n_vocab()
     }
 }
 
@@ -528,7 +531,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<NanoChatGpt> {
-        let n_layer = self.lm.stack.layers.len();
+        let n_layer = self.lm.decoder.stack.layers.len();
         if !self.value_embeds.is_empty() && self.value_embeds.len() != n_layer {
             return Err(BunsenError::illegal(format!(
                 "value_embeds has {} entries for {n_layer} layers",
@@ -546,7 +549,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
         let scalar = |v: f32| Param::from_tensor(Tensor::<1>::from_floats([v], device));
         Ok(NanoChatGpt {
             lm: self.lm.try_init(device)?,
-            r_emb: self.lm.stack.rotary.try_init(device)?,
+            r_emb: self.lm.decoder.stack.rotary.try_init(device)?,
             resid_lambdas: self.residual_lambdas.then(|| ramp(1.15, 0.10)),
             x0_lambdas: self.residual_lambdas.then(|| ramp(0.20, 0.15)),
             value_embeds: self
@@ -1032,9 +1035,9 @@ mod tests {
         }));
 
         let structure = NanoChatGptContractConfig::new().to_structure();
-        assert_eq!(structure.lm.stack.rotary.base, 10000.0);
+        assert_eq!(structure.lm.decoder.stack.rotary.base, 10000.0);
         assert_eq!(
-            structure.lm.stack.rotary.table_dtype,
+            structure.lm.decoder.stack.rotary.table_dtype,
             Some(FloatDType::BF16)
         );
         assert_eq!(structure.vocab_size(), 50304);
@@ -1082,13 +1085,14 @@ mod tests {
             .with_upstream_2026("SL");
         assert_eq!(policy.padded_vocab_size(), 64);
         let structure = policy.to_structure();
-        assert_eq!(structure.lm.stack.rotary.base, 100000.0);
-        assert_eq!(structure.lm.stack.rotary.table_dtype, None);
+        assert_eq!(structure.lm.decoder.stack.rotary.base, 100000.0);
+        assert_eq!(structure.lm.decoder.stack.rotary.table_dtype, None);
         assert_eq!(structure.lm.embedding.n_vocab, 64);
         assert_eq!(structure.vocab_size(), 60);
         assert_eq!(
             structure
                 .lm
+                .decoder
                 .stack
                 .layers
                 .iter()
@@ -1107,6 +1111,7 @@ mod tests {
         assert!(
             structure
                 .lm
+                .decoder
                 .stack
                 .layers
                 .iter()
