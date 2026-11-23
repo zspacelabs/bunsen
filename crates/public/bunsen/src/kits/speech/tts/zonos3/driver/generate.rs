@@ -64,6 +64,7 @@ use crate::{
             },
         },
         support::{
+            decoding::PoolRelease,
             text::{
                 BunsenLanguageTag,
                 TextNormalizationConfig,
@@ -559,6 +560,8 @@ impl<T: Tokenizer> Zonos3Engine<T> {
 
         let mut take = Zonos3TakeRows::new(n, eoa, pad, cold_start, budget);
         let mut history: Vec<Vec<i64>> = vec![Vec::new(); n];
+        let pool = PoolRelease::default();
+        let mut step = 0;
         let stop = loop {
             let mut codes: Vec<u32> = sampler
                 .sample(logits, &history)
@@ -584,6 +587,8 @@ impl<T: Tokenizer> Zonos3Engine<T> {
                 &Zonos3RowConditioning::default(),
                 Some(&mut cache),
             ));
+            pool.after_step(step, &device);
+            step += 1;
         };
 
         let silence = &prompt.rows[r - prompt.silence_rows..];

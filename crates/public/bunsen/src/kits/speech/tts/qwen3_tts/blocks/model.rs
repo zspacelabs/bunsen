@@ -26,12 +26,15 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::speech::tts::qwen3_tts::{
-        prompt::{
-            Qwen3TtsPrompt,
-            Qwen3TtsPromptConfig,
+    kits::{
+        speech::tts::qwen3_tts::{
+            prompt::{
+                Qwen3TtsPrompt,
+                Qwen3TtsPromptConfig,
+            },
+            sampler::Qwen3TtsSamplerConfig,
         },
-        sampler::Qwen3TtsSamplerConfig,
+        support::decoding::PoolRelease,
     },
     ops::transformers::attention::KVCacheModel,
 };
@@ -260,6 +263,7 @@ impl Qwen3TtsModel {
         let mut hidden =
             last(talker.forward_hidden(prompt.embeds.clone(), &r_emb, Some(&mut cache)));
         let mut frames = Vec::new();
+        let pool = PoolRelease::default();
         loop {
             let f = frames.len();
             if f == max_frames {
@@ -298,6 +302,7 @@ impl Qwen3TtsModel {
                     pad.clone()
                 };
             frames.push(frame);
+            pool.after_step(f, &device);
             hidden = talker.forward_hidden(row, &r_emb, Some(&mut cache));
         }
     }
