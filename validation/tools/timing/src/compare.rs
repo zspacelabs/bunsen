@@ -41,7 +41,11 @@ pub fn rows(
     b: &TimingRecord,
 ) -> Vec<Row> {
     let row = |phase, a_ms, b_ms| Row { phase, a_ms, b_ms };
-    vec![
+    let mut rows = vec![];
+    if let (Some(ea), Some(eb)) = (&a.encode_warm, &b.encode_warm) {
+        rows.push(row("encode warm", ea.wall.median_ms, eb.wall.median_ms));
+    }
+    rows.extend([
         row("load s", a.load_s, b.load_s),
         row(
             "prefill cold",
@@ -59,7 +63,8 @@ pub fn rows(
             a.step_warm.wall.median_ms,
             b.step_warm.wall.median_ms,
         ),
-    ]
+    ]);
+    rows
 }
 
 /// Prints `a` and `b` side by side: each model both runs timed (matched by

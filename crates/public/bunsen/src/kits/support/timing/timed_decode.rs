@@ -12,8 +12,9 @@ use burn::{
 use crate::ops::transformers::attention::KVCacheStorage;
 
 /// A decode a timing harness drives: its state made for `rows` rows of at
-/// most `positions` positions, a prompt of `len` positions prefilled, then
-/// one step at a time, each on the model's own synthetic input.
+/// most `positions` positions, its input encoded (a model with an encoder),
+/// a prompt of `len` positions prefilled, then one step at a time, each on
+/// the model's own synthetic input.
 ///
 /// Every call returns what a real decode reads back after it (the last
 /// position's logits), so a harness can close a timing window on a read of
@@ -39,6 +40,23 @@ pub trait TimedDecode {
         storage: KVCacheStorage,
         device: &Device,
     ) -> Self::State;
+
+    /// Encodes every row's synthetic input into `state`, for a model whose
+    /// decode attends to an encoder's output (Whisper's audio); `None`, and
+    /// nothing done, for a model without one (the default). A harness calls
+    /// it on every new state, before the prefill.
+    ///
+    /// # Returns
+    /// `[rows, d]`: a slice of the encoder's output (its first frame), for
+    /// the harness's read.
+    fn timed_encode(
+        &self,
+        _state: &mut Self::State,
+        _rows: usize,
+        _device: &Device,
+    ) -> Option<Tensor<2>> {
+        None
+    }
 
     /// Prefills `len` positions of every row into `state`, after whatever
     /// it holds.
