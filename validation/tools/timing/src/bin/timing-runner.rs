@@ -40,9 +40,12 @@ use bunsen::{
             qwen3::pretrained::default_qwen3_factory,
             qwen3_5::pretrained::default_qwen3_5_factory,
         },
-        speech::asr::{
-            voxtral::pretrained::default_voxtral_factory,
-            whisper::pretrained::default_whisper_factory,
+        speech::{
+            asr::{
+                voxtral::pretrained::default_voxtral_factory,
+                whisper::pretrained::default_whisper_factory,
+            },
+            tts::zonos3::pretrained::default_zonos3_factory,
         },
         support::{
             construct::LmConstruct,
@@ -248,8 +251,17 @@ fn time_row(
             cache,
             device,
         ),
+        "zonos3" => time_built(
+            krate,
+            model,
+            &default_zonos3_factory().map_err(lm)?,
+            |c| &c.lm,
+            args,
+            cache,
+            device,
+        ),
         other => Err(format!(
-            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat, whisper and voxtral do)"
+            "{other} has no timing adapter yet (qwen3, qwen3-5, gemma, nanochat, whisper, voxtral and zonos3 do)"
         )),
     }
 }

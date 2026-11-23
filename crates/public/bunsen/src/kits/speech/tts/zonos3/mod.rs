@@ -38,6 +38,10 @@
 //!   (its settings, [`Zonos3SamplerConfig`](sampler::Zonos3SamplerConfig)).
 //! - [`voices`]: the stock voices, each reference codes and a speaker
 //!   embedding.
+//! - The language model as a
+//!   [`TimedDecode`](crate::kits::support::timing::TimedDecode), for a
+//!   throughput harness: the prompt's rows prefilled, then a codec frame per
+//!   step.
 //! - [`Zonos3Construct`]: a loaded model, its language model and codec with
 //!   their configs, the prompt layout, the release's engine settings and
 //!   languages, the voices and the tokenizer's file.
@@ -64,6 +68,7 @@ pub mod voices;
 pub mod driver;
 
 mod construct;
+mod timed_decode;
 pub use construct::*;
 
 pub mod interop;
