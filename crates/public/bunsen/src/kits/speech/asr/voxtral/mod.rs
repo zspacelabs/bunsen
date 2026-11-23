@@ -21,6 +21,10 @@
 //! - [`VoxtralGreedyDecoder`]: greedy decoding through a KV cache, one id per
 //!   position, each position's audio added to its token
 //!   ([`VoxtralDecodeStep`]).
+//! - [`VoxtralTimedState`]: the model as a
+//!   [`TimedDecode`](crate::kits::support::timing::TimedDecode), for a
+//!   throughput harness: the audio tower over every position, then the greedy
+//!   decode's prefill and steps.
 //! - [`VoxtralTranscript`]: a decode's ids as timed [`VoxtralWord`]s and text.
 //! - [`VoxtralConstruct`]: a model with its front end, vocabulary
 //!   ([`TekkenVocabulary`](crate::kits::support::tokens::TekkenVocabulary)),
@@ -46,11 +50,13 @@ mod construct;
 mod decode;
 mod front_end;
 mod layout;
+mod timed_decode;
 mod transcript;
 pub use construct::*;
 pub use decode::*;
 pub use front_end::*;
 pub use layout::*;
+pub use timed_decode::*;
 pub use transcript::*;
 
 #[cfg(feature = "store")]
