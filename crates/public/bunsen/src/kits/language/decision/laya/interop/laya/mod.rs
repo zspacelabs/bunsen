@@ -108,7 +108,7 @@ pub fn laya_config(
 /// [`LayaModel`](crate::kits::language::decision::laya::LayaModel)'s module paths: the
 /// `ModernBERT` encoder under `encoder.`; the head's `PyTorch` encoder
 /// layers, `head.layers.N.` (a
-/// [`ResidualEncoderTransformer`](crate::blocks::transformers::encoders::residual::ResidualEncoderTransformer)'s)
+/// [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)'s)
 /// ([`transformer_encoder_layer_rekey`](crate::kits::support::interop::torch::transformer_encoder_layer_rekey)); the type embedding;
 /// the scorer's and the act head's `nn.Sequential` slots by name. Anything
 /// else is dropped: the `temperature` buffer, which calibration reads from
@@ -149,11 +149,11 @@ mod tests {
             ("encoder.final_norm.weight", "encoder.stack.norm.weight"),
             (
                 "head.layers.1.self_attn.q_proj.bias",
-                "head.layers.1.attn.query.bias",
+                "head.layers.1.attn.c_q.bias",
             ),
             (
                 "head.layers.0.self_attn.out_proj.weight",
-                "head.layers.0.attn.output.weight",
+                "head.layers.0.attn.c_proj.weight",
             ),
             (
                 "head.layers.0.norm1.weight",
