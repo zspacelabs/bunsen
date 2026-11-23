@@ -29,6 +29,7 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
+        mlp::BunsenMlpConfig,
         norm::BunsenNormalizationConfig,
         transformers::{
             attention::csa::{
@@ -57,7 +58,6 @@ use crate::{
                 LmHeadConfig,
                 LmHeadMeta,
             },
-            mlp::TransformerMlpConfig,
             models::language_decoder::{
                 LmDecoderModel,
                 LmDecoderStructureConfig,
@@ -390,8 +390,7 @@ impl NanoChatGptContractConfig {
                         .map(|g| g * g / (self.head_dim() as f64).sqrt()),
                 )
                 .into(),
-            TransformerMlpConfig::new(self.n_embed)
-                .with_expansion_factor(self.expansion_factor)
+            BunsenMlpConfig::expansion(self.n_embed, self.expansion_factor)
                 .with_activation(BunsenActivationConfig::Chain(vec![
                     self.activation.clone(),
                     BunsenActivationConfig::Pow(2.0),

@@ -16,22 +16,22 @@ use burn::{
 use crate::{
     blocks::{
         activation::BunsenActivationConfig,
-        mlp::BunsenMlp,
+        mlp::{
+            BunsenMlp,
+            BunsenMlpConfig,
+        },
         norm::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
         },
-        transformers::{
-            mlp::TransformerMlpConfig,
-            sublayer::{
-                CrossAttnKvSublayer,
-                CrossAttnSublayer,
-                PlainSublayer,
-                ResidualSublayer,
-                ResidualSublayerConfig,
-                SelfAttnKvSublayer,
-                SelfAttnSublayer,
-            },
+        transformers::sublayer::{
+            CrossAttnKvSublayer,
+            CrossAttnSublayer,
+            PlainSublayer,
+            ResidualSublayer,
+            ResidualSublayerConfig,
+            SelfAttnKvSublayer,
+            SelfAttnSublayer,
         },
     },
     burner::module::{
@@ -108,9 +108,8 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
         let cross_attn = mha_cfg.init(device);
 
         // Whisper's MLP projections carry a bias, and it runs
-        // `Linear -> GELU -> Linear`; the `TransformerMlpConfig` default is
-        // ReLU.
-        let mlp: BunsenMlp = TransformerMlpConfig::new(self.d_model)
+        // `Linear -> GELU -> Linear`; the default activation is ReLU.
+        let mlp: BunsenMlp = BunsenMlpConfig::expansion(self.d_model, 4)
             .with_activation(BunsenActivationConfig::Gelu)
             .with_bias(true)
             .try_init(device)?;

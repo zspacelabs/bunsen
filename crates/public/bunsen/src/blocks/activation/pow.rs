@@ -1,4 +1,4 @@
-//! [`PowOpModule`]: `x^p` as a module.
+//! [`PowActivation`]: `x^p` as a layer.
 
 use burn::{
     config::Config,
@@ -14,54 +14,54 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// Common meta for [`PowOpModule`] and [`PowOpModuleConfig`].
-pub trait PowOpModuleMeta {
+/// Common meta for [`PowActivation`] and [`PowActivationConfig`].
+pub trait PowActivationMeta {
     /// The exponent `p`.
     fn exponent(&self) -> f64;
 }
 
-/// Config for [`PowOpModule`].
+/// Config for [`PowActivation`].
 #[derive(Config, Debug)]
-pub struct PowOpModuleConfig {
+pub struct PowActivationConfig {
     /// The exponent `p`.
     pub exponent: f64,
 }
 
-impl PowOpModuleMeta for PowOpModuleConfig {
+impl PowActivationMeta for PowActivationConfig {
     fn exponent(&self) -> f64 {
         self.exponent
     }
 }
 
 /// The module; it has no parameters, so `device` is unused.
-impl ModuleInit<PowOpModule> for PowOpModuleConfig {
+impl ModuleInit<PowActivation> for PowActivationConfig {
     fn try_init(
         &self,
         _device: &Device,
-    ) -> BunsenResult<PowOpModule> {
-        Ok(PowOpModule {
+    ) -> BunsenResult<PowActivation> {
+        Ok(PowActivation {
             exponent: self.exponent,
         })
     }
 }
 
-/// `x^p`, elementwise: a module with no parameters, which a module tree holds
-/// as a part (the activation seam's `Pow` kind).
+/// `x^p`, elementwise: a layer with no parameters, the activation seam's
+/// [`Pow`](super::BunsenActivationConfig::Pow) kind.
 ///
-/// Built by [`PowOpModuleConfig`].
+/// Built by [`PowActivationConfig`].
 #[derive(Module, Debug)]
-pub struct PowOpModule {
+pub struct PowActivation {
     /// The exponent `p`.
     pub exponent: f64,
 }
 
-impl PowOpModuleMeta for PowOpModule {
+impl PowActivationMeta for PowActivation {
     fn exponent(&self) -> f64 {
         self.exponent
     }
 }
 
-impl PowOpModule {
+impl PowActivation {
     /// `input^p`, elementwise; in `input`'s dtype.
     pub fn forward<const D: usize>(
         &self,
@@ -84,7 +84,7 @@ mod tests {
     /// The config and the module built from it answer the meta alike.
     #[test]
     fn test_meta() {
-        let config = PowOpModuleConfig::new(3.0);
+        let config = PowActivationConfig::new(3.0);
         let module = config.init(&cpu_device());
         assert_eq!(config.exponent(), 3.0);
         assert_eq!(module.exponent(), config.exponent());
@@ -95,7 +95,7 @@ mod tests {
     fn test_forward() {
         let device = cpu_device();
         let x = Tensor::<1>::from_floats([-2.0, -0.5, 0.0, 1.0, 3.0], &device);
-        PowOpModuleConfig::new(2.0)
+        PowActivationConfig::new(2.0)
             .init(&device)
             .forward(x)
             .into_data()

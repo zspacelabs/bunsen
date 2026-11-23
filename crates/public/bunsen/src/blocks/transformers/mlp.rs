@@ -1,8 +1,7 @@
 //! Transformer feed-forwards: [`TransformerFeedForward`], a plain, gated or
 //! sparse feed-forward chosen by config, the sublayer a layer holds; its
-//! plain form a [`BunsenMlp`] (as [`TransformerMlpConfig`], the
-//! `expansion_factor` policy, lowers to), its gated form a
-//! [`BunsenGatedMlp`].
+//! plain form a [`BunsenMlp`] (a transformer's usual one,
+//! [`BunsenMlpConfig::expansion`]), its gated form a [`BunsenGatedMlp`].
 
 use burn::{
     config::Config,
@@ -13,7 +12,6 @@ use burn::{
 
 use crate::{
     blocks::{
-        activation::BunsenActivationConfig,
         mlp::{
             BunsenGatedMlp,
             BunsenGatedMlpConfig,
@@ -30,73 +28,9 @@ use crate::{
             sublayer::SublayerBranch,
         },
     },
-    burner::module::{
-        ModuleInit,
-        ToStructureConfig,
-    },
+    burner::module::ModuleInit,
     errors::BunsenResult,
 };
-
-/// The policy of a transformer's plain feed-forward: `n_embed` wide, its
-/// hidden width `n_embed * expansion_factor`. It lowers to a
-/// [`BunsenMlpConfig`] ([`ToStructureConfig`]) and builds a [`BunsenMlp`]; a
-/// hidden width that is not a whole multiple is a [`BunsenMlpConfig`] given
-/// outright.
-#[derive(Config, Debug)]
-pub struct TransformerMlpConfig {
-    /// The input and output width.
-    pub n_embed: usize,
-
-    /// The hidden width's multiple of `n_embed`.
-    #[config(default = "4")]
-    pub expansion_factor: usize,
-
-    /// The activation: nanochat's `relu(x)²` is
-    /// `Chain([Relu, Pow(2)])`.
-    #[config(default = "BunsenActivationConfig::Relu")]
-    pub activation: BunsenActivationConfig,
-
-    /// Whether the projections carry a bias term.
-    #[config(default = "false")]
-    pub bias: bool,
-}
-
-impl TransformerMlpConfig {
-    /// The hidden width: `n_embed * expansion_factor`.
-    pub fn hidden_size(&self) -> usize {
-        self.n_embed * self.expansion_factor
-    }
-}
-
-impl BunsenMlpMeta for TransformerMlpConfig {
-    fn d_input(&self) -> usize {
-        self.n_embed
-    }
-
-    fn d_hidden(&self) -> usize {
-        self.hidden_size()
-    }
-
-    fn d_output(&self) -> usize {
-        self.n_embed
-    }
-
-    fn dropout(&self) -> f64 {
-        0.0
-    }
-}
-
-impl ToStructureConfig for TransformerMlpConfig {
-    type Structure = BunsenMlpConfig;
-
-    fn try_to_structure(&self) -> BunsenResult<BunsenMlpConfig> {
-        Ok(
-            BunsenMlpConfig::new(self.n_embed, self.hidden_size(), self.n_embed)
-                .with_activation(self.activation.clone())
-                .with_bias(self.bias),
-        )
-    }
-}
 
 /// Common meta for [`TransformerFeedForward`] and
 /// [`TransformerFeedForwardConfig`].
@@ -111,8 +45,8 @@ pub trait TransformerFeedForwardMeta {
 /// Implements [`TransformerFeedForwardMeta`].
 #[derive(Config, Debug)]
 pub enum TransformerFeedForwardConfig {
-    /// [`BunsenMlp`]: expand, activate, project back, as wide out as in (a
-    /// [`TransformerMlpConfig`] lowers to one).
+    /// [`BunsenMlp`]: expand, activate, project back, as wide out as in
+    /// ([`BunsenMlpConfig::expansion`]).
     Mlp(BunsenMlpConfig),
 
     /// [`BunsenGatedMlp`]: the gated feed-forward (`SwiGLU`, `GeGLU`).
@@ -120,13 +54,6 @@ pub enum TransformerFeedForwardConfig {
 
     /// [`SparseMoe`]: a sparse mixture of experts.
     Moe(SparseMoeConfig),
-}
-
-impl From<TransformerMlpConfig> for TransformerFeedForwardConfig {
-    /// Its structure, the [`BunsenMlpConfig`] it lowers to.
-    fn from(config: TransformerMlpConfig) -> Self {
-        Self::Mlp(config.to_structure())
-    }
 }
 
 impl From<BunsenMlpConfig> for TransformerFeedForwardConfig {
@@ -289,6 +216,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        blocks::activation::BunsenActivationConfig,
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
@@ -329,33 +257,21 @@ mod tests {
         );
     }
 
+    /// A transformer's plain feed-forward: `n_embed * factor` hidden, as wide
+    /// out as in, no bias.
     #[test]
     fn test_mlp_config() {
-        let cfg = TransformerMlpConfig::new(3);
-
-        assert_eq!(cfg.n_embed, 3);
-        assert_eq!(cfg.expansion_factor, 4);
-
-        assert_eq!(cfg.d_input(), 3);
-        assert_eq!(cfg.hidden_size(), 3 * 4);
-        let structure = cfg.to_structure();
-        assert_eq!(
-            (
-                structure.d_input(),
-                structure.d_hidden(),
-                structure.d_output()
-            ),
-            (3, 12, 3)
-        );
-        assert!(!structure.bias);
+        let cfg = BunsenMlpConfig::expansion(3, 4);
+        assert_eq!((cfg.d_input(), cfg.d_hidden(), cfg.d_output()), (3, 12, 3));
+        assert!(!cfg.bias);
     }
 
-    /// A transformer's plain feed-forward is as wide out as in: a policy
-    /// lowers to its structure, and a structure that resizes is refused.
+    /// A transformer's plain feed-forward is as wide out as in: one that
+    /// resizes is refused.
     #[test]
     fn test_mlp_variant() {
         let device = crate::support::testing::cpu_device();
-        let config: TransformerFeedForwardConfig = TransformerMlpConfig::new(4).into();
+        let config: TransformerFeedForwardConfig = BunsenMlpConfig::expansion(4, 4).into();
         let TransformerFeedForwardConfig::Mlp(structure) = &config else {
             panic!("a plain feed-forward");
         };
@@ -382,12 +298,12 @@ mod tests {
                 let t = 3;
                 let n_embed = 10;
 
-                let cfg = TransformerMlpConfig::new(n_embed)
-                    .with_expansion_factor(ef)
-                    .with_activation(BunsenActivationConfig::Chain(vec![
+                let cfg = BunsenMlpConfig::expansion(n_embed, ef).with_activation(
+                    BunsenActivationConfig::Chain(vec![
                         activation.clone(),
                         BunsenActivationConfig::Pow(2.0),
-                    ]));
+                    ]),
+                );
 
                 let mlp: BunsenMlp = cfg.init(&device);
 

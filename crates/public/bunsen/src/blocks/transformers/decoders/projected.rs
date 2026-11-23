@@ -162,12 +162,12 @@ mod tests {
     use super::*;
     use crate::{
         blocks::{
+            mlp::BunsenMlpConfig,
             norm::BunsenNormalizationConfig,
             transformers::{
                 attention::csa::CausalSelfAttentionConfig,
                 decoders::causal::CausalDecoderBlockConfig,
                 embedding::RotaryEmbeddingConfig,
-                mlp::TransformerMlpConfig,
             },
         },
         support::testing::{
@@ -180,7 +180,7 @@ mod tests {
     fn stack(width: usize) -> DecoderStackStructureConfig {
         let layer = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(2, 2, width).into(),
-            TransformerMlpConfig::new(width).into(),
+            BunsenMlpConfig::expansion(width, 4).into(),
         );
         DecoderStackStructureConfig::new(
             vec![layer; 2],

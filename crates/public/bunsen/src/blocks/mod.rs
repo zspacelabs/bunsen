@@ -63,10 +63,8 @@
 //!   the shape language of the API docs.
 //! - **A seam is an enum config plus an enum module, and each kind is a module
 //!   type of its own**, never a bare value: weight loading walks each variant's
-//!   module. Math operations as modules live in [`math`]. A module whose name
-//!   would collide with a function or an `ops` value object spells out
-//!   `Module`: [`PowOpModule`](math::PowOpModule), with `PowOpModuleConfig` and
-//!   `PowOpModuleMeta`.
+//!   module, as [`activation`]'s `Pow` kind is a
+//!   [`PowActivation`](activation::PowActivation).
 //! - **Fold a model into a shared block when what it needs is an option**, a
 //!   field or a branch. A forward path, a state or an invariant that only one
 //!   model takes is a new block family instead. Unification stops before
@@ -129,8 +127,6 @@
 //!   of burn's `PositionWiseFeedForward`.
 //! - [`layout`]: `BoundaryPermutes`, the axis permutes a block applies at its
 //!   boundary, so a caller's activation layout and the block's need not agree.
-//! - [`math`]: math operations as modules: `PowOpModule`, `x^p`, the activation
-//!   seam's `Pow` kind.
 //! - [`pooling`]: a sequence pooled over time: `AttentiveStatsPooling`, each
 //!   channel's attention-weighted mean and deviation (speaker encoders').
 //! - [`quantization`]: a residual vector quantizer's decode, codes to their
@@ -147,7 +143,7 @@
 //!     for tests.
 //!   - [`transformers::mlp`]: `TransformerFeedForward`, a transformer layer's
 //!     feed-forward (a `BunsenMlp`, a `BunsenGatedMlp` or a mixture of
-//!     experts), and `TransformerMlpConfig`, the plain one's policy.
+//!     experts).
 //!   - [`transformers::encoders`]: bidirectional encoder layers and stacks: the
 //!     residual layer, the rotary encoder, and the `FastConformer` encoder with
 //!     its relative-position attention, convolution and feed-forward modules
@@ -164,7 +160,6 @@ pub mod activation;
 pub mod conv;
 pub mod images;
 pub mod layout;
-pub mod math;
 pub mod mlp;
 pub mod norm;
 pub mod pooling;

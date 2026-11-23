@@ -240,7 +240,6 @@ pub(crate) fn test_rope_stack(
                 RotaryDirection,
                 RotaryEmbeddingConfig,
             },
-            mlp::TransformerMlpConfig,
         },
     };
     let norm = BunsenNormalizationConfig::Layer(BunsenLayerNormConfig::new(0));
@@ -253,7 +252,7 @@ pub(crate) fn test_rope_stack(
                     .with_output_bias(true)
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
-                TransformerMlpConfig::new(d_model)
+                crate::blocks::mlp::BunsenMlpConfig::expansion(d_model, 4)
                     .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),

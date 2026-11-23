@@ -130,7 +130,6 @@
 //!   default float stays f32, and nothing sets it to a half dtype: a half
 //!   default hides loaders that skip the policy, and silently narrows tables.
 //!
-//! [`TransformerMlpConfig`]: crate::blocks::transformers::mlp::TransformerMlpConfig
 //! [`BunsenMlp`]: crate::blocks::mlp::BunsenMlp
 //! [`BunsenMlpConfig`]: crate::blocks::mlp::BunsenMlpConfig
 //! [`LmDecoderStructureConfig`]: crate::blocks::transformers::models::language_decoder::LmDecoderStructureConfig
