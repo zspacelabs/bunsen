@@ -67,6 +67,7 @@ use crate::{
                 TokenMixer,
                 TokenMixerConfig,
             },
+            sublayer::NormPlacement,
         },
     },
     burner::module::{
@@ -293,6 +294,21 @@ impl ModuleInit<DecoderStack> for DecoderStackStructureConfig {
                     op: "==",
                     rhs: ("layers[0].n_embed".into(), width.to_string()),
                 },
+            )
+            .into());
+        }
+        if self.routes.is_some()
+            && let Some(i) = self
+                .layers
+                .iter()
+                .position(|l| l.norm_placement == NormPlacement::Post)
+        {
+            return Err(ConstraintError::new(
+                "DecoderStackStructureConfig",
+                "routes",
+                Rule::Custom(format!(
+                    "routes take pre-norm layers; layers[{i}] normalizes after its sums"
+                )),
             )
             .into());
         }
@@ -1132,7 +1148,10 @@ mod tests {
     use crate::{
         blocks::{
             mlp::BunsenGatedMlpConfig,
-            transformers::attention::csa::CausalSelfAttentionConfig,
+            transformers::attention::csa::{
+                AttentionMask,
+                CausalSelfAttentionConfig,
+            },
         },
         errors::{
             BunsenErrorKind,
@@ -1163,6 +1182,63 @@ mod tests {
             BunsenNormalizationConfig::Rms(RmsNormConfig::new(0)),
             RotaryEmbeddingConfig::new(0, 8),
         )
+    }
+
+    /// A windowed post-norm encoder without rotary positions (Qwen3-ASR's
+    /// audio encoder's shape, Sortformer v2's norms): each block of the input
+    /// encodes alone, as the stack would encode that block by itself.
+    #[test]
+    #[serial]
+    fn test_windowed_post_norm_encoder() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let (seq_len, window) = (7, 3);
+        let stack: DecoderStack = UniformStackConfig::new(
+            2,
+            CausalDecoderBlockConfig::new(
+                CausalSelfAttentionConfig::new(4, 4, 16)
+                    .with_norm(None)
+                    .with_mask(AttentionMask::Blocks { window })
+                    .into(),
+                BunsenGatedMlpConfig::new(16, 32).into(),
+            )
+            .with_norm_placement(NormPlacement::Post),
+            BunsenNormalizationConfig::Identity,
+            RotaryEmbeddingConfig::unrotated(4),
+        )
+        .init(&device);
+        let x: Tensor<3> = seeded_tensor(2, [2, seq_len, 16], Distribution::Default, &device);
+        let whole = stack.forward_hidden(x.clone(), &stack.rotary(seq_len, &device), None);
+        for start in (0..seq_len).step_by(window) {
+            let end = (start + window).min(seq_len);
+            let alone = stack.forward_hidden(
+                x.clone().slice(s![.., start..end]),
+                &stack.rotary(end - start, &device),
+                None,
+            );
+            assert_tensors_close(
+                &whole.clone().slice(s![.., start..end]),
+                &alone,
+                Tolerance::rel_abs(1e-4, 1e-4),
+            );
+        }
+    }
+
+    /// Routes read each sublayer's update alone, which a post-norm layer
+    /// does not have (its norm is on the sum): the stack refuses them.
+    #[test]
+    fn test_routes_refuse_post_norm_layers() {
+        let config = uniform(2).to_structure().with_routes(Some(
+            crate::blocks::transformers::decoders::attn_res::AttnResRoutesConfig::new(),
+        ));
+        let mut config = config;
+        config.layers[1].norm_placement = NormPlacement::Post;
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("routes take pre-norm layers")
+            .assert_err(&ModuleInit::<DecoderStack>::try_init(
+                &config,
+                &crate::support::testing::cpu_device(),
+            ));
     }
 
     /// The policy and its structure build the same stack, and the meta

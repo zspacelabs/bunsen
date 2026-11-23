@@ -6,9 +6,9 @@
 //! - [`residual`]: self-attention and an MLP, normalized before or after each
 //!   residual, as
 //!   [`ResidualEncoderAttentionBlock`](residual::ResidualEncoderAttentionBlock)
-//!   ([`NormPlacement`](residual::NormPlacement)): pre-norm, the encoder layer
-//!   of Whisper's and Qwen3-ASR's audio encoders; post-norm, of Sortformer v2's
-//!   transformer. And the stack of them,
+//!   ([`NormPlacement`](super::sublayer::NormPlacement)): pre-norm, the encoder
+//!   layer of Whisper's and Qwen3-ASR's audio encoders; post-norm, of
+//!   Sortformer v2's transformer. And the stack of them,
 //!   [`ResidualEncoderTransformer`](residual::ResidualEncoderTransformer),
 //!   which masks padding as keys: Sortformer v2's transformer.
 //! - a [`DecoderStack`](crate::blocks::transformers::decoders::stack::DecoderStack)

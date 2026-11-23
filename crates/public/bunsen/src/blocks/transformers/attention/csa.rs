@@ -51,6 +51,7 @@ use crate::{
         scaled_dot_product_attention,
         sdpa_attn_weight,
         two_sided_window_visible,
+        window_block_mask,
     },
 };
 
@@ -77,6 +78,11 @@ pub trait CausalSelfAttentionMeta {
 }
 
 /// Which keys a [`CausalSelfAttention`]'s query sees.
+///
+/// Each mode is the attention's own: the config names it, and the attention
+/// builds its mask. A mask no mode describes would be a caller's
+/// `[T_q, T_kv]` mask handed in beside the input ([`AttentionSides`],
+/// intersected with the mode's); no model needs one yet, so there is none.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum AttentionMask {
     /// The keys at and before its own position: a decoder's attention.
@@ -86,6 +92,17 @@ pub enum AttentionMask {
     /// over a whole input at once (it takes no KV cache). Under a sliding
     /// window, the window is two-sided.
     Bidirectional,
+
+    /// The keys of its own block, the input cut into blocks of `window`
+    /// positions (the last one short when `window` does not divide the
+    /// length): an encoder's windowed attention, Qwen3-ASR's audio
+    /// encoder's ([`window_block_mask`]). Like
+    /// [`Bidirectional`](Self::Bidirectional), it takes no KV cache; it
+    /// takes no sliding window.
+    Blocks {
+        /// The positions of one block.
+        window: usize,
+    },
 }
 
 /// What a [`CausalSelfAttention`]'s
@@ -335,6 +352,14 @@ impl CausalSelfAttentionConfig {
             self.sliding_window != Some(0),
             "sliding_window must be > 0 when set"
         );
+        if let AttentionMask::Blocks { window } = self.mask {
+            assert!(window > 0, "a block mask's window must be > 0");
+            assert!(
+                self.sliding_window.is_none(),
+                "a block mask takes no sliding_window; got {:?}",
+                self.sliding_window
+            );
+        }
         if let Some(vr) = &self.value_residual {
             assert!(
                 vr.gate_channels > 0 && vr.gate_channels <= self.n_embed,
@@ -649,6 +674,25 @@ impl CausalSelfAttention {
         v.swap_dims(1, 2)
     }
 
+    /// The keys each query of an uncached `t`-position input sees, `[t, t]`
+    /// (true attends), as the mask and the sliding window give them; `None`
+    /// when that is every key, or every key up to the query's own position
+    /// under a [`Causal`](AttentionMask::Causal) mask (the fast causal path).
+    fn uncached_visible(
+        &self,
+        t: usize,
+        device: &Device,
+    ) -> Option<Tensor<2, Bool>> {
+        let window = self.sliding_window.filter(|&w| w < t);
+        match self.mask {
+            AttentionMask::Causal => window.map(|w| causal_window_visible(t, t, Some(w), device)),
+            AttentionMask::Bidirectional => window.map(|w| two_sided_window_visible(t, w, device)),
+            AttentionMask::Blocks { window } => {
+                (window < t).then(|| window_block_mask(t, window, device).bool_not())
+            }
+        }
+    }
+
     /// The attention weights an uncached [`forward`](Self::forward) of
     /// `input` applies: per query head, `softmax(q k^T / sqrt(head_dim))`
     /// over the keys at and before each query, within the sliding window when
@@ -674,20 +718,15 @@ impl CausalSelfAttention {
             &[("D", self.n_embed())]
         );
         let (q, k, _) = self.queries_keys(input, r_emb);
-        let device = q.device();
-        let window = self.sliding_window.filter(|&w| w < t);
-        let visible = window.map(|w| match self.mask {
-            AttentionMask::Causal => causal_window_visible(t, t, Some(w), &device),
-            AttentionMask::Bidirectional => two_sided_window_visible(t, w, &device),
-        });
+        let visible = self.uncached_visible(t, &q.device());
         let weights = sdpa_attn_weight(
             q,
             k,
             None,
-            visible,
+            visible.clone(),
             None,
             self.sdpa_config()
-                .with_is_causal(window.is_none() && self.mask == AttentionMask::Causal),
+                .with_is_causal(visible.is_none() && self.mask == AttentionMask::Causal),
         );
         assert_shape_contract_periodically!(
             ["B", "H", "T", "T"],
@@ -782,12 +821,12 @@ impl CausalSelfAttention {
 
         let attn_mask: Option<Tensor<2, Bool>>;
         let is_causal: bool;
-        if self.mask == AttentionMask::Bidirectional {
+        if self.mask != AttentionMask::Causal {
             assert!(
                 kv_cache.is_none(),
-                "a bidirectional attention takes no KV cache"
+                "an encoder's attention (a bidirectional or block mask) takes no KV cache"
             );
-            attn_mask = window.map(|w| two_sided_window_visible(t_q, w, &q.device()));
+            attn_mask = self.uncached_visible(t_q, &q.device());
             is_causal = false;
         } else if let (Some(w), true) = (window, t_q > 1) {
             attn_mask = Some(causal_window_visible(t_q, t_kv, Some(w), &q.device()));
@@ -1062,6 +1101,72 @@ mod tests {
         assert_eq!(outside, 0.0);
         let after = weights.triu(1).abs().max().into_scalar::<f32>();
         assert!(after > 0.0, "a query sees the keys after it");
+    }
+
+    /// A block mask is attention within each block alone: each block's
+    /// output is the unmasked pass over that block (the last one short), and
+    /// the weights are zero across blocks.
+    #[test]
+    fn test_block_mask_is_each_block_alone() {
+        let device = cpu_device();
+        let (seq_len, window) = (7, 3);
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(4, 2, 16)
+            .with_norm(None)
+            .with_mask(AttentionMask::Blocks { window })
+            .init(0, &device);
+        let r_emb = RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
+        let input = seeded_tensor::<3>(5, [2, seq_len, 16], Distribution::Default, &device);
+        let full = csa.forward(input.clone(), &r_emb, &mut None);
+
+        let mut unmasked = csa.clone();
+        unmasked.mask = AttentionMask::Bidirectional;
+        for start in (0..seq_len).step_by(window) {
+            let end = (start + window).min(seq_len);
+            let alone = unmasked.forward(
+                input.clone().slice(s![.., start..end]),
+                &r_emb.clip_range(start..end),
+                &mut None,
+            );
+            assert_tensors_close(
+                &full.clone().slice(s![.., start..end]),
+                &alone,
+                Tolerance::default(),
+            );
+        }
+
+        let weights = csa.attention_weights(input, &r_emb);
+        let across: f32 = (0..seq_len)
+            .flat_map(|i| (0..seq_len).map(move |j| (i, j)))
+            .filter(|(i, j)| i / window != j / window)
+            .map(|(i, j)| {
+                weights
+                    .clone()
+                    .slice(s![.., .., i..=i, j..=j])
+                    .abs()
+                    .max()
+                    .into_scalar::<f32>()
+            })
+            .sum();
+        assert_eq!(across, 0.0);
+    }
+
+    /// A block mask takes no sliding window.
+    #[test]
+    #[should_panic(expected = "a block mask takes no sliding_window")]
+    fn test_block_mask_takes_no_sliding_window() {
+        CausalSelfAttentionConfig::new(4, 2, 16)
+            .with_mask(AttentionMask::Blocks { window: 3 })
+            .with_sliding_window(Some(2))
+            .validate();
+    }
+
+    /// A block mask's blocks are not empty.
+    #[test]
+    #[should_panic(expected = "a block mask's window must be > 0")]
+    fn test_block_mask_window_is_positive() {
+        CausalSelfAttentionConfig::new(4, 2, 16)
+            .with_mask(AttentionMask::Blocks { window: 0 })
+            .validate();
     }
 
     /// The two-sided window and an item's padding mask together: a valid

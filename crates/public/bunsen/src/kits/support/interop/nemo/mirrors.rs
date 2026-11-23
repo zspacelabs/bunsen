@@ -8,15 +8,15 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         signals::DwStridingSubsamplingConfig,
-        transformers::encoders::{
-            conformer::{
-                ConformerBlockConfig,
-                ConformerEncoderConfig,
+        transformers::{
+            encoders::{
+                conformer::{
+                    ConformerBlockConfig,
+                    ConformerEncoderConfig,
+                },
+                residual::ResidualEncoderAttentionBlockConfig,
             },
-            residual::{
-                NormPlacement,
-                ResidualEncoderAttentionBlockConfig,
-            },
+            sublayer::NormPlacement,
         },
     },
     errors::{

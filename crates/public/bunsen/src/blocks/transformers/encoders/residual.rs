@@ -25,6 +25,7 @@ use crate::{
             BunsenNormalizationConfig,
         },
         transformers::sublayer::{
+            NormPlacement,
             PlainSublayer,
             ResidualSublayer,
             ResidualSublayerConfig,
@@ -40,19 +41,6 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::length_mask,
 };
-
-/// Where a [`ResidualEncoderAttentionBlock`] normalizes, around each of its
-/// two sublayers (self-attention, then the MLP).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum NormPlacement {
-    /// Before the sublayer, inside its residual: `x + f(norm(x))`. Whisper's
-    /// and Qwen3-ASR's.
-    Pre,
-
-    /// After the residual sum: `norm(x + f(x))`. The original Transformer's,
-    /// and `NeMo`'s `TransformerEncoder` without `pre_ln`: Sortformer v2's.
-    Post,
-}
 
 /// Common meta for [`ResidualEncoderAttentionBlock`] and
 /// [`ResidualEncoderAttentionBlockConfig`].
@@ -151,10 +139,7 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             .try_init(device)?;
 
         let attn = mha_cfg.init(device);
-        let sublayer = match self.norm_placement {
-            NormPlacement::Pre => ResidualSublayerConfig::pre_norm(self.norm.clone()),
-            NormPlacement::Post => ResidualSublayerConfig::post_norm(self.norm.clone()),
-        };
+        let sublayer = ResidualSublayerConfig::placed(self.norm_placement, self.norm.clone());
         Ok(ResidualEncoderAttentionBlock {
             attn: sublayer.init(attn, self.d_model, device),
             mlp: sublayer.init(mlp, self.d_model, device),

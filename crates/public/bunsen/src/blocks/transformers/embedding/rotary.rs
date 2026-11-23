@@ -65,7 +65,9 @@ pub struct RotaryEmbeddingConfig {
     /// `partial_rotary_factor` of 0.25 rotates 64 of 256). The frequencies
     /// are spread over `rotary_dim`, as `transformers`' are over
     /// `head_dim * partial_rotary_factor`. `None` rotates all of
-    /// `head_dim`. It must be even and at most `head_dim`.
+    /// `head_dim`; `Some(0)` rotates none, an attention without rotary
+    /// positions ([`unrotated`](Self::unrotated)). It must be even and at
+    /// most `head_dim`.
     #[config(default = "None")]
     pub rotary_dim: Option<usize>,
 
@@ -248,6 +250,15 @@ impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
     }
 }
 
+impl RotaryEmbeddingConfig {
+    /// The rotary of an attention without rotary positions (an encoder whose
+    /// input carries absolute positions, Whisper's): it rotates no head
+    /// dimension, and [`apply`](RotaryEmbedding::apply) is the identity.
+    pub fn unrotated(head_dim: usize) -> Self {
+        Self::new(0, head_dim).with_rotary_dim(Some(0))
+    }
+}
+
 impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
     fn try_init(
         &self,
@@ -287,16 +298,29 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
             )
             .into());
         }
-        if rotary_dim == 0 || rotary_dim > self.head_dim {
+        if rotary_dim > self.head_dim {
             return Err(ConstraintError::new(
                 "RotaryEmbeddingConfig",
                 "rotary_dim",
                 Rule::OutOfRange {
                     value: rotary_dim.to_string(),
-                    range: format!("1..={}", self.head_dim),
+                    range: format!("0..={}", self.head_dim),
                 },
             )
             .into());
+        }
+
+        if rotary_dim == 0 {
+            // Nothing to rotate: empty tables, which only report the length.
+            let empty = || Tensor::<4>::zeros([1, self.seq_len, 1, 0], device);
+            return Ok(RotaryEmbedding {
+                head_dim: self.head_dim,
+                direction: self.direction,
+                pair_layout: self.pair_layout,
+                widening: self.widening,
+                cos: empty(),
+                sin: empty(),
+            });
         }
 
         let freq_matrix = frequency_table(
@@ -478,6 +502,9 @@ impl RotaryEmbedding {
         );
 
         let rotary_dim = self.rotary_dim();
+        if rotary_dim == 0 {
+            return input;
+        }
         let pass =
             (rotary_dim < self.head_dim()).then(|| input.clone().slice_dim(3, s![rotary_dim..]));
         let rotated = self.widening.around(input.dtype(), |w| {
@@ -801,7 +828,7 @@ mod tests {
 
         let unset = RotaryEmbeddingConfig::new(2, 8);
         assert_eq!(unset.rotary_dim(), 8, "all of head_dim by default");
-        for bad in [3, 0, 10] {
+        for bad in [3, 10] {
             assert!(
                 RotaryEmbeddingConfig::new(2, 8)
                     .with_rotary_dim(Some(bad))
@@ -810,6 +837,26 @@ mod tests {
                 "rotary_dim {bad}"
             );
         }
+    }
+
+    /// An unrotated rotary rotates nothing: its tables are empty, sliced as
+    /// any other's, and its rotation is the identity, in any dtype.
+    #[test]
+    #[serial]
+    fn test_unrotated_is_the_identity() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let mut config = RotaryEmbeddingConfig::unrotated(8);
+        config.seq_len = 6;
+        let rope: RotaryEmbedding = config.init(&device);
+        assert_eq!(
+            (rope.seq_len(), rope.head_dim(), rope.rotary_dim()),
+            (6, 8, 0)
+        );
+        let rope = rope.clip_range(2..5);
+        assert_eq!(rope.seq_len(), 3);
+        let x: Tensor<4> = Tensor::random([2, 3, 4, 8], Distribution::Default, &device);
+        assert_eq!(rope.apply(x.clone()).into_data(), x.into_data());
     }
 
     /// At position 1 the first pair turns one radian. Under `Halves` its

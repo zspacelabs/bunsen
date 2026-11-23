@@ -96,12 +96,12 @@ fn test_config_sections() {
 #[test]
 fn test_bunsen_configs() {
     use crate::{
-        blocks::transformers::encoders::{
-            conformer::ConformerEncoderMeta,
-            residual::{
-                NormPlacement,
-                ResidualEncoderAttentionBlockMeta,
+        blocks::transformers::{
+            encoders::{
+                conformer::ConformerEncoderMeta,
+                residual::ResidualEncoderAttentionBlockMeta,
             },
+            sublayer::NormPlacement,
         },
         kits::speech::support::nemo::FeatureNormalization,
     };
