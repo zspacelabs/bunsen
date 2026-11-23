@@ -13,17 +13,10 @@ use crate::{
             DecoderStackMeta,
             DecoderStackStructureConfig,
         },
-        encoders::{
-            conformer::{
-                ConformerTransformer,
-                ConformerTransformerConfig,
-                ConformerTransformerMeta,
-            },
-            residual::{
-                ResidualEncoderTransformer,
-                ResidualEncoderTransformerConfig,
-                ResidualEncoderTransformerMeta,
-            },
+        encoders::conformer::{
+            ConformerTransformer,
+            ConformerTransformerConfig,
+            ConformerTransformerMeta,
         },
     },
     burner::module::{
@@ -48,10 +41,6 @@ pub trait EncoderTransformerMeta {
 /// Implements [`EncoderTransformerMeta`].
 #[derive(Config, Debug)]
 pub enum EncoderTransformerConfig {
-    /// [`ResidualEncoderTransformer`]: residual blocks, pre- or post-norm,
-    /// without position embeddings.
-    Residual(ResidualEncoderTransformerConfig),
-
     /// [`DecoderStack`]: its blocks' attention bidirectional, its rotary
     /// table over the whole input (`Nemotron-3-Diarization`'s pre-norm rotary
     /// encoder, an input norm before the layers).
@@ -60,12 +49,6 @@ pub enum EncoderTransformerConfig {
     /// [`ConformerTransformer`]: Conformer blocks over one relative-position
     /// table.
     Conformer(ConformerTransformerConfig),
-}
-
-impl From<ResidualEncoderTransformerConfig> for EncoderTransformerConfig {
-    fn from(config: ResidualEncoderTransformerConfig) -> Self {
-        Self::Residual(config)
-    }
 }
 
 impl From<DecoderStackStructureConfig> for EncoderTransformerConfig {
@@ -83,7 +66,6 @@ impl From<ConformerTransformerConfig> for EncoderTransformerConfig {
 impl EncoderTransformerMeta for EncoderTransformerConfig {
     fn d_model(&self) -> usize {
         match self {
-            Self::Residual(c) => c.d_model(),
             Self::Stack(c) => c.d_model(),
             Self::Conformer(c) => c.d_model(),
         }
@@ -91,7 +73,6 @@ impl EncoderTransformerMeta for EncoderTransformerConfig {
 
     fn n_layers(&self) -> usize {
         match self {
-            Self::Residual(c) => c.n_layers(),
             Self::Stack(c) => c.n_layers(),
             Self::Conformer(c) => c.n_layers(),
         }
@@ -104,7 +85,6 @@ impl ModuleInit<EncoderTransformer> for EncoderTransformerConfig {
         device: &Device,
     ) -> BunsenResult<EncoderTransformer> {
         Ok(match self {
-            Self::Residual(c) => EncoderTransformer::Residual(c.try_init(device)?),
             Self::Stack(c) => EncoderTransformer::Stack(c.try_init(device)?),
             Self::Conformer(c) => EncoderTransformer::Conformer(c.try_init(device)?),
         })
@@ -131,20 +111,11 @@ impl ModuleInit<EncoderTransformer> for EncoderTransformerConfig {
 #[derive(Module, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum EncoderTransformer {
-    /// [`ResidualEncoderTransformer`].
-    Residual(ResidualEncoderTransformer),
-
     /// [`DecoderStack`], bidirectional.
     Stack(DecoderStack),
 
     /// [`ConformerTransformer`].
     Conformer(ConformerTransformer),
-}
-
-impl From<ResidualEncoderTransformer> for EncoderTransformer {
-    fn from(module: ResidualEncoderTransformer) -> Self {
-        Self::Residual(module)
-    }
 }
 
 impl From<DecoderStack> for EncoderTransformer {
@@ -162,7 +133,6 @@ impl From<ConformerTransformer> for EncoderTransformer {
 impl EncoderTransformerMeta for EncoderTransformer {
     fn d_model(&self) -> usize {
         match self {
-            Self::Residual(m) => m.d_model(),
             Self::Stack(m) => m.d_model(),
             Self::Conformer(m) => m.d_model(),
         }
@@ -170,7 +140,6 @@ impl EncoderTransformerMeta for EncoderTransformer {
 
     fn n_layers(&self) -> usize {
         match self {
-            Self::Residual(m) => m.n_layers(),
             Self::Stack(m) => m.n_layers(),
             Self::Conformer(m) => m.n_layers(),
         }
@@ -194,7 +163,6 @@ impl EncoderTransformer {
         lengths: Option<&[usize]>,
     ) -> Tensor<3> {
         match self {
-            Self::Residual(m) => m.forward(x, lengths),
             Self::Stack(m) => m.encoder_forward(x, lengths),
             Self::Conformer(m) => m.forward(x, lengths),
         }
@@ -205,7 +173,6 @@ impl CanonicalKeys for EncoderTransformer {
     fn canonical_rekey(&self) -> Rekey {
         // The variant is not in the paths.
         match self {
-            Self::Residual(t) => t.canonical_rekey(),
             Self::Stack(t) => t.canonical_rekey(),
             Self::Conformer(t) => t.canonical_rekey(),
         }
@@ -274,20 +241,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::encoders::{
-            conformer::ConformerBlockConfig,
-            residual::ResidualEncoderAttentionBlockConfig,
-        },
+        blocks::transformers::encoders::conformer::ConformerBlockConfig,
         support::testing::cpu_device,
     };
 
     fn configs() -> Vec<EncoderTransformerConfig> {
         vec![
-            ResidualEncoderTransformerConfig::new(
-                ResidualEncoderAttentionBlockConfig::new(8).with_d_head(4),
-                2,
-            )
-            .into(),
             test_rope_stack(8, 2, 2).into(),
             ConformerTransformerConfig::new(ConformerBlockConfig::new(8, 2, 16, 3), 2).into(),
         ]
@@ -307,7 +266,6 @@ mod tests {
 
             let x = Tensor::<3>::random([2, 6, 8], Distribution::Default, &device);
             let direct = match &encoder {
-                EncoderTransformer::Residual(m) => m.forward(x.clone(), Some(&[6, 4])),
                 EncoderTransformer::Stack(m) => m.encoder_forward(x.clone(), Some(&[6, 4])),
                 EncoderTransformer::Conformer(m) => m.forward(x.clone(), Some(&[6, 4])),
             };
@@ -330,7 +288,6 @@ mod tests {
         for config in configs() {
             let encoder: EncoderTransformer = config.init(&device);
             let inner: Vec<String> = match &encoder {
-                EncoderTransformer::Residual(m) => m.collect(None, None, true),
                 EncoderTransformer::Stack(m) => m.collect(None, None, true),
                 EncoderTransformer::Conformer(m) => m.collect(None, None, true),
             }
