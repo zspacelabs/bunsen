@@ -3,8 +3,6 @@ use alloc::collections::BTreeSet;
 
 use burn::{
     store::{
-        FloatCastAdapter,
-        ModuleAdapter,
         ModuleSnapshot,
         PathFilter,
         burn_pack::Tensor as PackTensor,
@@ -16,7 +14,6 @@ use burn::{
     },
 };
 
-use super::BunsenPyTorchToBurnAdapter;
 use crate::{
     burner::module::{
         Rekey,
@@ -44,7 +41,8 @@ pub struct NamedTensorsApplied {
 ///
 /// Each name is rewritten by `rename` to the module path it loads into, or
 /// dropped when `rename` returns `None` (a buffer the module has no
-/// parameter for). The tensors are adapted by [`BunsenPyTorchToBurnAdapter`]
+/// parameter for). The tensors are adapted by
+/// [`BunsenPyTorchToBurnAdapter`](super::BunsenPyTorchToBurnAdapter)
 /// (burn's `PyTorchToBurnAdapter`'s rules): linear weights transposed,
 /// normalization `weight` / `bias` read as
 /// `gamma` / `beta`. Enum variants are skipped in paths.
@@ -62,15 +60,17 @@ pub fn apply_named_tensors<M: ModuleSnapshot>(
 }
 
 /// [`apply_named_tensors`], every floating tensor cast to `float_dtype` on
-/// the host as it is applied (burn's [`FloatCastAdapter`]); `None` keeps each
-/// tensor's own dtype.
+/// the host as it is applied (as burn's `FloatCastAdapter` casts); `None`
+/// keeps each tensor's own dtype.
 ///
 /// burn's store loads a floating parameter in the dtype its source
 /// declares, so a `bf16` checkpoint applied as it is builds a `bf16` model.
 /// A backend without `bf16` (`wgpu`'s WGSL) can neither run that model nor
 /// cast it afterwards; casting here never puts a `bf16` tensor on the device.
 ///
-/// The tensors are applied in batches of at most [`UPLOAD_BATCH_BYTES`],
+/// Each tensor is read, adapted and cast on the host on
+/// [`load_threads`](super::load_threads) threads, then burn's apply uploads
+/// it. The tensors are applied in batches of at most [`UPLOAD_BATCH_BYTES`],
 /// and after each the module's devices are synchronized and their pools
 /// release the pages the batch's uploads left free
 /// (`Device::memory_cleanup`). A pooled allocator otherwise keeps every
@@ -118,36 +118,6 @@ fn keep_no_width(_path: &str) -> bool {
     false
 }
 
-/// [`FloatCastAdapter`] to `target`, but a tensor at a path `keep_width`
-/// selects, stored wider than `target`, keeps its stored dtype.
-#[derive(Debug, Clone)]
-struct FloatCastKeepingWidth {
-    cast: FloatCastAdapter,
-    target: DType,
-    keep_width: fn(&str) -> bool,
-}
-
-impl ModuleAdapter for FloatCastKeepingWidth {
-    fn adapt(
-        &self,
-        tensor: PackTensor,
-        ctx: burn::store::ModuleContext<'_>,
-    ) -> PackTensor {
-        let wider = tensor.dtype.is_float()
-            && self.target.is_float()
-            && crate::burner::tensor::float_width(tensor.dtype.into())
-                > crate::burner::tensor::float_width(self.target.into());
-        if wider && (self.keep_width)(&tensor.name) {
-            return tensor;
-        }
-        self.cast.adapt(tensor, ctx)
-    }
-
-    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
-        Box::new(self.clone())
-    }
-}
-
 /// [`apply_named_tensors_keeping`], in batches of at most `batch_bytes`.
 fn apply_in_batches<M: ModuleSnapshot>(
     module: &mut M,
@@ -169,28 +139,23 @@ fn apply_in_batches<M: ModuleSnapshot>(
         }
     }
 
-    let adapter = || -> Box<dyn ModuleAdapter> {
-        match float_dtype {
-            Some(dtype) => Box::new(BunsenPyTorchToBurnAdapter.chain(FloatCastKeepingWidth {
-                cast: FloatCastAdapter::to(dtype),
-                target: dtype,
-                keep_width,
-            })),
-            None => Box::new(BunsenPyTorchToBurnAdapter),
-        }
-    };
     let paths: Vec<String> = module
         .collect(None, None, true)
         .into_iter()
         .map(|t| t.name)
         .collect();
     let devices = module.devices();
+    let types = super::load_prepare::module_types(module);
+    let cast = float_dtype.map(|target| super::load_prepare::FloatCast { target, keep_width });
+    let threads = super::load_prepare::load_threads();
 
     let mut applied = Vec::new();
     let mut unmatched: Option<BTreeSet<String>> = None;
     let mut errors = Vec::new();
     for batch in upload_batches(renamed, batch_bytes) {
-        let result = module.apply(batch, None, Some(adapter()), true);
+        // Read and adapted on threads; burn's apply then only uploads.
+        let batch = super::load_prepare::prepare(batch, &types, cast, threads)?;
+        let result = module.apply(batch, None, None, true);
         errors.extend(result.errors.iter().map(|e| format!("{e:?}")));
         applied.extend(result.applied);
         // Each tensor is in one batch, which reports it unused if no
@@ -242,7 +207,12 @@ fn apply_in_batches<M: ModuleSnapshot>(
 
 /// The most bytes of source tensors one batch of a load uploads before the
 /// device's pool is handed back its free pages.
-pub const UPLOAD_BATCH_BYTES: usize = 512 << 20;
+///
+/// Each batch ends in a device sync and a cleanup, ~0.25 s on CUDA whatever
+/// the batch's size: Qwen3-4B's 8 GB in 512 MB batches spent 4 s there, in
+/// 2 GB batches 0.8 s. A batch's bytes are held twice at its peak, read on
+/// the host and uploaded.
+pub const UPLOAD_BATCH_BYTES: usize = 2 << 30;
 
 /// `tensors` in order, cut into batches of at most `cap` bytes (a tensor
 /// larger than that is a batch of its own).
