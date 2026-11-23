@@ -22,6 +22,7 @@ use crate::{
     blocks::{
         activation::BunsenActivationConfig,
         layout::BoundaryPermutes,
+        mlp::BunsenMlpConfig,
         norm::{
             BunsenLayerNormConfig,
             BunsenNormalizationConfig,
@@ -63,7 +64,6 @@ use crate::{
                     ResidualEncoderTransformerMeta,
                 },
             },
-            mlp::TransformerMlpConfig,
         },
     },
     burner::module::{
@@ -285,8 +285,7 @@ impl NemotronDiarizationConfig {
                     .with_output_bias(true)
                     .with_mask(AttentionMask::Bidirectional)
                     .into(),
-                TransformerMlpConfig::new(self.d_model)
-                    .with_expansion_factor(self.ff_expansion)
+                BunsenMlpConfig::expansion(self.d_model, self.ff_expansion)
                     .with_activation(BunsenActivationConfig::Gelu)
                     .with_bias(true)
                     .into(),

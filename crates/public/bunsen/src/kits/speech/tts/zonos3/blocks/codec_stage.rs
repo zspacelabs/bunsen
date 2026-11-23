@@ -4,6 +4,7 @@ use burn::config::Config;
 
 use crate::blocks::{
     activation::BunsenActivationConfig,
+    mlp::BunsenMlpConfig,
     norm::{
         BunsenLayerNormConfig,
         BunsenNormalizationConfig,
@@ -23,7 +24,6 @@ use crate::blocks::{
             RotaryEmbeddingConfig,
             RotaryPairLayout,
         },
-        mlp::TransformerMlpConfig,
     },
 };
 
@@ -66,8 +66,7 @@ impl Zonos3CodecStageConfig {
                 .with_norm(None)
                 .with_sliding_window(Some(self.window))
                 .into(),
-            TransformerMlpConfig::new(self.width)
-                .with_expansion_factor(self.expansion)
+            BunsenMlpConfig::expansion(self.width, self.expansion)
                 .with_activation(BunsenActivationConfig::Gelu)
                 .into(),
         )

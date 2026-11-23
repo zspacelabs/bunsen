@@ -100,6 +100,18 @@ impl BunsenMlpMeta for BunsenMlpConfig {
     }
 }
 
+impl BunsenMlpConfig {
+    /// A transformer's plain feed-forward: `n_embed` wide in and out, its
+    /// hidden width `n_embed * factor`, and no bias (`with_bias(true)` for a
+    /// feed-forward with one).
+    pub fn expansion(
+        n_embed: usize,
+        factor: usize,
+    ) -> Self {
+        Self::new(n_embed, n_embed * factor, n_embed).with_bias(false)
+    }
+}
+
 impl ModuleInit<BunsenMlp> for BunsenMlpConfig {
     fn try_init(
         &self,

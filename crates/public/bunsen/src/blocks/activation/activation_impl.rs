@@ -40,14 +40,12 @@ use burn::{
 };
 
 use super::{
+    PowActivation,
+    PowActivationConfig,
     SnakeActivation,
     SnakeActivationConfig,
 };
 use crate::{
-    blocks::math::{
-        PowOpModule,
-        PowOpModuleConfig,
-    },
     burner::module::ModuleInit,
     errors::BunsenResult,
 };
@@ -158,7 +156,7 @@ impl ModuleInit<BunsenActivation> for BunsenActivationConfig {
             Self::Shrink(config) => BunsenActivation::Shrink(config.init()),
             Self::Silu => BunsenActivation::Silu(SiLU::new()),
             Self::Pow(exponent) => {
-                BunsenActivation::Pow(PowOpModuleConfig::new(*exponent).try_init(device)?)
+                BunsenActivation::Pow(PowActivationConfig::new(*exponent).try_init(device)?)
             }
             Self::Snake(config) => BunsenActivation::Snake(config.try_init(device)?),
             Self::Chain(kinds) => BunsenActivation::Chain(
@@ -232,8 +230,8 @@ pub enum BunsenActivation {
     /// burn's [`SiLU`].
     Silu(SiLU),
 
-    /// `x^p`: [`PowOpModule`].
-    Pow(PowOpModule),
+    /// `x^p`: [`PowActivation`].
+    Pow(PowActivation),
 
     /// Snake or `SnakeBeta`: [`SnakeActivation`].
     Snake(SnakeActivation),

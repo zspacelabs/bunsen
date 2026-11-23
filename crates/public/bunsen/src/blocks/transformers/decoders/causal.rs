@@ -535,6 +535,7 @@ mod tests {
     use super::*;
     use crate::{
         blocks::{
+            mlp::BunsenMlpConfig,
             norm::BunsenNormalization,
             transformers::{
                 attention::csa::{
@@ -542,7 +543,6 @@ mod tests {
                     CausalSelfAttentionMeta,
                 },
                 embedding::RotaryEmbeddingConfig,
-                mlp::TransformerMlpConfig,
             },
         },
         contracts::assert_shape_contract,
@@ -566,7 +566,7 @@ mod tests {
 
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).into(),
-            TransformerMlpConfig::new(n_embed).into(),
+            BunsenMlpConfig::expansion(n_embed, 4).into(),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
@@ -597,7 +597,7 @@ mod tests {
 
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).into(),
-            TransformerMlpConfig::new(n_embed).into(),
+            BunsenMlpConfig::expansion(n_embed, 4).into(),
         );
 
         let block: CausalDecoderBlock = config.init(layer_index, &device);
@@ -625,7 +625,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 16];
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
-            TransformerMlpConfig::new(n_embed).into(),
+            BunsenMlpConfig::expansion(n_embed, 4).into(),
         );
         assert!(config.init(0, &device).attn.pre.is_some());
         let block: CausalDecoderBlock = config.with_attn_norm(false).init(0, &device);
@@ -676,7 +676,7 @@ mod tests {
         let [batch, seq_len, n_embed] = [2, 5, 32];
         let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed).into(),
-            TransformerMlpConfig::new(n_embed).into(),
+            BunsenMlpConfig::expansion(n_embed, 4).into(),
         );
         let mut block: CausalDecoderBlock = config.init(0, &device);
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.branch.attention().head_dim())

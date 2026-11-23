@@ -48,8 +48,8 @@
 //! - [`mlp`]: [`TransformerFeedForward`](mlp::TransformerFeedForward), a
 //!   layer's position-wise feed-forward sublayer: a
 //!   [`BunsenMlp`](crate::blocks::mlp::BunsenMlp) (expand, activate, project
-//!   back; [`TransformerMlpConfig`](mlp::TransformerMlpConfig) is its
-//!   `expansion_factor` policy), a
+//!   back; [`BunsenMlpConfig::expansion`](crate::blocks::mlp::BunsenMlpConfig::expansion)
+//!   is a transformer's usual one), a
 //!   [`BunsenGatedMlp`](crate::blocks::mlp::BunsenGatedMlp) (`SwiGLU`,
 //!   `GeGLU`), or a mixture of experts.
 //! - [`moe`]: the parts of a sparse mixture of experts:
